@@ -941,6 +941,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         # Configurações de GUI (independentes do CLI)
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         self._restored_page_size = gui_settings.get("page_size", 50)
+        self._persist_quick_filter_config = bool(
+            gui_settings.get("persist_quick_filter_config", False)
+        )
+        self._quick_setor_executor_saved = str(
+            gui_settings.get("quick_setor_executor", "") or ""
+        ).strip()
+        self._quick_setor_executor_syncing = False
 
         # Inicializa managers unificados (substitui codigo frankenstein)
         self.width_manager = SimpleWidthManager()
@@ -1025,6 +1032,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             logger.debug("Failed to persist preferred startup theme: %s", exc)
         # Aplica perfil inicial de filtros por setor
         self._apply_initial_filter_profile()
+        self._apply_initial_quick_setor_executor_filter()
 
         # Auto-carregar dados na abertura (assáncrono, mantêm a janela responsiva)
         QTimer.singleShot(150, self.load_data)
@@ -1210,6 +1218,32 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         )
         column_selector.columns_changed.connect(self.on_columns_changed)
         right.addWidget(cast(Any, column_selector))
+        right.addSpacing(8)
+
+        quick_setor_executor_combo = QComboBox()
+        quick_setor_executor_combo.setToolTip(
+            "Filtro rapido de Setor Executor (aplica junto com os demais filtros)."
+        )
+        try:
+            quick_setor_executor_combo.setMinimumWidth(210)
+            quick_setor_executor_combo.setSizeAdjustPolicy(
+                cast(Any, QComboBox.SizeAdjustPolicy.AdjustToContents)
+            )
+        except Exception as exc:
+            logger.debug("Falha ao configurar combo rapido de setor executor: %s", exc)
+        self._populate_quick_setor_executor_combo(
+            quick_setor_executor_combo,
+            selected_value=str(
+                OrderedDict(self._active_column_filters or {}).get(
+                    "setor_executor", ""
+                )
+                or self._quick_setor_executor_saved
+            ).strip(),
+        )
+        quick_setor_executor_combo.currentIndexChanged.connect(
+            lambda _idx, combo=quick_setor_executor_combo: self._on_quick_setor_executor_changed(combo)
+        )
+        right.addWidget(cast(Any, quick_setor_executor_combo))
 
         search_row.addLayout(cast(Any, left))
         search_row.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
@@ -1239,29 +1273,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         paginator.page_changed.connect(self.display_current_page)
         pagination_filters_layout.addWidget(paginator)
 
-        profile_layout = QHBoxLayout()
-        profile_layout.setContentsMargins(0, 0, 0, 0)
-        profile_layout.setSpacing(4)
-        profile_label = QLabel("Perfil de filtro:")
-        profile_selector = QComboBox()
-        try:
-            profile_selector.setMinimumWidth(150)
-            profile_selector.setSizeAdjustPolicy(cast(Any, QComboBox.SizeAdjustPolicy.AdjustToContents))
-        except Exception as exc:
-            logger.debug("Falha ao configurar seletor de perfil de filtro: %s", exc)
-        profile_selector.addItem("Personalizado", None)
-        for profile_name in self.filter_profiles.keys():
-            profile_selector.addItem(profile_name, profile_name)
-        profile_selector.currentIndexChanged.connect(self.on_profile_changed)
-        profile_layout.addWidget(cast(Any, profile_label))
-        profile_layout.addWidget(cast(Any, profile_selector))
-        pagination_filters_layout.addSpacing(12)
-        pagination_filters_layout.addLayout(cast(Any, profile_layout))
-
+        profile_selector = None
         pagination_filters_layout.addSpacing(12)
 
         persistent_filters_layout = QHBoxLayout()
         persistent_filters_layout.setContentsMargins(0, 0, 0, 0)
+
+        persist_filter_config_checkbox = QCheckBox("Configuracao persistente")
+        persist_filter_config_checkbox.setToolTip(
+            "Quando ativo, salva automaticamente o filtro rapido de setor e colunas visiveis."
+        )
+        try:
+            persist_filter_config_checkbox.setChecked(bool(self._persist_quick_filter_config))
+        except Exception as exc:
+            logger.debug("Falha ao restaurar estado do checkbox de persistencia: %s", exc)
+        persist_filter_config_checkbox.toggled.connect(self._on_persist_quick_filter_config_toggled)
+        persistent_filters_layout.addWidget(cast(Any, persist_filter_config_checkbox))
+        persistent_filters_layout.addSpacing(8)
 
         save_filter_button = QPushButton("Salvar Filtro")
         save_filter_button.setMaximumWidth(100)
@@ -1505,10 +1533,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "search_button": search_button,
                 "clear_filter_button": clear_filter_button,
                 "column_selector": column_selector,
+                "quick_setor_executor_combo": quick_setor_executor_combo,
                 "search_help": search_help,
                 "paginator": paginator,
                 "profile_selector": profile_selector,
                 "persistent_filters_layout": persistent_filters_layout,
+                "persist_filter_config_checkbox": persist_filter_config_checkbox,
                 "filter_tags_widget": filter_tags_widget,
                 "filter_tags_layout": filter_tags_layout,
                 "exclude_ste_checkbox": exclude_ste_checkbox,
@@ -1687,6 +1717,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return
         ctx = self._tab_contexts[index]
         self._bind_tab_context(ctx)
+        try:
+            self._refresh_quick_setor_executor_options()
+            self._sync_quick_setor_executor_combo_from_filters()
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar combo rapido de setor executor na troca de aba: %s", exc)
         if ctx.get("tab_kind") == "filters":
             try:
                 ssa_gui_theme.reapply_current_theme_widget_styles(
@@ -2051,6 +2086,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def on_data_loaded(self, df: pd.DataFrame, request_id: int | None = None):
         ssa_gui_workers.on_data_loaded(self, df, request_id=request_id)
+        try:
+            self._refresh_quick_setor_executor_options()
+            self._sync_quick_setor_executor_combo_from_filters()
+        except Exception as exc:
+            logger.debug("Falha ao atualizar combo rapido de setor executor apos carga: %s", exc)
 
     def on_load_error(self, error_msg: str, request_id: int | None = None):
         ssa_gui_workers.on_load_error(
@@ -2347,10 +2387,185 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 self.column_selector.set_selected_columns(new_columns)
             except Exception as exc:
                 logger.debug("Falha ao sincronizar colunas selecionadas no selector: %s", exc)
+        if bool(getattr(self, "_persist_quick_filter_config", False)):
+            try:
+                GUI_MAIN_PREFERENCES["display_columns"] = list(new_columns)
+                self._persist_quick_filter_config_state()
+            except Exception as exc:
+                logger.warning("Falha ao persistir colunas visiveis com persistencia ativa: %s", exc)
         # Reexibe a pãgina atual com as novas colunas
         self.display_current_page(self.paginator.current_page)
         # Nota: Persistencia de preferencias removida para isolamento do CLI
         # As configurações ficam no arquivo gui_main_preferences.json
+
+    @staticmethod
+    def _order_setor_executor_values(values: list[str]) -> list[str]:
+        priority = ["IEE1", "IEE2", "IEE3", "IEE4", "MEL1", "MEL2", "MEL3", "MEL4"]
+        normalized = []
+        seen = set()
+        for raw in values or []:
+            value = str(raw or "").strip()
+            if not value:
+                continue
+            key = value.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            normalized.append(value)
+        upper_map = {item.upper(): item for item in normalized}
+        ordered = []
+        used_upper = set()
+        for item in priority:
+            if item in upper_map:
+                ordered.append(item)
+                used_upper.add(item)
+        remaining = []
+        for item in normalized:
+            upper_item = item.upper()
+            if upper_item in used_upper:
+                continue
+            remaining.append(item)
+        remaining = sorted(remaining, key=lambda x: x.casefold())
+        return ordered + remaining
+
+    def _collect_setor_executor_values_for_combo(self) -> list[str]:
+        base_df = getattr(self, "df_completo", None)
+        if not isinstance(base_df, pd.DataFrame) or base_df.empty:
+            base_df = getattr(self, "df_exibido", None)
+        if not isinstance(base_df, pd.DataFrame) or base_df.empty:
+            return []
+        if "setor_executor" not in base_df.columns:
+            return []
+        raw_values = []
+        for value in base_df["setor_executor"].dropna().astype(str):
+            cleaned = str(value or "").strip()
+            if cleaned:
+                raw_values.append(cleaned)
+        return self._order_setor_executor_values(raw_values)
+
+    def _populate_quick_setor_executor_combo(self, combo, selected_value: str = "") -> None:
+        if combo is None:
+            return
+        options = self._collect_setor_executor_values_for_combo()
+        selected = str(selected_value or "").strip()
+        self._quick_setor_executor_syncing = True
+        try:
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItem("Setor Executor: Todos", "")
+            for value in options:
+                combo.addItem(value, value)
+            idx = combo.findData(selected)
+            if idx < 0:
+                idx = 0
+            combo.setCurrentIndex(idx)
+        except Exception as exc:
+            logger.debug("Falha ao popular combo rapido de setor executor: %s", exc)
+        finally:
+            try:
+                combo.blockSignals(False)
+            except Exception:
+                pass
+            self._quick_setor_executor_syncing = False
+
+    def _sync_quick_setor_executor_combo_from_filters(self) -> None:
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        selected_value = str(active_filters.get("setor_executor", "") or "").strip()
+        if "," in selected_value:
+            selected_value = ""
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if not isinstance(tab_contexts, list):
+            return
+        for ctx in tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            combo = ctx.get("quick_setor_executor_combo")
+            if combo is None:
+                continue
+            self._populate_quick_setor_executor_combo(combo, selected_value=selected_value)
+
+    def _refresh_quick_setor_executor_options(self) -> None:
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if not isinstance(tab_contexts, list):
+            return
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        selected_value = str(active_filters.get("setor_executor", "") or "").strip()
+        for ctx in tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            combo = ctx.get("quick_setor_executor_combo")
+            if combo is None:
+                continue
+            self._populate_quick_setor_executor_combo(combo, selected_value=selected_value)
+
+    def _persist_quick_filter_config_state(self) -> None:
+        try:
+            gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+            gui_settings["persist_quick_filter_config"] = bool(self._persist_quick_filter_config)
+            if self._persist_quick_filter_config and self._quick_setor_executor_saved:
+                gui_settings["quick_setor_executor"] = str(self._quick_setor_executor_saved).strip()
+            else:
+                gui_settings.pop("quick_setor_executor", None)
+            self._persist_gui_preferences()
+        except Exception as exc:
+            logger.warning("Falha ao persistir estado do filtro rapido de setor executor: %s", exc)
+
+    def _on_persist_quick_filter_config_toggled(self, checked: bool) -> None:
+        self._persist_quick_filter_config = bool(checked)
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        current_setor = str(active_filters.get("setor_executor", "") or "").strip()
+        self._quick_setor_executor_saved = current_setor if self._persist_quick_filter_config else ""
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if isinstance(tab_contexts, list):
+            for ctx in tab_contexts:
+                if not isinstance(ctx, dict):
+                    continue
+                checkbox = ctx.get("persist_filter_config_checkbox")
+                if checkbox is None:
+                    continue
+                try:
+                    checkbox.blockSignals(True)
+                    checkbox.setChecked(self._persist_quick_filter_config)
+                except Exception as exc:
+                    logger.debug("Falha ao sincronizar checkbox de persistencia entre abas: %s", exc)
+                finally:
+                    try:
+                        checkbox.blockSignals(False)
+                    except Exception:
+                        pass
+        self._persist_quick_filter_config_state()
+
+    def _on_quick_setor_executor_changed(self, combo) -> None:
+        if bool(getattr(self, "_quick_setor_executor_syncing", False)):
+            return
+        selected = ""
+        try:
+            selected = str(combo.currentData() or "").strip()
+        except Exception as exc:
+            logger.debug("Falha ao ler valor do combo rapido de setor executor: %s", exc)
+        self._safe_store_last_filter_state("quick_setor_executor_changed")
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        if selected:
+            active_filters["setor_executor"] = selected
+        else:
+            active_filters.pop("setor_executor", None)
+        self._active_column_filters = active_filters
+        self._mark_profile_as_custom()
+        self._refresh_after_filter_change()
+        self._quick_setor_executor_saved = selected if self._persist_quick_filter_config else ""
+        if self._persist_quick_filter_config:
+            self._persist_quick_filter_config_state()
+
+    def _apply_initial_quick_setor_executor_filter(self) -> None:
+        if not bool(getattr(self, "_persist_quick_filter_config", False)):
+            return
+        selected = str(getattr(self, "_quick_setor_executor_saved", "") or "").strip()
+        if not selected:
+            return
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        active_filters["setor_executor"] = selected
+        self._active_column_filters = active_filters
+        self._refresh_after_filter_change()
 
     def _get_select_all_columns_from_selector(self) -> list[str]:
         selector = getattr(self, "column_selector", None)

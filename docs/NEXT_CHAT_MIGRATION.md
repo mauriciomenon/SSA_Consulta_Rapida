@@ -2,7 +2,36 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-09 23:24 - start from here
+## CURRENT TRUTH 2026-03-09 23:53 - start from here
+
+- Slice aplicado:
+  1. remocao do seletor `Perfil de filtro` da UI (mantido apenas `Salvar Filtro`).
+  2. adicao de combo rapido `Setor Executor` ao lado de `Colunas Visiveis`.
+  3. ordem do combo: `IEE1..IEE4`, depois `MEL1..MEL4`, depois ordem alfabetica.
+  4. adicao do checkbox `Configuracao persistente` (default desmarcado) como primeira opcao da faixa de opcoes.
+  5. quando persistencia ativa, salvar automaticamente:
+     - `gui_settings.persist_quick_filter_config`
+     - `gui_settings.quick_setor_executor`
+     - `display_columns` (ao alterar colunas visiveis).
+  6. `Colunas Visiveis` agora exibe contagem no proprio botao (`Colunas Visiveis: N`) e removeu o box lateral de resumo.
+- Arquivos tocados:
+  1. `gui/widgets/column_selector.py`
+  2. `gui/gui_ssa.py`
+  3. `gui/mixins/tab_context_gui_ssa_mixin.py`
+  4. `gui/mixins/filter_gui_ssa_mixin.py`
+  5. `tests/test_gui_filter_logic.py`
+  6. `docs/RECOVERY_BACKLOG.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado novo comportamento -> `3 passed`.
+  3. reteste `tests/test_gui_menu_import_external.py` -> `13 passed`.
+- Deferido:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` e mixins (fora do escopo deste patch minimo).
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 23:24
 
 - Micro-slice aplicado:
   1. correcao pontual na chamada fallback de `_build_unique_destination_path` em `gui/gui_ssa.py`.

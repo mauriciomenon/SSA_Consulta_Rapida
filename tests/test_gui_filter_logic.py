@@ -139,6 +139,46 @@ class TestGUIFilterLogic:
             controls[label_widget.text()] = (edit_widget, apply_widget, clear_widget, hide_widget)
         return controls
 
+    def test_column_selector_button_shows_visible_count_in_text(self):
+        selector = getattr(self.window, "column_selector", None)
+        assert selector is not None
+        text = str(selector.manage_button.text() or "")
+        assert text.startswith("Colunas Visiveis:")
+        assert not hasattr(selector, "summary_label")
+
+    def test_setor_executor_order_prioritizes_smin_then_mel_then_alpha(self):
+        ordered = SSAMainWindow._order_setor_executor_values(
+            ["ZZZ", "MEL3", "IEE4", "ABC", "IEE1", "MEL1"]
+        )
+        assert ordered == ["IEE1", "IEE4", "MEL1", "MEL3", "ABC", "ZZZ"]
+
+    def test_quick_setor_executor_combo_applies_filter_and_persistence(self, monkeypatch):
+        calls = {"persist": 0}
+
+        def _fake_persist():
+            calls["persist"] += 1
+
+        monkeypatch.setattr(self.window, "_persist_gui_preferences", _fake_persist)
+
+        self.window._refresh_quick_setor_executor_options()
+        combo = getattr(self.window, "quick_setor_executor_combo", None)
+        checkbox = getattr(self.window, "persist_filter_config_checkbox", None)
+        assert combo is not None
+        assert checkbox is not None
+        assert checkbox.isChecked() is False
+
+        idx = combo.findData("MEL4")
+        assert idx >= 0
+        combo.setCurrentIndex(idx)
+
+        assert self.window._active_column_filters.get("setor_executor") == "MEL4"
+        checkbox.setChecked(True)
+
+        gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+        assert bool(gui_settings.get("persist_quick_filter_config")) is True
+        assert str(gui_settings.get("quick_setor_executor") or "") == "MEL4"
+        assert calls["persist"] >= 1
+
     def test_profile_or_filters_executor_or_emissor(self):
         """Perfil OR deve considerar executor ou emissor e refletir na UI."""
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)

@@ -99,19 +99,22 @@ class TabContextGUISSAMixin:
             logger.debug("Falha ao normalizar estado exclude_ste no bind de aba: %s", exc)
 
     def _sync_bind_profile_selector(self: _TabContextHostProtocol) -> None:
+        selector = getattr(self, "profile_selector", None)
+        if selector is None:
+            return
         try:
             if self.current_filter_profile:
-                idx = self.profile_selector.findData(self.current_filter_profile)
+                idx = selector.findData(self.current_filter_profile)
             else:
                 idx = 0
             if idx >= 0:
-                self.profile_selector.blockSignals(True)
-                self.profile_selector.setCurrentIndex(idx)
+                selector.blockSignals(True)
+                selector.setCurrentIndex(idx)
         except Exception as exc:
             logger.debug("Falha ao sincronizar seletor de perfil no bind de aba: %s", exc)
         finally:
             try:
-                self.profile_selector.blockSignals(False)
+                selector.blockSignals(False)
             except Exception as exc:
                 logger.debug("Falha ao reativar sinais do seletor de perfil no bind de aba: %s", exc)
 
