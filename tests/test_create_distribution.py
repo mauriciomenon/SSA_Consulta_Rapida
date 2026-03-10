@@ -313,3 +313,48 @@ def test_create_inno_setup_script_uses_sourcepath_outputdir(
     assert iss_path is not None
     iss_content = iss_path.read_text(encoding="utf-8")
     assert "OutputDir={#SourcePath}" in iss_content
+    assert "Source: \"..\\launchers\\dist\\windows_amd64\\SSA_GUI.exe\"" in iss_content
+
+
+def test_create_inno_setup_script_uses_absolute_source_when_relpath_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    canonical_dir = project_root / "launchers" / "dist" / "windows_amd64"
+    dist_output = project_root / "dist_packages"
+    canonical_dir.mkdir(parents=True)
+    dist_output.mkdir(parents=True)
+    (canonical_dir / "SSA_GUI.exe").write_text("exe", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "pyinstaller": {
+                "name": "PyInstaller",
+                "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/pyinstaller",
+                "internal_dir": "_internal",
+                "canonical_dirs": ["launchers/dist/windows_amd64"],
+            }
+        },
+    )
+
+    original_relpath = create_distribution.os.path.relpath
+
+    def _raise_relpath(*_args, **_kwargs):
+        raise ValueError("cross-drive")
+
+    monkeypatch.setattr(create_distribution.os.path, "relpath", _raise_relpath)
+
+    iss_path = create_distribution.create_inno_setup_script("pyinstaller", "1.0.0")
+
+    monkeypatch.setattr(create_distribution.os.path, "relpath", original_relpath)
+
+    assert iss_path is not None
+    iss_content = iss_path.read_text(encoding="utf-8")
+    expected_abs = str(canonical_dir.resolve()).replace("/", "\\")
+    assert f"Source: \"{expected_abs}\\SSA_GUI.exe\"" in iss_content
