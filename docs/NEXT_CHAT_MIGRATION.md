@@ -2,6 +2,34 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-10 09:57 - start from here
+
+- Slice aplicado:
+  1. modo de origem do Inno ficou explicito no `.iss` via `SourcePathMode`.
+  2. `scripts/create_distribution.py`:
+     - `source_path_mode` agora e `relative` por padrao e `absolute` quando `os.path.relpath(...)` falha.
+     - template recebeu `#define SourcePathMode "{source_path_mode}"`.
+  3. testes:
+     - assert de `SourcePathMode "relative"` no cenario de relpath normal.
+     - assert de `SourcePathMode "absolute"` no cenario de fallback.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. kluster em `scripts/create_distribution.py` -> 3 issues (1 semantico intencional + 2 debts fora de escopo).
+  2. kluster em `tests/test_create_distribution.py` -> clean.
+  3. `py_compile`, `ruff`, `ty` -> pass.
+  4. `pytest -q tests/test_create_distribution.py` -> `13 passed`.
+- Deferido:
+  1. manter `OutputDir={#SourcePath}` como decisao intencional deste ciclo.
+  2. debt de qualidade em `create_zip_package` e `compile_installer` para ciclo dedicado.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 09:33 - start from here
 
 - Slice aplicado:

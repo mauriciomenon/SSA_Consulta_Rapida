@@ -2,6 +2,28 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-10 09:57 - authoritative block
+
+- Slice entregue:
+  1. `SourcePathMode` explicito no template Inno para sinalizar origem relativa vs absoluta.
+  2. `scripts/create_distribution.py`:
+     - `source_path_mode="relative"` por padrao.
+     - fallback de `relpath` muda para `source_path_mode="absolute"`.
+     - novo define no `.iss`: `#define SourcePathMode "..."`
+  3. `tests/test_create_distribution.py`:
+     - cobertura dos dois modos (`relative` e `absolute`) validada em asserts.
+- Gates desta rodada:
+  1. kluster em `scripts/create_distribution.py` -> 3 apontamentos (1 semantico intencional + 2 debts de qualidade fora do escopo).
+  2. kluster em `tests/test_create_distribution.py` -> clean.
+  3. `py_compile`, `ruff`, `ty` -> pass.
+  4. `pytest -q tests/test_create_distribution.py` -> `13 passed`.
+- Pendencia deferida:
+  1. manter `OutputDir={#SourcePath}` como decisao intencional deste ciclo.
+  2. `create_zip_package` e `compile_installer` continuam como debts de funcao longa para ciclo dedicado.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 09:33 - authoritative block
 
 - Slice entregue:
