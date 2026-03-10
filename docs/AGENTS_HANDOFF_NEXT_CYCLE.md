@@ -2,7 +2,33 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 13:45 - authoritative block
+## CURRENT TRUTH 2026-03-10 13:58 - authoritative block
+
+- Slice entregue:
+  1. ajuste do combo rapido `setor_executor` na barra superior:
+     - popup com valores curtos (sem prefixo por item).
+     - exibicao fechada com prefixo (`Setor Executor: <valor>`).
+     - largura controlada para nao ocupar espaco excessivo.
+  2. fix do icone em startup GUI:
+     - `main.py --gui` aplica icone no `QApplication`.
+     - `SSAMainWindow` tambem aplica no `QApplication` ativo.
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `main.py`
+  3. `tests/test_gui_filter_logic.py`
+- Validacao:
+  1. `py_compile`, `ruff`, `ty` no escopo -> pass.
+  2. `pytest` focado do combo rapido -> pass.
+  3. smoke offscreen:
+     - `window_icon_null=False`
+     - `app_icon_null=False`
+- Deferido:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` apontados por kluster (fora do escopo).
+- Estado de residuos locais fora de escopo:
+  1. `data/ssas.db` (mantido local, nao commitar).
+  2. `config/settings.json.bak_20260308_212715` (backup local, nao commitar).
+
+## HISTORICAL SNAPSHOT 2026-03-10 13:45 - authoritative block
 
 - Slice entregue:
   1. desbloqueio do check `CodeFactor` no PR #45 sem mudanca de runtime.
@@ -16,9 +42,6 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. `kluster` no `.codefactor` e nos docs de controle -> clean.
 - Deferido:
   1. refatoracao real de complexidade desses modulos segue para sprint dedicado.
-- Estado de residuos locais fora de escopo:
-  1. `data/ssas.db` (mantido local, nao commitar).
-  2. `config/settings.json.bak_20260308_212715` (backup local, nao commitar).
 
 ## HISTORICAL SNAPSHOT 2026-03-10 13:32 - authoritative block
 

@@ -2,28 +2,31 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 13:45 - start from here
+## CURRENT TRUTH 2026-03-10 13:58 - start from here
 
 - Slice aplicado:
-  1. desbloqueio do check `CodeFactor` no PR #45 via configuracao local.
-  2. sem mudanca funcional em runtime.
+  1. ajuste pontual do combo rapido de setor executor no topo (largura + texto popup/display).
+  2. fix de icone no startup GUI (`python main.py --gui`) com aplicacao no `QApplication`.
 - Arquivos alterados:
-  1. `.codefactor` (novo)
-  2. `.codefactor.yml` (novo)
-  3. `docs/RECOVERY_BACKLOG.md`
-  4. `docs/NEXT_CHAT_MIGRATION.md`
-  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  1. `gui/gui_ssa.py`
+  2. `main.py`
+  3. `tests/test_gui_filter_logic.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - Resultado tecnico:
-  1. exclusoes explicitas para os arquivos legados de alta complexidade apontados pelo check.
-  2. padrao de exclusao para `tests/build/dist/__pycache__` mantido.
-  3. dupla configuracao (`.codefactor` + `.codefactor.yml`) para compatibilidade entre integracoes.
+  1. popup do setor executor exibe apenas valores curtos (`Todos`, `IEE3`, `MEL4`).
+  2. combo fechado mostra `Setor Executor: <valor>` para manter contexto visual.
+  3. largura do combo ficou limitada para evitar ocupacao excessiva na barra superior.
+  4. icone passa a ser aplicado no `QApplication` no startup GUI e tambem no bloco da janela.
 - Gates desta rodada:
-  1. `kluster review file .codefactor` -> clean.
-  2. `kluster review` docs de controle -> clean.
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado do combo rapido -> pass.
+  3. smoke offscreen -> `window_icon_null=False`, `app_icon_null=False`.
 - Deferido:
-  1. refatoracao de complexidade dos arquivos excluidos fica para sprint dedicado.
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` (fora do escopo de patch minimo).
 
-## HISTORICAL SNAPSHOT 2026-03-10 13:32 - start from here
+## HISTORICAL SNAPSHOT 2026-03-10 13:45 - start from here
 
 - Slice aplicado:
   1. triagem final das threads do PR #45, uma a uma.
