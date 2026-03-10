@@ -2,6 +2,33 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-10 12:02 - authoritative block
+
+- Slice entregue:
+  1. build macOS passou a gerar instalador `.dmg` no fluxo oficial `build_multiplatform`.
+  2. executavel direto (`.app` + onedir) mantido no mesmo run.
+- Mudancas tecnicas principais:
+  1. `launchers/build_multiplatform.py`:
+     - `post_process` com `package_mode` e branch dedicado para DMG em `macos_arm64`.
+     - helper `_find_macos_gui_app` para localizar `.app`.
+     - helper `_create_macos_dmg` usando `hdiutil`.
+     - helper `_get_macos_dmg_name` para naming canonico.
+     - `build_platform` agora retorna falha se `post_process` falhar.
+  2. `launchers/platforms/macos_arm64/build_config.json`:
+     - `post_build.package: "dmg"`.
+  3. `tests/test_build_multiplatform_manifest.py`:
+     - cobertura para geracao DMG e falha controlada sem `.app`.
+- Evidencia de validacao:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado -> `4 passed`.
+  3. build real macOS (`cli+gui`) -> pass com DMG gerado.
+- Pendencias deferidas:
+  1. trilha pyoxidizer/nuitka segue experimental.
+  2. codesign/notarizacao macOS fora do escopo deste slice.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 11:51 - authoritative block
 
 - Slice entregue:

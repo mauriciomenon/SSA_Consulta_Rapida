@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from launchers.build_multiplatform import MultiPlatformBuilder
 
@@ -93,3 +94,60 @@ def test_build_executable_uses_platform_specific_add_data_separator(tmp_path, mo
     assert "--add-data" in mac_cmd
     add_data_value = mac_cmd[mac_cmd.index("--add-data") + 1]
     assert add_data_value.endswith(":config")
+
+
+def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
+    builder = MultiPlatformBuilder()
+    builder.base_dir = tmp_path
+    builder.dist_dir = tmp_path / "dist"
+    platform_dir = builder.dist_dir / "macos_arm64"
+    platform_dir.mkdir(parents=True)
+
+    app_name = f"SSA_GUI_v{builder.version}_macos_arm64.app"
+    app_bundle = platform_dir / app_name
+    app_bin = app_bundle / "Contents" / "MacOS" / app_name.replace(".app", "")
+    app_bin.parent.mkdir(parents=True)
+    app_bin.write_bytes(b"gui-bin")
+
+    captured_cmds = []
+
+    class _Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def _fake_run(cmd, **_kwargs):
+        captured_cmds.append(cmd)
+        Path(cmd[-1]).write_bytes(b"dmg-content")
+        return _Result()
+
+    monkeypatch.setattr("launchers.build_multiplatform.shutil.which", lambda name: "/usr/bin/hdiutil" if name == "hdiutil" else None)
+    monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
+
+    ok = builder.post_process("macos_arm64", {"post_build": {"compress": False, "package": "dmg"}})
+    assert ok is True
+    assert captured_cmds, "hdiutil nao foi chamado"
+
+    cmd = captured_cmds[-1]
+    assert cmd[0] == "/usr/bin/hdiutil"
+    assert "create" in cmd
+    assert "-srcfolder" in cmd
+    assert cmd[cmd.index("-srcfolder") + 1] == str(app_bundle)
+
+    dmg_path = platform_dir / builder._get_macos_dmg_name()
+    assert dmg_path.exists()
+
+    manifest = json.loads((platform_dir / "build_manifest.json").read_text(encoding="utf-8"))
+    names = {entry["name"] for entry in manifest["executables"]}
+    assert dmg_path.name in names
+
+
+def test_post_process_macos_dmg_fails_when_gui_app_missing(tmp_path, monkeypatch):
+    builder = MultiPlatformBuilder()
+    builder.dist_dir = tmp_path / "dist"
+    platform_dir = builder.dist_dir / "macos_arm64"
+    platform_dir.mkdir(parents=True)
+
+    monkeypatch.setattr("launchers.build_multiplatform.shutil.which", lambda name: "/usr/bin/hdiutil" if name == "hdiutil" else None)
+    ok = builder.post_process("macos_arm64", {"post_build": {"compress": False, "package": "dmg"}})
+    assert ok is False

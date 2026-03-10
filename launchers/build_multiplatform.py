@@ -329,6 +329,7 @@ class MultiPlatformBuilder:
         logger.info(f"Pos-processando executaveis para {platform_name}")
 
         post_config = config.get('post_build', {})
+        package_mode = str(post_config.get('package', '')).strip().lower()
         platform_dist = self.dist_dir / platform_name
 
         if not platform_dist.exists():
@@ -342,7 +343,81 @@ class MultiPlatformBuilder:
         # Criar manifesto
         self._create_manifest(platform_name, platform_dist)
 
+        if platform_name == 'macos_arm64' and package_mode == 'dmg':
+            if not self._create_macos_dmg(platform_dist):
+                return False
+            # Regerar manifesto para incluir o arquivo DMG no inventario final.
+            self._create_manifest(platform_name, platform_dist)
+
         return True
+
+    def _find_macos_gui_app(self, dist_dir):
+        """Localiza o bundle .app principal da GUI para empacotamento DMG."""
+        expected = dist_dir / f'SSA_GUI_v{self.version}_macos_arm64.app'
+        if expected.exists() and expected.is_dir():
+            return expected
+
+        candidates = sorted(
+            (path for path in dist_dir.glob('SSA_GUI_*.app') if path.is_dir()),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if candidates:
+            return candidates[0]
+        return None
+
+    def _create_macos_dmg(self, dist_dir):
+        """Gera instalador DMG a partir do bundle .app da GUI."""
+        hdiutil_cmd = shutil.which('hdiutil')
+        if not hdiutil_cmd:
+            logger.error("hdiutil nao encontrado; nao foi possivel gerar DMG")
+            return False
+
+        app_bundle = self._find_macos_gui_app(dist_dir)
+        if app_bundle is None:
+            logger.error("Bundle .app da GUI nao encontrado em %s", dist_dir)
+            return False
+
+        dmg_name = self._get_macos_dmg_name()
+        dmg_path = dist_dir / dmg_name
+        if dmg_path.exists():
+            try:
+                dmg_path.unlink()
+            except OSError as exc:
+                logger.error("Falha ao remover DMG anterior '%s': %s", dmg_path, exc)
+                return False
+
+        cmd = [
+            hdiutil_cmd,
+            'create',
+            '-volname',
+            f'SSA Consulta Rapida v{self.version}',
+            '-srcfolder',
+            str(app_bundle),
+            '-ov',
+            '-format',
+            'UDZO',
+            str(dmg_path),
+        ]
+        logger.info("Gerando DMG macOS: %s", dmg_path)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=str(self.base_dir),
+        )
+        if result.returncode != 0:
+            logger.error("Falha ao gerar DMG: %s", result.stderr.strip())
+            return False
+        if not dmg_path.exists():
+            logger.error("hdiutil finalizou sem gerar DMG esperado: %s", dmg_path)
+            return False
+
+        logger.info("DMG gerado com sucesso: %s", dmg_path)
+        return True
+
+    def _get_macos_dmg_name(self):
+        return f'SSA_Consulta_Rapida_v{self.version}_macos_arm64.dmg'
 
     def _compress_executables(self, dist_dir):
         """Comprime executaveis com UPX"""
@@ -446,7 +521,7 @@ class MultiPlatformBuilder:
 
         # Pos-processamento
         if success:
-            self.post_process(platform_name, config)
+            success = self.post_process(platform_name, config)
 
         return success
 

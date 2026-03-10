@@ -2,6 +2,32 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-10 12:02 - start from here
+
+- Slice aplicado:
+  1. pipeline macOS agora gera `.dmg` no `build_multiplatform.py`, alem de `.app`/onedir.
+  2. sem mudanca de GUI/runtime de negocio; foco exclusivo em build/distribuicao macOS.
+- Arquivos alterados:
+  1. `launchers/build_multiplatform.py`
+  2. `launchers/platforms/macos_arm64/build_config.json`
+  3. `tests/test_build_multiplatform_manifest.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado operacional real:
+  1. comando executado:
+     - `uv run --python 3.13 python launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui --skip-venv`
+  2. saida validada:
+     - `.dmg`: `launchers/dist/macos_arm64/SSA_Consulta_Rapida_v4.32_macos_arm64.dmg`
+     - `.app`: `launchers/dist/macos_arm64/SSA_GUI_v4.32_macos_arm64.app`
+     - onedir CLI/GUI preservados.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_build_multiplatform_manifest.py` -> `4 passed`.
+- Deferido:
+  1. pyoxidizer/nuitka continuam fora do pipeline operacional de release neste ciclo.
+  2. assinatura/notarizacao macOS permanece pendente para ciclo dedicado de release.
+
 ## CURRENT TRUTH 2026-03-10 11:51 - start from here
 
 - Slice aplicado:
