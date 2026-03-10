@@ -3,6 +3,43 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 12:02 - pipeline macOS com .dmg nativo no build_multiplatform
+
+Session timestamp:
+1. start: `2026-03-10 11:55:14 -0300`
+2. end: `2026-03-10 12:02:40 -0300`
+
+Objetivo do slice:
+1. remover limitacao do pipeline macOS para gerar tambem instalador `.dmg` no mesmo fluxo de build.
+2. manter executavel direto (`.app`/onedir) e evitar refatoracao ampla.
+
+Mudancas aplicadas:
+1. `launchers/build_multiplatform.py`:
+   - `post_process(...)` agora aciona empacotamento DMG quando `post_build.package == "dmg"` em `macos_arm64`.
+   - novo `_find_macos_gui_app(...)` para localizar bundle `.app` alvo.
+   - novo `_create_macos_dmg(...)` com `hdiutil create ...` (sem shell).
+   - novo `_get_macos_dmg_name(...)` para naming canonico unico.
+   - `build_platform(...)` agora propaga falha de `post_process` (nao mascara erro de pacote).
+2. `launchers/platforms/macos_arm64/build_config.json`:
+   - `post_build.package` alterado de `"zip"` para `"dmg"`.
+3. `tests/test_build_multiplatform_manifest.py`:
+   - novo teste de geracao DMG no `post_process`.
+   - novo teste de falha controlada quando `.app` nao existe.
+
+Validacao tecnica desta rodada:
+1. `uv run --python 3.13 python -m py_compile launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass
+2. `uv run --python 3.13 ruff check launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass
+3. `uv run --python 3.13 ty check launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_build_multiplatform_manifest.py` -> `4 passed`
+5. build real:
+   - `timeout 1800s uv run --python 3.13 python launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui --skip-venv` -> pass
+   - artefato validado: `launchers/dist/macos_arm64/SSA_Consulta_Rapida_v4.32_macos_arm64.dmg` (gerado)
+   - `.app` e onedir continuam sendo gerados no mesmo run.
+
+Deferido (nao bloqueante neste slice):
+1. pyoxidizer/nuitka continuam trilha experimental; pipeline operacional de release segue PyInstaller.
+2. codesign/notarizacao macOS segue fora deste slice (requer ambiente e credenciais de release).
+
 ## Update 2026-03-10 11:51 - remove B110/B112 remanescentes no GUI/worker
 
 Session timestamp:
