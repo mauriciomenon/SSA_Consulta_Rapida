@@ -2,7 +2,33 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 22:23 - authoritative block
+## CURRENT TRUTH 2026-03-10 22:30 - authoritative block
+
+- Objetivo desta rodada:
+  1. mitigar risco real de concorrencia no cache (lost update) com patch minimo.
+- Correcoes aplicadas:
+  1. `utils/caching.py`
+     - lock sidecar de escrita (`.lock`) com timeout e retry.
+     - `save_cache` sob lock exclusivo.
+     - merge de updates sob lock em `get_files_to_process` e `update_cache_for_files`.
+  2. `tests/test_caching_atomic_save.py`
+     - cobertura de lock file + merge concorrente.
+     - ajuste semantico no teste de overwrite concorrente do `save_cache`.
+- Validacao:
+  1. `uv run --python 3.13 python -m py_compile utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  2. `uv run --python 3.13 ruff check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  3. `uv run --python 3.13 ty check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_caching_atomic_save.py` -> `15 passed`.
+- Classificacao:
+  1. `BUG_REAL` corrigido:
+     - risco de perda de update no cache em execucoes concorrentes.
+  2. `NAO_BLOQUEANTE_DEFERIDO`:
+     - debts MEDIUM remanescentes no kluster de `utils/caching.py` (naming/decomposicao/perf).
+- Estado local fora de escopo mantido:
+  1. `data/ssas.db` modificado local.
+  2. `config/settings.json.bak_20260308_212715` arquivo local novo.
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:23 - authoritative block
 
 - Objetivo desta rodada:
   1. fechar comentarios novos de bot em hooks/cache com patch minimo e verificavel.

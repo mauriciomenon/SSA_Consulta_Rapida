@@ -2,7 +2,33 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 22:23 - start from here
+## CURRENT TRUTH 2026-03-10 22:30 - start from here
+
+- Objetivo desta rodada:
+  1. fechar novo comentario de risco de concorrencia no cache sem refatoracao ampla.
+- Correcoes aplicadas:
+  1. `utils/caching.py`
+     - introduzido lock sidecar (`<cache>.lock`) para serializar escrita entre processos.
+     - `save_cache` agora grava sob lock exclusivo.
+     - `get_files_to_process` passou a mesclar so updates diferenciais sob lock.
+     - `update_cache_for_files` passou a usar merge sob lock (sem write cego de snapshot antigo).
+  2. `tests/test_caching_atomic_save.py`
+     - teste novo para validar lock file durante write e cleanup no final.
+     - teste novo para validar merge concorrente de updates sem perda de entradas.
+     - ajuste semantico de nome/expectativa no teste de `last writer wins` do `save_cache`.
+- Resultado:
+  1. comentario do copilot em `_cache_key_for_file` segue coberto pelo commit anterior `0b8705a2`.
+  2. risco real de lost update concorrente no cache foi mitigado no fluxo de merge.
+- Evidencia de validacao:
+  1. `uv run --python 3.13 python -m py_compile utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  2. `uv run --python 3.13 ruff check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  3. `uv run --python 3.13 ty check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_caching_atomic_save.py` -> `15 passed`.
+- Kluster desta rodada:
+  1. `utils/caching.py`: 3 MEDIUM (debt de naming/decomposicao/perf), sem blocker novo.
+  2. `tests/test_caching_atomic_save.py`: clean apos ajuste semantico.
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:23 - start from here
 
 - Objetivo desta rodada:
   1. corrigir comentarios novos de bot (cubic/copilot) em hooks e cache, sem refatoracao ampla e sem mudanca de layout/GUI.
