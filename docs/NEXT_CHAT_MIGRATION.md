@@ -29,6 +29,10 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 - Decisao sobre comentario copilot em `install_hooks.sh`:
   1. comentario marcado como outdated/falso positivo para estado atual do arquivo.
   2. chamada ja esta agregada sem `exit` precoce via `install_failures`.
+- Decisao intencional (cubic em `pre-push`):
+  1. manter sem `--not --remotes`.
+  2. motivo: evitar falso-negativo no gate de blob grande para alvo remoto.
+  3. tradeoff aceito: possivel falso-positivo/perf maior em primeiro push.
 
 ## HISTORICAL SNAPSHOT 2026-03-10 22:41 - start from here
 

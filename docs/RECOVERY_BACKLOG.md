@@ -18,6 +18,21 @@ Fluxo de trabalho registrado para proximo ciclo curto:
 3. Regra operacional para esse debt:
    - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
 
+## Update 2026-03-10 22:59 - decisao intencional sobre pre-push
+
+Session timestamp:
+1. start: `2026-03-10 22:58:56 -0300`
+2. end: `2026-03-10 22:59:00 -0300`
+
+Decisao aprovada:
+1. manter `scripts/git_hooks/pre-push` sem `--not --remotes`.
+2. classificada como `DECISAO_INTENCIONAL`.
+
+Motivo tecnico:
+1. reintroduzir `--not --remotes` pode ocultar blob grande novo para o alvo de push.
+2. para este gate, priorizamos evitar falso-negativo de seguranca.
+3. tradeoff aceito: possivel falso-positivo e custo maior de scan em cenarios especificos.
+
 ## Update 2026-03-10 22:52 - stale-lock recovery no cache
 
 Session timestamp:
