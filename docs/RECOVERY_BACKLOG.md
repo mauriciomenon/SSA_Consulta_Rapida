@@ -18,6 +18,45 @@ Fluxo de trabalho registrado para proximo ciclo curto:
 3. Regra operacional para esse debt:
    - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
 
+## Update 2026-03-10 22:52 - stale-lock recovery no cache
+
+Session timestamp:
+1. start: `2026-03-10 22:45:00 -0300`
+2. end: `2026-03-10 22:52:33 -0300`
+
+Objetivo do slice:
+1. corrigir risco de lock file preso em cache apos crash/interrupcao.
+
+Escopo alterado:
+1. `utils/caching.py`
+2. `tests/test_caching_atomic_save.py`
+3. `docs/RECOVERY_BACKLOG.md`
+4. `docs/NEXT_CHAT_MIGRATION.md`
+5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
+Correcoes aplicadas:
+1. stale-lock recovery em `_acquire_cache_lock`:
+   - leitura de PID em lock sidecar.
+   - verificacao de processo vivo.
+   - remocao de lock stale quando PID esta morto e lock tem idade minima.
+   - remocao de lock sem PID so apos idade de seguranca alta.
+2. testes focados:
+   - lock stale com PID morto e recuperado com sucesso.
+   - lock ativo preservado, com timeout esperado.
+
+Evidencia tecnica:
+1. `uv run --python 3.13 python -m py_compile utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+2. `uv run --python 3.13 ruff check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+3. `uv run --python 3.13 ty check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_caching_atomic_save.py` -> `17 passed`.
+
+Classificacao:
+1. `BUG_REAL` corrigido:
+   - stale lock que podia bloquear persistencia de cache por timeout repetido.
+2. `NAO_BLOQUEANTE_DEFERIDO`:
+   - issues de performance ampla no hashing sequencial em `utils/caching.py`.
+   - debt semantico antigo em teste de atomicidade.
+
 ## Update 2026-03-10 22:41 - fixes P2 cubic em hooks
 
 Session timestamp:

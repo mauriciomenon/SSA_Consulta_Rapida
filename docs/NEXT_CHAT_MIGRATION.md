@@ -2,7 +2,35 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 22:41 - start from here
+## CURRENT TRUTH 2026-03-10 22:52 - start from here
+
+- Objetivo desta rodada:
+  1. corrigir risco de stale lock no cache (`.lock` preso apos crash), apontado por cubic/copilot.
+- Correcoes aplicadas:
+  1. `utils/caching.py`
+     - leitura de PID no lock file (`_read_lock_pid`).
+     - check de processo vivo (`_is_process_alive`).
+     - recuperacao de stale lock (`_recover_stale_cache_lock`) no ramo `FileExistsError`.
+     - criterios:
+       - remove lock com PID morto e idade minima.
+       - remove lock sem PID apenas com idade de seguranca alta.
+  2. `tests/test_caching_atomic_save.py`
+     - teste para lock stale com PID morto (recupera e segue).
+     - teste para lock ativo (nao remove e respeita timeout).
+     - import de `pytest` e ajuste semantico de testes concorrentes.
+- Evidencia de validacao:
+  1. `uv run --python 3.13 python -m py_compile utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  2. `uv run --python 3.13 ruff check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  3. `uv run --python 3.13 ty check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_caching_atomic_save.py` -> `17 passed`.
+- Kluster desta rodada:
+  1. `utils/caching.py`: 2 issues (HIGH+MEDIUM) de performance ampla, sem blocker funcional deste fix.
+  2. `tests/test_caching_atomic_save.py`: HIGH (falta import pytest) corrigido; depois 1 MEDIUM semantico antigo; estado final tratado sem blocker.
+- Decisao sobre comentario copilot em `install_hooks.sh`:
+  1. comentario marcado como outdated/falso positivo para estado atual do arquivo.
+  2. chamada ja esta agregada sem `exit` precoce via `install_failures`.
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:41 - start from here
 
 - Objetivo desta rodada:
   1. fechar 2 comentarios P2 do cubic nos hooks (`install_hooks.sh` e `pre-push`).

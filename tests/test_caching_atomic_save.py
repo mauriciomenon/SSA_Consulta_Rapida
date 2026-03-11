@@ -1,7 +1,9 @@
 import json
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
 
+import pytest
 import utils.caching as caching
 
 
@@ -110,3 +112,41 @@ def test_update_cache_for_files_concurrent_merges_keep_all_entries(tmp_path):
     loaded = json.loads(cache_file.read_text(encoding="utf-8"))
     assert "a.xlsx" in loaded
     assert "b.xlsx" in loaded
+
+
+def test_acquire_cache_lock_removes_stale_dead_pid_lock(tmp_path, monkeypatch):
+    cache_file = tmp_path / "file_cache.json"
+    lock_path = str(cache_file) + ".lock"
+    with open(lock_path, "w", encoding="ascii") as f:
+        f.write("999999\n")
+
+    stale_time = time.time() - 60.0
+    os.utime(lock_path, (stale_time, stale_time))
+
+    monkeypatch.setattr(caching, "_CACHE_STALE_MIN_AGE_SEC", 0.0)
+    monkeypatch.setattr(caching, "_is_process_alive", lambda pid: False)
+
+    lock_fd = caching._acquire_cache_lock(lock_path)
+    try:
+        assert os.path.exists(lock_path)
+    finally:
+        caching._release_cache_lock(lock_fd, lock_path)
+
+    assert not os.path.exists(lock_path)
+
+
+def test_acquire_cache_lock_preserves_active_lock_and_times_out(tmp_path, monkeypatch):
+    cache_file = tmp_path / "file_cache.json"
+    lock_path = str(cache_file) + ".lock"
+    with open(lock_path, "w", encoding="ascii") as f:
+        f.write(f"{os.getpid()}\n")
+
+    monkeypatch.setattr(caching, "_CACHE_STALE_MIN_AGE_SEC", 0.0)
+    monkeypatch.setattr(caching, "_CACHE_LOCK_TIMEOUT_SEC", 0.01)
+    monkeypatch.setattr(caching, "_CACHE_LOCK_RETRY_SEC", 0.001)
+    monkeypatch.setattr(caching, "_is_process_alive", lambda pid: True)
+
+    with pytest.raises(TimeoutError):
+        caching._acquire_cache_lock(lock_path)
+
+    assert os.path.exists(lock_path)
