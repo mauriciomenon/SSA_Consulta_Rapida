@@ -43,6 +43,41 @@ PYOXIDIZER_PLATFORM_DIRS = (
 )
 
 
+def _looks_like_runtime_dir(candidate: Path) -> bool:
+    """Retorna True quando a pasta parece ser um runtime executavel."""
+    if not candidate.is_dir():
+        return False
+
+    if candidate.name.endswith(".dist"):
+        return True
+
+    if candidate.name.startswith("SSA_"):
+        for child in candidate.iterdir():
+            if child.is_file() and child.stem == candidate.name:
+                return True
+        if (candidate / "_internal").is_dir():
+            return True
+
+    return False
+
+
+def _resolve_runtime_dirs(build_dir: Path) -> list[Path]:
+    """Resolve diretorios que devem receber config/data/docs no build."""
+    runtime_dirs: list[Path] = [build_dir]
+    try:
+        for child in build_dir.iterdir():
+            if _looks_like_runtime_dir(child):
+                runtime_dirs.append(child)
+    except OSError:
+        return runtime_dirs
+
+    dedup: list[Path] = []
+    for item in runtime_dirs:
+        if item not in dedup:
+            dedup.append(item)
+    return dedup
+
+
 def resolve_target_build_dirs(base_dir: Path, build_system: str) -> list[Path]:
     """Resolve diretorios de destino para copia de dados."""
     targets: list[Path] = []
@@ -93,6 +128,7 @@ def copy_data_to_build(
         return False
 
     success = True
+    runtime_dirs = _resolve_runtime_dirs(build_dir)
 
     # Diretorio base do projeto (independente do cwd)
     base_dir = Path(__file__).resolve().parents[1]
@@ -102,75 +138,71 @@ def copy_data_to_build(
     config_dir = base_dir / "config"
     max_excel_files = 3 if max_excel_files is None else max_excel_files
 
-    # Estrutura base obrigatoria no build final
-    target_data_dir = build_dir / "data"
-    target_docs_entrada_dir = build_dir / "docs_entrada"
-    target_docs_saida_dir = build_dir / "docs_saida"
-    target_config_dir = build_dir / "config"
-    target_data_dir.mkdir(exist_ok=True)
-    target_docs_entrada_dir.mkdir(exist_ok=True)
-    target_docs_saida_dir.mkdir(exist_ok=True)
-
-    # Copiar config para evitar erro de default_settings ausente no runtime.
-    if config_dir.exists():
-        try:
-            shutil.copytree(config_dir, target_config_dir, dirs_exist_ok=True)
-            if verbose:
-                print(f"CFG Config copiado: {config_dir} -> {target_config_dir}")
-        except Exception as e:
-            print(f"   ERR Erro ao copiar config: {e}")
-            success = False
-    else:
-        if verbose:
-            print(f"WARN  Diretorio config nao encontrado: {config_dir}")
-
-    # 1. Copiar database principal
+    # 1. Validar DB local uma vez
     source_db = db_path
-    if source_db.exists():
-        # Safety check: skip large databases to avoid distributing sensitive data
+    db_ok = source_db.exists()
+    db_size_mb = 0.0
+    if db_ok:
         db_size_mb = source_db.stat().st_size / (1024 * 1024)
         if db_size_mb > 100:
             if verbose:
                 print(f"WARN  Pulando DB grande ({db_size_mb:.1f} MB) - risco de dados sensiveis")
-            return False
-
-        target_db = target_data_dir / "ssas.db"
-
-        if verbose:
-            print(f"PKG Copiando DB: {source_db} -> {target_db}")
-        try:
-            shutil.copy2(source_db, target_db)
-            size_mb = target_db.stat().st_size / (1024 * 1024)
-            if verbose:
-                print(f"    DB copiado ({size_mb:.1f} MB)")
-        except Exception as e:
-            print(f"   ERR Erro ao copiar DB: {e}")
+            db_ok = False
             success = False
-    else:
-        if verbose:
-            print(f"WARN  DB nao encontrado: {source_db}")
 
-    # 2. Copiar Excel samples (até 3 mais recentes)
+    if not db_ok and verbose:
+        print(f"WARN  DB nao encontrado: {source_db}")
+
+    # 2. Coletar excels uma vez
     docs_entrada = docs_dir
+    excel_files: list[Path] = []
     if docs_entrada.exists():
-        target_docs = target_docs_entrada_dir
-
-        # Buscar arquivos Excel ordenados por data de modificacao (mais recentes primeiro)
         excel_files = sorted(
             docs_entrada.glob("*.xlsx"),
             key=lambda p: p.stat().st_mtime,
             reverse=True
         )
+    elif verbose:
+        print("WARN  Diretorio docs_entrada nao encontrado")
 
-        # Copiar ate N arquivos mais recentes
+    for runtime_dir in runtime_dirs:
+        target_data_dir = runtime_dir / "data"
+        target_docs_entrada_dir = runtime_dir / "docs_entrada"
+        target_docs_saida_dir = runtime_dir / "docs_saida"
+        target_config_dir = runtime_dir / "config"
+        target_data_dir.mkdir(exist_ok=True)
+        target_docs_entrada_dir.mkdir(exist_ok=True)
+        target_docs_saida_dir.mkdir(exist_ok=True)
+
+        if config_dir.exists():
+            try:
+                shutil.copytree(config_dir, target_config_dir, dirs_exist_ok=True)
+                if verbose:
+                    print(f"CFG Config copiado: {config_dir} -> {target_config_dir}")
+            except Exception as e:
+                print(f"   ERR Erro ao copiar config para {runtime_dir}: {e}")
+                success = False
+        elif verbose:
+            print(f"WARN  Diretorio config nao encontrado: {config_dir}")
+
+        if db_ok:
+            target_db = target_data_dir / "ssas.db"
+            if verbose:
+                print(f"PKG Copiando DB: {source_db} -> {target_db}")
+            try:
+                shutil.copy2(source_db, target_db)
+                if verbose:
+                    print(f"    DB copiado ({db_size_mb:.1f} MB)")
+            except Exception as e:
+                print(f"   ERR Erro ao copiar DB para {runtime_dir}: {e}")
+                success = False
+
         copied_count = 0
-        max_files = max_excel_files
-
         if verbose and excel_files:
-            print(f"INFO Copiando Excel samples (maximo {max_files}):")
+            print(f"INFO Copiando Excel samples para {runtime_dir} (maximo {max_excel_files}):")
 
-        for excel_file in excel_files[:max_files]:
-            target_excel = target_docs / excel_file.name
+        for excel_file in excel_files[:max_excel_files]:
+            target_excel = target_docs_entrada_dir / excel_file.name
             try:
                 shutil.copy2(excel_file, target_excel)
                 size_kb = target_excel.stat().st_size / 1024
@@ -178,14 +210,11 @@ def copy_data_to_build(
                     print(f"    {excel_file.name} ({size_kb:.0f} KB)")
                 copied_count += 1
             except Exception as e:
-                print(f"   ERR Erro ao copiar {excel_file.name}: {e}")
+                print(f"   ERR Erro ao copiar {excel_file.name} para {runtime_dir}: {e}")
                 success = False
 
         if verbose and copied_count > 0:
             print(f"   Total: {copied_count} arquivo(s) Excel copiado(s)")
-    else:
-        if verbose:
-            print("WARN  Diretorio docs_entrada nao encontrado")
 
     return success
 
