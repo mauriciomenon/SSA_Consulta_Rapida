@@ -40,7 +40,11 @@ except ImportError:
         return "3.11+"
 
 # --- Configuração do Path do Projeto (precisa vir antes das importações internas) ---
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+runtime_root_override = os.environ.get("SSA_RUNTIME_ROOT")
+if runtime_root_override:
+    project_root = os.path.abspath(runtime_root_override)
+else:
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -739,7 +743,7 @@ def _is_widget_valid(widget) -> bool:
         return False
 
 # --- Constantes ---
-DB_PATH = os.path.join(project_root, 'data', 'ssas.db')
+DB_PATH = os.environ.get("SSA_DB_PATH") or os.path.join(project_root, 'data', 'ssas.db')
 
 # Constantes de UI
 DETAILS_DIALOG_FONT_SIZE = 10  # pt

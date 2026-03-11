@@ -7,10 +7,10 @@ Copia automaticamente:
 - Arquivos Excel mais recentes de docs_entrada/
 
 Uso:
-    python scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
-    python scripts/copy_data_to_builds.py --build-system pyoxidizer --allow-local-data
-    python scripts/copy_data_to_builds.py --build-system nuitka --allow-local-data
-    python scripts/copy_data_to_builds.py --all --allow-local-data  # Copia para todos os builds
+    uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
+    uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyoxidizer --allow-local-data
+    uv run --python 3.13 scripts/copy_data_to_builds.py --build-system nuitka --allow-local-data
+    uv run --python 3.13 scripts/copy_data_to_builds.py --all --allow-local-data  # Copia para todos os builds
 """
 
 import argparse
@@ -24,18 +24,57 @@ PYINSTALLER_CANONICAL_DIRS = (
     "launchers/dist/debian_amd64",
 )
 
+PYINSTALLER_EQUIVALENT_DIRS = (
+    "builds/pyinstaller/windows_amd64",
+    "builds/pyinstaller/macos_arm64",
+    "builds/pyinstaller/debian_amd64",
+)
+
+NUITKA_PLATFORM_DIRS = (
+    "builds/nuitka/windows_amd64",
+    "builds/nuitka/debian_amd64",
+    "builds/nuitka/macos_arm64",
+)
+
+PYOXIDIZER_PLATFORM_DIRS = (
+    "builds/pyoxidizer/windows_amd64",
+    "builds/pyoxidizer/debian_amd64",
+    "builds/pyoxidizer/macos_arm64",
+)
+
 
 def resolve_target_build_dirs(base_dir: Path, build_system: str) -> list[Path]:
     """Resolve diretorios de destino para copia de dados."""
     targets: list[Path] = []
 
     if build_system == "pyinstaller":
-        for rel_path in PYINSTALLER_CANONICAL_DIRS:
+        for rel_path in PYINSTALLER_CANONICAL_DIRS + PYINSTALLER_EQUIVALENT_DIRS:
             candidate = base_dir / rel_path
             if candidate.exists():
                 targets.append(candidate)
         if targets:
             return targets
+        return [base_dir / rel for rel in PYINSTALLER_CANONICAL_DIRS]
+
+    if build_system == "nuitka":
+        for rel_path in NUITKA_PLATFORM_DIRS:
+            candidate = base_dir / rel_path
+            if candidate.exists():
+                targets.append(candidate)
+        if targets:
+            return targets
+        return [base_dir / rel for rel in NUITKA_PLATFORM_DIRS]
+
+    if build_system == "pyoxidizer":
+        for rel_path in PYOXIDIZER_PLATFORM_DIRS:
+            candidate = base_dir / rel_path
+            if candidate.exists():
+                targets.append(candidate)
+        if targets:
+            return targets
+        fallback_targets = [base_dir / "builds" / "pyoxidizer"]
+        fallback_targets.extend(base_dir / rel for rel in PYOXIDIZER_PLATFORM_DIRS)
+        return fallback_targets
 
     legacy_dir = base_dir / "builds" / build_system
     return [legacy_dir]
@@ -60,7 +99,30 @@ def copy_data_to_build(
     # Defaults (relativos ao base_dir)
     db_path = db_path or (base_dir / "data" / "ssas.db")
     docs_dir = docs_dir or (base_dir / "docs_entrada")
+    config_dir = base_dir / "config"
     max_excel_files = 3 if max_excel_files is None else max_excel_files
+
+    # Estrutura base obrigatoria no build final
+    target_data_dir = build_dir / "data"
+    target_docs_entrada_dir = build_dir / "docs_entrada"
+    target_docs_saida_dir = build_dir / "docs_saida"
+    target_config_dir = build_dir / "config"
+    target_data_dir.mkdir(exist_ok=True)
+    target_docs_entrada_dir.mkdir(exist_ok=True)
+    target_docs_saida_dir.mkdir(exist_ok=True)
+
+    # Copiar config para evitar erro de default_settings ausente no runtime.
+    if config_dir.exists():
+        try:
+            shutil.copytree(config_dir, target_config_dir, dirs_exist_ok=True)
+            if verbose:
+                print(f"CFG Config copiado: {config_dir} -> {target_config_dir}")
+        except Exception as e:
+            print(f"   ERR Erro ao copiar config: {e}")
+            success = False
+    else:
+        if verbose:
+            print(f"WARN  Diretorio config nao encontrado: {config_dir}")
 
     # 1. Copiar database principal
     source_db = db_path
@@ -72,8 +134,6 @@ def copy_data_to_build(
                 print(f"WARN  Pulando DB grande ({db_size_mb:.1f} MB) - risco de dados sensiveis")
             return False
 
-        target_data_dir = build_dir / "data"
-        target_data_dir.mkdir(exist_ok=True)
         target_db = target_data_dir / "ssas.db"
 
         if verbose:
@@ -93,8 +153,7 @@ def copy_data_to_build(
     # 2. Copiar Excel samples (até 3 mais recentes)
     docs_entrada = docs_dir
     if docs_entrada.exists():
-        target_docs = build_dir / "docs_entrada"
-        target_docs.mkdir(exist_ok=True)
+        target_docs = target_docs_entrada_dir
 
         # Buscar arquivos Excel ordenados por data de modificacao (mais recentes primeiro)
         excel_files = sorted(

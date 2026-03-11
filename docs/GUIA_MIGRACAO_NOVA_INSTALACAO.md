@@ -32,9 +32,9 @@
 ### **Ferramentas Necessarias**
 ```powershell
 # Verificar versoes instaladas
-python --version          # Deve ser 3.10+ (preferir 3.13+)
+uv run --python 3.13 python --version   # Deve ser 3.10+ (preferir 3.13+)
 git --version             # Qualquer versao recente
-pip --version             # Incluido com Python
+uv pip --version          # Gerenciado pelo uv
 ```
 
 ---
@@ -80,7 +80,7 @@ $PY_RUNTIME = "3.13"
 uv run --python $PY_RUNTIME python --version
 
 # Opcional: fluxo manual sem uv (apenas fallback)
-python -m venv venv
+uv venv --python 3.13 venv
 
 # Ativar ambiente (apenas para fluxo manual fallback)
 # Metodo 1 - PowerShell
@@ -99,11 +99,11 @@ python -m venv venv
 uv sync
 
 # Compatibilidade sem uv
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+uv pip install --python $PY_RUNTIME --upgrade pip
+uv pip install --python $PY_RUNTIME -r requirements.txt
 
 # Verificar instalacao
-pip list
+uv pip list --python $PY_RUNTIME
 ```
 
 ---
@@ -163,10 +163,10 @@ Get-ExecutionPolicy -List
 ### **Passo 3: Verificar Configuracao**
 ```powershell
 # Verificar se o ambiente esta ativo
-python -c "import sys; print('Ambiente ativo:' if 'venv' in sys.path[0] else 'Ambiente NAO ativo')"
+uv run --python $PY_RUNTIME python -c "import sys; print('Ambiente ativo:' if 'venv' in sys.path[0] else 'Ambiente NAO ativo')"
 
 # Listar pacotes instalados
-pip list | findstr -i "pandas pyqt6 openpyxl"
+uv pip list --python $PY_RUNTIME | findstr -i "pandas pyqt6 openpyxl"
 ```
 
 ---
@@ -176,7 +176,7 @@ pip list | findstr -i "pandas pyqt6 openpyxl"
 ### **Teste 1: Help do Sistema**
 ```powershell
 # Verificar help completo
-uv run --python $PY_RUNTIME python main.py --help
+uv run --python $PY_RUNTIME main.py --help
 
 # Deve exibir help detalhado com todas as opcoes
 ```
@@ -184,7 +184,7 @@ uv run --python $PY_RUNTIME python main.py --help
 ### **Teste 2: Verificacao da Estrutura**
 ```powershell
 # Verificar modulos principais
-python -c "
+uv run --python $PY_RUNTIME python -c "
 import sys, os
 sys.path.insert(0, '.')
 try:
@@ -200,7 +200,7 @@ except ImportError as e:
 ### **Teste 3: Criacao do Banco**
 ```powershell
 # Criar estrutura do banco (sem dados)
-uv run --python $PY_RUNTIME python main.py --reset-db
+uv run --python $PY_RUNTIME main.py --reset-db
 
 # Verificar se o banco foi criado
 ls data\ssas.db
@@ -230,13 +230,13 @@ ls docs_entrada
 ### **Passo 2: Importacao Inicial**
 ```powershell
 # Importacao padrao (primeira vez)
-uv run --python $PY_RUNTIME python main.py
+uv run --python $PY_RUNTIME main.py
 
 # Ou importacao otimizada (recomendado para arquivos grandes)
-uv run --python $PY_RUNTIME python main.py --optimized
+uv run --python $PY_RUNTIME main.py --optimized
 
 # Ou forcar reimportacao completa
-uv run --python $PY_RUNTIME python main.py --force-rescan
+uv run --python $PY_RUNTIME main.py --force-rescan
 ```
 
 ### **Passo 3: Verificar Importacao**
@@ -255,7 +255,7 @@ type data\file_cache.json
 ### **Teste 1: Interface CLI**
 ```powershell
 # Testar CLI interativo
-uv run --python $PY_RUNTIME python main.py
+uv run --python $PY_RUNTIME main.py
 
 # Comandos de teste na CLI:
 # - Digite: help
@@ -266,7 +266,7 @@ uv run --python $PY_RUNTIME python main.py
 ### **Teste 2: Interface Grafica**
 ```powershell
 # Testar GUI
-uv run --python $PY_RUNTIME python main.py --gui
+uv run --python $PY_RUNTIME main.py --gui
 
 # Verificar funcionalidades:
 # - Carregamento da tabela
@@ -277,10 +277,10 @@ uv run --python $PY_RUNTIME python main.py --gui
 ### **Teste 3: Executar Testes Automatizados**
 ```powershell
 # Executar testes basicos
-uv run --python $PY_RUNTIME python -m pytest tests\test_imports.py -v
+uv run --python $PY_RUNTIME -m pytest tests\test_imports.py -v
 
 # Executar teste de banco
-uv run --python $PY_RUNTIME python -m pytest tests\test_database.py -q
+uv run --python $PY_RUNTIME -m pytest tests\test_database.py -q
 
 # Executar teste de sistema completo
 uv run --python $PY_RUNTIME python tests\teste_sistema_completo.py
@@ -293,8 +293,8 @@ uv run --python $PY_RUNTIME python tests\teste_sistema_completo.py
 ### **Problema: Erro de Dependencias**
 ```powershell
 # Reinstalar dependencias
-pip uninstall -r requirements.txt -y
-pip install -r requirements.txt
+uv pip uninstall --python $PY_RUNTIME -r requirements.txt -y
+uv pip install --python $PY_RUNTIME -r requirements.txt
 ```
 
 ### **Problema: Erro de Permissao no PowerShell**
@@ -306,32 +306,32 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ### **Problema: Modulos Nao Encontrados**
 ```powershell
 # Verificar PYTHONPATH
-python -c "import sys; print('\n'.join(sys.path))"
+uv run --python $PY_RUNTIME python -c "import sys; print('\n'.join(sys.path))"
 
 # Executar do diretorio correto
 cd SSA_Consulta_Rapida
-uv run --python $PY_RUNTIME python main.py
+uv run --python $PY_RUNTIME main.py
 ```
 
 ### **Problema: Banco Corrompido**
 ```powershell
 # Reset completo do banco
-uv run --python $PY_RUNTIME python main.py --reset-db
+uv run --python $PY_RUNTIME main.py --reset-db
 
 # Limpar cache
 del data\file_cache.json
 
 # Reimportar dados
-uv run --python $PY_RUNTIME python main.py --force-rescan
+uv run --python $PY_RUNTIME main.py --force-rescan
 ```
 
 ### **Problema: GUI Nao Abre**
 ```powershell
 # Verificar PyQt6
-pip install --upgrade PyQt6
+uv pip install --python $PY_RUNTIME --upgrade PyQt6
 
 # Testar importacao
-python -c "from PyQt6.QtWidgets import QApplication; print('PyQt6 OK')"
+uv run --python $PY_RUNTIME python -c "from PyQt6.QtWidgets import QApplication; print('PyQt6 OK')"
 ```
 
 ---
@@ -380,7 +380,7 @@ ls utils\                               # ← Utilitarios diversos
 # Sequencia completa de inicializacao
 cd C:\Users\[SEU_USUARIO]\git\SSA_Consulta_Rapida
 .\activate_env.ps1
-uv run --python $PY_RUNTIME python main.py
+uv run --python $PY_RUNTIME main.py
 ```
 
 ### **Manutencao Semanal**
@@ -389,17 +389,17 @@ uv run --python $PY_RUNTIME python main.py
 git pull
 
 # Limpar dados antigos
-uv run --python $PY_RUNTIME python main.py --clean-data
+uv run --python $PY_RUNTIME main.py --clean-data
 
 # Teste rapido
-uv run --python $PY_RUNTIME python main.py --help
+uv run --python $PY_RUNTIME main.py --help
 ```
 
 ### **Reimportacao Completa**
 ```powershell
 # Quando houver mudancas significativas nos dados
-uv run --python $PY_RUNTIME python main.py --reset-db
-uv run --python $PY_RUNTIME python main.py --optimized --force-rescan
+uv run --python $PY_RUNTIME main.py --reset-db
+uv run --python $PY_RUNTIME main.py --optimized --force-rescan
 ```
 
 ---
@@ -422,10 +422,10 @@ ls data\historico_backups\              # ← Backups disponiveis
 ### **Informacoes de Debug**
 ```powershell
 # Executar com log detalhado
-uv run --python $PY_RUNTIME python main.py --log-level DEBUG
+uv run --python $PY_RUNTIME main.py --log-level DEBUG
 
 # Verificar configuracao do sistema
-python -c "
+uv run --python $PY_RUNTIME python -c "
 import sys, platform, sqlite3
 print(f'Python: {sys.version}')
 print(f'Platform: {platform.platform()}')
@@ -463,3 +463,4 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 
 *Ultima atualizacao: 10/03/2026 - v4.32*
 *Para duvidas ou problemas, consulte o repositorio no GitHub*
+

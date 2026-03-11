@@ -11,6 +11,7 @@ import plistlib
 import platform
 import subprocess
 import shutil
+import os
 import argparse
 import logging
 from datetime import datetime
@@ -51,22 +52,16 @@ class MultiPlatformBuilder:
         'windows_amd64': {
             'system': 'Windows',
             'arch': 'AMD64',
-            'python_exe': 'python.exe',
-            'pip_exe': 'pip.exe',
             'executable_ext': '.exe'
         },
         'macos_arm64': {
             'system': 'Darwin',
             'arch': 'arm64',
-            'python_exe': 'python3',
-            'pip_exe': 'pip3',
             'executable_ext': ''
         },
         'debian_amd64': {
             'system': 'Linux',
             'arch': 'x86_64',
-            'python_exe': 'python3',
-            'pip_exe': 'pip3',
             'executable_ext': ''
         }
     }
@@ -84,8 +79,11 @@ class MultiPlatformBuilder:
 
         # Carregar versao
         self.version = self._load_version()
+        self.runtime_python = os.environ.get('UV_PYTHON', '3.13')
+        self.uv_cmd = shutil.which('uv') or 'uv'
 
         logger.info(f"Iniciando build para SSA Consulta Rapida v{self.version}")
+        logger.info(f"Runtime Python padrao (uv): {self.runtime_python}")
 
     def _load_version(self):
         """Carrega versao do arquivo config/version.json"""
@@ -114,65 +112,66 @@ class MultiPlatformBuilder:
             return None
 
     def setup_virtual_environment(self, platform_name):
-        """Setup do ambiente virtual otimizado"""
+        """Setup do ambiente virtual usando uv."""
         venv_dir = self.platforms_dir / platform_name / 'venv'
         requirements_file = self.platforms_dir / platform_name / 'requirements.txt'
 
-        # Determinar executáveis
+        # Determinar executaveis
         if platform_name.startswith('windows'):
             python_exe = venv_dir / 'Scripts' / 'python.exe'
-            pip_exe = venv_dir / 'Scripts' / 'pip.exe'
         else:
             python_exe = venv_dir / 'bin' / 'python'
-            pip_exe = venv_dir / 'bin' / 'pip'
 
-        # Verificar se venv já existe e está funcional
+        # Verificar se venv ja existe e esta funcional
         if venv_dir.exists() and python_exe.exists():
             logger.info(f"Ambiente virtual existente encontrado: {venv_dir}")
-
-            # Verificar se requirements estão instalados
             try:
-                cmd = [str(pip_exe), 'list']
+                cmd = [self.uv_cmd, 'pip', 'list', '--python', str(python_exe)]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
                 if result.returncode == 0 and len(result.stdout.split('\n')) > 5:
-                    logger.info("Ambiente virtual já configurado e funcional")
-                    return python_exe, pip_exe
+                    logger.info("Ambiente virtual ja configurado e funcional")
+                    return python_exe
             except Exception:
                 logger.info("Ambiente virtual precisa ser recriado")
 
         # Remover venv antigo se existir
         if venv_dir.exists():
             logger.info("Removendo ambiente virtual antigo")
-            import shutil
             shutil.rmtree(venv_dir)
 
         logger.info(f"Criando novo ambiente virtual: {venv_dir}")
 
-        # Criar novo ambiente virtual
-        cmd = [sys.executable, '-m', 'venv', str(venv_dir)]
+        cmd = [
+            self.uv_cmd,
+            'venv',
+            '--python',
+            self.runtime_python,
+            str(venv_dir),
+        ]
         result = subprocess.run(cmd, capture_output=True, text=True)
-
         if result.returncode != 0:
-            logger.error(f"Erro criando venv: {result.stderr}")
+            logger.error("Erro criando venv via uv: %s", result.stderr.strip())
             return False
-
-        # Upgrade pip rapidamente
-        logger.info("Atualizando pip...")
-        cmd = [str(pip_exe), 'install', '--upgrade', 'pip', '--quiet']
-        subprocess.run(cmd, check=True)
 
         # Instalar dependencias
         if requirements_file.exists():
-            logger.info("Instalando dependências...")
-            cmd = [str(pip_exe), 'install', '-r', str(requirements_file), '--quiet']
+            logger.info("Instalando dependencias com uv pip...")
+            cmd = [
+                self.uv_cmd,
+                'pip',
+                'install',
+                '--python',
+                str(python_exe),
+                '-r',
+                str(requirements_file),
+            ]
             result = subprocess.run(cmd, capture_output=True, text=True)
-
             if result.returncode != 0:
-                logger.error(f"Erro instalando dependencias: {result.stderr}")
+                logger.error("Erro instalando dependencias: %s", result.stderr.strip())
                 return False
 
         logger.info(f"Ambiente virtual configurado: {venv_dir}")
-        return python_exe, pip_exe
+        return python_exe
 
     def load_build_config(self, platform_name):
         """Carrega configuracao de build para plataforma"""
@@ -189,7 +188,7 @@ class MultiPlatformBuilder:
             logger.error(f"Erro carregando config: {e}")
             return None
 
-    def convert_icons(self):
+    def convert_icons(self, python_exe: Path):
         """Converte icones para formatos necessarios"""
         logger.info("Convertendo icones para diferentes formatos")
 
@@ -203,9 +202,15 @@ class MultiPlatformBuilder:
         try:
             # Executar script de conversao
             convert_script = self.launchers_dir / 'convert_icon.py'
-            result = subprocess.run([
-                sys.executable, str(convert_script)
-            ], capture_output=True, text=True, cwd=str(self.base_dir))
+            cmd = [
+                self.uv_cmd,
+                'run',
+                '--no-project',
+                '--python',
+                str(python_exe),
+                str(convert_script),
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(self.base_dir))
 
             if result.returncode == 0:
                 logger.info("Icones convertidos com sucesso")
@@ -226,14 +231,6 @@ class MultiPlatformBuilder:
         app_config = config[f'{app_type}_config']
         pyinstaller_args = config['pyinstaller_args']
 
-        # Preparar comando PyInstaller
-        platform_dir = self.platforms_dir / platform_name
-
-        if platform_name.startswith('windows'):
-            pyinstaller_exe = platform_dir / 'venv' / 'Scripts' / 'pyinstaller.exe'
-        else:
-            pyinstaller_exe = platform_dir / 'venv' / 'bin' / 'pyinstaller'
-
         # Aviso amigável sobre compressão UPX opcional (não bloqueante)
         if platform_name.startswith('windows'):
             # Heurística: se config pyinstaller_args contiver algo indicando compressão futura
@@ -243,11 +240,21 @@ class MultiPlatformBuilder:
             except Exception:
                 logger.warning(
                     "UPX não detectado (pacote 'upx4py' ausente). Build seguirá sem compressão. "
-                    "Para habilitar instale: pip install -r launchers/platforms/windows_amd64/requirements_windows_build.txt"
+                    "Para habilitar instale: uv pip install --python %s -r launchers/platforms/windows_amd64/requirements_windows_build.txt",
+                    str(python_exe),
                 )
 
         # Comando base
-        cmd = [str(pyinstaller_exe), '-y']  # -y força sobrescrita
+        cmd = [
+            self.uv_cmd,
+            'run',
+            '--no-project',
+            '--python',
+            str(python_exe),
+            '-m',
+            'PyInstaller',
+            '-y',
+        ]  # -y força sobrescrita
 
         # Opcoes de empacotamento
         if pyinstaller_args.get('onefile', False):
@@ -541,7 +548,7 @@ class MultiPlatformBuilder:
         logger.info(f"Iniciando build para {platform_name}")
 
         # Configurar ambiente
-        python_exe, pip_exe = self.setup_virtual_environment(platform_name)
+        python_exe = self.setup_virtual_environment(platform_name)
         if not python_exe:
             return False
 
@@ -551,7 +558,7 @@ class MultiPlatformBuilder:
             return False
 
         # Converter icones
-        if not self.convert_icons():
+        if not self.convert_icons(python_exe):
             logger.warning("Continuando sem icones")
 
         # Construir aplicacoes

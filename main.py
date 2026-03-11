@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from collections.abc import Mapping
 from logging.handlers import RotatingFileHandler
 from typing import Any, Optional, cast
@@ -44,6 +45,7 @@ warnings.filterwarnings('ignore', category=FutureWarning)
 logger = logging.getLogger("ssa")
 # Logger level will be set by argument parsing - do not hardcode DEBUG
 _logging_configured = False
+APP_RUNTIME_NAME = "SSA_Consulta_Rapida"
 
 
 class _ASCIIOnlyFilter(logging.Filter):
@@ -188,7 +190,144 @@ def _get_project_root():
     except (NameError, TypeError):
         return os.getcwd()
 
-project_root = _get_project_root()
+
+def _resolve_runtime_home() -> Path:
+    """Retorna diretorio gravavel para runtime quando app estiver frozen."""
+    home_dir = Path.home()
+    if sys.platform == "darwin":
+        base_dir = home_dir / "Library" / "Application Support"
+    elif sys.platform.startswith("win"):
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            base_dir = Path(appdata)
+        else:
+            base_dir = home_dir / "AppData" / "Roaming"
+    else:
+        base_dir = Path(os.environ.get("XDG_DATA_HOME", home_dir / ".local" / "share"))
+    runtime_dir = base_dir / APP_RUNTIME_NAME
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    return runtime_dir
+
+
+def _seed_runtime_folder(runtime_dir: Path, src_dir: Path | None, folder_name: str) -> Path:
+    """Copia estrutura padrao para runtime sem sobrescrever customizacoes locais."""
+    target_dir = runtime_dir / folder_name
+    target_dir.mkdir(parents=True, exist_ok=True)
+    if src_dir is None or not src_dir.is_dir():
+        return target_dir
+    try:
+        for source in src_dir.iterdir():
+            target = target_dir / source.name
+            if source.is_dir():
+                try:
+                    shutil.copytree(source, target, dirs_exist_ok=True)
+                except TypeError:
+                    if not target.exists():
+                        shutil.copytree(source, target)
+            elif source.is_file() and not target.exists():
+                shutil.copy2(source, target)
+    except Exception:
+        # Seed e best-effort para nao bloquear startup.
+        pass
+    return target_dir
+
+
+def _prepare_frozen_runtime(project_root_path: str) -> str:
+    """Prepara runtime gravavel para builds frozen (PyInstaller/Nuitka/PyOxidizer)."""
+    is_frozen_mode = bool(
+        getattr(sys, "frozen", False)
+        or getattr(sys, "oxidized", False)
+        or "__compiled__" in globals()
+    )
+    if not is_frozen_mode:
+        return project_root_path
+
+    runtime_dir = _resolve_runtime_home()
+    source_root = Path(project_root_path)
+    exe_root = Path(sys.executable).resolve().parent
+
+    config_candidates = (
+        source_root / "config",
+        exe_root / "config",
+        exe_root / "_internal" / "config",
+        exe_root.parent / "Resources" / "config",
+    )
+    data_candidates = (
+        source_root / "data",
+        exe_root / "data",
+        exe_root / "_internal" / "data",
+        exe_root.parent / "Resources" / "data",
+    )
+    resources_candidates = (
+        source_root / "resources",
+        exe_root / "resources",
+        exe_root / "_internal" / "resources",
+        exe_root.parent / "Resources" / "resources",
+    )
+
+    bundled_config = next((p for p in config_candidates if p.is_dir()), None)
+    bundled_data = next((p for p in data_candidates if p.is_dir()), None)
+    bundled_resources = next((p for p in resources_candidates if p.is_dir()), None)
+    runtime_config = _seed_runtime_folder(runtime_dir, bundled_config, "config")
+    runtime_data = _seed_runtime_folder(runtime_dir, bundled_data, "data")
+    _seed_runtime_folder(runtime_dir, bundled_resources, "resources")
+    runtime_docs_in = runtime_dir / "docs_entrada"
+    runtime_docs_out = runtime_dir / "docs_saida"
+    runtime_reports = runtime_dir / "reports"
+    runtime_exportacao = runtime_dir / "exportacao"
+    runtime_logs = runtime_dir / "logs"
+    runtime_data_backups = runtime_dir / "data" / "historico_backups"
+    for folder in (
+        runtime_docs_in,
+        runtime_docs_out,
+        runtime_reports,
+        runtime_exportacao,
+        runtime_logs,
+        runtime_data_backups,
+    ):
+        folder.mkdir(parents=True, exist_ok=True)
+
+    bundled_root = next(
+        (
+            str(p.parent)
+            for p in (bundled_resources, bundled_config, bundled_data)
+            if p is not None
+        ),
+        str(exe_root),
+    )
+    os.environ.setdefault("SSA_BUNDLED_ROOT", bundled_root)
+    os.environ.setdefault("SSA_RUNTIME_ROOT", str(runtime_dir))
+    os.environ.setdefault("SSA_CONFIG_DIR", str(runtime_config))
+    os.environ.setdefault("SSA_DB_PATH", str(runtime_data / "ssas.db"))
+    allowed_roots = [
+        str(runtime_dir),
+        str(runtime_config),
+        str(runtime_data),
+        str(runtime_docs_in),
+        str(runtime_docs_out),
+        str(runtime_reports),
+        str(runtime_exportacao),
+        str(runtime_logs),
+    ]
+    existing_extra = os.environ.get("SSA_EXTRA_ALLOWED_PATHS", "")
+    for candidate in existing_extra.split(os.pathsep):
+        candidate = candidate.strip()
+        if candidate:
+            allowed_roots.append(candidate)
+    dedup_allowed: list[str] = []
+    for candidate in allowed_roots:
+        if candidate not in dedup_allowed:
+            dedup_allowed.append(candidate)
+    os.environ["SSA_EXTRA_ALLOWED_PATHS"] = os.pathsep.join(dedup_allowed)
+
+    try:
+        os.chdir(runtime_dir)
+    except OSError:
+        pass
+    return str(runtime_dir)
+
+
+project_root = _prepare_frozen_runtime(_get_project_root())
 sys.path.insert(0, project_root)
 
 def get_app_version():

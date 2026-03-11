@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SILENT=0
+if [[ "${1:-}" == "--silent" ]]; then
+  SILENT=1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+LOG_DIR="${REPO_ROOT}/launchers/logs"
+LOG_FILE="${LOG_DIR}/build_pyinstaller_debian_amd64.log"
+
+mkdir -p "${LOG_DIR}"
+
+export UV_PYTHON=3.13
+export UV_MANAGED_PYTHON=true
+export UV_PROJECT_ENVIRONMENT=.venv-linux
+
+if [[ "${SILENT}" == "1" ]]; then
+  uv run --python 3.13 "${REPO_ROOT}/launchers/build_multiplatform.py" --platform debian_amd64 --clean >/dev/null 2>&1
+  uv run --python 3.13 "${REPO_ROOT}/launchers/build_multiplatform.py" --platform debian_amd64 --apps cli gui >"${LOG_FILE}" 2>&1
+  uv run --python 3.13 "${REPO_ROOT}/scripts/sync_pyinstaller_outputs.py" --platform debian_amd64 --quiet >>"${LOG_FILE}" 2>&1
+  uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" --build-system pyinstaller --allow-local-data >>"${LOG_FILE}" 2>&1
+else
+  echo "Limpando artefatos PyInstaller Debian anteriores..."
+  uv run --python 3.13 "${REPO_ROOT}/launchers/build_multiplatform.py" --platform debian_amd64 --clean
+  echo "Iniciando build PyInstaller debian_amd64..."
+  uv run --python 3.13 "${REPO_ROOT}/launchers/build_multiplatform.py" --platform debian_amd64 --apps cli gui
+  uv run --python 3.13 "${REPO_ROOT}/scripts/sync_pyinstaller_outputs.py" --platform debian_amd64
+  uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" --build-system pyinstaller --allow-local-data
+fi
+
+echo "Build PyInstaller Debian concluido com sucesso."
+echo "Artefatos em: ${REPO_ROOT}/launchers/dist/debian_amd64 e ${REPO_ROOT}/builds/pyinstaller/debian_amd64"

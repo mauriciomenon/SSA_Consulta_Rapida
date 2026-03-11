@@ -1,7 +1,8 @@
 {
   "platform": "windows_amd64",
   "pyinstaller_args": {
-    "onefile": true,
+    "onefile": false,
+    "onedir": true,
     "optimize": 2,
     "strip": true,
     "upx_dir": null,

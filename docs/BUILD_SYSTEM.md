@@ -40,7 +40,7 @@ dist/
 ### 2. ATIVAR E COMPILAR:
 ```bash
 source build_env/bin/activate
-python build/build_all.py
+uv run --python 3.13 build/build_all.py
 ```
 
 ### 3. TESTAR:

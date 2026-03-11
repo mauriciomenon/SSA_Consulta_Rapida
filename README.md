@@ -60,13 +60,13 @@ uv sync
 PY_RUNTIME=3.13
 
 # executar GUI
-uv run --python $PY_RUNTIME python main.py --gui
+uv run --python $PY_RUNTIME main.py --gui
 
 # executar CLI
-uv run --python $PY_RUNTIME python main.py
+uv run --python $PY_RUNTIME main.py
 
 # executar Streamlit
-uv run --python $PY_RUNTIME python main.py --streamlit
+uv run --python $PY_RUNTIME main.py --streamlit
 ```
 
 Fallback quando 3.13 nao estiver disponivel: 3.12, depois 3.11, depois 3.10.
@@ -81,7 +81,7 @@ pyenv local 3.13.12
 direnv allow
 
 # executar no venv local existente (modo manual)
-.venv/bin/python main.py --gui
+uv run --python .venv/bin/python main.py --gui
 ```
 
 ### Documentacao tecnica atual (v4.32)
@@ -116,16 +116,16 @@ As notas antigas permanecem abaixo para referencia e auditoria tecnica.
 ### Comandos de Instalação (Atualizados)
 ```bash
 # Runtime (Essencial)
-pip install -r requirements.txt
+uv pip install --python 3.13 -r requirements.txt
 
 # Desenvolvimento
-pip install -r requirements.txt -r requirements_dev.txt
+uv pip install --python 3.13 -r requirements.txt -r requirements_dev.txt
 
 # Build/Empacotamento
-pip install -r requirements.txt -r requirements_build.txt
+uv pip install --python 3.13 -r requirements.txt -r requirements_build.txt
 
 # CI/CD
-pip install -r requirements.txt -r requirements_ci.txt
+uv pip install --python 3.13 -r requirements.txt -r requirements_ci.txt
 ```
 
 ### Resultados esperados
@@ -189,9 +189,9 @@ Consulte `docs_saida/CHANGELOG_IMPLEMENTACOES.md` para decisoes e linha do tempo
 - **Logs and local docs**: runtime logs and notas locais podem existir em `local_ai_private/` (diretorio gitignored, opcional por maquina).
 - **Usage examples**:
 	- Run with a 10s timeout and write log:
-		python scripts/run_pytest_with_timeout_v2.py --test tests/test_terminal_integration.py --timeout 10
+		uv run --python 3.13 scripts/run_pytest_with_timeout_v2.py --test tests/test_terminal_integration.py --timeout 10
 	- Stream live output and save log:
-		python scripts/run_pytest_stream_and_log_v2.py --test tests/test_terminal_integration.py --timeout 10
+		uv run --python 3.13 scripts/run_pytest_stream_and_log_v2.py --test tests/test_terminal_integration.py --timeout 10
 
 If streaming is not available in your shell, the instructions file shows a PowerShell `Tee-Object` alternative to both print and save output.
 ## Previous Release v4.0.0 (2025-09) - Performance Improvements
@@ -328,7 +328,7 @@ Versao de referencia deste bloco historico: 3.11
 - Ajustes de contraste automaticos no macOS para manter legibilidade
 
 ###  Dashboard Streamlit com CACHE MASSIVO
-- `python main.py --streamlit` inicia painel **3,977x mais rapido**
+- `uv run --python $PY_RUNTIME main.py --streamlit` inicia painel **3,977x mais rapido**
 - Cache TTL inteligente com metricas automaticas
 - Progress bars e interface otimizada
 - Download de CSV acelerado com cache
@@ -356,7 +356,7 @@ Versao de referencia deste bloco historico: 3.11
 open launchers/dist/macos_arm64/SSA_GUI_v3.10_macos_arm64.app
 
 # Build proprio rapido
-python launchers/build_simple.py gui && cd launchers/dist_simple && ./gui_entry
+uv run --python 3.13 launchers/build_simple.py gui && cd launchers/dist_simple && ./gui_entry
 ```
 
 ###  Funcionalidades principais v3.11
@@ -392,14 +392,14 @@ Links uteis:
 uv venv
 uv sync
 PY_RUNTIME=3.13
-uv run --python $PY_RUNTIME python main.py --gui
+uv run --python $PY_RUNTIME main.py --gui
 ```
 
 ```pwsh
 # compatibilidade (sem uv)
-python -m venv .venv
+uv venv --python 3.13 .venv
 . .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+uv pip install --python 3.13 -r requirements.txt
 ```
 
 ## Activation helpers (cross-platform)
@@ -412,10 +412,10 @@ Usage after cloning:
 
 1. Clone the repo and open a shell for your OS.
 2. On macOS / WSL:
-	- `python -m venv .venv` (if you don't use pyenv)
+	- `uv venv --python 3.13 .venv` (if you don't use pyenv)
 	- `source ./activate_repo.sh`
 3. On Windows PowerShell (pwsh recommended):
-	- `python -m venv .venv` (if you don't use pyenv-win)
+	- `uv venv --python 3.13 .venv` (if you don't use pyenv-win)
 	- `. .\activate_repo.ps1`
 
 Tip: The repository contains a `.gitattributes` entry that enforces LF for `.envrc` and shell scripts so `direnv` will not fail due to CRLF. If you prefer `direnv`, WSL is the recommended environment for evaluating `.envrc`.
@@ -425,7 +425,7 @@ Tip: The repository contains a `.gitattributes` entry that enforces LF for `.env
 
 Para build Windows com compressao UPX (reducao de tamanho), instale tambem:
 ```pwsh
-pip install -r launchers/platforms/windows_amd64/requirements_windows_build.txt
+uv pip install --python 3.13 -r launchers/platforms/windows_amd64/requirements_windows_build.txt
 ```
 Esse arquivo separado evita alerta de dependencia ausente em ambientes macOS/Linux onde `upx4py` nao e necessario.
 
@@ -444,17 +444,17 @@ Validacao:
 
 Exemplo rapido (adicionando diretorios extras temporarios):
 ```bash
-SSA_EXTRA_DIRS="tmp_cache,tmp_export" python main.py --help
+SSA_EXTRA_DIRS="tmp_cache,tmp_export" uv run --python $PY_RUNTIME main.py --help
 ```
 
 ## Uso rapido
 - CLI (padrao):
 ```pwsh
-python main.py
+uv run --python $PY_RUNTIME main.py
 ```
 - GUI:
 ```pwsh
-python main.py --gui
+uv run --python $PY_RUNTIME main.py --gui
 ```
 
 Notas de importacao e versao dos dados:
@@ -546,7 +546,7 @@ Views de compatibilidade:
 
 Script de migracao incremental:
 ```
-python scripts/migracao/migrar_para_unificado.py --db data/ssas.db
+uv run --python $PY_RUNTIME scripts/migracao/migrar_para_unificado.py --db data/ssas.db
 ```
 O script:
 - Faz backup automatico (`data/ssas.db.backup_before_unified_YYYYMMDD_HHMMSS`).
@@ -584,7 +584,7 @@ Metricas adicionais (para diagnostico) agora expostas em `reports/last_import_st
 - `alias_hits`: numero de vezes que um alias foi convertido para nome canonico
 
 Variaveis de ambiente de tuning:
-- `SSA_MAX_HEADER_SCAN`: ajusta o maximo de linhas iniciais avaliadas (ex.: `SSA_MAX_HEADER_SCAN=5 python main.py`)
+- `SSA_MAX_HEADER_SCAN`: ajusta o maximo de linhas iniciais avaliadas (ex.: `SSA_MAX_HEADER_SCAN=5 uv run --python $PY_RUNTIME main.py`)
 
 Teste sintetico: `tests/test_import_novas_colunas.py` garante presenca e persistencia das novas colunas.
 
@@ -592,7 +592,7 @@ Documento tecnico detalhado: `docs/SCHEMA_UNIFICADO_IMPORTACAO.md` (inclui heuri
 
 ### Fluxo recomendado de atualizacao
 1. Atualizar repositorio (`git pull`).
-2. Executar migracao: `python scripts/migracao/migrar_para_unificado.py --db data/ssas.db`.
+2. Executar migracao: `uv run --python $PY_RUNTIME scripts/migracao/migrar_para_unificado.py --db data/ssas.db`.
 3. (Opcional) Rodar teste sintetico: `pytest -q tests/test_import_novas_colunas.py`.
 4. Importar novas planilhas normalmente.
 
@@ -601,11 +601,11 @@ Script disponivel: `scripts/migracao/backfill_reprocessar.py`
 
 Uso basico:
 ```bash
-python scripts/migracao/backfill_reprocessar.py --dir docs_entrada --db data/ssas.db --smart-upsert --dry-run
+uv run --python $PY_RUNTIME scripts/migracao/backfill_reprocessar.py --dir docs_entrada --db data/ssas.db --smart-upsert --dry-run
 ```
 Ou via `main.py` integrado:
 ```bash
-python main.py --acao backfill -- --dir docs_entrada --db data/ssas.db --smart-upsert --dry-run \
+uv run --python $PY_RUNTIME main.py --acao backfill -- --dir docs_entrada --db data/ssas.db --smart-upsert --dry-run \
 	--report-path reports/backfill_manual.json
 ```
 Opcoes principais:
@@ -700,16 +700,16 @@ Regras de severidade:
 Exemplos:
 ```bash
 # Caminho feliz completo
-python scripts/run_quality_gates.py
+uv run --python 3.13 scripts/run_quality_gates.py
 
 # Apenas validar configs + dois diretorios extras
-python scripts/run_quality_gates.py \
+uv run --python 3.13 scripts/run_quality_gates.py \
 	--extra-config-dir caminho/dirA \
 	--extra-config-dir caminho/dirB \
 	--skip smoke_cli --skip check_docs
 
 # Validar docs adicionais sem falhar por issues
-python scripts/run_quality_gates.py --extra-doc README.md --no-fail-on-doc-issues
+uv run --python 3.13 scripts/run_quality_gates.py --extra-doc README.md --no-fail-on-doc-issues
 ```
 
 Teste dedicado: `tests/test_quality_gates_extra_config_dirs.py` assegura criacao dos gates extras. Cenarios de falha controlada: `tests/test_quality_gates_fail_paths.py`.
@@ -843,3 +843,4 @@ Regra (_resumida_):
 - Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
 - Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
+

@@ -6,9 +6,9 @@ Cria:
 2. Instalador Windows usando Inno Setup (se disponivel)
 
 Uso:
-    python scripts/create_distribution.py --build-system pyinstaller
-    python scripts/create_distribution.py --build-system pyoxidizer --skip-installer
-    python scripts/create_distribution.py --all
+    uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller
+    uv run --python 3.13 scripts/create_distribution.py --build-system pyoxidizer --skip-installer
+    uv run --python 3.13 scripts/create_distribution.py --all
 """
 
 import argparse
@@ -54,20 +54,28 @@ SENSITIVE_LOCAL_EXTENSIONS = {".db", ".xlsx", ".xls"}
 BUILD_SYSTEMS = {
     "pyinstaller": {
         "name": "PyInstaller",
-        "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
-        "base_dir": "builds/pyinstaller",
+        "exe_path": "launchers/dist/windows_amd64/SSA_GUI.exe",
+        "base_dir": "launchers/dist/windows_amd64",
+        "canonical_dirs": [
+            "launchers/dist/windows_amd64",
+            "builds/pyinstaller/windows_amd64",
+            "launchers/dist/macos_arm64",
+            "builds/pyinstaller/macos_arm64",
+            "launchers/dist/debian_amd64",
+            "builds/pyinstaller/debian_amd64",
+        ],
         "internal_dir": "_internal",
     },
     "pyoxidizer": {
         "name": "PyOxidizer",
-        "exe_path": "builds/pyoxidizer/SSA_Consulta_Rapida.exe",
-        "base_dir": "builds/pyoxidizer",
+        "exe_path": "builds/pyoxidizer/windows_amd64/SSA_Consulta_Rapida.exe",
+        "base_dir": "builds/pyoxidizer/windows_amd64",
         "internal_dir": "lib",
     },
     "nuitka": {
         "name": "Nuitka",
-        "exe_path": "builds/nuitka/main.exe",
-        "base_dir": "builds/nuitka",
+        "exe_path": "builds/nuitka/windows_amd64/main.exe",
+        "base_dir": "builds/nuitka/windows_amd64",
         "internal_dir": None,
     }
 }
@@ -131,10 +139,18 @@ def _has_primary_executable(build_dir: Path, build_system: str) -> bool:
                         for child in contents_candidate.iterdir():
                             if child.is_file() and os.access(child, os.X_OK):
                                 return True
-                embedded = item / item.name
-                if embedded.is_file() and os.access(embedded, os.X_OK):
-                    return True
+                embedded_candidates = [
+                    item / item.name,
+                    item / f"{item.name}.exe",
+                ]
+                for embedded in embedded_candidates:
+                    if embedded.is_file():
+                        if embedded.suffix.lower() == ".exe" or os.access(embedded, os.X_OK):
+                            return True
         return False
+
+    if build_system == "nuitka":
+        return _resolve_primary_executable_name(build_dir, prefer_gui=True) is not None
 
     build_info = BUILD_SYSTEMS.get(build_system, {})
     exe_path_value = build_info.get("exe_path")
@@ -148,6 +164,77 @@ def _has_primary_executable(build_dir: Path, build_system: str) -> bool:
         if expected_local.suffix and (build_dir / expected_local.stem).is_file():
             return True
     return False
+
+
+def _resolve_primary_executable_name(source_dir: Path, prefer_gui: bool = False) -> Optional[str]:
+    """Resolve executavel principal dentro de um diretorio de build."""
+    if not source_dir.exists() or not source_dir.is_dir():
+        return None
+
+    if prefer_gui:
+        gui_dirs = sorted(p for p in source_dir.glob("*GUI*") if p.is_dir())
+        for gui_dir in gui_dirs:
+            canonical_exe = gui_dir / f"{gui_dir.name}.exe"
+            if canonical_exe.is_file():
+                return f"{gui_dir.name}\\{canonical_exe.name}"
+            nested_exes = sorted(p for p in gui_dir.glob("*.exe") if p.is_file())
+            if nested_exes:
+                return f"{gui_dir.name}\\{nested_exes[0].name}"
+
+    candidates: list[Path] = []
+    if prefer_gui:
+        candidates.extend(sorted(source_dir.glob("*GUI*.exe")))
+    candidates.extend(sorted(source_dir.glob("*.exe")))
+
+    if not candidates:
+        candidates = sorted(
+            p for p in source_dir.iterdir() if p.is_file() and os.access(p, os.X_OK)
+        )
+
+    if not candidates:
+        return None
+    return candidates[0].name
+
+
+def _resolve_nuitka_bundle_dir() -> Optional[Path]:
+    """Resolve pasta *.dist mais recente do build Nuitka Windows."""
+    base_dir = PROJECT_ROOT / str(BUILD_SYSTEMS["nuitka"]["base_dir"])
+    if not base_dir.exists() or not base_dir.is_dir():
+        return None
+
+    canonical_gui = base_dir / "gui_entry.dist"
+    if canonical_gui.is_dir():
+        return canonical_gui
+
+    gui_by_contents = sorted(
+        (
+            p
+            for p in base_dir.glob("*.dist")
+            if p.is_dir() and any(child.is_file() for child in p.glob("*GUI*.exe"))
+        ),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if gui_by_contents:
+        return gui_by_contents[0]
+
+    gui_candidates = sorted(
+        (p for p in base_dir.glob("*GUI*.dist") if p.is_dir()),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if gui_candidates:
+        return gui_candidates[0]
+
+    generic_candidates = sorted(
+        (p for p in base_dir.glob("*.dist") if p.is_dir()),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if generic_candidates:
+        return generic_candidates[0]
+
+    return None
 
 
 def _build_dir_status(build_dir: Path, build_system: str) -> str:
@@ -168,6 +255,12 @@ def _resolve_build_directory(build_system: str) -> Optional[Path]:
     if not isinstance(base_dir_value, str):
         return None
 
+    if build_system == "nuitka":
+        bundle_dir = _resolve_nuitka_bundle_dir()
+        if bundle_dir is not None and _build_dir_status(bundle_dir, "nuitka") == "ok":
+            return bundle_dir
+        return None
+
     if build_system == "pyinstaller":
         candidates = [PROJECT_ROOT / rel for rel in _get_pyinstaller_canonical_dirs()]
         for path in candidates:
@@ -185,6 +278,14 @@ def _resolve_build_directory(build_system: str) -> Optional[Path]:
 def _resolve_build_directory_failure_reason(build_system: str) -> str:
     """Retorna motivo detalhado quando _resolve_build_directory falha."""
     build_info = BUILD_SYSTEMS.get(build_system, {})
+
+    if build_system == "nuitka":
+        base_dir = PROJECT_ROOT / str(build_info.get("base_dir", ""))
+        if not base_dir.exists():
+            return f"Diretorio de build ausente: {base_dir}"
+        if _resolve_nuitka_bundle_dir() is None:
+            return f"Nenhum bundle *.dist encontrado em: {base_dir}"
+        return "Bundle Nuitka encontrado, mas sem executavel primario"
 
     if build_system == "pyinstaller":
         candidates = [PROJECT_ROOT / rel for rel in _get_pyinstaller_canonical_dirs()]
@@ -283,13 +384,19 @@ def _detect_primary_executable_name(package_dir: Path) -> Optional[str]:
     if embedded_exec_like:
         return embedded_exec_like[0]
 
+    embedded_exec_like_exe = sorted(
+        f"{p.name}/{p.name}.exe"
+        for p in entries
+        if p.is_dir() and (p / f"{p.name}.exe").is_file()
+    )
+    if embedded_exec_like_exe:
+        return embedded_exec_like_exe[0]
+
     return None
 
 
 def _resolve_inno_source(build_system: str) -> Optional[tuple[Path, str]]:
     """Resolve diretorio/arquivo principal usado no script Inno Setup."""
-    build_info = BUILD_SYSTEMS[build_system]
-
     if build_system == "pyinstaller":
         canonical_windows = next(
             (
@@ -300,13 +407,32 @@ def _resolve_inno_source(build_system: str) -> Optional[tuple[Path, str]]:
             PROJECT_ROOT / "launchers" / "dist" / "windows_amd64",
         )
         if _has_packagable_content(canonical_windows):
-            gui_candidates = sorted(canonical_windows.glob("*GUI*.exe"))
-            if gui_candidates:
-                return canonical_windows, gui_candidates[0].name
-            exe_candidates = sorted(canonical_windows.glob("*.exe"))
-            if exe_candidates:
-                return canonical_windows, exe_candidates[0].name
+            exe_name = _resolve_primary_executable_name(canonical_windows, prefer_gui=True)
+            if exe_name:
+                return canonical_windows, exe_name
 
+    if build_system == "nuitka":
+        source_dir = _resolve_nuitka_bundle_dir()
+        if source_dir is None:
+            return None
+        exe_name = _resolve_primary_executable_name(source_dir, prefer_gui=True)
+        if exe_name is None:
+            return None
+        return source_dir, exe_name
+
+    if build_system == "pyoxidizer":
+        base_dir_value = BUILD_SYSTEMS["pyoxidizer"].get("base_dir")
+        if not isinstance(base_dir_value, str):
+            return None
+        source_dir = PROJECT_ROOT / base_dir_value
+        if not source_dir.exists():
+            return None
+        exe_name = _resolve_primary_executable_name(source_dir, prefer_gui=False)
+        if exe_name is None:
+            return None
+        return source_dir, exe_name
+
+    build_info = BUILD_SYSTEMS[build_system]
     base_dir_value = build_info.get("base_dir")
     if not isinstance(base_dir_value, str):
         return None
@@ -317,10 +443,6 @@ def _resolve_inno_source(build_system: str) -> Optional[tuple[Path, str]]:
     exe_path_value = build_info.get("exe_path")
     if isinstance(exe_path_value, str):
         return source_dir, Path(exe_path_value).name
-    if build_system == "nuitka":
-        return source_dir, "main.exe"
-    if build_system == "pyoxidizer":
-        return source_dir, "SSA_Consulta_Rapida.exe"
     return None
 
 
@@ -557,7 +679,7 @@ def _prepare_package_staging(
 
 def create_zip_package(build_system: str, version: str) -> Optional[Path]:
     """Cria pacote ZIP portatil."""
-    build_info = BUILD_SYSTEMS[build_system]
+    build_info: dict[str, object] = dict(BUILD_SYSTEMS[build_system])
     build_name_value = build_info.get("name")
     build_name = build_name_value if isinstance(build_name_value, str) else build_system
     logger.info(f"Criando pacote ZIP para {build_name}")
@@ -636,8 +758,10 @@ def _build_inno_iss_content(
     source_dir_spec: str,
     dist_output_spec: str,
     inno_excludes_str: str,
+    setup_icon_spec: Optional[str],
 ) -> str:
     """Renderiza conteudo do arquivo ISS."""
+    setup_icon_line = f"SetupIconFile={setup_icon_spec}" if setup_icon_spec else ""
     return f"""
 ; Script Inno Setup para SSA Consulta Rapida
 ; Build System: {BUILD_SYSTEMS[build_system]['name']}
@@ -661,7 +785,7 @@ DefaultDirName={{autopf}}\\{{#MyAppName}}
 DefaultGroupName={{#MyAppName}}
 AllowNoIcons=yes
 OutputBaseFilename=SSA_Consulta_Rapida_v{version}_{build_system}_Setup
-SetupIconFile=..\\assets\\icon.ico
+{setup_icon_line}
 OutputDir={{#SourcePath}}
 Compression=lzma2/max
 SolidCompression=yes
@@ -705,6 +829,18 @@ end;
 """
 
 
+def _resolve_inno_setup_icon() -> Optional[str]:
+    """Resolve icone do instalador Inno Setup."""
+    icon_candidates = [
+        PROJECT_ROOT / "resources" / "app_icon.ico",
+        PROJECT_ROOT / "launchers" / "assets" / "icon.ico",
+    ]
+    for icon_path in icon_candidates:
+        if icon_path.is_file():
+            return _normalize_windows_path(str(icon_path.resolve()))
+    return None
+
+
 def create_inno_setup_script(build_system: str, version: str) -> Optional[Path]:
     """Cria script Inno Setup para instalador Windows."""
     logger.info(f"Criando script Inno Setup para {BUILD_SYSTEMS[build_system]['name']}")
@@ -718,6 +854,9 @@ def create_inno_setup_script(build_system: str, version: str) -> Optional[Path]:
     dist_output_spec = _normalize_windows_path(str(DIST_OUTPUT.resolve()))
     exe_name = exe_name.replace('"', '')
     inno_excludes_str = _build_inno_excludes_str()
+    setup_icon_spec = _resolve_inno_setup_icon()
+    if setup_icon_spec is None:
+        logger.warning("Icone Inno Setup nao encontrado; instalador sera gerado sem SetupIconFile")
     iss_content = _build_inno_iss_content(
         build_system,
         version,
@@ -725,6 +864,7 @@ def create_inno_setup_script(build_system: str, version: str) -> Optional[Path]:
         source_dir_spec,
         dist_output_spec,
         inno_excludes_str,
+        setup_icon_spec,
     )
 
     iss_path = DIST_OUTPUT / f"installer_{build_system}.iss"

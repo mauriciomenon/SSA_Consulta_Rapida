@@ -46,6 +46,38 @@ def _find_bundled_config_dir(app_dir: str) -> Path | None:
     return None
 
 
+def _find_bundled_data_dir(app_dir: str) -> Path | None:
+    """Localiza data embutida em diferentes layouts de empacotamento."""
+    exe_path = Path(sys.executable).resolve()
+    app_path = Path(app_dir)
+    candidates = (
+        app_path / "data",
+        app_path / "_internal" / "data",
+        exe_path.parent.parent / "Resources" / "data",
+        exe_path.parent.parent / "data",
+    )
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def _find_bundled_resources_dir(app_dir: str) -> Path | None:
+    """Localiza resources embutido em diferentes layouts de empacotamento."""
+    exe_path = Path(sys.executable).resolve()
+    app_path = Path(app_dir)
+    candidates = (
+        app_path / "resources",
+        app_path / "_internal" / "resources",
+        exe_path.parent.parent / "Resources" / "resources",
+        exe_path.parent.parent / "resources",
+    )
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
 def _seed_runtime_config(runtime_dir: Path, bundled_config: Path | None) -> Path:
     """Inicializa config de runtime do usuario com defaults empacotados."""
     runtime_config = runtime_dir / "config"
@@ -69,13 +101,95 @@ def _seed_runtime_config(runtime_dir: Path, bundled_config: Path | None) -> Path
     return runtime_config
 
 
+def _seed_runtime_data(runtime_dir: Path, bundled_data: Path | None) -> Path:
+    """Inicializa data de runtime com fallback para bundle."""
+    runtime_data = runtime_dir / "data"
+    runtime_data.mkdir(parents=True, exist_ok=True)
+    if bundled_data is None:
+        return runtime_data
+
+    source_db = bundled_data / "ssas.db"
+    target_db = runtime_data / "ssas.db"
+    if source_db.is_file() and not target_db.exists():
+        try:
+            shutil.copy2(source_db, target_db)
+        except Exception:
+            # DB local pode nao existir em certos builds; nao bloquear startup.
+            pass
+    return runtime_data
+
+
+def _seed_runtime_resources(runtime_dir: Path, bundled_resources: Path | None) -> Path:
+    """Inicializa resources local para manter icones e assets da UI."""
+    runtime_resources = runtime_dir / "resources"
+    runtime_resources.mkdir(parents=True, exist_ok=True)
+    if bundled_resources is None:
+        return runtime_resources
+    try:
+        for source in bundled_resources.iterdir():
+            target = runtime_resources / source.name
+            if source.is_dir():
+                try:
+                    shutil.copytree(source, target, dirs_exist_ok=True)
+                except TypeError:
+                    if not target.exists():
+                        shutil.copytree(source, target)
+            elif source.is_file() and not target.exists():
+                shutil.copy2(source, target)
+    except Exception:
+        # Resources sao auxiliares e nao devem bloquear startup.
+        pass
+    return runtime_resources
+
+
 def _prepare_frozen_runtime(app_dir: str) -> Path:
     """Configura ambiente de runtime gravavel para execucao frozen."""
     runtime_dir = _resolve_runtime_home()
     runtime_logs = runtime_dir / "logs"
-    runtime_logs.mkdir(parents=True, exist_ok=True)
+    runtime_docs_in = runtime_dir / "docs_entrada"
+    runtime_docs_out = runtime_dir / "docs_saida"
+    runtime_reports = runtime_dir / "reports"
+    runtime_exportacao = runtime_dir / "exportacao"
+    runtime_data_backups = runtime_dir / "data" / "historico_backups"
+    for folder in (
+        runtime_logs,
+        runtime_docs_in,
+        runtime_docs_out,
+        runtime_reports,
+        runtime_exportacao,
+        runtime_data_backups,
+    ):
+        folder.mkdir(parents=True, exist_ok=True)
     bundled_config = _find_bundled_config_dir(app_dir)
-    _seed_runtime_config(runtime_dir, bundled_config)
+    bundled_data = _find_bundled_data_dir(app_dir)
+    bundled_resources = _find_bundled_resources_dir(app_dir)
+    runtime_config = _seed_runtime_config(runtime_dir, bundled_config)
+    runtime_data = _seed_runtime_data(runtime_dir, bundled_data)
+    _seed_runtime_resources(runtime_dir, bundled_resources)
+    os.environ.setdefault("SSA_BUNDLED_ROOT", app_dir)
+    os.environ.setdefault("SSA_RUNTIME_ROOT", str(runtime_dir))
+    os.environ.setdefault("SSA_CONFIG_DIR", str(runtime_config))
+    os.environ.setdefault("SSA_DB_PATH", str(runtime_data / "ssas.db"))
+    allowed_roots = [
+        str(runtime_dir),
+        str(runtime_config),
+        str(runtime_data),
+        str(runtime_docs_in),
+        str(runtime_docs_out),
+        str(runtime_reports),
+        str(runtime_exportacao),
+        str(runtime_logs),
+    ]
+    existing_extra = os.environ.get("SSA_EXTRA_ALLOWED_PATHS", "")
+    for candidate in existing_extra.split(os.pathsep):
+        candidate = candidate.strip()
+        if candidate:
+            allowed_roots.append(candidate)
+    dedup_allowed: list[str] = []
+    for candidate in allowed_roots:
+        if candidate not in dedup_allowed:
+            dedup_allowed.append(candidate)
+    os.environ["SSA_EXTRA_ALLOWED_PATHS"] = os.pathsep.join(dedup_allowed)
     os.chdir(runtime_dir)
     return runtime_dir
 
@@ -97,8 +211,13 @@ sys.path.insert(0, app_dir)
 def main():
     """Entry point GUI v3.10"""
     try:
+        from utils import setup_project_structure
+        from core.config_manager import ensure_default_settings
         from PyQt6.QtWidgets import QApplication
         from gui.gui_ssa import SSAMainWindow
+
+        setup_project_structure.setup_dirs()
+        ensure_default_settings(fail_fast=False)
 
         app = QApplication(sys.argv)
         app.setApplicationName("Consulta Rapida de SSAs")

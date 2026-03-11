@@ -36,9 +36,9 @@ Scripts agregados por `run_quality_gates.py`:
 
 O agregador oferece JSON com `summary.overall_status` e lista de `gates`. Argumentos adicionais suportados:
 ```
-python scripts/run_quality_gates.py --only smoke_cli
-python scripts/run_quality_gates.py --extra-doc docs/README.md
-python scripts/run_quality_gates.py --skip check_docs
+uv run --python 3.13 scripts/run_quality_gates.py --only smoke_cli
+uv run --python 3.13 scripts/run_quality_gates.py --extra-doc docs/README.md
+uv run --python 3.13 scripts/run_quality_gates.py --skip check_docs
 ```
 
 ## Markers Pytest

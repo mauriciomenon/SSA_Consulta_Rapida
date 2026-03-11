@@ -1,6 +1,6 @@
 # Comandos Rapidos - SSA Consulta Rapida v4.32
 
-## Sync desta folha (2026-03-10 16:55 -0300)
+## Sync desta folha (2026-03-11 14:25 -0300)
 
 1. Este runbook continua valido para baseline `v4.32`.
 2. Fluxo de importacao recomendado:
@@ -23,8 +23,8 @@ uv venv
 uv sync
 
 $PY_RUNTIME = "3.13"
-uv run --python $PY_RUNTIME python main.py --version
-uv run --python $PY_RUNTIME python main.py
+uv run --python $PY_RUNTIME main.py --version
+uv run --python $PY_RUNTIME main.py
 ```
 
 ## Execucao principal
@@ -33,16 +33,16 @@ uv run --python $PY_RUNTIME python main.py
 $PY_RUNTIME = "3.13"
 
 # Help
-uv run --python $PY_RUNTIME python main.py --help
+uv run --python $PY_RUNTIME main.py --help
 
 # CLI
-uv run --python $PY_RUNTIME python main.py
+uv run --python $PY_RUNTIME main.py
 
 # GUI
-uv run --python $PY_RUNTIME python main.py --gui
+uv run --python $PY_RUNTIME main.py --gui
 
 # Streamlit
-uv run --python $PY_RUNTIME python main.py --streamlit
+uv run --python $PY_RUNTIME main.py --streamlit
 ```
 
 ## Importacao e banco
@@ -51,13 +51,13 @@ uv run --python $PY_RUNTIME python main.py --streamlit
 $PY_RUNTIME = "3.13"
 
 # Atualizar dados (incremental)
-uv run --python $PY_RUNTIME python main.py --force-rescan
+uv run --python $PY_RUNTIME main.py --force-rescan
 
 # Recriar DB e reimportar tudo
-uv run --python $PY_RUNTIME python main.py --reset-db
+uv run --python $PY_RUNTIME main.py --reset-db
 
 # Limpeza de dados legados
-uv run --python $PY_RUNTIME python main.py --clean-data
+uv run --python $PY_RUNTIME main.py --clean-data
 ```
 
 ## Validacao tecnica minima
@@ -82,13 +82,26 @@ pwsh -File scripts_manutencao/quick_recovery.ps1 -Action restore
 git stash pop
 ```
 
-## Compatibilidade sem uv (fallback)
+## Fallback com uv venv manual
 
 ```powershell
-python -m venv venv
-.\activate_env.ps1
-pip install -r requirements.txt
-python main.py
+uv venv --python 3.13 .venv
+uv pip install --python 3.13 -r requirements.txt
+uv run --python 3.13 main.py
+```
+
+## Build silencioso (Windows e Debian)
+
+```powershell
+# Windows
+dev_env\build\build_pyinstaller.bat --silent
+dev_env\build\build_nuitka_clean.bat --silent
+dev_env\build\build_pyoxidizer.bat --silent
+
+# Debian via WSL
+wsl -e bash -lc "cd /mnt/c/Users/mauri/git/SSA_Consulta_Rapida && bash dev_env/build/build_pyinstaller_debian.sh --silent"
+wsl -e bash -lc "cd /mnt/c/Users/mauri/git/SSA_Consulta_Rapida && bash dev_env/build/build_nuitka_debian.sh --silent"
+wsl -e bash -lc "cd /mnt/c/Users/mauri/git/SSA_Consulta_Rapida && bash dev_env/build/build_pyoxidizer_debian.sh --silent"
 ```
 
 ## Notas

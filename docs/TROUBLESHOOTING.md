@@ -36,7 +36,7 @@ Guia ativo de diagnostico rapido para operacao diaria.
 ### GUI nao abre
 
 1. Verificar dependencias: `uv sync`.
-2. Executar: `uv run --python 3.13 python main.py --gui`.
+2. Executar: `uv run --python 3.13 main.py --gui`.
 3. Se falhar, revisar stack trace e registrar no backlog com evidencia.
 
 ### Full rescan sem atualizacao

@@ -15,7 +15,7 @@ Este documento descreve como estruturar uma pipeline de build/test/validacao min
 | Ordem | Fase | Ferramentas | Saida Esperada |
 |-------|------|------------|----------------|
 | 1 | Setup Python | pyenv / cache CI | Ambiente pronto |
-| 2 | Instalacao deps | pip | Pacotes instalados |
+| 2 | Instalacao deps | uv pip | Pacotes instalados |
 | 3 | Validacao configs | script `scripts/validate_configs.py` | OK ou falha |
 | 4 | Lint rapido (opcional) | flake8/ruff configurado minimo | Relatorio limpo |
 | 5 | Testes smoke | pytest -k smoke | Passando 100% |
@@ -51,17 +51,17 @@ ci/
 
 ## 6. Exemplo de Sequencia Local
 ```bash
-python scripts/validate_configs.py
-python scripts/check_docs.py
+uv run --python 3.13 scripts/validate_configs.py
+uv run --python 3.13 scripts/check_docs.py
 pytest -k smoke
 pytest -k core
-python build/build_all.py  # se aplicavel
+uv run --python 3.13 build/build_all.py  # se aplicavel
 ```
 
 ## 7. Metricas a Registrar
 | Metrica | Descricao |
 |---------|-----------|
-| Tempo instalacao deps | Cronometrar pip install |
+| Tempo instalacao deps | Cronometrar uv pip install |
 | Duracao smoke | Tempo dos testes rapidos |
 | Duracao core unit | Tempo casos core |
 | No docs auditados | Quantidade verificada |
