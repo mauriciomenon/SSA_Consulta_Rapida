@@ -1,6 +1,6 @@
 # utils/robust_importer.py
 # Last modified: 2025-10-29T11:30:00 (pandas import improvements)
-# Referência: documentação de heurísticas e schema unificado em docs/SCHEMA_UNIFICADO_IMPORTACAO.md
+# Referencia: documentacao de heuristicas e schema unificado em docs/SCHEMA_UNIFICADO_IMPORTACAO.md
 """Importador "à prova de bala" para planilhas SSA.
 
 Objetivos:
@@ -203,7 +203,7 @@ def _resolve_semantic_duplicate_columns(
     return resolved
 
 
-# ----------------- Núcleo -----------------
+# ----------------- Nucleo -----------------
 
 def import_excel_robust(
     file_path: str,

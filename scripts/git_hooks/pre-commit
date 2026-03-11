@@ -35,9 +35,6 @@ info(){
   return 0
 }
 
-DIFF=$(git diff --cached --unified=0 --no-color || true)
-[[ -z $DIFF ]] && exit 0
-
 # 0) Arquivos staged grandes (limite GitHub / politicas de release)
 large_found=0
 while IFS= read -r staged_path; do
@@ -63,6 +60,9 @@ EOF
   exit 1
 fi
 
+DIFF=$(git diff --cached --unified=0 --no-color || true)
+[[ -z $DIFF ]] && exit 0
+
 ADDED=$(
   printf '%s\n' "$DIFF" \
     | awk '/^\+/ && $0 !~ /^\+\+\+/ && $0 !~ /^\+Binary files / {sub(/^\+/, "", $0); print}' \
@@ -84,26 +84,35 @@ done
 
 # Linhas com API_KEY=
 api_key_candidates=$(printf '%s\n' "$ADDED" | grep -E '\b[A-Z0-9_]*API_KEY[[:space:]]*=' || true)
-while IFS= read -r line; do
-  [[ -z "${line// }" ]] && continue
-  val_part="${line#*=}"
-  val_part="$(printf '%s' "$val_part" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
-  val_clean="$(printf '%s' "$val_part" | sed -E "s/^['\"]//; s/['\"]$//")"
-  val_clean="${val_clean//$'\r'/}"
+if [[ -n "${api_key_candidates// }" ]]; then
+  while IFS= read -r line; do
+    [[ -z "${line// }" ]] && continue
+    val_part="${line#*=}"
+    val_part="$(printf '%s' "$val_part" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    val_clean="$(printf '%s' "$val_part" | sed -E "s/^['\"]//; s/['\"]$//")"
+    val_clean="${val_clean//$'\r'/}"
 
-  for av in "${ALLOW_VALUES[@]}"; do
-    if [[ "$val_clean" == "$av" ]]; then
-      info "PLACEHOLDER permitido: $line"
-      continue 2
+    for av in "${ALLOW_VALUES[@]}"; do
+      if [[ "$val_clean" == "$av" ]]; then
+        info "PLACEHOLDER permitido: $line"
+        continue 2
+      fi
+    done
+
+    if [[ -z "$val_clean" ]]; then
+      info "Vazio permitido: $line"
+      continue
     fi
-  done
 
-  [[ -z "$val_clean" ]] && { info "Vazio permitido: $line"; continue; }
-  (( ${#val_clean} < MIN_LEN )) && { info "Curto permitido: $line"; continue; }
+    if (( ${#val_clean} < MIN_LEN )); then
+      info "Curto permitido: $line"
+      continue
+    fi
 
-  err "Valor potencial de API_KEY (redacted)"
-  FOUND=1
-done <<< "$api_key_candidates"
+    err "Valor potencial de API_KEY (redacted)"
+    FOUND=1
+  done <<< "$api_key_candidates"
+fi
 
 if [[ $FOUND -eq 1 ]]; then
   cat <<'EOT' >&2

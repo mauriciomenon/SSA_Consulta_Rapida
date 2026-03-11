@@ -18,6 +18,48 @@ Fluxo de trabalho registrado para proximo ciclo curto:
 3. Regra operacional para esse debt:
    - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
 
+## Update 2026-03-10 17:05 - triagem de bots PR45 (copilot/cubic) com patch minimo
+
+Session timestamp:
+1. start: `2026-03-10 17:04:04 -0300`
+2. end: `2026-03-10 17:05:00 -0300`
+
+Objetivo do slice:
+1. corrigir somente achados reais dos bots no PR #45 sem refatoracao ampla.
+
+Correcoes aplicadas:
+1. `scripts/git_hooks/pre-commit`
+   - check de tamanho de blob staged nao e mais pulado quando o diff textual esta vazio.
+   - guard explicito para nao entrar no loop de `api_key_candidates` vazio.
+2. `scripts/install_hooks.sh`
+   - destino de hooks agora usa `git rev-parse --git-path hooks`.
+   - removida forca de `core.hooksPath=.git/hooks`.
+3. `utils/caching.py`
+   - mensagens de log convertidas para ASCII (`Nao`, `nao`).
+4. `utils/robust_importer.py`
+   - comentarios/cabecalhos ajustados para ASCII.
+5. `armazenamento/database_integrity.py`
+   - mensagem de erro ajustada para nao confundir acesso com validacao de schema.
+6. `tests/test_main_import_fallback.py`
+   - nome do teste alinhado ao cenario real (`--force-rescan`), removendo ambiguidade "by_default".
+
+Classificacao dos apontamentos:
+1. `BUG_REAL` corrigido:
+   - bypass do check de blob grande no pre-commit quando `DIFF` vazio.
+   - caminho fragil de hooks em `install_hooks.sh`.
+   - regra ASCII em logs/comentarios.
+   - nome de teste inconsistente com cenario.
+   - semantica de mensagem em `database_integrity`.
+2. `NAO_BLOQUEANTE_DEFERIDO`:
+   - kluster em `pre-commit`: script monolitico e custo de grep (qualidade/perf).
+   - kluster em `utils/*`: debts antigos de arquitetura/performance fora do escopo.
+
+Evidencia tecnica:
+1. `uv run --python 3.13 python -m py_compile armazenamento/database_integrity.py utils/caching.py utils/robust_importer.py tests/test_main_import_fallback.py` -> pass.
+2. `uv run --python 3.13 ruff check armazenamento/database_integrity.py utils/caching.py utils/robust_importer.py tests/test_main_import_fallback.py` -> pass.
+3. `uv run --python 3.13 ty check armazenamento/database_integrity.py utils/caching.py utils/robust_importer.py tests/test_main_import_fallback.py` -> pass.
+4. `uv run --python 3.13 pytest -q tests/test_main_import_fallback.py tests/test_caching.py tests/test_database_verification.py tests/test_robust_importer.py` -> `43 passed`.
+
 ## Update 2026-03-10 16:55 - doc sync total (estado real de fechamento)
 
 Session timestamp:

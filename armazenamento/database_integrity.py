@@ -12,6 +12,7 @@ DO NOT add top-level imports from database.py.
 from __future__ import annotations
 
 import logging
+import sqlite3
 from .identifier_utils import is_valid_identifier
 import os
 import shutil
@@ -162,8 +163,8 @@ def verify_database_integrity(
                         report['is_valid'] = False
                     else:
                         report['schema_valid'] = True
-        except Exception as e:
-            report['issues'].append(f"Banco de dados nao acessivel: {e}")
+        except (sqlite3.Error, OSError, ValueError) as e:
+            report['issues'].append(f"Erro ao verificar integridade/schema do banco: {e}")
             report['is_valid'] = False
             return report
         status_text = "Valido" if report['is_valid'] else "Problemas encontrados"

@@ -2,7 +2,7 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 16:55 - authoritative block
+## CURRENT TRUTH 2026-03-10 17:05 - authoritative block
 
 - Priority note (carry-over mandatory):
   1. debt BLE001 no restante do codigo deve ser tratado em breve, por modulo.
@@ -15,30 +15,26 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - checks externos bloqueando merge: `CodeFactor`, `code/snyk`, `security/snyk`.
 
 - Slice entregue:
-  1. sync total da documentacao ativa para baseline `v4.32`.
+  1. triagem dos comentarios novos de bots com correcoes minimas de risco real.
 - Arquivos alterados:
-  1. `README.md`
-  2. `docs/INDEX.md`
-  3. `docs/COMANDOS_RAPIDOS.md`
-  4. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`
-  5. `docs/GUIA_DISTRIBUICAO.md`
-  6. `docs/HISTORICO_RELEASES.md`
-  7. `docs/CHANGELOG_IMPLEMENTACOES.md`
-  8. `docs/PENDING_ACTION_MATRIX.md`
-  9. `docs/RECOVERY_BACKLOG.md`
-  10. `docs/NEXT_CHAT_MIGRATION.md`
-  11. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
-  12. `docs/BUILD_MULTIPLATFORM.md`
-  13. `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
-  14. `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
-  15. `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
+  1. `scripts/git_hooks/pre-commit`
+  2. `scripts/install_hooks.sh`
+  3. `utils/caching.py`
+  4. `utils/robust_importer.py`
+  5. `armazenamento/database_integrity.py`
+  6. `tests/test_main_import_fallback.py`
+  7. `docs/RECOVERY_BACKLOG.md`
+  8. `docs/NEXT_CHAT_MIGRATION.md`
+  9. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - Validacao:
-  1. `uv run --python 3.13 pytest -q tests/test_docs_and_priority.py` -> `3 passed`.
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_main_import_fallback.py tests/test_caching.py tests/test_database_verification.py tests/test_robust_importer.py` -> `43 passed`.
 - Decisao aplicada:
-  1. estado de baseline/PR/checks alinhado nos docs ativos.
-  2. trilhas operacionais de build mantidas (PyInstaller operacional, Nuitka/PyOxidizer laboratoriais).
-- Observacao global:
-  1. `BLE001` em escopo repo completo continua alto (`860` ocorrencias), nao tratado neste slice documental.
+  1. comentario de bypass no pre-commit corrigido (check de blob staged sempre ativo).
+  2. comentario de caminho de hooks em worktree/submodule corrigido via `git-path hooks`.
+  3. pontos ASCII e semantica de erro corrigidos sem mudar comportamento de runtime.
+- Deferido:
+  1. debts antigos de arquitetura/performance apontados por bots em `pre-commit` e `utils/*`.
 - Estado de residuos locais fora de escopo:
   1. `data/ssas.db` (mantido local, nao commitar).
   2. `config/settings.json.bak_20260308_212715` (backup local, nao commitar).
