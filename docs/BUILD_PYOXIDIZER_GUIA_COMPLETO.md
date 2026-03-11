@@ -2,10 +2,11 @@
 
 ## CURRENT TRUTH (v4.32)
 
-- Sync deste guia: `2026-03-10 16:55 -0300`.
+- Sync deste guia: `2026-03-11 14:25 -0300`.
 - PyOxidizer permanece trilha experimental/laboratorio neste baseline.
 - O repositorio atual nao usa `pyoxidizer.bzl` nem `build_pyoxidizer.bat` como caminho operacional principal.
 - Distribuicao oficial segue PyInstaller + `launchers/dist/*`.
+- Execucao recomendada para laboratorio: `uv tool run --python 3.13 --from pyoxidizer pyoxidizer build --release --path dev_env/build`.
 - Se necessario testar PyOxidizer, tratar este guia como referencia historica de investigacao.
 - Validacao 2026-03-10 (host macOS arm64):
   - `pyoxidizer --version` OK (`0.24.0`)

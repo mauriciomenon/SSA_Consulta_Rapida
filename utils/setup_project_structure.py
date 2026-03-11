@@ -40,8 +40,11 @@ def _is_within_base(path: str, base: str) -> bool:
 # Base imutável; cópia de trabalho é derivada em runtime
 # para evitar mutação global por chamadas repetidas
 _BASE_REQUIRED_DIRS = [
+    "config",
     "data",
     "data/historico_backups",
+    "docs_entrada",
+    "docs_saida",
     "logs",
     "reports",
     "extracao",

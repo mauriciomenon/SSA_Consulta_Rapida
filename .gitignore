@@ -272,6 +272,9 @@ logs/
 build/
 dist/
 *.spec
+!dev_env/build/*.sh
+!dev_env/build/*.bat
+!dev_env/build/*.bzl
 
 # Local databases and outputs
 *.db
@@ -323,6 +326,9 @@ exportacao/temp_*
 # Builds directory (keep empty folder with .gitkeep)
 builds/*
 !builds/.gitkeep
+dev_env/build/build/
+dev_env/build/build/**
+nuitka-crash-report.xml
 
 # Packaged distributions (keep empty folder with .gitkeep)
 dist_packages/*
@@ -474,3 +480,10 @@ config/codex.sqlite3*
 config/hypercorn.toml
 config/secret_key
 config/gui_main_preferences.json
+
+# Keep build orchestration scripts versioned.
+!dev_env/
+!dev_env/build/
+!dev_env/build/*.sh
+!dev_env/build/*.bat
+!dev_env/build/*.bzl

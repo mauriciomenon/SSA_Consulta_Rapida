@@ -4,7 +4,7 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 
 ## CURRENT TRUTH (v4.32)
 
-- Sync deste guia: `2026-03-10 16:55 -0300`.
+- Sync deste guia: `2026-03-11 14:25 -0300`.
 - Fluxo operacional:
   1. build com `launchers/build_multiplatform.py`.
   2. distribuicao com `scripts/create_distribution.py`.
@@ -54,27 +54,26 @@ launchers/
 
 ### Build Automatico (Detecta OS atual)
 ```bash
-python launchers/build_multiplatform.py
+uv run --python 3.13 launchers/build_multiplatform.py
 ```
 
 ### Build especifico por Plataforma
 ```bash
-python launchers/build_multiplatform.py --platform windows_amd64
-python launchers/build_multiplatform.py --platform macos_arm64
-python launchers/build_multiplatform.py --platform debian_amd64
+uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64
+uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64
+uv run --python 3.13 launchers/build_multiplatform.py --platform debian_amd64
 ```
 
 ### Build Completo (Todas as plataformas compativeis)
 ```bash
-python launchers/build_multiplatform.py --all
+uv run --python 3.13 launchers/build_multiplatform.py --all
 ```
 
 ### Opcoes Avancadas
 ```bash
-python launchers/build_multiplatform.py --clean          # Limpa builds anteriores
-python launchers/build_multiplatform.py --optimize       # Build otimizado (menor tamanho)
-python launchers/build_multiplatform.py --debug          # Build com debug info
-python launchers/build_multiplatform.py --release        # Build para release com versionamento
+uv run --python 3.13 launchers/build_multiplatform.py --clean          # Limpa builds anteriores
+uv run --python 3.13 launchers/build_multiplatform.py --debug          # Build com debug info
+uv run --python 3.13 launchers/build_multiplatform.py --all            # Build para plataforma atual
 ```
 
 ## configuracao de Ambiente
@@ -122,7 +121,7 @@ O script automaticamente:
 - Para laboratorio controlado, use copia explicita apos build:
 
 ```bash
-python scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
+uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
 ```
 
 ### Tamanhos Esperados
@@ -182,12 +181,12 @@ sudo apt-get install python3-dev libgl1-mesa-dev libx11-dev
 
 **PyQt6 nao encontrado (Windows):**
 ```bash
-pip install --upgrade PyQt6 --force-reinstall
+uv pip install --python 3.13 --upgrade PyQt6 --force-reinstall
 ```
 
 ### Limpeza de Ambiente
 ```bash
-python launchers/build_multiplatform.py --clean-all
+uv run --python 3.13 launchers/build_multiplatform.py --clean-all
 ```
 
 Remove todos os ambientes virtuais e builds anteriores.
@@ -199,7 +198,7 @@ O script e compativel com workflows automatizados:
 
 ```yaml
 - name: Build Executables
-  run: python launchers/build_multiplatform.py --release --optimize
+  run: uv run --python 3.13 launchers/build_multiplatform.py --all
   
 - name: Upload Artifacts
   uses: actions/upload-artifact@v3
@@ -217,7 +216,7 @@ O script e compativel com workflows automatizados:
 
 ### Modo Debug
 ```bash
-python launchers/build_multiplatform.py --debug --verbose
+uv run --python 3.13 launchers/build_multiplatform.py --debug
 ```
 
 Gera logs detalhados para diagnostico de problemas.

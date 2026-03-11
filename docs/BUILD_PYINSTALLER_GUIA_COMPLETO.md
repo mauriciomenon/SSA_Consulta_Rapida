@@ -2,18 +2,18 @@
 
 ## CURRENT TRUTH (v4.32)
 
-- Sync deste guia: `2026-03-10 16:55 -0300`.
+- Sync deste guia: `2026-03-11 14:25 -0300`.
 - Caminho operacional principal:
-  - build: `python launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
+  - build: `uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
   - artefatos: `launchers/dist/windows_amd64/`
-  - distribuicao: `python scripts/create_distribution.py --build-system pyinstaller`
+  - distribuicao: `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller`
 - Referencias a `build_pyinstaller.bat` e `builds/pyinstaller` neste arquivo sao historicas.
 - Para fluxo atual, usar `launchers/dist/*` como fonte canonica.
 - Sempre que houver conflito entre exemplos antigos e o pipeline atual, prevalece `launchers/dist/*`.
 - Validacao 2026-03-10 (host macOS arm64):
   - `pyinstaller --version` OK (`6.19.0`)
-  - `python scripts/create_distribution.py --build-system pyinstaller --skip-installer` gerou ZIP com sucesso
-  - `python scripts/create_distribution.py --build-system pyinstaller` gerou ZIP, mas installer falhou por ausencia de origem Windows/Inno no host atual
+  - `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --skip-installer` gerou ZIP com sucesso
+  - `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller` gerou ZIP, mas installer falhou por ausencia de origem Windows/Inno no host atual
 - `pytoexe`/`py2exe` nao fazem parte do backend suportado deste repo.
 
 ## HISTORICAL SNAPSHOT NOTICE
@@ -26,8 +26,8 @@ Quando houver conflito, prevalece o bloco CURRENT TRUTH acima.
 - ESTE ARQUIVO E REFERENCIA HISTORICA.
 - NAO USAR ESTE RUNBOOK COMO FLUXO PRINCIPAL DE RELEASE.
 - PARA OPERACAO ATUAL, USAR:
-  - `python launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
-  - `python scripts/create_distribution.py --build-system pyinstaller`
+  - `uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
+  - `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller`
 
 **Data**: 2025-11-14
 **Autor**: Claude Code

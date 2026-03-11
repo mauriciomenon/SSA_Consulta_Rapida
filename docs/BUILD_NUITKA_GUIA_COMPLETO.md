@@ -2,11 +2,11 @@
 
 ## CURRENT TRUTH (v4.32)
 
-- Sync deste guia: `2026-03-10 16:55 -0300`.
+- Sync deste guia: `2026-03-11 14:25 -0300`.
 - Nuitka permanece trilha experimental neste baseline.
 - Pipeline oficial de release continua PyInstaller.
 - Quando executar Nuitka, usar somente para validacao laboratorial e empacotar via:
-  - `python scripts/create_distribution.py --build-system nuitka --skip-installer`
+  - `uv run --python 3.13 scripts/create_distribution.py --build-system nuitka --skip-installer`
 - Referencias a `builds/nuitka` neste guia sao historicas e nao caminho principal.
 - As secoes de snapshot historico usam exemplos com Nuitka 2.8.4; validacao local atual foi em 4.0.1.
 - Preflight 2026-03-10 (host macOS arm64):

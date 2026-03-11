@@ -15,13 +15,13 @@
 
 ```bash
 # Build para plataforma atual
-python launchers/build_multiplatform.py --apps cli gui
+uv run --python 3.13 launchers/build_multiplatform.py --apps cli gui
 
 # Build para plataforma explicita
-python launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui
+uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui
 
 # Teste basico dos artefatos
-python launchers/test_complete.py
+uv run --python 3.13 launchers/test_complete.py
 ```
 
 ## Estrutura Relevante
@@ -61,7 +61,7 @@ launchers/
 Para compressao opcional no Windows:
 
 ```bash
-pip install -r launchers/platforms/windows_amd64/requirements_windows_build.txt
+uv pip install --python 3.13 -r launchers/platforms/windows_amd64/requirements_windows_build.txt
 ```
 
 Se `upx4py` nao estiver instalado, o build continua sem compressao.
@@ -71,14 +71,14 @@ Se `upx4py` nao estiver instalado, o build continua sem compressao.
 ### Plataforma nao detectada
 
 ```bash
-python launchers/build_multiplatform.py --detect-platform
+uv run --python 3.13 launchers/build_multiplatform.py --detect-platform
 ```
 
 ### Limpeza de artefatos
 
 ```bash
-python launchers/build_multiplatform.py --clean
-python launchers/build_multiplatform.py --clean-all
+uv run --python 3.13 launchers/build_multiplatform.py --clean
+uv run --python 3.13 launchers/build_multiplatform.py --clean-all
 ```
 
 ### Logs de build

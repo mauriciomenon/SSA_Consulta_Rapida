@@ -13,7 +13,7 @@ Arquivos comparados:
 
 ## Resumo rapido
 - `build_simple.py`: script leve e rapido para gerar um executavel de desenvolvimento (usa `dist_simple`, limpa automaticamente). Ideal para developers que querem validar um exe localmente em poucos segundos.
-- `build_multiplatform.py`: sistema completo e robusto para builds reproduziveis em multiplas plataformas (Windows, macOS, Debian). Gerencia virtualenvs por plataforma, configuracoes por plataforma, pos-processamento (UPX), manifests e integracao git/CI.
+- `build_multiplatform.py`: sistema completo e robusto para builds reproduziveis em multiplas plataformas (Windows, macOS, Debian). Gerencia virtualenvs por plataforma com `uv`, configuracoes por plataforma, pos-processamento (UPX), manifests e integracao git/CI.
 
 ## Diferencas por categoria
 
@@ -23,7 +23,7 @@ Arquivos comparados:
 
 ### Ambiente e dependencias
 - build_simple.py: usa o Python/ambiente atual e executa PyInstaller diretamente (sem criar venv isolado).
-- build_multiplatform.py: cria e gerencia um `venv` por plataforma em `launchers/platforms/{platform}/venv` e instala `requirements.txt` especificos por plataforma.
+- build_multiplatform.py: cria e gerencia um `venv` por plataforma em `launchers/platforms/{platform}/venv` com `uv venv` e instala `requirements.txt` via `uv pip`.
 
 ### Configuracao e parametrizacao
 - build_simple.py: flags PyInstaller hardcoded (alguns `hidden-imports`) e nome fixo do executavel (`SSA_CLI_v3.10_SIMPLES`).
@@ -46,7 +46,7 @@ Arquivos comparados:
 - build_multiplatform.py: foca em gerar artefatos e manifest; integracao de testes geralmente e feita no pipeline externo (mas o script pode ser estendido para isso).
 
 ## Comportamento especifico no Windows
-- `build_multiplatform.py` contem mapeamentos explicitos para `windows_amd64` (ex.: `python_exe = python.exe`, `executable_ext = .exe`) e usa caminhos Windows-aware (`venv\Scripts\python.exe`). Tambem detecta ausencia de UPX e avisa.
+- `build_multiplatform.py` roda em modo uv-first (`uv run --python 3.13 ...`) e usa o Python do `venv` da plataforma para invocar `PyInstaller` via `-m`.
 - `build_simple.py` funciona em Windows desde que `pyinstaller` esteja disponivel no PATH.
 
 ## Onde os artefatos Windows aparecem (exemplo no repositorio)
@@ -58,17 +58,17 @@ Arquivos comparados:
 
 Build rapido (desenvolvimento):
 ```powershell
-python launchers/build_simple.py
+uv run --python 3.13 launchers/build_simple.py
 ```
 
 Build Windows (reprodutivel, plataforma atual):
 ```powershell
-python launchers/build_multiplatform.py --platform windows_amd64
+uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64
 ```
 
 Build atual detectado (faz build para a plataforma atual):
 ```powershell
-python launchers/build_multiplatform.py
+uv run --python 3.13 launchers/build_multiplatform.py
 ```
 
 Passos para CI / release recomendados:

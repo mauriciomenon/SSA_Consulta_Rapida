@@ -2,7 +2,7 @@
 
 ## CURRENT TRUTH (v4.32)
 
-- Sync deste guia: `2026-03-10 16:55 -0300`.
+- Sync deste guia: `2026-03-11 14:25 -0300`.
 - Versao de referencia: `4.32` (arquivo `VERSION`).
 - Fluxo canonico de build: `launchers/build_multiplatform.py`.
 - Saida canonica de artefatos: `launchers/dist/<plataforma>/`.
@@ -47,21 +47,21 @@ Nota Debian:
 ### 1) Build da plataforma atual
 
 ```bash
-python launchers/build_multiplatform.py --apps cli gui
+uv run --python 3.13 launchers/build_multiplatform.py --apps cli gui
 ```
 
 ### 2) Build de plataforma especifica
 
 ```bash
-python launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui
-python launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui
-python launchers/build_multiplatform.py --platform debian_amd64 --apps cli gui
+uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui
+uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui
+uv run --python 3.13 launchers/build_multiplatform.py --platform debian_amd64 --apps cli gui
 ```
 
 ### 3) Verificar saida do build
 
 ```bash
-python launchers/test_complete.py
+uv run --python 3.13 launchers/test_complete.py
 ```
 
 ## Empacotamento para Distribuicao
@@ -69,13 +69,13 @@ python launchers/test_complete.py
 ### 1) Criar ZIP
 
 ```bash
-python scripts/create_distribution.py --build-system pyinstaller --skip-installer
+uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --skip-installer
 ```
 
 ### 2) Criar instalador Windows (Inno Setup)
 
 ```bash
-python scripts/create_distribution.py --build-system pyinstaller
+uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller
 ```
 
 Notas:
@@ -88,13 +88,47 @@ Notas:
 ### 3) Criar pacote de outros build systems (laboratorio)
 
 ```bash
-python scripts/create_distribution.py --build-system nuitka --skip-installer
-python scripts/create_distribution.py --build-system pyoxidizer --skip-installer
+uv run --python 3.13 scripts/create_distribution.py --build-system nuitka --skip-installer
+uv run --python 3.13 scripts/create_distribution.py --build-system pyoxidizer --skip-installer
 ```
 
 Importante:
 - `nuitka` e `pyoxidizer` estao mantidos como trilha experimental neste ciclo.
 - Para release operacional, usar PyInstaller como padrao.
+
+## Mapa de Pastas de Build
+
+### Pastas temporarias (nunca versionar)
+
+- PyInstaller: `launchers/platforms/<plataforma>/temp/`
+- Nuitka: `builds/nuitka/<plataforma>/*.build/`
+- PyOxidizer: `build/<target>/`
+
+### Artefatos linkados/intermediarios (nunca versionar)
+
+- Tradicional (PyInstaller, canonico): `launchers/dist/<plataforma>/`
+- Tradicional (equivalente/espelho): `builds/pyinstaller/<plataforma>/`
+- Nuitka: `builds/nuitka/<plataforma>/<entry>.dist/`
+- PyOxidizer: `builds/pyoxidizer/<plataforma>/`
+
+### Artefatos finais de distribuicao (nunca versionar)
+
+- ZIP/installer final: `dist_packages/`
+- Script `.iss` gerado: `dist_packages/installer_<backend>.iss`
+
+### Exes principais esperados (Windows)
+
+- Tradicional (PyInstaller, onedir): `launchers/dist/windows_amd64/SSA_GUI_v<versao>_windows_amd64/SSA_GUI_v<versao>_windows_amd64.exe`
+- Tradicional (equivalente/espelho): `builds/pyinstaller/windows_amd64/SSA_GUI_v<versao>_windows_amd64/SSA_GUI_v<versao>_windows_amd64.exe`
+- Nuitka: `builds/nuitka/windows_amd64/gui_entry.dist/SSA_GUI_v<versao>_windows_amd64.exe`
+- PyOxidizer: `builds/pyoxidizer/windows_amd64/SSA_Consulta_Rapida.exe`
+
+### Exes principais esperados (Debian via WSL)
+
+- Tradicional (PyInstaller, onedir): `launchers/dist/debian_amd64/SSA_GUI_v<versao>_debian_amd64/SSA_GUI_v<versao>_debian_amd64`
+- Tradicional (equivalente/espelho): `builds/pyinstaller/debian_amd64/SSA_GUI_v<versao>_debian_amd64/SSA_GUI_v<versao>_debian_amd64`
+- Nuitka: `builds/nuitka/debian_amd64/gui_entry.dist/SSA_GUI_v<versao>_debian_amd64`
+- PyOxidizer: `builds/pyoxidizer/debian_amd64/SSA_Consulta_Rapida`
 
 ## Estrutura Esperada dos Pacotes
 
@@ -121,7 +155,7 @@ No caminho canonico de empacotamento, diretorios de dados locais sensiveis nao e
 Politica operacional (v4.32+):
 - build canonico nao embeda `data/` por padrao.
 - se for necessario incluir dados locais para laboratorio, usar fluxo explicito e controlado:
-  - `python scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data`
+  - `uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data`
   - nunca usar isso para pacote de distribuicao geral.
 
 ## Distribuicao para Usuario Final
@@ -166,7 +200,7 @@ SUPORTE
 5. Executar novamente com log:
 
 ```bash
-python scripts/create_distribution.py --build-system pyinstaller --skip-installer
+uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --skip-installer
 ```
 
 ### Instalador nao gerado
@@ -177,7 +211,7 @@ python scripts/create_distribution.py --build-system pyinstaller --skip-installe
 
 ```bash
 set INNO_SETUP_COMPILER=C:\Program Files (x86)\Inno Setup 6\ISCC.exe
-python scripts/create_distribution.py --build-system pyinstaller
+uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller
 ```
 
 ### Copia de dados locais para build
@@ -185,7 +219,7 @@ python scripts/create_distribution.py --build-system pyinstaller
 O script `scripts/copy_data_to_builds.py` exige confirmacao explicita:
 
 ```bash
-python scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
+uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
 ```
 
 Use somente em ambiente controlado.

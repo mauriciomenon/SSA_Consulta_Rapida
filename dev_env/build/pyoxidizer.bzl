@@ -1,4 +1,13 @@
 # PyOxidizer configuration for SSA_Consulta_Rapida
+# IMPORTANT: avoid '..' in paths because Tugger rejects them.
+
+PROJECT_ROOT = VARS.get("SSA_PROJECT_ROOT") or "."
+
+
+def _join_path(base, suffix):
+    if base.endswith("/") or base.endswith("\\"):
+        return base + suffix
+    return base + "/" + suffix
 
 def make_exe():
     dist = default_python_distribution()
@@ -34,15 +43,6 @@ def make_exe():
     # Using a more permissive policy should include .libs directories
     exe.add_python_resources(exe.pip_install(["pandas", "openpyxl", "PyQt6"]))
 
-    # Add main.py explicitly as a module
-    # Force project sources to filesystem as well
-    for resource in exe.read_package_root(
-        path=".",
-        packages=["core", "gui", "armazenamento", "extracao", "utils", "interface", "exportacao", "shared", "main"],
-    ):
-        resource.add_location = "filesystem-relative:lib"
-        exe.add_python_resource(resource)
-
     return exe
 
 def make_embedded_resources(exe):
@@ -54,16 +54,35 @@ def make_install(exe):
     # Add executable
     files.add_python_resource(".", exe)
 
-    # Add external directories that need to stay accessible
+    # Add runtime assets required by the app.
     files.add_manifest(glob(
-        include=["config/**"],
+        include=[_join_path(PROJECT_ROOT, "config/**")],
     ))
 
     files.add_manifest(glob(
-        include=["themes/**"],
+        include=[_join_path(PROJECT_ROOT, "themes/**")],
     ))
 
-    # Note: docs_entrada/ and data/ directories will be created by the application at runtime if needed
+    files.add_manifest(glob(
+        include=[_join_path(PROJECT_ROOT, "resources/**")],
+    ))
+
+    files.add_manifest(glob(
+        include=[
+            _join_path(PROJECT_ROOT, "main.py"),
+            _join_path(PROJECT_ROOT, "core/**"),
+            _join_path(PROJECT_ROOT, "gui/**"),
+            _join_path(PROJECT_ROOT, "armazenamento/**"),
+            _join_path(PROJECT_ROOT, "extracao/**"),
+            _join_path(PROJECT_ROOT, "utils/**"),
+            _join_path(PROJECT_ROOT, "interface/**"),
+            _join_path(PROJECT_ROOT, "exportacao/**"),
+            _join_path(PROJECT_ROOT, "shared/**"),
+            _join_path(PROJECT_ROOT, "launchers/**"),
+        ],
+    ))
+
+    # docs_entrada/ and data/ are created at runtime.
 
     return files
 
