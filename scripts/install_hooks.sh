@@ -17,6 +17,7 @@ fi
 
 mkdir -p "$HOOK_DST_DIR"
 missing_hooks=()
+install_failures=()
 
 install_named_hook(){
   local hook_name="$1"
@@ -26,16 +27,29 @@ install_named_hook(){
     missing_hooks+=("$hook_name")
     return 1
   fi
-  cp "$src" "$HOOK_DST_DIR/$hook_name"
-  chmod +x "$HOOK_DST_DIR/$hook_name"
+  if ! cp "$src" "$HOOK_DST_DIR/$hook_name"; then
+    echo "[install-hooks] ERRO: falha ao copiar hook: $hook_name" >&2
+    return 1
+  fi
+  if ! chmod +x "$HOOK_DST_DIR/$hook_name"; then
+    echo "[install-hooks] ERRO: falha ao aplicar permissao no hook: $hook_name" >&2
+    return 1
+  fi
   echo "[install-hooks] Instalado hook $hook_name"
 }
 
-install_named_hook "pre-commit"
-install_named_hook "pre-push"
+install_named_hook "pre-commit" || install_failures+=("pre-commit")
+install_named_hook "pre-push" || install_failures+=("pre-push")
 
 if [[ ${#missing_hooks[@]} -gt 0 ]]; then
   echo "[install-hooks] ERRO: hooks obrigatorios ausentes: ${missing_hooks[*]}" >&2
+fi
+
+if [[ ${#install_failures[@]} -gt 0 ]]; then
+  echo "[install-hooks] ERRO: falha na instalacao dos hooks: ${install_failures[*]}" >&2
+fi
+
+if [[ ${#missing_hooks[@]} -gt 0 || ${#install_failures[@]} -gt 0 ]]; then
   exit 1
 fi
 
