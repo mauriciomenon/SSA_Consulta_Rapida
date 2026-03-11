@@ -2,16 +2,26 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 23:03 - start from here
+## CURRENT TRUTH 2026-03-10 23:51 - start from here
 
 - Objetivo desta rodada:
-  1. fechar DOC_SYNC final com decisao intencional ja aprovada e preparar texto de transicao.
+  1. fixar o nome da aplicacao para `Consulta Rapida de SSAs` no fluxo GUI (`python main.py --gui`) com patch minimo.
 - Correcoes aplicadas:
-  1. docs de controle sincronizados com snapshot final desta sessao.
-  2. decisao `DECISAO_INTENCIONAL` mantida: `scripts/git_hooks/pre-push` segue sem `--not --remotes`.
+  1. `main.py`: `QApplication` agora recebe `setApplicationName` e `setApplicationDisplayName`.
+  2. `launchers/gui_entry.py`: mesmo nome aplicado no entrypoint de GUI empacotada.
+  3. `launchers/build_multiplatform.py`:
+     - sincroniza `CFBundleName` e `CFBundleDisplayName` para `Consulta Rapida de SSAs` no `Info.plist` do `.app` gerado.
+     - ajuste minimo de tipagem em `handlers` para compatibilidade com `ty`.
+  4. `tests/test_build_multiplatform_manifest.py`:
+     - cobre atualizacao de `CFBundleName` e `CFBundleDisplayName` durante `post_process`.
+- Evidencia de validacao:
+  1. `uv run --python 3.13 python -m py_compile main.py launchers/gui_entry.py launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass.
+  2. `uv run --python 3.13 ruff check main.py launchers/gui_entry.py launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass.
+  3. `uv run --python 3.13 ty check main.py launchers/gui_entry.py launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass.
+  4. `uv run --python 3.13 pytest -q tests/test_build_multiplatform_manifest.py` -> `5 passed`.
 - Estado local confirmado:
-  1. branch: `codex/sprint-importacao-grave-fixes-20260305`.
-  2. ultimo commit: `fa9d6f0d DOC_SYNC: register intentional pre-push gate policy`.
+  1. branch: `dev`.
+  2. ultimo commit antes deste slice: `8688b623 Merge pull request #45 from mauriciomenon/codex/sprint-importacao-grave-fixes-20260305`.
   3. residuos fora de escopo mantidos:
      - `M data/ssas.db`
      - `?? config/settings.json.bak_20260308_212715`
@@ -20,8 +30,8 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `stash@{1}` `incident-freeze-before-reapply-20260305-083301`
      - `stash@{2}` `local-wip-config-db-before-dev-switch-20260303`
 - Proximo passo recomendado:
-  1. iniciar novo chat lendo os 5 blocos de topo (AGENTS + 4 docs de controle/politica).
-  2. manter foco em estabilidade com slices minimos e commit atomico por risco real.
+  1. validar manualmente o menu global do macOS via `python main.py --gui`.
+  2. no proximo build macOS, regenerar `.app/.dmg` para refletir `CFBundleDisplayName` novo.
 
 ## HISTORICAL SNAPSHOT 2026-03-10 22:52 - start from here
 

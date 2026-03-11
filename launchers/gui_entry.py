@@ -28,6 +28,8 @@ def main():
         from gui.gui_ssa import SSAMainWindow
 
         app = QApplication(sys.argv)
+        app.setApplicationName("Consulta Rapida de SSAs")
+        app.setApplicationDisplayName("Consulta Rapida de SSAs")
         window = SSAMainWindow()
         window.show()
         sys.exit(app.exec())
