@@ -18,6 +18,42 @@ Fluxo de trabalho registrado para proximo ciclo curto:
 3. Regra operacional para esse debt:
    - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
 
+## Update 2026-03-10 22:41 - fixes P2 cubic em hooks
+
+Session timestamp:
+1. start: `2026-03-10 22:41:13 -0300`
+2. end: `2026-03-10 22:43:40 -0300`
+
+Objetivo do slice:
+1. corrigir os 2 P2 novos do cubic em scripts de hook.
+
+Escopo alterado:
+1. `scripts/install_hooks.sh`
+2. `scripts/git_hooks/pre-push`
+3. `docs/RECOVERY_BACKLOG.md`
+4. `docs/NEXT_CHAT_MIGRATION.md`
+5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
+Correcoes aplicadas:
+1. `install_hooks.sh`
+   - chamadas de hooks obrigatorios agora agregam falhas para relatorio completo no fim.
+   - `cp/chmod` com erro explicito por hook e retorno de falha.
+2. `pre-push`
+   - removido `--not --remotes` para nao ocultar blobs grandes novos ao destino.
+   - mantida tolerancia a range invalido para nao abortar push valido por range ruim.
+
+Evidencia tecnica:
+1. `bash -n scripts/install_hooks.sh scripts/git_hooks/pre-push` -> pass.
+2. `kluster review file scripts/install_hooks.sh` -> clean.
+3. `kluster review file scripts/git_hooks/pre-push` -> 3 MEDIUM, sem blocker novo.
+
+Classificacao:
+1. `BUG_REAL` corrigido:
+   - `pre-push` com risco de false-negative para blob grande novo no alvo.
+   - `install_hooks` com risco de validacao parcial por exit precoce.
+2. `NAO_BLOQUEANTE_DEFERIDO`:
+   - `pre-push` com debts de semantica/performance ampla no scan de objetos.
+
 ## Update 2026-03-10 22:30 - hardening de concorrencia no cache
 
 Session timestamp:

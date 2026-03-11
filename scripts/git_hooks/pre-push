@@ -45,7 +45,7 @@ trap 'rm -f "$tmp_objects" "$tmp_revlist"' EXIT
 
 : > "$tmp_revlist"
 for rev_range in "${refs[@]}"; do
-  if ! git rev-list --objects "$rev_range" --not --remotes >> "$tmp_revlist" 2>/dev/null; then
+  if ! git rev-list --objects "$rev_range" >> "$tmp_revlist" 2>/dev/null; then
     info "Ignorando range invalido no pre-push: $rev_range"
   fi
 done

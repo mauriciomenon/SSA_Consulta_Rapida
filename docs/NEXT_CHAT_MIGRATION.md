@@ -2,7 +2,30 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 22:30 - start from here
+## CURRENT TRUTH 2026-03-10 22:41 - start from here
+
+- Objetivo desta rodada:
+  1. fechar 2 comentarios P2 do cubic nos hooks (`install_hooks.sh` e `pre-push`).
+- Correcoes aplicadas:
+  1. `scripts/install_hooks.sh`
+     - chamadas de hooks agora validam os 2 obrigatorios no mesmo run.
+     - falhas por hook sao acumuladas e reportadas ao final (sem `|| true` cego).
+     - erros de `cp/chmod` passaram a gerar retorno explicito por hook.
+  2. `scripts/git_hooks/pre-push`
+     - removido `--not --remotes` para nao ocultar blob grande novo no alvo de push.
+     - mantida tolerancia para range invalido (nao abortar push valido por um range ruim).
+- Evidencia de validacao:
+  1. `bash -n scripts/install_hooks.sh scripts/git_hooks/pre-push` -> pass.
+  2. `kluster review file scripts/install_hooks.sh` -> clean.
+  3. `kluster review file scripts/git_hooks/pre-push` -> 3 MEDIUM sem blocker novo.
+- Classificacao:
+  1. `BUG_REAL` corrigido:
+     - risco de ocultar blob oversized no `pre-push`.
+     - risco de falhar cedo no primeiro hook e perder relatorio completo no instalador.
+  2. `NAO_BLOQUEANTE_DEFERIDO`:
+     - `pre-push`: 3 MEDIUM (semantica/performance ampla do scan).
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:30 - start from here
 
 - Objetivo desta rodada:
   1. fechar novo comentario de risco de concorrencia no cache sem refatoracao ampla.

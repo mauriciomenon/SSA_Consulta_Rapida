@@ -2,7 +2,30 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 22:30 - authoritative block
+## CURRENT TRUTH 2026-03-10 22:41 - authoritative block
+
+- Objetivo desta rodada:
+  1. fechar os 2 P2 novos do cubic em scripts de hook.
+- Correcoes aplicadas:
+  1. `scripts/install_hooks.sh`
+     - validacao completa dos hooks obrigatorios no mesmo run.
+     - agregacao de falhas por hook e retorno final unico.
+     - sem mascaramento de erro real de copia/permissao.
+  2. `scripts/git_hooks/pre-push`
+     - removido `--not --remotes` para nao perder deteccao de blob grande novo no alvo.
+     - tolerancia por range invalido preservada.
+- Validacao:
+  1. `bash -n scripts/install_hooks.sh scripts/git_hooks/pre-push` -> pass.
+  2. kluster `install_hooks.sh` -> clean.
+  3. kluster `pre-push` -> 3 MEDIUM (debt), sem blocker novo.
+- Classificacao:
+  1. `BUG_REAL` corrigido:
+     - gate de tamanho que podia esconder blobs novos no destino.
+     - instalador que podia interromper cedo sem reportar todos os hooks obrigatorios.
+  2. `NAO_BLOQUEANTE_DEFERIDO`:
+     - debt semantico/performance amplo no `pre-push`.
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:30 - authoritative block
 
 - Objetivo desta rodada:
   1. mitigar risco real de concorrencia no cache (lost update) com patch minimo.
