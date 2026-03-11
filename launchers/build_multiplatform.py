@@ -7,6 +7,7 @@ Inclui limpeza automatica, commit e push apos build bem-sucedido.
 
 import sys
 import json
+import plistlib
 import platform
 import subprocess
 import shutil
@@ -23,7 +24,7 @@ def setup_logging():
 
     log_file = log_dir / 'build.log'
 
-    handlers = [logging.StreamHandler()]
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
 
     try:
         handlers.append(logging.FileHandler(str(log_file)))
@@ -43,6 +44,8 @@ logger = setup_logging()
 
 class MultiPlatformBuilder:
     """Construtor de executaveis multi-plataforma"""
+
+    APP_DISPLAY_NAME = 'Consulta Rapida de SSAs'
 
     PLATFORMS = {
         'windows_amd64': {
@@ -341,6 +344,10 @@ class MultiPlatformBuilder:
         if post_config.get('compress', False) and platform_name != 'macos_arm64':
             self._compress_executables(platform_dist)
 
+        if platform_name == 'macos_arm64' and 'gui' in apps_set:
+            if not self._sync_macos_gui_display_name(platform_dist):
+                return False
+
         # Criar manifesto
         self._create_manifest(platform_name, platform_dist)
 
@@ -369,6 +376,38 @@ class MultiPlatformBuilder:
         if candidates:
             return candidates[0]
         return None
+
+    def _sync_macos_gui_display_name(self, dist_dir):
+        """Atualiza CFBundleName e CFBundleDisplayName do app GUI no macOS."""
+        app_bundle = self._find_macos_gui_app(dist_dir)
+        if app_bundle is None:
+            logger.error("Bundle .app da GUI nao encontrado para atualizar nome em %s", dist_dir)
+            return False
+
+        info_plist_path = app_bundle / 'Contents' / 'Info.plist'
+        if not info_plist_path.exists():
+            logger.error("Info.plist nao encontrado no bundle GUI: %s", info_plist_path)
+            return False
+
+        try:
+            with open(info_plist_path, 'rb') as plist_file:
+                plist_data = plistlib.load(plist_file)
+        except (OSError, plistlib.InvalidFileException, ValueError) as exc:
+            logger.error("Falha ao ler Info.plist '%s': %s", info_plist_path, exc)
+            return False
+
+        plist_data['CFBundleName'] = self.APP_DISPLAY_NAME
+        plist_data['CFBundleDisplayName'] = self.APP_DISPLAY_NAME
+
+        try:
+            with open(info_plist_path, 'wb') as plist_file:
+                plistlib.dump(plist_data, plist_file)
+        except OSError as exc:
+            logger.error("Falha ao atualizar Info.plist '%s': %s", info_plist_path, exc)
+            return False
+
+        logger.info("Nome de exibicao do bundle macOS atualizado para '%s'", self.APP_DISPLAY_NAME)
+        return True
 
     def _create_macos_dmg(self, dist_dir):
         """Gera instalador DMG a partir do bundle .app da GUI."""

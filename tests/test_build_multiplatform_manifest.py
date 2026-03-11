@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import plistlib
 from pathlib import Path
 
 from launchers.build_multiplatform import MultiPlatformBuilder
@@ -108,6 +109,9 @@ def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
     app_bin = app_bundle / "Contents" / "MacOS" / app_name.replace(".app", "")
     app_bin.parent.mkdir(parents=True)
     app_bin.write_bytes(b"gui-bin")
+    info_plist = app_bundle / "Contents" / "Info.plist"
+    with open(info_plist, "wb") as plist_file:
+        plistlib.dump({"CFBundleName": "legacy", "CFBundleDisplayName": "legacy"}, plist_file)
 
     captured_cmds = []
 
@@ -136,6 +140,11 @@ def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
 
     dmg_path = platform_dir / builder._get_macos_dmg_name()
     assert dmg_path.exists()
+
+    with open(info_plist, "rb") as plist_file:
+        plist_data = plistlib.load(plist_file)
+    assert plist_data["CFBundleName"] == builder.APP_DISPLAY_NAME
+    assert plist_data["CFBundleDisplayName"] == builder.APP_DISPLAY_NAME
 
     manifest = json.loads((platform_dir / "build_manifest.json").read_text(encoding="utf-8"))
     names = {entry["name"] for entry in manifest["executables"]}

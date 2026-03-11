@@ -2,26 +2,32 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 23:03 - authoritative block
+## CURRENT TRUTH 2026-03-10 23:51 - authoritative block
 
 - Objetivo desta rodada:
-  1. fechar DOC_SYNC final para migracao de conversa sem tocar runtime.
+  1. ajustar nome da app para `Consulta Rapida de SSAs` no startup GUI em todos os SOs suportados.
 - Registro aplicado:
-  1. decisao intencional reforcada: `pre-push` permanece sem `--not --remotes`.
-  2. snapshot operacional consolidado para abertura de novo chat.
+  1. `main.py` e `launchers/gui_entry.py` configuram nome/display name da `QApplication`.
+  2. `launchers/build_multiplatform.py` atualiza `CFBundleName`/`CFBundleDisplayName` no `Info.plist` do `.app` macOS gerado.
+  3. `tests/test_build_multiplatform_manifest.py` cobre essa atualizacao.
+  4. sem alteracao de layout/posicao da GUI.
+- Validacao:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado (`main.py`, `launchers/gui_entry.py`, `launchers/build_multiplatform.py`, `tests/test_build_multiplatform_manifest.py`) -> pass.
+  2. `pytest -q tests/test_build_multiplatform_manifest.py` -> `5 passed`.
 - Estado local no fechamento:
-  1. branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
-  2. ultimo commit: `fa9d6f0d DOC_SYNC: register intentional pre-push gate policy`.
-  3. residuos fora de escopo:
+  1. branch ativa: `dev`.
+  2. ultimo commit antes deste slice: `8688b623`.
+  3. PR `#45`: `MERGED` em `2026-03-11T02:06:23Z`.
+  4. residuos fora de escopo:
      - `M data/ssas.db`
      - `?? config/settings.json.bak_20260308_212715`
-  4. stashes abertos:
+  5. stashes abertos:
      - `stash@{0}` `wip-before-return-import-branch-20260308_011343`
      - `stash@{1}` `incident-freeze-before-reapply-20260305-083301`
      - `stash@{2}` `local-wip-config-db-before-dev-switch-20260303`
 - Proximo ciclo (entrada minima):
-  1. reler blocos de topo de `AGENTS.md`, `docs/POLICY_BASELINE_V1_1_FROZEN.md`, `docs/RECOVERY_BACKLOG.md`, `docs/NEXT_CHAT_MIGRATION.md`, `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`.
-  2. iniciar por diagnostico+evidencia e plano curto antes de qualquer edicao.
+  1. validar visualmente no macOS o nome no menu global com `python main.py --gui`.
+  2. gerar novo build macOS para refletir `CFBundleDisplayName` atualizado no `.app/.dmg`.
 
 ## HISTORICAL SNAPSHOT 2026-03-10 22:52 - authoritative block
 

@@ -8,7 +8,7 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 Fluxo de trabalho registrado para proximo ciclo curto:
 1. `except Exception` amplos (BLE001) no restante do codigo devem ser reduzidos por slices pequenos e validacao focada.
 2. Ultima leitura objetiva:
-   - contagem atual no repo: `860` ocorrencias.
+   - contagem atual no repo: `858` ocorrencias.
    - comando de reproduo: `ruff check . --select BLE001`.
    - hotspots iniciais:
      - `armazenamento/database*.py`
@@ -17,6 +17,73 @@ Fluxo de trabalho registrado para proximo ciclo curto:
      - `dev_env/streamlit_app.py`
 3. Regra operacional para esse debt:
    - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
+
+## Update 2026-03-10 23:51 - app name GUI cross-OS (patch minimo)
+
+Session timestamp:
+1. start: `2026-03-10 23:45:10 -0300`
+2. end: `2026-03-10 23:51:53 -0300`
+
+Objetivo do slice:
+1. ajustar nome da aplicacao para `Consulta Rapida de SSAs` no startup GUI sem alterar layout ou fluxo funcional.
+
+Escopo alterado:
+1. `main.py`
+2. `launchers/gui_entry.py`
+3. `launchers/build_multiplatform.py`
+4. `tests/test_build_multiplatform_manifest.py`
+5. `docs/RECOVERY_BACKLOG.md`
+6. `docs/NEXT_CHAT_MIGRATION.md`
+7. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
+Correcoes aplicadas:
+1. `main.py`: `QApplication` agora define `setApplicationName` e `setApplicationDisplayName` com `Consulta Rapida de SSAs`.
+2. `launchers/gui_entry.py`: mesmo nome aplicado no entrypoint GUI empacotado.
+3. `launchers/build_multiplatform.py`:
+   - novo sync de `CFBundleName` e `CFBundleDisplayName` para `Consulta Rapida de SSAs` no `Info.plist` do `.app` macOS.
+   - ajuste minimo de tipagem em `handlers` para fechar `ty check`.
+4. `tests/test_build_multiplatform_manifest.py`:
+   - validacao de regressao para confirmar atualizacao do `Info.plist` no post-process.
+
+Evidencia tecnica:
+1. `uv run --python 3.13 python -m py_compile main.py launchers/gui_entry.py launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass.
+2. `uv run --python 3.13 ruff check main.py launchers/gui_entry.py launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass.
+3. `uv run --python 3.13 ty check main.py launchers/gui_entry.py launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass.
+4. `uv run --python 3.13 pytest -q tests/test_build_multiplatform_manifest.py` -> `5 passed`.
+
+Classificacao:
+1. `STABILITY_PATCH`:
+   - remove ambiguidade de nome (`python`) no startup GUI com configuracao explicita de app name.
+2. `NAO_BLOQUEANTE_DEFERIDO`:
+   - validar no ciclo de release a aparencia final do nome em build macOS assinado/notarizado.
+
+## Update 2026-03-10 23:24 - sync pos-merge para estado real em dev
+
+Session timestamp:
+1. start: `2026-03-10 23:24:15 -0300`
+2. end: `2026-03-10 23:27:24 -0300`
+
+Objetivo do slice:
+1. atualizar docs de controle para remover estado antigo de branch/PR aberto e refletir estado real.
+
+Escopo alterado:
+1. `docs/RECOVERY_BACKLOG.md`
+2. `docs/NEXT_CHAT_MIGRATION.md`
+3. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+4. `docs/INDEX.md`
+
+Registro aplicado:
+1. estado operacional atualizado para branch ativa `dev`.
+2. PR `#45` registrado como `MERGED` em `2026-03-11T02:06:23Z`.
+3. decisao `DECISAO_INTENCIONAL` mantida:
+   - `scripts/git_hooks/pre-push` sem `--not --remotes`.
+
+Estado local no fechamento:
+1. branch: `dev`.
+2. ultimo commit de codigo/docs no momento do registro: `8688b623`.
+3. residuos locais mantidos:
+   - `M data/ssas.db`
+   - `?? config/settings.json.bak_20260308_212715`
 
 ## Update 2026-03-10 23:03 - doc sync final e texto de transicao
 
