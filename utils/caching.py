@@ -270,7 +270,7 @@ def get_files_to_process(
         current_hash = _calculate_hash(file_path)
         if not current_hash:
             logger.warning(
-                "Hash não pôde ser calculado para %s; reenfileirando para processamento para evitar perda silenciosa.",
+                "Hash nao pode ser calculado para %s; reenfileirando para processamento para evitar perda silenciosa.",
                 file_path,
             )
             files_to_process.append(file_path)
@@ -322,7 +322,7 @@ def update_cache_for_files(file_paths: List[str], cache_file: str, docs_dir: Opt
             current_cache[file_cache_key] = {"sha256": file_hash, "size": size, "mtime_ns": mtime_ns}
             updated = True
         else:
-            logger.warning(f"Não foi possível atualizar o cache para {file_path} (hash falhou).")
+            logger.warning(f"Nao foi possivel atualizar o cache para {file_path} (hash falhou).")
 
     if updated:
         save_cache(current_cache, cache_file)

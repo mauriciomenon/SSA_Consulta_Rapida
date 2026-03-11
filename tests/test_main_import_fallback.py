@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 
-def test_main_no_automatic_legacy_retry_when_optimized_runtime_fails_by_default(
+def test_main_no_automatic_legacy_retry_when_optimized_runtime_fails_on_force_rescan(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import armazenamento.database_optimized as db_opt
