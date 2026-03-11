@@ -2,49 +2,59 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-11 00:36 - start from here
+## CURRENT TRUTH 2026-03-11 07:59 - start from here
 
 - Objetivo desta rodada:
+  1. registrar handover para continuar no Windows sem perder contexto do slice macOS finalizado.
+  2. manter foco no proximo slice: scripts/build e tentativa de build no host Windows.
+- Estado confirmado para migracao:
+  1. branch alvo: `dev`.
+  2. ultimo commit sincronizado: `05bbc2e1 STABILITY_PATCH: fix mac app launch, title/about, and icon-aligned rebuild docs`.
+  3. artefatos macOS ja gerados no host atual:
+     - `launchers/dist/macos_arm64/SSA_GUI_v4.32_macos_arm64.app`
+     - `launchers/dist/macos_arm64/SSA_Consulta_Rapida_v4.32_macos_arm64.dmg`
+  4. residuos locais fora de escopo (apenas desta maquina):
+     - `M data/ssas.db`
+     - `M docs/INDEX.md`
+     - `?? config/settings.json.bak_20260308_212715`
+- Regras operacionais para o proximo host (Windows):
+  1. executar `git pull` em `dev` antes de editar.
+  2. nao alterar runtime GUI/importacao sem plano aprovado por slice.
+  3. priorizar somente scripts/build bloqueantes no Windows (sem sidequest).
+  4. manter patch minimo e registrar decisoes nos 3 docs de controle.
+- Checklist de arranque recomendado no Windows:
+  1. `date '+%Y-%m-%d %H:%M:%S %z'` (ou equivalente PowerShell)
+  2. `git status --short`
+  3. `git branch --show-current`
+  4. `git stash list | sed -n '1,10p'` (se aplicavel)
+  5. reportar em 5 linhas: status, riscos, residuos, stashes, foco do slice.
+- Observacao de sincronizacao:
+  1. arquivos locais/stash podem divergir entre maquinas; confiar no que estiver commitado em `origin/dev`.
+  2. se surgirem arquivos novos no Windows, validar escopo antes de incluir em commit.
+
+## HISTORICAL SNAPSHOT 2026-03-11 00:36 - previous current truth
+
+- Objetivo da rodada anterior:
   1. corrigir abertura do `.app` no macOS (duplo clique/Finder) sem fechamento imediato.
   2. garantir icone azul correto no `.app/.dmg` e manter nome da app.
   3. incluir versao no titulo da janela e menu `Sobre` com versoes de runtime.
 - Correcoes aplicadas:
-  1. `launchers/gui_entry.py`
+  1. `launchers/gui_entry.py`:
      - runtime frozen gravavel em user home.
      - seed de `config` empacotada para runtime local.
-     - `cwd` movido para runtime para evitar erro de escrita em `logs`.
-     - removido `SSA_CONFIG_DIR` para evitar warning/blocked path por `path_safety`.
-  2. `gui/gui_ssa.py`
-     - titulo da janela atualizado para `Consulta Rapida de SSAs v<versao>`.
-     - acao `Sobre` no menu `Ajuda` exibindo:
-       - versao app, Python, uv, PyQt6, Qt e pandas.
+     - `cwd` movido para runtime para evitar erro em `logs`.
+  2. `gui/gui_ssa.py`:
+     - titulo atualizado para `Consulta Rapida de SSAs v<versao>`.
+     - menu `Ajuda` com `Sobre` exibindo app/python/uv/pyqt/qt/pandas.
   3. build macOS:
-     - `.app` e `.dmg` regenerados com sucesso em `launchers/dist/macos_arm64`.
-     - `CFBundleName` e `CFBundleDisplayName` confirmados como `Consulta Rapida de SSAs`.
-     - `app_icon.icns` do bundle igual ao icone fonte em `resources/app_icon.icns`.
-- Evidencia de validacao:
-  1. `uv run --python 3.13 python -m py_compile launchers/gui_entry.py gui/gui_ssa.py` -> pass.
-  2. `uv run --python 3.13 ruff check launchers/gui_entry.py gui/gui_ssa.py` -> pass.
-  3. `uv run --python 3.13 ty check launchers/gui_entry.py gui/gui_ssa.py` -> pass (warnings historicos de `redundant-cast` em `gui/gui_ssa.py`).
-  4. `uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py::test_setup_app_menus_registers_grouped_menus tests/smoke_test_gui.py tests/test_build_multiplatform_manifest.py` -> `9 passed`.
-  5. launch check por binario com `cwd=/` -> `PROCESS_RUNNING` (sem crash read-only).
-  6. cheque de titulo em runtime -> `Consulta Rapida de SSAs v4.32`.
-  7. cheque de About -> mostra app/python/uv/pyqt/qt/pandas.
-- Estado local confirmado:
-  1. branch: `dev`.
-  2. ultimo commit antes deste slice: `b37fb83d STABILITY_PATCH: set GUI app name and sync mac bundle display name`.
-  3. residuos fora de escopo mantidos:
-     - `M data/ssas.db`
-     - `M docs/INDEX.md`
-     - `?? config/settings.json.bak_20260308_212715`
-  4. stashes abertos:
-     - `stash@{0}` `wip-before-return-import-branch-20260308_011343`
-     - `stash@{1}` `incident-freeze-before-reapply-20260305-083301`
-     - `stash@{2}` `local-wip-config-db-before-dev-switch-20260303`
-- Proximo passo recomendado:
-  1. validar por duplo clique no Finder o artefato final em `launchers/dist/macos_arm64/SSA_GUI_v4.32_macos_arm64.app`.
-  2. se o Finder ainda mostrar cache de icone antigo, reiniciar cache de icones do macOS e revalidar.
-  3. concluir commit atomico do slice e push em `dev`.
+     - `.app/.dmg` regenerados em `launchers/dist/macos_arm64`.
+     - `CFBundleName` e `CFBundleDisplayName` = `Consulta Rapida de SSAs`.
+     - `app_icon.icns` do bundle igual ao icone fonte.
+- Evidencia da rodada anterior:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado -> `9 passed`.
+  3. launch check com `cwd=/` -> `PROCESS_RUNNING`.
+  4. titulo em runtime -> `Consulta Rapida de SSAs v4.32`.
 
 ## HISTORICAL SNAPSHOT 2026-03-10 22:52 - start from here
 
