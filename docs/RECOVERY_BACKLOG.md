@@ -18,6 +18,32 @@ Fluxo de trabalho registrado para proximo ciclo curto:
 3. Regra operacional para esse debt:
    - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
 
+## Update 2026-03-11 07:59 - handover para host Windows (DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-11 07:59:38 -0300`
+2. end: `2026-03-11 08:01:00 -0300`
+
+Objetivo do slice:
+1. registrar transicao de contexto para continuar trabalho em outro computador (Windows).
+2. manter trilha de controle sem alterar runtime.
+
+Escopo alterado:
+1. `docs/RECOVERY_BACKLOG.md`
+2. `docs/NEXT_CHAT_MIGRATION.md`
+3. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
+Registro aplicado:
+1. baseline de continuidade definido em `dev` com ultimo commit `05bbc2e1`.
+2. foco explicito para proximo host: scripts/build no Windows, sem sidequest.
+3. reforco de guardrails de escopo para evitar alteracoes indevidas de runtime GUI/importacao.
+4. alerta de portabilidade:
+   - residuos locais e stashes podem variar por maquina; referencia canonica e `origin/dev`.
+
+Classificacao:
+1. `DOC_SYNC`:
+   - sincronizacao de handover cross-host para reduzir risco operacional no proximo ciclo.
+
 ## Update 2026-03-11 00:36 - mac app launch/icon/title/about (patch minimo)
 
 Session timestamp:

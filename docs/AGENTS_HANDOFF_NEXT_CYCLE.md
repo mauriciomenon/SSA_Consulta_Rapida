@@ -2,45 +2,57 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-11 00:36 - authoritative block
+## CURRENT TRUTH 2026-03-11 07:59 - authoritative block
 
 - Objetivo desta rodada:
-  1. estabilizar startup do `.app` macOS (nao fechar ao abrir no Finder).
-  2. garantir icone azul correto no `.app/.dmg`.
-  3. incluir versao no titulo da janela e menu `Sobre` com versoes de runtime.
+  1. registrar handover para continuidade no host Windows com contexto seguro.
+  2. preservar escopo: proximo slice focado em scripts/build do Windows.
 - Registro aplicado:
-  1. `launchers/gui_entry.py`
-     - runtime frozen em area gravavel do usuario.
-     - seed de config empacotada para runtime local.
-     - `cwd` ajustado para runtime (corrige erro read-only em `logs`).
-     - removido `SSA_CONFIG_DIR` (evita warning de `path_safety` no bundle).
-  2. `gui/gui_ssa.py`
-     - titulo da janela com versao (`Consulta Rapida de SSAs v<versao>`).
-     - menu `Ajuda` com acao `Sobre` exibindo app/python/uv/pyqt/qt/pandas.
-  3. artefato macOS regenerado:
-     - `launchers/dist/macos_arm64/SSA_GUI_v4.32_macos_arm64.app`
-     - `launchers/dist/macos_arm64/SSA_Consulta_Rapida_v4.32_macos_arm64.dmg`
-  4. sem alteracao de layout/posicao da GUI.
-- Validacao:
-  1. `py_compile`, `ruff`, `ty` no escopo alterado (`launchers/gui_entry.py`, `gui/gui_ssa.py`) -> pass (`ty` com warnings historicos de `redundant-cast`).
-  2. `pytest -q tests/test_gui_menu_import_external.py::test_setup_app_menus_registers_grouped_menus tests/smoke_test_gui.py tests/test_build_multiplatform_manifest.py` -> `9 passed`.
-  3. launch check com `cwd=/` -> processo GUI ativo (`PROCESS_RUNNING`), sem erro fatal.
-  4. hash de icone `.icns` no bundle igual ao `resources/app_icon.icns`.
-- Estado local no fechamento:
-  1. branch ativa: `dev`.
-  2. ultimo commit antes deste slice: `b37fb83d`.
-  3. PR `#45`: `MERGED` em `2026-03-11T02:06:23Z`.
-  4. residuos fora de escopo:
+  1. estado canonico para o novo host:
+     - branch: `dev`
+     - ultimo commit em `origin/dev`: `05bbc2e1`
+  2. referencia de entrega ja concluida no host atual:
+     - startup `.app` macOS estabilizado
+     - icone azul no `.app/.dmg`
+     - titulo com versao e menu `Sobre`
+  3. docs de controle sincronizados para leitura no proximo chat.
+- Guardrails para o proximo ciclo:
+  1. iniciar com diagnostico objetivo e plano curto antes de editar.
+  2. nao tocar runtime GUI/importacao sem aprovacao explicita.
+  3. corrigir apenas blockers reais de scripts/build no Windows.
+  4. manter commit atomico e rollback facil por slice.
+- Estado local no fechamento desta maquina:
+  1. residuos fora de escopo:
      - `M data/ssas.db`
      - `M docs/INDEX.md`
      - `?? config/settings.json.bak_20260308_212715`
-  5. stashes abertos:
-     - `stash@{0}` `wip-before-return-import-branch-20260308_011343`
-     - `stash@{1}` `incident-freeze-before-reapply-20260305-083301`
-     - `stash@{2}` `local-wip-config-db-before-dev-switch-20260303`
-- Proximo ciclo (entrada minima):
-  1. validar abertura por duplo clique no Finder e confirmar que o icone exibido e o azul novo.
-  2. manter foco em blockers reais de release; sem sidequest de refatoracao transversal.
+  2. esses residuos podem nao existir no Windows; considerar apenas estado commitado em git.
+- Proximo ciclo (entrada minima no Windows):
+  1. `git pull` em `dev`.
+  2. checklist de arranque (`status`, `branch`, `stash`, riscos/foco).
+  3. seguir SDLC por slice: diagnostico -> plano -> patch minimo -> gates -> commit/push -> doc sync.
+
+## HISTORICAL SNAPSHOT 2026-03-11 00:36 - previous current truth
+
+- Objetivo da rodada anterior:
+  1. estabilizar startup do `.app` macOS.
+  2. garantir icone azul no `.app/.dmg`.
+  3. incluir versao no titulo da janela e menu `Sobre`.
+- Registro da rodada anterior:
+  1. `launchers/gui_entry.py`:
+     - runtime frozen em area gravavel.
+     - `cwd` ajustado para runtime local.
+  2. `gui/gui_ssa.py`:
+     - titulo com versao.
+     - `Ajuda -> Sobre` com app/python/uv/pyqt/qt/pandas.
+  3. artefatos gerados:
+     - `launchers/dist/macos_arm64/SSA_GUI_v4.32_macos_arm64.app`
+     - `launchers/dist/macos_arm64/SSA_Consulta_Rapida_v4.32_macos_arm64.dmg`
+- Validacao da rodada anterior:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado -> `9 passed`.
+  3. launch check com `cwd=/` -> processo ativo.
+  4. hash de icone do bundle igual ao `resources/app_icon.icns`.
 
 ## HISTORICAL SNAPSHOT 2026-03-10 22:52 - authoritative block
 
