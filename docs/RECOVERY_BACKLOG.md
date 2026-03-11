@@ -18,6 +18,38 @@ Fluxo de trabalho registrado para proximo ciclo curto:
 3. Regra operacional para esse debt:
    - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
 
+## Update 2026-03-10 22:03 - doc refresh de migracao (sem runtime)
+
+Session timestamp:
+1. start: `2026-03-10 22:02:54 -0300`
+2. end: `2026-03-10 22:03:00 -0300`
+
+Objetivo do slice:
+1. atualizar novamente os docs de controle com snapshot atual de branch/PR/checks.
+2. preparar texto de migracao limpo para proxima conversa.
+
+Escopo alterado:
+1. `docs/NEXT_CHAT_MIGRATION.md`
+2. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+3. `docs/RECOVERY_BACKLOG.md`
+
+Resultado:
+1. novo bloco `CURRENT TRUTH` com status local/PR/checks em `NEXT_CHAT_MIGRATION`.
+2. novo bloco `CURRENT TRUTH` em `AGENTS_HANDOFF_NEXT_CYCLE`, com bloco anterior convertido para `HISTORICAL SNAPSHOT`.
+3. registro desta rodada adicionado no backlog com trilha de auditoria.
+
+Evidencia operacional:
+1. branch: `codex/sprint-importacao-grave-fixes-20260305`.
+2. ultimo commit na abertura: `30500374`.
+3. residuos locais preservados:
+   - `M data/ssas.db`
+   - `?? config/settings.json.bak_20260308_212715`
+4. PR `#45`: `OPEN`, `UNSTABLE`, `0` threads abertas.
+5. checks bloqueantes observados:
+   - `CodeFactor`
+   - `code/snyk` (limit reached)
+   - `security/snyk` (limit reached)
+
 ## Update 2026-03-10 21:42 - rodada bot adicional (install-hooks/pre-push/ascii/worker)
 
 Session timestamp:
