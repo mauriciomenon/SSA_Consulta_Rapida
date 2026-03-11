@@ -2,7 +2,30 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 22:41 - authoritative block
+## CURRENT TRUTH 2026-03-10 22:52 - authoritative block
+
+- Objetivo desta rodada:
+  1. mitigar stale-lock no cache para evitar timeout recorrente apos crash de processo.
+- Correcoes aplicadas:
+  1. `utils/caching.py`
+     - stale-lock recovery no acquire path com leitura de PID e check de processo vivo.
+     - remocao controlada de lock stale por idade minima (PID morto) ou idade de seguranca (PID ausente).
+  2. `tests/test_caching_atomic_save.py`
+     - testes focados para lock stale recuperavel e lock ativo nao removivel.
+     - ajuste de import `pytest`.
+- Validacao:
+  1. `uv run --python 3.13 python -m py_compile utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  2. `uv run --python 3.13 ruff check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  3. `uv run --python 3.13 ty check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_caching_atomic_save.py` -> `17 passed`.
+- Classificacao:
+  1. `BUG_REAL` corrigido:
+     - lock sidecar preso apos crash bloqueando persistencia de cache.
+  2. `NAO_BLOQUEANTE_DEFERIDO`:
+     - debts de performance ampla em hashing sequencial no `utils/caching.py`.
+     - debt semantico antigo no teste de atomicidade.
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:41 - authoritative block
 
 - Objetivo desta rodada:
   1. fechar os 2 P2 novos do cubic em scripts de hook.

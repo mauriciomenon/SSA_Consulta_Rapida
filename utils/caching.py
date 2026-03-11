@@ -8,6 +8,7 @@ Usado para determinar se arquivos Excel foram modificados desde a última import
 import os
 import json
 import hashlib
+import errno
 import logging
 import tempfile
 import time
@@ -18,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 _CACHE_LOCK_TIMEOUT_SEC = 5.0
 _CACHE_LOCK_RETRY_SEC = 0.05
+_CACHE_STALE_MIN_AGE_SEC = 2.0
+_CACHE_STALE_FORCE_AGE_SEC = 300.0
 
 def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
     """Write JSON atomically to avoid corrupted/truncated cache files.
@@ -63,6 +66,89 @@ def _cache_lock_path(cache_file: str) -> str:
     return f"{cache_file}.lock"
 
 
+def _read_lock_pid(lock_path: str) -> Optional[int]:
+    """Read lock owner PID from lock file, returning None when unavailable."""
+    try:
+        with open(lock_path, "r", encoding="ascii", errors="ignore") as f:
+            raw = f.readline().strip()
+    except OSError as exc:
+        logger.debug("Failed to read cache lock metadata '%s': %s", lock_path, exc)
+        return None
+
+    if not raw:
+        return None
+    try:
+        pid = int(raw)
+    except ValueError:
+        return None
+    if pid <= 0:
+        return None
+    return pid
+
+
+def _is_process_alive(pid: int) -> bool:
+    """Best-effort check whether a process PID is alive."""
+    if pid <= 0:
+        return False
+    if pid == os.getpid():
+        return True
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError as exc:
+        err_no = getattr(exc, "errno", None)
+        if err_no == errno.ESRCH:
+            return False
+        if err_no == errno.EPERM:
+            return True
+        logger.debug("Indeterminate process status for pid=%s: %s", pid, exc)
+        return True
+
+
+def _recover_stale_cache_lock(lock_path: str) -> bool:
+    """Remove stale lock file when owner process is dead or lock is too old."""
+    try:
+        st = os.stat(lock_path)
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        logger.debug("Failed to stat cache lock '%s': %s", lock_path, exc)
+        return False
+
+    age_sec = max(0.0, time.time() - st.st_mtime)
+    owner_pid = _read_lock_pid(lock_path)
+
+    stale_reason = None
+    if owner_pid is not None:
+        if age_sec >= _CACHE_STALE_MIN_AGE_SEC and not _is_process_alive(owner_pid):
+            stale_reason = f"dead-pid:{owner_pid}"
+    elif age_sec >= _CACHE_STALE_FORCE_AGE_SEC:
+        stale_reason = "missing-owner-pid"
+
+    if stale_reason is None:
+        return False
+
+    try:
+        os.remove(lock_path)
+    except FileNotFoundError:
+        return True
+    except OSError as exc:
+        logger.debug("Failed to remove stale cache lock '%s': %s", lock_path, exc)
+        return False
+
+    logger.warning(
+        "Removed stale cache lock '%s' (%s, age=%.3fs).",
+        lock_path,
+        stale_reason,
+        age_sec,
+    )
+    return True
+
+
 def _acquire_cache_lock(lock_path: str) -> int:
     """Acquire exclusive lock using lock file creation with bounded retries."""
     deadline = time.monotonic() + _CACHE_LOCK_TIMEOUT_SEC
@@ -75,6 +161,8 @@ def _acquire_cache_lock(lock_path: str) -> int:
                 logger.debug("Failed to write cache lock metadata '%s': %s", lock_path, exc)
             return lock_fd
         except FileExistsError:
+            if _recover_stale_cache_lock(lock_path):
+                continue
             if time.monotonic() >= deadline:
                 raise TimeoutError(f"Timeout acquiring cache write lock: {lock_path}")
             time.sleep(_CACHE_LOCK_RETRY_SEC)
