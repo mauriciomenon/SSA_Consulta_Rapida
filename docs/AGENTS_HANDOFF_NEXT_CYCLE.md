@@ -2,7 +2,28 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 22:52 - authoritative block
+## CURRENT TRUTH 2026-03-10 23:03 - authoritative block
+
+- Objetivo desta rodada:
+  1. fechar DOC_SYNC final para migracao de conversa sem tocar runtime.
+- Registro aplicado:
+  1. decisao intencional reforcada: `pre-push` permanece sem `--not --remotes`.
+  2. snapshot operacional consolidado para abertura de novo chat.
+- Estado local no fechamento:
+  1. branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+  2. ultimo commit: `fa9d6f0d DOC_SYNC: register intentional pre-push gate policy`.
+  3. residuos fora de escopo:
+     - `M data/ssas.db`
+     - `?? config/settings.json.bak_20260308_212715`
+  4. stashes abertos:
+     - `stash@{0}` `wip-before-return-import-branch-20260308_011343`
+     - `stash@{1}` `incident-freeze-before-reapply-20260305-083301`
+     - `stash@{2}` `local-wip-config-db-before-dev-switch-20260303`
+- Proximo ciclo (entrada minima):
+  1. reler blocos de topo de `AGENTS.md`, `docs/POLICY_BASELINE_V1_1_FROZEN.md`, `docs/RECOVERY_BACKLOG.md`, `docs/NEXT_CHAT_MIGRATION.md`, `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`.
+  2. iniciar por diagnostico+evidencia e plano curto antes de qualquer edicao.
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:52 - authoritative block
 
 - Objetivo desta rodada:
   1. mitigar stale-lock no cache para evitar timeout recorrente apos crash de processo.
