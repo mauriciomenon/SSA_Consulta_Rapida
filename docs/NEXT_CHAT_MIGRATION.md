@@ -1,1796 +1,1473 @@
 # Next Chat Migration Guide
 
-Use this file to migrate context to a new chat without losing execution quality.
-
-## CURRENT TRUTH 2026-03-05 09:41 - start from here
-
-- Active branch: `codex/reapply-good-commits-20260305`.
-- Local release baseline: `4.30`.
-- PR #44 triage status:
-  1. critical-only fixes applied in `a07afd7a`.
-  2. fixed now: date-filter negation bug, hash width clamp regression, and silent width-manager exception suppression.
-  3. non-blocking/broad comments deferred to backlog for separate slices.
-- Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
-  2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
-  3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
-  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "data_cadastro_column_filter_accepts_display_date_on_first_apply or data_cadastro_column_filter_negation_matches_display_date or best_fit_width_respects_predefined_max_for_long_columns or compute_optimal_widths_keeps_hash_column_minimum_24 or on_header_clicked_preserves_column_widths_after_sort or header_context_menu_exposes_best_fit_visible_action"`: `6 passed`.
-  5. kluster auto in this slice: clean -> clean -> clean -> clean -> clean.
-- Evidence commit:
-  1. `a07afd7a`.
-- Next cycle:
-  1. complete PR comment status replies (fixed/deferred/falso-positivo) with links to evidence.
-  2. keep deferred architectural suggestions outside this PR.
-
-## HISTORICAL SNAPSHOT 2026-03-05 08:40 - start from here
-
-- Active branch: `codex/reapply-good-commits-20260305`.
-- Local release baseline: `4.30`.
-- Replay status:
-  1. clean replay branch created from `bf78666e`.
-  2. replayed: `9601ffb8`, `a87c72d7`, `88de4155`, `8400fe42`, `df65682c`, `6899894b`, `956c0f4a`.
-  3. excluded by decision: `d4c2c5ca` (kept as short-term deferred reimplementation item).
-- Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
-  2. `uv run --python 3.13 ruff check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
-  3. `uv run --python 3.13 ty check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
-  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "num_reprogramacoes or best_fit or show_all_columns_by_affinity or data_cadastro_column_filter_accepts_display_date_on_first_apply"`: `7 passed`.
-  5. kluster auto in replay cycle: clean -> clean -> clean.
-- Evidence commit:
-  1. HEAD replay branch: `5b145b78`.
-- Next cycle:
-  1. evaluate requirements-only reimplementation for `d4c2c5ca` in a new controlled slice.
-  2. keep extraction path exactly as replayed baseline until this decision is approved.
-
-## HISTORICAL SNAPSHOT 2026-03-04 10:29 - start from here
-
-- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
-- Local release baseline: `4.30`.
-- Slice status:
-  1. sprint7 delivered guardrails for ultra-long columns and sort width stability.
-  2. header context menu now includes `Exibir todas colunas (afinidade)`.
-- Runtime change summary:
-  1. `core/config_manager.py`: added `COLUMN_AFFINITY_SCORES` (desc ranking map for reusable column affinity order).
-  2. `gui/simple_width_manager.py`: introduced `max_pixel_widths` and hard clamp in width computation.
-  3. `gui/ssa/gui_table.py`: width apply now respects per-column max map and can skip one recompute cycle (`_skip_width_recompute_once`).
-  4. `gui/gui_ssa.py`: sort now captures/restores widths to avoid lateral width drift after asc/desc click.
-  5. `gui/gui_ssa.py`: new menu action `Exibir todas colunas (afinidade)` uses same source set as selector `Selecionar tudo`, then applies affinity order.
-  6. `tests/test_gui_filter_logic.py`: added focused regressions for:
-     - new context action exposure;
-     - show-all affinity ordering with same source set;
-     - width preservation after sort;
-     - max-width clamp for long columns.
-- Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
-  2. `uv run --python 3.13 ruff check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
-  3. `uv run --python 3.13 ty check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
-  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "header_context_menu_exposes_best_fit_visible_action or header_context_menu_exposes_show_all_columns_by_affinity_action or show_all_columns_by_affinity_reorders_same_select_all_set or on_header_clicked_preserves_column_widths_after_sort or best_fit_width_respects_predefined_max_for_long_columns or best_fit_width_guard_ignores_single_extreme_outlier or on_header_clicked_sorts_num_reprogramacoes_mixed_types"`: `7 passed`.
-  5. kluster auto in this slice: clean across all touched files.
-- Evidence commit:
-  1. `6899894b` (`HOTFIX_BLOCKER`: align date column filters with displayed format).
-  2. pending commit in current sprint7 slice.
-- Next cycle:
-  1. user validation focused on sort behavior under repeated toggles in full-column mode.
-  2. optional extension: expose affinity order as explicit preset in column selector dialog.
-
-## HISTORICAL SNAPSHOT 2026-03-04 10:01 - start from here
-
-- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
-- Local release baseline: `4.30`.
-- Slice status:
-  1. sprint6 delivered: `data_cadastro` column filter now applies consistently with displayed date format.
-  2. user report ("cadastro not immediate / needs extra operation") traced to raw-vs-display date mismatch in filter path.
-- Runtime change summary:
-  1. `gui/mixins/filter_gui_ssa_mixin.py`: `_apply_column_filters` now OR-combines raw date matching with display-date matching (`DD/MM/YYYY`) for slash-based filters.
-  2. `gui/mixins/filter_gui_ssa_mixin.py`: added `_should_match_date_display_filter(...)`.
-  3. `gui/mixins/filter_gui_ssa_mixin.py`: added `_get_column_filter_date_display_series(...)` with per-DataFrame cache to avoid repeated parse/format work.
-  4. `tests/test_gui_filter_logic.py`: added `test_data_cadastro_column_filter_accepts_display_date_on_first_apply`.
-- Data evidence snapshot:
-  1. `data/ssas.db`: `data_cadastro` persisted as ISO datetime (`YYYY-MM-DD HH:MM:SS`) across `70954` non-null rows.
-  2. GUI renders `data_*` columns as `DD/MM/YYYY`, so prior behavior could fail on first apply when user typed displayed date text.
-- Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
-  2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
-  3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
-  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "data_cadastro_column_filter_accepts_display_date_on_first_apply or column_filter_buttons_flow or column_filter_row_clear_button_clears_value_without_hiding_row or clear_filter_button_state_syncs_across_tabs_without_switch"`: `4 passed`.
-  5. kluster auto in this slice: issue(P4,P4) -> clean -> clean -> clean.
-- Evidence commit:
-  1. `05c443cf` (`STABILITY_PATCH`: canonical reprogramacoes numeric flow).
-  2. pending commit in current sprint6 slice.
-- Next cycle:
-  1. run user validation on affected columns (`data_cadastro`, `data_programada`, other `data_*`) in both tabs.
-  2. if approved, continue display-label cleanup sprint without DB mutation.
-
-## HISTORICAL SNAPSHOT 2026-03-04 09:46 - start from here
-
-- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
-- Local release baseline: `4.30`.
-- Slice status:
-  1. sprint4 is closed and committed (`df65682c`) with best-fit calibration aligned to Qt baseline.
-  2. sprint5 delivered canonical numeric handling for reprogramacoes across sort/filter/menu cache, without DB schema mutation.
-- Runtime change summary:
-  1. `gui/ssa/reprogramacoes_numeric.py`: new canonical helper `get_num_reprogramacoes_numeric_series(...)` with priority `total_de_reprogramacoes` -> numeric `num_reprogramacoes` -> digit extraction fallback.
-  2. `gui/gui_ssa.py`: robust sort path now reuses shared helper; best-fit baseline probe guarded (`sizeHintForColumn` only when `rowCount <= 500`).
-  3. `gui/ssa/gui_filters_advanced_logic.py`: advanced `num_reprogramacoes` filter now uses shared numeric helper.
-  4. `gui/ssa/gui_filters_advanced_ui.py`: advanced options cache for reprogramacoes now uses shared numeric helper.
-  5. `tests/test_gui_filters_advanced_logic.py` + `tests/test_gui_filter_logic.py`: new regressions for legacy-text rows preferring `total_de_reprogramacoes`.
-- Data evidence snapshot:
-  1. mixed-source dataset confirmed: `num_reprogramacoes` has `5589` numeric-like rows and `1099` legacy text rows (`Reprogramacao #1`).
-  2. all `1099` legacy-text rows overlap with non-null `total_de_reprogramacoes` and `situacao_reprogramacao='(SPG)'`.
-  3. active runtime usage now normalized through one helper to avoid sort/filter drift.
-- Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile gui/ssa/reprogramacoes_numeric.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py`: pass.
-  2. `uv run --python 3.13 ruff check gui/ssa/reprogramacoes_numeric.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py`: pass.
-  3. `uv run --python 3.13 ty check gui/ssa/reprogramacoes_numeric.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py`: pass.
-  4. `uv run --python 3.13 pytest -q tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py -k "reprogramacoes or on_header_clicked_sorts_num_reprogramacoes_mixed_types or best_fit_width_guard_ignores_single_extreme_outlier or header_context_menu_exposes_best_fit_visible_action"`: `8 passed`.
-  5. kluster auto in this slice: clean.
-- Evidence commit:
-  1. `df65682c` (`STABILITY_PATCH`: sprint4 best-fit calibration).
-  2. pending commit in current sprint5 slice.
-- Next cycle:
-  1. sprint de exibicao: continuar ajuste de labels amigaveis em tabela e adicionar-colunas (sem alterar runtime de dados).
-  2. sprint de DB (se aprovado): auditoria controlada de campos legados/redundantes antes de qualquer saneamento.
-
-## HISTORICAL SNAPSHOT 2026-03-04 09:27 - start from here
-
-- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
-- Local release baseline: `4.30`.
-- Slice status:
-  1. sprint4 delivered: best-fit width behavior recalibrated to align with real Qt auto-fit baseline.
-  2. performance hardening added to best-fit text measurement path.
-- Runtime change summary:
-  1. `gui/simple_width_manager.py`: best-fit now uses sampled real text pixel widths (not synthetic `"W"*N` sizing).
-  2. `gui/simple_width_manager.py`: baseline clamp uses Qt auto-fit reference plus anti-outlier limits.
-  3. `gui/simple_width_manager.py`: added measurement cache and reduced default sample size (`800`).
-- Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
-  2. `uv run --python 3.13 ruff check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
-  3. `uv run --python 3.13 ty check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
-  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "best_fit_width_guard_ignores_single_extreme_outlier or header_context_menu_exposes_best_fit_visible_action or table_header_uses_merged_default_alias_for_extra_column"`: `3 passed`.
-  5. kluster auto in this slice: issue(P4) -> clean -> clean.
-- Evidence commit:
-  1. pending commit in current sprint4 slice.
-- Next cycle:
-  1. immediate diagnostic slice for reprogramacao fields (`num_reprogramacoes`, `total_de_reprogramacoes`, `situacao_reprogramacao`) with source/use-risk mapping.
-  2. decide policy: keep current behavior, force numeric canonical source, or defer to DB cleanup sprint.
-
-## HISTORICAL SNAPSHOT 2026-03-04 09:11 - start from here
-
-- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
-- Local release baseline: `4.30`.
-- Slice status:
-  1. sprint3 delivered in label lane: display-map merge hardening for table headers and add-columns selectors.
-  2. canonical alias source now always includes defaults + gui overrides.
-- Runtime change summary:
-  1. `gui/gui_ssa.py`: switched window init mapping source to `load_display_mappings()` merged path.
-  2. `tests/test_gui_filter_logic.py`: new regression `test_table_header_uses_merged_default_alias_for_extra_column`.
-- Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
-  2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
-  3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
-  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "table_header_uses_merged_default_alias_for_extra_column or on_header_clicked_sorts_num_reprogramacoes_mixed_types or header_context_menu_exposes_best_fit_visible_action"`: `3 passed`.
-  5. kluster auto in this slice: clean -> clean.
-- Evidence commit:
-  1. pending commit in current sprint3 label slice.
-- Next cycle:
-  1. optional fine-grained label curation for remaining column aliases (display-only, no DB rewrite).
-  2. keep db-saneamento as separate sprint boundary.
-
-## HISTORICAL SNAPSHOT 2026-03-04 08:39 - start from here
-
-- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
-- Local release baseline: `4.30`.
-- Slice status:
-  1. sprint1 completed: robust mixed-type sort for `num_reprogramacoes`.
-  2. sprint2 completed: reusable `best fit colunas visiveis` wired in header menu and centralized in width manager.
-- Runtime change summary:
-  1. `gui/simple_width_manager.py`: new `compute_best_fit_width(...)` with anti-outlier guard.
-  2. `gui/gui_ssa.py`: new header menu action `Best fit colunas visiveis` and helper methods for reusable best-fit application.
-  3. `gui/gui_ssa.py`: `auto_fit_column` now prioritizes centralized best-fit logic.
-  4. `tests/test_gui_filter_logic.py`: new regressions for menu action trigger and outlier guard behavior.
-- Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
-  2. `uv run --python 3.13 ruff check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
-  3. `uv run --python 3.13 ty check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
-  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "header_context_menu_exposes_best_fit_visible_action or best_fit_width_guard_ignores_single_extreme_outlier or on_header_clicked_sorts_num_reprogramacoes_mixed_types"`: `3 passed`.
-  5. kluster auto in this slice: clarification(P4) -> issue(P3) -> issue(P4) -> clean.
-- Evidence commit:
-  1. pending commit in current sprint2 slice.
-- Next cycle:
-  1. finish display-label cleanup lane (friendly names in table/add-columns, no DB rewrite).
-  2. plan db-saneamento sprint as separate controlled scope.
-  3. keep no-layout-change policy and minimal-risk patching.
-
-## HISTORICAL SNAPSHOT 2026-03-04 08:28 - start from here
-
-- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
-- Local release baseline: `4.30`.
-- Slice status:
-  1. sprint1 blocker hotfix delivered for mixed-type sort in `num_reprogramacoes`.
-  2. targeted regression test added for asc/desc sort with legacy mixed values.
-- Runtime change summary:
-  1. `gui/gui_ssa.py`: `on_header_clicked` now uses robust sort path for `num_reprogramacoes` to avoid `int` vs `str` comparison crash.
-  2. `tests/test_gui_filter_logic.py`: new regression `test_on_header_clicked_sorts_num_reprogramacoes_mixed_types`.
-- Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
-  2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
-  3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
-  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "on_header_clicked_sorts_num_reprogramacoes_mixed_types or reprogramacoes_menu_builds_without_responsavel_materialized"`: `2 passed`.
-  5. kluster auto in this slice: clean -> clean.
-- Evidence commit:
-  1. pending commit in current hotfix slice.
-- Next cycle:
-  1. sprint2 step A: add reusable `best fit all visible columns` action (header/table context menu entry point) with anti-outlier rule.
-  2. sprint2 step B: label cleanup in table and add-columns flow (display naming only, no DB rewrite).
-  3. keep no-layout-change policy and minimal-risk patching.
-
-## HISTORICAL SNAPSHOT 2026-03-04 08:14 - start from here
-
-- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
-- Local release baseline: `4.30`.
-- Slice status:
-  1. GitHub snapshot of previous stable state created before sprint start:
-     - tag `v4.29` on commit `bf78666e`;
-     - release `SSA Consulta Rapida v4.29`.
-  2. Version metadata promoted to `4.30`:
-     - `VERSION`
-     - `config/version.json`.
-  3. Active reference docs promoted to `4.30` baseline.
-  4. Technical sprint queued next: sorting fix for `num_reprogramacoes` + global best-fit for visible columns (with anti-outlier rule).
-- Runtime change summary:
-  1. none yet in runtime logic for this slice (release/version/doc sync only).
-- Validation snapshot:
-  1. `gh release view v4.29`: published.
-  2. `git tag -l v4.29`: present and pushed.
-- Evidence commit:
-  1. pending commit in current version/doc sync slice.
-- Next cycle:
-  1. execute runtime Slice A (sort robustness for mixed int/str in `num_reprogramacoes`).
-  2. execute runtime Slice B (reusable `best fit all visible columns` action with anti-outlier guard).
-  3. keep no-layout-change policy and minimal-risk patches.
-
-## HISTORICAL SNAPSHOT 2026-03-04 07:50 - start from here
-
-- Active branch: `dev`.
-- Slice status:
-  1. PR #43 was merged into `dev` (`f6f10596`).
-  2. feature branch cleanup completed; only `dev` and `main` remain local.
-  3. remote branch cleanup completed; only `origin/dev` and `origin/main` remain (plus `origin/HEAD` pointer).
-  4. local preference noise mitigation applied: `config/gui_main_preferences.json` added to `.gitignore` and marked `skip-worktree` locally.
-  5. stash inspection completed; `stash@{0}` contains only `config/gui_main_preferences.json` and `data/ssas.db`.
-- Runtime change summary:
-  1. none in this slice (environment hygiene only).
-- Validation snapshot:
-  1. `git branch --list`: only `dev`, `main`.
-  2. `git fetch --prune && git branch -r`: only `origin/dev`, `origin/main`, `origin/HEAD -> origin/main`.
-  3. local gates (periodic): `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass.
-  4. local gates (periodic): `uv run --python 3.13 ruff check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass.
-  5. local gates (periodic): `uv run --python 3.13 ty check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass.
-  6. local gates (periodic): `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py`: `125 passed, 1 skipped`.
-  7. kluster auto in this slice: clean -> clean -> clean.
-- Evidence commit:
-  1. pending commit in current hygiene slice.
-- Next cycle:
-  1. confirm final stash action (`drop` recommended because it is only local prefs + local db delta).
-  2. keep working from `dev` with minimal-scope stabilization slices.
-- Local residue contract:
-  1. `config/gui_main_preferences.json` should stay local-only and ignored in day-to-day status.
-  2. `stash@{0}` pending explicit confirmation for final disposal.
-
-## HISTORICAL SNAPSHOT 2026-03-04 06:29 - start from here
-
-- Active branch: `codex/fix-filter-buttons-state-sync`.
-- Slice status:
-  1. high-risk stale async state after `Limpar Filtro` fixed.
-  2. medium-risk undo snapshot gaps for column filter entry points fixed.
-  3. debounce floor increased to encourage explicit `Aplicar` usage.
-  4. deferred header context-menu apply + undo end-to-end regression added and validated.
-  5. global clear now restores default column-filter baseline (no hardcoded subset).
-  6. week tooltip encoding issue fixed; column-filter row now has 3 actions (`Aplicar`, `Limpar`, `Ocultar`).
-  7. clear-search button wording clarified (`Limpar Busca`) with explicit scope tooltip.
-  8. clear-search button enabled-state sync now updates both tabs in same cycle.
-  9. undo button enabled-state now syncs between both tabs, including advanced-filter clear/restore flow.
-  10. search apply/clear buttons now route through dedicated handlers per tab (`main` and `filters`) with equivalent behavior.
-  11. regex safety guard in column filter path tightened to reduce catastrophic regex risk.
-  12. PR #43 feedback triage executed; all `BUG_REAL` comments fixed in minimal patch.
-  13. non-blocking/noise PR comments classified with explicit status (`DECISAO_INTENCIONAL`, `NAO_BLOQUEANTE_DEFERIDO`, `FALSO_POSITIVO`).
-- Runtime change summary:
-  1. `gui/mixins/filter_gui_ssa_mixin.py`: `clear_filter` now resets `_active_filter_search_display` and `_active_filter_search_request_id`.
-  2. `gui/gui_ssa.py`: general search debounce now enforces minimum `1400 ms`.
-  3. `gui/gui_ssa.py` + `gui/mixins/filter_gui_ssa_mixin.py`: undo snapshot capture added in header context apply and activate/deactivate column filter paths.
-  4. `gui/widgets/filter_help_dialog.py`: help text aligned with real button behavior (`Aplicar` + `Ocultar`).
-  5. `gui/mixins/filter_gui_ssa_mixin.py`: `_clear_all_filters_global` now resets column keys from `_column_filter_default_columns()`.
-  6. `gui/gui_ssa.py`: week tooltip normalized to `Semana ISO atual`.
-  7. `gui/mixins/filter_gui_ssa_mixin.py`: per-row column filter now has dedicated `Limpar` action that clears value without hiding row.
-  8. `gui/widgets/filter_help_dialog.py`: filter-help updated to describe three row actions.
-  9. `gui/gui_ssa.py`: clear-search button text and tooltip now state explicit scope (search only).
-  10. `gui/mixins/filter_gui_ssa_mixin.py` + `gui/mixins/tab_context_gui_ssa_mixin.py`: clear-search button state now syncs across both tab contexts via centralized helper.
-  11. `gui/mixins/filter_gui_ssa_mixin.py`: undo-state sync helper now updates all `undo_filter_btn` widgets across tab contexts.
-  12. `gui/gui_ssa.py` + `gui/mixins/filter_gui_ssa_mixin.py`: search apply/clear now use tab-specific handlers while keeping same filtering behavior.
-  13. `gui/mixins/filter_gui_ssa_mixin.py`: regex guard added (`meta_char_count` and alternation+quantifier block) for safer fallback to literal search.
-  14. `gui/mixins/filter_gui_ssa_mixin.py`: `_clear_all_filters_global` now resets `_column_or_groups`/`_column_to_or_group` using `_reset_or_groups()`.
-  15. `gui/mixins/filter_gui_ssa_mixin.py`: `_mk_remove_line` no longer hides errors with broad silent `except`.
-  16. `gui/gui_ssa.py` + `gui/mixins/tab_context_gui_ssa_mixin.py`: debounce parse fallback now logs explicitly and bind flow no longer duplicates clear-button sync call.
-- Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
-  2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
-  3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
-  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_filter or debounce or activate_column_filter_stores_undo_snapshot or deactivate_column_filter_stores_undo_snapshot"`: `15 passed, 1 skipped`
-  5. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "test_header_context_menu_apply_stores_undo_snapshot"`: `1 passed`
-  6. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_all_filters_global_resets_full_filter_state_matrix or clear_all_filters_global_restores_default_column_filter_keys or clear_all_filters_global_resets_exclude_and_advanced_filters"`: `3 passed`
-  7. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "default_column_filter_rows_show_apply_clear_and_hide_buttons or column_filter_buttons_flow or column_filter_row_clear_button_clears_value_without_hiding_row or clear_all_filters_global_restores_default_column_filter_keys or clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `5 passed`
-  8. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "test_clear_search_button_label_and_tooltip_are_explicit_on_both_tabs or test_clear_filter_clears_only_general_search_and_keeps_advanced_filters or test_clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `3 passed`
-  9. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_filter_button_state_syncs_across_tabs_without_switch or clear_filter_button_reflects_active_filters or clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `3 passed`
-  10. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore or clear_advanced_filters_forces_refresh_when_pending_schedule or test_header_context_menu_apply_stores_undo_snapshot"`: `3 passed`
-  11. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "search_buttons_route_to_tab_specific_handlers or clear_search_button_label_and_tooltip_are_explicit_on_both_tabs or clear_filter_button_state_syncs_across_tabs_without_switch or build_column_mask_blocks_heavy_regex_patterns"`: `4 passed`
-  12. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_all_filters_global_resets_or_group_metadata or clear_all_filters_global_resets_full_filter_state_matrix or clear_all_filters_global_restores_default_column_filter_keys or clear_filter_button_state_syncs_across_tabs_without_switch or undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore"`: `5 passed`
-  13. kluster auto: clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> issue(P4 regex safety) -> clean -> clean -> clean -> clean -> clean -> clean
-- Evidence commit:
-  1. `2c7982b1` (`STABILITY_PATCH`).
-  2. `22bbd3dc` (`STABILITY_PATCH`: follow-up regression for header context-menu undo path).
-  3. `98269107` (`STABILITY_PATCH`: global clear baseline consistency).
-  4. `776c5905` (`STABILITY_PATCH`: tooltip encoding fix and 3-button row behavior).
-  5. `182c51b0` (`STABILITY_PATCH`: clear-search button wording clarity).
-  6. `50bf94f0` (`STABILITY_PATCH`: cross-tab clear-button state sync).
-  7. `32fca7c1` (`STABILITY_PATCH`: cross-tab undo-button state sync).
-  8. `fcc3715e` (`STABILITY_PATCH`: tab-specific search handlers + regex guard hardening).
-  9. `6f1ef11b` (`STABILITY_PATCH`: PR #43 bug-real triage fixes).
-- Next cycle:
-  1. keep no-layout-change policy and minimal-scope slices.
-  2. monitor for regressions around async filter state and request-scoped display markers.
-- Local residue contract:
-  1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
-  2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
-
-## HISTORICAL SNAPSHOT 2026-03-03 22:23 - start from here
-
-- Active branch: `dev`.
-- Slice status:
-  1. Slice G delivered: targeted regression coverage for A/B/C in tests only.
-  2. Sprint A-E package remains closed; no runtime behavior change introduced.
-- Runtime change summary:
-  1. no runtime file changed in this slice.
-  2. new tests validate sidecar backup move, cancel classification cache behavior, and lock-file cleanup path.
-- Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
-  2. `uv run --python 3.13 ruff check tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
-  3. `uv run --python 3.13 ty check tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
-  4. `uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: `14 passed`
-  5. kluster auto: clean -> clean
-- Next cycle:
-  1. keep stabilization in minimal slices and preserve no-layout-change policy.
-  2. monitor runtime lanes; prioritize only bug-real deltas with focused tests.
-- Local residue contract:
-  1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
-  2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
-
-## HISTORICAL SNAPSHOT 2026-03-03 19:31 - start from here
-
-- Active branch: `dev`.
-- Slice status:
-  1. Sprint D delivered (docs-only): portability and naming consistency updates completed.
-  2. no runtime module changed in this slice.
-- Docs change summary:
-  1. `docs/OHMYOPENCODE_MANUAL.md`: `$HOME` path normalization for bun path export.
-  2. `docs/OPENCODE_CONFIG.md`: Gemini provider naming aligned to `google/antigravity-gemini-3-pro`.
-  3. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`: runtime command examples now use `$PY_RUNTIME` with explicit fallback chain `3.13 -> 3.12 -> 3.11 -> 3.10`.
-- Validation snapshot (periodic gates):
-  1. `uv run --python 3.13 python -m py_compile core/app_logic.py interface/cli_enhancement_manager.py`: pass
-  2. `uv run --python 3.13 ruff check core/app_logic.py interface/cli_enhancement_manager.py`: pass
-  3. `uv run --python 3.13 ty check core/app_logic.py interface/cli_enhancement_manager.py`: pass
-  4. `uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py tests/test_cli_enhancement_manager_lock_usage.py tests/test_import_deterministic_failure_cache.py`: `11 passed`
-  5. kluster auto: clean -> clean
-- Deferred order for next cycle:
-  1. Sprint E (controlled debt cleanup in GUI table helper path, no layout change).
-- Local residue contract:
-  1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
-  2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
-
-## HISTORICAL SNAPSHOT 2026-03-03 19:27 - start from here
-
-- Active branch: `dev`.
-- Slice status:
-  1. Sprint B delivered: extraction error classification migrated from substring checks to structured `error_code`.
-  2. deterministic-failure cache trigger covered by dedicated regression tests.
-- Runtime change summary:
-  1. `ExtractionError` in extractor/core now carries optional `error_code`.
-  2. importer loop in `core/app_logic.py` uses `error_code` (`OPERATION_CANCELLED`, `MISSING_REQUIRED_COLUMNS`) instead of message substring parsing.
-- Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile core/app_logic.py extracao/extractor.py tests/test_import_deterministic_failure_cache.py`: pass
-  2. `uv run --python 3.13 ruff check core/app_logic.py extracao/extractor.py tests/test_import_deterministic_failure_cache.py`: pass
-  3. `uv run --python 3.13 ty check core/app_logic.py extracao/extractor.py tests/test_import_deterministic_failure_cache.py`: pass
-  4. `uv run --python 3.13 pytest -q tests/test_import_deterministic_failure_cache.py tests/test_extracao.py tests/test_import_derivadas_trigger.py`: `24 passed`
-  5. kluster auto: clean -> clean
-- Deferred order for next cycle:
-  1. Sprint D (docs-only consistency/portability, no runtime).
-  2. Sprint E (controlled debt cleanup in GUI table helper, no layout change).
-- Local residue contract:
-  1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
-  2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
-
-## HISTORICAL SNAPSHOT 2026-03-03 19:24 - start from here
-
-- Active branch: `dev`.
-- Slice status:
-  1. Sprint C delivered: TOCTOU hardening for CLI settings lock-file path.
-  2. focused race regression added for preexisting lock-file preservation.
-- Runtime change summary:
-  1. lock-file creation now attempts atomic exclusive create first (`O_EXCL`).
-  2. when lock file already exists, flow reopens existing lock file without marking it as created-by-current-process.
-  3. lock-file cleanup on lock acquisition failure now preserves third-party preexisting lock files.
-- Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
-  2. `uv run --python 3.13 ruff check interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
-  3. `uv run --python 3.13 ty check interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
-  4. `uv run --python 3.13 pytest -q tests/test_cli_enhancement_manager_lock_usage.py tests/test_cli_enhancement_manager_atomic_save.py`: `10 passed`
-  5. kluster auto: clean -> clean
-- Deferred order for next cycle:
-  1. Sprint B (structured extraction error classification + deterministic cache coverage).
-  2. Sprint D (docs consistency/portability, no runtime).
-  3. Sprint E (controlled debt in GUI table helper path, no layout change).
-- Local residue contract:
-  1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
-  2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
-
-## HISTORICAL SNAPSHOT 2026-03-03 19:20 - start from here
-
-- Active branch: `dev`.
-- Slice status:
-  1. Sprint A delivered: lock/checkpoint hotfix in `_recreate_database_for_full_rescan`.
-  2. Focused regression added for WAL checkpoint + DB rotation path.
-- Runtime change summary:
-  1. removed explicit `BEGIN IMMEDIATE` before `PRAGMA wal_checkpoint(TRUNCATE)` in the same checkpoint block.
-  2. goal: avoid self-lock during full-rescan preparation.
-- Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_full_rescan_lock.py`: pass
-  2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_full_rescan_lock.py`: pass
-  3. `uv run --python 3.13 ty check core/app_logic.py tests/test_app_logic_full_rescan_lock.py`: pass
-  4. `uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py`: `1 passed`
-  5. kluster auto: clean -> clean
-- Deferred order for next cycle:
-  1. Sprint C (TOCTOU lock-file in CLI enhancement settings).
-  2. Sprint B (structured extraction error classification + deterministic cache test).
-  3. Sprint D and Sprint E (docs consistency and controlled debt).
-- Local residue contract:
-  1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
-  2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
-
-## HISTORICAL SNAPSHOT 2026-03-03 15:25 - start from here
-
-- Frozen policy baseline: `docs/POLICY_BASELINE_V1_1_FROZEN.md` (read before execution).
-
-- Active branch: `dev`.
-- Control-source baseline:
-  1. `AGENTS.md` is the operational source of truth for process/policies.
-  2. `docs/RECOVERY_BACKLOG.md` tracks deferred and non-blocking items.
-  3. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` tracks compact handoff for next session.
-- Critical continuity note:
-  1. chat-only decisions are not sufficient.
-  2. every approved policy/process update must be mirrored to control files in-repo.
-- Incident and correction:
-  1. commit `e3c7cdcb` consolidated AGENTS operational model.
-  2. regression removed detailed kluster block.
-  3. commit `ce0d3fc1` restored full kluster block.
-- Migration contract for next chat:
-  1. read `AGENTS.md` first.
-  2. read top block of `docs/RECOVERY_BACKLOG.md` second.
-  3. use this file only as session bootstrap and timeline map.
-
-## HISTORICAL SNAPSHOT 2026-03-01 23:55 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.29`.
-- Latest patch package:
-  1. importer deterministic-failure cache marks for unchanged invalid files.
-  2. derivadas dedicated phase kept compatible with existing contract/tests.
-  3. advanced filter action buttons compacted and separator removed.
-  4. multiselect popup width constrained and stale-widget guards added.
-  5. canonical column candidate sources reduced to avoid noisy placeholder columns.
-  6. direnv path exports now force `${VIRTUAL_ENV}/bin` precedence and refresh shell cache.
-- Validation snapshot:
-  1. touched-file `py_compile`, `ruff`, `ty`: pass
-  2. focused pytest package (`import_derivadas_trigger`, `import_cancellation`, `gui_filters_advanced_logic`): `28 passed`
-- Pending structural work remains deferred:
-  1. split of large GUI routines/classes
-  2. deeper breakup of multiselect menu builder
-
-## HISTORICAL SNAPSHOT 2026-03-01 02:20
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.27`.
-- Runtime standard:
-  1. use `uv run --python 3.13 ...` as first choice.
-  2. fallback order: `3.12 -> 3.11 -> 3.10`.
-  3. keep `requirements*.txt` as compatibility-only path.
-- Compatibility matrix status:
-  1. 3.10.18: pass
-  2. 3.11.14: pass
-  3. 3.12.11: pass
-  4. 3.13.12: pass
-- Focused gate used:
-  1. `py_compile`, `ruff`, `ty`
-  2. `pytest -q tests/test_open_docs_folder_nonblocking.py tests/test_cli_enhancement_manager_lock_usage.py tests/test_cli_enhancement_manager_atomic_save.py`
-- GUI reference docs for continuity:
-  1. `ANALISE_PROFUNDA_GUI.md`
-  2. `GUI_SSA_REFACTOR_NOTES.md`
-
-## HISTORICAL SNAPSHOT 2026-02-28 23:46
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.27`.
-- Release alignment status:
-  1. streamlit deliveries from `v4.24.1` preserved.
-  2. hardening package from `v4.25.0` preserved.
-  3. metadata and docs aligned for pre-PR baseline `v4.27`.
-- Working tree status:
-  1. clean and synced with origin before pre-PR gates.
-- Next execution order:
-  1. run kluster on release/doc slice.
-  2. run `py_compile`, `ruff`, `ty`, and focused `pytest`.
-  3. commit atomic release/doc update and push.
-
-## HISTORICAL SNAPSHOT 2026-02-28 22:10 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.25.0`.
-- Sprint D status:
-  1. P1 cache guard delivered in GUI + Streamlit cache paths.
-  2. matrix item `9` moved to `resolved` (older deferred snapshots are historical only).
-  3. stats now include `skipped_large_entries` and `max_entry_mb`.
-- Optional P3 status:
-  1. item `104` resolved: persistent width profile memory across sessions.
-  2. item `107` resolved: render telemetry persistence across sessions.
-- Streamlit colors/behavior follow-up:
-  1. theme palettes + CSS variables implemented.
-  2. runtime theme selector moved to header (always visible).
-  3. selected theme now persists across sessions.
-- Streamlit usability follow-up:
-  1. situacao is always visible again and now includes quick mode + count labels.
-  2. executor/emissor compacted to single-select (`(Todos)` fallback).
-  3. quick "colunas exibidas" shortcut added in table tab.
-  4. source controls moved to hidden advanced section in `Cache e API`.
-  5. table render height is now dynamic per page row count.
-  6. extra charts added (`Top executor`, `Top emissor`) under situacao distribution.
-  7. presets renamed to business labels (`Operacao diaria`, `Analise completa`, `Minimo`).
-  8. table metrics row expanded (`situacoes/executores/emissores distintos`).
-- Item `92` status:
-  1. resolved with cache architecture micro-refactor (shared helpers for get/store paths).
-- Validation snapshot for Sprint D closeout:
-  - `py_compile`, `ruff`, `ty` on touched streamlit/tests: pass
-  - focused `pytest -q tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: `40 passed`
-- Deferred map (explicit, by difficulty):
-  - structural (P2):
-    1. `SSAMainWindow` split (`item 84`) - difficulty alta
-    2. streamlit god-module split (`item 101`) - difficulty alta
-- Retomada checklist (ordem de execucao):
-  1. rodar `git status --short` e manter escopo minimo.
-  2. selecionar somente item aprovado de risco real.
-  3. apos editar: kluster auto -> `py_compile` -> `ruff` -> `ty` -> `pytest` focado.
-  4. atualizar matrix/backlog/handoff no mesmo slice.
-  5. manter blocos antigos somente como historico, sem usar como fonte de verdade.
-
-## HISTORICAL SNAPSHOT 2026-02-28 12:25 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.25.0`.
-- Sprint status:
-  1. pacote "25 graves v4" aplicado e validado.
-  2. docs de handoff/matriz/backlog sincronizados para continuidade.
-  3. release local incrementado em +0.1 (`4.24.0 -> 4.25.0`).
-- Validation snapshot (ultimo pacote tecnico):
-  - touched-scope `py_compile`, `ruff`, `ty`: pass
-  - focused pytest package: `30 passed`
-- Kluster snapshot:
-  - `kluster_code_review_auto` no pacote tecnico: clean
-- Retomada checklist (ordem de execucao):
-  1. rodar `git status --short` e confirmar escopo local.
-  2. escolher slice da fila ativa em `docs/PENDING_ACTION_MATRIX.md` por risco real.
-  3. aplicar patch minimo no slice escolhido.
-  4. apos editar: rodar kluster auto e corrigir `agent_todo_list`.
-  5. executar gates: `py_compile`, `ruff`, `ty`, `pytest` focado.
-  6. atualizar `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md`.
-
-## HISTORICAL SNAPSHOT 2026-02-28 04:40 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.24.0`.
-- Latest sprint package delivered (25 graves v4):
-  1. command-handlers mapping path safety + centralized config resolution + save-cache coherence.
-  2. importer guardrails for early cancel and unexpected `None` extractor result.
-  3. stream wrapper reader-join timeout configurability across timeout/normal/error paths.
-  4. focused regressions added for command-handlers/importer/stream wrappers.
-- Validation snapshot:
-  - touched-scope `py_compile`, `ruff`, `ty`: pass
-  - focused pytest package: `30 passed`
-- Kluster snapshot:
-  - `kluster_code_review_auto` runs in this package: clean
-
-## HISTORICAL SNAPSHOT 2026-02-28 04:10 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.24.0`.
-- Latest sprint package delivered (20 graves v3):
-  1. rescan dialog finish/cancel contract hardened for duplicate finish and running-cancel phase.
-  2. rescan worker lifecycle hardened (pre-prune, stale active ref cleanup, deterministic cancel status, post-dialog prune).
-  3. stream wrapper queue poll timeout configurable and faster deterministic loop exit conditions.
-  4. sentinel path excluded from dropped-line accounting.
-- Validation snapshot:
-  - touched-scope `py_compile`, `ruff`, `ty`: pass
-  - focused pytest (`rescan dialog + gui workers + stream guards`): `15 passed`
-- Kluster snapshot:
-  - `kluster_code_review_auto` runs in this package: clean
-
-## HISTORICAL SNAPSHOT 2026-02-28 03:35 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.24.0`.
-- Latest sprint package delivered (10 graves v2):
-  1. rescan dialog cancel-close contract hardened.
-  2. rescan worker active/stale/cap metadata handling hardened.
-  3. stream wrapper dropped-line warning cadence and sentinel accounting hardened.
-  4. focused regressions updated for dialog/worker/wrapper guards.
-- Validation snapshot:
-  - touched-scope `py_compile`, `ruff`, `ty`: pass
-  - focused pytest (`rescan dialog + gui workers + stream guards`): `12 passed`
-- Kluster snapshot:
-  - `kluster_code_review_auto` runs in this package: clean
-
-## HISTORICAL SNAPSHOT 2026-02-28 02:55 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.24.0`.
-- Latest sprint package delivered (10 high-risk minimal fixes):
-  1. dynamic GUI config path resolution API + loader usage in `gui/gui_config.py`.
-  2. runtime/env path regressions in `tests/test_gui_main_configuration.py`.
-  3. streamlit width-profile memory hardening and viewport fallback in `dev_env/streamlit_app.py`.
-  4. streamlit snapshot clear idempotent guard + regressions in `tests/test_streamlit_filter_cache.py`.
-  5. closeEvent rescan defensive shutdown hardening in `gui/gui_ssa.py` with focused regression in `tests/test_gui_filter_logic.py`.
-- Validation snapshot:
-  - `py_compile`, `ruff`, `ty` on touched files: pass
-  - `uv run pytest -q tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py tests/test_gui_filter_logic.py`: `150 passed, 1 skipped`
-- Kluster snapshot:
-  - `kluster_code_review_auto` runs in this package: clean
-
-## HISTORICAL SNAPSHOT 2026-02-28 02:05 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.24.0`.
-- Latest sprint package (5 high-risk minimal slices) delivered:
-  1. closeEvent rescan retention cap/meta hardening in `gui/gui_ssa.py`.
-  2. canonical candidate regression + rescan cap regression in `tests/test_gui_filter_logic.py`.
-  3. config fallback regression for missing `SSA_CONFIG_DIR` in `tests/test_gui_main_configuration.py`.
-  4. unified API snapshot clear helper in `dev_env/streamlit_app.py`.
-  5. streamlit API snapshot clear regression in `tests/test_streamlit_filter_cache.py`.
-- Validation snapshot:
-  - `py_compile`, `ruff`, `ty` on touched files: pass
-  - `uv run pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py`: `145 passed, 1 skipped`
-- Kluster snapshot:
-  - `kluster_code_review_auto` runs in this package: clean
-- Retomada checklist (ordem de execucao):
-  1. validar `git status --short` e manter escopo minimo.
-  2. escolher proximo slice aprovado na fila de risco real.
-  3. apos editar: kluster auto -> `py_compile` -> `ruff` -> `ty` -> `pytest` focado.
-  4. atualizar `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md`.
-
-## HISTORICAL SNAPSHOT 2026-02-28 01:10 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.24.0`.
-- Latest streamlit slice delivered (requested order: item 2 then item 1):
-  1. item 2: width-profile memory by width bucket in `dev_env/streamlit_app.py`.
-  2. item 1: tabs/API smoke hardening with stable tab labels and API snapshot availability guard.
-- Focused test scope:
-  - `tests/test_streamlit_filter_cache.py` now includes bucket-memory and tabs/API smoke coverage.
-- Validation snapshot:
-  - `py_compile`, `ruff`, `ty` on touched files: pass
-  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: `21 passed`
-- Kluster snapshot:
-  - `kluster_code_review_auto` on touched files: clean
-- Retomada checklist (ordem de execucao):
-  1. `git status --short` e confirmar escopo local antes de novo patch.
-  2. Escolher o proximo item aprovado da fila streamlit (patch minimo).
-  3. Apos editar: kluster auto -> `py_compile` -> `ruff` -> `ty` -> `pytest` focado.
-  4. Atualizar `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md`.
-
-## HISTORICAL SNAPSHOT 2026-02-28 00:18 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.24.0`.
-- Latest streamlit slice delivered:
-  1. telemetry profile window cap in `dev_env/streamlit_app.py` to bound session-state growth.
-  2. focused regression added in `tests/test_streamlit_filter_cache.py`.
-- Validation snapshot:
-  - `py_compile`, `ruff`, `ty` on touched streamlit files: pass
-  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: `16 passed`
-- Queue status:
-  1. matrix has no immediate `pending` rows.
-  2. streamlit queue remains active for next approved deferred item.
-- Important:
-  - blocks below are historical context and must not override this top block.
-
-## HISTORICAL SNAPSHOT 2026-02-28 00:00 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.24.0`.
-- Latest package delivered:
-  1. kluster custom-rule alignment in `gui/gui_config.py`:
-     - GUI config path now honors `SSA_CONFIG_DIR` with safe fallback.
-  2. closeEvent lifecycle hardening in `gui/gui_ssa.py`:
-     - active rescan worker now has defensive global-retention fallback in shutdown edge cases.
-  3. focused regressions added:
-     - `tests/test_gui_main_configuration.py` (`SSA_CONFIG_DIR` path resolution)
-     - `tests/test_gui_filter_logic.py` (mid-shutdown `isRunning()` failure path)
-- Validation snapshot (focused package scope):
-  - `py_compile`, `ruff`, `ty`: pass
-  - focused `pytest`: pass
-- Current pending queue:
-  1. no immediate `pending` in `docs/PENDING_ACTION_MATRIX.md`.
-  2. streamlit stabilization queue remains separate.
-- Important:
-  - blocks below are historical context and must not override this top block.
-
-## HISTORICAL SNAPSHOT 2026-02-27 16:32 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.24.0`.
-- Residual runtime group status:
-  1. `39, 46, 49, 50, 70, 76` is now documented as `resolved` in `docs/PENDING_ACTION_MATRIX.md`.
-  2. Functional closure is based on already-merged runtime/test slices:
-     - rescan worker closeEvent shutdown hardening;
-     - global data-loader retention/prune consistency with lock snapshot;
-     - cancel contract reinforcement across importer and extractor.
-- Current pending queue after closeout:
-  1. no immediate `pending` in this matrix.
-  2. streamlit stabilization queue (separate track).
-  3. `9` moved to `deferred` by explicit user decision (Opcao A).
-- Additional closure in this cycle:
-  1. `27` resolved with full `finish` payload assertion in `tests/test_import_cancellation.py`.
-  2. `22/23` resolved in `tests/test_database_optimized_alias_views.py` (explicit init success contract + explicit cleanup).
-  3. `21` resolved by existing concurrent-write coverage in `tests/test_caching_atomic_save.py`.
-  4. `24/25` resolved by current lock/modal test hardening.
-  5. `9` deferred by explicit user decision (Opcao A), no runtime patch.
-- Retomada checklist (ordem de execucao):
-  1. Confirm scope with `git status --short`.
-  2. Pick next approved slice from streamlit queue or another explicitly selected deferred item.
-  3. After edits: run kluster auto first, then `py_compile`, `ruff`, `ty`, and focused `pytest`.
-  4. Update `docs/PENDING_ACTION_MATRIX.md` and `docs/RECOVERY_BACKLOG.md` with slice evidence.
-- Important:
-  - blocks below are historical context and must not override this top block.
-
-## HISTORICAL SNAPSHOT 2026-02-27 15:53 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.24.0`.
-- Current state from interrupted chat (local patch present, not committed):
-  1. `gui/ssa/gui_filters_advanced_ui.py`:
-     - action buttons container and sizing adjusted;
-     - `_set_checkbox_checked_quietly` now keeps `QSignalBlocker` context and guarded manual unblock.
-  2. `gui/mixins/filter_gui_ssa_mixin.py`:
-     - add-column menu now builds deterministic ordered set with dedupe and duplicate-label disambiguation.
-  3. `gui/widgets/column_manager_dialog.py`:
-     - explicit `available_columns` no longer gets auto-polluted by full `display_map` reinjection.
-  4. `gui/gui_ssa.py` + `gui/ssa/gui_workers.py`:
-     - canonical menu candidate filter now uses cached non-null columns;
-     - non-null cache is computed on data load and reused in UI candidate paths.
-- Validation closeout for interrupted patch (done):
-  - `uv run --python 3.13 python -m py_compile` on touched runtime files: pass
-  - `uv run ruff check` on touched runtime files: pass
-  - `uv run ty check` on touched runtime files: pass
-  - `uv run pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_display.py`:
-    - `121 passed, 1 skipped`
-  - kluster auto on touched runtime files: clean (no issues)
-- Retomada checklist (ordem de execucao):
-  1. Confirm local scope with `git status --short` and keep edits limited to expected files.
-  2. Start next slice only with minimal patch over active filter/runtime scope.
-  3. After any new edit, rerun kluster auto and local gates on touched scope.
-  4. Keep non-blocking follow-ups in `docs/RECOVERY_BACKLOG.md`.
-- Important:
-  - sections below remain historical context and must not override this block.
-
-## HISTORICAL SNAPSHOT 2026-02-26 21:40 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.24.0`.
-- Latest delivered slice:
-  1. Added single synchronized height lock for the 3 lower panels:
-     - `Detalhes da SSA Selecionada`
-     - `Filtros Avancados`
-     - `Filtros por Coluna`
-  2. Height sync is now triggered on init, tab change, resize, and column-filter panel rebuild.
-  3. Tab/bind sync was switched to deferred queue (`QTimer.singleShot(0, ...)`) to avoid layout thrashing.
-  4. Added regression test to lock equal min/max heights after resize.
-  5. Code evidence:
-     - `gui/gui_ssa.py`: `_compute_bottom_panel_target_height`, `_queue_bottom_panel_height_sync`, `_sync_bottom_panel_heights`
-     - `gui/mixins/tab_context_gui_ssa_mixin.py`: bind path now queues height sync
-     - `gui/mixins/filter_gui_ssa_mixin.py`: column-filter rebuild re-applies height sync
-     - `tests/test_gui_filter_logic.py`: `test_bottom_panels_keep_single_synced_height_after_resize`
-- Validation snapshot:
-  - `python -m py_compile` (touched files): pass
-  - `ruff check` (touched files): pass
-  - `ty check` (touched files): pass
-  - `uv run pytest -q` full suite: `582 passed, 6 skipped, 11 subtests passed`
-  - focused GUI tests:
-    - `test_bottom_panels_keep_single_synced_height_after_resize`: pass
-    - `test_filters_tab_layout_keeps_bottom_panel_below_table_with_few_rows`: pass
-- Important:
-  - sections below remain historical context and must not override this block.
-
-## HISTORICAL SNAPSHOT 2026-02-26 17:05 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.22.0`.
-- Latest delivered slice:
-  1. Re-ran MD audit and refreshed active control docs only.
-  2. Enforced consistent status counter in filter clear flows:
-     - `Status: SSAs filtradas: N de M`.
-  3. Unified footer button style in SSA column-filter panel:
-     - `Adicionar filtro de coluna` == `Limpar todos filtros de colunas`.
-- Latest validation snapshot:
-  - `python -m py_compile` on touched files: pass
-  - `ruff check` on touched files: pass
-  - `ty check` on touched files: pass
-  - `.venv/bin/python -m pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_display.py`
-    => `117 passed, 1 skipped`
-- Important:
-  - sections below remain historical context and must not override this block.
-
-## HISTORICAL SNAPSHOT 2026-02-26 14:07 - start from here
-
-- Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.22.0`.
-- Latest delivered slice:
-  1. Added regression tests for column-filter stability in `tests/test_gui_filter_logic.py`.
-  2. Locked behavior for:
-     - add-column menu candidate coverage + exclusion of legacy ghost aliases;
-     - clear-all restore of default visible columns and hidden-line reset;
-     - Apply/Hide controls present in default rows.
-- Latest validation snapshot:
-  - `.venv/bin/python -m pytest -q tests/test_gui_filter_logic.py` => `97 passed, 1 skipped`.
-  - `.venv/bin/python -m pytest -q tests/test_gui_main_configuration.py` => `12 passed`.
-  - `.venv/bin/python -m pytest -q tests/test_display.py tests/test_streamlit_filter_cache.py` => `20 passed`.
-- Important:
-  - any references below to `codex/import-review` or `PR #31` are historical and non-operational.
-
-## Update 2026-02-26 (sprint migration snapshot)
-
-- Active branch: `codex/dev-filtros-stability`.
-- Delivered in this cycle:
-  - Sprint A closed (extractor contract ids `6,7,33,34,35,58`).
-  - Sprint B closed (rescan ids `11,12,28,29,38,79`; `71` stale-doc).
-  - Sprint C closed (cli lock ids `13,26,30,31,41,80`).
-  - E closed: pytest ignores removed from `pyproject.toml` and former script-like test files converted to deterministic pytest tests.
-- Pending priority queue:
-  1. Main/config/gui residual group: `39, 42, 43, 44, 46, 49, 50, 70, 76`.
-  2. Streamlit stabilization queue (separate track).
-- Guardrail:
-  - keep minimal patches and avoid broad refactor while closing high-impact semantic/security items first.
-
-## Update 2026-02-26 (deep analysis refresh)
-
-- Gate snapshot:
-  - `py_compile`, `ruff`, `ty`: pass.
-  - `flake8`: baseline debt still high (`E501`/spacing), many legacy files.
-  - `mypy`: baseline debt still high (missing stubs and typing issues in GUI/data paths).
-  - `pylama`: unavailable in current env (`ModuleNotFoundError: pkg_resources`), no deps changed.
-- Kluster snapshot:
-  - stream scripts (`run_pytest_stream_and_log*.py`) now highest practical priority due security/path handling and perf pressure.
-  - `main.py`, `core/config_manager.py`, `gui/gui_ssa.py` findings are mostly medium and structural; keep for later slices/sprints.
-- Practical next queue:
-  1. Stream scripts mini-slice: delivered (path guard + buffered flush + shared runner).
-  2. Main resilience mini-slice (Batch 11): delivered with deterministic fail-fast behavior.
-  3. Main/config/gui residual group and streamlit stabilization queue.
-
-## Update 2026-02-26 (batch11 resilience lock delivered)
-
-- `main.py`:
-  - optimized import failure now fails fast by default with full context logs;
-  - no automatic legacy retry path (including `--force-rescan`) to keep predictable runtime.
-- `tests/test_main_import_fallback.py`:
-  - added fail-fast lock test without retry.
-- Validation:
-  - `py_compile`, `ruff`, `ty` pass on touched files.
-  - `uv run pytest -q tests/test_main_import_fallback.py tests/test_main_skip_import.py`: pass.
-
-## Update 2026-02-26 (config restore fallback lock)
-
-- Added focused regression tests in `tests/test_config_manager_mappings_integrity.py`:
-  - restore write failure in `load_display_mappings_integrity` returns defaults in memory;
-  - restore write failure in `load_column_mappings_integrity` returns defaults in memory.
-- Validation:
-  - `py_compile`, `ruff`, `ty` pass for touched files.
-  - `uv run pytest -q tests/test_config_manager_mappings_integrity.py`: pass (`4 passed`).
-
-## Update 2026-02-26 (stream scripts mini-slice delivered)
-
-- Added shared helper `scripts/pytest_stream_common.py`.
-- Both wrappers now use shared runtime path:
-  - `scripts/run_pytest_stream_and_log.py`
-  - `scripts/run_pytest_stream_and_log_v2.py`
-- Added focused tests:
-  - `tests/test_stream_log_wrapper_guards.py` (`4 passed`).
-
-## OVERRIDE 2026-02-24 (ativo)
-
-- Branch ativa para continuidade: `codex/dev-filtros-stability` (base `origin/dev`).
-- Commits base desta rodada:
-  - `1c56addb` fix(gui): stabilize advanced filters responsive grid and action buttons.
-  - `06633471` fix(cli,db): harden config flow and maintenance schema targets.
-  - `4adcf35b` fix(extracao): resolve tempo_excedido `m` ambiguity and add focused regression tests.
-  - `resolved` fix(maintenance): avoid VACUUM-in-transaction and add script regression tests.
-  - `resolved` test(db): add schema_manager identifier guard regression lock.
-  - `resolved` fix(maintenance): harden analyze_db_integrity for empty-table and report consistency.
-  - `resolved` perf(maintenance): refactor verify_database_integrity query flow.
-  - `resolved` fix(cli): guard direct SSA search when `numero_ssa` is absent.
-- Scope ativo:
-  - estabilizacao de filtros avancados (resize/layout interno de botoes no painel de filtros avancados);
-  - hardening pontual de CLI/schema/scripts de manutencao;
-  - sem refactor amplo.
-- Status de PR:
-  - nenhum PR novo deve ser aberto sem autorizacao explicita do usuario.
-- Nota de migracao:
-  - secoes antigas com `codex/import-review` e PR `#31` abaixo ficam como historico de auditoria.
-  - pendencias abertas foram separadas em duas filas no backlog:
-    - `Pendencias longas`
-    - `Pendencias para sprint exclusivo`
-
-## Latest update 2026-02-24 (tempo_excedido)
-
-- Parser update in `extracao/extractor.py`:
-  - `m` interpreted as minutes.
-  - months require explicit `mo`.
-- Regression tests added in `tests/test_extracao.py`.
-- Local validation for touched scope:
-  - `python -m py_compile`, `ruff check`, `ty check`, `uv run pytest -q tests/test_extracao.py` all green.
-
-## Latest update 2026-02-24 (maintenance scripts)
-
-- `scripts_manutencao/limpar_banco.py` runtime fix:
-  - `VACUUM` executes after `commit`, avoiding transaction error.
-- logging aligned with local rule in same script:
-  - `print()` replaced by robust logger calls.
-- regression lock:
-  - new `tests/test_scripts_manutencao_schema_targets.py` for `analyze_db_integrity` paths.
-
-## Latest update 2026-02-24 (schema_manager guard lock)
-
-- new `tests/test_schema_manager_identifier_guards.py`:
-  - asserts invalid column identifiers are rejected with `ValueError`;
-  - asserts valid missing columns are added.
-
-## Latest update 2026-02-24 (analyze_db_integrity hardening)
-
-- `scripts_manutencao/analyze_db_integrity.py`:
-  - moved to robust logger outputs;
-  - added `verify_database_integrity` entrypoint with compatibility alias;
-  - fixed empty-table edge cases (`0` totals and `SUM NULL` handling);
-  - aligned return payload with `stats_dict`.
-- focused tests:
-  - `tests/test_scripts_manutencao_schema_targets.py` validates aggregate empty-fields and empty-table no-crash path.
-
-## Latest update 2026-02-24 (verify_database_integrity performance refactor)
-
-- consolidated integrity metrics into one core SQL query;
-- duplicate total now computed across full grouped set while keeping top-10 display;
-- added guard before import-date query when `data_importacao` is not present;
-- regression test expanded for duplicate-count correctness beyond top-10.
-
-## Latest update 2026-02-24 (cli direct search guard)
-
-- `interface/cli.py`:
-  - avoids `KeyError` when `numero_ssa` column is absent in current dataframe;
-  - uses exact match on normalized SSA and literal contains fallback with `regex=False`.
-- focused regression:
-  - `tests/test_cli_loop_missing_numero_ssa_guard.py`.
-
-## Scope
-
-- Branch: `codex/dev-filtros-stability`
-- PR: sem PR ativo para esta branch neste momento
-- Goal now: seguir com patches minimos de estabilidade e validar por slice.
-
-## What to provide in the next chat
-
-1. Current blocking errors/logs (if any).
-2. External IA report in structured form:
-   - `id`
-   - `severity`
-   - `file:line`
-   - `evidence`
-   - `impact`
-   - `suggested fix`
-3. Any new user decisions (scope approvals, deferrals).
-
-## Latest intake status (2026-02-17)
-
-- Completed:
-  - Restored facade export contract for `_has_active_advanced_filters` in aggregated module.
-  - Fixed broken regex in key-coverage test and added reverse contract check (`logic/detector -> UI or legacy`).
-- Decision applied:
-  - `responsavel_emissor` path B done: advanced filter flow removed/disabled in UI + logic detector.
-- New validated input from modular rescan:
-  - 75 files total, 64 processed, 11 errors.
-  - all 11 errors are `SSAs Derivadas e Relacionadas_*.xlsx` rejected by main extractor required-column gate (`data_cadastro`, `descricao_ssa`).
-  - these files are special derivadas source and should be handled by derivadas sync path, not main SSA extractor.
-- Delivery status:
-  - auto-trigger implemented in importer: special derivadas sheets are skipped from main extraction and synchronized by derivadas sync after import loop.
-  - sync currently selects the latest special sheet by mtime and records special files in cache on successful sync.
-- Additional delivery status:
-  - user decision B applied for advanced filters: `responsavel_emissor` controls removed from UI panel assembly/context.
-  - regression test added to keep `adv_responsavel_emissor_*` controls absent.
-  - `Especificas...` derivadas button upgraded:
-    - popup now shows DB materialized summary/top maes for visible SSAs (`ssa_derivada_summary`);
-    - enable state now checks DB relations fallback when dataframe `derivada_de` has no valid values.
-  - responsive grid regression fixed after removal of `responsavel_emissor` controls (`emis_resp_box` references removed).
-  - advanced year execution filter cleanup:
-    - dead `data_execucao` branch removed from logic;
-    - behavior validated with test over `semana_executada` and `ano_execucao_values`.
-  - legacy year keys migration hardened:
-    - fixed precedence for `ano_execucao` + `ano_execucao_exclude=True`;
-    - added tests for legacy `ano_emissao` and `ano_execucao` exclude path.
-  - derivadas special ingest hardened:
-    - importer now sends all detected special sheets to sync (not only latest by mtime);
-    - `sync_derivadas` supports `sheet_files` and reports aggregated sheet stats.
-- Keep backlog tracking in `docs/RECOVERY_BACKLOG.md` for non-blocking findings from the external report.
-
-## Latest update (2026-02-18)
-
-- Reliability hardening delivered after previous migration snapshot:
-  - importer now blocks success when derivadas sync or consistency is not clean (`f9e69d86`);
-  - sync pipeline now has internal post-materialization integrity gate (`474e980a`);
-  - GUI manual derivadas update requires clean consistency scan (`5a50ea17`);
-  - visual special parser now classifies root-only rows as informational (`6f4fcc7a`);
-  - filter cache key now accepts advanced-filter context token (`ff266350`).
-- Local data integrity check on `data/ssas.db` remains clean:
-  - `scan`: `is_consistent=true`, all issue counts `0`.
-
-## Mandatory execution protocol
-
-1. Re-validate every external finding locally before patching.
-2. Apply only minimal slices.
-3. Run gate for each slice:
-
-```bash
-uv run --python 3.13 python -m py_compile <files>
-uv run ruff check <files>
-uv run ty check <files>
-uv run pytest -q <focused-tests>
-```
-
-4. Commit atomically, push, check PR checks.
-5. Update handoff docs after each meaningful slice:
-   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
-   - `docs/RECOVERY_BACKLOG.md`
-
-## Writing guardrails (do not do)
-
-1. Do not silence link/runtime warnings without fixing navigation behavior.
-2. Do not claim completion if the reported user flow still fails.
-3. Do not replace a functional bug with a generic fallback popup.
-4. Do not close a slice without before/after evidence for the same user repro.
-5. Do not optimize for "clean logs" over correct behavior.
-
-## Mandatory gates for advanced filters
-
-```bash
-uv run pytest -q tests/test_gui_filters_facade_contract.py
-uv run pytest -q tests/test_gui_filter_logic.py -k advanced_filters
-uv run pytest -q tests/test_gui_filters_advanced_logic.py
-```
-
-## Latest update (2026-02-18, mega sprint block 6)
-
-- New slices delivered:
-  - `1f213578`: derivadas sync now emits `sheet_file_reports` with per-file parse evidence and deduplicates relative/absolute file paths.
-  - `ffd5d8ef`: importer derivadas phase now fails closed when any special sheet has no individual parse evidence.
-  - `3daddd9f`: GUI `Atualizar Derivadas` now fails closed when any special sheet has no individual parse evidence.
-  - `f7f7ead7`: derivadas CLI sync now supports `--special-docs-dir` to ingest all `SSAs Derivadas e Relacionadas_*.xlsx`.
-  - `60adbd5a`: committed refreshed `data/ssas.db` after full derivadas sync with 11 special sheets.
-- Operational run executed on 2026-02-18:
-  - `sync_run_id=4`, actor `mega-sprint-special-sync`
-  - `sheet_files_count=11`, `db_edges=3216`, `sheet_edges=1497`, `merged_edges=3547`
-  - post-sync consistency: `is_consistent=true`
-
-## Current execution status (2026-02-18, ready to migrate)
-
-- Branch and PR:
-  - `codex/import-review`, PR `#31` open.
-- Latest commits on head:
-  - `aa454a40` docs handoff package expanded (strict starter + migration payload).
-  - `80a73363` details dialog baseline locked at `20/80` with migration guardrails.
-  - `24024662` real split enforcement via `QSplitter`.
-- Current PR checks snapshot:
-  - external blocked by plan limit: `code/snyk`, `security/snyk`.
-  - core static/security checks in pass (DeepScan, DeepSource, GitGuardian, Socket, semgrep, submit-pypi, cubic).
-
-## Scope lock from user triage
-
-- Do not execute in this cycle:
-  1. remove `if df is None` defensive branch.
-  2. add new lock layers in stream scripts.
-  3. broad race-condition refactor in `gui/workers`.
-- Lint policy for this cycle:
-  - ignore `E501` findings.
-
-## Latest update (2026-02-19, critical filters-tab overlap fix)
-
-- Head commit for this fix: `d3d9410f`.
-- Root cause:
-  - vertical area allocation between main table and bottom panel in `Filtros` tab was not hard constrained for low-row scenarios.
-- Minimal fix applied in `gui/gui_ssa.py`:
-  - table min height set to `220`;
-  - vertical stretch set to `6` (table) and `4` (bottom panel).
-- Regression lock:
-  - `tests/test_gui_filter_logic.py::test_filters_tab_layout_keeps_bottom_panel_below_table_with_few_rows`.
-- Validation evidence:
-  - `py_compile`, `ruff`, `ty` green for touched scope;
-  - focused pytest gates green, including advanced-filters suites;
-  - runtime geometry matrix check reported no overlap in tested combinations.
-- Rule for next chat:
-  1. preserve `table min height + vertical stretch 6/4` unless user asks explicit layout change;
-  2. if changing this area, provide before/after geometry evidence with numeric values.
-
-## Latest update (2026-02-18, behavior and dialog baseline)
-
-- Double-click details dialog (`gui/ssa/gui_details.py`) baseline is now:
-  - split: `20/80` (left derivadas / right details),
-  - min size: `700x650`,
-  - fonts: left `12`, right `12`, labels `11`.
-- Implementation detail that must be preserved:
-  - split is enforced with `QSplitter` + explicit `setSizes` + stretch factors.
-  - do not rely on ratio constants alone.
-- Behavior rule for next IA:
-  1. explain root cause before patching UI regressions;
-  2. never claim visual fix without constraint validation;
-  3. provide numeric before/after values in final report.
-
-## Copy/paste starter for next chat
-
-```text
-Context:
-- Continue on branch codex/import-review, PR #31.
-- Keep minimal-risk patches only, no GUI layout changes.
-- Ingest external IA report with local re-validation per finding.
-
-Must follow:
-1) Validate each finding with file:line evidence before editing.
-2) Patch in atomic slices.
-3) Run py_compile + ruff + ty + focused pytest on touched scope.
-4) Push and check PR checks.
-5) Update AGENTS_HANDOFF_NEXT_CYCLE.md and RECOVERY_BACKLOG.md.
-6) For UI ratio fixes, validate layout constraints (`minimumWidth`, splitter/layout manager) and report exact values.
-
-Input report:
-<paste structured report here>
-```
-
-## Copy/paste full starter (strict mode)
-
-```text
-Trabalhe no repo /Users/menon/git/SSA_Consulta_Rapida
-
-Contexto:
-- Branch atual: codex/import-review
-- PR alvo: #31 (base dev)
-- Objetivo: fechar PR com estabilidade e patch minimo
-
-Regras:
-1. Nao criar branch nem PR novo.
-2. Nao fazer refactor amplo.
-3. Nao alterar layout GUI sem pedido explicito.
-4. Manter dialogo de detalhes derivadas em baseline fixa:
-   - split 20/80
-   - min size 700x650
-   - fontes: 12/12/11
-   - usar QSplitter com sizes reais
-5. Sem acentos/cedilha/emojis/emdash em codigo, docs e mensagens tecnicas.
-6. Nao ocultar erro real com except vazio/suppress indevido.
-
-Leitura obrigatoria antes de iniciar:
-1. docs/AGENTS_HANDOFF_NEXT_CYCLE.md
-2. docs/NEXT_CHAT_MIGRATION.md
-3. docs/RECOVERY_BACKLOG.md
-4. docs/QA_FACADE_FILTERS.md
-5. AGENTS.md
-
-Sequencia obrigatoria de ciclo:
-1) evidenciar problema com arquivo:linha e repro
-2) propor diff minimo antes de editar
-3) implementar slice pequeno
-4) validar local
-5) commit atomico
-6) push
-7) checar checks e comentarios de PR
-8) backlog para nao bloqueante
-
-Fluxo por slice:
-1) validar evidencia local (rg -n + nl -ba)
-2) patch minimo
-3) gate local
-4) commit atomico
-5) push
-6) checar PR checks
-
-Gate tecnico:
-- uv run --python 3.13 python -m py_compile <files>
-- uv run ruff check <files>
-- uv run ty check <files>
-- uv run pytest -q <tests focados>
-
-Cuidados de seguranca e operacao:
-1. Nao comitar segredos e arquivos locais de ambiente.
-2. Nao usar comandos git destrutivos.
-3. Nao esconder erro real com fallback generico.
-4. Nao alterar schema/layout sem aprovacao explicita.
-5. Se aparecer mudanca fora de escopo, pausar e confirmar com usuario.
-
-Gate extra se tocar facade de filtros:
-- uv run pytest -q tests/test_gui_filters_facade_contract.py
-- uv run pytest -q tests/test_gui_filter_logic.py -k advanced_filters
-- uv run pytest -q tests/test_gui_filters_advanced_logic.py
-
-Status checks conhecido:
-- code/snyk fail por limite de plano
-- security/snyk fail por limite de plano
-- restante: tratar somente bloqueio real de codigo
-
-Relatorio final por slice:
-- commit hash
-- testes executados
-- checks PR
-- pendencias reais
-```
-
-## Latest update 2026-02-24 (gui invalid regex fallback guard)
-
-- `gui/mixins/filter_gui_ssa_mixin.py`:
-  - fallback de regex invalido em `_build_column_mask` agora usa busca literal (`regex=False`);
-  - cobre ambos caminhos: token explicito `~...` e modo padrao `regex`.
-- focused regression:
-  - `tests/test_filter_regex_invalid_fallback.py` com 2 cenarios:
-    - regex explicita invalida (`~abc[`);
-    - regex invalida no modo default `regex` (`abc[`).
-
-## Latest update 2026-02-24 (cli remove-filter non-lifo guard)
-
-- `interface/cli.py`:
-  - `_handle_remove_filter` reaplica da base apenas quando a remocao e fora de ordem;
-  - mantem reaplicacao do estado anterior para remocao LIFO (otimizacao).
-- focused regression:
-  - `tests/test_cli_remove_filter_non_lifo.py`:
-    - remove termo do meio e garante base state;
-    - remove ultimo termo e garante previous state.
-
-## Nova regra 2026-02-24 (error-handling e performance)
-
-- Manter tratamento de erro sempre presente, mas cobrindo porcoes relevantes de fluxo.
-- Evitar `if/try` em excesso a cada poucas linhas, pois isso degrada legibilidade e pode introduzir custo.
-- Nao usar `try/except` vazio nem suppress que esconda erro real.
-- Para cada captura de erro, exigir saida objetiva (log curto) e tratamento coerente (retorno/raise/rollback).
-- Em cada patch, revisar custo computacional para evitar solucoes caras por seguranca excessiva.
-
-## Latest update 2026-02-24 (cli config refresh and query guard)
-
-- `interface/cli.py`:
-  - novo helper local para refresh pos `c/config`, removendo bloco duplicado;
-  - refresh completo apenas quando `default_filters` muda;
-  - sem mudanca de `default_filters`, mantem dataframe atual e evita requery caro;
-  - `get_ssa_query` aplica allowlist de tabela (`ssa_table` + aliases legados).
-- focused regression:
-  - `tests/test_cli_config_preserve_session.py` valida caminho com reload e sem reload;
-  - `tests/test_cli_get_ssa_query_identifier_guard.py` valida bloqueio de tabela fora da allowlist.
-
-## Latest update 2026-02-24 (cli clearall table consistency)
-
-- `interface/cli.py`:
-  - `clearall` agora respeita `table_name` recebido pelo loop (`get_ssa_query(table_name)`).
-- focused regression:
-  - `tests/test_cli_clearall_uses_table_name.py`.
-
-## Latest update 2026-02-24 (cli pagination tracker prune)
-
-- `interface/cli.py`:
-  - pagination tracker now has a small local manager class for state ops;
-  - prune runs after stack mutations to remove orphan tracker entries.
-  - pagination state key is persisted in `df.attrs` to preserve state across dataframe copies.
-- focused regression:
-  - `tests/test_cli_pagination_tracker_prune.py` (including copy-preservation check).
-
-## Latest update 2026-02-24 (cli enhancement settings lock and root)
-
-- `interface/cli_enhancement_manager.py`:
-  - logger now uses robust logger API;
-  - project root now resolved via `_get_project_root()`;
-  - settings save keeps lock only on lockfile (no lock on temp file);
-  - if lock cannot be acquired, save aborts and write is skipped.
-- focused regression:
-  - `tests/test_cli_enhancement_manager_lock_usage.py`.
-
-## Latest update 2026-02-24 (command handlers root-safe mappings cache)
-
-- `interface/command_handlers.py`:
-  - path for mapping files now resolves from project root helper;
-  - module logger aligned to robust logger API;
-  - mappings cache moved to a small dedicated manager in-module.
-- focused regression:
-  - `tests/test_command_handlers_project_root_mapping.py`.
-
-## Latest update 2026-02-24 (command handlers save flow cleanup)
-
-- `interface/command_handlers.py`:
-  - extracted `_attempt_save_settings(...)` to remove repeated `try/except ... pass` blocks;
-  - helper returns explicit boolean (success/failure) for clear semantics;
-  - call sites now rollback local changes when save fails;
-  - save error handling remains centralized in `_save_settings_handler`.
-
-## Latest update 2026-02-24 (optimized upsert legacy decimal key normalization)
-
-- `armazenamento/database_optimized.py`:
-  - lookup chunk now matches both canonical and legacy decimal SSA keys;
-  - update branch deletes matched legacy key aliases plus canonical key before reinserting normalized rows;
-  - savepoint-safe batch insert now uses parameterized `executemany` instead of `to_sql` in `DELETE + INSERT` path.
-- focused regression:
-  - `tests/test_database_optimized_alias_views.py::test_optimized_upsert_replaces_legacy_decimal_key_without_duplicate`.
-- gate local deste slice:
-  - `python -m py_compile armazenamento/database_optimized.py tests/test_database_optimized_alias_views.py`: pass.
-  - `ruff check armazenamento/database_optimized.py tests/test_database_optimized_alias_views.py`: pass.
-  - `ty check armazenamento/database_optimized.py tests/test_database_optimized_alias_views.py`: pass.
-  - `uv run pytest -q tests/test_database_optimized_alias_views.py`: pass (3 tests).
-- deferred-by-scope:
-  - kluster P4 quality concern about function size in `insert_dataframe_optimized` (requires dedicated refactor sprint, out of current minimal patch scope).
-
-## Latest update 2026-02-24 (canonical write policy for SSA ids)
-
-- `armazenamento/database_optimized.py`:
-  - removed legacy read compatibility branch for `numero_ssa + ".0"`.
-  - added `_validate_canonical_storage_ids(...)` to reject decimal artifacts in write path.
-- tests:
-  - removed legacy-runtime compatibility test from `tests/test_database_optimized_alias_views.py`.
-- gate local deste slice:
-  - `python -m py_compile armazenamento/database_optimized.py tests/test_database_optimized_alias_views.py`: pass.
-  - `ruff check armazenamento/database_optimized.py tests/test_database_optimized_alias_views.py`: pass.
-  - `ty check armazenamento/database_optimized.py tests/test_database_optimized_alias_views.py`: pass.
-  - `uv run pytest -q tests/test_database_optimized_alias_views.py`: pass (2 tests).
-- kluster:
-  - `kluster_code_review_auto`: clean (no issues).
-
-## Latest update 2026-02-24 (canonical write parity in non-optimized upsert)
-
-- `armazenamento/database_upsert_logic.py`:
-  - added canonical storage normalization helper for SSA ids;
-  - applied normalization to both `numero_ssa` and `derivada_de`;
-  - added fail-fast canonical validation for storage id columns.
-- tests:
-  - added `tests/test_database_upsert_canonical_write.py`.
-- gate local deste slice:
-  - `python -m py_compile armazenamento/database_upsert_logic.py tests/test_database_upsert_canonical_write.py`: pass.
-  - `ruff check armazenamento/database_upsert_logic.py tests/test_database_upsert_canonical_write.py`: pass.
-  - `ty check armazenamento/database_upsert_logic.py tests/test_database_upsert_canonical_write.py`: pass.
-  - `uv run pytest -q tests/test_database_upsert_canonical_write.py tests/test_database_optimized_alias_views.py`: pass (3 tests).
-
-## Latest update 2026-02-24 (upsert chunk dedupe perf)
-
-- `armazenamento/database_upsert_logic.py`:
-  - `chunk_num_ssa` now uses `dropna().drop_duplicates().tolist()` (removed manual O(n2) loop).
-- tests:
-  - `tests/test_db_reset_and_upsert.py`: added duplicate-in-chunk regression scenario.
-- gate local deste slice:
-  - `python -m py_compile armazenamento/database_upsert_logic.py tests/test_db_reset_and_upsert.py`: pass.
-  - `ruff check armazenamento/database_upsert_logic.py tests/test_db_reset_and_upsert.py`: pass.
-  - `ty check armazenamento/database_upsert_logic.py tests/test_db_reset_and_upsert.py`: pass.
-  - `uv run pytest -q tests/test_db_reset_and_upsert.py tests/test_database_upsert_canonical_write.py`: pass (6 tests).
-- kluster:
-  - `kluster_code_review_auto`: clean (no issues).
-
-## Latest update 2026-02-24 (prepare_dataframe_for_upsert copy-path perf)
-
-- `armazenamento/database_upsert_logic.py`:
-  - `prepare_dataframe_for_upsert` now uses `frame.copy().reset_index(drop=True)`.
-- tests:
-  - added `tests/test_database_upsert_prepare.py` for immutability + normalization lock.
-- gate local deste slice:
-  - `python -m py_compile armazenamento/database_upsert_logic.py tests/test_database_upsert_prepare.py`: pass.
-  - `ruff check armazenamento/database_upsert_logic.py tests/test_database_upsert_prepare.py`: pass.
-  - `ty check armazenamento/database_upsert_logic.py tests/test_database_upsert_prepare.py`: pass.
-  - `uv run pytest -q tests/test_database_upsert_prepare.py tests/test_db_reset_and_upsert.py`: pass (6 tests).
-- kluster:
-  - `kluster_code_review_auto`: clean (no issues).
-
-## Latest update 2026-02-24 (logging mapping interpolation fix)
-
-- files:
-  - `main.py`
-  - `dev_env/streamlit_app.py`
-  - `tests/test_ascii_logging_filter.py`
-- change:
-  - ASCII logging filter keeps `dict` args intact for named interpolation (`%(name)s`) and keeps tuple path unchanged.
-- gate local deste slice:
-  - `python -m py_compile main.py dev_env/streamlit_app.py tests/test_ascii_logging_filter.py`: pass.
-  - `ruff check main.py dev_env/streamlit_app.py tests/test_ascii_logging_filter.py`: pass.
-  - `ty check main.py dev_env/streamlit_app.py tests/test_ascii_logging_filter.py`: pass.
-  - `uv run pytest -q tests/test_ascii_logging_filter.py`: pass (2 tests).
-- ops clarification:
-  - legacy DB reset is operational/controlled; code path now enforces canonical write and validation for new writes.
-
-## Latest update 2026-02-24 (streamlit cache fallback parity)
-
-- `dev_env/streamlit_app.py`:
-  - `get_cached_filter` and `cache_filter_result` now branch by `_use_session_state` and update proper stats backend.
-- gate local deste slice:
-  - `python -m py_compile dev_env/streamlit_app.py`: pass.
-  - `ruff check dev_env/streamlit_app.py`: pass.
-  - `ty check dev_env/streamlit_app.py`: pass.
-  - `uv run pytest -q tests/test_ascii_logging_filter.py`: pass (2 tests).
-- kluster:
-  - `kluster_code_review_auto`: clean (no issues).
-
-## Latest update 2026-02-24 (streamlit filter guards and telemetry)
-
-- `dev_env/streamlit_app.py`:
-  - column-presence guards added for `situacao`, `setor_executor`, `setor_emissor` filters;
-  - slow-filter telemetry now uses logger instead of `st.info` per cache miss.
-- gate local deste slice:
-  - `python -m py_compile dev_env/streamlit_app.py`: pass.
-  - `ruff check dev_env/streamlit_app.py`: pass.
-  - `ty check dev_env/streamlit_app.py`: pass.
-  - `uv run pytest -q tests/test_ascii_logging_filter.py`: pass (2 tests).
-- kluster:
-  - `kluster_code_review_auto`: clean (no issues).
-
-## Latest update 2026-02-24 (streamlit import ui unblock)
-
-- `dev_env/streamlit_app.py`:
-  - removed `time.sleep(0.5)` from `_execute_import` finally block.
-- gate local deste slice:
-  - `python -m py_compile dev_env/streamlit_app.py`: pass.
-  - `ruff check dev_env/streamlit_app.py`: pass.
-  - `ty check dev_env/streamlit_app.py`: pass.
-  - `uv run pytest -q tests/test_ascii_logging_filter.py`: pass (2 tests).
-- kluster:
-  - `kluster_code_review_auto`: clean (no issues).
-
-## Latest update 2026-02-24 (streamlit broad hardening cycle)
-
-- `dev_env/streamlit_app.py`:
-  - safe import fallback when `streamlit` is missing;
-  - `StreamlitFilterCache` now uses centralized backend resolver;
-  - cache get/put now supports `df_token` and `apply_all_filters_cached` computes token via `_compute_df_cache_token`;
-  - token computation optimized with sample-only string conversion + memoization in `df.attrs`;
-  - removed deprecated pandas CoW option assignment.
-- tests:
-  - added `tests/test_streamlit_filter_cache.py`.
-- gate local deste slice:
-  - `python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_ascii_logging_filter.py`: pass (4 tests).
-- kluster:
-  - `kluster_code_review_auto`: clean (no issues).
-
-## Latest update 2026-02-24 (streamlit long cycle: layout and broad improvements)
-
-- `dev_env/streamlit_app.py`:
-  - UI repositioning/layout expanded to tabs: `Filtros`, `Tabela`, `Exportacao`, `Cache e API`.
-  - table rendering now paginates filtered data (`_paginate_dataframe`) before arrow conversion/render.
-  - API fetch now manual via button; snapshot persisted in session state and clearable.
-  - runtime detection strengthened and non-streamlit import fallback added.
-  - cache backend logic centralized; cache keys now include lightweight memoized dataframe token.
-  - removed deprecated pandas CoW option write.
-- tests:
-  - expanded `tests/test_streamlit_filter_cache.py`.
-- gate local deste slice:
-  - `python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_ascii_logging_filter.py`: pass (6 tests).
-- kluster:
-  - `kluster_code_review_auto`: clean (no issues).
-
-## Latest update 2026-02-24 (streamlit long cycle v2)
-
-- `dev_env/streamlit_app.py`:
-  - filters tab now uses form submit/reset workflow (state stored in `session_state`);
-  - introduced `_normalize_filter_selection(...)` to skip no-op full selections;
-  - mixed-type safe `_build_filter_options(...)` sorting;
-  - table tab now supports sorting before pagination;
-  - rerun fallback supports `rerun` and `experimental_rerun` APIs.
-- tests:
-  - expanded `tests/test_streamlit_filter_cache.py`.
-- gate local deste slice:
-  - `python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_ascii_logging_filter.py`: pass (8 tests).
-- kluster:
-  - `kluster_code_review_auto`: clean (no issues).
-
-## Latest update 2026-02-24 (streamlit long cycle v3)
-
-- `dev_env/streamlit_app.py`:
-  - fixed scope bug: table tab now renders regardless of API toggle state;
-  - introduced width profile state (`Compacto/Padrao/Largo/XL`) for deterministic table width behavior;
-  - replaced hardcoded table `column_config` with `_build_streamlit_column_config(...)` + `SimpleWidthManager`;
-  - added fallback path in column-config builder when streamlit column API is unavailable.
-- tests:
-  - expanded `tests/test_streamlit_filter_cache.py` with width-bucket and column-config assertions.
-- gate local deste slice:
-  - `python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (10 tests).
-- kluster:
-  - `kluster_code_review_auto`: clean (no issues).
-
-## Latest update 2026-02-24 (streamlit long cycle v4)
-
-- final scope delivered in this cycle:
-  - table tab flow fix (no hidden coupling with API toggle);
-  - width profile controls + deterministic width buckets from `SimpleWidthManager`;
-  - path safety validation for sidebar file-system inputs;
-  - cache token guard for zero-column frames;
-  - width manager signature alignment in GUI table call site.
-- regression/tests:
-  - `tests/test_streamlit_filter_cache.py` now 11 passing tests.
-- gate local deste slice:
-  - `python -m py_compile dev_env/streamlit_app.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_streamlit_filter_cache.py`: pass.
-  - `ruff check dev_env/streamlit_app.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_streamlit_filter_cache.py`: pass.
-  - `ty check dev_env/streamlit_app.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_streamlit_filter_cache.py`: pass.
-  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (11 tests).
-- kluster progression:
-  - intermediate P4/P3 findings resolved in-sequence;
-  - final `kluster_code_review_auto`: clean.
-
-## Latest update 2026-02-24 (streamlit long cycle v5 final)
-
-- final width-manager decision for this cycle: deterministic signature without external override params.
-- `gui/ssa/gui_table.py` updated to same deterministic call contract.
-- final kluster state: clean after iterative fixes.
-
-## Latest update 2026-02-25 (streamlit long cycle v6)
-
-- layout/positioning expansion delivered in `dev_env/streamlit_app.py`:
-  - filters form grouped by functional blocks;
-  - table controls split in two rows and view mode toggle added;
-  - export and cache/api tabs reorganized for faster scan and less crowding.
-- behavioral scope unchanged for filter semantics and data processing.
-- gate local deste slice:
-  - `python -m py_compile dev_env/streamlit_app.py`: pass.
-  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (11 tests).
-- kluster:
-  - `kluster_code_review_auto`: clean.
-
-## Latest update 2026-02-25 (streamlit long cycle v7)
-
-- delivered:
-  - `Compacto` toggle in table controls;
-  - compact caption behavior in table mode;
-  - render telemetry by width profile in cache panel.
-- gate local deste slice:
-  - `python -m py_compile dev_env/streamlit_app.py`: pass.
-  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
-  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (11 tests).
-- kluster:
-  - `kluster_code_review_auto`: clean.
-
-## Latest update 2026-02-25 (streamlit long cycle v7.1)
-
-- follow-up cleanup in `dev_env/streamlit_app.py`:
-  - extracted small helpers for table caption and render telemetry update.
-- behavior unchanged; maintenance improved.
-
-## Latest update 2026-02-25 (streamlit direct-run import fix)
-
-- fixed startup path issue for direct invocation:
-  - `/Users/menon/git/SSA_Consulta_Rapida/.venv/bin/python /Users/menon/git/SSA_Consulta_Rapida/dev_env/streamlit_app.py`
-  - previous error `ModuleNotFoundError: No module named 'core'` is resolved.
-
-## Latest update 2026-02-25 (streamlit tests)
-
-- added regression tests for:
-  - `_build_table_caption` in compact and non-compact modes;
-  - `_update_render_telemetry` session-state accumulation.
-- focused streamlit test suite now at 14 passing tests.
-
-## Latest update 2026-02-25 (streamlit telemetry panel refinement)
-
-- cache tab improvements:
-  - profile picker for render telemetry;
-  - dedicated button to clear telemetry state;
-  - telemetry caption formatting centralized in helper.
-- focused streamlit suite now 15 passing tests.
-
-## Latest update 2026-02-25 (qwen config and batch01 start)
-
-- created `docs/QWEN_CODE_DELEGATION_CONFIG.md` with setup, delegation rules, and validation contract.
-- batch01 progress:
-  - done ids 21, 22, 23.
-- focused tests: 5 passed.
-
-## Latest update 2026-02-25 (batch01 tests + qwen check delegation)
-
-- batch01 completed for ids 24/25/27/28/29 with focused test-only patches.
-- qwen delegation confirmed in practice for `ruff` + `ty` execution (with `-y`), followed by independent final validation by main agent.
-- observed tradeoff: qwen helps reduce reasoning-token load for repetitive checks, but has higher per-call latency.
-
-## Latest update 2026-02-25 (extractor batch02)
-
-- scope delivered:
-  - stabilized `read_report` return contract to avoid `NoneType` regressions in legacy callers.
-  - primary Excel read in `read_report` now goes through `import_excel_robust`.
-  - preserved compatibility with controlled fallback to `extract_data_from_excel` when robust output is empty.
-- tests and checks:
-  - `py_compile`, `ruff`, `ty` for touched files: pass.
-  - focused test `tests/test_extracao.py`: 5 passed.
-- risk note:
-  - strict "robust-only everywhere" migration in full extraction stack is intentionally deferred to exclusive sprint (cross-module impact).
-
-## Latest update 2026-02-25 (extractor batch02 follow-up)
-
-- `read_report` ficou com caminho unico de ingestao via `import_excel_robust`.
-- para evitar custo excessivo em arquivos grandes no caminho de resultado vazio, foi aplicado gate por tamanho com `SSA_READ_REPORT_FALLBACK_MAX_MB` (default 8).
-- parse de env invalido agora cai para default com warning.
-- suite focada `tests/test_extracao.py` em 7/7.
-
-## Latest update 2026-02-25 (extractor batch02 cleanup)
-
-- ajuste final: removido trecho de guard de fallback-size que ficou incoerente apos robust-only.
-- estado final: `read_report` robust-only, sem fallback legado.
-
-## Latest update 2026-02-25 (batch03 config path alignment)
-
-- `config_manager` agora usa caminho resolvido por env (`SSA_CONFIG_DIR`) de forma consistente tambem em load/save/ensure.
-- env de config agora passa por validacao de path safety, com fallback para `config` quando invalido.
-- suite focada de config verde (5/5).
-
-## Latest update 2026-02-25 (batch03 fail-fast)
-
-- `ensure_default_settings` agora retorna erro explicito (RuntimeError agregado) quando falha em criar/copi ar arquivos de config.
-- cobertura nova valida os dois caminhos de falha (copy e generation).
-- status da suite focada de config: 7/7.
-
-## Latest update 2026-02-25 (batch03 startup contract final)
-
-- estado final de `ensure_default_settings`:
-  - retorna lista de erros para diagnostico.
-  - pode levantar `RuntimeError` quando `fail_fast=True`.
-- `main` utiliza modo resiliente (`fail_fast=False`) com warning explicito.
-
-## Latest update 2026-02-25 (batch03 final stabilization)
-
-- `config_manager._atomic_copy_file` agora usa `NamedTemporaryFile(delete=False)`.
-- `main` segue com `ensure_default_settings(fail_fast=False)` e warning de erros nao bloqueantes.
-- suite focada de config permanece 7/7.
-
-## Latest update 2026-02-25 (batch04 lock retry hardening)
-
-- lock de settings da CLI enhancement recebeu retry limitado e nao bloqueante.
-- comportamento em contencao: tenta poucas vezes e aborta sem travar a CLI.
-- suite focada lock/atomic da CLI enhancement: 7/7.
-
-## Latest update 2026-02-25 (batch04 windows lock retries)
-
-- melhorias no lock Windows da CLI enhancement: `LK_NBLCK` com retry limitado e fail-fast para erro nao relacionado a lock.
-- suite focada lock/atomic da CLI enhancement agora em 9/9.
-- qwen foi usado para tarefas repetitivas de validacao; revisao final continuou sob controle do agente principal.
-
-## Latest update 2026-02-25 (batch04 windows lock region normalization)
-
-- lock Windows da CLI enhancement agora usa regiao fixa de 1 byte com retry limitado.
-- erro nao relacionado a lock contention no backend Windows nao entra em retry.
-- suite lock/atomic da CLI enhancement permaneceu verde em 9/9.
-
-## Latest update 2026-02-26 (batch05+06 sync)
-
-- batch05 (ids 3,14,54,55,57,59,61):
-  - `id 3`/`id 59` tratados com patch minimo em `core/app_logic.py` para rastreabilidade de erro inesperado sem mudar fluxo.
-  - `id 14/54/55/57/61` classificados como stale-doc com evidencia no codigo/testes atuais.
-- batch06 (ids 1,2,32,47,60,75,81):
-  - `id 60` recebeu hardening adicional em `armazenamento/database_optimized.py` com quoting estrito de tabela validada.
-  - demais ids confirmados como cobertos no estado atual (rollback sem suppress, normalizacao, guardas de identificador).
-- teste novo:
-  - `tests/test_database_optimized_identifier_guards.py::test_insert_dataframe_optimized_rejects_invalid_table_identifier`
-- gate do ciclo:
-  - `py_compile`, `ruff`, `ty` nos arquivos tocados: pass.
-  - pytest focado:
-    - `tests/test_import_single_error_classification.py`
-    - `tests/test_database_optimized_identifier_guards.py`
-    - `tests/test_database_optimized_alias_views.py`
-    - `tests/test_command_handlers_save_settings.py`
-    - `tests/test_rescan_progress_dialog.py`
-    - `tests/test_main_skip_import.py`
-    - resultado: 16 passed.
-
-## Latest update 2026-02-26 (batch07.1 ids 53/68)
-
-- id 53:
-  - cobertura nova adicionada em `tests/test_caching.py` para garantir reenfileiramento quando `_safe_file_stat` retorna `None`.
-- id 68:
-  - confirmado contrato atual de `load_display_mappings_integrity` (releitura do arquivo restaurado antes de fallback em memoria).
-- docs:
-  - `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md` sincronizados com status `resolved`.
-- gate do ciclo:
-  - `py_compile`, `ruff`, `ty` em arquivos tocados: pass.
-  - `pytest -q tests/test_caching.py tests/test_config_manager_mappings_integrity.py`: 8 passed.
-
-## Latest update 2026-02-26 (batch07.2 id 66)
-
-- id 66:
-  - `tests/test_rescan_progress_dialog.py` mudou de `processEvents()` unico para espera curta por condicao (`_spin_until`) em pontos sensiveis.
-  - objetivo: reduzir nondeterminism/flakiness sem alterar runtime.
-- docs:
-  - `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md` sincronizados.
-- gate do ciclo:
-  - `py_compile`, `ruff`, `ty` nos arquivos tocados: pass.
-  - `pytest -q tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py`: 6 passed.
-
-## Latest update 2026-02-26 (batch08 id 64)
-
-- id 64:
-  - confirmado que cleanup de `gui/workers/rescan_worker.py` nao usa `suppress` e registra warning em falha de detach.
-- docs:
-  - `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md` sincronizados para `resolved`.
-- gate do ciclo:
-  - `pytest -q tests/test_rescan_worker_cleanup.py`: 2 passed.
-
-## Latest update 2026-02-26 (batch09-10 ids 62/67/69/72/74/77/78)
-
-- scripts stream:
-  - confirmados `nonlocal` correto, lock para contador compartilhado e caminho de sentinel nao bloqueante em v1/v2.
-  - guard de warning duplicado (`warn_count != last_warned`) presente em v1/v2.
-- config mappings:
-  - `load_column_mappings_integrity()` confirmado com releitura de arquivo restaurado antes de fallback.
-- docs:
-  - `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md` sincronizados para os ids acima.
-- gate do ciclo:
-  - `py_compile`, `ruff`, `ty` nos scripts de stream: pass.
-
-## Latest update 2026-02-26 (batch11.1 id 8)
-
-- id 8:
-  - `FilterCache.put()` agora valida tipo e ignora valor nao-DataFrame sem levantar excecao.
-  - docstring de `put()` alinhada ao contrato real.
-  - logger do modulo migrado para `get_robust_logger()`.
-- testes:
-  - novo teste em `tests/test_filter_cache_locking.py` cobrindo entrada invalida.
-- docs:
-  - `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md` sincronizados.
-- gate do ciclo:
-  - `py_compile`, `ruff`, `ty` nos arquivos tocados: pass.
-  - `pytest -q tests/test_filter_cache_locking.py tests/test_filter_worker.py`: 10 passed.
-
-## Latest update 2026-02-26 (batch12 ids 4/5/73)
-
-- ids 4/5:
-  - confirmados como resolvidos pelo contrato atual de `ensure_default_settings` e `_atomic_write_json_file` (erro explicito, sem suppress silencioso).
-- id 73:
-  - confirmado como resolvido pelo uso de `NamedTemporaryFile(delete=False)` em `_atomic_copy_file`.
-- docs:
-  - `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md` sincronizados.
-- gate do ciclo:
-  - `pytest -q tests/test_config_manager_atomic_save.py tests/test_config_manager_mappings_integrity.py tests/test_column_mappings_integrity.py`: 8 passed.
-
-## Latest update 2026-02-26 (global summary + next steps)
-
-- current matrix snapshot:
-  - total=108
-  - pending=65
-  - resolved=27
-  - stale-doc=5
-  - deferred=11
-- security:
-  - `main` recebeu hotfix de dependencia (`pillow>=12.1.1` em manifests de build).
-  - dependabot open alerts para pillow retornou `[]`.
-- next execution queue:
-  - extractor validation/contract: ids 6/7/33/34/35/58
-  - rescan worker concurrency: ids 11/12/38/79
-  - cli enhancement lock residual: ids 13/26/30/31/41/80
-  - main fallback/debug resilience: ids 15/16/45/48
-
-## Atualizacao 2026-03-01 (ciclo gui-tema-import)
-- Corrigido tema dos menus de selecao para herdar cores do tema ativo (sem fallback escuro fixo).
-- Reduzido tamanho efetivo dos botoes Aplicar/Limpar dos filtros avancados.
-- Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
-- Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
-- Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
+Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
+
+## CURRENT TRUTH 2026-03-10 23:03 - start from here
+
+- Objetivo desta rodada:
+  1. fechar DOC_SYNC final com decisao intencional ja aprovada e preparar texto de transicao.
+- Correcoes aplicadas:
+  1. docs de controle sincronizados com snapshot final desta sessao.
+  2. decisao `DECISAO_INTENCIONAL` mantida: `scripts/git_hooks/pre-push` segue sem `--not --remotes`.
+- Estado local confirmado:
+  1. branch: `codex/sprint-importacao-grave-fixes-20260305`.
+  2. ultimo commit: `fa9d6f0d DOC_SYNC: register intentional pre-push gate policy`.
+  3. residuos fora de escopo mantidos:
+     - `M data/ssas.db`
+     - `?? config/settings.json.bak_20260308_212715`
+  4. stashes abertos:
+     - `stash@{0}` `wip-before-return-import-branch-20260308_011343`
+     - `stash@{1}` `incident-freeze-before-reapply-20260305-083301`
+     - `stash@{2}` `local-wip-config-db-before-dev-switch-20260303`
+- Proximo passo recomendado:
+  1. iniciar novo chat lendo os 5 blocos de topo (AGENTS + 4 docs de controle/politica).
+  2. manter foco em estabilidade com slices minimos e commit atomico por risco real.
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:52 - start from here
+
+- Objetivo desta rodada:
+  1. corrigir risco de stale lock no cache (`.lock` preso apos crash), apontado por cubic/copilot.
+- Correcoes aplicadas:
+  1. `utils/caching.py`
+     - leitura de PID no lock file (`_read_lock_pid`).
+     - check de processo vivo (`_is_process_alive`).
+     - recuperacao de stale lock (`_recover_stale_cache_lock`) no ramo `FileExistsError`.
+     - criterios:
+       - remove lock com PID morto e idade minima.
+       - remove lock sem PID apenas com idade de seguranca alta.
+  2. `tests/test_caching_atomic_save.py`
+     - teste para lock stale com PID morto (recupera e segue).
+     - teste para lock ativo (nao remove e respeita timeout).
+     - import de `pytest` e ajuste semantico de testes concorrentes.
+- Evidencia de validacao:
+  1. `uv run --python 3.13 python -m py_compile utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  2. `uv run --python 3.13 ruff check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  3. `uv run --python 3.13 ty check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_caching_atomic_save.py` -> `17 passed`.
+- Kluster desta rodada:
+  1. `utils/caching.py`: 2 issues (HIGH+MEDIUM) de performance ampla, sem blocker funcional deste fix.
+  2. `tests/test_caching_atomic_save.py`: HIGH (falta import pytest) corrigido; depois 1 MEDIUM semantico antigo; estado final tratado sem blocker.
+- Decisao sobre comentario copilot em `install_hooks.sh`:
+  1. comentario marcado como outdated/falso positivo para estado atual do arquivo.
+  2. chamada ja esta agregada sem `exit` precoce via `install_failures`.
+- Decisao intencional (cubic em `pre-push`):
+  1. manter sem `--not --remotes`.
+  2. motivo: evitar falso-negativo no gate de blob grande para alvo remoto.
+  3. tradeoff aceito: possivel falso-positivo/perf maior em primeiro push.
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:41 - start from here
+
+- Objetivo desta rodada:
+  1. fechar 2 comentarios P2 do cubic nos hooks (`install_hooks.sh` e `pre-push`).
+- Correcoes aplicadas:
+  1. `scripts/install_hooks.sh`
+     - chamadas de hooks agora validam os 2 obrigatorios no mesmo run.
+     - falhas por hook sao acumuladas e reportadas ao final (sem `|| true` cego).
+     - erros de `cp/chmod` passaram a gerar retorno explicito por hook.
+  2. `scripts/git_hooks/pre-push`
+     - removido `--not --remotes` para nao ocultar blob grande novo no alvo de push.
+     - mantida tolerancia para range invalido (nao abortar push valido por um range ruim).
+- Evidencia de validacao:
+  1. `bash -n scripts/install_hooks.sh scripts/git_hooks/pre-push` -> pass.
+  2. `kluster review file scripts/install_hooks.sh` -> clean.
+  3. `kluster review file scripts/git_hooks/pre-push` -> 3 MEDIUM sem blocker novo.
+- Classificacao:
+  1. `BUG_REAL` corrigido:
+     - risco de ocultar blob oversized no `pre-push`.
+     - risco de falhar cedo no primeiro hook e perder relatorio completo no instalador.
+  2. `NAO_BLOQUEANTE_DEFERIDO`:
+     - `pre-push`: 3 MEDIUM (semantica/performance ampla do scan).
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:30 - start from here
+
+- Objetivo desta rodada:
+  1. fechar novo comentario de risco de concorrencia no cache sem refatoracao ampla.
+- Correcoes aplicadas:
+  1. `utils/caching.py`
+     - introduzido lock sidecar (`<cache>.lock`) para serializar escrita entre processos.
+     - `save_cache` agora grava sob lock exclusivo.
+     - `get_files_to_process` passou a mesclar so updates diferenciais sob lock.
+     - `update_cache_for_files` passou a usar merge sob lock (sem write cego de snapshot antigo).
+  2. `tests/test_caching_atomic_save.py`
+     - teste novo para validar lock file durante write e cleanup no final.
+     - teste novo para validar merge concorrente de updates sem perda de entradas.
+     - ajuste semantico de nome/expectativa no teste de `last writer wins` do `save_cache`.
+- Resultado:
+  1. comentario do copilot em `_cache_key_for_file` segue coberto pelo commit anterior `0b8705a2`.
+  2. risco real de lost update concorrente no cache foi mitigado no fluxo de merge.
+- Evidencia de validacao:
+  1. `uv run --python 3.13 python -m py_compile utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  2. `uv run --python 3.13 ruff check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  3. `uv run --python 3.13 ty check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_caching_atomic_save.py` -> `15 passed`.
+- Kluster desta rodada:
+  1. `utils/caching.py`: 3 MEDIUM (debt de naming/decomposicao/perf), sem blocker novo.
+  2. `tests/test_caching_atomic_save.py`: clean apos ajuste semantico.
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:23 - start from here
+
+- Objetivo desta rodada:
+  1. corrigir comentarios novos de bot (cubic/copilot) em hooks e cache, sem refatoracao ampla e sem mudanca de layout/GUI.
+- Correcoes aplicadas:
+  1. `scripts/install_hooks.sh`
+     - removido mascaramento `|| true` nas chamadas obrigatorias de `install_named_hook`.
+  2. `scripts/git_hooks/pre-push`
+     - coleta de objetos por range com tolerancia a range invalido (nao aborta push valido).
+     - adicionado `--not --remotes` para reduzir scan de objetos ja conhecidos.
+     - `git cat-file --batch-check` ajustado para TAB real no formato de saida.
+  3. `utils/caching.py`
+     - `_cache_key_for_file` trocado para excecoes especificas (`ValueError`, `OSError`, `RuntimeError`) com `logger.debug` no fallback.
+- Evidencia de validacao:
+  1. `uv run --python 3.13 python -m py_compile utils/caching.py` -> pass.
+  2. `uv run --python 3.13 ruff check utils/caching.py` -> pass.
+  3. `uv run --python 3.13 ty check utils/caching.py` -> pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_caching_atomic_save.py` -> `13 passed`.
+  5. `bash -n scripts/install_hooks.sh scripts/git_hooks/pre-push` -> pass.
+  6. reproducao manual do `cat-file --batch-check` com TAB real -> `oid, blob, size, path` preenchidos.
+- Kluster nesta rodada:
+  1. clean em `scripts/install_hooks.sh`.
+  2. no `pre-push`, HIGH inicial foi confirmado e corrigido (`%x09` literal).
+  3. MEDIUM remanescentes no `pre-push` e `utils/caching.py` classificados como debt de semantica/performance fora deste patch minimo.
+- Estado local confirmado:
+  1. branch: `codex/sprint-importacao-grave-fixes-20260305`.
+  2. ultimo commit antes deste slice: `6ebe448e`.
+  3. residuos fora de escopo mantidos:
+     - `M data/ssas.db`
+     - `?? config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:03 - start from here
+
+- Objetivo desta rodada:
+  1. refresh completo de status para migracao de conversa, sem editar runtime.
+- Estado local confirmado:
+  1. branch: `codex/sprint-importacao-grave-fixes-20260305`.
+  2. ultimo commit: `30500374 STABILITY_PATCH: fechar rodada bot (hooks pre-push ascii worker)`.
+  3. residuos fora de escopo:
+     - `M data/ssas.db`
+     - `?? config/settings.json.bak_20260308_212715`
+  4. stashes abertos:
+     - `stash@{0}` `wip-before-return-import-branch-20260308_011343`
+     - `stash@{1}` `incident-freeze-before-reapply-20260305-083301`
+     - `stash@{2}` `local-wip-config-db-before-dev-switch-20260303`
+- Estado de PR/checks:
+  1. PR `#45` aberto, `mergeStateStatus=UNSTABLE`.
+  2. threads abertas: `0`.
+  3. checks com falha: `CodeFactor`, `code/snyk` (limit), `security/snyk` (limit).
+  4. checks pendentes: `cubic`, `semgrep-cloud-platform/scan`.
+- Decisao operacional:
+  1. nao houve alteracao de codigo/runtime nesta rodada.
+  2. manter foco em fechamento de PR #45 sem ampliar escopo.
+- Proximo passo sugerido no novo chat:
+  1. revalidar checks pendentes.
+  2. se `cubic/semgrep` voltarem limpos e sem novos comentarios bloqueantes, seguir para merge.
+
+## HISTORICAL SNAPSHOT 2026-03-10 21:42 - start from here
+- Priority note (nao perder no proximo chat):
+  1. debt BLE001 no restante do codigo continua alto e deve entrar no proximo ciclo curto.
+  2. contagem atual: `860`.
+  3. comando: `ruff check . --select BLE001`.
+  4. hotspots iniciais: `armazenamento/database*.py`, `core/app_logic.py`, `core/config_manager.py`, `dev_env/streamlit_app.py`.
+  5. estado de PR: `#45` aberto, `0` threads abertas; checks externos ainda bloqueando merge (`CodeFactor`, `code/snyk`, `security/snyk`).
+
+- Slice aplicado:
+  1. fechamento de nova rodada de comentarios bot (codereviewbot/copilot/codeant) com patch minimo.
+- Arquivos alterados:
+  1. `scripts/install_hooks.sh`
+  2. `scripts/git_hooks/pre-push`
+  3. `tests/test_robust_importer.py`
+  4. `README.md`
+  5. `gui/workers/data_loader_worker.py`
+  6. `docs/RECOVERY_BACKLOG.md`
+  7. `docs/NEXT_CHAT_MIGRATION.md`
+  8. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `install_hooks.sh` agora marca hook ausente como erro obrigatorio e falha no final.
+  2. `pre-push` preserva `oid + path` e mostra caminho real ao bloquear blob grande.
+  3. `test_robust_importer.py` ficou 100% ASCII na fonte (escapes unicode em cabecalhos de teste).
+  4. `README.md` linha apontada por copilot normalizada para ASCII.
+  5. `DataLoaderWorker` agora captura tambem `pd.errors.DatabaseError` no handler superior.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_robust_importer.py tests/test_data_loader_worker.py` -> `23 passed`.
+  3. `bash -n scripts/install_hooks.sh scripts/git_hooks/pre-push` -> pass.
+- Deferido:
+  1. kluster em `pre-push`: custo sincrono de varredura grande (tradeoff intencional de seguranca no hook).
+  2. kluster em `data_loader_worker`: debts antigos de semantica/performance fora deste patch, incluindo recalculo de `non_null_cols` por carregamento.
+  3. kluster em `README`: contradicao historica de texto (slice documental dedicado).
+
+## HISTORICAL SNAPSHOT 2026-03-10 16:37 - start from here
+
+- Slice aplicado:
+  1. hardening de tratamento de erro para zerar `BLE001` em `main.py` e `data_loader_worker.py`.
+- Arquivos alterados:
+  1. `main.py`
+  2. `gui/workers/data_loader_worker.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `except Exception` amplos removidos dos 2 arquivos alvo.
+  2. `ruff --select BLE001` no escopo alvo ficou limpo.
+  3. fluxo de importacao em `main` e fluxo de carregamento em `DataLoaderWorker` mantidos.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_data_loader_worker.py tests/test_main_import_fallback.py tests/test_main_skip_import.py tests/test_main_gui_fallback.py` -> `17 passed`.
+- Deferido:
+  1. debts antigos de arquitetura/performance e semantica historica em `main.py` e `data_loader_worker.py`.
+
+## HISTORICAL SNAPSHOT 2026-03-10 15:53 - start from here
+
+- Slice aplicado:
+  1. estabilizacao dos testes focados de `main` para nao travar em loop CLI durante pytest.
+  2. ajuste final da faixa de filtros: `Setor Executor` com label externo + valor simples na combo.
+  3. reposicionamento de `Colunas Visiveis` ao lado de `Linhas por Pagina`.
+- Arquivos alterados:
+  1. `tests/test_main_import_fallback.py`
+  2. `tests/test_main_skip_import.py`
+  3. `gui/gui_ssa.py`
+  4. `tests/test_gui_filter_logic.py`
+  5. `docs/RECOVERY_BACKLOG.md`
+  6. `docs/NEXT_CHAT_MIGRATION.md`
+  7. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `test_main_import_fallback` agora cobre o caminho correto (`--force-rescan`) sem stdin.
+  2. contrato de prioridade do CLI ficou explicito em teste: `--force-rescan` sobrepoe `--skip-import`.
+  3. quick filter de `setor_executor` nao altera `setor_emissor`.
+  4. combo rapido exibe apenas setor (`Todos`, `IEE3`, `MEL4`) com label externo fixo.
+  5. `remove_column_by_index` ganhou guarda de indice para evitar remocao errada/out-of-range.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_main_import_fallback.py tests/test_main_skip_import.py tests/test_gui_filter_logic.py` -> `152 passed, 1 skipped`.
+- Deferido:
+  1. debts historicos de arquitetura/performance em `gui/gui_ssa.py` fora de escopo.
+  2. alinhamento semantico global de tooltip de busca geral (fora deste slice).
+
+## HISTORICAL SNAPSHOT 2026-03-10 15:29 - start from here
+
+- Slice aplicado:
+  1. reorganizacao da barra de filtros na aba Filtros conforme UX aprovada.
+  2. remocao do botao superior `Atualizar Derivadas` (acao mantida no menu Database).
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `tests/test_gui_filter_logic.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `Salvar Filtro` agora fica na mesma linha de `Pesquisa Geral`.
+  2. tooltip de `Salvar Filtro` explicita que salva somente o filtro de busca geral.
+  3. `Colunas Visiveis` + `Setor Executor` migraram para a linha de paginacao.
+  4. `Setor Executor` segue no canto direito com ajuste leve de largura/altura para conforto visual.
+  5. botao superior de derivadas saiu da barra sem remover fluxo de menu.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado (5 testes) -> `5 passed`.
+- Deferido:
+  1. debts historicos de performance/arquitetura no `gui/gui_ssa.py` fora do escopo de patch minimo.
+
+## HISTORICAL SNAPSHOT 2026-03-10 15:17 - start from here
+
+- Slice aplicado:
+  1. hardening de fallback GUI em `main.py` com escopo minimo.
+  2. novo teste focado para evitar regressao de mascaramento de erro na importacao GUI.
+- Arquivos alterados:
+  1. `main.py`
+  2. `tests/test_main_gui_fallback.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. fallback para CLI ocorre apenas em `ImportError` no import tardio GUI.
+  2. erros inesperados de importacao GUI nao ficam silenciosos (encerram com `SystemExit=1`).
+  3. setup de icone e criacao de janela GUI mantem fallback CLI apenas para falha operacional (`OSError`, `RuntimeError`).
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_main_gui_fallback.py tests/test_main_skip_import.py::test_main_skip_import_does_not_call_importer` -> `3 passed`.
+- Deferido:
+  1. debts antigos de arquitetura em `main.py` fora do trecho de bootstrap GUI.
+  2. testes legados de `main` que hoje disparam importacao real sem isolamento.
+
+## HISTORICAL SNAPSHOT 2026-03-10 14:54 - start from here
+
+- Slice aplicado:
+  1. fix de bug real em `import_external_excel_files` para compatibilidade com window-stub sem helper de destino.
+  2. fix de seguranca no empacotamento: `build_dir/config` agora respeita ignore de sensiveis.
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `scripts/create_distribution.py`
+  3. `tests/test_create_distribution.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `import_external_excel_files` nao falha mais com `AttributeError` quando chamado com objeto leve sem `_build_unique_destination_path`.
+  2. distribuicao nao inclui `.db/.xlsx/.xls` vindos de `build_dir/config`.
+  3. cobertura de teste nova para esse caminho de configuracao foi adicionada.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_gui_menu_import_external.py` -> `13 passed`.
+  3. `pytest -q tests/test_create_distribution.py` -> `18 passed`.
+- Deferido:
+  1. debts antigos de qualidade/performance em `gui/gui_ssa.py` seguem fora de escopo deste hotfix.
+
+## HISTORICAL SNAPSHOT 2026-03-10 14:44 - start from here
+
+- Slice aplicado:
+  1. correcao de bug real no robust importer para mapeamento semantico `SN/SN.1`.
+  2. hardening no `RescanWorker` para nao mascarar full-rescan com falha como sucesso.
+- Arquivos alterados:
+  1. `utils/robust_importer.py`
+  2. `gui/workers/rescan_worker.py`
+  3. `tests/test_rescan_worker_advanced.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `SN -> sn_retirado` e `SN.1 -> sn_instalado` no robust importer (alinhado com o extrator principal e com testes).
+  2. full-rescan com `success=False` no worker agora diferencia:
+     - no-op sem contexto de arquivos (`total=0`) -> sucesso sem alteracoes;
+     - ciclo com arquivos (`total>0`) ou erro observado -> erro final.
+  3. o worker marca erro observado via:
+     - evento `file_error` do callback;
+     - observer no `LogHandler` para logs `ERROR+`.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_robust_importer.py tests/test_rescan_worker_advanced.py tests/test_rescan_worker_cleanup.py` -> `41 passed`.
+- Deferido:
+  1. comentarios de debt semantico/performance em `RescanWorker` para introducao de sinal dedicado (`finished_no_changes`) e throttling de logs ficam para slice dedicado.
+
+## HISTORICAL SNAPSHOT 2026-03-10 14:31 - start from here
+
+- Slice aplicado:
+  1. fechamento do refactor minimo em `core/app_logic.py` para reduzir complexidade de orquestracao sem mudar contrato funcional.
+  2. correcao de runtime (`cast` importado) e correcao de regressao no full-rescan com DB candidato ausente.
+- Arquivos alterados:
+  1. `core/app_logic.py`
+  2. `docs/RECOVERY_BACKLOG.md`
+  3. `docs/NEXT_CHAT_MIGRATION.md`
+  4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `run_importer_logic` passou a delegar fases para helpers especificos de processamento, sync derivadas e promocao.
+  2. fluxo de promocao de DB candidato ficou explicito (`candidate -> primary`) e sem ambiguidade de parametros.
+  3. full-rescan agora inicializa DB candidato explicitamente quando necessario antes da verificacao/reparo.
+  4. suite de derivadas em full-rescan voltou a passar em cenarios mockados sem materializacao implicita de arquivo.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` em `core/app_logic.py` -> pass.
+  2. `pytest -q tests/test_import_derivadas_trigger.py` -> `13 passed`.
+  3. `pytest -q tests/test_app_logic_full_rescan_lock.py tests/test_import_derivadas_trigger.py tests/test_import_run_report.py tests/test_app_logic_postprocess_moves.py tests/test_import_cache_integrity.py` -> `27 passed`.
+- Deferido:
+  1. debts antigos de performance/arquitetura no bloco de filtro (`filter_dataframe`) e custo de rotacao WAL sincrona.
+
+## HISTORICAL SNAPSHOT 2026-03-10 13:58 - start from here
+
+- Slice aplicado:
+  1. ajuste pontual do combo rapido de setor executor no topo (largura + texto popup/display).
+  2. fix de icone no startup GUI (`python main.py --gui`) com aplicacao no `QApplication`.
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `main.py`
+  3. `tests/test_gui_filter_logic.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. popup do setor executor exibe apenas valores curtos (`Todos`, `IEE3`, `MEL4`).
+  2. combo fechado mostra `Setor Executor: <valor>` para manter contexto visual.
+  3. largura do combo ficou limitada para evitar ocupacao excessiva na barra superior.
+  4. icone passa a ser aplicado no `QApplication` no startup GUI e tambem no bloco da janela.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado do combo rapido -> pass.
+  3. smoke offscreen -> `window_icon_null=False`, `app_icon_null=False`.
+- Deferido:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` (fora do escopo de patch minimo).
+
+## HISTORICAL SNAPSHOT 2026-03-10 13:45 - start from here
+
+- Slice aplicado:
+  1. triagem final das threads do PR #45, uma a uma.
+  2. encerradas threads com status `CORRIGIDO`, `FALSO_POSITIVO`, `NAO_BLOQUEANTE_DEFERIDO` e ruido `RATE_LIMIT_REPLY`.
+  3. mantidas abertas apenas as threads `BUG_REAL`.
+- Resultado no PR:
+  1. aberto antes: `65` threads.
+  2. encerradas nesta rodada: `56`.
+  3. aberto apos triagem: `9` threads.
+- Threads que ficaram abertas (todas `BUG_REAL`):
+  1. `armazenamento/database_upsert_logic.py:407`
+  2. `armazenamento/database_upsert_logic.py:951`
+  3. `armazenamento/database_upsert_logic.py:743`
+  4. `armazenamento/database_validation.py:61`
+  5. `armazenamento/database_validation.py` (thread sem linha fixa)
+  6. `extracao/extractor.py:536`
+  7. `gui/ssa/gui_theme.py:458`
+  8. `gui/ssa/gui_workers.py:239`
+  9. `gui/workers/rescan_worker.py:169`
+- Estado de checks no momento da triagem:
+  1. `quality-gates` e `CodeQL`: pass.
+  2. `code/snyk` e `security/snyk`: fail por limite/conta.
+  3. `DeepScan`, `DeepSource Python`, `cubic`, `semgrep`: pendentes.
+
+## HISTORICAL SNAPSHOT 2026-03-10 12:45 - start from here
+
+- Slice aplicado:
+  1. fechamento de pendencias reais do PR #45 sem alterar GUI/layout.
+  2. hardening do hook de tamanho para blob staged (index), evitando bypass.
+  3. ajuste do pipeline macOS para build `cli-only` com `package=dmg` sem falha falsa por ausencia de `.app`.
+  4. normalizacao de docs para manter 1 unico bloco `CURRENT TRUTH`.
+- Arquivos alterados:
+  1. `scripts/git_hooks/pre-commit`
+  2. `launchers/build_multiplatform.py`
+  3. `tests/test_build_multiplatform_manifest.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. pre-commit agora mede tamanho do blob staged via `git cat-file -s`.
+  2. `post_process` recebe `apps` e pula DMG quando build macOS nao inclui GUI.
+  3. teste de regressao adicionado para esse fluxo (`cli-only` + `package=dmg`).
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_build_multiplatform_manifest.py tests/test_create_distribution.py` -> `22 passed`.
+  3. `bash -n scripts/git_hooks/pre-commit` -> pass.
+- Deferido:
+  1. debt antigo de naming/performance/concentracao no `build_multiplatform.py` fica para slice dedicado.
+  2. alerta kluster de `pip_exe` foi falso positivo (inicializacao ja existe no inicio da funcao).
+
+## HISTORICAL SNAPSHOT 2026-03-10 12:13 - start from here
+
+- Slice aplicado:
+  1. icone oficial trocado para variante azul com `SSA` central e sem raio.
+  2. artefatos oficiais cross-OS regenerados (`svg/png/ico/icns`).
+- Arquivos alterados:
+  1. `resources/app_icon.svg`
+  2. `resources/app_icon.png`
+  3. `resources/app_icon.ico`
+  4. `resources/app_icon.icns`
+  5. `docs/RECOVERY_BACKLOG.md`
+  6. `docs/NEXT_CHAT_MIGRATION.md`
+  7. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado operacional:
+  1. `app_icon.png` em `1024x1024`.
+  2. `app_icon.ico` multi-size valido para Windows.
+  3. `app_icon.icns` valido para macOS.
+  4. `app_icon.svg` mantido como fonte canonica para Linux/build.
+- Observacao tecnica:
+  1. `cairosvg` do venv ainda falha por bind nativo de `cairo`.
+  2. para este slice, geracao foi feita por `rsvg-convert` + `Pillow` + `iconutil`.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` em scripts de build/icon -> pass.
+  2. `pytest -q tests/test_build_multiplatform_manifest.py` -> `4 passed`.
+- Deferido:
+  1. hardening do `convert_icon.py` para fallback automatico sem dependencia de `cairosvg`.
+  2. variacoes em `resources/icon_variants/*` ficam como material de design.
+
+## HISTORICAL SNAPSHOT 2026-03-10 12:02 - start from here
+
+- Slice aplicado:
+  1. pipeline macOS agora gera `.dmg` no `build_multiplatform.py`, alem de `.app`/onedir.
+  2. sem mudanca de GUI/runtime de negocio; foco exclusivo em build/distribuicao macOS.
+- Arquivos alterados:
+  1. `launchers/build_multiplatform.py`
+  2. `launchers/platforms/macos_arm64/build_config.json`
+  3. `tests/test_build_multiplatform_manifest.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado operacional real:
+  1. comando executado:
+     - `uv run --python 3.13 python launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui --skip-venv`
+  2. saida validada:
+     - `.dmg`: `launchers/dist/macos_arm64/SSA_Consulta_Rapida_v4.32_macos_arm64.dmg`
+     - `.app`: `launchers/dist/macos_arm64/SSA_GUI_v4.32_macos_arm64.app`
+     - onedir CLI/GUI preservados.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_build_multiplatform_manifest.py` -> `4 passed`.
+- Deferido:
+  1. pyoxidizer/nuitka continuam fora do pipeline operacional de release neste ciclo.
+  2. assinatura/notarizacao macOS permanece pendente para ciclo dedicado de release.
+
+## HISTORICAL SNAPSHOT 2026-03-10 11:51 - start from here
+
+- Slice aplicado:
+  1. remocao dos `try/except` proibidos restantes (`pass` e `continue`) em GUI/worker.
+  2. patch minimo, sem alteracao de layout e sem mudanca de comportamento de negocio.
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `gui/workers/data_loader_worker.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `gui/gui_ssa.py`: bloco `except ... pass` removido do combo rapido; leitor de report agora usa excecoes especificas com log e sem `continue` dentro de `except`.
+  2. `data_loader_worker.py`: fallback de colunas nao nulas mantido com log debug, sem `except ... continue`.
+  3. `bandit` nos dois arquivos nao reporta mais `B110/B112`.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado -> `2 passed, 157 deselected`.
+  3. `bandit` focado -> apenas alertas antigos de subprocess/SQL dinamico com sanitizacao.
+- Leitura de risco:
+  1. alerta kluster sobre assinatura de `query_db` em DataLoaderWorker e falso positivo:
+     - assinatura real aceita `(db_path, table_name, query, params, raise_on_error)` em `armazenamento/database.py`.
+  2. debts antigos de arquitetura/performance em `gui_ssa.py` continuam deferidos.
+
+## HISTORICAL SNAPSHOT 2026-03-10 11:26 - start from here
+
+- Slice aplicado:
+  1. hotfix de build/runtime macOS para executavel util (sem erro de modulo ausente por exclusao de stdlib).
+  2. hardening de hooks para bloqueio de arquivo grande (staged e push).
+  3. ajuste de quick filter `setor_executor` com sync de UI no painel avancado e prefixo de rotulo.
+  4. commit evidencia: `338614c6`.
+- Resultado operacional:
+  1. build `macos_arm64` (CLI+GUI) completou com sucesso apos reduzir exclusoes agressivas.
+  2. erro `No module named 'concurrent'` deixou de ocorrer.
+  3. erros subsequentes (`html`, `email`) tambem resolvidos removendo exclusoes stdlib.
+  4. manifesto de build agora lista diretorios reais (inclui `.app`) e ignora hidden.
+- Hooks:
+  1. novo `scripts/git_hooks/pre-push` bloqueia blobs >= 95MB.
+  2. `scripts/git_hooks/pre-commit` agora bloqueia staged >= 95MB.
+  3. `scripts/install_hooks.sh` instala hooks de forma deterministica e seta `core.hooksPath=.git/hooks`.
+- GUI/filtros:
+  1. combo rapido exibe itens como `Setor Executor: <valor>`.
+  2. ao mudar quick filter, UI de `Executor` em filtros avancados reflete o mesmo valor (inclusive apos troca de aba/refresh), sem persistir em `_advanced_filters`.
+  3. `import_external_excel_files` usa apenas helper de instancia para destino unico (sem fallback ambigio via classe).
+- Robustez adicional:
+  1. calculo de tamanho de diretorio no manifesto ignora symlink para evitar ciclo.
+- Arquivos tocados:
+  1. `launchers/build_multiplatform.py`
+  2. `launchers/platforms/macos_arm64/build_config.json`
+  3. `launchers/platforms/windows_amd64/build_config.json`
+  4. `launchers/platforms/debian_amd64/build_config.json`
+  5. `scripts/git_hooks/pre-commit`
+  6. `scripts/git_hooks/pre-push`
+  7. `scripts/install_hooks.sh`
+  8. `README.md`
+  9. `gui/gui_ssa.py`
+  10. `gui/ssa/gui_filters_advanced_ui.py`
+  11. `tests/test_gui_filter_logic.py`
+  12. `tests/test_build_multiplatform_manifest.py`
+  13. `docs/RECOVERY_BACKLOG.md`
+  14. `docs/NEXT_CHAT_MIGRATION.md`
+  15. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado (`quick_setor_executor...` + manifesto build) -> pass.
+  3. build real macOS + smoke runtime -> sem `ModuleNotFoundError` de stdlib excluida.
+- Deferido:
+  1. debts estruturais antigos do kluster em `build_multiplatform` e `gui_ssa` (fora de escopo de patch minimo).
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 10:38 - start from here
+
+- Slice aplicado:
+  1. pente fino completo de build/distribuicao para `pyinstaller`, `nuitka`, `pyoxidizer`, `pytoexe`.
+  2. correcoes de script para viabilizar pacote pyinstaller no host macOS atual.
+  3. docs operacionais alinhados com status real das tools e backends.
+- Resultado operacional real:
+  1. `pyinstaller --skip-installer` -> OK (ZIP gerado em `dist_packages/SSA_Consulta_Rapida_v4.32_pyinstaller.zip`).
+  2. `pyinstaller` -> ZIP OK, installer FAIL (sem origem Windows/Inno no host atual).
+  3. `nuitka --skip-installer` -> FAIL (build ausente em `builds/nuitka`).
+  4. `pyoxidizer --skip-installer` -> FAIL (build ausente em `builds/pyoxidizer`).
+  5. `pytoexe` -> nao suportado (choice invalida no parser).
+- Ferramentas detectadas:
+  1. `pyinstaller` 6.19.0
+  2. `nuitka` 4.0.1
+  3. `pyoxidizer` 0.24.0
+  4. `iscc` ausente
+  5. `pytoexe/py2exe` ausentes
+- Evidencia local:
+  1. `/tmp/ssa_pack_audit_20260310_1030/summary.log`
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/GUIA_DISTRIBUICAO.md`
+  4. `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+  5. `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
+  6. `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
+  7. `docs/RECOVERY_BACKLOG.md`
+  8. `docs/NEXT_CHAT_MIGRATION.md`
+  9. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. kluster clean nos arquivos tocados.
+  2. `py_compile`, `ruff`, `ty` -> pass.
+  3. `pytest -q tests/test_create_distribution.py` -> `17 passed`.
+- Deferido:
+  1. validar installer em host Windows com ISCC e build `windows_amd64` disponivel.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 10:15 - start from here
+
+- Slice aplicado:
+  1. fechamento dos 3 itens que estavam em loop (ISS Source, reason de resolve, concentracao ZIP).
+  2. `scripts/create_distribution.py`:
+     - `_resolve_inno_source` usa `exe_path` de forma consistente.
+     - `create_inno_setup_script` simplificado com helpers de path/excludes/template.
+     - `Source` do ISS agora usa macro `SourceDir` explicita.
+  3. `tests/test_create_distribution.py`:
+     - asserts atualizados para `SourceDir` e mode `absolute`.
+     - novo teste para pyoxidizer consumir `exe_path` em `_resolve_inno_source`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. kluster em script -> clean.
+  2. kluster em testes -> clean.
+  3. `py_compile`, `ruff`, `ty` -> pass.
+  4. `pytest -q tests/test_create_distribution.py` -> `16 passed`.
+- Deferido:
+  1. validar em Windows/ISCC real (confirmacao final de ambiente).
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 10:08 - start from here
+
+- Slice aplicado:
+  1. reforco de testes para alinhar `resolve` vs `failure_reason` em pyinstaller.
+  2. runtime de distribuicao nao foi alterado neste micro-slice.
+- Arquivos tocados:
+  1. `tests/test_create_distribution.py`
+  2. `docs/RECOVERY_BACKLOG.md`
+  3. `docs/NEXT_CHAT_MIGRATION.md`
+  4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. kluster em `tests/test_create_distribution.py` -> clean.
+  2. `py_compile`, `ruff`, `ty` -> pass.
+  3. `pytest -q tests/test_create_distribution.py` -> `15 passed`.
+- Deferido:
+  1. validacao Windows/ISCC real para path `Source` no `.iss`.
+  2. continuar fatiamento de concentracao em `create_zip_package` e `create_inno_setup_script`.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 10:05 - start from here
+
+- Slice aplicado:
+  1. modularizacao minima no fluxo ZIP e define explicito de `SourcePath` no `.iss`.
+  2. `scripts/create_distribution.py`:
+     - novos helpers: `_copy_runtime_bundle`, `_write_package_version_file`, `_create_package_zip`.
+     - `create_zip_package` simplificado para orquestracao.
+     - tipagem de `build_name` normalizada para `str`.
+     - template Inno recebeu `#define SourcePath "<DIST_OUTPUT resolvido>"`.
+  3. `tests/test_create_distribution.py`:
+     - asserts adicionados para validar `#define SourcePath` em cenario relative e absolute.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. kluster em `scripts/create_distribution.py` -> 3 issues (1 HIGH sem repro local + 2 MEDIUM antigos).
+  2. kluster em `tests/test_create_distribution.py` -> clean.
+  3. `py_compile`, `ruff`, `ty` -> pass.
+  4. `pytest -q tests/test_create_distribution.py` -> `13 passed`.
+- Deferido:
+  1. validar path absoluto/relativo de `Source` com ISCC real em Windows.
+  2. alinhar razao de falha entre `_resolve_build_directory` e helper de failure reason.
+  3. continuar reducao de concentracao em `create_zip_package`.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 09:59 - start from here
+
+- Slice aplicado:
+  1. `compile_installer` foi reduzido em concentracao com extracao minima de blocos.
+  2. `scripts/create_distribution.py`:
+     - novo `_get_iscc_path()` para descoberta/validacao de caminho.
+     - novo `_run_iscc_compile(...)` para execucao do compilador.
+     - `compile_installer(...)` mantido com mesmo contrato e mesmos status.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `docs/RECOVERY_BACKLOG.md`
+  3. `docs/NEXT_CHAT_MIGRATION.md`
+  4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. kluster em `scripts/create_distribution.py` -> 1 issue (`create_zip_package` longa, debt antigo fora de escopo).
+  2. `py_compile`, `ruff`, `ty` -> pass.
+  3. `pytest -q tests/test_create_distribution.py` -> `13 passed`.
+- Deferido:
+  1. debt de qualidade em `create_zip_package` segue para ciclo dedicado.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 09:55 - start from here
+
+- Slice aplicado:
+  1. modo de origem do Inno ficou explicito no `.iss` via `SourcePathMode`.
+  2. `scripts/create_distribution.py`:
+     - `source_path_mode` agora e `relative` por padrao e `absolute` quando `os.path.relpath(...)` falha.
+     - template recebeu `#define SourcePathMode "{source_path_mode}"`.
+  3. testes:
+     - assert de `SourcePathMode "relative"` no cenario de relpath normal.
+     - assert de `SourcePathMode "absolute"` no cenario de fallback.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. kluster em `scripts/create_distribution.py` -> 3 issues (1 semantico intencional + 2 debts fora de escopo).
+  2. kluster em `tests/test_create_distribution.py` -> clean.
+  3. `py_compile`, `ruff`, `ty` -> pass.
+  4. `pytest -q tests/test_create_distribution.py` -> `13 passed`.
+- Deferido:
+  1. manter `OutputDir={#SourcePath}` como decisao intencional deste ciclo.
+  2. debt de qualidade em `create_zip_package` e `compile_installer` para ciclo dedicado.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 09:33 - start from here
+
+- Slice aplicado:
+  1. hardening de confianca para `INNO_SETUP_COMPILER`.
+  2. `scripts/create_distribution.py`:
+     - override por env agora exige caminho absoluto, nome permitido, arquivo existente e parent confiavel.
+     - allowlist minima inclui Program Files Inno Setup e parent do `which iscc` quando presente.
+     - override invalido apenas gera warning e segue fallback normal.
+  3. testes:
+     - `test_compile_installer_rejects_relative_env_override`.
+     - `test_compile_installer_accepts_absolute_env_override_in_trusted_parent`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `13 passed`.
+- Deferido:
+  1. debt de qualidade em `create_zip_package`.
+  2. semantica geral de resolucao por build system em ciclo dedicado.
+  3. validacao de Source do Inno em Windows real em rodada dedicada.
+  4. kluster final sinalizou HIGH em `Source` relativo; sem repro local, validar em runner Windows com ISCC real.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 09:28
+
+- Slice aplicado:
+  1. origem `Source` do Inno Setup passou a usar relpath real entre `DIST_OUTPUT` e `source_dir`.
+  2. `scripts/create_distribution.py`:
+     - `source_dir_spec` agora usa `os.path.relpath(source_dir, DIST_OUTPUT)`.
+     - fallback para caminho absoluto resolvido quando `relpath` falhar.
+     - normalizacao de path mantida para formato Windows.
+  3. testes:
+     - `test_create_inno_setup_script_uses_sourcepath_outputdir` agora valida `Source` relativo esperado.
+     - novo `test_create_inno_setup_script_uses_absolute_source_when_relpath_fails`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `11 passed`.
+- Deferido:
+  1. debt de qualidade em `create_zip_package`.
+  2. semantica geral de resolucao por build system em ciclo dedicado.
+  3. deduplicacao de setup dos testes em ciclo de manutencao.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 09:23
+
+- Slice aplicado:
+  1. `OutputDir` do Inno Setup ficou deterministico e independente de cwd.
+  2. `scripts/create_distribution.py`:
+     - template `.iss` usa `OutputDir={#SourcePath}`.
+  3. testes:
+     - novo `test_create_inno_setup_script_uses_sourcepath_outputdir`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `10 passed`.
+- Deferido:
+  1. debt de qualidade em `create_zip_package`.
+  2. semantica geral de resolucao por build system em ciclo dedicado.
+  3. deduplicacao de setup dos testes em ciclo de manutencao.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 09:18
+
+- Slice aplicado:
+  1. fallback de pyinstaller (canonical -> legacy) ficou explicito no codigo e coberto por teste.
+  2. `scripts/create_distribution.py`:
+     - `_resolve_build_directory` reorganizado com fallback canonical->legacy explicito.
+  3. testes:
+     - novo `test_resolve_build_directory_pyinstaller_falls_back_to_legacy_when_canonical_invalid`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `9 passed`.
+- Deferido:
+  1. `create_zip_package` ainda concentrada (debt de qualidade).
+  2. semantica geral de resolver por build system em slice dedicado.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 09:11
+
+- Slice aplicado:
+  1. clarificado erro de resolucao de build no empacotador.
+  2. `scripts/create_distribution.py`:
+     - novo `_resolve_build_directory_failure_reason(...)`.
+     - `create_zip_package(...)` passa a logar motivo detalhado da falha de resolucao.
+  3. testes:
+     - ajuste de asserts para mensagens especificas.
+     - novo `test_create_zip_package_returns_none_when_build_directory_is_missing`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `8 passed`.
+- Deferido:
+  1. `create_zip_package` ainda concentrada (debt de qualidade).
+  2. semantica de `_resolve_build_directory` (resolver dir vs validar executavel) em slice futuro.
+  3. duplicacao de setup em testes de distribuicao em slice de manutencao futuro.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:49
+
+- Slice aplicado:
+  1. removido fallback generico de executavel no pacote staged.
+  2. `scripts/create_distribution.py`:
+     - `_detect_primary_executable_name(...)` agora retorna `Optional[str]`.
+     - sem executavel detectado, `create_zip_package(...)` falha de forma explicita e encerra.
+     - `_build_bundle_ignore(...)` agora detecta tipo real (`arquivo`/`diretorio`) via caminho origem.
+  3. testes:
+     - novo `test_detect_primary_executable_name_returns_none_when_package_has_no_binary`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `7 passed`.
+- Deferido:
+  1. debt de qualidade: `create_zip_package` ainda concentrada.
+  2. debt semantico: separacao entre "resolver dir" e "validar executavel" em `_resolve_build_directory` ficou para slice dedicado.
+  3. hardening de trust para `INNO_SETUP_COMPILER` (allowlist de diretorios) fica para ciclo de seguranca dedicado.
+  4. validacao de path absoluto Inno e heuristica pyinstaller precisam rodada em ambiente Windows dedicado.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:43
+
+- Slice aplicado:
+  1. selecao do build canonico pyinstaller ficou deterministica por ordem de `canonical_dirs`.
+  2. `scripts/create_distribution.py`:
+     - `_resolve_build_directory("pyinstaller")` deixou de usar `mtime`.
+     - primeiro diretorio valido na lista de `canonical_dirs` passa a ser o escolhido.
+     - regra de exclusao de bundle consolidada em `_should_skip_bundle_entry(...)`.
+  3. testes:
+     - novo `test_resolve_build_directory_pyinstaller_prefers_canonical_order_over_mtime`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `6 passed`.
+- Deferido:
+  1. debt de qualidade: `create_zip_package` ainda concentrada.
+  2. debt conhecido do Inno cross-drive permanece fora do escopo deste slice.
+  3. alerta semantico amplo sobre nao-pyinstaller ficou sem evidencias de regressao nesta rodada.
+  4. fallback generico de `_detect_primary_executable_name` segue para slice semantico dedicado.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:40
+
+- Slice aplicado:
+  1. hardening final do empacotador para status explicito de instalador e copia sanitizada consistente.
+  2. `scripts/create_distribution.py`:
+     - `compile_installer` agora retorna `success|missing|failed`.
+     - caller separa `script_failed` para falha na geracao do `.iss`.
+     - relatorio final diferencia dependencia ausente de falha real de compilacao.
+     - `copytree` de `_internal` e `config` agora passa por filtro sanitizado comum.
+     - `arcname` do ZIP agora deriva de `package_dir` (mais robusto).
+     - validacao de bundle `.app` exige executavel real no conteudo do app.
+     - readme tecnico ajustado: `ANTIVIRUS_EXCLUSOES.md` e copia `LEIA-ME.md`.
+  3. testes:
+     - novo `test_compile_installer_returns_missing_when_iscc_is_unavailable`.
+  4. docs:
+     - `docs/GUIA_DISTRIBUICAO.md` com troubleshooting separado para `missing` vs `failed`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/GUIA_DISTRIBUICAO.md`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `5 passed`.
+  3. `kluster review` no codigo e docs tocados -> sem blocker novo de runtime.
+- Deferido:
+  1. `create_zip_package` ainda concentrado (debt de qualidade).
+  2. ponto semantico de selecao por mtime em canonical dirs mantido como decisao atual.
+  3. alerta de cleanup de temp_dir em early-return foi classificado como falso positivo (cleanup ja existe no codigo).
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:28
+
+- Slice aplicado:
+  1. hardening de empacotamento para validar executavel primario no build selecionado.
+  2. `scripts/create_distribution.py`:
+     - `_get_pyinstaller_canonical_dirs()` com fallback para dirs canonicos padrao.
+     - `_has_primary_executable(...)` para barrar diretorio parcial sem binario executavel.
+     - `_resolve_build_directory(...)` agora exige conteudo + executavel valido.
+  3. testes:
+     - novo `test_create_zip_package_returns_none_when_canonical_has_no_primary_executable`.
+     - mocks de `BUILD_SYSTEMS` com `canonical_dirs` explicito.
+  4. docs:
+     - `docs/GUIA_DISTRIBUICAO.md` troubleshooting atualizado com validacao de executavel primario.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/GUIA_DISTRIBUICAO.md`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `4 passed`.
+  3. `kluster review` em codigo tocado -> clean.
+- Deferido:
+  1. hardening cross-platform mais amplo no empacotador fica para ciclo dedicado.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:18
+
+- Slice aplicado:
+  1. alinhamento Debian para fluxo canonico ZIP.
+  2. `launchers/platforms/debian_amd64/build_config.json`:
+     - `post_build.package` agora `zip`.
+     - limpeza de exclusoes de risco em `exclude_modules` (`json`, `argparse` e modulos core de concorrencia/rede).
+  3. docs operacionais atualizados:
+     - `docs/GUIA_DISTRIBUICAO.md` (Debian ZIP no baseline atual).
+     - `docs/BUILD_MULTIPLATFORM.md` (UPX "quando disponivel" + nota Debian ZIP).
+- Arquivos tocados:
+  1. `launchers/platforms/debian_amd64/build_config.json`
+  2. `docs/GUIA_DISTRIBUICAO.md`
+  3. `docs/BUILD_MULTIPLATFORM.md`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `kluster review` nos arquivos do slice -> clean na rodada final.
+- Deferido:
+  1. implementacao automatica de AppImage/.deb fora do fluxo ZIP.
+  2. revisao equivalente de exclusoes em `windows_amd64` e `macos_arm64`.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:04
+
+- Slice aplicado:
+  1. hardening do build canonico para nao embedar `data/` por padrao.
+  2. `launchers/build_multiplatform.py` agora so inclui `data/` se `pyinstaller_args.include_local_data=true`.
+  3. cobertura de regressao adicionada em `tests/test_create_distribution.py` para garantir exclusao de `.db/.xlsx/.xls` no pacote canonico.
+  4. docs operacionais atualizados com a politica:
+     - `docs/GUIA_DISTRIBUICAO.md`
+     - `docs/BUILD_MULTIPLATFORM.md`
+- Arquivos tocados:
+  1. `launchers/build_multiplatform.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/GUIA_DISTRIBUICAO.md`
+  4. `docs/BUILD_MULTIPLATFORM.md`
+  5. `docs/RECOVERY_BACKLOG.md`
+  6. `docs/NEXT_CHAT_MIGRATION.md`
+  7. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `3 passed`.
+  3. `kluster review` em codigo tocado -> sem blocker novo do slice; sobram debts antigos estruturais fora de escopo.
+- Deferido:
+  1. naming/semantica do `MultiPlatformBuilder` versus limitacao de cross-compile.
+  2. concentracao de responsabilidades em `build_multiplatform.py`.
+  3. performance de scans/cleanup recursive no builder.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 07:44
+
+- Slice aplicado:
+  1. deduplicacao minima do prune de workers em `gui/ssa/gui_workers.py`.
+  2. novo helper comum `_classify_and_update_global_workers_locked(...)` usado por:
+     - `prune_retired_data_loader_workers`
+     - `prune_retired_rescan_workers`
+  3. novo teste de regressao em `tests/test_gui_workers_rescan_data.py` para cap de workers e expiracao do mais antigo.
+- Arquivos tocados:
+  1. `gui/ssa/gui_workers.py`
+  2. `tests/test_gui_workers_rescan_data.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_gui_workers_rescan_data.py` -> `10 passed`.
+  3. `kluster review file gui/ssa/gui_workers.py tests/test_gui_workers_rescan_data.py` -> sem novo blocker do slice; sobram debts medios antigos fora de escopo.
+  4. `kluster review file docs/RECOVERY_BACKLOG.md` -> clean.
+- Deferido:
+  1. decompor `on_data_loaded` (god-function) em ciclo dedicado.
+  2. desacoplar prompt de modo em `rescan_data` para caller.
+  3. mover sanitizacao/sort pesado do UI thread para worker.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 06:14
+
+- Slice aplicado:
+  1. doc sync de build/distribuicao para baseline v4.32.
+  2. `docs/GUIA_DISTRIBUICAO.md` reescrito para fluxo canonico:
+     - build: `launchers/build_multiplatform.py`
+     - empacotamento: `scripts/create_distribution.py`
+     - artefatos: `launchers/dist/*`
+  3. `launchers/README.md` atualizado para plataformas reais ativas:
+     - `windows_amd64`, `macos_arm64`, `debian_amd64`.
+  4. guias completos de pyinstaller/nuitka/pyoxidizer receberam bloco `CURRENT TRUTH`
+     e rebaixaram referencias antigas para historico.
+- Arquivos tocados:
+  1. `docs/GUIA_DISTRIBUICAO.md`
+  2. `launchers/README.md`
+  3. `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+  4. `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
+  5. `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
+  6. `docs/RECOVERY_BACKLOG.md`
+  7. `docs/NEXT_CHAT_MIGRATION.md`
+  8. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `kluster review` nos 5 docs-alvo -> clean.
+- Deferido:
+  1. referencias legadas dentro de secoes historicas extensas dos guias completos mantidas como snapshot.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 02:39
+
+- Slice aplicado:
+  1. alinhamento de distribuicao para caminho canonico:
+     - `scripts/create_distribution.py` agora resolve pyinstaller por `launchers/dist/*` com fallback legado `builds/*`.
+     - `scripts/copy_data_to_builds.py` resolve destinos canonicos e legado.
+  2. hardening de seguranca e instalador:
+     - exclusao de dados locais sensiveis no bundle canonico (`data`, `docs_entrada`, `.db`, `.xlsx`, etc.).
+     - `copy_data_to_builds.py` agora exige `--allow-local-data`.
+     - Inno Setup com:
+       - `INNO_SETUP_COMPILER` e lookup no PATH;
+       - `OutputDir=.` e `SetupIconFile=..\\assets\\icon.ico`;
+       - exclusoes sincronizadas com politica de bundle.
+  3. testes:
+     - novo teste para fallback canonico pyinstaller em `tests/test_create_distribution.py`.
+     - ajuste de assert de erro no teste legado.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `scripts/copy_data_to_builds.py`
+  3. `tests/test_create_distribution.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `2 passed`.
+- Deferido:
+  1. debt de qualidade: `create_zip_package` ainda grande (sem refatoracao ampla neste ciclo).
+  2. refinamento futuro de atalhos GUI/CLI no template Inno para cenarios com binarios separados.
+  3. extracao de constantes compartilhadas de distribuicao para modulo comum.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 01:11
+
+- Slice aplicado:
+  1. bugfix real sem mudar estrutura:
+     - cache de tabela em `database.py`.
+     - validacao estruturada para coluna obrigatoria ausente em `database_validation.py`.
+     - `_debug_phases` com namespace por planilha em `extractor.py`.
+     - ajustes de duplicadas semanticas em `robust_importer.py`.
+     - hardening de fallback/path em `gui_ssa.py`.
+     - `max_global_workers` efetivo + registro imediato de worker em `gui_workers.py`.
+     - guarda segura de `blockSignals` no bind de aba.
+     - reaplicacao de QSS global por estado real do app em `gui_theme.py`.
+  2. testes/docs:
+     - qWait dinamico no teste de resize.
+     - assert mais forte no reimport de upsert.
+     - troubleshooting com `PY_RUNTIME`.
+- Arquivos tocados:
+  1. `armazenamento/database.py`
+  2. `armazenamento/database_validation.py`
+  3. `extracao/extractor.py`
+  4. `utils/robust_importer.py`
+  5. `gui/gui_ssa.py`
+  6. `gui/ssa/gui_workers.py`
+  7. `gui/mixins/tab_context_gui_ssa_mixin.py`
+  8. `gui/ssa/gui_theme.py`
+  9. `tests/test_gui_workers_rescan_data.py`
+  10. `tests/test_gui_filter_logic.py`
+  11. `tests/test_db_reset_and_upsert.py`
+  12. `docs/TROUBLESHOOTING_IMPORTACAO.md`
+  13. `docs/RECOVERY_BACKLOG.md`
+  14. `docs/NEXT_CHAT_MIGRATION.md`
+  15. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado em workers/gui/upsert/validacao/importacao -> `8 passed`.
+  3. `pytest` focado em extracao/report/signal -> `35 passed`.
+  4. `pytest` focado em tema/resize/quick_filter -> `4 passed`.
+- Deferido:
+  1. debts estruturais amplos apontados por kluster (fora de escopo deste patch minimo).
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 00:55
+
+- Slice aplicado:
+  1. atalho rapido `Setor Executor` sincronizado com filtros avancados:
+     - `setor_executor`
+     - `setor_emissor`
+     - excludes limpos.
+  2. popup do combo rapido com rolagem real.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado quick setor/sort -> `5 passed`.
+- Nota:
+  1. comportamento foi revertido no hotfix 00:55 para remover sync indevido com avancados.
+
+## HISTORICAL SNAPSHOT 2026-03-10 00:36
+
+- Slice aplicado:
+  1. hardening de sort `num_reprogramacoes` com alinhamento defensivo de indice.
+  2. apos sort por `num_reprogramacoes`, cache e re-primado para coerencia com `df_exibido`.
+  3. tooltip de `Limpar Busca` atualizado para refletir cancelamento da busca em andamento.
+  4. abertura do guia de instalacao com `QUrl` explicito antes de `openUrl`.
+- Arquivos tocados:
+  1. `gui/gui_ssa.py`
+  2. `docs/RECOVERY_BACKLOG.md`
+  3. `docs/NEXT_CHAT_MIGRATION.md`
+  4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado GUI filtro/sort/tooltip -> `6 passed`.
+  3. `pytest` focado importacao externa/guia -> `2 passed`.
+- Deferido:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` seguem fora deste patch minimo.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 00:22
+
+- Slice aplicado:
+  1. atalho rapido `Setor Executor` deixou de ter persistencia de estado.
+  2. checkbox `Configuracao persistente` removido da UI.
+  3. combo rapido passou a sincronizar corretamente com OR group/filtros de coluna:
+     - atualiza `setor_executor`
+     - sincroniza `setor_emissor` quando houver grupo OR
+     - reconstrui painel de filtros e reaplica refresh.
+  4. popup do combo limitado para rolagem (`maxVisibleItems=14`).
+  5. fix critico no fallback de importacao externa:
+     - `_build_unique_destination_path` agora chamado de forma segura em fallback.
+- Arquivos tocados:
+  1. `gui/gui_ssa.py`
+  2. `tests/test_gui_filter_logic.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado filtro rapido/cache -> `7 passed`.
+  3. `pytest` focado importacao externa -> `2 passed`.
+- Deferido:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` continuam fora deste patch minimo.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 00:17
+
+- Slice aplicado:
+  1. cache de sort de `num_reprogramacoes` alinhado com `df_exibido` apos ordenacao.
+  2. testes focados de GUI estabilizados para invariantes de cache (index/keys/source_len), sem acoplamento em `id(df)`.
+  3. teste de persistencia do filtro rapido ficou deterministico (nao depende de estado salvo pre-existente).
+- Arquivos tocados:
+  1. `gui/gui_ssa.py`
+  2. `tests/test_gui_filter_logic.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado em filtros/cache -> `7 passed`.
+- Deferido:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` seguem fora deste patch minimo.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 23:53
+
+- Slice aplicado:
+  1. remocao do seletor `Perfil de filtro` da UI (mantido apenas `Salvar Filtro`).
+  2. adicao de combo rapido `Setor Executor` ao lado de `Colunas Visiveis`.
+  3. ordem do combo: `IEE1..IEE4`, depois `MEL1..MEL4`, depois ordem alfabetica.
+  4. adicao do checkbox `Configuracao persistente` (default desmarcado) como primeira opcao da faixa de opcoes.
+  5. quando persistencia ativa, salvar automaticamente:
+     - `gui_settings.persist_quick_filter_config`
+     - `gui_settings.quick_setor_executor`
+     - `display_columns` (ao alterar colunas visiveis).
+  6. `Colunas Visiveis` agora exibe contagem no proprio botao (`Colunas Visiveis: N`) e removeu o box lateral de resumo.
+- Arquivos tocados:
+  1. `gui/widgets/column_selector.py`
+  2. `gui/gui_ssa.py`
+  3. `gui/mixins/tab_context_gui_ssa_mixin.py`
+  4. `gui/mixins/filter_gui_ssa_mixin.py`
+  5. `tests/test_gui_filter_logic.py`
+  6. `docs/RECOVERY_BACKLOG.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado novo comportamento -> `3 passed`.
+  3. reteste `tests/test_gui_menu_import_external.py` -> `13 passed`.
+- Deferido:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` e mixins (fora do escopo deste patch minimo).
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 23:24
+
+- Micro-slice aplicado:
+  1. correcao pontual na chamada fallback de `_build_unique_destination_path` em `gui/gui_ssa.py`.
+  2. fallback agora usa descriptor bound call para evitar ambiguidade de assinatura em chamada via classe.
+  3. comportamento funcional mantido (incluindo compatibilidade com janela stub de teste).
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado de importacao/menu -> `5 passed`.
+- Deferido:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` seguem fora de escopo neste micro-slice.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 23:08
+
+- Slice concluido: pendencia pesada + comentarios simples do PR.
+  1. `gui/gui_ssa.py`:
+     - `run_vacuum_analyze` agora roda `VACUUM/ANALYZE` em thread de fundo no runtime normal.
+     - `_build_unique_destination_path` com limite de tentativas e erro explicito.
+     - backup de opcoes com timestamp de microssegundos.
+     - consolidacao: update-only nao vai para `nosurvivor`; contador `nosurvivor` incrementa so apos `move` bem-sucedido.
+  2. `gui/ssa/gui_workers.py`:
+     - `prompt` sem `QMessageBox` cai para modo incremental seguro.
+     - `expired_all` deduplicado no prune.
+     - `_active_rescan_dialog` limpo tambem em `worker.finished`.
+  3. testes:
+     - `tests/test_gui_menu_import_external.py`: monkeypatch `QUrl`/`QDesktopServices` headless, backup duplo unico, update-only fora de `nosurvivor`.
+     - `tests/test_gui_workers_rescan_data.py`: `show_non_modal_called`, limpeza de dialogo em cancel+finish, `prompt` sem dialogo => incremental.
+  4. docs:
+     - `docs/CCR_LLM_PROVIDERS_SETUP.md`: nota de snapshot historico para `instructions` legadas.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` dos arquivos tocados -> pass.
+  2. `pytest -q tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py` -> `20 passed`.
+- Deferido explicitamente:
+  1. debts estruturais/performance antigos reportados por kluster em `gui/gui_ssa.py` e `gui/ssa/gui_workers.py` (fora deste patch minimo).
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 22:49
+
+- Heavy pending slice executado (sem mudanca de layout):
+  1. preprocessamento pesado movido para `DataLoaderWorker` (sanitize/sort/non-null cache).
+  2. `on_data_loaded` passou a consumir `df.attrs` (`ssa_preprocessed_for_gui`, `ssa_sanitized_df`, `ssa_non_null_cols`) no caminho padrao.
+  3. fallback legado mantido para chamadas sem attrs.
+  4. `load_data` agora restaura UI mesmo em falha ao instanciar worker.
+- Testes/gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` dos arquivos tocados -> pass.
+  2. `pytest` focado (`8 passed`) + `test_workers_advanced.py -k DataLoaderWorker` (`14 passed`) -> pass.
+- Deferido explicitamente:
+  1. `query_db(self.db_path, '', query, ...)` no worker classificado como `FALSO_POSITIVO` por contrato atual de `query_db`.
+  2. debt de concentracao/duplicacao em `on_data_loaded` segue para ciclo dedicado.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 22:30
+
+- Politica ASCII reforcada para review/documentacao tecnica:
+  1. sugestoes ortograficas com acentos/cedilha em texto tecnico devem ser tratadas como `FALSO_POSITIVO` se conflitar com a politica ASCII do repo.
+- Debts antigos priorizados (proximo ciclo):
+  1. `gui/gui_ssa.py`: debt arquitetural na `SSAMainWindow`.
+  2. `gui/ssa/gui_workers.py`: custo alto em `on_data_loaded` no UI thread.
+  3. `gui/ssa/gui_workers.py`: duplicacao de prune/cleanup entre workers.
+- Slice atual:
+  1. apenas DOC_SYNC de governanca.
+  2. sem alteracao de runtime.
+  3. kluster em docs tocados -> clean.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 22:11
+
+- Follow-up de comentarios pendentes do PR #45 concluido com patch minimo:
+  1. worker prune nao perde mais worker vivo quando ultrapassa cap.
+  2. importacao externa aceita/copia somente `.xlsx` e separa `nao_suportados`.
+  3. consolidacao para `nosurvivor` exige sucesso sem sobreviventes (status+contagem), evitando falso positivo.
+  4. cache de descoberta de Excel agora e case-insensitive.
+  5. integridade de DB passa a preferir tabela sobre view ao resolver alias.
+- Testes/gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` dos arquivos tocados -> pass.
+  2. `pytest -q tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py tests/test_caching.py tests/test_database_verification.py` -> `47 passed`.
+- Deferido explicitamente:
+  1. debts estruturais/performance amplos em `gui/gui_ssa.py` e `gui/ssa/gui_workers.py` (fora do escopo de estabilidade minima).
+  2. revisao semantica de `database_exists` em arquivo 0-byte mantida para ciclo dedicado por compatibilidade.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 21:58
+
+- Follow-up de comentarios P2 do PR #45 concluido (patch minimo):
+  1. rescan worker registrado em `global_workers/global_meta` logo apos `start()`.
+  2. importacao externa passou a reutilizar helper unico de dedup de destino.
+  3. doc CCR alinhado para `*.instructions`.
+- Testes/gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` dos arquivos tocados -> pass.
+  2. `pytest -q tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py` -> `16 passed`.
+- Deferido explicitamente:
+  1. debt transversal de nao-ascii em testes (fora deste slice de baixo risco).
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 21:43
+
+- PR ativo: `#45` (base `dev`, head `codex/sprint-importacao-grave-fixes-20260305`).
+- Hotfix aplicado para comentarios/checks bloqueantes:
+  1. contrato de cancelamento em `tests/test_import_cancellation.py` alinhado ao runtime atual.
+  2. warning de integridade em `core/app_logic.py` voltou a logar no caminho valido.
+  3. `database_validation` nao retorna mais `set` interno em retorno precoce.
+  4. `database.query_db` respeita `raise_on_error=False` tambem para `ValueError`.
+  5. removido suppress silencioso em whitelist de colunas no insert simples.
+  6. removido warning falso `Problemas detectados no banco: []` em `database_integrity`.
+- Evidencia de qualidade desta rodada:
+  1. pacote focado: `30 passed`.
+  2. pacote equivalente ao `quality-gates`: `73 passed`.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 19:26
+
+- Integridade de documentacao reforcada no baseline `4.32`.
+- Entregas principais:
+  1. referencias quebradas de `.md` corrigidas nos docs ativos.
+  2. referencias locais opcionais (`local_ai_private`) tratadas como nao obrigatorias.
+  3. stubs `docs/ARCH_*` adicionados para compatibilidade com backlog historico.
+  4. ponteiro de plano legado criado em `docs/archive/PLANO_REFATORACAO_SSA_CONSULTA_RAPIDA.md`.
+- Evidencia de qualidade:
+  1. varredura de referencias markdown em `README.md` + `docs/*.md` com resultado final `missing=0`.
+  2. kluster limpo apos ajustes finais por arquivo.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 19:01
+
+- Ciclo de refinamento documental concluido para baseline `4.32`.
+- Principais entregas:
+  1. `docs/INDEX.md` e `docs/README.md` canonicos e consistentes.
+  2. `docs/COMANDOS_RAPIDOS.md` atualizado para uv-first.
+  3. `docs/ARQUITETURA_IMPORTACAO.md` ativo simplificado e snapshot arquivado.
+  4. `docs/TROUBLESHOOTING*.md` ativos simplificados e snapshots arquivados.
+  5. `docs/HISTORICO_RELEASES.md` atualizado com governanca de docs.
+- Regra de continuidade:
+  1. usar somente o bloco do topo deste arquivo.
+  2. consultar `docs/archive/` apenas para contexto historico.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 17:35
+
+- Baseline ativo de versao/documentacao: `4.32`.
+- Refinamento de governanca documental concluido:
+  1. somente o bloco de topo e fonte ativa.
+  2. historico antigo foi movido para arquivo dedicado para reduzir ambiguidade.
+  3. referencias de release evitam logs efemeros.
+- Escopo desta rodada:
+  1. apenas docs e metadados de versao.
+  2. nenhum runtime alterado (`core/gui/armazenamento/extracao/interface/tests`).
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## REGRAS DE INTERPRETACAO
+
+1. Este bloco do topo e a unica fonte ativa para continuidade.
+2. Todo historico de iteracoes anteriores deve ser lido no arquivo de arquivo.
+3. Em caso de conflito, prevalece sempre o topo deste arquivo.
+
+## ARQUIVO HISTORICO
+
+- Historico completo anterior (ate 2026-03-09 17:35):
+  - `docs/archive/NEXT_CHAT_MIGRATION_legacy_until_20260309_1735.md`
+
+## CHECKLIST DE CONTINUIDADE
+
+1. confirmar branch alvo antes de editar.
+2. validar residuos locais fora de escopo antes de commit.
+3. registrar inicio/fim da sessao em `docs/RECOVERY_BACKLOG.md`.
+4. atualizar `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` no mesmo slice.

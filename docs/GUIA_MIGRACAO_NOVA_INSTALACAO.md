@@ -1,8 +1,9 @@
-# Guia Completo de Migracao - SSA Consulta Rapida v3.0.6
+# Guia Completo de Migracao - SSA Consulta Rapida v4.32
 
 **Data de Criacao:** 27 de Agosto de 2025  
-**Versao do Sistema:** v3.0.6 (Estavel)  
+**Versao do Sistema:** v4.32 (Estavel)  
 **Tipo:** Migracao Completa para Nova Instalacao  
+**Sync:** 10/03/2026 16:55 -0300  
 
 ---
 
@@ -56,7 +57,7 @@ cd SSA_Consulta_Rapida
 ```powershell
 # Verificar se esta na branch correta
 git branch -v
-# Deve mostrar: * main [commit_hash] [ultima mensagem]
+# Deve mostrar branch valida do seu fluxo (ex.: main/dev/feature em andamento)
 
 # Verificar status
 git status
@@ -69,6 +70,7 @@ ls main.py, requirements.txt, README.md
 ### **Passo 3: Configurar Ambiente Virtual**
 ```powershell
 # Fluxo recomendado (uv-first)
+# OBS: usando uv run, nao e necessario ativar venv manualmente
 uv venv
 uv sync
 
@@ -77,10 +79,10 @@ uv sync
 $PY_RUNTIME = "3.13"
 uv run --python $PY_RUNTIME python --version
 
-# Compatibilidade sem uv (fallback)
+# Opcional: fluxo manual sem uv (apenas fallback)
 python -m venv venv
 
-# Ativar ambiente (escolha um dos metodos)
+# Ativar ambiente (apenas para fluxo manual fallback)
 # Metodo 1 - PowerShell
 .\venv\Scripts\Activate.ps1
 
@@ -275,13 +277,13 @@ uv run --python $PY_RUNTIME python main.py --gui
 ### **Teste 3: Executar Testes Automatizados**
 ```powershell
 # Executar testes basicos
-python -m pytest tests\test_imports.py -v
+uv run --python $PY_RUNTIME python -m pytest tests\test_imports.py -v
 
 # Executar teste de banco
-python tests\test_db_check.py
+uv run --python $PY_RUNTIME python -m pytest tests\test_database.py -q
 
 # Executar teste de sistema completo
-python tests\teste_sistema_completo.py
+uv run --python $PY_RUNTIME python tests\teste_sistema_completo.py
 ```
 
 ---
@@ -459,5 +461,5 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 
 ---
 
-*Ultima atualizacao: 27/08/2025 - v3.0.6*
+*Ultima atualizacao: 10/03/2026 - v4.32*
 *Para duvidas ou problemas, consulte o repositorio no GitHub*

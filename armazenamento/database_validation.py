@@ -6,7 +6,12 @@ import logging
 import pandas as pd
 
 from .numero_ssa_utils import _normalize_numero_ssa_value
+from shared.db_names import CANONICAL_SSA_TABLE
 from shared.date_utils import parse_any_date
+from shared.import_contract import (
+    ALLOWED_MISSING_DATA_CADASTRO_STATUSES,
+    VALIDATION_REQUIRED_COLUMNS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +25,11 @@ def _sample_ssas(df: pd.DataFrame, mask: Any) -> list[str]:
 
 
 def _append_unique_invalid_rows(report: dict[str, Any], indices: list[Any]) -> None:
+    seen_rows = report.setdefault('_invalid_row_seen', set())
     for idx in indices:
-        if idx not in report['invalid_rows']:
+        if idx not in seen_rows:
             report['invalid_rows'].append(idx)
+            seen_rows.add(idx)
 
 
 def _validate_required_columns(df: pd.DataFrame, report: dict[str, Any]) -> None:
@@ -30,16 +37,34 @@ def _validate_required_columns(df: pd.DataFrame, report: dict[str, Any]) -> None
     # - numero_ssa: warning (linhas sem/invalidas devem gerar aviso, nao invalidar o lote)
     # - data_cadastro: error (critico para ordenacao/relatorios)
     # - situacao: warning (ausencia nao impede insercao)
-    required_columns = [
-        ('numero_ssa', 'warning'),
-        ('data_cadastro', 'error'),
-        ('situacao', 'warning'),
-    ]
-    for column, severity in required_columns:
+    situacao_upper = None
+    if 'situacao' in df.columns:
+        situacao_upper = (
+            df['situacao']
+            .astype(str)
+            .str.strip()
+            .str.upper()
+        )
+    for column, severity in VALIDATION_REQUIRED_COLUMNS:
         if column not in df.columns:
+            all_rows_mask = pd.Series([True] * len(df), index=df.index)
+            report['violations'].append(
+                {
+                    'rule': f'missing_column_{column}',
+                    'column': column,
+                    'severity': severity,
+                    'count': int(len(df)),
+                    'sample_ssa': _sample_ssas(df, all_rows_mask),
+                }
+            )
+            target = report['issues'] if severity == 'error' else report['warnings']
+            target.append(f"Coluna obrigatoria '{column}' ausente no DataFrame")
             continue
         series = df[column]
         missing_mask = series.isna() | (series.astype(str).str.strip() == '')
+        # Business exception: these statuses can legitimately have no emit date.
+        if column == 'data_cadastro' and situacao_upper is not None:
+            missing_mask = missing_mask & (~situacao_upper.isin(ALLOWED_MISSING_DATA_CADASTRO_STATUSES))
         missing_count = int(missing_mask.sum())
         if missing_count == 0:
             continue
@@ -62,9 +87,8 @@ def _validate_required_columns(df: pd.DataFrame, report: dict[str, Any]) -> None
 def _validate_numero_ssa(df: pd.DataFrame, report: dict[str, Any]) -> None:
     if 'numero_ssa' not in df.columns:
         return
-    invalid_ssa_mask = df['numero_ssa'].apply(
-        lambda x: _normalize_numero_ssa_value(x) is None if pd.notna(x) else True
-    )
+    normalized_ssa = df['numero_ssa'].map(_normalize_numero_ssa_value)
+    invalid_ssa_mask = normalized_ssa.isna()
     invalid_count = int(invalid_ssa_mask.sum())
     if invalid_count == 0:
         return
@@ -107,7 +131,7 @@ def _validate_date_columns(df: pd.DataFrame, report: dict[str, Any]) -> None:
     for col in date_cols:
         try:
             series = df[col]
-            parsed_text = series.apply(parse_any_date)
+            parsed_text = series.map(parse_any_date)
             parsed = pd.to_datetime(parsed_text, errors='coerce', format="%Y-%m-%d %H:%M:%S")
             invalid_mask = parsed.isna() & series.notna() & (series != '')
             invalid_dates = invalid_mask.sum()
@@ -134,16 +158,48 @@ def _validate_duplicate_ssa(df: pd.DataFrame, report: dict[str, Any]) -> None:
     if valid_ssa_df.empty:
         return
     duplicated_ssa = valid_ssa_df.duplicated(subset=['numero_ssa'], keep=False)
-    duplicate_count = duplicated_ssa.sum()
-    if duplicate_count > 0:
-        report['warnings'].append(f"{duplicate_count} números SSA duplicados encontrados")
+    duplicate_count = int(duplicated_ssa.sum())
+    if duplicate_count == 0:
+        return
+
+    exact_duplicate_indices: list[int] = []
+    conflicting_duplicate_indices: list[int] = []
+    duplicate_groups = valid_ssa_df.loc[duplicated_ssa].groupby('numero_ssa', sort=False, dropna=False)
+    for _, group in duplicate_groups:
+        if len(group.drop_duplicates()) == 1:
+            exact_duplicate_indices.extend(group.index.tolist())
+        else:
+            conflicting_duplicate_indices.extend(group.index.tolist())
+
+    if exact_duplicate_indices:
+        exact_mask = valid_ssa_df.index.isin(exact_duplicate_indices)
+        exact_count = int(exact_mask.sum())
+        report['warnings'].append(
+            f"{exact_count} numeros SSA duplicados identicos encontrados"
+        )
         report['violations'].append(
             {
-                'rule': 'duplicate_numero_ssa',
+                'rule': 'duplicate_numero_ssa_exact',
                 'column': 'numero_ssa',
                 'severity': 'warning',
-                'count': int(duplicate_count),
-                'sample_ssa': _sample_ssas(valid_ssa_df, duplicated_ssa),
+                'count': exact_count,
+                'sample_ssa': _sample_ssas(valid_ssa_df, exact_mask),
+            }
+        )
+
+    if conflicting_duplicate_indices:
+        conflicting_mask = valid_ssa_df.index.isin(conflicting_duplicate_indices)
+        conflicting_count = int(conflicting_mask.sum())
+        report['warnings'].append(
+            f"{conflicting_count} numeros SSA duplicados conflitantes encontrados"
+        )
+        report['violations'].append(
+            {
+                'rule': 'duplicate_numero_ssa_conflict',
+                'column': 'numero_ssa',
+                'severity': 'warning',
+                'count': conflicting_count,
+                'sample_ssa': _sample_ssas(valid_ssa_df, conflicting_mask),
             }
         )
 
@@ -167,13 +223,17 @@ def _validate_text_columns(df: pd.DataFrame, report: dict[str, Any]) -> None:
             )
 
 
-def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas') -> dict[str, Any]:
+def validate_dataframe_before_insert(
+    df: pd.DataFrame,
+    table_name: str = CANONICAL_SSA_TABLE,
+) -> dict[str, Any]:
     report: dict[str, Any] = {
         'is_valid': True,
         'issues': [],
         'warnings': [],
         'row_count': len(df),
         'invalid_rows': [],
+        '_invalid_row_seen': set(),
         'fixed_rows': 0,
         'table_name': table_name,
         'violations': [],
@@ -182,6 +242,7 @@ def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas')
     try:
         if df.empty:
             report['warnings'].append("DataFrame vazio - nada para validar")
+            report.pop('_invalid_row_seen', None)
             return report
 
         _validate_required_columns(df, report)
@@ -196,8 +257,14 @@ def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas')
             len(report['issues']),
             len(report['warnings']),
         )
+        report.pop('_invalid_row_seen', None)
     except Exception as e:  # pragma: no cover
-        report['issues'].append(f"Erro na validação: {e}")
+        report.pop('_invalid_row_seen', None)
+        report['issues'].append(f"Erro na validacao ({type(e).__name__}): {e}")
+        report['error_details'] = {
+            'type': type(e).__name__,
+            'message': str(e),
+        }
         report['is_valid'] = False
-        logger.error("Erro na validação do DataFrame: %s", e)
+        logger.exception("Erro na validacao do DataFrame: %s", e)
     return report

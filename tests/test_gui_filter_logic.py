@@ -21,7 +21,7 @@ if project_root not in sys.path:
 from PyQt6.QtWidgets import QApplication, QPushButton, QLineEdit, QLabel  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtCore import Qt, QSize, QUrl, QPoint  # noqa: E402
-from PyQt6.QtGui import QCloseEvent, QResizeEvent  # noqa: E402
+from PyQt6.QtGui import QCloseEvent, QResizeEvent, QFont  # noqa: E402
 
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui import gui_ssa  # noqa: E402
@@ -138,6 +138,105 @@ class TestGUIFilterLogic:
                 continue
             controls[label_widget.text()] = (edit_widget, apply_widget, clear_widget, hide_widget)
         return controls
+
+    def test_column_selector_button_shows_visible_count_in_text(self):
+        selector = getattr(self.window, "column_selector", None)
+        assert selector is not None
+        text = str(selector.manage_button.text() or "")
+        assert text.startswith("Colunas Visiveis:")
+        assert not hasattr(selector, "summary_label")
+
+    def test_top_toolbar_hides_update_derivadas_button(self):
+        button = getattr(self.window, "update_derivadas_button", None)
+        assert button is not None
+        assert button.isVisible() is False
+        visible_named = [
+            btn
+            for btn in self.window.findChildren(QPushButton)
+            if str(btn.text() or "") == "Atualizar Derivadas" and btn.isVisible()
+        ]
+        assert visible_named == []
+
+    def test_search_and_pagination_rows_place_controls_in_expected_lines(self):
+        main_ctx = self.window._tab_contexts[0]
+        search_input = main_ctx["search_input"]
+        search_button = main_ctx["search_button"]
+        save_filter_button = main_ctx["save_filter_button"]
+        filter_tags_widget = main_ctx["filter_tags_widget"]
+        paginator = main_ctx["paginator"]
+        column_selector = main_ctx["column_selector"]
+        quick_label = main_ctx["quick_setor_executor_label"]
+        quick_combo = main_ctx["quick_setor_executor_combo"]
+
+        QApplication.processEvents()
+
+        tooltip = str(save_filter_button.toolTip() or "")
+        assert "somente o filtro atual da Pesquisa Geral" in tooltip
+        assert abs(save_filter_button.geometry().y() - search_input.geometry().y()) <= 8
+        assert abs(filter_tags_widget.geometry().y() - save_filter_button.geometry().y()) <= 8
+        assert filter_tags_widget.geometry().x() > save_filter_button.geometry().x()
+        assert column_selector.geometry().y() > search_input.geometry().y()
+        assert abs(column_selector.geometry().y() - paginator.geometry().y()) <= 10
+        assert column_selector.geometry().x() > paginator.geometry().x()
+        assert (column_selector.geometry().x() - paginator.geometry().right()) <= 40
+        assert str(quick_label.text() or "") == "Setor Executor:"
+        assert abs(quick_label.geometry().y() - quick_combo.geometry().y()) <= 6
+        assert quick_label.geometry().x() < quick_combo.geometry().x()
+        assert quick_combo.geometry().x() > column_selector.geometry().x()
+        assert quick_combo.height() <= (search_button.height() + 2)
+        assert quick_combo.height() >= 24
+        parent_widget = quick_combo.parentWidget()
+        assert parent_widget is not None
+        right_gap = parent_widget.rect().right() - quick_combo.geometry().right()
+        assert right_gap <= 24
+
+    def test_setor_executor_order_prioritizes_smin_then_mel_then_alpha(self):
+        ordered = SSAMainWindow._order_setor_executor_values(
+            ["AAA", "ZZZ", "MEL3", "IEE4", "ABC", "IEE1", "MEL1"]
+        )
+        assert ordered == ["IEE1", "IEE4", "MEL1", "MEL3", "AAA", "ABC", "ZZZ"]
+
+    def test_quick_setor_executor_combo_applies_filter_and_syncs_or_group_only(self):
+        self.window._register_or_group(["setor_executor", "setor_emissor"], ["IEE3", "MEL3"])
+        self.window._active_column_filters["setor_executor"] = "IEE3, MEL3"
+        self.window._active_column_filters["setor_emissor"] = "IEE3, MEL3"
+        advanced_before = dict(getattr(self.window, "_advanced_filters", {}) or {})
+        self.window._build_column_filters_panel()
+        self.window._refresh_quick_setor_executor_options()
+        combo = getattr(self.window, "quick_setor_executor_combo", None)
+        assert combo is not None
+        assert int(combo.maxVisibleItems()) == 14
+        assert getattr(self.window, "persist_filter_config_checkbox", None) is None
+        style_sheet = str(combo.styleSheet() or "")
+        assert "combobox-popup: 0" in style_sheet
+        mel4_idx = combo.findData("MEL4")
+        assert mel4_idx >= 0
+        assert str(combo.itemText(0)) == "Todos"
+        assert str(combo.itemText(mel4_idx)) == "MEL4"
+        assert "Setor Executor:" not in str(combo.currentText() or "")
+
+        combo.setCurrentIndex(mel4_idx)
+        QApplication.processEvents()
+        assert str(combo.currentText() or "") == "MEL4"
+
+        assert self.window._active_column_filters.get("setor_executor") == "MEL4"
+        assert self.window._active_column_filters.get("setor_emissor") == "IEE3, MEL3"
+        assert dict(getattr(self.window, "_advanced_filters", {}) or {}) == advanced_before
+
+        self.window.main_tabs.setCurrentIndex(1)
+        QApplication.processEvents()
+        assert "MEL4" in str(getattr(self.window, "adv_executor_button").text() or "")
+        self.window.main_tabs.setCurrentIndex(0)
+        QApplication.processEvents()
+
+        controls = self._get_column_filter_controls()
+        setor_key = next(
+            (key for key in controls.keys() if str(key or "").strip().casefold().startswith("setor executor")),
+            None,
+        )
+        assert setor_key is not None
+        setor_input, _, _, _ = controls[setor_key]
+        assert str(setor_input.text() or "").strip() == "MEL4"
 
     def test_profile_or_filters_executor_or_emissor(self):
         """Perfil OR deve considerar executor ou emissor e refletir na UI."""
@@ -938,7 +1037,7 @@ class TestGUIFilterLogic:
         if button is None:
             button = getattr(self.window, "_adv_ctx", {}).get("adv_responsavel_solicitante_button")
         assert button is not None
-        assert "Incluir:" in button.text()
+        assert button.text().startswith(("Incluir:", "Diferente:"))
 
     def test_apply_advanced_filters_preserves_responsavel_when_not_materialized(self):
         self.window._advanced_filters = {
@@ -1079,6 +1178,51 @@ class TestGUIFilterLogic:
         assert same_ms < 4000.0
         assert other_ms < 4000.0
         assert back_ms < 4000.0
+
+    def test_apply_theme_reuses_cached_details_font_when_base_size_unchanged(self):
+        self.window.apply_theme("gruvbox")
+        QApplication.processEvents()
+        first_font = getattr(self.window, "_details_text_small_font_cached", None)
+        first_size = getattr(self.window, "_details_text_small_font_base_size", None)
+        assert first_font is not None
+        assert isinstance(first_size, (int, float))
+
+        self.window.apply_theme("gruvbox")
+        QApplication.processEvents()
+        second_font = getattr(self.window, "_details_text_small_font_cached", None)
+        second_size = getattr(self.window, "_details_text_small_font_base_size", None)
+        assert second_font is first_font
+        assert second_size == first_size
+
+    def test_apply_theme_rebuilds_cached_details_font_when_base_font_changes(self):
+        self.window.apply_theme("gruvbox")
+        QApplication.processEvents()
+        first_font = getattr(self.window, "_details_text_small_font_cached", None)
+        assert first_font is not None
+
+        base_font = self.window.details_group.font()
+        base_font.setFamily("Courier New")
+        base_font.setWeight(QFont.Weight.Black)
+        self.window.details_group.setFont(base_font)
+
+        self.window.apply_theme("gruvbox")
+        QApplication.processEvents()
+        second_font = getattr(self.window, "_details_text_small_font_cached", None)
+        assert second_font is not None
+        assert second_font is not first_font
+
+    def test_apply_theme_skips_global_qss_rebuild_when_cached_theme_matches(self):
+        self.window.apply_theme("gruvbox")
+        QApplication.processEvents()
+        assert getattr(self.window, "_last_global_theme_name", None) == "gruvbox"
+        assert isinstance(getattr(self.window, "_last_global_theme_qss", None), str)
+        self.window._current_theme = ""
+
+        with patch("gui.helpers.build_global_widget_qss") as build_qss_mock:
+            self.window.apply_theme("gruvbox")
+            QApplication.processEvents()
+
+        assert build_qss_mock.call_count == 0
 
     def test_repeated_filters_tab_and_theme_actions_keep_state_consistent(self):
         filter_tab_idx = next(
@@ -1276,6 +1420,25 @@ class TestGUIFilterLogic:
 
         assert captured_widths
         assert captured_widths[0] >= 0
+
+    def test_resize_event_coalesces_width_recompute_with_restartable_timer(self):
+        self.window._last_window_width = 900
+        self.window._data_revision = 17
+        self.window.df_exibido = self.base_df.copy()
+        calls: list[int | None] = []
+
+        with patch.object(
+            self.window,
+            "_recompute_column_widths_on_resize",
+            side_effect=lambda expected_revision=None: calls.append(expected_revision),
+        ):
+            self.window.resizeEvent(QResizeEvent(QSize(980, 700), QSize(900, 700)))
+            self.window.resizeEvent(QResizeEvent(QSize(1020, 700), QSize(980, 700)))
+            self.window.resizeEvent(QResizeEvent(QSize(1080, 700), QSize(1020, 700)))
+            debounce_ms = int(getattr(self.window._resize_recompute_timer, "interval", lambda: 300)())
+            cast(Any, QTest).qWait(debounce_ms + 80)
+
+        assert calls == [17]
 
     def test_apply_theme_updates_tab_stylesheet_in_normal_flow(self):
         self.window.main_tabs.setStyleSheet("")
@@ -2104,6 +2267,67 @@ class TestGUIFilterLogic:
         assert desc_vals[:3] == [2, "Reprogramacao #1", 0]
         assert desc_vals[-2:] == ["", None]
 
+    def test_on_header_clicked_reuses_num_reprogramacoes_sort_cache(self):
+        mixed_df = self.base_df.assign(
+            num_reprogramacoes=[2, "Reprogramacao #1", 0, "", None]
+        ).copy()
+        if "num_reprogramacoes" not in self.window.visible_columns:
+            self.window.visible_columns.append("num_reprogramacoes")
+        self.window.df_completo = mixed_df.copy()
+        self.window.df_exibido = mixed_df.copy()
+        self.window._df_last_search_filtered = mixed_df.copy()
+        self.window.paginator.set_dataframe(mixed_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        logical_index = self.window._current_display_columns.index("num_reprogramacoes")
+
+        self.window.on_header_clicked(logical_index)
+        cache_after_first = dict(self.window._num_reprog_sort_cache)
+        assert isinstance(cache_after_first["keys_df"], pd.DataFrame)
+        assert cache_after_first["keys_df"].index.equals(self.window.df_exibido.index)
+        assert int(cache_after_first["source_len"]) == len(cache_after_first["keys_df"].index)
+
+        self.window.on_header_clicked(logical_index)
+        cache_after_second = dict(self.window._num_reprog_sort_cache)
+        assert isinstance(cache_after_second["keys_df"], pd.DataFrame)
+        assert cache_after_second["keys_df"].index.equals(self.window.df_exibido.index)
+        assert int(cache_after_second["source_len"]) == len(cache_after_second["keys_df"].index)
+
+    def test_num_reprogramacoes_sort_rebuilds_stale_cache_with_mismatched_index(self):
+        mixed_df = self.base_df.assign(
+            num_reprogramacoes=[2, "Reprogramacao #1", 0, "", None]
+        ).copy()
+        if "num_reprogramacoes" not in self.window.visible_columns:
+            self.window.visible_columns.append("num_reprogramacoes")
+        self.window.df_completo = mixed_df.copy()
+        self.window.df_exibido = mixed_df.copy()
+        self.window.paginator.set_dataframe(mixed_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        stale_keys = pd.DataFrame(
+            {
+                "__reprog_is_nan": [False],
+                "__reprog_num": [0],
+                "__reprog_txt": ["stale"],
+            },
+            index=[999999],
+        )
+        self.window._num_reprog_sort_cache = {
+            "source_id": id(self.window.df_exibido),
+            "source_len": len(self.window.df_exibido.index),
+            "keys_df": stale_keys,
+        }
+
+        logical_index = self.window._current_display_columns.index("num_reprogramacoes")
+        self.window.on_header_clicked(logical_index)
+
+        cache = self.window._num_reprog_sort_cache
+        assert isinstance(cache.get("source_id"), int)
+        assert isinstance(cache["keys_df"], pd.DataFrame)
+        assert cache["keys_df"].index.equals(self.window.df_exibido.index)
+
     def test_save_advanced_filters_default_is_noop_compat(self):
         self.window._advanced_filters = {"situacao": ["STE"]}
         self.window._save_advanced_filters_default()
@@ -2570,6 +2794,35 @@ class TestGUIFilterLogic:
         assert self.window.df_completo.loc[0, "numero_ssa"] == "202500777"
         assert self.window.df_completo.loc[1, "numero_ssa"] == "202500778"
         assert self.window.df_completo.loc[0, "derivada_de"] == "202500001"
+
+    def test_on_data_loaded_uses_preprocessed_attrs_from_worker(self):
+        self.window._active_data_load_request_id = 22
+        sorted_df = self.base_df.copy().iloc[::-1].copy()
+        sanitized_df = self.base_df.copy()
+        sanitized_df["numero_ssa"] = ["202500005", "202500004", "202500003", "202500002", "202500001"]
+        sorted_df.attrs["ssa_preprocessed_for_gui"] = True
+        sorted_df.attrs["ssa_sanitized_df"] = sanitized_df
+        sorted_df.attrs["ssa_non_null_cols"] = ["numero_ssa", "situacao", "descricao_ssa"]
+
+        self.window.on_data_loaded(sorted_df, request_id=22)
+
+        assert self.window.df_completo.equals(sanitized_df)
+        assert self.window.df_exibido.iloc[0]["numero_ssa"] == "202500005"
+        assert self.window.df_exibido.iloc[-1]["numero_ssa"] == "202500001"
+        assert {"numero_ssa", "situacao", "descricao_ssa"}.issubset(self.window._non_null_cols_cache)
+
+    def test_on_data_loaded_primes_num_reprogramacoes_sort_cache(self):
+        self.window._active_data_load_request_id = 31
+        df = self.base_df.copy()
+        df["num_reprogramacoes"] = [2, "Reprogramacao #1", 0, "", None]
+
+        self.window.on_data_loaded(df, request_id=31)
+
+        cache = self.window._num_reprog_sort_cache
+        assert isinstance(cache.get("source_id"), int)
+        assert isinstance(cache["keys_df"], pd.DataFrame)
+        assert int(cache["source_len"]) == len(cache["keys_df"].index)
+        assert "__reprog_num" in cache["keys_df"].columns
 
     def test_on_load_error_ignores_stale_request(self):
         self.window._active_data_load_request_id = 10

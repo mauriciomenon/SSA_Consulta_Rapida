@@ -23,11 +23,27 @@ def test_main_skip_import_does_not_call_importer(monkeypatch: pytest.MonkeyPatch
     assert called["n"] == 1
 
 
-def test_main_skip_import_conflicts_with_force_rescan() -> None:
+def test_main_force_rescan_overrides_skip_import_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import core.app_logic as app_logic
+    import interface.cli as cli
     import main
 
-    with pytest.raises(SystemExit) as excinfo:
-        main.main(cli_args=["--skip-import", "--force-rescan"])
+    calls = {"importer": 0, "cli": 0}
 
-    assert excinfo.value.code == 2
+    def fake_run_importer_logic(*, force_import: bool = False):
+        calls["importer"] += 1
+        assert force_import is True
+        return False
 
+    def fake_start_cli_loop(db_path: str, table_name: str) -> None:  # noqa: ARG001
+        calls["cli"] += 1
+
+    monkeypatch.setattr(app_logic, "run_importer_logic", fake_run_importer_logic)
+    monkeypatch.setattr(cli, "start_cli_loop", fake_start_cli_loop)
+
+    main.main(cli_args=["--skip-import", "--force-rescan", "--log-level", "CRITICAL"])
+
+    assert calls["importer"] == 1
+    assert calls["cli"] == 1

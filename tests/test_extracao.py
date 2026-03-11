@@ -11,6 +11,7 @@ sys.path.insert(0, project_root)
 
 from extracao.extractor import (
     ExtractionError,
+    _normalize_datatypes,
     _normalize_tempo_excedido_value,
     extract_data_from_excel,
     read_report,
@@ -130,6 +131,7 @@ def test_extract_data_from_excel_fails_when_required_columns_missing(tmp_path):
         extract_data_from_excel(str(file_path))
 
     assert "Missing required columns" in str(excinfo.value)
+    assert "available_columns=" in str(excinfo.value)
 
 
 def test_extract_data_from_excel_empty_mapping_keeps_original_columns_and_fails_required(
@@ -166,6 +168,338 @@ def test_extract_data_from_excel_header_without_rows_returns_empty_dataframe(tmp
     assert extracted.empty
 
 
+def test_extract_data_from_excel_classifies_invalid_identity_rows(
+    tmp_path,
+    monkeypatch,
+    caplog,
+):
+    rows = [
+        [
+            "Numero da SSA",
+            "Descricao da SSA",
+            "Emitida Em",
+            "Responsavel na Execucao",
+            "Observacao",
+        ],
+        [202500101, "SSA valida", "01/07/2025", "TEC 1", None],
+        [None, None, "02/07/2025", "TEC 2", None],
+        [None, None, None, None, "   "],
+    ]
+    df = pd.DataFrame(rows)
+    file_path = tmp_path / "invalid_identity_rows.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, header=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Responsavel na Execucao": "responsavel_execucao",
+        },
+    )
+
+    caplog.set_level("INFO")
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert len(extracted) == 1
+    summary = extracted.attrs["invalid_row_summary"]
+    assert summary["total_removed"] == 2
+    assert summary["empty_removed"] == 1
+    assert summary["payload_removed"] == 1
+    assert "data_cadastro" in summary["payload_columns_sample"]
+    assert "responsavel_execucao" in summary["payload_columns_sample"]
+    assert extracted.attrs["row_count_before_invalid_filter"] == 3
+    assert "Extracao - invalid_identity_rows.xlsx: removidos 2 registros invalidos sem identidade" in caplog.text
+    assert "Extracao concluida para 'invalid_identity_rows.xlsx': 1 linhas validas, 2 invalidos sem identidade" in caplog.text
+
+
+def test_extract_data_from_excel_preserves_empty_required_alias_until_normalization(
+    tmp_path, monkeypatch
+):
+    df = pd.DataFrame(
+        {
+            "Nº SSA": [202500101],
+            "Descrição da SSA": ["SSA sem data no lote"],
+            "Emitida Em": [None],
+            "Local": ["Sala A"],
+            "Coluna Inutil": [None],
+        }
+    )
+    file_path = tmp_path / "empty_required_alias.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Nº SSA": "numero_ssa",
+            "Descrição da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Local": "localizacao",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert str(extracted["numero_ssa"].iloc[0]) == "202500101"
+    assert "data_cadastro" in extracted.columns
+    assert pd.isna(extracted["data_cadastro"].iloc[0])
+
+
+def test_extract_data_from_excel_handles_duplicate_header_labels_without_ambiguity(
+    tmp_path, monkeypatch
+):
+    rows = [
+        [None, "Cabecalho visual", None, None, None],
+        ["Numero da SSA", "Descricao da SSA", "Emitida Em", "Desde", "Desde"],
+        [202500101, "SSA duplicada", None, "01/02/2025", "02/02/2025"],
+    ]
+    df = pd.DataFrame(rows)
+    file_path = tmp_path / "duplicate_headers.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, header=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Desde": "desde",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert str(extracted["numero_ssa"].iloc[0]) == "202500101"
+    assert "data_cadastro" in extracted.columns
+
+
+def test_extract_data_from_excel_drops_nan_header_columns_safely(
+    tmp_path, monkeypatch
+):
+    rows = [
+        [None, "Cabecalho visual", None, None, None],
+        ["Numero da SSA", "Descricao da SSA", "Emitida Em", float("nan"), float("nan")],
+        [202500102, "SSA com nan", None, None, None],
+    ]
+    df = pd.DataFrame(rows)
+    file_path = tmp_path / "nan_headers.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, header=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert str(extracted["numero_ssa"].iloc[0]) == "202500102"
+    assert "data_cadastro" in extracted.columns
+    assert not any(str(col).startswith("nan") for col in extracted.columns)
+
+
+def test_extract_data_from_excel_remaps_executadas_trailing_nan_columns_to_tempo_totals(
+    tmp_path, monkeypatch
+):
+    debug_phases: dict[str, list[str]] = {}
+    rows = [
+        [None, "Cabecalho visual", None, None, None, None, None],
+        [
+            "Numero da SSA",
+            "Descricao da SSA",
+            "Emitida Em",
+            "Anomalia",
+            float("nan"),
+            float("nan"),
+            float("nan"),
+        ],
+        [202500103, "SSA executada", "01/07/2025", "Sem anomalia", 1.5, 2.5, 3.5],
+    ]
+    df = pd.DataFrame(rows)
+    file_path = tmp_path / "SSAs Executadas_22-07-2025_0309PM.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, header=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Anomalia": "anomalia",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path), _debug_phases=debug_phases)
+
+    assert str(extracted["numero_ssa"].iloc[0]) == "202500103"
+    assert debug_phases["header_raw"][-4:] == ["Anomalia", "nan", "nan", "nan"]
+    assert debug_phases["after_empty_column_prune"][-4:] == ["Anomalia", "nan", "nan", "nan"]
+    assert debug_phases["after_rename"][-4:] == ["anomalia", "nan", "nan", "nan"]
+    assert debug_phases["after_structural_repair"][-4:] == [
+        "anomalia",
+        "total_tempo_tpe_executada",
+        "total_tempo_tex_executada",
+        "total_tempo_tpo_executada",
+    ]
+    assert debug_phases["after_deduplicate"][-4:] == [
+        "anomalia",
+        "total_tempo_tpe_executada",
+        "total_tempo_tex_executada",
+        "total_tempo_tpo_executada",
+    ]
+    assert extracted["total_tempo_tpe_executada"].iloc[0] == pytest.approx(1.5)
+    assert extracted["total_tempo_tex_executada"].iloc[0] == pytest.approx(2.5)
+    assert extracted["total_tempo_tpo_executada"].iloc[0] == pytest.approx(3.5)
+    assert not any(str(col).startswith("nan") for col in extracted.columns)
+
+
+def test_extract_data_from_excel_remaps_single_numeric_tex_column_after_anomalia(
+    tmp_path, monkeypatch
+):
+    debug_phases: dict[str, list[str]] = {}
+    rows = [
+        [None, "Cabecalho visual", None, None, None, None],
+        [
+            "Numero da SSA",
+            "Descricao da SSA",
+            "Emitida Em",
+            "Anomalia",
+            float("nan"),
+            float("nan"),
+        ],
+        [202500104, "SSA executada tex", "01/07/2025", "Sem anomalia", None, 2.5],
+    ]
+    df = pd.DataFrame(rows)
+    file_path = tmp_path / "SSAs Executadas_22-07-2025_0304PM.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, header=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Anomalia": "anomalia",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path), _debug_phases=debug_phases)
+
+    assert str(extracted["numero_ssa"].iloc[0]) == "202500104"
+    assert debug_phases["header_raw"][-3:] == ["Anomalia", "nan", "nan"]
+    assert debug_phases["after_empty_column_prune"][-2:] == ["Anomalia", "nan"]
+    assert debug_phases["after_rename"][-2:] == ["anomalia", "nan"]
+    assert debug_phases["after_structural_repair"][-2:] == ["anomalia", "total_tempo_tex_executada"]
+    assert debug_phases["after_deduplicate"][-2:] == ["anomalia", "total_tempo_tex_executada"]
+    assert extracted["total_tempo_tex_executada"].iloc[0] == pytest.approx(2.5)
+    assert "nan" not in extracted.columns
+
+
+def test_extract_data_from_excel_does_not_remap_textual_unnamed_column_to_tex(
+    tmp_path, monkeypatch
+):
+    debug_phases: dict[str, list[str]] = {}
+    rows = [
+        [None, "Cabecalho visual", None, None, None, None],
+        [
+            "Numero da SSA",
+            "Descricao da SSA",
+            "Emitida Em",
+            "Anomalia",
+            float("nan"),
+            float("nan"),
+        ],
+        [202500105, "SSA executada texto", "01/07/2025", "Sem anomalia", None, "texto livre"],
+    ]
+    df = pd.DataFrame(rows)
+    file_path = tmp_path / "SSAs Executadas_textual_nan.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, header=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Anomalia": "anomalia",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path), _debug_phases=debug_phases)
+
+    assert str(extracted["numero_ssa"].iloc[0]) == "202500105"
+    assert debug_phases["after_rename"][-2:] == ["anomalia", "nan"]
+    assert debug_phases["after_structural_repair"][-2:] == ["anomalia", "nan"]
+    assert debug_phases["after_deduplicate"][-2:] == ["anomalia", "nan"]
+    assert "total_tempo_tex_executada" not in extracted.columns
+    assert "nan" in extracted.columns
+
+
+def test_extract_data_from_excel_remaps_single_numeric_tex_column_when_anomalia_was_dropped(
+    tmp_path, monkeypatch
+):
+    debug_phases: dict[str, list[str]] = {}
+    rows = [
+        [None, "Cabecalho visual", None, None, None, None, None, None, None, None],
+        [
+            "Numero da SSA",
+            "Descricao da SSA",
+            "Emitida Em",
+            "Execucao Parcial",
+            "Responsavel na Execucao",
+            "Descricao Execucao",
+            "Prazo Limite",
+            "Sistema de Origem",
+            "Anomalia",
+            float("nan"),
+        ],
+        [202500106, "SSA tex degradada", "01/07/2025", 1, "Tecnico", "Servico", "Dentro do Prazo", None, None, 4.25],
+    ]
+    df = pd.DataFrame(rows)
+    file_path = tmp_path / "SSAs Executadas_22-07-2025_0303PM (2).xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, header=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Execucao Parcial": "execucao_parcial",
+            "Responsavel na Execucao": "responsavel_execucao",
+            "Descricao Execucao": "descricao_execucao",
+            "Prazo Limite": "prazo_limite",
+            "Sistema de Origem": "sistema_origem",
+            "Anomalia": "anomalia",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path), _debug_phases=debug_phases)
+
+    assert str(extracted["numero_ssa"].iloc[0]) == "202500106"
+    assert "Sistema de Origem" in debug_phases["header_raw"]
+    assert "Anomalia" in debug_phases["header_raw"]
+    assert "Sistema de Origem" not in debug_phases["after_empty_column_prune"]
+    assert "Anomalia" not in debug_phases["after_empty_column_prune"]
+    assert debug_phases["after_rename"][-2:] == ["prazo_limite", "nan"]
+    assert debug_phases["after_structural_repair"][-2:] == ["prazo_limite", "total_tempo_tex_executada"]
+    assert debug_phases["after_deduplicate"][-2:] == ["prazo_limite", "total_tempo_tex_executada"]
+    assert extracted["total_tempo_tex_executada"].iloc[0] == pytest.approx(4.25)
+    assert "nan" not in extracted.columns
+
+
 def test_extract_data_from_excel_respects_cancel_callback_before_io(tmp_path):
     fake_file = tmp_path / "arquivo_que_nao_precisa_existir.xlsx"
     with pytest.raises(ExtractionError, match="operation cancelled"):
@@ -173,3 +507,89 @@ def test_extract_data_from_excel_respects_cancel_callback_before_io(tmp_path):
             str(fake_file),
             should_cancel=lambda: True,
         )
+
+
+def test_normalize_datatypes_num_reprogramacoes_uses_total_when_text_legacy():
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001"],
+            "descricao_ssa": ["Teste"],
+            "data_cadastro": ["01/01/2025"],
+            "num_reprogramacoes": ["Reprogramacao #1"],
+            "total_de_reprogramacoes": ["3"],
+        }
+    )
+
+    out = _normalize_datatypes(df)
+
+    assert str(out["num_reprogramacoes"].dtype) == "Int64"
+    assert out["num_reprogramacoes"].iloc[0] == 3
+    assert out["total_de_reprogramacoes"].iloc[0] == 3
+
+
+def test_normalize_datatypes_num_reprogramacoes_keeps_numeric_value():
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500002"],
+            "descricao_ssa": ["Teste"],
+            "data_cadastro": ["02/01/2025"],
+            "num_reprogramacoes": ["2"],
+            "total_de_reprogramacoes": ["5"],
+        }
+    )
+
+    out = _normalize_datatypes(df)
+
+    assert str(out["num_reprogramacoes"].dtype) == "Int64"
+    assert out["num_reprogramacoes"].iloc[0] == 2
+    assert out["total_de_reprogramacoes"].iloc[0] == 5
+
+
+def test_normalize_datatypes_num_reprogramacoes_text_without_total_becomes_null():
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500003"],
+            "descricao_ssa": ["Teste"],
+            "data_cadastro": ["03/01/2025"],
+            "num_reprogramacoes": ["Reprogramacao #7"],
+        }
+    )
+
+    out = _normalize_datatypes(df)
+
+    assert str(out["num_reprogramacoes"].dtype) == "Int64"
+    assert pd.isna(out["num_reprogramacoes"].iloc[0])
+
+
+def test_extract_data_from_excel_uses_standard_path_and_not_read_report(temp_excel_file, monkeypatch):
+    called = False
+
+    def _fail_fast(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("import_excel_robust called from extract_data_from_excel")
+
+    monkeypatch.setattr("extracao.extractor.import_excel_robust", _fail_fast)
+
+    extracted = extract_data_from_excel(temp_excel_file, _debug_phases=None)
+
+    assert called is False
+    assert not extracted.empty
+
+
+def test_read_report_uses_robust_path(temp_excel_file, monkeypatch):
+    called = False
+    expected = pd.DataFrame({"numero_ssa": ["1"], "descricao_ssa": ["x"]})
+
+    def _robust_fake(file_path):
+        nonlocal called
+        called = True
+        return expected, {"status": "ok"}
+
+    monkeypatch.setattr("extracao.extractor.import_excel_robust", _robust_fake)
+
+    out_df, metadata = read_report(temp_excel_file)
+
+    assert called is True
+    assert out_df.equals(expected)
+    assert metadata["stats_dict"]["status"] == "ok"

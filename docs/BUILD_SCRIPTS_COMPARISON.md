@@ -2,6 +2,11 @@
 
 Este documento sumariza as diferencas principais entre os scripts de build existentes em `launchers/` e explica para que cada um foi projetado, com foco especial em builds Windows.
 
+## Nota de versao
+
+Exemplos de nomes de artefato com versao fixa neste documento sao historicos.
+No baseline ativo, considerar sempre a versao corrente definida em `VERSION`.
+
 Arquivos comparados:
 - `launchers/build_simple.py`
 - `launchers/build_multiplatform.py`

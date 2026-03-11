@@ -1,4 +1,29 @@
-# Guia Completo - Build com Nuitka 2.8.4
+# Guia Completo (Historico/Laboratorio) - Build com Nuitka
+
+## CURRENT TRUTH (v4.32)
+
+- Sync deste guia: `2026-03-10 16:55 -0300`.
+- Nuitka permanece trilha experimental neste baseline.
+- Pipeline oficial de release continua PyInstaller.
+- Quando executar Nuitka, usar somente para validacao laboratorial e empacotar via:
+  - `python scripts/create_distribution.py --build-system nuitka --skip-installer`
+- Referencias a `builds/nuitka` neste guia sao historicas e nao caminho principal.
+- As secoes de snapshot historico usam exemplos com Nuitka 2.8.4; validacao local atual foi em 4.0.1.
+- Preflight 2026-03-10 (host macOS arm64):
+  - tool presente: `nuitka --version` OK (`4.0.1`)
+  - estado do pipeline de pacote: FAIL (`builds/nuitka` ausente)
+  - conclusao: ambiente tem a tool, mas o pipeline local nao esta pronto para distribuicao
+
+## HISTORICAL SNAPSHOT NOTICE
+
+Este guia registra estudo detalhado de setup/tuning.
+Quando houver conflito com docs operacionais, prevalece CURRENT TRUTH.
+
+## ATENCAO OPERACIONAL
+
+- ESTE ARQUIVO E REFERENCIA HISTORICA/LABORATORIAL.
+- NAO USAR COMO FLUXO DE RELEASE.
+- PARA RELEASE, USAR PYINSTALLER + `launchers/dist/*`.
 
 **Data**: 2025-11-14
 **Autor**: Claude Code
@@ -1344,4 +1369,3 @@ python -m nuitka --clean-cache
 **Versao do guia**: 1.0
 **Autor**: Claude Code
 **Status**: Completo e testado
-

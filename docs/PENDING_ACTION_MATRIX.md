@@ -3,6 +3,34 @@
 Fonte: docs/RECOVERY_BACKLOG.md
 Total itens: 108
 
+## Update 2026-03-10 16:55 (docs full sync)
+
+1. Estado operacional confirmado:
+   - PR ativo: `#45` (`codex/sprint-importacao-grave-fixes-20260305` -> `dev`).
+   - threads abertas: `0`.
+2. Bloqueios externos ainda ativos no merge:
+   - `CodeFactor`
+   - `code/snyk` (quota)
+   - `security/snyk` (quota)
+3. Debt de curto prazo mantido:
+   - campanha `BLE001` segue prioritaria com contagem base `860`.
+
+## Update 2026-03-10 (near-term stabilization queue)
+
+1. Mandatory carry-over debt:
+   - broad `except Exception` (BLE001) still high in repo.
+2. Last measured evidence:
+   - total BLE001: `860`.
+   - command: `ruff check . --select BLE001`.
+   - initial hotspots:
+     - `armazenamento/database*.py`
+     - `core/app_logic.py`
+     - `core/config_manager.py`
+     - `dev_env/streamlit_app.py`
+3. Execution policy:
+   - treat by module in small slices with full gates (`py_compile`, `ruff`, `ty`, focused `pytest`).
+   - avoid transversal refactor while reducing masking-risk first.
+
 ## Update 2026-03-01 (gui filters + importer stabilization)
 
 1. Completed in this slice:

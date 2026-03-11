@@ -1,86 +1,60 @@
 # Documentacao SSA Consulta Rapida
 
-## Tooling padrao (uv-first)
-- Comando principal: `uv run --python 3.13 ...`
-- Fallback de runtime: 3.12 -> 3.11 -> 3.10 quando 3.13 nao estiver disponivel.
-- `requirements*.txt` sao mantidos para compatibilidade em ambientes sem uv.
+## Baseline ativo
 
-## Instalar uv
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# ou
-wget -qO- https://astral.sh/uv/install.sh | sh
-```
+- Versao de referencia: `4.32`.
+- Esta pagina e a entrada curta da pasta `docs/`.
+- Navegacao oficial: `docs/INDEX.md`.
 
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
+## Regras de interpretacao
 
-## Estrutura da Documentacao
+1. Em caso de conflito, prevalece:
+   - `AGENTS.md` (raiz)
+   - `docs/POLICY_BASELINE_V1_1_FROZEN.md`
+   - topo dos docs de controle (`RECOVERY_BACKLOG`, `NEXT_CHAT_MIGRATION`, `AGENTS_HANDOFF_NEXT_CYCLE`)
+2. Conteudo em `docs/archive/` e historico.
+3. Nao usar snapshot antigo como fonte de verdade para operacao atual.
 
-### Documentos Principais
-- `RELATORIO_COMPLETO.md` - Relatorio tecnico abrangente
-- `ESTRUTURA_PROJETO.md` - Arquitetura e organizacao
-- `REGRAS_DE_OURO.md` - Diretrizes criticas de desenvolvimento
-- `ONBOARDING.md` - Guia para novos desenvolvedores
+## Leitura rapida por objetivo
 
-### Guias de Uso
-- `GUIA_MIGRACAO_NOVA_INSTALACAO.md` - Configuracao inicial
-- `GUIA_MODO_OPTIMIZED.md` - Funcionalidades otimizadas
-- `COMANDOS_RAPIDOS.md` - Referencia rapida
-- `LARGURAS_GUI.md` - Sistema de larguras da interface
+### Operar e manter
 
-### Planejamento e Historico
-- `CHANGELOG_IMPLEMENTACOES.md` - Historico de mudancas
-- `RELATORIO_IMPLEMENTACOES.md` - Implementacoes realizadas
-- `RELATORIO_MELHORIAS.md` - Melhorias aplicadas
-- `PROBLEMAS_CONHECIDOS.md` - Issues conhecidos e solucoes
+- `docs/COMANDOS_RAPIDOS.md`
+- `docs/TROUBLESHOOTING.md`
+- `docs/TROUBLESHOOTING_IMPORTACAO.md`
+- `docs/DERIVADAS_SYNC_RUNBOOK.md`
 
-### Checklists e Pendencias
-- `CHECKLIST_PENDENCIAS_v3.0.7.md` - Pendencias v3.0.7
-- `CHECKLIST_PENDENCIAS_v3.10.md` - Pendencias v3.10
-- `CHECKLIST_PENDENCIAS_FUTURAS.md` - Roadmap futuro
+### Entender importacao e schema
 
-### Configuracao e Build
-- `BUILD_SYSTEM.md` - Sistema de build
-- `THEMING_AND_PACKAGING_PLAN.md` - Temas e empacotamento
-- `CONFIGURATION_FIXES_2025-09-06.md` - Correcoes de configuracao
+- `docs/ARQUITETURA_IMPORTACAO.md`
+- `docs/SCHEMA_UNIFICADO_IMPORTACAO.md`
+- `docs/IMPORTACAO_ROBUSTA.md`
+- `docs/indicios_importacao.md`
 
-## Organizacao por Versao
+### GUI e comportamento de filtros
 
-### v3.0.x (Estavel)
-- Funcionalidades core estabelecidas
-- CLI e GUI com paridade funcional
-- Database SQLite otimizado
+- `docs/GUI_PYQT6_REGRAS_GERAIS.md`
+- `docs/FILTER_TAB_OPTIMIZATIONS.md`
+- `docs/GUI_ASYNC_LOADING_GUARDRAILS.md`
+- `docs/WORKERS_API_DOCUMENTATION.md`
 
-### v3.10.x (Atual)
-- Sistema de build multiplataforma
-- Automacao completa
-- Documentacao organizada
+### Build e distribuicao
 
-### v3.11+ (Futuro)
-- Conforme `PLANO_ACAO_v3.11.md`
-- Melhorias baseadas em feedback
-- Novas funcionalidades
+- `docs/BUILD_SYSTEM.md`
+- `docs/BUILD_MULTIPLATFORM.md`
+- `docs/GUIA_DISTRIBUICAO.md`
+- `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+- `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
 
-## Como Navegar
+## Controle de continuidade
 
-1. **Novos desenvolvedores**: Comece com `ONBOARDING.md`
-2. **Configuracao**: Veja `GUIA_MIGRACAO_NOVA_INSTALACAO.md`
-3. **Problemas**: Consulte `PROBLEMAS_CONHECIDOS.md`
-4. **Desenvolvimento**: Leia `REGRAS_DE_OURO.md`
+- `docs/RECOVERY_BACKLOG.md`
+- `docs/NEXT_CHAT_MIGRATION.md`
+- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- `docs/HISTORICO_RELEASES.md`
 
-## Arquivos de Saida
+## Tooling padrao
 
-Relatorios e resultados ficam em `../docs_saida/`
-- Logs de execucao
-- Relatorios de testes
-- Analises especificas
-
-## Atualizacao 2026-03-01 (ciclo gui-tema-import)
-- Corrigido tema dos menus de selecao para herdar cores do tema ativo (sem fallback escuro fixo).
-- Reduzido tamanho efetivo dos botoes Aplicar/Limpar dos filtros avancados.
-- Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
-- Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
-- Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
-
+- Runtime principal: `uv run --python 3.13 ...`
+- Fallback: `3.12 -> 3.11 -> 3.10`
+- Compatibilidade sem uv: `requirements*.txt`

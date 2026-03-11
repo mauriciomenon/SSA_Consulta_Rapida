@@ -106,3 +106,11 @@ def test_rescan_progress_dialog_update_progress_clamps_percentage():
 
     dlg.update_progress(150, "alto")
     assert dlg.progress_bar.value() == 100
+
+
+def test_rescan_progress_dialog_starts_non_modal():
+    from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
+
+    dlg = RescanProgressDialog()
+
+    assert dlg.isModal() is False

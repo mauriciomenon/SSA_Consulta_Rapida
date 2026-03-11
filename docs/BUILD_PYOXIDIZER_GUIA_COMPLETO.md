@@ -1,4 +1,21 @@
-# Guia Completo - Build com PyOxidizer 0.24.0
+# Guia Completo (Historico/Laboratorio) - Build com PyOxidizer
+
+## CURRENT TRUTH (v4.32)
+
+- Sync deste guia: `2026-03-10 16:55 -0300`.
+- PyOxidizer permanece trilha experimental/laboratorio neste baseline.
+- O repositorio atual nao usa `pyoxidizer.bzl` nem `build_pyoxidizer.bat` como caminho operacional principal.
+- Distribuicao oficial segue PyInstaller + `launchers/dist/*`.
+- Se necessario testar PyOxidizer, tratar este guia como referencia historica de investigacao.
+- Validacao 2026-03-10 (host macOS arm64):
+  - `pyoxidizer --version` OK (`0.24.0`)
+  - tentativa de empacotamento `--build-system pyoxidizer --skip-installer` falhou por build ausente em `builds/pyoxidizer`
+  - conclusao: tool instalada, mas sem artefato local pronto para pacote neste host
+
+## HISTORICAL SNAPSHOT NOTICE
+
+Este documento foi mantido para contexto tecnico.
+Nao usar como runbook primario de release em v4.32.
 
 **Data**: 2025-11-14
 **Autor**: Claude Code
@@ -1439,4 +1456,3 @@ parser = argparse.ArgumentParser(
 **Versao do guia**: 1.0
 **Autor**: Claude Code
 **Status**: Completo e testado
-

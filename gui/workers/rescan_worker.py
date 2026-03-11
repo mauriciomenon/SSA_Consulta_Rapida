@@ -47,9 +47,16 @@ class RescanWorker(QThread):
         self.project_root = project_root
         self.force_import = bool(force_import)
         self._should_stop = False
+        self._has_runtime_errors = False
+        self._last_total_files = 0
+        self._last_processed_files = 0
 
         # Set up logging to capture import messages
-        self.log_handler = _LogHandler(self.output_line, self.error_line)
+        self.log_handler = _LogHandler(
+            self.output_line,
+            self.error_line,
+            error_observer=self._mark_runtime_error,
+        )
         self.logger = logging.getLogger('ssa')
 
         self._logger_attached = False
@@ -94,6 +101,8 @@ class RescanWorker(QThread):
 
         if event_type == 'start':
             total = data.get('total', 0)
+            self._last_total_files = int(total)
+            self._last_processed_files = 0
             self.output_line.emit(f"Total de {total} arquivos para processar")
             self.progress.emit(10, "Iniciando processamento...")
 
@@ -113,12 +122,15 @@ class RescanWorker(QThread):
         elif event_type == 'file_error':
             filename = data.get('filename', '')
             error = data.get('error', 'Unknown error')
+            self._mark_runtime_error()
             self.error_line.emit(f"[ERRO] {filename}: {error}")
 
         elif event_type == 'finish':
             total = data.get('total', 0)
             processed = data.get('processed', 0)
             errors = data.get('errors', [])
+            self._last_total_files = int(total)
+            self._last_processed_files = int(processed)
             self.output_line.emit("")
             self.output_line.emit(f"Processamento concluido: {processed}/{total} arquivos")
             if errors:
@@ -128,6 +140,9 @@ class RescanWorker(QThread):
     def run(self):
         """Execute rescan in background thread using modular import."""
         try:
+            self._has_runtime_errors = False
+            self._last_total_files = 0
+            self._last_processed_files = 0
             mode_label = "FULL" if self.force_import else "DIFF"
             self.output_line.emit(f"=== Iniciando Reescaneamento ({mode_label}) ===")
             self.output_line.emit("")
@@ -157,7 +172,29 @@ class RescanWorker(QThread):
                 self.output_line.emit("=== Reescaneamento Concluido ===")
                 self.finished_success.emit()
             else:
-                self.finished_error.emit("Importacao concluida mas nenhum dado foi atualizado")
+                if not self.force_import:
+                    self.progress.emit(100, "Concluido sem alteracoes")
+                    self.output_line.emit("")
+                    self.output_line.emit("=== Reescaneamento Concluido (sem alteracoes) ===")
+                    self.output_line.emit("Nenhum arquivo novo ou alterado foi encontrado.")
+                    self.finished_success.emit()
+                else:
+                    if self._has_runtime_errors or self._last_total_files > 0:
+                        self.progress.emit(100, "Falha no reescaneamento completo")
+                        self.output_line.emit("")
+                        self.output_line.emit("=== Reescaneamento Completo Falhou ===")
+                        if self._has_runtime_errors:
+                            self.output_line.emit("Importacao falhou com erros durante o processamento.")
+                            self.finished_error.emit("Importacao completa falhou com erros")
+                        else:
+                            self.output_line.emit("Importacao concluida mas nenhum dado foi atualizado.")
+                            self.finished_error.emit("Importacao completa sem atualizacoes")
+                    else:
+                        self.progress.emit(100, "Concluido sem alteracoes")
+                        self.output_line.emit("")
+                        self.output_line.emit("=== Reescaneamento Completo Concluido (sem alteracoes) ===")
+                        self.output_line.emit("Importacao concluida sem dados atualizados.")
+                        self.finished_success.emit()
 
         except Exception as exc:
             logger.exception("Erro inesperado no reescaneamento")
@@ -176,20 +213,27 @@ class RescanWorker(QThread):
         """Request thread to stop."""
         self._should_stop = True
 
+    def _mark_runtime_error(self, _message: str = "") -> None:
+        """Mark that runtime emitted at least one error signal."""
+        self._has_runtime_errors = True
+
 
 class _LogHandler(logging.Handler):
     """Custom log handler to emit logs to Qt signals."""
 
-    def __init__(self, output_signal, error_signal):
+    def __init__(self, output_signal, error_signal, error_observer=None):
         super().__init__()
         self.output_signal = output_signal
         self.error_signal = error_signal
+        self.error_observer = error_observer
 
     def emit(self, record):
         """Emit log record to appropriate signal."""
         try:
             msg = self.format(record)
             if record.levelno >= logging.ERROR:
+                if callable(self.error_observer):
+                    self.error_observer(msg)
                 self.error_signal.emit(msg)
             else:
                 self.output_signal.emit(msg)

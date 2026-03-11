@@ -1,14 +1,28 @@
-# SSA Consulta Rapida v4.30
+# SSA Consulta Rapida v4.32
 
-Release 4.30 define o novo baseline de trabalho apos snapshot/tag oficial de 4.29, abrindo o sprint de saneamento de labels e robustez de ordenacao.
+Baseline local v4.32 define o estado atual da branch apos validacao de full rescan real com metricas consolidadas, sem regressao de integridade no DB.
 
-## Release v4.30 (2026-03)
+## Atualizacao documental total (2026-03-10 16:55 -0300)
+
+- Baseline ativo mantido em `v4.32`.
+- Estado operacional desta rodada:
+  - PR `#45` aberto contra `dev`.
+  - sem threads abertas no PR.
+  - checks externos ainda bloqueando merge: `CodeFactor`, `code/snyk`, `security/snyk`.
+- Documentos de controle sincronizados nesta rodada:
+  - `docs/RECOVERY_BACKLOG.md`
+  - `docs/NEXT_CHAT_MIGRATION.md`
+  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  - `docs/PENDING_ACTION_MATRIX.md`
+  - `docs/INDEX.md`
+
+## Baseline v4.32 (2026-03)
 
 ### Destaques
-- README revisado com seções obrigatorias (`Instalação`, `Uso`, `Testes`) e alinhamento com a versao atual.
+- README revisado com secoes obrigatorias (`Instalacao`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.30.
+- Baseline de documentacao atualizado para 4.32.
 - Regras de tema aplicadas de forma geral para popups/menus/checks e textos de selecao, sem depender de casos especificos por tema.
 - Lock unico de altura para os 3 blocos inferiores (detalhes, filtros avancados, filtros por coluna), com gatilho em init, troca de aba, resize e rebuild de filtros por coluna.
 - Regressao nova: teste para garantir altura sincronizada unica apos resize.
@@ -42,20 +56,23 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 uv venv
 uv sync
 
+# definir runtime (fallback: 3.12 -> 3.11 -> 3.10)
+PY_RUNTIME=3.13
+
 # executar GUI
-uv run --python 3.13 python main.py --gui
+uv run --python $PY_RUNTIME python main.py --gui
 
 # executar CLI
-uv run --python 3.13 python main.py
+uv run --python $PY_RUNTIME python main.py
 
 # executar Streamlit
-uv run --python 3.13 python main.py --streamlit
+uv run --python $PY_RUNTIME python main.py --streamlit
 ```
 
 Fallback quando 3.13 nao estiver disponivel: 3.12, depois 3.11, depois 3.10.
 `requirements*.txt` permanecem para compatibilidade em ambientes sem uv.
 
-### Ambiente com pyenv/direnv (compatibilidade)
+### Ambiente com pyenv/direnv (fallback de compatibilidade, sem substituir uv)
 ```bash
 # selecionar versao python do projeto
 pyenv local 3.13.12
@@ -63,11 +80,11 @@ pyenv local 3.13.12
 # carregar variaveis do direnv (quando configurado)
 direnv allow
 
-# executar no venv local existente
+# executar no venv local existente (modo manual)
 .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.30)
+### Documentacao tecnica atual (v4.32)
 - Algoritmo do layout dinamico (4 colunas):
   - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:
@@ -82,8 +99,9 @@ As notas antigas permanecem abaixo para referencia e auditoria tecnica.
 - **Ações realizadas:**
   - Consolidado dependências duplicadas entre arquivos
   - Removidas dependências de runtime de arquivos de CI/CD
-  - Mantidos apenas 3 arquivos essenciais (requirements.txt, requirements_dev.txt, requirements_build.txt)
-  - Arquivo requirements_clean.txt mantido apenas para documentação
+  - Estrutura final com 5 arquivos versionados no repositorio
+  - arquivos operacionais: requirements.txt, requirements_dev.txt, requirements_build.txt, requirements_ci.txt
+  - requirements_clean.txt mantido apenas como arquivo documental
 - **Impacto:**
   - Redução de 40% no número de arquivos de requirements
   - Eliminação de dependências duplicadas
@@ -168,7 +186,7 @@ Consulte `docs_saida/CHANGELOG_IMPLEMENTACOES.md` para decisoes e linha do tempo
 
 - **Non-destructive wrappers (v2)**: added under `scripts/` as `run_pytest_with_timeout_v2.py` and `run_pytest_stream_and_log_v2.py`. They are additive (do not replace existing scripts) and contain improved Windows/Unix process-tree termination fallbacks and stable imports.
 - **pwsh detection helper**: `scripts/pwsh_discovery.py` centralizes discovery of `pwsh`/`powershell` executables across common paths, PATH, and workspace `.vscode` settings.
-- **Logs and local docs**: runtime logs and detailed usage notes live in `local_ai_private/` (this directory is gitignored). See `local_ai_private/pytest_instructions.md` for examples and troubleshooting.
+- **Logs and local docs**: runtime logs and notas locais podem existir em `local_ai_private/` (diretorio gitignored, opcional por maquina).
 - **Usage examples**:
 	- Run with a 10s timeout and write log:
 		python scripts/run_pytest_with_timeout_v2.py --test tests/test_terminal_integration.py --timeout 10
@@ -221,10 +239,11 @@ Foram aplicadas melhorias recentes de qualidade de codigo:
 		 * Somente 9 digitos apos remocao de hifens/espacos (`YYYYXXXXX`).
 		 * Ano inicial entre 1980 e 2050.
 		 * Valores com letras ou simbolos fora de `[0-9 -]` sao rejeitados.
-		 * Hifen opcional e aceito apenas em formato `YYYY-XXXXX` quando os 5 digitos finais NAO sao todos identicos.
-			 - Exemplo aceito: `2025-12345` → `202512345`.
-			 - Exemplo rejeitado: `2025-22222` (marcado como invalido e filtrado no importador).
-		 * Strings maiores que 9 digitos nao sao truncadas; sao rejeitadas para evitar colisoes silenciosas.
+			 * Hifen opcional e aceito apenas em formato `YYYY-XXXXX` quando os 5 digitos finais NAO sao todos identicos.
+				 - Exemplo aceito: `2025-12345` → `202512345`.
+				 - Exemplo rejeitado: `2025-22222` (marcado como invalido e filtrado no importador).
+			 * No formato sem hifen (`YYYYXXXXX`), a checagem de repeticao dos 5 ultimos digitos nao e aplicada por compatibilidade historica.
+			 * Strings maiores que 9 digitos nao sao truncadas; sao rejeitadas para evitar colisoes silenciosas.
 	 - Testes que cobrem as regras: `tests/test_numero_ssa_normalization_cross.py` e `tests/test_numero_ssa_hyphen_repetition.py`.
 - Linhas longas (>100 colunas) quebradas para melhorar leitura e conformidade com lint.
 - Sistema de logging robusto com metricas automaticas de performance.
@@ -260,9 +279,9 @@ Proximos passos sugeridos (nao bloqueantes):
 3. Avaliar medicao de performance (perfil leve) em lotes grandes (>50k linhas) para ajustar `chunksize` dinamicamente.
 
 Essa secao reflete o estado pos-limpeza para orientar futuros mantenedores.
-# SSA_Consulta_Rapida
+# SSA_Consulta_Rapida (snapshot historico legado)
 
-Versao atual: 3.11 (Sistema funcional)
+Versao de referencia deste bloco historico: 3.11
 
 ##  **NOVIDADES v4.0.0 - PERFORMANCE MASSIVAMENTE OTIMIZADA**
 
@@ -360,8 +379,8 @@ Resumo do 3.0:
 Ferramenta para consulta rapida de SSAs com CLI e GUI (Python). Foco em previsibilidade, desempenho e paridade de exibicao.
 
 Links uteis:
-- Mapa de Pedidos → Implementacoes: docs_saida/MAPA_PEDIDOS_IMPLEMENTACOES.md
-- Changelog tecnico: docs_saida/CHANGELOG_IMPLEMENTACOES.md
+- Mapa de Documentacao Ativa: docs/INDEX.md
+- Changelog tecnico: docs/CHANGELOG_IMPLEMENTACOES.md
 
 ## Requisitos
 - Python 3.10+ (preferir 3.13+ quando disponivel)
@@ -372,7 +391,8 @@ Links uteis:
 # preferencial
 uv venv
 uv sync
-uv run --python 3.13 python main.py --gui
+PY_RUNTIME=3.13
+uv run --python $PY_RUNTIME python main.py --gui
 ```
 
 ```pwsh
@@ -611,12 +631,12 @@ Se `--report-path` for usado (disponivel no script e via integracao), o relatori
 - CSV/XLSX/JSON em `docs_saida/` com rotulos consistentes (usa `display_mappings`)
 
 ## Hooks de Git (bloqueio de arquivos grandes)
-- Pre-commit (>99MB): `scripts/pre-commit-size-check.ps1`
-- Pre-push (objetos >=99MB no historico): `scripts/pre-push-large-object-check.ps1`
+- Pre-commit (staged >=95MB): `scripts/git_hooks/pre-commit`
+- Pre-push (blobs >=95MB no push): `scripts/git_hooks/pre-push`
 
 Ativacao:
-```pwsh
-pwsh -NoProfile -File scripts/setup-git-hooks.ps1
+```bash
+bash scripts/install_hooks.sh
 ```
 
 ## Testes
@@ -656,7 +676,7 @@ Gates padrao:
 
 Extensoes:
 - `--extra-config-dir <dir>` (pode repetir): cada diretorio gera um gate adicional nomeado `validate_configs_extra_1`, `validate_configs_extra_2`, ... usando `validate_configs` apontado para aquele diretorio via `--config-dir`.
-- `--extra-doc <arquivo.md>` (pode repetir): adiciona arquivos ao escopo de `check_docs`.
+- `--extra-doc <arquivo_markdown>` (pode repetir): adiciona arquivos ao escopo de `check_docs`.
 - `--skip <gate>` / `--only <gate>`: filtram execucao (`validate_configs`, `smoke_cli`, `check_docs`).
 - `--no-fail-on-doc-issues`: torna problemas de documentacao nao-fatais (gate continua reportando issues porem status pode permanecer `ok`).
 
@@ -814,7 +834,7 @@ Regra (_resumida_):
 - “Mapeamento ausente/corrompido”: defina `SSA_CONFIG_DIR` e deixe o loader recriar os JSONs
 
 ## Notas
-- Consulte `docs_saida/MAPA_PEDIDOS_IMPLEMENTACOES.md` para pedidos/entregas/validacao
+- Consulte `docs/INDEX.md` para navegacao canonica da documentacao
 - Consulte `docs_saida/CHANGELOG_IMPLEMENTACOES.md` para decisoes e linha do tempo tecnica
 
 ## Atualizacao 2026-03-01 (ciclo gui-tema-import)

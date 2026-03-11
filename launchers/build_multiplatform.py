@@ -287,11 +287,17 @@ class MultiPlatformBuilder:
         # Dados adicionais
         config_path = self.base_dir / 'config'
         data_path = self.base_dir / 'data'
+        add_data_sep = ';' if platform_name.startswith('windows') else ':'
 
         if config_path.exists():
-            cmd.extend(['--add-data', f'{config_path}:config'])
-        if data_path.exists():
-            cmd.extend(['--add-data', f'{data_path}:data'])
+            cmd.extend(['--add-data', f'{config_path}{add_data_sep}config'])
+        include_local_data = bool(pyinstaller_args.get('include_local_data', False))
+        if include_local_data and data_path.exists():
+            logger.warning(
+                "include_local_data ativado; data/ sera embedado no build. "
+                "Use apenas em ambiente controlado."
+            )
+            cmd.extend(['--add-data', f'{data_path}{add_data_sep}data'])
 
         # Argumentos adicionais
         for arg in app_config.get('additional_args', []):
@@ -318,11 +324,13 @@ class MultiPlatformBuilder:
             logger.error(f"Erro construindo {app_type}: {result.stderr}")
             return False
 
-    def post_process(self, platform_name, config):
+    def post_process(self, platform_name, config, apps=None):
         """Pos-processamento dos executaveis"""
         logger.info(f"Pos-processando executaveis para {platform_name}")
 
         post_config = config.get('post_build', {})
+        package_mode = str(post_config.get('package', '')).strip().lower()
+        apps_set = set(apps or ['cli', 'gui'])
         platform_dist = self.dist_dir / platform_name
 
         if not platform_dist.exists():
@@ -336,7 +344,84 @@ class MultiPlatformBuilder:
         # Criar manifesto
         self._create_manifest(platform_name, platform_dist)
 
+        if platform_name == 'macos_arm64' and package_mode == 'dmg':
+            if 'gui' not in apps_set:
+                logger.info("Build macOS sem app GUI; etapa de DMG foi pulada.")
+                return True
+            if not self._create_macos_dmg(platform_dist):
+                return False
+            # Regerar manifesto para incluir o arquivo DMG no inventario final.
+            self._create_manifest(platform_name, platform_dist)
+
         return True
+
+    def _find_macos_gui_app(self, dist_dir):
+        """Localiza o bundle .app principal da GUI para empacotamento DMG."""
+        expected = dist_dir / f'SSA_GUI_v{self.version}_macos_arm64.app'
+        if expected.exists() and expected.is_dir():
+            return expected
+
+        candidates = sorted(
+            (path for path in dist_dir.glob('SSA_GUI_*.app') if path.is_dir()),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if candidates:
+            return candidates[0]
+        return None
+
+    def _create_macos_dmg(self, dist_dir):
+        """Gera instalador DMG a partir do bundle .app da GUI."""
+        hdiutil_cmd = shutil.which('hdiutil')
+        if not hdiutil_cmd:
+            logger.error("hdiutil nao encontrado; nao foi possivel gerar DMG")
+            return False
+
+        app_bundle = self._find_macos_gui_app(dist_dir)
+        if app_bundle is None:
+            logger.error("Bundle .app da GUI nao encontrado em %s", dist_dir)
+            return False
+
+        dmg_name = self._get_macos_dmg_name()
+        dmg_path = dist_dir / dmg_name
+        if dmg_path.exists():
+            try:
+                dmg_path.unlink()
+            except OSError as exc:
+                logger.error("Falha ao remover DMG anterior '%s': %s", dmg_path, exc)
+                return False
+
+        cmd = [
+            hdiutil_cmd,
+            'create',
+            '-volname',
+            f'SSA Consulta Rapida v{self.version}',
+            '-srcfolder',
+            str(app_bundle),
+            '-ov',
+            '-format',
+            'UDZO',
+            str(dmg_path),
+        ]
+        logger.info("Gerando DMG macOS: %s", dmg_path)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=str(self.base_dir),
+        )
+        if result.returncode != 0:
+            logger.error("Falha ao gerar DMG: %s", result.stderr.strip())
+            return False
+        if not dmg_path.exists():
+            logger.error("hdiutil finalizou sem gerar DMG esperado: %s", dmg_path)
+            return False
+
+        logger.info("DMG gerado com sucesso: %s", dmg_path)
+        return True
+
+    def _get_macos_dmg_name(self):
+        return f'SSA_Consulta_Rapida_v{self.version}_macos_arm64.dmg'
 
     def _compress_executables(self, dist_dir):
         """Comprime executaveis com UPX"""
@@ -364,20 +449,49 @@ class MultiPlatformBuilder:
             'executables': []
         }
 
-        for exe_file in dist_dir.glob('*'):
-            if exe_file.is_file():
-                size_mb = exe_file.stat().st_size / (1024 * 1024)
-                manifest['executables'].append({
-                    'name': exe_file.name,
-                    'size_mb': round(size_mb, 2),
-                    'path': str(exe_file.relative_to(self.dist_dir))
-                })
+        for artifact in sorted(dist_dir.glob('*'), key=lambda path: path.name.casefold()):
+            name = artifact.name
+            if name in {'build_manifest.json', '.DS_Store'}:
+                continue
+            if name.startswith('.'):
+                continue
+
+            if artifact.is_file():
+                size_bytes = artifact.stat().st_size
+                artifact_kind = 'file'
+            elif artifact.is_dir():
+                size_bytes = self._compute_directory_size_bytes(artifact)
+                artifact_kind = 'directory'
+            else:
+                continue
+
+            size_mb = 0.0 if size_bytes <= 0 else (size_bytes / (1024 * 1024))
+            manifest['executables'].append({
+                'name': name,
+                'kind': artifact_kind,
+                'size_mb': round(size_mb, 2),
+                'path': str(artifact.relative_to(self.dist_dir))
+            })
 
         manifest_file = dist_dir / 'build_manifest.json'
         with open(manifest_file, 'w', encoding='utf-8') as f:
             json.dump(manifest, f, indent=2, ensure_ascii=False)
 
         logger.info(f"Manifesto criado: {manifest_file}")
+
+    @staticmethod
+    def _compute_directory_size_bytes(directory: Path) -> int:
+        total = 0
+        for path in directory.rglob('*'):
+            if path.is_symlink():
+                continue
+            if path.is_file():
+                try:
+                    total += path.stat().st_size
+                except OSError:
+                    # Ignore transient or permission failures while scanning artifact trees.
+                    continue
+        return total
 
     def build_platform(self, platform_name, apps=None):
         """Constroi executaveis para uma plataforma especifica"""
@@ -411,7 +525,7 @@ class MultiPlatformBuilder:
 
         # Pos-processamento
         if success:
-            self.post_process(platform_name, config)
+            success = self.post_process(platform_name, config, apps=apps)
 
         return success
 
@@ -656,7 +770,7 @@ def main():
     parser.add_argument(
         '--all',
         action='store_true',
-        help='Build para todas as plataformas compatíveis'
+        help='Build de todos os apps da plataforma atual (sem cross-compilation)'
     )
 
     parser.add_argument(

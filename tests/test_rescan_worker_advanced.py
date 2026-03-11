@@ -292,17 +292,39 @@ class TestRescanWorkerIntegration:
         assert "Iniciando Reescaneamento" in signal_collector.output_lines[0]
         assert signal_collector.finished_success is True
 
-    def test_run_emits_error_on_failure(self, rescan_worker, signal_collector):
-        """Testa que run() emite error em falha."""
-        rescan_worker.error_line.connect(signal_collector.on_error)
+    def test_run_full_without_updates_without_context_emits_success(self, rescan_worker, signal_collector):
+        """Full sem contexto de arquivos permanece como no-op valido."""
+        rescan_worker.output_line.connect(signal_collector.on_output)
+        rescan_worker.finished_success.connect(signal_collector.on_finished_success)
         rescan_worker.finished_error.connect(signal_collector.on_finished_error)
 
         # Mock run_importer_logic para retornar falha
         with patch("gui.workers.rescan_worker.run_importer_logic", return_value=False):
             rescan_worker.run()
 
+        assert signal_collector.finished_success is True
+        assert signal_collector.finished_error is None
+        assert any("Reescaneamento Completo Concluido (sem alteracoes)" in line for line in signal_collector.output_lines)
+
+    def test_run_full_without_updates_with_processed_context_emits_error(self, rescan_worker, signal_collector):
+        """Full com arquivos no ciclo e retorno False deve sinalizar erro."""
+        rescan_worker.output_line.connect(signal_collector.on_output)
+        rescan_worker.finished_success.connect(signal_collector.on_finished_success)
+        rescan_worker.finished_error.connect(signal_collector.on_finished_error)
+
+        def _mock_importer(**kwargs):
+            callback = kwargs["progress_callback"]
+            callback("start", {"total": 2})
+            callback("finish", {"total": 2, "processed": 0, "errors": []})
+            return False
+
+        with patch("gui.workers.rescan_worker.run_importer_logic", side_effect=_mock_importer):
+            rescan_worker.run()
+
+        assert signal_collector.finished_success is False
         assert signal_collector.finished_error is not None
-        assert "nenhum dado foi atualizado" in signal_collector.finished_error
+        assert "sem atualizacoes" in signal_collector.finished_error.lower()
+        assert any("Reescaneamento Completo Falhou" in line for line in signal_collector.output_lines)
 
     def test_run_emits_error_on_exception(self, rescan_worker, signal_collector):
         """Testa que run() emite error em exceção."""

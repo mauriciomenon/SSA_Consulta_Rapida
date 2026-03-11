@@ -226,3 +226,85 @@ def test_insert_dataframe_to_db_empty_df(temp_db_path):
     # Verifica que a tabela ainda existe e está vazia
     df_result = query_db(temp_db_path, table_name)
     assert df_result.empty
+
+
+def test_insert_dataframe_to_db_rejects_replace_for_canonical_ssa_table(temp_db_path):
+    df = pd.DataFrame(
+        [
+            {"numero_ssa": "202500001", "descricao_ssa": "SSA 1"},
+        ]
+    )
+
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE ssa_table (
+                numero_ssa TEXT,
+                descricao_ssa TEXT
+            );
+            """
+        )
+        conn.execute("CREATE VIEW ssas AS SELECT * FROM ssa_table;")
+        conn.commit()
+
+    with pytest.raises(ValueError, match="if_exists='replace' e proibido"):
+        insert_dataframe_to_db(df, temp_db_path, "ssas", if_exists="replace")
+
+
+def test_insert_dataframe_to_db_allows_replace_for_generic_table(temp_db_path):
+    table_name = "teste_replace_generico"
+    initial_df = pd.DataFrame([{"id": 1, "nome": "Alice"}])
+    replacement_df = pd.DataFrame([{"id": 2, "nome": "Bob"}])
+
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE teste_replace_generico (
+                id INTEGER,
+                nome TEXT
+            );
+            """
+        )
+        conn.commit()
+
+    assert insert_dataframe_to_db(initial_df, temp_db_path, table_name) is True
+    assert insert_dataframe_to_db(replacement_df, temp_db_path, table_name, if_exists="replace") is True
+
+    result = query_db(temp_db_path, table_name)
+    pd.testing.assert_frame_equal(result.reset_index(drop=True), replacement_df)
+
+
+def test_insert_dataframe_to_db_rolls_back_partial_write_on_to_sql_failure(temp_db_path, monkeypatch):
+    table_name = "teste_rollback"
+    df = pd.DataFrame(
+        [
+            {"id": 1, "nome": "Alice"},
+            {"id": 2, "nome": "Bob"},
+        ]
+    )
+
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE teste_rollback (
+                id INTEGER,
+                nome TEXT
+            );
+            """
+        )
+        conn.commit()
+
+    original_to_sql = pd.DataFrame.to_sql
+
+    def _partial_insert_then_fail(self, name, conn, *args, **kwargs):
+        conn.execute("INSERT INTO teste_rollback (id, nome) VALUES (?, ?)", (999, "parcial"))
+        raise RuntimeError("falha simulada no to_sql")
+
+    monkeypatch.setattr(pd.DataFrame, "to_sql", _partial_insert_then_fail)
+    try:
+        assert insert_dataframe_to_db(df, temp_db_path, table_name) is False
+    finally:
+        monkeypatch.setattr(pd.DataFrame, "to_sql", original_to_sql)
+
+    result = query_db(temp_db_path, table_name)
+    assert result.empty

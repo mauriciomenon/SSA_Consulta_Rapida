@@ -1,6 +1,6 @@
 # utils/robust_importer.py
 # Last modified: 2025-10-29T11:30:00 (pandas import improvements)
-# Referência: documentação de heurísticas e schema unificado em docs/SCHEMA_UNIFICADO_IMPORTACAO.md
+# Referencia: documentacao de heuristicas e schema unificado em docs/SCHEMA_UNIFICADO_IMPORTACAO.md
 """Importador "à prova de bala" para planilhas SSA.
 
 Objetivos:
@@ -29,6 +29,34 @@ from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 from shared.date_utils import parse_any_date
 
 logger = logging.getLogger(__name__)
+
+_DOTTED_DUPLICATE_RE = re.compile(r"^(?P<base>.+)\.(?P<suffix>\d+)$")
+_SEMANTIC_DUPLICATE_COLUMNS: dict[str, list[str]] = {
+    "desde": ["desde", "desde_1", "desde_2"],
+    "ate": ["ate", "ate_1", "ate_2"],
+    "sn": ["sn_retirado", "sn_instalado", "sn_extra"],
+    "numero_ssa": [
+        "numero_ssa",
+        "numero_ssa_relacionada_1",
+        "numero_ssa_relacionada_2",
+        "numero_ssa_relacionada_3",
+    ],
+    "setor_emissor": [
+        "setor_emissor",
+        "setor_emissor_relacionado_1",
+        "setor_emissor_relacionado_2",
+    ],
+    "setor_executor": [
+        "setor_executor",
+        "setor_executor_relacionado_1",
+        "setor_executor_relacionado_2",
+    ],
+    "situacao": [
+        "situacao",
+        "situacao_relacionada_1",
+        "situacao_relacionada_2",
+    ],
+}
 
 DATE_COLUMNS_CANDIDATES = [
     "data_cadastro",
@@ -131,7 +159,51 @@ def _coalesce_columns(df: pd.DataFrame, columns: List[str]) -> pd.Series:
     return result
 
 
-# ----------------- Núcleo -----------------
+def _resolve_semantic_duplicate_columns(
+    columns: list[str],
+    *,
+    alias_map: dict[str, str],
+) -> list[str]:
+    resolved: list[str] = []
+    used: set[str] = set()
+
+    for original_name in columns:
+        normalized_name = _canonicalize_header(str(original_name))
+        match = _DOTTED_DUPLICATE_RE.fullmatch(normalized_name)
+        base_name = match.group("base") if match else normalized_name
+        suffix_index = int(match.group("suffix")) if match else 0
+        canonical_base = alias_map.get(base_name, base_name)
+        options = _SEMANTIC_DUPLICATE_COLUMNS.get(canonical_base)
+
+        if options is None:
+            if match:
+                candidate = f"{canonical_base}_{suffix_index}"
+            elif canonical_base != base_name:
+                candidate = canonical_base
+            else:
+                candidate = str(original_name)
+        elif 0 <= suffix_index < len(options):
+            candidate = options[suffix_index]
+        else:
+            candidate = f"{options[0]}_{suffix_index}"
+
+        if candidate not in used:
+            used.add(candidate)
+            resolved.append(candidate)
+            continue
+
+        dedup_index = 1
+        dedup_candidate = f"{candidate}_{dedup_index}"
+        while dedup_candidate in used:
+            dedup_index += 1
+            dedup_candidate = f"{candidate}_{dedup_index}"
+        used.add(dedup_candidate)
+        resolved.append(dedup_candidate)
+
+    return resolved
+
+
+# ----------------- Nucleo -----------------
 
 def import_excel_robust(
     file_path: str,
@@ -380,6 +452,10 @@ def import_excel_robust(
         else:
             new_cols[canonical] = series
     work_df = pd.DataFrame(new_cols)
+    work_df.columns = _resolve_semantic_duplicate_columns(
+        list(work_df.columns),
+        alias_map=alias_map,
+    )
     # Garantia extra: remover colunas duplicadas exatas 'numero_ssa' mantendo somente a primeira
     if 'numero_ssa' in work_df.columns:
         seen = False
