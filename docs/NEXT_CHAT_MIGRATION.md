@@ -2,36 +2,49 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 23:51 - start from here
+## CURRENT TRUTH 2026-03-11 00:36 - start from here
 
 - Objetivo desta rodada:
-  1. fixar o nome da aplicacao para `Consulta Rapida de SSAs` no fluxo GUI (`python main.py --gui`) com patch minimo.
+  1. corrigir abertura do `.app` no macOS (duplo clique/Finder) sem fechamento imediato.
+  2. garantir icone azul correto no `.app/.dmg` e manter nome da app.
+  3. incluir versao no titulo da janela e menu `Sobre` com versoes de runtime.
 - Correcoes aplicadas:
-  1. `main.py`: `QApplication` agora recebe `setApplicationName` e `setApplicationDisplayName`.
-  2. `launchers/gui_entry.py`: mesmo nome aplicado no entrypoint de GUI empacotada.
-  3. `launchers/build_multiplatform.py`:
-     - sincroniza `CFBundleName` e `CFBundleDisplayName` para `Consulta Rapida de SSAs` no `Info.plist` do `.app` gerado.
-     - ajuste minimo de tipagem em `handlers` para compatibilidade com `ty`.
-  4. `tests/test_build_multiplatform_manifest.py`:
-     - cobre atualizacao de `CFBundleName` e `CFBundleDisplayName` durante `post_process`.
+  1. `launchers/gui_entry.py`
+     - runtime frozen gravavel em user home.
+     - seed de `config` empacotada para runtime local.
+     - `cwd` movido para runtime para evitar erro de escrita em `logs`.
+     - removido `SSA_CONFIG_DIR` para evitar warning/blocked path por `path_safety`.
+  2. `gui/gui_ssa.py`
+     - titulo da janela atualizado para `Consulta Rapida de SSAs v<versao>`.
+     - acao `Sobre` no menu `Ajuda` exibindo:
+       - versao app, Python, uv, PyQt6, Qt e pandas.
+  3. build macOS:
+     - `.app` e `.dmg` regenerados com sucesso em `launchers/dist/macos_arm64`.
+     - `CFBundleName` e `CFBundleDisplayName` confirmados como `Consulta Rapida de SSAs`.
+     - `app_icon.icns` do bundle igual ao icone fonte em `resources/app_icon.icns`.
 - Evidencia de validacao:
-  1. `uv run --python 3.13 python -m py_compile main.py launchers/gui_entry.py launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass.
-  2. `uv run --python 3.13 ruff check main.py launchers/gui_entry.py launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass.
-  3. `uv run --python 3.13 ty check main.py launchers/gui_entry.py launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass.
-  4. `uv run --python 3.13 pytest -q tests/test_build_multiplatform_manifest.py` -> `5 passed`.
+  1. `uv run --python 3.13 python -m py_compile launchers/gui_entry.py gui/gui_ssa.py` -> pass.
+  2. `uv run --python 3.13 ruff check launchers/gui_entry.py gui/gui_ssa.py` -> pass.
+  3. `uv run --python 3.13 ty check launchers/gui_entry.py gui/gui_ssa.py` -> pass (warnings historicos de `redundant-cast` em `gui/gui_ssa.py`).
+  4. `uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py::test_setup_app_menus_registers_grouped_menus tests/smoke_test_gui.py tests/test_build_multiplatform_manifest.py` -> `9 passed`.
+  5. launch check por binario com `cwd=/` -> `PROCESS_RUNNING` (sem crash read-only).
+  6. cheque de titulo em runtime -> `Consulta Rapida de SSAs v4.32`.
+  7. cheque de About -> mostra app/python/uv/pyqt/qt/pandas.
 - Estado local confirmado:
   1. branch: `dev`.
-  2. ultimo commit antes deste slice: `8688b623 Merge pull request #45 from mauriciomenon/codex/sprint-importacao-grave-fixes-20260305`.
+  2. ultimo commit antes deste slice: `b37fb83d STABILITY_PATCH: set GUI app name and sync mac bundle display name`.
   3. residuos fora de escopo mantidos:
      - `M data/ssas.db`
+     - `M docs/INDEX.md`
      - `?? config/settings.json.bak_20260308_212715`
   4. stashes abertos:
      - `stash@{0}` `wip-before-return-import-branch-20260308_011343`
      - `stash@{1}` `incident-freeze-before-reapply-20260305-083301`
      - `stash@{2}` `local-wip-config-db-before-dev-switch-20260303`
 - Proximo passo recomendado:
-  1. validar manualmente o menu global do macOS via `python main.py --gui`.
-  2. no proximo build macOS, regenerar `.app/.dmg` para refletir `CFBundleDisplayName` novo.
+  1. validar por duplo clique no Finder o artefato final em `launchers/dist/macos_arm64/SSA_GUI_v4.32_macos_arm64.app`.
+  2. se o Finder ainda mostrar cache de icone antigo, reiniciar cache de icones do macOS e revalidar.
+  3. concluir commit atomico do slice e push em `dev`.
 
 ## HISTORICAL SNAPSHOT 2026-03-10 22:52 - start from here
 

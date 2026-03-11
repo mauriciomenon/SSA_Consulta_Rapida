@@ -2,32 +2,45 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 23:51 - authoritative block
+## CURRENT TRUTH 2026-03-11 00:36 - authoritative block
 
 - Objetivo desta rodada:
-  1. ajustar nome da app para `Consulta Rapida de SSAs` no startup GUI em todos os SOs suportados.
+  1. estabilizar startup do `.app` macOS (nao fechar ao abrir no Finder).
+  2. garantir icone azul correto no `.app/.dmg`.
+  3. incluir versao no titulo da janela e menu `Sobre` com versoes de runtime.
 - Registro aplicado:
-  1. `main.py` e `launchers/gui_entry.py` configuram nome/display name da `QApplication`.
-  2. `launchers/build_multiplatform.py` atualiza `CFBundleName`/`CFBundleDisplayName` no `Info.plist` do `.app` macOS gerado.
-  3. `tests/test_build_multiplatform_manifest.py` cobre essa atualizacao.
+  1. `launchers/gui_entry.py`
+     - runtime frozen em area gravavel do usuario.
+     - seed de config empacotada para runtime local.
+     - `cwd` ajustado para runtime (corrige erro read-only em `logs`).
+     - removido `SSA_CONFIG_DIR` (evita warning de `path_safety` no bundle).
+  2. `gui/gui_ssa.py`
+     - titulo da janela com versao (`Consulta Rapida de SSAs v<versao>`).
+     - menu `Ajuda` com acao `Sobre` exibindo app/python/uv/pyqt/qt/pandas.
+  3. artefato macOS regenerado:
+     - `launchers/dist/macos_arm64/SSA_GUI_v4.32_macos_arm64.app`
+     - `launchers/dist/macos_arm64/SSA_Consulta_Rapida_v4.32_macos_arm64.dmg`
   4. sem alteracao de layout/posicao da GUI.
 - Validacao:
-  1. `py_compile`, `ruff`, `ty` no escopo alterado (`main.py`, `launchers/gui_entry.py`, `launchers/build_multiplatform.py`, `tests/test_build_multiplatform_manifest.py`) -> pass.
-  2. `pytest -q tests/test_build_multiplatform_manifest.py` -> `5 passed`.
+  1. `py_compile`, `ruff`, `ty` no escopo alterado (`launchers/gui_entry.py`, `gui/gui_ssa.py`) -> pass (`ty` com warnings historicos de `redundant-cast`).
+  2. `pytest -q tests/test_gui_menu_import_external.py::test_setup_app_menus_registers_grouped_menus tests/smoke_test_gui.py tests/test_build_multiplatform_manifest.py` -> `9 passed`.
+  3. launch check com `cwd=/` -> processo GUI ativo (`PROCESS_RUNNING`), sem erro fatal.
+  4. hash de icone `.icns` no bundle igual ao `resources/app_icon.icns`.
 - Estado local no fechamento:
   1. branch ativa: `dev`.
-  2. ultimo commit antes deste slice: `8688b623`.
+  2. ultimo commit antes deste slice: `b37fb83d`.
   3. PR `#45`: `MERGED` em `2026-03-11T02:06:23Z`.
   4. residuos fora de escopo:
      - `M data/ssas.db`
+     - `M docs/INDEX.md`
      - `?? config/settings.json.bak_20260308_212715`
   5. stashes abertos:
      - `stash@{0}` `wip-before-return-import-branch-20260308_011343`
      - `stash@{1}` `incident-freeze-before-reapply-20260305-083301`
      - `stash@{2}` `local-wip-config-db-before-dev-switch-20260303`
 - Proximo ciclo (entrada minima):
-  1. validar visualmente no macOS o nome no menu global com `python main.py --gui`.
-  2. gerar novo build macOS para refletir `CFBundleDisplayName` atualizado no `.app/.dmg`.
+  1. validar abertura por duplo clique no Finder e confirmar que o icone exibido e o azul novo.
+  2. manter foco em blockers reais de release; sem sidequest de refatoracao transversal.
 
 ## HISTORICAL SNAPSHOT 2026-03-10 22:52 - authoritative block
 

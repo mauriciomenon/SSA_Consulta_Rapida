@@ -159,7 +159,18 @@ try:
         QSpacerItem, QSizePolicy, QFrame, QListWidget, QListWidgetItem, QCheckBox, QTabWidget,
         QScrollArea, QToolButton, QWidgetAction
     )
-    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QPoint, QSignalBlocker, QUrl
+    from PyQt6.QtCore import (
+        Qt,
+        QThread,
+        pyqtSignal,
+        QTimer,
+        QEvent,
+        QPoint,
+        QSignalBlocker,
+        QUrl,
+        PYQT_VERSION_STR,
+        QT_VERSION_STR,
+    )
     from PyQt6.QtGui import QAction, QFont, QDesktopServices
 
     # Import workers, cache, widgets, and helpers from separate modules
@@ -174,6 +185,8 @@ try:
 except ImportError as exc:
     QT_AVAILABLE = False
     sip = cast(Any, None)
+    PYQT_VERSION_STR = "indisponivel"
+    QT_VERSION_STR = "indisponivel"
     logger.warning("PyQt6 import failed, using headless stub mode: %s", exc)
     DataLoaderWorker = cast(Any, None)
     FilterWorker = cast(Any, None)
@@ -839,6 +852,57 @@ def load_display_mappings():
     merged_mappings.update(GUI_MAIN_PREFERENCES.get("display_mappings", {}))
     return merged_mappings
 
+
+def resolve_app_version_text() -> str:
+    """Resolve versao da aplicacao para exibicao em UI."""
+    try:
+        app_version = str(get_app_version()).strip()
+    except Exception as exc:
+        logger.debug("Falha ao resolver versao da aplicacao: %s", exc)
+        app_version = ""
+    if not app_version:
+        return "0.0.0"
+    return app_version
+
+
+def resolve_uv_version_text() -> str:
+    """Resolve versao do uv para exibicao em UI."""
+    try:
+        result = subprocess.run(
+            ["uv", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        output = str(result.stdout or result.stderr).strip()
+        if output:
+            return output
+    except Exception:
+        pass
+    return "indisponivel"
+
+
+def build_about_message(app_version: str) -> str:
+    """Monta texto do dialogo Sobre."""
+    python_version = str(sys.version.split()[0]) if sys.version else "indisponivel"
+    pandas_version = str(getattr(pd, "__version__", "indisponivel"))
+    pyqt_version = str(PYQT_VERSION_STR or "indisponivel")
+    qt_version = str(QT_VERSION_STR or "indisponivel")
+    uv_version = resolve_uv_version_text()
+    return "\n".join(
+        (
+            "Consulta Rapida de SSAs",
+            f"Versao app: {app_version}",
+            "",
+            f"Python: {python_version}",
+            f"uv: {uv_version}",
+            f"PyQt6: {pyqt_version}",
+            f"Qt: {qt_version}",
+            f"pandas: {pandas_version}",
+        )
+    )
+
 # --- Worker Threads ---
 
 # --- Componentes da GUI ---
@@ -873,6 +937,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         return ssa_gui_theme.resolve_startup_theme(gui_settings)
 
+    def show_about_dialog(self):
+        QMessageBox.information(self, "Sobre", build_about_message(self._app_version))
+
     def __init__(self):
         super().__init__()
         try:
@@ -880,7 +947,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         except Exception as exc:
             logger.debug("Failed to set WA_DeleteOnClose on main window: %s", exc)
-        self.setWindowTitle("Consulta Rapida de SSAs")
+        self._app_version = resolve_app_version_text()
+        self.setWindowTitle(f"Consulta Rapida de SSAs v{self._app_version}")
         self.setGeometry(100, 100, 1200, 800)
         # Icone da janela (prioriza .ico no Windows)
         try:
@@ -3084,6 +3152,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         help_action = QAction("Ajuda", self)
         help_action.triggered.connect(self.show_filter_help)
         cast(Any, ajuda_menu).addAction(help_action)
+
+        about_handler = getattr(self, "show_about_dialog", None)
+        if callable(about_handler):
+            about_action = QAction("Sobre", self)
+            about_action.triggered.connect(about_handler)
+            cast(Any, ajuda_menu).addAction(about_action)
 
     def import_external_excel_files(self):
         """Importa arquivos XLS/XLSX externos para docs_entrada com copia segura."""
