@@ -237,6 +237,7 @@ class DataLoaderWorker(QThread):
             self.data_loaded.emit(df)
         except (
             sqlite3.Error,
+            pd.errors.DatabaseError,
             OSError,
             RuntimeError,
             TypeError,

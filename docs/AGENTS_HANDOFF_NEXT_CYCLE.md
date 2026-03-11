@@ -2,7 +2,7 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 17:05 - authoritative block
+## CURRENT TRUTH 2026-03-10 21:42 - authoritative block
 
 - Priority note (carry-over mandatory):
   1. debt BLE001 no restante do codigo deve ser tratado em breve, por modulo.
@@ -15,26 +15,31 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - checks externos bloqueando merge: `CodeFactor`, `code/snyk`, `security/snyk`.
 
 - Slice entregue:
-  1. triagem dos comentarios novos de bots com correcoes minimas de risco real.
+  1. fechamento da rodada adicional de comentarios bot com correcoes de risco real e patch minimo.
 - Arquivos alterados:
-  1. `scripts/git_hooks/pre-commit`
-  2. `scripts/install_hooks.sh`
-  3. `utils/caching.py`
-  4. `utils/robust_importer.py`
-  5. `armazenamento/database_integrity.py`
-  6. `tests/test_main_import_fallback.py`
-  7. `docs/RECOVERY_BACKLOG.md`
-  8. `docs/NEXT_CHAT_MIGRATION.md`
-  9. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  1. `scripts/install_hooks.sh`
+  2. `scripts/git_hooks/pre-push`
+  3. `tests/test_robust_importer.py`
+  4. `README.md`
+  5. `gui/workers/data_loader_worker.py`
+  6. `docs/RECOVERY_BACKLOG.md`
+  7. `docs/NEXT_CHAT_MIGRATION.md`
+  8. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - Validacao:
-  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
-  2. `pytest -q tests/test_main_import_fallback.py tests/test_caching.py tests/test_database_verification.py tests/test_robust_importer.py` -> `43 passed`.
+  1. `uv run --python 3.13 python -m py_compile gui/workers/data_loader_worker.py tests/test_robust_importer.py` -> pass.
+  2. `uv run --python 3.13 ruff check gui/workers/data_loader_worker.py tests/test_robust_importer.py` -> pass.
+  3. `uv run --python 3.13 ty check gui/workers/data_loader_worker.py tests/test_robust_importer.py` -> pass.
+  4. `uv run --python 3.13 pytest -q tests/test_robust_importer.py tests/test_data_loader_worker.py` -> `23 passed`.
+  5. `bash -n scripts/install_hooks.sh scripts/git_hooks/pre-push` -> pass.
 - Decisao aplicada:
-  1. comentario de bypass no pre-commit corrigido (check de blob staged sempre ativo).
-  2. comentario de caminho de hooks em worktree/submodule corrigido via `git-path hooks`.
-  3. pontos ASCII e semantica de erro corrigidos sem mudar comportamento de runtime.
+  1. hook ausente em `install_hooks.sh` agora e erro obrigatorio com falha explicita.
+  2. `pre-push` passou a preservar caminho de blob para diagnostico util em bloqueio de tamanho.
+  3. `test_robust_importer.py` convertido para fonte ASCII sem perda semantica (escapes unicode).
+  4. `DataLoaderWorker` captura `pd.errors.DatabaseError` no topo e mantem emissao de erro para GUI.
 - Deferido:
-  1. debts antigos de arquitetura/performance apontados por bots em `pre-commit` e `utils/*`.
+  1. custo de varredura sincrona no pre-push (tradeoff intencional do hook de seguranca).
+  2. debts antigos de semantica/performance em `DataLoaderWorker`, incluindo recalculo de `non_null_cols` por carregamento.
+  3. contradicao textual historica no `README` fora deste fix pontual.
 - Estado de residuos locais fora de escopo:
   1. `data/ssas.db` (mantido local, nao commitar).
   2. `config/settings.json.bak_20260308_212715` (backup local, nao commitar).

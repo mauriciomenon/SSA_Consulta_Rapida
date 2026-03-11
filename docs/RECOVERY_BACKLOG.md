@@ -18,6 +18,48 @@ Fluxo de trabalho registrado para proximo ciclo curto:
 3. Regra operacional para esse debt:
    - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
 
+## Update 2026-03-10 21:42 - rodada bot adicional (install-hooks/pre-push/ascii/worker)
+
+Session timestamp:
+1. start: `2026-03-10 21:42:17 -0300`
+2. end: `2026-03-10 21:42:17 -0300`
+
+Objetivo do slice:
+1. fechar comentarios novos de bot com risco real, sem refatoracao ampla.
+
+Correcoes aplicadas:
+1. `scripts/install_hooks.sh`
+   - hooks `pre-commit` e `pre-push` tratados como obrigatorios.
+   - ausencia agora gera erro explicito e falha no fim do script.
+2. `scripts/git_hooks/pre-push`
+   - pipeline agora preserva `oid + path` para erro util de blob grande.
+   - `batch-check` mudou para separador por TAB e leitura segura de caminho.
+3. `tests/test_robust_importer.py`
+   - arquivo convertido para fonte ASCII (chaves com escapes unicode).
+4. `README.md`
+   - linha apontada por copilot normalizada para ASCII.
+5. `gui/workers/data_loader_worker.py`
+   - catch superior incluiu `pd.errors.DatabaseError`.
+
+Classificacao dos apontamentos:
+1. `BUG_REAL` corrigido:
+   - hook ausente silencioso em `install_hooks.sh`.
+   - perda de caminho no bloqueio de blob grande do `pre-push`.
+   - nao-ASCII em teste novo e linha de README apontada.
+   - fuga de excecao de banco no `DataLoaderWorker`.
+2. `NAO_BLOQUEANTE_DEFERIDO`:
+   - custo de varredura do `pre-push` (tradeoff do proprio hook).
+   - debts de performance/semantica antigos em `DataLoaderWorker`.
+   - recalculo de `non_null_cols` por carregamento em `DataLoaderWorker` (otimizacao fora do escopo deste hotfix).
+   - contradicao textual historica no README (slice documental dedicado).
+
+Evidencia tecnica:
+1. `uv run --python 3.13 python -m py_compile gui/workers/data_loader_worker.py tests/test_robust_importer.py` -> pass.
+2. `uv run --python 3.13 ruff check gui/workers/data_loader_worker.py tests/test_robust_importer.py` -> pass.
+3. `uv run --python 3.13 ty check gui/workers/data_loader_worker.py tests/test_robust_importer.py` -> pass.
+4. `uv run --python 3.13 pytest -q tests/test_robust_importer.py tests/test_data_loader_worker.py` -> `23 passed`.
+5. `bash -n scripts/install_hooks.sh scripts/git_hooks/pre-push` -> pass.
+
 ## Update 2026-03-10 17:05 - triagem de bots PR45 (copilot/cubic) com patch minimo
 
 Session timestamp:

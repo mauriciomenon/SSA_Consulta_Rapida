@@ -2,38 +2,40 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 17:05 - start from here
+## CURRENT TRUTH 2026-03-10 21:42 - start from here
 
 - Priority note (nao perder no proximo chat):
   1. debt BLE001 no restante do codigo continua alto e deve entrar no proximo ciclo curto.
   2. contagem atual: `860`.
   3. comando: `ruff check . --select BLE001`.
   4. hotspots iniciais: `armazenamento/database*.py`, `core/app_logic.py`, `core/config_manager.py`, `dev_env/streamlit_app.py`.
-  5. estado de PR: `#45` aberto, `0` threads abertas, merge bloqueado por `CodeFactor`, `code/snyk`, `security/snyk`.
+  5. estado de PR: `#45` aberto, `0` threads abertas; checks externos ainda bloqueando merge (`CodeFactor`, `code/snyk`, `security/snyk`).
 
 - Slice aplicado:
-  1. triagem de comentarios novos de bot (copilot/cubic) com patch minimo e sem refatoracao ampla.
+  1. fechamento de nova rodada de comentarios bot (codereviewbot/copilot/codeant) com patch minimo.
 - Arquivos alterados:
-  1. `scripts/git_hooks/pre-commit`
-  2. `scripts/install_hooks.sh`
-  3. `utils/caching.py`
-  4. `utils/robust_importer.py`
-  5. `armazenamento/database_integrity.py`
-  6. `tests/test_main_import_fallback.py`
-  7. `docs/RECOVERY_BACKLOG.md`
-  8. `docs/NEXT_CHAT_MIGRATION.md`
-  9. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  1. `scripts/install_hooks.sh`
+  2. `scripts/git_hooks/pre-push`
+  3. `tests/test_robust_importer.py`
+  4. `README.md`
+  5. `gui/workers/data_loader_worker.py`
+  6. `docs/RECOVERY_BACKLOG.md`
+  7. `docs/NEXT_CHAT_MIGRATION.md`
+  8. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - Resultado tecnico:
-  1. hook de tamanho staged agora sempre roda, mesmo com diff textual vazio.
-  2. instalador de hooks ficou compativel com caminho real de hooks do git (`git-path hooks`).
-  3. pontos ASCII de `caching` e `robust_importer` corrigidos.
-  4. mensagem de erro em `database_integrity` ficou mais precisa (integridade/schema).
-  5. nome do teste de `main` alinhado ao cenario real (`force_rescan`).
+  1. `install_hooks.sh` agora marca hook ausente como erro obrigatorio e falha no final.
+  2. `pre-push` preserva `oid + path` e mostra caminho real ao bloquear blob grande.
+  3. `test_robust_importer.py` ficou 100% ASCII na fonte (escapes unicode em cabecalhos de teste).
+  4. `README.md` linha apontada por copilot normalizada para ASCII.
+  5. `DataLoaderWorker` agora captura tambem `pd.errors.DatabaseError` no handler superior.
 - Gates desta rodada:
   1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
-  2. `pytest -q tests/test_main_import_fallback.py tests/test_caching.py tests/test_database_verification.py tests/test_robust_importer.py` -> `43 passed`.
+  2. `pytest -q tests/test_robust_importer.py tests/test_data_loader_worker.py` -> `23 passed`.
+  3. `bash -n scripts/install_hooks.sh scripts/git_hooks/pre-push` -> pass.
 - Deferido:
-  1. apontamentos de arquitetura/performance em `pre-commit` e `utils/*` ficaram para slice dedicado.
+  1. kluster em `pre-push`: custo sincrono de varredura grande (tradeoff intencional de seguranca no hook).
+  2. kluster em `data_loader_worker`: debts antigos de semantica/performance fora deste patch, incluindo recalculo de `non_null_cols` por carregamento.
+  3. kluster em `README`: contradicao historica de texto (slice documental dedicado).
 
 ## HISTORICAL SNAPSHOT 2026-03-10 16:37 - start from here
 
