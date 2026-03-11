@@ -42,9 +42,17 @@ fi
 tmp_objects="$(mktemp)"
 trap 'rm -f "$tmp_objects"' EXIT
 
-for rev_range in "${refs[@]}"; do
-  git rev-list --objects "$rev_range" || true
-done | awk '{print $1}' | sed '/^$/d' | sort -u > "$tmp_objects"
+git rev-list --objects "${refs[@]}" 2>/dev/null | awk '
+  NF > 0 {
+    oid = $1
+    $1 = ""
+    sub(/^ /, "", $0)
+    if (!(oid in seen)) {
+      seen[oid] = $0
+      print oid "\t" $0
+    }
+  }
+' | sed '/^[[:space:]]*$/d' > "$tmp_objects"
 
 if [[ ! -s "$tmp_objects" ]]; then
   info "Nenhum objeto novo identificado."
@@ -52,7 +60,7 @@ if [[ ! -s "$tmp_objects" ]]; then
 fi
 
 found=0
-while read -r oid otype osize opath; do
+while IFS=$'\t' read -r oid otype osize opath; do
   if [[ "$otype" != "blob" ]]; then
     continue
   fi
@@ -61,7 +69,7 @@ while read -r oid otype osize opath; do
     size_mb="$(awk -v n="$osize" 'BEGIN { printf "%.2f", n/1024/1024 }')"
     echo "[pre-push-size][BLOCK] Blob grande detectado: ${opath:-<sem-caminho>} (${size_mb} MB, oid=$oid)" >&2
   fi
-done < <(git cat-file --batch-check='%(objectname) %(objecttype) %(objectsize) %(rest)' < "$tmp_objects")
+done < <(git cat-file --batch-check='%(objectname)%x09%(objecttype)%x09%(objectsize)%x09%(rest)' < "$tmp_objects")
 
 if [[ $found -eq 1 ]]; then
   cat <<EOF >&2

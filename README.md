@@ -1,6 +1,6 @@
 # SSA Consulta Rapida v4.32
 
-Release 4.32 define o baseline atual apos validacao de full rescan real com metricas consolidadas, sem regressao de integridade no DB.
+Baseline local v4.32 define o estado atual da branch apos validacao de full rescan real com metricas consolidadas, sem regressao de integridade no DB.
 
 ## Atualizacao documental total (2026-03-10 16:55 -0300)
 
@@ -16,10 +16,10 @@ Release 4.32 define o baseline atual apos validacao de full rescan real com metr
   - `docs/PENDING_ACTION_MATRIX.md`
   - `docs/INDEX.md`
 
-## Release v4.32 (2026-03)
+## Baseline v4.32 (2026-03)
 
 ### Destaques
-- README revisado com seções obrigatorias (`Instalação`, `Uso`, `Testes`) e alinhamento com a versao atual.
+- README revisado com secoes obrigatorias (`Instalacao`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
 - Baseline de documentacao atualizado para 4.32.
@@ -239,10 +239,11 @@ Foram aplicadas melhorias recentes de qualidade de codigo:
 		 * Somente 9 digitos apos remocao de hifens/espacos (`YYYYXXXXX`).
 		 * Ano inicial entre 1980 e 2050.
 		 * Valores com letras ou simbolos fora de `[0-9 -]` sao rejeitados.
-		 * Hifen opcional e aceito apenas em formato `YYYY-XXXXX` quando os 5 digitos finais NAO sao todos identicos.
-			 - Exemplo aceito: `2025-12345` → `202512345`.
-			 - Exemplo rejeitado: `2025-22222` (marcado como invalido e filtrado no importador).
-		 * Strings maiores que 9 digitos nao sao truncadas; sao rejeitadas para evitar colisoes silenciosas.
+			 * Hifen opcional e aceito apenas em formato `YYYY-XXXXX` quando os 5 digitos finais NAO sao todos identicos.
+				 - Exemplo aceito: `2025-12345` → `202512345`.
+				 - Exemplo rejeitado: `2025-22222` (marcado como invalido e filtrado no importador).
+			 * No formato sem hifen (`YYYYXXXXX`), a checagem de repeticao dos 5 ultimos digitos nao e aplicada por compatibilidade historica.
+			 * Strings maiores que 9 digitos nao sao truncadas; sao rejeitadas para evitar colisoes silenciosas.
 	 - Testes que cobrem as regras: `tests/test_numero_ssa_normalization_cross.py` e `tests/test_numero_ssa_hyphen_repetition.py`.
 - Linhas longas (>100 colunas) quebradas para melhorar leitura e conformidade com lint.
 - Sistema de logging robusto com metricas automaticas de performance.
