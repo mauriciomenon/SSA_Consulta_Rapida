@@ -24,6 +24,9 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   2. `NAO_BLOQUEANTE_DEFERIDO`:
      - debts de performance ampla em hashing sequencial no `utils/caching.py`.
      - debt semantico antigo no teste de atomicidade.
+- Decisao intencional registrada:
+  1. nao reintroduzir `--not --remotes` no `scripts/git_hooks/pre-push`.
+  2. prioridade: seguranca do gate de blob grande (evitar falso-negativo no destino remoto).
 
 ## HISTORICAL SNAPSHOT 2026-03-10 22:41 - authoritative block
 
