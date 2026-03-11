@@ -10,10 +10,14 @@ import json
 import hashlib
 import logging
 import tempfile
+import time
 from pathlib import Path
 from typing import List, Dict, Union, Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+_CACHE_LOCK_TIMEOUT_SEC = 5.0
+_CACHE_LOCK_RETRY_SEC = 0.05
 
 def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
     """Write JSON atomically to avoid corrupted/truncated cache files.
@@ -52,6 +56,67 @@ def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
                 os.remove(tmp_path)
             except OSError as exc:
                 logger.warning("Failed to remove cache temp file '%s': %s", tmp_path, exc)
+
+
+def _cache_lock_path(cache_file: str) -> str:
+    """Return sidecar lock path used to serialize cache writes across processes."""
+    return f"{cache_file}.lock"
+
+
+def _acquire_cache_lock(lock_path: str) -> int:
+    """Acquire exclusive lock using lock file creation with bounded retries."""
+    deadline = time.monotonic() + _CACHE_LOCK_TIMEOUT_SEC
+    while True:
+        try:
+            lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
+            try:
+                os.write(lock_fd, f"{os.getpid()}\n".encode("ascii", "ignore"))
+            except OSError as exc:
+                logger.debug("Failed to write cache lock metadata '%s': %s", lock_path, exc)
+            return lock_fd
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"Timeout acquiring cache write lock: {lock_path}")
+            time.sleep(_CACHE_LOCK_RETRY_SEC)
+        except OSError as exc:
+            raise RuntimeError(f"Failed to acquire cache write lock '{lock_path}': {exc}") from exc
+
+
+def _release_cache_lock(lock_fd: int, lock_path: str) -> None:
+    """Release cache lock file and cleanup sidecar lock path."""
+    try:
+        os.close(lock_fd)
+    except OSError as exc:
+        logger.warning("Failed to close cache lock descriptor '%s': %s", lock_path, exc)
+
+    try:
+        os.remove(lock_path)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        logger.warning("Failed to remove cache lock file '%s': %s", lock_path, exc)
+
+
+def _merge_cache_updates(cache_updates: Dict[str, Any], cache_file: str) -> None:
+    """Merge cache updates under lock to reduce lost updates across concurrent runs."""
+    if not cache_updates:
+        return
+
+    lock_path = _cache_lock_path(cache_file)
+    lock_fd = _acquire_cache_lock(lock_path)
+    try:
+        current_cache = load_cache(cache_file)
+        changed = False
+        for key, value in cache_updates.items():
+            if current_cache.get(key) != value:
+                current_cache[key] = value
+                changed = True
+
+        if changed:
+            _atomic_write_json(current_cache, cache_file)
+            logger.debug("Cache merged and saved in '%s' (%s update entries).", cache_file, len(cache_updates))
+    finally:
+        _release_cache_lock(lock_fd, lock_path)
 
 
 def _safe_file_stat(file_path: str) -> Optional[Tuple[int, int]]:
@@ -184,7 +249,12 @@ def load_cache(cache_file: str) -> Dict[str, Any]:
 def save_cache(cache: Dict[str, Any], cache_file: str):
     """Salva o cache em um arquivo JSON."""
     try:
-        _atomic_write_json(cache, cache_file)
+        lock_path = _cache_lock_path(cache_file)
+        lock_fd = _acquire_cache_lock(lock_path)
+        try:
+            _atomic_write_json(cache, cache_file)
+        finally:
+            _release_cache_lock(lock_fd, lock_path)
         logger.debug(f"Cache salvo em '{cache_file}'.")
     except Exception as e:  # noqa: BLE001
         # Cache nao eh critico para a importacao; nao deve derrubar o processo.
@@ -301,7 +371,16 @@ def get_files_to_process(
     # Persist cache upgrades even when nothing is imported, so subsequent runs can
     # avoid hashing every file.
     if cache_file_path and cache_updated:
-        save_cache(updated_cache, cache_file_path)
+        cache_updates: Dict[str, Any] = {}
+        for key, value in updated_cache.items():
+            if current_cache.get(key) != value:
+                cache_updates[key] = value
+
+        if cache_updates:
+            try:
+                _merge_cache_updates(cache_updates, cache_file_path)
+            except (OSError, RuntimeError, TimeoutError, ValueError, TypeError) as exc:
+                logger.exception("Erro ao mesclar atualizacao de cache em '%s': %s", cache_file_path, exc)
     return files_to_process
 
 def update_cache_for_files(file_paths: List[str], cache_file: str, docs_dir: Optional[str] = None):
@@ -313,9 +392,7 @@ def update_cache_for_files(file_paths: List[str], cache_file: str, docs_dir: Opt
         cache_file (str): Caminho para o arquivo de cache.
     """
     logger.debug("Atualizando cache para arquivos processados...")
-    current_cache = load_cache(cache_file)
-
-    updated = False
+    cache_updates: Dict[str, Any] = {}
     for file_path in file_paths:
         filename = os.path.basename(file_path)
         file_cache_key = _cache_key_for_file(file_path, docs_dir) if docs_dir else filename
@@ -325,10 +402,12 @@ def update_cache_for_files(file_paths: List[str], cache_file: str, docs_dir: Opt
         size, mtime_ns = stat_sig
         file_hash = _calculate_hash(file_path)
         if file_hash: # Só atualiza se o hash foi calculado com sucesso
-            current_cache[file_cache_key] = {"sha256": file_hash, "size": size, "mtime_ns": mtime_ns}
-            updated = True
+            cache_updates[file_cache_key] = {"sha256": file_hash, "size": size, "mtime_ns": mtime_ns}
         else:
             logger.warning(f"Nao foi possivel atualizar o cache para {file_path} (hash falhou).")
 
-    if updated:
-        save_cache(current_cache, cache_file)
+    if cache_updates:
+        try:
+            _merge_cache_updates(cache_updates, cache_file)
+        except (OSError, RuntimeError, TimeoutError, ValueError, TypeError) as exc:
+            logger.exception("Erro ao mesclar atualizacao de cache em '%s': %s", cache_file, exc)

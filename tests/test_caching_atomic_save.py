@@ -1,4 +1,5 @@
 import json
+import os
 from concurrent.futures import ThreadPoolExecutor
 
 import utils.caching as caching
@@ -39,7 +40,7 @@ def test_save_cache_writes_valid_json(tmp_path):
     assert loaded == data
 
 
-def test_save_cache_concurrent_writes_remain_valid_json(tmp_path):
+def test_save_cache_concurrent_writes_last_writer_wins_with_valid_json(tmp_path):
     cache_file = tmp_path / "file_cache.json"
     payloads = [
         {"a.xlsx": "hash_a"},
@@ -54,4 +55,58 @@ def test_save_cache_concurrent_writes_remain_valid_json(tmp_path):
             future.result()
 
     loaded = json.loads(cache_file.read_text(encoding="utf-8"))
+    # save_cache is blind overwrite with atomic replace. Contract: valid JSON,
+    # no file corruption. Last writer wins is expected behavior.
     assert loaded in payloads
+    assert len(loaded) == 1
+
+
+def test_save_cache_uses_lock_file_and_releases_it(tmp_path, monkeypatch):
+    cache_file = tmp_path / "file_cache.json"
+    lock_seen = {"present_during_write": False}
+    original_atomic_write = caching._atomic_write_json
+
+    def wrapped_atomic_write(cache, cache_path):
+        lock_seen["present_during_write"] = os.path.exists(f"{cache_path}.lock")
+        return original_atomic_write(cache, cache_path)
+
+    monkeypatch.setattr(caching, "_atomic_write_json", wrapped_atomic_write)
+
+    caching.save_cache({"a.xlsx": "hash_a"}, str(cache_file))
+
+    assert lock_seen["present_during_write"] is True
+    assert (tmp_path / "file_cache.json.lock").exists() is False
+
+
+def test_update_cache_for_files_concurrent_merges_keep_all_entries(tmp_path):
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    file_a = docs_dir / "a.xlsx"
+    file_b = docs_dir / "b.xlsx"
+    file_a.write_text("a", encoding="utf-8")
+    file_b.write_text("b", encoding="utf-8")
+    cache_file = tmp_path / "file_cache.json"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(
+                caching.update_cache_for_files,
+                [str(file_a)],
+                str(cache_file),
+                str(docs_dir),
+            ),
+            executor.submit(
+                caching.update_cache_for_files,
+                [str(file_b)],
+                str(cache_file),
+                str(docs_dir),
+            ),
+        ]
+        for future in futures:
+            future.result()
+
+    # update_cache_for_files merges updates under file lock, so concurrent writes
+    # should preserve entries from both workers.
+    loaded = json.loads(cache_file.read_text(encoding="utf-8"))
+    assert "a.xlsx" in loaded
+    assert "b.xlsx" in loaded

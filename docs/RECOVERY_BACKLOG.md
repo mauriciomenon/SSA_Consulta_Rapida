@@ -18,6 +18,42 @@ Fluxo de trabalho registrado para proximo ciclo curto:
 3. Regra operacional para esse debt:
    - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
 
+## Update 2026-03-10 22:30 - hardening de concorrencia no cache
+
+Session timestamp:
+1. start: `2026-03-10 22:29:15 -0300`
+2. end: `2026-03-10 22:30:00 -0300`
+
+Objetivo do slice:
+1. corrigir risco de lost update no cache em execucoes concorrentes.
+2. manter patch minimo sem refatoracao transversal.
+
+Escopo alterado:
+1. `utils/caching.py`
+2. `tests/test_caching_atomic_save.py`
+3. `docs/RECOVERY_BACKLOG.md`
+4. `docs/NEXT_CHAT_MIGRATION.md`
+5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
+Correcoes aplicadas:
+1. lock sidecar (`<cache>.lock`) para serializar escrita entre processos.
+2. `save_cache` agora escreve sob lock exclusivo.
+3. `get_files_to_process` agora mescla so updates diferenciais sob lock.
+4. `update_cache_for_files` agora mescla updates sob lock (sem write cego de snapshot antigo).
+5. testes novos para lock/merge concorrente + ajuste semantico de teste de overwrite.
+
+Evidencia tecnica:
+1. `uv run --python 3.13 python -m py_compile utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+2. `uv run --python 3.13 ruff check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+3. `uv run --python 3.13 ty check utils/caching.py tests/test_caching_atomic_save.py` -> pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_caching_atomic_save.py` -> `15 passed`.
+
+Classificacao:
+1. `BUG_REAL` corrigido:
+   - risco de perda de update de cache entre processos concorrentes.
+2. `NAO_BLOQUEANTE_DEFERIDO`:
+   - kluster MEDIUM em `utils/caching.py` sobre naming/decomposicao/perf (fora deste fix de risco).
+
 ## Update 2026-03-10 22:23 - fix de comentarios cubic/copilot (hooks + cache)
 
 Session timestamp:
