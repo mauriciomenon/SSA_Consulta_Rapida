@@ -18,6 +18,57 @@ Fluxo de trabalho registrado para proximo ciclo curto:
 3. Regra operacional para esse debt:
    - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
 
+## Update 2026-03-11 00:36 - mac app launch/icon/title/about (patch minimo)
+
+Session timestamp:
+1. start: `2026-03-11 00:20:13 -0300`
+2. end: `2026-03-11 00:36:12 -0300`
+
+Objetivo do slice:
+1. corrigir fechamento imediato do `.app` no macOS ao abrir por duplo clique.
+2. garantir icone azul correto no `.app/.dmg` gerados.
+3. exibir versao no titulo da janela.
+4. adicionar `Sobre` com versoes de runtime (app/python/uv/pyqt/pandas).
+
+Escopo alterado:
+1. `launchers/gui_entry.py`
+2. `gui/gui_ssa.py`
+3. `docs/RECOVERY_BACKLOG.md`
+4. `docs/NEXT_CHAT_MIGRATION.md`
+5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
+Correcoes aplicadas:
+1. `launchers/gui_entry.py`
+   - startup frozen passa a preparar runtime gravavel em user home.
+   - config empacotada e seeded para runtime (best-effort), com `cwd` no runtime.
+   - remove uso de `SSA_CONFIG_DIR` para evitar bloqueio de `path_safety` no bundle.
+2. `gui/gui_ssa.py`
+   - titulo agora inclui versao: `Consulta Rapida de SSAs v<versao>`.
+   - menu `Ajuda` ganhou acao `Sobre` com detalhes de versao:
+     - app, Python, uv, PyQt6, Qt, pandas.
+   - guarda defensiva para incluir `Sobre` somente quando handler estiver disponivel.
+3. build macOS regenerado:
+   - `.app` e `.dmg` recriados com `CFBundleName/DisplayName` sincronizados.
+   - `app_icon.icns` do bundle igual ao icone fonte atual.
+
+Evidencia tecnica:
+1. `uv run --python 3.13 python -m py_compile launchers/gui_entry.py gui/gui_ssa.py` -> pass.
+2. `uv run --python 3.13 ruff check launchers/gui_entry.py gui/gui_ssa.py` -> pass.
+3. `uv run --python 3.13 ty check launchers/gui_entry.py gui/gui_ssa.py` -> pass com warnings historicos de `redundant-cast` em `gui/gui_ssa.py`.
+4. `uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py::test_setup_app_menus_registers_grouped_menus tests/smoke_test_gui.py tests/test_build_multiplatform_manifest.py` -> `9 passed`.
+5. `uv run --python 3.13 python launchers/build_multiplatform.py --platform macos_arm64 --apps gui` -> build ok + dmg ok.
+6. Launch check from `/`: processo da GUI ficou ativo (`PROCESS_RUNNING`), sem erro de read-only em `logs`.
+7. Hash check:
+   - `resources/app_icon.icns` == `...app/Contents/Resources/app_icon.icns` (sha256 igual).
+
+Classificacao:
+1. `BUG_REAL` corrigido:
+   - `.app` fechando imediatamente em launch por Finder/cwd read-only.
+2. `STABILITY_PATCH`:
+   - padronizacao de titulo com versao e visibilidade de versoes no `Sobre`.
+3. `NAO_BLOQUEANTE_DEFERIDO`:
+   - alinhar scripts legados de build (`nuitka/pyoxidizer` em `dev_env/build`) para mesma politica de metadata/icone quando esses fluxos forem reativados.
+
 ## Update 2026-03-10 23:51 - app name GUI cross-OS (patch minimo)
 
 Session timestamp:
