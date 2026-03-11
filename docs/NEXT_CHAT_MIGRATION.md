@@ -2,7 +2,28 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 22:52 - start from here
+## CURRENT TRUTH 2026-03-10 23:03 - start from here
+
+- Objetivo desta rodada:
+  1. fechar DOC_SYNC final com decisao intencional ja aprovada e preparar texto de transicao.
+- Correcoes aplicadas:
+  1. docs de controle sincronizados com snapshot final desta sessao.
+  2. decisao `DECISAO_INTENCIONAL` mantida: `scripts/git_hooks/pre-push` segue sem `--not --remotes`.
+- Estado local confirmado:
+  1. branch: `codex/sprint-importacao-grave-fixes-20260305`.
+  2. ultimo commit: `fa9d6f0d DOC_SYNC: register intentional pre-push gate policy`.
+  3. residuos fora de escopo mantidos:
+     - `M data/ssas.db`
+     - `?? config/settings.json.bak_20260308_212715`
+  4. stashes abertos:
+     - `stash@{0}` `wip-before-return-import-branch-20260308_011343`
+     - `stash@{1}` `incident-freeze-before-reapply-20260305-083301`
+     - `stash@{2}` `local-wip-config-db-before-dev-switch-20260303`
+- Proximo passo recomendado:
+  1. iniciar novo chat lendo os 5 blocos de topo (AGENTS + 4 docs de controle/politica).
+  2. manter foco em estabilidade com slices minimos e commit atomico por risco real.
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:52 - start from here
 
 - Objetivo desta rodada:
   1. corrigir risco de stale lock no cache (`.lock` preso apos crash), apontado por cubic/copilot.

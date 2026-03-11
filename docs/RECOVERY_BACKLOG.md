@@ -18,6 +18,33 @@ Fluxo de trabalho registrado para proximo ciclo curto:
 3. Regra operacional para esse debt:
    - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
 
+## Update 2026-03-10 23:03 - doc sync final e texto de transicao
+
+Session timestamp:
+1. start: `2026-03-10 23:02:09 -0300`
+2. end: `2026-03-10 23:03:08 -0300`
+
+Objetivo do slice:
+1. atualizar docs de controle para migracao de conversa sem alterar runtime.
+
+Escopo alterado:
+1. `docs/RECOVERY_BACKLOG.md`
+2. `docs/NEXT_CHAT_MIGRATION.md`
+3. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
+Registro aplicado:
+1. snapshot final consolidado com branch, commit atual e residuos fora de escopo.
+2. decisao `DECISAO_INTENCIONAL` mantida:
+   - `scripts/git_hooks/pre-push` sem `--not --remotes`.
+3. historico anterior preservado em blocos `HISTORICAL SNAPSHOT`.
+
+Estado local no fechamento:
+1. branch: `codex/sprint-importacao-grave-fixes-20260305`.
+2. ultimo commit de codigo/docs no momento do registro: `fa9d6f0d`.
+3. residuos locais mantidos:
+   - `M data/ssas.db`
+   - `?? config/settings.json.bak_20260308_212715`
+
 ## Update 2026-03-10 22:59 - decisao intencional sobre pre-push
 
 Session timestamp:
