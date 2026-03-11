@@ -2,8 +2,33 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 21:42 - start from here
+## CURRENT TRUTH 2026-03-10 22:03 - start from here
 
+- Objetivo desta rodada:
+  1. refresh completo de status para migracao de conversa, sem editar runtime.
+- Estado local confirmado:
+  1. branch: `codex/sprint-importacao-grave-fixes-20260305`.
+  2. ultimo commit: `30500374 STABILITY_PATCH: fechar rodada bot (hooks pre-push ascii worker)`.
+  3. residuos fora de escopo:
+     - `M data/ssas.db`
+     - `?? config/settings.json.bak_20260308_212715`
+  4. stashes abertos:
+     - `stash@{0}` `wip-before-return-import-branch-20260308_011343`
+     - `stash@{1}` `incident-freeze-before-reapply-20260305-083301`
+     - `stash@{2}` `local-wip-config-db-before-dev-switch-20260303`
+- Estado de PR/checks:
+  1. PR `#45` aberto, `mergeStateStatus=UNSTABLE`.
+  2. threads abertas: `0`.
+  3. checks com falha: `CodeFactor`, `code/snyk` (limit), `security/snyk` (limit).
+  4. checks pendentes: `cubic`, `semgrep-cloud-platform/scan`.
+- Decisao operacional:
+  1. nao houve alteracao de codigo/runtime nesta rodada.
+  2. manter foco em fechamento de PR #45 sem ampliar escopo.
+- Proximo passo sugerido no novo chat:
+  1. revalidar checks pendentes.
+  2. se `cubic/semgrep` voltarem limpos e sem novos comentarios bloqueantes, seguir para merge.
+
+## HISTORICAL SNAPSHOT 2026-03-10 21:42 - start from here
 - Priority note (nao perder no proximo chat):
   1. debt BLE001 no restante do codigo continua alto e deve entrar no proximo ciclo curto.
   2. contagem atual: `860`.

@@ -2,7 +2,33 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 21:42 - authoritative block
+## CURRENT TRUTH 2026-03-10 22:03 - authoritative block
+
+- Objetivo desta rodada:
+  1. refresh total de contexto para migracao de conversa, sem alteracao de runtime.
+- Estado local confirmado:
+  1. branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+  2. ultimo commit: `30500374 STABILITY_PATCH: fechar rodada bot (hooks pre-push ascii worker)`.
+  3. residuos fora de escopo:
+     - `data/ssas.db` (modificado localmente)
+     - `config/settings.json.bak_20260308_212715` (arquivo local novo)
+  4. stashes abertos:
+     - `stash@{0}` `wip-before-return-import-branch-20260308_011343`
+     - `stash@{1}` `incident-freeze-before-reapply-20260305-083301`
+     - `stash@{2}` `local-wip-config-db-before-dev-switch-20260303`
+- Estado de PR e checks:
+  1. PR `#45` aberto, `mergeStateStatus=UNSTABLE`.
+  2. threads abertas: `0`.
+  3. checks com falha: `CodeFactor`, `code/snyk`, `security/snyk`.
+  4. checks pendentes: `cubic`, `semgrep-cloud-platform/scan`.
+- Decisao desta rodada:
+  1. nenhum arquivo de runtime foi alterado.
+  2. somente docs de controle foram atualizados para handoff limpo.
+- Proximo passo recomendado:
+  1. revalidar checks pendentes.
+  2. se limpos e sem novos comentarios bloqueantes, seguir merge.
+
+## HISTORICAL SNAPSHOT 2026-03-10 21:42 - authoritative block
 
 - Priority note (carry-over mandatory):
   1. debt BLE001 no restante do codigo deve ser tratado em breve, por modulo.
