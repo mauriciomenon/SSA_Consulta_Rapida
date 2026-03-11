@@ -90,3 +90,49 @@ def test_import_single_file_honors_cancel_before_empty_dataframe_branch(
             "ssa_table",
             should_cancel=lambda: True,
         )
+
+
+def test_import_single_file_logs_friendly_duplicate_labels(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        lambda *args, **kwargs: _valid_df(),
+    )
+    monkeypatch.setattr(
+        app_logic.database,
+        "validate_dataframe_before_insert",
+        lambda *args, **kwargs: {
+            "is_valid": True,
+            "violations": [
+                {
+                    "rule": "duplicate_numero_ssa_exact",
+                    "count": 2,
+                    "severity": "warning",
+                    "sample_ssa": ["202205845", "202205845"],
+                },
+                {
+                    "rule": "outra_regra",
+                    "count": 1,
+                    "severity": "warning",
+                    "sample_ssa": ["202500001"],
+                },
+            ],
+            "invalid_by_column": {},
+            "issues": [],
+        },
+    )
+    monkeypatch.setattr(app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app_logic.database, "insert_dataframe_with_smart_upsert", lambda *args, **kwargs: True)
+
+    caplog.set_level("WARNING")
+    file_path = str(tmp_path / "input.xlsx")
+    ok, count = app_logic._import_single_file(file_path, str(tmp_path / "db.sqlite"), "ssa_table")
+
+    assert ok is True
+    assert count == 1
+    assert "Duplicidade exata no export atingiu 2 linha(s)" in caplog.text
+    assert "Violacao de validacao [outra regra] atingiu 1 linha(s)" in caplog.text

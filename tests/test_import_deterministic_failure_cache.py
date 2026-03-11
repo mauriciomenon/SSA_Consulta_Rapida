@@ -84,7 +84,7 @@ def test_run_importer_updates_deterministic_failure_cache_by_error_code(
     monkeypatch.setattr(
         app_logic,
         "_update_cache_for_deterministic_failures",
-        lambda failed_files, cache_file: deterministic_calls.append(list(failed_files)),
+        lambda failed_files, cache_file, docs_dir: deterministic_calls.append(list(failed_files)),
     )
     cache_after_calls = {"n": 0}
     monkeypatch.setattr(
@@ -144,7 +144,7 @@ def test_run_importer_does_not_mark_cancelled_as_deterministic_failure(
     monkeypatch.setattr(
         app_logic,
         "_update_cache_for_deterministic_failures",
-        lambda failed_files, cache_file: deterministic_calls.append(list(failed_files)),
+        lambda failed_files, cache_file, docs_dir: deterministic_calls.append(list(failed_files)),
     )
     cache_after_calls = {"n": 0}
     monkeypatch.setattr(

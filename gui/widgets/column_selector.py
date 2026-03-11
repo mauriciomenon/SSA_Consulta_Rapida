@@ -1,7 +1,7 @@
 # gui/widgets/column_selector.py
 # Widget for column selection with manager dialog
 
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QDialog
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QDialog
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QFont
 import logging
@@ -41,23 +41,10 @@ class ColumnSelector(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
 
-        self.manage_button = QPushButton("Colunas visiveis...")
+        self.manage_button = QPushButton()
         self.manage_button.setToolTip("Configurar colunas rapidas (marcar, ordenar e restaurar padrao)")
         self.manage_button.clicked.connect(self.open_dialog)
-        try:
-            fm = self.manage_button.fontMetrics()
-            text_width = fm.horizontalAdvance(self.manage_button.text())
-            self.manage_button.setMinimumWidth(text_width + 40)
-        except Exception:
-            pass
         layout.addWidget(self.manage_button)
-
-        self.summary_label = QLabel()
-        try:
-            self.summary_label.setStyleSheet("color: palette(windowText);")
-        except Exception:
-            pass
-        layout.addWidget(self.summary_label)
         layout.addStretch()
 
     def open_dialog(self):
@@ -94,14 +81,20 @@ class ColumnSelector(QWidget):
                         "Coluna sem alias canonico no resumo de colunas: %s", col
                     )
             translated.append(label)
-        if not translated:
-            text = "Nenhuma coluna selecionada"
-            tooltip = text
-        else:
-            text = f"{len(translated)} colunas ativas"
-            tooltip = ", ".join(translated)
-        self.summary_label.setText(text)
-        self.summary_label.setToolTip(tooltip)
+        total = len(translated)
+        button_text = f"Colunas Visiveis: {total}"
+        tooltip = ", ".join(translated) if translated else "Nenhuma coluna selecionada"
+        self.manage_button.setText(button_text)
+        self.manage_button.setToolTip(
+            "Configurar colunas rapidas (marcar, ordenar e restaurar padrao)\n"
+            f"Ativas: {tooltip}"
+        )
+        try:
+            fm = self.manage_button.fontMetrics()
+            text_width = fm.horizontalAdvance(button_text)
+            self.manage_button.setMinimumWidth(text_width + 36)
+        except Exception:
+            pass
 
     def get_selected_columns(self):
         return self.selected_internal_columns
@@ -118,9 +111,9 @@ class ColumnSelector(QWidget):
         if font is None:
             return
         try:
-            self.summary_label.setFont(QFont(font))
+            self.manage_button.setFont(QFont(font))
         except Exception as e1:
             try:
-                self.summary_label.setFont(font)
+                self.manage_button.setFont(font)
             except Exception as e2:
                 logging.getLogger(__name__).debug("Falha ao aplicar fonte do resumo: %s | fallback=%s", e1, e2)

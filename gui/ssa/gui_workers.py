@@ -119,6 +119,9 @@ def retain_data_loader_worker_until_finished(
 ) -> None:
     if worker is None:
         return
+    with _GLOBAL_WORKERS_LOCK:
+        if getattr(window, "_retired_data_loader_workers", None) is None:
+            window._retired_data_loader_workers = []
     now = perf_counter()
     prune_retired_data_loader_workers(
         window,
@@ -129,8 +132,8 @@ def retain_data_loader_worker_until_finished(
         retired_force_wait_ms=retired_force_wait_ms,
         sip_module=sip_module,
     )
-    retired = getattr(window, "_retired_data_loader_workers", None)
     with _GLOBAL_WORKERS_LOCK:
+        retired = getattr(window, "_retired_data_loader_workers", None)
         if retired is None:
             retired = []
             window._retired_data_loader_workers = retired
@@ -198,7 +201,108 @@ def is_data_loader_worker_running(worker, sip_module) -> bool:
     except Exception as exc:
         logger.debug("Falha ao consultar isRunning() do data loader worker: %s", exc)
         return False
-    return False
+    return True
+
+
+def _classify_workers_for_ttl(
+    workers: list,
+    *,
+    global_meta: dict,
+    now: float,
+    retired_ttl_sec: float,
+    max_global_workers: int,
+    is_running_fn,
+) -> tuple[list, list]:
+    # Classifica snapshot; nao altera lista de origem para evitar side-effects
+    # fora da secao protegida por lock.
+    running_workers: list = []
+    expired_workers: list = []
+    for worker in list(workers):
+        if not is_running_fn(worker):
+            global_meta.pop(worker, None)
+            continue
+        started_at = global_meta.get(worker, now)
+        age = now - started_at
+        if age > retired_ttl_sec:
+            expired_workers.append(worker)
+        running_workers.append(worker)
+    if max_global_workers > 0 and len(running_workers) > max_global_workers:
+        overflow_count = len(running_workers) - max_global_workers
+        overflow_workers = sorted(
+            running_workers,
+            key=lambda candidate: float(global_meta.get(candidate, now)),
+        )[:overflow_count]
+        overflow_set = set(overflow_workers)
+        for worker in overflow_workers:
+            if worker not in expired_workers:
+                expired_workers.append(worker)
+        running_workers = [worker for worker in running_workers if worker not in overflow_set]
+    return running_workers, expired_workers
+
+
+def _drop_orphaned_worker_meta(global_workers: list, global_meta: dict, protected_workers: set | None = None) -> None:
+    protected = protected_workers or set()
+    for worker in list(global_meta.keys()):
+        if worker not in global_workers and worker not in protected:
+            global_meta.pop(worker, None)
+
+
+def _process_expired_workers(
+    expired_workers: list,
+    *,
+    now: float,
+    global_workers: list,
+    global_meta: dict,
+    warn_message: str,
+    stop_worker_fn,
+    stop_error_log: str,
+    skip_workers: set | None = None,
+) -> set:
+    removed_workers: set = set()
+    skip = skip_workers or set()
+    for worker in expired_workers:
+        if worker in skip:
+            continue
+        logger.warning("%s [worker=%r]", warn_message, worker)
+        try:
+            stopped = bool(stop_worker_fn(worker))
+        except Exception as exc:
+            logger.debug(stop_error_log, exc)
+            stopped = False
+        if stopped:
+            removed_workers.add(worker)
+            with _GLOBAL_WORKERS_LOCK:
+                if worker in global_workers:
+                    global_workers.remove(worker)
+                global_meta.pop(worker, None)
+        else:
+            with _GLOBAL_WORKERS_LOCK:
+                global_meta[worker] = now
+    return removed_workers
+
+
+def _classify_and_update_global_workers_locked(
+    *,
+    global_workers: list,
+    global_meta: dict,
+    now: float,
+    retired_ttl_sec: float,
+    max_global_workers: int,
+    is_running_fn,
+    drop_orphaned_meta: bool = False,
+) -> list:
+    running_global, expired_global = _classify_workers_for_ttl(
+        global_workers,
+        global_meta=global_meta,
+        now=now,
+        retired_ttl_sec=retired_ttl_sec,
+        max_global_workers=max_global_workers,
+        is_running_fn=is_running_fn,
+    )
+    global_workers[:] = running_global
+    if drop_orphaned_meta:
+        _drop_orphaned_worker_meta(global_workers, global_meta)
+    return expired_global
 
 
 def prune_retired_data_loader_workers(
@@ -229,79 +333,54 @@ def prune_retired_data_loader_workers(
             if age > retired_ttl_sec:
                 expired_local.append(w)
 
-        running_global = []
-        for w in list(global_workers):
-            if not is_data_loader_worker_running(w, sip_module):
-                global_meta.pop(w, None)
-                continue
-            started_at = global_meta.get(w, now)
-            age = now - started_at
-            if age > retired_ttl_sec:
-                expired_global.append(w)
-            running_global.append(w)
-        if len(running_global) > max_global_workers:
-            running_global = running_global[-max_global_workers:]
-        global_workers[:] = running_global
-    for w in expired_local:
-        logger.warning("Data loader worker excedeu TTL; solicitando stop.")
-        try:
-            stopped = cleanup_data_loader_worker(
-                window,
-                w,
-                wait_ms=retired_force_wait_ms,
-                global_workers=global_workers,
-                global_meta=global_meta,
-                max_global_workers=max_global_workers,
-                retired_ttl_sec=retired_ttl_sec,
-                retired_force_wait_ms=retired_force_wait_ms,
-                sip_module=sip_module,
-            )
-        except Exception as exc:
-            logger.debug("Falha ao encerrar data loader worker expirado: %s", exc)
-            stopped = False
-        if stopped:
-            with _GLOBAL_WORKERS_LOCK:
-                global_meta.pop(w, None)
-            removed_local.add(w)
-        else:
-            with _GLOBAL_WORKERS_LOCK:
-                global_meta[w] = now
-    for w in expired_global:
-        if w in removed_local:
-            continue
-        logger.warning("Data loader worker excedeu TTL; solicitando stop.")
-        try:
-            stopped = cleanup_data_loader_worker(
-                window,
-                w,
-                wait_ms=retired_force_wait_ms,
-                global_workers=global_workers,
-                global_meta=global_meta,
-                max_global_workers=max_global_workers,
-                retired_ttl_sec=retired_ttl_sec,
-                retired_force_wait_ms=retired_force_wait_ms,
-                sip_module=sip_module,
-            )
-        except Exception as exc:
-            logger.debug("Falha ao encerrar data loader worker expirado: %s", exc)
-            stopped = False
-        if stopped:
-            with _GLOBAL_WORKERS_LOCK:
-                if w in global_workers:
-                    global_workers.remove(w)
-                global_meta.pop(w, None)
-        else:
-            with _GLOBAL_WORKERS_LOCK:
-                global_meta[w] = now
+        expired_global = _classify_and_update_global_workers_locked(
+            global_workers=global_workers,
+            global_meta=global_meta,
+            now=now,
+            retired_ttl_sec=retired_ttl_sec,
+            max_global_workers=max_global_workers,
+            is_running_fn=lambda worker: is_data_loader_worker_running(worker, sip_module),
+        )
+    expired_all = list(
+        dict.fromkeys(
+            [
+                *expired_local,
+                *(worker for worker in expired_global if worker not in removed_local),
+            ]
+        )
+    )
+
+    def _stop_data_loader_worker(worker) -> bool:
+        return cleanup_data_loader_worker(
+            window,
+            worker,
+            wait_ms=retired_force_wait_ms,
+            global_workers=global_workers,
+            global_meta=global_meta,
+            max_global_workers=max_global_workers,
+            retired_ttl_sec=retired_ttl_sec,
+            retired_force_wait_ms=retired_force_wait_ms,
+            sip_module=sip_module,
+        )
+
+    removed_by_ttl = _process_expired_workers(
+        expired_all,
+        now=now,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        warn_message="Data loader worker excedeu TTL; solicitando stop.",
+        stop_worker_fn=_stop_data_loader_worker,
+        stop_error_log="Falha ao encerrar data loader worker expirado: %s",
+        skip_workers=removed_local,
+    )
+    removed_local.update(removed_by_ttl)
     with _GLOBAL_WORKERS_LOCK:
         retired_snapshot = set(getattr(window, "_retired_data_loader_workers", []) or [])
         if removed_local:
             retired_current = list(getattr(window, "_retired_data_loader_workers", []) or [])
             window._retired_data_loader_workers = [w for w in retired_current if w not in removed_local]
             retired_snapshot = set(window._retired_data_loader_workers)
-        for w in list(global_meta.keys()):
-            if w not in global_workers and w not in retired_snapshot:
-                global_meta.pop(w, None)
+        _drop_orphaned_worker_meta(global_workers, global_meta, retired_snapshot)
 
 
 def is_rescan_worker_running(worker, sip_module) -> bool:
@@ -313,7 +392,7 @@ def is_rescan_worker_running(worker, sip_module) -> bool:
     except Exception as exc:
         logger.debug("Falha ao consultar isRunning() do rescan worker: %s", exc)
         return False
-    return False
+    return True
 
 
 def prune_retired_rescan_workers(
@@ -326,48 +405,40 @@ def prune_retired_rescan_workers(
     retired_force_wait_ms: int,
     sip_module,
 ) -> None:
-    # NOTE: TTL/prune logic mirrors data loader flow; keep in sync. Refactor tracked in backlog.
     now = perf_counter()
     expired_global = []
-    running_global = []
     with _GLOBAL_WORKERS_LOCK:
-        for w in list(global_workers):
-            if not is_rescan_worker_running(w, sip_module):
-                global_meta.pop(w, None)
-                continue
-            started_at = global_meta.get(w, now)
-            age = now - started_at
-            if age > retired_ttl_sec:
-                expired_global.append(w)
-            running_global.append(w)
-        if len(running_global) > max_global_workers:
-            running_global = running_global[-max_global_workers:]
-        global_workers[:] = running_global
-        for w in list(global_meta.keys()):
-            if w not in global_workers:
-                global_meta.pop(w, None)
-    for w in expired_global:
-        logger.warning("Rescan worker excedeu TTL; solicitando stop.")
-        try:
-            if hasattr(w, "stop"):
-                w.stop()
-            if hasattr(w, "quit"):
-                w.quit()
-            if hasattr(w, "wait"):
-                w.wait(int(retired_force_wait_ms))
-            if hasattr(w, "isRunning") and w.isRunning() and hasattr(w, "terminate"):
-                w.terminate()
-                w.wait(int(retired_force_wait_ms))
-        except Exception as exc:
-            logger.debug("Falha ao encerrar rescan worker expirado: %s", exc)
-        if not is_rescan_worker_running(w, sip_module):
-            with _GLOBAL_WORKERS_LOCK:
-                if w in global_workers:
-                    global_workers.remove(w)
-                global_meta.pop(w, None)
-            continue
-        with _GLOBAL_WORKERS_LOCK:
-            global_meta[w] = now
+        expired_global = _classify_and_update_global_workers_locked(
+            global_workers=global_workers,
+            global_meta=global_meta,
+            now=now,
+            retired_ttl_sec=retired_ttl_sec,
+            max_global_workers=max_global_workers,
+            is_running_fn=lambda worker: is_rescan_worker_running(worker, sip_module),
+            drop_orphaned_meta=True,
+        )
+
+    def _stop_rescan_worker(worker) -> bool:
+        if hasattr(worker, "stop"):
+            worker.stop()
+        if hasattr(worker, "quit"):
+            worker.quit()
+        if hasattr(worker, "wait"):
+            worker.wait(int(retired_force_wait_ms))
+        if hasattr(worker, "isRunning") and worker.isRunning() and hasattr(worker, "terminate"):
+            worker.terminate()
+            worker.wait(int(retired_force_wait_ms))
+        return not is_rescan_worker_running(worker, sip_module)
+
+    _process_expired_workers(
+        expired_global,
+        now=now,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        warn_message="Rescan worker excedeu TTL; solicitando stop.",
+        stop_worker_fn=_stop_rescan_worker,
+        stop_error_log="Falha ao encerrar rescan worker expirado: %s",
+    )
 
 
 def cleanup_data_loader_worker(
@@ -496,7 +567,11 @@ def load_data(
     window._data_load_request_seq = request_id
     window._active_data_load_request_id = request_id
 
-    window.status_label.setText("Status: Carregando dados...")
+    _set_status_label_text(
+        window,
+        "Status: Carregando dados...",
+        context="load_data.start",
+    )
     window.progress_bar.setVisible(True)
     window.load_button.setEnabled(False)
     window.search_button.setEnabled(False)
@@ -528,7 +603,11 @@ def load_data(
                     "Erro de Carregamento",
                     "Data loader indisponivel neste ambiente. Consulte os logs.",
                 )
-        window.status_label.setText("Status: Erro ao carregar dados.")
+        _set_status_label_text(
+            window,
+            "Status: Erro ao carregar dados.",
+            context="load_data.worker_missing",
+        )
         window.progress_bar.setVisible(False)
         window.load_button.setEnabled(True)
         window.search_button.setEnabled(True)
@@ -538,23 +617,34 @@ def load_data(
         worker = data_loader_cls(db_path, table_name)
     except Exception as exc:
         logger.error("Falha ao instanciar DataLoaderWorker: %s", _mask_db_path(str(exc), db_path))
-        handler = getattr(window, "on_load_error", None)
-        if callable(handler):
-            handler(str(exc), request_id=request_id)
-        else:
-            on_load_error(
-                window,
-                str(exc),
-                request_id=request_id,
-                db_path=db_path,
-                qmessagebox=qmessagebox,
-                global_workers=global_workers,
-                global_meta=global_meta,
-                max_global_workers=max_global_workers,
-                retired_ttl_sec=retired_ttl_sec,
-                retired_force_wait_ms=retired_force_wait_ms,
-                sip_module=sip_module,
-            )
+        try:
+            handler = getattr(window, "on_load_error", None)
+            if callable(handler):
+                handler(str(exc), request_id=request_id)
+            else:
+                on_load_error(
+                    window,
+                    str(exc),
+                    request_id=request_id,
+                    db_path=db_path,
+                    qmessagebox=qmessagebox,
+                    global_workers=global_workers,
+                    global_meta=global_meta,
+                    max_global_workers=max_global_workers,
+                    retired_ttl_sec=retired_ttl_sec,
+                    retired_force_wait_ms=retired_force_wait_ms,
+                    sip_module=sip_module,
+                )
+        finally:
+            progress_bar = getattr(window, "progress_bar", None)
+            if progress_bar is not None and hasattr(progress_bar, "setVisible"):
+                progress_bar.setVisible(False)
+            load_button = getattr(window, "load_button", None)
+            if load_button is not None and hasattr(load_button, "setEnabled"):
+                load_button.setEnabled(True)
+            search_button = getattr(window, "search_button", None)
+            if search_button is not None and hasattr(search_button, "setEnabled"):
+                search_button.setEnabled(True)
         return
     window.data_loader_thread = worker
 
@@ -625,6 +715,10 @@ def load_data(
     _connect_signal(worker.finished, _handle_load_finished, label="data_loader.finished")
     _connect_signal(worker.finished, worker.deleteLater, label="data_loader.finished.deleteLater")
     worker.start()
+    with _GLOBAL_WORKERS_LOCK:
+        if worker not in global_workers:
+            global_workers.append(worker)
+        global_meta[worker] = perf_counter()
 
 
 def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
@@ -632,13 +726,19 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     if request_id is not None and active_id is not None and request_id != active_id:
         logger.debug("Ignorando resultado de carga obsoleto (request_id=%s, active=%s)", request_id, active_id)
         return
-    df_copy = df.copy()
-    for ssa_col in ("numero_ssa", "derivada_de"):
-        if ssa_col in df_copy.columns:
-            try:
-                df_copy[ssa_col] = df_copy[ssa_col].map(_sanitize_ssa_like_value)
-            except Exception as exc:
-                logger.debug("Falha ao sanitizar coluna %s na carga de dados: %s", ssa_col, exc)
+    attrs = getattr(df, "attrs", {})
+    preprocessed_for_gui = bool(attrs.get("ssa_preprocessed_for_gui"))
+    sanitized_df_from_worker = attrs.get("ssa_sanitized_df")
+    if preprocessed_for_gui and isinstance(sanitized_df_from_worker, pd.DataFrame):
+        df_copy = sanitized_df_from_worker
+    else:
+        df_copy = df.copy()
+        for ssa_col in ("numero_ssa", "derivada_de"):
+            if ssa_col in df_copy.columns:
+                try:
+                    df_copy[ssa_col] = df_copy[ssa_col].map(_sanitize_ssa_like_value)
+                except Exception as exc:
+                    logger.debug("Falha ao sanitizar coluna %s na carga de dados: %s", ssa_col, exc)
     window.df_completo = df_copy
     try:
         last_req = getattr(window, "_data_revision_request_id", None)
@@ -672,40 +772,52 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
             timer.stop()
     except Exception as exc:
         logger.debug("Falha ao parar debounce de setor apos carga de dados: %s", exc)
-    base = df_copy
-    try:
-        if 'situacao' in base.columns:
-            is_ste = base['situacao'].astype(str).str.upper().eq('STE')
-        else:
-            is_ste = pd.Series([False] * len(base), index=base.index)
-        if 'numero_ssa' in base.columns:
-            ssa_text = base["numero_ssa"].astype(str)
-            ssa_digits = ssa_text.str.replace(r"\D+", "", regex=True)
-            ssa_int = pd.to_numeric(ssa_digits, errors="coerce").fillna(-1).astype("int64")
-        else:
-            ssa_int = pd.Series([-1] * len(base), index=base.index)
-        base = base.assign(__is_ste=is_ste, __ssa=ssa_int).sort_values(
-            by=['__is_ste', '__ssa'],
-            ascending=[True, False],
-            na_position='last',
-        ).drop(columns=['__is_ste', '__ssa'])
-    except Exception as e:
-        logger.warning("Falha na ordenacao inicial dos dados: %s", e)
+    if preprocessed_for_gui:
+        base = df
+    else:
+        base = df_copy
+        try:
+            if 'situacao' in base.columns:
+                is_ste = base['situacao'].astype(str).str.upper().eq('STE')
+            else:
+                is_ste = pd.Series([False] * len(base), index=base.index)
+            if 'numero_ssa' in base.columns:
+                ssa_text = base["numero_ssa"].astype(str)
+                ssa_digits = ssa_text.str.replace(r"\D+", "", regex=True)
+                ssa_int = pd.to_numeric(ssa_digits, errors="coerce").fillna(-1).astype("int64")
+            else:
+                ssa_int = pd.Series([-1] * len(base), index=base.index)
+            base = base.assign(__is_ste=is_ste, __ssa=ssa_int).sort_values(
+                by=['__is_ste', '__ssa'],
+                ascending=[True, False],
+                na_position='last',
+            ).drop(columns=['__is_ste', '__ssa'])
+        except Exception as e:
+            logger.warning("Falha na ordenacao inicial dos dados: %s", e)
     window.df_exibido = base
     window._df_last_search_filtered = df_copy
     window._widths_computed_for_df_hash = None
     try:
-        try:
-            non_null_mask = df_copy.notna().any(axis=0)
-            non_null_cols = set(non_null_mask[non_null_mask].index.tolist())
-        except Exception:
-            non_null_cols = set()
-            for col_name in df_copy.columns:
-                try:
-                    if df_copy[col_name].notna().any():
-                        non_null_cols.add(col_name)
-                except Exception:
-                    continue
+        if hasattr(window, "_prime_num_reprogramacoes_sort_cache"):
+            window._prime_num_reprogramacoes_sort_cache()
+    except Exception as exc:
+        logger.debug("Falha ao preaquecer cache de sort de num_reprogramacoes: %s", exc)
+    try:
+        non_null_cols_attr = attrs.get("ssa_non_null_cols") if preprocessed_for_gui else None
+        if isinstance(non_null_cols_attr, list):
+            non_null_cols = {str(col) for col in non_null_cols_attr if str(col)}
+        else:
+            try:
+                non_null_mask = df_copy.notna().any(axis=0)
+                non_null_cols = set(non_null_mask[non_null_mask].index.tolist())
+            except Exception:
+                non_null_cols = set()
+                for col_name in df_copy.columns:
+                    try:
+                        if df_copy[col_name].notna().any():
+                            non_null_cols.add(col_name)
+                    except Exception:
+                        continue
         window._non_null_cols_cache = non_null_cols
         window._non_null_cols_revision = int(getattr(window, "_data_revision", 0) or 0)
     except Exception as exc:
@@ -730,19 +842,24 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         window._refresh_advanced_filter_options()
     except Exception as e:
         logger.warning("Falha ao atualizar opcoes de filtros avancados: %s", e)
-    profile_hint = f" (perfil: {window.current_filter_profile})" if window.current_filter_profile else ""
+    current_filter_profile = getattr(window, "current_filter_profile", None)
+    profile_hint = f" (perfil: {current_filter_profile})" if current_filter_profile else ""
     if hasattr(window, "_set_filtered_count_status"):
         try:
             suffix = f"{profile_hint}." if profile_hint else ""
             window._set_filtered_count_status("", suffix=suffix)
         except Exception as exc:
             logger.debug("Falha ao atualizar status padrao de contagem no load_data_worker: %s", exc)
-            window.status_label.setText(
-                f"Status: {len(window.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar."
+            _set_status_label_text(
+                window,
+                f"Status: {len(window.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar.",
+                context="on_data_loaded.fallback_set_filtered_count_status",
             )
     else:
-        window.status_label.setText(
-            f"Status: {len(window.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar."
+        _set_status_label_text(
+            window,
+            f"Status: {len(window.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar.",
+            context="on_data_loaded.default_status",
         )
 
 
@@ -797,10 +914,20 @@ def on_load_error(
     else:
         if qmessagebox is not None:
             qmessagebox.critical(window, "Erro de Carregamento", safe_error_msg)
-    window.status_label.setText("Status: Erro ao carregar dados.")
-    window.load_button.setEnabled(True)
-    window.search_button.setEnabled(True)
-    window.progress_bar.setVisible(False)
+    _set_status_label_text(
+        window,
+        "Status: Erro ao carregar dados.",
+        context="on_load_error",
+    )
+    load_button = getattr(window, "load_button", None)
+    if load_button is not None and hasattr(load_button, "setEnabled"):
+        load_button.setEnabled(True)
+    search_button = getattr(window, "search_button", None)
+    if search_button is not None and hasattr(search_button, "setEnabled"):
+        search_button.setEnabled(True)
+    progress_bar = getattr(window, "progress_bar", None)
+    if progress_bar is not None and hasattr(progress_bar, "setVisible"):
+        progress_bar.setVisible(False)
     if global_workers is not None and global_meta is not None:
         try:
             prune_retired_data_loader_workers(
@@ -904,18 +1031,31 @@ def rescan_data(
     retired_ttl_sec: float,
     retired_force_wait_ms: int,
     sip_module,
+    rescan_mode: str = "prompt",
 ) -> None:
-    force_import = True
-    if qmessagebox is not None and hasattr(qmessagebox, "StandardButton"):
-        prompt = qmessagebox(window)
-        prompt.setWindowTitle("Modo de Reescaneamento")
-        prompt.setText("Escolha o modo de reprocessamento dos arquivos.")
-        prompt.setInformativeText(
-            "Diff usa hashes e processa apenas arquivos alterados. "
-            "Full recria o banco do zero e reprocessa tudo."
+    normalized_mode = str(rescan_mode or "prompt").strip().lower()
+    if normalized_mode not in {"prompt", "diff", "full"}:
+        logger.warning(
+            "Modo de reescaneamento invalido '%s'; usando prompt.",
+            rescan_mode,
         )
-        diff_btn = prompt.addButton("Diff (hash)", qmessagebox.ButtonRole.ActionRole)
-        full_btn = prompt.addButton("Full (zera e reprocessa)", qmessagebox.ButtonRole.ActionRole)
+        normalized_mode = "prompt"
+
+    force_import = False
+    if normalized_mode == "diff":
+        force_import = False
+    elif normalized_mode == "full":
+        force_import = True
+    elif qmessagebox is not None and hasattr(qmessagebox, "StandardButton"):
+        prompt = qmessagebox(window)
+        prompt.setWindowTitle("Reescanear")
+        prompt.setText("Escolha como atualizar os dados.")
+        prompt.setInformativeText(
+            "Atualizar Dados processa apenas arquivos novos ou alterados. "
+            "Reescaneamento Completo recria o banco do zero e reprocessa tudo."
+        )
+        diff_btn = prompt.addButton("Atualizar Dados", qmessagebox.ButtonRole.ActionRole)
+        full_btn = prompt.addButton("Reescaneamento Completo", qmessagebox.ButtonRole.ActionRole)
         cancel_btn = prompt.addButton(qmessagebox.StandardButton.Cancel)
         try:
             prompt.setDefaultButton(diff_btn)
@@ -931,6 +1071,10 @@ def rescan_data(
             )
             return
         force_import = clicked == full_btn
+    else:
+        logger.warning(
+            "QMessageBox indisponivel em modo prompt; usando Atualizar Dados por seguranca."
+        )
 
     try:
         prune_retired_rescan_workers(
@@ -949,7 +1093,11 @@ def rescan_data(
     if active_worker is not None:
         try:
             if is_rescan_worker_running(active_worker, sip_module):
-                window.status_label.setText("Status: Reescaneamento ja em andamento.")
+                _set_status_label_text(
+                    window,
+                    "Status: Reescaneamento ja em andamento.",
+                    context="rescan.already_running",
+                )
                 return
         except Exception as exc:
             logger.debug("Falha ao checar worker ativo de reescaneamento: %s", exc)
@@ -966,6 +1114,10 @@ def rescan_data(
         return
 
     progress_dialog = rescan_dialog_cls(window)
+    try:
+        window._active_rescan_dialog = progress_dialog
+    except Exception as exc:
+        logger.debug("Falha ao registrar referencia do dialogo de reescaneamento: %s", exc)
 
     try:
         worker = rescan_worker_cls(main_py_path, project_root, force_import=force_import)
@@ -995,56 +1147,14 @@ def rescan_data(
         except Exception as exc:
             logger.debug("Falha ao remover referencias globais do RescanWorker: %s", exc)
 
-    def on_success():
-        nonlocal cancelled
-        if cancelled:
-            progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
-            window.status_label.setText("Status: Reescaneamento cancelado.")
-            _release_worker_ref()
-            return
-        _release_worker_ref()
-        progress_dialog.set_finished(True)
-        window.status_label.setText(
-            "Status: Reescaneamento concluido. Clique em 'Carregar Dados' para atualizar."
-        )
+    def _release_dialog_ref(*_args) -> None:
+        try:
+            if getattr(window, "_active_rescan_dialog", None) is progress_dialog:
+                window._active_rescan_dialog = None
+        except Exception as exc:
+            logger.debug("Falha ao liberar referencia do dialogo de reescaneamento: %s", exc)
 
-    def on_error(error_msg):
-        nonlocal cancelled
-        if cancelled or str(error_msg).strip().lower().startswith("processo cancelado"):
-            cancelled = True
-            progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
-            window.status_label.setText("Status: Reescaneamento cancelado.")
-            _release_worker_ref()
-            return
-        progress_dialog.set_finished(False, error_msg)
-        window.status_label.setText("Status: Erro no reescaneamento.")
-        _release_worker_ref()
-
-    _connect_signal(worker.finished_success, on_success, label="rescan.finished_success")
-    _connect_signal(worker.finished_error, on_error, label="rescan.finished_error")
-    _connect_signal(worker.finished, _release_worker_ref, label="rescan.finished.release")
-    _connect_signal(worker.finished, worker.deleteLater, label="rescan.finished.deleteLater")
-
-    def on_cancel_requested():
-        nonlocal cancelled
-        cancelled = True
-        running = is_rescan_worker_running(worker, sip_module)
-        window.status_label.setText("Status: Cancelamento solicitado no reescaneamento.")
-        if running:
-            try:
-                if hasattr(worker, "stop"):
-                    worker.stop()
-            except Exception as exc:
-                logger.debug("Falha ao solicitar stop do RescanWorker no cancelamento: %s", exc)
-
-    progress_dialog.cancel_requested.connect(on_cancel_requested)
-
-    worker.start()
-    progress_dialog.exec()
-
-    still_running = is_rescan_worker_running(worker, sip_module)
-    if not still_running:
-        _release_worker_ref()
+    def _prune_retired_workers_after_finish(*_args) -> None:
         try:
             prune_retired_rescan_workers(
                 window,
@@ -1056,25 +1166,84 @@ def rescan_data(
                 sip_module=sip_module,
             )
         except Exception as exc:
-            logger.debug("Falha ao podar rescan workers apos dialogo finalizado: %s", exc)
-    if still_running:
-        with _GLOBAL_WORKERS_LOCK:
-            if worker not in global_workers:
-                global_workers.append(worker)
-            global_meta[worker] = perf_counter()
-            if len(global_workers) > max_global_workers:
-                overflow = len(global_workers) - max_global_workers
-                dropped = global_workers[:overflow]
-                global_workers[:] = global_workers[overflow:]
-                for dropped_worker in dropped:
-                    global_meta.pop(dropped_worker, None)
-        prune_retired_rescan_workers(
+            logger.debug("Falha ao podar rescan workers apos worker finalizado: %s", exc)
+
+    def on_success():
+        nonlocal cancelled
+        if cancelled:
+            progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
+            _set_status_label_text(
+                window,
+                "Status: Reescaneamento cancelado.",
+                context="rescan.success.cancelled",
+            )
+            _release_worker_ref()
+            _release_dialog_ref()
+            return
+        _release_worker_ref()
+        progress_dialog.set_finished(True)
+        _release_dialog_ref()
+        _set_status_label_text(
             window,
-            global_workers=global_workers,
-            global_meta=global_meta,
-            max_global_workers=max_global_workers,
-            retired_ttl_sec=retired_ttl_sec,
-            retired_force_wait_ms=retired_force_wait_ms,
-            sip_module=sip_module,
+            "Status: Reescaneamento concluido. Clique em 'Recarregar Dados' para atualizar.",
+            context="rescan.success.done",
         )
-        logger.warning("RescanWorker ainda esta em execucao apos fechamento do dialogo; mantendo em background.")
+
+    def on_error(error_msg):
+        nonlocal cancelled
+        if cancelled or str(error_msg).strip().lower().startswith("processo cancelado"):
+            cancelled = True
+            progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
+            _set_status_label_text(
+                window,
+                "Status: Reescaneamento cancelado.",
+                context="rescan.error.cancelled",
+            )
+            _release_worker_ref()
+            _release_dialog_ref()
+            return
+        progress_dialog.set_finished(False, error_msg)
+        _release_dialog_ref()
+        _set_status_label_text(
+            window,
+            "Status: Erro no reescaneamento.",
+            context="rescan.error",
+        )
+        _release_worker_ref()
+
+    _connect_signal(worker.finished_success, on_success, label="rescan.finished_success")
+    _connect_signal(worker.finished_error, on_error, label="rescan.finished_error")
+    _connect_signal(worker.finished, _release_worker_ref, label="rescan.finished.release")
+    _connect_signal(worker.finished, _release_dialog_ref, label="rescan.finished.dialog_release")
+    _connect_signal(worker.finished, _prune_retired_workers_after_finish, label="rescan.finished.prune")
+    _connect_signal(worker.finished, worker.deleteLater, label="rescan.finished.deleteLater")
+    if hasattr(progress_dialog, "finished"):
+        _connect_signal(progress_dialog.finished, _release_dialog_ref, label="rescan.dialog.finished.release")
+
+    def on_cancel_requested():
+        nonlocal cancelled
+        cancelled = True
+        running = is_rescan_worker_running(worker, sip_module)
+        _set_status_label_text(
+            window,
+            "Status: Cancelamento solicitado no reescaneamento.",
+            context="rescan.cancel.requested",
+        )
+        if running:
+            try:
+                if hasattr(worker, "stop"):
+                    worker.stop()
+            except Exception as exc:
+                logger.debug("Falha ao solicitar stop do RescanWorker no cancelamento: %s", exc)
+
+    progress_dialog.cancel_requested.connect(on_cancel_requested)
+
+    worker.start()
+    with _GLOBAL_WORKERS_LOCK:
+        if worker not in global_workers:
+            global_workers.append(worker)
+        global_meta[worker] = perf_counter()
+    if hasattr(progress_dialog, "show_non_modal"):
+        progress_dialog.show_non_modal()
+    else:
+        progress_dialog.show()

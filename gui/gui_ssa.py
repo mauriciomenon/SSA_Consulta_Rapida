@@ -1,6 +1,6 @@
 # flake8: noqa
 # gui_ssa.py (GUI PyQt6 para SSA_Consulta_Rapida)
-# Last modified: 2025-10-30T16:05:00 (completed search simplification: removed ALL v/OU/OR/AND processing)
+# Last modified: 2025-10-30T16:05:00 (search simplification with explicit semantics in general/column filter tooltips)
 """
 Prova de Conceito Refinada de uma Interface Gráfica (GUI) para o projeto SSA_Consulta_Rapida usando PyQt6.
 
@@ -26,6 +26,8 @@ import re
 import logging
 import copy
 import sqlite3
+import threading
+from datetime import datetime
 from collections import OrderedDict
 from time import perf_counter
 from typing import Any, cast
@@ -55,6 +57,7 @@ from core.config_manager import (  # noqa: E402
     COLUMN_AFFINITY_SCORES,
     atomic_write_json_file,
 )
+from shared.db_names import ALL_SSA_TABLE_NAMES, CANONICAL_SSA_TABLE  # noqa: E402
 from gui.gui_config import (  # noqa: E402
     GUI_MAIN_PREFERENCES,
     REQUIRED_DISPLAY_COLUMNS,
@@ -530,6 +533,9 @@ except ImportError as exc:
         @staticmethod
         def getOpenFileName(*a, **k):
             return ("", "")
+        @staticmethod
+        def getOpenFileNames(*a, **k):
+            return ([], "")
 
     class QAction:
         def __init__(self, *a, **k):
@@ -822,7 +828,7 @@ try:
 except Exception as exc:
     logger.debug("Falha ao configurar constantes de detalhes: %s", exc)
 
-TABLE_NAME = 'ssas'
+TABLE_NAME = CANONICAL_SSA_TABLE
 # --- Funções Auxiliares ---
 
 def load_display_mappings():
@@ -879,13 +885,41 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         # Icone da janela (prioriza .ico no Windows)
         try:
             from PyQt6.QtGui import QIcon
-            ico_path = os.path.join(project_root, 'resources', 'app_icon.ico')
-            if os.path.exists(ico_path):
-                self.setWindowIcon(QIcon(ico_path))
+            if sys.platform == "darwin":
+                icon_candidates = [
+                    os.path.join(project_root, "resources", "app_icon.icns"),
+                    os.path.join(project_root, "resources", "app_icon.png"),
+                    os.path.join(project_root, "resources", "app_icon.ico"),
+                    os.path.join(project_root, "resources", "app_icon.svg"),
+                ]
+            elif sys.platform.startswith("win"):
+                icon_candidates = [
+                    os.path.join(project_root, "resources", "app_icon.ico"),
+                    os.path.join(project_root, "resources", "app_icon.png"),
+                    os.path.join(project_root, "resources", "app_icon.svg"),
+                    os.path.join(project_root, "resources", "app_icon.icns"),
+                ]
             else:
-                svg_path = os.path.join(project_root, 'resources', 'app_icon.svg')
-                if os.path.exists(svg_path):
-                    self.setWindowIcon(QIcon(svg_path))
+                icon_candidates = [
+                    os.path.join(project_root, "resources", "app_icon.png"),
+                    os.path.join(project_root, "resources", "app_icon.svg"),
+                    os.path.join(project_root, "resources", "app_icon.ico"),
+                    os.path.join(project_root, "resources", "app_icon.icns"),
+                ]
+            for icon_path in icon_candidates:
+                if not os.path.exists(icon_path):
+                    continue
+                app_icon = QIcon(icon_path)
+                if app_icon.isNull():
+                    continue
+                self.setWindowIcon(app_icon)
+                app_instance_getter = getattr(QApplication, "instance", None)
+                app_instance = app_instance_getter() if callable(app_instance_getter) else None
+                if app_instance is not None and hasattr(app_instance, "setWindowIcon"):
+                    app_instance.setWindowIcon(app_icon)
+                if hasattr(QApplication, "setWindowIcon"):
+                    QApplication.setWindowIcon(app_icon)
+                break
         except Exception as exc:
             logger.debug("Failed to load window icon resources: %s", exc)
 
@@ -935,6 +969,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         # Configurações de GUI (independentes do CLI)
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         self._restored_page_size = gui_settings.get("page_size", 50)
+        self._quick_setor_executor_syncing = False
 
         # Inicializa managers unificados (substitui codigo frankenstein)
         self.width_manager = SimpleWidthManager()
@@ -1027,6 +1062,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(cast(Any, central_widget))
+        self._setup_app_menus()
 
 
         # --- Barra de Ferramentas Superior ---
@@ -1038,28 +1074,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self.load_button.clicked.connect(self.load_data)
         toolbar_layout.addWidget(cast(Any, self.load_button))
 
-        self.load_other_db_button = QPushButton("Carregar Outro DB")
-        self.load_other_db_button.setToolTip("Selecionar e carregar outro arquivo de banco de dados")
-        self.load_other_db_button.clicked.connect(self.load_other_database)
-        toolbar_layout.addWidget(cast(Any, self.load_other_db_button))
-
         # Botões de ações
         self.rescan_button = QPushButton("Reescanear")
         self.rescan_button.setToolTip("Reprocessar arquivos Excel da pasta docs_entrada")
         self.rescan_button.clicked.connect(self.rescan_data)
         toolbar_layout.addWidget(cast(Any, self.rescan_button))
 
-        self.explorer_button = QPushButton("Abrir Pasta")
-        self.explorer_button.setToolTip("Abrir pasta docs_entrada no Windows Explorer")
-        self.explorer_button.clicked.connect(self.open_docs_folder)
-        toolbar_layout.addWidget(cast(Any, self.explorer_button))
-        self.update_derivadas_button = QPushButton("Atualizar Derivadas")
+        self.update_derivadas_button = QPushButton("Atualizar Derivadas", self)
         self.update_derivadas_button.setToolTip(
             "Atualizar tabelas de derivadas (fase DB e fase planilhas especiais)"
         )
         self.update_derivadas_button.clicked.connect(self.update_derivadas_from_sources)
-        toolbar_layout.addWidget(cast(Any, self.update_derivadas_button))
-        # Semana Atual (YYYYWW) ao lado de 'Abrir Pasta' (informativo)
+        # Botao removido da barra superior por UX; funcionalidade permanece no menu Database.
+        self.update_derivadas_button.setVisible(False)
+        # Semana Atual (YYYYWW) como indicador informativo na barra superior
         try:
             from datetime import date
             y, w, _ = date.today().isocalendar()
@@ -1095,15 +1123,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         toolbar_layout.addWidget(cast(Any, self.status_label))
         toolbar_layout.addWidget(cast(Any, self.progress_bar))
 
-        # Botção de Ajuda (como na PoC)
-        help_button = QPushButton("Ajuda")
-        help_button.setToolTip("Ajuda sobre filtros e uso da interface")
-        help_button.clicked.connect(self.show_filter_help)
-        toolbar_layout.addWidget(cast(Any, help_button))
-
-        # Botção de Tema (Claro/Escuro/Gruvbox)
+        # Botao de Tema no lado direito
         theme_button = QPushButton("Tema")
-        theme_button.setToolTip("Alterar tema (Claro/Escuro/Gruvbox)")
+        theme_button.setToolTip("Selecionar tema em caixa de dialogo")
         theme_button.clicked.connect(self.toggle_theme_menu)
         toolbar_layout.addWidget(cast(Any, theme_button))
 
@@ -1135,6 +1157,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self._data_revision = 0
         self._data_revision_request_id = None
         self._data_uuid = None
+        self._num_reprog_sort_cache = {"source_id": None, "source_len": 0, "keys_df": None}
+        self._pending_resize_recompute_revision = None
+        self._resize_recompute_timer = QTimer(self)
+        self._resize_recompute_timer.setSingleShot(True)
+        self._resize_recompute_timer.timeout.connect(self._on_resize_recompute_timeout)
         self._filter_request_seq = 0
         self._active_filter_request_id = 0
         self._active_filter_search_request_id = None
@@ -1194,16 +1221,29 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             lambda _checked=False, tab=tab_kind: self._on_general_search_clear_clicked(tab)
         )
         clear_filter_button.setToolTip(
-            "Limpa apenas a busca geral. Filtros de coluna e avancados continuam ativos."
+            "Limpa apenas a busca geral e cancela a busca em andamento. "
+            "Filtros de coluna e avancados continuam ativos."
         )
         clear_filter_button.setEnabled(False)
+        save_filter_button = QPushButton("Salvar Filtro")
+        save_filter_button.setMaximumWidth(110)
+        save_filter_button.setToolTip(
+            "Salva somente o filtro atual da Pesquisa Geral como filtro persistente."
+        )
+        save_filter_button.clicked.connect(self.save_current_filter)
+
+        filter_tags_widget = QWidget()
+        filter_tags_layout = QHBoxLayout(cast(Any, filter_tags_widget))
+        filter_tags_layout.setContentsMargins(0, 0, 0, 0)
+        filter_tags_layout.setSpacing(5)
+
         left.addWidget(cast(Any, search_label))
         left.addWidget(cast(Any, search_input))
         left.addWidget(cast(Any, search_button))
         left.addWidget(cast(Any, clear_filter_button))
-
-        right = QHBoxLayout()
-        right.setContentsMargins(0, 0, 0, 0)
+        left.addWidget(cast(Any, save_filter_button))
+        left.addSpacing(8)
+        left.addWidget(cast(Any, filter_tags_widget))
         column_selector = ColumnSelector(
             self.display_map,
             self.visible_columns,
@@ -1212,11 +1252,51 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             info_font=self._info_font,
         )
         column_selector.columns_changed.connect(self.on_columns_changed)
-        right.addWidget(cast(Any, column_selector))
+
+        quick_setor_executor_label = QLabel("Setor Executor:")
+        quick_setor_executor_combo = QComboBox()
+        quick_setor_executor_combo.setToolTip(
+            "Filtro rapido de Setor Executor (aplica junto com os demais filtros)."
+        )
+        try:
+            quick_setor_executor_combo.setMinimumWidth(138)
+            quick_setor_executor_combo.setMaximumWidth(188)
+            quick_setor_executor_combo.setMinimumContentsLength(9)
+            quick_setor_executor_combo.setMaxVisibleItems(14)
+            control_height = 26
+            quick_setor_executor_combo.setMinimumHeight(control_height)
+            quick_setor_executor_combo.setMaximumHeight(control_height)
+            adjust_policy = getattr(
+                QComboBox.SizeAdjustPolicy,
+                "AdjustToMinimumContentsLengthWithIcon",
+                None,
+            )
+            if adjust_policy is None:
+                adjust_policy = getattr(QComboBox.SizeAdjustPolicy, "AdjustToContents", None)
+            if adjust_policy is not None:
+                quick_setor_executor_combo.setSizeAdjustPolicy(cast(Any, adjust_policy))
+            quick_setor_executor_combo.setStyleSheet("QComboBox { combobox-popup: 0; }")
+            combo_view = quick_setor_executor_combo.view()
+            if combo_view is not None:
+                scroll_bar_policy = getattr(getattr(Qt, "ScrollBarPolicy", None), "ScrollBarAsNeeded", None)
+                if scroll_bar_policy is not None:
+                    combo_view.setVerticalScrollBarPolicy(cast(Any, scroll_bar_policy))
+        except Exception as exc:
+            logger.debug("Falha ao configurar combo rapido de setor executor: %s", exc)
+        self._populate_quick_setor_executor_combo(
+            quick_setor_executor_combo,
+            selected_value=str(
+                OrderedDict(self._active_column_filters or {}).get(
+                    "setor_executor", ""
+                )
+            ).strip(),
+        )
+        quick_setor_executor_combo.currentIndexChanged.connect(
+            lambda _idx, combo=quick_setor_executor_combo: self._on_quick_setor_executor_changed(combo)
+        )
 
         search_row.addLayout(cast(Any, left))
         search_row.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
-        search_row.addLayout(cast(Any, right))
         tab_layout.addLayout(cast(Any, search_row))
 
         search_help = QLabel(
@@ -1241,36 +1321,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         paginator = DataPaginator(self.df_para_tabela)
         paginator.page_changed.connect(self.display_current_page)
         pagination_filters_layout.addWidget(paginator)
+        pagination_filters_layout.addSpacing(8)
+        pagination_filters_layout.addWidget(cast(Any, column_selector))
 
-        profile_layout = QHBoxLayout()
-        profile_layout.setContentsMargins(0, 0, 0, 0)
-        profile_layout.setSpacing(4)
-        profile_label = QLabel("Perfil de filtro:")
-        profile_selector = QComboBox()
-        try:
-            profile_selector.setMinimumWidth(150)
-            profile_selector.setSizeAdjustPolicy(cast(Any, QComboBox.SizeAdjustPolicy.AdjustToContents))
-        except Exception as exc:
-            logger.debug("Falha ao configurar seletor de perfil de filtro: %s", exc)
-        profile_selector.addItem("Personalizado", None)
-        for profile_name in self.filter_profiles.keys():
-            profile_selector.addItem(profile_name, profile_name)
-        profile_selector.currentIndexChanged.connect(self.on_profile_changed)
-        profile_layout.addWidget(cast(Any, profile_label))
-        profile_layout.addWidget(cast(Any, profile_selector))
-        pagination_filters_layout.addSpacing(12)
-        pagination_filters_layout.addLayout(cast(Any, profile_layout))
-
+        profile_selector = None
         pagination_filters_layout.addSpacing(12)
 
         persistent_filters_layout = QHBoxLayout()
         persistent_filters_layout.setContentsMargins(0, 0, 0, 0)
-
-        save_filter_button = QPushButton("Salvar Filtro")
-        save_filter_button.setMaximumWidth(100)
-        save_filter_button.setToolTip("Salvar filtro atual como persistente")
-        save_filter_button.clicked.connect(self.save_current_filter)
-        persistent_filters_layout.addWidget(cast(Any, save_filter_button))
 
         exclude_ste_checkbox = QCheckBox("Nao esta em STE/SCA")
         exclude_ste_checkbox.setToolTip("Oculta SSAs com situacao STE ou SCA")
@@ -1288,14 +1346,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             logger.warning("Falha ao conectar toggle do checkbox excluir STE/SCA: %s", exc)
         persistent_filters_layout.addWidget(cast(Any, exclude_ste_checkbox))
 
-        filter_tags_widget = QWidget()
-        filter_tags_layout = QHBoxLayout(cast(Any, filter_tags_widget))
-        filter_tags_layout.setContentsMargins(0, 0, 0, 0)
-        filter_tags_layout.setSpacing(5)
-        persistent_filters_layout.addWidget(cast(Any, filter_tags_widget))
-
         pagination_filters_layout.addLayout(cast(Any, persistent_filters_layout))
         pagination_filters_layout.addStretch()
+        pagination_filters_layout.addWidget(cast(Any, quick_setor_executor_label))
+        pagination_filters_layout.addSpacing(8)
+        pagination_filters_layout.addWidget(cast(Any, quick_setor_executor_combo))
 
         col_filter_indicator = QLabel("")
         try:
@@ -1507,7 +1562,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "search_input": search_input,
                 "search_button": search_button,
                 "clear_filter_button": clear_filter_button,
+                "save_filter_button": save_filter_button,
                 "column_selector": column_selector,
+                "quick_setor_executor_label": quick_setor_executor_label,
+                "quick_setor_executor_combo": quick_setor_executor_combo,
                 "search_help": search_help,
                 "paginator": paginator,
                 "profile_selector": profile_selector,
@@ -1679,6 +1737,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return
         try:
             self._refresh_advanced_filter_options()
+            self._sync_advanced_executor_ui_from_active_filter()
             self._adv_options_dirty = False
         except Exception as exc:
             logger.warning("Falha ao executar refresh de filtros avancados: %s", exc)
@@ -1690,6 +1749,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return
         ctx = self._tab_contexts[index]
         self._bind_tab_context(ctx)
+        try:
+            self._refresh_quick_setor_executor_options()
+            self._sync_quick_setor_executor_combo_from_filters()
+            self._sync_advanced_executor_ui_from_active_filter()
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar combo rapido de setor executor na troca de aba: %s", exc)
         if ctx.get("tab_kind") == "filters":
             try:
                 ssa_gui_theme.reapply_current_theme_widget_styles(
@@ -2054,6 +2119,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def on_data_loaded(self, df: pd.DataFrame, request_id: int | None = None):
         ssa_gui_workers.on_data_loaded(self, df, request_id=request_id)
+        try:
+            self._refresh_quick_setor_executor_options()
+            self._sync_quick_setor_executor_combo_from_filters()
+            self._sync_advanced_executor_ui_from_active_filter()
+        except Exception as exc:
+            logger.debug("Falha ao atualizar combo rapido de setor executor apos carga: %s", exc)
 
     def on_load_error(self, error_msg: str, request_id: int | None = None):
         ssa_gui_workers.on_load_error(
@@ -2085,30 +2156,101 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def _sort_num_reprogramacoes_robust(self, ascending: bool) -> pd.DataFrame:
         """Sort num_reprogramacoes with mixed legacy values without TypeError."""
-        if self.df_exibido is None or self.df_exibido.empty:
-            return self.df_exibido
-        if "num_reprogramacoes" not in self.df_exibido.columns:
-            return self.df_exibido
+        source_df = self.df_exibido
+        if source_df is None or source_df.empty:
+            return source_df
+        if "num_reprogramacoes" not in source_df.columns:
+            return source_df
 
-        raw_series = self.df_exibido["num_reprogramacoes"]
-        numeric = pd.to_numeric(raw_series, errors="coerce")
-        if bool(numeric.isna().any()):
-            extracted = raw_series.astype(str).str.extract(r"(-?\d+)")[0]
-            extracted_numeric = pd.to_numeric(extracted, errors="coerce")
-            numeric = numeric.fillna(extracted_numeric)
-
-        sort_df = self.df_exibido.assign(
-            __reprog_is_nan=numeric.isna(),
-            __reprog_num=numeric,
-            __reprog_txt=raw_series.astype(str).str.casefold(),
-        )
-        sorted_df = sort_df.sort_values(
+        sort_keys = self._build_num_reprogramacoes_sort_keys(source_df)
+        sort_direction = bool(ascending)
+        ordered_index = sort_keys.sort_values(
             by=["__reprog_is_nan", "__reprog_num", "__reprog_txt"],
-            ascending=[True, bool(ascending), True],
+            ascending=[True, sort_direction, sort_direction],
             na_position="last",
             kind="mergesort",
+        ).index
+        sorted_keys = sort_keys.loc[ordered_index]
+        self._last_num_reprog_sorted_keys = sorted_keys
+        return source_df.loc[ordered_index]
+
+    def _build_num_reprogramacoes_sort_keys(self, source_df: pd.DataFrame) -> pd.DataFrame:
+        raw_series = source_df["num_reprogramacoes"]
+        numeric = pd.to_numeric(raw_series, errors="coerce")
+        missing_numeric_mask = numeric.isna()
+        if bool(missing_numeric_mask.any()):
+            extracted_source = raw_series[missing_numeric_mask].astype(str)
+            extracted = extracted_source.str.extract(r"(-?\d+)")[0]
+            extracted_numeric = pd.to_numeric(extracted, errors="coerce")
+            numeric = numeric.copy()
+            numeric.loc[missing_numeric_mask] = extracted_numeric
+        return pd.DataFrame(
+            {
+                "__reprog_is_nan": numeric.isna(),
+                "__reprog_num": numeric,
+                "__reprog_txt": raw_series.astype(str).str.casefold(),
+            },
+            index=source_df.index,
         )
-        return sorted_df.drop(columns=["__reprog_is_nan", "__reprog_num", "__reprog_txt"])
+
+    def _get_num_reprogramacoes_sort_keys(self) -> pd.DataFrame:
+        source_df = self.df_exibido
+        if not isinstance(source_df, pd.DataFrame):
+            return pd.DataFrame(columns=["__reprog_is_nan", "__reprog_num", "__reprog_txt"])
+        if "num_reprogramacoes" not in source_df.columns:
+            return pd.DataFrame(index=source_df.index)
+
+        source_id = id(source_df)
+        source_len = len(source_df.index)
+        cache = getattr(self, "_num_reprog_sort_cache", None)
+        keys_df = cache.get("keys_df") if isinstance(cache, dict) else None
+        cache_source_len = cache.get("source_len", -1) if isinstance(cache, dict) else -1
+        try:
+            cache_source_len_int = int(cache_source_len)
+        except (TypeError, ValueError):
+            cache_source_len_int = -1
+        cache_is_valid = (
+            isinstance(cache, dict)
+            and cache.get("source_id") == source_id
+            and cache_source_len_int == source_len
+            and isinstance(keys_df, pd.DataFrame)
+            and keys_df.index.equals(source_df.index)
+        )
+        if not cache_is_valid:
+            keys_df = self._build_num_reprogramacoes_sort_keys(source_df)
+            self._num_reprog_sort_cache = {
+                "source_id": source_id,
+                "source_len": source_len,
+                "keys_df": keys_df,
+            }
+        if not isinstance(keys_df, pd.DataFrame):
+            keys_df = self._build_num_reprogramacoes_sort_keys(source_df)
+        if not keys_df.index.equals(source_df.index):
+            keys_df = self._build_num_reprogramacoes_sort_keys(source_df)
+            self._num_reprog_sort_cache = {
+                "source_id": source_id,
+                "source_len": source_len,
+                "keys_df": keys_df,
+            }
+        return keys_df
+
+    def _reset_num_reprogramacoes_sort_cache(self) -> None:
+        self._num_reprog_sort_cache = {"source_id": None, "source_len": 0, "keys_df": None}
+
+    def _prime_num_reprogramacoes_sort_cache(self) -> None:
+        source_df = self.df_exibido
+        if not isinstance(source_df, pd.DataFrame):
+            self._reset_num_reprogramacoes_sort_cache()
+            return
+        if source_df.empty or "num_reprogramacoes" not in source_df.columns:
+            self._reset_num_reprogramacoes_sort_cache()
+            return
+        keys_df = self._build_num_reprogramacoes_sort_keys(source_df)
+        self._num_reprog_sort_cache = {
+            "source_id": id(source_df),
+            "source_len": len(source_df.index),
+            "keys_df": keys_df,
+        }
 
     def on_header_clicked(self, logical_index: int):
         try:
@@ -2137,6 +2279,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             try:
                 if self.sort_column == "num_reprogramacoes":
                     self.df_exibido = self._sort_num_reprogramacoes_robust(self.sort_ascending)
+                    sorted_keys = getattr(self, "_last_num_reprog_sorted_keys", None)
+                    if isinstance(sorted_keys, pd.DataFrame) and sorted_keys.index.equals(self.df_exibido.index):
+                        self._num_reprog_sort_cache = {
+                            "source_id": id(self.df_exibido),
+                            "source_len": len(self.df_exibido.index),
+                            "keys_df": sorted_keys,
+                        }
+                    else:
+                        self._prime_num_reprogramacoes_sort_cache()
+                    self._last_num_reprog_sorted_keys = None
                 else:
                     self.df_exibido = self.df_exibido.sort_values(
                         by=self.sort_column,
@@ -2295,6 +2447,192 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self.display_current_page(self.paginator.current_page)
         # Nota: Persistencia de preferencias removida para isolamento do CLI
         # As configurações ficam no arquivo gui_main_preferences.json
+
+    @staticmethod
+    def _order_setor_executor_values(values: list[str]) -> list[str]:
+        priority = ["IEE1", "IEE2", "IEE3", "IEE4", "MEL1", "MEL2", "MEL3", "MEL4"]
+        normalized = []
+        seen = set()
+        for raw in values or []:
+            value = str(raw or "").strip()
+            if not value:
+                continue
+            key = value.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            normalized.append(value)
+        upper_map = {item.upper(): item for item in normalized}
+        ordered = []
+        used_upper = set()
+        for item in priority:
+            if item in upper_map:
+                ordered.append(item)
+                used_upper.add(item)
+        remaining = []
+        for item in normalized:
+            upper_item = item.upper()
+            if upper_item in used_upper:
+                continue
+            remaining.append(item)
+        remaining = sorted(remaining, key=lambda x: x.casefold())
+        return ordered + remaining
+
+    def _collect_setor_executor_values_for_combo(self) -> list[str]:
+        base_df = getattr(self, "df_completo", None)
+        if not isinstance(base_df, pd.DataFrame) or base_df.empty:
+            base_df = getattr(self, "df_exibido", None)
+        if not isinstance(base_df, pd.DataFrame) or base_df.empty:
+            return []
+        if "setor_executor" not in base_df.columns:
+            return []
+        raw_values = []
+        for value in base_df["setor_executor"].dropna().astype(str):
+            cleaned = str(value or "").strip()
+            if cleaned:
+                raw_values.append(cleaned)
+        return self._order_setor_executor_values(raw_values)
+
+    def _populate_quick_setor_executor_combo(self, combo, selected_value: str = "") -> None:
+        if combo is None:
+            return
+        options = self._collect_setor_executor_values_for_combo()
+        selected = str(selected_value or "").strip()
+        self._quick_setor_executor_syncing = True
+        try:
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItem("Todos", "")
+            for value in options:
+                combo.addItem(value, value)
+            idx = combo.findData(selected)
+            if idx < 0:
+                idx = 0
+            combo.setCurrentIndex(idx)
+            self._update_quick_setor_executor_combo_display(combo)
+        except Exception as exc:
+            logger.debug("Falha ao popular combo rapido de setor executor: %s", exc)
+        finally:
+            try:
+                combo.blockSignals(False)
+            except Exception as exc:
+                logger.debug("Falha ao reativar sinais do combo rapido de setor executor: %s", exc)
+            self._quick_setor_executor_syncing = False
+
+    def _update_quick_setor_executor_combo_display(self, combo) -> None:
+        if combo is None:
+            return
+        value = ""
+        try:
+            value = str(combo.currentData() or "").strip()
+        except Exception as exc:
+            logger.debug("Falha ao ler valor atual do combo rapido de setor executor: %s", exc)
+        display_text = value if value else "Todos"
+        try:
+            line_edit = combo.lineEdit()
+            if line_edit is not None:
+                line_edit.setText(display_text)
+        except Exception as exc:
+            logger.debug("Falha ao atualizar texto exibido do combo rapido de setor executor: %s", exc)
+
+    @staticmethod
+    def _split_filter_csv_values(raw_value: str) -> list[str]:
+        values = []
+        seen = set()
+        for part in str(raw_value or "").split(","):
+            item = str(part or "").strip()
+            if not item:
+                continue
+            key = item.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            values.append(item)
+        return values
+
+    def _sync_advanced_executor_ui_from_active_filter(self) -> None:
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        selected_raw = str(active_filters.get("setor_executor", "") or "").strip()
+        selected_values = self._split_filter_csv_values(selected_raw)
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if not isinstance(tab_contexts, list):
+            return
+        for ctx in tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            if ctx.get("tab_kind") != "filters":
+                continue
+            button = ctx.get("adv_executor_button")
+            checks = ctx.get("adv_executor_checks")
+            exclude_checks = ctx.get("adv_executor_exclude_checks")
+            if button is None:
+                continue
+            if checks:
+                self._sync_multiselect_checks(
+                    button,
+                    checks,
+                    selected_values,
+                    exclude_checks,
+                    [],
+                )
+            else:
+                if selected_values:
+                    button.setText(f"Incluir: {', '.join(selected_values)}")
+                else:
+                    button.setText("Selecionar")
+
+    def _sync_quick_setor_executor_combo_from_filters(self) -> None:
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        selected_value = str(active_filters.get("setor_executor", "") or "").strip()
+        if "," in selected_value:
+            selected_value = ""
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if not isinstance(tab_contexts, list):
+            return
+        for ctx in tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            combo = ctx.get("quick_setor_executor_combo")
+            if combo is None:
+                continue
+            self._populate_quick_setor_executor_combo(combo, selected_value=selected_value)
+
+    def _refresh_quick_setor_executor_options(self) -> None:
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if not isinstance(tab_contexts, list):
+            return
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        selected_value = str(active_filters.get("setor_executor", "") or "").strip()
+        if "," in selected_value:
+            selected_value = ""
+        for ctx in tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            combo = ctx.get("quick_setor_executor_combo")
+            if combo is None:
+                continue
+            self._populate_quick_setor_executor_combo(combo, selected_value=selected_value)
+
+    def _on_quick_setor_executor_changed(self, combo) -> None:
+        if bool(getattr(self, "_quick_setor_executor_syncing", False)):
+            return
+        selected = ""
+        try:
+            selected = str(combo.currentData() or "").strip()
+        except Exception as exc:
+            logger.debug("Falha ao ler valor do combo rapido de setor executor: %s", exc)
+        self._safe_store_last_filter_state("quick_setor_executor_changed")
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        if selected:
+            active_filters["setor_executor"] = selected
+        else:
+            active_filters.pop("setor_executor", None)
+        self._update_quick_setor_executor_combo_display(combo)
+        self._active_column_filters = active_filters
+        self._sync_advanced_executor_ui_from_active_filter()
+        self._mark_profile_as_custom()
+        self._build_column_filters_panel()
+        self._refresh_after_filter_change()
 
     def _get_select_all_columns_from_selector(self) -> list[str]:
         selector = getattr(self, "column_selector", None)
@@ -2586,12 +2924,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             QMessageBox.information(self, "Aviso", "Falha ao exportar a lista.")
 
     def remove_column_by_index(self, column_index):
-        """Remove uma coluna especáfica baseada no ándice."""
-        if column_index > 0 and column_index < len(self.visible_columns):  # Protege coluna de ándice
-            internal_column = self.visible_columns[column_index - 1]  # -1 porque hã coluna '#'
-            if internal_column in self.visible_columns:
-                self.visible_columns.remove(internal_column)
-                self.on_columns_changed(self.visible_columns)
+        """Remove uma coluna especifica baseada no indice da tabela."""
+        if column_index <= 0:
+            return
+        internal_index = column_index - 1  # Coluna 0 da tabela e '#'
+        if internal_index < 0 or internal_index >= len(self.visible_columns):
+            return
+        internal_column = self.visible_columns[internal_index]
+        if internal_column in self.visible_columns:
+            self.visible_columns.remove(internal_column)
+            self.on_columns_changed(self.visible_columns)
 
     def _compute_best_fit_width_for_column(self, column_index: int, sample_limit: int = 2000) -> int | None:
         if column_index < 0 or column_index >= self.table_widget.columnCount():
@@ -2649,6 +2991,531 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         new_width = self.table_widget.columnWidth(column_index)
         self._on_header_section_resized(column_index, old_width, new_width)
 
+    def _setup_app_menus(self) -> None:
+        menu_bar_getter = getattr(self, "menuBar", None)
+        if not callable(menu_bar_getter):
+            return
+        menu_bar = menu_bar_getter()
+        if menu_bar is None or not hasattr(menu_bar, "addMenu"):
+            return
+
+        arquivo_menu = menu_bar.addMenu("Arquivo")
+        importacao_menu = menu_bar.addMenu("Importacao")
+        db_menu = menu_bar.addMenu("Database")
+        opcoes_menu = menu_bar.addMenu("Opcoes")
+        ajuda_menu = menu_bar.addMenu("Ajuda")
+
+        load_action = QAction("Recarregar Dados", self)
+        load_action.triggered.connect(self.load_data)
+        cast(Any, arquivo_menu).addAction(load_action)
+
+        rescan_diff_action = QAction("Atualizar Dados", self)
+        rescan_diff_action.triggered.connect(self.rescan_diff_data)
+        cast(Any, arquivo_menu).addAction(rescan_diff_action)
+
+        export_action = QAction("Exportar lista", self)
+        export_action.triggered.connect(self._export_current_list_txt)
+        cast(Any, arquivo_menu).addAction(export_action)
+
+        close_action = QAction("Sair", self)
+        close_action.triggered.connect(self.close)
+        cast(Any, arquivo_menu).addAction(close_action)
+
+        import_action = QAction("Importar XLS/XLSX externo", self)
+        import_action.triggered.connect(self.import_external_excel_files)
+        cast(Any, importacao_menu).addAction(import_action)
+
+        rescan_diff_action = QAction("Atualizar Dados", self)
+        rescan_diff_action.triggered.connect(self.rescan_diff_data)
+        cast(Any, importacao_menu).addAction(rescan_diff_action)
+
+        rescan_full_action = QAction("Reescaneamento Completo", self)
+        rescan_full_action.triggered.connect(self.rescan_full_data)
+        cast(Any, importacao_menu).addAction(rescan_full_action)
+
+        open_docs_action = QAction("Abrir Pasta de Arquivos", self)
+        open_docs_action.triggered.connect(self.open_docs_folder)
+        cast(Any, importacao_menu).addAction(open_docs_action)
+
+        open_processadas_action = QAction("Abrir Pasta Arquivos Processados", self)
+        open_processadas_action.triggered.connect(self.open_processadas_folder)
+        cast(Any, importacao_menu).addAction(open_processadas_action)
+
+        open_nosurvivor_action = QAction("Abrir Pasta Arquivos Redundantes", self)
+        open_nosurvivor_action.triggered.connect(self.open_nosurvivor_folder)
+        cast(Any, importacao_menu).addAction(open_nosurvivor_action)
+
+        consolidate_action = QAction("Consolidar arquivos de entrada", self)
+        consolidate_action.triggered.connect(self.consolidate_input_files)
+        cast(Any, importacao_menu).addAction(consolidate_action)
+
+        rescan_prompt_action = QAction("Reescanear", self)
+        rescan_prompt_action.triggered.connect(self.rescan_data)
+        cast(Any, db_menu).addAction(rescan_prompt_action)
+
+        derivadas_action = QAction("Atualizar derivadas", self)
+        derivadas_action.triggered.connect(self.update_derivadas_from_sources)
+        cast(Any, db_menu).addAction(derivadas_action)
+
+        load_other_db_action = QAction("Carregar outro DB", self)
+        load_other_db_action.triggered.connect(self.load_other_database)
+        cast(Any, db_menu).addAction(load_other_db_action)
+
+        vacuum_analyze_action = QAction("Compactar DB", self)
+        vacuum_analyze_action.triggered.connect(self.run_vacuum_analyze)
+        cast(Any, db_menu).addAction(vacuum_analyze_action)
+
+        open_settings_action = QAction("Abrir arquivo de opcoes", self)
+        open_settings_action.triggered.connect(self.open_settings_file_with_backup)
+        cast(Any, opcoes_menu).addAction(open_settings_action)
+
+        reset_settings_action = QAction("Restaurar opcoes padrao", self)
+        reset_settings_action.triggered.connect(self.reset_settings_to_defaults)
+        cast(Any, opcoes_menu).addAction(reset_settings_action)
+
+        theme_action = QAction("Selecionar Tema", self)
+        theme_action.triggered.connect(self.toggle_theme_menu)
+        cast(Any, opcoes_menu).addAction(theme_action)
+
+        install_action = QAction("Instalacao", self)
+        install_action.triggered.connect(self.open_installation_guide)
+        cast(Any, ajuda_menu).addAction(install_action)
+
+        help_action = QAction("Ajuda", self)
+        help_action.triggered.connect(self.show_filter_help)
+        cast(Any, ajuda_menu).addAction(help_action)
+
+    def import_external_excel_files(self):
+        """Importa arquivos XLS/XLSX externos para docs_entrada com copia segura."""
+        selected_files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Selecionar arquivos Excel para importar",
+            os.path.expanduser("~"),
+            "Arquivos Excel (*.xlsx);;Todos os Arquivos (*)",
+        )
+
+        if not selected_files:
+            return {"copied": 0, "skipped": 0, "failed": 0, "unsupported": 0}
+
+        docs_path = os.path.join(project_root, "docs_entrada")
+        os.makedirs(docs_path, exist_ok=True)
+
+        copied = 0
+        skipped = 0
+        failed = 0
+        unsupported = 0
+
+        for source_path in selected_files:
+            source = str(source_path or "").strip()
+            if not source:
+                skipped += 1
+                continue
+            if not os.path.isfile(source):
+                failed += 1
+                continue
+
+            base_name = os.path.basename(source)
+            lowered_name = base_name.casefold()
+            if not lowered_name.endswith(".xlsx"):
+                unsupported += 1
+                logger.info(
+                    "Importacao externa ignorou arquivo nao suportado pelo pipeline: %s",
+                    source,
+                )
+                continue
+            base_destination = os.path.join(docs_path, base_name)
+
+            source_abs = os.path.abspath(source)
+            destination_abs = os.path.abspath(base_destination)
+            if source_abs == destination_abs:
+                skipped += 1
+                continue
+
+            destination = self._build_unique_destination_path(base_destination)
+
+            try:
+                shutil.copy2(source, destination)
+                copied += 1
+            except Exception as exc:
+                logger.warning("Falha ao copiar arquivo externo '%s': %s", source, exc)
+                failed += 1
+
+        summary = (
+            f"Status: Importacao externa concluida - copiados={copied}, "
+            f"ignorados={skipped}, nao_suportados={unsupported}, falhas={failed}."
+        )
+        if hasattr(self, "status_label"):
+            self.status_label.setText(summary)
+
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            QMessageBox.information(
+                self,
+                "Importacao externa",
+                (
+                    "Importacao concluida.\n\n"
+                    f"Copiados: {copied}\n"
+                    f"Ignorados: {skipped}\n"
+                    f"Nao suportados: {unsupported}\n"
+                    f"Falhas: {failed}\n\n"
+                    f"Destino: {docs_path}"
+                ),
+            )
+
+        return {
+            "copied": copied,
+            "skipped": skipped,
+            "failed": failed,
+            "unsupported": unsupported,
+        }
+
+    def _resolve_settings_file_path(self) -> str:
+        try:
+            from core import config_manager
+
+            resolver = getattr(config_manager, "_resolve_config_path", None)
+            if callable(resolver):
+                return str(resolver(config_manager.USER_SETTINGS_FILE))
+        except Exception as exc:
+            logger.debug("Falha ao resolver settings path via config_manager: %s", exc)
+        return os.path.join(project_root, "config", "settings.json")
+
+    def _build_unique_destination_path(self, destination_path: str) -> str:
+        if not os.path.exists(destination_path):
+            return destination_path
+        base, ext = os.path.splitext(destination_path)
+        idx = 1
+        max_attempts = 10000
+        while idx <= max_attempts:
+            candidate = f"{base}__{idx}{ext}"
+            if not os.path.exists(candidate):
+                return candidate
+            idx += 1
+        raise RuntimeError(
+            f"Nao foi possivel gerar nome unico apos {max_attempts} tentativas: {destination_path}"
+        )
+
+    @staticmethod
+    def _validate_local_open_target(
+        target_path: str,
+        *,
+        must_exist: bool,
+        expect_dir: bool | None,
+    ) -> str:
+        raw = str(target_path or "")
+        if not raw.strip():
+            raise ValueError("Caminho vazio para abertura.")
+        if any(ch in raw for ch in ("\x00", "\n", "\r")):
+            raise ValueError("Caminho contem caracteres invalidos.")
+        raw_parts = [part for part in raw.replace("\\", "/").split("/") if part]
+        if ".." in raw_parts:
+            raise ValueError("Caminho com parent traversal nao permitido.")
+        normalized = os.path.abspath(os.path.normpath(raw))
+        if os.path.basename(normalized).startswith("-"):
+            raise ValueError("Caminho inicia com '-' e pode ser interpretado como opcao de comando.")
+        if must_exist and not os.path.exists(normalized):
+            raise FileNotFoundError(f"Caminho nao encontrado: {normalized}")
+        if expect_dir is True and os.path.exists(normalized) and not os.path.isdir(normalized):
+            raise ValueError(f"Era esperado diretorio: {normalized}")
+        if expect_dir is False and os.path.exists(normalized) and os.path.isdir(normalized):
+            raise ValueError(f"Era esperado arquivo: {normalized}")
+        return normalized
+
+    @staticmethod
+    def _resolve_platform_open_command() -> str:
+        if sys.platform.startswith("win"):
+            cmd = "explorer"
+        elif sys.platform == "darwin":
+            cmd = "open"
+        else:
+            cmd = "xdg-open"
+        resolved = shutil.which(cmd)
+        if not resolved:
+            raise RuntimeError(f"Comando indisponivel para abrir recurso: {cmd}")
+        resolved_abs = os.path.abspath(resolved)
+        if not os.path.isabs(resolved_abs):
+            raise RuntimeError(f"Comando de abertura invalido: {resolved}")
+        return resolved_abs
+
+    def open_settings_file_with_backup(self):
+        """Abre settings.json para edicao apos criar backup failsafe com timestamp."""
+        settings_path = os.path.abspath(self._resolve_settings_file_path())
+        os.makedirs(os.path.dirname(settings_path), exist_ok=True)
+
+        try:
+            if not os.path.exists(settings_path):
+                from core.config_manager import load_settings, save_settings
+
+                save_settings(load_settings())
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            backup_path = f"{settings_path}.bak_{timestamp}"
+            shutil.copy2(settings_path, backup_path)
+        except Exception as exc:
+            logger.warning("Falha ao preparar backup de settings: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(
+                    self,
+                    "Erro",
+                    f"Falha ao preparar backup de opcoes: {exc}",
+                )
+            return {"opened": False, "backup_created": False, "settings_path": settings_path}
+
+        try:
+            safe_settings_path = SSAMainWindow._validate_local_open_target(
+                settings_path,
+                must_exist=True,
+                expect_dir=False,
+            )
+        except Exception as exc:
+            logger.warning("Caminho de settings invalido para abertura: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Caminho de opcoes invalido: {exc}")
+            return {"opened": False, "backup_created": True, "settings_path": settings_path}
+
+        opened = False
+        try:
+            if QT_AVAILABLE:
+                opened = bool(QDesktopServices.openUrl(QUrl.fromLocalFile(safe_settings_path)))
+            if not opened:
+                resolved = SSAMainWindow._resolve_platform_open_command()
+                subprocess.Popen([resolved, safe_settings_path], shell=False)
+                opened = True
+        except Exception as exc:
+            logger.warning("Falha ao abrir settings para edicao: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Falha ao abrir opcoes: {exc}")
+            return {"opened": False, "backup_created": True, "settings_path": settings_path}
+
+        if hasattr(self, "status_label"):
+            self.status_label.setText(
+                "Status: Opcoes abertas no editor externo (arquivo principal)."
+            )
+        return {"opened": opened, "backup_created": True, "settings_path": safe_settings_path}
+
+    def reset_settings_to_defaults(self):
+        """Restaura settings.json para os valores padrao com backup previo."""
+        settings_path = self._resolve_settings_file_path()
+        os.makedirs(os.path.dirname(settings_path), exist_ok=True)
+
+        try:
+            from core import config_manager
+
+            resolver = getattr(config_manager, "_resolve_config_path", None)
+            if callable(resolver):
+                default_settings_path = str(resolver(config_manager.DEFAULT_SETTINGS_FILE))
+            else:
+                default_settings_path = os.path.join(project_root, "config", "default_settings.json")
+            if not os.path.exists(default_settings_path):
+                config_manager.ensure_default_settings(fail_fast=False)
+            with open(default_settings_path, "r", encoding="utf-8") as handle:
+                default_settings = json.load(handle)
+        except Exception as exc:
+            logger.warning("Falha ao carregar defaults de opcoes: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Falha ao carregar opcoes padrao: {exc}")
+            return {"ok": False, "reason": "load_default_failed"}
+
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            qmessagebox = cast(Any, QMessageBox)
+            answer = qmessagebox.question(
+                self,
+                "Confirmar restauracao",
+                "Restaurar opcoes padrao agora? Isso sobrescreve settings.json.",
+                qmessagebox.StandardButton.Yes | qmessagebox.StandardButton.No,
+                qmessagebox.StandardButton.No,
+            )
+            if answer != qmessagebox.StandardButton.Yes:
+                return {"ok": False, "cancelled": True}
+
+        backup_created = False
+        backup_path = ""
+        try:
+            if os.path.exists(settings_path):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                backup_path = f"{settings_path}.bak_{timestamp}"
+                shutil.copy2(settings_path, backup_path)
+                backup_created = True
+        except Exception as exc:
+            logger.warning("Falha ao criar backup antes do reset de opcoes: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Falha ao criar backup de opcoes: {exc}")
+            return {"ok": False, "reason": "backup_failed"}
+
+        try:
+            from core.config_manager import save_settings
+
+            save_settings(default_settings)
+        except Exception as exc:
+            logger.warning("Falha ao restaurar opcoes padrao: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Falha ao restaurar opcoes: {exc}")
+            return {"ok": False, "reason": "save_failed"}
+
+        if hasattr(self, "status_label"):
+            self.status_label.setText("Status: Opcoes padrao restauradas com sucesso.")
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            QMessageBox.information(self, "Sucesso", "Opcoes padrao restauradas.")
+        return {
+            "ok": True,
+            "settings_path": settings_path,
+            "backup_created": backup_created,
+            "backup_path": backup_path,
+        }
+
+    def _resolve_latest_project_import_report(self, docs_path: str) -> dict[str, Any] | None:
+        logs_dir = os.path.join(project_root, "logs")
+        if not os.path.isdir(logs_dir):
+            return None
+        report_paths = sorted(
+            (
+                os.path.join(logs_dir, name)
+                for name in os.listdir(logs_dir)
+                if name.startswith("import_run_") and name.endswith(".json")
+            ),
+            key=os.path.getmtime,
+            reverse=True,
+        )
+        docs_abs = os.path.abspath(docs_path)
+        for report_path in report_paths:
+            payload = None
+            try:
+                with open(report_path, "r", encoding="utf-8") as handle:
+                    payload = json.load(handle)
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                logger.debug("Ignorando report invalido '%s': %s", report_path, exc)
+            if not isinstance(payload, dict):
+                continue
+            payload_docs = str((payload.get("paths") or {}).get("docs_dir") or "")
+            if os.path.abspath(payload_docs) != docs_abs:
+                continue
+            file_reports = payload.get("file_reports") or []
+            if isinstance(file_reports, list) and file_reports:
+                payload["_report_path"] = report_path
+                return payload
+        return None
+
+    def consolidate_input_files(self):
+        """Consolida arquivos de docs_entrada para processadas usando o ultimo report."""
+        docs_path = os.path.join(project_root, "docs_entrada")
+        if not os.path.isdir(docs_path):
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Pasta nao encontrada: {docs_path}")
+            return {"moved": 0, "nosurvivor": 0, "pending": 0, "failed": 0}
+
+        report = self._resolve_latest_project_import_report(docs_path)
+        if report is None:
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.information(
+                    self,
+                    "Consolidacao",
+                    "Nenhum import_run com file_reports para docs_entrada foi encontrado.",
+                )
+            return {"moved": 0, "nosurvivor": 0, "pending": 0, "failed": 0}
+
+        processadas_dir = os.path.join(docs_path, "processadas")
+        nosurvivor_dir = os.path.join(processadas_dir, "nosurvivor")
+        os.makedirs(processadas_dir, exist_ok=True)
+        os.makedirs(nosurvivor_dir, exist_ok=True)
+
+        file_rows: dict[str, dict[str, int | str]] = {}
+        mutation_fields = (
+            "rows_inserted",
+            "rows_updated",
+            "rows_changed",
+            "rows_ready_for_insert",
+        )
+        for entry in report.get("file_reports", []):
+            if not isinstance(entry, dict):
+                continue
+            file_name = str(entry.get("file") or "").strip()
+            if not file_name:
+                continue
+            status = str(entry.get("status") or "").strip().casefold()
+            counts = entry.get("counts") or {}
+            rows_inserted = int((counts.get("rows_inserted", 0) or 0))
+            rows_updated = int((counts.get("rows_updated", 0) or 0))
+            rows_changed = int((counts.get("rows_changed", 0) or 0))
+            rows_ready_for_insert = int(
+                counts.get("rows_ready_for_insert", rows_inserted) or 0
+            )
+            file_rows[file_name] = {
+                "status": status,
+                "rows_inserted": rows_inserted,
+                "rows_updated": rows_updated,
+                "rows_changed": rows_changed,
+                "rows_ready_for_insert": rows_ready_for_insert,
+            }
+
+        moved = 0
+        moved_nosurvivor = 0
+        pending = 0
+        failed = 0
+        for base_name in os.listdir(docs_path):
+            source_path = os.path.join(docs_path, base_name)
+            if not os.path.isfile(source_path):
+                continue
+            lowered = base_name.casefold()
+            if not (lowered.endswith(".xlsx") or lowered.endswith(".xls")):
+                continue
+            if base_name not in file_rows:
+                pending += 1
+                continue
+
+            file_meta = file_rows.get(base_name, {})
+            status = str(file_meta.get("status") or "").casefold()
+            has_mutation = any(
+                int(file_meta.get(name, 0) or 0) > 0 for name in mutation_fields
+            )
+            is_success_status = status in {"", "success", "no_rows"}
+            is_zero_survivor = is_success_status and not has_mutation
+            target_dir = processadas_dir
+            if not is_success_status:
+                pending += 1
+                continue
+            if is_zero_survivor:
+                target_dir = nosurvivor_dir
+            destination = self._build_unique_destination_path(
+                os.path.join(target_dir, base_name)
+            )
+            try:
+                shutil.move(source_path, destination)
+                moved += 1
+                if target_dir == nosurvivor_dir:
+                    moved_nosurvivor += 1
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao mover arquivo na consolidacao '%s': %s",
+                    source_path,
+                    exc,
+                )
+                failed += 1
+
+        summary = (
+            f"Status: Consolidacao concluida - movidos={moved}, "
+            f"nosurvivor={moved_nosurvivor}, pendentes={pending}, falhas={failed}."
+        )
+        if hasattr(self, "status_label"):
+            self.status_label.setText(summary)
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            QMessageBox.information(
+                self,
+                "Consolidacao de arquivos",
+                (
+                    "Consolidacao concluida.\n\n"
+                    f"Movidos: {moved}\n"
+                    f"Para nosurvivor: {moved_nosurvivor}\n"
+                    f"Pendentes sem evidencia no ultimo report: {pending}\n"
+                    f"Falhas: {failed}\n\n"
+                    f"Report usado: {report.get('_report_path', 'n/a')}"
+                ),
+            )
+        return {
+            "moved": moved,
+            "nosurvivor": moved_nosurvivor,
+            "pending": pending,
+            "failed": failed,
+            "report_path": str(report.get("_report_path", "")),
+        }
+
     def rescan_data(self):
         """Reprocessa os arquivos Excel com feedback visual em tempo real."""
         from gui.workers import RescanWorker
@@ -2666,47 +3533,286 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
             retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
             sip_module=sip,
+            rescan_mode="prompt",
+        )
+
+    def rescan_diff_data(self):
+        """Reprocessa somente arquivos alterados por hash (modo diff)."""
+        from gui.workers import RescanWorker
+        from gui.widgets import RescanProgressDialog
+
+        return ssa_gui_workers.rescan_data(
+            self,
+            project_root=project_root,
+            rescan_worker_cls=RescanWorker,
+            rescan_dialog_cls=RescanProgressDialog,
+            qmessagebox=QMessageBox,
+            global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
+            global_meta=GLOBAL_RETIRED_RESCAN_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+            rescan_mode="diff",
+        )
+
+    def rescan_full_data(self):
+        """Reprocessa tudo recriando DB candidato (modo full)."""
+        from gui.workers import RescanWorker
+        from gui.widgets import RescanProgressDialog
+
+        return ssa_gui_workers.rescan_data(
+            self,
+            project_root=project_root,
+            rescan_worker_cls=RescanWorker,
+            rescan_dialog_cls=RescanProgressDialog,
+            qmessagebox=QMessageBox,
+            global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
+            global_meta=GLOBAL_RETIRED_RESCAN_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+            rescan_mode="full",
         )
 
     def open_docs_folder(self):
         """Abre a pasta docs_entrada no explorador de arquivos (nao bloqueante)."""
-        docs_path = os.path.join(project_root, 'docs_entrada')
+        docs_path = os.path.join(project_root, "docs_entrada")
+        SSAMainWindow._open_folder_non_blocking(
+            cast(Any, self),
+            folder_path=docs_path,
+            folder_label="pasta de entrada",
+        )
 
-        if os.path.exists(docs_path):
+    def open_processadas_folder(self):
+        """Abre docs_entrada/processadas no explorador de arquivos."""
+        folder_path = os.path.join(project_root, "docs_entrada", "processadas")
+        SSAMainWindow._open_folder_non_blocking(
+            cast(Any, self),
+            folder_path=folder_path,
+            folder_label="pasta processadas",
+        )
+
+    def open_nosurvivor_folder(self):
+        """Abre docs_entrada/processadas/nosurvivor no explorador de arquivos."""
+        folder_path = os.path.join(
+            project_root,
+            "docs_entrada",
+            "processadas",
+            "nosurvivor",
+        )
+        SSAMainWindow._open_folder_non_blocking(
+            cast(Any, self),
+            folder_path=folder_path,
+            folder_label="pasta sem sobreviventes",
+        )
+
+    def open_installation_guide(self):
+        """Abre o guia de instalacao no editor/sistema padrao."""
+        doc_path = os.path.abspath(
+            os.path.join(project_root, "docs", "GUIA_MIGRACAO_NOVA_INSTALACAO.md")
+        )
+        if not os.path.exists(doc_path):
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Guia de instalacao nao encontrado: {doc_path}")
+            return {"opened": False, "reason": "missing_file"}
+        try:
+            safe_doc_path = SSAMainWindow._validate_local_open_target(
+                doc_path,
+                must_exist=True,
+                expect_dir=False,
+            )
+            opened = False
+            if QT_AVAILABLE:
+                safe_doc_url = QUrl.fromLocalFile(safe_doc_path)
+                opened = bool(QDesktopServices.openUrl(safe_doc_url))
+            if not opened:
+                resolved = SSAMainWindow._resolve_platform_open_command()
+                subprocess.Popen([resolved, safe_doc_path], shell=False)
+                opened = True
+            if hasattr(self, "status_label"):
+                self.status_label.setText("Status: Guia de instalacao aberto.")
+            return {"opened": opened, "path": safe_doc_path}
+        except Exception as exc:
+            logger.warning("Falha ao abrir guia de instalacao: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Falha ao abrir guia de instalacao: {exc}")
+            return {"opened": False, "reason": "open_failed", "error": str(exc)}
+
+    def run_vacuum_analyze(self):
+        """Executa VACUUM/ANALYZE manualmente no banco principal."""
+        db_path = DB_PATH
+        if not db_path or not os.path.exists(db_path):
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                return {"ok": False, "reason": "missing_db"}
+            QMessageBox.warning(self, "Erro", f"Banco nao encontrado: {db_path}")
+            return {"ok": False, "reason": "missing_db"}
+
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            qmessagebox = cast(Any, QMessageBox)
+            answer = qmessagebox.question(
+                self,
+                "Confirmar",
+                "Compactar DB e atualizar estatisticas agora?",
+                qmessagebox.StandardButton.Yes | qmessagebox.StandardButton.No,
+                qmessagebox.StandardButton.No,
+            )
+            if answer != qmessagebox.StandardButton.Yes:
+                return {"ok": False, "cancelled": True}
+
+        if bool(getattr(self, "_vacuum_analyze_running", False)):
+            if hasattr(self, "status_label"):
+                self.status_label.setText("Status: Compactacao do DB ja em andamento.")
+            return {"ok": False, "reason": "already_running", "db_path": db_path}
+
+        if hasattr(self, "status_label"):
+            self.status_label.setText("Status: Compactando DB e atualizando estatisticas...")
+
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            result = SSAMainWindow._execute_vacuum_analyze(db_path)
+            return SSAMainWindow._finalize_vacuum_analyze_result(self, result)
+
+        self._vacuum_analyze_running = True
+        self._vacuum_analyze_pending_result = None
+
+        def _window_alive() -> bool:
+            if self is None:
+                return False
+            # Test stubs and lightweight stand-ins are not Qt widgets.
+            if not hasattr(self, "metaObject"):
+                return True
+            if sip is None:
+                return True
             try:
-                # Prefer Qt abstraction to avoid blocking UI (subprocess.run) and to keep cross-platform.
-                if QT_AVAILABLE:
-                    url = QUrl.fromLocalFile(docs_path)
-                    ok = QDesktopServices.openUrl(url)
-                    if ok:
-                        return
-                    raise RuntimeError("QDesktopServices.openUrl returned False")
-                raise RuntimeError("Qt nao disponivel para abrir pastas")
-            except Exception as e:
-                logger.warning("Falha ao abrir pasta docs_entrada via Qt: %s", e)
-                try:
-                    # Best-effort fallback, non-blocking.
-                    if sys.platform.startswith("win"):
-                        cmd = "explorer"
-                    elif sys.platform == "darwin":
-                        cmd = "open"
-                    else:
-                        cmd = "xdg-open"
-                    resolved = shutil.which(cmd)
-                    if not resolved:
-                        raise RuntimeError(f"Comando indisponivel para abrir pasta: {cmd}")
-                    subprocess.Popen([resolved, docs_path])
-                    return
-                except Exception as fallback_exc:
-                    logger.warning("Fallback para abrir pasta falhou: %s", fallback_exc)
-                    # Avoid modal dialogs during automated tests (can deadlock pytest runner).
-                    if os.environ.get("PYTEST_CURRENT_TEST"):
-                        return
-                    QMessageBox.warning(self, "Erro", f"Erro ao abrir pasta: {fallback_exc}")
-        else:
+                return not sip.isdeleted(self)
+            except Exception:
+                return False
+
+        def _work() -> None:
+            try:
+                result = SSAMainWindow._execute_vacuum_analyze(db_path)
+            except Exception as exc:
+                result = {"ok": False, "error": str(exc), "db_path": db_path}
+            self._vacuum_analyze_pending_result = result
+
+        def _poll_delivery() -> None:
+            if not _window_alive():
+                self._vacuum_analyze_pending_result = None
+                self._vacuum_analyze_running = False
+                self._vacuum_analyze_thread = None
+                return
+            pending = getattr(self, "_vacuum_analyze_pending_result", None)
+            if pending is None:
+                if bool(getattr(self, "_vacuum_analyze_running", False)):
+                    QTimer.singleShot(100, _poll_delivery)
+                return
+            self._vacuum_analyze_pending_result = None
+            SSAMainWindow._finalize_vacuum_analyze_result(self, pending)
+
+        worker = threading.Thread(target=_work, daemon=True)
+        self._vacuum_analyze_thread = worker
+        worker.start()
+        QTimer.singleShot(100, _poll_delivery)
+        return {"ok": True, "started": True, "db_path": db_path}
+
+    @staticmethod
+    def _execute_vacuum_analyze(db_path: str) -> dict[str, Any]:
+        try:
+            with sqlite3.connect(db_path, timeout=30.0) as conn:
+                conn.execute("VACUUM")
+                conn.execute("ANALYZE")
+            return {"ok": True, "db_path": db_path}
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
+    def _finalize_vacuum_analyze_result(self, result: dict[str, Any]) -> dict[str, Any]:
+        self._vacuum_analyze_running = False
+        self._vacuum_analyze_thread = None
+
+        if bool(result.get("ok")):
+            if hasattr(self, "status_label"):
+                self.status_label.setText("Status: DB compactado e estatisticas atualizadas.")
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.information(self, "Sucesso", "Compactacao e atualizacao do DB concluidas.")
+            return result
+
+        error = str(result.get("error") or "Erro desconhecido")
+        logger.error("Falha ao compactar DB e atualizar estatisticas: %s", error)
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            QMessageBox.warning(self, "Erro", f"Falha na compactacao do DB: {error}")
+        return {"ok": False, "error": error, "db_path": result.get("db_path")}
+
+    def _open_folder_non_blocking(self, folder_path: str, folder_label: str) -> None:
+        try:
+            folder_path = SSAMainWindow._validate_local_open_target(
+                folder_path,
+                must_exist=False,
+                expect_dir=True,
+            )
+        except Exception as exc:
+            logger.warning("Caminho de pasta invalido para abertura (%s): %s", folder_label, exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Caminho de pasta invalido: {exc}")
+            return
+        if not os.path.exists(folder_path):
             if os.environ.get("PYTEST_CURRENT_TEST"):
                 return
-            QMessageBox.warning(self, "Erro", f"Pasta nao encontrada: {docs_path}")
+            qmessagebox = cast(Any, QMessageBox)
+            answer = qmessagebox.question(
+                self,
+                "Pasta nao encontrada",
+                (
+                    f"A pasta '{folder_label}' nao existe.\n\n"
+                    "Deseja criar agora?\n"
+                    f"{folder_path}"
+                ),
+                qmessagebox.StandardButton.Yes | qmessagebox.StandardButton.No,
+                qmessagebox.StandardButton.Yes,
+            )
+            if answer != qmessagebox.StandardButton.Yes:
+                return
+            try:
+                os.makedirs(folder_path, exist_ok=True)
+            except Exception as create_exc:
+                logger.warning("Falha ao criar pasta %s: %s", folder_path, create_exc)
+                qmessagebox.warning(self, "Erro", f"Falha ao criar pasta: {create_exc}")
+                return
+
+        try:
+            safe_folder_path = SSAMainWindow._validate_local_open_target(
+                folder_path,
+                must_exist=True,
+                expect_dir=True,
+            )
+        except Exception as exc:
+            logger.warning("Caminho de pasta invalido apos validacao (%s): %s", folder_label, exc)
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                return
+            QMessageBox.warning(self, "Erro", f"Caminho de pasta invalido: {exc}")
+            return
+
+        try:
+            # Prefer Qt abstraction to avoid blocking UI and keep cross-platform behavior.
+            if QT_AVAILABLE:
+                url = QUrl.fromLocalFile(safe_folder_path)
+                ok = QDesktopServices.openUrl(url)
+                if ok:
+                    return
+                raise RuntimeError("QDesktopServices.openUrl returned False")
+            raise RuntimeError("Qt not available to open folders")
+        except Exception as open_exc:
+            logger.warning("Falha ao abrir pasta %s via Qt: %s", folder_label, open_exc)
+            try:
+                # Best-effort fallback, non-blocking.
+                resolved = SSAMainWindow._resolve_platform_open_command()
+                subprocess.Popen([resolved, safe_folder_path], shell=False)
+                return
+            except Exception as fallback_exc:
+                logger.warning("Fallback para abrir pasta falhou: %s", fallback_exc)
+                if os.environ.get("PYTEST_CURRENT_TEST"):
+                    return
+                QMessageBox.warning(self, "Erro", f"Erro ao abrir pasta: {fallback_exc}")
 
     def _list_special_derivadas_sheets(self) -> list[str]:
         docs_path = os.path.join(project_root, "docs_entrada")
@@ -2721,12 +3827,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def _resolve_derivadas_table_name(self, db_path: str) -> str:
         candidates: list[str] = []
-        for name in (TABLE_NAME, "ssa_table", "ssas"):
+        for name in (TABLE_NAME, *ALL_SSA_TABLE_NAMES):
             if isinstance(name, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
                 if name not in candidates:
                     candidates.append(name)
         if not candidates:
-            return "ssa_table"
+            return CANONICAL_SSA_TABLE
         try:
             with sqlite3.connect(db_path) as conn:
                 existing = {
@@ -2751,7 +3857,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     return name
         except Exception as exc:
             logger.warning("Falha ao resolver tabela para sync de derivadas: %s", exc)
-        return "ssa_table"
+        return CANONICAL_SSA_TABLE
 
     def update_derivadas_from_sources(self):
         def _has_sheet_parse_evidence(entry: dict) -> bool:
@@ -2914,7 +4020,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     self.status_label.setText(f"Status: Banco alternativo selecionado: {os.path.basename(db_file)}")
                     QMessageBox.information(self, "Sucesso", f"Banco de dados selecionado: {os.path.basename(db_file)}\n\nClique em 'Carregar Dados' para carregar os dados.")
                 else:
-                    QMessageBox.warning(self, "Erro", "O arquivo selecionado nao contem dados validos na tabela 'ssas'.")
+                    QMessageBox.warning(self, "Erro", "O arquivo selecionado nao contem dados validos na tabela principal de SSAs.")
             except Exception as e:
                 QMessageBox.critical(self, "Erro", f"Erro ao abrir o banco de dados: {e}")
         elif db_file:  # Arquivo selecionado mas nao existe
@@ -2953,12 +4059,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             hasattr(self, '_last_window_width')):
             width_change = abs(event.size().width() - self._last_window_width)
             if width_change > 12:  # So recalcula se mudanca for > 12px
-                # Delay para evitar recãlculos excessivos durante resize
                 expected_revision = int(getattr(self, "_data_revision", 0) or 0)
-                QTimer.singleShot(
-                    300,
-                    lambda rev=expected_revision: self._recompute_column_widths_on_resize(expected_revision=rev),
-                )
+                self._schedule_resize_recompute(expected_revision=expected_revision)
 
         # Salva largura atual
         self._last_window_width = event.size().width()
@@ -3005,6 +4107,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             self._last_resize_width_key = width_key
         except (RuntimeError, AttributeError, KeyError, TypeError, ValueError):
             logger.exception("Column width recompute failed during resize")
+
+    def _schedule_resize_recompute(self, expected_revision: int) -> None:
+        try:
+            self._pending_resize_recompute_revision = int(expected_revision)
+            if hasattr(self, "_resize_recompute_timer") and self._resize_recompute_timer is not None:
+                self._resize_recompute_timer.start(300)
+            else:
+                QTimer.singleShot(
+                    300,
+                    lambda rev=int(expected_revision): self._recompute_column_widths_on_resize(expected_revision=rev),
+                )
+        except Exception as exc:
+            logger.debug("Falha ao agendar recompute de resize: %s", exc)
+
+    def _on_resize_recompute_timeout(self) -> None:
+        expected_revision = getattr(self, "_pending_resize_recompute_revision", None)
+        self._pending_resize_recompute_revision = None
+        self._recompute_column_widths_on_resize(expected_revision=expected_revision)
 
     def _apply_computed_widths_only(self):
         """Aplica apenas as larguras calculadas pelo WidthManager (ignora configurações salvas)."""

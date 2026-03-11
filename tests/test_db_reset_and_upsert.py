@@ -145,3 +145,106 @@ def test_insert_dataframe_with_smart_upsert_handles_duplicate_numero_ssa_in_chun
     assert str(row['numero_ssa']) == '202401999'
     assert row['situacao'] == 'UP2'
     assert row['setor_executor'] == 'C1'
+
+
+def test_smart_upsert_bootstraps_schema_with_id_on_fresh_db(tmp_path, monkeypatch):
+    db_path = os.path.join(tmp_path, 'fresh.sqlite')
+    assert not os.path.exists(db_path)
+    monkeypatch.setenv(
+        "SSA_ALLOWED_COLUMNS",
+        "numero_ssa,situacao,data_cadastro,descricao_ssa,setor_executor",
+    )
+
+    incoming = pd.DataFrame(
+        [
+            {
+                'numero_ssa': '202599999',
+                'situacao': 'NEW',
+                'data_cadastro': '03/01/2025',
+                'descricao_ssa': 'fresh insert',
+                'setor_executor': 'ZZ1',
+                'campo_nao_permitido': 'DROP_ME',
+            }
+        ]
+    )
+
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, 'ssa_table') is True
+    assert os.path.exists(db_path)
+
+    with get_db_connection(db_path) as conn:
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(ssa_table)").fetchall()]
+        assert 'id' in cols
+        assert 'campo_nao_permitido' not in cols
+        row = conn.execute(
+            "SELECT numero_ssa, situacao FROM ssa_table WHERE numero_ssa = ?",
+            ('202599999',),
+        ).fetchone()
+
+    assert row is not None
+    assert str(row[0]) == '202599999'
+    assert row[1] == 'NEW'
+
+
+def test_smart_upsert_reimport_keeps_single_sanitized_column(tmp_path, monkeypatch):
+    db_path = os.path.join(tmp_path, 'fresh_reimport.sqlite')
+    monkeypatch.delenv("SSA_ALLOWED_COLUMNS", raising=False)
+
+    incoming = pd.DataFrame(
+        [
+            {'numero_ssa': '202500001', 'situacao': 'A', 'descricao_ssa': 'd1', 'nome paciente': 'X'},
+            {'numero_ssa': '202500002', 'situacao': 'B', 'descricao_ssa': 'd2', 'nome paciente': 'Y'},
+        ]
+    )
+
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, 'ssas') is True
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, 'ssas') is True
+
+    with get_db_connection(db_path) as conn:
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(ssa_table)").fetchall()]
+        row_count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
+        filled_count = conn.execute(
+            "SELECT COUNT(*) FROM ssa_table WHERE nome_paciente IS NOT NULL"
+        ).fetchone()[0]
+
+    assert 'nome_paciente' in cols
+    assert 'nome_paciente_1' not in cols
+    assert row_count == 2
+    assert int(filled_count) == row_count
+
+
+def test_smart_upsert_discards_placeholder_dynamic_headers(tmp_path, monkeypatch):
+    db_path = os.path.join(tmp_path, 'fresh_placeholder.sqlite')
+    monkeypatch.delenv("SSA_ALLOWED_COLUMNS", raising=False)
+
+    incoming = pd.DataFrame(
+        [["202500031", "NEW", "desc", "A", "B", "C"]],
+        columns=['numero_ssa', 'situacao', 'descricao_ssa', float('nan'), 'nan', '   '],
+    )
+
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, 'ssas') is True
+
+    with get_db_connection(db_path) as conn:
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(ssa_table)").fetchall()]
+        row_count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
+
+    lowered = {str(col).strip().lower() for col in cols}
+    assert 'nan' not in lowered
+    assert 'nan_1' not in lowered
+    assert 'nan_2' not in lowered
+    assert row_count == 1
+
+
+def test_smart_upsert_dynamic_sync_respects_whitelist_after_sanitize(tmp_path, monkeypatch):
+    db_path = os.path.join(tmp_path, 'fresh_whitelist.sqlite')
+    monkeypatch.setenv("SSA_ALLOWED_COLUMNS", "numero_ssa,situacao,descricao_ssa")
+
+    incoming = pd.DataFrame(
+        [{'numero_ssa': '202500099', 'situacao': 'NEW', 'descricao_ssa': 'desc', 'nome paciente': 'X'}]
+    )
+
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, 'ssas') is True
+
+    with get_db_connection(db_path) as conn:
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(ssa_table)").fetchall()]
+
+    assert 'nome_paciente' not in cols

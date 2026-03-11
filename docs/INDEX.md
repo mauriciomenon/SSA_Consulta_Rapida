@@ -1,95 +1,104 @@
-# Documentacao - Sistema de Importacao SSA
+# INDEX de Documentacao (Baseline v4.32)
 
-## Indice de Documentos
+Este arquivo define a navegacao oficial da documentacao ativa.
 
-Esta pasta contem a documentacao do sistema de importacao do SSA_Consulta_Rapida, atualizada em 2026-03-01.
+## Sync status (2026-03-10 16:55 -0300)
 
----
+1. Baseline ativo confirmado: `4.32`.
+2. PR de trabalho atual: `#45` (`codex/sprint-importacao-grave-fixes-20260305` -> `dev`).
+3. Threads abertas no PR: `0` na ultima leitura.
+4. Checks externos ainda bloqueando merge:
+   - `CodeFactor`
+   - `code/snyk`
+   - `security/snyk`
 
-## Documentos Principais
+## Regras de leitura
 
-### 1. ARQUITETURA_IMPORTACAO.md
-Documento principal da arquitetura de importacao.
+1. Baseline ativo de versao: `4.32`.
+2. Arquivos em `docs/archive/` sao historicos e nao substituem docs ativos.
+3. Em conflito de informacao, prevalece:
+   - `AGENTS.md` (raiz)
+   - `docs/POLICY_BASELINE_V1_1_FROZEN.md`
+   - topo dos docs de controle (`RECOVERY_BACKLOG`, `NEXT_CHAT_MIGRATION`, `AGENTS_HANDOFF_NEXT_CYCLE`)
 
-Conteudo:
-- visao geral em camadas
-- fluxo de dados
-- componentes principais
-- fluxo CLI e GUI
-- erros conhecidos
-- pontos fortes
-- metricas de performance
-- recomendacoes priorizadas
+## Leitura recomendada (ordem)
 
-Leitura recomendada: comecar por este arquivo.
+1. `README.md` (raiz do repositorio)
+2. `docs/HISTORICO_RELEASES.md`
+3. `docs/COMANDOS_RAPIDOS.md`
+4. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+5. `docs/TROUBLESHOOTING.md`
 
-### 2. RESUMO_EXECUTIVO_IMPORTACAO.md
-Resumo objetivo para decisao tecnica.
+## Controle operacional
 
-Conteudo:
-- principais achados
-- metricas de performance
-- recomendacoes por impacto
-- checklist de proximos passos
-- riscos
+- `docs/RECOVERY_BACKLOG.md`
+- `docs/NEXT_CHAT_MIGRATION.md`
+- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- `docs/PENDING_ACTION_MATRIX.md`
 
-### 3. TROUBLESHOOTING_IMPORTACAO.md
-Guia de diagnostico e resolucao de problemas.
+### Alertas de curto prazo
 
-Conteudo:
-- erros comuns
-- problemas de performance
-- problemas de dados
-- diagnostico avancado
-- checklist de resolucao
+1. Debt transversal BLE001 (broad `except Exception`) permanece alto.
+2. Referencia canonica da campanha:
+   - `docs/RECOVERY_BACKLOG.md` (Priority Note 2026-03-10)
+   - `docs/PENDING_ACTION_MATRIX.md` (Update 2026-03-10 near-term stabilization queue)
 
----
+## Politicas (frozen)
 
-## Diagramas (PlantUML)
+- `docs/POLICY_BASELINE_V1_1_FROZEN.md`
+- `docs/POLICY_BASELINE_V1_FROZEN.md`
 
-### 4. diagrams/arquitetura_importacao.puml
-Diagrama de componentes por camada.
+## Importacao e dados
 
-### 5. diagrams/fluxo_sequencia_importacao.puml
-Diagrama de sequencia do fluxo de importacao.
+- `docs/ARQUITETURA_IMPORTACAO.md`
+- `docs/IMPORTACAO_ROBUSTA.md`
+- `docs/SCHEMA_UNIFICADO_IMPORTACAO.md`
+- `docs/DERIVADAS_SYNC_RUNBOOK.md`
+- `docs/indicios_importacao.md`
+- `docs/TROUBLESHOOTING_IMPORTACAO.md`
+- `docs/REGRA_NUMERO_SSA.md`
 
-### 6. diagrams/diagrama_classes.puml
-Diagrama de classes das entidades principais.
+## GUI e filtros
 
----
+- `docs/GUI_PYQT6_REGRAS_GERAIS.md`
+- `docs/FILTER_TAB_OPTIMIZATIONS.md`
+- `docs/GUI_ASYNC_LOADING_GUARDRAILS.md`
+- `docs/WORKERS_API_DOCUMENTATION.md`
+- `docs/WORKERS_ARCHITECTURE_DIAGRAMS.md`
 
-## Como Usar Esta Documentacao
+## Build e distribuicao
 
-### Desenvolvedores
-1. Ler ARQUITETURA_IMPORTACAO.md
-2. Consultar diagrams/
-3. Usar TROUBLESHOOTING_IMPORTACAO.md em incidentes
+- `docs/BUILD_SYSTEM.md`
+- `docs/BUILD_MULTIPLATFORM.md`
+- `docs/GUIA_DISTRIBUICAO.md`
+- `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+- `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
+- `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
+- `docs/BUILD_SCRIPTS_COMPARISON.md`
 
-### Gestao tecnica
-1. Ler RESUMO_EXECUTIVO_IMPORTACAO.md
-2. Revisar recomendacoes priorizadas
-3. Planejar backlog de melhoria
+## Ferramentas e ambiente
 
-### QA
-1. Revisar troubleshooting e erros conhecidos
-2. Validar cenarios de regressao
-3. Usar scripts de validacao em scripts_manutencao/
+- `docs/TESTING_STRATEGY.md`
+- `docs/TESTING_HEADLESS.md`
+- `docs/LINTING_MINIMAL.md`
+- `docs/OTIMIZACAO_STARTUP.md`
+- `docs/MCP_SERVERS_STATUS.md`
+- `docs/OPENCODE_CONFIG.md`
+- `docs/QWEN_CODE_DELEGATION_CONFIG.md`
 
-### Suporte
-1. Consultar troubleshooting
-2. Escalar com referencia de causa raiz
+## Diagramas tecnicos
 
----
+- `docs/diagrams/arquitetura_importacao.puml`
+- `docs/diagrams/fluxo_sequencia_importacao.puml`
+- `docs/diagrams/diagrama_classes.puml`
 
-## Referencias
+## Arquivo historico (copias de transicao para auditoria)
 
-- docs/SCHEMA_UNIFICADO_IMPORTACAO.md
-- docs/RECOVERY_BACKLOG.md
-- AGENTS.md
+Os arquivos abaixo sao snapshots de transicao e nao substituem os docs ativos
+de mesmo tema em `docs/`.
 
----
-
-Gerado por: Atlas (OhMyOpenCode)
-Data: 2026-03-01
-Versao: 1.0
-Status: Completo
+- `docs/archive/NEXT_CHAT_MIGRATION_legacy_until_20260309_1735.md`
+- `docs/archive/AGENTS_HANDOFF_NEXT_CYCLE_legacy_until_20260309_1735.md`
+- `docs/archive/ARQUITETURA_IMPORTACAO_legacy_until_20260309_1901.md`
+- `docs/archive/TROUBLESHOOTING_legacy_until_20260309_1901.md`
+- `docs/archive/TROUBLESHOOTING_IMPORTACAO_legacy_until_20260309_1901.md`

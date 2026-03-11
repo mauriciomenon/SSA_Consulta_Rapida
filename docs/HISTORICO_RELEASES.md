@@ -2,11 +2,53 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
-## **RELEASE v4.30 - CURRENT RELEASE**
+## **RELEASE v4.32 - CURRENT RELEASE**
+
+**Data de Lancamento**: Marco 2026
+**Tipo**: Baseline update para full rescan validado com metricas consolidadas
+**Status**: Estavel
+
+### **Principais entregas**
+- Full rescan real executado de ponta a ponta com evidencia em:
+  - `docs/indicios_importacao.md` (secao da sessao 2026-03-09)
+  - `docs/RECOVERY_BACKLOG.md` (update de full rescan real)
+- Baseline local promovido para `4.32` em:
+  - `VERSION`
+  - `config/version.json`
+  - docs ativos de referencia
+- Governanca de docs refinada:
+  - `docs/INDEX.md` e `docs/README.md` atualizados como navegacao canonica.
+  - guias longos migrados para versoes ativas curtas com snapshots em `docs/archive/`.
+- Saude do DB apos rescan:
+  - `integrity_check=ok`
+  - coluna `id` presente
+  - sem colunas `nan*`
+  - duplicidade de `numero_ssa=0`
+
+### **Documentacao da versao**
+- `README.md` (v4.32 no topo)
+- `docs/NEXT_CHAT_MIGRATION.md` (topo atualizado)
+- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` (topo atualizado)
+- `docs/FILTER_TAB_OPTIMIZATIONS.md` (baseline `v4.32`)
+
+### **Sync documental 2026-03-10**
+- Estado consolidado na rodada:
+  - PR `#45` segue aberto contra `dev`.
+  - sem threads abertas na revisao.
+  - merge bloqueado por checks externos (`CodeFactor`, `code/snyk`, `security/snyk`).
+- Docs de controle sincronizados com esse estado:
+  - `docs/RECOVERY_BACKLOG.md`
+  - `docs/NEXT_CHAT_MIGRATION.md`
+  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  - `docs/PENDING_ACTION_MATRIX.md`
+
+---
+
+## **RELEASE v4.30**
 
 **Data de Lancamento**: Marco 2026
 **Tipo**: Baseline update para sprint de saneamento
-**Status**: Em andamento
+**Status**: Snapshot historico
 
 ### **Principais entregas**
 - Snapshot oficial do estado estavel anterior com tag/release GitHub:
@@ -483,9 +525,9 @@ custom_formatting = True
 
 ---
 
-## **ROADMAP FUTURO**
+## **ROADMAP HISTORICO (SNAPSHOT ANTIGO)**
 
-### **v3.11 - Proximo Release** (Planejado)
+### **v3.11 - Plano antigo** (Arquivado)
 
 #### **Funcionalidades Planejadas**
 - **Web Interface**: Interface web complementar
@@ -499,7 +541,7 @@ custom_formatting = True
 - **Advanced Caching**: Sistema de cache distribuido
 - **Real-time Updates**: Atualizacoes em tempo real
 
-### **v4.0 - Major Rewrite** (Futuro)
+### **v4.0 - Major Rewrite** (Plano antigo)
 
 #### **Arquitetura Nova**
 - **Microservices**: Divisao em microservicos
@@ -512,9 +554,9 @@ custom_formatting = True
 ## **SUPORTE E MANUTENCAO**
 
 ### **Politica de Suporte**
-- **v3.10**: Suporte ativo ate v4.0
-- **v3.0.6**: LTS - Suporte ate 2026
-- **Versoes anteriores**: Suporte limitado
+- **v4.32**: Baseline estavel ativo
+- **v4.31**: Suporte de compatibilidade em migracao
+- **Versoes anteriores**: Tratadas como historico
 
 ### **Canais de Suporte**
 - **Issues GitHub**: Reportar bugs e sugestoes
@@ -522,6 +564,6 @@ custom_formatting = True
 - **Scripts**: Scripts de manutencao e diagnostico
 
 ### **Atualizacao Recomendada**
-Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao mais recente estavel (v3.10).
+Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao mais recente estavel (v4.32).
 
 **Status**: Desenvolvimento ativo com releases regulares a cada 2-3 meses.

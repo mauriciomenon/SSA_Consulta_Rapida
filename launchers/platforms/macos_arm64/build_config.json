@@ -8,17 +8,7 @@
     "exclude_modules": [
       "tkinter",
       "test",
-      "unittest",
-      "pydoc",
-      "doctest",
-      "argparse",
-      "multiprocessing",
-      "concurrent",
-      "asyncio",
-      "email",
-      "html",
-      "http",
-      "xml"
+      "unittest"
     ],
     "hidden_imports": [
       "pandas._libs.tslibs.base",
@@ -51,8 +41,8 @@
     ]
   },
   "post_build": {
-    "compress": true,
+    "compress": false,
     "sign": false,
-    "package": "zip"
+    "package": "dmg"
   }
 }

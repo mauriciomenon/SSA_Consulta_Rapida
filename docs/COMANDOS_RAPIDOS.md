@@ -1,24 +1,89 @@
-#  Comandos Rapidos - SSA Consulta Rapida v3.10
+# Comandos Rapidos - SSA Consulta Rapida v4.32
 
-## INICIALIZACAO RAPIDA
+## Sync desta folha (2026-03-10 16:55 -0300)
+
+1. Este runbook continua valido para baseline `v4.32`.
+2. Fluxo de importacao recomendado:
+   - incremental: `--force-rescan`
+   - full rescan: `--reset-db`
+3. Operacoes de DB auxiliares continuam disponiveis via menu GUI `Database`.
+
+## Runtime padrao
+
+- Comando padrao: `uv run --python <runtime> ...`
+- Ordem recomendada de runtime: `3.13 -> 3.12 -> 3.11 -> 3.10`
+
+## Inicializacao rapida (uv-first)
+
 ```powershell
-# Clonar projeto
 git clone https://github.com/mauriciomenon/SSA_Consulta_Rapida.git
 cd SSA_Consulta_Rapida
 
-# Configurar ambiente (uv-first)
 uv venv
 uv sync
 
-# Verificar instalacao
-.\verificar_instalacao.ps1
-
-# Primeira execucao
-uv run --python 3.13 python main.py --reset-db
-uv run --python 3.13 python main.py
+$PY_RUNTIME = "3.13"
+uv run --python $PY_RUNTIME python main.py --version
+uv run --python $PY_RUNTIME python main.py
 ```
 
-Compatibilidade sem uv:
+## Execucao principal
+
+```powershell
+$PY_RUNTIME = "3.13"
+
+# Help
+uv run --python $PY_RUNTIME python main.py --help
+
+# CLI
+uv run --python $PY_RUNTIME python main.py
+
+# GUI
+uv run --python $PY_RUNTIME python main.py --gui
+
+# Streamlit
+uv run --python $PY_RUNTIME python main.py --streamlit
+```
+
+## Importacao e banco
+
+```powershell
+$PY_RUNTIME = "3.13"
+
+# Atualizar dados (incremental)
+uv run --python $PY_RUNTIME python main.py --force-rescan
+
+# Recriar DB e reimportar tudo
+uv run --python $PY_RUNTIME python main.py --reset-db
+
+# Limpeza de dados legados
+uv run --python $PY_RUNTIME python main.py --clean-data
+```
+
+## Validacao tecnica minima
+
+```powershell
+$PY_RUNTIME = "3.13"
+
+uv run --python $PY_RUNTIME python -m py_compile main.py
+uv run --python $PY_RUNTIME ruff check main.py
+uv run --python $PY_RUNTIME ty check main.py
+uv run --python $PY_RUNTIME pytest -q tests/test_docs_and_priority.py
+```
+
+## Recuperacao rapida (safe mode)
+
+```powershell
+# Criar checkpoint (stash + pacote de recuperacao)
+pwsh -File scripts_manutencao/quick_recovery.ps1 -Action checkpoint -Message "WIP rapida"
+
+# Restaurar checkpoint
+pwsh -File scripts_manutencao/quick_recovery.ps1 -Action restore
+git stash pop
+```
+
+## Compatibilidade sem uv (fallback)
+
 ```powershell
 python -m venv venv
 .\activate_env.ps1
@@ -26,92 +91,8 @@ pip install -r requirements.txt
 python main.py
 ```
 
-## COMANDOS PRINCIPAIS
-```powershell
-# Help completo
-uv run --python 3.13 python main.py --help
+## Notas
 
-# CLI Interativo
-uv run --python 3.13 python main.py
-
-# Interface Grafica
-uv run --python 3.13 python main.py --gui
-
-# Modo Otimizado
-uv run --python 3.13 python main.py --optimized
-
-# Reimportar tudo
-uv run --python 3.13 python main.py --force-rescan
-
-# Reset completo
-uv run --python 3.13 python main.py --reset-db
-```
-
-## GUI – Filtros (TL;DR)
-- Separe termos por virgula: `foo, bar`
-- Modos: contem (`foo`), comeca (`^foo`), termina (`foo$`), igual (`=foo`), regex (`~padrao`), excluir (`!termo`)
-- Por coluna: clique direito no cabecalho e use o painel a direita; botoes Aplicar/Limpar nao alteram as larguras da tabela
-
-## Temas (GUI)
-- Claro, Escuro e Gruvbox. No Claro, caixas "Semana" e "Status" tem contraste reforcado.
-
-## RECUPERACAO RAPIDA (SAFE MODE)
-```powershell
-# 1) Criar checkpoint/restauracao (stash + pacote de recuperacao)
-pwsh -File scripts_manutencao/quick_recovery.ps1 -Action checkpoint -Message "WIP rapida"
-
-# 2) Apos reboot (ou em caso de duvida), listar/aplicar stash
-pwsh -File scripts_manutencao/quick_recovery.ps1 -Action restore
-git stash pop
-
-# 3) Alternativa: aplicar patch salvo (se necessario)
-pwsh -File scripts_manutencao/quick_recovery.ps1 -Action apply-patch -PatchPath docs_saida/SESSION_RECOVERY_YYYYMMDD_HHMMSS/uncommitted.patch
-
-# 4) Banco minimo sem pandas (modo emergencia)
-python utils/fallback/emergency_import.py       # cria data\ssas.db minimo (SQLite puro)
-python main_simple.py            # CLI simplificada operando sobre ssa_table
-```
-
-## MANUTENCAO
-```powershell
-# Verificar status
-git status
-git pull
-
-# Limpar dados antigos
-uv run --python 3.13 python main.py --clean-data
-
-# Verificar banco
-ls data\ssas.db
-
-# Ver logs (se habilitados)
-type logs\ssa.log
-```
-
-## TESTES
-```powershell
-# Teste rapido
-python -c "from core import app_logic; print(' OK')"
-
-# Testes automatizados
-python -m pytest tests\ -v
-
-# Teste especifico
-python tests\test_imports.py
-```
-
-## SOLUCAO DE PROBLEMAS
-```powershell
-# Reinstalar dependencias
-uv sync --refresh
-
-# Reset de ambiente
-deactivate
-Remove-Item venv -Recurse -Force
-python -m venv venv
-.\activate_env.ps1
-pip install -r requirements.txt
-
-# Permissoes PowerShell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
+1. Para fluxo operacional e handoff, usar `docs/RECOVERY_BACKLOG.md`.
+2. Para troubleshooting geral, usar `docs/TROUBLESHOOTING.md`.
+3. Para troubleshooting de importacao, usar `docs/TROUBLESHOOTING_IMPORTACAO.md`.

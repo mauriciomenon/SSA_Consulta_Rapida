@@ -28,6 +28,7 @@ class _StatusLabel:
 class _Window:
     def __init__(self):
         self._active_rescan_worker = None
+        self._active_rescan_dialog = None
         self.status_label = _StatusLabel()
 
 
@@ -35,6 +36,8 @@ class _DialogCancelAndFinish:
     def __init__(self, window):
         self.window = window
         self.cancel_requested = _Signal()
+        self.show_called = False
+        self.show_non_modal_called = False
 
     def append_output(self, *_args, **_kwargs):
         return None
@@ -48,18 +51,24 @@ class _DialogCancelAndFinish:
     def set_finished(self, *_args, **_kwargs):
         return None
 
-    def exec(self):
+    def show(self):
+        self.show_called = True
         self.cancel_requested.emit()
         worker = getattr(self.window, "_active_rescan_worker", None)
         if worker is not None:
             worker._running = False
             worker.finished.emit()
-        return 0
+
+    def show_non_modal(self):
+        self.show_non_modal_called = True
+        self.show()
 
 
 class _DialogNoop:
     def __init__(self, _window):
         self.cancel_requested = _Signal()
+        self.show_called = False
+        self.show_non_modal_called = False
 
     def append_output(self, *_args, **_kwargs):
         return None
@@ -73,13 +82,19 @@ class _DialogNoop:
     def set_finished(self, *_args, **_kwargs):
         return None
 
-    def exec(self):
-        return 0
+    def show(self):
+        self.show_called = True
+
+    def show_non_modal(self):
+        self.show_non_modal_called = True
+        self.show()
 
 
 class _DialogCancelNoFinish:
     def __init__(self, _window):
         self.cancel_requested = _Signal()
+        self.show_called = False
+        self.show_non_modal_called = False
 
     def append_output(self, *_args, **_kwargs):
         return None
@@ -93,9 +108,13 @@ class _DialogCancelNoFinish:
     def set_finished(self, *_args, **_kwargs):
         return None
 
-    def exec(self):
+    def show(self):
+        self.show_called = True
         self.cancel_requested.emit()
-        return 0
+
+    def show_non_modal(self):
+        self.show_non_modal_called = True
+        self.show()
 
 
 class _BaseWorker:
@@ -168,6 +187,7 @@ def test_rescan_data_cancel_does_not_break_when_stop_raises(tmp_path):
     assert created_workers[0].stop_called is True
     assert window.status_label.text == "Status: Cancelamento solicitado no reescaneamento."
     assert window._active_rescan_worker is None
+    assert window._active_rescan_dialog is None
     assert global_workers == []
     assert global_meta == {}
 
@@ -199,9 +219,10 @@ def test_rescan_data_releases_stale_worker_when_isrunning_raises_after_dialog(tm
     )
 
     assert created_workers
-    assert window._active_rescan_worker is None
-    assert global_workers == []
-    assert global_meta == {}
+    assert window._active_rescan_worker is created_workers[0]
+    assert window._active_rescan_dialog is not None
+    assert global_workers == [created_workers[0]]
+    assert created_workers[0] in global_meta
 
 
 def test_rescan_data_clears_inactive_active_worker_before_start(tmp_path):
@@ -265,3 +286,238 @@ def test_rescan_data_sets_cancel_status_even_when_worker_not_running(tmp_path):
     )
 
     assert window.status_label.text == "Status: Cancelamento solicitado no reescaneamento."
+
+
+def test_rescan_data_shows_progress_dialog_without_blocking(tmp_path):
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+    created_dialogs = []
+
+    class _DialogTracked(_DialogNoop):
+        def __init__(self, parent):
+            super().__init__(parent)
+            created_dialogs.append(self)
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_BaseWorker,
+        rescan_dialog_cls=_DialogTracked,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+    )
+
+    assert created_dialogs
+    assert created_dialogs[0].show_called is True
+    assert created_dialogs[0].show_non_modal_called is True
+    assert window._active_rescan_dialog is created_dialogs[0]
+
+
+def test_rescan_data_diff_mode_skips_prompt_and_sets_force_import_false(tmp_path):
+    captured_modes: list[bool] = []
+
+    class _WorkerCaptureMode(_BaseWorker):
+        def __init__(self, _main_py_path: str, _project_root: str, force_import: bool = True):
+            super().__init__(_main_py_path, _project_root)
+            captured_modes.append(bool(force_import))
+
+    class _MessageBoxShouldNotBeUsed:
+        def __init__(self, *_args, **_kwargs):
+            raise AssertionError("Prompt nao deveria ser exibido em rescan_mode=diff")
+
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_WorkerCaptureMode,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=_MessageBoxShouldNotBeUsed,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="diff",
+    )
+
+    assert captured_modes == [False]
+
+
+def test_rescan_data_full_mode_skips_prompt_and_sets_force_import_true(tmp_path):
+    captured_modes: list[bool] = []
+
+    class _WorkerCaptureMode(_BaseWorker):
+        def __init__(self, _main_py_path: str, _project_root: str, force_import: bool = True):
+            super().__init__(_main_py_path, _project_root)
+            captured_modes.append(bool(force_import))
+
+    class _MessageBoxShouldNotBeUsed:
+        def __init__(self, *_args, **_kwargs):
+            raise AssertionError("Prompt nao deveria ser exibido em rescan_mode=full")
+
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_WorkerCaptureMode,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=_MessageBoxShouldNotBeUsed,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="full",
+    )
+
+    assert captured_modes == [True]
+
+
+def test_rescan_data_prompt_without_qmessagebox_uses_incremental_mode(tmp_path):
+    captured_modes: list[bool] = []
+
+    class _WorkerCaptureMode(_BaseWorker):
+        def __init__(self, _main_py_path: str, _project_root: str, force_import: bool = True):
+            super().__init__(_main_py_path, _project_root)
+            captured_modes.append(bool(force_import))
+
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_WorkerCaptureMode,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="prompt",
+    )
+
+    assert captured_modes == [False]
+
+
+def test_classify_workers_for_ttl_expires_oldest_when_above_cap():
+    workers = ["w1", "w2", "w3"]
+    meta = {"w1": 100.0, "w2": 101.0, "w3": 102.0}
+
+    running, expired = ssa_gui_workers._classify_workers_for_ttl(
+        workers,
+        global_meta=meta,
+        now=120.0,
+        retired_ttl_sec=60.0,
+        max_global_workers=2,
+        is_running_fn=lambda _worker: True,
+    )
+
+    assert running == ["w2", "w3"]
+    assert expired == ["w1"]
+
+
+def test_classify_workers_for_ttl_keeps_source_snapshot_immutable():
+    workers = ["w1", "w2", "w3"]
+    meta = {"w1": 100.0, "w2": 101.0, "w3": 102.0}
+
+    running, expired = ssa_gui_workers._classify_workers_for_ttl(
+        workers,
+        global_meta=meta,
+        now=120.0,
+        retired_ttl_sec=60.0,
+        max_global_workers=10,
+        is_running_fn=lambda worker: worker != "w2",
+    )
+
+    assert running == ["w1", "w3"]
+    assert expired == []
+    assert workers == ["w1", "w2", "w3"]
+    assert "w2" not in meta
+
+
+def test_classify_and_update_global_workers_locked_updates_source_list():
+    global_workers = ["w1", "w2", "w3"]
+    meta = {"w1": 100.0, "w2": 101.0, "w3": 102.0}
+
+    expired = ssa_gui_workers._classify_and_update_global_workers_locked(
+        global_workers=global_workers,
+        global_meta=meta,
+        now=120.0,
+        retired_ttl_sec=60.0,
+        max_global_workers=10,
+        is_running_fn=lambda worker: worker != "w2",
+    )
+
+    assert expired == []
+    assert global_workers == ["w1", "w3"]
+    assert "w2" not in meta
+
+
+def test_prune_retired_rescan_workers_expires_oldest_when_above_cap(monkeypatch):
+    class _Worker:
+        def __init__(self, name: str):
+            self.name = name
+            self._running = True
+            self.stop_called = False
+            self.quit_called = False
+            self.wait_calls = 0
+
+        def isRunning(self):
+            return self._running
+
+        def stop(self):
+            self.stop_called = True
+            self._running = False
+
+        def quit(self):
+            self.quit_called = True
+
+        def wait(self, _ms: int):
+            self.wait_calls += 1
+
+        def __repr__(self):
+            return f"Worker({self.name})"
+
+    monkeypatch.setattr(ssa_gui_workers, "perf_counter", lambda: 120.0)
+    window = _Window()
+    older = _Worker("older")
+    newer = _Worker("newer")
+    global_workers = [older, newer]
+    global_meta = {older: 100.0, newer: 110.0}
+
+    ssa_gui_workers.prune_retired_rescan_workers(
+        window,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=1,
+        retired_ttl_sec=60.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+    )
+
+    assert global_workers == [newer]
+    assert newer in global_meta
+    assert older not in global_meta
+    assert older.stop_called is True

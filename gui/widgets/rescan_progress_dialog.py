@@ -25,11 +25,16 @@ class RescanProgressDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Reescaneamento em Andamento")
-        self.setModal(True)
+        self.setModal(False)
         self.resize(800, 600)
         self._cancel_requested = False
         self._finished = False
         self.setup_ui()
+
+    def show_non_modal(self) -> None:
+        """Show the dialog without blocking the main window."""
+        self.setModal(False)
+        self.show()
 
     def setup_ui(self):
         """Setup the dialog UI."""

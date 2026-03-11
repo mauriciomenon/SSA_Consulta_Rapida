@@ -1,178 +1,92 @@
-# Sistema de Build
+# Sistema de Build - Launchers
 
-## Visao Geral
-Sistema automatizado de build multiplataforma para SSA Consulta Rapida v3.10+
+## CURRENT TRUTH (v4.32)
 
-### Inicio Rapido
+- Pipeline oficial de build: `launchers/build_multiplatform.py`.
+- Plataformas ativas:
+  - `windows_amd64`
+  - `macos_arm64`
+  - `debian_amd64`
+- Saida canonica: `launchers/dist/<plataforma>/`.
+- Integracao de distribuicao: `scripts/create_distribution.py`.
+- Referencias antigas (`windows_x64`, `windows_x86`, `macos_x64`, `linux_x64`) sao historicas.
+
+## Inicio Rapido
+
 ```bash
-# Build completo multiplataforma
-python launchers/build_multiplatform.py
+# Build para plataforma atual
+python launchers/build_multiplatform.py --apps cli gui
 
-# Teste rapido dos executaveis
+# Build para plataforma explicita
+python launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui
+
+# Teste basico dos artefatos
 python launchers/test_complete.py
 ```
 
-## Arquitetura do Sistema
+## Estrutura Relevante
 
-### **Core Components**
-- `build_multiplatform.py` - Sistema principal automatizado
-- `build_complete.py` - Build individual por plataforma  
-- `test_complete.py` - Validacao automatica dos builds
-
-### **Estrutura de Plataformas**
+```text
+launchers/
+├── build_multiplatform.py
+├── build_complete.py
+├── build_simple.py
+├── test_complete.py
+├── test_executables.py
+├── platforms/
+│   ├── windows_amd64/
+│   │   ├── build_config.json
+│   │   └── requirements.txt
+│   ├── macos_arm64/
+│   │   ├── build_config.json
+│   │   └── requirements.txt
+│   └── debian_amd64/
+│       ├── build_config.json
+│       └── requirements.txt
+└── dist/
+    ├── windows_amd64/
+    ├── macos_arm64/
+    └── debian_amd64/
 ```
-launchers/platforms/
-├── windows_x64/         # Windows 64-bit
-├── windows_x86/         # Windows 32-bit  
-├── macos_x64/           # macOS Intel
-├── macos_arm64/         # macOS Apple Silicon
-└── linux_x64/           # Linux 64-bit
-```
 
-### **Configuracao**
-Cada plataforma possui `build_config.json` com:
-- Configuracoes especificas do PyInstaller
-- Paths de assets e recursos
-- Opcoes de otimizacao
+## Fluxo Recomendado
 
-## Funcionalidades
+1. Executar build canonico.
+2. Rodar validacao com `launchers/test_complete.py`.
+3. Empacotar com `scripts/create_distribution.py`.
+4. Publicar artefatos apenas apos smoke local.
 
-### **Build Automatizado**
-- **Multi-plataforma**: Windows (x64/x86), macOS (Intel/ARM), Linux (x64)
-- **Limpeza automatica**: Remove builds anteriores
-- **Validacao**: Testa executaveis automaticamente
-- **Git integration**: Commit/push automatico opcional
+## UPX (Windows opcional)
 
-### **Gestao de Artefatos**
-- **Organizacao**: Estrutura padronizada de diretorios
-- **Logs**: Sistema completo de logging
-- **Backup**: Preservacao de builds estaveis
-- **Limpeza**: Remocao inteligente de temporarios
+Para compressao opcional no Windows:
 
-### **Qualidade**
-- **Testes automaticos**: Validacao de imports e funcionalidades
-- **Verificacao**: Checksums e integridade
-- **Relatorios**: Status detalhado por plataforma
-- **Debugging**: Logs estruturados para troubleshooting
-
-## Scripts Disponiveis
-
-### **Build Scripts**
-- `build_multiplatform.py` - **Principal**: Build automatizado completo
-- `build_complete.py` - Build individual por plataforma
-- `build_simple.py` - Build basico sem automacao
-
-### **Test Scripts**  
-- `test_complete.py` - **Principal**: Testes automaticos completos
-- `test_executables.py` - Teste especifico de executaveis
-- `test_quick.py` - Teste rapido de funcionalidades
-
-### **Utility Scripts**
-- `cleanup.py` - Limpeza completa
-- `convert_icon.py` - Conversao de icones para Windows
-
-## Build Opcional Compactado (Windows)
-
-Para reduzir o tamanho dos executaveis Windows voce pode habilitar compressao via UPX:
-
-1. Instale dependencia opcional:
 ```bash
 pip install -r launchers/platforms/windows_amd64/requirements_windows_build.txt
 ```
-2. Execute o build normal (`build_multiplatform.py` ou `build_complete.py`).
 
-Se `upx4py` nao estiver instalado o sistema agora apenas exibira um aviso e continuara sem compressao. A ausencia nao quebra o build – e otimizacao opcional.
+Se `upx4py` nao estiver instalado, o build continua sem compressao.
 
-Recomenda-se comparar tamanhos antes/depois para decidir se compensa no pipeline.
+## Troubleshooting
 
-## Status Final v3.10
+### Plataforma nao detectada
 
-### **Completamente Funcional**
-- **Builds**: Todos os 5 targets funcionais
-- **Testes**: Suite completa de validacao
-- **Automacao**: Git integration e cleanup
-- **Modulos**: Todos os imports resolvidos (secrets, urllib, pandas, etc.)
-
-### **Qualidade de Producao**
-- **Estabilidade**: Zero crashes nos testes
-- **Performance**: Builds otimizados
-- **Usabilidade**: Interface limpa e responsiva
-- **Portabilidade**: Executaveis standalone
-
-## Configuracao e Uso
-
-### **Pre-requisitos**
 ```bash
-# Python 3.10+ (preferir 3.13+) com dependencias (uv-first)
-uv sync
-
-# PyInstaller para builds
-uv pip install pyinstaller
+python launchers/build_multiplatform.py --detect-platform
 ```
 
-Compatibilidade sem uv:
+### Limpeza de artefatos
+
 ```bash
-pip install -r requirements.txt
-pip install pyinstaller
+python launchers/build_multiplatform.py --clean
+python launchers/build_multiplatform.py --clean-all
 ```
 
-### **Build Multiplataforma**
-```bash
-# Build automatico com limpeza
-python launchers/build_multiplatform.py
+### Logs de build
 
-# Build com git operations
-python launchers/build_multiplatform.py --git-push
+- logs principais: `launchers/logs/`
+- manifest por plataforma: `launchers/dist/<plataforma>/build_manifest.json`
 
-# Build especifico
-python launchers/build_complete.py --platform macos_arm64
-```
+## Historical Snapshot
 
-### **Testes e Validacao**
-```bash
-# Teste completo
-python launchers/test_complete.py
-
-# Teste rapido
-python launchers/test_quick.py
-```
-
-### **Limpeza**
-```bash
-# Limpeza completa
-python launchers/cleanup.py
-```
-
-## Proximos Passos
-
-### **v3.11 Roadmap**
-1. **Assinatura de codigo**: macOS (certificado) + Windows (Authenticode)
-2. **Distribuicao**: Packages instaladores (.pkg, .msi, .deb)
-3. **Auto-update**: Sistema de atualizacao automatica
-4. **Telemetria**: Metricas de uso opcionais
-
-### **Otimizacoes Futuras**
-- Cache inteligente entre builds
-- Compilacao paralela por plataforma  
-- CI/CD integration com GitHub Actions
-- Distribuicao via GitHub Releases
-
----
-
-## Historico de Mudancas
-
-### **v3.10.0** - Build System Completo
-- Sistema de build multiplataforma funcional
-- Automacao completa com git integration
-- Suite de testes robusta
-- Documentacao profissional
-
-### **v3.0.7** - Base Estavel
-- Core do aplicativo estabilizado
-- Interface PyQt6 otimizada
-- Database SQLite otimizado
-- CLI/GUI com paridade funcional
-
----
-
-*Documentacao gerada automaticamente - v3.10.0*
+- Este README substitui texto legado v3.10 com targets antigos.
+- Estado oficial de runtime/build para este ciclo e v4.32.

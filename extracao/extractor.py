@@ -12,6 +12,7 @@ import re
 from typing import Optional, Dict, Any, Callable
 import logging
 from shared.column_mappings import load_column_mappings_integrity
+from shared.import_contract import MANDATORY_SCHEMA_COLUMNS
 from utils.robust_importer import import_excel_robust
 
 logger = logging.getLogger(__name__)
@@ -130,6 +131,63 @@ def _normalize_tempo_excedido_value(value) -> str | None:
     return normalized if normalized != 'P' else text
 
 
+def _record_debug_phase_columns(
+    debug_phases: Optional[dict[str, list[str]]],
+    phase_name: str,
+    columns: Any,
+    *,
+    context_name: str | None = None,
+) -> None:
+    if debug_phases is None:
+        return
+    serialized = [str(column) for column in list(columns)]
+    if phase_name not in debug_phases:
+        debug_phases[phase_name] = serialized
+    if context_name:
+        debug_phases[f"{context_name}:{phase_name}"] = serialized
+
+
+def _summarize_invalid_identity_rows(
+    frame: pd.DataFrame,
+    invalid_mask: pd.Series,
+) -> dict[str, Any]:
+    invalid_rows = frame.loc[invalid_mask].copy()
+    if invalid_rows.empty:
+        return {
+            "total_removed": 0,
+            "empty_removed": 0,
+            "payload_removed": 0,
+            "payload_columns_sample": [],
+        }
+
+    payload_columns = [col for col in invalid_rows.columns if col not in {"numero_ssa", "descricao_ssa"}]
+    if payload_columns:
+        payload_frame = invalid_rows[payload_columns].copy()
+        for col in payload_columns:
+            if pd.api.types.is_object_dtype(payload_frame[col]) or pd.api.types.is_string_dtype(
+                payload_frame[col]
+            ):
+                stripped = payload_frame[col].astype("string").str.strip()
+                payload_frame[col] = payload_frame[col].mask(stripped.eq(""), pd.NA)
+        payload_presence = payload_frame.notna().any(axis=1)
+    else:
+        payload_presence = pd.Series(False, index=invalid_rows.index, dtype=bool)
+
+    payload_removed = int(payload_presence.sum())
+    empty_removed = int((~payload_presence).sum())
+    payload_columns_sample = [
+        str(col)
+        for col in payload_columns
+        if payload_frame[col].notna().any()
+    ][:8]
+    return {
+        "total_removed": int(len(invalid_rows)),
+        "empty_removed": empty_removed,
+        "payload_removed": payload_removed,
+        "payload_columns_sample": payload_columns_sample,
+    }
+
+
 def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
     """
     Converte colunas-chave para tipos de dados padronizados.
@@ -209,6 +267,22 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
             logger.debug(f"Convertendo '{col}' para Int64...")
             df_normalized[col] = pd.to_numeric(df_normalized[col], errors='coerce').astype('Int64')
 
+    # Keep canonical numeric semantics for reprogramacoes:
+    # - num_reprogramacoes accepts only strict numeric values
+    # - total_de_reprogramacoes backfills num_reprogramacoes when available
+    if 'num_reprogramacoes' in df_normalized.columns:
+        logger.debug("Convertendo 'num_reprogramacoes' para Int64 (strict numeric)...")
+        num_series = pd.to_numeric(df_normalized['num_reprogramacoes'], errors='coerce')
+        if 'total_de_reprogramacoes' in df_normalized.columns:
+            backfill_mask = num_series.isna() & df_normalized['total_de_reprogramacoes'].notna()
+            if backfill_mask.any():
+                logger.debug(
+                    "Backfill de 'num_reprogramacoes' com 'total_de_reprogramacoes' em %s linhas.",
+                    int(backfill_mask.sum()),
+                )
+                num_series.loc[backfill_mask] = df_normalized.loc[backfill_mask, 'total_de_reprogramacoes']
+        df_normalized['num_reprogramacoes'] = num_series.astype('Int64')
+
     logger.debug("Normalização de tipos concluída.")
     return df_normalized
 
@@ -216,6 +290,7 @@ def extract_data_from_excel(
     file_path: str,
     *,
     should_cancel: Optional[Callable[[], bool]] = None,
+    _debug_phases: Optional[dict[str, list[str]]] = None,
 ) -> pd.DataFrame:
     """
     Extrai dados de um único arquivo Excel (.xlsx).
@@ -242,6 +317,7 @@ def extract_data_from_excel(
 
         _check_cancel()
         all_sheets_data = []
+        column_mappings = _load_column_mappings()
         with pd.ExcelFile(file_path, engine='openpyxl') as xl_file:
             for sheet_name in xl_file.sheet_names:
                 _check_cancel()
@@ -270,13 +346,43 @@ def extract_data_from_excel(
                     saw_header = True
                     # Define os cabecalhos
                     sheet_df.columns = sheet_df.iloc[header_row_idx]
+                    _record_debug_phase_columns(
+                        _debug_phases,
+                        "header_raw",
+                        sheet_df.columns,
+                        context_name=sheet_name,
+                    )
                     # Remove linhas anteriores ao cabecalho e o proprio cabecalho
                     sheet_df = sheet_df.drop(sheet_df.index[:header_row_idx + 1])
                     # Reseta o indice
                     sheet_df = sheet_df.reset_index(drop=True)
 
-                    # Remove colunas completamente vazias
-                    sheet_df = sheet_df.dropna(axis=1, how='all')
+                    # Remove colunas completamente vazias, mas preserva aliases
+                    # das colunas obrigatorias ate a normalizacao canonica.
+                    columns_to_keep: list[int] = []
+                    for col_idx, col_name in enumerate(sheet_df.columns):
+                        column_data = sheet_df.iloc[:, col_idx]
+                        if not column_data.isna().all():
+                            columns_to_keep.append(col_idx)
+                            continue
+                        if isinstance(col_name, pd.Series):
+                            non_null_labels = col_name.dropna()
+                            if non_null_labels.empty:
+                                continue
+                            col_name = non_null_labels.iloc[0]
+                        if pd.isna(col_name):
+                            continue
+                        canonical_name = column_mappings.get(col_name, col_name)
+                        if canonical_name in MANDATORY_SCHEMA_COLUMNS:
+                            columns_to_keep.append(col_idx)
+                    if len(columns_to_keep) != len(sheet_df.columns):
+                        sheet_df = sheet_df.iloc[:, columns_to_keep]
+                    _record_debug_phase_columns(
+                        _debug_phases,
+                        "after_empty_column_prune",
+                        sheet_df.columns,
+                        context_name=sheet_name,
+                    )
 
                     if not sheet_df.empty:
                         all_sheets_data.append(sheet_df)
@@ -307,6 +413,7 @@ def extract_data_from_excel(
         initial_len = len(combined_df)
         combined_df.dropna(how='all', inplace=True)
         final_len = len(combined_df)
+        early_empty_removed = initial_len - final_len
         if initial_len != final_len:
             logger.debug(f"Removidas {initial_len - final_len} linhas completamente vazias.")
 
@@ -317,24 +424,122 @@ def extract_data_from_excel(
             )
             return pd.DataFrame()
 
-        # Carrega o mapeamento de colunas
-        column_mappings = _load_column_mappings()
         if not column_mappings:
             logger.warning(
                 "Mapeamento de colunas vazio; mantendo nomes originais para '%s'.",
                 file_path,
             )
 
-        # Normaliza os nomes das colunas e resolve duplicadas
+        # Normaliza os nomes das colunas.
         if column_mappings:
             combined_df.rename(columns=column_mappings, inplace=True)
-        combined_df = _deduplicate_columns(combined_df)
+        _record_debug_phase_columns(
+            _debug_phases,
+            "after_rename",
+            combined_df.columns,
+        )
 
-        required_columns = {"numero_ssa", "descricao_ssa", "data_cadastro"}
-        missing_required = required_columns.difference(set(combined_df.columns))
+        def _is_unnamed_header_value(header_value: Any) -> bool:
+            if isinstance(header_value, str):
+                normalized_header = header_value.strip().lower()
+                return normalized_header in {"", "nan"} or normalized_header.startswith("unnamed:")
+            return bool(pd.isna(header_value))
+
+        if (
+            "anomalia" in combined_df.columns
+            and not {
+                "total_tempo_tpe_executada",
+                "total_tempo_tex_executada",
+                "total_tempo_tpo_executada",
+            }.intersection(set(combined_df.columns))
+        ):
+            anomaly_idx = list(combined_df.columns).index("anomalia")
+            trailing_positions = list(range(anomaly_idx + 1, len(combined_df.columns)))
+            trailing_unnamed_positions = [
+                pos for pos in trailing_positions if _is_unnamed_header_value(combined_df.columns[pos])
+            ]
+            if trailing_unnamed_positions == trailing_positions:
+                if len(trailing_unnamed_positions) == 3:
+                    renamed_columns = list(combined_df.columns)
+                    renamed_columns[trailing_unnamed_positions[0]] = "total_tempo_tpe_executada"
+                    renamed_columns[trailing_unnamed_positions[1]] = "total_tempo_tex_executada"
+                    renamed_columns[trailing_unnamed_positions[2]] = "total_tempo_tpo_executada"
+                    combined_df.columns = renamed_columns
+                    logger.info(
+                        "Arquivo '%s' possui 3 colunas finais sem header apos 'anomalia'; remapeadas para totais TPE/TEX/TPO executada.",
+                        file_path,
+                    )
+                elif (
+                    len(trailing_unnamed_positions) == 1
+                    and "total_tempo_tex_executada" not in combined_df.columns
+                ):
+                    tex_pos = trailing_unnamed_positions[0]
+                    tex_series = combined_df.iloc[:, tex_pos]
+                    tex_non_null = tex_series.dropna()
+                    numeric_tex = pd.to_numeric(tex_non_null, errors="coerce")
+                    if not tex_non_null.empty and numeric_tex.notna().all():
+                        renamed_columns = list(combined_df.columns)
+                        renamed_columns[tex_pos] = "total_tempo_tex_executada"
+                        combined_df.columns = renamed_columns
+                        logger.info(
+                            "Arquivo '%s' possui 1 coluna final sem header apos 'anomalia'; remapeada para total_tempo_tex_executada.",
+                            file_path,
+                        )
+
+        trailing_unnamed_positions: list[int] = []
+        for pos in range(len(combined_df.columns) - 1, -1, -1):
+            if _is_unnamed_header_value(combined_df.columns[pos]):
+                trailing_unnamed_positions.append(pos)
+                continue
+            break
+        trailing_unnamed_positions.reverse()
+        if (
+            len(trailing_unnamed_positions) == 1
+            and "total_tempo_tex_executada" not in combined_df.columns
+            and {"execucao_parcial", "responsavel_execucao", "descricao_execucao", "prazo_limite"}.issubset(set(combined_df.columns))
+        ):
+            tex_pos = trailing_unnamed_positions[0]
+            previous_named = combined_df.columns[tex_pos - 1] if tex_pos > 0 else None
+            tex_series = combined_df.iloc[:, tex_pos]
+            tex_non_null = tex_series.dropna()
+            numeric_tex = pd.to_numeric(tex_non_null, errors="coerce")
+            if (
+                previous_named in {"anomalia", "prazo_limite"}
+                and not tex_non_null.empty
+                and numeric_tex.notna().all()
+            ):
+                renamed_columns = list(combined_df.columns)
+                renamed_columns[tex_pos] = "total_tempo_tex_executada"
+                combined_df.columns = renamed_columns
+                logger.info(
+                    "Arquivo '%s' possui 1 coluna trailing sem header no bloco de execucao; remapeada para total_tempo_tex_executada.",
+                    file_path,
+                )
+
+        _record_debug_phase_columns(
+            _debug_phases,
+            "after_structural_repair",
+            combined_df.columns,
+        )
+
+        # Resolve duplicadas apos a normalizacao contextual.
+        combined_df = _deduplicate_columns(combined_df)
+        _record_debug_phase_columns(
+            _debug_phases,
+            "after_deduplicate",
+            combined_df.columns,
+        )
+
+        missing_required = MANDATORY_SCHEMA_COLUMNS.difference(set(combined_df.columns))
         if missing_required:
+            missing_required_sorted = sorted(missing_required)
+            available_columns = sorted(str(col) for col in combined_df.columns)
+            debug_phase_names = sorted(_debug_phases.keys()) if isinstance(_debug_phases, dict) else []
             raise ExtractionError(
-                f"Missing required columns after normalization: {sorted(missing_required)}",
+                "Missing required columns after normalization: "
+                f"{missing_required_sorted}; "
+                f"available_columns={available_columns[:40]}; "
+                f"debug_phases={debug_phase_names}",
                 error_code="MISSING_REQUIRED_COLUMNS",
             )
 
@@ -401,25 +606,55 @@ def extract_data_from_excel(
             (descricao_series.notna() & (descricao_series != ''))
         )
 
+        invalid_summary = _summarize_invalid_identity_rows(combined_df, ~valid_mask)
+        if early_empty_removed > 0:
+            invalid_summary["empty_removed"] += early_empty_removed
+            invalid_summary["total_removed"] += early_empty_removed
+            invalid_summary["empty_removed_pre_identity_filter"] = early_empty_removed
         combined_df = combined_df[valid_mask].copy().reset_index(drop=True)
-        after_validation = len(combined_df)
+        combined_df.attrs["invalid_row_summary"] = invalid_summary
+        combined_df.attrs["row_count_before_invalid_filter"] = (
+            before_validation + early_empty_removed
+        )
 
-        if before_validation > after_validation:
-            invalid_count = before_validation - after_validation
-            logger.warning(f"Removidos {invalid_count} registros inválidos (sem número SSA nem descrição)")
+        if invalid_summary.get("total_removed", 0) > 0:
+            invalid_count = int(invalid_summary.get("total_removed", 0))
+            payload_cols = invalid_summary.get("payload_columns_sample") or []
+            payload_txt = f" (colunas: {', '.join(payload_cols)})" if payload_cols else ""
+            logger.warning(
+                "Extracao - %s: removidos %s registros invalidos sem identidade: %s vazios, %s com payload%s",
+                base_name,
+                invalid_count,
+                invalid_summary.get("empty_removed", 0),
+                invalid_summary.get("payload_removed", 0),
+                payload_txt,
+            )
 
         # Validar campos críticos e avisar sobre problemas
         if 'numero_ssa' in combined_df.columns:
             empty_ssa = combined_df['numero_ssa'].isna() | (combined_df['numero_ssa'] == '')
             if empty_ssa.sum() > 0:
-                logger.warning(f"{empty_ssa.sum()} registros sem número de SSA (mantidos com descrição válida)")
+                logger.warning(
+                    "Extracao - %s: %s registros sem numero de SSA (mantidos por descricao valida)",
+                    base_name,
+                    int(empty_ssa.sum()),
+                )
 
         if 'semana_cadastro' in combined_df.columns:
             empty_week = combined_df['semana_cadastro'].isna() | (combined_df['semana_cadastro'] == '') | (combined_df['semana_cadastro'] == '-')
             if empty_week.sum() > 0:
-                logger.warning(f"{empty_week.sum()} registros sem semana de cadastro")
+                logger.warning(
+                    "Extracao - %s: %s registros sem semana de cadastro",
+                    base_name,
+                    int(empty_week.sum()),
+                )
 
-        logger.info(f"Extração concluída com sucesso. {len(combined_df)} linhas válidas extraídas.")
+        logger.info(
+            "Extracao concluida para '%s': %s linhas validas, %s invalidos sem identidade",
+            base_name,
+            len(combined_df),
+            int(invalid_summary.get("total_removed", 0)),
+        )
         return combined_df
 
     except ExtractionError:

@@ -741,7 +741,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                     logger.debug("Modulo associado: %s", getattr(e, 'name', 'desconhecido'))
                     logger.warning("Modo otimizado nao disponivel, recorrendo ao modo legado")
                     use_optimized = False
-                except Exception as e:
+                except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as e:
                     logger.error("Erro ao executar enable_optimized_import: %s", e)
                     logger.debug("Tipo do erro: %s", type(e).__name__)
                     logger.warning("Modo otimizado falhou, recorrendo ao modo legado")
@@ -763,7 +763,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 logger.debug("Executando run_importer_logic...")
                 db_updated = run_importer_logic(force_import=force_import)
                 logger.debug("Importacao de dados concluida. Resultado: db_updated=%s", db_updated)
-            except Exception as e:
+            except (RuntimeError, OSError, TypeError, ValueError, AttributeError) as e:
                 first_import_error = e
             finally:
                 # Desativar importacao otimizada apos uso
@@ -773,7 +773,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                         disable_optimized_import()
                     except ImportError as e:
                         logger.debug("disable_optimized_import indisponivel no cleanup: %s", e)
-                    except Exception as e:
+                    except (RuntimeError, OSError, TypeError, ValueError, AttributeError) as e:
                         logger.warning(f"Falha ao desativar modo otimizado: {e}")
 
             if first_import_error is not None:
@@ -830,8 +830,9 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 # Import tardio para evitar dependencia obrigatoria em ambientes sem PyQt6
                 from gui.gui_ssa import SSAMainWindow
                 from PyQt6.QtWidgets import QApplication
-            except Exception as e:
-                logger.error(f"Falha ao iniciar GUI: {e}")
+                from PyQt6.QtGui import QIcon
+            except ImportError as e:
+                logger.error("Falha ao iniciar GUI por dependencia/importacao: %s", e)
                 logger.info("Recuando para CLI.")
                 start_cli_loop(db_path, table_name)
                 return
@@ -840,12 +841,46 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 # Permite multiplas janelas da GUI
                 # O SQLite tem seus proprios mecanismos de lock
                 app = QApplication(sys.argv)
+                try:
+                    if sys.platform == "darwin":
+                        icon_candidates = [
+                            os.path.join(project_root, "resources", "app_icon.icns"),
+                            os.path.join(project_root, "resources", "app_icon.png"),
+                            os.path.join(project_root, "resources", "app_icon.ico"),
+                            os.path.join(project_root, "resources", "app_icon.svg"),
+                        ]
+                    elif sys.platform.startswith("win"):
+                        icon_candidates = [
+                            os.path.join(project_root, "resources", "app_icon.ico"),
+                            os.path.join(project_root, "resources", "app_icon.png"),
+                            os.path.join(project_root, "resources", "app_icon.svg"),
+                            os.path.join(project_root, "resources", "app_icon.icns"),
+                        ]
+                    else:
+                        icon_candidates = [
+                            os.path.join(project_root, "resources", "app_icon.png"),
+                            os.path.join(project_root, "resources", "app_icon.svg"),
+                            os.path.join(project_root, "resources", "app_icon.ico"),
+                            os.path.join(project_root, "resources", "app_icon.icns"),
+                        ]
+                    for icon_path in icon_candidates:
+                        if not os.path.exists(icon_path):
+                            continue
+                        app_icon = QIcon(icon_path)
+                        if app_icon.isNull():
+                            continue
+                        app.setWindowIcon(app_icon)
+                        QApplication.setWindowIcon(app_icon)
+                        logger.debug("Icone da aplicacao carregado: %s", icon_path)
+                        break
+                except (OSError, RuntimeError) as exc:
+                    logger.debug("Falha ao configurar icone da aplicacao: %s", exc)
                 window = SSAMainWindow()
                 window.show()
                 # Executa o loop de eventos
                 app.exec()
-            except Exception as e:
-                logger.error(f"Falha ao criar/mostrar janela da GUI: {e}")
+            except (OSError, RuntimeError) as e:
+                logger.error("Falha operacional ao criar/mostrar janela da GUI: %s", e)
                 logger.info("Recuando para CLI.")
                 start_cli_loop(db_path, table_name)
         else:

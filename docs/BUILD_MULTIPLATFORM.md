@@ -2,6 +2,20 @@
 
 Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Windows, macOS e Linux.
 
+## CURRENT TRUTH (v4.32)
+
+- Sync deste guia: `2026-03-10 16:55 -0300`.
+- Fluxo operacional:
+  1. build com `launchers/build_multiplatform.py`.
+  2. distribuicao com `scripts/create_distribution.py`.
+- Backend de release no ciclo atual: `pyinstaller`.
+- `nuitka` e `pyoxidizer` permanecem como trilha laboratorial.
+
+## Nota de versao
+
+Exemplos de nomes versionados neste documento (v3.10/v3.11) sao snapshots historicos.
+No fluxo ativo, usar a versao corrente definida em `VERSION` e `config/version.json`.
+
 ## Estrutura de Build
 
 ```
@@ -96,10 +110,20 @@ O script automaticamente:
 
 ### Tecnicas Aplicadas
 1. **Exclusao de modulos desnecessarios**: Remove bibliotecas nao utilizadas
-2. **Compressao UPX**: Reduz tamanho em 50-70% (Windows/Linux)
+2. **Compressao UPX (quando disponivel)**: Pode reduzir tamanho em 50-70% (principalmente Windows/Linux)
 3. **Strip symbols**: Remove informacoes de debug
 4. **Shared libraries**: Reutiliza bibliotecas do sistema
 5. **Tree shaking**: Inclui apenas codigo usado
+
+### Politica de dados locais no build (v4.32+)
+
+- O build canonico nao inclui `data/` por padrao.
+- Esta regra reduz risco de vazamento de DB local em artefato final.
+- Para laboratorio controlado, use copia explicita apos build:
+
+```bash
+python scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
+```
 
 ### Tamanhos Esperados
 - **CLI**: 15-25 MB por plataforma
@@ -117,6 +141,12 @@ Exemplo:
 - `SSA_CLI_v3.10_windows_amd64.exe`
 - `SSA_GUI_v3.10_macos_arm64.app`
 - `SSA_CLI_v3.10_debian_amd64`
+
+### Empacotamento Debian no baseline atual
+
+- Saida operacional oficial para Debian: ZIP.
+- AppImage/.deb nao sao gerados automaticamente pelo pipeline canonico atual.
+- Se necessario, tratar AppImage/.deb como etapa manual/laboratorio fora do fluxo padrao.
 
 ### Manifesto de Release
 Cada build gera um `release_manifest.json`:
