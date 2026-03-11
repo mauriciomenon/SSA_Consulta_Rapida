@@ -2,7 +2,39 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 22:03 - authoritative block
+## CURRENT TRUTH 2026-03-10 22:23 - authoritative block
+
+- Objetivo desta rodada:
+  1. fechar comentarios novos de bot em hooks/cache com patch minimo e verificavel.
+- Correcoes aplicadas:
+  1. `scripts/install_hooks.sh`
+     - removido `|| true` das chamadas obrigatorias de `install_named_hook`.
+  2. `scripts/git_hooks/pre-push`
+     - ranges processados individualmente com tolerancia a range invalido.
+     - `git rev-list` com `--not --remotes`.
+     - formato de `git cat-file --batch-check` corrigido para TAB real.
+  3. `utils/caching.py`
+     - `except Exception` removido de `_cache_key_for_file`; fallback agora com excecoes especificas e `logger.debug`.
+- Validacao executada:
+  1. `uv run --python 3.13 python -m py_compile utils/caching.py` -> pass.
+  2. `uv run --python 3.13 ruff check utils/caching.py` -> pass.
+  3. `uv run --python 3.13 ty check utils/caching.py` -> pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_caching_atomic_save.py` -> `13 passed`.
+  5. `bash -n scripts/install_hooks.sh scripts/git_hooks/pre-push` -> pass.
+- Classificacao dos comentarios:
+  1. `BUG_REAL` corrigido:
+     - mascaramento de falha no `install_hooks.sh`.
+     - risco de abortar push valido por range ruim no `pre-push`.
+     - parse incorreto de saida do `cat-file` no `pre-push` por `%x09` literal.
+     - `except Exception` amplo em `_cache_key_for_file`.
+  2. `NAO_BLOQUEANTE_DEFERIDO`:
+     - debts MEDIUM de naming/decomposicao/perf em `utils/caching.py`.
+     - debt MEDIUM de semantica/performance no escopo amplo do `pre-push`.
+- Estado local fora de escopo mantido:
+  1. `data/ssas.db` (modificado localmente).
+  2. `config/settings.json.bak_20260308_212715` (arquivo local novo).
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:03 - authoritative block
 
 - Objetivo desta rodada:
   1. refresh total de contexto para migracao de conversa, sem alteracao de runtime.

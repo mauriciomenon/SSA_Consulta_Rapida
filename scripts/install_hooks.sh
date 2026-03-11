@@ -31,8 +31,8 @@ install_named_hook(){
   echo "[install-hooks] Instalado hook $hook_name"
 }
 
-install_named_hook "pre-commit" || true
-install_named_hook "pre-push" || true
+install_named_hook "pre-commit"
+install_named_hook "pre-push"
 
 if [[ ${#missing_hooks[@]} -gt 0 ]]; then
   echo "[install-hooks] ERRO: hooks obrigatorios ausentes: ${missing_hooks[*]}" >&2
