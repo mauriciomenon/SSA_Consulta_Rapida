@@ -4,7 +4,7 @@
     "onefile": false,
     "onedir": true,
     "optimize": 2,
-    "strip": true,
+    "strip": false,
     "upx_dir": null,
     "exclude_modules": [
       "tkinter",
