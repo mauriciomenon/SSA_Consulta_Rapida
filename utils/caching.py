@@ -70,7 +70,13 @@ def _cache_key_for_file(file_path: str, docs_dir: str) -> str:
     try:
         rel_path = Path(file_path).resolve().relative_to(Path(docs_dir).resolve())
         return rel_path.as_posix()
-    except Exception:
+    except (ValueError, OSError, RuntimeError) as exc:
+        logger.debug(
+            "Fallback cache key by basename for '%s' (docs_dir='%s'): %s",
+            file_path,
+            docs_dir,
+            exc,
+        )
         return os.path.basename(file_path)
 
 

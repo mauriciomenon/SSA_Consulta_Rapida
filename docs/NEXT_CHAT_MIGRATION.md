@@ -2,7 +2,38 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 22:03 - start from here
+## CURRENT TRUTH 2026-03-10 22:23 - start from here
+
+- Objetivo desta rodada:
+  1. corrigir comentarios novos de bot (cubic/copilot) em hooks e cache, sem refatoracao ampla e sem mudanca de layout/GUI.
+- Correcoes aplicadas:
+  1. `scripts/install_hooks.sh`
+     - removido mascaramento `|| true` nas chamadas obrigatorias de `install_named_hook`.
+  2. `scripts/git_hooks/pre-push`
+     - coleta de objetos por range com tolerancia a range invalido (nao aborta push valido).
+     - adicionado `--not --remotes` para reduzir scan de objetos ja conhecidos.
+     - `git cat-file --batch-check` ajustado para TAB real no formato de saida.
+  3. `utils/caching.py`
+     - `_cache_key_for_file` trocado para excecoes especificas (`ValueError`, `OSError`, `RuntimeError`) com `logger.debug` no fallback.
+- Evidencia de validacao:
+  1. `uv run --python 3.13 python -m py_compile utils/caching.py` -> pass.
+  2. `uv run --python 3.13 ruff check utils/caching.py` -> pass.
+  3. `uv run --python 3.13 ty check utils/caching.py` -> pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_caching_atomic_save.py` -> `13 passed`.
+  5. `bash -n scripts/install_hooks.sh scripts/git_hooks/pre-push` -> pass.
+  6. reproducao manual do `cat-file --batch-check` com TAB real -> `oid, blob, size, path` preenchidos.
+- Kluster nesta rodada:
+  1. clean em `scripts/install_hooks.sh`.
+  2. no `pre-push`, HIGH inicial foi confirmado e corrigido (`%x09` literal).
+  3. MEDIUM remanescentes no `pre-push` e `utils/caching.py` classificados como debt de semantica/performance fora deste patch minimo.
+- Estado local confirmado:
+  1. branch: `codex/sprint-importacao-grave-fixes-20260305`.
+  2. ultimo commit antes deste slice: `6ebe448e`.
+  3. residuos fora de escopo mantidos:
+     - `M data/ssas.db`
+     - `?? config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 22:03 - start from here
 
 - Objetivo desta rodada:
   1. refresh completo de status para migracao de conversa, sem editar runtime.

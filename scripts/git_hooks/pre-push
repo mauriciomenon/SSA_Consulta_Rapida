@@ -40,9 +40,22 @@ if [[ ${#refs[@]} -eq 0 ]]; then
 fi
 
 tmp_objects="$(mktemp)"
-trap 'rm -f "$tmp_objects"' EXIT
+tmp_revlist="$(mktemp)"
+trap 'rm -f "$tmp_objects" "$tmp_revlist"' EXIT
 
-git rev-list --objects "${refs[@]}" 2>/dev/null | awk '
+: > "$tmp_revlist"
+for rev_range in "${refs[@]}"; do
+  if ! git rev-list --objects "$rev_range" --not --remotes >> "$tmp_revlist" 2>/dev/null; then
+    info "Ignorando range invalido no pre-push: $rev_range"
+  fi
+done
+
+if [[ ! -s "$tmp_revlist" ]]; then
+  info "Nenhum objeto novo identificado."
+  exit 0
+fi
+
+awk '
   NF > 0 {
     oid = $1
     $1 = ""
@@ -52,7 +65,7 @@ git rev-list --objects "${refs[@]}" 2>/dev/null | awk '
       print oid "\t" $0
     }
   }
-' | sed '/^[[:space:]]*$/d' > "$tmp_objects"
+' "$tmp_revlist" | sed '/^[[:space:]]*$/d' > "$tmp_objects"
 
 if [[ ! -s "$tmp_objects" ]]; then
   info "Nenhum objeto novo identificado."
@@ -60,6 +73,7 @@ if [[ ! -s "$tmp_objects" ]]; then
 fi
 
 found=0
+batch_format=$'%(objectname)\t%(objecttype)\t%(objectsize)\t%(rest)'
 while IFS=$'\t' read -r oid otype osize opath; do
   if [[ "$otype" != "blob" ]]; then
     continue
@@ -69,7 +83,7 @@ while IFS=$'\t' read -r oid otype osize opath; do
     size_mb="$(awk -v n="$osize" 'BEGIN { printf "%.2f", n/1024/1024 }')"
     echo "[pre-push-size][BLOCK] Blob grande detectado: ${opath:-<sem-caminho>} (${size_mb} MB, oid=$oid)" >&2
   fi
-done < <(git cat-file --batch-check='%(objectname)%x09%(objecttype)%x09%(objectsize)%x09%(rest)' < "$tmp_objects")
+done < <(git cat-file --batch-check="$batch_format" < "$tmp_objects")
 
 if [[ $found -eq 1 ]]; then
   cat <<EOF >&2

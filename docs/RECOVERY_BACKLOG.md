@@ -18,6 +18,52 @@ Fluxo de trabalho registrado para proximo ciclo curto:
 3. Regra operacional para esse debt:
    - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
 
+## Update 2026-03-10 22:23 - fix de comentarios cubic/copilot (hooks + cache)
+
+Session timestamp:
+1. start: `2026-03-10 22:23:02 -0300`
+2. end: `2026-03-10 22:23:02 -0300`
+
+Objetivo do slice:
+1. corrigir apontamentos novos de bot com risco funcional real.
+2. manter patch minimo sem refatoracao ampla.
+
+Escopo alterado:
+1. `scripts/install_hooks.sh`
+2. `scripts/git_hooks/pre-push`
+3. `utils/caching.py`
+4. `docs/RECOVERY_BACKLOG.md`
+5. `docs/NEXT_CHAT_MIGRATION.md`
+6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
+Correcoes aplicadas:
+1. `install_hooks.sh`
+   - removido `|| true` em hooks obrigatorios (`pre-commit`, `pre-push`) para nao mascarar falhas reais.
+2. `pre-push`
+   - rev-list por range com tolerancia a range invalido (nao aborta push valido).
+   - adicionado `--not --remotes` para reduzir scan redundante.
+   - `batch-check` com TAB real via format string (`$'...\\t...'`).
+3. `utils/caching.py`
+   - `_cache_key_for_file` com excecoes especificas + log debug de fallback.
+
+Evidencia tecnica:
+1. `uv run --python 3.13 python -m py_compile utils/caching.py` -> pass.
+2. `uv run --python 3.13 ruff check utils/caching.py` -> pass.
+3. `uv run --python 3.13 ty check utils/caching.py` -> pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_caching_atomic_save.py` -> `13 passed`.
+5. `bash -n scripts/install_hooks.sh scripts/git_hooks/pre-push` -> pass.
+6. prova manual de `cat-file` com TAB real -> campos `oid/type/size/path` preenchidos.
+
+Classificacao:
+1. `BUG_REAL` corrigido:
+   - mascaramento de erro no instalador de hooks.
+   - risco de abortar push por range invalido.
+   - parse incorreto da saida do `cat-file` no hook.
+   - `except Exception` amplo no cache key.
+2. `NAO_BLOQUEANTE_DEFERIDO`:
+   - debts MEDIUM de semantica/performance em `pre-push`.
+   - debts MEDIUM de naming/decomposicao/performance em `utils/caching.py`.
+
 ## Update 2026-03-10 22:03 - doc refresh de migracao (sem runtime)
 
 Session timestamp:
