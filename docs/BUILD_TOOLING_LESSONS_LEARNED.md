@@ -113,6 +113,20 @@
     - temporario: `build/*`, `launchers/platforms/*/temp/*`
     - final: `builds/*`, `launchers/dist/*`, `dist_packages/*`
 
+## Licao 8 - Diagnostico insuficiente em build silencioso (Nuitka Debian)
+
+- Sintoma:
+  - build longo em `--silent` sem contexto claro de onde falhou.
+- Causa-raiz:
+  - script sem marcador de etapa e sem dump de log no erro.
+- Fix:
+  - `dev_env/build/build_nuitka_debian.sh` agora usa:
+    - `LAST_STEP` por etapa (`nuitka_gui`, `nuitka_cli`, `copy_data_to_builds`)
+    - `trap on_error ERR` com tail do log no modo silencioso
+    - compilacao CLI sem plugin `pyqt6` para reduzir custo desnecessario.
+- Regra reutilizavel:
+  - em build silencioso de longa duracao, sempre emitir etapa de falha + tail de log.
+
 ## Checklist Reutilizavel (qualquer projeto)
 
 1. Fixar runtime e ferramentas via `uv`.

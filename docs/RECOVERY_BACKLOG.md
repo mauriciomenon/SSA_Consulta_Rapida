@@ -82,6 +82,41 @@ Classificacao:
 1. `DOC_SYNC`:
    - sync de evidencia tecnica e pendencias remanescentes.
 
+## Update 2026-03-12 00:45 - hardening script nuitka debian e sync docs (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-12 00:18:00 -0300`
+2. end: `2026-03-12 00:45:00 -0300`
+
+Objetivo do slice:
+1. melhorar diagnostico do `build_nuitka_debian.sh --silent`.
+2. reduzir carga do build CLI no Nuitka Debian.
+3. sincronizar docs com o estado real.
+
+Escopo alterado:
+1. `dev_env/build/build_nuitka_debian.sh`
+2. `docs/BUILD_EXECUTION_AUDIT_20260311.md`
+3. `docs/BUILD_3X3_RUNBOOK.md`
+4. `docs/NEXT_CHAT_MIGRATION.md`
+5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+6. `docs/RECOVERY_BACKLOG.md`
+7. `docs/INDEX.md`
+
+Registro aplicado:
+1. script Debian/Nuitka:
+   - GUI mantem plugin `pyqt6`.
+   - CLI passa a compilar sem plugin `pyqt6`.
+   - adiciona `trap` de erro com `LAST_STEP` e tail do log no modo silencioso.
+2. docs atualizados para refletir:
+   - novo hardening do script.
+   - pendencia residual: fechamento final de tempo/retorno do build completo no host.
+
+Classificacao:
+1. `STABILITY_PATCH`:
+   - melhoria do script de build para diagnostico e robustez operacional.
+2. `DOC_SYNC`:
+   - sincronizacao de evidencias e pendencias.
+
 ## Update 2026-03-11 07:59 - handover para host Windows (DOC_SYNC)
 
 Session timestamp:
