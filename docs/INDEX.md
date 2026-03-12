@@ -2,15 +2,13 @@
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-03-10 16:55 -0300)
+## Sync status (2026-03-11 23:35 -0300)
 
 1. Baseline ativo confirmado: `4.32`.
-2. PR de trabalho atual: `#45` (`codex/sprint-importacao-grave-fixes-20260305` -> `dev`).
-3. Threads abertas no PR: `0` na ultima leitura.
-4. Checks externos ainda bloqueando merge:
-   - `CodeFactor`
-   - `code/snyk`
-   - `security/snyk`
+2. Branch operacional: `dev`.
+3. Ultimo commit local na sincronizacao deste index: `b63d9133`.
+4. Relatorio consolidado do ciclo de build:
+   - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 
 ## Regras de leitura
 
@@ -34,6 +32,7 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 - `docs/RECOVERY_BACKLOG.md`
 - `docs/NEXT_CHAT_MIGRATION.md`
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 - `docs/PENDING_ACTION_MATRIX.md`
 
 ### Alertas de curto prazo
@@ -76,6 +75,7 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 - `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
 - `docs/BUILD_SCRIPTS_COMPARISON.md`
 - `docs/BUILD_TOOLING_LESSONS_LEARNED.md`
+- `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 
 ## Ferramentas e ambiente
 

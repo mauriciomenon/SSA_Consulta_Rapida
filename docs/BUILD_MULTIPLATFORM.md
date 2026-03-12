@@ -4,7 +4,9 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 
 ## CURRENT TRUTH (v4.32)
 
-- Sync deste guia: `2026-03-11 22:25 -0300`.
+- Sync deste guia: `2026-03-11 23:35 -0300`.
+- Relatorio consolidado deste ciclo:
+  - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 - Fluxo operacional padrao:
   1. build por backend com scripts em `dev_env/build/`
   2. distribuicao com `scripts/create_distribution.py`

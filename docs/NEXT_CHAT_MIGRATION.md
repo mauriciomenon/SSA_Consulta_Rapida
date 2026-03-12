@@ -2,7 +2,24 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-11 07:59 - start from here
+## CURRENT TRUTH 2026-03-11 23:35 - start from here
+
+- Objetivo desta rodada:
+  1. consolidar relatorio unico com processo de build Windows/Linux/macOS nas 3 ferramentas.
+  2. registrar de forma rastreavel: paths, limpeza, configuracoes, erros e status de atendimento de pedidos.
+- Entrega principal:
+  1. novo relatorio: `docs/BUILD_EXECUTION_AUDIT_20260311.md`.
+  2. sincronizacao dos docs de controle para apontar para este relatorio.
+- Estado consolidado:
+  1. branch ativa: `dev`.
+  2. ultimo commit no inicio deste sync: `b63d9133`.
+  3. comandos canonicos do ciclo: sempre via `uv` com `--python 3.13`.
+- Pendencias abertas para proximo ciclo:
+  1. validar instalador Inno final em host Windows com `iscc`.
+  2. garantir `patchelf` no host Debian/WSL para fechar trilha Nuitka.
+  3. executar smoke final de release cross-platform apos novo build completo.
+
+## HISTORICAL SNAPSHOT 2026-03-11 07:59 - previous current truth
 
 - Objetivo desta rodada:
   1. registrar handover para continuar no Windows sem perder contexto do slice macOS finalizado.
