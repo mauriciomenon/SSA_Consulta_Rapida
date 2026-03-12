@@ -2,17 +2,19 @@
 
 ## CURRENT TRUTH (v4.32)
 
-- Sync deste guia: `2026-03-11 14:25 -0300`.
-- Nuitka permanece trilha experimental neste baseline.
-- Pipeline oficial de release continua PyInstaller.
-- Quando executar Nuitka, usar somente para validacao laboratorial e empacotar via:
-  - `uv run --python 3.13 scripts/create_distribution.py --build-system nuitka --skip-installer`
-- Referencias a `builds/nuitka` neste guia sao historicas e nao caminho principal.
-- As secoes de snapshot historico usam exemplos com Nuitka 2.8.4; validacao local atual foi em 4.0.1.
-- Preflight 2026-03-10 (host macOS arm64):
-  - tool presente: `nuitka --version` OK (`4.0.1`)
-  - estado do pipeline de pacote: FAIL (`builds/nuitka` ausente)
-  - conclusao: ambiente tem a tool, mas o pipeline local nao esta pronto para distribuicao
+- Sync deste guia: `2026-03-11 22:25 -0300`.
+- Fluxo canonico Nuitka (sempre via uv wrappers):
+  - Windows: `dev_env/build/build_nuitka.bat --silent`
+  - Debian/WSL: `bash dev_env/build/build_nuitka_debian.sh --silent`
+- Artefatos finais:
+  - Windows GUI: `builds/nuitka/windows_amd64/gui_entry.dist/SSA_GUI_v4.32_windows_amd64.exe`
+  - Windows CLI: `builds/nuitka/windows_amd64/cli_entry.dist/SSA_CLI_v4.32_windows_amd64.exe`
+  - Debian (quando toolchain do host estiver completo): `builds/nuitka/debian_amd64/*`
+- Pre-requisito Debian:
+  - instalar `patchelf` no WSL com `sudo apt-get update && sudo apt-get install -y patchelf`
+  - sem `patchelf`, o script falha no preflight por design.
+- Pipeline oficial de release continua PyInstaller para pacote default.
+- Nuitka permanece trilha opcional de hardening/performance.
 
 ## HISTORICAL SNAPSHOT NOTICE
 

@@ -4,12 +4,41 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 
 ## CURRENT TRUTH (v4.32)
 
-- Sync deste guia: `2026-03-11 14:25 -0300`.
-- Fluxo operacional:
-  1. build com `launchers/build_multiplatform.py`.
-  2. distribuicao com `scripts/create_distribution.py`.
-- Backend de release no ciclo atual: `pyinstaller`.
-- `nuitka` e `pyoxidizer` permanecem como trilha laboratorial.
+- Sync deste guia: `2026-03-11 22:25 -0300`.
+- Fluxo operacional padrao:
+  1. build por backend com scripts em `dev_env/build/`
+  2. distribuicao com `scripts/create_distribution.py`
+- Backends ativos no ciclo:
+  - `pyinstaller` (default de release)
+  - `nuitka` (opcional)
+  - `pyoxidizer` (opcional)
+- Comandos canonicos (sempre via uv):
+  - Windows:
+    - `dev_env/build/build_pyinstaller.bat --silent`
+    - `dev_env/build/build_nuitka.bat --silent`
+    - `dev_env/build/build_pyoxidizer.bat --silent`
+  - Debian via WSL:
+    - `bash dev_env/build/build_pyinstaller_debian.sh --silent`
+    - `bash dev_env/build/build_nuitka_debian.sh --silent`
+    - `bash dev_env/build/build_pyoxidizer_debian.sh --silent`
+
+## Local de saida e staging
+
+- Artefatos finais:
+  - PyInstaller:
+    - `launchers/dist/<plataforma>/...`
+    - `builds/pyinstaller/<plataforma>/...`
+  - Nuitka:
+    - `builds/nuitka/<plataforma>/...`
+  - PyOxidizer:
+    - `builds/pyoxidizer/<plataforma>/...`
+- Instaladores e zips:
+  - `dist_packages/`
+- Staging temporario (nao versionar):
+  - `build/pyoxidizer_stage_windows_amd64/`
+  - `build/x86_64-pc-windows-msvc/`
+  - `build/x86_64-unknown-linux-gnu/`
+  - `launchers/platforms/*/temp/`
 
 ## Nota de versao
 
