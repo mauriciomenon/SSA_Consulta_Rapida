@@ -2,7 +2,7 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-11 23:35 - authoritative block
+## CURRENT TRUTH 2026-03-12 00:05 - authoritative block
 
 - Objetivo desta rodada:
   1. fechar rastreabilidade documental completa do ciclo de build multi-plataforma.
@@ -17,11 +17,14 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
 - Estado operacional para o proximo ciclo:
   1. branch: `dev`
   2. foco tecnico imediato:
-     - validar instalador Inno com `iscc` no host Windows
-     - fechar prerequisito `patchelf` no Debian/WSL para Nuitka
+     - fechar retorno final nao-zero do script `build_nuitka_debian.sh --silent`
      - executar smoke final cross-platform
+- Evidencias novas desta rodada:
+  1. `iscc` confirmado no host atual.
+  2. instalador pyinstaller compilado com sucesso.
+  3. `patchelf` instalado no WSL Debian 13.
 
-## HISTORICAL SNAPSHOT 2026-03-11 07:59 - previous current truth
+## HISTORICAL SNAPSHOT 2026-03-11 23:35 - previous current truth
 
 - Objetivo desta rodada:
   1. registrar handover para continuidade no host Windows com contexto seguro.

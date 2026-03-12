@@ -149,3 +149,10 @@ uv run --python 3.13 scripts/cleanup_build_artifacts.py --scope full
    - `docs/NEXT_CHAT_MIGRATION.md`
    - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
    - `docs/RECOVERY_BACKLOG.md`
+
+## Nota operacional desta conversa
+
+1. `iscc` confirmado no host atual (`C:\\Users\\mauri\\scoop\\shims\\iscc.exe`).
+2. Instalador `pyinstaller` compilado com sucesso via `scripts/create_distribution.py`.
+3. `patchelf` instalado no WSL Debian 13 com `apt-get`.
+4. Build `nuitka` Debian gerou binario, mas script retornou `exit code 1` no modo silencioso e requer fechamento do erro final no script.
