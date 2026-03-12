@@ -18,6 +18,22 @@ export UV_PYTHON=3.13
 export UV_MANAGED_PYTHON=true
 export UV_PROJECT_ENVIRONMENT=.venv-linux
 
+LAST_STEP=""
+
+on_error() {
+  local exit_code=$?
+  echo "Erro no build Nuitka Debian (step: ${LAST_STEP:-unknown}, exit: ${exit_code})."
+  echo "Log: ${LOG_FILE}"
+  if [[ "${SILENT}" == "1" ]] && [[ -f "${LOG_FILE}" ]]; then
+    echo "------ tail do log ------"
+    tail -n 80 "${LOG_FILE}" || true
+    echo "-------------------------"
+  fi
+  exit "${exit_code}"
+}
+
+trap on_error ERR
+
 if ! command -v patchelf >/dev/null 2>&1; then
   if sudo -n true >/dev/null 2>&1; then
     if [[ "${SILENT}" == "1" ]]; then
@@ -47,7 +63,7 @@ GUI_DIST="${REPO_ROOT}/builds/nuitka/debian_amd64/gui_entry.dist"
 CLI_DIST="${REPO_ROOT}/builds/nuitka/debian_amd64/cli_entry.dist"
 rm -rf "${GUI_DIST}" "${CLI_DIST}"
 
-BASE_CMD=(
+GUI_CMD=(
   uv run --python 3.13 -m nuitka
   --standalone
   --assume-yes-for-downloads
@@ -58,14 +74,29 @@ BASE_CMD=(
   --output-dir=builds/nuitka/debian_amd64
 )
 
+CLI_CMD=(
+  uv run --python 3.13 -m nuitka
+  --standalone
+  --assume-yes-for-downloads
+  --follow-imports
+  --include-data-dir=config=config
+  --output-dir=builds/nuitka/debian_amd64
+)
+
 if [[ "${SILENT}" == "1" ]]; then
-  "${BASE_CMD[@]}" --output-filename="SSA_GUI_v${APP_VERSION}_debian_amd64" --linux-icon=resources/app_icon.png launchers/gui_entry.py >"${LOG_FILE}" 2>&1
-  "${BASE_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_debian_amd64" launchers/cli_entry.py >>"${LOG_FILE}" 2>&1
+  LAST_STEP="nuitka_gui"
+  "${GUI_CMD[@]}" --output-filename="SSA_GUI_v${APP_VERSION}_debian_amd64" --linux-icon=resources/app_icon.png launchers/gui_entry.py >"${LOG_FILE}" 2>&1
+  LAST_STEP="nuitka_cli"
+  "${CLI_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_debian_amd64" launchers/cli_entry.py >>"${LOG_FILE}" 2>&1
+  LAST_STEP="copy_data_to_builds"
   uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" --build-system nuitka --allow-local-data >>"${LOG_FILE}" 2>&1
 else
   echo "Iniciando build Nuitka debian_amd64..."
-  "${BASE_CMD[@]}" --output-filename="SSA_GUI_v${APP_VERSION}_debian_amd64" --linux-icon=resources/app_icon.png launchers/gui_entry.py
-  "${BASE_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_debian_amd64" launchers/cli_entry.py
+  LAST_STEP="nuitka_gui"
+  "${GUI_CMD[@]}" --output-filename="SSA_GUI_v${APP_VERSION}_debian_amd64" --linux-icon=resources/app_icon.png launchers/gui_entry.py
+  LAST_STEP="nuitka_cli"
+  "${CLI_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_debian_amd64" launchers/cli_entry.py
+  LAST_STEP="copy_data_to_builds"
   uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" --build-system nuitka --allow-local-data
 fi
 
