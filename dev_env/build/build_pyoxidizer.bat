@@ -98,7 +98,13 @@ if not defined COPY_TOOL (
     exit /b 1
 )
 
-if exist "%STAGE_DIR%" rmdir /s /q "%STAGE_DIR%"
+if exist "%STAGE_DIR%" (
+    rmdir /s /q "%STAGE_DIR%" >nul 2>&1
+    if exist "%STAGE_DIR%" (
+        echo Erro: nao foi possivel limpar staging "%STAGE_DIR%". Feche processos que usam esta pasta e tente novamente.
+        exit /b 1
+    )
+)
 mkdir "%STAGE_DIR%"
 copy /Y "%REPO_ROOT%\pyoxidizer.bzl" "%STAGE_DIR%\pyoxidizer.bzl" >nul
 copy /Y "%REPO_ROOT%\main.py" "%STAGE_DIR%\main.py" >nul
@@ -139,8 +145,20 @@ if not exist "%SOURCE_INSTALL%" (
     exit /b 1
 )
 
-if exist "%TARGET_BUILD_DIR%" rmdir /s /q "%TARGET_BUILD_DIR%"
-mkdir "%TARGET_BUILD_DIR%"
+if not exist "%TARGET_BUILD_DIR%" (
+    mkdir "%TARGET_BUILD_DIR%"
+    if errorlevel 1 (
+        echo Erro ao criar target "%TARGET_BUILD_DIR%".
+        exit /b 1
+    )
+) else (
+    for /d %%D in ("%TARGET_BUILD_DIR%\*") do (
+        rmdir /s /q "%%~fD" >nul 2>&1
+    )
+    for %%F in ("%TARGET_BUILD_DIR%\*") do (
+        del /f /q "%%~fF" >nul 2>&1
+    )
+)
 if /I "%COPY_TOOL%"=="xcopy" (
     "%XCOPY_EXE%" /E /I /Y "%SOURCE_INSTALL%\*" "%TARGET_BUILD_DIR%\" >nul
 ) else (
@@ -150,6 +168,22 @@ if /I "%COPY_TOOL%"=="xcopy" (
         echo Erro ao copiar install para target via robocopy. Codigo: !ROBO_RC!
         exit /b 1
     )
+)
+
+if "%SILENT%"=="1" (
+    set "UV_PROJECT_ENVIRONMENT=.venv-pyoxidizer-runtime-win"
+    uv run --python 3.10 --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 python "%REPO_ROOT%\scripts\sync_pyoxidizer_runtime_libs.py" --target "%TARGET_BUILD_DIR%\lib" >> "%LOG_FILE%" 2>&1
+    set "UV_PROJECT_ENVIRONMENT=.venv-win"
+) else (
+    set "UV_PROJECT_ENVIRONMENT=.venv-pyoxidizer-runtime-win"
+    uv run --python 3.10 --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 python "%REPO_ROOT%\scripts\sync_pyoxidizer_runtime_libs.py" --target "%TARGET_BUILD_DIR%\lib"
+    set "UV_PROJECT_ENVIRONMENT=.venv-win"
+)
+
+if errorlevel 1 (
+    echo Build PyOxidizer concluiu, mas sync de runtime libs falhou. Veja o log: "%LOG_FILE%"
+    if "%SILENT%"=="0" pause
+    exit /b 1
 )
 
 if "%SILENT%"=="1" (

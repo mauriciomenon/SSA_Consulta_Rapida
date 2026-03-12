@@ -1,12 +1,10 @@
-# PyOxidizer configuration for SSA_Consulta_Rapida (repo root path).
+# PyOxidizer configuration for SSA_Consulta_Rapida.
+# Keep paths without ".." because Tugger rejects parent traversal.
 
-PROJECT_ROOT = VARS.get("SSA_PROJECT_ROOT")
+PROJECT_ROOT = VARS.get("SSA_PROJECT_ROOT") or "."
 PROJECT_ROOT = PROJECT_ROOT.replace("\\", "/")
-PROJECT_PREFIX = PROJECT_ROOT + "/"
+PROJECT_PREFIX = PROJECT_ROOT + "/" if not PROJECT_ROOT.endswith("/") else PROJECT_ROOT
 
-
-def _abs(pattern):
-    return PROJECT_PREFIX + pattern
 
 def make_exe():
     dist = default_python_distribution()
@@ -18,12 +16,18 @@ def make_exe():
     policy.file_scanner_emit_files = True
     policy.file_scanner_classify_files = True
     policy.include_distribution_resources = True
-    policy.include_non_distribution_sources = False
+    policy.include_non_distribution_sources = True
     policy.extension_module_filter = "all"
     policy.include_classified_resources = True
 
     python_config = dist.make_python_interpreter_config()
     python_config.run_module = "main"
+    python_config.module_search_paths = [
+        "$ORIGIN",
+        "$ORIGIN/lib",
+        "$ORIGIN/lib/python3.10",
+    ]
+    python_config.oxidized_importer = False
     python_config.filesystem_importer = True
     python_config.sys_frozen = False
     python_config.sys_meipass = False
@@ -34,7 +38,9 @@ def make_exe():
         config=python_config,
     )
 
-    exe.add_python_resources(exe.pip_install(["pandas", "openpyxl", "PyQt6"]))
+    exe.add_python_resources(
+        exe.pip_install(["pandas", "openpyxl", "PyQt6", "numpy", "tabulate"])
+    )
     return exe
 
 
@@ -44,24 +50,33 @@ def make_embedded_resources(exe):
 
 def make_install(exe):
     files = FileManifest()
-
     files.add_python_resource(".", exe)
 
-    files.add_manifest(glob([_abs("config/**")], strip_prefix=PROJECT_PREFIX))
-    files.add_manifest(glob([_abs("themes/**")], strip_prefix=PROJECT_PREFIX))
-    files.add_manifest(glob([_abs("resources/**")], strip_prefix=PROJECT_PREFIX))
     files.add_manifest(
         glob(
-            [
-                _abs("main.py"),
-                _abs("core/**"),
-                _abs("gui/**"),
-                _abs("armazenamento/**"),
-                _abs("extracao/**"),
-                _abs("utils/**"),
-                _abs("interface/**"),
-                _abs("exportacao/**"),
-                _abs("shared/**"),
+            include=[
+                "main.py",
+                "core/*.py",
+                "core/**/*.py",
+                "gui/*.py",
+                "gui/**/*.py",
+                "armazenamento/*.py",
+                "armazenamento/**/*.py",
+                "extracao/*.py",
+                "extracao/**/*.py",
+                "utils/*.py",
+                "utils/**/*.py",
+                "interface/*.py",
+                "interface/**/*.py",
+                "exportacao/*.py",
+                "exportacao/**/*.py",
+                "shared/*.py",
+                "shared/**/*.py",
+                "launchers/*.py",
+                "launchers/**/*.py",
+                "config/**",
+                "themes/**",
+                "resources/**",
             ],
             strip_prefix=PROJECT_PREFIX,
         )
