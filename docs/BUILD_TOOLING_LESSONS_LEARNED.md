@@ -7,6 +7,8 @@
 - Escopo: Windows 11 + Debian 13 via WSL, com build via `uv`.
 - Relatorio operacional consolidado:
   - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
+- Runbook operacional:
+  - `docs/BUILD_3X3_RUNBOOK.md`
 
 ## Licao 1 - PyInstaller DLL load failure no Windows (`python313.dll`)
 
