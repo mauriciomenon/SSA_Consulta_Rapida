@@ -2,16 +2,26 @@
 
 ## CURRENT TRUTH (v4.32)
 
-- Sync deste guia: `2026-03-11 14:25 -0300`.
-- PyOxidizer permanece trilha experimental/laboratorio neste baseline.
-- O repositorio atual nao usa `pyoxidizer.bzl` nem `build_pyoxidizer.bat` como caminho operacional principal.
-- Distribuicao oficial segue PyInstaller + `launchers/dist/*`.
-- Execucao recomendada para laboratorio: `uv tool run --python 3.13 --from pyoxidizer pyoxidizer build --release --path dev_env/build`.
-- Se necessario testar PyOxidizer, tratar este guia como referencia historica de investigacao.
-- Validacao 2026-03-10 (host macOS arm64):
-  - `pyoxidizer --version` OK (`0.24.0`)
-  - tentativa de empacotamento `--build-system pyoxidizer --skip-installer` falhou por build ausente em `builds/pyoxidizer`
-  - conclusao: tool instalada, mas sem artefato local pronto para pacote neste host
+- Sync deste guia: `2026-03-11 22:25 -0300`.
+- PyOxidizer segue como trilha avancada (nao default), mas com fluxo operacional funcional para:
+  - `windows_amd64`
+  - `debian_amd64` (via WSL)
+- Comandos canonicos (sempre via uv):
+  - Windows: `dev_env/build/build_pyoxidizer.bat --silent`
+  - Debian/WSL: `bash dev_env/build/build_pyoxidizer_debian.sh --silent`
+- Artefatos finais:
+  - `builds/pyoxidizer/windows_amd64/SSA_Consulta_Rapida.exe`
+  - `builds/pyoxidizer/debian_amd64/SSA_Consulta_Rapida`
+- Estrutura runtime gerada no bundle:
+  - codigo do projeto em raiz (`core/`, `gui/`, `interface/`, etc.)
+  - runtime Python em `lib/`
+  - dados/config copiados por `scripts/copy_data_to_builds.py`
+- Runtime deps nativas de pandas/numpy:
+  - sincronizadas por `scripts/sync_pyoxidizer_runtime_libs.py`
+  - chamadas automaticamente pelos scripts de build de PyOxidizer
+- Observacao tecnica:
+  - PyOxidizer 0.24.0 usa runtime Python 3.10 embedado.
+  - O toolchain e processo do projeto continuam padronizados em `uv run --python 3.13 ...`.
 
 ## HISTORICAL SNAPSHOT NOTICE
 

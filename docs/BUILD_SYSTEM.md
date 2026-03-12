@@ -1,5 +1,17 @@
 # BUILD SYSTEM - SSA Consulta Rapida v4.0.0
 
+## CURRENT TRUTH (v4.32)
+
+- Sync deste guia: `2026-03-11 22:25 -0300`.
+- Este arquivo e historico e nao representa o fluxo atual de release.
+- Fluxo atual:
+  - `docs/BUILD_MULTIPLATFORM.md`
+  - `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+  - `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
+  - `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
+- Todos os comandos operacionais devem usar uv (`uv run --python 3.13 ...`).
+- Nao usar comandos antigos deste arquivo com `pip`/`python` direto como fonte primaria.
+
 ##  **BUILD SYSTEM OTIMIZADO PARA v4.0.0**
 
 ###  **PERFORMANCE APRIMORADA NO BUILD:**
