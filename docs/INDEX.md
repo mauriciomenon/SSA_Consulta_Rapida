@@ -75,6 +75,7 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 - `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
 - `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
 - `docs/BUILD_SCRIPTS_COMPARISON.md`
+- `docs/BUILD_TOOLING_LESSONS_LEARNED.md`
 
 ## Ferramentas e ambiente
 
