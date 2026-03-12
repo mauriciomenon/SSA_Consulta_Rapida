@@ -981,8 +981,9 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 # O SQLite tem seus proprios mecanismos de lock
                 app = QApplication(sys.argv)
                 try:
-                    app.setApplicationName("Consulta Rapida de SSAs")
-                    app.setApplicationDisplayName("Consulta Rapida de SSAs")
+                    if sys.platform == "darwin":
+                        app.setApplicationName("Consulta Rapida de SSAs")
+                        app.setApplicationDisplayName("Consulta Rapida de SSAs")
                 except (AttributeError, OSError, RuntimeError) as exc:
                     logger.debug("Falha ao configurar nome da aplicacao: %s", exc)
                 try:
