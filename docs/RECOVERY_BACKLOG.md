@@ -54,6 +54,34 @@ Classificacao:
 1. `DOC_SYNC`:
    - consolidacao e rastreabilidade operacional sem alteracao de runtime.
 
+## Update 2026-03-12 00:05 - evidencias tecnicas adicionais de build (DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-11 23:36:00 -0300`
+2. end: `2026-03-12 00:05:00 -0300`
+
+Objetivo do slice:
+1. reduzir itens `PARCIAL` com novas evidencias executadas no host atual.
+2. atualizar docs de controle com status tecnico real.
+
+Escopo alterado:
+1. `docs/BUILD_EXECUTION_AUDIT_20260311.md`
+2. `docs/BUILD_3X3_RUNBOOK.md`
+3. `docs/NEXT_CHAT_MIGRATION.md`
+4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+5. `docs/RECOVERY_BACKLOG.md`
+
+Registro aplicado:
+1. `iscc` confirmado no host e instalador pyinstaller compilado via `scripts/create_distribution.py`.
+2. `patchelf` instalado no WSL Debian 13 com `apt-get`.
+3. build `nuitka` Debian reexecutado em modo silencioso:
+   - artefato gerado em `builds/nuitka/debian_amd64/gui_entry.dist`
+   - retorno final do script ainda nao-zero (`exit code 1`) para fechamento no proximo slice.
+
+Classificacao:
+1. `DOC_SYNC`:
+   - sync de evidencia tecnica e pendencias remanescentes.
+
 ## Update 2026-03-11 07:59 - handover para host Windows (DOC_SYNC)
 
 Session timestamp:

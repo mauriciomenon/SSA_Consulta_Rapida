@@ -2,11 +2,11 @@
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-03-11 23:35 -0300)
+## Sync status (2026-03-12 00:05 -0300)
 
 1. Baseline ativo confirmado: `4.32`.
 2. Branch operacional: `dev`.
-3. Ultimo commit local na sincronizacao deste index: `b63d9133`.
+3. Ultimo commit local na sincronizacao deste index: `d422133d`.
 4. Relatorio consolidado do ciclo de build:
    - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 5. Runbook operacional 3x3:

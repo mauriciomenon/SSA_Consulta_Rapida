@@ -2,7 +2,7 @@
 
 ## Current Truth
 
-- Sync timestamp: 2026-03-11 23:35 -0300
+- Sync timestamp: 2026-03-12 00:05 -0300
 - Branch alvo: `dev`
 - Ultimos commits relevantes:
   - `b63d9133` DOC_SYNC: licoes aprendidas cross-project de build tooling
@@ -181,7 +181,10 @@ Scripts de build (`.bat`/`.sh`) agora perguntam no final (modo nao silencioso) s
 
 - Estrutura de distribuicao e template do instalador seguem em `scripts/create_distribution.py`.
 - Ajuste aplicado no ciclo: inclusao de `data` e pastas de docs no template.
-- Status: estrutura e template atualizados; validacao final do `.exe` instalador depende execucao no host Windows com `iscc` disponivel.
+- Evidencia desta rodada:
+  - `Get-Command iscc` -> `C:\Users\mauri\scoop\shims\iscc.exe`
+  - `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller` -> instalador compilado com sucesso.
+- Status: atendido para trilha `pyinstaller` no host atual.
 
 ## Reprodutibilidade cross-project (checklist)
 
@@ -210,7 +213,7 @@ Legenda de status:
 5. Validar pacote de ferramentas `uv run --python 3.13` (pyqt6/pandas/matplotlib/pyoxidizer/nuitka/...): `ATENDIDO` (checks e installs no ciclo).
 6. Garantir `python` sempre via `uv` inclusive venv: `ATENDIDO` (docs/comandos canonicos atualizados).
 7. Build `windows_amd64` silencioso nas 3 frentes: `PARCIAL` (PyInstaller/Nuitka/PyOxidizer com progresso real; manter smoke final por release).
-8. Build `debian_amd64` silencioso nas 3 frentes: `PARCIAL` (PyInstaller ok; Nuitka depende de patchelf; PyOxidizer exigiu correcoes e nova validacao por release).
+8. Build `debian_amd64` silencioso nas 3 frentes: `PARCIAL` (PyInstaller ok; `patchelf` ja instalado; build Nuitka Debian gerou artefato, mas script retornou codigo final nao-zero no modo silencioso e precisa fechamento de causa no script).
 9. Corrigir erro de runtime `main.py nao encontrado`: `ATENDIDO` (`52fd44c6`).
 10. Corrigir duplicacao de titulo em Windows/Debian: `ATENDIDO` (`52fd44c6`).
 11. Garantir visibilidade de `config/data/docs_entrada/docs_saida/exportacao`: `ATENDIDO` (bootstrap + docs de processo consolidados).
@@ -218,7 +221,7 @@ Legenda de status:
 13. Padronizar estrutura de pastas de output entre ferramentas: `ATENDIDO` (documentado e aplicado no pipeline atual).
 14. Criar script de limpeza reutilizavel e pergunta ao final do build: `ATENDIDO` (`20b7f1c2`).
 15. Atualizar docs/processos para usar uv (sem pip/python direto): `ATENDIDO` (docs de build e comandos canonicos atualizados).
-16. Refinar Inno Setup (icone/pastas): `PARCIAL` (template atualizado; validar instalador final em host com ISCC).
+16. Refinar Inno Setup (icone/pastas): `ATENDIDO` (template atualizado + instalador `pyinstaller` compilado nesta rodada com `iscc` presente no host).
 17. Nao subir artefatos pesados de build no git: `ATENDIDO` (politica mantida em docs e pratica de commits).
 18. Documentar onde ficam exe/binarios por backend: `ATENDIDO` (secao de saida padronizada).
 19. Salvar licoes aprendidas reproduziveis para outros projetos: `ATENDIDO` (`docs/BUILD_TOOLING_LESSONS_LEARNED.md` + este audit).
@@ -226,10 +229,21 @@ Legenda de status:
 
 ## Pendencias abertas (objetivas)
 
-1. Validar instalador Inno final em ambiente Windows com `iscc` e smoke de instalacao real.
-2. Fechar prerequisito `patchelf` no host Debian/WSL para Nuitka.
-3. Rodar bateria final de smoke cross-platform no pacote atual antes de release.
-4. Decidir se entra ciclo dedicado de Cython para hardening adicional de source.
+1. Fechar retorno nao-zero do script `build_nuitka_debian.sh` no modo silencioso (artefato `gui_entry.dist` foi gerado).
+2. Rodar bateria final de smoke cross-platform no pacote atual antes de release.
+3. Decidir se entra ciclo dedicado de Cython para hardening adicional de source.
+
+## Evidencia adicional desta rodada (2026-03-12 00:05)
+
+1. `patchelf` instalado no WSL:
+   - comando: `wsl -u root -e bash -lc "apt-get update && apt-get install -y patchelf"`
+   - resultado: pacote `patchelf 0.18.0-1.4` instalado.
+2. Runtime dirs visiveis confirmadas em artefatos:
+   - `launchers/dist/windows_amd64`: `config`, `data`, `docs_entrada`, `docs_saida`
+   - `launchers/dist/debian_amd64`: `config`, `data`, `docs_entrada`, `docs_saida`
+3. Build Nuitka Debian:
+   - comando: `bash dev_env/build/build_nuitka_debian.sh --silent`
+   - resultado: `builds/nuitka/debian_amd64/gui_entry.dist/SSA_GUI_v4.32_debian_amd64` gerado, com retorno final `exit code 1` do script.
 
 ## Plano de fechamento das pendencias (comandos)
 
