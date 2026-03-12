@@ -33,3 +33,9 @@ fi
 
 echo "Build PyInstaller Debian concluido com sucesso."
 echo "Artefatos em: ${REPO_ROOT}/launchers/dist/debian_amd64 e ${REPO_ROOT}/builds/pyinstaller/debian_amd64"
+if [[ "${SILENT}" != "1" ]]; then
+  read -r -p "Executar cleanup TEMP agora? [s/N]: " DO_CLEANUP
+  if [[ "${DO_CLEANUP,,}" == "s" ]]; then
+    uv run --python 3.13 "${REPO_ROOT}/scripts/cleanup_build_artifacts.py" --scope temp
+  fi
+fi

@@ -70,3 +70,9 @@ fi
 
 echo "Build PyOxidizer Debian concluido com sucesso."
 echo "Artefatos em: ${TARGET_BUILD_DIR}"
+if [[ "${SILENT}" != "1" ]]; then
+  read -r -p "Executar cleanup TEMP agora? [s/N]: " DO_CLEANUP
+  if [[ "${DO_CLEANUP,,}" == "s" ]]; then
+    uv run --python 3.13 "${REPO_ROOT}/scripts/cleanup_build_artifacts.py" --scope temp
+  fi
+fi

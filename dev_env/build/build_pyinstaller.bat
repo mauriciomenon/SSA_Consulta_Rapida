@@ -62,5 +62,11 @@ if errorlevel 1 (
 
 echo Build PyInstaller concluido com sucesso.
 echo Artefatos em: "%REPO_ROOT%\launchers\dist\windows_amd64" e "%REPO_ROOT%\builds\pyinstaller\windows_amd64"
+if "%SILENT%"=="0" (
+    set /p "DO_CLEANUP=Executar cleanup TEMP agora? [s/N]: "
+    if /I "!DO_CLEANUP!"=="s" (
+        uv run --python 3.13 "%REPO_ROOT%\scripts\cleanup_build_artifacts.py" --scope temp
+    )
+)
 if "%SILENT%"=="0" pause
 exit /b 0
