@@ -2,9 +2,11 @@
 
 ## Current Truth (v4.32)
 
-- Sync: `2026-03-11 23:05 -0300`
+- Sync: `2026-03-11 23:35 -0300`
 - Objetivo: registrar erros reais, causa-raiz, fix aplicado e comandos de validacao.
 - Escopo: Windows 11 + Debian 13 via WSL, com build via `uv`.
+- Relatorio operacional consolidado:
+  - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 
 ## Licao 1 - PyInstaller DLL load failure no Windows (`python313.dll`)
 

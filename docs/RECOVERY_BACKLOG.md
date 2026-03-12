@@ -18,6 +18,40 @@ Fluxo de trabalho registrado para proximo ciclo curto:
 3. Regra operacional para esse debt:
    - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
 
+## Update 2026-03-11 23:35 - consolidacao build audit e migracao (DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-11 23:22:38 -0300`
+2. end: `2026-03-11 23:35:00 -0300`
+
+Objetivo do slice:
+1. consolidar em documento unico todo o processo de build multi-plataforma com 3 backends.
+2. registrar status de atendimento dos pedidos do usuario desde o inicio da conversa.
+3. sincronizar docs de controle para a mesma verdade atual.
+
+Escopo alterado:
+1. `docs/BUILD_EXECUTION_AUDIT_20260311.md` (novo)
+2. `docs/BUILD_MULTIPLATFORM.md`
+3. `docs/BUILD_TOOLING_LESSONS_LEARNED.md`
+4. `docs/INDEX.md`
+5. `docs/NEXT_CHAT_MIGRATION.md`
+6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+7. `docs/RECOVERY_BACKLOG.md`
+
+Registro aplicado:
+1. relatorio unico criado com:
+   - comandos canonicos uv
+   - estrutura de saida/staging/limpeza
+   - arquivos de config envolvidos
+   - erros por backend/plataforma e acao aplicada
+   - matriz de pedidos atendidos/parciais/nao atendidos
+2. index e guias principais atualizados para apontar para o relatorio unico.
+3. verdade atual de migracao/handoff sincronizada para branch `dev`.
+
+Classificacao:
+1. `DOC_SYNC`:
+   - consolidacao e rastreabilidade operacional sem alteracao de runtime.
+
 ## Update 2026-03-11 07:59 - handover para host Windows (DOC_SYNC)
 
 Session timestamp:
