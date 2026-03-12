@@ -40,6 +40,15 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
   - `build/x86_64-unknown-linux-gnu/`
   - `launchers/platforms/*/temp/`
 
+## Cleanup opcional (pos-build)
+
+- Script canonico:
+  - `uv run --python 3.13 scripts/cleanup_build_artifacts.py --scope temp`
+- Escopo:
+  - `temp`: remove apenas staging/temporarios.
+  - `full`: remove tambem `builds/*`, `launchers/dist/*`, `dist_packages/*`.
+- Scripts de build em modo nao silencioso perguntam no final se deve rodar cleanup `temp`.
+
 ## Nota de versao
 
 Exemplos de nomes versionados neste documento (v3.10/v3.11) sao snapshots historicos.
