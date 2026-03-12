@@ -2,7 +2,7 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-12 00:05 - authoritative block
+## CURRENT TRUTH 2026-03-12 00:45 - authoritative block
 
 - Objetivo desta rodada:
   1. fechar rastreabilidade documental completa do ciclo de build multi-plataforma.
@@ -23,8 +23,9 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. `iscc` confirmado no host atual.
   2. instalador pyinstaller compilado com sucesso.
   3. `patchelf` instalado no WSL Debian 13.
+  4. `build_nuitka_debian.sh` ajustado (CLI sem plugin PyQt6 + trap de erro com step/log).
 
-## HISTORICAL SNAPSHOT 2026-03-11 23:35 - previous current truth
+## HISTORICAL SNAPSHOT 2026-03-12 00:05 - previous current truth
 
 - Objetivo desta rodada:
   1. registrar handover para continuidade no host Windows com contexto seguro.

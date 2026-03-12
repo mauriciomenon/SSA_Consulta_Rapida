@@ -2,7 +2,7 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-12 00:05 - start from here
+## CURRENT TRUTH 2026-03-12 00:45 - start from here
 
 - Objetivo desta rodada:
   1. consolidar relatorio unico com processo de build Windows/Linux/macOS nas 3 ferramentas.
@@ -17,12 +17,13 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `iscc` confirmado no host
      - instalador pyinstaller compilado com sucesso
      - `patchelf` instalado no WSL Debian 13
+     - `build_nuitka_debian.sh` com melhoria de diagnostico e separacao GUI/CLI
   3. comandos canonicos do ciclo: sempre via `uv` com `--python 3.13`.
 - Pendencias abertas para proximo ciclo:
-  1. fechar retorno final nao-zero do script `build_nuitka_debian.sh --silent`.
+  1. fechar validacao final de tempo/retorno do `build_nuitka_debian.sh --silent` no host.
   2. executar smoke final de release cross-platform apos novo build completo.
 
-## HISTORICAL SNAPSHOT 2026-03-11 23:35 - previous current truth
+## HISTORICAL SNAPSHOT 2026-03-12 00:05 - previous current truth
 
 - Objetivo desta rodada:
   1. registrar handover para continuar no Windows sem perder contexto do slice macOS finalizado.

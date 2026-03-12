@@ -2,7 +2,7 @@
 
 ## Current Truth
 
-- Sync timestamp: 2026-03-12 00:05 -0300
+- Sync timestamp: 2026-03-12 00:45 -0300
 - Branch alvo: `dev`
 - Ultimos commits relevantes:
   - `b63d9133` DOC_SYNC: licoes aprendidas cross-project de build tooling
@@ -141,10 +141,14 @@ Scripts de build (`.bat`/`.sh`) agora perguntam no final (modo nao silencioso) s
 
 ### Nuitka (Debian/WSL)
 
-- Erro: dependencia `patchelf` ausente.
+- Erro historico: dependencia `patchelf` ausente.
 - Causa: requisito de toolchain do ambiente.
-- Acao: documentado como prerequisito de host.
-- Status: pendente quando host nao tiver pacote instalado.
+- Acao:
+  - `patchelf` instalado no WSL.
+  - script `dev_env/build/build_nuitka_debian.sh` ajustado para diagnostico melhor:
+    - separa comando GUI (com plugin PyQt6) de CLI (sem plugin PyQt6).
+    - adiciona `trap` com identificacao de `LAST_STEP` e tail de log no modo silencioso.
+- Status: avancou; ainda requer fechamento final de tempo/retorno no host para rodada de release.
 
 ### PyOxidizer (Windows)
 
@@ -213,7 +217,7 @@ Legenda de status:
 5. Validar pacote de ferramentas `uv run --python 3.13` (pyqt6/pandas/matplotlib/pyoxidizer/nuitka/...): `ATENDIDO` (checks e installs no ciclo).
 6. Garantir `python` sempre via `uv` inclusive venv: `ATENDIDO` (docs/comandos canonicos atualizados).
 7. Build `windows_amd64` silencioso nas 3 frentes: `PARCIAL` (PyInstaller/Nuitka/PyOxidizer com progresso real; manter smoke final por release).
-8. Build `debian_amd64` silencioso nas 3 frentes: `PARCIAL` (PyInstaller ok; `patchelf` ja instalado; build Nuitka Debian gerou artefato, mas script retornou codigo final nao-zero no modo silencioso e precisa fechamento de causa no script).
+8. Build `debian_amd64` silencioso nas 3 frentes: `PARCIAL` (PyInstaller ok; `patchelf` instalado; script Nuitka melhorado para diagnostico, mas execucao completa ainda e longa no host e precisa fechamento final para release).
 9. Corrigir erro de runtime `main.py nao encontrado`: `ATENDIDO` (`52fd44c6`).
 10. Corrigir duplicacao de titulo em Windows/Debian: `ATENDIDO` (`52fd44c6`).
 11. Garantir visibilidade de `config/data/docs_entrada/docs_saida/exportacao`: `ATENDIDO` (bootstrap + docs de processo consolidados).
@@ -229,7 +233,7 @@ Legenda de status:
 
 ## Pendencias abertas (objetivas)
 
-1. Fechar retorno nao-zero do script `build_nuitka_debian.sh` no modo silencioso (artefato `gui_entry.dist` foi gerado).
+1. Fechar validacao final de tempo/retorno do `build_nuitka_debian.sh --silent` em rodada dedicada de release.
 2. Rodar bateria final de smoke cross-platform no pacote atual antes de release.
 3. Decidir se entra ciclo dedicado de Cython para hardening adicional de source.
 
@@ -243,7 +247,11 @@ Legenda de status:
    - `launchers/dist/debian_amd64`: `config`, `data`, `docs_entrada`, `docs_saida`
 3. Build Nuitka Debian:
    - comando: `bash dev_env/build/build_nuitka_debian.sh --silent`
-   - resultado: `builds/nuitka/debian_amd64/gui_entry.dist/SSA_GUI_v4.32_debian_amd64` gerado, com retorno final `exit code 1` do script.
+   - resultado observado: artefatos `gui_entry.dist` e `cli_entry.dist` presentes; execucao completa ainda sensivel a tempo de compilacao no host.
+4. Hardening do script Nuitka Debian:
+   - `STABILITY_PATCH` em `dev_env/build/build_nuitka_debian.sh`:
+     - CLI sem plugin `pyqt6`.
+     - handler de erro com `LAST_STEP` + tail de log no modo silencioso.
 
 ## Plano de fechamento das pendencias (comandos)
 
