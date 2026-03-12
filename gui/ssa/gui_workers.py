@@ -1109,9 +1109,11 @@ def rescan_data(
 
     main_py_path = os.path.join(project_root, "main.py")
     if not os.path.exists(main_py_path):
-        if qmessagebox is not None:
-            qmessagebox.warning(window, "Erro", f"Arquivo main.py nao encontrado em {main_py_path}")
-        return
+        logger.warning(
+            "Arquivo main.py nao encontrado em '%s'. Prosseguindo com reescaneamento modular sem subprocess.",
+            main_py_path,
+        )
+        main_py_path = "main.py"
 
     progress_dialog = rescan_dialog_cls(window)
     try:
