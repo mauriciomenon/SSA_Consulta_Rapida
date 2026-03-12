@@ -48,6 +48,20 @@ rm -rf "${TARGET_BUILD_DIR}"
 mkdir -p "${TARGET_BUILD_DIR}"
 cp -a "${SOURCE_INSTALL}/." "${TARGET_BUILD_DIR}/"
 
+if [[ -d "${TARGET_BUILD_DIR}/lib" && ! -e "${TARGET_BUILD_DIR}/lib/python3.10" ]]; then
+  ln -s . "${TARGET_BUILD_DIR}/lib/python3.10"
+fi
+
+if [[ "${SILENT}" == "1" ]]; then
+  UV_PROJECT_ENVIRONMENT=.venv-pyoxidizer-runtime-linux \
+  uv run --python 3.10 --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 \
+    python "${REPO_ROOT}/scripts/sync_pyoxidizer_runtime_libs.py" --target "${TARGET_BUILD_DIR}/lib" >>"${LOG_FILE}" 2>&1
+else
+  UV_PROJECT_ENVIRONMENT=.venv-pyoxidizer-runtime-linux \
+  uv run --python 3.10 --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 \
+    python "${REPO_ROOT}/scripts/sync_pyoxidizer_runtime_libs.py" --target "${TARGET_BUILD_DIR}/lib"
+fi
+
 if [[ "${SILENT}" == "1" ]]; then
   uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" --build-system pyoxidizer --allow-local-data >>"${LOG_FILE}" 2>&1
 else
