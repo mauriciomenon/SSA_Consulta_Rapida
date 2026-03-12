@@ -7,6 +7,8 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 - Sync deste guia: `2026-03-11 23:35 -0300`.
 - Relatorio consolidado deste ciclo:
   - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
+- Runbook operacional 3x3:
+  - `docs/BUILD_3X3_RUNBOOK.md`
 - Fluxo operacional padrao:
   1. build por backend com scripts em `dev_env/build/`
   2. distribuicao com `scripts/create_distribution.py`

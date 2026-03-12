@@ -9,6 +9,8 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 3. Ultimo commit local na sincronizacao deste index: `b63d9133`.
 4. Relatorio consolidado do ciclo de build:
    - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
+5. Runbook operacional 3x3:
+   - `docs/BUILD_3X3_RUNBOOK.md`
 
 ## Regras de leitura
 
@@ -76,6 +78,7 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 - `docs/BUILD_SCRIPTS_COMPARISON.md`
 - `docs/BUILD_TOOLING_LESSONS_LEARNED.md`
 - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
+- `docs/BUILD_3X3_RUNBOOK.md`
 
 ## Ferramentas e ambiente
 

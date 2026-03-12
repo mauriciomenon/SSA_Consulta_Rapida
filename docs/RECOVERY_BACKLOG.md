@@ -45,8 +45,10 @@ Registro aplicado:
    - arquivos de config envolvidos
    - erros por backend/plataforma e acao aplicada
    - matriz de pedidos atendidos/parciais/nao atendidos
-2. index e guias principais atualizados para apontar para o relatorio unico.
-3. verdade atual de migracao/handoff sincronizada para branch `dev`.
+2. runbook operacional 3x3 criado:
+   - `docs/BUILD_3X3_RUNBOOK.md`
+3. index e guias principais atualizados para apontar para o relatorio unico.
+4. verdade atual de migracao/handoff sincronizada para branch `dev`.
 
 Classificacao:
 1. `DOC_SYNC`:

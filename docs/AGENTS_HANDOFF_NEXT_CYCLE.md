@@ -10,8 +10,10 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
 - Registro aplicado:
   1. novo documento canonico de auditoria:
      - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
-  2. `INDEX`, `BUILD_MULTIPLATFORM`, `BUILD_TOOLING_LESSONS_LEARNED` sincronizados para referencia cruzada.
-  3. `NEXT_CHAT_MIGRATION` e `RECOVERY_BACKLOG` atualizados com a mesma verdade atual.
+  2. novo runbook operacional:
+     - `docs/BUILD_3X3_RUNBOOK.md`
+  3. `INDEX`, `BUILD_MULTIPLATFORM`, `BUILD_TOOLING_LESSONS_LEARNED` sincronizados para referencia cruzada.
+  4. `NEXT_CHAT_MIGRATION` e `RECOVERY_BACKLOG` atualizados com a mesma verdade atual.
 - Estado operacional para o proximo ciclo:
   1. branch: `dev`
   2. foco tecnico imediato:

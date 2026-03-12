@@ -231,10 +231,31 @@ Legenda de status:
 3. Rodar bateria final de smoke cross-platform no pacote atual antes de release.
 4. Decidir se entra ciclo dedicado de Cython para hardening adicional de source.
 
+## Plano de fechamento das pendencias (comandos)
+
+1. Inno Setup final:
+   - validar `iscc`:
+     - `where iscc`
+   - gerar distribuicao e compilacao do instalador:
+     - `uv run --python 3.13 scripts/create_distribution.py --platform windows_amd64 --build-system pyinstaller`
+   - smoke do instalador:
+     - instalar e validar existencia de `config`, `data`, `docs_entrada`, `docs_saida`, `exportacao`.
+2. Nuitka Debian com prerequisito:
+   - `sudo apt-get update && sudo apt-get install -y patchelf`
+   - `bash dev_env/build/build_nuitka_debian.sh --silent`
+3. Smoke cross-platform final:
+   - Windows: CLI + GUI a partir de `C:\Windows\Temp`
+   - Debian: CLI + GUI a partir de `/tmp` (ou host com display)
+   - macOS: abrir `.app` e validar startup + titulo + menu Sobre
+4. Hardening adicional de source:
+   - opcao A: manter somente `nuitka`/`pyoxidizer` no release
+   - opcao B: adicionar ciclo dedicado de Cython para modulos criticos
+
 ## Referencias cruzadas
 
 - `docs/BUILD_MULTIPLATFORM.md`
 - `docs/BUILD_TOOLING_LESSONS_LEARNED.md`
+- `docs/BUILD_3X3_RUNBOOK.md`
 - `docs/NEXT_CHAT_MIGRATION.md`
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - `docs/RECOVERY_BACKLOG.md`

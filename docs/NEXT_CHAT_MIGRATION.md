@@ -9,7 +9,8 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   2. registrar de forma rastreavel: paths, limpeza, configuracoes, erros e status de atendimento de pedidos.
 - Entrega principal:
   1. novo relatorio: `docs/BUILD_EXECUTION_AUDIT_20260311.md`.
-  2. sincronizacao dos docs de controle para apontar para este relatorio.
+  2. novo runbook operacional: `docs/BUILD_3X3_RUNBOOK.md`.
+  3. sincronizacao dos docs de controle para apontar para este relatorio.
 - Estado consolidado:
   1. branch ativa: `dev`.
   2. ultimo commit no inicio deste sync: `b63d9133`.
