@@ -3,6 +3,41 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-17 00:30 - import status semantics for deterministic rejections
+
+Session timestamp:
+1. start: `2026-03-17 00:01:43 -0300`
+2. diagnostico aprofundado + patch minimo em andamento no mesmo slice
+
+Objetivo do slice:
+1. corrigir mensagem falsa de falha global para arquivo fora do padrao.
+2. preservar diferenca entre full e diff sem tocar no algoritmo de cache.
+
+Diagnostico objetivo:
+1. `data/file_cache.json` existe e esta funcional no host atual.
+2. medicao local em `docs_entrada`:
+   - `cache_entries=442`
+   - `docs_xlsx_total=431`
+   - `selected_total=0`
+   - `metadata_match_skip=431`
+3. bug real confirmado:
+   - `bad-only diff` retornava `no_success` no core e a GUI dizia `sem alteracoes`.
+   - `bad-only full` retornava `no_success` no core e a GUI dizia `falhou`.
+4. observacao estrutural mantida:
+   - o cache atual e path-based; arquivos renomeados/timestampados continuam sendo candidatos novos legitimos.
+
+Escopo alterado:
+1. `core/app_logic.py`
+2. `gui/workers/rescan_worker.py`
+3. `tests/test_import_run_report.py`
+4. `tests/test_import_deterministic_failure_cache.py`
+5. `tests/test_rescan_worker_advanced.py`
+
+Mudanca aplicada:
+1. novo status semantico `deterministic_rejections_only` para quando todos os candidatos regulares sao rejeitados por regra deterministica.
+2. worker GUI passa a concluir com sucesso informativo nesse caso, em vez de `falhou` ou `sem alteracoes`.
+3. sem alteracao em `utils/caching.py` neste slice.
+
 ## Priority Note 2026-03-10 - BLE001 campaign (near-term, do not drop)
 
 Fluxo de trabalho registrado para proximo ciclo curto:

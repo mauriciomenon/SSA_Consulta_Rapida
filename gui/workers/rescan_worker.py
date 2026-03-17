@@ -50,6 +50,8 @@ class RescanWorker(QThread):
         self._has_runtime_errors = False
         self._last_total_files = 0
         self._last_processed_files = 0
+        self._last_deterministic_failure_count = 0
+        self._last_rejection_only = False
 
         # Set up logging to capture import messages
         self.log_handler = _LogHandler(
@@ -131,6 +133,10 @@ class RescanWorker(QThread):
             errors = data.get('errors', [])
             self._last_total_files = int(total)
             self._last_processed_files = int(processed)
+            self._last_deterministic_failure_count = int(
+                data.get('deterministic_failure_count', 0)
+            )
+            self._last_rejection_only = bool(data.get('rejection_only', False))
             self.output_line.emit("")
             self.output_line.emit(f"Processamento concluido: {processed}/{total} arquivos")
             if errors:
@@ -143,6 +149,8 @@ class RescanWorker(QThread):
             self._has_runtime_errors = False
             self._last_total_files = 0
             self._last_processed_files = 0
+            self._last_deterministic_failure_count = 0
+            self._last_rejection_only = False
             mode_label = "FULL" if self.force_import else "DIFF"
             self.output_line.emit(f"=== Iniciando Reescaneamento ({mode_label}) ===")
             self.output_line.emit("")
@@ -170,6 +178,14 @@ class RescanWorker(QThread):
                 self.progress.emit(100, "Concluido com sucesso")
                 self.output_line.emit("")
                 self.output_line.emit("=== Reescaneamento Concluido ===")
+                self.finished_success.emit()
+            elif self._last_rejection_only:
+                self.progress.emit(100, "Concluido com arquivos rejeitados por regra")
+                self.output_line.emit("")
+                self.output_line.emit("=== Reescaneamento Concluido com Rejeicoes Deterministicas ===")
+                self.output_line.emit(
+                    "Arquivos fora do padrao esperado foram ignorados sem bloquear o banco atual."
+                )
                 self.finished_success.emit()
             else:
                 if not self.force_import:

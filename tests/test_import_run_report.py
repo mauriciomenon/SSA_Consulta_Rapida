@@ -660,6 +660,9 @@ def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
     assert updated is False
     assert _read_descricao(primary_db) == "primary_old"
     payload = cast(dict[str, Any], captured["payload"])
+    assert payload["status"] == "deterministic_rejections_only"
+    assert payload["reason"] == "all_candidates_rejected_by_deterministic_rules"
+    assert payload["counts"]["deterministic_failure_count"] == 1
     candidate_path = Path(str(payload["paths"]["candidate_db_path"]))
     assert candidate_path.exists()
     assert payload["paths"]["candidate_preserved"] is True

@@ -326,6 +326,75 @@ class TestRescanWorkerIntegration:
         assert "sem atualizacoes" in signal_collector.finished_error.lower()
         assert any("Reescaneamento Completo Falhou" in line for line in signal_collector.output_lines)
 
+    def test_run_diff_with_only_deterministic_rejections_emits_success_message(self, signal_collector):
+        worker = RescanWorker("main.py", ".", force_import=False)
+        worker.output_line.connect(signal_collector.on_output)
+        worker.finished_success.connect(signal_collector.on_finished_success)
+        worker.finished_error.connect(signal_collector.on_finished_error)
+
+        def _mock_importer(**kwargs):
+            callback = kwargs["progress_callback"]
+            callback("start", {"total": 1})
+            callback("file_start", {"filename": "bad.xlsx", "current": 1, "total": 1})
+            callback("file_error", {"filename": "bad.xlsx", "error": "bad cols"})
+            callback(
+                "finish",
+                {
+                    "total": 1,
+                    "processed": 0,
+                    "errors": [("extraction", "bad.xlsx", "bad cols")],
+                    "deterministic_failure_count": 1,
+                    "rejection_only": True,
+                },
+            )
+            return False
+
+        with patch("gui.workers.rescan_worker.run_importer_logic", side_effect=_mock_importer):
+            worker.run()
+
+        assert signal_collector.finished_success is True
+        assert signal_collector.finished_error is None
+        assert any(
+            "Rejeicoes Deterministicas" in line for line in signal_collector.output_lines
+        )
+        assert not any(
+            "Nenhum arquivo novo ou alterado foi encontrado." in line
+            for line in signal_collector.output_lines
+        )
+
+    def test_run_full_with_only_deterministic_rejections_emits_success_message(self, signal_collector):
+        worker = RescanWorker("main.py", ".", force_import=True)
+        worker.output_line.connect(signal_collector.on_output)
+        worker.finished_success.connect(signal_collector.on_finished_success)
+        worker.finished_error.connect(signal_collector.on_finished_error)
+
+        def _mock_importer(**kwargs):
+            callback = kwargs["progress_callback"]
+            callback("start", {"total": 1})
+            callback("file_start", {"filename": "bad.xlsx", "current": 1, "total": 1})
+            callback("file_error", {"filename": "bad.xlsx", "error": "bad cols"})
+            callback(
+                "finish",
+                {
+                    "total": 1,
+                    "processed": 0,
+                    "errors": [("extraction", "bad.xlsx", "bad cols")],
+                    "deterministic_failure_count": 1,
+                    "rejection_only": True,
+                },
+            )
+            return False
+
+        with patch("gui.workers.rescan_worker.run_importer_logic", side_effect=_mock_importer):
+            worker.run()
+
+        assert signal_collector.finished_success is True
+        assert signal_collector.finished_error is None
+        assert any(
+            "Rejeicoes Deterministicas" in line for line in signal_collector.output_lines
+        )
+        assert not any("Reescaneamento Completo Falhou" in line for line in signal_collector.output_lines)
+
     def test_run_emits_error_on_exception(self, rescan_worker, signal_collector):
         """Testa que run() emite error em exceção."""
         rescan_worker.error_line.connect(signal_collector.on_error)
