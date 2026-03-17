@@ -706,6 +706,45 @@ def _update_cache_for_deterministic_failures(
         )
 
 
+def _has_only_deterministic_rejections(
+    *,
+    files_to_process: List[str],
+    successfully_processed_files: List[str],
+    deterministic_failed_files: List[str],
+    critical_errors: List[tuple[str, str, str]],
+) -> bool:
+    """Return True when every regular candidate was rejected by deterministic rules."""
+    if successfully_processed_files or not deterministic_failed_files:
+        return False
+
+    regular_candidates = [
+        file_path
+        for file_path in files_to_process
+        if not os.path.basename(file_path).startswith("~$")
+        and not _is_derivadas_sheet_file(file_path)
+    ]
+    if not regular_candidates:
+        return False
+
+    regular_candidate_set = set(regular_candidates)
+    deterministic_failed_set = set(deterministic_failed_files)
+    if deterministic_failed_set != regular_candidate_set:
+        return False
+
+    if not critical_errors:
+        return False
+
+    extraction_error_paths = {
+        file_path
+        for error_type, file_path, _message in critical_errors
+        if error_type == "extraction"
+    }
+    if extraction_error_paths != regular_candidate_set:
+        return False
+
+    return len(extraction_error_paths) == len(critical_errors)
+
+
 def _load_import_discovery_settings() -> Dict[str, Any]:
     """Load import discovery flags from settings.json with safe defaults."""
     allowed_upsert_policies = {"consulta_only", "no_short", "all_short"}
@@ -1736,7 +1775,16 @@ def run_importer_logic(
         if not files_to_process and not derivadas_sheet_files:
             if should_cancel and should_cancel():
                 logger.info("Cancelamento solicitado antes do preflight de derivadas.")
-                _emit_progress("finish", {"total": 0, "processed": 0, "errors": []})
+                _emit_progress(
+                    "finish",
+                    {
+                        "total": 0,
+                        "processed": 0,
+                        "errors": [],
+                        "deterministic_failure_count": 0,
+                        "rejection_only": False,
+                    },
+                )
                 return _finalize_and_return(
                     False,
                     "cancelled_preflight",
@@ -1752,7 +1800,16 @@ def run_importer_logic(
                 logger.info(
                     "Nenhum arquivo novo/modificado nem planilha especial de derivadas encontrada."
                 )
-                _emit_progress("finish", {"total": 0, "processed": 0, "errors": []})
+                _emit_progress(
+                    "finish",
+                    {
+                        "total": 0,
+                        "processed": 0,
+                        "errors": [],
+                        "deterministic_failure_count": 0,
+                        "rejection_only": False,
+                    },
+                )
                 return _finalize_and_return(
                     False,
                     "no_changes",
@@ -1803,12 +1860,20 @@ def run_importer_logic(
             phase_durations["run_file_processing_seconds"] = (
                 time.perf_counter() - file_processing_started
             )
+            rejection_only = _has_only_deterministic_rejections(
+                files_to_process=files_to_process,
+                successfully_processed_files=successfully_processed_files,
+                deterministic_failed_files=deterministic_failed_files,
+                critical_errors=critical_errors,
+            )
             _emit_progress(
                 "finish",
                 {
                     "total": total_files,
                     "processed": len(successfully_processed_files),
                     "errors": critical_errors,
+                    "deterministic_failure_count": len(deterministic_failed_files),
+                    "rejection_only": rejection_only,
                 },
             )
 
@@ -1851,6 +1916,23 @@ def run_importer_logic(
         phase_durations["run_deterministic_cache_update_seconds"] = (
             time.perf_counter() - deterministic_cache_started
         )
+
+        rejection_only = _has_only_deterministic_rejections(
+            files_to_process=files_to_process,
+            successfully_processed_files=successfully_processed_files,
+            deterministic_failed_files=deterministic_failed_files,
+            critical_errors=critical_errors,
+        )
+        if rejection_only:
+            logger.info(
+                "Todos os arquivos candidatos foram rejeitados por regra deterministica; "
+                "nenhum arquivo elegivel foi importado nesta execucao."
+            )
+            return _finalize_and_return(
+                False,
+                "deterministic_rejections_only",
+                "all_candidates_rejected_by_deterministic_rules",
+            )
 
         # --- 3. Atualizar cache apenas se houve sucesso ---
         if successfully_processed_files:

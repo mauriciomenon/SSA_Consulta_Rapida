@@ -2,7 +2,34 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-12 00:45 - start from here
+## CURRENT TRUTH 2026-03-17 00:30 - start from here
+
+- Objetivo desta rodada:
+  1. corrigir a semantica de status da importacao para rejeicoes deterministicas.
+  2. eliminar mensagem falsa de falha global na GUI quando um arquivo esta fora do padrao esperado.
+- Estado tecnico confirmado:
+  1. cache atual existe em `data/file_cache.json` e esta funcional neste host.
+  2. medicao local em `docs_entrada`: `431/431` arquivos em `metadata_match_skip`; diff atual selecionaria `0`.
+  3. full e diff chegam corretamente ao worker:
+     - `rescan_diff_data -> force_import=False`
+     - `rescan_full_data -> force_import=True`
+- Bug real confirmado:
+  1. `bad-only diff`:
+     - core retornava `status=no_success`
+     - GUI concluia como `sem alteracoes`
+  2. `bad-only full`:
+     - core retornava `status=no_success`
+     - GUI concluia como `falhou`
+  3. ambos sao falsos para rejeicao esperada de arquivo fora do padrao.
+- Decisao de patch minimo desta rodada:
+  1. manter o algoritmo de cache intacto neste slice.
+  2. introduzir status dedicado `deterministic_rejections_only` no core.
+  3. ajustar o worker GUI para concluir com sucesso informativo nesse caso.
+  4. travar comportamento em testes focados.
+- Observacao estrutural que permanece:
+  1. o cache e path-based; arquivos novos com nomes timestampados continuam sendo candidatos novos legitimos.
+
+## HISTORICAL SNAPSHOT 2026-03-12 00:45 - previous current truth
 
 - Objetivo desta rodada:
   1. consolidar relatorio unico com processo de build Windows/Linux/macOS nas 3 ferramentas.

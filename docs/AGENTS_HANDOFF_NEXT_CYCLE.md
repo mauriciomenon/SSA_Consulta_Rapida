@@ -2,7 +2,30 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-12 00:45 - authoritative block
+## CURRENT TRUTH 2026-03-17 00:30 - authoritative block
+
+- Objetivo desta rodada:
+  1. fechar o diagnostico real de full vs diff na importacao.
+  2. corrigir a semantica de status para rejeicoes deterministicas sem tocar no algoritmo de cache.
+- Estado tecnico confirmado:
+  1. `data/file_cache.json` existe e esta funcional neste host.
+  2. medicao local: `431/431` arquivos atuais em `metadata_match_skip`; diff atual selecionaria `0`.
+  3. GUI chama os modos corretos:
+     - `rescan_diff_data -> force_import=False`
+     - `rescan_full_data -> force_import=True`
+- Bug real confirmado:
+  1. `MISSING_REQUIRED_COLUMNS` entra em cache deterministico, mas fazia o core retornar `no_success` quando nao havia sucesso de arquivo.
+  2. worker GUI convertia isso em:
+     - `diff`: `sem alteracoes`
+     - `full`: `falhou`
+  3. ambos sao falsos para rejeicao esperada de arquivo fora do padrao.
+- Estrategia minima deste slice:
+  1. manter `utils/caching.py` sem alteracao.
+  2. introduzir status dedicado `deterministic_rejections_only` no core.
+  3. ajustar o worker GUI para concluir com sucesso informativo nesse caso.
+  4. travar o comportamento em testes focados.
+
+## HISTORICAL SNAPSHOT 2026-03-12 00:45 - previous current truth
 
 - Objetivo desta rodada:
   1. fechar rastreabilidade documental completa do ciclo de build multi-plataforma.

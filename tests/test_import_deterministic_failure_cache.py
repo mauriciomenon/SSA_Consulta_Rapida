@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -92,6 +93,12 @@ def test_run_importer_updates_deterministic_failure_cache_by_error_code(
         "_update_cache_after_import",
         lambda *a, **k: cache_after_calls.__setitem__("n", cache_after_calls["n"] + 1),
     )
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        app_logic,
+        "_write_import_run_report",
+        lambda payload: captured.setdefault("payload", payload) or str(tmp_path / "report.json"),
+    )
 
     updated = app_logic.run_importer_logic(
         docs_dir=str(docs_dir),
@@ -104,6 +111,9 @@ def test_run_importer_updates_deterministic_failure_cache_by_error_code(
     assert updated is False
     assert deterministic_calls == [[str(bad_file)]]
     assert cache_after_calls["n"] == 0
+    payload = cast(dict[str, Any], captured["payload"])
+    assert payload["status"] == "deterministic_rejections_only"
+    assert payload["reason"] == "all_candidates_rejected_by_deterministic_rules"
 
 
 def test_run_importer_does_not_mark_cancelled_as_deterministic_failure(
