@@ -38,6 +38,94 @@ Mudanca aplicada:
 2. worker GUI passa a concluir com sucesso informativo nesse caso, em vez de `falhou` ou `sem alteracoes`.
 3. sem alteracao em `utils/caching.py` neste slice.
 
+## Update 2026-03-19 08:18 - GUI filters incident hardening (HOTFIX_BLOCKER + STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-19 07:33:57 -0300`
+2. end: `2026-03-19 08:18:59 -0300`
+
+Objetivo do slice:
+1. corrigir incidente grave de filtros GUI reproduzivel em uso real.
+2. fechar a classe de bug: busca geral incompleta + cache parcial + filtro invisivel.
+3. registrar licoes tecnicas e metodologicas para o proximo ciclo.
+
+Diagnostico objetivo:
+1. `core/app_logic.py`
+   - `priority_columns` nao incluia:
+     - `solicitante`
+     - `responsavel_solicitante`
+     - `responsavel_programacao`
+     - `responsavel_execucao`
+2. `gui/mixins/filter_gui_ssa_mixin.py`
+   - `cache_context` enviado ao worker incluia apenas `advanced_filters`.
+   - nao incluia `active_column_filters` nem `exclude_ste_sca`.
+3. `gui/mixins/filter_gui_ssa_mixin.py`
+   - botao `Ocultar` escondia a linha mantendo o filtro ativo.
+4. `clear_all_filters_global`
+   - o reset base estava correto; o sintoma de `clear nao funciona` vinha do estado composto.
+
+Historico provavel de introducao:
+1. busca geral incompleta:
+   - base em `0c87e431`
+   - lista consolidada em `e7ddea48`
+2. cache parcial:
+   - introduzido em `ff266350`
+3. estado invisivel:
+   - base de hidden lines em `4df69305`
+   - fluxo atual consolidado em `776c5905`
+
+Escopo alterado:
+1. `core/app_logic.py`
+2. `gui/mixins/filter_gui_ssa_mixin.py`
+3. `tests/test_app_logic_filter_contract.py`
+4. `tests/test_filter_worker.py`
+5. `tests/test_gui_filter_logic.py`
+6. `docs/NEXT_CHAT_MIGRATION.md`
+7. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+8. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. busca geral expandida para incluir campos humanos criticos.
+2. `cache_context` do worker agora e deterministico e considera estado efetivo de filtro.
+3. `Ocultar` foi bloqueado quando houver filtro ativo na linha.
+4. resumo continua expondo `exclude_ste_sca`.
+5. testes novos cobrem contrato real com `danilo` e `mel4`, invalida cache por estado e impedem filtro invisivel.
+6. este registro DOC_SYNC documenta alteracoes de runtime ja presentes no mesmo working tree; nao e substituto do patch funcional.
+7. segunda varredura fechou mais um buraco da mesma classe:
+   - `restore_last_filter_state` nao pode mais reidratar filtro ativo invisivel.
+8. a verificacao ampliada tambem expôs um ajuste estrutural de altura no quick combo de `setor_executor`, ligado a `c56d0e8e`.
+9. `gui/gui_ssa.py` agora centraliza a aplicacao segura de alturas no toolbar e no sync inferior para reduzir regressao de alinhamento entre botoes, combo rapido e paineis.
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_filter_contract.py` -> pass.
+2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_filter_contract.py` -> pass.
+3. `uv run --python 3.13 ty check core/app_logic.py tests/test_app_logic_filter_contract.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_app_logic_filter_contract.py` -> `7 passed`.
+5. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_worker.py tests/test_gui_filter_logic.py` -> pass.
+6. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_worker.py tests/test_gui_filter_logic.py` -> pass.
+7. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_worker.py tests/test_gui_filter_logic.py` -> pass.
+8. `uv run --python 3.13 python -m pytest -q tests/test_filter_worker.py tests/test_gui_filter_logic.py -k "cache_context or column_filter_buttons_flow or filters_summary or clear_all_filters_global or exclude_ste_sca"` -> `15 passed`.
+9. `uv run --python 3.13 python -m pytest -q tests/test_app_logic_filter_contract.py tests/test_filter_worker.py tests/test_workers_advanced.py tests/test_gui_filter_logic.py` -> `204 passed, 1 skipped`.
+
+Licoes aprendidas:
+1. teste de implementacao local nao basta quando o defeito aparece em 1 minuto de uso real.
+2. a busca geral precisa de contrato com colunas reais de negocio, nao apenas `search_columns` injetado no teste.
+3. qualquer estado restritivo da GUI precisa ser visivel ou explicitamente bloqueado.
+4. cache de worker precisa refletir o estado efetivo completo, nao apenas parte dele.
+5. restore/undo tambem e parte da superficie funcional do bug; nao basta testar somente o clique primario da UI.
+
+Regra nova de cobertura:
+1. bug de filtros GUI reproduzivel em uso normal exige teste de jornada completa.
+2. cobertura minima obrigatoria:
+   - busca superior
+   - filtro de coluna
+   - `exclude_ste_sca`
+   - cache worker
+   - `clear`
+   - resumo
+   - linha oculta
+   - alinhamento funcional do quick toolbar quando houver mudanca estrutural na linha superior
+
 ## Priority Note 2026-03-10 - BLE001 campaign (near-term, do not drop)
 
 Fluxo de trabalho registrado para proximo ciclo curto:
