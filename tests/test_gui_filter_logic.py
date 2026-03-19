@@ -238,6 +238,35 @@ class TestGUIFilterLogic:
         setor_input, _, _, _ = controls[setor_key]
         assert str(setor_input.text() or "").strip() == "MEL4"
 
+    def test_quick_setor_executor_combo_journey_updates_cache_context_and_clear_global(self):
+        self.window._refresh_quick_setor_executor_options()
+        combo = getattr(self.window, "quick_setor_executor_combo", None)
+        assert combo is not None
+
+        mel4_idx = combo.findData("MEL4")
+        assert mel4_idx >= 0
+        combo.setCurrentIndex(mel4_idx)
+        QApplication.processEvents()
+
+        first_context = self.window._build_filter_cache_context()
+        assert '"setor_executor": "MEL4"' in first_context
+        assert '"exclude_ste_sca": false' in first_context
+
+        self.window._on_exclude_ste_sca_toggled(True)
+        QApplication.processEvents()
+
+        second_context = self.window._build_filter_cache_context()
+        assert second_context != first_context
+        assert '"setor_executor": "MEL4"' in second_context
+        assert '"exclude_ste_sca": true' in second_context
+
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+
+        assert self.window._build_filter_cache_context() == ""
+        assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
+        assert str(combo.currentText() or "") == "Todos"
+
     def test_profile_or_filters_executor_or_emissor(self):
         """Perfil OR deve considerar executor ou emissor e refletir na UI."""
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
@@ -799,7 +828,7 @@ class TestGUIFilterLogic:
         assert emissor_clear.text() == "Limpar"
         assert "limpa o valor" in (emissor_clear.toolTip() or "").casefold()
         assert emissor_hide.text() == "Ocultar"
-        assert "continua ativo" in (emissor_hide.toolTip() or "").casefold()
+        assert "somente quando o filtro da coluna estiver vazio" in (emissor_hide.toolTip() or "").casefold()
 
         emissor_edit.setText('MEL3, MEL4')
         cast(Any, QTest).mouseClick(emissor_apply, Qt.MouseButton.LeftButton)
@@ -809,22 +838,55 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters['setor_emissor'] == 'MEL3, MEL4'
         assert self.window._active_column_filters['setor_executor'] == 'MEL3, MEL4'
 
-        # "Remover linha" agora apenas oculta a linha, não limpa o valor
+        # Ocultar deve ser bloqueado enquanto houver filtro ativo visivel
         emissor_edit.setText('')
         cast(Any, QTest).mouseClick(emissor_hide, Qt.MouseButton.LeftButton)
         QApplication.processEvents()
-        # Verifica que a linha do Emissor foi removida da exibição
         controls_after = self._get_column_filter_controls()
-        assert emissor_label not in controls_after
-        # Valores permanecem iguais (grupo ainda ativo)
+        assert emissor_label in controls_after
         assert self.window._active_column_filters['setor_emissor'] == 'MEL3, MEL4'
         assert self.window._active_column_filters['setor_executor'] == 'MEL3, MEL4'
+        assert "limpe o filtro" in str(self.window.status_label.text() or "").casefold()
+
+        cast(Any, QTest).mouseClick(emissor_clear, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+        cast(Any, QTest).mouseClick(emissor_hide, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+        controls_after_hide = self._get_column_filter_controls()
+        assert emissor_label not in controls_after_hide
+        assert not str(self.window._active_column_filters.get('setor_emissor', '')).strip()
+        assert not str(self.window._active_column_filters.get('setor_executor', '')).strip()
 
         executor_edit.setText('IEE3, MEL4')
         cast(Any, QTest).mouseClick(executor_apply, Qt.MouseButton.LeftButton)
         QApplication.processEvents()
         assert self.window._active_column_filters['setor_executor'] == 'IEE3, MEL4'
         assert self.window._active_column_filters['setor_emissor'] == 'IEE3, MEL4'
+
+    def test_filter_cache_context_reflects_column_filters_exclude_and_clear(self):
+        assert self.window._build_filter_cache_context() == ""
+
+        self.window._active_column_filters["descricao_ssa"] = "Teste"
+        first_context = self.window._build_filter_cache_context()
+        assert '"descricao_ssa": "Teste"' in first_context
+        assert '"exclude_ste_sca": false' in first_context
+
+        self.window._on_exclude_ste_sca_toggled(True)
+        second_context = self.window._build_filter_cache_context()
+        assert second_context != first_context
+        assert '"exclude_ste_sca": true' in second_context
+
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+        assert self.window._build_filter_cache_context() == ""
+
+    def test_filters_summary_shows_exclude_ste_sca_as_active_restriction(self):
+        self.window._on_exclude_ste_sca_toggled(True)
+        QApplication.processEvents()
+
+        summary_text = str(self.window.filters_summary_label.text() or "")
+
+        assert "situacao!=STE/SCA" in summary_text
 
     def test_column_filter_row_clear_button_clears_value_without_hiding_row(self):
         self.window._active_column_filters = {col: '' for col in self.window._column_filter_default_columns()}
@@ -3672,6 +3734,27 @@ class TestGUIFilterLogic:
             checkbox = ctx.get("exclude_ste_checkbox")
             if checkbox is not None:
                 assert checkbox.isChecked() is False
+
+    def test_restore_last_filter_state_drops_hidden_lines_with_active_filters(self):
+        self.window._active_column_filters["descricao_ssa"] = "Teste A"
+        self.window._hidden_column_filter_lines = {"descricao_ssa"}
+        self.window._on_exclude_ste_sca_toggled(True)
+        self.window._safe_store_last_filter_state("test_restore_hidden_active")
+
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+        self.window._restore_last_filter_state()
+        QApplication.processEvents()
+
+        assert self.window._active_column_filters["descricao_ssa"] == "Teste A"
+        assert "descricao_ssa" not in self.window._hidden_column_filter_lines
+        label = (
+            self.window._expand_column_alias_for_filter("descricao_ssa")
+            if hasattr(self.window, "_expand_column_alias_for_filter")
+            else self.window._resolve_column_display_name("descricao_ssa")
+        )
+        assert label in self._get_column_filter_controls()
+        assert "situacao!=STE/SCA" in str(self.window.filters_summary_label.text() or "")
 
     def test_clear_all_filters_global_stops_pending_debounce(self):
         self.window.search_input.setText("Teste")

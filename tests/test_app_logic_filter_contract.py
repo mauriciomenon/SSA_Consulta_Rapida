@@ -71,3 +71,60 @@ def test_get_filtered_data_reads_canonical_table_without_legacy_view(tmp_path: P
     assert len(out) == 1
     assert out.iloc[0]["numero_ssa"] == "202500001"
     assert out.iloc[0]["descricao_ssa"] == "SSA canonica"
+
+
+def test_filter_dataframe_default_search_columns_match_solicitante_and_setor_executor() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002"],
+            "solicitante": ["danilo", "maria"],
+            "setor_executor": ["MEL4", "MEL3"],
+        }
+    )
+
+    out = filter_dataframe(df, ["danilo", "mel4"])
+
+    assert list(out["numero_ssa"]) == ["202500001"]
+
+
+def test_filter_dataframe_default_search_columns_match_responsavel_execucao_and_setor_executor() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002"],
+            "responsavel_execucao": ["danilo", "maria"],
+            "setor_executor": ["MEL4", "MEL3"],
+        }
+    )
+
+    out = filter_dataframe(df, ["danilo", "mel4"])
+
+    assert list(out["numero_ssa"]) == ["202500001"]
+
+
+def test_filter_dataframe_default_search_columns_require_terms_in_same_row() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002"],
+            "solicitante": ["danilo", "maria"],
+            "setor_executor": ["MEL3", "MEL4"],
+        }
+    )
+
+    out = filter_dataframe(df, ["danilo", "mel4"])
+
+    assert out.empty
+
+
+def test_filter_dataframe_default_search_columns_allow_terms_in_different_columns_same_row() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002"],
+            "solicitante": ["danilo", "maria"],
+            "responsavel_execucao": ["carlos", "joao"],
+            "setor_executor": ["MEL4", "MEL3"],
+        }
+    )
+
+    out = filter_dataframe(df, ["danilo", "mel4"])
+
+    assert list(out["numero_ssa"]) == ["202500001"]

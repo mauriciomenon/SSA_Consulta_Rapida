@@ -924,6 +924,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _get_theme_keys(self):
         return ssa_gui_theme.get_theme_keys()
 
+    def _set_widget_min_height_safe(self, widget: QWidget, height: int, label: str) -> None:
+        try:
+            widget.setMinimumHeight(height)
+        except Exception as exc:
+            logger.debug("Falha ao aplicar altura minima em %s: %s", label, exc)
+
+    def _set_widget_fixed_height_safe(self, widget: QWidget, height: int, label: str) -> None:
+        try:
+            widget.setMinimumHeight(height)
+            widget.setMaximumHeight(height)
+        except Exception as exc:
+            logger.debug("Falha ao aplicar altura fixa em %s: %s", label, exc)
+
     def _persist_gui_preferences(self):
         try:
             atomic_write_json_file(
@@ -1276,19 +1289,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         )
         search_input.setMinimumWidth(425)
         search_input.setMaximumWidth(950)
-        try:
-            search_input.setMinimumHeight(26)
-        except Exception as exc:
-            logger.debug("Falha ao aplicar altura minima no campo de pesquisa: %s", exc)
+        self._set_widget_min_height_safe(search_input, 26, "campo de pesquisa")
         search_input.returnPressed.connect(
             lambda tab=tab_kind: self._on_general_search_apply_clicked(tab)
         )
         search_input.textChanged.connect(self._on_search_text_changed)
         search_button = QPushButton("Aplicar")
+        self._set_widget_fixed_height_safe(search_button, 26, "botao Aplicar da pesquisa geral")
         search_button.clicked.connect(
             lambda _checked=False, tab=tab_kind: self._on_general_search_apply_clicked(tab)
         )
         clear_filter_button = QPushButton("Limpar Busca")
+        self._set_widget_fixed_height_safe(clear_filter_button, 26, "botao Limpar Busca")
         clear_filter_button.clicked.connect(
             lambda _checked=False, tab=tab_kind: self._on_general_search_clear_clicked(tab)
         )
@@ -1298,6 +1310,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         )
         clear_filter_button.setEnabled(False)
         save_filter_button = QPushButton("Salvar Filtro")
+        self._set_widget_fixed_height_safe(save_filter_button, 26, "botao Salvar Filtro")
         save_filter_button.setMaximumWidth(110)
         save_filter_button.setToolTip(
             "Salva somente o filtro atual da Pesquisa Geral como filtro persistente."
@@ -1336,8 +1349,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             quick_setor_executor_combo.setMinimumContentsLength(9)
             quick_setor_executor_combo.setMaxVisibleItems(14)
             control_height = 26
-            quick_setor_executor_combo.setMinimumHeight(control_height)
-            quick_setor_executor_combo.setMaximumHeight(control_height)
+            self._set_widget_fixed_height_safe(
+                quick_setor_executor_combo,
+                control_height,
+                "combo rapido de setor executor",
+            )
             adjust_policy = getattr(
                 QComboBox.SizeAdjustPolicy,
                 "AdjustToMinimumContentsLengthWithIcon",
@@ -1508,10 +1524,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         table_widget = QTableWidget()
         table_widget.setEditTriggers(cast(Any, QTableWidget.EditTrigger.NoEditTriggers))
         table_widget.setSelectionBehavior(cast(Any, QAbstractItemView.SelectionBehavior.SelectRows))
-        try:
-            table_widget.setMinimumHeight(220)
-        except Exception as exc:
-            logger.debug("Falha ao aplicar altura minima na tabela principal: %s", exc)
+        self._set_widget_min_height_safe(table_widget, 220, "tabela principal")
         header = table_widget.horizontalHeader()
         vertical_header = table_widget.verticalHeader()
         if header is not None and vertical_header is not None:
@@ -1904,11 +1917,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 seen.add(wid)
                 groups.append(widget)
         for widget in groups:
-            try:
-                widget.setMinimumHeight(target)
-                widget.setMaximumHeight(target)
-            except Exception as exc:
-                logger.debug("Falha ao sincronizar altura do painel inferior %s: %s", widget, exc)
+            self._set_widget_fixed_height_safe(widget, target, f"painel inferior {type(widget).__name__}")
         try:
             current_kind = getattr(self, "_current_tab_kind", None)
             if current_kind == "filters" and hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:

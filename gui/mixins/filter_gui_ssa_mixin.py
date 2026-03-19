@@ -428,18 +428,7 @@ class FilterGUISSAMixin:
             return
 
         # Inicia a thread de filtragem (modo padrao assincrono)
-        filter_cache_context = ""
-        try:
-            advanced_filters = getattr(self, "_advanced_filters", None)
-            if isinstance(advanced_filters, dict) and advanced_filters:
-                filter_cache_context = json.dumps(
-                    advanced_filters,
-                    sort_keys=True,
-                    ensure_ascii=True,
-                    default=str,
-                )
-        except Exception as exc:
-            logger.debug("Falha ao montar contexto de cache para FilterWorker: %s", exc)
+        filter_cache_context = self._build_filter_cache_context()
         worker = FilterWorker(
             self.df_completo,
             chunk_terms_lists,
@@ -1156,7 +1145,7 @@ class FilterGUISSAMixin:
             except Exception as exc:
                 logger.debug("Falha ao conectar botao limpar para filtro de coluna %s: %s", col, exc)
 
-            # Botao para ocultar a linha da exibicao (nao altera o valor do filtro)
+            # Botao para ocultar a linha da exibicao quando nao houver filtro ativo
             hide_btn = QPushButton("Ocultar")
             try:
                 hide_btn.setMinimumHeight(26)
@@ -1171,18 +1160,13 @@ class FilterGUISSAMixin:
             except Exception as exc:
                 logger.debug("Falha ao aplicar largura fixa no botao Ocultar da coluna %s: %s", col, exc)
             try:
-                hide_btn.setToolTip("Oculta a linha. O filtro desta coluna continua ativo.")
+                hide_btn.setToolTip("Oculta a linha somente quando o filtro da coluna estiver vazio.")
             except Exception as exc:
                 logger.debug("Falha ao aplicar tooltip no botao Ocultar da coluna %s: %s", col, exc)
 
             def _mk_remove_line(c=col):
                 def _inner():
-                    hidden_lines = getattr(self, "_hidden_column_filter_lines", None)
-                    if not isinstance(hidden_lines, set):
-                        hidden_lines = set()
-                        self._hidden_column_filter_lines = hidden_lines
-                    hidden_lines.add(c)
-                    self._build_column_filters_panel()
+                    self._handle_hide_column_filter_line(c)
                 return _inner
             try:
                 hide_btn.clicked.connect(_mk_remove_line())
@@ -1887,6 +1871,40 @@ class FilterGUISSAMixin:
         return display_dates
 
 
+    def _handle_hide_column_filter_line(self, column_name: str) -> None:
+        current_value = ""
+        try:
+            current_value = str((getattr(self, "_active_column_filters", {}) or {}).get(column_name, "")).strip()
+        except Exception:
+            current_value = ""
+        if current_value:
+            try:
+                display_name = self._resolve_column_display_name(column_name)
+            except Exception:
+                display_name = str(column_name)
+            try:
+                self.status_label.setText(
+                    f"Status: Limpe o filtro de {display_name} antes de ocultar a linha."
+                )
+            except Exception as exc:
+                logger.debug("Falha ao atualizar status ao bloquear ocultacao da coluna %s: %s", column_name, exc)
+            try:
+                input_widget = getattr(self, "_column_filter_inputs", {}).get(column_name)
+                if input_widget is not None:
+                    input_widget.setFocus()
+                    input_widget.selectAll()
+            except Exception as exc:
+                logger.debug("Falha ao focar filtro bloqueado da coluna %s: %s", column_name, exc)
+            return
+
+        hidden_lines = getattr(self, "_hidden_column_filter_lines", None)
+        if not isinstance(hidden_lines, set):
+            hidden_lines = set()
+            self._hidden_column_filter_lines = hidden_lines
+        hidden_lines.add(column_name)
+        self._build_column_filters_panel()
+
+
     def _refresh_after_filter_change(self):
         """Reaplica filtros de coluna, atualiza tabela e indicadores."""
         base = self._df_last_search_filtered if not self._df_last_search_filtered.empty else self.df_completo
@@ -1943,6 +1961,61 @@ class FilterGUISSAMixin:
                 sync_combo()
         except Exception as exc:
             logger.debug("Falha ao sincronizar combo rapido de setor executor no refresh de filtros: %s", exc)
+
+
+    def _build_filter_cache_context(self) -> str:
+        """Gera contexto deterministico do estado efetivo de filtros para o cache."""
+        try:
+            active_filters = OrderedDict()
+            for column_name, filter_value in sorted((getattr(self, "_active_column_filters", {}) or {}).items()):
+                normalized_value = str(filter_value).strip()
+                if normalized_value:
+                    active_filters[column_name] = normalized_value
+
+            advanced_filters_active = bool(getattr(self, "_advanced_filters_active", False))
+            raw_advanced_filters = getattr(self, "_advanced_filters", None) or {}
+            advanced_filters = copy.deepcopy(raw_advanced_filters) if advanced_filters_active else {}
+
+            cache_payload = {
+                "active_column_filters": active_filters,
+                "advanced_filters": advanced_filters,
+                "advanced_filters_active": advanced_filters_active,
+                "exclude_ste_sca": bool(getattr(self, "_exclude_ste_sca", False)),
+            }
+            if not (
+                cache_payload["active_column_filters"]
+                or cache_payload["advanced_filters"]
+                or cache_payload["exclude_ste_sca"]
+            ):
+                return ""
+            return json.dumps(
+                cache_payload,
+                sort_keys=True,
+                ensure_ascii=True,
+                default=str,
+            )
+        except Exception as exc:
+            logger.debug("Falha ao montar contexto de cache para FilterWorker: %s", exc)
+            return ""
+
+
+    def _sanitize_hidden_column_filter_lines(
+        self,
+        hidden_lines: Any,
+        active_filters: Any | None = None,
+    ) -> set[str]:
+        """Impede reidratacao de filtro ativo invisivel durante restore."""
+        hidden_set = set(hidden_lines or set())
+        current_filters = (
+            active_filters
+            if isinstance(active_filters, dict)
+            else (getattr(self, "_active_column_filters", {}) or {})
+        )
+        return {
+            column_name
+            for column_name in hidden_set
+            if not str(current_filters.get(column_name, "")).strip()
+        }
 
 
     def _snapshot_filter_state(self) -> dict:
@@ -2054,7 +2127,10 @@ class FilterGUISSAMixin:
                 self._df_last_search_filtered = pd.DataFrame()
             self.current_filter_profile = state.get("current_filter_profile")
             self._profile_base_filters = state.get("profile_base_filters") or {}
-            self._hidden_column_filter_lines = set(state.get("hidden_column_filter_lines") or set())
+            self._hidden_column_filter_lines = self._sanitize_hidden_column_filter_lines(
+                state.get("hidden_column_filter_lines") or set(),
+                self._active_column_filters,
+            )
             self._dedicated_or_text = str(state.get("dedicated_or_text") or "")
             try:
                 self._sync_advanced_filter_ui()
