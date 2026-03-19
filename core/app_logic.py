@@ -2150,11 +2150,6 @@ def parse_search_terms(
     if not isinstance(search_terms, list):
         return parsed
 
-    alias_map = get_filter_alias_map()
-    global_aliases = alias_map.get("_global", {}) if isinstance(alias_map, dict) else {}
-    if not isinstance(global_aliases, dict):
-        global_aliases = {}
-
     allowed_modes = {"contains", "prefix", "suffix", "exact", "regex"}
     fallback_mode = default_mode if default_mode in allowed_modes else "contains"
 
@@ -2186,21 +2181,11 @@ def parse_search_terms(
         elif fallback_mode != "regex" and t.endswith("$") and len(t) > 1:
             mode = "suffix"
             value = t[:-1]
-        alias_values: list[str] = []
-        for alias_key, alias_value in global_aliases.items():
-            if not isinstance(alias_key, str) or not isinstance(alias_value, str):
-                continue
-            if alias_key.casefold() != str(value).casefold():
-                continue
-            normalized_alias = str(alias_value).strip()
-            if normalized_alias and normalized_alias.casefold() != str(value).casefold():
-                alias_values.append(normalized_alias)
         parsed.append(
             {
                 "raw": raw,
                 "mode": mode,
                 "value": value,
-                "alias_values": alias_values,
                 "negative": negative,
                 "group": 0,  # All terms in same group (AND logic)
             }
@@ -2343,15 +2328,9 @@ def filter_dataframe(
     def _mask_for_term(term: Dict[str, Any]) -> pd.Series:
         mode = term.get("mode", "contains")
         value = term.get("value", "") or ""
-        alias_values = [
-            str(alias).strip()
-            for alias in cast(list[str], term.get("alias_values", []) or [])
-            if str(alias).strip()
-        ]
-        candidate_values = [str(value)]
-        for alias in alias_values:
-            if alias.casefold() not in {candidate.casefold() for candidate in candidate_values}:
-                candidate_values.append(alias)
+        cache_key = (mode, value)
+
+        pattern, use_regex = pattern_cache.get(cache_key, (value, False))
 
         def _contains(pattern: str, *, regex: bool) -> pd.Series:
             if regex:
@@ -2359,36 +2338,28 @@ def filter_dataframe(
 
             lowered = str(pattern).casefold()
             return row_search_text.str.contains(lowered, regex=False, na=False)
-        combined_mask = pd.Series(False, index=df.index)
-        for candidate_value in candidate_values:
-            cache_key = (mode, candidate_value)
-            pattern, use_regex = pattern_cache.get(cache_key, (candidate_value, False))
+        if mode == "regex":
+            try:
+                return _contains(pattern, regex=True)
+            except re.error:
+                return _contains(pattern, regex=False)
 
-            if mode == "regex":
-                try:
-                    candidate_mask = _contains(pattern, regex=True)
-                except re.error:
-                    candidate_mask = _contains(pattern, regex=False)
-            else:
-                lowered = str(candidate_value).casefold()
-                if mode == "prefix":
-                    field_pattern = rf"(?:^|{re.escape(FILTER_FIELD_SEPARATOR)}){re.escape(lowered)}"
-                    candidate_mask = row_search_text.str.contains(field_pattern, na=False, regex=True)
-                elif mode == "suffix":
-                    field_pattern = rf"{re.escape(lowered)}(?:$|{re.escape(FILTER_FIELD_SEPARATOR)})"
-                    candidate_mask = row_search_text.str.contains(field_pattern, na=False, regex=True)
-                elif mode == "exact":
-                    field_pattern = (
-                        rf"(?:^|{re.escape(FILTER_FIELD_SEPARATOR)})"
-                        rf"{re.escape(lowered)}"
-                        rf"(?:$|{re.escape(FILTER_FIELD_SEPARATOR)})"
-                    )
-                    candidate_mask = row_search_text.str.contains(field_pattern, na=False, regex=True)
-                else:
-                    candidate_mask = _contains(pattern, regex=use_regex)
-            combined_mask = combined_mask | candidate_mask
+        lowered = str(value).casefold()
+        if mode == "prefix":
+            field_pattern = rf"(?:^|{re.escape(FILTER_FIELD_SEPARATOR)}){re.escape(lowered)}"
+            return row_search_text.str.contains(field_pattern, na=False, regex=True)
+        if mode == "suffix":
+            field_pattern = rf"{re.escape(lowered)}(?:$|{re.escape(FILTER_FIELD_SEPARATOR)})"
+            return row_search_text.str.contains(field_pattern, na=False, regex=True)
+        if mode == "exact":
+            field_pattern = (
+                rf"(?:^|{re.escape(FILTER_FIELD_SEPARATOR)})"
+                rf"{re.escape(lowered)}"
+                rf"(?:$|{re.escape(FILTER_FIELD_SEPARATOR)})"
+            )
+            return row_search_text.str.contains(field_pattern, na=False, regex=True)
 
-        return combined_mask
+        return _contains(pattern, regex=use_regex)
 
     grouped_terms: Dict[int, List[Dict[str, Any]]] = {}
     for term in terms:

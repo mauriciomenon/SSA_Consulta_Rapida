@@ -1,8 +1,7 @@
 {
   "_global": {
     "ste": "STE",
-    "sca": "SCA",
-    "svp": "S/P"
+    "sca": "SCA"
   },
   "setor_executor": {}
 }
