@@ -2208,9 +2208,10 @@ def filter_dataframe(
     Args:
         df: DataFrame para filtrar
         search_terms: Lista de termos de busca ou termos parseados
-        search_columns: Lista de colunas especificas para buscar. Se None, busca em
-                       colunas prioritarias: ['numero_ssa', 'situacao', 'setor_executor',
-                       'setor_emissor', 'descricao_servico']
+        search_columns: Lista de colunas especificas para buscar. Se None, busca nas
+                       colunas prioritarias disponiveis para busca geral, incluindo
+                       numero, situacao, setores, descricoes e campos humanos como
+                       solicitante e responsavel_*.
 
     Modos por termo: contem (padrao), comeca (^), termina ($), igual (=), regex (~),
     com suporte a negativos (! ou -).
@@ -2230,6 +2231,10 @@ def filter_dataframe(
         priority_columns = [
             "numero_ssa",
             "situacao",
+            "solicitante",
+            "responsavel_solicitante",
+            "responsavel_programacao",
+            "responsavel_execucao",
             "setor_executor",
             "setor_emissor",
             "descricao_ssa",
