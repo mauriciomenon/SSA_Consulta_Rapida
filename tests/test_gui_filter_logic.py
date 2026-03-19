@@ -28,6 +28,7 @@ from gui import gui_ssa  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
+from gui.widgets.filter_help_dialog import FilterHelpDialog  # noqa: E402
 
 ORIGINAL_LOAD_DATA = SSAMainWindow.load_data
 
@@ -189,6 +190,33 @@ class TestGUIFilterLogic:
         assert parent_widget is not None
         right_gap = parent_widget.rect().right() - quick_combo.geometry().right()
         assert right_gap <= 24
+
+    def test_search_help_texts_reflect_current_general_search_contract(self):
+        main_ctx = self.window._tab_contexts[0]
+        search_input = main_ctx["search_input"]
+        col_indicator = main_ctx["col_filter_indicator"]
+        search_help = main_ctx["search_help"]
+
+        assert str(search_input.placeholderText() or "") == "Termos separados por virgula; ! exclui termo"
+        tooltip = str(search_input.toolTip() or "")
+        assert "Todos os termos digitados devem ser satisfeitos na mesma linha." in tooltip
+        assert "condicao E" not in tooltip.casefold()
+        assert "Busca superior: todos os termos digitados sao obrigatorios." in str(search_help.text() or "")
+
+        indicator_tooltip = str(col_indicator.toolTip() or "")
+        assert "virgulas representam alternativas implicitas" in indicator_tooltip
+        assert "logica OU" not in indicator_tooltip
+
+    def test_filter_help_dialog_texts_separate_general_search_from_column_alternatives(self):
+        dialog = FilterHelpDialog(self.window)
+        browser = dialog.findChild(QtWidgets.QTextBrowser)
+        assert browser is not None
+        html = str(browser.toHtml() or "")
+
+        assert "Pesquisa Geral" in html
+        assert "todos os termos digitados sao obrigatorios" in html
+        assert "virgulas representam alternativas implicitas" in html
+        assert "logica OU - qualquer termo serve" not in html
 
     def test_setor_executor_order_prioritizes_smin_then_mel_then_alpha(self):
         ordered = SSAMainWindow._order_setor_executor_values(
