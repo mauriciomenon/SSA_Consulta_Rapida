@@ -2,7 +2,84 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-17 00:30 - authoritative block
+## CURRENT TRUTH 2026-03-19 08:18 - authoritative block
+
+- Objetivo desta rodada:
+  1. fechar o incidente grave de filtros GUI com patch minimo.
+  2. deixar a cobertura forte o bastante para pegar a regressao em minutos.
+  3. sincronizar handoff com a causa raiz real ja validada em codigo e testes.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? docs_entrada/*.xlsx`
+  3. esses residuos nao devem ser revertidos nem incluidos por inferencia.
+- Diagnostico tecnico final:
+  1. busca geral:
+     - `core/app_logic.py` tinha `priority_columns` incompleto.
+     - faltavam `solicitante`, `responsavel_solicitante`, `responsavel_programacao` e `responsavel_execucao`.
+  2. cache de filtro:
+     - `gui/mixins/filter_gui_ssa_mixin.py` mandava ao worker apenas `advanced_filters`.
+     - nao incluia `active_column_filters` nem `exclude_ste_sca`.
+  3. estado invisivel:
+     - `Ocultar` escondia a linha mantendo o filtro ativo.
+     - isso tornava o estado restritivo invisivel e explicava parte do sintoma de `clear`.
+- Historico de introducao:
+  1. busca geral incompleta:
+     - base em `0c87e431`
+     - lista consolidada ainda incompleta em `e7ddea48`
+  2. cache parcial:
+     - introduzido em `ff266350`
+  3. estado invisivel:
+     - base de hidden lines em `4df69305`
+     - fluxo consolidado em `776c5905`
+- Mudancas entregues:
+  1. `core/app_logic.py`
+     - busca geral agora inclui campos humanos criticos.
+  2. `gui/mixins/filter_gui_ssa_mixin.py`
+     - `cache_context` deterministico com estado efetivo de filtros.
+     - `Ocultar` bloqueado quando existe filtro ativo na linha.
+     - `restore_last_filter_state` nao pode mais reidratar filtro ativo invisivel.
+  3. testes:
+     - `tests/test_app_logic_filter_contract.py`
+     - `tests/test_filter_worker.py`
+     - `tests/test_gui_filter_logic.py`
+  4. observacao de rastreabilidade:
+     - este handoff descreve mudancas de runtime ja aplicadas no mesmo working tree.
+     - o presente DOC_SYNC nao e o patch funcional; ele apenas consolida o estado entregue.
+  5. segunda varredura:
+     - a suite ampliada encontrou tambem um desalinhamento do quick combo de `setor_executor`, ligado a mudanca estrutural de `c56d0e8e`.
+     - `gui/gui_ssa.py` passou a centralizar a aplicacao segura de alturas no toolbar e no sync inferior.
+     - esse ponto entrou no refinamento final antes de commit/push.
+- Validacao final:
+  1. `py_compile` no escopo alterado -> pass.
+  2. `ruff check` no escopo alterado -> pass.
+  3. `ty check` no escopo alterado -> pass.
+  4. `tests/test_app_logic_filter_contract.py` -> `7 passed`.
+  5. foco GUI/worker -> `15 passed`.
+  6. suite ampliada (`tests/test_app_logic_filter_contract.py`, `tests/test_filter_worker.py`, `tests/test_workers_advanced.py`, `tests/test_gui_filter_logic.py`) -> `204 passed, 1 skipped`.
+  7. warnings residuais de pytest config continuam fora deste slice.
+- Regra nova de cobertura:
+  1. qualquer bug de filtros GUI reproduzivel em uso normal exige teste de jornada completa.
+  2. cobertura minima obrigatoria:
+     - busca superior
+     - filtro de coluna
+     - `exclude_ste_sca`
+     - cache worker
+     - `clear`
+     - resumo
+     - linha oculta
+     - alinhamento funcional do quick toolbar quando a linha superior receber novos controles
+- Proximo passo sugerido:
+  1. revisar e commitar o patch em slices atomicos, se aprovado.
+  2. nao abrir refatoracao ampla de GUI.
+  3. se houver novo ciclo de docs, manter este bloco como fonte de verdade unica.
+
+## HISTORICAL SNAPSHOT 2026-03-17 00:30 - previous current truth
 
 - Objetivo desta rodada:
   1. fechar o diagnostico real de full vs diff na importacao.

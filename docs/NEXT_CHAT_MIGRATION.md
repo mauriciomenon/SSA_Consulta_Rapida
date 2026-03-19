@@ -2,7 +2,103 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-17 00:30 - start from here
+## CURRENT TRUTH 2026-03-19 08:18 - start from here
+
+- Objetivo desta rodada:
+  1. corrigir o incidente grave de filtros GUI com slices A+B+C.
+  2. fechar cobertura de contrato para impedir reintroducao rapida do defeito.
+  3. registrar causa raiz, historico e regra nova de testes antes do proximo ciclo.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. remoto localmente alinhado: `dev` e `origin/dev` sem divergencia observada no inicio do slice.
+  3. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? docs_entrada/*.xlsx`
+- Incidente confirmado:
+  1. busca geral ignorava campos humanos criticos.
+  2. `cache_context` do filtro nao refletia o estado completo da GUI.
+  3. botao `Ocultar` permitia filtro ativo invisivel.
+  4. o sintoma de `clear nao funciona` era efeito combinado de cache parcial + filtro invisivel, nao ausencia de reset base.
+- Causa raiz consolidada:
+  1. `core/app_logic.py`
+     - `priority_columns` nao incluia:
+       - `solicitante`
+       - `responsavel_solicitante`
+       - `responsavel_programacao`
+       - `responsavel_execucao`
+  2. `gui/mixins/filter_gui_ssa_mixin.py`
+     - `cache_context` incluia apenas `advanced_filters`.
+     - faltavam `active_column_filters` e `exclude_ste_sca`.
+  3. `gui/mixins/filter_gui_ssa_mixin.py`
+     - `Ocultar` escondia a linha mantendo o filtro ativo.
+- Historico de introducao provavel:
+  1. buraco estrutural da busca:
+     - base em `0c87e431`
+     - lista consolidada sem os campos humanos em `e7ddea48`
+  2. cache parcial:
+     - introduzido em `ff266350`
+     - mensagem: `fix(filter-cache): include advanced filter context in cache key`
+  3. estado invisivel:
+     - fluxo de hidden lines introduzido em `4df69305`
+     - comportamento atual do `Ocultar` consolidado em `776c5905`
+- Mudancas aplicadas:
+  1. Slice A:
+     - `priority_columns` expandido para incluir `solicitante` e `responsavel_*`.
+     - testes de contrato reais com `danilo` e `mel4`.
+  2. Slice B:
+     - `cache_context` agora e deterministico e inclui:
+       - `active_column_filters`
+       - `advanced_filters`
+       - `advanced_filters_active`
+       - `exclude_ste_sca`
+  3. Slice C:
+     - `Ocultar` foi bloqueado quando existe filtro ativo na linha.
+     - resumo segue expondo `exclude_ste_sca`.
+  4. observacao de rastreabilidade:
+     - este bloco DOC_SYNC registra mudancas de runtime ja presentes no mesmo working tree em:
+       - `core/app_logic.py`
+       - `gui/mixins/filter_gui_ssa_mixin.py`
+       - `tests/test_app_logic_filter_contract.py`
+       - `tests/test_filter_worker.py`
+       - `tests/test_gui_filter_logic.py`
+     - este diff de docs nao substitui o patch funcional; ele apenas sincroniza a verdade atual.
+  5. segunda varredura:
+     - `restore_last_filter_state` foi ajustado para nao reidratar filtro ativo invisivel via `hidden_column_filter_lines`.
+     - a validacao ampliada tambem capturou um desalinhamento de altura no quick combo de `setor_executor`, ligado ao bloco estrutural de `c56d0e8e`.
+     - `gui/gui_ssa.py` passou a centralizar a aplicacao segura de alturas no toolbar e no sync inferior para evitar divergencia entre botoes, combo rapido e paineis.
+- Validacao executada:
+  1. `uv run --python 3.13 python -m py_compile` no escopo alterado -> pass.
+  2. `uv run --python 3.13 ruff check` no escopo alterado -> pass.
+  3. `uv run --python 3.13 ty check` no escopo alterado -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_app_logic_filter_contract.py` -> `7 passed`.
+  5. `uv run --python 3.13 python -m pytest -q tests/test_filter_worker.py tests/test_gui_filter_logic.py -k "cache_context or column_filter_buttons_flow or filters_summary or clear_all_filters_global or exclude_ste_sca"` -> `15 passed`.
+  6. `uv run --python 3.13 python -m pytest -q tests/test_app_logic_filter_contract.py tests/test_filter_worker.py tests/test_workers_advanced.py tests/test_gui_filter_logic.py` -> `204 passed, 1 skipped`.
+  6. warnings remanescentes de pytest:
+     - `formatter-cmds`
+     - `ignore-paths`
+     - `module-root`
+     - `tests-root`
+- Licao metodologica que virou regra:
+  1. bug de filtros GUI reproduzivel em uso normal exige teste de jornada completa, nao apenas teste unitario local.
+  2. a suite agora precisa cobrir, no minimo:
+     - busca superior com dados reais de negocio
+     - filtro de coluna
+     - `exclude_ste_sca`
+     - cache worker
+     - `clear`
+     - resumo
+     - linha oculta
+     - alinhamento funcional do quick toolbar quando novos controles entrarem na linha
+- Proximo passo:
+  1. revisar o diff atual.
+  2. se aprovado, fazer commits atomicos por slice ou conforme estrategia definida pelo usuario.
+  3. nao abrir novo escopo fora dos filtros sem confirmacao explicita.
+
+## HISTORICAL SNAPSHOT 2026-03-17 00:30 - previous current truth
 
 - Objetivo desta rodada:
   1. corrigir a semantica de status da importacao para rejeicoes deterministicas.
