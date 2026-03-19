@@ -267,7 +267,8 @@ Before package management operations:
 - Complete all fixes from agent_todo_list before running kluster_code_review_auto again
 
 ## 6. End of chat session - kluster summary
-- WHEN TO EXECUTE: MANDATORY at the end of ANY conversation where kluster tools were used, right before the final user-facing response, EXCEPT when Clarification Handling is active (see Clarification Handling section). If any kluster response in the current turn contains CLARIFICATION actions, do NOT generate this summary, show the clarification prompt instead.
+- WHEN TO EXECUTE: MANDATORY at the end of ANY conversation where kluster tools were used, right before the final user-facing response, EXCEPT when Clarification Handling is active (see Clarification Handling section).
+-  If any kluster response in the current turn contains CLARIFICATION actions, do NOT generate this summary, show the clarification prompt instead.
 - TRIGGER: If any kluster_code_review_auto, kluster_code_review_manual, or kluster_dependency_check tools were called during the conversation AND no CLARIFICATION actions are present in any response, ALWAYS generate this summary.
 - SCOPE: The summary MUST include ALL kluster tool calls made after the most recent user request, not just the last tool call. This includes the initial verification and ALL subsequent re-verifications after fixes.
 
@@ -281,7 +282,8 @@ Generate short report capturing the COMPLETE verification journey from ALL klust
    - Total number of issues found across ALL verification runs since the last user request, grouped by severity in a structured format:
      - Use bullet points or line breaks to clearly separate severity levels
        - Reflect the complete verification journey (example: Initially found 3 issues, after fixes found 1 more issue, final verification clean)
-- For case when kluster returned includedExternalKnowledge data, include short summary from includedExternalKnowledge field on what knowledge sources were used during code review. This should be displayed at the END of the kluster summary section, after all other sections, as a separate line formatted as: External knowledge used: [short summary of includedExternalKnowledge]
+- For case when kluster returned includedExternalKnowledge data, include short summary from includedExternalKnowledge field on what knowledge sources were used during code review. This should be displayed at the END of the kluster
+- summary section, after all other sections, as a separate line formatted as: External knowledge used: [short summary of includedExternalKnowledge]
 
 - Issues found and fixed: Document summary of ALL changes applied to resolve issues found by kluster across the ENTIRE verification cycle since the last user request.
 - Do not include this section if NO issues were found in any verification run since the last user request
@@ -297,7 +299,8 @@ Generate short report capturing the COMPLETE verification journey from ALL klust
 
 ### ENFORCEMENT
 - If you complete a conversation without providing this summary when kluster tools were used AND no clarifications were requested, you have violated this rule
-- Always check before final response: Did I use any kluster tools? If yes, did any response contain CLARIFICATION actions? If clarification is present, show ONLY the clarification prompt and do NOT generate the kluster summary, these two are mutually exclusive. If no clarification, provide the verification summary covering ALL tool calls since the last user request.
+- Always check before final response: Did I use any kluster tools? If yes, did any response contain CLARIFICATION actions? If clarification is present, show ONLY the clarification prompt and do NOT generate the kluster summary,
+- these two are mutually exclusive. If no clarification, provide the verification summary covering ALL tool calls since the last user request.
 
 </kluster.ai mandaroty rules>
 
@@ -323,3 +326,14 @@ Generate short report capturing the COMPLETE verification journey from ALL klust
 - Regras operacionais, contrato de slice e politicas ficam versionadas neste `AGENTS.md`.
 - Evidencia de execucao por slice deve ficar em commit atomico + resposta em PR.
 - Historico detalhado de decisoes e iteracoes tambem permanece na conversa (chat log).
+
+## Regras novas devido a erros acumulados
+- Proibido introduzir alias, sinonimo, normalizacao semantica ou mapeamento de termo de negocio na busca superior sem aprovacao explicita do usuario e sem listar:
+origem da regra, arquivo onde ela fica, testes de regressao;
+- Proibido corrigir repro real com termo especifico do negocio por meio de tabela ad hoc de aliases se a causa estrutural nao estiver provada.
+- Qualquer alteracao em parser, normalizacao, alias ou sinonimos da busca deve vir acompanhada de diff previsto lista completa dos termos afetados,
+- justificativa de produto e teste de contrato positivo e negativo
+- Se existir infraestrutura antiga de alias, fallback, simplificacao ou regra herdada, ela deve ser exposta ao usuario antes de ser reutilizada em fix novo.
+- Teste de estabilidade que verifica "nao trava" nao substitui teste de contrato funcional do resultado esperado.
+- Textos de ajuda, tooltip e placeholder sao parte do contrato. Se o comportamento mudar, eles devem ser revisados no mesmo slice.
+- Timeout de ferramenta de review nao autoriza esconder o risco nem prosseguir como se a verificacao estivesse limpa; o bloqueio deve ser declarado com escopo exato.
