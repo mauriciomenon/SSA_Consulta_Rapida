@@ -1281,9 +1281,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         left.setContentsMargins(0, 0, 0, 0)
         search_label = QLabel("Pesquisa Geral:")
         search_input = QLineEdit()
-        search_input.setPlaceholderText("Separe por virgulas (condicao E: todos os termos obrigatorios); ! exclui")
+        search_input.setPlaceholderText("Termos separados por virgula; ! exclui termo")
         search_input.setToolTip(
-            "Condicao E: Todos os termos separados por virgula devem estar presentes.\n\n"
+            "Todos os termos digitados devem ser satisfeitos na mesma linha.\n\n"
             "Modos por termo: \n"
             "- contem (padrao): foo\n- comeca com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex: ~foo.*bar\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
         )
@@ -1388,7 +1388,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         tab_layout.addLayout(cast(Any, search_row))
 
         search_help = QLabel(
-            "Separe por virgulas (logica E: todos os termos obrigatorios). Use ! para excluir. A busca vale para qualquer coluna."
+            "Busca superior: todos os termos digitados sao obrigatorios. Use ! para excluir. A busca vale para qualquer coluna."
         )
         search_help.setWordWrap(False)
         try:
@@ -1448,7 +1448,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             logger.debug("Falha ao aplicar fonte no indicador de filtro por coluna: %s", exc)
         col_filter_indicator.setToolTip(
             "Filtros por coluna acumulam com a Pesquisa Geral (logica E entre filtros). "
-            "Dentro de cada filtro, use virgulas para alternativas (logica OU). Consulte a ajuda para outros atalhos."
+            "Dentro da mesma coluna, virgulas representam alternativas implicitas. Consulte a ajuda para outros atalhos."
         )
         try:
             col_filter_indicator.setVisible(False)
@@ -1596,7 +1596,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         col_filters_group = QGroupBox("Filtros por Coluna")
         col_filters_outer = QVBoxLayout(cast(Any, col_filters_group))
-        col_filters_hint = QLabel("Use virgulas para alternativas (logica OU dentro da coluna). Entre colunas mantemos logica E.")
+        col_filters_hint = QLabel("Dentro da mesma coluna, virgulas representam alternativas. Entre colunas e busca superior, o filtro continua cumulativo.")
         try:
             col_filters_hint.setStyleSheet("color: palette(windowText); font-size: 11px;")
         except Exception as exc:

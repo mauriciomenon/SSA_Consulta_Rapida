@@ -128,3 +128,23 @@ def test_filter_dataframe_default_search_columns_allow_terms_in_different_column
     out = filter_dataframe(df, ["danilo", "mel4"])
 
     assert list(out["numero_ssa"]) == ["202500001"]
+
+
+def test_filter_dataframe_general_search_matches_svp_alias_and_negative_ste() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003"],
+            "solicitante": ["danilo", "danilo", "danilo"],
+            "setor_executor": ["MEL4", "MEL4", "MEL4"],
+            "situacao": ["PROGRAMAR", "STE", "PROGRAMAR"],
+            "descricao_ssa": [
+                "servico S/P programado",
+                "servico S/P bloqueado",
+                "servico svp programado",
+            ],
+        }
+    )
+
+    out = filter_dataframe(df, ["danilo", "svp", "mel4", "!STE"])
+
+    assert list(out["numero_ssa"]) == ["202500001", "202500003"]
