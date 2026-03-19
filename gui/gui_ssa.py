@@ -36,7 +36,8 @@ from typing import Any, cast
 try:
     from utils.version import get_app_version
 except ImportError:
-    def get_app_version():
+    def get_app_version(project_root: str | None = None) -> str:
+        _ = project_root
         return "3.11+"
 
 # --- Configuração do Path do Projeto (precisa vir antes das importações internas) ---
@@ -967,6 +968,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self._app_version = resolve_app_version_text()
         self.setWindowTitle(f"Consulta Rapida de SSAs v{self._app_version}")
         self.setGeometry(100, 100, 1200, 800)
+        self._last_window_width = self.width()
         # Icone da janela (prioriza .ico no Windows)
         try:
             from PyQt6.QtGui import QIcon
@@ -2277,7 +2279,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _get_num_reprogramacoes_sort_keys(self) -> pd.DataFrame:
         source_df = self.df_exibido
         if not isinstance(source_df, pd.DataFrame):
-            return pd.DataFrame(columns=["__reprog_is_nan", "__reprog_num", "__reprog_txt"])
+            return pd.DataFrame(
+                {
+                    "__reprog_is_nan": pd.Series(dtype="bool"),
+                    "__reprog_num": pd.Series(dtype="float64"),
+                    "__reprog_txt": pd.Series(dtype="string"),
+                }
+            )
         if "num_reprogramacoes" not in source_df.columns:
             return pd.DataFrame(index=source_df.index)
 
@@ -2386,7 +2394,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 )
 
             self.paginator.set_dataframe(self.df_exibido)
-            (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
+            current_page = max(
+                1,
+                min(
+                    getattr(self.paginator, "current_page", 1),
+                    getattr(self.paginator, "total_pages", 1),
+                ),
+            )
+            self.display_current_page(current_page)
             self._restore_column_widths(preserved_widths)
 
             # Indicador visual na UI
@@ -3088,89 +3103,89 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         load_action = QAction("Recarregar Dados", self)
         load_action.triggered.connect(self.load_data)
-        cast(Any, arquivo_menu).addAction(load_action)
+        arquivo_menu.addAction(load_action)
 
         rescan_diff_action = QAction("Atualizar Dados", self)
         rescan_diff_action.triggered.connect(self.rescan_diff_data)
-        cast(Any, arquivo_menu).addAction(rescan_diff_action)
+        arquivo_menu.addAction(rescan_diff_action)
 
         export_action = QAction("Exportar lista", self)
         export_action.triggered.connect(self._export_current_list_txt)
-        cast(Any, arquivo_menu).addAction(export_action)
+        arquivo_menu.addAction(export_action)
 
         close_action = QAction("Sair", self)
         close_action.triggered.connect(self.close)
-        cast(Any, arquivo_menu).addAction(close_action)
+        arquivo_menu.addAction(close_action)
 
         import_action = QAction("Importar XLS/XLSX externo", self)
         import_action.triggered.connect(self.import_external_excel_files)
-        cast(Any, importacao_menu).addAction(import_action)
+        importacao_menu.addAction(import_action)
 
         rescan_diff_action = QAction("Atualizar Dados", self)
         rescan_diff_action.triggered.connect(self.rescan_diff_data)
-        cast(Any, importacao_menu).addAction(rescan_diff_action)
+        importacao_menu.addAction(rescan_diff_action)
 
         rescan_full_action = QAction("Reescaneamento Completo", self)
         rescan_full_action.triggered.connect(self.rescan_full_data)
-        cast(Any, importacao_menu).addAction(rescan_full_action)
+        importacao_menu.addAction(rescan_full_action)
 
         open_docs_action = QAction("Abrir Pasta de Arquivos", self)
         open_docs_action.triggered.connect(self.open_docs_folder)
-        cast(Any, importacao_menu).addAction(open_docs_action)
+        importacao_menu.addAction(open_docs_action)
 
         open_processadas_action = QAction("Abrir Pasta Arquivos Processados", self)
         open_processadas_action.triggered.connect(self.open_processadas_folder)
-        cast(Any, importacao_menu).addAction(open_processadas_action)
+        importacao_menu.addAction(open_processadas_action)
 
         open_nosurvivor_action = QAction("Abrir Pasta Arquivos Redundantes", self)
         open_nosurvivor_action.triggered.connect(self.open_nosurvivor_folder)
-        cast(Any, importacao_menu).addAction(open_nosurvivor_action)
+        importacao_menu.addAction(open_nosurvivor_action)
 
         consolidate_action = QAction("Consolidar arquivos de entrada", self)
         consolidate_action.triggered.connect(self.consolidate_input_files)
-        cast(Any, importacao_menu).addAction(consolidate_action)
+        importacao_menu.addAction(consolidate_action)
 
         rescan_prompt_action = QAction("Reescanear", self)
         rescan_prompt_action.triggered.connect(self.rescan_data)
-        cast(Any, db_menu).addAction(rescan_prompt_action)
+        db_menu.addAction(rescan_prompt_action)
 
         derivadas_action = QAction("Atualizar derivadas", self)
         derivadas_action.triggered.connect(self.update_derivadas_from_sources)
-        cast(Any, db_menu).addAction(derivadas_action)
+        db_menu.addAction(derivadas_action)
 
         load_other_db_action = QAction("Carregar outro DB", self)
         load_other_db_action.triggered.connect(self.load_other_database)
-        cast(Any, db_menu).addAction(load_other_db_action)
+        db_menu.addAction(load_other_db_action)
 
         vacuum_analyze_action = QAction("Compactar DB", self)
         vacuum_analyze_action.triggered.connect(self.run_vacuum_analyze)
-        cast(Any, db_menu).addAction(vacuum_analyze_action)
+        db_menu.addAction(vacuum_analyze_action)
 
         open_settings_action = QAction("Abrir arquivo de opcoes", self)
         open_settings_action.triggered.connect(self.open_settings_file_with_backup)
-        cast(Any, opcoes_menu).addAction(open_settings_action)
+        opcoes_menu.addAction(open_settings_action)
 
         reset_settings_action = QAction("Restaurar opcoes padrao", self)
         reset_settings_action.triggered.connect(self.reset_settings_to_defaults)
-        cast(Any, opcoes_menu).addAction(reset_settings_action)
+        opcoes_menu.addAction(reset_settings_action)
 
         theme_action = QAction("Selecionar Tema", self)
         theme_action.triggered.connect(self.toggle_theme_menu)
-        cast(Any, opcoes_menu).addAction(theme_action)
+        opcoes_menu.addAction(theme_action)
 
         install_action = QAction("Instalacao", self)
         install_action.triggered.connect(self.open_installation_guide)
-        cast(Any, ajuda_menu).addAction(install_action)
+        ajuda_menu.addAction(install_action)
 
         help_action = QAction("Ajuda", self)
         help_action.triggered.connect(self.show_filter_help)
-        cast(Any, ajuda_menu).addAction(help_action)
+        ajuda_menu.addAction(help_action)
 
         about_handler = getattr(self, "show_about_dialog", None)
         if callable(about_handler):
             about_action = QAction("Sobre", self)
             about_action.triggered.connect(about_handler)
-            cast(Any, ajuda_menu).addAction(about_action)
+            ajuda_menu.addAction(about_action)
 
     def import_external_excel_files(self):
         """Importa arquivos XLS/XLSX externos para docs_entrada com copia segura."""

@@ -2,7 +2,71 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-19 08:18 - authoritative block
+## CURRENT TRUTH 2026-03-19 15:49 - authoritative block
+
+- Objetivo desta rodada:
+  1. remover legado morto de alias do `core` sem mudar a semantica da busca superior.
+  2. corrigir o contrato textual entre busca geral e filtro de coluna.
+  3. preparar commit limpo com stage separado do diff local preexistente em `pyproject.toml`.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M requirements_build.txt`
+     - `?? docs_entrada/*.xlsx`
+     - `?? .backups/*`
+     - `?? *.bak.*`
+  3. `pyproject.toml` tem diff misto local; nao commitar por inferencia.
+- Diagnostico tecnico final desta subrodada:
+  1. a busca superior do `core` deve permanecer literal:
+     - `svp` literal
+     - `OU/OR` literal
+     - virgula separa termos com AND implicito
+  2. ainda existia superficie morta no `core` sugerindo alias de busca:
+     - `get_filter_alias_map()`
+     - `apply_filter_aliases()`
+  3. o texto de ajuda ainda induzia leitura errada ao dizer que filtro de coluna e filtro geral tinham regras identicas.
+- Mudancas entregues nesta subrodada:
+  1. `core/app_logic.py`
+     - removidas as funcoes mortas de alias.
+     - docstring ajustada para refletir o contrato real.
+  2. `tests/test_app_logic_filter_contract.py`
+     - novo teste trava `svp` e `OU` como literais.
+  3. `tests/test_filter_alias_map_loading.py`
+     - removido por ter virado teste de legado morto.
+  4. `gui/widgets/filter_help_dialog.py`
+     - ajuda separa busca geral de filtro por coluna.
+  5. `gui/gui_ssa.py`
+     - ajustes minimos para reduzir ruido de `ty` e alinhar fallback.
+  6. `pyproject.toml`
+     - alvo desta rodada e apenas remover as 4 chaves antigas de pytest do stage final.
+  7. ambiente local
+     - `pandas`, `openpyxl` e `PyQt6` confirmados
+     - stubs e verificadores extras instalados na `.venv-win`
+- Validacao desta subrodada:
+  1. `py_compile` no escopo alterado -> pass.
+  2. `ruff check` no escopo alterado -> pass.
+  3. `ty check` no escopo alterado -> pass.
+  4. `tests/test_app_logic_filter_contract.py + tests/test_search_v_character.py` -> `10 passed`.
+  5. foco busca/ajuda -> `9 passed, 157 deselected`.
+  6. `mypy`, `pylint`, `pylama`, `semgrep`, `qwen` e `kluster` rodados como segunda camada de revisao.
+- Leitura de risco para o proximo ciclo:
+  1. parser da busca superior esta mais limpo; o proximo hotspot real nao esta no `core`.
+  2. debt estrutural antigo ainda aparece em:
+     - `gui/gui_ssa.py`
+     - `gui/mixins/filter_gui_ssa_mixin.py`
+     - `gui/qt_stubs.py`
+     - `utils/robust_logging.py`
+     - `pyproject.toml` legado de tooling
+  3. esses itens exigem slice separado; nao misturar com este commit.
+- Proximo passo sugerido:
+  1. commitar so o stage limpo desta rodada.
+  2. empurrar para `origin/dev`.
+  3. abrir proximo slice so depois para o backlog exposto por `mypy/pylama`.
+
+## HISTORICAL SNAPSHOT 2026-03-19 08:18 - previous current truth
 
 - Objetivo desta rodada:
   1. fechar o incidente grave de filtros GUI com patch minimo.
