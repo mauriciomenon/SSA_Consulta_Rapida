@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from core.app_logic import filter_dataframe, get_filtered_data
+from core.app_logic import filter_dataframe, get_filtered_data, parse_search_terms
 
 
 def test_filter_dataframe_preserves_group_or_for_preparsed_terms() -> None:
@@ -128,3 +128,10 @@ def test_filter_dataframe_default_search_columns_allow_terms_in_different_column
     out = filter_dataframe(df, ["danilo", "mel4"])
 
     assert list(out["numero_ssa"]) == ["202500001"]
+
+
+def test_parse_search_terms_keeps_literals_and_does_not_parse_logical_keywords() -> None:
+    terms = parse_search_terms(["svp", "OU", "mel4"])
+
+    assert [term["value"] for term in terms] == ["svp", "OU", "mel4"]
+    assert {term["group"] for term in terms} == {0}

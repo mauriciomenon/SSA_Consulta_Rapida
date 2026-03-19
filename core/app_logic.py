@@ -2056,79 +2056,12 @@ def run_importer_logic(
         raise ImporterError("Erro critico no processo de importacao.") from e
 
 
-def get_filter_alias_map() -> Dict[str, Any]:
-    """
-    Carrega mapeamento de aliases para filtros, consistente com GUI.
-    Busca em config/filter_aliases.json para sincronização entre interfaces.
-
-    Returns:
-        Dicionário com aliases globais e por coluna
-    """
-    # Resolve config path relative to repository root
-    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    cfg_path = os.path.join(repo_root, "config", "filter_aliases.json")
-
-    if not os.path.exists(cfg_path):
-        return {}
-
-    try:
-        with open(cfg_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError, ValueError, TypeError) as exc:
-        logger.warning("Falha ao carregar aliases de filtro de '%s': %s", cfg_path, exc)
-        return {}
-
-    if isinstance(data, dict):
-        return data
-    logger.warning("Arquivo de aliases em formato invalido: '%s'.", cfg_path)
-    return {}
-
-
-def apply_filter_aliases(search_terms: List[str]) -> List[str]:
-    """
-    Aplica aliases de filtro aos termos de busca para consistência entre interfaces.
-
-    Args:
-        search_terms: Lista de termos brutos
-
-    Returns:
-        Lista de termos com aliases aplicados
-    """
-    if not search_terms:
-        return search_terms
-
-    alias_map = get_filter_alias_map()
-    global_aliases = alias_map.get("_global", {})
-
-    if not isinstance(global_aliases, dict):
-        global_aliases = {}
-
-    mapped_terms = []
-    for term in search_terms:
-        if isinstance(term, str):
-            key = term.strip().casefold()
-            # Busca alias global (case-insensitive)
-            mapped = None
-            for alias_key, alias_value in global_aliases.items():
-                if alias_key.casefold() == key:
-                    mapped = alias_value
-                    break
-            mapped_terms.append(mapped if mapped else term)
-        else:
-            mapped_terms.append(term)
-
-    return mapped_terms
-
-
 def parse_search_terms(
     search_terms: List[str],
     default_mode: str = "contains",
 ) -> List[Dict[str, Any]]:
     """
     Converte termos brutos em uma estrutura padronizada com modo e polaridade.
-
-    APLICA ALIASES: Termos são normalizados usando config/filter_aliases.json
-    para consistência entre GUI e CLI.
 
     SIMPLIFIED RAW STRING CONTRACT:
     - Raw strings do not parse logical operators such as OU/OR/AND/E.

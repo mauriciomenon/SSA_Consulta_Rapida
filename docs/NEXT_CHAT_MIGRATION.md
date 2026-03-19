@@ -2,7 +2,91 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-19 08:18 - start from here
+## CURRENT TRUTH 2026-03-19 15:49 - start from here
+
+- Objetivo desta rodada:
+  1. limpar a superficie morta de alias no core da busca superior sem reabrir semantica.
+  2. separar claramente o contrato da busca superior vs filtro de coluna nos textos de ajuda.
+  3. elevar a qualidade do gate local com verificadores extras e remover warnings ruidosos do pytest.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M requirements_build.txt`
+     - `?? docs_entrada/*.xlsx`
+     - `?? .backups/*`
+     - `?? *.bak.*`
+  3. `pyproject.toml` segue com diff misto local; o commit desta rodada deve separar apenas o delta desejado no stage.
+- Diagnostico consolidado desta rodada:
+  1. a busca superior no `core` nao deve aplicar alias, sinonimo nem reinterpretacao de `OU/OR`.
+  2. ainda existia legado morto no `core` sugerindo o contrario:
+     - `get_filter_alias_map()`
+     - `apply_filter_aliases()`
+  3. o texto de ajuda ainda misturava busca geral e filtro de coluna como se fossem identicos.
+  4. parte do ruido de qualidade vinha do ambiente e parte de config antiga:
+     - `pytest` ainda avisava 4 chaves desconhecidas em `pyproject.toml`
+     - `mypy/pylint/pylama` tinham ruido de setup/stubs alem de debt estrutural real do repo
+- Mudancas aplicadas:
+  1. `core/app_logic.py`
+     - removidas as funcoes mortas `get_filter_alias_map()` e `apply_filter_aliases()`.
+     - removida a docstring falsa dizendo que a busca superior aplicava alias.
+  2. `tests/test_app_logic_filter_contract.py`
+     - novo teste trava o contrato atual:
+       - `svp` segue literal
+       - `OU` segue literal
+       - todos os termos continuam no mesmo grupo implicito
+  3. `tests/test_filter_alias_map_loading.py`
+     - removido por cobrir apenas o legado morto do `core`
+  4. `gui/widgets/filter_help_dialog.py`
+     - texto agora separa explicitamente:
+       - busca superior: termos cumulativos na linha
+       - filtro por coluna: virgula como alternativa implicita dentro da mesma coluna
+  5. `gui/gui_ssa.py`
+     - fallback de `get_app_version()` alinhado com a assinatura real
+     - `_last_window_width` inicializado no `__init__`
+     - cleanup pequeno para reduzir ruido de `ty`
+  6. ambiente local de verificacao:
+     - `pandas`, `openpyxl` e `PyQt6` confirmados na `.venv-win`
+     - stubs e ferramentas extras instalados na `.venv-win`:
+       - `pandas-stubs`
+       - `PyQt6-stubs`
+       - `mypy`
+       - `pylint`
+       - `pylama`
+       - `setuptools<81`
+  7. `pyproject.toml`
+     - o delta desejado deste slice e apenas a remocao das 4 chaves antigas de pytest:
+       - `module-root`
+       - `tests-root`
+       - `ignore-paths`
+       - `formatter-cmds`
+     - qualquer outro diff local no arquivo precisa ficar fora do commit.
+- Validacao executada:
+  1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_filter_contract.py gui/widgets/filter_help_dialog.py gui/gui_ssa.py` -> pass.
+  2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_filter_contract.py gui/widgets/filter_help_dialog.py gui/gui_ssa.py` -> pass.
+  3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/widgets/filter_help_dialog.py core/app_logic.py tests/test_app_logic_filter_contract.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_app_logic_filter_contract.py tests/test_search_v_character.py` -> `10 passed`.
+  5. `uv run --python 3.13 python -m pytest -q tests/test_app_logic_filter_contract.py tests/test_search_v_character.py tests/test_gui_filter_logic.py -k "search_help_texts_reflect_current_general_search_contract or filter_help_dialog_texts_separate_general_search_from_column_alternatives or test_v_character or test_no_logical_operators or default_search_columns or parse_search_terms_keeps_literals"` -> `9 passed, 157 deselected`.
+  6. verificadores extras rodados com ambiente corrigido:
+     - `mypy`
+     - `pylint --errors-only`
+     - `pylama`
+     - `semgrep`
+     - `qwen`
+     - `kluster`
+- Leitura objetiva dos verificadores extras:
+  1. `mypy` e `pylama` agora rodam, mas expuseram debt estrutural antigo do repo fora deste slice.
+  2. `pylint` deixou de acusar `_last_window_width` antes da definicao; restaram `E0611` ligados ao host/PyQt6.
+  3. o principal ajuste funcional novo desta rodada ficou no texto de ajuda, nao no parser.
+- Proximo passo:
+  1. atualizar os docs de controle com esta verdade atual.
+  2. separar o stage limpo de `pyproject.toml`.
+  3. commitar e fazer push atomicamente.
+  4. so depois abrir um novo slice para o backlog real revelado por `mypy/pylama`.
+
+## HISTORICAL SNAPSHOT 2026-03-19 08:18 - previous current truth
 
 - Objetivo desta rodada:
   1. corrigir o incidente grave de filtros GUI com slices A+B+C.

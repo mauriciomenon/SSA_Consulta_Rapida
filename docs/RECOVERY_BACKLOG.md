@@ -38,6 +38,74 @@ Mudanca aplicada:
 2. worker GUI passa a concluir com sucesso informativo nesse caso, em vez de `falhou` ou `sem alteracoes`.
 3. sem alteracao em `utils/caching.py` neste slice.
 
+## Update 2026-03-19 15:49 - search contract cleanup and tooling signal cleanup (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-19 15:48:40 -0300`
+2. em andamento no mesmo slice
+
+Objetivo do slice:
+1. remover do `core` qualquer superficie morta que sugerisse alias na busca superior.
+2. corrigir o texto de ajuda para refletir o contrato real da UI.
+3. limpar parte do ruido do gate local antes do proximo slice estrutural.
+
+Diagnostico objetivo:
+1. `core/app_logic.py`
+   - ainda carregava legado morto:
+     - `get_filter_alias_map()`
+     - `apply_filter_aliases()`
+   - a docstring de `parse_search_terms()` ainda insinuava alias na busca superior.
+2. `gui/widgets/filter_help_dialog.py`
+   - dizia que filtro de coluna seguia regras identicas ao filtro geral.
+   - isso era falso para virgula na mesma coluna.
+3. `pyproject.toml`
+   - ainda causava 4 warnings ruidosos no `pytest` por chaves antigas.
+4. verificadores extras
+   - `mypy/pylama` ja conseguiam rodar com o ambiente corrigido, mas mostraram debt estrutural antigo fora do escopo imediato.
+
+Escopo alterado:
+1. `core/app_logic.py`
+2. `tests/test_app_logic_filter_contract.py`
+3. `tests/test_filter_alias_map_loading.py`
+4. `gui/widgets/filter_help_dialog.py`
+5. `gui/gui_ssa.py`
+6. `pyproject.toml`
+7. `docs/NEXT_CHAT_MIGRATION.md`
+8. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+9. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. removidas as funcoes mortas de alias do `core`.
+2. removido o trecho de docstring que mentia sobre alias na busca superior.
+3. adicionado teste de contrato para travar:
+   - `svp` literal
+   - `OU` literal
+4. removido o teste que cobria apenas o legado morto de alias.
+5. texto de ajuda ajustado para separar:
+   - busca geral
+   - filtro por coluna com virgula como alternativa implicita
+6. `gui/gui_ssa.py` recebeu cleanup minimo para reduzir ruido de `ty`.
+7. o delta desejado em `pyproject.toml` deste slice e apenas a remocao das 4 chaves antigas de pytest; qualquer outro diff local no arquivo deve ficar fora do commit final.
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_filter_contract.py gui/widgets/filter_help_dialog.py gui/gui_ssa.py` -> pass.
+2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_filter_contract.py gui/widgets/filter_help_dialog.py gui/gui_ssa.py` -> pass.
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/widgets/filter_help_dialog.py core/app_logic.py tests/test_app_logic_filter_contract.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_app_logic_filter_contract.py tests/test_search_v_character.py` -> `10 passed`.
+5. `uv run --python 3.13 python -m pytest -q tests/test_app_logic_filter_contract.py tests/test_search_v_character.py tests/test_gui_filter_logic.py -k "search_help_texts_reflect_current_general_search_contract or filter_help_dialog_texts_separate_general_search_from_column_alternatives or test_v_character or test_no_logical_operators or default_search_columns or parse_search_terms_keeps_literals"` -> `9 passed, 157 deselected`.
+6. revisao adicional executada:
+   - `mypy`
+   - `pylint --errors-only`
+   - `pylama`
+   - `semgrep`
+   - `qwen`
+   - `kluster`
+
+Licoes aprendidas:
+1. parser limpo nao basta; texto de ajuda contraditorio tambem reintroduz uso errado.
+2. legado morto no `core` vira risco de reativacao futura e precisa sair quando for pequeno e bem isolado.
+3. warnings ruidosos de tooling escondem sinais reais e precisam ser reduzidos antes do proximo slice de debt estrutural.
+
 ## Update 2026-03-19 08:18 - GUI filters incident hardening (HOTFIX_BLOCKER + STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:

@@ -17,10 +17,6 @@ markers = [
 
 [tool.codeflash]
 # All paths are relative to this pyproject.toml's directory.
-module-root = "interface"
-tests-root = "tests"
-ignore-paths = []
-formatter-cmds = ["black $file"]
 
 [project]
 name = "ssa-consulta-rapida"

@@ -4,10 +4,11 @@
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QDialogButtonBox
 
 try:
-  from utils.version import get_app_version
+    from utils.version import get_app_version
 except ImportError:  # Centralizacao: fallback minimo
-  def get_app_version():
-    return "0.0.0"
+    def get_app_version(project_root: str | None = None) -> str:
+        _ = project_root
+        return "0.0.0"
 
 
 class FilterHelpDialog(QDialog):
@@ -55,7 +56,7 @@ class FilterHelpDialog(QDialog):
               <li><code>=NULL</code> - somente campos vazios/nulos</li>
             </ul>
             <h4>Filtro por coluna</h4>
-            <p>Abra o menu com <b>clique direito</b> no titulo da coluna. O painel a direita mostra os filtros por coluna com botoes <b>Aplicar</b>, <b>Limpar</b> e <b>Ocultar</b>. Regras identicas as do filtro geral.</p>
+            <p>Abra o menu com <b>clique direito</b> no titulo da coluna. O painel a direita mostra os filtros por coluna com botoes <b>Aplicar</b>, <b>Limpar</b> e <b>Ocultar</b>. Diferenca importante: dentro da mesma coluna, virgulas representam alternativas implicitas; entre colunas diferentes, as restricoes continuam cumulativas.</p>
             <h4>Dicas</h4>
             <ul>
               <li>Nao diferencia maiusculas/minusculas</li>
