@@ -3,6 +3,64 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-20 11:14 - hardening do loop interativo do CLI (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-20 10:52:28 -0300`
+2. runtime validado e docs sincronizados no mesmo fluxo
+
+Objetivo do slice:
+1. alinhar o parsing do CLI ao contrato atual da busca superior.
+2. corrigir a regressao em que o CLI deixava de reexibir dados apos certas rodadas.
+3. fechar a cobertura de sessao interativa multi-rodada que a suite anterior nao tinha.
+
+Diagnostico objetivo:
+1. `interface/cli.py` ainda fazia parsing proprio e antigo:
+   - separava por espaco ou virgula
+   - reinterpretava `ou`, `or`, `v` e `e`
+2. o loop real tinha um bug de usabilidade:
+   - `v` restaurava a stack, mas nao reexibia os dados
+3. a suite anterior so cobria:
+   - bootstrap/smoke
+   - renderer isolado
+   - helpers pontuais
+   - nao cobria sessao interativa acumulativa com `clear`, `v` e busca literal
+4. o review do Kluster apontou tambem debt estrutural no CLI, mas este slice ficou restrito aos itens locais e seguros.
+
+Escopo alterado:
+1. `interface/cli.py`
+2. `tests/test_cli_loop_filter_rounds.py`
+3. `docs/NEXT_CHAT_MIGRATION.md`
+4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+5. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. commit `6d29addf`
+   - busca do CLI passa a usar termos separados por virgula, sem reinterpretar `OU/OR/E/v`
+   - lookup direto de detalhe fica restrito a SSA numerica exata
+   - `v` volta a reexibir o estado anterior
+   - exportacao rejeita nome inseguro e valida diretorio de saida
+   - cache de render deixa de depender so da primeira linha
+   - `ord 0` passa a ser rejeitado
+2. este update de backlog e apenas DOC_SYNC do runtime ja entregue no commit `6d29addf`.
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+2. `uv run --python 3.13 ruff check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+3. `uv run --python 3.13 ty check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py tests/test_cli_config_preserve_session.py tests/test_cli_loop_missing_numero_ssa_guard.py tests/test_cli_remove_filter_non_lifo.py tests/test_cli_pagination_prompt.py tests/test_search_v_character.py` -> `16 passed`.
+
+Licoes aprendidas:
+1. smoke test e teste de renderer nao substituem cobertura do loop interativo real.
+2. CLI nao pode manter parser paralelo ao `core` por muito tempo sem divergencia de contrato.
+3. comportamento de recuperar estado (`v`) precisa sempre ser validado junto com a reexibicao dos dados, nao so com a stack interna.
+4. Kluster pode travar por timeout em arquivo grande; isso nao autoriza tratar o review como clean total.
+
+Pendencias nao bloqueantes abertas:
+1. `_handle_rescan` segue grande e misturando responsabilidades.
+2. textos de help do CLI seguem duplicados.
+3. `get_ssa_query()` ainda vive na camada de UI/CLI.
+
 ## Update 2026-03-17 00:30 - import status semantics for deterministic rejections
 
 Session timestamp:

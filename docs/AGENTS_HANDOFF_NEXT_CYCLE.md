@@ -2,12 +2,12 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-20 09:45 - authoritative block
+## CURRENT TRUTH 2026-03-20 11:14 - authoritative block
 
 - Objetivo desta rodada:
-  1. promover o atalho de triplo clique em limpar filtros para comportamento real, com confirmacao explicita.
-  2. preservar os botoes atuais e o hard reset via menu sem alterar a semantica normal de limpeza.
-  3. blindar a interacao para ambientes nao interativos e testes.
+  1. estabilizar o loop interativo do CLI alinhando a busca ao contrato atual do `core`.
+  2. fechar a regressao em que certas rodadas do CLI deixavam de reexibir dados.
+  3. separar debts estruturais do CLI para um ciclo proprio, sem refatoracao ampla agora.
 - Estado confirmado:
   1. branch alvo: `dev`.
   2. residuos locais fora de escopo continuam presentes:
@@ -22,28 +22,40 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `?? *.bak.*`
   3. esses residuos nao devem ser revertidos nem incluidos por inferencia.
 - Commit funcional novo:
-  1. `e9e2f04f`
-     - 3 cliques consecutivos em botoes de limpar filtros dentro da janela curta passam a oferecer confirmacao para hard reset total.
-     - o hard reset continua passando pelo fluxo total ja existente; os botoes nao mudam de semantica por clique unico.
-     - a confirmacao e suprimida em ambiente nao interativo para nao bloquear a suite.
+  1. `6d29addf`
+     - CLI passa a usar termos separados por virgula sem reinterpretar `OU/OR/E/v`.
+     - lookup direto de detalhe fica restrito a SSA numerica exata.
+     - `v` volta a reexibir o estado anterior.
+     - exportacao rejeita nome inseguro e valida o diretorio de saida.
+     - cache de render foi endurecido e `ord 0` passa a ser rejeitado.
+  2. este handoff so sincroniza o estado ja publicado em `dev`; o runtime do CLI foi entregue no commit funcional acima, nao neste diff documental.
 - Diagnostico tecnico consolidado:
-  1. o pedido de UX era um atalho de recuperacao, nao mudanca de regra dos botoes.
-  2. a implementacao ficou localizada em:
-     - `gui/mixins/filter_gui_ssa_mixin.py`
-     - `gui/gui_ssa.py`
-     - `tests/test_gui_filter_logic.py`
-  3. o fluxo cobre tanto limpar busca superior quanto limpar todos os filtros.
-  4. a protecao de ambiente nao interativo foi necessaria porque o primeiro review do Kluster apontou risco de travar testes automatizados com dialogo modal.
+  1. o CLI ainda carregava semantica antiga propria, separada do `core`.
+  2. a suite anterior nao cobria sessao interativa multi-rodada com `clear`, `v` e busca acumulativa.
+  3. isso deixou passar um bug real: `v` restaurava a stack sem reexibir os dados.
+  4. o review do Kluster tambem apontou debt estrutural de CLI, mas neste slice so entrou o que era local e seguro.
 - Validacao consolidada:
-  1. `py_compile`, `ruff` e `ty` verdes no escopo alterado.
-  2. `tests/test_gui_filter_logic.py` no foco do slice -> `13 passed, 148 deselected`.
+  1. `py_compile`, `ruff` e `ty` verdes em `interface/cli.py` e `tests/test_cli_loop_filter_rounds.py`.
+  2. foco de CLI -> `16 passed`.
   3. testes novos:
-     - `test_three_repeated_clear_search_clicks_offer_hard_reset`
-     - `test_three_repeated_global_clear_clicks_offer_hard_reset`
+     - `test_start_cli_loop_keeps_session_after_clear`
+     - `test_start_cli_loop_back_rerenders_previous_state`
+     - `test_start_cli_loop_treats_short_year_as_literal_search`
+     - `test_start_cli_loop_opens_detail_for_exact_ssa_number`
+     - `test_handle_export_rejects_unsafe_filename`
+     - `test_handle_sort_rejects_zero_index`
+     - `test_cached_pretty_print_df_cache_key_includes_rendered_rows`
 - Pendencias ainda abertas:
   1. schema local sem `responsavel_solicitante`.
   2. termos curtos na busca superior ainda dependem de decisao de produto.
   3. comentarios/docstrings/configs mortos fora do runtime ainda pedem limpeza em slice proprio.
+  4. debt estrutural de CLI para proximo ciclo:
+     - `_handle_rescan` grande demais
+     - help duplicado
+     - `get_ssa_query()` ainda na camada de UI
+  5. Kluster estourou timeout repetidamente no lote do CLI apos o patch e nao devolveu findings adicionais; considerar isso bloqueio da ferramenta.
+
+## HISTORICAL SNAPSHOT 2026-03-20 09:45 - previous current truth
 
 ## HISTORICAL SNAPSHOT 2026-03-20 09:29 - previous current truth
 
