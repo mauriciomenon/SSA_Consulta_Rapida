@@ -2,12 +2,12 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-20 08:49 - start from here
+## CURRENT TRUTH 2026-03-20 09:29 - start from here
 
 - Objetivo desta rodada:
-  1. adicionar um hard reset total de filtros via menu `Opcoes > Limpar Filtros`.
-  2. travar em teste que remover uma coluna visivel da tabela nao esconde a linha do filtro ativo correspondente.
-  3. fechar as pendencias documentais abertas desta trilha de filtros e import.
+  1. tratar `SES` como equivalente funcional de `STE` nos filtros que usam essa classe terminal.
+  2. ajustar a macro `Baixar` para excluir `SCA/SES/STE` e aceitar derivadas em `STE/SES`.
+  3. registrar a avaliacao do atalho por triplo clique em limpar filtros sem implementa-lo neste slice.
 - Estado atual do git:
   1. branch ativa: `dev`.
   2. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
@@ -20,41 +20,41 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `?? .backups/*`
      - `?? docs_entrada/*.xlsx`
      - `?? *.bak.*`
-  3. esses residuos continuam fora do escopo deste slice e nao devem ser revertidos por inferencia.
+  3. esses residuos continuam fora de escopo e nao devem ser revertidos por inferencia.
 - Commits funcionais mais recentes ja entregues:
-  1. `1c3709be`
+  1. `9b80344d`
+     - trata `SES` como equivalente funcional de `STE` no macro `Baixar`, no filtro de derivadas terminais e na exclusao funcional `SCA/SES/STE`.
+     - atualiza textos/resumo relacionados e adiciona testes de regressao para macro e exclusao funcional.
+  2. `1c3709be`
      - adiciona `Opcoes > Limpar Filtros` como hard reset total de filtros.
-     - adiciona teste de regressao para coluna removida da tabela com filtro ativo ainda visivel no painel.
-  2. `2a1623bf`
+  3. `2a1623bf`
      - upsert passa a logar troca de `setor_executor` quando a linha mais nova vence e muda o valor.
-  3. `fd2d9b09`
-     - fecha handles SQLite antes da promocao do DB candidato no full rescan Windows.
 - Diagnostico consolidado desta rodada:
-  1. esconder coluna da tabela e ocultar linha do painel de filtros continuam sendo estados separados.
-  2. remover uma coluna visivel da tabela NAO esconde a linha do filtro correspondente e NAO cria filtro ativo invisivel.
-  3. o reset novo via menu foi criado exatamente para inconsistencias raras entre visualizacao e estado interno, sem alterar os botoes atuais.
-  4. o hard reset agora limpa de forma total:
-     - busca superior
-     - filtros de coluna
-     - linhas ocultas de filtro
-     - `exclude_ste_sca`
-     - filtros avancados
-     - grupos OR
-     - resumo/indicadores
-     - undo de filtros
-     - seletor de perfil
-     - sincronizacao entre abas
+  1. `SES` nao ganhou semantica nova para o usuario; ele so entrou na mesma classe funcional terminal de `STE` nos filtros pedidos.
+  2. a macro `Baixar` agora aplica:
+     - `situacao` diferente de `SCA`, `SES` e `STE`
+     - derivadas em `STE` ou `SES`
+  3. a exclusao funcional legada `_exclude_ste_sca` continua com o mesmo nome interno por compatibilidade, mas o comportamento efetivo agora exclui `SCA/SES/STE`.
+  4. o rotulo interno `derivada_all_ste` tambem foi mantido por compatibilidade, mas o comportamento efetivo agora cobre `STE/SES`.
 - Validacao relevante ja executada:
-  1. `uv run --python 3.13 python -m pytest -q tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py -k "removing_visible_column_keeps_active_filter_row_visible or hard_reset_filters_state or setup_app_menus_registers_grouped_menus or clear_all_filters_global or column_filter_buttons_flow or restore_last_filter_state_drops_hidden_lines_with_active_filters"` -> `12 passed, 159 deselected`.
-  2. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass.
-  3. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass.
-  4. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass.
-- Pendencias documentais e funcionais ainda abertas:
-  1. schema local segue sem `responsavel_solicitante`.
-  2. termos curtos com escopo muito amplo na busca superior seguem como decisao de produto pendente, nao bug escondido.
-  3. ainda restam comentarios/docstrings/configs mortos fora do runtime que merecem limpeza em slice proprio.
+  1. `uv run --python 3.13 python -m py_compile gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py` -> pass.
+  2. `uv run --python 3.13 ruff check gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py` -> pass.
+  3. `uv run --python 3.13 ty check gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_gui_filters_advanced_logic.py` -> `15 passed`.
+  5. `uv run --python 3.13 python -m pytest -q tests/test_gui_filter_logic.py -k "macro_baixar or exclude_ste_sca_combined_with_or_group or filters_summary_shows_exclude_ste_sca_as_active_restriction or restore_last_filter_state_drops_hidden_lines_with_active_filters or clear_all_filters_global or hard_reset_filters_state or column_filter_buttons_flow"` -> `13 passed, 146 deselected`.
+- Sugestoes e pendencias abertas:
+  1. revisar outros pontos onde `STE` ainda e tratado isoladamente e pode merecer equivalencia com `SES`, especialmente:
+     - ordenacao/priorizacao em `gui/workers/data_loader_worker.py`
+     - labels/tooltips legados que ainda falem em `STE/SCA`
+     - relatorios/exportacoes ou macros futuras que classifiquem "terminado" so por `STE`
+  2. o atalho de triplo clique em botoes de limpar filtros e razoavel e barato de implementar, mas deve ficar como melhoria de UX separada:
+     - contar 3 cliques consecutivos dentro de uma janela curta
+     - abrir confirmacao para chamar o hard reset total
+     - nao disparar reset silencioso
+  3. schema local segue sem `responsavel_solicitante`.
+  4. termos curtos com escopo muito amplo na busca superior seguem como decisao de produto pendente.
 
-## HISTORICAL SNAPSHOT 2026-03-20 07:25 - previous current truth
+## HISTORICAL SNAPSHOT 2026-03-20 08:49 - previous current truth
 
 - Objetivo desta rodada:
   1. sincronizar os docs com os ultimos slices funcionais ja entregues em `dev`.

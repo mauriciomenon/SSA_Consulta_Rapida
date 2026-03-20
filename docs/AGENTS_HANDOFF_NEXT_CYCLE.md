@@ -2,12 +2,12 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-20 08:49 - authoritative block
+## CURRENT TRUTH 2026-03-20 09:29 - authoritative block
 
 - Objetivo desta rodada:
-  1. adicionar um reset total de filtros via menu sem tocar nos botoes atuais.
-  2. travar em teste a separacao entre coluna visivel da tabela e linha do painel de filtro.
-  3. consolidar a documentacao pendente desta trilha de filtros/import.
+  1. tratar `SES` como equivalente funcional de `STE` nos filtros que usam esse estado terminal.
+  2. corrigir a macro `Baixar` para operar com `SCA/SES/STE` e derivadas em `STE/SES`.
+  3. registrar a avaliacao do triplo clique em limpar filtros como melhoria separada de UX.
 - Estado confirmado:
   1. branch alvo: `dev`.
   2. residuos locais fora de escopo continuam presentes:
@@ -22,36 +22,34 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `?? *.bak.*`
   3. esses residuos nao devem ser revertidos nem incluidos por inferencia.
 - Commit funcional novo:
-  1. `1c3709be`
-     - adiciona `Opcoes > Limpar Filtros` como hard reset total de filtros.
-     - preserva os botoes atuais sem mudar sua semantica.
-     - adiciona teste para confirmar que remover coluna da tabela nao oculta filtro ativo no painel.
+  1. `9b80344d`
+     - macro `Baixar` passa a excluir `SCA/SES/STE`.
+     - `derivada_all_ste` passa a aceitar `STE/SES` como estado terminal funcional.
+     - resumo funcional e texto do checkbox oculto passam a refletir `SCA/SES/STE`.
+     - testes novos travam exclusao funcional com `SES` e macro `Baixar`.
 - Diagnostico tecnico consolidado:
-  1. `visible_columns` da tabela e `_hidden_column_filter_lines` do painel de filtros continuam desacoplados.
-  2. esconder coluna da tabela nao cria filtro ativo invisivel.
-  3. o novo `Limpar Filtros` via menu existe para inconsistencias raras entre visualizacao e estado interno.
-  4. o hard reset total sincroniza:
-     - busca
-     - filtros de coluna
-     - filtros avancados
-     - `exclude_ste_sca`
-     - grupos OR
-     - hidden lines
-     - resumo/indicadores
-     - undo
-     - seletor de perfil
-     - abas
+  1. `SES` continua distinto para o usuario, mas entrou na mesma classe funcional terminal de `STE` nos filtros pedidos.
+  2. os nomes internos legados `_exclude_ste_sca` e `derivada_all_ste` foram mantidos por compatibilidade; a semantica funcional e que foi expandida.
+  3. a mudanca foi localizada em:
+     - `gui/ssa/gui_filters_advanced_logic.py`
+     - `gui/ssa/gui_filters_advanced_ui.py`
+     - `gui/mixins/filter_gui_ssa_mixin.py`
+     - `gui/gui_ssa.py`
+  4. o triplo clique em limpar filtros foi avaliado como razoavel, mas deve virar slice proprio chamando confirmacao para hard reset, nao reset silencioso.
 - Validacao consolidada:
-  1. teste novo de coluna removida com filtro ativo -> pass.
-  2. teste novo de hard reset total -> pass.
-  3. menu `Opcoes` agora exposto em teste com item `Limpar Filtros` -> pass.
-  4. `py_compile`, `ruff`, `ty` e `pytest` focado -> pass.
+  1. `py_compile`, `ruff` e `ty` verdes no escopo alterado.
+  2. `tests/test_gui_filters_advanced_logic.py` -> `15 passed`.
+  3. `tests/test_gui_filter_logic.py` no foco do slice -> `13 passed, 146 deselected`.
+  4. testes novos:
+     - `test_apply_advanced_filters_derivada_all_ste_accepts_ses_as_terminal_state`
+     - `test_macro_baixar_excludes_sca_ses_ste_and_keeps_ste_or_ses_derivadas`
 - Pendencias ainda abertas:
-  1. schema local sem `responsavel_solicitante`.
-  2. termos curtos na busca superior ainda dependem de decisao de produto, nao de alias.
-  3. ainda existem comentarios/docstrings/configs mortos fora do runtime, para slice proprio.
+  1. revisar outros fluxos que talvez ainda tratem `STE` isoladamente, especialmente ordenacao em `gui/workers/data_loader_worker.py`.
+  2. schema local sem `responsavel_solicitante`.
+  3. termos curtos na busca superior ainda dependem de decisao de produto.
+  4. comentarios/docstrings/configs mortos fora do runtime ainda pedem limpeza em slice proprio.
 
-## HISTORICAL SNAPSHOT 2026-03-20 07:25 - previous current truth
+## HISTORICAL SNAPSHOT 2026-03-20 08:49 - previous current truth
 
 - Objetivo desta rodada:
   1. sincronizar handoff com os ultimos slices funcionais ja publicados em `dev`.
