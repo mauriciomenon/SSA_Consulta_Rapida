@@ -334,6 +334,13 @@ def test_build_cli_plain_help_text_reflects_current_search_contract() -> None:
     assert "h ou ?    Ajuda completa" in help_text
 
 
+def test_build_cli_plain_help_text_detailed_includes_force_rescan_alias() -> None:
+    help_text = cli._build_cli_plain_help_text(detailed=True)
+
+    assert "force-rescan    Alias explicito para rescan" in help_text
+    assert "OU/OR/AND/E/v continuam literais na busca" in help_text
+
+
 def test_handle_help_fallback_uses_shared_plain_help_text(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -356,3 +363,55 @@ def test_handle_help_fallback_uses_shared_plain_help_text(
     out = capsys.readouterr().out
     assert "CONSULTA RAPIDA de SSAs" in out
     assert "Separe termos por virgula" in out
+
+
+def test_handle_help_normal_path_uses_plain_layout_without_box_art(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(builtins, "input", lambda _prompt="": "")
+
+    cli._handle_help()
+
+    out = capsys.readouterr().out
+    lines = [line for line in out.splitlines() if line]
+    assert "force-rescan    Alias explicito para rescan" in out
+    assert all("║" not in line and "╔" not in line and "╚" not in line for line in lines)
+    assert max(len(line) for line in lines) <= 79
+
+
+def test_start_cli_loop_accepts_force_rescan_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    base_df = pd.DataFrame({"numero_ssa": ["202500001"]})
+    calls: list[str] = []
+
+    monkeypatch.setattr(cli, "_get_initial_state", lambda *_args, **_kwargs: (base_df, []))
+    monkeypatch.setattr(
+        cli,
+        "load_settings",
+        lambda: {"default_filters": [], "user_preferences": {"filter_mode_default": "contains"}},
+    )
+    monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {})
+    monkeypatch.setattr(cli, "_show_initial_help", lambda: None)
+    monkeypatch.setattr(cli, "_render_single_page", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(cli, "_reset_pagination_state", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        cli,
+        "_handle_rescan",
+        lambda *_args, **_kwargs: calls.append("force-rescan"),
+    )
+
+    inputs = iter(["force-rescan", "q"])
+
+    def _fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(builtins, "input", _fake_input)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.start_cli_loop("dummy.db", "ssa_table")
+
+    assert excinfo.value.code == 0
+    assert calls == ["force-rescan"]
