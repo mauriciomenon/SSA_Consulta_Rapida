@@ -444,10 +444,10 @@ COMANDOS DE MELHORIAS CLI
   enhanced-off    Desativa Enhanced Table Printer
 
 PESQUISA AVANCADA
-  {bullet} Todos os termos digitados sao cumulativos
+  {bullet} Mantem o mesmo contrato da busca inicial: termos separados por virgula e cumulativos
   {bullet} OU/OR/AND/E/v continuam literais na busca
   {bullet} Modos por termo: foo, ^foo, foo$, =foo, ~regex, !foo
-  {bullet} Exemplos: ADM, !cancelada | ^MEL | =STE | ~MEL[0-9]+
+  {bullet} Exemplos: svp, !ste, mel4 | ^MEL | =STE | ~MEL[0-9]+
 {line}
 
 Pressione Enter para continuar...
@@ -467,6 +467,15 @@ def _show_initial_help():
         logger.debug("Texto de ajuda fallback exibido com sucesso")
     else:
         logger.debug("Texto de ajuda exibido com sucesso")
+
+def _is_cli_non_interactive() -> bool:
+    env_flag = os.environ.get("SSA_NON_INTERACTIVE", "").strip().lower()
+    if env_flag not in ("", "0", "false", "no"):
+        return True
+    try:
+        return not bool(sys.stdin is not None and sys.stdin.isatty())
+    except Exception:
+        return True
 
 def _handle_quit():
     """Handler para o comando de sair."""
@@ -489,14 +498,7 @@ def _handle_help():
         )
         print(fallback_text)
         logger.debug("Texto de ajuda fallback exibido com sucesso")
-    env_flag = os.environ.get("SSA_NON_INTERACTIVE", "").strip().lower()
-    is_non_interactive = env_flag not in ("", "0", "false", "no")
-    stdin_is_tty = False
-    try:
-        stdin_is_tty = bool(sys.stdin is not None and sys.stdin.isatty())
-    except Exception:
-        stdin_is_tty = False
-    if not is_non_interactive and stdin_is_tty:
+    if not _is_cli_non_interactive():
         input()  # Pausa para o usuario ler
 
 def _handle_details(parts: List[str], current_df: 'pd.DataFrame', display_map: dict):
@@ -584,6 +586,10 @@ def _handle_reset(db_path: str, table_name: str, results_stack: list, display_ma
 
 def _handle_rescan(db_path: str, table_name: str, results_stack: list, display_map: dict, settings: dict, print_cache: dict):
     """Handler para o comando de reanalisar."""
+    if _is_cli_non_interactive():
+        print("Rescan indisponivel em sessao non-interactive. Execute manualmente na CLI interativa.")
+        return
+
     print("Forçando reanálise dos relatórios...")
     summary_counts: Counter = Counter()
     other_warnings: List[str] = []
