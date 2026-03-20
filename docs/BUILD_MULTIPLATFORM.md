@@ -2,7 +2,7 @@
 
 Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Windows, macOS e Linux.
 
-## CURRENT TRUTH (v4.32)
+## CURRENT TRUTH (v4.33)
 
 - Sync deste guia: `2026-03-11 23:35 -0300`.
 - Relatorio consolidado deste ciclo:
@@ -156,7 +156,7 @@ O script automaticamente:
 4. **Shared libraries**: Reutiliza bibliotecas do sistema
 5. **Tree shaking**: Inclui apenas codigo usado
 
-### Politica de dados locais no build (v4.32+)
+### Politica de dados locais no build (v4.33+)
 
 - O build canonico nao inclui `data/` por padrao.
 - Esta regra reduz risco de vazamento de DB local em artefato final.

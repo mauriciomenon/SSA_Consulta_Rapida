@@ -1,6 +1,6 @@
 # Sistema de Build - Launchers
 
-## CURRENT TRUTH (v4.32)
+## CURRENT TRUTH (v4.33)
 
 - Pipeline oficial de build: `launchers/build_multiplatform.py`.
 - Plataformas ativas:
@@ -89,4 +89,4 @@ uv run --python 3.13 launchers/build_multiplatform.py --clean-all
 ## Historical Snapshot
 
 - Este README substitui texto legado v3.10 com targets antigos.
-- Estado oficial de runtime/build para este ciclo e v4.32.
+- Estado oficial de runtime/build para este ciclo e v4.33.

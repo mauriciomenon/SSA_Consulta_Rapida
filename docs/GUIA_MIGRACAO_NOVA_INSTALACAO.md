@@ -1,7 +1,7 @@
-# Guia Completo de Migracao - SSA Consulta Rapida v4.32
+# Guia Completo de Migracao - SSA Consulta Rapida v4.33
 
 **Data de Criacao:** 27 de Agosto de 2025  
-**Versao do Sistema:** v4.32 (Estavel)  
+**Versao do Sistema:** v4.33 (Estavel)  
 **Tipo:** Migracao Completa para Nova Instalacao  
 **Sync:** 10/03/2026 16:55 -0300  
 
@@ -461,6 +461,6 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 
 ---
 
-*Ultima atualizacao: 10/03/2026 - v4.32*
+*Ultima atualizacao: 10/03/2026 - v4.33*
 *Para duvidas ou problemas, consulte o repositorio no GitHub*
 

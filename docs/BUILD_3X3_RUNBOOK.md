@@ -94,13 +94,13 @@ uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64 --a
 
 ```powershell
 # Ajustar nome do exe conforme versao atual
-& "C:\Users\mauri\git\SSA_Consulta_Rapida\launchers\dist\windows_amd64\SSA_CLI_v4.32_windows_amd64.exe" --help
+& "C:\Users\mauri\git\SSA_Consulta_Rapida\launchers\dist\windows_amd64\SSA_CLI_v4.33_windows_amd64.exe" --help
 ```
 
 ### Linux/WSL
 
 ```bash
-/tmp/SSA_CLI_v4.32_debian_amd64 --help
+/tmp/SSA_CLI_v4.33_debian_amd64 --help
 ```
 
 ### macOS

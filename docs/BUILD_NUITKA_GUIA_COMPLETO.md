@@ -1,14 +1,14 @@
 # Guia Completo (Historico/Laboratorio) - Build com Nuitka
 
-## CURRENT TRUTH (v4.32)
+## CURRENT TRUTH (v4.33)
 
 - Sync deste guia: `2026-03-11 22:25 -0300`.
 - Fluxo canonico Nuitka (sempre via uv wrappers):
   - Windows: `dev_env/build/build_nuitka.bat --silent`
   - Debian/WSL: `bash dev_env/build/build_nuitka_debian.sh --silent`
 - Artefatos finais:
-  - Windows GUI: `builds/nuitka/windows_amd64/gui_entry.dist/SSA_GUI_v4.32_windows_amd64.exe`
-  - Windows CLI: `builds/nuitka/windows_amd64/cli_entry.dist/SSA_CLI_v4.32_windows_amd64.exe`
+  - Windows GUI: `builds/nuitka/windows_amd64/gui_entry.dist/SSA_GUI_v4.33_windows_amd64.exe`
+  - Windows CLI: `builds/nuitka/windows_amd64/cli_entry.dist/SSA_CLI_v4.33_windows_amd64.exe`
   - Debian (quando toolchain do host estiver completo): `builds/nuitka/debian_amd64/*`
 - Pre-requisito Debian:
   - instalar `patchelf` no WSL com `sudo apt-get update && sudo apt-get install -y patchelf`

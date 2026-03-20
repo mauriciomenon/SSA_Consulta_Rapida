@@ -1,10 +1,10 @@
-# INDEX de Documentacao (Baseline v4.32)
+# INDEX de Documentacao (Baseline v4.33)
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
 ## Sync status (2026-03-12 00:45 -0300)
 
-1. Baseline ativo confirmado: `4.32`.
+1. Baseline ativo confirmado: `4.33`.
 2. Branch operacional: `dev`.
 3. Ultimo commit local na sincronizacao deste index: `30dedc34`.
 4. Relatorio consolidado do ciclo de build:
@@ -14,7 +14,7 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 
 ## Regras de leitura
 
-1. Baseline ativo de versao: `4.32`.
+1. Baseline ativo de versao: `4.33`.
 2. Arquivos em `docs/archive/` sao historicos e nao substituem docs ativos.
 3. Em conflito de informacao, prevalece:
    - `AGENTS.md` (raiz)
