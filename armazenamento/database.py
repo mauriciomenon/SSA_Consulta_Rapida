@@ -221,6 +221,55 @@ def _is_ssa_target_alias(name: str) -> bool:
     return name in {CANONICAL_SSA_TABLE, *LEGACY_SSA_TABLE_ALIASES}
 
 
+def get_ssa_query(table_name: str = CANONICAL_SSA_TABLE) -> str:
+    """Retorna a query canonica de leitura de SSAs para CLI e loaders."""
+    if table_name in LEGACY_SSA_TABLE_ALIASES:
+        table_name = CANONICAL_SSA_TABLE
+    elif table_name != CANONICAL_SSA_TABLE:
+        raise ValueError(f"Unsupported table for CLI query: {table_name!r}")
+    return f"""
+    SELECT
+        numero_ssa,
+        situacao,
+        derivada_de,
+        localizacao_codigo,
+        descricao_localizacao,
+        equipamento,
+        semana_cadastro,
+        data_cadastro,
+        descricao_ssa,
+        setor_emissor,
+        setor_executor,
+        solicitante,
+        servico_origem,
+        grau_prioridade_emissao,
+        grau_prioridade_planejamento,
+        execucao_simples,
+        responsavel_programacao,
+        semana_programada,
+        responsavel_execucao,
+        descricao_execucao,
+        id,
+        sistema_origem,
+        prazo_limite,
+        tempo_disponivel,
+        data_limite,
+        tempo_excedido,
+        desde,
+        tempo_total,
+        desde_1,
+        total_tempo_tpe_planejado,
+        total_tempo_tex_planejado,
+        total_tempo_tpo_planejado,
+        total_horas_programadas,
+        execucao_parcial,
+        anomalia,
+        semana_executada,
+        num_reprogramacoes
+    FROM {table_name}
+    """
+
+
 def _validate_insert_policy(table_name: str, if_exists: IfExistsPolicy) -> None:
     if if_exists == 'replace' and _is_ssa_target_alias(table_name):
         raise ValueError(

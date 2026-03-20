@@ -22,14 +22,13 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 # Importações relativas
-from armazenamento.database import query_db
+from armazenamento.database import query_db, get_ssa_query
 from core.app_logic import run_importer_logic, filter_dataframe, parse_search_terms
 from core.config_manager import load_settings, handle_config_command, load_display_mappings_integrity
 from interface.display import pretty_print_details
 from interface.table_printer import pretty_print_df # Versão antiga como fallback
 from interface.enhanced_table_printer import EnhancedTablePrinter
 from interface.cli_enhancement_manager import enhancement_manager
-from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES
 from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 from utils.path_safety import PathSafetyError, ensure_path_is_allowed
 from utils.robust_logging import get_robust_logger
@@ -332,57 +331,6 @@ def _apply_default_filters(df: pd.DataFrame, settings: dict) -> pd.DataFrame:
     parsed = DEFAULT_FILTER_TERMS_CACHE[cache_key]
     return filter_dataframe(df, parsed)
 
-def get_ssa_query(table_name: str = CANONICAL_SSA_TABLE) -> str:
-    """
-    Retorna a query customizada para mapear colunas corretamente.
-    Usa os nomes de coluna normalizados da tabela atual.
-    """
-    if table_name in LEGACY_SSA_TABLE_ALIASES:
-        table_name = CANONICAL_SSA_TABLE
-    elif table_name != CANONICAL_SSA_TABLE:
-        raise ValueError(f"Unsupported table for CLI query: {table_name!r}")
-    return f'''
-    SELECT
-        numero_ssa,
-        situacao,
-        derivada_de,
-        localizacao_codigo,
-        descricao_localizacao,
-        equipamento,
-        semana_cadastro,
-        data_cadastro,
-        descricao_ssa,
-        setor_emissor,
-        setor_executor,
-        solicitante,
-        servico_origem,
-        grau_prioridade_emissao,
-        grau_prioridade_planejamento,
-        execucao_simples,
-        responsavel_programacao,
-        semana_programada,
-        responsavel_execucao,
-        descricao_execucao,
-        id,
-        sistema_origem,
-        prazo_limite,
-        tempo_disponivel,
-        data_limite,
-        tempo_excedido,
-        desde,
-        tempo_total,
-        desde_1,
-        total_tempo_tpe_planejado,
-        total_tempo_tex_planejado,
-        total_tempo_tpo_planejado,
-        total_horas_programadas,
-        execucao_parcial,
-        anomalia,
-        semana_executada,
-        num_reprogramacoes
-    FROM {table_name}
-    '''
-
 def _get_initial_state(
     db_path: str,
     table_name: str,
@@ -541,7 +489,15 @@ def _handle_help():
         )
         print(fallback_text)
         logger.debug("Texto de ajuda fallback exibido com sucesso")
-    input()  # Pausa para o usuário ler
+    env_flag = os.environ.get("SSA_NON_INTERACTIVE", "").strip().lower()
+    is_non_interactive = env_flag not in ("", "0", "false", "no")
+    stdin_is_tty = False
+    try:
+        stdin_is_tty = bool(sys.stdin is not None and sys.stdin.isatty())
+    except Exception:
+        stdin_is_tty = False
+    if not is_non_interactive and stdin_is_tty:
+        input()  # Pausa para o usuario ler
 
 def _handle_details(parts: List[str], current_df: 'pd.DataFrame', display_map: dict):
     """Handler para o comando de detalhes."""

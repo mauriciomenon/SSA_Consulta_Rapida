@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import builtins
 import io
+import os
+import subprocess
+import sys
 from contextlib import redirect_stdout
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -380,6 +384,23 @@ def test_handle_help_normal_path_uses_plain_layout_without_box_art(
     assert max(len(line) for line in lines) <= 79
 
 
+def test_handle_help_skips_pause_in_non_interactive_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("SSA_NON_INTERACTIVE", "1")
+    monkeypatch.setattr(
+        builtins,
+        "input",
+        lambda _prompt="": (_ for _ in ()).throw(AssertionError("nao deveria pausar")),
+    )
+
+    cli._handle_help()
+
+    out = capsys.readouterr().out
+    assert "Pressione Enter para continuar..." in out
+
+
 def test_start_cli_loop_accepts_force_rescan_alias(monkeypatch: pytest.MonkeyPatch) -> None:
     base_df = pd.DataFrame({"numero_ssa": ["202500001"]})
     calls: list[str] = []
@@ -415,3 +436,24 @@ def test_start_cli_loop_accepts_force_rescan_alias(monkeypatch: pytest.MonkeyPat
 
     assert excinfo.value.code == 0
     assert calls == ["force-rescan"]
+
+
+def test_cli_subprocess_help_then_quit_exits_cleanly() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    env["SSA_NON_INTERACTIVE"] = "1"
+    env["SSA_DB_PATH"] = str(repo_root / "data" / "ssas.db")
+
+    result = subprocess.run(
+        [sys.executable, "launchers/cli_entry.py"],
+        input="h\nq\n",
+        text=True,
+        capture_output=True,
+        cwd=repo_root,
+        env=env,
+        timeout=45,
+    )
+
+    assert result.returncode == 0
+    assert "EOF when reading a line" not in result.stdout
+    assert "Saindo..." in result.stdout
