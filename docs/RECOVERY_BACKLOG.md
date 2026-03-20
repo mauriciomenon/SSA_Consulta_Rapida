@@ -3,6 +3,83 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-20 16:25 - revisao real do CLI e bump v4.33 (STABILITY_PATCH)
+
+Session timestamp:
+1. start: `2026-03-20 16:20:36 -0300`
+2. runtime validado e bump preparado no mesmo fluxo
+
+Objetivo do slice:
+1. rodar uma revisao real do CLI por subprocesso e corrigir os hangs ainda presentes.
+2. confirmar se o CLI tinha diff-only rescan.
+3. promover o baseline para `v4.33`.
+
+Diagnostico objetivo:
+1. os hangs reais restantes do CLI nao vinham do parser nem do startup:
+   - vinham do custo de renderizacao do printer
+   - o DataFrame inteiro era preparado antes da paginacao
+2. isso afetava fluxos reais:
+   - `mel4 -> clear -> q`
+   - `mel4 -> status-cli -> v -> q`
+   - `mel4 -> m -> qq`
+3. o startup do CLI foi rechecado:
+   - continua sem rescan automatico
+4. o split diff/full rescan hoje existe so na GUI:
+   - GUI tem diff-only e full
+   - CLI tem apenas `rescan` / `force-rescan`
+
+Escopo alterado:
+1. `interface/enhanced_table_printer.py`
+2. `interface/cli.py`
+3. `interface/cli_enhancement_manager.py`
+4. `tests/test_cli_loop_filter_rounds.py`
+5. `tests/test_cli_pagination_prompt.py`
+6. `VERSION`
+7. `config/version.json`
+8. `pyproject.toml` (so linha de versao no commit)
+9. docs/readmes ativos de baseline e build
+10. `tests/test_build_multiplatform_manifest.py`
+
+Mudanca aplicada:
+1. commit funcional `ec98013f`
+   - paginacao lazy no CLI
+   - preparacao/renderizacao so da pagina corrente
+   - cache da pagina corrente para comandos que nao avancam pagina
+   - ajuste de `qq` no prompt principal
+   - status do enhancement manager alinhado ao comportamento real
+2. commit funcional `83660463`
+   - bump do baseline ativo para `v4.33`
+   - metadados e docs ativos sincronizados
+   - teste de manifest ajustado para nomes `v4.33` e path neutro de plataforma
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile interface/enhanced_table_printer.py interface/cli.py interface/cli_enhancement_manager.py tests/test_cli_loop_filter_rounds.py tests/test_cli_pagination_prompt.py tests/test_build_multiplatform_manifest.py` -> pass.
+2. `uv run --python 3.13 ruff check interface/enhanced_table_printer.py interface/cli.py interface/cli_enhancement_manager.py tests/test_cli_loop_filter_rounds.py tests/test_cli_pagination_prompt.py tests/test_build_multiplatform_manifest.py` -> pass.
+3. `uv run --python 3.13 ty check interface/enhanced_table_printer.py interface/cli.py interface/cli_enhancement_manager.py tests/test_cli_loop_filter_rounds.py tests/test_cli_pagination_prompt.py tests/test_build_multiplatform_manifest.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py tests/test_cli_pagination_prompt.py tests/test_table_printer.py tests/test_search_v_character.py tests/test_cli_get_ssa_query_identifier_guard.py` -> `44 passed`.
+5. `uv run --python 3.13 python -m pytest -q tests/test_build_multiplatform_manifest.py` -> `5 passed`.
+6. subprocessos reais do CLI:
+   - `h -> q` -> `rc=0`
+   - `mel4 -> q` -> `rc=0`
+   - `mel4 -> clear -> q` -> `rc=0`
+   - `mel4 -> status-cli -> v -> q` -> `rc=0`
+   - `mel4 -> m -> qq` -> `rc=0`
+   - `force-rescan -> q` -> `rc=0`
+
+Licoes aprendidas:
+1. a principal fonte de "CLI travado" era custo de renderizacao total antes da paginacao.
+2. testes de subprocesso real capturam regressao que unitario de builder nao pega.
+3. o CLI ainda esta atras da GUI no tema rescan:
+   - GUI tem diff/full
+   - CLI ainda nao
+4. bump de versao com `pyproject.toml` sujo exige stage seletivo no index para nao arrastar diff local antigo.
+
+Pendencias nao bloqueantes abertas:
+1. `_handle_rescan` continua grande demais.
+2. `ord` / `ordi` ainda merecem revisao de contrato vs ordem visivel.
+3. diff-only rescan no CLI segue como melhoria funcional ainda nao implementada.
+4. schema local continua sem `responsavel_solicitante`.
+
 ## Update 2026-03-20 15:40 - q/qq na paginacao do CLI e retomada do m (STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:

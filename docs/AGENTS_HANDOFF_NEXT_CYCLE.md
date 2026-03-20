@@ -2,15 +2,18 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-20 15:40 - authoritative block
+## CURRENT TRUTH 2026-03-20 16:25 - authoritative block
 
-- Objetivo desta rodada:
-  1. resolver a ambiguidade de `q` na paginacao do CLI.
-  2. permitir saida explicita da aplicacao a partir da paginacao sem side effect escondido no printer.
-  3. manter retomada correta do `m` depois de interromper exibicao.
+- Objetivo consolidado deste ciclo:
+  1. revisar a pilha real do CLI em subprocesso.
+  2. corrigir hangs de fluxo basico sem refatoracao ampla.
+  3. promover o baseline para `v4.33`.
 - Estado confirmado:
   1. branch alvo: `dev`.
-  2. residuos locais fora de escopo continuam presentes:
+  2. commits principais deste ciclo:
+     - `ec98013f` `STABILITY_PATCH: harden real CLI review flows`
+     - `83660463` `STABILITY_PATCH: bump baseline to v4.33`
+  3. residuos locais fora de escopo continuam presentes:
      - `M .python-version`
      - `M config/cli_enhancements.json`
      - `M config/gui_main_preferences.json`
@@ -21,29 +24,42 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `?? config/cli_enhancements.json.lock`
      - `?? docs_entrada/*.xlsx`
      - `?? *.bak.*`
-- Commit funcional novo:
-  1. `c7014e98`
-     - `EnhancedTablePrinter` passa a devolver `exit_requested` para `qq`
-     - `interface/cli.py` centraliza traducao desse sinal em `_render_cli_page`
-     - `q` na paginacao preserva `next_page` para o `m`
 - Diagnostico tecnico consolidado:
-  1. o motivo tecnico de `q` nao encerrar o programa era o escopo do comando:
-     - `q` no prompt principal sempre sai da aplicacao
-     - `q` no prompt interno da paginacao so fecha a exibicao atual
-  2. antes desta rodada, isso era percebido como bug porque o prompt nao deixava essa diferenca clara.
-  3. o contrato novo fica explicito:
-     - `q` fecha exibicao
-     - `qq` sai da aplicacao
-  4. a retomada do `m` apos interrupcao agora fica coberta por teste.
+  1. a causa real dos hangs em fluxos como `clear`, `status-cli -> v` e `m -> qq` era custo de renderizacao:
+     - o printer preparava o DataFrame inteiro antes da paginacao
+     - em sessao real isso custava tempo demais e deixava a CLI parecer travada
+  2. a correcao foi paginacao lazy com preparo por pagina:
+     - preparar so a pagina corrente
+     - cachear a pagina corrente
+     - manter o contrato de `m`
+  3. o startup do CLI segue sem rescan automatico.
+  4. o CLI segue sem comando de diff-only rescan; a GUI ja tem esse split.
+  5. `q` continua com semantica por escopo:
+     - prompt principal: sai da aplicacao
+     - prompt da paginacao: fecha exibicao
+     - `qq`: sai da aplicacao a partir da paginacao
 - Validacao consolidada:
-  1. `py_compile`, `ruff` e `ty` verdes no escopo do slice.
-  2. `tests/test_cli_pagination_prompt.py + tests/test_cli_loop_filter_rounds.py` no foco desta rodada -> `18 passed, 10 deselected`.
-  3. Kluster ficou clean no lote `interface/cli.py + tests/test_cli_loop_filter_rounds.py`.
-  4. Kluster do arquivo grande `interface/enhanced_table_printer.py` continuou com timeout isolado, sem finding retornado nesta rodada.
+  1. `py_compile`, `ruff` e `ty` verdes no escopo do CLI endurecido.
+  2. suite CLI ampliada:
+     - `tests/test_cli_loop_filter_rounds.py`
+     - `tests/test_cli_pagination_prompt.py`
+     - `tests/test_table_printer.py`
+     - `tests/test_search_v_character.py`
+     - `tests/test_cli_get_ssa_query_identifier_guard.py`
+     - resultado: `44 passed`
+  3. teste de build/versionamento:
+     - `tests/test_build_multiplatform_manifest.py` -> `5 passed`
+  4. subprocessos reais confirmados como limpos:
+     - `h -> q`
+     - `mel4 -> q`
+     - `mel4 -> clear -> q`
+     - `mel4 -> status-cli -> v -> q`
+     - `mel4 -> m -> qq`
+     - `force-rescan -> q`
 - Pendencias ainda abertas:
   1. `_handle_rescan` continua grande demais.
   2. `ord` / `ordi` ainda merecem revisao de contrato vs ordem realmente exibida.
-  3. cobertura de sessao longa do CLI ainda pode crescer.
+  3. diff-only rescan ainda inexiste no CLI.
   4. schema local sem `responsavel_solicitante`.
 
 ## HISTORICAL SNAPSHOT 2026-03-20 14:00 - previous current truth

@@ -2,15 +2,18 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-20 15:40 - start from here
+## CURRENT TRUTH 2026-03-20 16:25 - start from here
 
-- Objetivo desta rodada:
-  1. corrigir a ambiguidade do `q` na paginacao do CLI.
-  2. permitir saida explicita da aplicacao a partir do prompt de paginacao sem acoplar o printer ao processo.
-  3. travar retomada correta com `m` e cobertura focada de largura/atalhos.
+- Objetivo consolidado deste ciclo:
+  1. revisar a pilha real do CLI por subprocesso.
+  2. corrigir hangs de fluxo basico sem refatoracao ampla.
+  3. promover o baseline ativo para `v4.33`.
 - Estado atual do git:
   1. branch ativa: `dev`.
-  2. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+  2. commits principais deste ciclo:
+     - `ec98013f` `STABILITY_PATCH: harden real CLI review flows`
+     - `83660463` `STABILITY_PATCH: bump baseline to v4.33`
+  3. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
      - `M .python-version`
      - `M config/cli_enhancements.json`
      - `M config/gui_main_preferences.json`
@@ -21,30 +24,45 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `?? config/cli_enhancements.json.lock`
      - `?? docs_entrada/*.xlsx`
      - `?? *.bak.*`
-- Commit funcional novo desta rodada:
-  1. `c7014e98`
-     - o printer agora retorna `exit_requested` quando o usuario digita `qq` na paginacao.
-     - o CLI passou a ter um unico ponto de exibicao (`_render_cli_page`) que traduz esse sinal em saida real da aplicacao.
-     - `q` continua fechando so a exibicao atual, mas preserva `next_page` para o `m` retomar corretamente.
-- Diagnostico consolidado desta rodada:
-  1. o motivo tecnico de `q` "nao sair" era semantica dupla:
-     - no prompt principal, `q` encerra a aplicacao
-     - no prompt interno da paginacao, `q` encerrava apenas a exibicao da tabela e devolvia ao prompt principal
-  2. isso nao estava claro para o usuario e nao havia atalho explicito para sair da aplicacao direto da paginacao.
-  3. o novo contrato ficou:
-     - `q` = fechar exibicao atual
-     - `qq` = sair da aplicacao inteira
-  4. o `m` podia perder retomada se a exibicao fosse interrompida cedo; isso agora esta travado com `next_page`.
+- Diagnostico consolidado deste ciclo:
+  1. o problema real do CLI nao era parser nem startup; era custo excessivo de renderizacao:
+     - o printer formatava o DataFrame inteiro antes da paginacao
+     - isso travava fluxos reais como `mel4 -> clear -> q`, `mel4 -> status-cli -> v -> q` e `mel4 -> m -> qq`
+  2. a correcao adotada foi paginacao lazy:
+     - preparar e renderizar so a pagina corrente
+     - manter cache da pagina corrente para `l` e comandos invalidos
+     - preservar o contrato de retomada com `m`
+  3. o startup do CLI continua sem chamar rescan automatico.
+  4. o CLI continua sem opcao de reescaneamento so de diff:
+     - GUI tem diff/full rescan
+     - CLI hoje tem apenas `rescan` / `force-rescan`
 - Validacao relevante ja executada:
-  1. `uv run --python 3.13 python -m py_compile interface/enhanced_table_printer.py interface/cli.py tests/test_cli_pagination_prompt.py tests/test_cli_loop_filter_rounds.py` -> pass.
-  2. `uv run --python 3.13 ruff check interface/enhanced_table_printer.py interface/cli.py tests/test_cli_pagination_prompt.py tests/test_cli_loop_filter_rounds.py` -> pass.
-  3. `uv run --python 3.13 ty check interface/enhanced_table_printer.py interface/cli.py tests/test_cli_pagination_prompt.py tests/test_cli_loop_filter_rounds.py` -> pass.
-  4. `uv run --python 3.13 python -m pytest -q tests/test_cli_pagination_prompt.py tests/test_cli_loop_filter_rounds.py -k "qq or pagination or help or force_rescan or status_cli or toggle or enhanced or more_all or show_more or subprocess"` -> `18 passed, 10 deselected`.
+  1. `uv run --python 3.13 python -m py_compile interface/enhanced_table_printer.py interface/cli.py interface/cli_enhancement_manager.py tests/test_cli_loop_filter_rounds.py tests/test_cli_pagination_prompt.py tests/test_build_multiplatform_manifest.py` -> pass.
+  2. `uv run --python 3.13 ruff check interface/enhanced_table_printer.py interface/cli.py interface/cli_enhancement_manager.py tests/test_cli_loop_filter_rounds.py tests/test_cli_pagination_prompt.py tests/test_build_multiplatform_manifest.py` -> pass.
+  3. `uv run --python 3.13 ty check interface/enhanced_table_printer.py interface/cli.py interface/cli_enhancement_manager.py tests/test_cli_loop_filter_rounds.py tests/test_cli_pagination_prompt.py tests/test_build_multiplatform_manifest.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py tests/test_cli_pagination_prompt.py tests/test_table_printer.py tests/test_search_v_character.py tests/test_cli_get_ssa_query_identifier_guard.py` -> `44 passed`.
+  5. `uv run --python 3.13 python -m pytest -q tests/test_build_multiplatform_manifest.py` -> `5 passed`.
+  6. subprocessos reais confirmados como `rc=0`:
+     - `h -> q`
+     - `mel4 -> q`
+     - `mel4 -> clear -> q`
+     - `mel4 -> status-cli -> v -> q`
+     - `mel4 -> m -> qq`
+     - `force-rescan -> q`
+- Leitura operacional:
+  1. `q` segue com semantica por escopo:
+     - prompt principal: sai da aplicacao
+     - paginacao: fecha a exibicao atual
+     - `qq`: sai da aplicacao a partir da paginacao
+  2. a principal lacuna restante do CLI nao e mais hang de fluxo basico; e cobertura/escopo funcional:
+     - `_handle_rescan` continua grande demais
+     - `ord` / `ordi` ainda merecem revisao de contrato
+     - diff-only rescan ainda inexiste no CLI
 - Pendencias e leitura para o proximo ciclo:
-  1. o lote do Kluster para `interface/enhanced_table_printer.py` continuou com timeout isolado de 120s, sem finding retornado nesta rodada.
-  2. `_handle_rescan` continua grande demais.
-  3. a ordenacao por indice (`ord`/`ordi`) ainda merece revisao de contrato vs colunas realmente exibidas.
-  4. a cobertura de sessao longa do CLI ainda pode crescer combinando `m`, status e detalhe.
+  1. fechar `DOC_SYNC` final da release e publicacao `v4.33`.
+  2. decidir se o CLI deve ganhar comando de diff-only rescan.
+  3. revisar `ord` / `ordi` contra ordem visual real.
+  4. manter a politica de nao incluir residuos locais no commit.
 
 ## HISTORICAL SNAPSHOT 2026-03-20 14:00 - previous current truth
 
