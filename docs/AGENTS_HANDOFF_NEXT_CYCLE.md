@@ -2,7 +2,44 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-20 13:33 - authoritative block
+## CURRENT TRUTH 2026-03-20 13:47 - authoritative block
+
+- Objetivo desta rodada:
+  1. impedir que `m z` trave automacao do CLI.
+  2. cobrir o caso real por subprocesso.
+  3. preservar o `m` normal e o comportamento interativo.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos nao devem ser revertidos nem incluidos por inferencia.
+- Commit funcional novo:
+  1. `b796b6e5`
+     - `m z` passa a retornar rapido com mensagem clara em sessao non-interactive.
+     - novos testes cobrem o handler e o subprocesso `mel4 -> m z -> q`.
+- Diagnostico tecnico consolidado:
+  1. o bug real desta rodada era timeout de automacao por volume de saida em `m z`.
+  2. nao era falha de parser, nem do loop principal, nem do renderer.
+  3. a correcao adotada foi uma guarda minima so para `show_all` em non-interactive.
+- Validacao consolidada:
+  1. `py_compile`, `ruff` e `ty` verdes no escopo do slice.
+  2. `tests/test_cli_loop_filter_rounds.py` no foco de paginacao/status/help/subprocess -> `13 passed, 9 deselected`.
+  3. Kluster limpo no lote pequeno deste slice.
+- Pendencias ainda abertas:
+  1. `_handle_rescan` continua grande demais.
+  2. `m`, `m z`, status e paginacao ainda merecem cobertura combinada de sessao longa.
+  3. manager de CLI continua acumulando texto de status + persistencia local.
+  4. schema local sem `responsavel_solicitante`.
+
+## HISTORICAL SNAPSHOT 2026-03-20 13:33 - previous current truth
 
 - Objetivo desta rodada:
   1. limpar a UX textual de `status-cli`, `toggle-debug` e `enhanced-on/off`.

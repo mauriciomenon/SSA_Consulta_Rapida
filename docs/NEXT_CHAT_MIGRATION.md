@@ -2,7 +2,48 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-20 13:33 - start from here
+## CURRENT TRUTH 2026-03-20 13:47 - start from here
+
+- Objetivo desta rodada:
+  1. impedir que `m z` trave a automacao do CLI por volume de saida.
+  2. cobrir esse caso por subprocesso real.
+  3. manter o `m` normal intocado.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos continuam fora de escopo e nao devem ser revertidos por inferencia.
+- Commit funcional novo desta rodada:
+  1. `b796b6e5`
+     - `m z` passa a falhar rapido em sessao non-interactive com mensagem clara.
+     - testes novos travam:
+       - recusa de `m z` no handler
+       - subprocesso `mel4 -> m z -> q` encerrando limpo
+- Diagnostico consolidado desta rodada:
+  1. `m z` com banco real em pipe/non-interactive ainda causava timeout.
+  2. o problema nao era quebra de loop:
+     - era volume de saida excessivo em automacao
+  3. o `m` normal seguia funcional; o alvo era so o `show_all`.
+- Validacao relevante ja executada:
+  1. `uv run --python 3.13 python -m py_compile interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  2. `uv run --python 3.13 ruff check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  3. `uv run --python 3.13 ty check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py -k "more_all or show_more or status_cli or toggle or enhanced or help or force_rescan or subprocess"` -> `13 passed, 9 deselected`.
+- Pendencias e leitura para o proximo ciclo:
+  1. `_handle_rescan` continua grande demais.
+  2. `m`, `m z`, status e paginacao ainda merecem mais cobertura combinada de sessao longa.
+  3. o manager de CLI ainda concentra texto de status e persistencia local em um bloco unico.
+  4. Kluster continua recomendando lotes pequenos para CLI grande.
+
+## HISTORICAL SNAPSHOT 2026-03-20 13:33 - previous current truth
 
 - Objetivo desta rodada:
   1. limpar a UX textual de `status-cli`, `toggle-debug` e `enhanced-on/off`.
