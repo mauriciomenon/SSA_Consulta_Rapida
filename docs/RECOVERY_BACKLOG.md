@@ -169,6 +169,65 @@ Pendencias nao bloqueantes abertas:
 3. consolidacao final entre help inicial e help detalhado ainda pode melhorar.
 4. Kluster segue oscilando por timeout em lotes grandes do CLI.
 
+## Update 2026-03-20 13:33 - status-cli em ASCII e feedback compacto (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-20 13:24:00 -0300`
+2. runtime validado e docs sincronizados no mesmo fluxo
+
+Objetivo do slice:
+1. limpar a UX textual de `status-cli`, `toggle-debug` e `enhanced-on/off`.
+2. reduzir a densidade do prompt principal do CLI.
+3. fechar cobertura focada em unitario e subprocesso real.
+
+Diagnostico objetivo:
+1. o fluxo ja estava correto, mas a saida ainda era ruim em captura real:
+   - `status-cli` mostrava bullets unicode e acentos
+   - `toggle-debug` respondia com prefixo ruidoso `[Debug]`
+   - o prompt principal estava mais denso do que precisava
+2. isso nao exigia refatoracao estrutural:
+   - so wrappers pequenos de saida
+   - normalizacao ASCII na borda
+3. o Kluster encontrou 1 issue media no primeiro patch:
+   - a troca de `•` por `-` estava acontecendo tarde demais
+   - o bullet ja tinha sido perdido no `encode(..., "ignore")`
+
+Escopo alterado:
+1. `interface/cli.py`
+2. `tests/test_cli_loop_filter_rounds.py`
+3. `docs/NEXT_CHAT_MIGRATION.md`
+4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+5. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. commit `82d0465b`
+   - `_print_cli_status_report()` normaliza o texto para ASCII antes de imprimir
+   - `_toggle_cli_debug_command()` e `_set_enhanced_cli_enabled()` centralizam feedback compacto
+   - o prompt principal fica mais curto e direto
+   - testes novos cobrem:
+     - normalizacao ASCII do status
+     - feedback compacto de debug/enhanced
+     - subprocesso `status-cli -> q`
+2. correcao obrigatoria apos review do Kluster:
+   - o replace do bullet foi movido para antes da conversao ASCII
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+2. `uv run --python 3.13 ruff check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+3. `uv run --python 3.13 ty check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py -k "status_cli or toggle or enhanced or help or force_rescan or subprocess"` -> `11 passed, 9 deselected`.
+
+Licoes aprendidas:
+1. sessao CLI pode estar funcional e ainda assim ruim de usar ou depurar por causa de texto ruidoso.
+2. normalizacao ASCII na borda e suficiente quando o problema esta na UX textual, sem mexer no manager inteiro.
+3. review do Kluster aqui ajudou num detalhe real de ordem de transformacao, mesmo em patch pequeno.
+
+Pendencias nao bloqueantes abertas:
+1. `_handle_rescan` continua grande demais.
+2. `status-cli` ainda depende do texto do manager e pode merecer refino proprio.
+3. `m`, `m z`, paginacao e status de sessao ainda merecem mais testes por subprocesso.
+4. Kluster segue oscilando por timeout em lotes grandes do CLI; manter lotes pequenos.
+
 ## Update 2026-03-20 11:32 - contrato textual compartilhado no CLI (STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:
