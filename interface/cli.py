@@ -13,6 +13,7 @@ import math
 import logging
 import re
 import textwrap
+import unicodedata
 import pandas as pd
 from collections import Counter
 from typing import Tuple, List, Dict, Any, Optional, Callable, cast
@@ -476,6 +477,28 @@ def _is_cli_non_interactive() -> bool:
         return not bool(sys.stdin is not None and sys.stdin.isatty())
     except Exception:
         return True
+
+def _to_ascii_cli_text(text: str) -> str:
+    text = text.replace("•", "-")
+    normalized = unicodedata.normalize("NFKD", text)
+    ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
+    return ascii_text
+
+def _print_cli_status_report() -> None:
+    report = enhancement_manager.get_status_report()
+    print(_to_ascii_cli_text(report))
+
+def _toggle_cli_debug_command() -> None:
+    enabled = enhancement_manager.toggle_debug()
+    print(f"Debug CLI {'ativado' if enabled else 'desativado'}")
+
+def _set_enhanced_cli_enabled(enabled: bool) -> None:
+    if enabled:
+        enhancement_manager.enable_enhanced_printer()
+        print("Enhanced Table Printer ativado")
+    else:
+        enhancement_manager.disable_enhanced_printer()
+        print("Enhanced Table Printer desativado")
 
 def _handle_quit():
     """Handler para o comando de sair."""
@@ -957,14 +980,14 @@ COMMAND_HANDLERS = {
     'c': handle_config_command, # Diretamente do config_manager
     'config': handle_config_command,
     # Comandos das melhorias CLI
-    'status-cli': lambda: print(enhancement_manager.get_status_report()),
-    'cli-status': lambda: print(enhancement_manager.get_status_report()),
-    'toggle-debug': lambda: print(f"[Debug] Debug CLI {'ATIVADO' if enhancement_manager.toggle_debug() else 'DESATIVADO'}"),
-    'debug': lambda: print(f"[Debug] Debug CLI {'ATIVADO' if enhancement_manager.toggle_debug() else 'DESATIVADO'}"),
-    'enhanced-on': lambda: (enhancement_manager.enable_enhanced_printer(), print("Enhanced Table Printer ATIVADO")),
-    'enable-enhanced': lambda: (enhancement_manager.enable_enhanced_printer(), print("Enhanced Table Printer ATIVADO")),
-    'enhanced-off': lambda: (enhancement_manager.disable_enhanced_printer(), print("Enhanced Table Printer DESATIVADO")),
-    'disable-enhanced': lambda: (enhancement_manager.disable_enhanced_printer(), print("Enhanced Table Printer DESATIVADO")),
+    'status-cli': _print_cli_status_report,
+    'cli-status': _print_cli_status_report,
+    'toggle-debug': _toggle_cli_debug_command,
+    'debug': _toggle_cli_debug_command,
+    'enhanced-on': lambda: _set_enhanced_cli_enabled(True),
+    'enable-enhanced': lambda: _set_enhanced_cli_enabled(True),
+    'enhanced-off': lambda: _set_enhanced_cli_enabled(False),
+    'disable-enhanced': lambda: _set_enhanced_cli_enabled(False),
 }
 
 def start_cli_loop(db_path: str, table_name: str):
@@ -1074,10 +1097,10 @@ def start_cli_loop(db_path: str, table_name: str):
                 print("Filtros ativos: (nenhum)")
 
             print(
-                "Comandos: digite termos separados por virgula (ex: svp, !ste, mel4) ou use m (mais pagina), l (listar filtros), v (voltar), x <termo> (ex: x mel4), h (ajuda)."
+                "Comandos: termos por virgula (ex: svp, !ste, mel4), m, l, v, x <termo>, h."
             )
 
-            prompt_text = f"[{len(current_df)} SSAs] Buscar termos separados por vírgula ou comando: "
+            prompt_text = f"[{len(current_df)} SSAs] Buscar termos por virgula ou comando: "
             user_input = input(prompt_text).strip()
 
             if not user_input:

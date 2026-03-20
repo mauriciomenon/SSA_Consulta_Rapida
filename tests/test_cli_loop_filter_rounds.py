@@ -486,3 +486,62 @@ def test_cli_subprocess_force_rescan_non_interactive_exits_cleanly() -> None:
     assert result.returncode == 0
     assert "Rescan indisponivel em sessao non-interactive" in result.stdout
     assert "Saindo..." in result.stdout
+
+
+def test_print_cli_status_report_normalizes_text_to_ascii(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        cli.enhancement_manager,
+        "get_status_report",
+        lambda: "Configuração Unificada\n• Word wrap inteligente",
+    )
+
+    cli._print_cli_status_report()
+
+    out = capsys.readouterr().out
+    assert "Configuracao Unificada" in out
+    assert "Word wrap inteligente" in out
+    assert "•" not in out
+
+
+def test_toggle_and_enhanced_commands_use_compact_ascii_feedback(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(cli.enhancement_manager, "toggle_debug", lambda: True)
+    monkeypatch.setattr(cli.enhancement_manager, "enable_enhanced_printer", lambda: None)
+    monkeypatch.setattr(cli.enhancement_manager, "disable_enhanced_printer", lambda: None)
+
+    cli._toggle_cli_debug_command()
+    cli._set_enhanced_cli_enabled(False)
+    cli._set_enhanced_cli_enabled(True)
+
+    out = capsys.readouterr().out
+    assert "Debug CLI ativado" in out
+    assert "Enhanced Table Printer desativado" in out
+    assert "Enhanced Table Printer ativado" in out
+    assert "[Debug]" not in out
+
+
+def test_cli_subprocess_status_cli_uses_ascii_output() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    env["SSA_NON_INTERACTIVE"] = "1"
+    env["SSA_DB_PATH"] = str(repo_root / "data" / "ssas.db")
+
+    result = subprocess.run(
+        [sys.executable, "launchers/cli_entry.py"],
+        input="status-cli\nq\n",
+        text=True,
+        capture_output=True,
+        cwd=repo_root,
+        env=env,
+        timeout=45,
+    )
+
+    assert result.returncode == 0
+    assert "STATUS DAS MELHORIAS CLI" in result.stdout
+    assert "Configuracao Unificada" in result.stdout
+    assert "•" not in result.stdout
