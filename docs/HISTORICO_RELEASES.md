@@ -2,7 +2,7 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
-## **RELEASE v4.32 - CURRENT RELEASE**
+## **RELEASE v4.33 - CURRENT RELEASE**
 
 **Data de Lancamento**: Marco 2026
 **Tipo**: Baseline update para full rescan validado com metricas consolidadas
@@ -12,7 +12,7 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 - Full rescan real executado de ponta a ponta com evidencia em:
   - `docs/indicios_importacao.md` (secao da sessao 2026-03-09)
   - `docs/RECOVERY_BACKLOG.md` (update de full rescan real)
-- Baseline local promovido para `4.32` em:
+- Baseline local promovido para `4.33` em:
   - `VERSION`
   - `config/version.json`
   - docs ativos de referencia
@@ -26,10 +26,10 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - duplicidade de `numero_ssa=0`
 
 ### **Documentacao da versao**
-- `README.md` (v4.32 no topo)
+- `README.md` (v4.33 no topo)
 - `docs/NEXT_CHAT_MIGRATION.md` (topo atualizado)
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` (topo atualizado)
-- `docs/FILTER_TAB_OPTIMIZATIONS.md` (baseline `v4.32`)
+- `docs/FILTER_TAB_OPTIMIZATIONS.md` (baseline `v4.33`)
 
 ### **Sync documental 2026-03-10**
 - Estado consolidado na rodada:
@@ -554,7 +554,7 @@ custom_formatting = True
 ## **SUPORTE E MANUTENCAO**
 
 ### **Politica de Suporte**
-- **v4.32**: Baseline estavel ativo
+- **v4.33**: Baseline estavel ativo
 - **v4.31**: Suporte de compatibilidade em migracao
 - **Versoes anteriores**: Tratadas como historico
 
@@ -564,6 +564,6 @@ custom_formatting = True
 - **Scripts**: Scripts de manutencao e diagnostico
 
 ### **Atualizacao Recomendada**
-Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao mais recente estavel (v4.32).
+Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao mais recente estavel (v4.33).
 
 **Status**: Desenvolvimento ativo com releases regulares a cada 2-3 meses.

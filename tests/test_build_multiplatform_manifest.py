@@ -13,12 +13,12 @@ def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
     platform_dir = builder.dist_dir / "macos_arm64"
     platform_dir.mkdir(parents=True)
 
-    cli_dir = platform_dir / "SSA_CLI_v4.32_macos_arm64"
+    cli_dir = platform_dir / "SSA_CLI_v4.33_macos_arm64"
     cli_dir.mkdir()
-    (cli_dir / "SSA_CLI_v4.32_macos_arm64").write_bytes(b"cli-bin")
+    (cli_dir / "SSA_CLI_v4.33_macos_arm64").write_bytes(b"cli-bin")
 
-    gui_app = platform_dir / "SSA_GUI_v4.32_macos_arm64.app"
-    gui_app_bin = gui_app / "Contents" / "MacOS" / "SSA_GUI_v4.32_macos_arm64"
+    gui_app = platform_dir / "SSA_GUI_v4.33_macos_arm64.app"
+    gui_app_bin = gui_app / "Contents" / "MacOS" / "SSA_GUI_v4.33_macos_arm64"
     gui_app_bin.parent.mkdir(parents=True)
     gui_app_bin.write_bytes(b"gui-bin")
 
@@ -33,10 +33,10 @@ def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
 
     assert ".DS_Store" not in entries
     assert "build_manifest.json" not in entries
-    assert entries["SSA_CLI_v4.32_macos_arm64"]["kind"] == "directory"
-    assert entries["SSA_GUI_v4.32_macos_arm64.app"]["kind"] == "directory"
+    assert entries["SSA_CLI_v4.33_macos_arm64"]["kind"] == "directory"
+    assert entries["SSA_GUI_v4.33_macos_arm64.app"]["kind"] == "directory"
     assert entries["notes.txt"]["kind"] == "file"
-    assert entries["SSA_GUI_v4.32_macos_arm64.app"]["path"].startswith("macos_arm64/")
+    assert entries["SSA_GUI_v4.33_macos_arm64.app"]["path"].replace("\\", "/").startswith("macos_arm64/")
 
 
 def test_build_executable_uses_platform_specific_add_data_separator(tmp_path, monkeypatch):

@@ -1,6 +1,6 @@
 # Guia Completo (Historico/Laboratorio) - Build com PyOxidizer
 
-## CURRENT TRUTH (v4.32)
+## CURRENT TRUTH (v4.33)
 
 - Sync deste guia: `2026-03-11 22:25 -0300`.
 - PyOxidizer segue como trilha avancada (nao default), mas com fluxo operacional funcional para:
@@ -26,7 +26,7 @@
 ## HISTORICAL SNAPSHOT NOTICE
 
 Este documento foi mantido para contexto tecnico.
-Nao usar como runbook primario de release em v4.32.
+Nao usar como runbook primario de release em v4.33.
 
 **Data**: 2025-11-14
 **Autor**: Claude Code

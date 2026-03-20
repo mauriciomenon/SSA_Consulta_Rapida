@@ -1,10 +1,10 @@
-# SSA Consulta Rapida v4.32
+# SSA Consulta Rapida v4.33
 
-Baseline local v4.32 define o estado atual da branch apos validacao de full rescan real com metricas consolidadas, sem regressao de integridade no DB.
+Baseline local v4.33 define o estado atual da branch apos validacao de full rescan real com metricas consolidadas, sem regressao de integridade no DB.
 
 ## Atualizacao documental total (2026-03-10 16:55 -0300)
 
-- Baseline ativo mantido em `v4.32`.
+- Baseline ativo mantido em `v4.33`.
 - Estado operacional desta rodada:
   - PR `#45` aberto contra `dev`.
   - sem threads abertas no PR.
@@ -16,13 +16,13 @@ Baseline local v4.32 define o estado atual da branch apos validacao de full resc
   - `docs/PENDING_ACTION_MATRIX.md`
   - `docs/INDEX.md`
 
-## Baseline v4.32 (2026-03)
+## Baseline v4.33 (2026-03)
 
 ### Destaques
 - README revisado com secoes obrigatorias (`Instalacao`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Baseline de documentacao atualizado para 4.32.
+- Baseline de documentacao atualizado para 4.33.
 - Regras de tema aplicadas de forma geral para popups/menus/checks e textos de selecao, sem depender de casos especificos por tema.
 - Lock unico de altura para os 3 blocos inferiores (detalhes, filtros avancados, filtros por coluna), com gatilho em init, troca de aba, resize e rebuild de filtros por coluna.
 - Regressao nova: teste para garantir altura sincronizada unica apos resize.
@@ -84,7 +84,7 @@ direnv allow
 uv run --python .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.32)
+### Documentacao tecnica atual (v4.33)
 - Algoritmo do layout dinamico (4 colunas):
   - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:
