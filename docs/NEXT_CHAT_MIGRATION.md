@@ -2,7 +2,53 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-20 12:05 - start from here
+## CURRENT TRUTH 2026-03-20 12:55 - start from here
+
+- Objetivo desta rodada:
+  1. retirar `get_ssa_query()` da camada de UI/CLI.
+  2. corrigir o help detalhado do CLI para nao quebrar sessao em modo pipe/non-interactive.
+  3. manter o escopo restrito ao menor patch possivel antes do proximo refinamento do CLI.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M gui/gui_ssa.py`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos continuam fora de escopo e nao devem ser revertidos por inferencia.
+- Commit funcional novo desta rodada:
+  1. `65351ef0`
+     - `get_ssa_query()` sai de `interface/cli.py` e passa a morar em `armazenamento/database.py`.
+     - `_handle_help()` deixa de bloquear stdin em `SSA_NON_INTERACTIVE=1` e em pipe sem TTY.
+     - testes novos travam:
+       - help sem pausa em modo non-interactive
+       - subprocesso `h -> q` encerrando limpo
+- Diagnostico consolidado desta rodada:
+  1. o problema real do help nao era mais layout; era controle de fluxo:
+     - o `input()` interno do help consumia o `q` do pipe
+     - o loop principal recebia `EOFError` na rodada seguinte
+  2. `get_ssa_query()` ainda vivia na camada de UI, apesar de ser contrato de acesso ao banco.
+  3. a cobertura anterior nao pegava isso porque:
+     - validava builder/fallback do help
+     - nao validava o caminho real `h -> q` por subprocesso
+- Validacao relevante ja executada:
+  1. `uv run --python 3.13 python -m py_compile armazenamento/database.py interface/cli.py tests/test_cli_loop_filter_rounds.py tests/test_cli_get_ssa_query_identifier_guard.py` -> pass.
+  2. `uv run --python 3.13 ruff check armazenamento/database.py interface/cli.py tests/test_cli_loop_filter_rounds.py tests/test_cli_get_ssa_query_identifier_guard.py` -> pass.
+  3. `uv run --python 3.13 ty check armazenamento/database.py interface/cli.py tests/test_cli_loop_filter_rounds.py tests/test_cli_get_ssa_query_identifier_guard.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_cli_get_ssa_query_identifier_guard.py tests/test_cli_loop_filter_rounds.py -k "get_ssa_query or help or force_rescan or subprocess"` -> `11 passed, 8 deselected`.
+- Pendencias e leitura para o proximo ciclo:
+  1. `_handle_rescan` segue grande demais.
+  2. consolidacao final de tom e densidade entre help inicial e help detalhado segue pendente.
+  3. `force-rescan` em sessao automatizada ainda merece guarda propria de UX antes de um ciclo maior de CLI.
+  4. Kluster continua instavel por timeout no lote grande do CLI; esta rodada ficou limpa so em lote pequeno.
+
+## HISTORICAL SNAPSHOT 2026-03-20 12:05 - previous current truth
 
 - Objetivo desta rodada:
   1. revisar o CLI no ponto em que ele ainda estava defasado em help/menu e renderizacao estreita.
