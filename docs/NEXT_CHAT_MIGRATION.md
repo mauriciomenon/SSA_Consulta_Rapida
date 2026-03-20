@@ -2,7 +2,47 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-20 09:29 - start from here
+## CURRENT TRUTH 2026-03-20 09:45 - start from here
+
+- Objetivo desta rodada:
+  1. transformar o atalho avaliado de triplo clique em comportamento real de UX para oferecer hard reset total.
+  2. manter os botoes atuais com a semantica anterior, sem reset silencioso.
+  3. registrar a protecao para ambientes nao interativos e a cobertura nova de regressao.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M gui/gui_ssa.py`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos continuam fora de escopo e nao devem ser revertidos por inferencia.
+- Commit funcional mais recente ja entregue:
+  1. `e9e2f04f`
+     - apos 3 cliques consecutivos em botoes de limpar filtros dentro de janela curta, a GUI oferece confirmacao para hard reset total.
+     - o hard reset continua passando pelo fluxo total ja existente; nao ha reset silencioso.
+     - a confirmacao e suprimida em ambiente nao interativo para nao travar testes automatizados.
+     - testes novos travam o fluxo tanto para limpar busca quanto para limpar todos os filtros.
+- Diagnostico consolidado desta rodada:
+  1. o hard reset via menu ja existia, mas faltava um atalho de recuperacao quando o usuario insiste em limpar filtros repetidamente.
+  2. o pedido do usuario foi preservar os botoes atuais e apenas oferecer a opcao de reset total, nunca aciona-la automaticamente.
+  3. o dialogo precisava ser ignorado em ambiente nao interativo para manter a suite automatizada estavel.
+- Validacao relevante ja executada:
+  1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+  2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+  3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_gui_filter_logic.py -k "three_repeated_clear_search_clicks_offer_hard_reset or three_repeated_global_clear_clicks_offer_hard_reset or clear_filter_button_state_syncs_across_tabs_without_switch or clear_filter_preserves_column_filters_and_result_set or clear_filter_preserves_exclude_ste_sca_state or hard_reset_filters_state_resets_visual_and_internal_filter_state or clear_all_filters_global"` -> `13 passed, 148 deselected`.
+- Pendencias e leitura para o proximo ciclo:
+  1. a regra nova de triplo clique cobre os botoes de limpar; se houver pedido futuro, a mesma ideia pode ser avaliada para outros fluxos de recuperacao, mas sempre com confirmacao.
+  2. schema local segue sem `responsavel_solicitante`.
+  3. termos curtos com escopo muito amplo na busca superior seguem como decisao de produto pendente.
+  4. comentarios/docstrings/configs mortos fora do runtime ainda pedem limpeza em slice proprio.
+
+## HISTORICAL SNAPSHOT 2026-03-20 09:29 - previous current truth
 
 - Objetivo desta rodada:
   1. tratar `SES` como equivalente funcional de `STE` nos filtros que usam essa classe terminal.
