@@ -143,7 +143,7 @@ class EnhancedTablePrinter:
 
         # Obtem dimensoes do terminal
         terminal_height, terminal_width = self.get_terminal_size()
-        available_width = max(terminal_width - 5, 80)  # Margem de seguranca
+        available_width = max(terminal_width - 5, 40)  # Margem de seguranca
 
         # Obtem ordem das colunas da configuracao unificada
         column_order = self.width_manager.get_column_order()
