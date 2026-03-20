@@ -6,6 +6,7 @@ from dev_env.streamlit_app import (
     DEFAULT_STREAMLIT_THEME,
     MAIN_TAB_LABELS,
     MAX_RENDER_TELEMETRY_PROFILES,
+    STREAMLIT_APP_TITLE,
     STREAMLIT_THEME_PALETTES,
     StreamlitFilterCache,
     apply_all_filters_cached,
@@ -627,6 +628,10 @@ def test_width_profile_resolve_ignores_non_positive_viewport_hint(monkeypatch) -
 
 def test_main_tab_labels_kept_stable() -> None:
     assert MAIN_TAB_LABELS == ["Filtros", "Tabela", "Exportacao", "Cache e API"]
+
+
+def test_streamlit_app_title_matches_active_version() -> None:
+    assert STREAMLIT_APP_TITLE == "SSA Consulta Rapida v4.33"
 
 
 def test_api_snapshot_available_permutations() -> None:
