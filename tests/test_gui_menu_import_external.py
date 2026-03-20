@@ -106,6 +106,9 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def reset_settings_to_defaults(self) -> None:
             return None
 
+        def _hard_reset_filters_state(self) -> None:
+            return None
+
         def toggle_theme_menu(self) -> None:
             return None
 
@@ -129,7 +132,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert len(window._menu_bar.menus["Arquivo"].actions) == 4
     assert len(window._menu_bar.menus["Importacao"].actions) == 7
     assert len(window._menu_bar.menus["Database"].actions) == 4
-    assert len(window._menu_bar.menus["Opcoes"].actions) == 3
+    assert len(window._menu_bar.menus["Opcoes"].actions) == 4
     assert len(window._menu_bar.menus["Ajuda"].actions) == 2
 
     arquivo_labels = [getattr(action, "_text", "") for action in window._menu_bar.menus["Arquivo"].actions]
@@ -162,6 +165,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert opcoes_labels == [
         "Abrir arquivo de opcoes",
         "Restaurar opcoes padrao",
+        "Limpar Filtros",
         "Selecionar Tema",
     ]
     assert ajuda_labels == ["Instalacao", "Ajuda"]

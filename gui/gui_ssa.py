@@ -3169,6 +3169,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         reset_settings_action.triggered.connect(self.reset_settings_to_defaults)
         opcoes_menu.addAction(reset_settings_action)
 
+        hard_reset_filters_action = QAction("Limpar Filtros", self)
+        hard_reset_filters_action.triggered.connect(self._hard_reset_filters_state)
+        opcoes_menu.addAction(hard_reset_filters_action)
+
         theme_action = QAction("Selecionar Tema", self)
         theme_action.triggered.connect(self.toggle_theme_menu)
         opcoes_menu.addAction(theme_action)

@@ -453,6 +453,30 @@ class TestGUIFilterLogic:
         assert not any(str(v).strip() for v in self.window._active_column_filters.values())
         assert self.window._hidden_column_filter_lines == set()
 
+    def test_removing_visible_column_keeps_active_filter_row_visible(self):
+        self.window._active_column_filters["descricao_ssa"] = "Teste A"
+        self.window._build_column_filters_panel()
+        QApplication.processEvents()
+
+        label = (
+            self.window._expand_column_alias_for_filter("descricao_ssa")
+            if hasattr(self.window, "_expand_column_alias_for_filter")
+            else self.window._resolve_column_display_name("descricao_ssa")
+        )
+        controls_before = self._get_column_filter_controls()
+        assert label in controls_before
+        assert "descricao_ssa" in self.window.visible_columns
+
+        new_columns = [col for col in self.window.visible_columns if col != "descricao_ssa"]
+        self.window.on_columns_changed(new_columns)
+        QApplication.processEvents()
+
+        controls_after = self._get_column_filter_controls()
+        assert "descricao_ssa" not in self.window.visible_columns
+        assert label in controls_after
+        assert self.window._active_column_filters["descricao_ssa"] == "Teste A"
+        assert "descricao_ssa" not in self.window._hidden_column_filter_lines
+
     def test_default_column_filter_rows_show_apply_clear_and_hide_buttons(self):
         self.window._active_column_filters = {
             col: '' for col in self.window._column_filter_default_columns()
@@ -2029,6 +2053,45 @@ class TestGUIFilterLogic:
         summary_text = str(self.window.filters_summary_label.text() or "").casefold()
         assert "executor ou emissor (ou)" not in summary_text
 
+    def test_hard_reset_filters_state_resets_visual_and_internal_filter_state(self):
+        self.window.search_input.setText("Teste A")
+        self.window._active_column_filters["descricao_ssa"] = "Teste A"
+        self.window._hidden_column_filter_lines = {"setor_executor"}
+        self.window._register_or_group(["setor_executor", "setor_emissor"], ["IEE3", "MEL4"])
+        self.window._dedicated_or_text = "IEE3, MEL4"
+        self.window._advanced_filters = {"situacao": ["STE"]}
+        self.window._advanced_filters_active = True
+        self.window._exclude_ste_sca = True
+        self.window.current_filter_profile = "perfil_teste"
+        self.window._profile_base_filters = {"situacao": "STE"}
+        self.window._last_filter_state = {"dummy": True}
+        self.window._build_column_filters_panel()
+        QApplication.processEvents()
+
+        self.window._hard_reset_filters_state()
+        QApplication.processEvents()
+
+        assert self.window.search_input.text() == ""
+        assert tuple(self.window._active_column_filters.keys()) == self.window._column_filter_default_columns()
+        assert not any(str(v).strip() for v in self.window._active_column_filters.values())
+        assert self.window._hidden_column_filter_lines == set()
+        assert self.window._advanced_filters == {}
+        assert self.window._advanced_filters_active is False
+        assert self.window._exclude_ste_sca is False
+        assert self.window._last_filter_state is None
+        assert self.window.current_filter_profile is None
+        assert self.window._profile_base_filters == {}
+        assert self.window._dedicated_or_text == ""
+        assert str(self.window.filters_summary_label.text() or "") == "Nenhum filtro ativo"
+        assert "resetados completamente" in str(self.window.status_label.text() or "").casefold()
+        for ctx in self.window._tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            assert ctx["search_input"].text() == ""
+            selector = ctx.get("profile_selector")
+            if selector is not None:
+                assert selector.currentIndex() == 0
+
     def test_build_derivadas_tree_normalizes_and_ignores_invalid_values(self):
         df = pd.DataFrame(
             {
@@ -2334,7 +2397,7 @@ class TestGUIFilterLogic:
 
     def test_on_header_clicked_sorts_num_reprogramacoes_mixed_types(self):
         mixed_df = self.base_df.assign(
-            num_reprogramacoes=[2, "Reprogramacao #1", 0, "", None]
+            num_reprogramacoes=pd.Series([2, "Reprogramacao #1", 0, "", None], dtype="object")
         ).copy()
         if "num_reprogramacoes" not in self.window.visible_columns:
             self.window.visible_columns.append("num_reprogramacoes")
@@ -2359,7 +2422,7 @@ class TestGUIFilterLogic:
 
     def test_on_header_clicked_reuses_num_reprogramacoes_sort_cache(self):
         mixed_df = self.base_df.assign(
-            num_reprogramacoes=[2, "Reprogramacao #1", 0, "", None]
+            num_reprogramacoes=pd.Series([2, "Reprogramacao #1", 0, "", None], dtype="object")
         ).copy()
         if "num_reprogramacoes" not in self.window.visible_columns:
             self.window.visible_columns.append("num_reprogramacoes")
@@ -2386,7 +2449,7 @@ class TestGUIFilterLogic:
 
     def test_num_reprogramacoes_sort_rebuilds_stale_cache_with_mismatched_index(self):
         mixed_df = self.base_df.assign(
-            num_reprogramacoes=[2, "Reprogramacao #1", 0, "", None]
+            num_reprogramacoes=pd.Series([2, "Reprogramacao #1", 0, "", None], dtype="object")
         ).copy()
         if "num_reprogramacoes" not in self.window.visible_columns:
             self.window.visible_columns.append("num_reprogramacoes")
