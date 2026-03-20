@@ -2,7 +2,51 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-20 14:00 - start from here
+## CURRENT TRUTH 2026-03-20 15:40 - start from here
+
+- Objetivo desta rodada:
+  1. corrigir a ambiguidade do `q` na paginacao do CLI.
+  2. permitir saida explicita da aplicacao a partir do prompt de paginacao sem acoplar o printer ao processo.
+  3. travar retomada correta com `m` e cobertura focada de largura/atalhos.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/cli_enhancements.json`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+- Commit funcional novo desta rodada:
+  1. `c7014e98`
+     - o printer agora retorna `exit_requested` quando o usuario digita `qq` na paginacao.
+     - o CLI passou a ter um unico ponto de exibicao (`_render_cli_page`) que traduz esse sinal em saida real da aplicacao.
+     - `q` continua fechando so a exibicao atual, mas preserva `next_page` para o `m` retomar corretamente.
+- Diagnostico consolidado desta rodada:
+  1. o motivo tecnico de `q` "nao sair" era semantica dupla:
+     - no prompt principal, `q` encerra a aplicacao
+     - no prompt interno da paginacao, `q` encerrava apenas a exibicao da tabela e devolvia ao prompt principal
+  2. isso nao estava claro para o usuario e nao havia atalho explicito para sair da aplicacao direto da paginacao.
+  3. o novo contrato ficou:
+     - `q` = fechar exibicao atual
+     - `qq` = sair da aplicacao inteira
+  4. o `m` podia perder retomada se a exibicao fosse interrompida cedo; isso agora esta travado com `next_page`.
+- Validacao relevante ja executada:
+  1. `uv run --python 3.13 python -m py_compile interface/enhanced_table_printer.py interface/cli.py tests/test_cli_pagination_prompt.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  2. `uv run --python 3.13 ruff check interface/enhanced_table_printer.py interface/cli.py tests/test_cli_pagination_prompt.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  3. `uv run --python 3.13 ty check interface/enhanced_table_printer.py interface/cli.py tests/test_cli_pagination_prompt.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_cli_pagination_prompt.py tests/test_cli_loop_filter_rounds.py -k "qq or pagination or help or force_rescan or status_cli or toggle or enhanced or more_all or show_more or subprocess"` -> `18 passed, 10 deselected`.
+- Pendencias e leitura para o proximo ciclo:
+  1. o lote do Kluster para `interface/enhanced_table_printer.py` continuou com timeout isolado de 120s, sem finding retornado nesta rodada.
+  2. `_handle_rescan` continua grande demais.
+  3. a ordenacao por indice (`ord`/`ordi`) ainda merece revisao de contrato vs colunas realmente exibidas.
+  4. a cobertura de sessao longa do CLI ainda pode crescer combinando `m`, status e detalhe.
+
+## HISTORICAL SNAPSHOT 2026-03-20 14:00 - previous current truth
 
 - Objetivo desta rodada:
   1. impedir que os testes CLI por subprocesso continuem sujando `config/cli_enhancements.json`.
