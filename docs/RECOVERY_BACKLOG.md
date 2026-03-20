@@ -80,6 +80,59 @@ Pendencias nao bloqueantes abertas:
 3. diff-only rescan no CLI segue como melhoria funcional ainda nao implementada.
 4. schema local continua sem `responsavel_solicitante`.
 
+## Update 2026-03-20 17:05 - streamlit micro-slice final e achado ululante (STABILITY_PATCH + DEFERRED_NOTE)
+
+Session timestamp:
+1. start: `2026-03-20 16:52:59 -0300`
+2. revisao final do repo executada antes de mover a release `v4.33`
+
+Objetivo do slice:
+1. incluir o micro-slice final do Streamlit na release `v4.33`.
+2. revisar o repo atras de furos ululantes sem abrir novo ciclo grande de edicao.
+3. registrar apenas em docs/backlog qualquer achado desse nivel.
+
+Diagnostico objetivo:
+1. micro-slice funcional entregue:
+   - [dev_env/streamlit_app.py](C:/Users/mauri/git/SSA_Consulta_Rapida/dev_env/streamlit_app.py)
+   - [tests/test_streamlit_filter_cache.py](C:/Users/mauri/git/SSA_Consulta_Rapida/tests/test_streamlit_filter_cache.py)
+   - o Streamlit agora usa a versao ativa no `page_title` e no cabecalho
+2. furo ululante encontrado na revisao final:
+   - `uv run --python 3.13 python main.py --streamlit` falha imediatamente
+   - [main.py](C:/Users/mauri/git/SSA_Consulta_Rapida/main.py) procura `streamlit_app.py` na raiz
+   - o app real esta em [dev_env/streamlit_app.py](C:/Users/mauri/git/SSA_Consulta_Rapida/dev_env/streamlit_app.py)
+3. impacto:
+   - README e docs anunciam `main.py --streamlit`
+   - hoje esse atalho nao sobe o dashboard
+
+Escopo alterado:
+1. `dev_env/streamlit_app.py`
+2. `tests/test_streamlit_filter_cache.py`
+3. `docs/NEXT_CHAT_MIGRATION.md`
+4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+5. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. commit funcional `c7992b39`
+   - alinhamento minimo do titulo do Streamlit com `v4.33`
+   - regressao focada correspondente
+2. este bloco `DEFERRED_NOTE`
+   - registra o launcher quebrado do Streamlit
+   - sem corrigir runtime, por pedido explicito do usuario
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py` -> pass.
+2. `uv run --python 3.13 ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py` -> pass.
+3. `uv run --python 3.13 ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_streamlit_filter_cache.py` -> `46 passed`.
+5. `uv run --python 3.13 python -m pytest -q tests/test_build_multiplatform_manifest.py tests/test_cli_loop_filter_rounds.py tests/test_streamlit_filter_cache.py` -> `77 passed`.
+6. `uv run --python 3.13 python main.py --streamlit` -> falha reproduzivel com:
+   - `Streamlit app nao encontrado em streamlit_app.py`
+
+Pendencias nao bloqueantes abertas:
+1. corrigir `main.py --streamlit` para apontar ao app real.
+2. adicionar teste de regressao para `launch_streamlit()`.
+3. manter a revisao de `ord` / `ordi` e diff-only rescan do CLI em fila separada.
+
 ## Update 2026-03-20 15:40 - q/qq na paginacao do CLI e retomada do m (STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:
