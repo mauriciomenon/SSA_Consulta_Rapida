@@ -2,7 +2,63 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-20 11:32 - authoritative block
+## CURRENT TRUTH 2026-03-20 12:05 - authoritative block
+
+- Objetivo desta rodada:
+  1. revisar a camada de help/menu do CLI e o renderer em terminal estreito.
+  2. alinhar o help completo ao contrato textual atual do runtime.
+  3. fechar cobertura de terminal estreito no `EnhancedTablePrinter`.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M gui/gui_ssa.py`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos nao devem ser revertidos nem incluidos por inferencia.
+- Commits funcionais novos:
+  1. `43770be4`
+     - help completo sai da caixa hardcoded e passa a usar builder com wrap deterministico em 79 colunas.
+     - `force-rescan` vira alias real de `rescan`.
+  2. `3dd90c49`
+     - `EnhancedTablePrinter` deixa de impor largura minima 80.
+     - `CLIWidthManager` reduz colunas de texto ate um piso minimo quando o terminal e estreito.
+- Diagnostico tecnico consolidado:
+  1. o startup do CLI continua sem chamar `rescan` na abertura.
+  2. o problema real do help era drift de contrato e layout:
+     - `force-rescan` aparecia no help mas nao existia no loop
+     - o help em caixa tinha linhas acima da moldura
+  3. o problema real do renderer era largura minima artificial:
+     - com terminal `70`, o printer ainda podia sair mais largo por causa de `max(..., 80)`
+  4. a suite anterior nao pegava isso porque:
+     - validava loop e fallback do help
+     - nao validava caminho normal do help completo
+     - nao validava `EnhancedTablePrinter` em terminal estreito real
+  5. erro operacional desta rodada:
+     - houve uma tentativa incorreta de commits paralelos
+     - isso bateu em `index.lock`
+     - correcao: seguir commits estritamente sequenciais
+- Validacao consolidada:
+  1. `py_compile`, `ruff` e `ty` verdes no escopo do CLI alterado.
+  2. `tests/test_cli_loop_filter_rounds.py + tests/test_cli_pagination_prompt.py + tests/test_table_printer.py + tests/test_search_v_character.py` -> `24 passed`.
+  3. testes novos:
+     - `test_build_cli_plain_help_text_detailed_includes_force_rescan_alias`
+     - `test_handle_help_normal_path_uses_plain_layout_without_box_art`
+     - `test_start_cli_loop_accepts_force_rescan_alias`
+     - `test_enhanced_printer_respects_narrow_terminal_width`
+- Pendencias ainda abertas:
+  1. `_handle_rescan` continua grande demais.
+  2. `get_ssa_query()` continua na camada de UI/CLI.
+  3. schema local sem `responsavel_solicitante`.
+  4. termos curtos na busca superior seguem como decisao de produto.
+  5. Kluster continua oscilando por timeout no lote do CLI.
+
+## HISTORICAL SNAPSHOT 2026-03-20 11:32 - previous current truth
 
 - Objetivo desta rodada:
   1. consolidar o contrato textual do CLI para nao voltar a divergir do runtime.

@@ -3,6 +3,71 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-20 12:05 - help/menu e largura estreita do CLI (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-20 11:38:38 -0300`
+2. runtime validado e docs sincronizados no mesmo fluxo
+
+Objetivo do slice:
+1. corrigir drift entre help/menu do CLI e o runtime real.
+2. eliminar o box art quebravel do help completo.
+3. fazer o `EnhancedTablePrinter` respeitar terminal estreito e travar isso em teste.
+
+Diagnostico objetivo:
+1. o startup do CLI nao chamava `rescan` automaticamente; isso foi confirmado em probe com `run_importer_logic` bloqueado.
+2. o bug real do help era contrato e layout:
+   - `force-rescan` aparecia no help, mas nao existia como comando no loop
+   - o help completo em caixa tinha linhas de `79`, `82` e `88` para uma moldura base de `81`
+3. o bug real do renderer era largura minima artificial:
+   - `EnhancedTablePrinter` usava `max(terminal_width - 5, 80)`
+   - em terminal `70`, a renderizacao ainda podia sair mais larga que a janela
+4. a suite anterior nao pegava isso porque:
+   - testava o fallback do help
+   - nao testava o caminho normal do help completo
+   - nao testava o `EnhancedTablePrinter` em terminal estreito real
+5. erro operacional ocorrido:
+   - tentativa incorreta de 2 commits em paralelo
+   - colisao em `index.lock`
+   - correcao: commits sequenciais
+
+Escopo alterado:
+1. `interface/cli.py`
+2. `interface/enhanced_table_printer.py`
+3. `interface/cli_width_manager.py`
+4. `tests/test_cli_loop_filter_rounds.py`
+5. `tests/test_cli_pagination_prompt.py`
+6. `docs/NEXT_CHAT_MIGRATION.md`
+7. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+8. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. commit `43770be4`
+   - help completo deixa de usar caixa hardcoded
+   - passa a usar builder com wrap deterministico em 79 colunas
+   - `force-rescan` vira alias real de `rescan`
+2. commit `3dd90c49`
+   - `EnhancedTablePrinter` deixa de impor largura minima 80
+   - `CLIWidthManager` passa a reduzir colunas de texto ate piso minimo legivel em terminal estreito
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile interface/cli.py tests/test_cli_loop_filter_rounds.py interface/enhanced_table_printer.py interface/cli_width_manager.py tests/test_cli_pagination_prompt.py` -> pass.
+2. `uv run --python 3.13 ruff check interface/cli.py tests/test_cli_loop_filter_rounds.py interface/enhanced_table_printer.py interface/cli_width_manager.py tests/test_cli_pagination_prompt.py` -> pass.
+3. `uv run --python 3.13 ty check interface/cli.py tests/test_cli_loop_filter_rounds.py interface/enhanced_table_printer.py interface/cli_width_manager.py tests/test_cli_pagination_prompt.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py tests/test_cli_pagination_prompt.py tests/test_table_printer.py tests/test_search_v_character.py` -> `24 passed`.
+
+Licoes aprendidas:
+1. help hardcoded em caixa e regressao pronta para voltar; builder unico com wrap controlado reduz drift.
+2. cobertura verde do CLI ainda pode deixar passar problema visual real se ela nao medir largura final.
+3. terminal estreito nao pode herdar largura minima artificial pensada para cenarios largos.
+4. commits paralelos no mesmo repo continuam proibidos por motivo real, nao so por estilo.
+
+Pendencias nao bloqueantes abertas:
+1. `_handle_rescan` continua grande demais.
+2. `get_ssa_query()` continua na camada de UI/CLI.
+3. consolidacao final de tom/densidade entre help inicial e help detalhado ainda merece slice proprio.
+4. Kluster segue instavel por timeout em arquivo grande do CLI.
+
 ## Update 2026-03-20 11:32 - contrato textual compartilhado no CLI (STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:
