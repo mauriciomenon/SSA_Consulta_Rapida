@@ -1,3 +1,4 @@
+import logging
 import os
 
 import pandas as pd
@@ -211,3 +212,65 @@ def test_upsert_existing_has_date_new_missing_does_not_update(tmp_path):
     # Must preserve original row
     assert rows.iloc[0]['situacao'] == 'WITH_DATE'
     assert rows.iloc[0]['setor_executor'] == 'ORIG'
+
+
+def test_upsert_logs_setor_executor_change_when_newer_row_wins(tmp_path, caplog):
+    db_path = _init_db(tmp_path)
+    first = pd.DataFrame([
+        {
+            'numero_ssa': '202501777',
+            'situacao': 'OLD',
+            'data_cadastro': '01/01/2025',
+            'descricao_ssa': 'old desc',
+            'setor_executor': 'IEE3',
+        }
+    ])
+    insert_dataframe_to_db(first, db_path, 'ssas')
+    newer = pd.DataFrame([
+        {
+            'numero_ssa': '202501777',
+            'situacao': 'UPDATED',
+            'data_cadastro': '05/01/2025',
+            'descricao_ssa': 'new desc',
+            'setor_executor': 'IEE4',
+        }
+    ])
+
+    with caplog.at_level(logging.INFO, logger="armazenamento.database_upsert_logic"):
+        assert insert_dataframe_with_smart_upsert(newer, db_path, 'ssas') is True
+
+    rows = _fetch_all(db_path)
+    assert rows.iloc[0]['setor_executor'] == 'IEE4'
+    assert "202501777" in caplog.text
+    assert "IEE3 -> IEE4" in caplog.text
+
+
+def test_upsert_does_not_log_setor_executor_change_for_older_row(tmp_path, caplog):
+    db_path = _init_db(tmp_path)
+    first = pd.DataFrame([
+        {
+            'numero_ssa': '202501888',
+            'situacao': 'BASE',
+            'data_cadastro': '10/01/2025',
+            'descricao_ssa': 'base',
+            'setor_executor': 'IEE3',
+        }
+    ])
+    insert_dataframe_to_db(first, db_path, 'ssas')
+    older = pd.DataFrame([
+        {
+            'numero_ssa': '202501888',
+            'situacao': 'OLDER',
+            'data_cadastro': '05/01/2025',
+            'descricao_ssa': 'older attempt',
+            'setor_executor': 'IEE4',
+        }
+    ])
+
+    with caplog.at_level(logging.INFO, logger="armazenamento.database_upsert_logic"):
+        assert insert_dataframe_with_smart_upsert(older, db_path, 'ssas') is True
+
+    rows = _fetch_all(db_path)
+    assert rows.iloc[0]['setor_executor'] == 'IEE3'
+    assert "202501888" not in caplog.text
+    assert "IEE3 -> IEE4" not in caplog.text
