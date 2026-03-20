@@ -615,3 +615,61 @@ def test_cli_subprocess_more_all_non_interactive_exits_cleanly(tmp_path: Path) -
     assert result.returncode == 0
     assert "Comando 'm z' indisponivel em sessao non-interactive" in result.stdout
     assert "Saindo..." in result.stdout
+
+
+def test_cli_subprocess_clear_then_quit_exits_cleanly(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env = _build_cli_subprocess_env(repo_root, tmp_path)
+
+    result = subprocess.run(
+        [sys.executable, "launchers/cli_entry.py"],
+        input="mel4\nclear\nq\n",
+        text=True,
+        capture_output=True,
+        cwd=repo_root,
+        env=env,
+        timeout=45,
+    )
+
+    assert result.returncode == 0
+    assert "Filtros do usuário limpos. Voltando ao estado base." in result.stdout
+    assert "Saindo..." in result.stdout
+
+
+def test_cli_subprocess_status_back_then_quit_exits_cleanly(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env = _build_cli_subprocess_env(repo_root, tmp_path)
+
+    result = subprocess.run(
+        [sys.executable, "launchers/cli_entry.py"],
+        input="mel4\nstatus-cli\nv\nq\n",
+        text=True,
+        capture_output=True,
+        cwd=repo_root,
+        env=env,
+        timeout=45,
+    )
+
+    assert result.returncode == 0
+    assert "STATUS DAS MELHORIAS CLI" in result.stdout
+    assert "...filtro anterior restaurado." in result.stdout
+    assert "Saindo..." in result.stdout
+
+
+def test_cli_subprocess_more_then_double_quit_exits_cleanly(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env = _build_cli_subprocess_env(repo_root, tmp_path)
+
+    result = subprocess.run(
+        [sys.executable, "launchers/cli_entry.py"],
+        input="mel4\nm\nqq\n",
+        text=True,
+        capture_output=True,
+        cwd=repo_root,
+        env=env,
+        timeout=45,
+    )
+
+    assert result.returncode == 0
+    assert "Página 2 de" in result.stdout
+    assert "Saindo..." in result.stdout

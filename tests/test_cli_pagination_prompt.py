@@ -31,6 +31,7 @@ def test_paginated_prompt_shows_updated_shortcuts(monkeypatch):
         'numero_ssa': ['202500001', '202500002', '202500003'],
     })
     widths = {'#': 3, 'numero_ssa': 12}
+    display_names: dict[str, str] = {}
     settings = {'user_preferences': {}, 'display_settings': {}}
 
     inputs = iter(['l', 'q'])
@@ -47,6 +48,7 @@ def test_paginated_prompt_shows_updated_shortcuts(monkeypatch):
         printer._render_paginated(
             df,
             widths,
+            display_names,
             settings,
             highlight_terms=None,
             filter_terms=['svp'],
@@ -73,6 +75,7 @@ def test_paginated_prompt_qq_exits_application(monkeypatch):
         'numero_ssa': ['202500001', '202500002', '202500003'],
     })
     widths = {'#': 3, 'numero_ssa': 12}
+    display_names: dict[str, str] = {}
     settings = {'user_preferences': {}, 'display_settings': {}}
 
     monkeypatch.setattr('builtins.input', lambda _prompt='': 'qq')
@@ -82,6 +85,7 @@ def test_paginated_prompt_qq_exits_application(monkeypatch):
         state = printer._render_paginated(
             df,
             widths,
+            display_names,
             settings,
             highlight_terms=None,
             filter_terms=['svp'],
@@ -101,6 +105,7 @@ def test_paginated_prompt_q_preserves_next_page_for_resume(monkeypatch):
         'numero_ssa': ['202500001', '202500002', '202500003'],
     })
     widths = {'#': 3, 'numero_ssa': 12}
+    display_names: dict[str, str] = {}
     settings = {'user_preferences': {}, 'display_settings': {}}
 
     monkeypatch.setattr('builtins.input', lambda _prompt='': 'q')
@@ -110,6 +115,7 @@ def test_paginated_prompt_q_preserves_next_page_for_resume(monkeypatch):
         state = printer._render_paginated(
             df,
             widths,
+            display_names,
             settings,
             highlight_terms=None,
             filter_terms=['svp'],
