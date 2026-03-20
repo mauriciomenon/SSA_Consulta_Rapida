@@ -38,6 +38,11 @@ class CLIWidthManager:
             'responsavel_programacao': 12,
             'responsavel_execucao': 12,
         }
+        self.minimum_widths = {
+            'descricao_ssa': 18,
+            'descricao_execucao': 18,
+            'solicitante': 16,
+        }
 
         # Colunas que podem crescer proporcionalmente (igual à GUI)
         self.expandable_columns = ['descricao_ssa', 'descricao_execucao']
@@ -162,10 +167,38 @@ class CLIWidthManager:
                 # Largura padrão para outras colunas
                 calculated_widths[col] = 15
 
-        # CÁLCULO DE CRESCIMENTO PROPORCIONAL (algoritmo idêntico à GUI)
+        # Ajuste conservador para terminais estreitos: reduz colunas de texto
+        # antes de expandir, preservando um piso mínimo legível.
         total_fixed = sum(calculated_widths.values())
         separator_space = (len(columns_to_process) * 3)  # Espaço para separadores
         usable_width = max(0, available_width - separator_space)
+        deficit = max(0, total_fixed - usable_width)
+
+        if deficit and columns_to_process:
+            shrinkable_cols = [
+                col for col in columns_to_process
+                if col in self.minimum_widths and calculated_widths.get(col, 0) > self.minimum_widths[col]
+            ]
+            while deficit > 0 and shrinkable_cols:
+                reduced_any = False
+                for col in shrinkable_cols:
+                    current = calculated_widths.get(col, 0)
+                    minimum = self.minimum_widths[col]
+                    if current <= minimum:
+                        continue
+                    calculated_widths[col] = current - 1
+                    deficit -= 1
+                    reduced_any = True
+                    if deficit == 0:
+                        break
+                if not reduced_any:
+                    break
+                shrinkable_cols = [
+                    col for col in shrinkable_cols
+                    if calculated_widths.get(col, 0) > self.minimum_widths[col]
+                ]
+
+        total_fixed = sum(calculated_widths.values())
         available_extra = max(0, usable_width - total_fixed)
 
         if available_extra > 10 and expandable_cols:  # Mínimo de 10 chars extras para expandir

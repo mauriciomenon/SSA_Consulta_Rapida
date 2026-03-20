@@ -61,3 +61,55 @@ def test_paginated_prompt_shows_updated_shortcuts(monkeypatch):
     assert '+filtro' not in first_prompt
     assert 'Filtros ativos: svp' in output
     assert 'Comando inválido' not in output
+
+
+def test_enhanced_printer_respects_narrow_terminal_width(monkeypatch):
+    printer = EnhancedTablePrinter()
+    monkeypatch.setattr(printer, 'get_terminal_size', lambda: (12, 70))
+
+    def _fake_tabulate(data, headers=(), tablefmt='plain', showindex=False, **_kwargs):
+        header_list = [str(item) for item in headers]
+        rows = []
+        for row in data.values.tolist() if hasattr(data, 'values') else data:
+            rows.append([str(cell) for cell in row])
+        widths = [len(header) for header in header_list]
+        for row in rows:
+            for idx, cell in enumerate(row):
+                widths[idx] = max(widths[idx], len(cell))
+        header_line = ' | '.join(header.ljust(widths[idx]) for idx, header in enumerate(header_list))
+        separator = '-+-'.join('-' * widths[idx] for idx in range(len(widths)))
+        body = [
+            ' | '.join(cell.ljust(widths[idx]) for idx, cell in enumerate(row))
+            for row in rows
+        ]
+        return '\n'.join([header_line, separator, *body])
+
+    monkeypatch.setattr('interface.enhanced_table_printer.tabulate', _fake_tabulate)
+
+    df = pd.DataFrame(
+        {
+            'numero_ssa': ['202500001', '202500002'],
+            'situacao': ['ADM', 'APG'],
+            'descricao_ssa': [
+                'Descricao muito longa com varios segmentos e palavras para estourar largura de terminal estreito.',
+                'Outra descricao longa para validar truncamento e wrap sem quebrar a tabela.',
+            ],
+            'solicitante': [
+                'SOLICITANTE MUITO LONGO COM VARIAS PALAVRAS',
+                'OUTRO SOLICITANTE EXTENSO',
+            ],
+            'setor_executor': ['MEL4', 'IEE3'],
+        }
+    )
+    settings = {'user_preferences': {}, 'display_settings': {}}
+
+    buffer = io.StringIO()
+    monkeypatch.setattr('builtins.input', lambda _prompt='': 'q')
+
+    with redirect_stdout(buffer):
+        printer.print_dataframe_enhanced(df, {}, settings)
+
+    lines = [line for line in buffer.getvalue().splitlines() if line]
+
+    assert lines
+    assert max(len(line) for line in lines) <= 70
