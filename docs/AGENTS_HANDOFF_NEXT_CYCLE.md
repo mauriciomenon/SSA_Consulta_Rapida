@@ -2,7 +2,45 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-20 12:55 - authoritative block
+## CURRENT TRUTH 2026-03-20 13:18 - authoritative block
+
+- Objetivo desta rodada:
+  1. impedir `rescan/force-rescan` pesado em sessao automatizada.
+  2. alinhar o tom do help detalhado ao contrato ja exibido no help inicial.
+  3. manter o patch pequeno e testavel.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos nao devem ser revertidos nem incluidos por inferencia.
+- Commit funcional novo:
+  1. `0f2f9a93`
+     - `rescan/force-rescan` passam a falhar rapido com mensagem clara em sessao non-interactive.
+     - o help detalhado passa a espelhar explicitamente o contrato da busca inicial.
+     - novos testes cobrem consistencia textual e subprocesso `force-rescan -> q`.
+- Diagnostico tecnico consolidado:
+  1. o bug real desta rodada era travamento de `force-rescan` no harness por falta de guarda de contexto.
+  2. o help detalhado ainda repetia a regra da busca com densidade diferente do help inicial.
+  3. a solucao adotada foi guarda minima + teste real por subprocesso, sem abrir refatoracao ampla.
+- Validacao consolidada:
+  1. `py_compile`, `ruff` e `ty` verdes no escopo do slice.
+  2. `tests/test_cli_loop_filter_rounds.py` no foco `help/force_rescan/subprocess` -> `9 passed, 8 deselected`.
+  3. Kluster limpo no lote pequeno deste slice.
+- Pendencias ainda abertas:
+  1. `_handle_rescan` continua grande demais.
+  2. `status-cli`, `toggle-debug` e afins ainda pedem refinamento de UX/texto.
+  3. consolidacao final de help inicial vs help detalhado ainda pode melhorar.
+  4. schema local sem `responsavel_solicitante`.
+
+## HISTORICAL SNAPSHOT 2026-03-20 12:55 - previous current truth
 
 - Objetivo desta rodada:
   1. mover `get_ssa_query()` para a camada de banco.

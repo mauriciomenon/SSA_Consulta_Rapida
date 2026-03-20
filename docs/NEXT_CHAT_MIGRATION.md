@@ -2,7 +2,48 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-20 12:55 - start from here
+## CURRENT TRUTH 2026-03-20 13:18 - start from here
+
+- Objetivo desta rodada:
+  1. impedir que `rescan/force-rescan` trave sessao automatizada do CLI.
+  2. reduzir o drift de densidade entre o help inicial e o help detalhado.
+  3. manter o patch minimo antes do proximo refinamento maior do CLI.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos continuam fora de escopo e nao devem ser revertidos por inferencia.
+- Commit funcional novo desta rodada:
+  1. `0f2f9a93`
+     - `rescan/force-rescan` passam a retornar rapido com mensagem clara em `SSA_NON_INTERACTIVE=1` ou stdin sem TTY.
+     - o help detalhado passa a declarar explicitamente que mantem o mesmo contrato da busca inicial.
+     - testes novos travam:
+       - consistencia textual do help detalhado
+       - subprocesso `force-rescan -> q` encerrando limpo
+- Diagnostico consolidado desta rodada:
+  1. `force-rescan` em pipe/non-interactive ainda travava o harness e mascarava fluxo do CLI.
+  2. o problema nao era parser nem renderer; era execucao pesada sem guarda de contexto.
+  3. o help detalhado ainda repetia o contrato de busca com tom diferente do help inicial.
+- Validacao relevante ja executada:
+  1. `uv run --python 3.13 python -m py_compile interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  2. `uv run --python 3.13 ruff check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  3. `uv run --python 3.13 ty check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py -k "help or force_rescan or subprocess"` -> `9 passed, 8 deselected`.
+- Pendencias e leitura para o proximo ciclo:
+  1. `_handle_rescan` ainda segue grande demais, apesar da guarda agora estar correta.
+  2. `status-cli`, `toggle-debug` e comandos relacionados ainda merecem revisao de UX/texto no subprocesso real.
+  3. consolidacao final de tom e densidade entre help inicial e help detalhado ainda pode ser refinada.
+  4. Kluster segue oscilando por timeout em lotes grandes do CLI; manter lotes pequenos por slice.
+
+## HISTORICAL SNAPSHOT 2026-03-20 12:55 - previous current truth
 
 - Objetivo desta rodada:
   1. retirar `get_ssa_query()` da camada de UI/CLI.
