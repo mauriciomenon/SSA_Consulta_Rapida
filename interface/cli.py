@@ -6,6 +6,7 @@ Interface de Linha de Comando (CLI) para interação com o usuário.
 Permite pesquisar, filtrar, ordenar, exportar e visualizar detalhes das SSAs.
 """
 
+import hashlib
 import os
 import sys
 import math
@@ -29,10 +30,12 @@ from interface.enhanced_table_printer import EnhancedTablePrinter
 from interface.cli_enhancement_manager import enhancement_manager
 from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES
 from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
+from utils.path_safety import PathSafetyError, ensure_path_is_allowed
+from utils.robust_logging import get_robust_logger
 from utils.version import get_app_version, get_app_version_long
 
 # Configura logger específico para este módulo
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "cli")
 APP_VERSION = get_app_version()
 APP_VERSION_LONG = get_app_version_long()
 
@@ -147,6 +150,16 @@ def _next_page_for(df: pd.DataFrame) -> int:
 def _pagination_state_key_for_df(df: pd.DataFrame) -> int | None:
     return _PAGINATION_TRACKER_MANAGER.key_for(df, create=False)
 
+
+def _last_rendered_page_for(df: pd.DataFrame) -> int:
+    state = _PAGINATION_TRACKER_MANAGER.state_for(df)
+    total_pages = max(0, int(state.get('total_pages', 0)))
+    rendered_pages = max(1, int(state.get('rendered_pages', 1)))
+    next_page = state.get('next_page')
+    if next_page is None:
+        return max(0, total_pages - rendered_pages)
+    return max(0, int(next_page) - rendered_pages)
+
 # --- Funções Auxiliares Refatoradas ---
 
 def _cached_pretty_print_df(
@@ -226,7 +239,17 @@ def _cached_pretty_print_df(
     end_index = start_index + max(0, rows_limit)
     subset = df.iloc[start_index:end_index]
 
-    df_hash = hash(str(df.shape) + str(list(df.columns)) + str(df.iloc[0].values.tobytes() if total_rows > 0 else ''))
+    subset_hasher = hashlib.blake2b(digest_size=16)
+    subset_hasher.update(str(df.shape).encode('utf-8'))
+    subset_hasher.update(str(total_rows).encode('utf-8'))
+    subset_hasher.update(str(total_pages).encode('utf-8'))
+    subset_hasher.update(str(list(df.columns)).encode('utf-8'))
+    if not subset.empty:
+        subset_hash_values = tuple(
+            int(value) for value in pd.util.hash_pandas_object(subset, index=True).tolist()
+        )
+        subset_hasher.update(str(subset_hash_values).encode('utf-8'))
+    df_hash = subset_hasher.hexdigest()
     settings_hash = hash(str(sorted(settings.items())))
     display_hash = hash(str(sorted(display_map.items())))
     filter_hash = hash(filter_text)
@@ -624,11 +647,20 @@ def _handle_export(parts: List[str], current_df: 'pd.DataFrame', output_dir: str
     if len(parts) < 2:
         print("Erro: Forneça um nome para os arquivos. Ex: -e meu_relatorio")
         return
-    base_filename = parts[1]
+    base_filename = parts[1].strip()
+    if not base_filename or base_filename != os.path.basename(base_filename):
+        print("Erro: nome de exportacao invalido.")
+        return
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", base_filename):
+        print("Erro: use apenas letras, numeros, ponto, underscore e hifen no nome do arquivo.")
+        return
     print(f"Iniciando exportação para arquivos com base '{base_filename}'...")
     try:
+        ensure_path_is_allowed(output_dir, purpose="diretorio de exportacao", expect_directory=True)
         exporter.export_dataframe(current_df, base_filename, output_dir, display_map)
         print("Exportação concluída.")
+    except PathSafetyError as e:
+        print(f"Erro durante a exportação: {e}")
     except Exception as e:
         print(f"Erro durante a exportação: {e}")
 
@@ -648,8 +680,6 @@ def _handle_back(results_stack: list):
         popped_df, _ = results_stack.pop()
         _release_pagination_state(popped_df)
         print("...filtro anterior restaurado.")
-        if results_stack:
-            _reset_pagination_state(results_stack[-1][0])
         _prune_pagination_tracker_for_stack(results_stack)
     else:
         print("Nenhum filtro anterior para restaurar.")
@@ -786,7 +816,7 @@ def _handle_sort(parts: List[str], results_stack: list, display_map: dict, setti
         # Isso requer sincronização com table_printer, o que é complexo.
         # Uma abordagem mais simples é ordenar pelo índice da coluna no DataFrame original.
         # Para simplificar esta implementação, vamos ordenar pelas colunas do DataFrame atual.
-        if 0 <= col_index <= len(current_df.columns):
+        if 1 <= col_index <= len(current_df.columns):
             col_name = current_df.columns[col_index - 1] # Ajuste para 1-based index do usuário
             sorted_df = current_df.sort_values(by=col_name, ascending=ascending, na_position='last')
             # Empilha o resultado ordenado
@@ -1171,6 +1201,16 @@ def start_cli_loop(db_path: str, table_name: str):
                 command = user_input.lower()
                 if command in ['v', 'voltar']:
                     _handle_back(results_stack)
+                    if results_stack:
+                        top_df, top_terms = results_stack[-1]
+                        _render_single_page(
+                            top_df,
+                            display_map,
+                            settings,
+                            _print_cache,
+                            top_terms,
+                            start_page=_last_rendered_page_for(top_df),
+                        )
                 elif command in ['r', 'resetar']:
                     _handle_reset(db_path, table_name, results_stack, display_map, settings, _print_cache)
                 elif command in ['rescan']:
@@ -1191,6 +1231,16 @@ def start_cli_loop(db_path: str, table_name: str):
                 # Chama handlers específicos com argumentos
                 if command in ['v', 'voltar']:
                     _handle_back(results_stack)
+                    if results_stack:
+                        top_df, top_terms = results_stack[-1]
+                        _render_single_page(
+                            top_df,
+                            display_map,
+                            settings,
+                            _print_cache,
+                            top_terms,
+                            start_page=_last_rendered_page_for(top_df),
+                        )
                 elif command in ['r', 'resetar']:
                     _handle_reset(db_path, table_name, results_stack, display_map, settings, _print_cache)
                 elif command in ['rescan']:
@@ -1231,17 +1281,13 @@ def start_cli_loop(db_path: str, table_name: str):
             else:
                 # Se input tem mais de 1 caractere, primeiro verifica se é número SSA direto para detalhes
                 if len(user_input) > 1:
-                    # Verifica se é um número SSA direto (começa com 2025 ou é numérico)
-                    if user_input.strip().isdigit() or user_input.strip().startswith('2025'):
-                        ssa_number = user_input.strip()
-                        normalized_ssa = normalize_numero_ssa_strict(ssa_number)
+                    ssa_number = user_input.strip()
+                    normalized_ssa = normalize_numero_ssa_strict(ssa_number)
+                    if normalized_ssa and ssa_number.isdigit() and len(ssa_number) == len(normalized_ssa):
                         if 'numero_ssa' in current_df.columns:
                             numero_series = current_df['numero_ssa'].astype(str)
                             # Procura SSA específica na tabela atual
-                            if normalized_ssa:
-                                match_mask = numero_series.eq(normalized_ssa)
-                            else:
-                                match_mask = numero_series.str.contains(ssa_number, na=False, regex=False)
+                            match_mask = numero_series.eq(normalized_ssa)
                             matching_rows = current_df[match_mask]
                             if not matching_rows.empty:
                                 # Mostra detalhes da primeira ocorrência
@@ -1250,20 +1296,11 @@ def start_cli_loop(db_path: str, table_name: str):
                             print(f"SSA {ssa_number} não encontrada na tabela atual.")
                             continue
 
-                    # Se não é SSA, aplica filtro acumulativo (mais de 1 caractere = filtro)
-                    # Aceita separação por vírgulas OU espaços (um ou mais)
-                    parts_terms = re.split(r"[\s,]+", user_input)
-                    processed_search_terms = [term.strip() for term in parts_terms if term.strip()]
-                    normalized_terms: list[str] = []
-                    for term in processed_search_terms:
-                        lower = term.lower()
-                        if lower in {'ou', 'or', 'v'}:
-                            normalized_terms.append('OU')
-                        elif lower in {'and', 'e', '^'}:
-                            normalized_terms.append('E')
-                        else:
-                            normalized_terms.append(term)
-                    processed_search_terms = normalized_terms
+                    # Se não é SSA, aplica filtro acumulativo conforme o contrato atual:
+                    # termos separados por virgula, sem reinterpretar operadores como OU/E.
+                    processed_search_terms = [
+                        term.strip() for term in user_input.split(',') if term.strip()
+                    ]
                     if processed_search_terms: # Só filtra se houver termos
                         default_mode = (settings.get('user_preferences') or {}).get('filter_mode_default', 'contains')
 
