@@ -885,6 +885,9 @@ def _handle_show_more(
     next_page = state.get('next_page')
     total_pages = state.get('total_pages', 0)
     show_all = bool(args and args[0] in {'z', 'tudo', 'all'})
+    if show_all and _is_cli_non_interactive():
+        print("Comando 'm z' indisponivel em sessao non-interactive. Use 'm' na CLI interativa.")
+        return
     if next_page is None or not total_pages or next_page >= total_pages:
         print("Nenhuma página adicional disponível.")
         return
