@@ -68,6 +68,57 @@ Pendencias nao bloqueantes abertas:
 3. consolidacao final de tom/densidade entre help inicial e help detalhado ainda merece slice proprio.
 4. Kluster segue instavel por timeout em arquivo grande do CLI.
 
+## Update 2026-03-20 12:55 - get_ssa_query fora da UI e help sem EOF em pipe (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-20 12:54:56 -0300`
+2. runtime validado e docs sincronizados no mesmo fluxo
+
+Objetivo do slice:
+1. retirar `get_ssa_query()` da camada de UI/CLI.
+2. corrigir o help detalhado do CLI para nao quebrar sessao em modo pipe/non-interactive.
+3. manter o patch pequeno antes do proximo ciclo maior de refinamento do CLI.
+
+Diagnostico objetivo:
+1. havia um bug real reproduzivel em subprocesso:
+   - `h -> q` terminava com `EOFError`
+   - o `q` era consumido pelo `input()` interno do help
+2. `get_ssa_query()` ainda vivia em `interface/cli.py`, embora fosse contrato de leitura de banco.
+3. a cobertura anterior nao pegava o caso real:
+   - validava o builder do help
+   - nao validava o caminho interativo por subprocesso com pipe
+
+Escopo alterado:
+1. `armazenamento/database.py`
+2. `interface/cli.py`
+3. `tests/test_cli_loop_filter_rounds.py`
+4. `docs/NEXT_CHAT_MIGRATION.md`
+5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+6. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. commit `65351ef0`
+   - `get_ssa_query()` foi movido para `armazenamento/database.py`
+   - `_handle_help()` passa a pular a pausa quando `SSA_NON_INTERACTIVE=1` ou quando stdin nao e TTY
+   - testes novos travam o caso non-interactive e o subprocesso `h -> q`
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile armazenamento/database.py interface/cli.py tests/test_cli_loop_filter_rounds.py tests/test_cli_get_ssa_query_identifier_guard.py` -> pass.
+2. `uv run --python 3.13 ruff check armazenamento/database.py interface/cli.py tests/test_cli_loop_filter_rounds.py tests/test_cli_get_ssa_query_identifier_guard.py` -> pass.
+3. `uv run --python 3.13 ty check armazenamento/database.py interface/cli.py tests/test_cli_loop_filter_rounds.py tests/test_cli_get_ssa_query_identifier_guard.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_cli_get_ssa_query_identifier_guard.py tests/test_cli_loop_filter_rounds.py -k "get_ssa_query or help or force_rescan or subprocess"` -> `11 passed, 8 deselected`.
+
+Licoes aprendidas:
+1. help interativo precisa respeitar pipe/non-interactive explicitamente; so renderizar certo nao basta.
+2. query canonica de banco nao deve morar na camada de UI so por legado historico.
+3. cobertura por subprocesso continua sendo a forma mais confiavel de pegar essas regresses do CLI.
+
+Pendencias nao bloqueantes abertas:
+1. `_handle_rescan` continua grande demais.
+2. consolidacao final de tom/densidade entre help inicial e help detalhado segue pendente.
+3. `force-rescan` em sessao automatizada ainda pede guarda propria de UX/teste.
+4. Kluster segue oscilando por timeout no lote grande do CLI.
+
 ## Update 2026-03-20 11:32 - contrato textual compartilhado no CLI (STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:

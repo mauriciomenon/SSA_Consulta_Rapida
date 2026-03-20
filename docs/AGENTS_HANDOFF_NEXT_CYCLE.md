@@ -2,7 +2,48 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-20 12:05 - authoritative block
+## CURRENT TRUTH 2026-03-20 12:55 - authoritative block
+
+- Objetivo desta rodada:
+  1. mover `get_ssa_query()` para a camada de banco.
+  2. impedir que o help detalhado do CLI quebre a sessao em modo pipe/non-interactive.
+  3. fechar a cobertura focada desse caminho antes do proximo refinamento.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M gui/gui_ssa.py`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos nao devem ser revertidos nem incluidos por inferencia.
+- Commit funcional novo:
+  1. `65351ef0`
+     - `get_ssa_query()` foi extraido para `armazenamento/database.py`.
+     - `_handle_help()` nao pausa mais em `SSA_NON_INTERACTIVE=1` nem em stdin sem TTY.
+     - novos testes travam:
+       - help sem pausa em modo non-interactive
+       - subprocesso `h -> q` com saida limpa
+- Diagnostico tecnico consolidado:
+  1. o bug reproduzivel do CLI nesta rodada era `h -> q` com `EOFError`.
+  2. a causa era um `input()` extra dentro do help, nao o loop principal em si.
+  3. `get_ssa_query()` ainda estava acoplado a UI/CLI sem necessidade funcional.
+- Validacao consolidada:
+  1. `py_compile`, `ruff` e `ty` verdes no escopo do slice.
+  2. `tests/test_cli_get_ssa_query_identifier_guard.py + tests/test_cli_loop_filter_rounds.py` no foco `get_ssa_query/help/subprocess` -> `11 passed, 8 deselected`.
+  3. Kluster limpo no lote pequeno deste slice.
+- Pendencias ainda abertas:
+  1. `_handle_rescan` continua grande demais.
+  2. consolidacao final de tom/densidade entre help inicial e help detalhado segue em aberto.
+  3. `force-rescan` em sessao automatizada ainda pede guarda de UX/teste dedicado.
+  4. schema local sem `responsavel_solicitante`.
+
+## HISTORICAL SNAPSHOT 2026-03-20 12:05 - previous current truth
 
 - Objetivo desta rodada:
   1. revisar a camada de help/menu do CLI e o renderer em terminal estreito.
