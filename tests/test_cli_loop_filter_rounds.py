@@ -14,6 +14,14 @@ import pytest
 from interface import cli
 
 
+def _build_cli_subprocess_env(repo_root: Path, tmp_path: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    env["SSA_NON_INTERACTIVE"] = "1"
+    env["SSA_DB_PATH"] = str(repo_root / "data" / "ssas.db")
+    env["SSA_CLI_ENHANCEMENTS_PATH"] = str(tmp_path / "cli_enhancements.test.json")
+    return env
+
+
 def test_start_cli_loop_keeps_session_after_clear(monkeypatch: pytest.MonkeyPatch) -> None:
     base_df = pd.DataFrame({"numero_ssa": ["202500001", "202500002"]})
     filtered_df = pd.DataFrame({"numero_ssa": ["202500002"]})
@@ -446,11 +454,9 @@ def test_start_cli_loop_accepts_force_rescan_alias(monkeypatch: pytest.MonkeyPat
     assert calls == ["force-rescan"]
 
 
-def test_cli_subprocess_help_then_quit_exits_cleanly() -> None:
+def test_cli_subprocess_help_then_quit_exits_cleanly(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    env = os.environ.copy()
-    env["SSA_NON_INTERACTIVE"] = "1"
-    env["SSA_DB_PATH"] = str(repo_root / "data" / "ssas.db")
+    env = _build_cli_subprocess_env(repo_root, tmp_path)
 
     result = subprocess.run(
         [sys.executable, "launchers/cli_entry.py"],
@@ -467,11 +473,9 @@ def test_cli_subprocess_help_then_quit_exits_cleanly() -> None:
     assert "Saindo..." in result.stdout
 
 
-def test_cli_subprocess_force_rescan_non_interactive_exits_cleanly() -> None:
+def test_cli_subprocess_force_rescan_non_interactive_exits_cleanly(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    env = os.environ.copy()
-    env["SSA_NON_INTERACTIVE"] = "1"
-    env["SSA_DB_PATH"] = str(repo_root / "data" / "ssas.db")
+    env = _build_cli_subprocess_env(repo_root, tmp_path)
 
     result = subprocess.run(
         [sys.executable, "launchers/cli_entry.py"],
@@ -525,11 +529,9 @@ def test_toggle_and_enhanced_commands_use_compact_ascii_feedback(
     assert "[Debug]" not in out
 
 
-def test_cli_subprocess_status_cli_uses_ascii_output() -> None:
+def test_cli_subprocess_status_cli_uses_ascii_output(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    env = os.environ.copy()
-    env["SSA_NON_INTERACTIVE"] = "1"
-    env["SSA_DB_PATH"] = str(repo_root / "data" / "ssas.db")
+    env = _build_cli_subprocess_env(repo_root, tmp_path)
 
     result = subprocess.run(
         [sys.executable, "launchers/cli_entry.py"],
@@ -574,11 +576,9 @@ def test_handle_show_more_rejects_show_all_in_non_interactive_mode(
     assert "Comando 'm z' indisponivel em sessao non-interactive" in out
 
 
-def test_cli_subprocess_more_all_non_interactive_exits_cleanly() -> None:
+def test_cli_subprocess_more_all_non_interactive_exits_cleanly(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    env = os.environ.copy()
-    env["SSA_NON_INTERACTIVE"] = "1"
-    env["SSA_DB_PATH"] = str(repo_root / "data" / "ssas.db")
+    env = _build_cli_subprocess_env(repo_root, tmp_path)
 
     result = subprocess.run(
         [sys.executable, "launchers/cli_entry.py"],
