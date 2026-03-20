@@ -31,6 +31,7 @@ width_manager_module = importlib.import_module("gui.simple_width_manager")
 path_safety_module = importlib.import_module("utils.path_safety")
 remote_itaipu_module = importlib.import_module("utils.remote_itaipu")
 date_utils_module = importlib.import_module("shared.date_utils")
+version_module = importlib.import_module("utils.version")
 
 filter_dataframe = app_logic.filter_dataframe
 get_filtered_data = app_logic.get_filtered_data
@@ -44,6 +45,7 @@ RequestOptions = remote_itaipu_module.RequestOptions
 fetch_pending_ssas = remote_itaipu_module.fetch_pending_ssas
 map_to_dataframe = remote_itaipu_module.map_to_dataframe
 parse_any_date = date_utils_module.parse_any_date
+get_app_version = version_module.get_app_version
 
 try:
     st = cast(Any, importlib.import_module("streamlit"))
@@ -93,6 +95,8 @@ logger.debug("Logging configurado para Streamlit", extra={'component': 'streamli
 DB_PATH_DEFAULT = os.environ.get("SSA_DB_PATH", "data/ssas.db")
 DOCS_DIR_DEFAULT = os.environ.get("SSA_DOCS_DIR", "docs_entrada")
 DISPLAY_MAPPINGS = load_display_mappings_integrity()
+APP_VERSION = get_app_version(str(project_root))
+STREAMLIT_APP_TITLE = f"SSA Consulta Rapida v{APP_VERSION}"
 
 
 # === Compatibilidade e Cache para Streamlit ===
@@ -1810,7 +1814,7 @@ REAL_RUNTIME = _is_real_streamlit_runtime()
 if REAL_RUNTIME:
     persisted_boot_state = _load_persisted_streamlit_state()
     st.set_page_config(
-        page_title="SSA Consulta Rapida",
+        page_title=STREAMLIT_APP_TITLE,
         layout="wide",
         initial_sidebar_state="expanded",
     )
@@ -1860,7 +1864,7 @@ if REAL_RUNTIME:
 
     header_left, header_right = st.columns([5, 1])
     with header_left:
-        st.markdown("<h1>SSA Consulta Rapida</h1>", unsafe_allow_html=True)
+        st.markdown(f"<h1>{STREAMLIT_APP_TITLE}</h1>", unsafe_allow_html=True)
         st.markdown(
             "<p class='section-label'>Painel streamlit com filtros, tabela paginada e exportacao</p>",
             unsafe_allow_html=True,
