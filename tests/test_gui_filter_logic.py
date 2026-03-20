@@ -324,12 +324,78 @@ class TestGUIFilterLogic:
         # Com a nova semântica, somente o 3 está visível
         assert Counter(self._extract_visible_ssa()) == Counter([3])
 
+        ses_row = pd.DataFrame(
+            [
+                {
+                    'numero_ssa': 6,
+                    'situacao': 'SES',
+                    'derivada_de': '',
+                    'localizacao_codigo': 'LOC6',
+                    'descricao_localizacao': 'Desc6',
+                    'equipamento': 'EQ1',
+                    'semana_cadastro': 202501,
+                    'semana_programada': 202503,
+                    'data_cadastro': '2025-01-01',
+                    'descricao_ssa': 'Teste F',
+                    'setor_executor': 'MEL4',
+                    'setor_emissor': 'MEL4',
+                    'descricao_execucao': 'Exec F',
+                    'solicitante': 'User6',
+                }
+            ]
+        )
+        merged_df = pd.concat([self.window.df_completo, ses_row], ignore_index=True)
+        self.window.df_completo = merged_df.copy()
+        self.window.df_exibido = merged_df.copy()
+        self.window._df_last_search_filtered = merged_df.copy()
+        self.window.paginator.set_dataframe(merged_df.copy())
+        self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
+
         self.window._on_exclude_ste_sca_toggled(True)
-        # Filtra linhas STE/SCA (2 e 3 deverão sair)
+        # Filtra linhas SCA/SES/STE (3 e 6 deverão sair)
         remaining = self._extract_visible_ssa()
         assert 3 not in remaining
-        # Com base no filtro aplicado, nada resta após excluir SCA/STE
+        assert 6 not in remaining
+        # Com base no filtro aplicado, nada resta após excluir SCA/SES/STE
         assert Counter(remaining) == Counter([])
+
+    def test_macro_baixar_excludes_sca_ses_ste_and_keeps_ste_or_ses_derivadas(self):
+        macro_df = pd.DataFrame(
+            {
+                'numero_ssa': ['100', '101', '102', '200', '201'],
+                'situacao': ['APV', 'STE', 'SES', 'APV', 'SCA'],
+                'derivada_de': ['', '100', '100', '', '200'],
+                'localizacao_codigo': ['LOC1'] * 5,
+                'descricao_localizacao': ['Desc'] * 5,
+                'equipamento': ['EQ1'] * 5,
+                'semana_cadastro': [202501] * 5,
+                'semana_programada': [202503] * 5,
+                'data_cadastro': ['2025-01-01'] * 5,
+                'descricao_ssa': ['Origem A', 'Filha STE', 'Filha SES', 'Origem B', 'Filha SCA'],
+                'setor_executor': ['IEE3', 'IEE3', 'IEE3', 'MEL4', 'MEL4'],
+                'setor_emissor': ['IEE3', 'IEE3', 'IEE3', 'MEL4', 'MEL4'],
+                'descricao_execucao': ['Exec A', 'Exec B', 'Exec C', 'Exec D', 'Exec E'],
+                'solicitante': ['User1', 'User2', 'User3', 'User4', 'User5'],
+            }
+        )
+        self.window.df_completo = macro_df.copy()
+        self.window.df_exibido = macro_df.copy()
+        self.window._df_last_search_filtered = macro_df.copy()
+        self.window.paginator.set_dataframe(macro_df.copy())
+        self.window.main_tabs.setCurrentIndex(1)
+        QApplication.processEvents()
+        self.window._refresh_advanced_filter_options()
+
+        macro_idx = self.window.adv_macro_combo.findData("ssas_para_baixar")
+        assert macro_idx >= 0
+
+        self.window.adv_macro_combo.setCurrentIndex(macro_idx)
+        self.window._on_macro_filter_changed()
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters.get("derivada_all_ste") is True
+        assert set(self.window._advanced_filters.get("situacao_exclude_values") or []) == {"SCA", "SES", "STE"}
+        assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == ["100"]
 
     def test_clear_operations_preserve_group_structure(self):
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
@@ -938,7 +1004,7 @@ class TestGUIFilterLogic:
 
         summary_text = str(self.window.filters_summary_label.text() or "")
 
-        assert "situacao!=STE/SCA" in summary_text
+        assert "situacao!=SCA/SES/STE" in summary_text
 
     def test_column_filter_row_clear_button_clears_value_without_hiding_row(self):
         self.window._active_column_filters = {col: '' for col in self.window._column_filter_default_columns()}
@@ -3845,7 +3911,7 @@ class TestGUIFilterLogic:
             else self.window._resolve_column_display_name("descricao_ssa")
         )
         assert label in self._get_column_filter_controls()
-        assert "situacao!=STE/SCA" in str(self.window.filters_summary_label.text() or "")
+        assert "situacao!=SCA/SES/STE" in str(self.window.filters_summary_label.text() or "")
 
     def test_clear_all_filters_global_stops_pending_debounce(self):
         self.window.search_input.setText("Teste")

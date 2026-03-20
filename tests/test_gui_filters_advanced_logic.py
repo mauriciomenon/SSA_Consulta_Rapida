@@ -264,6 +264,26 @@ def test_apply_advanced_filters_reprogramacoes_eq_lte_gte():
     assert filtered_gte["numero_ssa"].tolist() == ["202500003", "202500004"]
 
 
+def test_apply_advanced_filters_derivada_all_ste_accepts_ses_as_terminal_state():
+    window = _DummyWindow({"derivada_all_ste": True})
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["100", "101", "102", "200", "201"],
+            "derivada_de": ["", "100", "100", "", "200"],
+            "situacao": ["APV", "STE", "SES", "APV", "SCA"],
+        }
+    )
+
+    filtered = _apply_advanced_filters(
+        window,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered["numero_ssa"].tolist() == ["100"]
+
+
 def test_apply_advanced_filters_derives_divisao_from_setor_columns(monkeypatch):
     monkeypatch.setattr(
         adv_logic,
