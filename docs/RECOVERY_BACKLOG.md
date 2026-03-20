@@ -277,6 +277,57 @@ Pendencias nao bloqueantes abertas:
 3. manager de CLI ainda concentra texto de status e persistencia local.
 4. Kluster segue oscilando por timeout em lotes grandes do CLI; manter lotes pequenos.
 
+## Update 2026-03-20 14:00 - settings do CLI isolados em testes (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-20 13:52:00 -0300`
+2. runtime validado e docs sincronizados no mesmo fluxo
+
+Objetivo do slice:
+1. impedir que subprocessos de teste do CLI sujem `config/cli_enhancements.json`.
+2. isolar persistencia de settings do CLI em arquivo temporario durante automacao.
+3. manter o caminho padrao do runtime intacto para uso normal.
+
+Diagnostico objetivo:
+1. o resido em `config/cli_enhancements.json` vinha dos testes por subprocesso que acionavam:
+   - `toggle-debug`
+   - `enhanced-on`
+   - `enhanced-off`
+2. o problema nao era a logica funcional desses comandos:
+   - era o fato de os testes escreverem no arquivo real de settings
+3. o Kluster encontrou 1 issue media no primeiro patch:
+   - o override por env precisava passar por validacao obrigatoria de path seguro
+
+Escopo alterado:
+1. `interface/cli_enhancement_manager.py`
+2. `tests/test_cli_loop_filter_rounds.py`
+3. `docs/NEXT_CHAT_MIGRATION.md`
+4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+5. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. commit `049b0b2e`
+   - `SSA_CLI_ENHANCEMENTS_PATH` passa a permitir override do arquivo de settings do CLI
+   - o caminho override e validado por `ensure_path_is_allowed(...)`
+   - subprocessos de teste passam a usar arquivo temporario proprio
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile interface/cli_enhancement_manager.py tests/test_cli_loop_filter_rounds.py` -> pass.
+2. `uv run --python 3.13 ruff check interface/cli_enhancement_manager.py tests/test_cli_loop_filter_rounds.py` -> pass.
+3. `uv run --python 3.13 ty check interface/cli_enhancement_manager.py tests/test_cli_loop_filter_rounds.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py -k "status_cli or toggle or enhanced or help or force_rescan or more_all or show_more or subprocess"` -> `13 passed, 9 deselected`.
+
+Licoes aprendidas:
+1. teste por subprocesso precisa isolar tambem arquivos de estado local, nao so stdout/stderr.
+2. override por env em caminho sensivel deve sempre passar por validacao de path seguro.
+3. esse slice evita nova sujeira, mas nao limpa automaticamente o resido antigo sem comando explicito.
+
+Pendencias nao bloqueantes abertas:
+1. `_handle_rescan` continua grande demais.
+2. `m`, `m z`, status e paginacao ainda merecem cobertura combinada de sessao longa.
+3. o resido ja existente em `config/cli_enhancements.json` continua fora de escopo.
+4. manager de CLI ainda concentra texto de status e persistencia local.
+
 ## Update 2026-03-20 11:32 - contrato textual compartilhado no CLI (STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:

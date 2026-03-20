@@ -2,7 +2,48 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-20 13:47 - start from here
+## CURRENT TRUTH 2026-03-20 14:00 - start from here
+
+- Objetivo desta rodada:
+  1. impedir que os testes CLI por subprocesso continuem sujando `config/cli_enhancements.json`.
+  2. isolar persistencia de settings em arquivo temporario de teste.
+  3. manter o caminho padrao do runtime intacto fora de testes.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/cli_enhancements.json`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esse `M config/cli_enhancements.json` ja existia por testes anteriores; o slice atual evita novas sujeiras, mas nao faz rollback desse resido.
+- Commit funcional novo desta rodada:
+  1. `049b0b2e`
+     - `CLIEnhancementManager` aceita override de arquivo por `SSA_CLI_ENHANCEMENTS_PATH`.
+     - o override passa por validacao de path seguro.
+     - subprocessos de teste usam arquivo temporario proprio.
+- Diagnostico consolidado desta rodada:
+  1. o resido em `config/cli_enhancements.json` vinha dos subprocessos que exercitavam `toggle-debug` e `enhanced-on/off`.
+  2. o problema nao era logica do CLI em si:
+     - era persistencia real em caminho fixo durante automacao
+  3. a correcao exigia so um override seguro de caminho para teste.
+- Validacao relevante ja executada:
+  1. `uv run --python 3.13 python -m py_compile interface/cli_enhancement_manager.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  2. `uv run --python 3.13 ruff check interface/cli_enhancement_manager.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  3. `uv run --python 3.13 ty check interface/cli_enhancement_manager.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py -k "status_cli or toggle or enhanced or help or force_rescan or more_all or show_more or subprocess"` -> `13 passed, 9 deselected`.
+- Pendencias e leitura para o proximo ciclo:
+  1. `_handle_rescan` continua grande demais.
+  2. `m`, `m z`, status e paginacao ainda merecem cobertura combinada de sessao longa.
+  3. o resido ja existente em `config/cli_enhancements.json` continua fora de escopo ate voce decidir reverter explicitamente.
+  4. manager de CLI ainda concentra texto de status e persistencia local em um bloco unico.
+
+## HISTORICAL SNAPSHOT 2026-03-20 13:47 - previous current truth
 
 - Objetivo desta rodada:
   1. impedir que `m z` trave a automacao do CLI por volume de saida.
