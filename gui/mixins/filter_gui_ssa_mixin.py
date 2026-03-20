@@ -14,6 +14,7 @@ import os
 import json
 import re
 import pandas as pd
+from time import perf_counter
 from typing import Any, TYPE_CHECKING, Optional, cast
 from collections import OrderedDict
 from PyQt6.QtCore import QTimer
@@ -68,6 +69,8 @@ _HEAVY_QUANTIFIER_CHAIN_RE = re.compile(r"(?:[+*]|\{[^}]*\}){3,}")
 _REGEX_META_CHAR_RE = re.compile(r"[*+?{}|()[\]]")
 _EXCLUDED_TERMINAL_STATUSES = frozenset({"SCA", "SES", "STE"})
 _EXCLUDED_TERMINAL_SUMMARY = "situacao!=SCA/SES/STE"
+_CLEAR_FILTER_HARD_RESET_CLICK_TARGET = 3
+_CLEAR_FILTER_HARD_RESET_WINDOW_SEC = 3.0
 
 
 def _qt_parent(obj: Any) -> QWidget | None:
@@ -339,6 +342,66 @@ class FilterGUISSAMixin:
     def _on_general_search_clear_clicked(self, tab_kind: str) -> None:
         logger.debug("Acao limpar busca geral acionada (tab_kind=%s)", tab_kind)
         self.clear_filter()
+        self._maybe_offer_hard_reset_after_repeated_clear_click()
+
+    def _on_clear_all_filters_clicked(self) -> None:
+        logger.debug("Acao limpar todos os filtros acionada")
+        self._clear_all_filters_global()
+        self._maybe_offer_hard_reset_after_repeated_clear_click()
+
+    def _reset_repeated_clear_click_tracking(self) -> None:
+        self._clear_filter_click_count = 0
+        self._clear_filter_last_click_ts = 0.0
+
+    def _register_repeated_clear_click(self) -> bool:
+        now = perf_counter()
+        try:
+            last_click = float(getattr(self, "_clear_filter_last_click_ts", 0.0) or 0.0)
+        except Exception:
+            last_click = 0.0
+        try:
+            click_count = int(getattr(self, "_clear_filter_click_count", 0) or 0)
+        except Exception:
+            click_count = 0
+        if (now - last_click) > _CLEAR_FILTER_HARD_RESET_WINDOW_SEC:
+            click_count = 0
+        click_count += 1
+        self._clear_filter_click_count = click_count
+        self._clear_filter_last_click_ts = now
+        if click_count < _CLEAR_FILTER_HARD_RESET_CLICK_TARGET:
+            return False
+        self._reset_repeated_clear_click_tracking()
+        return True
+
+    def _maybe_offer_hard_reset_after_repeated_clear_click(self) -> None:
+        if not self._register_repeated_clear_click():
+            return
+        if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("SSA_NON_INTERACTIVE"):
+            logger.debug("Confirmacao de hard reset suprimida em ambiente nao interativo.")
+            return
+        buttons = getattr(QMessageBox, "StandardButton", None)
+        try:
+            if buttons is not None:
+                reply = QMessageBox.question(
+                    _qt_parent(self),
+                    "Limpar Filtros",
+                    "Voce clicou varias vezes em limpar filtros. Deseja resetar todos os filtros?",
+                    buttons.Yes | buttons.No,
+                    buttons.No,
+                )
+                accepted = reply == buttons.Yes
+            else:
+                reply = QMessageBox.question(
+                    _qt_parent(self),
+                    "Limpar Filtros",
+                    "Voce clicou varias vezes em limpar filtros. Deseja resetar todos os filtros?",
+                )
+                accepted = reply == getattr(QMessageBox, "Yes", reply)
+        except Exception as exc:
+            logger.debug("Falha ao exibir confirmacao de hard reset apos cliques repetidos: %s", exc)
+            accepted = False
+        if accepted:
+            self._hard_reset_filters_state()
 
     def initiate_filtering(self):
         if self.df_completo.empty:
@@ -1461,6 +1524,7 @@ class FilterGUISSAMixin:
 
     def _hard_reset_filters_state(self):
         """Reseta agressivamente estado interno e visual dos filtros sem tocar nos botoes atuais."""
+        self._reset_repeated_clear_click_tracking()
         self._invalidate_active_filter_request("hard_reset_filters_state")
         self._cancel_active_filter_worker("hard_reset_filters_state", wait_ms=0)
         self._set_filter_ui_idle()
