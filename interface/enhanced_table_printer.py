@@ -8,7 +8,6 @@ from typing import Dict, List, Optional, Any
 import os
 import sys
 import math
-import logging
 import builtins
 
 try:
@@ -75,8 +74,9 @@ except ModuleNotFoundError:  # pragma: no cover - depende do ambiente
 
 from interface.cli_width_manager import CLIWidthManager
 from utils.formatting import format_dataframe_for_display
+from utils.robust_logging import get_robust_logger
 
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "cli")
 if not _TABULATE_AVAILABLE:
     logger.warning("tabulate não encontrado; EnhancedTablePrinter usando fallback simples")
 
@@ -87,7 +87,7 @@ _ORIGINAL_INPUT = builtins.input
 class EnhancedTablePrinter:
     """
     Renderizador de tabelas melhorado para CLI.
-    Usa CLIWidthManager para larguras deterministicas e word wrap.
+    Usa CLIWidthManager para larguras deterministicas e truncamento conservador.
     """
 
     def __init__(self):
@@ -171,36 +171,16 @@ class EnhancedTablePrinter:
         data_columns = [col for col in selected_columns if col != '#']
         working_df = df[data_columns].copy()
 
-        # Aplica formatação base (datas, SSAs, etc.)
-        working_df = format_dataframe_for_display(working_df)
-
-        # Normaliza números SSA
-        if 'numero_ssa' in working_df.columns:
-            working_df['numero_ssa'] = working_df['numero_ssa'].apply(
-                self.width_manager.normalize_ssa_number
-            )
-
         # Calcula larguras usando CLI Width Manager
         widths = self.width_manager.compute_cli_widths(
             working_df, available_width, selected_columns
         )
 
-        # Adiciona coluna de índice
-        working_df.insert(0, '#', range(1, len(working_df) + 1))
-
-        # Aplica word wrap e formatação de células
-        formatted_df = self._apply_formatting_and_wrap(working_df, widths, display_names)
-
-        # Garante que nenhuma célula exceda a largura calculada (evita "escapar" para próxima linha)
-        try:
-            formatted_df = self._clamp_widths(formatted_df, widths)
-        except Exception:
-            pass
-
         # Renderiza com paginação
         return self._render_paginated(
-            formatted_df,
+            working_df,
             widths,
+            display_names,
             settings,
             highlight_terms,
             filter_terms,
@@ -265,14 +245,16 @@ class EnhancedTablePrinter:
 
         return selected
 
-    def _apply_formatting_and_wrap(
+    def _apply_formatting_and_truncation(
         self,
         df: pd.DataFrame,
         widths: Dict[str, int],
-        display_names: Dict[str, str]
+        display_names: Dict[str, str],
+        *,
+        rename_columns: bool = True,
     ) -> pd.DataFrame:
         """
-        Aplica formatação e word wrap nas células.
+        Aplica formatação e truncamento por limite de palavra nas células.
 
         Args:
             df: DataFrame a ser formatado
@@ -294,22 +276,28 @@ class EnhancedTablePrinter:
                     lambda x: self._format_cell(x, width, col)
                 )
 
-        # Renomeia colunas para exibição
+        if rename_columns:
+            formatted_df = self._rename_columns_for_display(formatted_df, widths, display_names)
+
+        return formatted_df
+
+    def _rename_columns_for_display(
+        self,
+        df: pd.DataFrame,
+        widths: Dict[str, int],
+        display_names: Dict[str, str],
+    ) -> pd.DataFrame:
         rename_map = {}
-        for col in formatted_df.columns:
+        for col in df.columns:
             if col == '#':
                 rename_map[col] = '#'
             else:
-                # Usa nomes da configuração unificada
                 display_name = display_names.get(col, col)
                 rename_map[col] = self._truncate_header(
                     display_name,
                     widths.get(col, 15),
                 )
-
-        formatted_df = formatted_df.rename(columns=rename_map)
-
-        return formatted_df
+        return df.rename(columns=rename_map)
 
     def _format_cell(self, content: str, width: int, column_name: str) -> str:
         """
@@ -332,10 +320,10 @@ class EnhancedTablePrinter:
         if column_name == '#':
             return content.rjust(width)
 
-        # Aplica word wrap ou truncamento
+        # Aplica truncamento por limite de palavra
         wrapped_lines = self.width_manager.apply_word_wrap(content, width, column_name)
 
-        # Por enquanto, usa apenas a primeira linha (futuro: suporte a múltiplas linhas)
+        # A CLI atual mantém apenas uma linha por registro.
         formatted_content = wrapped_lines[0] if wrapped_lines else ''
 
         # Remove padding fixo para evitar quebras de linha
@@ -415,7 +403,6 @@ class EnhancedTablePrinter:
         rendered_pages: int,
         page_size: int,
         resume_page: int | None,
-        pages: list[pd.DataFrame],
         current_page: int,
         highlight_terms: Optional[List[str]],
     ) -> tuple[str, Dict[str, Any] | None]:
@@ -438,20 +425,15 @@ class EnhancedTablePrinter:
                 next_page=resume_page,
             )
         if command == 'z':
-            if current_page < len(pages) - 1:
-                print()
-                for rest_page in pages[current_page + 1:]:
-                    self._render_page_table(
-                        rest_page,
-                        include_header=False,
-                        highlight_terms=highlight_terms,
-                    )
-                print("...exibição interrompida.")
-            return "return", self._build_pagination_state(
-                total_pages=total_pages,
-                rendered_pages=total_pages,
-                page_size=page_size,
-            )
+            if current_page >= total_pages - 1:
+                print("Fim da exibição.")
+                return "return", self._build_pagination_state(
+                    total_pages=total_pages,
+                    rendered_pages=rendered_pages,
+                    page_size=page_size,
+                    next_page=resume_page,
+                )
+            return "auto_scroll", None
         if command == 'l':
             if filters_text:
                 print(f"\nFiltros ativos: {filters_text}")
@@ -473,6 +455,7 @@ class EnhancedTablePrinter:
         self,
         df: pd.DataFrame,
         widths: Dict[str, int],
+        display_names: Dict[str, str],
         settings: dict,
         highlight_terms: Optional[List[str]] = None,
         filter_terms: Optional[List[str]] = None,
@@ -485,21 +468,18 @@ class EnhancedTablePrinter:
         page_size = max(1, terminal_height - 8)
 
         auto_scroll = settings.get('user_preferences', {}).get('auto_scroll_to_end', False)
-        total_pages = math.ceil(len(df) / page_size) if page_size > 0 else 1
+        total_pages = math.ceil(len(df) / page_size) if page_size > 0 else 0
         max_auto_scroll_pages = settings.get('display_settings', {}).get('max_auto_scroll_pages', 3)
         if auto_scroll and total_pages > max_auto_scroll_pages:
             auto_scroll = False
 
-        pages = [df.iloc[i:i + page_size] for i in range(0, len(df), page_size)]
-        if not pages:
+        if total_pages <= 0:
             print("Nenhum dado para exibir após processamento.")
             return self._build_pagination_state(
                 total_pages=0,
                 rendered_pages=0,
                 page_size=page_size,
             )
-
-        total_pages = len(pages)
         last_index = total_pages - 1
         effective_start = max(0, start_page)
         if effective_start >= total_pages:
@@ -525,10 +505,22 @@ class EnhancedTablePrinter:
         )
         current_page = effective_start
         rendered_pages = 0
+        last_counted_page: int | None = None
+        prepared_page: tuple[int, pd.DataFrame] | None = None
         while current_page < total_pages:
             resume_page: int | None = None
             try:
-                page_df = pages[current_page]
+                if prepared_page is not None and prepared_page[0] == current_page:
+                    page_df = prepared_page[1]
+                else:
+                    page_df = self._prepare_page_dataframe(
+                        df,
+                        current_page=current_page,
+                        page_size=page_size,
+                        widths=widths,
+                        display_names=display_names,
+                    )
+                    prepared_page = (current_page, page_df)
                 resume_page = current_page + 1 if current_page < last_index else None
                 print(f"Página {current_page + 1} de {total_pages}")
                 self._render_page_table(
@@ -536,10 +528,13 @@ class EnhancedTablePrinter:
                     include_header=True,
                     highlight_terms=highlight_terms,
                 )
-                rendered_pages += 1
+                page_counted = current_page != last_counted_page
+                if page_counted:
+                    rendered_pages += 1
+                    last_counted_page = current_page
                 last = current_page == last_index
 
-                if max_pages is not None and rendered_pages >= max_pages:
+                if page_counted and max_pages is not None and rendered_pages >= max_pages:
                     next_page = current_page + 1 if current_page < last_index else None
                     return self._build_pagination_state(
                         total_pages=total_pages,
@@ -550,7 +545,7 @@ class EnhancedTablePrinter:
                 if auto_scroll or non_interactive:
                     if last:
                         if non_interactive:
-                            print("...exibição interrompida.")
+                            print("Fim da exibicao.")
                         return self._build_pagination_state(
                             total_pages=total_pages,
                             rendered_pages=rendered_pages,
@@ -577,7 +572,7 @@ class EnhancedTablePrinter:
                         resume_page=resume_page,
                     )
 
-                remaining = len(pages) - current_page - 1
+                remaining = total_pages - current_page - 1
                 prefix = f" {remaining} pág. restantes"
                 if filters_text:
                     prefix += f" - Filtros: {filters_text}"
@@ -601,7 +596,6 @@ class EnhancedTablePrinter:
                     rendered_pages=rendered_pages,
                     page_size=page_size,
                     resume_page=resume_page,
-                    pages=pages,
                     current_page=current_page,
                     highlight_terms=highlight_terms,
                 )
@@ -611,11 +605,16 @@ class EnhancedTablePrinter:
                         rendered_pages=rendered_pages,
                         page_size=page_size,
                     )
+                if action == "continue":
+                    continue
                 if action == "next_page":
                     current_page += 1
+                    prepared_page = None
                     continue
                 if action == "auto_scroll":
                     auto_scroll = True
+                    current_page += 1
+                    prepared_page = None
                     continue
             except KeyboardInterrupt:
                 print("\n...exibição interrompida.")
@@ -658,6 +657,45 @@ class EnhancedTablePrinter:
             'exit_requested': exit_requested,
         }
 
+    def _prepare_page_dataframe(
+        self,
+        df: pd.DataFrame,
+        *,
+        current_page: int,
+        page_size: int,
+        widths: Dict[str, int],
+        display_names: Dict[str, str],
+    ) -> pd.DataFrame:
+        start_index = current_page * page_size
+        end_index = start_index + page_size
+        page_df = format_dataframe_for_display(df.iloc[start_index:end_index].copy())
+
+        if 'numero_ssa' in page_df.columns:
+            page_df['numero_ssa'] = page_df['numero_ssa'].apply(
+                self.width_manager.normalize_ssa_number
+            )
+
+        row_numbers = range(start_index + 1, start_index + len(page_df) + 1)
+        if '#' in page_df.columns:
+            page_df['#'] = list(row_numbers)
+            ordered_columns = ['#'] + [col for col in page_df.columns if col != '#']
+            page_df = page_df[ordered_columns]
+        else:
+            page_df.insert(0, '#', row_numbers)
+        page_df = self._apply_formatting_and_truncation(
+            page_df,
+            widths,
+            display_names,
+            rename_columns=False,
+        )
+
+        try:
+            page_df = self._clamp_widths(page_df, widths)
+        except Exception:
+            pass
+
+        return self._rename_columns_for_display(page_df, widths, display_names)
+
     def _apply_highlighting(self, table_str: str, highlight_terms: List[str]) -> str:
         """
         Aplica destaque ANSI aos termos especificados.
@@ -698,8 +736,8 @@ class EnhancedTablePrinter:
         # Converte número SSA para inteiro para ordenar desc (tolerante)
         ssa_int = None
         if 'numero_ssa' in work.columns:
-            ssa_str = work['numero_ssa'].astype(str).str.replace(r'\D', '', regex=True)
-            ssa_int = ssa_str.apply(lambda s: int(s) if s.isdigit() else -1)
+            normalized_ssa = work['numero_ssa'].apply(self.width_manager.normalize_ssa_number)
+            ssa_int = normalized_ssa.apply(lambda s: int(s) if str(s).isdigit() else -1)
         else:
             ssa_int = pd.Series([-1]*len(work), index=work.index)
 

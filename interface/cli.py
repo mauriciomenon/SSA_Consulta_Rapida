@@ -996,6 +996,7 @@ def _handle_clear_all_filters(db_path: str, table_name: str, results_stack: list
 # Mapeamento de comandos para funções
 COMMAND_HANDLERS = {
     'q': _handle_quit,
+    'qq': _handle_quit,
     'sair': _handle_quit,
     'exit': _handle_quit,
     'quit': _handle_quit,

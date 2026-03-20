@@ -282,7 +282,7 @@ class CLIEnhancementManager:
         status.append("• Sistema de crescimento proporcional 50/50")
         status.append("• Normalização correta de números SSA")
         status.append("• Configuração unificada GUI/CLI")
-        status.append("• Word wrap inteligente para descrições")
+        status.append("• Quebra conservadora e truncamento de descrições")
         status.append("• Seleção otimizada de colunas")
 
         version = self.settings.get("version", "1.0")
