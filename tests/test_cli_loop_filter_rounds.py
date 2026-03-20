@@ -324,3 +324,35 @@ def test_cached_pretty_print_df_cache_key_includes_rendered_rows(monkeypatch: py
         cli._cached_pretty_print_df(df_b, display_map, settings, cache, ["mel4"])
 
     assert render_count["count"] == 2
+
+
+def test_build_cli_plain_help_text_reflects_current_search_contract() -> None:
+    help_text = cli._build_cli_plain_help_text()
+
+    assert "Separe termos por virgula" in help_text
+    assert "Exemplos: svp, !ste, mel4" in help_text
+    assert "h ou ?    Ajuda completa" in help_text
+
+
+def test_handle_help_fallback_uses_shared_plain_help_text(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(builtins, "input", lambda _prompt="": "")
+
+    original_print = builtins.print
+    state = {"first": True}
+
+    def _fake_print(*args, **kwargs):
+        if state["first"]:
+            state["first"] = False
+            raise UnicodeEncodeError("ascii", "teste", 0, 1, "fail")
+        return original_print(*args, **kwargs)
+
+    monkeypatch.setattr(builtins, "print", _fake_print)
+
+    cli._handle_help()
+
+    out = capsys.readouterr().out
+    assert "CONSULTA RAPIDA de SSAs" in out
+    assert "Separe termos por virgula" in out
