@@ -3,6 +3,66 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-20 15:40 - q/qq na paginacao do CLI e retomada do m (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-20 15:05:00 -0300`
+2. runtime validado e docs sincronizados no mesmo fluxo
+
+Objetivo do slice:
+1. resolver a ambiguidade do `q` dentro da paginacao do CLI.
+2. criar um atalho explicito para sair da aplicacao a partir da paginacao.
+3. garantir que interromper a exibicao nao mate a retomada por `m`.
+
+Diagnostico objetivo:
+1. o motivo tecnico de `q` nao encerrar o programa era semantica dupla:
+   - `q` no prompt principal -> sai da aplicacao
+   - `q` no prompt interno da paginacao -> so encerra a exibicao atual e volta ao prompt principal
+2. isso era percebido como bug porque o prompt da paginacao nao deixava a diferenca clara.
+3. ao endurecer a saida, apareceu um risco real:
+   - o estado de paginacao podia perder `next_page` apos interrupcao
+   - isso quebrava a retomada via `m`
+4. a correcao tambem exigiu um ponto unico de controle no CLI:
+   - o printer nao deve encerrar o processo
+   - mas o loop nao pode depender de 12 wrappers manuais espalhados
+
+Escopo alterado:
+1. `interface/enhanced_table_printer.py`
+2. `interface/cli.py`
+3. `tests/test_cli_pagination_prompt.py`
+4. `tests/test_cli_loop_filter_rounds.py`
+5. `docs/NEXT_CHAT_MIGRATION.md`
+6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+7. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. commit funcional `c7014e98`
+   - prompt da paginacao agora explicita:
+     - `q` = fechar exibicao
+     - `qq` = sair da aplicacao
+   - `EnhancedTablePrinter` devolve `exit_requested` em vez de encerrar o processo
+   - `interface/cli.py` centraliza a traducao desse estado em `_render_cli_page`
+   - `q` preserva `next_page` para permitir retomada correta com `m`
+   - `start_cli_loop` consolidou o bloco duplicado de comandos stateful
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile interface/enhanced_table_printer.py interface/cli.py tests/test_cli_pagination_prompt.py tests/test_cli_loop_filter_rounds.py` -> pass.
+2. `uv run --python 3.13 ruff check interface/enhanced_table_printer.py interface/cli.py tests/test_cli_pagination_prompt.py tests/test_cli_loop_filter_rounds.py` -> pass.
+3. `uv run --python 3.13 ty check interface/enhanced_table_printer.py interface/cli.py tests/test_cli_pagination_prompt.py tests/test_cli_loop_filter_rounds.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_cli_pagination_prompt.py tests/test_cli_loop_filter_rounds.py -k "qq or pagination or help or force_rescan or status_cli or toggle or enhanced or more_all or show_more or subprocess"` -> `18 passed, 10 deselected`.
+
+Licoes aprendidas:
+1. o problema nao era o `q` do programa inteiro; era o `q` do subprompt de paginacao.
+2. comandos de exibicao com subprompt precisam declarar escopo de saida de forma explicita.
+3. o printer deve sinalizar intencao de sair, mas nao encerrar o processo por conta propria.
+4. quando a saida e interrompida cedo, `next_page` precisa sobreviver para nao quebrar `m`.
+
+Pendencias nao bloqueantes abertas:
+1. Kluster continuou com timeout isolado em `interface/enhanced_table_printer.py`; nesta rodada nao retornou finding nesse arquivo apos a ultima mudanca.
+2. `_handle_rescan` continua grande demais.
+3. `ord` / `ordi` ainda merecem revisao de contrato vs ordem visivel da tabela.
+4. a cobertura de sessao longa do CLI ainda pode crescer com fluxo combinado de paginacao, status e detalhe.
+
 ## Update 2026-03-20 12:05 - help/menu e largura estreita do CLI (STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:

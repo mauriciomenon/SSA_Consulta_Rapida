@@ -2,7 +2,51 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-20 14:00 - authoritative block
+## CURRENT TRUTH 2026-03-20 15:40 - authoritative block
+
+- Objetivo desta rodada:
+  1. resolver a ambiguidade de `q` na paginacao do CLI.
+  2. permitir saida explicita da aplicacao a partir da paginacao sem side effect escondido no printer.
+  3. manter retomada correta do `m` depois de interromper exibicao.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/cli_enhancements.json`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+- Commit funcional novo:
+  1. `c7014e98`
+     - `EnhancedTablePrinter` passa a devolver `exit_requested` para `qq`
+     - `interface/cli.py` centraliza traducao desse sinal em `_render_cli_page`
+     - `q` na paginacao preserva `next_page` para o `m`
+- Diagnostico tecnico consolidado:
+  1. o motivo tecnico de `q` nao encerrar o programa era o escopo do comando:
+     - `q` no prompt principal sempre sai da aplicacao
+     - `q` no prompt interno da paginacao so fecha a exibicao atual
+  2. antes desta rodada, isso era percebido como bug porque o prompt nao deixava essa diferenca clara.
+  3. o contrato novo fica explicito:
+     - `q` fecha exibicao
+     - `qq` sai da aplicacao
+  4. a retomada do `m` apos interrupcao agora fica coberta por teste.
+- Validacao consolidada:
+  1. `py_compile`, `ruff` e `ty` verdes no escopo do slice.
+  2. `tests/test_cli_pagination_prompt.py + tests/test_cli_loop_filter_rounds.py` no foco desta rodada -> `18 passed, 10 deselected`.
+  3. Kluster ficou clean no lote `interface/cli.py + tests/test_cli_loop_filter_rounds.py`.
+  4. Kluster do arquivo grande `interface/enhanced_table_printer.py` continuou com timeout isolado, sem finding retornado nesta rodada.
+- Pendencias ainda abertas:
+  1. `_handle_rescan` continua grande demais.
+  2. `ord` / `ordi` ainda merecem revisao de contrato vs ordem realmente exibida.
+  3. cobertura de sessao longa do CLI ainda pode crescer.
+  4. schema local sem `responsavel_solicitante`.
+
+## HISTORICAL SNAPSHOT 2026-03-20 14:00 - previous current truth
 
 - Objetivo desta rodada:
   1. impedir que subprocessos de teste do CLI escrevam no arquivo real `config/cli_enhancements.json`.
