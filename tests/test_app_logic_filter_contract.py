@@ -135,3 +135,18 @@ def test_parse_search_terms_keeps_literals_and_does_not_parse_logical_keywords()
 
     assert [term["value"] for term in terms] == ["svp", "OU", "mel4"]
     assert {term["group"] for term in terms} == {0}
+
+
+def test_filter_dataframe_general_search_keeps_svp_literal_and_ste_negative() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003"],
+            "solicitante": ["danilo", "danilo", "danilo"],
+            "setor_executor": ["svp mel4", "S/P mel4", "svp mel4"],
+            "situacao": ["ADM", "ADM", "STE"],
+        }
+    )
+
+    out = filter_dataframe(df, ["danilo", "svp", "mel4", "!STE"])
+
+    assert list(out["numero_ssa"]) == ["202500001"]

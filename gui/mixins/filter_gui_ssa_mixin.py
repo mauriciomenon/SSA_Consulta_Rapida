@@ -1649,13 +1649,13 @@ class FilterGUISSAMixin:
 
 
     def _get_filter_alias_map(self) -> dict:
-        """Carrega mapeamento opcional de aliases para exibição de filtros de coluna.
+        """Carrega mapeamento opcional de aliases para exibicao de filtros de coluna.
         Estrutura esperada (config/filter_aliases.json):
         {
-          "_global": { "ste": "STE" },
-          "setor_executor": { "svp": "S/P" }
+          "_global": { "ste": "STE", "sca": "SCA" },
+          "setor_executor": {}
         }
-        Chaves de lookup aceitam minúsculas (casefold). Retorna {} se ausente/erro.
+        Chaves de lookup aceitam minusculas (casefold). Retorna {} se ausente/erro.
         """
         if hasattr(self, '_filter_alias_map') and isinstance(self._filter_alias_map, dict):
             return self._filter_alias_map
@@ -2481,7 +2481,8 @@ class FilterGUISSAMixin:
             # VAZIOS/NULL: aceita NULL ou =NULL (case-insensitive)
             if t.upper() in ('NULL', '=NULL'):
                 # Considera nulos, strings vazias e '-'
-                res = s.isna() | (s.str.strip().eq('', na=False)) | (s == '-')
+                stripped = s.str.strip()
+                res = s.isna() | stripped.fillna('').eq('') | (s == '-')
                 return ~res if neg else res
             # Regex explácito
             if t.startswith('~') and len(t) > 1:
