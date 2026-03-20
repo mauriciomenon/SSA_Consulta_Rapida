@@ -2,7 +2,49 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-19 15:49 - authoritative block
+## CURRENT TRUTH 2026-03-20 07:25 - authoritative block
+
+- Objetivo desta rodada:
+  1. sincronizar handoff com os ultimos slices funcionais ja publicados em `dev`.
+  2. registrar a leitura correta do repro real `danilo, svp, mel4, !STE`.
+  3. registrar a regra atual de troca de `setor_executor` em dado mais novo.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M gui/gui_ssa.py`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos nao devem ser revertidos nem incluidos por inferencia.
+- Commits funcionais recentes:
+  1. `fd2d9b09`
+     - full rescan Windows fecha conexoes SQLite antes de promover o DB candidato.
+  2. `3ea0881b`
+     - busca superior travada em teste como literal para `svp` e `OU/OR`.
+  3. `2a1623bf`
+     - upsert registra em log troca de `setor_executor` quando o dado mais novo vence.
+- Diagnostico tecnico consolidado:
+  1. repro real no banco local:
+     - `danilo, svp, mel4, !STE` retorna `1` linha no runtime atual.
+     - esse `1` vem de match literal de `svp` em `descricao_ssa`, nao de alias, sinonimo ou semantica especial de `S/P`.
+  2. `config/filter_aliases.json` nao contem mais `svp -> S/P`.
+  3. o schema local atual nao contem `responsavel_solicitante`.
+  4. a logica de upsert ja aceitava troca de setor por linha mais nova; agora isso tambem fica registrado em log de arquivo sem afetar UI.
+- Validacao consolidada:
+  1. contrato literal da busca superior para `svp` e `OU/OR` travado em `tests/test_app_logic_filter_contract.py`.
+  2. full rescan com DB-only derivadas validado apos fechar handles SQLite.
+  3. troca de `setor_executor` por linha mais nova validada e logada em `tests/test_upsert_behaviors.py`.
+- Proximo passo sugerido:
+  1. se o usuario quiser ajustar o comportamento de termos curtos na busca superior, tratar isso como decisao de produto com teste de contrato antes de qualquer patch.
+  2. se o schema local precisar refletir o contrato novo completo da busca, abrir slice separado para migracao/compatibilidade de schema.
+  3. manter separados os debts de comentario/docstring/config mortos que nao afetam runtime.
+
+## HISTORICAL SNAPSHOT 2026-03-19 15:49 - previous current truth
 
 - Objetivo desta rodada:
   1. remover legado morto de alias do `core` sem mudar a semantica da busca superior.

@@ -2,7 +2,57 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-19 15:49 - start from here
+## CURRENT TRUTH 2026-03-20 07:25 - start from here
+
+- Objetivo desta rodada:
+  1. sincronizar os docs com os ultimos slices funcionais ja entregues em `dev`.
+  2. registrar o resultado do repro real `danilo, svp, mel4, !STE` no banco local atual.
+  3. registrar a regra de upsert para troca de `setor_executor` em dado mais novo.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M gui/gui_ssa.py`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos continuam fora do escopo dos slices abaixo e nao devem ser revertidos por inferencia.
+- Commits funcionais mais recentes ja entregues:
+  1. `fd2d9b09`
+     - fecha handles SQLite antes da promocao do DB candidato no full rescan Windows.
+  2. `3ea0881b`
+     - trava em teste que `svp` e literal e que `OU/OR` continuam literais na busca superior.
+  3. `2a1623bf`
+     - upsert passa a logar troca de `setor_executor` quando a linha mais nova vence e muda o valor.
+- Diagnostico consolidado desta rodada:
+  1. repro real no banco local atual:
+     - `danilo, svp, mel4, !STE` retorna `1` SSA no runtime atual.
+     - o motivo e texto literal:
+       - `danilo` em `responsavel_execucao`
+       - `mel4` em `setor_executor`
+       - `svp` em `descricao_ssa` (`SVP-04`)
+       - `situacao` diferente de `STE`
+  2. nao existe alias ativo `svp -> S/P` no runtime atual.
+  3. `S/P` nao tem semantica especial no runtime atual.
+  4. o schema local atual de `data/ssas.db` nao contem `responsavel_solicitante`.
+  5. a logica de upsert aceita troca de `setor_executor` quando a linha nova e mais recente e agora registra isso em log de arquivo, sem alerta de UI e sem excecao.
+- Validacao relevante ja executada:
+  1. `uv run --python 3.13 python -m pytest -q tests/test_app_logic_filter_contract.py tests/test_search_v_character.py -k "svp or keeps_literals or default_search_columns or parse_search_terms"` -> `6 passed, 5 deselected`.
+  2. `uv run --python 3.13 python -m pytest -q tests/test_upsert_behaviors.py -k "upsert_update_with_newer_date or upsert_ignore_older_date or upsert_existing_missing_date_new_has_date or upsert_both_missing_dates or upsert_existing_has_date_new_missing_does_not_update or setor_executor_change"` -> `7 passed, 2 deselected`.
+  3. `uv run --python 3.13 python -m pytest -q tests/test_import_derivadas_trigger.py -k "run_importer_runs_db_only_sync_when_preflight_requires or run_importer_runs_db_only_derivadas_sync_for_regular_import or run_importer_runs_dedicated_derivadas_phase_even_without_regular_files"` -> `3 passed, 10 deselected`.
+- Leitura objetiva para o proximo ciclo:
+  1. o comportamento atual de `svp` e literal e esta coerente com o contrato vigente do `core`.
+  2. se houver incomodo de produto com termo curto casando em descricao, isso virou decisao de escopo da busca superior, nao alias escondido.
+  3. o backlog nao bloqueante agora e:
+     - schema local sem `responsavel_solicitante`
+     - termos curtos com escopo muito amplo na busca superior
+     - comentarios/docstrings/configs mortos fora do runtime
+
+## HISTORICAL SNAPSHOT 2026-03-19 15:49 - previous current truth
 
 - Objetivo desta rodada:
   1. limpar a superficie morta de alias no core da busca superior sem reabrir semantica.

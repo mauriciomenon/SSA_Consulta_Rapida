@@ -38,6 +38,61 @@ Mudanca aplicada:
 2. worker GUI passa a concluir com sucesso informativo nesse caso, em vez de `falhou` ou `sem alteracoes`.
 3. sem alteracao em `utils/caching.py` neste slice.
 
+## Update 2026-03-20 07:25 - real DB repro and setor upsert logging (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-20 07:27:19 -0300`
+2. docs em sincronizacao no mesmo slice
+
+Objetivo do slice:
+1. registrar o resultado do repro real `danilo, svp, mel4, !STE` no banco local atual.
+2. registrar o hardening de full rescan Windows que fechou handles SQLite antes da promocao.
+3. registrar o novo log de troca de `setor_executor` quando a linha mais nova vence no upsert.
+
+Diagnostico objetivo:
+1. banco local atual:
+   - `filter_dataframe(df, ["danilo", "svp", "mel4", "!STE"])` retorna `1` linha.
+   - o match vem de `svp` literal em `descricao_ssa`, nao de alias, sinonimo ou semantica especial para `S/P`.
+2. `config/filter_aliases.json`
+   - nao contem mais `svp -> S/P`.
+   - no runtime atual so restam aliases globais para `STE/SCA`.
+3. schema local atual:
+   - contem `responsavel_programacao` e `responsavel_execucao`
+   - nao contem `responsavel_solicitante`
+4. import/full rescan:
+   - havia `WinError 32` no `os.replace(...)` ao promover DB candidato no Windows.
+   - causa raiz: conexoes SQLite abertas por context manager sem `close()` explicito.
+5. upsert:
+   - troca de `setor_executor` de valor nao vazio para outro valor nao vazio ja era permitida quando a linha nova era mais recente.
+   - o slice novo apenas adiciona `logger.info(...)` em arquivo para essa troca, sem alerta de UI e sem excecao.
+
+Escopo alterado:
+1. `core/app_logic.py`
+2. `armazenamento/database_upsert_logic.py`
+3. `tests/test_import_derivadas_trigger.py`
+4. `tests/test_upsert_behaviors.py`
+5. `docs/NEXT_CHAT_MIGRATION.md`
+6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+7. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. commit `fd2d9b09`
+   - conexoes SQLite passam a ser fechadas explicitamente antes da promocao do DB candidato no full rescan.
+2. commit `3ea0881b`
+   - `svp` e `OU/OR` ficam travados como literais na busca superior.
+3. commit `2a1623bf`
+   - troca de `setor_executor` por linha mais nova passa a ser logada em arquivo.
+
+Validacao:
+1. `uv run --python 3.13 python -m pytest -q tests/test_import_derivadas_trigger.py -k "run_importer_runs_db_only_sync_when_preflight_requires or run_importer_runs_db_only_derivadas_sync_for_regular_import or run_importer_runs_dedicated_derivadas_phase_even_without_regular_files"` -> `3 passed, 10 deselected`.
+2. `uv run --python 3.13 python -m pytest -q tests/test_app_logic_filter_contract.py tests/test_search_v_character.py -k "svp or keeps_literals or default_search_columns or parse_search_terms"` -> `6 passed, 5 deselected`.
+3. `uv run --python 3.13 python -m pytest -q tests/test_upsert_behaviors.py -k "upsert_update_with_newer_date or upsert_ignore_older_date or upsert_existing_missing_date_new_has_date or upsert_both_missing_dates or upsert_existing_has_date_new_missing_does_not_update or setor_executor_change"` -> `7 passed, 2 deselected`.
+
+Licoes aprendidas:
+1. repro real em banco local precisa ser confrontado com o contrato vigente antes de inventar semantica escondida para termo curto.
+2. `with sqlite3.connect(...)` nao basta para garantir `close()` no Windows em fluxo de promocao por `os.replace(...)`.
+3. quando o produto aceita mudanca de setor por dado mais novo, o comportamento deve seguir normal e deixar evidencias em log de arquivo, nao em UI.
+
 ## Update 2026-03-19 15:49 - search contract cleanup and tooling signal cleanup (STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:
