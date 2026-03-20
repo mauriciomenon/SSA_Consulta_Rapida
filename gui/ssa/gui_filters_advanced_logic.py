@@ -12,6 +12,7 @@ from .gui_filters_advanced_state import AdvancedFilterState, SECTOR_TO_DIV, prun
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 MAX_ADV_CACHE_ENTRIES = 16
+_DERIVADA_TERMINAL_STATUSES = frozenset({"STE", "SES"})
 
 
 def _to_int_set(values):
@@ -416,7 +417,9 @@ def _apply_week_range_filters(df: pd.DataFrame, filters: dict, mask: pd.Series) 
 def _compute_derivada_all_ste_origins(
     df: pd.DataFrame, series_derivada: pd.Series, has_derivada: pd.Series
 ) -> set:
-    situacao = df.loc[has_derivada, "situacao"].astype(str).str.upper().eq("STE")
+    # Compatibilidade: mantemos o nome legado "all_ste", mas SES agora entra
+    # na mesma classe funcional de derivada terminal para este filtro.
+    situacao = df.loc[has_derivada, "situacao"].astype(str).str.upper().isin(_DERIVADA_TERMINAL_STATUSES)
     grouped = situacao.groupby(series_derivada[has_derivada].astype(str)).all()
     return set(grouped[grouped].index.astype(str).tolist())
 

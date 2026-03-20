@@ -66,6 +66,8 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 _NESTED_QUANTIFIER_RE = re.compile(r"\((?:[^()]*[+*][^()]*)\)\s*[+*{]")
 _HEAVY_QUANTIFIER_CHAIN_RE = re.compile(r"(?:[+*]|\{[^}]*\}){3,}")
 _REGEX_META_CHAR_RE = re.compile(r"[*+?{}|()[\]]")
+_EXCLUDED_TERMINAL_STATUSES = frozenset({"SCA", "SES", "STE"})
+_EXCLUDED_TERMINAL_SUMMARY = "situacao!=SCA/SES/STE"
 
 
 def _qt_parent(obj: Any) -> QWidget | None:
@@ -1735,8 +1737,10 @@ class FilterGUISSAMixin:
 
             if adv.get("derivada_has"):
                 active_filters.append("Possui derivada")
+            # Compatibilidade: mantemos a chave legada "derivada_all_ste",
+            # mas o comportamento funcional agora considera STE e SES.
             if adv.get("derivada_all_ste"):
-                active_filters.append("Derivadas em STE")
+                active_filters.append("Derivadas em STE/SES")
             if adv.get("derivada_is"):
                 active_filters.append("SSA derivada")
             if adv.get("macro_filter"):
@@ -1745,7 +1749,7 @@ class FilterGUISSAMixin:
                 active_filters.append(f"Macro: {macro_label}")
 
         if getattr(self, '_exclude_ste_sca', False):
-            active_filters.append("situacao!=STE/SCA")
+            active_filters.append(_EXCLUDED_TERMINAL_SUMMARY)
 
         # Monta texto do resumo
         if active_filters:
@@ -2069,10 +2073,12 @@ class FilterGUISSAMixin:
         filtered = self._apply_column_filters(filtered)
         if getattr(self, '_exclude_ste_sca', False) and not filtered.empty and 'situacao' in filtered.columns:
             try:
-                mask = ~filtered['situacao'].astype(str).str.upper().isin({'STE', 'SCA'})
+                # Compatibilidade: o nome legado _exclude_ste_sca permanece por
+                # contrato interno, mas SES entrou no mesmo grupo terminal.
+                mask = ~filtered['situacao'].astype(str).str.upper().isin(_EXCLUDED_TERMINAL_STATUSES)
                 filtered = filtered[mask]
             except Exception as exc:
-                logger.warning("Falha ao aplicar exclusao STE/SCA no refresh de filtros: %s", exc)
+                logger.warning("Falha ao aplicar exclusao SCA/SES/STE no refresh de filtros: %s", exc)
         # CORRECAO 2026-01-08: Ordenar por numero_ssa decrescente apos filtro
         if not filtered.empty and 'numero_ssa' in filtered.columns:
             try:

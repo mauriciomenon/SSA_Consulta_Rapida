@@ -1420,8 +1420,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         persistent_filters_layout = QHBoxLayout()
         persistent_filters_layout.setContentsMargins(0, 0, 0, 0)
 
-        exclude_ste_checkbox = QCheckBox("Nao esta em STE/SCA")
-        exclude_ste_checkbox.setToolTip("Oculta SSAs com situacao STE ou SCA")
+        exclude_ste_checkbox = QCheckBox("Nao esta em SCA/SES/STE")
+        exclude_ste_checkbox.setToolTip("Oculta SSAs com situacao SCA, SES ou STE")
         try:
             exclude_ste_checkbox.setChecked(False)
         except Exception as exc:

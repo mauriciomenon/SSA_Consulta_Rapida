@@ -36,6 +36,8 @@ from utils.robust_logging import get_robust_logger
 from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
 
 logger = get_robust_logger().get_logger(__name__, "gui")
+_DERIVADA_ALL_STE_LABEL = "Derivadas em STE/SES"
+_MACRO_BAIXAR_EXCLUDED_STATUSES = ["SCA", "SES", "STE"]
 
 # Layout constants
 LAYOUT_MIN_VALID_WIDTH = 1
@@ -1511,7 +1513,7 @@ def _build_advanced_filters_panel(self):
     )
     deriv_values = [
         ("has", "Possui Derivadas"),
-        ("all_ste", "Derivadas em STE"),
+        ("all_ste", _DERIVADA_ALL_STE_LABEL),
         ("is", "Sou Derivada"),
     ]
     deriv_selected = set()
@@ -1822,7 +1824,7 @@ def _on_macro_filter_changed(self):
                 getattr(self, "adv_status_checks", None),
                 [],
                 getattr(self, "adv_status_exclude_checks", None),
-                ["STE", "SCA"],
+                _MACRO_BAIXAR_EXCLUDED_STATUSES,
             )
         except Exception as exc:
             logger.warning("Falha ao aplicar preset de status no macro filtro: %s", exc)
@@ -2467,7 +2469,7 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
             if hasattr(self, "_set_filtered_count_status"):
                 notice_suffix = ""
                 if notice == "derivada_all_ste_empty":
-                    notice_suffix = "Aviso: nenhuma derivada STE encontrada para o filtro."
+                    notice_suffix = "Aviso: nenhuma derivada STE/SES encontrada para o filtro."
                 elif notice == "derivada_empty":
                     notice_suffix = "Aviso: nenhuma derivada encontrada para o filtro."
                 self._set_filtered_count_status(
@@ -2854,7 +2856,7 @@ def _refresh_derivadas_menu(self, filters, apply_cb, selected_override=None):
         return
     deriv_values = [
         ("has", "Possui Derivadas"),
-        ("all_ste", "Derivadas em STE"),
+        ("all_ste", _DERIVADA_ALL_STE_LABEL),
         ("is", "Sou Derivada"),
     ]
     selected = set()
