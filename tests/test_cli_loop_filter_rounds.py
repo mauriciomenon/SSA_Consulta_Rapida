@@ -545,3 +545,51 @@ def test_cli_subprocess_status_cli_uses_ascii_output() -> None:
     assert "STATUS DAS MELHORIAS CLI" in result.stdout
     assert "Configuracao Unificada" in result.stdout
     assert "•" not in result.stdout
+
+
+def test_handle_show_more_rejects_show_all_in_non_interactive_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    df = pd.DataFrame({"numero_ssa": ["202500001", "202500002"]})
+    cli._PAGINATION_TRACKER_MANAGER.update(
+        df,
+        {
+            "next_page": 1,
+            "total_pages": 3,
+            "rendered_pages": 1,
+            "page_size": 1,
+        },
+    )
+    monkeypatch.setenv("SSA_NON_INTERACTIVE", "1")
+    monkeypatch.setattr(
+        cli,
+        "_render_single_page",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("nao deveria renderizar")),
+    )
+
+    cli._handle_show_more([(df, ["mel4"])], {}, {}, {}, ["z"])
+
+    out = capsys.readouterr().out
+    assert "Comando 'm z' indisponivel em sessao non-interactive" in out
+
+
+def test_cli_subprocess_more_all_non_interactive_exits_cleanly() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    env["SSA_NON_INTERACTIVE"] = "1"
+    env["SSA_DB_PATH"] = str(repo_root / "data" / "ssas.db")
+
+    result = subprocess.run(
+        [sys.executable, "launchers/cli_entry.py"],
+        input="mel4\nm z\nq\n",
+        text=True,
+        capture_output=True,
+        cwd=repo_root,
+        env=env,
+        timeout=45,
+    )
+
+    assert result.returncode == 0
+    assert "Comando 'm z' indisponivel em sessao non-interactive" in result.stdout
+    assert "Saindo..." in result.stdout
