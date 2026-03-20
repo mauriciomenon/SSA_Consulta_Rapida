@@ -138,6 +138,65 @@ Mudanca aplicada:
 2. teste novo trava que remover `descricao_ssa` de `visible_columns` nao oculta a linha do filtro ativo no painel.
 3. teste de menu confirma que `Opcoes` agora expoe `Limpar Filtros`.
 
+## Update 2026-03-20 09:29 - SES equivalente a STE em filtros terminais (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-20 09:01:34 -0300`
+2. runtime validado e docs sincronizados no mesmo fluxo
+
+Objetivo do slice:
+1. tratar `SES` como equivalente funcional de `STE` nos filtros terminais pedidos pelo usuario.
+2. corrigir a macro `Baixar` para excluir `SCA/SES/STE` e aceitar derivadas em `STE/SES`.
+3. avaliar, sem implementar agora, um atalho de triplo clique em botoes de limpar filtros para oferecer hard reset.
+
+Diagnostico objetivo:
+1. a logica atual ainda tratava `SES` fora da classe funcional usada em:
+   - macro `Baixar`
+   - `derivada_all_ste`
+   - exclusao funcional legada `_exclude_ste_sca`
+   - resumo/textos associados
+2. o pedido do usuario nao exigia mudar semantica de busca textual, alias ou layout.
+3. a avaliacao de UX para triplo clique foi considerada razoavel e de baixo custo, mas como melhoria separada:
+   - exige contador de cliques consecutivos
+   - janela curta de tempo
+   - dialogo de confirmacao
+   - chamada do hard reset total existente
+
+Escopo alterado:
+1. `gui/ssa/gui_filters_advanced_logic.py`
+2. `gui/ssa/gui_filters_advanced_ui.py`
+3. `gui/mixins/filter_gui_ssa_mixin.py`
+4. `gui/gui_ssa.py`
+5. `tests/test_gui_filters_advanced_logic.py`
+6. `tests/test_gui_filter_logic.py`
+7. `docs/NEXT_CHAT_MIGRATION.md`
+8. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+9. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. commit `9b80344d`
+   - `SES` entra como equivalente funcional de `STE` em:
+     - `derivada_all_ste`
+     - macro `Baixar`
+     - exclusao funcional `SCA/SES/STE`
+     - rotulos/resumo/tooltip correspondentes
+2. testes novos travam:
+   - derivadas terminais em `STE/SES`
+   - macro `Baixar` excluindo `SCA/SES/STE`
+   - resumo funcional refletindo `SCA/SES/STE`
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py` -> pass.
+2. `uv run --python 3.13 ruff check gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py` -> pass.
+3. `uv run --python 3.13 ty check gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_gui_filters_advanced_logic.py` -> `15 passed`.
+5. `uv run --python 3.13 python -m pytest -q tests/test_gui_filter_logic.py -k "macro_baixar or exclude_ste_sca_combined_with_or_group or filters_summary_shows_exclude_ste_sca_as_active_restriction or restore_last_filter_state_drops_hidden_lines_with_active_filters or clear_all_filters_global or hard_reset_filters_state or column_filter_buttons_flow"` -> `13 passed, 146 deselected`.
+
+Licoes aprendidas:
+1. quando um estado de negocio muda de classe funcional, o patch precisa cobrir runtime, macro, resumo e teste no mesmo slice.
+2. manter nomes internos legados por compatibilidade e aceitavel, desde que a semantica funcional fique explicita em comentario e teste.
+3. melhorias de UX tipo "triplo clique para reset total" devem ser separadas de patch funcional para nao misturar decisoes de comportamento com correcao de regra de negocio.
+
 Validacao:
 1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass.
 2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass.
