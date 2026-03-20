@@ -2,12 +2,12 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-20 11:14 - authoritative block
+## CURRENT TRUTH 2026-03-20 11:32 - authoritative block
 
 - Objetivo desta rodada:
-  1. estabilizar o loop interativo do CLI alinhando a busca ao contrato atual do `core`.
-  2. fechar a regressao em que certas rodadas do CLI deixavam de reexibir dados.
-  3. separar debts estruturais do CLI para um ciclo proprio, sem refatoracao ampla agora.
+  1. consolidar o contrato textual do CLI para nao voltar a divergir do runtime.
+  2. confirmar por subprocesso que os fluxos antes suspeitos agora encerram normalmente.
+  3. manter os debts estruturais restantes do CLI em slices separados.
 - Estado confirmado:
   1. branch alvo: `dev`.
   2. residuos locais fora de escopo continuam presentes:
@@ -22,21 +22,26 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `?? *.bak.*`
   3. esses residuos nao devem ser revertidos nem incluidos por inferencia.
 - Commit funcional novo:
-  1. `6d29addf`
+  1. `067a05d3`
+     - help inicial e fallback do help completo passam a usar o mesmo texto compartilhado.
+     - testes novos travam o contrato textual compartilhado.
+  2. `6d29addf`
      - CLI passa a usar termos separados por virgula sem reinterpretar `OU/OR/E/v`.
      - lookup direto de detalhe fica restrito a SSA numerica exata.
      - `v` volta a reexibir o estado anterior.
      - exportacao rejeita nome inseguro e valida o diretorio de saida.
      - cache de render foi endurecido e `ord 0` passa a ser rejeitado.
-  2. este handoff so sincroniza o estado ja publicado em `dev`; o runtime do CLI foi entregue no commit funcional acima, nao neste diff documental.
 - Diagnostico tecnico consolidado:
-  1. o CLI ainda carregava semantica antiga propria, separada do `core`.
-  2. a suite anterior nao cobria sessao interativa multi-rodada com `clear`, `v` e busca acumulativa.
-  3. isso deixou passar um bug real: `v` restaurava a stack sem reexibir os dados.
-  4. o review do Kluster tambem apontou debt estrutural de CLI, mas neste slice so entrou o que era local e seguro.
+  1. apos estabilizar o loop, ainda restava duplicacao perigosa no help do CLI.
+  2. essa duplicacao mantinha risco de drift entre help inicial e fallback do help completo.
+  3. os cenarios de subprocesso que antes eram suspeitos agora encerram com `rc=0`:
+     - `mel4 -> clear -> q`
+     - `mel4 -> x mel4 -> q`
+     - `mel4 -> danilo -> svp -> !STE -> q`
+     - `mel4 -> v -> q`
 - Validacao consolidada:
   1. `py_compile`, `ruff` e `ty` verdes em `interface/cli.py` e `tests/test_cli_loop_filter_rounds.py`.
-  2. foco de CLI -> `16 passed`.
+  2. foco de CLI -> `18 passed`.
   3. testes novos:
      - `test_start_cli_loop_keeps_session_after_clear`
      - `test_start_cli_loop_back_rerenders_previous_state`
@@ -45,17 +50,31 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `test_handle_export_rejects_unsafe_filename`
      - `test_handle_sort_rejects_zero_index`
      - `test_cached_pretty_print_df_cache_key_includes_rendered_rows`
+     - `test_build_cli_plain_help_text_reflects_current_search_contract`
+     - `test_handle_help_fallback_uses_shared_plain_help_text`
 - Pendencias ainda abertas:
   1. schema local sem `responsavel_solicitante`.
   2. termos curtos na busca superior ainda dependem de decisao de produto.
   3. comentarios/docstrings/configs mortos fora do runtime ainda pedem limpeza em slice proprio.
   4. debt estrutural de CLI para proximo ciclo:
      - `_handle_rescan` grande demais
-     - help duplicado
+     - help completo em caixa continua separado do texto plano compartilhado
      - `get_ssa_query()` ainda na camada de UI
   5. Kluster estourou timeout repetidamente no lote do CLI apos o patch e nao devolveu findings adicionais; considerar isso bloqueio da ferramenta.
 
-## HISTORICAL SNAPSHOT 2026-03-20 09:45 - previous current truth
+## HISTORICAL SNAPSHOT 2026-03-20 11:14 - previous current truth
+
+- Objetivo desta rodada:
+  1. estabilizar o loop interativo do CLI alinhando a busca ao contrato atual do `core`.
+  2. fechar a regressao em que certas rodadas do CLI deixavam de reexibir dados.
+  3. separar debts estruturais do CLI para um ciclo proprio, sem refatoracao ampla agora.
+- Commit funcional entregue:
+  1. `6d29addf`
+     - CLI passa a usar termos separados por virgula sem reinterpretar `OU/OR/E/v`.
+     - lookup direto de detalhe fica restrito a SSA numerica exata.
+     - `v` volta a reexibir o estado anterior.
+- Validacao consolidada:
+  1. foco de CLI -> `16 passed`.
 
 ## HISTORICAL SNAPSHOT 2026-03-20 09:29 - previous current truth
 

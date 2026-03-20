@@ -2,12 +2,12 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-20 11:14 - start from here
+## CURRENT TRUTH 2026-03-20 11:32 - start from here
 
 - Objetivo desta rodada:
-  1. estabilizar o loop interativo do CLI que ainda divergia do contrato atual da busca.
-  2. fechar a regressao em que o CLI parava de exibir dados apos certas rodadas de filtro.
-  3. registrar os debts estruturais do CLI separadamente, sem abrir refatoracao ampla neste slice.
+  1. consolidar o contrato textual do CLI para nao voltar a divergir do runtime.
+  2. confirmar no subprocesso que os fluxos antes suspeitos agora encerram normalmente.
+  3. manter os debts estruturais de CLI isolados para proximos slices.
 - Estado atual do git:
   1. branch ativa: `dev`.
   2. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
@@ -22,36 +22,44 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `?? *.bak.*`
   3. esses residuos continuam fora de escopo e nao devem ser revertidos por inferencia.
 - Commit funcional mais recente ja entregue:
-  1. `6d29addf`
-     - CLI passa a respeitar o contrato atual da busca superior:
-       - termos separados por virgula
-       - sem reinterpretar `OU/OR/E/v`
-       - `2025` curto volta a ser busca literal, nao lookup direto de detalhe
-     - lookup direto de detalhe fica restrito a SSA numerica exata.
-     - `v` volta a reexibir o estado anterior em vez de apenas desempilhar a stack silenciosamente.
-     - exportacao via CLI rejeita nome inseguro e valida o diretorio de saida.
-     - cache de render considera as linhas realmente renderizadas e `ord 0` deixa de cair na ultima coluna.
-  2. este bloco `CURRENT TRUTH` e apenas DOC_SYNC do estado ja presente em `dev`; o runtime do CLI foi entregue no commit funcional acima, nao neste diff documental.
+  1. `067a05d3`
+     - o help inicial e o fallback do help completo passam a consumir o mesmo texto compartilhado.
+     - testes novos travam o contrato do texto compartilhado e o fallback do help.
+  2. `6d29addf`
+     - CLI passa a respeitar o contrato atual da busca superior e volta a reexibir dados em `v`.
 - Diagnostico consolidado desta rodada:
-  1. o CLI mantinha parsing proprio e antigo, separado do contrato atual do `core`.
-  2. a suite existente testava bootstrap e renderer, mas nao testava sessao interativa multi-rodada com `clear`, `v` e acumulacao de termos.
-  3. isso permitiu passar despercebido um bug real: em `v`, o CLI restaurava a stack mas nao reexibia os dados.
-  4. o review do Kluster abriu tambem debt estrutural no CLI, mas neste slice so entrou o que era local e de baixo risco.
+  1. depois do hardening do loop, ainda havia duplicacao perigosa no help do CLI.
+  2. essa duplicacao mantinha risco real de divergencia silenciosa entre:
+     - help inicial
+     - fallback sem unicode do help completo
+  3. os repros por subprocesso para `clear`, `x mel4`, acumulacao e `v` agora encerram com `rc=0`.
 - Validacao relevante ja executada:
   1. `uv run --python 3.13 python -m py_compile interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
   2. `uv run --python 3.13 ruff check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
   3. `uv run --python 3.13 ty check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
-  4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py tests/test_cli_config_preserve_session.py tests/test_cli_loop_missing_numero_ssa_guard.py tests/test_cli_remove_filter_non_lifo.py tests/test_cli_pagination_prompt.py tests/test_search_v_character.py` -> `16 passed`.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py tests/test_cli_config_preserve_session.py tests/test_cli_loop_missing_numero_ssa_guard.py tests/test_cli_remove_filter_non_lifo.py tests/test_cli_pagination_prompt.py tests/test_search_v_character.py` -> `18 passed`.
 - Pendencias e leitura para o proximo ciclo:
   1. debt estrutural do CLI explicitamente fora deste slice:
      - `_handle_rescan` segue grande e misturando responsabilidades
-     - blocos de help seguem duplicados
+     - help completo em caixa continua separado do texto plano compartilhado
      - `get_ssa_query()` ainda vive na camada de UI/CLI
   2. Kluster estourou timeout repetidamente no lote do CLI e nao devolveu findings adicionais apos o patch; tratar isso como bloqueio de ferramenta, nao como clean total garantido.
   3. schema local segue sem `responsavel_solicitante`.
   4. termos curtos com escopo muito amplo na busca superior seguem como decisao de produto pendente.
 
-## HISTORICAL SNAPSHOT 2026-03-20 09:45 - previous current truth
+## HISTORICAL SNAPSHOT 2026-03-20 11:14 - previous current truth
+
+- Objetivo desta rodada:
+  1. estabilizar o loop interativo do CLI que ainda divergia do contrato atual da busca.
+  2. fechar a regressao em que o CLI parava de exibir dados apos certas rodadas de filtro.
+  3. registrar os debts estruturais do CLI separadamente, sem abrir refatoracao ampla neste slice.
+- Commit funcional entregue:
+  1. `6d29addf`
+     - CLI passa a respeitar o contrato atual da busca superior.
+     - `v` volta a reexibir o estado anterior.
+     - exportacao, lookup direto e cache de render foram endurecidos.
+- Validacao relevante:
+  1. foco de CLI -> `16 passed`.
 
 ## HISTORICAL SNAPSHOT 2026-03-20 09:29 - previous current truth
 
