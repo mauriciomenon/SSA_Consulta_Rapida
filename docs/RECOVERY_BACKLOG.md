@@ -119,6 +119,56 @@ Pendencias nao bloqueantes abertas:
 3. `force-rescan` em sessao automatizada ainda pede guarda propria de UX/teste.
 4. Kluster segue oscilando por timeout no lote grande do CLI.
 
+## Update 2026-03-20 13:18 - rescan guardado em non-interactive e help detalhado alinhado (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-20 13:08:00 -0300`
+2. runtime validado e docs sincronizados no mesmo fluxo
+
+Objetivo do slice:
+1. impedir que `rescan/force-rescan` pesado trave sessao automatizada do CLI.
+2. alinhar o help detalhado ao contrato textual ja exibido no help inicial.
+3. manter o patch minimo antes do proximo refinamento estrutural do CLI.
+
+Diagnostico objetivo:
+1. havia um bug real reproduzivel por subprocesso:
+   - `force-rescan -> q` travava por timeout em `SSA_NON_INTERACTIVE=1`
+2. o problema nao era parser nem renderer:
+   - era execucao de rescan pesado sem guarda de contexto
+3. o help detalhado ainda repetia a regra da busca com densidade diferente do help inicial.
+
+Escopo alterado:
+1. `interface/cli.py`
+2. `tests/test_cli_loop_filter_rounds.py`
+3. `docs/NEXT_CHAT_MIGRATION.md`
+4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+5. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. commit `0f2f9a93`
+   - helper `_is_cli_non_interactive()` centraliza a deteccao de pipe/non-interactive
+   - `_handle_help()` reaproveita essa deteccao e so pausa quando a sessao e realmente interativa
+   - `_handle_rescan()` retorna rapido com mensagem clara em sessao non-interactive
+   - help detalhado passa a referenciar explicitamente o mesmo contrato do help inicial
+   - testes novos cobrem consistencia textual e subprocesso `force-rescan -> q`
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+2. `uv run --python 3.13 ruff check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+3. `uv run --python 3.13 ty check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py -k "help or force_rescan or subprocess"` -> `9 passed, 8 deselected`.
+
+Licoes aprendidas:
+1. comando pesado em CLI precisa respeitar contexto de automacao explicitamente; sem isso o harness mascara problema como timeout generico.
+2. reusar a mesma regra textual entre help inicial e help detalhado reduz drift sem precisar redesenhar a UX inteira.
+3. o proximo passo certo continua sendo reduzir concentracao em `_handle_rescan`, nao abrir refatoracao transversal.
+
+Pendencias nao bloqueantes abertas:
+1. `_handle_rescan` continua grande demais.
+2. `status-cli`, `toggle-debug` e afins ainda merecem refinamento de UX/texto.
+3. consolidacao final entre help inicial e help detalhado ainda pode melhorar.
+4. Kluster segue oscilando por timeout em lotes grandes do CLI.
+
 ## Update 2026-03-20 11:32 - contrato textual compartilhado no CLI (STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:
