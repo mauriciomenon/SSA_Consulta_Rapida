@@ -302,11 +302,10 @@ class EnhancedTablePrinter:
             else:
                 # Usa nomes da configuração unificada
                 display_name = display_names.get(col, col)
-                # Trunca nome da coluna se necessário
-                max_header_width = widths.get(col, 15)
-                if len(display_name) > max_header_width:
-                    display_name = display_name[:max_header_width-3] + '...'
-                rename_map[col] = display_name
+                rename_map[col] = self._truncate_header(
+                    display_name,
+                    widths.get(col, 15),
+                )
 
         formatted_df = formatted_df.rename(columns=rename_map)
 
@@ -342,6 +341,134 @@ class EnhancedTablePrinter:
         # Remove padding fixo para evitar quebras de linha
         return formatted_content.rstrip()[:width]
 
+    def _truncate_header(self, header: str, max_width: int) -> str:
+        if max_width <= 0:
+            return ''
+        if len(header) <= max_width:
+            return header
+        if max_width <= 3:
+            return '.' * max_width
+        return header[: max_width - 3] + '...'
+
+    def _render_page_table(
+        self,
+        page_df: pd.DataFrame,
+        *,
+        include_header: bool,
+        highlight_terms: Optional[List[str]],
+    ) -> None:
+        table_str = tabulate(
+            page_df.values.tolist(),
+            headers=page_df.columns,
+            tablefmt='presto',
+            showindex=False,
+            stralign='left',
+            disable_numparse=True,
+        )
+        lines = table_str.splitlines()
+        if not include_header and lines:
+            if len(lines) >= 2 and set(lines[1].strip()) <= {'-', '+', ' '}:
+                lines = lines[2:]
+            else:
+                lines = lines[1:]
+        output = "\n".join(lines)
+        if lines:
+            output += "\n"
+        if highlight_terms and highlight_terms[0]:
+            output = self._apply_highlighting(output, highlight_terms)
+        print(output, end='')
+
+    def _handle_last_page_command(
+        self,
+        command: str,
+        *,
+        total_pages: int,
+        rendered_pages: int,
+        page_size: int,
+        resume_page: int | None,
+    ) -> Dict[str, Any]:
+        if command == 'qq':
+            print("Saindo...")
+            return self._build_pagination_state(
+                total_pages=total_pages,
+                rendered_pages=rendered_pages,
+                page_size=page_size,
+                exit_requested=True,
+            )
+        if command == 'q':
+            print("...exibição interrompida.")
+        else:
+            print("Fim da exibição.")
+        return self._build_pagination_state(
+            total_pages=total_pages,
+            rendered_pages=rendered_pages,
+            page_size=page_size,
+            next_page=resume_page,
+        )
+
+    def _handle_pagination_command(
+        self,
+        command: str,
+        *,
+        filters_text: str,
+        total_pages: int,
+        rendered_pages: int,
+        page_size: int,
+        resume_page: int | None,
+        pages: list[pd.DataFrame],
+        current_page: int,
+        highlight_terms: Optional[List[str]],
+    ) -> tuple[str, Dict[str, Any] | None]:
+        if command == 'qq':
+            print("Saindo...")
+            return "return", self._build_pagination_state(
+                total_pages=total_pages,
+                rendered_pages=rendered_pages,
+                page_size=page_size,
+                exit_requested=True,
+            )
+        if not command:
+            return "next_page", None
+        if command == 'q':
+            print("...exibição interrompida.")
+            return "return", self._build_pagination_state(
+                total_pages=total_pages,
+                rendered_pages=rendered_pages,
+                page_size=page_size,
+                next_page=resume_page,
+            )
+        if command == 'z':
+            if current_page < len(pages) - 1:
+                print()
+                for rest_page in pages[current_page + 1:]:
+                    self._render_page_table(
+                        rest_page,
+                        include_header=False,
+                        highlight_terms=highlight_terms,
+                    )
+                print("...exibição interrompida.")
+            return "return", self._build_pagination_state(
+                total_pages=total_pages,
+                rendered_pages=total_pages,
+                page_size=page_size,
+            )
+        if command == 'l':
+            if filters_text:
+                print(f"\nFiltros ativos: {filters_text}")
+            else:
+                print("\nNenhum filtro aplicado.")
+            return "continue", None
+        if command.startswith('d '):
+            print(
+                "\nPara ver detalhe da linha "
+                f"{command[2:]}, use o comando principal."
+            )
+            return "continue", None
+        if command == 'f':
+            return "auto_scroll", None
+        print("Comando inválido.")
+        return "continue", None
+
     def _render_paginated(
         self,
         df: pd.DataFrame,
@@ -366,24 +493,22 @@ class EnhancedTablePrinter:
         pages = [df.iloc[i:i + page_size] for i in range(0, len(df), page_size)]
         if not pages:
             print("Nenhum dado para exibir após processamento.")
-            return {
-                'next_page': None,
-                'total_pages': 0,
-                'rendered_pages': 0,
-                'page_size': page_size,
-            }
+            return self._build_pagination_state(
+                total_pages=0,
+                rendered_pages=0,
+                page_size=page_size,
+            )
 
         total_pages = len(pages)
         last_index = total_pages - 1
         effective_start = max(0, start_page)
         if effective_start >= total_pages:
             print("Nenhuma nova página para exibir.")
-            return {
-                'next_page': None,
-                'total_pages': total_pages,
-                'rendered_pages': 0,
-                'page_size': page_size,
-            }
+            return self._build_pagination_state(
+                total_pages=total_pages,
+                rendered_pages=0,
+                page_size=page_size,
+            )
 
         filters_text = ''
         if filter_terms:
@@ -391,28 +516,6 @@ class EnhancedTablePrinter:
                 filters_text = ', '.join(filter_terms)
             else:
                 filters_text = str(filter_terms)
-
-        def render(page_df: pd.DataFrame, include_header: bool = True):
-            table_str = tabulate(
-                page_df.values.tolist(),
-                headers=page_df.columns,
-                tablefmt='presto',
-                showindex=False,
-                stralign='left',
-                disable_numparse=True,
-            )
-            lines = table_str.splitlines()
-            if not include_header and lines:
-                if len(lines) >= 2 and set(lines[1].strip()) <= {'-', '+', ' '}:
-                    lines = lines[2:]
-                else:
-                    lines = lines[1:]
-            output = "\n".join(lines)
-            if lines:
-                output += "\n"
-            if highlight_terms and highlight_terms[0]:
-                output = self._apply_highlighting(output, highlight_terms)
-            print(output, end='')
 
         env_flag = os.environ.get('SSA_NON_INTERACTIVE', '').strip().lower()
         input_is_patched = builtins.input is not _ORIGINAL_INPUT
@@ -423,136 +526,136 @@ class EnhancedTablePrinter:
         current_page = effective_start
         rendered_pages = 0
         while current_page < total_pages:
+            resume_page: int | None = None
             try:
                 page_df = pages[current_page]
+                resume_page = current_page + 1 if current_page < last_index else None
                 print(f"Página {current_page + 1} de {total_pages}")
-                render(page_df, include_header=True)
+                self._render_page_table(
+                    page_df,
+                    include_header=True,
+                    highlight_terms=highlight_terms,
+                )
                 rendered_pages += 1
                 last = current_page == last_index
 
                 if max_pages is not None and rendered_pages >= max_pages:
                     next_page = current_page + 1 if current_page < last_index else None
-                    return {
-                        'next_page': next_page,
-                        'total_pages': total_pages,
-                        'rendered_pages': rendered_pages,
-                        'page_size': page_size,
-                    }
+                    return self._build_pagination_state(
+                        total_pages=total_pages,
+                        rendered_pages=rendered_pages,
+                        page_size=page_size,
+                        next_page=next_page,
+                    )
                 if auto_scroll or non_interactive:
                     if last:
                         if non_interactive:
                             print("...exibição interrompida.")
-                        return {
-                            'next_page': None,
-                            'total_pages': total_pages,
-                            'rendered_pages': rendered_pages,
-                            'page_size': page_size,
-                        }
+                        return self._build_pagination_state(
+                            total_pages=total_pages,
+                            rendered_pages=rendered_pages,
+                            page_size=page_size,
+                        )
                     current_page += 1
                     continue
                 if last:
                     try:
-                        cmd = 'q' if non_interactive else input("\n-- Fim | Enter sair, q=sair -- ").strip().lower()
+                        cmd = 'q' if non_interactive else input("\n-- Fim | Enter fechar exibicao, q=fechar exibicao, qq=sair app -- ").strip().lower()
                     except KeyboardInterrupt:
                         print("\n...exibição interrompida.")
-                        return {
-                            'next_page': None,
-                            'total_pages': total_pages,
-                            'rendered_pages': rendered_pages,
-                            'page_size': page_size,
-                        }
-                    if cmd == 'q':
-                        print("...exibição interrompida.")
-                    else:
-                        print("Fim da exibição.")
-                    return {
-                        'next_page': None,
-                        'total_pages': total_pages,
-                        'rendered_pages': rendered_pages,
-                        'page_size': page_size,
-                    }
+                        return self._build_pagination_state(
+                            total_pages=total_pages,
+                            rendered_pages=rendered_pages,
+                            page_size=page_size,
+                            next_page=resume_page,
+                        )
+                    return self._handle_last_page_command(
+                        cmd,
+                        total_pages=total_pages,
+                        rendered_pages=rendered_pages,
+                        page_size=page_size,
+                        resume_page=resume_page,
+                    )
 
                 remaining = len(pages) - current_page - 1
                 prefix = f" {remaining} pág. restantes"
                 if filters_text:
                     prefix += f" - Filtros: {filters_text}"
-                prompt = f"{prefix} | 'z': até o final, 'l': listar filtros, 'd <#>': detalhe, 'q': sair: "
+                prompt = f"{prefix} | 'z': até o final, 'l': listar filtros, 'd <#>': detalhe, 'q': fechar exibicao, 'qq': sair app: "
                 try:
                     sys.stdout.flush()
                     user_input = input(prompt).strip().lower()
                 except KeyboardInterrupt:
                     print("\n...exibição interrompida.")
-                    return {
-                        'next_page': None,
-                        'total_pages': total_pages,
-                        'rendered_pages': rendered_pages,
-                        'page_size': page_size,
-                    }
+                    return self._build_pagination_state(
+                        total_pages=total_pages,
+                        rendered_pages=rendered_pages,
+                        page_size=page_size,
+                        next_page=resume_page,
+                    )
 
-                if not user_input:
+                action, state = self._handle_pagination_command(
+                    user_input,
+                    filters_text=filters_text,
+                    total_pages=total_pages,
+                    rendered_pages=rendered_pages,
+                    page_size=page_size,
+                    resume_page=resume_page,
+                    pages=pages,
+                    current_page=current_page,
+                    highlight_terms=highlight_terms,
+                )
+                if action == "return":
+                    return state or self._build_pagination_state(
+                        total_pages=total_pages,
+                        rendered_pages=rendered_pages,
+                        page_size=page_size,
+                    )
+                if action == "next_page":
                     current_page += 1
                     continue
-                if user_input == 'q':
-                    print("...exibição interrompida.")
-                    return {
-                        'next_page': None,
-                        'total_pages': total_pages,
-                        'rendered_pages': rendered_pages,
-                        'page_size': page_size,
-                    }
-                if user_input == 'z':
-                    if current_page < last_index:
-                        print()
-                        for rest_page in pages[current_page + 1:]:
-                            render(rest_page, include_header=False)
-                            rendered_pages += 1
-                        print("...exibição interrompida.")
-                    return {
-                        'next_page': None,
-                        'total_pages': total_pages,
-                        'rendered_pages': total_pages,
-                        'page_size': page_size,
-                    }
-                if user_input == 'l':
-                    if filters_text:
-                        print(f"\nFiltros ativos: {filters_text}")
-                    else:
-                        print("\nNenhum filtro aplicado.")
-                    continue
-                if user_input.startswith('d '):
-                    print(
-                        "\nPara ver detalhe da linha "
-                        f"{user_input[2:]}, use o comando principal."
-                    )
-                    continue
-                if user_input == 'f':
+                if action == "auto_scroll":
                     auto_scroll = True
                     continue
-                print("Comando inválido.")
             except KeyboardInterrupt:
                 print("\n...exibição interrompida.")
-                return {
-                    'next_page': None,
-                    'total_pages': total_pages,
-                    'rendered_pages': rendered_pages,
-                    'page_size': page_size,
-                }
+                return self._build_pagination_state(
+                    total_pages=total_pages,
+                    rendered_pages=rendered_pages,
+                    page_size=page_size,
+                    next_page=resume_page,
+                )
             except Exception as e:
                 logger.error(f"Erro na renderização: {e}")
                 print(f"Erro na exibição: {e}")
-                return {
-                    'next_page': None,
-                    'total_pages': total_pages,
-                    'rendered_pages': rendered_pages,
-                    'page_size': page_size,
-                }
+                return self._build_pagination_state(
+                    total_pages=total_pages,
+                    rendered_pages=rendered_pages,
+                    page_size=page_size,
+                )
             current_page += 1
 
+        return self._build_pagination_state(
+            total_pages=total_pages,
+            rendered_pages=rendered_pages,
+            page_size=page_size,
+        )
+
+    def _build_pagination_state(
+        self,
+        *,
+        total_pages: int,
+        rendered_pages: int,
+        page_size: int,
+        next_page: int | None = None,
+        exit_requested: bool = False,
+    ) -> Dict[str, Any]:
         return {
-            'next_page': None,
+            'next_page': next_page,
             'total_pages': total_pages,
             'rendered_pages': rendered_pages,
             'page_size': page_size,
+            'exit_requested': exit_requested,
         }
 
     def _apply_highlighting(self, table_str: str, highlight_terms: List[str]) -> str:
