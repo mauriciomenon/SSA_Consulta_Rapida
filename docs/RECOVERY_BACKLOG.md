@@ -197,6 +197,49 @@ Licoes aprendidas:
 2. manter nomes internos legados por compatibilidade e aceitavel, desde que a semantica funcional fique explicita em comentario e teste.
 3. melhorias de UX tipo "triplo clique para reset total" devem ser separadas de patch funcional para nao misturar decisoes de comportamento com correcao de regra de negocio.
 
+## Update 2026-03-20 09:45 - confirmacao de hard reset por triplo clique (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-20 09:45:19 -0300`
+2. runtime validado e docs sincronizados no mesmo fluxo
+
+Objetivo do slice:
+1. transformar o atalho avaliado de triplo clique em comportamento real de UX para oferecer hard reset total.
+2. preservar a semantica atual dos botoes de limpar filtros.
+3. evitar que o dialogo modal interfira em execucao nao interativa ou suite automatizada.
+
+Diagnostico objetivo:
+1. o hard reset total ja existia via menu `Opcoes > Limpar Filtros`, mas faltava um atalho de recuperacao mais rapido.
+2. o pedido do usuario foi expresso: nao mexer nos botoes atuais, apenas oferecer o reset total apos repeticao insistente do gesto de limpar.
+3. o primeiro review do Kluster apontou um risco real: dialogo modal em ambiente automatizado poderia travar testes.
+
+Escopo alterado:
+1. `gui/mixins/filter_gui_ssa_mixin.py`
+2. `gui/gui_ssa.py`
+3. `tests/test_gui_filter_logic.py`
+4. `docs/NEXT_CHAT_MIGRATION.md`
+5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+6. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. commit `e9e2f04f`
+   - 3 cliques consecutivos em botoes de limpar dentro de janela curta oferecem confirmacao para hard reset total.
+   - o reset total continua usando o fluxo central ja existente.
+   - a confirmacao e suprimida em ambiente nao interativo.
+2. testes novos travam:
+   - triplo clique em limpar busca superior
+   - triplo clique em limpar todos os filtros
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_gui_filter_logic.py -k "three_repeated_clear_search_clicks_offer_hard_reset or three_repeated_global_clear_clicks_offer_hard_reset or clear_filter_button_state_syncs_across_tabs_without_switch or clear_filter_preserves_column_filters_and_result_set or clear_filter_preserves_exclude_ste_sca_state or hard_reset_filters_state_resets_visual_and_internal_filter_state or clear_all_filters_global"` -> `13 passed, 148 deselected`.
+
+Licoes aprendidas:
+1. atalho de recuperacao para inconsistencia de filtros pode existir sem reescrever o contrato dos botoes ja conhecidos pelo usuario.
+2. qualquer confirmacao modal nova em GUI precisa considerar ambiente nao interativo e suite automatizada desde o primeiro patch.
+
 Validacao:
 1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass.
 2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass.

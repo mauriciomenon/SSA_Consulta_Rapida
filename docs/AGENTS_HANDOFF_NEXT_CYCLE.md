@@ -2,7 +2,50 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-20 09:29 - authoritative block
+## CURRENT TRUTH 2026-03-20 09:45 - authoritative block
+
+- Objetivo desta rodada:
+  1. promover o atalho de triplo clique em limpar filtros para comportamento real, com confirmacao explicita.
+  2. preservar os botoes atuais e o hard reset via menu sem alterar a semantica normal de limpeza.
+  3. blindar a interacao para ambientes nao interativos e testes.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M gui/gui_ssa.py`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos nao devem ser revertidos nem incluidos por inferencia.
+- Commit funcional novo:
+  1. `e9e2f04f`
+     - 3 cliques consecutivos em botoes de limpar filtros dentro da janela curta passam a oferecer confirmacao para hard reset total.
+     - o hard reset continua passando pelo fluxo total ja existente; os botoes nao mudam de semantica por clique unico.
+     - a confirmacao e suprimida em ambiente nao interativo para nao bloquear a suite.
+- Diagnostico tecnico consolidado:
+  1. o pedido de UX era um atalho de recuperacao, nao mudanca de regra dos botoes.
+  2. a implementacao ficou localizada em:
+     - `gui/mixins/filter_gui_ssa_mixin.py`
+     - `gui/gui_ssa.py`
+     - `tests/test_gui_filter_logic.py`
+  3. o fluxo cobre tanto limpar busca superior quanto limpar todos os filtros.
+  4. a protecao de ambiente nao interativo foi necessaria porque o primeiro review do Kluster apontou risco de travar testes automatizados com dialogo modal.
+- Validacao consolidada:
+  1. `py_compile`, `ruff` e `ty` verdes no escopo alterado.
+  2. `tests/test_gui_filter_logic.py` no foco do slice -> `13 passed, 148 deselected`.
+  3. testes novos:
+     - `test_three_repeated_clear_search_clicks_offer_hard_reset`
+     - `test_three_repeated_global_clear_clicks_offer_hard_reset`
+- Pendencias ainda abertas:
+  1. schema local sem `responsavel_solicitante`.
+  2. termos curtos na busca superior ainda dependem de decisao de produto.
+  3. comentarios/docstrings/configs mortos fora do runtime ainda pedem limpeza em slice proprio.
+
+## HISTORICAL SNAPSHOT 2026-03-20 09:29 - previous current truth
 
 - Objetivo desta rodada:
   1. tratar `SES` como equivalente funcional de `STE` nos filtros que usam esse estado terminal.
