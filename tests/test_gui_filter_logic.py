@@ -882,6 +882,50 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         assert all(button.isEnabled() is False for button in buttons)
 
+    def test_three_repeated_clear_search_clicks_offer_hard_reset(self):
+        main_ctx = next(ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "main")
+        self.window._active_column_filters["descricao_ssa"] = "Teste A"
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+        self.window.search_input.setText("Teste")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        with (
+            patch.object(self.window, "_hard_reset_filters_state") as hard_reset_mock,
+            patch("gui.mixins.filter_gui_ssa_mixin.QMessageBox.question") as question_mock,
+            patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "", "SSA_NON_INTERACTIVE": ""}),
+        ):
+            question_mock.return_value = QtWidgets.QMessageBox.StandardButton.Yes
+            for _ in range(3):
+                cast(Any, QTest).mouseClick(main_ctx["clear_filter_button"], Qt.MouseButton.LeftButton)
+                QApplication.processEvents()
+
+        assert question_mock.call_count == 1
+        hard_reset_mock.assert_called_once()
+
+    def test_three_repeated_global_clear_clicks_offer_hard_reset(self):
+        filters_ctx = next(ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "filters")
+        self.window.main_tabs.setCurrentIndex(1)
+        QApplication.processEvents()
+        self.window.search_input.setText("Teste")
+        self.window._active_column_filters["descricao_ssa"] = "Teste A"
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        with (
+            patch.object(self.window, "_hard_reset_filters_state") as hard_reset_mock,
+            patch("gui.mixins.filter_gui_ssa_mixin.QMessageBox.question") as question_mock,
+            patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "", "SSA_NON_INTERACTIVE": ""}),
+        ):
+            question_mock.return_value = QtWidgets.QMessageBox.StandardButton.Yes
+            for _ in range(3):
+                cast(Any, QTest).mouseClick(filters_ctx["clear_all_filters_btn"], Qt.MouseButton.LeftButton)
+                QApplication.processEvents()
+
+        assert question_mock.call_count == 1
+        hard_reset_mock.assert_called_once()
+
     def test_clear_advanced_filters_forces_refresh_when_pending_schedule(self):
         filter_tab_idx = next(
             idx for idx, ctx in enumerate(self.window._tab_contexts)

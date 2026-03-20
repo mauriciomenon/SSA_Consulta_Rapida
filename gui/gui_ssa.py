@@ -1478,7 +1478,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     logger.debug("Falha ao aplicar fonte no resumo de filtros: %s", exc)
             clear_all_filters_btn = QPushButton("Limpar todos os filtros")
             clear_all_filters_btn.setMaximumWidth(200)
-            clear_all_filters_btn.clicked.connect(self._clear_all_filters_global)
+            clear_all_filters_btn.clicked.connect(self._on_clear_all_filters_clicked)
             try:
                 clear_all_filters_btn.setStyleSheet(self._week_label_style)
             except Exception as exc:
