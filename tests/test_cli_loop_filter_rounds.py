@@ -401,6 +401,14 @@ def test_handle_help_skips_pause_in_non_interactive_mode(
     assert "Pressione Enter para continuar..." in out
 
 
+def test_build_cli_plain_help_text_detailed_reuses_initial_search_contract() -> None:
+    help_text = cli._build_cli_plain_help_text(detailed=True)
+
+    assert "Mantem o mesmo contrato da busca inicial" in help_text
+    assert "Exemplos: svp, !ste, mel4" in help_text
+    assert "OU/OR/AND/E/v continuam literais na busca" in help_text
+
+
 def test_start_cli_loop_accepts_force_rescan_alias(monkeypatch: pytest.MonkeyPatch) -> None:
     base_df = pd.DataFrame({"numero_ssa": ["202500001"]})
     calls: list[str] = []
@@ -456,4 +464,25 @@ def test_cli_subprocess_help_then_quit_exits_cleanly() -> None:
 
     assert result.returncode == 0
     assert "EOF when reading a line" not in result.stdout
+    assert "Saindo..." in result.stdout
+
+
+def test_cli_subprocess_force_rescan_non_interactive_exits_cleanly() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    env["SSA_NON_INTERACTIVE"] = "1"
+    env["SSA_DB_PATH"] = str(repo_root / "data" / "ssas.db")
+
+    result = subprocess.run(
+        [sys.executable, "launchers/cli_entry.py"],
+        input="force-rescan\nq\n",
+        text=True,
+        capture_output=True,
+        cwd=repo_root,
+        env=env,
+        timeout=45,
+    )
+
+    assert result.returncode == 0
+    assert "Rescan indisponivel em sessao non-interactive" in result.stdout
     assert "Saindo..." in result.stdout
