@@ -2,7 +2,52 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-20 13:18 - start from here
+## CURRENT TRUTH 2026-03-20 13:33 - start from here
+
+- Objetivo desta rodada:
+  1. limpar a UX textual de `status-cli`, `toggle-debug` e `enhanced-on/off`.
+  2. reduzir ruida visual do prompt principal do CLI.
+  3. travar isso em subprocesso e testes unitarios pequenos.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos continuam fora de escopo e nao devem ser revertidos por inferencia.
+- Commit funcional novo desta rodada:
+  1. `82d0465b`
+     - `status-cli` passa a normalizar saida para ASCII.
+     - `toggle-debug` e `enhanced-on/off` passam a responder com mensagens curtas e consistentes.
+     - prompt principal do CLI fica mais compacto.
+     - testes novos travam:
+       - normalizacao ASCII do status
+       - feedback compacto de debug/enhanced
+       - subprocesso `status-cli -> q` com saida sem bullet unicode
+- Diagnostico consolidado desta rodada:
+  1. o fluxo estava correto, mas a UX textual ainda era ruim em captura real:
+     - `status-cli` trazia bullets unicode e acentos
+     - `toggle-debug` usava prefixo ruidoso `[Debug]`
+     - o prompt principal ainda estava denso demais
+  2. isso nao exigia refatoracao estrutural; so normalizacao e wrappers pequenos.
+- Validacao relevante ja executada:
+  1. `uv run --python 3.13 python -m py_compile interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  2. `uv run --python 3.13 ruff check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  3. `uv run --python 3.13 ty check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py -k "status_cli or toggle or enhanced or help or force_rescan or subprocess"` -> `11 passed, 9 deselected`.
+- Pendencias e leitura para o proximo ciclo:
+  1. `_handle_rescan` continua grande demais.
+  2. `status-cli` ainda depende de texto vindo do manager; o slice atual so limpou a borda de UX.
+  3. `toggle-debug` ainda grava estado de config local; qualquer endurecimento adicional deve respeitar isso.
+  4. `status-cli`, `toggle-debug` e `enhanced-on/off` ainda merecem cobertura mais ampla junto com `m`, `m z` e paginacao real.
+
+## HISTORICAL SNAPSHOT 2026-03-20 13:18 - previous current truth
 
 - Objetivo desta rodada:
   1. impedir que `rescan/force-rescan` trave sessao automatizada do CLI.

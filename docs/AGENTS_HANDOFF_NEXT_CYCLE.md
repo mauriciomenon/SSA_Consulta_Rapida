@@ -2,7 +2,45 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-20 13:18 - authoritative block
+## CURRENT TRUTH 2026-03-20 13:33 - authoritative block
+
+- Objetivo desta rodada:
+  1. limpar a UX textual de `status-cli`, `toggle-debug` e `enhanced-on/off`.
+  2. reduzir o ruido do prompt principal do CLI.
+  3. fechar cobertura focada disso em unitario e subprocesso.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos nao devem ser revertidos nem incluidos por inferencia.
+- Commit funcional novo:
+  1. `82d0465b`
+     - wrappers pequenos deixam `status-cli` em ASCII e removem ruido de `toggle-debug` / `enhanced-on/off`.
+     - o prompt principal fica mais curto e direto.
+     - testes novos cobrem status ASCII, feedback compacto e subprocesso real.
+- Diagnostico tecnico consolidado:
+  1. nao havia bug de fluxo aqui; o problema era UX textual ruim em sessao real.
+  2. o `status-cli` herdava bullets unicode e acentos do manager.
+  3. `toggle-debug` ainda respondia com prefixo ruidoso e tom inconsistente.
+- Validacao consolidada:
+  1. `py_compile`, `ruff` e `ty` verdes no escopo do slice.
+  2. `tests/test_cli_loop_filter_rounds.py` no foco `status_cli/toggle/enhanced/help/force_rescan/subprocess` -> `11 passed, 9 deselected`.
+  3. Kluster encontrou 1 issue media na primeira passada e ficou clean apos o ajuste.
+- Pendencias ainda abertas:
+  1. `_handle_rescan` continua grande demais.
+  2. `status-cli` ainda depende do texto do manager e pode merecer refino proprio em slice futuro.
+  3. `m`, `m z`, paginacao e `status-cli` ainda pedem mais cobertura de sessao real.
+  4. schema local sem `responsavel_solicitante`.
+
+## HISTORICAL SNAPSHOT 2026-03-20 13:18 - previous current truth
 
 - Objetivo desta rodada:
   1. impedir `rescan/force-rescan` pesado em sessao automatizada.
