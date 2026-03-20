@@ -1457,6 +1457,158 @@ class FilterGUISSAMixin:
             logger.debug("Falha ao sincronizar combo rapido de setor executor em clear_all_filters_global: %s", exc)
 
 
+    def _hard_reset_filters_state(self):
+        """Reseta agressivamente estado interno e visual dos filtros sem tocar nos botoes atuais."""
+        self._invalidate_active_filter_request("hard_reset_filters_state")
+        self._cancel_active_filter_worker("hard_reset_filters_state", wait_ms=0)
+        self._set_filter_ui_idle()
+
+        try:
+            self._debounce_timer.stop()
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce principal em hard_reset_filters_state: %s", exc)
+        try:
+            sector_timer = getattr(self, "_sector_debounce_timer", None)
+            if sector_timer is not None:
+                sector_timer.stop()
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce de setor em hard_reset_filters_state: %s", exc)
+
+        try:
+            self._set_search_text_across_tabs("")
+        except Exception as exc:
+            logger.warning("Falha ao limpar busca em todas as abas em hard_reset_filters_state: %s", exc)
+            try:
+                self.search_input.blockSignals(True)
+                self.search_input.clear()
+                self.search_input.setText("")
+            finally:
+                try:
+                    self.search_input.blockSignals(False)
+                except Exception as unblock_exc:
+                    logger.debug("Falha ao reativar sinais do campo principal em hard_reset_filters_state: %s", unblock_exc)
+
+        self._pending_search_display = None
+        self._pending_filter_focus = None
+        self._df_last_search_filtered = pd.DataFrame()
+        self._active_column_filters = OrderedDict(
+            (col, "") for col in self._column_filter_default_columns()
+        )
+        self._reset_or_groups()
+        self._exclude_ste_sca = False
+        self._advanced_filters = {}
+        self._advanced_filters_active = False
+        self.current_filter_profile = None
+        self._profile_base_filters = {}
+        self._last_filter_state = None
+        self._hidden_column_filter_lines = set()
+        self._dedicated_or_text = ""
+
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if isinstance(tab_contexts, list):
+            for ctx in tab_contexts:
+                if not isinstance(ctx, dict):
+                    continue
+                search_input = ctx.get("search_input")
+                if search_input is not None:
+                    try:
+                        search_input.blockSignals(True)
+                        search_input.clear()
+                        search_input.setText("")
+                    except Exception as exc:
+                        logger.debug("Falha ao limpar search_input em hard_reset_filters_state: %s", exc)
+                    finally:
+                        try:
+                            search_input.blockSignals(False)
+                        except Exception as exc:
+                            logger.debug("Falha ao reativar sinais de search_input em hard_reset_filters_state: %s", exc)
+                selector = ctx.get("profile_selector")
+                checkbox = ctx.get("exclude_ste_checkbox")
+                if checkbox is None:
+                    try:
+                        if selector is not None:
+                            selector.blockSignals(True)
+                            selector.setCurrentIndex(0)
+                    except Exception as exc:
+                        logger.debug("Falha ao limpar seletor de perfil em hard_reset_filters_state: %s", exc)
+                    finally:
+                        try:
+                            if selector is not None:
+                                selector.blockSignals(False)
+                        except Exception as exc:
+                            logger.debug("Falha ao reativar sinais do seletor de perfil em hard_reset_filters_state: %s", exc)
+                    continue
+                try:
+                    checkbox.blockSignals(True)
+                    checkbox.setChecked(False)
+                except Exception as exc:
+                    logger.debug("Falha ao limpar checkbox exclude_ste em hard_reset_filters_state: %s", exc)
+                finally:
+                    try:
+                        checkbox.blockSignals(False)
+                    except Exception as exc:
+                        logger.debug("Falha ao reativar sinais de checkbox exclude_ste em hard_reset_filters_state: %s", exc)
+                try:
+                    if selector is not None:
+                        selector.blockSignals(True)
+                        selector.setCurrentIndex(0)
+                except Exception as exc:
+                    logger.debug("Falha ao limpar seletor de perfil em hard_reset_filters_state: %s", exc)
+                finally:
+                    try:
+                        if selector is not None:
+                            selector.blockSignals(False)
+                    except Exception as exc:
+                        logger.debug("Falha ao reativar sinais do seletor de perfil em hard_reset_filters_state: %s", exc)
+        selector = getattr(self, "profile_selector", None)
+        if selector is not None:
+            try:
+                selector.blockSignals(True)
+                selector.setCurrentIndex(0)
+            except Exception as exc:
+                logger.debug("Falha ao limpar seletor de perfil principal em hard_reset_filters_state: %s", exc)
+            finally:
+                try:
+                    selector.blockSignals(False)
+                except Exception as exc:
+                    logger.debug("Falha ao reativar sinais do seletor de perfil principal em hard_reset_filters_state: %s", exc)
+
+        try:
+            if hasattr(self, "_sync_advanced_filter_ui"):
+                self._sync_advanced_filter_ui()
+        except Exception as exc:
+            logger.warning("Falha ao sincronizar UI de filtros avancados em hard_reset_filters_state: %s", exc)
+
+        self.df_exibido = self.df_completo.copy()
+        try:
+            if hasattr(self, "_bump_data_revision"):
+                self._bump_data_revision("hard_reset_filters")
+        except Exception as exc:
+            logger.debug("Falha ao atualizar data revision em hard_reset_filters_state: %s", exc)
+        self.paginator.set_dataframe(self.df_exibido)
+        self.display_current_page(1)
+        self._build_column_filters_panel()
+        self._update_col_filter_indicator()
+        self._update_filters_summary()
+        self._sync_clear_filter_button_state()
+        self._update_undo_button_state()
+        try:
+            self.update_filter_tags()
+        except Exception as exc:
+            logger.debug("Falha ao atualizar tags em hard_reset_filters_state: %s", exc)
+        try:
+            sync_combo = getattr(self, "_sync_quick_setor_executor_combo_from_filters", None)
+            if callable(sync_combo):
+                sync_combo()
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar combo rapido em hard_reset_filters_state: %s", exc)
+        self._set_filtered_count_status("")
+        try:
+            self.status_label.setText("Status: Filtros resetados completamente.")
+        except Exception as exc:
+            logger.debug("Falha ao atualizar status em hard_reset_filters_state: %s", exc)
+
+
     def _update_filters_summary(self):
         """Atualiza o resumo de filtros ativos na interface"""
         # Coleta filtros ativos
