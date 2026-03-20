@@ -2,7 +2,56 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-20 07:25 - authoritative block
+## CURRENT TRUTH 2026-03-20 08:49 - authoritative block
+
+- Objetivo desta rodada:
+  1. adicionar um reset total de filtros via menu sem tocar nos botoes atuais.
+  2. travar em teste a separacao entre coluna visivel da tabela e linha do painel de filtro.
+  3. consolidar a documentacao pendente desta trilha de filtros/import.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M gui/gui_ssa.py`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos nao devem ser revertidos nem incluidos por inferencia.
+- Commit funcional novo:
+  1. `1c3709be`
+     - adiciona `Opcoes > Limpar Filtros` como hard reset total de filtros.
+     - preserva os botoes atuais sem mudar sua semantica.
+     - adiciona teste para confirmar que remover coluna da tabela nao oculta filtro ativo no painel.
+- Diagnostico tecnico consolidado:
+  1. `visible_columns` da tabela e `_hidden_column_filter_lines` do painel de filtros continuam desacoplados.
+  2. esconder coluna da tabela nao cria filtro ativo invisivel.
+  3. o novo `Limpar Filtros` via menu existe para inconsistencias raras entre visualizacao e estado interno.
+  4. o hard reset total sincroniza:
+     - busca
+     - filtros de coluna
+     - filtros avancados
+     - `exclude_ste_sca`
+     - grupos OR
+     - hidden lines
+     - resumo/indicadores
+     - undo
+     - seletor de perfil
+     - abas
+- Validacao consolidada:
+  1. teste novo de coluna removida com filtro ativo -> pass.
+  2. teste novo de hard reset total -> pass.
+  3. menu `Opcoes` agora exposto em teste com item `Limpar Filtros` -> pass.
+  4. `py_compile`, `ruff`, `ty` e `pytest` focado -> pass.
+- Pendencias ainda abertas:
+  1. schema local sem `responsavel_solicitante`.
+  2. termos curtos na busca superior ainda dependem de decisao de produto, nao de alias.
+  3. ainda existem comentarios/docstrings/configs mortos fora do runtime, para slice proprio.
+
+## HISTORICAL SNAPSHOT 2026-03-20 07:25 - previous current truth
 
 - Objetivo desta rodada:
   1. sincronizar handoff com os ultimos slices funcionais ja publicados em `dev`.
