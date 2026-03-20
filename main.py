@@ -344,9 +344,9 @@ def get_app_version():
 
 def launch_streamlit(project_root: str, port: Optional[int] = None) -> bool:
     """Inicia o aplicativo Streamlit em segundo plano."""
-    script_path = os.path.join(project_root, 'streamlit_app.py')
+    script_path = os.path.join(project_root, 'dev_env', 'streamlit_app.py')
     if not os.path.exists(script_path):
-        print("Streamlit app nao encontrado em streamlit_app.py")
+        print("Streamlit app nao encontrado em dev_env/streamlit_app.py")
         return False
     if not shutil.which('streamlit'):
         print("Streamlit nao encontrado. Instale com: pip install streamlit")
