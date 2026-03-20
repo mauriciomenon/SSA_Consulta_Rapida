@@ -469,6 +469,36 @@ def _merge_overwrite_with_incoming_non_empty(existing_row: pd.Series, new_row: p
     return merged
 
 
+def _log_setor_executor_change_if_needed(
+    existing_row: pd.Series,
+    incoming_row: pd.Series,
+    merged_row: pd.Series,
+) -> None:
+    existing_sector = existing_row.get("setor_executor")
+    incoming_sector = incoming_row.get("setor_executor")
+    merged_sector = merged_row.get("setor_executor")
+
+    if _is_empty_upsert_value(existing_sector) or _is_empty_upsert_value(incoming_sector):
+        return
+
+    existing_text = str(existing_sector).strip()
+    incoming_text = str(incoming_sector).strip()
+    merged_text = "" if _is_empty_upsert_value(merged_sector) else str(merged_sector).strip()
+
+    if not existing_text or not incoming_text:
+        return
+    if existing_text == incoming_text or merged_text != incoming_text:
+        return
+
+    logger.info(
+        "Upsert atualizou setor_executor para SSA %s: %s -> %s (data_cadastro=%s)",
+        existing_row.get("numero_ssa"),
+        existing_text,
+        incoming_text,
+        incoming_row.get("data_cadastro"),
+    )
+
+
 def _persist_upsert_chunk(
     conn: Any,
     table_name: str,
@@ -515,6 +545,7 @@ def _prepare_upsert_target_row(
         merged_row = _merge_overwrite_with_incoming_non_empty(existing_row, row)
         if merged_row.equals(existing_row):
             return existing_row.copy(), False
+        _log_setor_executor_change_if_needed(existing_row, row, merged_row)
         return merged_row, True
 
     merged_series = _merge_complement_row(
