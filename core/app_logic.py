@@ -916,10 +916,11 @@ def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
     logger.info("Preparando full rescan: checkpoint WAL e rotacao de banco.")
     last_error: Optional[Exception] = None
     for attempt in range(1, 4):
+        conn: Optional[sqlite3.Connection] = None
         try:
-            with sqlite3.connect(db_path, timeout=2) as conn:
-                conn.execute("PRAGMA busy_timeout = 2000")
-                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            conn = sqlite3.connect(db_path, timeout=2)
+            conn.execute("PRAGMA busy_timeout = 2000")
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             last_error = None
             break
         except sqlite3.Error as exc:
@@ -932,6 +933,9 @@ def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
                 time.sleep(0.35 * attempt)
                 continue
             break
+        finally:
+            if conn is not None:
+                conn.close()
     if last_error is not None:
         raise DatabaseError(
             "Falha ao preparar full rescan por lock ativo no banco. "
@@ -1001,10 +1005,11 @@ def _promote_full_rescan_candidate(candidate_db_path: str, primary_db_path: str)
     )
     last_error: Optional[Exception] = None
     for attempt in range(1, 4):
+        conn: Optional[sqlite3.Connection] = None
         try:
-            with sqlite3.connect(candidate_db_path, timeout=2) as conn:
-                conn.execute("PRAGMA busy_timeout = 2000")
-                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            conn = sqlite3.connect(candidate_db_path, timeout=2)
+            conn.execute("PRAGMA busy_timeout = 2000")
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             last_error = None
             break
         except sqlite3.Error as exc:
@@ -1017,6 +1022,9 @@ def _promote_full_rescan_candidate(candidate_db_path: str, primary_db_path: str)
                 time.sleep(0.35 * attempt)
                 continue
             break
+        finally:
+            if conn is not None:
+                conn.close()
     if last_error is not None:
         raise DatabaseError(
             "Falha ao preparar DB candidato para promocao final. "
