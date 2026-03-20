@@ -78,6 +78,28 @@ def test_start_cli_loop_keeps_session_after_clear(monkeypatch: pytest.MonkeyPatc
     ]
 
 
+def test_render_cli_page_exits_when_printer_requests_app_exit(monkeypatch: pytest.MonkeyPatch) -> None:
+    df = pd.DataFrame({"numero_ssa": ["202500001"]})
+
+    monkeypatch.setattr(
+        cli,
+        "_cached_pretty_print_df",
+        lambda *_args, **_kwargs: {
+            "next_page": None,
+            "total_pages": 1,
+            "rendered_pages": 1,
+            "page_size": 20,
+            "exit_requested": True,
+        },
+    )
+    monkeypatch.setattr(cli, "_update_pagination_state", lambda *_args, **_kwargs: None)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli._render_cli_page(df, {}, {}, {}, [])
+
+    assert excinfo.value.code == 0
+
+
 def test_start_cli_loop_accumulates_literal_terms_without_rewriting(monkeypatch: pytest.MonkeyPatch) -> None:
     base_df = pd.DataFrame({"numero_ssa": ["202500001", "202500002", "202500003"]})
     after_first = pd.DataFrame({"numero_ssa": ["202500001", "202500003"]})

@@ -58,9 +58,65 @@ def test_paginated_prompt_shows_updated_shortcuts(monkeypatch):
     first_prompt = prompts[0]
     assert "'z': até o final" in first_prompt
     assert "'l': listar filtros" in first_prompt
+    assert "'qq': sair app" in first_prompt
     assert '+filtro' not in first_prompt
     assert 'Filtros ativos: svp' in output
     assert 'Comando inválido' not in output
+
+
+def test_paginated_prompt_qq_exits_application(monkeypatch):
+    printer = EnhancedTablePrinter()
+    monkeypatch.setattr(printer, 'get_terminal_size', lambda: (6, 120))
+
+    df = pd.DataFrame({
+        '#': [1, 2, 3],
+        'numero_ssa': ['202500001', '202500002', '202500003'],
+    })
+    widths = {'#': 3, 'numero_ssa': 12}
+    settings = {'user_preferences': {}, 'display_settings': {}}
+
+    monkeypatch.setattr('builtins.input', lambda _prompt='': 'qq')
+
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        state = printer._render_paginated(
+            df,
+            widths,
+            settings,
+            highlight_terms=None,
+            filter_terms=['svp'],
+        )
+
+    output = buffer.getvalue()
+    assert "Saindo..." in output
+    assert state["exit_requested"] is True
+
+
+def test_paginated_prompt_q_preserves_next_page_for_resume(monkeypatch):
+    printer = EnhancedTablePrinter()
+    monkeypatch.setattr(printer, 'get_terminal_size', lambda: (6, 120))
+
+    df = pd.DataFrame({
+        '#': [1, 2, 3],
+        'numero_ssa': ['202500001', '202500002', '202500003'],
+    })
+    widths = {'#': 3, 'numero_ssa': 12}
+    settings = {'user_preferences': {}, 'display_settings': {}}
+
+    monkeypatch.setattr('builtins.input', lambda _prompt='': 'q')
+
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        state = printer._render_paginated(
+            df,
+            widths,
+            settings,
+            highlight_terms=None,
+            filter_terms=['svp'],
+        )
+
+    assert state["next_page"] == 1
+    assert state["exit_requested"] is False
 
 
 def test_enhanced_printer_respects_narrow_terminal_width(monkeypatch):
@@ -113,3 +169,12 @@ def test_enhanced_printer_respects_narrow_terminal_width(monkeypatch):
 
     assert lines
     assert max(len(line) for line in lines) <= 70
+
+
+def test_truncate_header_never_exceeds_very_narrow_width():
+    printer = EnhancedTablePrinter()
+
+    assert printer._truncate_header("Descricao", 0) == ""
+    assert printer._truncate_header("Descricao", 1) == "."
+    assert printer._truncate_header("Descricao", 2) == ".."
+    assert printer._truncate_header("Descricao", 3) == "..."

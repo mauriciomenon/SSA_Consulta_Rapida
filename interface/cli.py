@@ -317,6 +317,34 @@ def _render_single_page(
     _update_pagination_state(df, state)
     return state
 
+
+def _exit_if_requested(state: Optional[Dict[str, Any]]) -> None:
+    if state and state.get("exit_requested"):
+        _handle_quit()
+
+
+def _render_cli_page(
+    df: pd.DataFrame,
+    display_map: dict,
+    settings: dict,
+    cache: dict,
+    filter_terms: Optional[List[str]],
+    *,
+    start_page: Optional[int] = None,
+    max_pages: Optional[int] = 1,
+) -> Optional[Dict[str, Any]]:
+    state = _render_single_page(
+        df,
+        display_map,
+        settings,
+        cache,
+        filter_terms,
+        start_page=start_page,
+        max_pages=max_pages,
+    )
+    _exit_if_requested(state)
+    return state
+
 def _apply_default_filters(df: pd.DataFrame, settings: dict) -> pd.DataFrame:
     """Aplica os filtros padrão definidos nas configurações."""
     default_filters = settings.get("default_filters", [])
@@ -598,7 +626,7 @@ def _handle_reset(db_path: str, table_name: str, results_stack: list, display_ma
     results_stack.append((initial_df_reset, initial_filter_terms_reset))
     _reset_pagination_state(initial_df_reset)
     # Exibe o novo estado
-    _render_single_page(
+    _render_cli_page(
         results_stack[-1][0],
         display_map,
         settings,
@@ -697,7 +725,7 @@ def _handle_rescan(db_path: str, table_name: str, results_stack: list, display_m
             results_stack.append((initial_df_rescan, initial_filter_terms_rescan))
             _reset_pagination_state(initial_df_rescan)
             print("Dados recarregados.")
-            _render_single_page(
+            _render_cli_page(
                 results_stack[-1][0],
                 display_map,
                 settings,
@@ -732,7 +760,7 @@ def _handle_sort(parts: List[str], results_stack: list, display_map: dict, setti
             results_stack.append((sorted_df, current_filter_terms))
             _reset_pagination_state(sorted_df)
             print(f"Resultados ordenados por '{col_name}' ({'asc' if ascending else 'desc'}).")
-            _render_single_page(
+            _render_cli_page(
                 sorted_df,
                 display_map,
                 settings,
@@ -768,7 +796,7 @@ def _handle_sort_by_name(parts: List[str], results_stack: list, display_map: dic
         results_stack.append((sorted_df, current_filter_terms))
         _reset_pagination_state(sorted_df)
         print(f"Resultados ordenados por '{col_name}' ({'asc' if ascending else 'desc'}).")
-        _render_single_page(
+        _render_cli_page(
             sorted_df,
             display_map,
             settings,
@@ -796,7 +824,7 @@ def _handle_remove_filter(parts: List[str], results_stack: list, display_map: di
         if results_stack:
             top_df, top_terms = results_stack[-1]
             _reset_pagination_state(top_df)
-            _render_single_page(
+            _render_cli_page(
                 top_df,
                 display_map,
                 settings,
@@ -827,7 +855,7 @@ def _handle_remove_filter(parts: List[str], results_stack: list, display_map: di
         _reset_pagination_state(new_df)
         _prune_pagination_tracker_for_stack(results_stack, force=True)
         print(f"Removido termo '{term_to_remove}'. Filtro atual: {', '.join(remaining)}")
-        _render_single_page(
+        _render_cli_page(
             new_df,
             display_map,
             settings,
@@ -842,7 +870,7 @@ def _handle_remove_filter(parts: List[str], results_stack: list, display_map: di
             top_df, top_terms = results_stack[-1]
             _reset_pagination_state(top_df)
             _prune_pagination_tracker_for_stack(results_stack, force=True)
-            _render_single_page(
+            _render_cli_page(
                 top_df,
                 display_map,
                 settings,
@@ -895,7 +923,7 @@ def _handle_show_more(
     if show_all:
         current_page = next_page
         while current_page is not None and current_page < total_pages:
-            state = _render_single_page(
+            state = _render_cli_page(
                 current_df,
                 display_map,
                 settings,
@@ -909,7 +937,7 @@ def _handle_show_more(
             current_page = state.get('next_page')
         return
 
-    _render_single_page(
+    _render_cli_page(
         current_df,
         display_map,
         settings,
@@ -931,7 +959,7 @@ def _handle_clear_filters(results_stack: list, display_map: dict, settings: dict
     CLI_PAGINATION_TRACKER.clear()
     _reset_pagination_state(base_state[0])
     print("Filtros do usuário limpos. Voltando ao estado base.")
-    _render_single_page(
+    _render_cli_page(
         base_state[0],
         display_map,
         settings,
@@ -954,7 +982,7 @@ def _handle_clear_all_filters(db_path: str, table_name: str, results_stack: list
     CLI_PAGINATION_TRACKER.clear()
     _reset_pagination_state(df)
     print("Todos os filtros foram limpos para esta sessão.")
-    _render_single_page(
+    _render_cli_page(
         df,
         display_map,
         fresh_settings,
@@ -1073,7 +1101,7 @@ def start_cli_loop(db_path: str, table_name: str):
 
         CLI_PAGINATION_TRACKER.clear()
         _reset_pagination_state(refreshed_df)
-        _render_single_page(
+        _render_cli_page(
             refreshed_df,
             display_map,
             settings,
@@ -1081,6 +1109,32 @@ def start_cli_loop(db_path: str, table_name: str):
             refreshed_terms,
             start_page=0,
         )
+
+    def _run_registered_command(command: str) -> None:
+        if command in ['v', 'voltar']:
+            _handle_back(results_stack)
+            if results_stack:
+                top_df, top_terms = results_stack[-1]
+                _render_cli_page(
+                    top_df,
+                    display_map,
+                    settings,
+                    _print_cache,
+                    top_terms,
+                    start_page=_last_rendered_page_for(top_df),
+                )
+            return
+        if command in ['r', 'resetar']:
+            _handle_reset(db_path, table_name, results_stack, display_map, settings, _print_cache)
+            return
+        if command in ['rescan', 'force-rescan']:
+            _handle_rescan(db_path, table_name, results_stack, display_map, settings, _print_cache)
+            return
+        if command in ['c', 'config']:
+            _refresh_after_config_change()
+            return
+        simple_handler = cast(Callable[[], Any], COMMAND_HANDLERS[command])
+        simple_handler()
 
     while True:
         try:
@@ -1112,28 +1166,7 @@ def start_cli_loop(db_path: str, table_name: str):
             # --- NOVA LÓGICA: Comandos de 1 caractere sempre são comandos ---
             if len(user_input) == 1 and user_input.lower() in COMMAND_HANDLERS:
                 command = user_input.lower()
-                if command in ['v', 'voltar']:
-                    _handle_back(results_stack)
-                    if results_stack:
-                        top_df, top_terms = results_stack[-1]
-                        _render_single_page(
-                            top_df,
-                            display_map,
-                            settings,
-                            _print_cache,
-                            top_terms,
-                            start_page=_last_rendered_page_for(top_df),
-                        )
-                elif command in ['r', 'resetar']:
-                    _handle_reset(db_path, table_name, results_stack, display_map, settings, _print_cache)
-                elif command in ['rescan', 'force-rescan']:
-                    _handle_rescan(db_path, table_name, results_stack, display_map, settings, _print_cache)
-                elif command in ['c', 'config']:
-                    _refresh_after_config_change()
-                else:
-                    # Handlers simples que não precisam de argumentos específicos do loop
-                    simple_handler = cast(Callable[[], Any], COMMAND_HANDLERS[command])
-                    simple_handler()
+                _run_registered_command(command)
                 continue
 
             parts = user_input.lower().split()
@@ -1141,29 +1174,7 @@ def start_cli_loop(db_path: str, table_name: str):
 
             # --- 1. Tratamento de Comandos Mapeados (palavras completas) ---
             if command in COMMAND_HANDLERS:
-                # Chama handlers específicos com argumentos
-                if command in ['v', 'voltar']:
-                    _handle_back(results_stack)
-                    if results_stack:
-                        top_df, top_terms = results_stack[-1]
-                        _render_single_page(
-                            top_df,
-                            display_map,
-                            settings,
-                            _print_cache,
-                            top_terms,
-                            start_page=_last_rendered_page_for(top_df),
-                        )
-                elif command in ['r', 'resetar']:
-                    _handle_reset(db_path, table_name, results_stack, display_map, settings, _print_cache)
-                elif command in ['rescan', 'force-rescan']:
-                    _handle_rescan(db_path, table_name, results_stack, display_map, settings, _print_cache)
-                elif command in ['c', 'config']:
-                    _refresh_after_config_change()
-                else:
-                    # Handlers simples que não precisam de argumentos específicos do loop
-                    simple_handler = cast(Callable[[], Any], COMMAND_HANDLERS[command])
-                    simple_handler()
+                _run_registered_command(command)
 
             # --- 2. Tratamento de Comandos com Lógica Inline ou Argumentos ---
             elif command in INLINE_COMMAND_PREFIXES:
@@ -1232,7 +1243,7 @@ def start_cli_loop(db_path: str, table_name: str):
                             combined_filter_terms = current_filter_terms + processed_search_terms
                             results_stack.append((new_filtered_df, combined_filter_terms))
                             _reset_pagination_state(new_filtered_df)
-                            _render_single_page(
+                            _render_cli_page(
                                 new_filtered_df,
                                 display_map,
                                 settings,
