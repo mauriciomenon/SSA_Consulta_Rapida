@@ -2,7 +2,7 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-20 17:05 - start from here
+## CURRENT TRUTH 2026-03-20 17:25 - start from here
 
 - Objetivo consolidado deste ciclo:
   1. revisar a pilha real do CLI por subprocesso.
@@ -15,6 +15,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `ec98013f` `STABILITY_PATCH: harden real CLI review flows`
      - `83660463` `STABILITY_PATCH: bump baseline to v4.33`
      - `c7992b39` `STABILITY_PATCH: align Streamlit title with v4.33`
+     - `220e1847` `HOTFIX_BLOCKER: restore main streamlit launcher`
   3. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
      - `M .python-version`
      - `M config/cli_enhancements.json`
@@ -38,14 +39,13 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   4. o CLI continua sem opcao de reescaneamento so de diff:
      - GUI tem diff/full rescan
      - CLI hoje tem apenas `rescan` / `force-rescan`
-  5. furo ululante encontrado na revisao final:
-     - `python main.py --streamlit` esta quebrado
-     - [main.py](C:/Users/mauri/git/SSA_Consulta_Rapida/main.py) procura `streamlit_app.py` na raiz
-     - o app real esta em [dev_env/streamlit_app.py](C:/Users/mauri/git/SSA_Consulta_Rapida/dev_env/streamlit_app.py)
-     - como pedido do usuario, isso foi apenas registrado em docs e backlog, sem novo patch funcional
+  5. furo ululante do launcher Streamlit foi corrigido:
+     - [main.py](C:/Users/mauri/git/SSA_Consulta_Rapida/main.py) agora aponta para [dev_env/streamlit_app.py](C:/Users/mauri/git/SSA_Consulta_Rapida/dev_env/streamlit_app.py)
+     - `uv run --python 3.13 python main.py --streamlit` voltou a subir o painel
 - Micro-slice Streamlit entregue:
   1. [dev_env/streamlit_app.py](C:/Users/mauri/git/SSA_Consulta_Rapida/dev_env/streamlit_app.py) agora usa a versao ativa no `page_title` e no cabecalho
   2. [tests/test_streamlit_filter_cache.py](C:/Users/mauri/git/SSA_Consulta_Rapida/tests/test_streamlit_filter_cache.py) trava `SSA Consulta Rapida v4.33`
+  3. [tests/test_main_streamlit_launcher.py](C:/Users/mauri/git/SSA_Consulta_Rapida/tests/test_main_streamlit_launcher.py) trava o launcher `main.py --streamlit`
 - Validacao relevante ja executada:
   1. `uv run --python 3.13 python -m py_compile interface/enhanced_table_printer.py interface/cli.py interface/cli_enhancement_manager.py tests/test_cli_loop_filter_rounds.py tests/test_cli_pagination_prompt.py tests/test_build_multiplatform_manifest.py` -> pass.
   2. `uv run --python 3.13 ruff check interface/enhanced_table_printer.py interface/cli.py interface/cli_enhancement_manager.py tests/test_cli_loop_filter_rounds.py tests/test_cli_pagination_prompt.py tests/test_build_multiplatform_manifest.py` -> pass.
@@ -54,6 +54,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   5. `uv run --python 3.13 python -m pytest -q tests/test_build_multiplatform_manifest.py` -> `5 passed`.
   6. `uv run --python 3.13 python -m pytest -q tests/test_streamlit_filter_cache.py` -> `46 passed`.
   7. `uv run --python 3.13 python -m pytest -q tests/test_build_multiplatform_manifest.py tests/test_cli_loop_filter_rounds.py tests/test_streamlit_filter_cache.py` -> `77 passed`.
+  8. `uv run --python 3.13 python -m pytest -q tests/test_main_streamlit_launcher.py` -> `2 passed`.
   6. subprocessos reais confirmados como `rc=0`:
      - `h -> q`
      - `mel4 -> q`
@@ -61,6 +62,8 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `mel4 -> status-cli -> v -> q`
      - `mel4 -> m -> qq`
      - `force-rescan -> q`
+  7. launcher Streamlit real confirmado:
+     - `uv run --python 3.13 python main.py --streamlit` -> sobe o painel em background
 - Leitura operacional:
   1. `q` segue com semantica por escopo:
      - prompt principal: sai da aplicacao
@@ -72,10 +75,9 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - diff-only rescan ainda inexiste no CLI
 - Pendencias e leitura para o proximo ciclo:
   1. fechar `DOC_SYNC` final da release e publicacao `v4.33`.
-  2. corrigir o launcher `main.py --streamlit`.
-  3. decidir se o CLI deve ganhar comando de diff-only rescan.
-  4. revisar `ord` / `ordi` contra ordem visual real.
-  5. manter a politica de nao incluir residuos locais no commit.
+  2. decidir se o CLI deve ganhar comando de diff-only rescan.
+  3. revisar `ord` / `ordi` contra ordem visual real.
+  4. manter a politica de nao incluir residuos locais no commit.
 
 ## HISTORICAL SNAPSHOT 2026-03-20 14:00 - previous current truth
 

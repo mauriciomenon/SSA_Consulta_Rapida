@@ -129,9 +129,47 @@ Validacao:
    - `Streamlit app nao encontrado em streamlit_app.py`
 
 Pendencias nao bloqueantes abertas:
-1. corrigir `main.py --streamlit` para apontar ao app real.
-2. adicionar teste de regressao para `launch_streamlit()`.
-3. manter a revisao de `ord` / `ordi` e diff-only rescan do CLI em fila separada.
+1. manter a revisao de `ord` / `ordi` e diff-only rescan do CLI em fila separada.
+
+## Update 2026-03-20 17:25 - hotfix do launcher Streamlit em v4.33 (HOTFIX_BLOCKER)
+
+Session timestamp:
+1. start: `2026-03-20 17:10:00 -0300`
+2. hotfix validado no mesmo fluxo
+
+Objetivo do slice:
+1. corrigir o entrypoint `main.py --streamlit` ainda dentro da `v4.33`.
+2. travar a correcao em teste de regressao minimo.
+
+Diagnostico objetivo:
+1. o launcher estava quebrado no estado publicado da `v4.33`:
+   - `uv run --python 3.13 python main.py --streamlit`
+   - saida: `Streamlit app nao encontrado em streamlit_app.py`
+2. causa:
+   - [main.py](C:/Users/mauri/git/SSA_Consulta_Rapida/main.py) procurava `streamlit_app.py` na raiz
+   - o app real esta em [dev_env/streamlit_app.py](C:/Users/mauri/git/SSA_Consulta_Rapida/dev_env/streamlit_app.py)
+
+Escopo alterado:
+1. `main.py`
+2. `tests/test_main_streamlit_launcher.py`
+
+Mudanca aplicada:
+1. commit funcional `220e1847`
+   - `launch_streamlit()` passa a apontar para `dev_env/streamlit_app.py`
+   - teste novo cobre:
+     - path correto do launcher
+     - caso negativo de arquivo ausente
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile main.py tests/test_main_streamlit_launcher.py` -> pass.
+2. `uv run --python 3.13 ruff check main.py tests/test_main_streamlit_launcher.py` -> pass.
+3. `uv run --python 3.13 ty check main.py tests/test_main_streamlit_launcher.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_main_streamlit_launcher.py` -> `2 passed`.
+5. `uv run --python 3.13 python main.py --streamlit` -> Streamlit sobe em background.
+
+Pendencias nao bloqueantes abertas:
+1. diff-only rescan do CLI segue sem implementacao.
+2. `ord` / `ordi` continuam pendentes de revisao de contrato.
 
 ## Update 2026-03-20 15:40 - q/qq na paginacao do CLI e retomada do m (STABILITY_PATCH + DOC_SYNC)
 
