@@ -93,6 +93,62 @@ Licoes aprendidas:
 2. `with sqlite3.connect(...)` nao basta para garantir `close()` no Windows em fluxo de promocao por `os.replace(...)`.
 3. quando o produto aceita mudanca de setor por dado mais novo, o comportamento deve seguir normal e deixar evidencias em log de arquivo, nao em UI.
 
+## Update 2026-03-20 08:49 - hard reset total de filtros e cobertura de coluna oculta (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-20 08:16:45 -0300`
+2. runtime validado e docs sincronizados no mesmo fluxo
+
+Objetivo do slice:
+1. criar um hard reset total de filtros acessivel via menu, sem alterar os botoes atuais.
+2. adicionar teste explicito para o caso "remover coluna visivel da tabela enquanto o filtro dessa coluna esta ativo".
+3. consolidar pendencias documentais abertas desta trilha.
+
+Diagnostico objetivo:
+1. verificacao sem mudanca previa confirmou:
+   - `visible_columns` da tabela e `_hidden_column_filter_lines` do painel de filtro sao estados separados.
+   - remover coluna da tabela nao escondia a linha do filtro correspondente.
+2. faltava um teste de repo com nome explicito travando esse contrato.
+3. para inconsistencias raras entre visualizacao e estado interno, os botoes atuais nao deveriam ser alterados; o pedido do usuario foi uma opcao separada de hard reset.
+
+Escopo alterado:
+1. `gui/mixins/filter_gui_ssa_mixin.py`
+2. `gui/gui_ssa.py`
+3. `tests/test_gui_filter_logic.py`
+4. `tests/test_gui_menu_import_external.py`
+5. `docs/NEXT_CHAT_MIGRATION.md`
+6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+7. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. commit `1c3709be`
+   - adiciona `Opcoes > Limpar Filtros`.
+   - o novo comando faz reset total de:
+     - busca
+     - filtros de coluna
+     - filtros avancados
+     - `exclude_ste_sca`
+     - grupos OR
+     - hidden lines
+     - resumo/indicadores
+     - undo
+     - seletor de perfil
+     - sincronizacao entre abas
+   - os botoes atuais permanecem com a semantica anterior.
+2. teste novo trava que remover `descricao_ssa` de `visible_columns` nao oculta a linha do filtro ativo no painel.
+3. teste de menu confirma que `Opcoes` agora expoe `Limpar Filtros`.
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass.
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass.
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py -k "removing_visible_column_keeps_active_filter_row_visible or hard_reset_filters_state or setup_app_menus_registers_grouped_menus or clear_all_filters_global or column_filter_buttons_flow or restore_last_filter_state_drops_hidden_lines_with_active_filters"` -> `12 passed, 159 deselected`.
+
+Pendencias ainda abertas:
+1. schema local sem `responsavel_solicitante`.
+2. decisao de produto para termos curtos com escopo amplo na busca superior.
+3. limpeza de comentarios/docstrings/configs mortos fora do runtime.
+
 ## Update 2026-03-19 15:49 - search contract cleanup and tooling signal cleanup (STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:

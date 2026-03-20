@@ -2,7 +2,59 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-20 07:25 - start from here
+## CURRENT TRUTH 2026-03-20 08:49 - start from here
+
+- Objetivo desta rodada:
+  1. adicionar um hard reset total de filtros via menu `Opcoes > Limpar Filtros`.
+  2. travar em teste que remover uma coluna visivel da tabela nao esconde a linha do filtro ativo correspondente.
+  3. fechar as pendencias documentais abertas desta trilha de filtros e import.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M gui/gui_ssa.py`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos continuam fora do escopo deste slice e nao devem ser revertidos por inferencia.
+- Commits funcionais mais recentes ja entregues:
+  1. `1c3709be`
+     - adiciona `Opcoes > Limpar Filtros` como hard reset total de filtros.
+     - adiciona teste de regressao para coluna removida da tabela com filtro ativo ainda visivel no painel.
+  2. `2a1623bf`
+     - upsert passa a logar troca de `setor_executor` quando a linha mais nova vence e muda o valor.
+  3. `fd2d9b09`
+     - fecha handles SQLite antes da promocao do DB candidato no full rescan Windows.
+- Diagnostico consolidado desta rodada:
+  1. esconder coluna da tabela e ocultar linha do painel de filtros continuam sendo estados separados.
+  2. remover uma coluna visivel da tabela NAO esconde a linha do filtro correspondente e NAO cria filtro ativo invisivel.
+  3. o reset novo via menu foi criado exatamente para inconsistencias raras entre visualizacao e estado interno, sem alterar os botoes atuais.
+  4. o hard reset agora limpa de forma total:
+     - busca superior
+     - filtros de coluna
+     - linhas ocultas de filtro
+     - `exclude_ste_sca`
+     - filtros avancados
+     - grupos OR
+     - resumo/indicadores
+     - undo de filtros
+     - seletor de perfil
+     - sincronizacao entre abas
+- Validacao relevante ja executada:
+  1. `uv run --python 3.13 python -m pytest -q tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py -k "removing_visible_column_keeps_active_filter_row_visible or hard_reset_filters_state or setup_app_menus_registers_grouped_menus or clear_all_filters_global or column_filter_buttons_flow or restore_last_filter_state_drops_hidden_lines_with_active_filters"` -> `12 passed, 159 deselected`.
+  2. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass.
+  3. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass.
+  4. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass.
+- Pendencias documentais e funcionais ainda abertas:
+  1. schema local segue sem `responsavel_solicitante`.
+  2. termos curtos com escopo muito amplo na busca superior seguem como decisao de produto pendente, nao bug escondido.
+  3. ainda restam comentarios/docstrings/configs mortos fora do runtime que merecem limpeza em slice proprio.
+
+## HISTORICAL SNAPSHOT 2026-03-20 07:25 - previous current truth
 
 - Objetivo desta rodada:
   1. sincronizar os docs com os ultimos slices funcionais ja entregues em `dev`.
