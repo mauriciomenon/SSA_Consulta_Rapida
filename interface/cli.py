@@ -408,18 +408,19 @@ def _get_initial_state(
 
 # --- Handlers de Comandos ---
 
-def _show_initial_help():
-    """Exibe help inicial mais detalhado antes do prompt ficar disponivel."""
-    help_text = f"""
-===============================================================================
+
+def _build_cli_plain_help_text(*, bullet: str = "-", line_char: str = "=") -> str:
+    line = line_char * 79
+    return f"""
+{line}
 CONSULTA RAPIDA de SSAs v{APP_VERSION}
 
 PESQUISA
-  - Separe termos por virgula (ex.: ADM, MEL3, 2025)
-  - Termos simples procuram em qualquer parte; use =valor para coincidencia exata
-  - Prefixos: ^inicio, fim$, =exato, ~regex, !negativo (podem ser combinados)
-  - Exemplos: svp, !ste, mel4 -> contem "svp", exclui "STE", contem "mel4"
-  - Tambem aceita comparacoes/regex (ex.: mmu2, prazo<=30, ^2025)
+  {bullet} Separe termos por virgula (ex.: ADM, MEL3, 2025)
+  {bullet} Termos simples procuram em qualquer parte; use =valor para coincidencia exata
+  {bullet} Prefixos: ^inicio, fim$, =exato, ~regex, !negativo (podem ser combinados)
+  {bullet} Exemplos: svp, !ste, mel4 -> contem "svp", exclui "STE", contem "mel4"
+  {bullet} Tambem aceita comparacoes/regex (ex.: mmu2, prazo<=30, ^2025)
 
 COMANDOS PRINCIPAIS
   h ou ?    Ajuda completa
@@ -441,52 +442,22 @@ ORGANIZACAO
   l                    Listar filtros ativos
 
 DICAS
-  - Filtros ativos aparecem acima do prompt; digite termos como: svp, !ste, mel4
-  - Comandos rapidos: m (mais pagina), l (listar filtros), v (voltar), x termo (ex.: x mel4), h (ajuda)
-  - Para continuar navegando apos a primeira pagina use m; para exibir tudo, use m z
-===============================================================================
+  {bullet} Filtros ativos aparecem acima do prompt; digite termos como: svp, !ste, mel4
+  {bullet} Comandos rapidos: m (mais pagina), l (listar filtros), v (voltar), x termo (ex.: x mel4), h (ajuda)
+  {bullet} Para continuar navegando apos a primeira pagina use m; para exibir tudo, use m z
+{line}
 """
+
+
+def _show_initial_help():
+    """Exibe help inicial mais detalhado antes do prompt ficar disponivel."""
+    help_text = _build_cli_plain_help_text()
 
     try:
         print(help_text)
     except UnicodeEncodeError as exc:
         logger.error("Erro de codificacao ao exibir texto de ajuda: %s", exc)
-        fallback_text = f"""
-===============================================================================
-CONSULTA RAPIDA de SSAs v{APP_VERSION}
-
-PESQUISA
-  - Separe termos por virgula (ex.: ADM, MEL3, 2025)
-  - Termos simples procuram em qualquer parte; use =valor para coincidencia exata
-  - Prefixos: ^inicio, fim$, =exato, ~regex, !negativo (podem ser combinados)
-  - Exemplos: svp, !ste, mel4 -> contem "svp", exclui "STE", contem "mel4"
-  - Tambem aceita comparacoes/regex (ex.: mmu2, prazo<=30, ^2025)
-
-COMANDOS PRINCIPAIS
-  h ou ?    Ajuda completa
-  q         Sair da aplicacao
-  d #       Mostrar detalhe da linha (use o numero exibido na primeira coluna)
-  v         Desfazer o ultimo filtro aplicado
-  m         Mostrar a proxima pagina de resultados
-  m z       Mostrar todas as paginas restantes
-  r         Limpar filtros ativos (mantem dados carregados)
-  rescan    Reimportar todos os arquivos Excel
-  e nome    Exportar resultado (ex.: e relatorio -> relatorio.csv/.xlsx)
-  c         Abrir menu de configuracoes
-
-ORGANIZACAO
-  ord / ordi  #        Ordenar coluna pelo indice mostrado em cols (crescente / decrescente)
-  ordn / ordni nome    Ordenar coluna pelo nome exato (crescente / decrescente)
-  cols                 Listar colunas exibidas e respectivos indices
-  x termo              Remover termo do filtro atual (ex.: x mel4)
-  l                    Listar filtros ativos
-
-DICAS
-  - Filtros ativos aparecem acima do prompt; digite termos como: svp, !ste, mel4
-  - Comandos rapidos: m (mais pagina), l (listar filtros), v (voltar), x termo (ex.: x mel4), h (ajuda)
-  - Para continuar navegando apos a primeira pagina use m; para exibir tudo, use m z
-===============================================================================
-"""
+        fallback_text = _build_cli_plain_help_text()
         print(fallback_text)
         logger.debug("Texto de ajuda fallback exibido com sucesso")
     else:
@@ -580,41 +551,7 @@ Digite qualquer tecla para continuar..."""
     except UnicodeEncodeError as e:
         logger.error(f"Erro de codificação ao exibir texto de ajuda: {e}")
         # Fallback sem caracteres especiais
-        fallback_text = f"""
-================================ CONSULTA RÁPIDA de SSAs v{APP_VERSION} ================================
-
-PESQUISA
-  • Separe termos por virgula (ex.: ADM, MEL3, 2025)
-  • Termos simples procuram em qualquer parte; use =valor para coincidencia exata
-  • Prefixos: ^inicio, fim$, =exato, ~regex, !negativo (podem ser combinados)
-  • Exemplos: svp, !ste, mel4 -> contem "svp", exclui "STE", contem "mel4"
-  • Tambem aceita comparacoes/regex (ex.: mmu2, prazo<=30, ^2025)
-
-COMANDOS PRINCIPAIS
-  h ou ?    Ajuda completa
-  q         Sair da aplicacao
-  d #       Mostrar detalhe da linha (use o numero exibido na primeira coluna)
-  v         Desfazer o ultimo filtro aplicado
-  m         Mostrar a proxima pagina de resultados
-  m z       Mostrar todas as paginas restantes
-  r         Limpar filtros ativos (mantem dados carregados)
-  rescan    Reimportar todos os arquivos Excel
-  e nome    Exportar resultado (ex.: e relatorio -> relatorio.csv/.xlsx)
-  c         Abrir menu de configuracoes
-
-ORGANIZACAO
-  ord / ordi  #        Ordenar coluna pelo indice mostrado em cols (crescente / decrescente)
-  ordn / ordni nome    Ordenar coluna pelo nome exato (crescente / decrescente)
-  cols                 Listar colunas exibidas e respectivos indices
-  x termo              Remover termo do filtro atual (ex.: x mel4)
-  l                    Listar filtros ativos
-
-DICAS
-  • Filtros ativos aparecem acima do prompt; digite termos como: svp, !ste, mel4
-  • Comandos rapidos: m (mais pagina), l (listar filtros), v (voltar), x termo (ex.: x mel4), h (ajuda)
-  • Para continuar navegando apos a primeira pagina use m; para exibir tudo, use m z
-===============================================================================================
-"""
+        fallback_text = _build_cli_plain_help_text(bullet="*", line_char="=")
         print(fallback_text)
         logger.debug("Texto de ajuda fallback exibido com sucesso")
     input()  # Pausa para o usuário ler
