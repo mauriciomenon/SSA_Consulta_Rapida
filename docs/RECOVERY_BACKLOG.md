@@ -228,6 +228,55 @@ Pendencias nao bloqueantes abertas:
 3. `m`, `m z`, paginacao e status de sessao ainda merecem mais testes por subprocesso.
 4. Kluster segue oscilando por timeout em lotes grandes do CLI; manter lotes pequenos.
 
+## Update 2026-03-20 13:47 - m z guardado em non-interactive (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-20 13:39:00 -0300`
+2. runtime validado e docs sincronizados no mesmo fluxo
+
+Objetivo do slice:
+1. impedir timeout de automacao causado por `m z` com banco real.
+2. cobrir o caso por subprocesso real e por teste focado do handler.
+3. preservar o `m` normal sem mexer no fluxo interativo completo.
+
+Diagnostico objetivo:
+1. havia um bug real de automacao:
+   - `mel4 -> m z -> q` ainda entrava em timeout em `SSA_NON_INTERACTIVE=1`
+2. o problema nao era quebra do loop:
+   - era volume de saida excessivo por `show_all`
+3. o `m` normal seguia funcional; o patch precisava ser restrito ao caminho `m z`.
+
+Escopo alterado:
+1. `interface/cli.py`
+2. `tests/test_cli_loop_filter_rounds.py`
+3. `docs/NEXT_CHAT_MIGRATION.md`
+4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+5. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. commit `b796b6e5`
+   - `_handle_show_more()` recusa `m z` em sessao non-interactive com mensagem clara
+   - testes novos cobrem:
+     - handler sem renderizacao indevida
+     - subprocesso `mel4 -> m z -> q`
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+2. `uv run --python 3.13 ruff check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+3. `uv run --python 3.13 ty check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py -k "more_all or show_more or status_cli or toggle or enhanced or help or force_rescan or subprocess"` -> `13 passed, 9 deselected`.
+
+Licoes aprendidas:
+1. pagina "mostrar tudo" em CLI precisa respeitar o contexto de automacao tanto quanto `rescan`.
+2. timeouts em sessao real podem ser bug de UX/volume, nao necessariamente bug de controle de fluxo.
+3. manter o patch restrito a `m z` evitou mexer sem necessidade no `m` normal.
+
+Pendencias nao bloqueantes abertas:
+1. `_handle_rescan` continua grande demais.
+2. `m`, `m z`, status e paginacao ainda merecem cobertura combinada de sessao longa.
+3. manager de CLI ainda concentra texto de status e persistencia local.
+4. Kluster segue oscilando por timeout em lotes grandes do CLI; manter lotes pequenos.
+
 ## Update 2026-03-20 11:32 - contrato textual compartilhado no CLI (STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:
