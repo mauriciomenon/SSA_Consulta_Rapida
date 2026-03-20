@@ -2,7 +2,46 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-20 13:47 - authoritative block
+## CURRENT TRUTH 2026-03-20 14:00 - authoritative block
+
+- Objetivo desta rodada:
+  1. impedir que subprocessos de teste do CLI escrevam no arquivo real `config/cli_enhancements.json`.
+  2. isolar settings de automacao em arquivo temporario.
+  3. manter o caminho padrao do runtime inalterado para uso normal.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/cli_enhancements.json`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. o `M config/cli_enhancements.json` ja existia; o slice atual so evita novas sujeiras.
+- Commit funcional novo:
+  1. `049b0b2e`
+     - `CLIEnhancementManager` aceita override de caminho por `SSA_CLI_ENHANCEMENTS_PATH`
+     - o override e validado por `ensure_path_is_allowed(...)`
+     - subprocessos de teste passam a usar arquivo temporario proprio
+- Diagnostico tecnico consolidado:
+  1. o problema real desta rodada era acoplamento dos testes CLI ao arquivo real de settings.
+  2. a sujidade vinha dos subprocessos que chamavam `toggle-debug` e `enhanced-on/off`.
+  3. a correcao minima foi um override seguro de caminho, sem mexer no fluxo funcional da CLI.
+- Validacao consolidada:
+  1. `py_compile`, `ruff` e `ty` verdes no escopo do slice.
+  2. `tests/test_cli_loop_filter_rounds.py` no foco de subprocesso/status/paginacao -> `13 passed, 9 deselected`.
+  3. Kluster encontrou 1 issue media na primeira passada e ficou clean apos a validacao de path.
+- Pendencias ainda abertas:
+  1. `_handle_rescan` continua grande demais.
+  2. `m`, `m z`, status e paginacao ainda merecem cobertura combinada de sessao longa.
+  3. o resido ja existente em `config/cli_enhancements.json` continua fora de escopo ate comando explicito.
+  4. schema local sem `responsavel_solicitante`.
+
+## HISTORICAL SNAPSHOT 2026-03-20 13:47 - previous current truth
 
 - Objetivo desta rodada:
   1. impedir que `m z` trave automacao do CLI.
