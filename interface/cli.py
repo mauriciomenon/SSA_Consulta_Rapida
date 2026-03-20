@@ -12,6 +12,7 @@ import sys
 import math
 import logging
 import re
+import textwrap
 import pandas as pd
 from collections import Counter
 from typing import Tuple, List, Dict, Any, Optional, Callable, cast
@@ -409,9 +410,38 @@ def _get_initial_state(
 # --- Handlers de Comandos ---
 
 
-def _build_cli_plain_help_text(*, bullet: str = "-", line_char: str = "=") -> str:
+def _wrap_cli_help_text(text: str, *, width: int) -> str:
+    wrapped_lines: list[str] = []
+    for raw_line in text.strip("\n").splitlines():
+        if not raw_line:
+            wrapped_lines.append("")
+            continue
+        stripped = raw_line.strip()
+        if len(raw_line) <= width or (stripped and len(set(stripped)) == 1):
+            wrapped_lines.append(raw_line)
+            continue
+        indent = raw_line[: len(raw_line) - len(raw_line.lstrip())]
+        wrapped_lines.append(
+            textwrap.fill(
+                stripped,
+                width=width,
+                initial_indent=indent,
+                subsequent_indent=indent,
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
+        )
+    return "\n".join(wrapped_lines) + "\n"
+
+
+def _build_cli_plain_help_text(
+    *,
+    bullet: str = "-",
+    line_char: str = "=",
+    detailed: bool = False,
+) -> str:
     line = line_char * 79
-    return f"""
+    body = f"""
 {line}
 CONSULTA RAPIDA de SSAs v{APP_VERSION}
 
@@ -445,8 +475,35 @@ DICAS
   {bullet} Filtros ativos aparecem acima do prompt; digite termos como: svp, !ste, mel4
   {bullet} Comandos rapidos: m (mais pagina), l (listar filtros), v (voltar), x termo (ex.: x mel4), h (ajuda)
   {bullet} Para continuar navegando apos a primeira pagina use m; para exibir tudo, use m z
-{line}
 """
+
+    if not detailed:
+        return _wrap_cli_help_text(f"{body}{line}\n", width=len(line))
+
+    return _wrap_cli_help_text(f"""{body}
+COMANDOS DE FILTROS
+  clear       Limpa filtros do usuario e volta ao estado base
+  clearall    Limpa todos os filtros da sessao atual
+
+COMANDOS DE DADOS
+  rescan          Reimporta arquivos Excel
+  force-rescan    Alias explicito para rescan
+
+COMANDOS DE MELHORIAS CLI
+  status-cli      Mostra status das melhorias implementadas
+  toggle-debug    Liga/desliga debug do Enhanced Table Printer
+  enhanced-on     Ativa Enhanced Table Printer
+  enhanced-off    Desativa Enhanced Table Printer
+
+PESQUISA AVANCADA
+  {bullet} Todos os termos digitados sao cumulativos
+  {bullet} OU/OR/AND/E/v continuam literais na busca
+  {bullet} Modos por termo: foo, ^foo, foo$, =foo, ~regex, !foo
+  {bullet} Exemplos: ADM, !cancelada | ^MEL | =STE | ~MEL[0-9]+
+{line}
+
+Pressione Enter para continuar...
+""", width=len(line))
 
 
 def _show_initial_help():
@@ -470,88 +527,18 @@ def _handle_quit():
 
 def _handle_help():
     """Handler para o comando de ajuda."""
-    help_text = f"""
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║                      CONSULTA RÁPIDA DE SSAs v{APP_VERSION} - AJUDA COMPLETA                  ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║ COMANDOS DE PESQUISA E NAVEGAÇÃO                                              ║
-║   termos (ex: svp, !ste, mel4) → Aplicam filtros cumulativos                ║
-║   d <Nº>        → Mostra detalhes da SSA na linha <Nº> da tabela atual       ║
-║   v             → Volta para o filtro anterior (desfaz último filtro)        ║
-║   m             → Mostra a próxima página disponível                         ║
-║   m z           → Mostra todas as páginas restantes                          ║
-║   r             → Reseta todos os filtros e recarrega a base completa        ║
-║   h, ?          → Mostra esta ajuda completa                                 ║
-║   q, sair, exit → Sai do programa                                            ║
-║   paginação     → Após a primeira página utilize m (mais) ou m z (tudo)      ║
-║                                                                               ║
-║ COMANDOS DE ORGANIZAÇÃO                                                       ║
-║   ord <Nº>      → Ordena pela coluna de índice <Nº> (crescente)              ║
-║   ordi <Nº>     → Ordena pela coluna de índice <Nº> (decrescente)            ║
-║   ordn <nome>   → Ordena pela coluna com este nome (crescente)               ║
-║   ordni <nome>  → Ordena pela coluna com este nome (decrescente)             ║
-║   cols          → Lista as colunas visíveis com índices e nomes              ║
-║                                                                               ║
-║ COMANDOS DE FILTROS                                                           ║
-║   x [termo]     → Remove termo específico; sem termo equivale a 'v'          ║
-║   l, filtros    → Mostra os filtros atualmente aplicados                     ║
-║   clear         → Limpa filtros do usuário (mantém filtros padrão)           ║
-║   clearall      → Limpa TODOS os filtros (usuário + padrão) desta sessão     ║
-║                                                                               ║
-║ COMANDOS DE DADOS                                                             ║
-║   rescan        → Reimporta arquivos Excel (modo compatibilidade)            ║
-║   force-rescan  → Força reimportação completa (recomendado)                  ║
-║                                                                               ║
-║   +-- DIFERENCA: rescan vs force-rescan -------------------------------------+ ║
-║   │ rescan:       Alias histórico, mesmo comportamento                      │ ║
-║   │ force-rescan: Nome mais explícito, recomendado                          │ ║
-║   │ AMBOS fazem:  Ignora cache, processa todos os arquivos novamente        │ ║
-║   +--------------------------------------------------------------------------+ ║
-║                                                                               ║
-║ COMANDOS DE EXPORTAÇÃO                                                        ║
-║   e <nome>      → Exporta resultados atuais para XLSX e CSV                  ║
-║                   Exemplo: 'e relatorio_mel' cria relatorio_mel.xlsx         ║
-║                                                                               ║
-║ COMANDOS DE CONFIGURAÇÃO                                                      ║
-║   c             → Abre menu de configurações interativo                      ║
-║                                                                               ║
-║ MELHORIAS CLI                                                                 ║
-║   status-cli    → Status das melhorias implementadas                         ║
-║   toggle-debug  → Liga/desliga modo debug do Enhanced Table Printer          ║
-║   enhanced-on   → Ativa Enhanced Table Printer                               ║
-║   enhanced-off  → Desativa Enhanced Table Printer (volta ao original)        ║
-║                                                                               ║
-║ PESQUISA AVANÇADA                                                             ║
-║   Digite termos separados por vírgula para filtrar resultados:               ║
-║   Exemplo: 'ADM, MEL3, 2025' → Situação ADM OU Executor MEL3 OU SSA 2025     ║
-║                                                                               ║
-║   MODOS AVANÇADOS POR TERMO (case-insensitive):                              ║
-║   • contém (padrão): foo          → encontra "foobar", "barfoo"              ║
-║   • começa com: ^foo              → encontra "foobar", não "barfoo"          ║
-║   • termina com: foo$             → encontra "barfoo", não "foobar"          ║
-║   • igual: =foo                   → encontra exatamente "foo"                ║
-║   • regex: ~foo.*bar              → busca com expressão regular              ║
-║   • negativos: !^adm, !$2025, !=fechado, !~cancel.*                          ║
-║                                                                               ║
-║ EXEMPLOS PRÁTICOS                                                             ║
-║   ADM                    → Situações contendo "ADM"                          ║
-║   ^MEL                   → Executores que começam com "MEL"                  ║
-║   $2025                  → SSAs que terminam com "2025"                      ║
-║   =STE                   → Situação exatamente "STE"                         ║
-║   !cancelada             → Exclui SSAs canceladas                            ║
-║   ~MEL[0-9]+             → Regex: MEL seguido de números                     ║
-║   ADM, !cancelada        → Situação ADM, mas não canceladas                  ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
-
-Digite qualquer tecla para continuar..."""
+    help_text = _build_cli_plain_help_text(detailed=True)
 
     try:
         print(help_text)
         logger.debug("Texto de ajuda exibido com sucesso")
     except UnicodeEncodeError as e:
         logger.error(f"Erro de codificação ao exibir texto de ajuda: {e}")
-        # Fallback sem caracteres especiais
-        fallback_text = _build_cli_plain_help_text(bullet="*", line_char="=")
+        fallback_text = _build_cli_plain_help_text(
+            bullet="*",
+            line_char="=",
+            detailed=True,
+        )
         print(fallback_text)
         logger.debug("Texto de ajuda fallback exibido com sucesso")
     input()  # Pausa para o usuário ler
@@ -1004,6 +991,7 @@ COMMAND_HANDLERS = {
     'r': _handle_reset,
     'resetar': _handle_reset,
     'rescan': _handle_rescan,
+    'force-rescan': _handle_rescan,
     'c': handle_config_command, # Diretamente do config_manager
     'config': handle_config_command,
     # Comandos das melhorias CLI
@@ -1150,7 +1138,7 @@ def start_cli_loop(db_path: str, table_name: str):
                         )
                 elif command in ['r', 'resetar']:
                     _handle_reset(db_path, table_name, results_stack, display_map, settings, _print_cache)
-                elif command in ['rescan']:
+                elif command in ['rescan', 'force-rescan']:
                     _handle_rescan(db_path, table_name, results_stack, display_map, settings, _print_cache)
                 elif command in ['c', 'config']:
                     _refresh_after_config_change()
@@ -1180,7 +1168,7 @@ def start_cli_loop(db_path: str, table_name: str):
                         )
                 elif command in ['r', 'resetar']:
                     _handle_reset(db_path, table_name, results_stack, display_map, settings, _print_cache)
-                elif command in ['rescan']:
+                elif command in ['rescan', 'force-rescan']:
                     _handle_rescan(db_path, table_name, results_stack, display_map, settings, _print_cache)
                 elif command in ['c', 'config']:
                     _refresh_after_config_change()
