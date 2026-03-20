@@ -3,6 +3,51 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-20 11:32 - contrato textual compartilhado no CLI (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-20 11:18:03 -0300`
+2. runtime validado e docs sincronizados no mesmo fluxo
+
+Objetivo do slice:
+1. reduzir drift entre help inicial e fallback do help completo no CLI.
+2. confirmar por subprocesso que os cenarios antes suspeitos agora encerram normalmente.
+3. manter os debts estruturais restantes de CLI separados deste patch.
+
+Diagnostico objetivo:
+1. apos estabilizar o loop, ainda havia duplicacao perigosa no help do CLI.
+2. o risco real era reintroduzir contrato textual divergente entre:
+   - help inicial
+   - fallback do help completo
+3. reproducoes por subprocesso agora encerram com `rc=0` para:
+   - `mel4 -> clear -> q`
+   - `mel4 -> x mel4 -> q`
+   - `mel4 -> danilo -> svp -> !STE -> q`
+   - `mel4 -> v -> q`
+
+Escopo alterado:
+1. `interface/cli.py`
+2. `tests/test_cli_loop_filter_rounds.py`
+3. `docs/NEXT_CHAT_MIGRATION.md`
+4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+5. `docs/RECOVERY_BACKLOG.md`
+
+Mudanca aplicada:
+1. commit `067a05d3`
+   - help inicial e fallback do help completo passam a usar texto plano compartilhado.
+   - testes novos travam o contrato textual compartilhado.
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+2. `uv run --python 3.13 ruff check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+3. `uv run --python 3.13 ty check interface/cli.py tests/test_cli_loop_filter_rounds.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py tests/test_cli_config_preserve_session.py tests/test_cli_loop_missing_numero_ssa_guard.py tests/test_cli_remove_filter_non_lifo.py tests/test_cli_pagination_prompt.py tests/test_search_v_character.py` -> `18 passed`.
+
+Licoes aprendidas:
+1. help duplicado em CLI e regressao esperando para voltar.
+2. depois de corrigir loop e parser, vale revalidar subprocesso para separar bug real de problema do harness.
+3. nem todo debt de CLI precisa entrar no mesmo patch; manter separado evita reabrir regressao.
+
 ## Update 2026-03-20 11:14 - hardening do loop interativo do CLI (STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:
