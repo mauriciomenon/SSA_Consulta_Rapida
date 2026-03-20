@@ -2,7 +2,66 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-20 11:32 - start from here
+## CURRENT TRUTH 2026-03-20 12:05 - start from here
+
+- Objetivo desta rodada:
+  1. revisar o CLI no ponto em que ele ainda estava defasado em help/menu e renderizacao estreita.
+  2. alinhar o help completo ao contrato atual do runtime e eliminar o drift visual do box art.
+  3. fechar cobertura real do `EnhancedTablePrinter` em terminal estreito.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M gui/gui_ssa.py`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+  3. esses residuos continuam fora de escopo e nao devem ser revertidos por inferencia.
+- Commits funcionais novos desta rodada:
+  1. `43770be4`
+     - help completo deixa de usar caixa hardcoded quebravel.
+     - `force-rescan` vira alias real de `rescan` no loop do CLI.
+     - testes novos travam:
+       - help detalhado sem box art
+       - largura maxima do help em 79 colunas
+       - alias `force-rescan` funcional
+  2. `3dd90c49`
+     - `EnhancedTablePrinter` passa a respeitar terminal estreito sem impor largura minima 80.
+     - `CLIWidthManager` passa a encolher colunas de texto ate piso minimo legivel quando houver deficit.
+     - teste novo trava render real em terminal `70`.
+- Diagnostico consolidado desta rodada:
+  1. o startup do CLI continua correto:
+     - nao chama `rescan` nem `run_importer_logic()` na abertura.
+  2. o problema real estava em contrato e renderizacao:
+     - help completo anunciava `force-rescan`, mas o loop nao tratava esse comando.
+     - help completo em caixa tinha linhas de `79`, `82` e `88` caracteres para uma moldura base de `81`.
+     - `EnhancedTablePrinter` ainda podia renderizar mais largo que o terminal estreito por causa de `max(terminal_width - 5, 80)`.
+  3. cobertura anterior estava verde, mas ainda fraca em:
+     - caminho normal do help completo
+     - render em terminal estreito na camada enhanced
+  4. erro operacional desta rodada:
+     - houve tentativa incorreta de 2 commits em paralelo
+     - o primeiro entrou e o segundo falhou por `index.lock`
+     - isso foi corrigido seguindo a regra do repo: commits sequenciais
+- Validacao relevante ja executada:
+  1. `uv run --python 3.13 python -m py_compile interface/cli.py tests/test_cli_loop_filter_rounds.py interface/enhanced_table_printer.py interface/cli_width_manager.py tests/test_cli_pagination_prompt.py` -> pass.
+  2. `uv run --python 3.13 ruff check interface/cli.py tests/test_cli_loop_filter_rounds.py interface/enhanced_table_printer.py interface/cli_width_manager.py tests/test_cli_pagination_prompt.py` -> pass.
+  3. `uv run --python 3.13 ty check interface/cli.py tests/test_cli_loop_filter_rounds.py interface/enhanced_table_printer.py interface/cli_width_manager.py tests/test_cli_pagination_prompt.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py tests/test_cli_pagination_prompt.py tests/test_table_printer.py tests/test_search_v_character.py` -> `24 passed`.
+- Pendencias e leitura para o proximo ciclo:
+  1. debt estrutural do CLI ainda aberto:
+     - `_handle_rescan` segue grande
+     - `get_ssa_query()` ainda mora no modulo de UI/CLI
+  2. o help completo ja nao usa box art, mas ainda merece consolidacao final de tom e densidade com o help inicial.
+  3. schema local segue sem `responsavel_solicitante`.
+  4. termos curtos com escopo muito amplo na busca superior seguem como decisao de produto pendente.
+  5. Kluster continuou em timeout no lote do CLI desta rodada; tratar como bloqueio de ferramenta, nao como clean absoluto.
+
+## HISTORICAL SNAPSHOT 2026-03-20 11:32 - previous current truth
 
 - Objetivo desta rodada:
   1. consolidar o contrato textual do CLI para nao voltar a divergir do runtime.
