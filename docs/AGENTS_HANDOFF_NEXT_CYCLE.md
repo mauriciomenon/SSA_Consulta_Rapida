@@ -2,7 +2,7 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-20 17:05 - authoritative block
+## CURRENT TRUTH 2026-03-20 17:25 - authoritative block
 
 - Objetivo consolidado deste ciclo:
   1. revisar a pilha real do CLI em subprocesso.
@@ -15,6 +15,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `ec98013f` `STABILITY_PATCH: harden real CLI review flows`
      - `83660463` `STABILITY_PATCH: bump baseline to v4.33`
      - `c7992b39` `STABILITY_PATCH: align Streamlit title with v4.33`
+     - `220e1847` `HOTFIX_BLOCKER: restore main streamlit launcher`
   3. residuos locais fora de escopo continuam presentes:
      - `M .python-version`
      - `M config/cli_enhancements.json`
@@ -40,14 +41,13 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - prompt principal: sai da aplicacao
      - prompt da paginacao: fecha exibicao
      - `qq`: sai da aplicacao a partir da paginacao
-  6. achado ululante novo da revisao final:
-     - `main.py --streamlit` esta quebrado
-     - `launch_streamlit()` aponta para `streamlit_app.py` na raiz
-     - o arquivo real esta em `dev_env/streamlit_app.py`
-     - por pedido do usuario, isso foi so documentado; nao foi corrigido neste ciclo
+  6. o achado ululante do launcher Streamlit foi fechado no mesmo ciclo:
+     - `launch_streamlit()` agora aponta para `dev_env/streamlit_app.py`
+     - o entrypoint `main.py --streamlit` voltou a funcionar
 - Micro-slice Streamlit entregue:
   1. o titulo/cabecalho do Streamlit agora refletem a versao ativa `v4.33`
   2. regressao focada adicionada em `tests/test_streamlit_filter_cache.py`
+  3. regressao focada do launcher adicionada em `tests/test_main_streamlit_launcher.py`
 - Validacao consolidada:
   1. `py_compile`, `ruff` e `ty` verdes no escopo do CLI endurecido.
   2. suite CLI ampliada:
@@ -61,6 +61,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `tests/test_build_multiplatform_manifest.py` -> `5 passed`
   4. teste Streamlit:
      - `tests/test_streamlit_filter_cache.py` -> `46 passed`
+     - `tests/test_main_streamlit_launcher.py` -> `2 passed`
   4. subprocessos reais confirmados como limpos:
      - `h -> q`
      - `mel4 -> q`
@@ -72,8 +73,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. `_handle_rescan` continua grande demais.
   2. `ord` / `ordi` ainda merecem revisao de contrato vs ordem realmente exibida.
   3. diff-only rescan ainda inexiste no CLI.
-  4. corrigir `main.py --streamlit`.
-  5. schema local sem `responsavel_solicitante`.
+  4. schema local sem `responsavel_solicitante`.
 
 ## HISTORICAL SNAPSHOT 2026-03-20 14:00 - previous current truth
 
