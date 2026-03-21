@@ -8,6 +8,7 @@ e inicia a interface CLI ou GUI conforme as opcoes fornecidas.
 """
 
 import argparse
+import importlib.util
 import itertools
 import logging
 import os
@@ -342,17 +343,35 @@ def get_app_version():
         return "3.11+"
 
 
+def _resolve_streamlit_launch_command() -> tuple[Optional[list[str]], str]:
+    """Resolve comando do Streamlit priorizando o ambiente atual."""
+    is_frozen_mode = bool(
+        getattr(sys, "frozen", False)
+        or getattr(sys, "oxidized", False)
+        or "__compiled__" in globals()
+    )
+    if not is_frozen_mode and importlib.util.find_spec("streamlit") is not None:
+        return [sys.executable, "-m", "streamlit"], "ambiente atual"
+
+    streamlit_path = shutil.which("streamlit")
+    if streamlit_path:
+        return ["streamlit"], "PATH"
+
+    return None, ""
+
+
 def launch_streamlit(project_root: str, port: Optional[int] = None) -> bool:
     """Inicia o aplicativo Streamlit em segundo plano."""
     script_path = os.path.join(project_root, 'dev_env', 'streamlit_app.py')
     if not os.path.exists(script_path):
         print("Streamlit app nao encontrado em dev_env/streamlit_app.py")
         return False
-    if not shutil.which('streamlit'):
-        print("Streamlit nao encontrado. Instale com: pip install streamlit")
+    launcher_cmd, launcher_source = _resolve_streamlit_launch_command()
+    if launcher_cmd is None:
+        print("Streamlit nao encontrado no ambiente atual nem no PATH.")
         return False
 
-    cmd = ['streamlit', 'run', script_path, '--server.headless=true']
+    cmd = [*launcher_cmd, 'run', script_path, '--server.headless=true']
     if port:
         cmd.append(f'--server.port={port}')
 
@@ -364,6 +383,7 @@ def launch_streamlit(project_root: str, port: Optional[int] = None) -> bool:
         with open(log_path, 'ab') as log_file:
             process = subprocess.Popen(cmd, stdout=log_file, stderr=log_file, cwd=project_root)
         display_port = port or 8501
+        print(f"Origem do launcher Streamlit: {launcher_source}")
         print(f"Streamlit iniciado em background (PID {process.pid}). Acesse http://localhost:{display_port}/")
         print(f"Logs: {log_path}")
         return True
