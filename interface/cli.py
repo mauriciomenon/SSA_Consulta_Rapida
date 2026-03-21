@@ -445,12 +445,13 @@ ORGANIZACAO
   ord / ordi  #        Ordenar coluna pelo indice mostrado em cols (crescente / decrescente)
   ordn / ordni nome    Ordenar coluna pelo nome exato (crescente / decrescente)
   cols                 Listar colunas exibidas e respectivos indices
-  x termo              Remover termo do filtro atual (ex.: x mel4)
+  x <termo>            Remover termo do filtro atual (ex.: x mel4)
   l                    Listar filtros ativos
 
 DICAS
   {bullet} Filtros ativos aparecem acima do prompt; digite termos como: svp, !ste, mel4
-  {bullet} Comandos rapidos: m (mais pagina), l (listar filtros), v (voltar), x termo (ex.: x mel4), h (ajuda)
+  {bullet} Busca: termos por virgula; !termo exclui
+  {bullet} Comandos: d # detalhe, v voltar, x <termo> remover, m mais, l listar, h ajuda
   {bullet} Para continuar navegando apos a primeira pagina use m; para exibir tudo, use m z
 """
 
@@ -481,6 +482,14 @@ PESQUISA AVANCADA
 
 Pressione Enter para continuar...
 """, width=len(line))
+
+
+def _build_cli_prompt_hint_lines() -> tuple[str, str]:
+    """Retorna as duas linhas curtas de orientacao do prompt principal."""
+    return (
+        "Busca: termos por virgula; !termo exclui.",
+        "Cmds: d # detalhe | v voltar | x <termo> remover | m | l | h | q.",
+    )
 
 
 def _show_initial_help():
@@ -556,7 +565,7 @@ def _handle_details(parts: List[str], current_df: 'pd.DataFrame', display_map: d
     """Handler para o comando de detalhes."""
     try:
         if len(parts) < 2 or not parts[1].isdigit():
-            print("Erro: use d <Nº da linha>. Exemplo: d 5")
+            print("Erro: use d #. Exemplo: d 5")
             return
         row_index = int(parts[1]) - 1
         if 0 <= row_index < len(current_df):
@@ -578,7 +587,7 @@ def _handle_export(parts: List[str], current_df: 'pd.DataFrame', output_dir: str
     """Handler para o comando de exportar."""
     from exportacao import exporter # Import local para manter escopo
     if len(parts) < 2:
-        print("Erro: Forneça um nome para os arquivos. Ex: -e meu_relatorio")
+        print("Erro: Forneca um nome para os arquivos. Ex: e meu_relatorio")
         return
     base_filename = parts[1].strip()
     if not base_filename or base_filename != os.path.basename(base_filename):
@@ -741,11 +750,11 @@ def _handle_rescan(db_path: str, table_name: str, results_stack: list, display_m
         root_logger.removeHandler(handler)
 
 def _handle_sort(parts: List[str], results_stack: list, display_map: dict, settings: dict, ascending: bool, print_cache: dict):
-    """Handler para os comandos de ordenação (-ord, -ordi)."""
+    """Handler para os comandos de ordenacao (ord, ordi)."""
     current_df, current_filter_terms = results_stack[-1]
     try:
         if len(parts) < 2 or not parts[1].isdigit():
-            print("Erro: use -ord <Nº> ou -ordi <Nº>. Exemplo: -ord 3")
+            print("Erro: use ord # ou ordi #. Exemplo: ord 3")
             return
         col_index = int(parts[1])
 
@@ -778,7 +787,7 @@ def _handle_sort_by_name(parts: List[str], results_stack: list, display_map: dic
     current_df, current_filter_terms = results_stack[-1]
     try:
         if len(parts) < 2:
-            print("Erro: use -ordn <nome> ou -ordni <nome>.")
+            print("Erro: use ordn <nome> ou ordni <nome>.")
             return
         name = parts[1]
         # Mapeia display->interno
@@ -790,7 +799,7 @@ def _handle_sort_by_name(parts: List[str], results_stack: list, display_map: dic
             # Tenta casar display insensitive
             col_name = inverse_map.get(name.lower())
         if not col_name or col_name not in current_df.columns:
-            print("Coluna não encontrada. Use -cols para ver as opções.")
+            print("Coluna nao encontrada. Use cols para ver as opcoes.")
             return
         sorted_df = current_df.sort_values(by=col_name, ascending=ascending, na_position='last')
         results_stack.append((sorted_df, current_filter_terms))
@@ -810,28 +819,15 @@ def _handle_sort_by_name(parts: List[str], results_stack: list, display_map: dic
 def _handle_remove_filter(parts: List[str], results_stack: list, display_map: dict, settings: dict, print_cache: dict):
     """Remove um termo do filtro atual e re-aplica sobre o estado anterior.
 
-    Uso: -x <termo>
-    Sem termo: equivale a voltar (-v).
+    Uso: x <termo>
+    Sem termo: mostra mensagem de uso.
     """
     if len(results_stack) == 0:
         print("Sem estado atual.")
         return
     current_df, current_terms = results_stack[-1]
-    # Sem termo -> volta
     if len(parts) < 2:
-        _handle_back(results_stack)
-        # Exibe topo após voltar, se houver
-        if results_stack:
-            top_df, top_terms = results_stack[-1]
-            _reset_pagination_state(top_df)
-            _render_cli_page(
-                top_df,
-                display_map,
-                settings,
-                print_cache,
-                top_terms,
-                start_page=0,
-            )
+        print("Erro: use x <termo>. Exemplo: x mel4")
         return
     term_to_remove = parts[1].strip()
     if not current_terms:
@@ -868,7 +864,6 @@ def _handle_remove_filter(parts: List[str], results_stack: list, display_map: di
         _handle_back(results_stack)
         if results_stack:
             top_df, top_terms = results_stack[-1]
-            _reset_pagination_state(top_df)
             _prune_pagination_tracker_for_stack(results_stack, force=True)
             _render_cli_page(
                 top_df,
@@ -876,7 +871,7 @@ def _handle_remove_filter(parts: List[str], results_stack: list, display_map: di
                 settings,
                 print_cache,
                 top_terms,
-                start_page=0,
+                start_page=_last_rendered_page_for(top_df),
             )
 
 def _handle_show_filters(results_stack: list):
@@ -1154,9 +1149,9 @@ def start_cli_loop(db_path: str, table_name: str):
             else:
                 print("Filtros ativos: (nenhum)")
 
-            print(
-                "Comandos: termos por virgula (ex: svp, !ste, mel4), m, l, v, x <termo>, h."
-            )
+            prompt_hint_line, prompt_help_line = _build_cli_prompt_hint_lines()
+            print(prompt_hint_line)
+            print(prompt_help_line)
 
             prompt_text = f"[{len(current_df)} SSAs] Buscar termos por virgula ou comando: "
             user_input = input(prompt_text).strip()

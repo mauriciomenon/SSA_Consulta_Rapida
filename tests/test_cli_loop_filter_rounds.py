@@ -368,6 +368,57 @@ def test_build_cli_plain_help_text_reflects_current_search_contract() -> None:
     assert "h ou ?    Ajuda completa" in help_text
 
 
+def test_build_cli_prompt_hint_lines_disambiguates_detail_back_and_remove_term() -> None:
+    prompt_line, help_line = cli._build_cli_prompt_hint_lines()
+
+    assert "termos por virgula" in prompt_line
+    assert "!termo exclui" in prompt_line
+    assert "d # detalhe" in help_line
+    assert "v voltar" in help_line
+    assert "x <termo> remover" in help_line
+    assert help_line.endswith("| h | q.")
+
+
+def test_handle_remove_filter_without_term_shows_usage_and_keeps_stack(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    base_df = pd.DataFrame({"numero_ssa": ["202500001"]})
+    filtered_df = pd.DataFrame({"numero_ssa": ["202500002"]})
+    results_stack = [(base_df, []), (filtered_df, ["mel4"])]
+
+    cli._handle_remove_filter(["x"], results_stack, {}, {}, {})
+
+    out = capsys.readouterr().out
+    assert "Erro: use x <termo>. Exemplo: x mel4" in out
+    assert results_stack == [(base_df, []), (filtered_df, ["mel4"])]
+
+
+def test_handle_remove_filter_last_term_reuses_last_rendered_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base_df = pd.DataFrame({"numero_ssa": ["202500001"]})
+    filtered_df = pd.DataFrame({"numero_ssa": ["202500002"]})
+    results_stack = [(base_df, []), (filtered_df, ["mel4"])]
+    render_calls: list[tuple[pd.DataFrame, list[str], int | None]] = []
+
+    monkeypatch.setattr(cli, "_reset_pagination_state", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(cli, "_prune_pagination_tracker_for_stack", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(cli, "_handle_back", lambda stack: stack.pop())
+    monkeypatch.setattr(cli, "_last_rendered_page_for", lambda _df: 4)
+    monkeypatch.setattr(
+        cli,
+        "_render_cli_page",
+        lambda df, _display_map, _settings, _print_cache, terms, **kwargs: render_calls.append(
+            (df, list(terms), kwargs.get("start_page"))
+        ),
+    )
+
+    cli._handle_remove_filter(["x", "mel4"], results_stack, {}, {}, {})
+
+    assert render_calls == [(base_df, [], 4)]
+
+
 def test_build_cli_plain_help_text_detailed_includes_force_rescan_alias() -> None:
     help_text = cli._build_cli_plain_help_text(detailed=True)
 
@@ -437,6 +488,13 @@ def test_build_cli_plain_help_text_detailed_reuses_initial_search_contract() -> 
     assert "Mantem o mesmo contrato da busca inicial" in help_text
     assert "Exemplos: svp, !ste, mel4" in help_text
     assert "OU/OR/AND/E/v continuam literais na busca" in help_text
+
+
+def test_prompt_hint_lines_stay_short_and_two_line_friendly() -> None:
+    prompt_line, help_line = cli._build_cli_prompt_hint_lines()
+
+    assert len(prompt_line) <= 79
+    assert len(help_line) <= 79
 
 
 def test_start_cli_loop_accepts_force_rescan_alias(monkeypatch: pytest.MonkeyPatch) -> None:
