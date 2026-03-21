@@ -3,6 +3,67 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-21 00:20 - UX do CLI e politica de render da GUI (STABILITY_PATCH + DEFERRED_NOTE)
+
+Session timestamp:
+1. start: `2026-03-21 00:15:46 -0300`
+2. runtime funcional commitado; docs e propostas de render em sincronizacao
+
+Objetivo do slice:
+1. fechar o ajuste de UX do CLI para atalhos de filtro.
+2. medir a pipeline real de filtros na GUI.
+3. registrar propostas minimas para reduzir custo de render no proximo ciclo.
+
+Diagnostico objetivo:
+1. a ajuda curta anterior do CLI estava ruim:
+   - misturava busca e comandos
+   - sugeria `x` como voltar
+   - escondia o contrato real que o usuario queria
+2. o contrato ajustado ficou:
+   - `v` = voltar
+   - `x <termo>` = remover termo
+   - `x` sozinho = mensagem de uso
+3. a lentidao percebida da GUI nao aponta para parser/cache como causa principal.
+4. o custo dominante da pipeline atual esta no render:
+   - `display_current_page(...)` entre `~782 ms` e `~978 ms`
+5. custos menores, mas reais:
+   - filtro por coluna `~68-78 ms`
+   - exclusao terminal `~56-64 ms`
+   - sync de combo rapido `~52-70 ms`
+
+Escopo alterado:
+1. `interface/cli.py`
+2. `tests/test_cli_loop_filter_rounds.py`
+3. `gui/mixins/filter_gui_ssa_mixin.py`
+
+Mudanca aplicada:
+1. commit funcional `19e68ba5`
+   - ajuda curta do CLI separada em busca e comandos
+   - `x` deixa de agir como voltar
+   - mensagens de uso de `d` e `ord` padronizadas para `#`
+   - instrumentacao `debug` do refresh da GUI por etapa
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile interface/cli.py tests/test_cli_loop_filter_rounds.py gui/mixins/filter_gui_ssa_mixin.py` -> pass.
+2. `uv run --python 3.13 ruff check interface/cli.py tests/test_cli_loop_filter_rounds.py gui/mixins/filter_gui_ssa_mixin.py` -> pass.
+3. `uv run --python 3.13 ty check interface/cli.py tests/test_cli_loop_filter_rounds.py gui/mixins/filter_gui_ssa_mixin.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py -k "help or prompt_hint or remove_filter or status_cli or toggle or enhanced or force_rescan or subprocess"` -> `19 passed, 11 deselected`.
+
+Render policy proposals:
+1. early-exit de refresh:
+   - se a pagina efetiva e os dados da pagina nao mudarem, nao re-renderizar tabela inteira
+2. render parcial:
+   - separar tabela, resumo, status e sync de combo para atualizar so o necessario
+3. fast path de filtro incremental:
+   - quando so filtro de coluna muda e o conjunto final e pequeno, evitar recomputar estruturas de tabela fora da pagina atual
+4. budget de tempo:
+   - logar `warning` quando `render` passar de um limite acordado para futuras regressoes
+
+Pendencias nao bloqueantes abertas:
+1. proximo slice deve atacar custo de render antes de qualquer nova mexida de parser.
+2. medir especificamente diferenca entre re-render completo e pagina inalterada.
+3. avaliar se `display_current_page(...)` pode reaproveitar colunas/larguras/layout sem recalculo total.
+
 ## Update 2026-03-20 16:25 - revisao real do CLI e bump v4.33 (STABILITY_PATCH)
 
 Session timestamp:

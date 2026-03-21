@@ -2,6 +2,60 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-21 00:20 - start from here
+
+- Objetivo consolidado desta rodada:
+  1. fechar o slice local de UX do CLI para atalhos de filtro.
+  2. medir com instrumentacao o custo real da pipeline de filtros da GUI.
+  3. registrar propostas minimas para politica de render antes de editar runtime.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. commit funcional novo desta rodada:
+     - `19e68ba5` `STABILITY_PATCH: clarify CLI shortcuts and time filter refresh`
+  3. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/cli_enhancements.json`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+- Diagnostico consolidado desta rodada:
+  1. o contrato do CLI ficou ajustado:
+     - `v` = voltar
+     - `x <termo>` = remover termo
+     - `x` sozinho agora mostra uso e nao volta
+  2. a ajuda curta do CLI agora separa busca de comandos:
+     - linha 1: busca
+     - linha 2: comandos
+  3. a lentidao percebida da GUI nao esta no parser:
+     - o maior custo esta no render de `display_current_page(...)`
+     - medido entre `~780 ms` e `~980 ms` por refresh nos cenarios principais
+  4. custos secundarios medidos:
+     - filtro por coluna na faixa `~68-78 ms`
+     - exclusao `SCA/SES/STE` na faixa `~56-64 ms`
+     - sincronizacao do combo rapido na faixa `~52-70 ms`
+  5. medicao de refresh com banco real:
+     - `svp_first`: total `1077 ms`, `render=973 ms`
+     - `mel4_base`: total `1069 ms`, `render=978 ms`
+     - `svp + MEL4 coluna`: total `1077 ms`, `render=916 ms`
+     - `svp + MEL4 coluna + exclude`: total `998 ms`, `render=782 ms`
+- Validacao relevante ja executada:
+  1. `uv run --python 3.13 python -m py_compile interface/cli.py tests/test_cli_loop_filter_rounds.py gui/mixins/filter_gui_ssa_mixin.py` -> pass.
+  2. `uv run --python 3.13 ruff check interface/cli.py tests/test_cli_loop_filter_rounds.py gui/mixins/filter_gui_ssa_mixin.py` -> pass.
+  3. `uv run --python 3.13 ty check interface/cli.py tests/test_cli_loop_filter_rounds.py gui/mixins/filter_gui_ssa_mixin.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_cli_loop_filter_rounds.py -k "help or prompt_hint or remove_filter or status_cli or toggle or enhanced or force_rescan or subprocess"` -> `19 passed, 11 deselected`.
+- Leitura operacional para o proximo ciclo:
+  1. o proximo slice util e de performance da politica de render, nao do parser.
+  2. propostas minimas de politica de render:
+     - render por delta visual quando so filtros mudam e a pagina continua a mesma
+     - evitar re-render completo se `paginator.set_dataframe(...)` nao mudou a pagina efetiva
+     - separar custo de tabela, resumo e sincronizacao para permitir early-exit barato
+  3. nao reabrir parser do CLI para formas coladas; o contrato aprovado ficou `d #` e `x <termo>`.
+
 ## CURRENT TRUTH 2026-03-20 17:25 - start from here
 
 - Objetivo consolidado deste ciclo:

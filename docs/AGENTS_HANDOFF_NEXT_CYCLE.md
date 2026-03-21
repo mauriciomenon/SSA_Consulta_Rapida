@@ -2,6 +2,49 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-21 00:20 - authoritative block
+
+- Objetivo consolidado desta rodada:
+  1. fechar o ajuste de UX do CLI para atalhos de busca/filtro.
+  2. medir a pipeline de filtros da GUI com banco real.
+  3. registrar a proxima frente de performance de render.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. commit funcional novo:
+     - `19e68ba5` `STABILITY_PATCH: clarify CLI shortcuts and time filter refresh`
+  3. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/cli_enhancements.json`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+- Diagnostico tecnico consolidado:
+  1. contrato do CLI agora esta claro:
+     - `v` = voltar
+     - `x <termo>` = remover termo
+     - `x` sozinho mostra uso
+  2. o problema de performance percebida na GUI nao se confirmou como parser/cache:
+     - o custo dominante esta no render
+     - `display_current_page(...)` ficou entre `~782 ms` e `~978 ms` nos cenarios medidos
+  3. custos secundarios:
+     - filtros por coluna: `~68-78 ms`
+     - exclusao terminal: `~56-64 ms`
+     - sync de combo rapido: `~52-70 ms`
+  4. isso explica a sensacao de congelamento entre refinamentos de filtro, mesmo sem reproduzir `8s` inteiros no harness
+- Validacao consolidada:
+  1. `py_compile`, `ruff` e `ty` verdes no escopo.
+  2. `tests/test_cli_loop_filter_rounds.py` no foco do slice -> `19 passed, 11 deselected`.
+- Politica de render proposta para o proximo ciclo:
+  1. medir e reduzir primeiro o custo de render da tabela, sem mexer no parser.
+  2. considerar early-exit quando o resultado filtrado nao muda a pagina efetiva.
+  3. separar render de tabela, resumo e sync para permitir atualizacao parcial barata.
+  4. manter mudanca minima e sem alterar layout.
+
 ## CURRENT TRUTH 2026-03-20 17:25 - authoritative block
 
 - Objetivo consolidado deste ciclo:
