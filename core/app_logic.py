@@ -43,6 +43,48 @@ from utils.path_safety import PathSafetyError, ensure_path_is_allowed  # noqa: E
 # Configura logger especifico para este modulo
 logger = logging.getLogger(__name__)
 FILTER_FIELD_SEPARATOR = "\x1f"
+FILTER_SEARCH_TOKEN_ATTR = "_filter_search_token"
+FILTER_SEARCH_CACHE_ATTR = "_filter_search_cache"
+
+
+class FilterSearchCacheManager:
+    """Manage per-DataFrame search cache attrs for filter_dataframe()."""
+
+    @staticmethod
+    def build_token(df: pd.DataFrame, available_search_cols: list[str]) -> tuple[str, tuple[str, ...], int]:
+        data_token = df.attrs.setdefault(FILTER_SEARCH_TOKEN_ATTR, uuid.uuid4().hex)
+        return (data_token, tuple(available_search_cols), len(df.index))
+
+    @staticmethod
+    def get_cached_search_data(
+        df: pd.DataFrame, search_cache_token: tuple[str, tuple[str, ...], int]
+    ) -> Optional[dict[str, Any]]:
+        cached_search_data = df.attrs.get(FILTER_SEARCH_CACHE_ATTR)
+        if (
+            isinstance(cached_search_data, dict)
+            and cached_search_data.get("token") == search_cache_token
+        ):
+            return cast(dict[str, Any], cached_search_data)
+        return None
+
+    @staticmethod
+    def store_cached_search_data(
+        df: pd.DataFrame,
+        search_cache_token: tuple[str, tuple[str, ...], int],
+        base_lower_df: pd.DataFrame,
+        row_search_text: pd.Series,
+    ) -> None:
+        df.attrs[FILTER_SEARCH_CACHE_ATTR] = {
+            "token": search_cache_token,
+            "base_lower_df": base_lower_df,
+            "row_search_text": row_search_text,
+        }
+
+    @staticmethod
+    def clear_result_attrs(result_df: pd.DataFrame) -> pd.DataFrame:
+        result_df.attrs.pop(FILTER_SEARCH_TOKEN_ATTR, None)
+        result_df.attrs.pop(FILTER_SEARCH_CACHE_ATTR, None)
+        return result_df
 
 # --- Excecoes Personalizadas ---
 
@@ -2195,15 +2237,12 @@ def filter_dataframe(
         logger.warning("Nenhuma coluna de busca valida encontrada")
         return df
 
-    search_cache_key = "_filter_search_cache"
-    data_token = df.attrs.setdefault("_filter_search_token", uuid.uuid4().hex)
-    search_cache_token = (data_token, tuple(available_search_cols), len(df.index))
-    cached_search_data = df.attrs.get(search_cache_key)
+    search_cache_token = FilterSearchCacheManager.build_token(df, available_search_cols)
+    cached_search_data = FilterSearchCacheManager.get_cached_search_data(
+        df, search_cache_token
+    )
 
-    if (
-        isinstance(cached_search_data, dict)
-        and cached_search_data.get("token") == search_cache_token
-    ):
+    if cached_search_data is not None:
         base_lower_df = cached_search_data["base_lower_df"]
         row_search_text = cached_search_data["row_search_text"]
     else:
@@ -2215,20 +2254,18 @@ def filter_dataframe(
         )
         if base_str_df.shape[1] == 0:
             # Sem colunas de texto, nao ha onde buscar: retorna DataFrame vazio
-            return df.iloc[0:0]
+            return FilterSearchCacheManager.clear_result_attrs(df.iloc[0:0])
         base_lower_df = base_str_df.apply(
             lambda col: col.str.casefold().str.replace(FILTER_FIELD_SEPARATOR, " ", regex=False)
         )
         row_search_text = base_lower_df.agg(FILTER_FIELD_SEPARATOR.join, axis=1)
-        df.attrs[search_cache_key] = {
-            "token": search_cache_token,
-            "base_lower_df": base_lower_df,
-            "row_search_text": row_search_text,
-        }
+        FilterSearchCacheManager.store_cached_search_data(
+            df, search_cache_token, base_lower_df, row_search_text
+        )
 
     if base_lower_df.shape[1] == 0:
         # Sem colunas de texto, nao ha onde buscar: retorna DataFrame vazio
-        return df.iloc[0:0]
+        return FilterSearchCacheManager.clear_result_attrs(df.iloc[0:0])
 
     logger.debug(
         "Buscando em %s colunas: %s",
@@ -2322,8 +2359,8 @@ def filter_dataframe(
         final_mask = final_mask | group_mask
 
     if final_mask.any():
-        return df[final_mask]
-    return df.iloc[0:0]
+        return FilterSearchCacheManager.clear_result_attrs(df[final_mask])
+    return FilterSearchCacheManager.clear_result_attrs(df.iloc[0:0])
 
 
 def import_files_to_database(
