@@ -150,3 +150,29 @@ def test_filter_dataframe_general_search_keeps_svp_literal_and_ste_negative() ->
     out = filter_dataframe(df, ["danilo", "svp", "mel4", "!STE"])
 
     assert list(out["numero_ssa"]) == ["202500001"]
+
+
+def test_filter_dataframe_rebuilds_search_cache_for_refined_subset() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003"],
+            "descricao_ssa": ["SVP-04 MEL4", "SVP-08 MEL3", "MEL4 geral"],
+            "setor_executor": ["MEL4", "MEL3", "MEL4"],
+        }
+    )
+
+    first = filter_dataframe(df, ["svp"])
+
+    assert "_filter_search_cache" not in first.attrs
+    assert "_filter_search_token" not in first.attrs
+
+    refined = filter_dataframe(first, ["mel4"])
+
+    cached_search_data = first.attrs["_filter_search_cache"]
+
+    assert list(refined["numero_ssa"]) == ["202500001"]
+    assert cached_search_data["token"][2] == len(first.index)
+    assert len(cached_search_data["base_lower_df"]) == len(first.index)
+    assert len(cached_search_data["row_search_text"]) == len(first.index)
+    assert "_filter_search_cache" not in refined.attrs
+    assert "_filter_search_token" not in refined.attrs
