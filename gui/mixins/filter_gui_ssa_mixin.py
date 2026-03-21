@@ -2127,26 +2127,50 @@ class FilterGUISSAMixin:
 
     def _refresh_after_filter_change(self):
         """Reaplica filtros de coluna, atualiza tabela e indicadores."""
+        refresh_started = perf_counter()
+        timings: dict[str, float] = {
+            "advanced": 0.0,
+            "column": 0.0,
+            "exclude": 0.0,
+            "sort": 0.0,
+            "paginate": 0.0,
+            "render": 0.0,
+            "indicator": 0.0,
+            "summary": 0.0,
+            "status": 0.0,
+            "sync": 0.0,
+        }
+
+        def _measure_timing(name: str, callback):
+            started = perf_counter()
+            result = callback()
+            timings[name] = (perf_counter() - started) * 1000.0
+            return result
+
         base = self._df_last_search_filtered if not self._df_last_search_filtered.empty else self.df_completo
         filtered = base
         if hasattr(self, "_apply_advanced_filters"):
             try:
-                filtered = self._apply_advanced_filters(filtered)
+                filtered = _measure_timing("advanced", lambda: self._apply_advanced_filters(filtered))
             except Exception as exc:
                 logger.warning("Falha ao aplicar filtros avancados no refresh de filtros: %s", exc)
-        filtered = self._apply_column_filters(filtered)
+        filtered = _measure_timing("column", lambda: self._apply_column_filters(filtered))
         if getattr(self, '_exclude_ste_sca', False) and not filtered.empty and 'situacao' in filtered.columns:
             try:
                 # Compatibilidade: o nome legado _exclude_ste_sca permanece por
                 # contrato interno, mas SES entrou no mesmo grupo terminal.
-                mask = ~filtered['situacao'].astype(str).str.upper().isin(_EXCLUDED_TERMINAL_STATUSES)
-                filtered = filtered[mask]
+                filtered = _measure_timing(
+                    "exclude",
+                    lambda: filtered[
+                        ~filtered['situacao'].astype(str).str.upper().isin(_EXCLUDED_TERMINAL_STATUSES)
+                    ],
+                )
             except Exception as exc:
                 logger.warning("Falha ao aplicar exclusao SCA/SES/STE no refresh de filtros: %s", exc)
         # CORRECAO 2026-01-08: Ordenar por numero_ssa decrescente apos filtro
         if not filtered.empty and 'numero_ssa' in filtered.columns:
             try:
-                filtered = filtered.sort_values('numero_ssa', ascending=False)
+                filtered = _measure_timing("sort", lambda: filtered.sort_values('numero_ssa', ascending=False))
             except Exception as exc:
                 logger.warning("Falha ao ordenar numero_ssa no refresh de filtros: %s", exc)
         self.df_exibido = filtered
@@ -2160,29 +2184,59 @@ class FilterGUISSAMixin:
                 self._ensure_data_revision()
         except Exception as exc:
             logger.debug("Falha ao garantir data revision no refresh de filtros: %s", exc)
-        self.paginator.set_dataframe(self.df_exibido)
+        _measure_timing("paginate", lambda: self.paginator.set_dataframe(self.df_exibido))
         try:
             current = max(1, min(self.paginator.current_page, self.paginator.total_pages))
-            self.display_current_page(current)
+            _measure_timing("render", lambda: self.display_current_page(current))
         except Exception as exc:
             logger.debug("Falha ao renderizar pagina atual diretamente no refresh; usando fallback: %s", exc)
-            (lambda cp=max(1, min(getattr(self.paginator, 'current_page', 1), getattr(self.paginator, 'total_pages', 1))): self.display_current_page(cp))()
-        self._update_col_filter_indicator()
+            _measure_timing(
+                "render",
+                lambda cp=max(
+                    1,
+                    min(getattr(self.paginator, 'current_page', 1), getattr(self.paginator, 'total_pages', 1)),
+                ): self.display_current_page(cp),
+            )
+        _measure_timing("indicator", self._update_col_filter_indicator)
         try:
-            self._update_filters_summary()
+            _measure_timing("summary", self._update_filters_summary)
         except Exception as exc:
             logger.debug("Falha ao atualizar resumo de filtros no refresh: %s", exc)
         self._sync_clear_filter_button_state()
         try:
-            self._set_filtered_count_status(str(getattr(self, "_pending_search_display", "") or ""))
+            _measure_timing(
+                "status",
+                lambda: self._set_filtered_count_status(str(getattr(self, "_pending_search_display", "") or "")),
+            )
         except Exception as exc:
             logger.debug("Falha ao atualizar status de total filtrado no refresh: %s", exc)
         try:
             sync_combo = getattr(self, "_sync_quick_setor_executor_combo_from_filters", None)
             if callable(sync_combo):
-                sync_combo()
+                _measure_timing("sync", sync_combo)
         except Exception as exc:
             logger.debug("Falha ao sincronizar combo rapido de setor executor no refresh de filtros: %s", exc)
+        total_ms = (perf_counter() - refresh_started) * 1000.0
+        logger.debug(
+            (
+                "Filter refresh timings ms: total=%.2f advanced=%.2f column=%.2f "
+                "exclude=%.2f sort=%.2f paginate=%.2f render=%.2f indicator=%.2f "
+                "summary=%.2f status=%.2f sync=%.2f rows=%s->%s"
+            ),
+            total_ms,
+            timings["advanced"],
+            timings["column"],
+            timings["exclude"],
+            timings["sort"],
+            timings["paginate"],
+            timings["render"],
+            timings["indicator"],
+            timings["summary"],
+            timings["status"],
+            timings["sync"],
+            len(base) if isinstance(base, pd.DataFrame) else "na",
+            len(filtered) if isinstance(filtered, pd.DataFrame) else "na",
+        )
 
 
     def _build_filter_cache_context(self) -> str:
