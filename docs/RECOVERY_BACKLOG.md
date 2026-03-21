@@ -3,6 +3,56 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-21 08:20 - cache herdado no filtro sequencial do CLI (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-21 07:53:53 -0300`
+2. runtime funcional commitado; docs em sincronizacao
+
+Objetivo do slice:
+1. fechar o bug real de lentidao no refinamento `svp -> mel4` do CLI.
+2. manter o patch minimo no `core`, sem mexer em parser, printer ou GUI.
+3. travar regressao de cache herdado em teste.
+
+Diagnostico objetivo:
+1. o gargalo principal do CLI nao estava no parser nem no renderer ASCII.
+2. `filter_dataframe()` devolvia subconjuntos com `_filter_search_cache` herdado do DataFrame anterior.
+3. isso fazia o segundo refinamento operar com cache montado sobre `84592` linhas mesmo quando o subconjunto tinha `1117`.
+4. o efeito observado no repro real:
+   - primeiro filtro `svp`: faixa de `2293 ms`
+   - segundo filtro `mel4` apos `svp`: faixa de `11313 ms`
+5. a instrumentacao de GUI do slice anterior foi mantida, mas nao era a causa deste bug de CLI.
+
+Escopo alterado:
+1. `core/app_logic.py`
+2. `tests/test_app_logic_filter_contract.py`
+
+Mudanca aplicada:
+1. commit funcional `ebebc1f7`
+   - `FilterSearchCacheManager` centraliza token/cache/cleanup para `filter_dataframe()`
+   - DataFrames filtrados deixam de carregar `_filter_search_cache` e `_filter_search_token` herdados
+   - o cache passa a ser reconstruido no subconjunto correto no refinamento seguinte
+2. teste novo trava o caso de refinamento em duas rodadas sem heranca de cache pesado
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_filter_contract.py` -> pass.
+2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_filter_contract.py` -> pass.
+3. `uv run --python 3.13 ty check core/app_logic.py tests/test_app_logic_filter_contract.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_app_logic_filter_contract.py` -> `10 passed`.
+5. `uv run --python 3.13 python -m pytest -q tests/test_search_v_character.py tests/test_cli_loop_filter_rounds.py -k "svp or mel4 or parse_search_terms or remove_filter or back"` -> `7 passed, 25 deselected`.
+6. repro instrumentado do CLI:
+   - segundo filtro `mel4` apos `svp`: `11313 ms` -> `30.16 ms`
+   - total instrumentado da sequencia: `238.83 ms`
+
+Licoes aprendidas:
+1. cache em `df.attrs` e barato so enquanto nao vaza entre etapas de refinamento.
+2. no CLI, o custo de texto puro da tabela era irrelevante perto do custo do cache herdado.
+3. limpar attrs no resultado filtrado foi suficiente para cortar o gargalo sem refatoracao ampla.
+
+Pendencias nao bloqueantes abertas:
+1. `_prepare_page_dataframe()` ainda merece medicao propria no CLI, mas ficou secundaria depois deste hotfix.
+2. a instrumentacao de GUI continua apenas como apoio diagnostico e pode ser limpa em slice proprio se voce mandar.
+
 ## Update 2026-03-21 00:20 - UX do CLI e politica de render da GUI (STABILITY_PATCH + DEFERRED_NOTE)
 
 Session timestamp:
