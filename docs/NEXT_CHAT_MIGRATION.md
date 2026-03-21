@@ -2,7 +2,49 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-21 00:20 - start from here
+## CURRENT TRUTH 2026-03-21 08h20
+
+- Objetivo consolidado desta rodada:
+  1. fechar o bug real de performance no refinamento sequencial do CLI.
+  2. manter o escopo no `core`, sem reabrir parser, printer ou GUI.
+  3. registrar o achado para o proximo ciclo sem misturar com a instrumentacao da GUI.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. commit funcional novo desta rodada:
+     - `ebebc1f7` `STABILITY_PATCH: drop inherited search cache in filtered dfs`
+  3. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/cli_enhancements.json`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+- Diagnostico consolidado desta rodada:
+  1. o gargalo dominante do repro `svp -> mel4` no CLI nao estava no parser nem no renderer ASCII.
+  2. a causa real estava em [core/app_logic.py](C:/Users/mauri/git/SSA_Consulta_Rapida/core/app_logic.py):
+     - `filter_dataframe()` devolvia subconjuntos com `_filter_search_cache` herdado do DataFrame original
+     - o segundo refinamento reutilizava cache montado sobre `84592` linhas mesmo quando o subconjunto tinha `1117`
+  3. o hotfix aplicado:
+     - limpa attrs de cache no DataFrame retornado
+     - centraliza token/cache/cleanup em `FilterSearchCacheManager`
+     - reconstrui o cache no subconjunto correto no passo seguinte
+  4. ganho medido no mesmo repro instrumentado:
+     - antes: segundo filtro `mel4` apos `svp` na faixa de `11313 ms`
+     - depois: segundo filtro `mel4` em `30.16 ms`
+     - total da sequencia instrumentada caiu para `238.83 ms`
+  5. a instrumentacao de GUI do slice anterior foi mantida, mas nao faz parte desta correcao de CLI.
+- Validacao relevante ja executada:
+  1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_filter_contract.py` -> pass.
+  2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_filter_contract.py` -> pass.
+  3. `uv run --python 3.13 ty check core/app_logic.py tests/test_app_logic_filter_contract.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_app_logic_filter_contract.py` -> `10 passed`.
+  5. `uv run --python 3.13 python -m pytest -q tests/test_search_v_character.py tests/test_cli_loop_filter_rounds.py -k "svp or mel4 or parse_search_terms or remove_filter or back"` -> `7 passed, 25 deselected`.
+
+## HISTORICAL SNAPSHOT 2026-03-21 00h20
 
 - Objetivo consolidado desta rodada:
   1. fechar o slice local de UX do CLI para atalhos de filtro.
@@ -56,7 +98,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - separar custo de tabela, resumo e sincronizacao para permitir early-exit barato
   3. nao reabrir parser do CLI para formas coladas; o contrato aprovado ficou `d #` e `x <termo>`.
 
-## CURRENT TRUTH 2026-03-20 17:25 - start from here
+## HISTORICAL SNAPSHOT 2026-03-20 17h25
 
 - Objetivo consolidado deste ciclo:
   1. revisar a pilha real do CLI por subprocesso.

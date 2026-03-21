@@ -2,7 +2,44 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-21 00:20 - authoritative block
+## CURRENT TRUTH 2026-03-21 08h20
+
+- Objetivo consolidado desta rodada:
+  1. fechar o bug real de lentidao no refinamento sequencial do CLI.
+  2. manter o patch minimo no `core`, sem reabrir parser nem renderer.
+  3. separar esta correcao da instrumentacao de GUI que ficou de apoio diagnostico.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. commit funcional novo:
+     - `ebebc1f7` `STABILITY_PATCH: drop inherited search cache in filtered dfs`
+  3. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/cli_enhancements.json`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+- Diagnostico tecnico consolidado:
+  1. o repro `svp -> mel4` no CLI estava lento por cache herdado em `df.attrs`, nao por parser.
+  2. `filter_dataframe()` retornava subconjuntos ainda marcados com `_filter_search_cache` e `_filter_search_token` da base anterior.
+  3. isso fazia o segundo refinamento operar com cache montado sobre o DataFrame original inteiro.
+  4. o patch atual:
+     - remove attrs de cache do resultado filtrado
+     - centraliza o contrato em `FilterSearchCacheManager`
+     - deixa o proximo passo reconstruir cache sobre o subconjunto real
+  5. ganho medido:
+     - segundo filtro `mel4` apos `svp`: `11313 ms` -> `30.16 ms`
+     - total instrumentado da sequencia: `238.83 ms`
+- Validacao consolidada:
+  1. `py_compile`, `ruff` e `ty` verdes no escopo.
+  2. `tests/test_app_logic_filter_contract.py` -> `10 passed`.
+  3. foco de CLI relacionado ao repro -> `7 passed, 25 deselected`.
+
+## HISTORICAL SNAPSHOT 2026-03-21 00h20
 
 - Objetivo consolidado desta rodada:
   1. fechar o ajuste de UX do CLI para atalhos de busca/filtro.
@@ -45,7 +82,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   3. separar render de tabela, resumo e sync para permitir atualizacao parcial barata.
   4. manter mudanca minima e sem alterar layout.
 
-## CURRENT TRUTH 2026-03-20 17:25 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-20 17h25
 
 - Objetivo consolidado deste ciclo:
   1. revisar a pilha real do CLI em subprocesso.
