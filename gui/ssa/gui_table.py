@@ -38,6 +38,41 @@ def _fallback_column_width(col_name: str) -> int:
     if col_name == "descricao_execucao":
         return 280
     return 80
+
+
+def _build_page_render_signature(window, display_df: pd.DataFrame, display_headers: list[str]) -> tuple:
+    try:
+        viewport_width = int(window.table_widget.viewport().width())
+    except Exception:
+        viewport_width = -1
+
+    row_markers: tuple[tuple[str, ...], ...] = tuple()
+    try:
+        marker_columns = [col for col in ("numero_ssa", "derivada_de", "situacao") if col in display_df.columns]
+        if not marker_columns:
+            marker_columns = list(display_df.columns[: min(3, len(display_df.columns))])
+        if marker_columns:
+            marker_df = display_df[marker_columns].fillna("")
+            row_markers = tuple(
+                tuple(str(value) for value in row_values)
+                for row_values in marker_df.itertuples(index=False, name=None)
+            )
+    except Exception as exc:
+        logger.debug("Falha ao construir marcadores da assinatura de render: %s", exc)
+
+    return (
+        getattr(window, "_data_uuid", None),
+        id(getattr(window, "df_exibido", None)),
+        int(getattr(window.paginator, "current_page", 1)),
+        int(getattr(window.paginator, "page_size", 0)),
+        viewport_width,
+        tuple(display_df.columns),
+        tuple(display_headers),
+        int(len(display_df)),
+        row_markers,
+    )
+
+
 def display_current_page(window, page_number):
     """Exibe a pagina especificada do DataFrame filtrado."""
     try:
@@ -203,10 +238,6 @@ def display_current_page(window, page_number):
         # Usa versao formatada do cache
         display_df = cached_formatted
 
-    # Configura a tabela
-    window.table_widget.setRowCount(len(display_df))
-    window.table_widget.setColumnCount(len(display_df.columns))
-
     # Define cabecalhos de exibicao com indicador de filtro [f] por coluna
     display_headers = []
     for col in display_df.columns:
@@ -216,53 +247,85 @@ def display_current_page(window, page_number):
         if has_filter and col != '#':
             base = f"[f] {base}"
         display_headers.append(base)
-    window.table_widget.setHorizontalHeaderLabels(display_headers)
 
-    # Preenche os dados usando batch operations para melhor performance
-    columns_list = list(display_df.columns)
-    cell_render_failures = 0
-    for row_idx in range(len(display_df)):
-        row_data = display_df.iloc[row_idx]
-        for col_idx, col_name in enumerate(columns_list):
+    render_signature = _build_page_render_signature(window, display_df, display_headers)
+    previous_signature = getattr(window, "_last_table_render_signature", None)
+    reuse_render = (
+        previous_signature == render_signature
+        and window.table_widget.rowCount() == len(display_df)
+        and window.table_widget.columnCount() == len(display_df.columns)
+    )
+
+    if not reuse_render:
+        updates_enabled = None
+        if hasattr(window.table_widget, "updatesEnabled"):
             try:
-                value = row_data.iloc[col_idx]
-                item_text = "" if pd.isna(value) else str(value)
-                # Keep table cells single-line to avoid visual clipping on fixed row height.
-                if item_text:
-                    if "\\n" in item_text or "\\r" in item_text:
-                        item_text = item_text.replace("\\n", " ").replace("\\r", " ")
-                    if "\n" in item_text or "\r" in item_text:
-                        item_text = " ".join(item_text.split())
-
-                item = QTableWidgetItem(item_text)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-                # Armazena o indice da linha original nos dados filtrados para referencia
-                if col_name == '#':
-                    item.setData(
-                        Qt.ItemDataRole.UserRole,
-                        row_idx + (window.paginator.current_page - 1) * window.paginator.page_size,
-                    )
-                window.table_widget.setItem(row_idx, col_idx, item)
+                updates_enabled = bool(window.table_widget.updatesEnabled())
             except Exception as exc:
-                cell_render_failures += 1
-                logger.debug(
-                    "Falha ao renderizar celula da tabela (row=%s col=%s key=%s): %s",
-                    row_idx,
-                    col_idx,
-                    col_name,
-                    exc,
-                )
-                try:
-                    window.table_widget.setItem(row_idx, col_idx, QTableWidgetItem(""))
-                except Exception as fallback_exc:
-                    logger.debug(
-                        "Falha ao aplicar fallback vazio na celula (row=%s col=%s): %s",
-                        row_idx,
-                        col_idx,
-                        fallback_exc,
-                    )
-    if cell_render_failures:
-        logger.warning("Renderizacao da tabela concluiu com %s falhas de celula.", cell_render_failures)
+                logger.debug("Falha ao consultar updatesEnabled da tabela: %s", exc)
+        try:
+            if hasattr(window.table_widget, "setUpdatesEnabled"):
+                window.table_widget.setUpdatesEnabled(False)
+        except Exception as exc:
+            logger.debug("Falha ao congelar updates da tabela: %s", exc)
+
+        try:
+            # Configura a tabela
+            window.table_widget.setRowCount(len(display_df))
+            window.table_widget.setColumnCount(len(display_df.columns))
+            window.table_widget.setHorizontalHeaderLabels(display_headers)
+
+            # Preenche os dados usando batch operations para melhor performance
+            columns_list = list(display_df.columns)
+            cell_render_failures = 0
+            for row_idx in range(len(display_df)):
+                row_data = display_df.iloc[row_idx]
+                for col_idx, col_name in enumerate(columns_list):
+                    try:
+                        value = row_data.iloc[col_idx]
+                        item_text = "" if pd.isna(value) else str(value)
+                        # Keep table cells single-line to avoid visual clipping on fixed row height.
+                        if item_text:
+                            if "\\n" in item_text or "\\r" in item_text:
+                                item_text = item_text.replace("\\n", " ").replace("\\r", " ")
+                            if "\n" in item_text or "\r" in item_text:
+                                item_text = " ".join(item_text.split())
+
+                        item = QTableWidgetItem(item_text)
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                        # Armazena o indice da linha original nos dados filtrados para referencia
+                        if col_name == '#':
+                            item.setData(
+                                Qt.ItemDataRole.UserRole,
+                                row_idx + (window.paginator.current_page - 1) * window.paginator.page_size,
+                            )
+                        window.table_widget.setItem(row_idx, col_idx, item)
+                    except Exception as exc:
+                        cell_render_failures += 1
+                        logger.debug(
+                            "Falha ao renderizar celula da tabela (row=%s col=%s key=%s): %s",
+                            row_idx,
+                            col_idx,
+                            col_name,
+                            exc,
+                        )
+                        try:
+                            window.table_widget.setItem(row_idx, col_idx, QTableWidgetItem(""))
+                        except Exception as fallback_exc:
+                            logger.debug(
+                                "Falha ao aplicar fallback vazio na celula (row=%s col=%s): %s",
+                                row_idx,
+                                col_idx,
+                                fallback_exc,
+                            )
+            if cell_render_failures:
+                logger.warning("Renderizacao da tabela concluiu com %s falhas de celula.", cell_render_failures)
+        finally:
+            try:
+                if updates_enabled is not None and hasattr(window.table_widget, "setUpdatesEnabled"):
+                    window.table_widget.setUpdatesEnabled(updates_enabled)
+            except Exception as exc:
+                logger.debug("Falha ao restaurar updatesEnabled da tabela: %s", exc)
 
     # Recalcula larguras APENAS quando o conjunto/ordem de colunas muda
     # ou quando a largura util do viewport mudar significativamente
@@ -334,10 +397,13 @@ def display_current_page(window, page_number):
     except Exception as exc:
         logger.debug("Falha ao restaurar configuracao interativa do header: %s", exc)
 
-    # Seleciona a primeira linha (se houver) e atualiza detalhes
-    if window.table_widget.rowCount() > 0:
-        window.table_widget.selectRow(0)
-    window.update_details_from_selection()
+    # Seleciona a primeira linha e atualiza detalhes apenas quando houve render novo.
+    if not reuse_render:
+        if window.table_widget.rowCount() > 0:
+            window.table_widget.selectRow(0)
+        window.update_details_from_selection()
+
+    window._last_table_render_signature = render_signature
 
     # Reaplica garantia de larguras nao zeradas apos eventos de layout pendentes
     try:
