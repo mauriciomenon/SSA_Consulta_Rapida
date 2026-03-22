@@ -269,6 +269,8 @@ def display_current_page(window, page_number, *, update_details=True):
                 header.setDefaultSectionSize(92)
         except Exception as exc:
             logger.debug("Falha ao restaurar configuracao do header em tabela vazia: %s", exc)
+        if update_details:
+            ssa_gui_details._update_details_from_series(window, None)
         return
 
     # Seleciona apenas as colunas visiveis
