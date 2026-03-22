@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import QApplication  # noqa: E402
 from gui import gui_ssa  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
+from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from utils.formatting import format_dataframe_for_display  # noqa: E402
 
 
@@ -93,7 +94,7 @@ class TestGUITableRenderResilience:
         assert self.window.table_widget.item(0, 0) is not None
 
     def test_display_current_page_skips_redundant_detail_refresh_for_same_signature(self):
-        with patch.object(self.window, "update_details_from_selection") as update_details:
+        with patch.object(ssa_gui_details, "_update_details_from_series", wraps=ssa_gui_details._update_details_from_series) as update_details:
             self.window.display_current_page(1)
             QApplication.processEvents()
             self.window.display_current_page(1)
@@ -113,7 +114,7 @@ class TestGUITableRenderResilience:
         paged_df = pd.concat([self.base_df, extra_rows], ignore_index=True)
         self._set_window_dataframe(paged_df, page_size=2)
 
-        with patch.object(self.window, "update_details_from_selection") as update_details:
+        with patch.object(ssa_gui_details, "_update_details_from_series", wraps=ssa_gui_details._update_details_from_series) as update_details:
             self.window.display_current_page(1)
             QApplication.processEvents()
             self.window.display_current_page(2)
@@ -139,3 +140,12 @@ class TestGUITableRenderResilience:
         assert header.signalsBlocked() is False
         assert self.window.table_widget.updatesEnabled() is True
         assert header.updatesEnabled() is True
+
+    def test_display_current_page_updates_details_without_forcing_selection(self):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        assert self.window.table_widget.selectionModel().selectedRows() == []
+        assert self.window._details_current_ssa == 1
+        details_html = str(self.window.details_text.toHtml() or "")
+        assert "Teste A" in details_html

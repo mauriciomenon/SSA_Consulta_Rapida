@@ -10,6 +10,7 @@ import sys
 
 import pandas as pd
 
+from gui.ssa import gui_details as ssa_gui_details
 from gui.qt_stubs import Qt, QHeaderView, QTableWidgetItem, QTimer
 from utils.formatting import format_dataframe_for_display
 from utils.robust_logging import get_robust_logger
@@ -470,11 +471,10 @@ def display_current_page(window, page_number):
     except Exception as exc:
         logger.debug("Falha ao restaurar configuracao interativa do header: %s", exc)
 
-    # Seleciona a primeira linha e atualiza detalhes apenas quando houve render novo.
+    # Atualiza os detalhes da primeira linha sem forcar selecao automatica.
     if not reuse_render:
-        if window.table_widget.rowCount() > 0:
-            window.table_widget.selectRow(0)
-        window.update_details_from_selection()
+        first_row_series = window._get_series_from_row(0) if window.table_widget.rowCount() > 0 else None
+        ssa_gui_details._update_details_from_series(window, first_row_series)
 
     window._last_table_render_signature = render_signature
 

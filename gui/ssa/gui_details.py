@@ -470,6 +470,11 @@ def update_details_from_selection(window):
         return
     row = selected_rows[0].row()
     series = window._get_series_from_row(row)
+    _update_details_from_series(window, series)
+
+
+def _update_details_from_series(window, series):
+    """Atualiza o painel de detalhes a partir de uma serie ja resolvida."""
     if series is None:
         window._details_current_ssa = None
         window.details_text.clear()
