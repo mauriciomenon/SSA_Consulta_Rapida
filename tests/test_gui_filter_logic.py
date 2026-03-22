@@ -1839,6 +1839,43 @@ class TestGUIFilterLogic:
             selected_rows = self.window.table_widget.selectionModel().selectedRows()
             assert [idx.row() for idx in selected_rows] == [57]
 
+    def test_jump_to_ssa_shows_target_details_without_intermediate_page_details(self, monkeypatch):
+        rows = 220
+        df = self._build_heavy_filters_df(rows)
+        target_pos = 157
+        target_ssa = str(df.iloc[target_pos]["numero_ssa"])
+        page_first_desc = str(df.iloc[100]["descricao_ssa"])
+        target_desc = str(df.iloc[target_pos]["descricao_ssa"])
+
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.page_size = 100
+        self.window.paginator.set_dataframe(df.copy())
+
+        scheduled = {}
+
+        def fake_single_shot(delay, callback):
+            scheduled["delay"] = delay
+            scheduled["callback"] = callback
+
+        monkeypatch.setattr(ssa_gui_details.QTimer, "singleShot", fake_single_shot)
+
+        self.window._jump_to_ssa(target_ssa)
+
+        details_html = str(self.window.details_text.toHtml() or "")
+        assert str(self.window._details_current_ssa) == str(df.iloc[target_pos]["numero_ssa"])
+        assert target_desc in details_html
+        assert page_first_desc not in details_html
+        assert self.window.table_widget.selectionModel().selectedRows() == []
+        assert scheduled["delay"] == 0
+
+        scheduled["callback"]()
+        QApplication.processEvents()
+
+        selected_rows = self.window.table_widget.selectionModel().selectedRows()
+        assert [idx.row() for idx in selected_rows] == [57]
+
     def test_header_resize_updates_runtime_column_width_cache(self):
         self.window._current_display_columns = ["#", "descricao_ssa"]
         self.window._saved_gui_column_widths = {}
