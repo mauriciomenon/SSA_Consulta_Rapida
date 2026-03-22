@@ -1,5 +1,6 @@
 """Regression tests for gui table render resilience."""
 
+import logging
 import os
 import sys
 from unittest.mock import patch
@@ -168,3 +169,62 @@ class TestGUITableRenderResilience:
         assert update_details.call_count == 0
         assert self.window.table_widget.rowCount() == len(self.base_df)
         assert self.window._details_current_ssa is None
+
+    def test_display_current_page_update_details_false_preserves_existing_details(self):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        initial_html = str(self.window.details_text.toHtml() or "")
+        initial_ssa = self.window._details_current_ssa
+
+        paged_df = pd.concat([self.base_df, self.base_df.iloc[:2].copy()], ignore_index=True)
+        paged_df.loc[3:, "numero_ssa"] = [44, 55]
+        paged_df.loc[3:, "descricao_ssa"] = ["Outro D", "Outro E"]
+        self._set_window_dataframe(paged_df, page_size=2)
+
+        self.window.display_current_page(2, update_details=False)
+        QApplication.processEvents()
+
+        expected_page = format_dataframe_for_display(paged_df.iloc[2:4][self.window.visible_columns].copy())
+        numero_ssa_col = self.window._current_display_columns.index("numero_ssa")
+        assert self.window.table_widget.item(0, numero_ssa_col).text() == expected_page.iloc[0]["numero_ssa"]
+        assert self.window._details_current_ssa == initial_ssa
+        assert str(self.window.details_text.toHtml() or "") == initial_html
+
+    def test_display_current_page_dataset_swap_updates_visible_table_and_details(self):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        replacement_df = self.base_df.copy()
+        replacement_df.loc[:, "numero_ssa"] = [101, 102, 103]
+        replacement_df.loc[:, "descricao_ssa"] = ["Novo A", "Novo B", "Novo C"]
+        replacement_df.loc[:, "descricao_execucao"] = ["Exec Novo A", "Exec Novo B", "Exec Novo C"]
+        self._set_window_dataframe(replacement_df, page_size=10)
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        expected_page = format_dataframe_for_display(replacement_df[self.window.visible_columns].copy())
+        numero_ssa_col = self.window._current_display_columns.index("numero_ssa")
+        assert self.window.table_widget.item(0, numero_ssa_col).text() == expected_page.iloc[0]["numero_ssa"]
+        assert self.window._details_current_ssa == 101
+        details_html = str(self.window.details_text.toHtml() or "")
+        assert "Novo A" in details_html
+        assert "Teste A" not in details_html
+
+    def test_display_current_page_happy_path_emits_no_warnings(self, caplog):
+        caplog.set_level(logging.WARNING)
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        self.window.search_input.setText("Teste A")
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        gui_warnings = [
+            record
+            for record in caplog.records
+            if record.levelno >= logging.WARNING and str(record.name).startswith("gui")
+        ]
+        assert gui_warnings == []
