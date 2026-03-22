@@ -1769,6 +1769,30 @@ class TestGUIFilterLogic:
         assert str(series.get("numero_ssa")) == "200"
         assert str(series.get("descricao_ssa")) == "B"
 
+    def test_update_details_from_selection_skips_rerender_for_same_signature(self):
+        self.window.display_current_page(1)
+        self.window.table_widget.selectRow(0)
+        QApplication.processEvents()
+
+        initial_ssa = self.window._details_current_ssa
+        initial_html = self.window.details_text.toHtml()
+
+        with patch.object(
+            ssa_gui_details,
+            "_update_details_from_series",
+            wraps=ssa_gui_details._update_details_from_series,
+        ) as update_details_mock:
+            self.window.update_details_from_selection()
+            assert update_details_mock.call_count == 0
+
+            self.window.search_input.setText("Teste A")
+            self.window.update_details_from_selection()
+            assert update_details_mock.call_count == 1
+
+        assert self.window._details_current_ssa == initial_ssa
+        assert self.window.details_text.toHtml() != ""
+        assert self.window.details_text.toHtml() != initial_html
+
     def test_jump_to_ssa_updates_details_before_deferred_selection(self, monkeypatch):
         rows = 220
         df = self._build_heavy_filters_df(rows)
@@ -1795,19 +1819,25 @@ class TestGUIFilterLogic:
 
         monkeypatch.setattr(ssa_gui_details.QTimer, "singleShot", fake_single_shot)
         monkeypatch.setattr(self.window.table_widget, "selectRow", spy_select_row)
+        with patch.object(
+            ssa_gui_details,
+            "_update_details_from_series",
+            wraps=ssa_gui_details._update_details_from_series,
+        ) as update_details_mock:
+            self.window._jump_to_ssa(target_ssa)
 
-        self.window._jump_to_ssa(target_ssa)
+            assert self.window._details_current_ssa == df.iloc[target_pos]["numero_ssa"]
+            assert select_calls == []
+            assert scheduled["delay"] == 0
+            assert update_details_mock.call_count == 2
 
-        assert self.window._details_current_ssa == df.iloc[target_pos]["numero_ssa"]
-        assert select_calls == []
-        assert scheduled["delay"] == 0
+            scheduled["callback"]()
+            QApplication.processEvents()
 
-        scheduled["callback"]()
-        QApplication.processEvents()
-
-        assert select_calls == [57]
-        selected_rows = self.window.table_widget.selectionModel().selectedRows()
-        assert [idx.row() for idx in selected_rows] == [57]
+            assert select_calls == [57]
+            assert update_details_mock.call_count == 2
+            selected_rows = self.window.table_widget.selectionModel().selectedRows()
+            assert [idx.row() for idx in selected_rows] == [57]
 
     def test_header_resize_updates_runtime_column_width_cache(self):
         self.window._current_display_columns = ["#", "descricao_ssa"]
