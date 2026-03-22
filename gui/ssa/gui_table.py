@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import sys
 
 import pandas as pd
@@ -71,6 +72,96 @@ def _build_page_render_signature(window, display_df: pd.DataFrame, display_heade
         int(len(display_df)),
         row_markers,
     )
+
+
+@contextmanager
+def _freeze_table_batch_state(window, header):
+    updates_enabled = None
+    sorting_enabled = None
+    table_signals_were_blocked = None
+    header_updates_enabled = None
+    header_signals_were_blocked = None
+
+    if hasattr(window.table_widget, "updatesEnabled"):
+        try:
+            updates_enabled = bool(window.table_widget.updatesEnabled())
+        except Exception as exc:
+            logger.debug("Falha ao consultar updatesEnabled da tabela: %s", exc)
+    if hasattr(window.table_widget, "isSortingEnabled"):
+        try:
+            sorting_enabled = bool(window.table_widget.isSortingEnabled())
+        except Exception as exc:
+            logger.debug("Falha ao consultar sorting da tabela: %s", exc)
+    if hasattr(window.table_widget, "signalsBlocked"):
+        try:
+            table_signals_were_blocked = bool(window.table_widget.signalsBlocked())
+        except Exception as exc:
+            logger.debug("Falha ao consultar estado de sinais da tabela: %s", exc)
+    if header is not None and hasattr(header, "updatesEnabled"):
+        try:
+            header_updates_enabled = bool(header.updatesEnabled())
+        except Exception as exc:
+            logger.debug("Falha ao consultar updatesEnabled do header: %s", exc)
+    if header is not None and hasattr(header, "signalsBlocked"):
+        try:
+            header_signals_were_blocked = bool(header.signalsBlocked())
+        except Exception as exc:
+            logger.debug("Falha ao consultar estado de sinais do header: %s", exc)
+
+    try:
+        if hasattr(window.table_widget, "setUpdatesEnabled"):
+            window.table_widget.setUpdatesEnabled(False)
+    except Exception as exc:
+        logger.debug("Falha ao congelar updates da tabela: %s", exc)
+    try:
+        if sorting_enabled and hasattr(window.table_widget, "setSortingEnabled"):
+            window.table_widget.setSortingEnabled(False)
+    except Exception as exc:
+        logger.debug("Falha ao congelar sorting da tabela: %s", exc)
+    try:
+        if table_signals_were_blocked is not None:
+            window.table_widget.blockSignals(True)
+    except Exception as exc:
+        logger.debug("Falha ao bloquear sinais da tabela: %s", exc)
+    try:
+        if header is not None and hasattr(header, "setUpdatesEnabled"):
+            header.setUpdatesEnabled(False)
+    except Exception as exc:
+        logger.debug("Falha ao congelar updates do header: %s", exc)
+    try:
+        if header is not None and header_signals_were_blocked is not None:
+            header.blockSignals(True)
+    except Exception as exc:
+        logger.debug("Falha ao bloquear sinais do header: %s", exc)
+
+    try:
+        yield
+    finally:
+        try:
+            if updates_enabled is not None and hasattr(window.table_widget, "setUpdatesEnabled"):
+                window.table_widget.setUpdatesEnabled(updates_enabled)
+        except Exception as exc:
+            logger.debug("Falha ao restaurar updatesEnabled da tabela: %s", exc)
+        try:
+            if sorting_enabled is not None and hasattr(window.table_widget, "setSortingEnabled"):
+                window.table_widget.setSortingEnabled(sorting_enabled)
+        except Exception as exc:
+            logger.debug("Falha ao restaurar sorting da tabela: %s", exc)
+        try:
+            if table_signals_were_blocked is not None:
+                window.table_widget.blockSignals(table_signals_were_blocked)
+        except Exception as exc:
+            logger.debug("Falha ao restaurar sinais da tabela: %s", exc)
+        try:
+            if header is not None and header_updates_enabled is not None and hasattr(header, "setUpdatesEnabled"):
+                header.setUpdatesEnabled(header_updates_enabled)
+        except Exception as exc:
+            logger.debug("Falha ao restaurar updatesEnabled do header: %s", exc)
+        try:
+            if header is not None and header_signals_were_blocked is not None:
+                header.blockSignals(header_signals_were_blocked)
+        except Exception as exc:
+            logger.debug("Falha ao restaurar sinais do header: %s", exc)
 
 
 def display_current_page(window, page_number):
@@ -257,19 +348,7 @@ def display_current_page(window, page_number):
     )
 
     if not reuse_render:
-        updates_enabled = None
-        if hasattr(window.table_widget, "updatesEnabled"):
-            try:
-                updates_enabled = bool(window.table_widget.updatesEnabled())
-            except Exception as exc:
-                logger.debug("Falha ao consultar updatesEnabled da tabela: %s", exc)
-        try:
-            if hasattr(window.table_widget, "setUpdatesEnabled"):
-                window.table_widget.setUpdatesEnabled(False)
-        except Exception as exc:
-            logger.debug("Falha ao congelar updates da tabela: %s", exc)
-
-        try:
+        with _freeze_table_batch_state(window, header):
             # Configura a tabela
             window.table_widget.setRowCount(len(display_df))
             window.table_widget.setColumnCount(len(display_df.columns))
@@ -320,12 +399,6 @@ def display_current_page(window, page_number):
                             )
             if cell_render_failures:
                 logger.warning("Renderizacao da tabela concluiu com %s falhas de celula.", cell_render_failures)
-        finally:
-            try:
-                if updates_enabled is not None and hasattr(window.table_widget, "setUpdatesEnabled"):
-                    window.table_widget.setUpdatesEnabled(updates_enabled)
-            except Exception as exc:
-                logger.debug("Falha ao restaurar updatesEnabled da tabela: %s", exc)
 
     # Recalcula larguras APENAS quando o conjunto/ordem de colunas muda
     # ou quando a largura util do viewport mudar significativamente
