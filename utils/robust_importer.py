@@ -240,6 +240,9 @@ def import_excel_robust(
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """Executa importação robusta retornando DataFrame normalizado + estatísticas.
 
+    Modo padrao aplica normalizacao canonica de SSA e deduplicacao.
+    `raw_mode=True` e um caminho controlado para callers internos que precisam
+    ler a aba crua preservando colunas originais.
     Nunca levanta exceção (salvo erros catastróficos de IO) – registra problemas no log e prossegue.
     """
     source_label = str(getattr(file_path, "io", file_path))
