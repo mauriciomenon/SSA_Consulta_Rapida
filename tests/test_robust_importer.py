@@ -33,6 +33,46 @@ def _roundtrip_import(df: pd.DataFrame, tmp_path) -> tuple[pd.DataFrame, dict]:
     return out_df, stats
 
 
+def test_raw_mode_preserves_derivadas_columns_with_excelfile_input(tmp_path):
+    file_path = tmp_path / "derivadas_raw.xlsx"
+    derivadas_df = pd.DataFrame(
+        {
+            "parent_ssa": ["202500001", "202500001"],
+            "child_ssa": ["202500002", "202500003"],
+            "relation_label": ["Derivada da", "Derivada da"],
+        }
+    )
+    other_df = pd.DataFrame({"Numero SSA": ["202500999"], "Status": ["ABERTA"]})
+
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        other_df.to_excel(writer, sheet_name="Resumo", index=False)
+        derivadas_df.to_excel(writer, sheet_name="Derivadas", index=False)
+
+    with pd.ExcelFile(file_path) as workbook:
+        out_df, stats = import_excel_robust(
+            workbook,
+            sheet_name="Derivadas",
+            raw_mode=True,
+            raise_on_error=True,
+        )
+
+    assert list(out_df.columns) == ["parent_ssa", "child_ssa", "relation_label"]
+    assert out_df["parent_ssa"].astype(str).tolist() == ["202500001", "202500001"]
+    assert out_df["child_ssa"].astype(str).tolist() == ["202500002", "202500003"]
+    assert out_df["relation_label"].tolist() == ["Derivada da", "Derivada da"]
+    assert stats["total_rows_in"] == 2
+    assert stats["total_rows_out"] == 2
+    assert stats["mapped_columns_count"] == 3
+
+
+def test_raise_on_error_propagates_excel_read_failure(tmp_path):
+    file_path = tmp_path / "corrupt.xlsx"
+    file_path.write_bytes(b"not-a-real-workbook")
+
+    with pytest.raises(Exception):
+        import_excel_robust(str(file_path), raise_on_error=True)
+
+
 def test_synonym_collapse_and_coalescence(tmp_path):
     # Duas colunas que devem colapsar em 'situacao' + duas variantes para numero_ssa
     df = pd.DataFrame(
@@ -54,7 +94,7 @@ def test_synonym_collapse_and_coalescence(tmp_path):
     # Numero SSA normalizado permanece como string de 9 digitos
     assert out_df.loc[0, 'numero_ssa'] == '202500001'
     # Data de cadastro canonica
-    assert out_df.loc[0, 'data_cadastro'].startswith('2025-09-02')
+    assert str(out_df.loc[0, 'data_cadastro']).startswith('2025-09-02')
     # Estatisticas coerentes
     assert stats['duplicate_rows_dropped'] == 1
     assert stats['invalid_numero_ssa_rows'] == 0
@@ -100,7 +140,7 @@ def test_dedup_keeps_latest_date(tmp_path):
     out_df, stats = _roundtrip_import(df, tmp_path)
     assert len(out_df) == 1
     assert out_df.loc[0, 'situacao'] == 'S3'
-    assert out_df.loc[0, 'data_cadastro'].startswith('2025-09-03')
+    assert str(out_df.loc[0, 'data_cadastro']).startswith('2025-09-03')
     assert stats['duplicate_rows_dropped'] == 2
 
 
