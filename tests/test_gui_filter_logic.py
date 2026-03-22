@@ -2163,6 +2163,25 @@ class TestGUIFilterLogic:
         summary_text = str(self.window.filters_summary_label.text() or "").casefold()
         assert "executor ou emissor (ou)" not in summary_text
 
+    def test_clear_all_filters_global_does_not_reapply_profile_on_selector_rebind(self):
+        self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
+        QApplication.processEvents()
+        filtered_before_clear = Counter(self._extract_visible_ssa())
+
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+
+        cleared_once = Counter(self._extract_visible_ssa())
+        assert cleared_once == Counter([1, 2, 3, 4, 5])
+        assert filtered_before_clear != cleared_once
+
+        self.window._sync_bind_profile_selector()
+        QApplication.processEvents()
+
+        cleared_after_rebind = Counter(self._extract_visible_ssa())
+        assert cleared_after_rebind == Counter([1, 2, 3, 4, 5])
+        assert self.window.df_exibido.equals(self.base_df)
+
     def test_hard_reset_filters_state_resets_visual_and_internal_filter_state(self):
         self.window.search_input.setText("Teste A")
         self.window._active_column_filters["descricao_ssa"] = "Teste A"
