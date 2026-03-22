@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import QApplication  # noqa: E402
 from gui import gui_ssa  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
+from utils.formatting import format_dataframe_for_display  # noqa: E402
 
 
 class TestGUITableRenderResilience:
@@ -50,11 +51,14 @@ class TestGUITableRenderResilience:
             }
         )
 
-        self.window.df_completo = self.base_df.copy()
-        self.window.df_exibido = self.base_df.copy()
-        self.window._df_last_search_filtered = self.base_df.copy()
-        self.window.paginator.page_size = 10
-        self.window.paginator.set_dataframe(self.base_df.copy())
+        self._set_window_dataframe(self.base_df.copy(), page_size=10)
+
+    def _set_window_dataframe(self, dataframe: pd.DataFrame, *, page_size: int) -> None:
+        self.window.df_completo = dataframe.copy()
+        self.window.df_exibido = dataframe.copy()
+        self.window._df_last_search_filtered = dataframe.copy()
+        self.window.paginator.page_size = page_size
+        self.window.paginator.set_dataframe(dataframe.copy())
 
     def teardown_method(self):
         self._load_patch.stop()
@@ -87,3 +91,36 @@ class TestGUITableRenderResilience:
         assert calls["count"] > 1
         assert self.window.table_widget.rowCount() == len(self.base_df)
         assert self.window.table_widget.item(0, 0) is not None
+
+    def test_display_current_page_skips_redundant_detail_refresh_for_same_signature(self):
+        with patch.object(self.window, "update_details_from_selection") as update_details:
+            self.window.display_current_page(1)
+            QApplication.processEvents()
+            self.window.display_current_page(1)
+            QApplication.processEvents()
+
+        assert update_details.call_count == 1
+
+    def test_display_current_page_rebuilds_when_page_changes(self):
+        extra_rows = self.base_df.iloc[:2].copy()
+        extra_rows.loc[:, "numero_ssa"] = [4, 5]
+        extra_rows.loc[:, "situacao"] = ["NOV", "NOV"]
+        extra_rows.loc[:, "localizacao_codigo"] = ["LOC4", "LOC5"]
+        extra_rows.loc[:, "descricao_ssa"] = ["Teste D", "Teste E"]
+        extra_rows.loc[:, "setor_executor"] = ["MEL4", "MEL4"]
+        extra_rows.loc[:, "descricao_execucao"] = ["Exec D", "Exec E"]
+        extra_rows.loc[:, "solicitante"] = ["User4", "User5"]
+        paged_df = pd.concat([self.base_df, extra_rows], ignore_index=True)
+        self._set_window_dataframe(paged_df, page_size=2)
+
+        with patch.object(self.window, "update_details_from_selection") as update_details:
+            self.window.display_current_page(1)
+            QApplication.processEvents()
+            self.window.display_current_page(2)
+            QApplication.processEvents()
+
+        expected_page = format_dataframe_for_display(paged_df.iloc[2:4][self.window.visible_columns].copy())
+        assert update_details.call_count == 2
+        assert self.window.table_widget.rowCount() == 2
+        numero_ssa_col = self.window._current_display_columns.index("numero_ssa")
+        assert self.window.table_widget.item(0, numero_ssa_col).text() == expected_page.iloc[0]["numero_ssa"]
