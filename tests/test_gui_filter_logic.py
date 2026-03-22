@@ -3116,6 +3116,16 @@ class TestGUIFilterLogic:
         assert critical.called is False
         assert self.window.status_label.text() == "Status: OK"
 
+    def test_on_filter_error_ignores_stale_request(self):
+        self.window._active_filter_request_id = 10
+        self.window.status_label.setText("Status: OK")
+
+        with patch("gui.mixins.filter_gui_ssa_mixin.QMessageBox.critical") as critical:
+            self.window.on_filter_error("erro", request_id=9)
+
+        assert critical.called is False
+        assert self.window.status_label.text() == "Status: OK"
+
     def test_on_load_finished_stale_request_only_cleans_stale_worker(self):
         class _FakeSignal:
             def disconnect(self, _callback=None):
