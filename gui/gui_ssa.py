@@ -2795,8 +2795,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             gui_widths=gui_widths,
         )
 
-    def display_current_page(self, page_number):
-        return ssa_gui_table.display_current_page(self, page_number)
+    def display_current_page(self, page_number, *, update_details=True):
+        return ssa_gui_table.display_current_page(self, page_number, update_details=update_details)
 
     def display_data(self, df):
         return ssa_gui_table.display_data(self, df)

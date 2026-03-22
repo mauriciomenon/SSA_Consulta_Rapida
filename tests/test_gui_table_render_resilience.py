@@ -102,6 +102,16 @@ class TestGUITableRenderResilience:
 
         assert update_details.call_count == 1
 
+    def test_display_current_page_refreshes_details_when_search_terms_change(self):
+        with patch.object(ssa_gui_details, "_update_details_from_series", wraps=ssa_gui_details._update_details_from_series) as update_details:
+            self.window.display_current_page(1)
+            QApplication.processEvents()
+            self.window.search_input.setText("Teste A")
+            self.window.display_current_page(1)
+            QApplication.processEvents()
+
+        assert update_details.call_count == 2
+
     def test_display_current_page_rebuilds_when_page_changes(self):
         extra_rows = self.base_df.iloc[:2].copy()
         extra_rows.loc[:, "numero_ssa"] = [4, 5]
@@ -149,3 +159,12 @@ class TestGUITableRenderResilience:
         assert self.window._details_current_ssa == 1
         details_html = str(self.window.details_text.toHtml() or "")
         assert "Teste A" in details_html
+
+    def test_display_current_page_can_skip_initial_details_update(self):
+        with patch.object(ssa_gui_details, "_update_details_from_series", wraps=ssa_gui_details._update_details_from_series) as update_details:
+            self.window.display_current_page(1, update_details=False)
+            QApplication.processEvents()
+
+        assert update_details.call_count == 0
+        assert self.window.table_widget.rowCount() == len(self.base_df)
+        assert self.window._details_current_ssa is None
