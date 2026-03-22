@@ -212,6 +212,25 @@ class TestDataLoaderWorkerUnit:
         # Deve retornar tabela solicitada como fallback
         assert worker._resolve_target_table() == "test_table"
 
+    def test_resolve_target_table_rejects_invalid_identifier_and_falls_back_to_canonical(self, tmp_path):
+        """Testa que tabela invalida nao reaproveita politica local divergente."""
+        db_path = tmp_path / "test.db"
+        with closing(sqlite3.connect(db_path)):
+            pass
+
+        worker = DataLoaderWorker(str(db_path), "ssa_table; DROP TABLE ssa_table")
+        assert worker._resolve_target_table() == "ssa_table"
+
+    def test_sanitize_identifier_uses_central_identifier_policy(self):
+        """Testa aderencia do worker ao utilitario central de identificadores."""
+        worker = DataLoaderWorker(":memory:", "test")
+
+        assert worker._sanitize_identifier("ssa_table") == "ssa_table"
+        assert worker._sanitize_identifier(" numero_ssa ") == "numero_ssa"
+        assert worker._sanitize_identifier("1numero_ssa") == ""
+        assert worker._sanitize_identifier("numero-ssa") == ""
+        assert worker._sanitize_identifier("numero_ssa;DROP") == ""
+
 
 # =============================================================================
 # Testes de Integração - DataLoaderWorker

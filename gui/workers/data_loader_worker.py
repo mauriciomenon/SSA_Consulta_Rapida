@@ -10,6 +10,7 @@ from contextlib import closing
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
 from armazenamento.database import query_db
+from armazenamento.identifier_utils import is_valid_identifier
 from shared.db_names import ALL_SSA_TABLE_NAMES, CANONICAL_SSA_TABLE
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,6 @@ class DataLoaderWorker(QThread):
         'descricao_ssa', 'localizacao_codigo', 'equipamento', 'solicitante',
         'grau_prioridade_emissao', 'grau_prioridade_planejamento', 'derivada_de',
     }
-    _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
     def __init__(self, db_path, table_name, limit=None, offset=0, order_by=None):
         super().__init__()
@@ -56,7 +56,7 @@ class DataLoaderWorker(QThread):
         text = str(value or "").strip()
         if not text:
             return ""
-        if not self._IDENTIFIER_RE.match(text):
+        if not is_valid_identifier(text):
             return ""
         return text
 
