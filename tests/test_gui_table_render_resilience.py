@@ -124,3 +124,18 @@ class TestGUITableRenderResilience:
         assert self.window.table_widget.rowCount() == 2
         numero_ssa_col = self.window._current_display_columns.index("numero_ssa")
         assert self.window.table_widget.item(0, numero_ssa_col).text() == expected_page.iloc[0]["numero_ssa"]
+
+    def test_display_current_page_restores_widget_batch_state_after_render(self):
+        header = self.window.table_widget.horizontalHeader()
+        self.window.table_widget.setSortingEnabled(True)
+        self.window.table_widget.blockSignals(False)
+        header.blockSignals(False)
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        assert self.window.table_widget.isSortingEnabled() is True
+        assert self.window.table_widget.signalsBlocked() is False
+        assert header.signalsBlocked() is False
+        assert self.window.table_widget.updatesEnabled() is True
+        assert header.updatesEnabled() is True
