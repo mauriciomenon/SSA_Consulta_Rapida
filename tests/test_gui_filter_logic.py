@@ -1769,6 +1769,46 @@ class TestGUIFilterLogic:
         assert str(series.get("numero_ssa")) == "200"
         assert str(series.get("descricao_ssa")) == "B"
 
+    def test_jump_to_ssa_updates_details_before_deferred_selection(self, monkeypatch):
+        rows = 220
+        df = self._build_heavy_filters_df(rows)
+        target_pos = 157
+        target_ssa = str(df.iloc[target_pos]["numero_ssa"])
+
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.page_size = 100
+        self.window.paginator.set_dataframe(df.copy())
+
+        scheduled = {}
+        select_calls = []
+        original_select_row = self.window.table_widget.selectRow
+
+        def fake_single_shot(delay, callback):
+            scheduled["delay"] = delay
+            scheduled["callback"] = callback
+
+        def spy_select_row(row):
+            select_calls.append(row)
+            return original_select_row(row)
+
+        monkeypatch.setattr(ssa_gui_details.QTimer, "singleShot", fake_single_shot)
+        monkeypatch.setattr(self.window.table_widget, "selectRow", spy_select_row)
+
+        self.window._jump_to_ssa(target_ssa)
+
+        assert self.window._details_current_ssa == df.iloc[target_pos]["numero_ssa"]
+        assert select_calls == []
+        assert scheduled["delay"] == 0
+
+        scheduled["callback"]()
+        QApplication.processEvents()
+
+        assert select_calls == [57]
+        selected_rows = self.window.table_widget.selectionModel().selectedRows()
+        assert [idx.row() for idx in selected_rows] == [57]
+
     def test_header_resize_updates_runtime_column_width_cache(self):
         self.window._current_display_columns = ["#", "descricao_ssa"]
         self.window._saved_gui_column_widths = {}

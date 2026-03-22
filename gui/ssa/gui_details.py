@@ -13,6 +13,7 @@ import pandas as pd
 
 from gui.helpers.formatting_helpers import highlight_text
 from gui.helpers.theme_helpers import pick_css_color
+from gui.qt_stubs import QTimer
 from utils.themes import get_theme_roles
 from utils.formatting import format_cell
 from utils.robust_logging import get_robust_logger
@@ -589,10 +590,28 @@ def _jump_to_ssa(window, numero_ssa):
             logger.debug("Falha ao atualizar pagina atual no salto para SSA %s: %s", num_norm, exc)
         window.display_current_page(page)
         row_in_page = int(pos % page_size)
+        target_series = None
         try:
-            window.table_widget.selectRow(row_in_page)
+            target_series = window.df_exibido.iloc[int(pos)]
         except Exception as exc:
-            logger.debug("Falha ao selecionar linha %s no salto para SSA %s: %s", row_in_page, num_norm, exc)
+            logger.debug("Falha ao resolver serie alvo no salto para SSA %s: %s", num_norm, exc)
+        _update_details_from_series(window, target_series)
+
+        def _select_target_row_later():
+            try:
+                if int(getattr(window.paginator, "current_page", 1)) != page:
+                    return
+                if row_in_page < 0 or row_in_page >= window.table_widget.rowCount():
+                    return
+                window.table_widget.selectRow(row_in_page)
+            except Exception as exc:
+                logger.debug("Falha ao selecionar linha %s no salto para SSA %s: %s", row_in_page, num_norm, exc)
+
+        try:
+            QTimer.singleShot(0, _select_target_row_later)
+        except Exception as exc:
+            logger.debug("Falha ao agendar selecao da linha %s no salto para SSA %s: %s", row_in_page, num_norm, exc)
+            _select_target_row_later()
     except Exception as exc:
         logger.debug("Falha ao navegar para SSA %s: %s", numero_ssa, exc)
 
