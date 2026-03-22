@@ -228,3 +228,19 @@ class TestGUITableRenderResilience:
             if record.levelno >= logging.WARNING and str(record.name).startswith("gui")
         ]
         assert gui_warnings == []
+
+    def test_display_current_page_empty_table_clears_stale_details(self):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        assert self.window._details_current_ssa == 1
+        assert "Teste A" in str(self.window.details_text.toHtml() or "")
+
+        empty_df = self.base_df.iloc[0:0].copy()
+        self._set_window_dataframe(empty_df, page_size=10)
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        assert self.window.table_widget.rowCount() == 0
+        assert self.window._details_current_ssa is None
+        assert self.window.details_text.toPlainText().strip() == ""
