@@ -1829,13 +1829,13 @@ class TestGUIFilterLogic:
             assert self.window._details_current_ssa == df.iloc[target_pos]["numero_ssa"]
             assert select_calls == []
             assert scheduled["delay"] == 0
-            assert update_details_mock.call_count == 2
+            assert update_details_mock.call_count == 1
 
             scheduled["callback"]()
             QApplication.processEvents()
 
             assert select_calls == [57]
-            assert update_details_mock.call_count == 2
+            assert update_details_mock.call_count == 1
             selected_rows = self.window.table_widget.selectionModel().selectedRows()
             assert [idx.row() for idx in selected_rows] == [57]
 

@@ -165,7 +165,25 @@ def _freeze_table_batch_state(window, header):
             logger.debug("Falha ao restaurar sinais do header: %s", exc)
 
 
-def display_current_page(window, page_number):
+def _refresh_initial_details(window, *, update_details):
+    if not update_details:
+        return
+    first_row_series = window._get_series_from_row(0) if window.table_widget.rowCount() > 0 else None
+    try:
+        next_signature = ssa_gui_details._get_details_render_signature(window, first_row_series)
+        current_signature = window.details_text.property("details_render_signature")
+        if (
+            first_row_series is not None
+            and current_signature == next_signature
+            and not window.details_text.document().isEmpty()
+        ):
+            return
+    except Exception:
+        pass
+    ssa_gui_details._update_details_from_series(window, first_row_series)
+
+
+def display_current_page(window, page_number, *, update_details=True):
     """Exibe a pagina especificada do DataFrame filtrado."""
     try:
         requested_page = int(page_number)
@@ -472,9 +490,7 @@ def display_current_page(window, page_number):
         logger.debug("Falha ao restaurar configuracao interativa do header: %s", exc)
 
     # Atualiza os detalhes da primeira linha sem forcar selecao automatica.
-    if not reuse_render:
-        first_row_series = window._get_series_from_row(0) if window.table_widget.rowCount() > 0 else None
-        ssa_gui_details._update_details_from_series(window, first_row_series)
+    _refresh_initial_details(window, update_details=update_details)
 
     window._last_table_render_signature = render_signature
 

@@ -652,7 +652,7 @@ def _jump_to_ssa(window, numero_ssa):
             window.paginator.current_page = page
         except Exception as exc:
             logger.debug("Falha ao atualizar pagina atual no salto para SSA %s: %s", num_norm, exc)
-        window.display_current_page(page)
+        window.display_current_page(page, update_details=False)
         row_in_page = int(pos % page_size)
         target_series = None
         try:
