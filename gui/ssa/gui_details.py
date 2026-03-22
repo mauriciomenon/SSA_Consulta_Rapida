@@ -458,19 +458,79 @@ def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
     return normalized
 
 
+def _get_details_db_signature():
+    db_path = _resolve_current_db_path()
+    if not db_path:
+        return None
+    try:
+        return os.path.getmtime(db_path)
+    except Exception:
+        return None
+
+
+def _get_details_render_signature(window, series):
+    if series is None:
+        return None
+    try:
+        selected_ssa = series.get("numero_ssa")
+    except Exception:
+        selected_ssa = None
+    try:
+        search_terms = tuple(_collect_highlight_terms(window))
+    except Exception:
+        search_terms = ()
+    try:
+        series_signature = tuple(
+            (str(column), "" if pd.isna(value) else str(value))
+            for column, value in series.items()
+        )
+    except Exception:
+        try:
+            series_signature = str(series)
+        except Exception:
+            series_signature = ""
+    return (selected_ssa, search_terms, _get_details_db_signature(), series_signature)
+
+
 def update_details_from_selection(window):
     """Atualiza o painel de detalhes com base na linha selecionada."""
     if window.table_widget.rowCount() == 0:
         window._details_current_ssa = None
+        window.details_text.setProperty("details_render_signature", None)
         window.details_text.clear()
         return
     selected_rows = window.table_widget.selectionModel().selectedRows()
     if not selected_rows:
         window._details_current_ssa = None
+        window.details_text.setProperty("details_render_signature", None)
         window.details_text.clear()
         return
     row = selected_rows[0].row()
     series = window._get_series_from_row(row)
+    selected_ssa = None
+    try:
+        selected_ssa = series.get("numero_ssa")
+    except Exception:
+        selected_ssa = None
+    render_signature = _get_details_render_signature(window, series)
+    current_signature = window.details_text.property("details_render_signature")
+    skip_ssa = window.table_widget.property("details_skip_selection_once_for_ssa")
+    if skip_ssa is not None and selected_ssa != skip_ssa:
+        window.table_widget.setProperty("details_skip_selection_once_for_ssa", None)
+    if selected_ssa is not None and selected_ssa == skip_ssa:
+        window.table_widget.setProperty("details_skip_selection_once_for_ssa", None)
+        try:
+            if not window.details_text.document().isEmpty() and render_signature == current_signature:
+                return
+        except Exception:
+            if window.details_text.toPlainText().strip() and render_signature == current_signature:
+                return
+    try:
+        if not window.details_text.document().isEmpty() and render_signature == current_signature:
+            return
+    except Exception:
+        if window.details_text.toPlainText().strip() and render_signature == current_signature:
+            return
     _update_details_from_series(window, series)
 
 
@@ -478,8 +538,10 @@ def _update_details_from_series(window, series):
     """Atualiza o painel de detalhes a partir de uma serie ja resolvida."""
     if series is None:
         window._details_current_ssa = None
+        window.details_text.setProperty("details_render_signature", None)
         window.details_text.clear()
         return
+    render_signature = _get_details_render_signature(window, series)
     try:
         window._details_current_ssa = series.get("numero_ssa")
     except Exception:
@@ -505,6 +567,7 @@ def _update_details_from_series(window, series):
             linkify=True,
         )
         window.details_text.setHtml(html_content)
+        window.details_text.setProperty("details_render_signature", render_signature)
         return
     except Exception as exc:
         logger.debug("Falha ao renderizar detalhes em HTML; aplicando fallback texto: %s", exc)
@@ -529,6 +592,7 @@ def _update_details_from_series(window, series):
     details_str = "\n".join(lines)
     try:
         window.details_text.setPlainText(details_str)
+        window.details_text.setProperty("details_render_signature", render_signature)
     except Exception as exc:
         logger.debug("Falha ao renderizar detalhes em texto simples: %s", exc)
 
@@ -596,6 +660,10 @@ def _jump_to_ssa(window, numero_ssa):
         except Exception as exc:
             logger.debug("Falha ao resolver serie alvo no salto para SSA %s: %s", num_norm, exc)
         _update_details_from_series(window, target_series)
+        window.table_widget.setProperty(
+            "details_skip_selection_once_for_ssa",
+            getattr(window, "_details_current_ssa", None),
+        )
 
         def _select_target_row_later():
             try:
