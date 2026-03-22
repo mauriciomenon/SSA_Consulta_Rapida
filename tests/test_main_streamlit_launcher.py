@@ -60,7 +60,8 @@ def test_launch_streamlit_falls_back_to_path_when_module_missing(monkeypatch, tm
         return DummyProcess()
 
     monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
-    monkeypatch.setattr(main.shutil, "which", lambda name: "streamlit" if name == "streamlit" else None)
+    streamlit_exe = str((tmp_path / "tools" / "streamlit.exe").resolve())
+    monkeypatch.setattr(main.shutil, "which", lambda name: streamlit_exe if name == "streamlit" else None)
     monkeypatch.setattr(main.subprocess, "Popen", fake_popen)
 
     assert main.launch_streamlit(str(project_root), port=8765) is True
@@ -69,7 +70,7 @@ def test_launch_streamlit_falls_back_to_path_when_module_missing(monkeypatch, tm
     assert "Origem do launcher Streamlit: PATH" in out
     assert captured["cwd"] == str(project_root)
     assert captured["cmd"] == [
-        "streamlit",
+        streamlit_exe,
         "run",
         str(script_path),
         "--server.headless=true",

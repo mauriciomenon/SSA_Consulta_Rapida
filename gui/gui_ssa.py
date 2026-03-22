@@ -3328,12 +3328,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     @staticmethod
     def _resolve_platform_open_command() -> str:
+        preferred_paths: list[str] = []
         if sys.platform.startswith("win"):
+            windir = os.environ.get("WINDIR", r"C:\Windows")
+            preferred_paths.append(os.path.join(windir, "explorer.exe"))
             cmd = "explorer"
         elif sys.platform == "darwin":
+            preferred_paths.append("/usr/bin/open")
             cmd = "open"
         else:
             cmd = "xdg-open"
+        for preferred in preferred_paths:
+            preferred_abs = os.path.abspath(preferred)
+            if os.path.isabs(preferred_abs) and os.path.isfile(preferred_abs):
+                return preferred_abs
         resolved = shutil.which(cmd)
         if not resolved:
             raise RuntimeError(f"Comando indisponivel para abrir recurso: {cmd}")
