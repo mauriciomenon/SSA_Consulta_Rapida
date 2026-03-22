@@ -31,6 +31,19 @@ def test_open_docs_folder_uses_qdesktopservices_when_available(monkeypatch, tmp_
     assert opened_urls, "Expected QDesktopServices.openUrl to be used"
 
 
+def test_resolve_platform_open_command_prefers_absolute_windows_launcher(monkeypatch):
+    from gui import gui_ssa
+
+    monkeypatch.setattr(gui_ssa.sys, "platform", "win32")
+    monkeypatch.setenv("WINDIR", r"C:\\Windows")
+    monkeypatch.setattr(gui_ssa.os.path, "isfile", lambda path: path == r"C:\Windows\explorer.exe")
+    monkeypatch.setattr(gui_ssa.shutil, "which", lambda _name: pytest.fail("shutil.which should not be called"))
+
+    resolved = gui_ssa.SSAMainWindow._resolve_platform_open_command()
+
+    assert resolved == r"C:\Windows\explorer.exe"
+
+
 def test_open_docs_folder_missing_skips_modal_under_pytest(monkeypatch, tmp_path):
     from gui import gui_ssa
 

@@ -355,7 +355,7 @@ def _resolve_streamlit_launch_command() -> tuple[Optional[list[str]], str]:
 
     streamlit_path = shutil.which("streamlit")
     if streamlit_path:
-        return ["streamlit"], "PATH"
+        return [os.path.abspath(streamlit_path)], "PATH"
 
     return None, ""
 
