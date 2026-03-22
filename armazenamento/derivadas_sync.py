@@ -324,11 +324,51 @@ def _load_sheet_dataframe(sheet_file: str, sheet_name: str | None = None) -> lis
     if ext == ".tsv":
         return [pd.read_csv(sheet_file, sep="\t")]
     if ext in {".xlsx", ".xlsm", ".xls"}:
-        if sheet_name:
-            return [pd.read_excel(sheet_file, sheet_name=sheet_name)]
-        loaded = pd.read_excel(sheet_file, sheet_name=None)
-        return list(loaded.values()) if isinstance(loaded, dict) else [loaded]
+        return _load_excel_frames(sheet_file, sheet_name=sheet_name)
     raise ValueError(f"Unsupported sheet format for derivadas sync: {sheet_file}")
+
+
+def _load_excel_frames(
+    sheet_file: str,
+    *,
+    sheet_name: str | None = None,
+    header: int | None = 0,
+) -> list[pd.DataFrame]:
+    from utils.robust_importer import import_excel_robust
+
+    try:
+        frames: list[pd.DataFrame] = []
+        parse_errors: list[tuple[str, Exception]] = []
+        with pd.ExcelFile(sheet_file) as workbook:
+            target_sheets = [sheet_name] if sheet_name else list(workbook.sheet_names)
+            for target_sheet in target_sheets:
+                try:
+                    frame, _stats = import_excel_robust(
+                        workbook,
+                        sheet_name=target_sheet,
+                        header=header,
+                        raw_mode=True,
+                        raise_on_error=True,
+                    )
+                    frames.append(frame)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to parse sheet '%s' from '%s': %s",
+                        target_sheet,
+                        sheet_file,
+                        exc,
+                    )
+                    parse_errors.append((target_sheet, exc))
+
+        if frames:
+            return frames
+        if parse_errors:
+            raise parse_errors[0][1]
+        return []
+    except Exception as exc:
+        raise ValueError(
+            f"Failed to parse sheet source file '{sheet_file}': {exc}"
+        ) from exc
 
 
 def _normalize_sheet_column_name(value: Any) -> str:
@@ -487,11 +527,7 @@ def _collect_special_visual_sheet_edges(
             "multiparent_detail": {},
         }
 
-    if sheet_name:
-        raw_frames = [pd.read_excel(sheet_file, sheet_name=sheet_name, header=None)]
-    else:
-        loaded = pd.read_excel(sheet_file, sheet_name=None, header=None)
-        raw_frames = list(loaded.values()) if isinstance(loaded, dict) else [loaded]
+    raw_frames = _load_excel_frames(sheet_file, sheet_name=sheet_name, header=None)
 
     edges: list[SourceEdge] = []
     seen_pairs: set[tuple[str, str]] = set()

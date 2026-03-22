@@ -510,6 +510,27 @@ def test_sync_rejects_missing_sheet_file(temp_db, tmp_path: Path):
         assert False, "sync_derivadas should fail for non-existing sheet_file"
 
 
+def test_sync_rejects_corrupt_excel_sheet_file_with_clear_error(temp_db, tmp_path: Path):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+        ],
+    )
+    corrupt = tmp_path / "corrupt.xlsx"
+    corrupt.write_bytes(b"not-a-real-workbook")
+
+    with pytest.raises(ValueError, match="Failed to parse sheet source file") as exc_info:
+        sync_derivadas(
+            temp_db,
+            include_db_source=False,
+            sheet_file=str(corrupt),
+        )
+
+    assert str(corrupt) in str(exc_info.value)
+
+
 def test_sync_sheet_only_verify_only_works_without_ssa_table(tmp_path: Path):
     db_path = tmp_path / "sheet_only_no_ssa_table.db"
     with sqlite3.connect(db_path) as conn:
