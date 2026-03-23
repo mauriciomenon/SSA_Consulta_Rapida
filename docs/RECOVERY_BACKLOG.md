@@ -3,6 +3,33 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-23 17:20 - full rescan possivelmente preso em 439 arquivos (DEFERRED_NOTE)
+
+Session timestamp:
+1. start: `2026-03-23 17:19:41 -0300`
+2. diagnostico ainda nao iniciado nesta rodada; somente registro da suspeita e sincronizacao de docs
+
+Objetivo do proximo slice:
+1. reproduzir no codigo e no estado atual por que o full rescan aparentemente continua em `439` arquivos mesmo com novos Excels adicionados.
+2. verificar discovery de arquivos, lista/hash/cache de importacao e qualquer filtro silencioso no rescan.
+3. rodar regressao ampla antes de tocar nessa parte do runtime.
+
+Hipoteses iniciais a verificar:
+1. enumeracao de arquivos de entrada com algum limite ou filtro fixo por diretorio/padrao.
+2. cache/lista de hash viciada reaproveitando snapshot anterior.
+3. deduplicacao ou descoberta de full rescan usando fonte errada de verdade.
+4. rescan completo disparando, mas com fonte de arquivos ainda ancorada em conjunto antigo.
+
+Escopo previsto do diagnostico:
+1. leitura de codigo de discovery/import/rescan.
+2. reproducao local com contagem de arquivos descoberta vs. contagem persistida.
+3. testes de regressao amplos sem editar runtime no primeiro passo.
+
+Nao fazer no escopo inicial:
+1. nao alterar runtime do rescan antes de isolar a causa.
+2. nao mexer em layout.
+3. nao misturar esse diagnostico com mais mudancas de nullable/filtros ja fechadas.
+
 ## Update 2026-03-23 16:55 - nullable dtype contract leak into display and filters (HOTFIX_BLOCKER + STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:

@@ -1,24 +1,37 @@
 # SSA Consulta Rapida v4.33
 
-Baseline local v4.33 define o estado atual da branch apos validacao de full rescan real com metricas consolidadas, sem regressao de integridade no DB.
+Baseline local v4.33 define o estado atual da branch `dev` apos a rodada de estabilizacao mais recente em GUI, import/readback e filtros nullable.
 
-## Atualizacao documental total (2026-03-10 16:55 -0300)
+## Current Truth (2026-03-23 17:20 -0300)
 
 - Baseline ativo mantido em `v4.33`.
+- Commits mais recentes relevantes para o estado atual:
+  - `d5a9e137` `HOTFIX_BLOCKER: fix nullable display and filter contract`
+  - `25c64c58` `STABILITY_PATCH: close residual nullable filter paths`
+- Contrato atual de dados:
+  - `numero_ssa`, `derivada_de` e `numero_ssa_relacionada_*` sao identificadores canonicos em texto.
+  - semanas e contadores de reprogramacao voltam do banco como nullable ints.
+  - `pd.NA` nao deve mais vazar como `"<NA>"` em exibicao, filtro por coluna, filtros avancados nem no sort de `num_reprogramacoes`.
 - Estado operacional desta rodada:
-  - PR `#45` aberto contra `dev`.
-  - sem threads abertas no PR.
-  - checks externos ainda bloqueando merge: `CodeFactor`, `code/snyk`, `security/snyk`.
+  - branch alvo de estabilizacao: `dev`
+  - working tree local pode continuar sujo por arquivos fora de escopo (`.python-version`, `config/*`, `data/ssas.db`, `docs_entrada/*`, backups locais)
+  - ainda existe uma investigacao aberta para o full rescan no desktop de trabalho: suspeita de reuso indevido de lista/hash ou outro gargalo prendendo o total em `439` arquivos mesmo com novos Excels adicionados
 - Documentos de controle sincronizados nesta rodada:
+  - `README.md`
   - `docs/RECOVERY_BACKLOG.md`
   - `docs/NEXT_CHAT_MIGRATION.md`
   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
-  - `docs/PENDING_ACTION_MATRIX.md`
-  - `docs/INDEX.md`
 
 ## Baseline v4.33 (2026-03)
 
 ### Destaques
+- Nullable dtypes no readback agora estao estabilizados sem regressao visual:
+  - `pd.NA` tratado como vazio em exibicao
+  - filtros por coluna e filtros avancados sem coercao textual crua nos caminhos centrais
+  - sort de `num_reprogramacoes` alinhado com nullable values
+- Auditoria residual de filtros avancados fechada:
+  - derivadas terminais ignoram `derivada_de` nullable/vazia
+  - subset dependente de setor nao materializa `"<NA>"`
 - README revisado com secoes obrigatorias (`Instalacao`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
