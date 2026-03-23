@@ -2,18 +2,21 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-23 16h55
+## CURRENT TRUTH 2026-03-23 17h20
 
 - Objetivo consolidado desta rodada:
   1. corrigir a regressao visivel de `<NA>` em exibicao.
-  2. fechar o mesmo vazamento de contrato em filtro por coluna, filtros avancados e sort de `num_reprogramacoes`.
-  3. registrar explicitamente que a causa foi a entrada global de nullable dtypes sem fechamento completo dos callsites.
+  2. fechar o mesmo vazamento de contrato em filtro por coluna, filtros avancados, derivadas e subset dependente de setor.
+  3. preparar a proxima rodada para investigar full rescan aparentemente preso em `439` arquivos.
 - Estado confirmado:
   1. branch alvo: `dev`.
   2. contexto funcional que gerou a regressao:
      - `06a06e2f` `STABILITY_PATCH: keep nullable ints on DB reads`
      - `ef5c7680` `STABILITY_PATCH: keep numero_ssa storage canonical`
-  3. residuos locais fora de escopo continuam presentes:
+  3. commits que fecharam a regressao e a auditoria residual:
+     - `d5a9e137` `HOTFIX_BLOCKER: fix nullable display and filter contract`
+     - `25c64c58` `STABILITY_PATCH: close residual nullable filter paths`
+  4. residuos locais fora de escopo continuam presentes:
      - `M .python-version`
      - `M config/cli_enhancements.json`
      - `M config/gui_main_preferences.json`
@@ -33,20 +36,29 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - [gui/mixins/filter_gui_ssa_mixin.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/mixins/filter_gui_ssa_mixin.py)
      - [gui/ssa/gui_filters_advanced_logic.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/ssa/gui_filters_advanced_logic.py)
      - [gui/gui_ssa.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/gui_ssa.py)
-  4. o patch final desta rodada:
+  4. o patch final principal desta rodada:
      - `pd.NA` agora vira vazio na exibicao compartilhada
      - filtro por coluna e filtros avancados usam `astype("string").fillna("")`
      - sort de `num_reprogramacoes` usa `Float64`/texto vazio coerentes com `pd.NA`
-  5. mudancas intencionais que permanecem:
+  5. auditoria residual fechada:
+     - agrupamento de derivadas terminais nao usa mais `astype(str)` cru
+     - subset dependente de setor na UI avancada nao materializa `"<NA>"`
+  6. mudancas intencionais que permanecem:
      - `numero_ssa` textual/canonico
      - semanas e reprogramacoes como inteiros nullable no readback
+  7. foco aberto para o proximo ciclo:
+     - verificar se existe limite, cache ou lista viciada no full rescan que esteja mantendo o total em `439` arquivos
 - Validacao consolidada:
   1. `py_compile`, `ruff` e `ty` verdes no escopo alterado.
   2. `tests/test_formatting.py` -> `4 passed`.
   3. `tests/test_formatting.py tests/test_gui_filter_logic.py -k "nullable or num_reprogramacoes or column_filter or advanced_filter or format"` -> `32 passed, 142 deselected`.
   4. `tests/test_database.py tests/test_formatting.py -k "query_db or format"` -> `9 passed, 8 deselected`.
+  5. `tests/test_gui_filters_advanced_logic.py` -> `16 passed`.
+  6. `tests/test_gui_table_render_resilience.py` -> `11 passed`.
+  7. `tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py -k "derivada_all_ste or divisao or refresh_advanced_filter_options_excludes_na_literal_from_sector_values"` -> `4 passed, 183 deselected`.
 - Pendencia ainda aberta para o proximo ciclo:
-  1. revisar o resto dos `astype(str)` fora dos caminhos centrais para decidir se sao apenas comparacao interna aceitavel ou se ainda escondem vazamento de contrato.
+  1. investigar o full rescan preso em `439` arquivos sem editar runtime antes de reproduzir e isolar a causa.
+  2. so depois decidir se ainda sobra alguma auditoria adicional de `astype(str)` residual.
 
 ## HISTORICAL SNAPSHOT 2026-03-22 23h20
 

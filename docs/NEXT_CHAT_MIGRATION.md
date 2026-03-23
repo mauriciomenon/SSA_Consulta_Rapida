@@ -2,18 +2,21 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-23 16h55
+## CURRENT TRUTH 2026-03-23 17h20
 
 - Objetivo consolidado desta rodada:
   1. corrigir a regressao visivel de `<NA>` em tela introduzida apos a mudanca global de readback para nullable dtypes.
-  2. fechar os vazamentos funcionais do mesmo contrato em filtro por coluna, filtros avancados e sort de `num_reprogramacoes`.
-  3. registrar com clareza o que mudou de contrato por descuido e o que continua intencional.
+  2. fechar os vazamentos funcionais equivalentes em filtro por coluna, filtros avancados, derivadas e subset dependente de setores.
+  3. registrar o proximo bloco critico de diagnostico: full rescan possivelmente preso em `439` arquivos no desktop de trabalho.
 - Estado atual do git:
   1. branch ativa: `dev`.
   2. commits funcionais anteriores que originaram o contexto desta regressao:
      - `06a06e2f` `STABILITY_PATCH: keep nullable ints on DB reads`
      - `ef5c7680` `STABILITY_PATCH: keep numero_ssa storage canonical`
-  3. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+  3. commits funcionais que fecharam a regressao e a auditoria residual:
+     - `d5a9e137` `HOTFIX_BLOCKER: fix nullable display and filter contract`
+     - `25c64c58` `STABILITY_PATCH: close residual nullable filter paths`
+  4. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
      - `M .python-version`
      - `M config/cli_enhancements.json`
      - `M config/gui_main_preferences.json`
@@ -34,14 +37,20 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   3. a matriz seguinte expôs um segundo efeito colateral funcional:
      - filtros e sort ainda tinham coercao textual crua via `astype(str)`
      - isso permitia que `pd.NA` virasse `"<NA>"` em match/sort internos
-  4. o patch funcional desta rodada:
+  4. o patch funcional principal desta rodada:
      - [gui/mixins/filter_gui_ssa_mixin.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/mixins/filter_gui_ssa_mixin.py): filtro por coluna passa a usar `astype("string").fillna("")`
      - [gui/ssa/gui_filters_advanced_logic.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/ssa/gui_filters_advanced_logic.py): filtros avancados idem
      - [gui/gui_ssa.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/gui_ssa.py): sort de `num_reprogramacoes` agora trata `pd.NA` como vazio textual e usa numerico nullable coerente
-  5. mudancas de contrato que permanecem intencionais:
+  5. auditoria residual fechada em seguida:
+     - [gui/ssa/gui_filters_advanced_logic.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/ssa/gui_filters_advanced_logic.py): agrupamento de `derivada_all_ste` ignora `derivada_de` nullable/vazia
+     - [gui/ssa/gui_filters_advanced_ui.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/ssa/gui_filters_advanced_ui.py): subset dependente de setor evita `astype(str)` cru
+  6. mudancas de contrato que permanecem intencionais:
      - `numero_ssa` segue textual/canonico
      - semanas e reprogramacoes seguem nullable inteiros no readback
      - render frio e salto para SSA continuam no contrato otimizado entregue nas rodadas anteriores
+  7. nova suspeita aberta, ainda sem alteracao de runtime:
+     - full rescan aparentemente preso em `439` arquivos mesmo com novos Excels adicionados
+     - hipoteses iniciais: lista de hash/cache viciada, enumeracao incompleta de arquivos, ou filtro silencioso no discovery
 - Validacao relevante ja executada:
   1. `uv run --python 3.13 python -m py_compile utils/formatting.py tests/test_formatting.py gui/mixins/filter_gui_ssa_mixin.py gui/ssa/gui_filters_advanced_logic.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
   2. `uv run --python 3.13 ruff check utils/formatting.py tests/test_formatting.py gui/mixins/filter_gui_ssa_mixin.py gui/ssa/gui_filters_advanced_logic.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
@@ -49,9 +58,13 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   4. `uv run --python 3.13 python -m pytest -q tests/test_formatting.py` -> `4 passed`.
   5. `uv run --python 3.13 python -m pytest -q tests/test_formatting.py tests/test_gui_filter_logic.py -k "nullable or num_reprogramacoes or column_filter or advanced_filter or format"` -> `32 passed, 142 deselected`.
   6. `uv run --python 3.13 python -m pytest -q tests/test_database.py tests/test_formatting.py -k "query_db or format"` -> `9 passed, 8 deselected`.
+  7. `uv run --python 3.13 python -m pytest -q tests/test_gui_filters_advanced_logic.py` -> `16 passed`.
+  8. `uv run --python 3.13 python -m pytest -q tests/test_gui_table_render_resilience.py` -> `11 passed`.
+  9. `uv run --python 3.13 python -m pytest -q tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py -k "derivada_all_ste or divisao or refresh_advanced_filter_options_excludes_na_literal_from_sector_values"` -> `4 passed, 183 deselected`.
 - Leitura operacional:
   1. o erro desta rodada foi deixar um contrato novo de readback entrar sem fechar todos os callsites que stringificam valores faltantes.
-  2. o formatador central agora esta alinhado, mas ainda existe legado de `astype(str)` fora dos caminhos centrais e isso deve continuar sob vigilancia.
+  2. os caminhos centrais de exibicao e filtros relevantes ficaram alinhados.
+  3. o proximo foco nao e mais nullable em tela; e o diagnostico do full rescan possivelmente preso em `439` arquivos.
 
 ## HISTORICAL SNAPSHOT 2026-03-22 23h20
 
