@@ -6,6 +6,7 @@ def test_format_cell_number_and_nulls():
     assert format_cell(10.0) == "10"  # suprime .0
     assert format_cell(float('nan')) == ""  # NaN vira vazio
     assert format_cell(None) == ""
+    assert format_cell(pd.NA) == ""
 
 
 def test_format_cell_dates():
@@ -34,3 +35,17 @@ def test_format_dataframe_for_display_and_ssa():
     assert out.loc[1, 'data_cadastro'] == "15/07/2025"
     # null text becomes empty string (table_printer later maps empty to '-')
     assert out.loc[1, 'texto'] == ""
+
+
+def test_format_dataframe_for_display_hides_pandas_na_in_generic_columns():
+    df = pd.DataFrame({
+        'texto': [pd.NA, 'ok'],
+        'setor_executor': [pd.NA, 'MEL1'],
+    })
+
+    out = format_dataframe_for_display(df)
+
+    assert out.loc[0, 'texto'] == ""
+    assert out.loc[0, 'setor_executor'] == ""
+    assert out.loc[1, 'texto'] == "ok"
+    assert out.loc[1, 'setor_executor'] == "MEL1"

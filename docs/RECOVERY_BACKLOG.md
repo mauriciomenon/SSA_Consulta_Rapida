@@ -3,7 +3,120 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-23 16:55 - nullable dtype contract leak into display and filters (HOTFIX_BLOCKER + STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-23 16:42:11 -0300`
+2. foco ampliado para exibicao, filtros e sort apos regressao visivel em tela
+
+Objetivo do slice:
+1. corrigir o vazamento de `"<NA>"` na exibicao.
+2. fechar os vazamentos funcionais equivalentes em filtro por coluna, filtros avancados e sort de `num_reprogramacoes`.
+3. registrar com clareza a mudanca de contrato que causou o problema.
+
+Diagnostico objetivo:
+1. a origem foi [armazenamento/database.py](C:/Users/mauri/git/SSA_Consulta_Rapida/armazenamento/database.py):
+   - `query_db()` passou a usar `dtype_backend="numpy_nullable"`
+   - isso introduziu `pd.NA` e dtypes nullable em caminhos de GUI/CLI que antes viam `None`/`NaN`
+2. a exibicao estava quebrada em [utils/formatting.py](C:/Users/mauri/git/SSA_Consulta_Rapida/utils/formatting.py):
+   - `_is_nullish()` nao reconhecia `pd.NA`
+   - `format_cell(pd.NA)` devolvia `"<NA>"`
+3. a matriz ampliada mostrou o segundo problema:
+   - filtros e sort ainda tinham `astype(str)` cru
+   - isso podia transformar `pd.NA` em `"<NA>"` dentro de match e ordenacao
+4. o caso de `num_reprogramacoes` ainda expôs um bug adicional:
+   - `_build_num_reprogramacoes_sort_keys()` misturava `float64` com `IntegerArray` nullable e quebrava cache/ordenacao
+
+Escopo alterado:
+1. `utils/formatting.py`
+2. `gui/mixins/filter_gui_ssa_mixin.py`
+3. `gui/ssa/gui_filters_advanced_logic.py`
+4. `gui/gui_ssa.py`
+5. `tests/test_formatting.py`
+6. `tests/test_gui_filter_logic.py`
+
+Mudanca aplicada:
+1. hotfix de exibicao:
+   - `pd.NA` agora e tratado como nullish no formatador central
+2. correcao funcional:
+   - filtro por coluna e filtros avancados passam a usar `astype("string").fillna("")`
+   - sort de `num_reprogramacoes` passa a usar `Float64` e texto vazio, sem quebrar com `pd.NA`
+3. cobertura de regressao:
+   - teste para `format_cell(pd.NA) == ""`
+   - teste para colunas genericas sem `"<NA>"`
+   - testes para filtro por coluna, filtro avancado e sort/cache de `num_reprogramacoes` com nullable
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile utils/formatting.py tests/test_formatting.py gui/mixins/filter_gui_ssa_mixin.py gui/ssa/gui_filters_advanced_logic.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+2. `uv run --python 3.13 ruff check utils/formatting.py tests/test_formatting.py gui/mixins/filter_gui_ssa_mixin.py gui/ssa/gui_filters_advanced_logic.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+3. `uv run --python 3.13 ty check utils/formatting.py tests/test_formatting.py gui/mixins/filter_gui_ssa_mixin.py gui/ssa/gui_filters_advanced_logic.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_formatting.py` -> `4 passed`.
+5. `uv run --python 3.13 python -m pytest -q tests/test_formatting.py tests/test_gui_filter_logic.py -k "nullable or num_reprogramacoes or column_filter or advanced_filter or format"` -> `32 passed, 142 deselected`.
+6. `uv run --python 3.13 python -m pytest -q tests/test_database.py tests/test_formatting.py -k "query_db or format"` -> `9 passed, 8 deselected`.
+
+Licoes aprendidas:
+1. alterar o contrato de nullability em `query_db()` sem revisar callsites de coercao textual foi erro real de integracao.
+2. teste unitario do readback nao substitui teste de contrato de exibicao e filtro.
+3. qualquer mudanca global de dtype precisa vir junto com auditoria de `astype(str)` nos fluxos ativos.
+
+Pendencias nao bloqueantes abertas:
+1. auditar o restante dos `astype(str)` fora dos caminhos centrais para decidir se ainda existe leak residual de contrato.
+2. ampliar a matriz de regressao de exibicao/filtro para outros campos nullable alem dos ja fechados neste slice.
+
 ## Update 2026-03-21 08:20 - cache herdado no filtro sequencial do CLI (STABILITY_PATCH + DOC_SYNC)
+
+## Update 2026-03-22 23:20 - salto assincrono para SSA e cobertura de integracao (HOTFIX_BLOCKER + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-22 22:16:56 -0300`
+2. matriz ampla de regressao executada antes do fechamento
+
+Objetivo do slice:
+1. fechar o bug real do salto para SSA quando o alvo nao estava no `df_exibido` atual.
+2. estabilizar o hotfix sem abrir refatoracao ampla.
+3. registrar a falha de processo: cobertura estreita deixou passar regressos laterais.
+
+Diagnostico objetivo:
+1. o bug real estava em `gui/ssa/gui_details.py`:
+   - `_jump_to_ssa()` disparava busca e relia `df_exibido` cedo demais no caminho assincrono
+   - o salto se perdia mesmo quando o filtro terminava corretamente
+2. a tentativa inicial de hotfix introduziu dois regressos reais:
+   - `_normalize_ssa_value("121911787.0")` passou a virar `1219117870`
+   - `SSAMainWindow._jump_to_ssa()` nao aceitava `_allow_refilter`, quebrando a chamada vinda do mixin
+3. esses regressos nao apareceram na cobertura estreita inicial; so a matriz ampla de GUI os expôs.
+
+Escopo alterado:
+1. `gui/gui_ssa.py`
+2. `gui/mixins/filter_gui_ssa_mixin.py`
+3. `gui/ssa/gui_details.py`
+4. `tests/test_gui_filter_logic.py`
+
+Mudanca aplicada:
+1. commit funcional `f03b9721`
+   - `filter_gui_ssa_mixin.py` consome um jump pendente apos `on_filter_finished()`
+   - `gui_details.py` mantem o contrato funcional de normalizacao da GUI e suporta o salto pendente
+   - `gui_ssa.py` alinha o facade `_jump_to_ssa(...)` ao contrato interno do hotfix
+   - `tests/test_gui_filter_logic.py` trava o caso assincrono com alvo fora do `df_exibido`
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/ssa/gui_details.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py tests/test_gui_table_render_resilience.py` -> pass.
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/ssa/gui_details.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py tests/test_gui_table_render_resilience.py` -> pass.
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/ssa/gui_details.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py tests/test_gui_table_render_resilience.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_gui_filter_logic.py tests/test_gui_table_render_resilience.py` -> `177 passed, 1 skipped`.
+5. repro manual do caso critico:
+   - alvo fora do `df_exibido`
+   - filtro assincrono
+   - resultado final: `resolved=True`, `page=2`, `details_ssa=100157`, `selected_rows=[12]`, `pending_jump=None`
+
+Licoes aprendidas:
+1. fluxo de navegacao desta GUI nao pode ser validado so por helper unitario; ele cruza facade, mixin, tabela e detalhes.
+2. mudanca em assinatura interna exige sempre reteste do facade publico correspondente.
+3. normalizacao de `numero_ssa` na GUI ainda e fragil e merece revisao dedicada em slice proprio, mas sem mexer fora de escopo.
+
+Pendencias nao bloqueantes abertas:
+1. criar matriz padrao de regressao para fluxos de navegacao e render com foco em parametros, facade publica e timing assincrono.
+2. revisar se a normalizacao de `numero_ssa` da GUI pode ser consolidada sem quebrar o contrato historico de exibicao/import.
+3. manter atencao a timeouts do Kluster em `gui_details.py`; a ferramenta oscilou nesta rodada sem retornar finding final concreto.
 
 Session timestamp:
 1. start: `2026-03-21 07:53:53 -0300`

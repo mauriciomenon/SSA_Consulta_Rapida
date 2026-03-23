@@ -102,7 +102,7 @@ class _IncludeExcludeSeriesCache:
         series = self._get_cached_series(col, "str")
         if series is None:
             try:
-                series = self._df[col].astype(str)
+                series = self._df[col].astype("string").fillna("")
                 self._store_cached_series(col, "str", series)
             except Exception as exc:
                 logger.debug("Failed to coerce column %s to str for filters: %s", col, exc)
