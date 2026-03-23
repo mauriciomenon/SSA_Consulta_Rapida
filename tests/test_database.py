@@ -113,8 +113,14 @@ def test_insert_dataframe_to_db_success(temp_db_path, sample_dataframe):
     df_from_db = query_db(temp_db_path, table_name)
     assert len(df_from_db) == len(sample_dataframe)
     # Verifica se os dados são iguais (reset_index para comparar corretamente)
-    pd.testing.assert_frame_equal(df_from_db.sort_values('id').reset_index(drop=True),
-                                  sample_dataframe.sort_values('id').reset_index(drop=True))
+    expected_df = sample_dataframe.sort_values('id').reset_index(drop=True).copy()
+    expected_df["id"] = expected_df["id"].astype("Int64")
+    expected_df["nome"] = expected_df["nome"].astype("string")
+    expected_df["idade"] = expected_df["idade"].astype("Int64")
+    pd.testing.assert_frame_equal(
+        df_from_db.sort_values('id').reset_index(drop=True),
+        expected_df,
+    )
 
 
 def test_query_db_success(temp_db_path, sample_dataframe):
@@ -212,6 +218,36 @@ def test_query_db_keeps_nullable_integer_columns_without_float_promotion(temp_db
     assert df_result["semana_programada"].tolist() == [202510, 202511, pd.NA]
     assert df_result["num_reprogramacoes"].tolist() == [2, pd.NA, 3]
     assert df_result["total_de_reprogramacoes"].tolist() == [5, 6, pd.NA]
+
+
+def test_insert_dataframe_to_db_keeps_numero_ssa_as_canonical_string(temp_db_path):
+    table_name = "teste_ssa_storage_text"
+    source_df = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202500777.0",
+                "descricao_ssa": "SSA canonica",
+            }
+        ]
+    )
+
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS teste_ssa_storage_text (
+                numero_ssa TEXT,
+                descricao_ssa TEXT
+            );
+            """
+        )
+        conn.commit()
+
+    assert insert_dataframe_to_db(source_df, temp_db_path, table_name) is True
+
+    df_result = query_db(temp_db_path, table_name)
+
+    assert str(df_result["numero_ssa"].dtype) == "string"
+    assert df_result["numero_ssa"].tolist() == ["202500777"]
 
 
 def test_query_db_sql_error_returns_empty_df_when_raise_disabled(temp_db_path):
@@ -320,7 +356,10 @@ def test_insert_dataframe_to_db_allows_replace_for_generic_table(temp_db_path):
     assert insert_dataframe_to_db(replacement_df, temp_db_path, table_name, if_exists="replace") is True
 
     result = query_db(temp_db_path, table_name)
-    pd.testing.assert_frame_equal(result.reset_index(drop=True), replacement_df)
+    expected_df = replacement_df.copy()
+    expected_df["id"] = expected_df["id"].astype("Int64")
+    expected_df["nome"] = expected_df["nome"].astype("string")
+    pd.testing.assert_frame_equal(result.reset_index(drop=True), expected_df)
 
 
 def test_insert_dataframe_to_db_rolls_back_partial_write_on_to_sql_failure(temp_db_path, monkeypatch):
