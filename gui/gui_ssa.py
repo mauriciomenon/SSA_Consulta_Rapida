@@ -2896,8 +2896,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _get_derivadas_for_ssa(self, numero_ssa):
         return ssa_gui_details._get_derivadas_for_ssa(self, numero_ssa)
 
-    def _jump_to_ssa(self, numero_ssa):
-        return ssa_gui_details._jump_to_ssa(self, numero_ssa)
+    def _jump_to_ssa(self, numero_ssa, **kwargs):
+        return ssa_gui_details._jump_to_ssa(self, numero_ssa, **kwargs)
 
     def _on_details_anchor_clicked(self, url):
         return ssa_gui_details._on_details_anchor_clicked(self, url)

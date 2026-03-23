@@ -597,6 +597,7 @@ class FilterGUISSAMixin:
             QTimer.singleShot(0, lambda: self._set_safe_width_for_col_index(1, 80))
         except Exception as exc:
             logger.debug("Falha ao agendar ajuste deferido de largura da coluna principal: %s", exc)
+        self._consume_pending_jump_to_ssa(effective_request_id)
 
 
     def on_filter_error(self, error_msg: str, request_id: int | None = None):
@@ -604,12 +605,37 @@ class FilterGUISSAMixin:
         if request_id is not None and active_id is not None and request_id != active_id:
             logger.debug("Ignorando erro de filtro obsoleto (request_id=%s, active=%s)", request_id, active_id)
             return
+        pending_jump = getattr(self, "_pending_jump_to_ssa", None)
+        if (
+            isinstance(pending_jump, dict)
+            and request_id is not None
+            and pending_jump.get("request_id") == request_id
+        ):
+            self._pending_jump_to_ssa = None
         # Avoid modal dialogs during automated tests (can deadlock the pytest runner).
         if os.environ.get("PYTEST_CURRENT_TEST"):
             logger.debug("PYTEST_CURRENT_TEST set; skipping modal filter error dialog.")
         else:
             QMessageBox.critical(_qt_parent(self), "Erro de Filtro", error_msg)
         self.status_label.setText("Status: Erro ao aplicar filtro.")
+
+    def _consume_pending_jump_to_ssa(self, request_id: int | None) -> None:
+        pending_jump = getattr(self, "_pending_jump_to_ssa", None)
+        if not (
+            isinstance(pending_jump, dict)
+            and pending_jump.get("request_id") == request_id
+            and pending_jump.get("numero_ssa")
+        ):
+            return
+        self._pending_jump_to_ssa = None
+        try:
+            self._jump_to_ssa(pending_jump["numero_ssa"], _allow_refilter=False)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao concluir salto pendente para SSA %s apos filtro: %s",
+                pending_jump.get("numero_ssa"),
+                exc,
+            )
 
 
     def _retain_filter_worker_until_finished(self, worker) -> None:
