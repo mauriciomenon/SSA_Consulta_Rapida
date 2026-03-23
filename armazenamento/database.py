@@ -196,7 +196,12 @@ def query_db(
 
             logger.debug("Executando consulta: %s com params: %s", effective_query, params)
             # pd.read_sql_query e otimo para SELECTs
-            df = pd.read_sql_query(effective_query, conn, params=cast(Any, params))
+            df = pd.read_sql_query(
+                effective_query,
+                conn,
+                params=cast(Any, params),
+                dtype_backend="numpy_nullable",
+            )
         logger.debug(f"Consulta retornou {len(df)} linhas.")
         return df
     except (ValueError, sqlite3.Error, pd.errors.DatabaseError) as e:
