@@ -2,7 +2,7 @@
 
 Baseline local v4.33 define o estado atual da branch `dev` apos a rodada de estabilizacao mais recente em GUI, import/readback e filtros nullable.
 
-## Current Truth (2026-03-23 17:20 -0300)
+## Current Truth (2026-03-23 19:01 -0300)
 
 - Baseline ativo mantido em `v4.33`.
 - Commits mais recentes relevantes para o estado atual:
@@ -15,7 +15,10 @@ Baseline local v4.33 define o estado atual da branch `dev` apos a rodada de esta
 - Estado operacional desta rodada:
   - branch alvo de estabilizacao: `dev`
   - working tree local pode continuar sujo por arquivos fora de escopo (`.python-version`, `config/*`, `data/ssas.db`, `docs_entrada/*`, backups locais)
-  - ainda existe uma investigacao aberta para o full rescan no desktop de trabalho: suspeita de reuso indevido de lista/hash ou outro gargalo prendendo o total em `439` arquivos mesmo com novos Excels adicionados
+  - diagnostico local do full rescan fechado sem editar runtime:
+    - discovery atual considera `.xlsx` na raiz de `docs_entrada` e, opcionalmente, em `processadas/`
+    - nesta maquina: `489` `.xlsx` elegiveis na raiz, `0` em `processadas/` e `135` `.xls` fora do pipeline principal
+    - se o desktop de trabalho ficou preso em `439`, a primeira hipotese agora e elegibilidade/discovery, nao cache/hash viciado
 - Documentos de controle sincronizados nesta rodada:
   - `README.md`
   - `docs/RECOVERY_BACKLOG.md`
@@ -32,6 +35,10 @@ Baseline local v4.33 define o estado atual da branch `dev` apos a rodada de esta
 - Auditoria residual de filtros avancados fechada:
   - derivadas terminais ignoram `derivada_de` nullable/vazia
   - subset dependente de setor nao materializa `"<NA>"`
+- Diagnostico de importacao/rescan atualizado:
+  - `full rescan` hoje nao e recursivo sobre qualquer subpasta arbitraria da raiz
+  - `.xls` legado continua contabilizado como ignorado, nao como candidato principal de importacao
+  - regressao ampla de importacao, rescan, GUI lateral e contratos de nullable ficou verde; o arquivo inteiro `tests/test_gui_filter_logic.py` segue com limitacao de harness neste terminal
 - README revisado com secoes obrigatorias (`Instalacao`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.

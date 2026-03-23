@@ -2,12 +2,12 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-23 17h20
+## CURRENT TRUTH 2026-03-23 19h01
 
 - Objetivo consolidado desta rodada:
   1. corrigir a regressao visivel de `<NA>` em exibicao.
   2. fechar o mesmo vazamento de contrato em filtro por coluna, filtros avancados, derivadas e subset dependente de setor.
-  3. preparar a proxima rodada para investigar full rescan aparentemente preso em `439` arquivos.
+  3. fechar o diagnostico local do full rescan que no desktop de trabalho apareceu preso em `439` arquivos.
 - Estado confirmado:
   1. branch alvo: `dev`.
   2. contexto funcional que gerou a regressao:
@@ -46,8 +46,17 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   6. mudancas intencionais que permanecem:
      - `numero_ssa` textual/canonico
      - semanas e reprogramacoes como inteiros nullable no readback
-  7. foco aberto para o proximo ciclo:
-     - verificar se existe limite, cache ou lista viciada no full rescan que esteja mantendo o total em `439` arquivos
+  7. diagnostico local do full rescan fechado:
+     - discovery atual usa `.xlsx` na raiz de `docs_entrada` e, opcionalmente, em `processadas/`
+     - `.xls` legado continua fora do pipeline principal
+     - nesta maquina, a contagem real ficou:
+       - `625` arquivos totais em `docs_entrada`
+       - `489` arquivos `.xlsx` recursivos
+       - `489` arquivos `.xlsx` elegiveis na raiz
+       - `0` arquivos `.xlsx` em `processadas/`
+       - `135` arquivos `.xls` ignorados pelo pipeline principal
+     - `_get_files_to_process(..., force_import=True)` devolveu `489`
+     - leitura atual: `439` nao ficou sustentado localmente como bug de hash/cache; a hipotese principal passa a ser discovery/corpus elegivel no desktop de trabalho
 - Validacao consolidada:
   1. `py_compile`, `ruff` e `ty` verdes no escopo alterado.
   2. `tests/test_formatting.py` -> `4 passed`.
@@ -56,9 +65,16 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   5. `tests/test_gui_filters_advanced_logic.py` -> `16 passed`.
   6. `tests/test_gui_table_render_resilience.py` -> `11 passed`.
   7. `tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py -k "derivada_all_ste or divisao or refresh_advanced_filter_options_excludes_na_literal_from_sector_values"` -> `4 passed, 183 deselected`.
+  8. `tests/test_caching.py tests/test_import_run_report.py tests/test_import_derivadas_trigger.py tests/test_rescan_worker_advanced.py` -> `62 passed`.
+  9. `tests/test_database.py tests/test_formatting.py tests/test_robust_importer.py tests/test_derivadas_sync.py` -> `50 passed`.
+  10. `tests/test_gui_filters_advanced_logic.py tests/test_gui_table_render_resilience.py` -> `27 passed`.
+  11. `tests/test_workers_advanced.py tests/test_main_streamlit_launcher.py tests/test_open_docs_folder_nonblocking.py tests/test_cli_loop_filter_rounds.py` -> `75 passed`.
+  12. seletores de contrato em `tests/test_gui_filter_logic.py` para nullable/sort -> `7 passed, 164 deselected`.
+  13. `tests/test_gui_filter_logic.py` inteiro continua com limitacao de harness neste ambiente: timeout seguido de `OSError: [Errno 22] Invalid argument` em `sys.stdout.flush()`, sem finding funcional novo do runtime.
 - Pendencia ainda aberta para o proximo ciclo:
-  1. investigar o full rescan preso em `439` arquivos sem editar runtime antes de reproduzir e isolar a causa.
-  2. so depois decidir se ainda sobra alguma auditoria adicional de `astype(str)` residual.
+  1. decidir se o contrato de importacao deve permanecer `root .xlsx only` ou se precisa incluir subpastas arbitrarias e/ou `.xls`.
+  2. se a politica mudar, abrir slice minimo em discovery/import com teste de contrato dedicado.
+  3. so depois decidir se ainda sobra alguma auditoria adicional de `astype(str)` residual.
 
 ## HISTORICAL SNAPSHOT 2026-03-22 23h20
 
