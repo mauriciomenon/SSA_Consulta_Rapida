@@ -242,6 +242,28 @@ def test_related_dotted_aliases_map_to_related_canonical_columns(tmp_path):
     assert str(out_df.loc[0, "numero_ssa_relacionada_2"]) == "202500104"
 
 
+def test_ssa_identifier_columns_strip_decimal_artifacts(tmp_path):
+    df = pd.DataFrame(
+        {
+            "Numero SSA": ["202500001.0", "202500002"],
+            "Derivada de": ["202400123.0", None],
+            "Numero da SSA.1": ["202500777.0", "202500888.0"],
+            "Numero da SSA.2": ["202500999.0", None],
+            "Emitida Em": ["01/09/2025", "02/09/2025"],
+        }
+    )
+
+    out_df, _stats = _roundtrip_import(df, tmp_path)
+
+    assert out_df["numero_ssa"].tolist() == ["202500001", "202500002"]
+    assert out_df["derivada_de"].tolist() == ["202400123", pd.NA]
+    assert out_df["numero_ssa_relacionada_1"].tolist() == ["202500777", "202500888"]
+    assert out_df["numero_ssa_relacionada_2"].tolist() == ["202500999", pd.NA]
+    assert str(out_df["numero_ssa"].dtype) == "string"
+    assert str(out_df["derivada_de"].dtype) == "string"
+    assert str(out_df["numero_ssa_relacionada_1"].dtype) == "string"
+
+
 def test_unknown_dotted_columns_never_keep_dot_suffixes(tmp_path):
     df = pd.DataFrame(
         {
