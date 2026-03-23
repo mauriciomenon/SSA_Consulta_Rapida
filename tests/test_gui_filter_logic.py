@@ -2720,6 +2720,47 @@ class TestGUIFilterLogic:
         assert cache_after_second["keys_df"].index.equals(self.window.df_exibido.index)
         assert int(cache_after_second["source_len"]) == len(cache_after_second["keys_df"].index)
 
+    def test_column_filter_treats_nullable_text_as_empty_instead_of_na_literal(self):
+        nullable_df = self.base_df.assign(
+            setor_executor=pd.Series([pd.NA, "MEL4", ""], dtype="string"),
+        ).copy()
+        self.window.df_completo = nullable_df.copy()
+        self.window.df_exibido = nullable_df.copy()
+        self.window._df_last_search_filtered = nullable_df.copy()
+        self.window.paginator.set_dataframe(nullable_df.copy())
+
+        self.window._active_column_filters = {"setor_executor": "MEL4"}
+        filtered = self.window._apply_column_filters(nullable_df)
+        assert filtered["numero_ssa"].tolist() == [2]
+
+        self.window._active_column_filters = {"setor_executor": "<NA>"}
+        filtered_na_literal = self.window._apply_column_filters(nullable_df)
+        assert filtered_na_literal.empty
+
+    def test_advanced_filter_include_ignores_nullable_text_instead_of_na_literal(self):
+        nullable_df = self.base_df.assign(
+            setor_executor=pd.Series([pd.NA, "MEL4", "IEE3", ""], dtype="string"),
+        ).copy()
+        self.window.df_completo = nullable_df.copy()
+        self.window.df_exibido = nullable_df.copy()
+        self.window._df_last_search_filtered = nullable_df.copy()
+        self.window.paginator.set_dataframe(nullable_df.copy())
+        self.window._advanced_filters = {"setor_executor": ["MEL4"]}
+
+        filtered = self.window._apply_advanced_filters(nullable_df)
+
+        assert filtered["numero_ssa"].tolist() == [2]
+
+    def test_num_reprogramacoes_sort_keys_treat_nullable_values_as_empty_text(self):
+        mixed_df = self.base_df.assign(
+            num_reprogramacoes=pd.Series([2, pd.NA, "Reprogramacao #1", None, ""], dtype="object")
+        ).copy()
+
+        sort_keys = self.window._build_num_reprogramacoes_sort_keys(mixed_df)
+
+        assert sort_keys["__reprog_txt"].tolist() == ["2", "", "reprogramacao #1", "", ""]
+        assert sort_keys["__reprog_is_nan"].tolist() == [False, True, False, True, True]
+
     def test_num_reprogramacoes_sort_rebuilds_stale_cache_with_mismatched_index(self):
         mixed_df = self.base_df.assign(
             num_reprogramacoes=pd.Series([2, "Reprogramacao #1", 0, "", None], dtype="object")

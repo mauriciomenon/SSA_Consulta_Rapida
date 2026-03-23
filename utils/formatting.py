@@ -24,7 +24,11 @@ def _is_nullish(v) -> bool:
     if v is None:
         return True
     try:
+        if v is pd.NA:
+            return True
         # Trata NaN/NaT
+        if pd.isna(v):
+            return True
         if isinstance(v, float) and math.isnan(v):
             return True
         if isinstance(v, pd.Timestamp) and pd.isna(v):

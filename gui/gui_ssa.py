@@ -2259,19 +2259,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def _build_num_reprogramacoes_sort_keys(self, source_df: pd.DataFrame) -> pd.DataFrame:
         raw_series = source_df["num_reprogramacoes"]
-        numeric = pd.to_numeric(raw_series, errors="coerce")
+        raw_text = raw_series.astype("string").fillna("")
+        numeric = pd.to_numeric(raw_series, errors="coerce").astype("Float64")
         missing_numeric_mask = numeric.isna()
         if bool(missing_numeric_mask.any()):
-            extracted_source = raw_series[missing_numeric_mask].astype(str)
+            extracted_source = raw_text[missing_numeric_mask]
             extracted = extracted_source.str.extract(r"(-?\d+)")[0]
-            extracted_numeric = pd.to_numeric(extracted, errors="coerce")
+            extracted_numeric = pd.to_numeric(extracted, errors="coerce").astype("Float64")
             numeric = numeric.copy()
             numeric.loc[missing_numeric_mask] = extracted_numeric
         return pd.DataFrame(
             {
                 "__reprog_is_nan": numeric.isna(),
                 "__reprog_num": numeric,
-                "__reprog_txt": raw_series.astype(str).str.casefold(),
+                "__reprog_txt": raw_text.str.casefold(),
             },
             index=source_df.index,
         )

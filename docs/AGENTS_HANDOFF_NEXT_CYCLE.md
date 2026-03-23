@@ -2,7 +2,98 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-21 08h20
+## CURRENT TRUTH 2026-03-23 16h55
+
+- Objetivo consolidado desta rodada:
+  1. corrigir a regressao visivel de `<NA>` em exibicao.
+  2. fechar o mesmo vazamento de contrato em filtro por coluna, filtros avancados e sort de `num_reprogramacoes`.
+  3. registrar explicitamente que a causa foi a entrada global de nullable dtypes sem fechamento completo dos callsites.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. contexto funcional que gerou a regressao:
+     - `06a06e2f` `STABILITY_PATCH: keep nullable ints on DB reads`
+     - `ef5c7680` `STABILITY_PATCH: keep numero_ssa storage canonical`
+  3. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/cli_enhancements.json`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+- Diagnostico tecnico consolidado:
+  1. o `<NA>` vinha de `pd.NA` escapando de `query_db()` para a exibicao.
+  2. o erro primario estava em [utils/formatting.py](C:/Users/mauri/git/SSA_Consulta_Rapida/utils/formatting.py):
+     - `_is_nullish()` cobria `None`, `NaN`, `NaT`
+     - nao cobria `pd.NA`
+  3. a segunda camada do problema estava em caminhos funcionais com `astype(str)`:
+     - [gui/mixins/filter_gui_ssa_mixin.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/mixins/filter_gui_ssa_mixin.py)
+     - [gui/ssa/gui_filters_advanced_logic.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/ssa/gui_filters_advanced_logic.py)
+     - [gui/gui_ssa.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/gui_ssa.py)
+  4. o patch final desta rodada:
+     - `pd.NA` agora vira vazio na exibicao compartilhada
+     - filtro por coluna e filtros avancados usam `astype("string").fillna("")`
+     - sort de `num_reprogramacoes` usa `Float64`/texto vazio coerentes com `pd.NA`
+  5. mudancas intencionais que permanecem:
+     - `numero_ssa` textual/canonico
+     - semanas e reprogramacoes como inteiros nullable no readback
+- Validacao consolidada:
+  1. `py_compile`, `ruff` e `ty` verdes no escopo alterado.
+  2. `tests/test_formatting.py` -> `4 passed`.
+  3. `tests/test_formatting.py tests/test_gui_filter_logic.py -k "nullable or num_reprogramacoes or column_filter or advanced_filter or format"` -> `32 passed, 142 deselected`.
+  4. `tests/test_database.py tests/test_formatting.py -k "query_db or format"` -> `9 passed, 8 deselected`.
+- Pendencia ainda aberta para o proximo ciclo:
+  1. revisar o resto dos `astype(str)` fora dos caminhos centrais para decidir se sao apenas comparacao interna aceitavel ou se ainda escondem vazamento de contrato.
+
+## HISTORICAL SNAPSHOT 2026-03-22 23h20
+
+- Objetivo consolidado desta rodada:
+  1. fechar o bug real do salto para SSA fora do `df_exibido` no fluxo assincrono.
+  2. estabilizar a integracao entre facade da janela, mixin de filtro e detalhes.
+  3. travar regressao com cobertura maior e repro manual do caso real.
+- Estado confirmado:
+  1. branch alvo: `dev`.
+  2. commit funcional novo:
+     - `f03b9721` `HOTFIX_BLOCKER: stabilize async jump to SSA`
+  3. residuos locais fora de escopo continuam presentes:
+     - `M .python-version`
+     - `M config/cli_enhancements.json`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+- Diagnostico tecnico consolidado:
+  1. o bug real estava no fluxo:
+     - `_jump_to_ssa()` -> `initiate_filtering()` -> `on_filter_finished()` -> retorno ao salto
+  2. no modo assincrono, o salto tentava continuar cedo demais quando a SSA alvo ainda nao estava em `df_exibido`.
+  3. a tentativa inicial de hotfix so ficou correta depois que a matriz maior expôs dois regressos laterais:
+     - decimal artifact em `_normalize_ssa_value`
+     - facade `_jump_to_ssa` sem aceitar `_allow_refilter`
+  4. o patch final:
+     - guarda jump pendente com `request_id`
+     - consome o jump so depois do resultado ativo do filtro
+     - preserva o contrato anterior de normalizacao da GUI
+  5. licao operacional:
+     - nao confiar em teste de helper/call_count para fluxo que cruza facade + mixin + render + detalhes
+     - usar matriz maior e repro manual sempre que houver mudanca em navegacao/assincronismo
+- Validacao consolidada:
+  1. `py_compile`, `ruff` e `ty` verdes no escopo.
+  2. `tests/test_gui_filter_logic.py tests/test_gui_table_render_resilience.py` -> `177 passed, 1 skipped`.
+  3. repro manual do caso alvo:
+     - `resolved=True`
+     - `page=2`
+     - `details_ssa=100157`
+     - `selected_rows=[12]`
+     - `pending_jump=None`
+
+## HISTORICAL SNAPSHOT 2026-03-21 08h20
 
 - Objetivo consolidado desta rodada:
   1. fechar o bug real de lentidao no refinamento sequencial do CLI.

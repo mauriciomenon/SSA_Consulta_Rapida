@@ -2056,7 +2056,7 @@ class FilterGUISSAMixin:
             raw_str = str(raw).strip()
             if not raw_str:
                 continue
-            col_series = working_df[col].astype(str)
+            col_series = working_df[col].astype("string").fillna("")
             col_mask = self._build_column_mask(col_series, raw_str)
             if self._should_match_date_display_filter(col, raw_str):
                 display_dates = self._get_column_filter_date_display_series(working_df, col)

@@ -2,7 +2,103 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-21 08h20
+## CURRENT TRUTH 2026-03-23 16h55
+
+- Objetivo consolidado desta rodada:
+  1. corrigir a regressao visivel de `<NA>` em tela introduzida apos a mudanca global de readback para nullable dtypes.
+  2. fechar os vazamentos funcionais do mesmo contrato em filtro por coluna, filtros avancados e sort de `num_reprogramacoes`.
+  3. registrar com clareza o que mudou de contrato por descuido e o que continua intencional.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. commits funcionais anteriores que originaram o contexto desta regressao:
+     - `06a06e2f` `STABILITY_PATCH: keep nullable ints on DB reads`
+     - `ef5c7680` `STABILITY_PATCH: keep numero_ssa storage canonical`
+  3. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/cli_enhancements.json`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+- Diagnostico consolidado desta rodada:
+  1. a regressao do `<NA>` nao era de layout; era de contrato de dados:
+     - [armazenamento/database.py](C:/Users/mauri/git/SSA_Consulta_Rapida/armazenamento/database.py) passou a usar `dtype_backend="numpy_nullable"`
+     - isso fez `query_db()` devolver `pd.NA` e dtypes nullable em caminhos que antes entregavam `None`/`NaN`
+     - [utils/formatting.py](C:/Users/mauri/git/SSA_Consulta_Rapida/utils/formatting.py) nao reconhecia `pd.NA`, entao a exibicao caia em `str(value)` e vazava `"<NA>"`
+  2. o primeiro hotfix correto ficou no formatador central:
+     - `pd.NA` agora e nullish e vira string vazia na camada de exibicao compartilhada entre GUI/CLI
+  3. a matriz seguinte expôs um segundo efeito colateral funcional:
+     - filtros e sort ainda tinham coercao textual crua via `astype(str)`
+     - isso permitia que `pd.NA` virasse `"<NA>"` em match/sort internos
+  4. o patch funcional desta rodada:
+     - [gui/mixins/filter_gui_ssa_mixin.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/mixins/filter_gui_ssa_mixin.py): filtro por coluna passa a usar `astype("string").fillna("")`
+     - [gui/ssa/gui_filters_advanced_logic.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/ssa/gui_filters_advanced_logic.py): filtros avancados idem
+     - [gui/gui_ssa.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/gui_ssa.py): sort de `num_reprogramacoes` agora trata `pd.NA` como vazio textual e usa numerico nullable coerente
+  5. mudancas de contrato que permanecem intencionais:
+     - `numero_ssa` segue textual/canonico
+     - semanas e reprogramacoes seguem nullable inteiros no readback
+     - render frio e salto para SSA continuam no contrato otimizado entregue nas rodadas anteriores
+- Validacao relevante ja executada:
+  1. `uv run --python 3.13 python -m py_compile utils/formatting.py tests/test_formatting.py gui/mixins/filter_gui_ssa_mixin.py gui/ssa/gui_filters_advanced_logic.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+  2. `uv run --python 3.13 ruff check utils/formatting.py tests/test_formatting.py gui/mixins/filter_gui_ssa_mixin.py gui/ssa/gui_filters_advanced_logic.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+  3. `uv run --python 3.13 ty check utils/formatting.py tests/test_formatting.py gui/mixins/filter_gui_ssa_mixin.py gui/ssa/gui_filters_advanced_logic.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_formatting.py` -> `4 passed`.
+  5. `uv run --python 3.13 python -m pytest -q tests/test_formatting.py tests/test_gui_filter_logic.py -k "nullable or num_reprogramacoes or column_filter or advanced_filter or format"` -> `32 passed, 142 deselected`.
+  6. `uv run --python 3.13 python -m pytest -q tests/test_database.py tests/test_formatting.py -k "query_db or format"` -> `9 passed, 8 deselected`.
+- Leitura operacional:
+  1. o erro desta rodada foi deixar um contrato novo de readback entrar sem fechar todos os callsites que stringificam valores faltantes.
+  2. o formatador central agora esta alinhado, mas ainda existe legado de `astype(str)` fora dos caminhos centrais e isso deve continuar sob vigilancia.
+
+## HISTORICAL SNAPSHOT 2026-03-22 23h20
+
+- Objetivo consolidado desta rodada:
+  1. fechar o bug real do salto para SSA quando o alvo estava fora do `df_exibido` atual no fluxo assincrono.
+  2. corrigir os dois regressos reais que a matriz ampla expôs durante a tentativa de hotfix.
+  3. registrar a licao operacional: teste estreito de helper nao basta para fluxos que cruzam facade, mixin e detalhes.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. commit funcional novo desta rodada:
+     - `f03b9721` `HOTFIX_BLOCKER: stabilize async jump to SSA`
+  3. working tree local continua sujo fora de escopo e nao deve ser limpo automaticamente:
+     - `M .python-version`
+     - `M config/cli_enhancements.json`
+     - `M config/gui_main_preferences.json`
+     - `M data/ssas.db`
+     - `M pyproject.toml`
+     - `M requirements_build.txt`
+     - `?? .backups/*`
+     - `?? config/cli_enhancements.json.lock`
+     - `?? docs_entrada/*.xlsx`
+     - `?? *.bak.*`
+- Diagnostico consolidado desta rodada:
+  1. o bug real estava em [gui_details.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/ssa/gui_details.py):
+     - `_jump_to_ssa()` disparava `initiate_filtering()` quando o alvo nao estava no resultado atual
+     - no caminho assincrono, a reavaliacao acontecia cedo demais e o salto se perdia
+  2. a tentativa inicial de hotfix revelou dois regressos reais que a cobertura estreita nao pegou:
+     - perda do contrato de decimal artifact em `_normalize_ssa_value("121911787.0")`
+     - facade de [gui_ssa.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/gui_ssa.py) sem aceitar o parametro interno `_allow_refilter`
+  3. a correcao final entregue:
+     - `filter_gui_ssa_mixin.py` consome um jump pendente apos `on_filter_finished()`
+     - `gui_details.py` preserva o contrato funcional de normalizacao usado pela GUI
+     - `gui_ssa.py` alinha o facade `_jump_to_ssa(...)` ao contrato interno do hotfix
+  4. licao aprendida:
+     - este fluxo cruza `gui_details.py`, `gui_table.py`, `gui_ssa.py` e `filter_gui_ssa_mixin.py`
+     - teste de helper/call_count nao bastava; foi preciso matriz ampla + repro manual do fluxo assincrono real
+- Validacao relevante ja executada:
+  1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/ssa/gui_details.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py tests/test_gui_table_render_resilience.py` -> pass.
+  2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/ssa/gui_details.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py tests/test_gui_table_render_resilience.py` -> pass.
+  3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/ssa/gui_details.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py tests/test_gui_table_render_resilience.py` -> pass.
+  4. `uv run --python 3.13 python -m pytest -q tests/test_gui_filter_logic.py tests/test_gui_table_render_resilience.py` -> `177 passed, 1 skipped`.
+  5. repro manual do caso que tinha passado batido:
+     - alvo fora do `df_exibido`
+     - filtro assincrono
+     - resultado final: `resolved=True`, `page=2`, `details_ssa=100157`, `selected_rows=[12]`, `pending_jump=None`
+
+## HISTORICAL SNAPSHOT 2026-03-21 08h20
 
 - Objetivo consolidado desta rodada:
   1. fechar o bug real de performance no refinamento sequencial do CLI.
