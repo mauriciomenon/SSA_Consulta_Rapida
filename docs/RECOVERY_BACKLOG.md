@@ -3,6 +3,51 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-23 19:01 - diagnostico local do full rescan alinhado ao contrato real (DOC_SYNC + DEFERRED_NOTE)
+
+Session timestamp:
+1. start: `2026-03-23 19:01:32 -0300`
+2. fim: `2026-03-23 19:01:32 -0300`
+
+Objetivo do slice:
+1. confrontar a suspeita do `439` com o codigo atual de discovery/import sem editar runtime.
+2. medir a elegibilidade real do corpus local.
+3. sincronizar docs para parar de tratar hash/cache como hipotese primaria sem evidencia.
+
+Diagnostico objetivo:
+1. o discovery atual usa apenas arquivos `.xlsx` na raiz de `docs_entrada` e, opcionalmente, em `processadas/`.
+2. o pipeline principal ignora `.xls` legado por design.
+3. em full rescan, `include_processadas` e forcosamente desligado e `nosurvivor` entra em `ignore_subdirs`.
+4. nesta maquina, a contagem real ficou:
+   - `625` arquivos totais em `docs_entrada`
+   - `489` arquivos `.xlsx` recursivos
+   - `489` arquivos `.xlsx` elegiveis na raiz
+   - `0` arquivos `.xlsx` em `processadas/`
+   - `135` arquivos `.xls` ignorados pelo pipeline principal
+5. `_get_files_to_process(..., force_import=True)` devolveu `489`.
+6. leitura atual:
+   - nao apareceu limite local escondido de quantidade de arquivos
+   - nao apareceu evidencia local de lista/hash viciada prendendo o total
+   - se o desktop de trabalho parou em `439`, a hipotese principal agora e corpus elegivel/discovery naquela maquina
+
+Validacao:
+1. `uv run --python 3.13 python -m pytest -q tests/test_caching.py tests/test_import_run_report.py tests/test_import_derivadas_trigger.py tests/test_rescan_worker_advanced.py` -> `62 passed`.
+2. `uv run --python 3.13 python -m pytest -q tests/test_database.py tests/test_formatting.py tests/test_robust_importer.py tests/test_derivadas_sync.py` -> `50 passed`.
+3. `uv run --python 3.13 python -m pytest -q tests/test_gui_filters_advanced_logic.py tests/test_gui_table_render_resilience.py` -> `27 passed`.
+4. `uv run --python 3.13 python -m pytest -q tests/test_workers_advanced.py tests/test_main_streamlit_launcher.py tests/test_open_docs_folder_nonblocking.py tests/test_cli_loop_filter_rounds.py` -> `75 passed`.
+5. `uv run --python 3.13 python -m pytest -q tests/test_gui_filter_logic.py -k "refresh_advanced_filter_options_excludes_na_literal_from_sector_values or on_header_clicked_sorts_num_reprogramacoes_mixed_types or on_header_clicked_reuses_num_reprogramacoes_sort_cache or column_filter_treats_nullable_text_as_empty_instead_of_na_literal or advanced_filter_include_ignores_nullable_text_instead_of_na_literal or num_reprogramacoes_sort_keys_treat_nullable_values_as_empty_text or num_reprogramacoes_sort_rebuilds_stale_cache_with_mismatched_index"` -> `7 passed, 164 deselected`.
+6. `uv run --python 3.13 python -m pytest -q tests/test_gui_filter_logic.py` -> limitacao de harness neste ambiente; timeout seguido de `OSError: [Errno 22] Invalid argument` em `sys.stdout.flush()`, sem finding funcional novo do runtime.
+
+Licoes aprendidas:
+1. para este caso, discovery elegivel e a primeira fonte de verdade antes de culpar cache/hash.
+2. `full rescan` hoje nao significa varredura recursiva de qualquer Excel sob `docs_entrada`.
+3. o proximo passo correto e decisao de produto/contrato sobre ampliar discovery, nao patch cego em cache.
+
+Pendencias nao bloqueantes abertas:
+1. decidir explicitamente se o contrato de importacao deve permanecer `root .xlsx only`.
+2. se a resposta for nao, abrir slice minimo para incluir subpastas arbitrarias e/ou `.xls`, com teste de contrato.
+3. manter a limitacao do harness de `tests/test_gui_filter_logic.py` registrada como problema de ambiente ate reproduzir fora deste terminal.
+
 ## Update 2026-03-23 17:20 - full rescan possivelmente preso em 439 arquivos (DEFERRED_NOTE)
 
 Session timestamp:

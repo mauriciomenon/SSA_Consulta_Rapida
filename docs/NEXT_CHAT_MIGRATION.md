@@ -2,12 +2,12 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-23 17h20
+## CURRENT TRUTH 2026-03-23 19h01
 
 - Objetivo consolidado desta rodada:
   1. corrigir a regressao visivel de `<NA>` em tela introduzida apos a mudanca global de readback para nullable dtypes.
   2. fechar os vazamentos funcionais equivalentes em filtro por coluna, filtros avancados, derivadas e subset dependente de setores.
-  3. registrar o proximo bloco critico de diagnostico: full rescan possivelmente preso em `439` arquivos no desktop de trabalho.
+  3. fechar o diagnostico local do full rescan que no desktop de trabalho apareceu preso em `439` arquivos.
 - Estado atual do git:
   1. branch ativa: `dev`.
   2. commits funcionais anteriores que originaram o contexto desta regressao:
@@ -48,9 +48,17 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `numero_ssa` segue textual/canonico
      - semanas e reprogramacoes seguem nullable inteiros no readback
      - render frio e salto para SSA continuam no contrato otimizado entregue nas rodadas anteriores
-  7. nova suspeita aberta, ainda sem alteracao de runtime:
-     - full rescan aparentemente preso em `439` arquivos mesmo com novos Excels adicionados
-     - hipoteses iniciais: lista de hash/cache viciada, enumeracao incompleta de arquivos, ou filtro silencioso no discovery
+  7. diagnostico local do full rescan fechado, ainda sem alteracao de runtime:
+     - o discovery atual usa `.xlsx` na raiz de `docs_entrada` e, opcionalmente, em `processadas/`
+     - o pipeline principal ignora `.xls` legado por design
+     - nesta maquina, a contagem real ficou:
+       - `625` arquivos totais em `docs_entrada`
+       - `489` arquivos `.xlsx` recursivos
+       - `489` arquivos `.xlsx` elegiveis na raiz
+       - `0` arquivos `.xlsx` em `processadas/`
+       - `135` arquivos `.xls` ignorados pelo pipeline principal
+     - `_get_files_to_process(..., force_import=True)` devolveu `489`
+     - leitura atual: se o desktop de trabalho parou em `439`, a hipotese principal agora e corpus elegivel/discovery naquela maquina, nao lista/hash viciada
 - Validacao relevante ja executada:
   1. `uv run --python 3.13 python -m py_compile utils/formatting.py tests/test_formatting.py gui/mixins/filter_gui_ssa_mixin.py gui/ssa/gui_filters_advanced_logic.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
   2. `uv run --python 3.13 ruff check utils/formatting.py tests/test_formatting.py gui/mixins/filter_gui_ssa_mixin.py gui/ssa/gui_filters_advanced_logic.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
@@ -61,10 +69,16 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   7. `uv run --python 3.13 python -m pytest -q tests/test_gui_filters_advanced_logic.py` -> `16 passed`.
   8. `uv run --python 3.13 python -m pytest -q tests/test_gui_table_render_resilience.py` -> `11 passed`.
   9. `uv run --python 3.13 python -m pytest -q tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py -k "derivada_all_ste or divisao or refresh_advanced_filter_options_excludes_na_literal_from_sector_values"` -> `4 passed, 183 deselected`.
+  10. `uv run --python 3.13 python -m pytest -q tests/test_caching.py tests/test_import_run_report.py tests/test_import_derivadas_trigger.py tests/test_rescan_worker_advanced.py` -> `62 passed`.
+  11. `uv run --python 3.13 python -m pytest -q tests/test_database.py tests/test_formatting.py tests/test_robust_importer.py tests/test_derivadas_sync.py` -> `50 passed`.
+  12. `uv run --python 3.13 python -m pytest -q tests/test_gui_filters_advanced_logic.py tests/test_gui_table_render_resilience.py` -> `27 passed`.
+  13. `uv run --python 3.13 python -m pytest -q tests/test_workers_advanced.py tests/test_main_streamlit_launcher.py tests/test_open_docs_folder_nonblocking.py tests/test_cli_loop_filter_rounds.py` -> `75 passed`.
+  14. `uv run --python 3.13 python -m pytest -q tests/test_gui_filter_logic.py -k "refresh_advanced_filter_options_excludes_na_literal_from_sector_values or on_header_clicked_sorts_num_reprogramacoes_mixed_types or on_header_clicked_reuses_num_reprogramacoes_sort_cache or column_filter_treats_nullable_text_as_empty_instead_of_na_literal or advanced_filter_include_ignores_nullable_text_instead_of_na_literal or num_reprogramacoes_sort_keys_treat_nullable_values_as_empty_text or num_reprogramacoes_sort_rebuilds_stale_cache_with_mismatched_index"` -> `7 passed, 164 deselected`.
+  15. `uv run --python 3.13 python -m pytest -q tests/test_gui_filter_logic.py` -> limitacao de harness neste ambiente; timeout seguido de `OSError: [Errno 22] Invalid argument` em `sys.stdout.flush()`, sem finding funcional novo do runtime.
 - Leitura operacional:
   1. o erro desta rodada foi deixar um contrato novo de readback entrar sem fechar todos os callsites que stringificam valores faltantes.
   2. os caminhos centrais de exibicao e filtros relevantes ficaram alinhados.
-  3. o proximo foco nao e mais nullable em tela; e o diagnostico do full rescan possivelmente preso em `439` arquivos.
+  3. o proximo foco nao e mais nullable em tela; e decidir se o contrato de importacao deve continuar `root .xlsx only` ou se precisa ampliar discovery de forma explicita.
 
 ## HISTORICAL SNAPSHOT 2026-03-22 23h20
 
