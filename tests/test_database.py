@@ -138,7 +138,10 @@ def test_query_db_success(temp_db_path, sample_dataframe):
     df_result = query_db(temp_db_path, table_name, "SELECT * FROM teste_consulta WHERE idade > ?", (27,))
 
     # 3. Verifica o resultado
-    expected_result = sample_dataframe[sample_dataframe['idade'] > 27]
+    expected_result = sample_dataframe[sample_dataframe['idade'] > 27].copy()
+    expected_result["id"] = expected_result["id"].astype("Int64")
+    expected_result["nome"] = expected_result["nome"].astype("string")
+    expected_result["idade"] = expected_result["idade"].astype("Int64")
     pd.testing.assert_frame_equal(df_result.sort_values('id').reset_index(drop=True),
                                   expected_result.sort_values('id').reset_index(drop=True))
 
@@ -163,6 +166,52 @@ def test_query_db_empty_result(temp_db_path, sample_dataframe):
     assert df_result.empty
     # Verifica se as colunas estão corretas mesmo com resultado vazio
     assert list(df_result.columns) == ['id', 'nome', 'idade']
+
+
+def test_query_db_keeps_nullable_integer_columns_without_float_promotion(temp_db_path):
+    table_name = "teste_nullable_ints"
+
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS teste_nullable_ints (
+                numero_ssa TEXT,
+                semana_cadastro INTEGER,
+                semana_programada INTEGER,
+                num_reprogramacoes INTEGER,
+                total_de_reprogramacoes INTEGER
+            );
+            """
+        )
+        conn.executemany(
+            """
+            INSERT INTO teste_nullable_ints (
+                numero_ssa,
+                semana_cadastro,
+                semana_programada,
+                num_reprogramacoes,
+                total_de_reprogramacoes
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            [
+                ("202500001", 202501, 202510, 2, 5),
+                ("202500002", None, 202511, None, 6),
+                ("202500003", 202503, None, 3, None),
+            ],
+        )
+        conn.commit()
+
+    df_result = query_db(temp_db_path, table_name)
+
+    assert str(df_result["numero_ssa"].dtype) == "string"
+    assert str(df_result["semana_cadastro"].dtype) == "Int64"
+    assert str(df_result["semana_programada"].dtype) == "Int64"
+    assert str(df_result["num_reprogramacoes"].dtype) == "Int64"
+    assert str(df_result["total_de_reprogramacoes"].dtype) == "Int64"
+    assert df_result["semana_cadastro"].tolist() == [202501, pd.NA, 202503]
+    assert df_result["semana_programada"].tolist() == [202510, 202511, pd.NA]
+    assert df_result["num_reprogramacoes"].tolist() == [2, pd.NA, 3]
+    assert df_result["total_de_reprogramacoes"].tolist() == [5, 6, pd.NA]
 
 
 def test_query_db_sql_error_returns_empty_df_when_raise_disabled(temp_db_path):
