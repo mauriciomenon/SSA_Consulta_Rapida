@@ -66,6 +66,13 @@ DATE_COLUMNS_CANDIDATES = [
     "desde_1",
 ]
 
+SSA_IDENTIFIER_COLUMNS = (
+    "derivada_de",
+    "numero_ssa_relacionada_1",
+    "numero_ssa_relacionada_2",
+    "numero_ssa_relacionada_3",
+)
+
 # Nota: threshold de serial Excel removido; lógica atual delega ao parse_any_date que
 # já trata serials realistas e ignora ruídos sem depender de limite arbitrário.
 
@@ -549,6 +556,18 @@ def import_excel_robust(
             logger.debug(
                 "[import_excel_robust] numero_ssa apos limpeza: %s",
                 work_df['numero_ssa'].head().tolist(),
+            )
+
+    for column_name in SSA_IDENTIFIER_COLUMNS:
+        if column_name not in work_df.columns:
+            continue
+        cleaned_series, _ = _clean_numero_ssa_series(work_df[column_name])
+        work_df[column_name] = cleaned_series.astype("string")
+        if debug_enabled:
+            logger.debug(
+                "[import_excel_robust] %s apos limpeza canonica: %s",
+                column_name,
+                work_df[column_name].head().tolist(),
             )
 
     # Datas
