@@ -39,13 +39,19 @@ PYINSTALLER_CANONICAL_DIRS = (
     "launchers/dist/debian_amd64",
 )
 EXCLUDED_BUNDLE_ITEMS = {
+    "data",
+    "docs_entrada",
     "logs",
     "reports",
     "exportacao",
     "historico_backups",
 }
 
-SENSITIVE_LOCAL_EXTENSIONS: set[str] = set()
+SENSITIVE_LOCAL_EXTENSIONS: set[str] = {
+    ".db",
+    ".xls",
+    ".xlsx",
+}
 
 # Informacoes dos build systems
 BUILD_SYSTEMS = {

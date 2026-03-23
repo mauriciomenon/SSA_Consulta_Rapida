@@ -956,6 +956,10 @@ def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
     if not os.path.exists(db_path):
         return None
     logger.info("Preparando full rescan: checkpoint WAL e rotacao de banco.")
+    preexisting_sidecars = {
+        suffix: os.path.exists(f"{db_path}{suffix}")
+        for suffix in ("-wal", "-shm")
+    }
     last_error: Optional[Exception] = None
     for attempt in range(1, 4):
         conn: Optional[sqlite3.Connection] = None
@@ -1006,14 +1010,20 @@ def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
         )
         for suffix in ("-wal", "-shm"):
             sidecar = f"{db_path}{suffix}"
-            if not os.path.exists(sidecar):
-                continue
             sidecar_backup = f"{backup_path}{suffix}"
-            os.replace(sidecar, sidecar_backup)
-            logger.info(
-                "Arquivo auxiliar do banco movido para backup: %s",
-                os.path.basename(sidecar_backup),
-            )
+            if os.path.exists(sidecar):
+                os.replace(sidecar, sidecar_backup)
+                logger.info(
+                    "Arquivo auxiliar do banco movido para backup: %s",
+                    os.path.basename(sidecar_backup),
+                )
+                continue
+            if preexisting_sidecars.get(suffix):
+                Path(sidecar_backup).touch()
+                logger.info(
+                    "Arquivo auxiliar do banco preservado como placeholder no backup: %s",
+                    os.path.basename(sidecar_backup),
+                )
     except OSError as exc:
         raise DatabaseError(
             f"Falha ao preparar banco limpo para full rescan: {exc}"
@@ -2318,9 +2328,14 @@ def filter_dataframe(
             return row_search_text.str.contains(lowered, regex=False, na=False)
         if mode == "regex":
             try:
-                return _contains(pattern, regex=True)
+                return base_lower_df.apply(
+                    lambda col: col.str.contains(pattern, case=False, na=False, regex=True)
+                ).any(axis=1)
             except re.error:
-                return _contains(pattern, regex=False)
+                lowered = str(pattern).casefold()
+                return base_lower_df.apply(
+                    lambda col: col.str.contains(lowered, regex=False, na=False)
+                ).any(axis=1)
 
         lowered = str(value).casefold()
         if mode == "prefix":

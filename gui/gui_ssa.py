@@ -3238,7 +3238,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 skipped += 1
                 continue
 
-            destination = self._build_unique_destination_path(base_destination)
+            destination = SSAMainWindow._build_unique_destination_path(
+                self,
+                base_destination,
+            )
 
             try:
                 shutil.copy2(source, destination)
