@@ -302,7 +302,7 @@ def _prepare_dataframe_for_simple_insert(df: pd.DataFrame, *, legacy_mode: bool)
         raise
 
     if 'numero_ssa' in work_df.columns:
-        work_df['numero_ssa'] = work_df['numero_ssa'].apply(_normalize_numero_ssa_value)
+        work_df['numero_ssa'] = work_df['numero_ssa'].apply(_normalize_numero_ssa_storage)
         work_df = work_df[work_df['numero_ssa'].notna()].reset_index(drop=True)
 
     if work_df.empty and legacy_mode:
@@ -712,10 +712,11 @@ def insert_dataframe_with_smart_upsert(
             return False
 
 
+from .numero_ssa_utils import _normalize_numero_ssa_value  # noqa: E402, F401
 from .numero_ssa_utils import (  # noqa: E402
-    _normalize_numero_ssa_value,  # legado (int)
     normalize_numero_ssa as _normalize_numero_ssa_display,
     normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe,
+    normalize_numero_ssa_storage as _normalize_numero_ssa_storage,
 )
 
 

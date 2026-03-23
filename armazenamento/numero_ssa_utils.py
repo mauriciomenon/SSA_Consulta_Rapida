@@ -31,6 +31,7 @@ NUMERO_SSA_ANO_MAX = 2050
 __all__ = [
     # núcleo strict
     "normalize_numero_ssa_strict",
+    "normalize_numero_ssa_storage",
     # nomes legados expostos (valor inteiro e formato display)
     "_normalize_numero_ssa_value",
     "normalize_numero_ssa",
@@ -78,6 +79,17 @@ def _normalize_numero_ssa_value(value) -> int | None:
         return int(digits)
     except Exception:  # pragma: no cover
         return None
+
+
+def normalize_numero_ssa_storage(value) -> str | None:
+    """Return canonical storage form for numero_ssa as text."""
+    strict_value = normalize_numero_ssa_strict(value)
+    if strict_value is not None:
+        return strict_value
+    legacy_value = normalize_numero_ssa(value)
+    if legacy_value is None:
+        return None
+    return normalize_numero_ssa_strict(legacy_value)
 
 
 def batch_normalize_series(series: pd.Series) -> pd.Series:
