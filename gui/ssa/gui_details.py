@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import html as html_module
 import os
-import re
 
 import pandas as pd
 
@@ -404,14 +403,15 @@ def _normalize_ssa_value(window, value):
     text = str(raw).strip()
     if not text:
         return ""
-    # Preserve integer value when represented as decimal string.
-    if re.fullmatch(r"\d+\.0+", text):
-        text = text.split(".", 1)[0]
+    if text.count(".") == 1:
+        whole, fractional = text.split(".", 1)
+        if whole.isdigit() and fractional and set(fractional) <= {"0"}:
+            text = whole
     lowered = text.casefold()
     if lowered in ("nan", "none", "nat", "<na>"):
         return ""
     try:
-        digits = re.sub(r"\D", "", text)
+        digits = "".join(ch for ch in text if ch.isdigit())
     except Exception:
         digits = ""
     if digits:
@@ -422,11 +422,10 @@ def _normalize_ssa_value(window, value):
 def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
     """Normaliza valores de SSA em modo vetorizado (mais rapido que apply)."""
     try:
-        s = series.astype(str).str.strip()
-        # Normalize decimal integer strings to plain digits (e.g. 121911787.0).
+        s = series.astype("string").fillna("").str.strip()
         s = s.str.replace(r"^(\d+)\.0+$", r"\1", regex=True)
         lowered = s.str.casefold()
-        empty_mask = s.isna() | s.eq("") | lowered.isin(("nan", "none", "nat", "<na>"))
+        empty_mask = s.eq("") | lowered.isin(("nan", "none", "nat", "<na>"))
         digits = s.str.replace(r"\D+", "", regex=True)
         out = digits.where(digits.ne(""), lowered)
         return out.where(~empty_mask, "")
@@ -441,10 +440,13 @@ def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
 def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
     if df is None or column_name not in getattr(df, "columns", []):
         return pd.Series(dtype="object")
-    cache = getattr(window, "_ssa_norm_cache", None)
+    cache_owner = getattr(window, "cache_manager", None)
+    if cache_owner is None:
+        cache_owner = window
+    cache = getattr(cache_owner, "_ssa_norm_cache", None)
     if not isinstance(cache, dict):
         cache = {}
-        window._ssa_norm_cache = cache
+        setattr(cache_owner, "_ssa_norm_cache", cache)
     key = (id(df), str(column_name))
     cached = cache.get(key)
     if isinstance(cached, pd.Series) and len(cached) == len(df):
@@ -620,29 +622,61 @@ def _get_derivadas_for_ssa(window, numero_ssa):
         return []
 
 
-def _jump_to_ssa(window, numero_ssa):
+def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
     num_norm = _normalize_ssa_value(window, numero_ssa)
     if not num_norm:
         return
     try:
-        def _find_position(df):
-            if df is None or df.empty or "numero_ssa" not in df.columns:
-                return None
-            df_reset_local = df.reset_index(drop=True)
-            # Avoid caching for this temporary reset_index DataFrame.
-            series_norm_local = _normalize_ssa_series(window, df_reset_local["numero_ssa"])
-            mask_local = series_norm_local.eq(num_norm)
-            if not mask_local.any():
-                return None
-            return int(mask_local[mask_local].index[0])
-
-        pos = _find_position(window.df_exibido)
-        if pos is None:
+        pos = None
+        if (
+            window.df_exibido is not None
+            and not window.df_exibido.empty
+            and "numero_ssa" in window.df_exibido.columns
+        ):
+            series_norm = _get_cached_normalized_series(window, window.df_exibido, "numero_ssa")
+            mask = series_norm.eq(num_norm)
+            if mask.any():
+                positions = mask.to_numpy().nonzero()[0]
+                if len(positions) > 0:
+                    pos = int(positions[0])
+        if pos is None and _allow_refilter:
             window.search_input.setText(f"={num_norm}")
             window.initiate_filtering()
-            pos = _find_position(window.df_exibido)
-            if pos is None:
+            request_id = getattr(window, "_active_filter_request_id", None)
+            filter_thread = getattr(window, "filter_thread", None)
+            is_async_inflight = False
+            try:
+                is_async_inflight = bool(
+                    filter_thread is not None
+                    and hasattr(filter_thread, "isRunning")
+                    and filter_thread.isRunning()
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao verificar worker pendente no salto para SSA %s: %s",
+                    num_norm,
+                    exc,
+                )
+                is_async_inflight = False
+            if is_async_inflight and request_id is not None:
+                window._pending_jump_to_ssa = {
+                    "numero_ssa": num_norm,
+                    "request_id": request_id,
+                }
                 return
+            if (
+                window.df_exibido is not None
+                and not window.df_exibido.empty
+                and "numero_ssa" in window.df_exibido.columns
+            ):
+                series_norm = _get_cached_normalized_series(window, window.df_exibido, "numero_ssa")
+                mask = series_norm.eq(num_norm)
+                if mask.any():
+                    positions = mask.to_numpy().nonzero()[0]
+                    if len(positions) > 0:
+                        pos = int(positions[0])
+        if pos is None:
+            return
         page_size = int(getattr(window.paginator, "page_size", 50))
         if page_size <= 0:
             logger.warning("Page size invalido ao saltar para SSA %s: %s", num_norm, page_size)

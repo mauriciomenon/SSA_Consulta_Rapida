@@ -1876,6 +1876,43 @@ class TestGUIFilterLogic:
         selected_rows = self.window.table_widget.selectionModel().selectedRows()
         assert [idx.row() for idx in selected_rows] == [57]
 
+    def test_jump_to_ssa_waits_for_async_filter_when_target_is_outside_current_view(self):
+        rows = 220
+        df = self._build_heavy_filters_df(rows)
+        target_pos = 157
+        target_ssa = str(df.iloc[target_pos]["numero_ssa"])
+
+        self.window._sync_filtering = False
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.iloc[:50].copy().reset_index(drop=True)
+        self.window._df_last_search_filtered = self.window.df_exibido.copy()
+        self.window.paginator.page_size = 50
+        self.window.paginator.set_dataframe(self.window.df_exibido.copy())
+
+        self.window._jump_to_ssa(target_ssa)
+
+        deadline = time.time() + 5.0
+        resolved = False
+        while time.time() < deadline:
+            QApplication.processEvents()
+            selected_rows = self.window.table_widget.selectionModel().selectedRows()
+            if selected_rows:
+                row = selected_rows[0].row()
+                row_series = self.window._get_series_from_row(row)
+                row_ssa = str(row_series.get("numero_ssa"))
+                if (
+                    str(getattr(self.window, "_details_current_ssa", "")) == target_ssa
+                    and row_ssa == target_ssa
+                ):
+                    resolved = True
+                    break
+            time.sleep(0.01)
+
+        assert resolved is True
+        assert str(getattr(self.window, "_details_current_ssa", "")) == target_ssa
+        assert self.window.search_input.text() == f"={target_ssa}"
+        assert getattr(self.window, "_pending_jump_to_ssa", None) is None
+
     def test_header_resize_updates_runtime_column_width_cache(self):
         self.window._current_display_columns = ["#", "descricao_ssa"]
         self.window._saved_gui_column_widths = {}
