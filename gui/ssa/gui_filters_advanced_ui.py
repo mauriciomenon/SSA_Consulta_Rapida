@@ -2165,14 +2165,17 @@ def _refresh_responsavel_options(self, target_prefixes=None):
         if exec_col in subset.columns:
             allowed = set(selected_exec)
             excluded = set(selected_exec_excluded)
+            exec_series = subset[exec_col].astype("string").fillna("")
             if allowed:
-                subset = subset[subset[exec_col].astype(str).isin(allowed)]
+                subset = subset[exec_series.isin(allowed)]
             if excluded:
-                subset = subset[~subset[exec_col].astype(str).isin(excluded)]
+                subset = subset[~exec_series.isin(excluded)]
         if emis_col in subset.columns and selected_emis:
-            subset = subset[subset[emis_col].astype(str).isin(selected_emis)]
+            emis_series = subset[emis_col].astype("string").fillna("")
+            subset = subset[emis_series.isin(selected_emis)]
         if emis_col in subset.columns and selected_emis_excluded:
-            subset = subset[~subset[emis_col].astype(str).isin(selected_emis_excluded)]
+            emis_series = subset[emis_col].astype("string").fillna("")
+            subset = subset[~emis_series.isin(selected_emis_excluded)]
         return subset
 
     if has_sector:
