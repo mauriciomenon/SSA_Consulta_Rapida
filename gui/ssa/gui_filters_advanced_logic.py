@@ -419,9 +419,14 @@ def _compute_derivada_all_ste_origins(
 ) -> set:
     # Compatibilidade: mantemos o nome legado "all_ste", mas SES agora entra
     # na mesma classe funcional de derivada terminal para este filtro.
-    situacao = df.loc[has_derivada, "situacao"].astype(str).str.upper().isin(_DERIVADA_TERMINAL_STATUSES)
-    grouped = situacao.groupby(series_derivada[has_derivada].astype(str)).all()
-    return set(grouped[grouped].index.astype(str).tolist())
+    situacao_series = df.loc[has_derivada, "situacao"].astype("string").fillna("")
+    derivada_series = series_derivada[has_derivada].astype("string").fillna("").str.strip()
+    valid_derivada = derivada_series != ""
+    if not bool(valid_derivada.any()):
+        return set()
+    situacao = situacao_series[valid_derivada].str.upper().isin(_DERIVADA_TERMINAL_STATUSES)
+    grouped = situacao.groupby(derivada_series[valid_derivada]).all()
+    return set(grouped[grouped].index.tolist())
 
 
 def _build_derivadas_tree(
@@ -479,10 +484,10 @@ def _build_derivadas_tree_core(
         numero_clean = clean_cache.get(clean_num_key)
         derivada_clean = clean_cache.get(clean_deriv_key)
         if not isinstance(numero_clean, pd.Series) or len(numero_clean) != len(df):
-            numero_clean = numero_series.astype(str).str.strip()
+            numero_clean = numero_series.astype("string").fillna("").str.strip()
             clean_cache[clean_num_key] = numero_clean
         if not isinstance(derivada_clean, pd.Series) or len(derivada_clean) != len(df):
-            derivada_clean = derivada_series.astype(str).str.strip()
+            derivada_clean = derivada_series.astype("string").fillna("").str.strip()
             clean_cache[clean_deriv_key] = derivada_clean
         prune_adv_cache(clean_cache, MAX_ADV_CACHE_ENTRIES)
         pairs = pd.DataFrame(

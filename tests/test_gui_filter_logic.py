@@ -2668,6 +2668,39 @@ class TestGUIFilterLogic:
         selected = self.window._get_checked_values(checks)
         assert "2" in selected
 
+    def test_refresh_advanced_filter_options_excludes_na_literal_from_sector_values(self):
+        nullable_df = self.base_df.assign(
+            setor_executor=pd.Series([pd.NA, "MEL4", "IEE3", "", "XYZ"], dtype="string"),
+            setor_emissor=pd.Series([pd.NA, "MEL4", "", "MEL3", "XYZ"], dtype="string"),
+        ).copy()
+        self.window.df_completo = nullable_df.copy()
+        self.window.df_exibido = nullable_df.copy()
+        self.window._df_last_search_filtered = nullable_df.copy()
+        self.window.paginator.set_dataframe(nullable_df.copy())
+        self.window._adv_values_cache = None
+        self.window._advanced_filters = {"setor_executor": ["MEL4"]}
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+
+        executor_labels = [
+            str(check.property("value") or "")
+            for check in (getattr(self.window, "adv_executor_checks", []) or [])
+        ]
+        emissor_labels = [
+            str(check.property("value") or "")
+            for check in (getattr(self.window, "adv_emissor_checks", []) or [])
+        ]
+        assert "<NA>" not in executor_labels
+        assert "<NA>" not in emissor_labels
+        assert "MEL4" in executor_labels
+
     def test_on_header_clicked_sorts_num_reprogramacoes_mixed_types(self):
         mixed_df = self.base_df.assign(
             num_reprogramacoes=pd.Series([2, "Reprogramacao #1", 0, "", None], dtype="object")
