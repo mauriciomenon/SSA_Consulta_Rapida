@@ -124,7 +124,7 @@ class JSONFormatter(logging.Formatter):
     
     def format(self, record: logging.LogRecord) -> str:
         """Formata record como JSON estruturado."""
-        log_obj = {
+        log_obj: Dict[str, Any] = {
             'timestamp': datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             'level': record.levelname,
             'logger': record.name,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from dev_env.streamlit_app import (
+    APP_VERSION,
     DEFAULT_STREAMLIT_THEME,
     MAIN_TAB_LABELS,
     MAX_RENDER_TELEMETRY_PROFILES,
@@ -631,7 +632,7 @@ def test_main_tab_labels_kept_stable() -> None:
 
 
 def test_streamlit_app_title_matches_active_version() -> None:
-    assert STREAMLIT_APP_TITLE == "SSA Consulta Rapida v4.33"
+    assert STREAMLIT_APP_TITLE == f"SSA Consulta Rapida v{APP_VERSION}"
 
 
 def test_api_snapshot_available_permutations() -> None:

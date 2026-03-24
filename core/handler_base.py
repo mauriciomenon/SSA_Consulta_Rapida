@@ -4,7 +4,7 @@ Elimina inconsistências nas assinaturas dos handlers (1-6 parâmetros).
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional
 import pandas as pd
 from pathlib import Path
 
@@ -191,7 +191,7 @@ class HandlerBase(ABC):
         format_type = context.output_format.lower()
 
         if format_type == 'json':
-            return cast(str, data.to_json(orient='records', indent=2))
+            return data.to_json(orient='records', indent=2)
         elif format_type == 'csv':
             return data.to_csv(index=False)
         else:  # table (default)
