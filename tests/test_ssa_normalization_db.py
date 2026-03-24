@@ -1,6 +1,10 @@
 # ruff: noqa: E402
+from datetime import datetime
+
 import pandas as pd
-from armazenamento.database import normalize_numero_ssa_dataframe, _normalize_numero_ssa_value
+
+from armazenamento.database import (_normalize_numero_ssa_value,
+                                    normalize_numero_ssa_dataframe)
 
 
 def test_normalize_numero_ssa_value_various():
@@ -29,13 +33,19 @@ sys.path.insert(0, project_root)
 
 from armazenamento.database import normalize_numero_ssa
 
+
 def test_normalize_numero_ssa_basic():
-    # <=5 dígitos: prefixa ano 2025 e preenche para 5
-    assert normalize_numero_ssa('123') == '202500123'
-    # 7 dígitos com zeros à esquerda: após remover zeros fica com 4 -> prefixa ano
-    assert normalize_numero_ssa('0009876') == '202509876'
-    # já com 9 dígitos mantém
+    current_year = datetime.now().year
+    # <=5 digitos: prefixa ano corrente e preenche para 5
+    assert normalize_numero_ssa('123') == f'{current_year}00123'
+    # 7 digitos com zeros a esquerda: apos remover zeros fica com 4 -> prefixa ano corrente
+    assert normalize_numero_ssa('0009876') == f'{current_year}09876'
+    # 7 digitos com ano em 2 digitos aceitam 26+
+    assert normalize_numero_ssa('2601234') == '202601234'
+    # ja com 9 digitos mantem
     assert normalize_numero_ssa('202500045') == '202500045'
+    # >9 nao trunca mais no helper legacy
+    assert normalize_numero_ssa('202512345678') is None
     # vazios/nulos retornam None
     assert normalize_numero_ssa('') is None
     assert normalize_numero_ssa(None) is None

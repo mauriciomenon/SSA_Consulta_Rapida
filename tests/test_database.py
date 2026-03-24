@@ -3,13 +3,14 @@
 Testes unitários para o módulo armazenamento.database.
 """
 
-import pytest
-import pandas as pd
 import os
-import sys
-import tempfile
 import shutil
 import sqlite3
+import sys
+import tempfile
+
+import pandas as pd
+import pytest
 
 # Adiciona a raiz do projeto ao path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -17,7 +18,9 @@ sys.path.insert(0, project_root)
 
 # Importa as funções a serem testadas
 # Assumindo que database.py esteja em armazenamento/database.py
-from armazenamento.database import get_db_connection, query_db, insert_dataframe_to_db  # noqa: E402
+from armazenamento.database import get_db_connection  # noqa: E402
+from armazenamento.database import insert_dataframe_to_db  # noqa: E402
+from armazenamento.database import query_db  # noqa: E402
 
 # --- Fixtures ---
 

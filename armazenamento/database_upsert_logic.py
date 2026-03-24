@@ -19,18 +19,20 @@ DO NOT add top-level imports from database.py - use lazy imports only.
 
 from __future__ import annotations
 
-from typing import Any, cast
+import logging
 import os
+import re
 import sqlite3 as _sqlite3_typehint
 import sys
-import pandas as pd
-import logging
-import numpy as np
-import re
+from typing import Any, cast
 
-from .numero_ssa_utils import _normalize_numero_ssa_value
+import numpy as np
+import pandas as pd
+
 from shared.date_utils import parse_any_date
 from shared.db_names import CANONICAL_SSA_TABLE
+
+from .numero_ssa_utils import normalize_numero_ssa_storage
 
 # Lazy imports from database.py to avoid circular dependency (see line 303)
 
@@ -40,18 +42,9 @@ _VALID_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _VALID_UPSERT_POLICIES = {"consulta_only", "no_short", "all_short"}
 _RUNTIME_SHORT_CIRCUIT_POLICY: str | None = None
 _SQLITE_IN_MAX_VARS = 900
+_TEXTUAL_NULL_SENTINELS = {"", "<na>", "none", "nan", "null", "n/a", "-"}
 
 # Constantes removidas (vindas do util central). Mantidas só se necessário futuro.
-
-
-def _normalize_ssa_storage_value(value) -> str | None:
-    normalized_int = _normalize_numero_ssa_value(value)
-    if normalized_int is None:
-        return None
-    try:
-        return str(int(normalized_int))
-    except Exception:
-        return None
 
 
 def _validate_canonical_storage_ids(work_local: pd.DataFrame) -> None:
@@ -153,6 +146,40 @@ def _coerce_sqlite_scalar(value: Any) -> Any:
     except Exception:  # pragma: no cover
         pass
     return value
+
+
+def sanitize_textual_null_sentinels(frame: pd.DataFrame) -> pd.DataFrame:
+    sanitized: pd.DataFrame | None = None
+    for col_idx, _col in enumerate(frame.columns):
+        series = frame.iloc[:, col_idx]
+        if pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series):
+            sentinel_mask = (
+                series.astype("string")
+                .str.strip()
+                .str.casefold()
+                .isin(_TEXTUAL_NULL_SENTINELS)
+                .to_numpy(dtype=bool, na_value=False)
+            )
+            if not sentinel_mask.any():
+                continue
+            if sanitized is None:
+                sanitized = frame.copy()
+            sanitized.iloc[:, col_idx] = series.where(~sentinel_mask, None)
+    return sanitized if sanitized is not None else frame
+
+
+def prepare_dataframe_for_storage(
+    frame: pd.DataFrame,
+    *,
+    normalize_derivada: bool,
+) -> pd.DataFrame:
+    work_local = apply_column_whitelist(frame)
+    work_local = sanitize_textual_null_sentinels(work_local).reset_index(drop=True)
+    if 'numero_ssa' in work_local.columns:
+        work_local['numero_ssa'] = work_local['numero_ssa'].map(normalize_numero_ssa_storage)
+    if normalize_derivada and 'derivada_de' in work_local.columns:
+        work_local['derivada_de'] = work_local['derivada_de'].map(normalize_numero_ssa_storage)
+    return work_local
 
 
 def _append_dataframe_rows(
@@ -391,11 +418,12 @@ def set_runtime_short_circuit_policy(policy: str | None) -> None:
 
 
 def _is_empty_upsert_value(val: Any) -> bool:
-    if val is None:
-        return True
-    if isinstance(val, float) and pd.isna(val):
-        return True
-    if isinstance(val, str) and (val.strip() == '' or val.strip().lower() in {"n/a", "na", "null", "-"}):
+    try:
+        if pd.isna(val):
+            return True
+    except Exception:  # pragma: no cover
+        pass
+    if isinstance(val, str) and val.strip().casefold() in _TEXTUAL_NULL_SENTINELS:
         return True
     return False
 
@@ -855,11 +883,7 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
 
 
 def prepare_dataframe_for_upsert(frame: pd.DataFrame) -> pd.DataFrame:
-    work_local = frame.copy().reset_index(drop=True)
-    if 'numero_ssa' in work_local.columns:
-        work_local['numero_ssa'] = work_local['numero_ssa'].map(_normalize_ssa_storage_value)
-    if 'derivada_de' in work_local.columns:
-        work_local['derivada_de'] = work_local['derivada_de'].map(_normalize_ssa_storage_value)
+    work_local = prepare_dataframe_for_storage(frame, normalize_derivada=True)
     _validate_canonical_storage_ids(work_local)
     date_columns = [
         'data_cadastro',
@@ -926,7 +950,6 @@ def insert_dataframe_with_smart_upsert_impl(
     df: pd.DataFrame, db_path: str | Any, table_name: str
 ) -> bool:
     work = prepare_dataframe_for_upsert(df)
-    work = apply_column_whitelist(work)
     from . import database as _db_mod  # lazy import evita circularidade
     conn: Any = None
     conn_cm = None
@@ -972,7 +995,8 @@ def insert_dataframe_with_smart_upsert_impl(
                 table_name,
             )
         if table_exists:
-            from .identifier_utils import is_valid_identifier  # local import to avoid cycles
+            from .identifier_utils import \
+                is_valid_identifier  # local import to avoid cycles
             if not is_valid_identifier(table_name):
                 raise ValueError(f"Invalid SQL identifier for table: {table_name}")
             cursor.execute(f"PRAGMA table_info({_quote_identifier(table_name)})")

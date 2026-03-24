@@ -1,8 +1,9 @@
 # ruff: noqa: E402
 from __future__ import annotations
 
-import os
 import logging
+import os
+from datetime import datetime
 
 # Force unbuffered stdout/stderr for visibility in CI / tooling
 os.environ.setdefault("PYTHONUNBUFFERED", "1")
@@ -22,9 +23,9 @@ Inclui:
     * Casos de normalização de numero_ssa
 """
 import shutil
+from contextlib import suppress
 from pathlib import Path
 from typing import Iterator
-from contextlib import suppress
 
 import pandas as pd
 import pytest
@@ -90,12 +91,14 @@ def sample_upsert_batches() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 @pytest.fixture()
 def normalization_cases() -> list[tuple[str | int | None, str | None]]:
+    current_year = datetime.now().year
     return [
         (None, None),
         ("", None),
         ("00000", None),
-        ("123", "202500123"),
+        ("123", f"{current_year}00123"),
         ("202512345", "202512345"),
-        ("202512345678", "202512345"),
-        ("2101234", "202101234"),  # caso especial 7 dígitos iniciando 21
+        ("202512345678", None),
+        ("2101234", "202101234"),  # caso especial 7 digitos iniciando 21
+        ("2601234", "202601234"),  # caso especial 7 digitos iniciando 26
     ]

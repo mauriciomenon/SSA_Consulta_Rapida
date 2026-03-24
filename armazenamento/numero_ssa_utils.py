@@ -17,16 +17,20 @@ Motivação:
 """
 from __future__ import annotations
 
-from typing import Iterable
 import re
+from typing import Iterable
+
 import pandas as pd
 
-from shared.numero_ssa import normalize_strict as _strict  # fonte unica de verdade
-from shared.numero_ssa import normalize_numero_ssa
+from shared.numero_ssa import \
+    normalize_numero_ssa as _normalize_numero_ssa_legacy
+from shared.numero_ssa import \
+    normalize_strict as _strict  # fonte unica de verdade
 
 NUMERO_SSA_LEN = 9
 NUMERO_SSA_ANO_MIN = 1980
 NUMERO_SSA_ANO_MAX = 2050
+_CANONICAL_DECIMAL_ARTIFACT = re.compile(r"^\s*(\d{9})\.0+\s*$")
 
 __all__ = [
     # núcleo strict
@@ -47,6 +51,17 @@ def normalize_numero_ssa_strict(value) -> str | None:
     Mantém compatibilidade sem duplicar implementação.
     """
     return _strict(value)
+
+
+def _strip_canonical_decimal_artifact(value):
+    """Collapse legacy Excel float artifacts for canonical 9-digit identifiers only."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    match = _CANONICAL_DECIMAL_ARTIFACT.fullmatch(text)
+    if match is None:
+        return value
+    return match.group(1)
 
 
 def _normalize_numero_ssa_value(value) -> int | None:
@@ -90,6 +105,11 @@ def normalize_numero_ssa_storage(value) -> str | None:
     if legacy_value is None:
         return None
     return normalize_numero_ssa_strict(legacy_value)
+
+
+def normalize_numero_ssa(value) -> str | None:
+    """Legacy display/storage helper with minimal decimal-artifact tolerance."""
+    return _normalize_numero_ssa_legacy(_strip_canonical_decimal_artifact(value))
 
 
 def batch_normalize_series(series: pd.Series) -> pd.Series:
