@@ -290,19 +290,18 @@ def _prepare_dataframe_for_simple_insert(df: pd.DataFrame, *, legacy_mode: bool)
         logger.warning("DataFrame vazio fornecido para insercao (modo novo). Nada a fazer.")
         return df.copy()
 
-    work_df = df.copy()
+    work_df = df
     try:
-        from .database_upsert_logic import apply_column_whitelist as _apply_wl
-        work_df = _apply_wl(work_df)
+        from .database_upsert_logic import prepare_dataframe_for_storage as _prepare_storage_df
+        work_df = _prepare_storage_df(work_df, normalize_derivada=False)
     except Exception as exc:  # pragma: no cover
         logger.exception(
-            "Falha ao aplicar whitelist de colunas antes da insercao simples: %s",
+            "Falha ao preparar DataFrame antes da insercao simples: %s",
             exc,
         )
         raise
 
     if 'numero_ssa' in work_df.columns:
-        work_df['numero_ssa'] = work_df['numero_ssa'].apply(_normalize_numero_ssa_storage)
         work_df = work_df[work_df['numero_ssa'].notna()].reset_index(drop=True)
 
     if work_df.empty and legacy_mode:
@@ -716,7 +715,6 @@ from .numero_ssa_utils import _normalize_numero_ssa_value  # noqa: E402, F401
 from .numero_ssa_utils import (  # noqa: E402
     normalize_numero_ssa as _normalize_numero_ssa_display,
     normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe,
-    normalize_numero_ssa_storage as _normalize_numero_ssa_storage,
 )
 
 
