@@ -3,6 +3,7 @@ from __future__ import annotations
 import builtins
 import io
 import os
+import sqlite3
 import subprocess
 import sys
 from contextlib import redirect_stdout
@@ -15,9 +16,26 @@ from interface import cli
 
 
 def _build_cli_subprocess_env(repo_root: Path, tmp_path: Path) -> dict[str, str]:
+    db_path = tmp_path / "cli_subprocess.db"
+    schema_sql = (repo_root / "config" / "schema.sql").read_text(encoding="utf-8")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executescript(schema_sql)
+        rows = [
+            (f"2025{i:05d}", "ADM", f"SSA teste MEL4 {i:02d}", "MEL4")
+            for i in range(1, 26)
+        ]
+        conn.executemany(
+            "INSERT INTO ssa_table (numero_ssa, situacao, descricao_ssa, setor_executor) VALUES (?, ?, ?, ?)",
+            rows,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
     env = os.environ.copy()
     env["SSA_NON_INTERACTIVE"] = "1"
-    env["SSA_DB_PATH"] = str(repo_root / "data" / "ssas.db")
+    env["SSA_DB_PATH"] = str(db_path)
     env["SSA_CLI_ENHANCEMENTS_PATH"] = str(tmp_path / "cli_enhancements.test.json")
     return env
 
