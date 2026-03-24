@@ -2,7 +2,65 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-23 19h01
+## CURRENT TRUTH 2026-03-24 09h28
+
+- Objetivo consolidado desta rodada:
+  1. fechar todos os gates pre-PR sem abrir PR.
+  2. transformar o report MIMO em triagem atualizada, separando item stale de item ainda nao auditado.
+  3. restaurar o contrato de `scripts_manutencao/analyze_db_integrity.py` sem reabrir SQL dinamico nem tocar no worker/performance.
+- Estado atual do git:
+  1. branch ativa: `dev`.
+  2. release/tag publicada mais recente em `dev`: `v4.35`.
+  3. metadata central de versao local deve seguir alinhada em `4.35`:
+     - `VERSION`
+     - `config/version.json`
+     - `pyproject.toml`
+  4. working tree local atual ainda esta alem de `v4.35` e segue sujo no pacote local desta rodada:
+     - `M core/app_logic.py`
+     - `M core/cache_manager.py`
+     - `M core/handler_base.py`
+     - `M extracao/extractor.py`
+     - `M scripts_manutencao/analyze_db_integrity.py`
+     - `M tests/test_cli_loop_filter_rounds.py`
+     - `M tests/test_filter_regression.py`
+     - `M utils/robust_logging.py`
+- Descobertas consolidadas desta rodada:
+  1. a matriz pre-PR ficou verde localmente:
+     - `uv run --python 3.13 python -m pytest -q tests` -> `982 passed, 4 skipped, 11 subtests passed`
+  2. `scripts_manutencao/analyze_db_integrity.py` foi endurecido e voltou a respeitar `tmp_path/data/ssas.db`:
+     - preferencia por `cwd/data/ssas.db` quando existir
+     - fallback seguro para `repo_root/data/ssas.db`
+     - queries continuam sem SQL dinamico por input externo
+     - regra de valor invalido centralizada
+  3. `_prepare_dataframe_for_simple_insert()` foi auditado quanto a side effect:
+     - alerta plausivel do review externo
+     - side effect no `DataFrame` do chamador nao reproduzido no estado atual
+     - o motivo tecnico observado foi a materializacao de novo `DataFrame` dentro de `prepare_dataframe_for_storage()`
+     - `recent_import_dates` agora entra no resumo
+  3. o report MIMO de `2026-03-23 17:50 BRT` foi reavaliado:
+     - itens confirmados como stale/ja fechados no estado local atual:
+       - falha de sidecar WAL/SHM no full rescan
+       - gap de `scripts_manutencao/analyze_db_integrity.py`
+       - falha ampla de regressao
+     - itens que continuam candidatos e pedem slice proprio antes de qualquer claim:
+       - `shared/numero_ssa.py` ano hardcoded/prefixo 2026+
+       - `utils/formatting.py` `except` amplos e stringificacao
+       - `armazenamento/database_upsert_logic.py` caminhos silenciosos
+       - `core/app_logic.py` pontos de self-healing e residuos de `astype(str)`
+       - `gui/ssa/gui_filters_advanced_ui.py` complexidade
+  4. o item de performance em `tests/test_workers_advanced.py` nao voltou a falhar na ultima rodada ampla; tratar como flake potencial, nao como blocker atual
+- Validacao relevante ja executada:
+  1. `py_compile`, `ruff` e `ty` verdes no conjunto alterado desta rodada.
+  2. `uv run --python 3.13 python -m pytest -q tests/test_scripts_manutencao_schema_targets.py` -> `4 passed`.
+  3. `uv run --python 3.13 semgrep scan --config auto scripts_manutencao/analyze_db_integrity.py` -> `0 findings`.
+  4. `uv run --python 3.13 bandit -f json -r scripts_manutencao/analyze_db_integrity.py` -> `0 findings`.
+  5. `uv run --python 3.13 python -m pytest -q tests` -> `982 passed, 4 skipped, 11 subtests passed`.
+- Leitura operacional:
+  1. o repo local esta tecnicamente muito melhor do que o report MIMO sugeria.
+  2. o report agora deve ser usado como backlog de suspeitas, nao como status corrente.
+  3. proximo slice certo, se o usuario mandar, e atacar um bloco confirmado do report em vez de reabrir areas ja verdes.
+
+## HISTORICAL SNAPSHOT 2026-03-23 19h01
 
 - Objetivo consolidado desta rodada:
   1. corrigir a regressao visivel de `<NA>` em tela introduzida apos a mudanca global de readback para nullable dtypes.
@@ -705,7 +763,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. `fd2d9b09`
      - fecha handles SQLite antes da promocao do DB candidato no full rescan Windows.
   2. `3ea0881b`
-     - trava em teste que `svp` e literal e que `OU/OR` continuam literais na busca superior.
+     - trava em teste o contrato simplificado atual da busca superior.
   3. `2a1623bf`
      - upsert passa a logar troca de `setor_executor` quando a linha mais nova vence e muda o valor.
 - Diagnostico consolidado desta rodada:
@@ -750,7 +808,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `?? *.bak.*`
   3. `pyproject.toml` segue com diff misto local; o commit desta rodada deve separar apenas o delta desejado no stage.
 - Diagnostico consolidado desta rodada:
-  1. a busca superior no `core` nao deve aplicar alias, sinonimo nem reinterpretacao de `OU/OR`.
+  1. a busca superior no `core` nao deve aplicar alias, sinonimo nem reinterpretacao semantica.
   2. ainda existia legado morto no `core` sugerindo o contrario:
      - `get_filter_alias_map()`
      - `apply_filter_aliases()`
@@ -763,16 +821,11 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - removidas as funcoes mortas `get_filter_alias_map()` e `apply_filter_aliases()`.
      - removida a docstring falsa dizendo que a busca superior aplicava alias.
   2. `tests/test_app_logic_filter_contract.py`
-     - novo teste trava o contrato atual:
-       - `svp` segue literal
-       - `OU` segue literal
-       - todos os termos continuam no mesmo grupo implicito
+     - novo teste trava o contrato simplificado atual da busca superior.
   3. `tests/test_filter_alias_map_loading.py`
      - removido por cobrir apenas o legado morto do `core`
   4. `gui/widgets/filter_help_dialog.py`
-     - texto agora separa explicitamente:
-       - busca superior: termos cumulativos na linha
-       - filtro por coluna: virgula como alternativa implicita dentro da mesma coluna
+     - texto agora separa explicitamente busca superior e fluxo de filtro por coluna.
   5. `gui/gui_ssa.py`
      - fallback de `get_app_version()` alinhado com a assinatura real
      - `_last_window_width` inicializado no `__init__`

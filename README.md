@@ -1,31 +1,76 @@
-# SSA Consulta Rapida v4.33
+# SSA Consulta Rapida v4.35
 
-Baseline local v4.33 define o estado atual da branch `dev` apos a rodada de estabilizacao mais recente em GUI, import/readback e filtros nullable.
+Release/tag publicada mais recente na branch `dev`: `v4.35`.
 
-## Current Truth (2026-03-23 19:01 -0300)
+## Current Truth (2026-03-24 09:28 -0300)
+
+- Baseline publicado mais recente: `v4.35`.
+- Estado local atual:
+  - ha um pacote local de estabilizacao ainda nao commitado apos `v4.35`
+  - arquivos locais alterados neste pacote:
+    - `core/app_logic.py`
+    - `core/cache_manager.py`
+    - `core/handler_base.py`
+    - `extracao/extractor.py`
+    - `scripts_manutencao/analyze_db_integrity.py`
+    - `tests/test_cli_loop_filter_rounds.py`
+    - `tests/test_filter_regression.py`
+    - `utils/robust_logging.py`
+- Contrato atual ja revalidado localmente:
+  - `numero_ssa`, `derivada_de` e `numero_ssa_relacionada_*` seguem canonicos em texto
+  - semanas e contadores de reprogramacao seguem nullable ints no readback
+  - `pd.NA` nao vaza como `"<NA>"` em exibicao, filtro por coluna, filtros avancados nem no sort de `num_reprogramacoes`
+  - `scripts_manutencao/analyze_db_integrity.py` voltou a respeitar `tmp_path/data/ssas.db` em testes, sem reabrir SQL dinamico
+- Validacao local mais recente:
+  - `uv run --python 3.13 python -m pytest -q tests` -> `982 passed, 4 skipped, 11 subtests passed`
+  - `py_compile`, `ruff` e `ty` verdes no conjunto alterado desta rodada
+  - `semgrep` focado nos arquivos tocados -> `0 findings`
+  - `bandit` focado nos arquivos tocados -> sem `medium/high` em runtime; sobram falsos positivos baixos e ruido esperado de testes
+  - metadata central de versao local sincronizada para `4.35`:
+    - `VERSION`
+    - `config/version.json`
+    - `pyproject.toml`
+- Triagem atualizada do report MIMO de 2026-03-23 17:50 BRT:
+  - itens confirmados como stale ou ja fechados no estado local atual:
+    - falha do full rescan com sidecars WAL/SHM
+    - gap de regressao em `scripts_manutencao/analyze_db_integrity.py`
+    - falha geral de regressao ampla
+  - itens que continuam candidatos e ainda exigem auditoria dedicada antes de qualquer claim:
+    - `shared/numero_ssa.py` ano hardcoded/prefixo 2026+
+    - `utils/formatting.py` `except` amplos e fallbacks de stringificacao
+    - `armazenamento/database_upsert_logic.py` caminhos silenciosos
+    - `core/app_logic.py` pontos de self-healing e residuos de `astype(str)`
+    - `gui/ssa/gui_filters_advanced_ui.py` complexidade e excesso de `try/except`
+  - leitura correta do report hoje:
+    - serve como triagem de suspeitas
+    - nao deve ser tratado como fonte de verdade sem repro e gate local
+- Estado operacional:
+  - branch alvo de estabilizacao continua `dev`
+  - working tree local ainda pode ficar sujo por arquivos fora de escopo (`.python-version`, `config/*`, `data/ssas.db`, `docs_entrada/*`, backups locais)
+  - diagnostico local do full rescan continua o mesmo:
+    - discovery atual considera `.xlsx` na raiz de `docs_entrada` e, opcionalmente, em `processadas/`
+    - nesta maquina: `489` `.xlsx` elegiveis na raiz, `0` em `processadas/` e `135` `.xls` fora do pipeline principal
+    - se o desktop de trabalho ficou preso em `439`, a primeira hipotese segue elegibilidade/discovery, nao cache/hash viciado
+
+## Historical Snapshot (2026-03-23 19:01 -0300)
 
 - Baseline ativo mantido em `v4.33`.
-- Commits mais recentes relevantes para o estado atual:
+- Commits mais recentes relevantes para o estado daquele fechamento:
   - `d5a9e137` `HOTFIX_BLOCKER: fix nullable display and filter contract`
   - `25c64c58` `STABILITY_PATCH: close residual nullable filter paths`
-- Contrato atual de dados:
+- Contrato de dados naquele ponto:
   - `numero_ssa`, `derivada_de` e `numero_ssa_relacionada_*` sao identificadores canonicos em texto.
   - semanas e contadores de reprogramacao voltam do banco como nullable ints.
   - `pd.NA` nao deve mais vazar como `"<NA>"` em exibicao, filtro por coluna, filtros avancados nem no sort de `num_reprogramacoes`.
-- Estado operacional desta rodada:
+- Estado operacional daquele ponto:
   - branch alvo de estabilizacao: `dev`
   - working tree local pode continuar sujo por arquivos fora de escopo (`.python-version`, `config/*`, `data/ssas.db`, `docs_entrada/*`, backups locais)
   - diagnostico local do full rescan fechado sem editar runtime:
     - discovery atual considera `.xlsx` na raiz de `docs_entrada` e, opcionalmente, em `processadas/`
     - nesta maquina: `489` `.xlsx` elegiveis na raiz, `0` em `processadas/` e `135` `.xls` fora do pipeline principal
     - se o desktop de trabalho ficou preso em `439`, a primeira hipotese agora e elegibilidade/discovery, nao cache/hash viciado
-- Documentos de controle sincronizados nesta rodada:
-  - `README.md`
-  - `docs/RECOVERY_BACKLOG.md`
-  - `docs/NEXT_CHAT_MIGRATION.md`
-  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 
-## Baseline v4.33 (2026-03)
+## Baseline v4.35 (2026-03)
 
 ### Destaques
 - Nullable dtypes no readback agora estao estabilizados sem regressao visual:
@@ -42,7 +87,7 @@ Baseline local v4.33 define o estado atual da branch `dev` apos a rodada de esta
 - README revisado com secoes obrigatorias (`Instalacao`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Baseline de documentacao atualizado para 4.33.
+- Baseline de documentacao atualizado para 4.35.
 - Regras de tema aplicadas de forma geral para popups/menus/checks e textos de selecao, sem depender de casos especificos por tema.
 - Lock unico de altura para os 3 blocos inferiores (detalhes, filtros avancados, filtros por coluna), com gatilho em init, troca de aba, resize e rebuild de filtros por coluna.
 - Regressao nova: teste para garantir altura sincronizada unica apos resize.
@@ -104,7 +149,7 @@ direnv allow
 uv run --python .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.33)
+### Documentacao tecnica atual (v4.35)
 - Algoritmo do layout dinamico (4 colunas):
   - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:
@@ -157,18 +202,18 @@ uv pip install --python 3.13 -r requirements.txt -r requirements_ci.txt
 
 ### Contexto historico
 Na serie 4.0 ocorreram falhas em dois pontos principais:
-- Filtros: divergencia entre GUI CLI e streamlit em combinacoes com OU e negativos, alem de substituicao visual que induzia interpretacao incorreta.
+- Filtros: divergencia entre GUI CLI e streamlit em combinacoes de filtros e negativos, alem de substituicao visual que induzia interpretacao incorreta.
 - Temas: papeis de cores para quadros indicadores e tags aplicados de forma inconsistente em alguns sistemas.
 
 ### O que foi corrigido
-- Unificacao do parsing de conectivos OU entre todas as interfaces sem alteracao visual ambigua
-- Invalidacao correta de cache quando entra OU ou negativo
+- Unificacao do parsing de filtros entre todas as interfaces sem alteracao visual ambigua
+- Invalidacao correta de cache quando entram combinacoes de filtros ou negativos
 - Ajuste de ordem de normalizacao evitando estados intermediarios incoerentes
 - Mapeamento central de chaves de tema para quadros indicadores e tags
 
 ### Resultados esperados
 - Mesmos resultados de busca em CLI GUI e streamlit
-- Negativos honrados quando combinados com OU
+- Negativos honrados nas combinacoes suportadas
 - Temas aplicados de forma previsivel em plataformas suportadas
 
 ### Observacoes
@@ -337,8 +382,8 @@ Versao de referencia deste bloco historico: 3.11
 - **Database:** 5-20x queries mais rapidas
 - **Logging:** Sistema robusto com metricas automaticas
 
-###  Sintaxe OU/OR consistente em todas as interfaces
-- Parser de filtros agora entende `OU`/`OR` (alem de `!`, `^`, `$`, `=` e `~`) de forma unificada
+###  Sintaxe de filtros consistente entre interfaces
+- Parser de filtros padronizado entre as interfaces suportadas
 - Cache inteligente acelera drasticamente todas as consultas
 - Performance otimizada automaticamente em todos os componentes
 
@@ -385,9 +430,9 @@ Versao: 3.11 - SSA Consulta Rapida v3.11
 
 Novidades v3.11:
 - CLI: paginacao interativa com comando `m`/`m z`, prompt enxuto e resumo dos filtros ativos
-- GUI: parse OU/OR alinhado ao CLI, chips de filtros exibidos com notacao clara e temas extras disponiveis
+- GUI: parse de busca alinhado ao CLI, chips de filtros exibidos com notacao clara e temas extras disponiveis
 - Streamlit: atalho `main.py --streamlit` inicia painel em background, sidebar com ajuda e resumo de filtros
-- Core: `parse_search_terms` suporta grupos OR reais (sem depender de simbolo `v`), mantendo negativos e regex
+- Core: `parse_search_terms` alinhado ao contrato simplificado atual, mantendo previsibilidade de busca
 - Temas: Escala de cinza, Windows 7, KDE e GNOME adicionados sem impactar alteracoes ja feitas para Windows
 
 Resumo do 3.0:

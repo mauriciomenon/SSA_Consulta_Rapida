@@ -1,9 +1,9 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-## CURRENT TRUTH (v4.33)
+## CURRENT TRUTH (v4.35)
 
 - Sync deste guia: `2026-03-11 14:25 -0300`.
-- Versao de referencia: `4.33` (arquivo `VERSION`).
+- Versao de referencia: `4.35` (arquivo `VERSION`).
 - Fluxo canonico de build: `launchers/build_multiplatform.py`.
 - Saida canonica de artefatos: `launchers/dist/<plataforma>/`.
 - Empacotamento: `scripts/create_distribution.py`.
@@ -31,7 +31,7 @@ Resultado de tentativa de pacote (scripts/create_distribution.py):
 
 Evidencia local desta rodada:
 - logs consolidados: `/tmp/ssa_pack_audit_20260310_1030/summary.log`
-- artefato gerado: `dist_packages/SSA_Consulta_Rapida_v4.33_pyinstaller.zip`
+- artefato gerado: `dist_packages/SSA_Consulta_Rapida_v4.35_pyinstaller.zip`
 
 ## Visao Geral
 
@@ -178,7 +178,7 @@ No caminho canonico de empacotamento, diretorios de dados locais sensiveis nao e
 - `reports`
 - `exportacao`
 
-Politica operacional (v4.33+):
+Politica operacional (v4.35+):
 - build canonico nao embeda `data/` por padrao.
 - se for necessario incluir dados locais para laboratorio, usar fluxo explicito e controlado:
   - `uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data`
@@ -196,7 +196,7 @@ Politica operacional (v4.33+):
 Texto sugerido:
 
 ```text
-SSA Consulta Rapida v4.33
+SSA Consulta Rapida v4.35
 
 INSTALACAO
 1. Baixe o arquivo ZIP.
