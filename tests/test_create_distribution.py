@@ -168,6 +168,212 @@ def test_create_zip_package_excludes_sensitive_files_from_build_config_dir(
         assert not any(name.endswith("config/entrada.xls") for name in names)
 
 
+def test_create_zip_package_keeps_sample_db_out_by_default(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    build_dir = project_root / "builds" / "fake"
+    build_dir.mkdir(parents=True)
+    dist_output = project_root / "dist_packages"
+    dist_output.mkdir(parents=True)
+
+    sample_db_dir = project_root / "dist_assets" / "sample_db"
+    sample_db_dir.mkdir(parents=True)
+    (sample_db_dir / "ssas_example.db").write_text("sample db", encoding="utf-8")
+    (sample_db_dir / "LEIA-ME.txt").write_text("sample readme", encoding="utf-8")
+
+    (build_dir / "SSA_Consulta_Rapida.exe").write_text("fake exe", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "fake": {
+                "name": "Fake",
+                "exe_path": "builds/fake/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake",
+                "internal_dir": None,
+            }
+        },
+    )
+
+    result = create_distribution.create_zip_package("fake", "1.0.0")
+
+    assert result is not None
+    with zipfile.ZipFile(result, "r") as zf:
+        names = zf.namelist()
+        assert not any("BancoExemplo/" in name for name in names)
+
+
+def test_create_zip_package_includes_fixed_sample_db_only_when_option_enabled(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    build_dir = project_root / "builds" / "fake"
+    build_dir.mkdir(parents=True)
+    dist_output = project_root / "dist_packages"
+    dist_output.mkdir(parents=True)
+
+    sample_db_dir = project_root / "dist_assets" / "sample_db"
+    sample_db_dir.mkdir(parents=True)
+    (sample_db_dir / "ssas_example.db").write_text("sample db", encoding="utf-8")
+    (sample_db_dir / "LEIA-ME.txt").write_text("sample readme", encoding="utf-8")
+
+    (build_dir / "SSA_Consulta_Rapida.exe").write_text("fake exe", encoding="utf-8")
+    (build_dir / "local.db").write_text("local db", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "fake": {
+                "name": "Fake",
+                "exe_path": "builds/fake/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake",
+                "internal_dir": None,
+            }
+        },
+    )
+
+    result = create_distribution.create_zip_package(
+        "fake",
+        "1.0.0",
+        include_sample_db=True,
+    )
+
+    assert result is not None
+    with zipfile.ZipFile(result, "r") as zf:
+        names = zf.namelist()
+        assert any(name.endswith("BancoExemplo/ssas_example.db") for name in names)
+        assert any(name.endswith("BancoExemplo/LEIA-ME.txt") for name in names)
+        assert not any(name.endswith("local.db") for name in names)
+
+
+def test_create_zip_package_returns_none_when_sample_db_assets_are_missing(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    project_root = tmp_path / "project"
+    build_dir = project_root / "builds" / "fake"
+    build_dir.mkdir(parents=True)
+    dist_output = project_root / "dist_packages"
+    dist_output.mkdir(parents=True)
+    (build_dir / "SSA_Consulta_Rapida.exe").write_text("fake exe", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "fake": {
+                "name": "Fake",
+                "exe_path": "builds/fake/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake",
+                "internal_dir": None,
+            }
+        },
+    )
+
+    result = create_distribution.create_zip_package(
+        "fake",
+        "1.0.0",
+        include_sample_db=True,
+    )
+
+    assert result is None
+    assert "Assets fixos do banco de exemplo ausentes" in caplog.text
+
+
+def test_create_zip_package_includes_only_selected_local_db_when_option_enabled(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    build_dir = project_root / "builds" / "fake"
+    build_dir.mkdir(parents=True)
+    dist_output = project_root / "dist_packages"
+    dist_output.mkdir(parents=True)
+    local_db_dir = project_root / "data"
+    local_db_dir.mkdir(parents=True)
+
+    (build_dir / "SSA_Consulta_Rapida.exe").write_text("fake exe", encoding="utf-8")
+    selected_local_db = local_db_dir / "ssas.db"
+    selected_local_db.write_text("local db", encoding="utf-8")
+    (build_dir / "other.db").write_text("other db", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "fake": {
+                "name": "Fake",
+                "exe_path": "builds/fake/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake",
+                "internal_dir": None,
+            }
+        },
+    )
+
+    result = create_distribution.create_zip_package(
+        "fake",
+        "1.0.0",
+        include_local_db="data/ssas.db",
+    )
+
+    assert result is not None
+    with zipfile.ZipFile(result, "r") as zf:
+        names = zf.namelist()
+        assert any(name.endswith("BancoLocal/ssas.db") for name in names)
+        assert not any(name.endswith("other.db") for name in names)
+
+
+def test_create_zip_package_returns_none_when_selected_local_db_is_missing(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    project_root = tmp_path / "project"
+    build_dir = project_root / "builds" / "fake"
+    build_dir.mkdir(parents=True)
+    dist_output = project_root / "dist_packages"
+    dist_output.mkdir(parents=True)
+    (build_dir / "SSA_Consulta_Rapida.exe").write_text("fake exe", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "fake": {
+                "name": "Fake",
+                "exe_path": "builds/fake/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake",
+                "internal_dir": None,
+            }
+        },
+    )
+
+    result = create_distribution.create_zip_package(
+        "fake",
+        "1.0.0",
+        include_local_db="data/inexistente.db",
+    )
+
+    assert result is None
+    assert "Banco local explicitamente solicitado nao encontrado" in caplog.text
+
+
 def test_create_zip_package_returns_none_when_canonical_has_no_primary_executable(
     tmp_path: Path,
     monkeypatch,
@@ -483,6 +689,96 @@ def test_create_inno_setup_script_uses_sourcepath_outputdir(
     assert f'#define SourceDir "{expected_source}"' in iss_content
     assert '#define SourcePathMode "absolute"' in iss_content
     assert 'Source: "{#SourceDir}\\SSA_GUI.exe"' in iss_content
+
+
+def test_create_inno_setup_script_includes_sample_db_when_option_enabled(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    canonical_dir = project_root / "launchers" / "dist" / "windows_amd64"
+    dist_output = project_root / "dist_packages"
+    sample_db_dir = project_root / "dist_assets" / "sample_db"
+    canonical_dir.mkdir(parents=True)
+    dist_output.mkdir(parents=True)
+    sample_db_dir.mkdir(parents=True)
+    (canonical_dir / "SSA_GUI.exe").write_text("exe", encoding="utf-8")
+    (sample_db_dir / "ssas_example.db").write_text("sample db", encoding="utf-8")
+    (sample_db_dir / "LEIA-ME.txt").write_text("sample readme", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "pyinstaller": {
+                "name": "PyInstaller",
+                "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/pyinstaller",
+                "internal_dir": "_internal",
+                "canonical_dirs": ["launchers/dist/windows_amd64"],
+            }
+        },
+    )
+
+    iss_path = create_distribution.create_inno_setup_script(
+        "pyinstaller",
+        "1.0.0",
+        include_sample_db=True,
+    )
+
+    assert iss_path is not None
+    iss_content = iss_path.read_text(encoding="utf-8")
+    expected_db = str((sample_db_dir / "ssas_example.db").resolve()).replace("/", "\\")
+    expected_readme = str((sample_db_dir / "LEIA-ME.txt").resolve()).replace("/", "\\")
+    assert 'Name: "{userdocs}\\SSA Consulta Rapida\\BancoExemplo"' in iss_content
+    assert f'Source: "{expected_db}"; DestDir: "{{userdocs}}\\SSA Consulta Rapida\\BancoExemplo"; DestName: "ssas_example.db"; Flags: ignoreversion' in iss_content
+    assert f'Source: "{expected_readme}"; DestDir: "{{userdocs}}\\SSA Consulta Rapida\\BancoExemplo"; DestName: "LEIA-ME.txt"; Flags: ignoreversion' in iss_content
+
+
+def test_create_inno_setup_script_includes_selected_local_db_when_option_enabled(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    canonical_dir = project_root / "launchers" / "dist" / "windows_amd64"
+    dist_output = project_root / "dist_packages"
+    local_db_dir = project_root / "data"
+    canonical_dir.mkdir(parents=True)
+    dist_output.mkdir(parents=True)
+    local_db_dir.mkdir(parents=True)
+    (canonical_dir / "SSA_GUI.exe").write_text("exe", encoding="utf-8")
+    selected_local_db = local_db_dir / "ssas.db"
+    selected_local_db.write_text("local db", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "pyinstaller": {
+                "name": "PyInstaller",
+                "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/pyinstaller",
+                "internal_dir": "_internal",
+                "canonical_dirs": ["launchers/dist/windows_amd64"],
+            }
+        },
+    )
+
+    iss_path = create_distribution.create_inno_setup_script(
+        "pyinstaller",
+        "1.0.0",
+        include_local_db="data/ssas.db",
+    )
+
+    assert iss_path is not None
+    iss_content = iss_path.read_text(encoding="utf-8")
+    expected_db = str(selected_local_db.resolve()).replace("/", "\\")
+    assert 'Name: "{userdocs}\\SSA Consulta Rapida\\BancoLocal"' in iss_content
+    assert f'Source: "{expected_db}"; DestDir: "{{userdocs}}\\SSA Consulta Rapida\\BancoLocal"; DestName: "ssas.db"; Flags: ignoreversion' in iss_content
 
 
 def test_create_inno_setup_script_uses_absolute_source_when_relpath_fails(

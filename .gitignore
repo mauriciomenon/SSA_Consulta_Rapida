@@ -480,6 +480,11 @@ config/codex.sqlite3*
 config/hypercorn.toml
 config/secret_key
 config/gui_main_preferences.json
+.python-version
+.backups/
+config/*.lock
+*.bak.*
+heatmap-last-year.png
 
 # Keep build orchestration scripts versioned.
 !dev_env/
