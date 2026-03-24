@@ -1,4 +1,6 @@
 import sqlite3
+from pathlib import Path
+from typing import Union
 
 import pandas as pd
 
@@ -6,47 +8,39 @@ from armazenamento.database_integrity import repair_database_if_needed as _core_
 from utils.robust_logging import get_robust_logger
 
 TABLE_NAME = "ssa_table"
+CORE_METRIC_FIELDS = (
+    "numero_ssa",
+    "situacao",
+    "descricao_ssa",
+    "localizacao_codigo",
+    "setor_executor",
+    "semana_cadastro",
+)
+REQUIRED_EMPTY_RECORD_FIELDS = (
+    "numero_ssa",
+    "situacao",
+    "descricao_ssa",
+)
 logger = get_robust_logger().get_logger(__name__, "maintenance")
 
-
-def _query_core_metrics(
-    conn: sqlite3.Connection,
-    critical_fields: list[str],
-) -> tuple[int, dict[str, int], int]:
-    select_parts = [
-        f"SUM(CASE WHEN {field} IS NULL OR {field} = '' OR {field} = '-' THEN 1 ELSE 0 END) AS {field}"
-        for field in critical_fields
-    ]
-    query = f"""
+_CORE_METRICS_QUERY_TEMPLATE = """
     SELECT
         COUNT(*) AS total_records,
-        {', '.join(select_parts)},
+        __METRIC_SELECTS__,
         SUM(
             CASE
-                WHEN (numero_ssa IS NULL OR numero_ssa = '')
-                 AND (situacao IS NULL OR situacao = '')
-                 AND (descricao_ssa IS NULL OR descricao_ssa = '')
+                WHEN (__CORE_EMPTY_RECORD_CLAUSE__)
                 THEN 1 ELSE 0
             END
         ) AS empty_records
-    FROM {TABLE_NAME}
-    """
-    result_df = pd.read_sql_query(query, conn)
-    if result_df.empty:
-        return 0, {field: 0 for field in critical_fields}, 0
-    row = result_df.iloc[0]
-    total_records = int(row["total_records"] or 0)
-    empty_counts = {field: int(row[field] or 0) for field in critical_fields}
-    empty_records = int(row["empty_records"] or 0)
-    return total_records, empty_counts, empty_records
+    FROM __TABLE_NAME__
+"""
 
-
-def _query_duplicates(conn: sqlite3.Connection) -> tuple[pd.DataFrame, int]:
-    duplicates_query = f"""
+_DUPLICATES_QUERY_TEMPLATE = """
     WITH dupes AS (
         SELECT numero_ssa, COUNT(*) AS count
-        FROM {TABLE_NAME}
-        WHERE numero_ssa IS NOT NULL AND numero_ssa != ''
+        FROM __TABLE_NAME__
+        WHERE NOT (__NUMERO_SSA_INVALID_CLAUSE__)
         GROUP BY numero_ssa
         HAVING COUNT(*) > 1
     )
@@ -57,8 +51,98 @@ def _query_duplicates(conn: sqlite3.Connection) -> tuple[pd.DataFrame, int]:
     FROM dupes
     ORDER BY count DESC
     LIMIT 10
-    """
-    duplicates = pd.read_sql_query(duplicates_query, conn)
+"""
+
+_IMPORT_DATES_QUERY_TEMPLATE = """
+    SELECT DATE(data_importacao) as date, COUNT(*) as count
+    FROM __TABLE_NAME__
+    WHERE data_importacao IS NOT NULL
+    GROUP BY DATE(data_importacao)
+    ORDER BY date DESC
+    LIMIT 5
+"""
+
+
+def _get_project_root() -> Path:
+    """Resolve a raiz do projeto para scripts executados fora do cwd do repo."""
+    return Path(__file__).resolve().parent.parent
+
+
+def _get_runtime_root() -> Path:
+    cwd_root = Path.cwd()
+    if (cwd_root / "data" / "ssas.db").exists():
+        return cwd_root
+    return _get_project_root()
+
+
+def _get_db_path() -> Path:
+    return _get_runtime_root() / "data" / "ssas.db"
+
+
+def _get_schema_path() -> Path:
+    runtime_schema = _get_runtime_root() / "config" / "schema_unified.sql"
+    if runtime_schema.exists():
+        return runtime_schema
+    return _get_project_root() / "config" / "schema_unified.sql"
+
+
+def _build_empty_metric_select(field_name: str) -> str:
+    return (
+        "SUM(CASE WHEN {invalid_clause} "
+        "THEN 1 ELSE 0 END) AS {field}"
+    ).format(field=field_name, invalid_clause=_build_invalid_value_clause(field_name))
+
+
+def _build_invalid_value_clause(field_name: str) -> str:
+    return f"{field_name} IS NULL OR {field_name} = '' OR {field_name} = '-'"
+
+
+def _build_query(template: str) -> str:
+    return template.replace("__TABLE_NAME__", TABLE_NAME)
+
+
+_CORE_METRICS_QUERY = _build_query(
+    _CORE_METRICS_QUERY_TEMPLATE.replace(
+        "__METRIC_SELECTS__",
+        ",\n        ".join(_build_empty_metric_select(field) for field in CORE_METRIC_FIELDS),
+    ).replace(
+        "__CORE_EMPTY_RECORD_CLAUSE__",
+        " AND ".join(f"({_build_invalid_value_clause(field)})" for field in REQUIRED_EMPTY_RECORD_FIELDS),
+    ),
+)
+
+_DUPLICATES_QUERY = _build_query(
+    _DUPLICATES_QUERY_TEMPLATE.replace(
+        "__NUMERO_SSA_INVALID_CLAUSE__",
+        _build_invalid_value_clause("numero_ssa"),
+    )
+)
+
+_IMPORT_DATES_QUERY = _build_query(_IMPORT_DATES_QUERY_TEMPLATE)
+
+
+def _coerce_count(value: Union[int, float, str, None]) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, float) and pd.isna(value):
+        return 0
+    return int(value)
+
+
+def _query_core_metrics(conn: sqlite3.Connection) -> tuple[int, dict[str, int], int]:
+    result_df = pd.read_sql_query(_CORE_METRICS_QUERY, conn)
+    if result_df.empty:
+        return 0, {field: 0 for field in CORE_METRIC_FIELDS}, 0
+
+    row = result_df.iloc[0]
+    total_records = _coerce_count(row["total_records"])
+    empty_counts = {field: _coerce_count(row[field]) for field in CORE_METRIC_FIELDS}
+    empty_records = _coerce_count(row["empty_records"])
+    return total_records, empty_counts, empty_records
+
+
+def _query_duplicates(conn: sqlite3.Connection) -> tuple[pd.DataFrame, int]:
+    duplicates = pd.read_sql_query(_DUPLICATES_QUERY, conn)
     total_duplicated = int(duplicates.iloc[0]["total_duplicated"]) if len(duplicates) > 0 else 0
     return duplicates, total_duplicated
 
@@ -66,8 +150,7 @@ def _query_duplicates(conn: sqlite3.Connection) -> tuple[pd.DataFrame, int]:
 def _log_duplicates(duplicates: pd.DataFrame, total_duplicated: int) -> None:
     if len(duplicates) > 0:
         logger.warning("ERR DUPLICATAS ENCONTRADAS:")
-        logger.warning("   %s numeros de SSA duplicados", len(duplicates))
-        logger.warning("   Top 10 mais duplicados:")
+        logger.warning("   Top 10 numeros de SSA mais duplicados:")
         for _, row in duplicates.iterrows():
             logger.warning("     SSA %s: %s copias", row["numero_ssa"], row["count"])
         logger.warning("   Total de registros duplicados para remocao: %s", f"{total_duplicated:,}")
@@ -80,29 +163,21 @@ def _table_has_column(conn: sqlite3.Connection, column_name: str) -> bool:
     return column_name in set(table_info["name"].tolist())
 
 
-def _log_import_dates(conn: sqlite3.Connection) -> None:
+def _query_import_dates(conn: sqlite3.Connection) -> pd.DataFrame:
     if not _table_has_column(conn, "data_importacao"):
-        logger.warning("WARN Campo data_importacao nao encontrado")
+        return pd.DataFrame(columns=["date", "count"])
+    return pd.read_sql_query(
+        _IMPORT_DATES_QUERY,
+        conn,
+    )
+
+
+def _log_import_dates(import_dates: pd.DataFrame) -> None:
+    if len(import_dates) <= 0:
         return
-    try:
-        import_dates = pd.read_sql_query(
-            f"""
-            SELECT DATE(data_importacao) as date, COUNT(*) as count
-            FROM {TABLE_NAME}
-            WHERE data_importacao IS NOT NULL
-            GROUP BY DATE(data_importacao)
-            ORDER BY date DESC
-            LIMIT 5
-            """,
-            conn,
-        )
-        if len(import_dates) > 0:
-            logger.info("INFO IMPORTACOES RECENTES:")
-            for _, row in import_dates.iterrows():
-                logger.info("   %s: %s registros", row["date"], f"{row['count']:,}")
-    except Exception as exc:
-        logger.debug("DEBUG Detalhe da consulta data_importacao: %s", exc)
-        logger.warning("WARN Campo data_importacao nao encontrado")
+    logger.info("INFO IMPORTACOES RECENTES:")
+    for _, row in import_dates.iterrows():
+        logger.info("   %s: %s registros", row["date"], f"{row['count']:,}")
 
 
 def _log_recommendations(has_duplicates: bool, total_duplicated: int) -> None:
@@ -117,20 +192,12 @@ def _log_recommendations(has_duplicates: bool, total_duplicated: int) -> None:
 def verify_database_integrity():
     """Analisa a integridade do banco e identifica problemas."""
 
-    conn = sqlite3.connect('data/ssas.db')
+    conn = sqlite3.connect(_get_db_path())
 
     logger.info("INFO ANALISE DE INTEGRIDADE DO BANCO DE DADOS")
     logger.info("=" * 60)
 
-    critical_fields = [
-        "numero_ssa",
-        "situacao",
-        "descricao_ssa",
-        "localizacao_codigo",
-        "setor_executor",
-        "semana_cadastro",
-    ]
-    total_records, empty_counts, empty_records = _query_core_metrics(conn, critical_fields)
+    total_records, empty_counts, empty_records = _query_core_metrics(conn)
     logger.info("INFO Total de registros: %s", f"{total_records:,}")
 
     duplicates, total_duplicated = _query_duplicates(conn)
@@ -150,17 +217,24 @@ def verify_database_integrity():
     if empty_records > 0:
         logger.warning("ERR REGISTROS VAZIOS: %s registros sem dados essenciais", f"{empty_records:,}")
 
-    _log_import_dates(conn)
+    import_dates = pd.DataFrame(columns=["date", "count"])
+    try:
+        import_dates = _query_import_dates(conn)
+        _log_import_dates(import_dates)
+    except Exception as exc:
+        logger.debug("DEBUG Detalhe da consulta data_importacao: %s", exc)
+        logger.warning("WARN Falha ao consultar data_importacao: %s", exc)
 
     conn.close()
 
     _log_recommendations(len(duplicates) > 0, total_duplicated)
 
-    summary = {
+    summary: dict[str, object] = {
         'total_records': int(total_records),
         'has_duplicates': len(duplicates) > 0,
         'duplicate_count': total_duplicated,
-        'empty_fields': any_empty_fields or int(empty_records) > 0
+        'empty_fields': any_empty_fields or int(empty_records) > 0,
+        'recent_import_dates': import_dates.to_dict(orient='records'),
     }
     summary["stats_dict"] = summary.copy()
     return summary
@@ -178,8 +252,8 @@ def repair_database_if_needed(report: dict[str, object] | None = None) -> dict[s
     repaired = False
     if needs_repair:
         repaired = _core_repair_database_if_needed(
-            "data/ssas.db",
-            schema_file="config/schema_unified.sql",
+            str(_get_db_path()),
+            schema_file=str(_get_schema_path()),
             table_name=TABLE_NAME,
         )
     return {
