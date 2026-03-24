@@ -2,37 +2,38 @@
 Regression tests for filter behavior to prevent reintroduction of old bugs.
 
 Tests verify:
-1. Comma input is allowed and not stripped in search fields
-2. Logical operators (||, v, OU, OR, AND) are NOT treated as operators
+1. parse_search_terms splits raw comma input into AND terms
+2. Under the current simplified contract, logical keywords remain literal
 3. Column filter text is properly highlighted
 4. Filter behavior matches specification (no operator keywords)
 """
+import sqlite3
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
 import pandas as pd
+import core.app_logic as app_logic
 from core.app_logic import parse_search_terms, filter_dataframe
 
 
 class TestFilterRegression:
     """Regression tests for filter bugs that should never return."""
 
-    def test_comma_allowed_in_search_terms(self):
-        """Test that commas are preserved and used as term separators."""
-        # User should be able to type commas
+    def test_parse_search_terms_splits_raw_comma_input(self):
+        """Test that parse_search_terms splits raw comma input into AND terms."""
         search_text = "term1,term2,term3"
-        search_terms = [str(term) for term in search_text.split(',')]
-        terms = parse_search_terms(search_terms)
+        terms = parse_search_terms([search_text])
 
         assert len(terms) == 3
         assert terms[0]['value'] == 'term1'
         assert terms[1]['value'] == 'term2'
         assert terms[2]['value'] == 'term3'
+        assert terms[0]['group'] == 0
 
     def test_logical_operators_treated_as_literals(self):
-        """Test that ||, v, OU, OR, AND are treated as literal search terms, not operators."""
+        """Test that ||, v, OU, OR, AND remain literal under the simplified contract."""
         # These should be searched as literal strings, not treated as logical operators
         test_cases = [
             "||",  # Should search for "||" literally
@@ -114,6 +115,23 @@ class TestFilterRegression:
         for search_term in ['v123', '||', 'OU', 'OR', 'AND']:
             result = filter_dataframe(df, search_terms=[search_term])
             assert len(result) >= 1, f"Should find '{search_term}' as literal text"
+
+    def test_db_only_derivadas_preflight_accepts_legacy_ssas_alias(self, tmp_path):
+        """Legacy aliases should resolve to the canonical derivadas preflight query."""
+        db_path = tmp_path / "derivadas_alias.sqlite"
+        with sqlite3.connect(db_path) as conn:
+            conn.executescript(
+                """
+                CREATE TABLE ssa_table (
+                    numero_ssa TEXT,
+                    derivada_de TEXT
+                );
+                INSERT INTO ssa_table (numero_ssa, derivada_de) VALUES
+                    ('202500001', '202500000');
+                """
+            )
+
+        assert app_logic._needs_db_only_derivadas_sync(str(db_path), "ssas") is True
 
 
 if __name__ == '__main__':
