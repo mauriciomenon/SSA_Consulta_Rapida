@@ -37,11 +37,23 @@ from utils import caching  # noqa: E402
 from extracao import extractor  # noqa: E402
 from armazenamento import database  # noqa: E402
 from armazenamento.derivadas_sync import scan_derivadas_consistency, sync_derivadas  # noqa: E402
-from shared.db_names import CANONICAL_SSA_TABLE  # noqa: E402
+from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES  # noqa: E402
 from utils.path_safety import PathSafetyError, ensure_path_is_allowed  # noqa: E402
 
 # Configura logger especifico para este modulo
 logger = logging.getLogger(__name__)
+
+_DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE: Dict[str, str] = {
+    "ssa_table": """
+        SELECT COUNT(*)
+        FROM (
+            SELECT numero_ssa, derivada_de
+            FROM "ssa_table"
+            WHERE derivada_de IS NOT NULL
+            GROUP BY numero_ssa, derivada_de
+        ) AS db_edges
+    """,
+}
 FILTER_FIELD_SEPARATOR = "\x1f"
 FILTER_SEARCH_TOKEN_ATTR = "_filter_search_token"
 FILTER_SEARCH_CACHE_ATTR = "_filter_search_cache"
@@ -509,23 +521,27 @@ def _needs_db_only_derivadas_sync(
         logger.warning("Nome de tabela invalido para preflight de derivadas: %r", table_name)
         return False
 
+    resolved_table_name = (
+        CANONICAL_SSA_TABLE
+        if table_name in LEGACY_SSA_TABLE_ALIASES
+        else table_name
+    )
+
+    edge_count_query = _DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE.get(resolved_table_name)
+    if edge_count_query is None:
+        logger.warning(
+            "Tabela nao suportada para preflight DB-only de derivadas: %r",
+            resolved_table_name,
+        )
+        return False
+
     try:
         with database.get_db_connection(db_path) as conn:
             if should_cancel and should_cancel():
                 logger.info("Cancelamento solicitado durante preflight DB-only de derivadas.")
                 return False
             db_edges_count = int(
-                conn.execute(
-                    f"""
-                    SELECT COUNT(*)
-                    FROM (
-                        SELECT numero_ssa, derivada_de
-                        FROM "{table_name}"
-                        WHERE derivada_de IS NOT NULL
-                        GROUP BY numero_ssa, derivada_de
-                    ) AS db_edges
-                    """
-                ).fetchone()[0]
+                conn.execute(edge_count_query).fetchone()[0]
             )
             if db_edges_count <= 0:
                 return False
@@ -2124,6 +2140,7 @@ def parse_search_terms(
     Converte termos brutos em uma estrutura padronizada com modo e polaridade.
 
     SIMPLIFIED RAW STRING CONTRACT:
+    - Raw strings split only by commas before parsing.
     - Raw strings do not parse logical operators such as OU/OR/AND/E.
     - General search applies implicit AND between terms (all raw terms stay in group=0).
     - Each term may match any searched field; grouped OR is only preserved when the
@@ -2146,43 +2163,45 @@ def parse_search_terms(
     allowed_modes = {"contains", "prefix", "suffix", "exact", "regex"}
     fallback_mode = default_mode if default_mode in allowed_modes else "contains"
 
-    # Simplified: process all terms directly, all with group=0 (AND logic)
+    # Simplified: split only by commas, then process all terms with group=0 (AND logic)
     for raw in search_terms:
         if not isinstance(raw, str):
             continue
-        t = raw.strip()
-        if not t:
-            continue
-        negative = False
-        if (t.startswith("!") or t.startswith("-")) and len(t) > 1:
-            negative = True
-            t = t[1:]
-        mode = fallback_mode
-        value = t
-        if t.startswith("~") and len(t) > 1:
-            mode = "regex"
-            value = t[1:]
-        elif t.startswith("=") and len(t) > 1:
-            mode = "exact"
-            value = t[1:]
-        elif t.startswith("$") and len(t) > 1:
-            mode = "suffix"
-            value = t[1:]
-        elif fallback_mode != "regex" and t.startswith("^") and len(t) > 1:
-            mode = "prefix"
-            value = t[1:]
-        elif fallback_mode != "regex" and t.endswith("$") and len(t) > 1:
-            mode = "suffix"
-            value = t[:-1]
-        parsed.append(
-            {
-                "raw": raw,
-                "mode": mode,
-                "value": value,
-                "negative": negative,
-                "group": 0,  # All terms in same group (AND logic)
-            }
-        )
+        raw_chunks = [chunk.strip() for chunk in raw.split(",")]
+        for raw_chunk in raw_chunks:
+            t = raw_chunk.strip()
+            if not t:
+                continue
+            negative = False
+            if (t.startswith("!") or t.startswith("-")) and len(t) > 1:
+                negative = True
+                t = t[1:]
+            mode = fallback_mode
+            value = t
+            if t.startswith("~") and len(t) > 1:
+                mode = "regex"
+                value = t[1:]
+            elif t.startswith("=") and len(t) > 1:
+                mode = "exact"
+                value = t[1:]
+            elif t.startswith("$") and len(t) > 1:
+                mode = "suffix"
+                value = t[1:]
+            elif fallback_mode != "regex" and t.startswith("^") and len(t) > 1:
+                mode = "prefix"
+                value = t[1:]
+            elif fallback_mode != "regex" and t.endswith("$") and len(t) > 1:
+                mode = "suffix"
+                value = t[:-1]
+            parsed.append(
+                {
+                    "raw": raw_chunk,
+                    "mode": mode,
+                    "value": value,
+                    "negative": negative,
+                    "group": 0,  # All terms in same group (AND logic)
+                }
+            )
     return parsed
 
 
