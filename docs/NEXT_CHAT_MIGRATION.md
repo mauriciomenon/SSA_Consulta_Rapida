@@ -2,63 +2,52 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-24 09h28
+## CURRENT TRUTH 2026-03-24 13h04
 
 - Objetivo consolidado desta rodada:
-  1. fechar todos os gates pre-PR sem abrir PR.
-  2. transformar o report MIMO em triagem atualizada, separando item stale de item ainda nao auditado.
-  3. restaurar o contrato de `scripts_manutencao/analyze_db_integrity.py` sem reabrir SQL dinamico nem tocar no worker/performance.
+  1. fechar a frente `numero_ssa`/write path sem reabrir parser, GUI ou refatoracao ampla.
+  2. registrar nos docs o que realmente foi entregue, o que continua aberto e a licao de regressao.
+  3. manter `dev` pronto para os proximos slices de estabilizacao.
 - Estado atual do git:
   1. branch ativa: `dev`.
   2. release/tag publicada mais recente em `dev`: `v4.35`.
-  3. metadata central de versao local deve seguir alinhada em `4.35`:
-     - `VERSION`
-     - `config/version.json`
-     - `pyproject.toml`
-  4. working tree local atual ainda esta alem de `v4.35` e segue sujo no pacote local desta rodada:
+  3. commit funcional novo ja entregue e publicado:
+     - `5aeadd9e` `STABILITY_PATCH: centralize numero_ssa storage normalization`
+  4. working tree local continua sujo fora deste slice de docs:
+     - `M armazenamento/database.py`
      - `M core/app_logic.py`
      - `M core/cache_manager.py`
      - `M core/handler_base.py`
      - `M extracao/extractor.py`
      - `M scripts_manutencao/analyze_db_integrity.py`
      - `M tests/test_cli_loop_filter_rounds.py`
+     - `M tests/test_db_reset_and_upsert.py`
      - `M tests/test_filter_regression.py`
      - `M utils/robust_logging.py`
-- Descobertas consolidadas desta rodada:
-  1. a matriz pre-PR ficou verde localmente:
-     - `uv run --python 3.13 python -m pytest -q tests` -> `982 passed, 4 skipped, 11 subtests passed`
-  2. `scripts_manutencao/analyze_db_integrity.py` foi endurecido e voltou a respeitar `tmp_path/data/ssas.db`:
-     - preferencia por `cwd/data/ssas.db` quando existir
-     - fallback seguro para `repo_root/data/ssas.db`
-     - queries continuam sem SQL dinamico por input externo
-     - regra de valor invalido centralizada
-  3. `_prepare_dataframe_for_simple_insert()` foi auditado quanto a side effect:
-     - alerta plausivel do review externo
-     - side effect no `DataFrame` do chamador nao reproduzido no estado atual
-     - o motivo tecnico observado foi a materializacao de novo `DataFrame` dentro de `prepare_dataframe_for_storage()`
-     - `recent_import_dates` agora entra no resumo
-  3. o report MIMO de `2026-03-23 17:50 BRT` foi reavaliado:
-     - itens confirmados como stale/ja fechados no estado local atual:
-       - falha de sidecar WAL/SHM no full rescan
-       - gap de `scripts_manutencao/analyze_db_integrity.py`
-       - falha ampla de regressao
-     - itens que continuam candidatos e pedem slice proprio antes de qualquer claim:
-       - `shared/numero_ssa.py` ano hardcoded/prefixo 2026+
-       - `utils/formatting.py` `except` amplos e stringificacao
-       - `armazenamento/database_upsert_logic.py` caminhos silenciosos
-       - `core/app_logic.py` pontos de self-healing e residuos de `astype(str)`
-       - `gui/ssa/gui_filters_advanced_ui.py` complexidade
-  4. o item de performance em `tests/test_workers_advanced.py` nao voltou a falhar na ultima rodada ampla; tratar como flake potencial, nao como blocker atual
-- Validacao relevante ja executada:
-  1. `py_compile`, `ruff` e `ty` verdes no conjunto alterado desta rodada.
-  2. `uv run --python 3.13 python -m pytest -q tests/test_scripts_manutencao_schema_targets.py` -> `4 passed`.
-  3. `uv run --python 3.13 semgrep scan --config auto scripts_manutencao/analyze_db_integrity.py` -> `0 findings`.
-  4. `uv run --python 3.13 bandit -f json -r scripts_manutencao/analyze_db_integrity.py` -> `0 findings`.
-  5. `uv run --python 3.13 python -m pytest -q tests` -> `982 passed, 4 skipped, 11 subtests passed`.
-- Leitura operacional:
-  1. o repo local esta tecnicamente muito melhor do que o report MIMO sugeria.
-  2. o report agora deve ser usado como backlog de suspeitas, nao como status corrente.
-  3. proximo slice certo, se o usuario mandar, e atacar um bloco confirmado do report em vez de reabrir areas ja verdes.
+- O que `5aeadd9e` fechou de fato:
+  1. removeu drift de normalizacao duplicada no write path.
+  2. centralizou `database_upsert_logic.py` e `database_optimized.py` na regra de storage.
+  3. matou o artefato decimal canonico `NNNNNNNNN.0` no inicio do fluxo.
+  4. preservou guardas posteriores para id canonico.
+- Validacao confiavel do slice `numero_ssa`:
+  1. `py_compile` verde no escopo tocado.
+  2. `ruff` verde no escopo tocado.
+  3. `isort --check-only` verde no escopo tocado.
+  4. `ty` verde no escopo tocado.
+  5. `pytest` focado de normalizacao/storage -> `45 passed`.
+- Findings externos que seguem vivos:
+  1. `HIGH`: storage ainda precisa blindagem contra valores com letras que possam cair em limpeza legacy.
+  2. `MEDIUM`: `_needs_db_only_derivadas_sync` precisa resolver aliases validos antes do lookup canonico.
+  3. `MEDIUM`: `sanitize_textual_null_sentinels` ainda tem custo alto para lotes grandes.
+  4. `LOW`: helper local de data em `database_upsert_logic.py` ainda precisa convergir para util compartilhado.
+- Licoes aprendidas obrigatorias:
+  1. esse defeito de `numero_ssa` e `.0` ja foi corrigido mais de uma vez e voltou por drift entre camadas.
+  2. teste unitario isolado nao basta; a matriz tem de cobrir `shared`, `prepare_dataframe_for_storage`, upsert e caminho otimizado.
+  3. nao documentar nem reintroduzir operadores textuais legados; isso nao e comportamento de produto.
+- Estado do Kluster local:
+  1. tentativa correta nesta maquina foi via `pnpm.CMD dlx @klusterai/kluster-verify-code-mcp@latest --server=https://api.kluster.ai`.
+  2. o MCP local respondeu `initialize`, mas `tools/list` expôs so `kluster_failure_notification`.
+  3. isso e bloqueio de ferramenta local, nao clean review.
 
 ## HISTORICAL SNAPSHOT 2026-03-23 19h01
 

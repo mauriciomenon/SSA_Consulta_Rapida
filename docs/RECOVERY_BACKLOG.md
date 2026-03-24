@@ -3,6 +3,43 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-24 13:04 - numero_ssa write path estabilizado, com pendencias reais ainda abertas (STABILITY_PATCH + DOC_SYNC + DEFERRED_NOTE)
+
+Session timestamp:
+1. start: `2026-03-24 13:03:14 -0300`
+2. docs sync desta rodada em andamento apos commit funcional `5aeadd9e`
+
+Objetivo do slice funcional ja entregue:
+1. remover a duplicacao de normalizacao de `numero_ssa` no write path.
+2. matar o artefato decimal canonico `NNNNNNNNN.0` no comeco do fluxo de escrita.
+3. impedir nova divergencia entre `database_upsert_logic.py` e `database_optimized.py`.
+
+Commit funcional entregue:
+1. `5aeadd9e` `STABILITY_PATCH: centralize numero_ssa storage normalization`
+
+Diagnostico objetivo:
+1. o problema voltou porque a regra de storage estava espalhada em mais de um ponto.
+2. isso permitiu que um fix numa ponta nao blindasse o outro caminho de escrita.
+3. esse tipo de regressao ja aconteceu mais de uma vez nesta area.
+
+O que foi fechado de fato:
+1. `database_upsert_logic.py` e `database_optimized.py` passaram a usar a regra central de storage.
+2. o artefato `.0` canonico deixa de seguir adiante no fluxo principal de escrita.
+3. a matriz focada de normalizacao/storage ficou verde:
+   - `45 passed`
+
+Pendencias reais ainda abertas apos o patch:
+1. `HIGH` externo: blindar storage contra valores com letras que ainda possam cair em limpeza legacy.
+2. `MEDIUM` externo: `_needs_db_only_derivadas_sync` deve resolver aliases validos antes do lookup canonico.
+3. `MEDIUM` externo: `sanitize_textual_null_sentinels` ainda precisa corte de custo para lotes grandes.
+4. `LOW` externo: helper local de data em `database_upsert_logic.py` ainda deve convergir para util compartilhado.
+
+Licoes aprendidas obrigatorias:
+1. nao reabrir este tema com patch localizado em helper paralelo.
+2. qualquer ajuste futuro em `numero_ssa` deve partir da fonte central e vir com teste focado de `shared`, `prepare_dataframe_for_storage`, upsert e caminho otimizado.
+3. sinal verde de teste unitario isolado nao basta para esta area; o write path completo precisa entrar na matriz.
+4. o Kluster local desta sessao nao ficou limpo; o transporte respondeu `initialize`, mas `tools/list` expôs so `kluster_failure_notification`.
+
 ## Update 2026-03-24 12:08 - version sync local 4.35 e nota de risco do df.copy (DOC_SYNC + DEFERRED_NOTE)
 
 Session timestamp:
