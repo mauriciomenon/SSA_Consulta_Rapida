@@ -34,7 +34,7 @@ class CacheManager:
         self._access_times: Dict[str, Dict[str, datetime]] = {
             cache_name: {} for cache_name in self._caches.keys()
         }
-        self._stats = {
+        self._stats: Dict[str, int] = {
             'hits': 0,
             'misses': 0,
             'evictions': 0
@@ -65,9 +65,9 @@ class CacheManager:
             sample_data = pd.concat([df.head(2), df.tail(2)]) if len(df) > 4 else df
             df_info['sample'] = sample_data.to_string()
 
-        # Gera hash MD5
+        # MD5 is used only for deterministic cache keys, never for security.
         info_str = json.dumps(df_info, sort_keys=True, default=str)
-        return hashlib.md5(info_str.encode()).hexdigest()
+        return hashlib.md5(info_str.encode(), usedforsecurity=False).hexdigest()
 
     def get_cached_widths(
         self,
@@ -263,7 +263,11 @@ class CacheManager:
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """Retorna estatísticas detalhadas do cache."""
-        stats = self._stats.copy()
+        stats: Dict[str, Any] = {
+            'hits': self._stats['hits'],
+            'misses': self._stats['misses'],
+            'evictions': self._stats['evictions'],
+        }
 
         # Adiciona estatísticas por cache
         cache_details = {}

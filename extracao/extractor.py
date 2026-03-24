@@ -585,7 +585,7 @@ def extract_data_from_excel(
                 combined_df[col] = combined_df[col].str.strip()
 
                 # 4. Substitui strings vazias resultantes por pd.NA
-                combined_df[col] = combined_df[col].replace({'': pd.NA})
+                combined_df[col] = combined_df[col].replace('', pd.NA)
 
                 # Nota: A normalização Unicode e remoção de caracteres de controle
                 # podem ser feitas aqui se necessário, mas o table_printer.py
