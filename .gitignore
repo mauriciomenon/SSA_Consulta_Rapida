@@ -346,7 +346,8 @@ launchers/*.log
 
 # === DADOS SENSIVEIS ===
 # Arquivos de entrada com dados reais da empresa
-# docs_entrada/*.xlsx
+docs_entrada/*.xlsx
+docs_entrada/*.xls
 docs_entrada/*.csv
 docs_entrada/*.json
 
