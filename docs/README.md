@@ -2,7 +2,7 @@
 
 ## Baseline ativo
 
-- Versao de referencia: `4.33`.
+- Versao de referencia: `4.36`.
 - Esta pagina e a entrada curta da pasta `docs/`.
 - Navegacao oficial: `docs/INDEX.md`.
 
@@ -48,10 +48,27 @@
 
 ## Controle de continuidade
 
+- `AGENTS.md`
 - `docs/RECOVERY_BACKLOG.md`
 - `docs/NEXT_CHAT_MIGRATION.md`
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - `docs/HISTORICO_RELEASES.md`
+
+## Primeira leitura obrigatoria no proximo chat
+
+1. `AGENTS.md`
+2. `docs/NEXT_CHAT_MIGRATION.md`
+3. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+4. `docs/RECOVERY_BACKLOG.md`
+
+## Passo 0 obrigatorio antes de novo patch
+
+1. fazer o Kluster funcionar nesta maquina/sessao antes de novos patches
+2. se necessario, revisar/ajustar a configuracao MCP ligada ao Kluster
+3. referencias:
+   - `.github/instructions/kluster-code-verify.instructions.md`
+   - `docs/CCR_LLM_PROVIDERS_SETUP.md`
+   - `docs/OPENCODE_CONFIG.md`
 
 ## Tooling padrao
 

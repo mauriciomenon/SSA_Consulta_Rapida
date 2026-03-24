@@ -3,6 +3,88 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## ACTIVE PRIORITIES
+
+### P0 - bloquear antes de nova tag
+1. blindar storage contra valores com letras que possam cair em limpeza legacy.
+
+### ESTADO OPERACIONAL ATUAL
+1. branch ativa: `dev`
+2. metadata local ativa: `4.36`
+3. ultima tag publicada em `dev`: `v4.35`
+4. este pacote DOC_SYNC deve ser fechado com commit/push para devolver o working tree limpo
+5. nada foi perdido no historico; os blocos abaixo permanecem como trilha de auditoria
+
+### PASSO 0 DA PROXIMA CONVERSA
+1. fazer o Kluster funcionar antes de qualquer patch novo
+2. reproduzir o sintoma local atual:
+   - `initialize` responde
+   - `tools/list` expõe so `kluster_failure_notification`
+3. se necessario, ajustar configuracao MCP do Kluster no primeiro slice
+4. referencias:
+   - `AGENTS.md`
+   - `.github/instructions/kluster-code-verify.instructions.md`
+   - `docs/CCR_LLM_PROVIDERS_SETUP.md`
+   - `docs/OPENCODE_CONFIG.md`
+   - `docs/README.md`
+
+### P1 - fechar antes da rodada final de release
+1. resolver aliases validos em `_needs_db_only_derivadas_sync` antes do lookup canonico.
+2. reduzir o custo de `sanitize_textual_null_sentinels` para lotes grandes.
+
+### P2 - pode entrar no fechamento final, mas sem reabrir arquitetura
+1. convergir helper local de data em `database_upsert_logic.py` para util compartilhado.
+
+### FECHADO E NAO REABRIR SEM EVIDENCIA NOVA
+1. operadores textuais legados de busca nao fazem parte do produto.
+2. write path de `numero_ssa` deve partir da fonte central, sem regra paralela.
+3. `4.36` ja esta preparado em metadata, runtime e docs, sem tag nova.
+
+### COMO LER ESTE ARQUIVO
+1. ler primeiro `ACTIVE PRIORITIES`.
+2. depois ler os updates mais recentes do dia atual.
+3. usar os blocos antigos abaixo apenas como historico de auditoria.
+
+### REGRAS QUE NAO PODEM SE PERDER NA TRANSICAO
+1. nao criar branch, PR, worktree, pasta ou tag sem autorizacao explicita
+2. nao editar antes de aprovar plano curto com objetivo, arquivos permitidos e arquivos proibidos
+3. nao reabrir operadores textuais legados de busca
+4. nao reintroduzir regra paralela de `numero_ssa`
+5. validar cada slice com `uv`, `py_compile`, `ruff`, `ty` e `pytest` focado
+
+## Update 2026-03-24 15:29 - metadata e docs ativos preparados para 4.36 sem criar tag (DOC_SYNC + DEFERRED_NOTE)
+
+Session timestamp:
+1. start: `2026-03-24 15:28:52 -0300`
+2. fim: `2026-03-24 15:29:00 -0300`
+
+Objetivo do slice:
+1. subir metadata local e docs ativos para `4.36`.
+2. manter explicito que a ultima tag publicada em `dev` continua `v4.35`.
+3. evitar drift entre runtime, README, handoff e guias operacionais.
+
+Diagnostico objetivo:
+1. metadata central ainda estava em `4.35`:
+   - `VERSION`
+   - `config/version.json`
+   - `pyproject.toml`
+2. docs ativos ainda refletiam `4.35` como versao de referencia, apesar de o proximo alvo operacional ja ser `4.36`.
+3. historicos e snapshots antigos nao devem ser reescritos para fingir publicacao inexistente.
+
+Decisao aplicada:
+1. metadata local passa a `4.36`.
+2. docs ativos passam a falar em `4.36` como alvo/local atual.
+3. a ultima tag publicada permanece documentada como `v4.35` ate a rodada final de release/tag.
+
+Resumo operacional atual:
+1. `dev` limpo e sincronizado.
+2. `4.36` pronto em metadata, runtime e docs ativos.
+3. backlog real antes da tag nova continua concentrado em:
+   - blindagem strict no storage contra letras
+   - aliases validos em `_needs_db_only_derivadas_sync`
+   - custo de `sanitize_textual_null_sentinels`
+   - convergencia do helper local de data
+
 ## Update 2026-03-24 13:04 - numero_ssa write path estabilizado, com pendencias reais ainda abertas (STABILITY_PATCH + DOC_SYNC + DEFERRED_NOTE)
 
 Session timestamp:
@@ -7874,3 +7956,11 @@ Historical review-thread entries were removed here to avoid duplicate pending co
 - Nao bloqueante deferido:
   - `opencode run` indisponivel por billing no ambiente atual.
   - `snyk test --all-projects` sem resultado util por timeout nesta rodada.
+
+## AVISO FINAL - NAO CONTINUAR COLANDO UPDATE NO FIM
+
+1. este ponto marca o fim util do arquivo para leitura manual e automatica.
+2. novos updates nao devem ser colados abaixo deste aviso.
+3. novos updates devem entrar no topo, logo apos `ACTIVE PRIORITIES`, para manter prioridade e baixo custo de leitura.
+4. o conteudo abaixo deste aviso deve permanecer estavel como historico, nao como area viva.
+5. quebrar essa regra volta a misturar verdade atual com arqueologia e piora manutencao, edicao e triagem.

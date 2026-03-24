@@ -2,50 +2,68 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-24 13h04
+## CURRENT TRUTH 2026-03-24 15h29
 
-- Objetivo consolidado desta rodada:
-  1. fechar a frente `numero_ssa`/write path com patch minimo e commit atomico.
-  2. parar o drift de regra entre `shared`, util de storage e caminhos de escrita.
-  3. documentar de forma explicita o que ainda falta antes de qualquer PR.
-- Estado confirmado:
-  1. branch alvo continua `dev`.
-  2. release/tag publicada mais recente em `dev`: `v4.35`.
-  3. commit funcional entregue nesta frente:
-     - `5aeadd9e` `STABILITY_PATCH: centralize numero_ssa storage normalization`
-  4. residuos locais fora de escopo continuam presentes:
-     - `M armazenamento/database.py`
-     - `M core/app_logic.py`
-     - `M core/cache_manager.py`
-     - `M core/handler_base.py`
-     - `M extracao/extractor.py`
-     - `M scripts_manutencao/analyze_db_integrity.py`
-     - `M tests/test_cli_loop_filter_rounds.py`
-     - `M tests/test_db_reset_and_upsert.py`
-     - `M tests/test_filter_regression.py`
-     - `M utils/robust_logging.py`
-- Diagnostico tecnico consolidado:
-  1. o `.0` vazava por regras duplicadas de normalizacao no write path.
-  2. o patch correto foi centralizar a normalizacao de storage e fazer os dois caminhos de escrita usarem a mesma regra.
-  3. o artefato decimal canonico `NNNNNNNNN.0` agora e eliminado no inicio do fluxo de escrita.
-  4. salvaguardas posteriores continuam a validar id canonico e nao devem ser removidas.
-  5. licao de regressao:
-     - esse problema ja voltou varias vezes
-     - a causa recorrente foi drift entre helpers e caminhos paralelos
-     - qualquer novo ajuste em `numero_ssa` precisa sair da fonte central e vir com matriz de regressao de storage
-- Validacao consolidada do slice:
-  1. `py_compile`, `ruff`, `isort` e `ty` verdes no escopo tocado.
-  2. `pytest` focado de normalizacao/storage -> `45 passed`.
-- Pendencias reais ainda abertas:
-  1. blindar storage contra valores com letras que ainda possam cair em limpeza legacy.
-  2. resolver aliases validos em `_needs_db_only_derivadas_sync` antes do lookup de tabela canonica.
-  3. reduzir o custo de `sanitize_textual_null_sentinels` para lotes grandes.
-  4. convergir helper local de data em `database_upsert_logic.py` para util compartilhado.
-  5. so depois disso retomar `core/app_logic.py` e `utils/formatting.py` na ordem definida pelo usuario.
+- Leitura rapida:
+  1. branch alvo: `dev`
+  2. metadata local ativa: `4.36`
+  3. ultima tag publicada em `dev`: `v4.35`
+  4. este pacote documental deve ser fechado com commit/push para devolver o working tree limpo
+- PASSO 0 OBRIGATORIO:
+  1. fazer o Kluster funcionar antes de qualquer novo patch
+  2. reproduzir o sintoma local atual:
+     - `initialize` responde
+     - `tools/list` expõe so `kluster_failure_notification`
+  3. se necessario, ajustar a configuracao MCP relacionada ao Kluster no primeiro slice da nova conversa
+- Prioridade operacional:
+  1. `P0`: blindar storage contra valores com letras que possam cair em limpeza legacy
+  2. `P1`: resolver aliases validos em `_needs_db_only_derivadas_sync`
+  3. `P1`: reduzir custo de `sanitize_textual_null_sentinels`
+  4. `P2`: convergir helper local de data em `database_upsert_logic.py`
+- Estado tecnico fechado:
+  1. o `.0` vazava por regras duplicadas no write path
+  2. a normalizacao de storage foi centralizada
+  3. o artefato decimal canonico `NNNNNNNNN.0` agora morre no inicio do fluxo
+  4. salvaguardas posteriores de id canonico devem ser mantidas
+- Integridade do handoff:
+  1. nada foi perdido na reorganizacao dos docs
+  2. snapshots antigos permanecem abaixo como historico
+  3. o estado atual precisa ser continuado pelo topo, nao por colagem no historico
+- Validacao atual:
+  1. `py_compile`, `ruff` e `ty` verdes
+  2. `pytest -q tests` -> `993 passed, 4 skipped, 11 subtests passed`
+- Regras e proibicoes que o proximo ciclo deve respeitar sem excecao:
+  1. nao criar branch, PR, worktree, pasta ou tag sem autorizacao explicita
+  2. nao editar nada antes de aprovar plano curto com escopo e proibicoes
+  3. nao reabrir parser de operadores textuais legados
+  4. nao criar helper/wrapper extra sem necessidade real
+  5. nao usar reset destrutivo
+  6. commits atomicos e rollback facil por slice
+- Regras para o proximo ciclo:
+  1. nao criar tag nova antes da rodada final de backlog e review externo
+  2. nao reabrir operadores textuais legados de busca
+  3. nao reintroduzir regra paralela de `numero_ssa`; partir sempre da fonte central
+- Arquivos autoritativos do proximo ciclo:
+  1. `AGENTS.md`
+  2. `README.md`
+  3. `docs/README.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  6. `docs/RECOVERY_BACKLOG.md`
+  7. `docs/GUIA_DISTRIBUICAO.md`
+  8. `.github/instructions/kluster-code-verify.instructions.md`
+  9. `docs/CCR_LLM_PROVIDERS_SETUP.md`
+  10. `docs/OPENCODE_CONFIG.md`
+- Commits recentes desta frente:
+  1. `bdf612d0` `STABILITY_PATCH: close pytest ty bandit minfix slice`
+  2. `f4af8d20` `STABILITY_PATCH: stabilize simplified filter contract and derivadas alias preflight`
+  3. `0d823b25` `STABILITY_PATCH: align simple insert with storage sanitization`
+  4. `0bdee642` `STABILITY_PATCH: isolate CLI loop subprocess DB fixture`
 - Estado do Kluster local:
-  1. tentativa correta foi via `pnpm.CMD dlx @klusterai/kluster-verify-code-mcp@latest --server=https://api.kluster.ai`.
-  2. o servidor MCP local respondeu ao `initialize`, mas `tools/list` expôs so `kluster_failure_notification`.
-  3. tratar isso como bloqueio de ferramenta local, nao como review limpo.
+  1. tentativa valida via `pnpm.CMD dlx @klusterai/kluster-verify-code-mcp@latest --server=https://api.kluster.ai`
+  2. `initialize` respondeu, mas `tools/list` expôs so `kluster_failure_notification`
+  3. tratar como bloqueio de ferramenta local, nao review limpo
+  4. ajuste de config MCP fica explicitamente permitido como primeiro trabalho da nova conversa
 
 ## HISTORICAL SNAPSHOT 2026-03-23 19h01
 
@@ -2305,3 +2323,11 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
 2. registrar timestamp inicial/final no `docs/RECOVERY_BACKLOG.md`.
 3. manter commits atomicos por slice e push imediato no branch alvo.
 4. atualizar este handoff e `docs/NEXT_CHAT_MIGRATION.md` no mesmo slice.
+
+## AVISO FINAL - HISTORICO ABAIXO NAO E AREA DE COLAGEM
+
+1. o restante deste arquivo existe para historico e auditoria.
+2. nao anexar nova verdade atual, lista de pendencias, logs ou estado de branch abaixo deste aviso.
+3. o topo `CURRENT TRUTH` e a unica area viva para status atual.
+4. pendencias novas entram no topo ou em `docs/RECOVERY_BACKLOG.md`, sempre por prioridade.
+5. colar estado atual no fim deste arquivo degrada leitura automatica e manutencao futura.
