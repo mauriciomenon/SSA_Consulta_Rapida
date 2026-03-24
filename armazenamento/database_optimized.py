@@ -18,16 +18,21 @@ fragile - if get_db_connection moves lower in database.py, circular import will 
 # Last modified: 2025-10-29T11:10:00 (circular import documentation)
 
 from __future__ import annotations
+
 import sqlite3
 import time
+
 import pandas as pd
 
-from utils.robust_logging import get_robust_logger
-from .database import get_db_connection  # Top-level import (safe - defined early in database.py)
-from .identifier_utils import is_valid_identifier
-from .schema_manager import ensure_columns_exist
 from shared.date_utils import parse_datetime_series_mixed
-from shared.numero_ssa import normalize_numero_ssa, normalize_strict
+from utils.robust_logging import get_robust_logger
+
+from .database import \
+    get_db_connection  # Top-level import (safe - defined early in database.py)
+from .identifier_utils import is_valid_identifier
+from .numero_ssa_utils import normalize_numero_ssa_storage
+from .schema_manager import ensure_columns_exist
+
 logger = get_robust_logger().get_logger(__name__, "core")
 
 
@@ -42,16 +47,6 @@ def _quote_identifier(identifier: str) -> str:
     if not is_valid_identifier(identifier):
         raise ValueError(f"Invalid SQL identifier: {identifier!r}")
     return f'"{identifier}"'
-
-
-def _normalize_ssa_storage_value(value) -> str | None:
-    strict_value = normalize_strict(value)
-    if strict_value is not None:
-        return strict_value
-    legacy_value = normalize_numero_ssa(value)
-    if legacy_value is None:
-        return None
-    return normalize_strict(legacy_value)
 
 
 def _validate_canonical_storage_ids(work: pd.DataFrame) -> None:
@@ -75,7 +70,7 @@ def _deduplicate_ssa_rows(df: pd.DataFrame, *, already_normalized: bool = False)
             .map(lambda v: None if v is None else (str(v).strip() or None))
         )
     else:
-        normalized_ssa = df["numero_ssa"].map(_normalize_ssa_storage_value)
+        normalized_ssa = df["numero_ssa"].map(normalize_numero_ssa_storage)
     valid_mask = normalized_ssa.notna()
     if not bool(valid_mask.any()):
         return df.iloc[0:0].copy()
@@ -197,13 +192,11 @@ def insert_dataframe_optimized(
     logger.info(f"Iniciando inserção otimizada de {len(df)} registros...")
 
     try:
-        work = df.copy().reset_index(drop=True)
+        from .database_upsert_logic import prepare_dataframe_for_storage
+
+        work = prepare_dataframe_for_storage(df, normalize_derivada=True)
 
         # Normalize SSA identifiers in storage path to avoid persisting decimal artifacts.
-        if 'numero_ssa' in work.columns:
-            work['numero_ssa'] = work['numero_ssa'].map(_normalize_ssa_storage_value)
-        if 'derivada_de' in work.columns:
-            work['derivada_de'] = work['derivada_de'].map(_normalize_ssa_storage_value)
         _validate_canonical_storage_ids(work)
 
         # Converter datas de forma mais eficiente (vetorizada)
@@ -301,7 +294,7 @@ def insert_dataframe_optimized(
                     unique_ssas = (
                         has_ssa['numero_ssa']
                         .dropna()
-                        .map(_normalize_ssa_storage_value)
+                        .map(normalize_numero_ssa_storage)
                         .dropna()
                         .unique()
                         .tolist()
@@ -335,7 +328,7 @@ def insert_dataframe_optimized(
                                     f"Falha no lookup de SSAs (chunk={len(chunk_ssas)}): {exc}"
                                 ) from exc
                             if not chunk_df.empty:
-                                chunk_df["numero_ssa"] = chunk_df["numero_ssa"].map(_normalize_ssa_storage_value)
+                                chunk_df["numero_ssa"] = chunk_df["numero_ssa"].map(normalize_numero_ssa_storage)
                                 chunk_df = chunk_df[chunk_df["numero_ssa"].notna()]
                                 existing_dict.update(
                                     dict(zip(chunk_df['numero_ssa'], chunk_df['data_cadastro']))

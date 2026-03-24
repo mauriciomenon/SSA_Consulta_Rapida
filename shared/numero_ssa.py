@@ -25,8 +25,9 @@ Legacy helper functions in other modules should delegate here to avoid drift.
 """
 from __future__ import annotations
 
-from typing import Iterable
 import re
+from datetime import datetime
+from typing import Iterable
 
 YEAR_MIN = 1980
 YEAR_MAX = 2050
@@ -41,6 +42,24 @@ __all__ = [
 
 def _digits(value) -> str:
     return re.sub(r"\D", "", str(value)) if value is not None else ""
+
+
+def _current_legacy_year() -> str:
+    return str(datetime.now().year)
+
+
+def _expand_two_digit_year_sequence(trimmed: str) -> str | None:
+    if len(trimmed) != 7 or not trimmed.isdigit():
+        return None
+    yy = int(trimmed[:2])
+    suffix = trimmed[2:]
+    year_2000 = 2000 + yy
+    year_1900 = 1900 + yy
+    if YEAR_MIN <= year_2000 <= YEAR_MAX:
+        return f"{year_2000}{suffix}"
+    if YEAR_MIN <= year_1900 <= YEAR_MAX:
+        return f"{year_1900}{suffix}"
+    return None
 
 def normalize_strict(value) -> str | None:
     """Return canonical 9-digit numero_ssa or ``None`` if invalid.
@@ -110,11 +129,13 @@ def normalize_numero_ssa(value) -> str | None:  # noqa: PLR0911
         return None
     n_trim = len(trimmed)
     if n_trim <= 5:
-        return "2025" + trimmed.zfill(5)
-    if n_trim == 7 and trimmed.startswith(("21", "22", "23", "24", "25")):
-        return "20" + trimmed
+        return _current_legacy_year() + trimmed.zfill(5)
+    if n_trim == 7:
+        expanded = _expand_two_digit_year_sequence(trimmed)
+        if expanded is not None:
+            return expanded
     if len(raw) < 9:
         return raw.zfill(9)
     if len(raw) > 9:
-        return raw[:9]
+        return None
     return raw

@@ -5,6 +5,8 @@ Usa a função pública normalize_numero_ssa (se existir) ou fallback para lógi
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from armazenamento import database
@@ -27,13 +29,26 @@ def test_normalization_cases(normalization_cases):
 @pytest.mark.parametrize(
     "entrada",
     [
-        "202512345", 202512345, "202512345000",  # corte para 9 dígitos
+        "202512345", 202512345,
     ],
 )
-def test_normalization_idempotent_and_truncation(entrada):
+def test_normalization_idempotent_for_valid_values(entrada):
     norm = _normalize(entrada)
     if norm is None:
         pytest.fail("Valor inesperadamente None para entrada válida")
     # Deve ter exatamente 9 caracteres
     assert len(norm) == 9
     assert norm.isdigit()
+
+
+def test_normalization_short_values_use_current_year_prefix():
+    current_year = datetime.now().year
+    assert _normalize("123") == f"{current_year}00123"
+
+
+def test_normalization_rejects_overlong_legacy_values():
+    assert _normalize("202512345000") is None
+
+
+def test_normalization_accepts_two_digit_year_beyond_2025():
+    assert _normalize("2601234") == "202601234"
