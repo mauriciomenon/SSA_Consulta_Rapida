@@ -2,52 +2,79 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-24 13h04
+## CURRENT TRUTH 2026-03-24 15h29
 
-- Objetivo consolidado desta rodada:
-  1. fechar a frente `numero_ssa`/write path sem reabrir parser, GUI ou refatoracao ampla.
-  2. registrar nos docs o que realmente foi entregue, o que continua aberto e a licao de regressao.
-  3. manter `dev` pronto para os proximos slices de estabilizacao.
-- Estado atual do git:
-  1. branch ativa: `dev`.
-  2. release/tag publicada mais recente em `dev`: `v4.35`.
-  3. commit funcional novo ja entregue e publicado:
-     - `5aeadd9e` `STABILITY_PATCH: centralize numero_ssa storage normalization`
-  4. working tree local continua sujo fora deste slice de docs:
-     - `M armazenamento/database.py`
-     - `M core/app_logic.py`
-     - `M core/cache_manager.py`
-     - `M core/handler_base.py`
-     - `M extracao/extractor.py`
-     - `M scripts_manutencao/analyze_db_integrity.py`
-     - `M tests/test_cli_loop_filter_rounds.py`
-     - `M tests/test_db_reset_and_upsert.py`
-     - `M tests/test_filter_regression.py`
-     - `M utils/robust_logging.py`
-- O que `5aeadd9e` fechou de fato:
-  1. removeu drift de normalizacao duplicada no write path.
-  2. centralizou `database_upsert_logic.py` e `database_optimized.py` na regra de storage.
-  3. matou o artefato decimal canonico `NNNNNNNNN.0` no inicio do fluxo.
-  4. preservou guardas posteriores para id canonico.
-- Validacao confiavel do slice `numero_ssa`:
-  1. `py_compile` verde no escopo tocado.
-  2. `ruff` verde no escopo tocado.
-  3. `isort --check-only` verde no escopo tocado.
-  4. `ty` verde no escopo tocado.
-  5. `pytest` focado de normalizacao/storage -> `45 passed`.
-- Findings externos que seguem vivos:
-  1. `HIGH`: storage ainda precisa blindagem contra valores com letras que possam cair em limpeza legacy.
-  2. `MEDIUM`: `_needs_db_only_derivadas_sync` precisa resolver aliases validos antes do lookup canonico.
-  3. `MEDIUM`: `sanitize_textual_null_sentinels` ainda tem custo alto para lotes grandes.
-  4. `LOW`: helper local de data em `database_upsert_logic.py` ainda precisa convergir para util compartilhado.
-- Licoes aprendidas obrigatorias:
-  1. esse defeito de `numero_ssa` e `.0` ja foi corrigido mais de uma vez e voltou por drift entre camadas.
-  2. teste unitario isolado nao basta; a matriz tem de cobrir `shared`, `prepare_dataframe_for_storage`, upsert e caminho otimizado.
-  3. nao documentar nem reintroduzir operadores textuais legados; isso nao e comportamento de produto.
+- Leitura rapida:
+  1. branch ativa: `dev`
+  2. metadata local ativa: `4.36`
+  3. ultima tag publicada em `dev`: `v4.35`
+  4. este pacote documental deve ser fechado com commit/push para devolver o working tree limpo
+- PASSO 0 OBRIGATORIO NO PROXIMO CHAT:
+  1. fazer o Kluster funcionar antes de qualquer novo patch
+  2. reproduzir primeiro o sintoma atual:
+     - `pnpm.CMD dlx @klusterai/kluster-verify-code-mcp@latest --server=https://api.kluster.ai`
+     - `initialize` responde
+     - `tools/list` expõe so `kluster_failure_notification`
+  3. se isso persistir, revisar e ajustar a configuracao MCP do Kluster, se necessario
+  4. arquivos de referencia para esse passo:
+     - `AGENTS.md`
+     - `.github/instructions/kluster-code-verify.instructions.md`
+     - `docs/CCR_LLM_PROVIDERS_SETUP.md`
+     - `docs/OPENCODE_CONFIG.md`
+     - `docs/README.md`
+- Prioridade imediata:
+  1. `P0`: blindar storage contra valores com letras que possam cair em limpeza legacy
+  2. `P1`: resolver aliases validos antes do lookup em `_needs_db_only_derivadas_sync`
+  3. `P1`: reduzir custo de `sanitize_textual_null_sentinels` em lotes grandes
+  4. `P2`: convergir helper local de data em `database_upsert_logic.py`
+- O que ja esta fechado:
+  1. drift de normalizacao no write path foi removido
+  2. docs e testes foram alinhados ao contrato simplificado atual
+  3. slices locais sujos foram aterrados
+  4. `4.36` foi preparado sem adiantar tag publicada
+- Integridade do contexto:
+  1. nada foi perdido nesta reorganizacao documental
+  2. historicos antigos continuam preservados abaixo como auditoria
+  3. este arquivo deve servir como roteiro unico de migracao, nao como diario corrido
+- Validacao atual confiavel:
+  1. `py_compile` tracked -> verde
+  2. `ruff check .` -> verde
+  3. `ty check` -> verde
+  4. `pytest -q tests` -> `993 passed, 4 skipped, 11 subtests passed`
+- Regras e proibicoes que precisam ser carregadas para a proxima conversa:
+  1. nao criar branch, PR, worktree, pasta ou tag sem autorizacao explicita
+  2. nao editar nada antes de aprovar plano curto com objetivo, arquivos permitidos e arquivos proibidos
+  3. nao misturar idiomas; comunicacao tecnica em PT-BR, codigo/comentarios em ASCII
+  4. nao fazer refatoracao ampla, helper extra, mixin extra ou self-healing silencioso
+  5. nao alterar layout/posicionamento de GUI sem pedido explicito
+  6. usar `uv` para Python e `pnpm` para Node
+  7. validar por slice com `py_compile`, `ruff`, `ty`, `pytest` focado
+  8. rodar Kluster apos cada alteracao quando a ferramenta estiver funcional
+- Regras para o proximo chat:
+  1. nao criar tag nova antes de fechar backlog real e reviews externos
+  2. nao reabrir operadores textuais legados de busca
+  3. qualquer ajuste em `numero_ssa` deve partir da fonte central e vir com matriz de regressao do write path
+- Arquivos autoritativos para a proxima conversa:
+  1. `AGENTS.md`
+  2. `README.md`
+  3. `docs/README.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  6. `docs/RECOVERY_BACKLOG.md`
+  7. `docs/GUIA_DISTRIBUICAO.md`
+  8. `.github/instructions/kluster-code-verify.instructions.md`
+  9. `docs/CCR_LLM_PROVIDERS_SETUP.md`
+  10. `docs/OPENCODE_CONFIG.md`
+- Commits mais recentes desta frente:
+  1. `bdf612d0` `STABILITY_PATCH: close pytest ty bandit minfix slice`
+  2. `f4af8d20` `STABILITY_PATCH: stabilize simplified filter contract and derivadas alias preflight`
+  3. `0d823b25` `STABILITY_PATCH: align simple insert with storage sanitization`
+  4. `0bdee642` `STABILITY_PATCH: isolate CLI loop subprocess DB fixture`
 - Estado do Kluster local:
-  1. tentativa correta nesta maquina foi via `pnpm.CMD dlx @klusterai/kluster-verify-code-mcp@latest --server=https://api.kluster.ai`.
-  2. o MCP local respondeu `initialize`, mas `tools/list` expôs so `kluster_failure_notification`.
-  3. isso e bloqueio de ferramenta local, nao clean review.
+  1. tentativa valida via `pnpm.CMD dlx @klusterai/kluster-verify-code-mcp@latest --server=https://api.kluster.ai`
+  2. `initialize` respondeu, mas `tools/list` expôs so `kluster_failure_notification`
+  3. tratar como bloqueio de ferramenta local, nao review limpo
+  4. se for necessario mexer em config MCP, isso e permitido como primeiro slice da nova conversa
 
 ## HISTORICAL SNAPSHOT 2026-03-23 19h01
 
@@ -2504,3 +2531,11 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 2. validar residuos locais fora de escopo antes de commit.
 3. registrar inicio/fim da sessao em `docs/RECOVERY_BACKLOG.md`.
 4. atualizar `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` no mesmo slice.
+
+## AVISO FINAL - NAO COLAR NOVO ESTADO AQUI EMBAIXO
+
+1. o fim deste arquivo e historico de auditoria, nao area de trabalho viva.
+2. nao colar nova verdade atual, pendencias novas, status de branch ou logs soltos abaixo deste aviso.
+3. qualquer estado atual novo deve entrar no topo, dentro de `CURRENT TRUTH`.
+4. qualquer pendencia nova deve entrar no topo deste arquivo ou em `docs/RECOVERY_BACKLOG.md`, por prioridade.
+5. colagem solta no fim deste arquivo aumenta custo de leitura, cria contexto stale e ja causou regressao de processo.

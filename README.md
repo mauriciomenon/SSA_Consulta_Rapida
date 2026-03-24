@@ -1,43 +1,45 @@
-# SSA Consulta Rapida v4.35
+# SSA Consulta Rapida v4.36
 
 Release/tag publicada mais recente na branch `dev`: `v4.35`.
 
-## Current Truth (2026-03-24 13:04 -0300)
+## Current Truth (2026-03-24 15:29 -0300)
 
-- Baseline publicado mais recente: `v4.35`.
-- Commit funcional mais recente ja entregue em `dev`:
-  - `5aeadd9e` `STABILITY_PATCH: centralize numero_ssa storage normalization`
-- O que esse commit fechou de fato:
-  - o write path deixou de depender de regras duplicadas de normalizacao de `numero_ssa`
-  - `database_upsert_logic.py` e `database_optimized.py` passaram a usar a regra central de storage
-  - o artefato decimal canonico `NNNNNNNNN.0` agora morre no inicio do fluxo de escrita
-  - salvaguardas posteriores continuam ativas para impedir persistencia de ids nao canonicos
-- Contrato atual que deve ser preservado:
+- Estado operacional:
+  - metadata local ativa: `4.36`
+  - ultima tag publicada em `dev`: `v4.35`
+  - branch `dev` deve permanecer sincronizado com remoto e working tree limpo ao fechar este pacote DOC_SYNC
+  - `4.36` ja esta preparado em metadata, runtime e docs ativos, sem criar tag
+- Validacao atual:
+  - `uv run --python 3.13 python -m py_compile` em tracked Python -> verde
+  - `uv run --python 3.13 ruff check .` -> verde
+  - `uv run --python 3.13 ty check` -> verde
+  - `uv run --python 3.13 python -m pytest -q tests` -> `993 passed, 4 skipped, 11 subtests passed`
+- Contrato atual que nao deve ser reaberto:
   - `numero_ssa`, `derivada_de` e `numero_ssa_relacionada_*` seguem canonicos em texto
   - strings `"<NA>"`, `"None"`, `"nan"`, `"null"` e equivalentes nao devem ser persistidas como texto literal no banco
-  - a busca textual nao usa nem documenta operadores textuais legados; isso nao faz parte do produto
-- Validacao local mais recente e confiavel:
-  - `uv run --python 3.13 python -m py_compile ...` no escopo de `numero_ssa`/write path -> verde
-  - `uv run --python 3.13 ruff check ...` no mesmo escopo -> verde
-  - `uv run --python 3.13 python -m isort --check-only ...` no mesmo escopo -> verde
-  - `uv run --python 3.13 ty check ...` no mesmo escopo -> verde
-  - `uv run --python 3.13 python -m pytest -q tests/test_normalization_rules.py tests/test_ssa_normalization_db.py tests/test_numero_ssa_normalization_cross.py tests/test_numero_ssa_hyphen_repetition.py tests/test_formatting.py tests/test_database.py tests/test_database_upsert_canonical_write.py tests/test_database_optimized_alias_views.py tests/test_database_upsert_prepare.py` -> `45 passed`
-- Licao aprendida obrigatoria:
-  - este problema de `numero_ssa` e `.0` ja voltou mais de uma vez
-  - a causa recorrente nao foi ausencia de teste unitario simples, e sim drift de regra entre `shared`, `armazenamento` e caminhos paralelos de escrita
-  - qualquer novo ajuste em normalizacao tem de partir da fonte central e vir com matriz de regressao do write path
-- Findings externos ainda abertos e reais o bastante para nao serem escondidos:
-  - `HIGH`: rejeicao strict ainda precisa blindar o caminho de storage contra valores com letras que possam cair em limpeza legacy
-  - `MEDIUM`: `_needs_db_only_derivadas_sync` precisa resolver aliases validos antes do lookup canonico
-  - `MEDIUM`: `sanitize_textual_null_sentinels` ainda merece corte de custo para lotes grandes
-  - `LOW`: helper local de data em `database_upsert_logic.py` ainda deve convergir para util compartilhado
-- Estado operacional:
-  - branch alvo de estabilizacao continua `dev`
-  - ha outros arquivos Python locais alterados fora deste README; este slice nao mexe neles
-  - o Kluster via MCP local continua bloqueado nesta sessao:
-    - tentativa via `pnpm.CMD dlx @klusterai/kluster-verify-code-mcp@latest --server=https://api.kluster.ai`
-    - resultado local: `initialize` respondeu, mas `tools/list` expôs so `kluster_failure_notification`
-    - isso e bloqueio de ferramenta, nao review clean
+  - a busca textual nao usa nem documenta operadores textuais legados
+- Prioridades reais antes da proxima tag:
+  - `P0`: blindar storage contra valores com letras que possam cair em limpeza legacy
+  - `P1`: resolver aliases validos antes do lookup em `_needs_db_only_derivadas_sync`
+  - `P1`: reduzir custo de `sanitize_textual_null_sentinels` para lotes grandes
+  - `P2`: convergir helper local de data em `database_upsert_logic.py` para util compartilhado
+- Docs vivos para continuidade:
+  - `AGENTS.md` -> regras, proibicoes, processo e politicas obrigatorias
+  - `docs/NEXT_CHAT_MIGRATION.md` -> roteiro curto para proximo chat
+  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` -> handoff de execucao
+  - `docs/RECOVERY_BACKLOG.md` -> backlog priorizado e historico
+  - `docs/README.md` -> indice da documentacao viva
+- Estado de review auxiliar:
+  - tentativa local via `pnpm.CMD dlx @klusterai/kluster-verify-code-mcp@latest --server=https://api.kluster.ai`
+  - `initialize` respondeu, mas `tools/list` expôs so `kluster_failure_notification`
+  - isto e bloqueio de ferramenta local, nao review clean
+- Primeira acao obrigatoria na proxima conversa:
+  - fazer o Kluster funcionar antes de novos patches
+  - se necessario, revisar e ajustar a configuracao MCP relacionada ao Kluster
+  - referencias para isso:
+    - `.github/instructions/kluster-code-verify.instructions.md`
+    - `docs/CCR_LLM_PROVIDERS_SETUP.md`
+    - `docs/OPENCODE_CONFIG.md`
 
 ## Historical Snapshot (2026-03-23 19:01 -0300)
 
@@ -57,7 +59,7 @@ Release/tag publicada mais recente na branch `dev`: `v4.35`.
     - nesta maquina: `489` `.xlsx` elegiveis na raiz, `0` em `processadas/` e `135` `.xls` fora do pipeline principal
     - se o desktop de trabalho ficou preso em `439`, a primeira hipotese agora e elegibilidade/discovery, nao cache/hash viciado
 
-## Baseline v4.35 (2026-03)
+## Baseline v4.36 (2026-03)
 
 ### Destaques
 - Nullable dtypes no readback agora estao estabilizados sem regressao visual:
@@ -74,7 +76,7 @@ Release/tag publicada mais recente na branch `dev`: `v4.35`.
 - README revisado com secoes obrigatorias (`Instalacao`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Baseline de documentacao atualizado para 4.35.
+- Baseline de documentacao atualizado para 4.36.
 - Regras de tema aplicadas de forma geral para popups/menus/checks e textos de selecao, sem depender de casos especificos por tema.
 - Lock unico de altura para os 3 blocos inferiores (detalhes, filtros avancados, filtros por coluna), com gatilho em init, troca de aba, resize e rebuild de filtros por coluna.
 - Regressao nova: teste para garantir altura sincronizada unica apos resize.
@@ -136,7 +138,7 @@ direnv allow
 uv run --python .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.35)
+### Documentacao tecnica atual (v4.36)
 - Algoritmo do layout dinamico (4 colunas):
   - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:
