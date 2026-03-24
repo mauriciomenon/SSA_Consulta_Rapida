@@ -1,0 +1,18 @@
+BANCO DE EXEMPLO DO PACOTE
+
+Arquivo principal:
+- ssas_example.db
+
+Objetivo:
+- fornecer um banco SQLite fixo, aprovado no repositorio, para demonstracao controlada
+- evitar uso acidental do banco operacional local durante empacotamento
+
+Regras:
+- este banco nao substitui data/ssas.db
+- este banco nao carrega dados locais da maquina que gerou o pacote
+- o empacotador so inclui este banco quando a flag --include-sample-db estiver ligada
+
+Uso sugerido:
+1. mantenha o banco de exemplo separado do banco operacional
+2. se quiser testar leituras sem mexer no banco principal, duplique este arquivo para outro local
+3. nao trate este arquivo como dump oficial de producao
