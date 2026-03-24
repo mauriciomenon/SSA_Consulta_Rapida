@@ -2,7 +2,63 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-23 19h01
+## CURRENT TRUTH 2026-03-24 09h28
+
+- Objetivo consolidado desta rodada:
+  1. fechar os gates pre-PR sem abrir PR.
+  2. atualizar a leitura do report MIMO com base em repro real e regressao completa.
+  3. restaurar o contrato de `scripts_manutencao/analyze_db_integrity.py` sem reabrir SQL dinamico.
+- Estado confirmado:
+  1. branch alvo continua `dev`.
+  2. release/tag publicada mais recente em `dev`: `v4.35`.
+  3. metadata central de versao local deve permanecer alinhada em `4.35`:
+     - `VERSION`
+     - `config/version.json`
+     - `pyproject.toml`
+  4. pacote local ainda nao commitado desta rodada:
+     - `core/app_logic.py`
+     - `core/cache_manager.py`
+     - `core/handler_base.py`
+     - `extracao/extractor.py`
+     - `scripts_manutencao/analyze_db_integrity.py`
+     - `tests/test_cli_loop_filter_rounds.py`
+     - `tests/test_filter_regression.py`
+     - `utils/robust_logging.py`
+- Diagnostico tecnico consolidado:
+  1. a base local atual passou pela regressao ampla completa:
+     - `pytest -q tests` -> `982 passed, 4 skipped, 11 subtests passed`
+  2. o bloco `scripts_manutencao/analyze_db_integrity.py` foi corrigido no contrato que os testes esperam:
+     - prefere `cwd/data/ssas.db` quando existir
+     - cai para `repo_root/data/ssas.db` so quando necessario
+     - separa query/log de importacoes recentes
+     - centraliza a regra SQL de valor invalido
+  3. o report MIMO de `2026-03-23 17:50 BRT` precisa ser lido como triagem, nao como estado atual:
+     - stale/ja fechado no estado local atual:
+       - falha de sidecar WAL/SHM
+       - gap de `scripts_manutencao/analyze_db_integrity.py`
+       - falha ampla de regressao
+     - ainda candidatos, sem claim de bug real nesta rodada:
+       - `shared/numero_ssa.py`
+       - `utils/formatting.py`
+       - `armazenamento/database_upsert_logic.py`
+       - `core/app_logic.py`
+       - `gui/ssa/gui_filters_advanced_ui.py`
+  4. nota de risco futura sobre `df.copy()`:
+     - o alerta de side effect em `_prepare_dataframe_for_simple_insert()` foi auditado
+     - mutacao do `DataFrame` do chamador nao foi reproduzida no estado atual
+     - se `prepare_dataframe_for_storage()` deixar de materializar novo `DataFrame`, reabrir o ponto e restaurar `df.copy()` no mesmo slice
+  4. a falha de performance em `tests/test_workers_advanced.py` nao reproduziu na regressao final; tratar como flake potencial ate novo repro
+- Validacao consolidada:
+  1. `py_compile`, `ruff` e `ty` verdes no conjunto alterado.
+  2. `tests/test_scripts_manutencao_schema_targets.py` -> `4 passed`.
+  3. `semgrep` focado no script de manutencao -> `0 findings`.
+  4. `bandit` focado no script de manutencao -> `0 findings`.
+  5. `tests/` inteiro -> `982 passed, 4 skipped, 11 subtests passed`.
+- Pendencia ainda aberta para o proximo ciclo:
+  1. escolher um item confirmado do report MIMO e abrir slice proprio, em vez de tratar o report inteiro como estado atual.
+  2. se o usuario quiser aterrissagem completa, consolidar commit atomico e revalidar antes de qualquer PR.
+
+## HISTORICAL SNAPSHOT 2026-03-23 19h01
 
 - Objetivo consolidado desta rodada:
   1. corrigir a regressao visivel de `<NA>` em exibicao.
@@ -547,7 +603,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - help inicial e fallback do help completo passam a usar o mesmo texto compartilhado.
      - testes novos travam o contrato textual compartilhado.
   2. `6d29addf`
-     - CLI passa a usar termos separados por virgula sem reinterpretar `OU/OR/E/v`.
+     - CLI passa a respeitar o contrato atual da busca superior.
      - lookup direto de detalhe fica restrito a SSA numerica exata.
      - `v` volta a reexibir o estado anterior.
      - exportacao rejeita nome inseguro e valida o diretorio de saida.
@@ -591,7 +647,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   3. separar debts estruturais do CLI para um ciclo proprio, sem refatoracao ampla agora.
 - Commit funcional entregue:
   1. `6d29addf`
-     - CLI passa a usar termos separados por virgula sem reinterpretar `OU/OR/E/v`.
+     - CLI passa a respeitar o contrato atual da busca superior.
      - lookup direto de detalhe fica restrito a SSA numerica exata.
      - `v` volta a reexibir o estado anterior.
 - Validacao consolidada:
@@ -667,7 +723,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. `fd2d9b09`
      - full rescan Windows fecha conexoes SQLite antes de promover o DB candidato.
   2. `3ea0881b`
-     - busca superior travada em teste como literal para `svp` e `OU/OR`.
+     - busca superior travada em teste no contrato simplificado atual.
   3. `2a1623bf`
      - upsert registra em log troca de `setor_executor` quando o dado mais novo vence.
 - Diagnostico tecnico consolidado:
@@ -678,7 +734,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   3. o schema local atual nao contem `responsavel_solicitante`.
   4. a logica de upsert ja aceitava troca de setor por linha mais nova; agora isso tambem fica registrado em log de arquivo sem afetar UI.
 - Validacao consolidada:
-  1. contrato literal da busca superior para `svp` e `OU/OR` travado em `tests/test_app_logic_filter_contract.py`.
+  1. contrato simplificado atual da busca superior travado em `tests/test_app_logic_filter_contract.py`.
   2. full rescan com DB-only derivadas validado apos fechar handles SQLite.
   3. troca de `setor_executor` por linha mais nova validada e logada em `tests/test_upsert_behaviors.py`.
 - Proximo passo sugerido:
@@ -704,10 +760,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `?? *.bak.*`
   3. `pyproject.toml` tem diff misto local; nao commitar por inferencia.
 - Diagnostico tecnico final desta subrodada:
-  1. a busca superior do `core` deve permanecer literal:
-     - `svp` literal
-     - `OU/OR` literal
-     - virgula separa termos com AND implicito
+  1. a busca superior do `core` deve permanecer no contrato simplificado atual, sem reinterpretacao semantica.
   2. ainda existia superficie morta no `core` sugerindo alias de busca:
      - `get_filter_alias_map()`
      - `apply_filter_aliases()`
@@ -717,7 +770,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - removidas as funcoes mortas de alias.
      - docstring ajustada para refletir o contrato real.
   2. `tests/test_app_logic_filter_contract.py`
-     - novo teste trava `svp` e `OU` como literais.
+     - novo teste trava o contrato simplificado atual da busca superior.
   3. `tests/test_filter_alias_map_loading.py`
      - removido por ter virado teste de legado morto.
   4. `gui/widgets/filter_help_dialog.py`

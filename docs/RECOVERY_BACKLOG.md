@@ -3,7 +3,84 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-24 12:08 - version sync local 4.35 e nota de risco do df.copy (DOC_SYNC + DEFERRED_NOTE)
+
+Session timestamp:
+1. start: `2026-03-24 12:07:52 -0300`
+2. fim: `2026-03-24 12:07:52 -0300`
+
+Objetivo do slice:
+1. alinhar a metadata central de versao local ao baseline publicado `v4.35`.
+2. registrar de forma objetiva a analise do alerta sobre `df.copy()` no write path simples.
+3. evitar novo drift entre tag/release e versao mostrada pelo programa.
+
+Diagnostico objetivo:
+1. a tag/release mais recente em `dev` ja era `v4.35`, mas a metadata local central ainda estava em `4.33`.
+2. os pontos centrais com drift eram:
+   - `VERSION`
+   - `config/version.json`
+   - `pyproject.toml`
+3. o alerta sobre `df.copy()` em `armazenamento/database.py` foi auditado com leitura de fluxo, mapeamento de chamadores e repros:
+   - o risco era plausivel
+   - o side effect de mutacao do `DataFrame` do chamador nao foi reproduzido no estado atual
+   - o motivo tecnico observado foi a materializacao de um novo `DataFrame` dentro de `prepare_dataframe_for_storage()`
+
+Leitura e decisao:
+1. isto nao fecha como `BUG_REAL` no estado atual.
+2. isto fica registrado como `NAO_BLOQUEANTE_DEFERIDO` com criterio claro de reavaliacao.
+3. se `prepare_dataframe_for_storage()` deixar de devolver um novo `DataFrame` no fluxo de insercao simples, reabrir o ponto e restaurar `df.copy()` no mesmo slice.
+
 ## Update 2026-03-23 19:01 - diagnostico local do full rescan alinhado ao contrato real (DOC_SYNC + DEFERRED_NOTE)
+
+## Update 2026-03-24 09:28 - triagem do report MIMO e gates pre-PR locais (DOC_SYNC + DEFERRED_NOTE)
+
+Session timestamp:
+1. start: `2026-03-24 09:27:52 -0300`
+2. fim: `2026-03-24 09:27:52 -0300`
+
+Objetivo do slice:
+1. confrontar o report MIMO de `2026-03-23 17:50 BRT` com o estado local real do repo.
+2. fechar a matriz pre-PR local sem abrir PR.
+3. registrar nos docs o que esta stale, o que foi fechado e o que ainda merece auditoria propria.
+
+Diagnostico objetivo:
+1. a regressao ampla local ficou verde:
+   - `uv run --python 3.13 python -m pytest -q tests` -> `982 passed, 4 skipped, 11 subtests passed`
+2. `scripts_manutencao/analyze_db_integrity.py` era um gap real desta rodada e foi fechado:
+   - o script voltou a respeitar `tmp_path/data/ssas.db`
+   - a resolucao de schema tambem respeita `cwd` quando aplicavel
+   - o fluxo continua sem SQL dinamico por input externo
+3. itens do report MIMO que ficaram stale no estado local atual:
+   - falha do full rescan com sidecars WAL/SHM
+   - gap de `scripts_manutencao/analyze_db_integrity.py`
+   - falha ampla de regressao
+4. itens do report MIMO que continuam candidatos, mas sem claim de bug real nesta rodada:
+   - `shared/numero_ssa.py` ano hardcoded/prefixo 2026+
+   - `utils/formatting.py` `except` amplos e fallback de stringificacao
+   - `armazenamento/database_upsert_logic.py` caminhos silenciosos
+   - `core/app_logic.py` self-healing e residuos de `astype(str)`
+   - `gui/ssa/gui_filters_advanced_ui.py` complexidade e excesso de `try/except`
+5. a falha de performance em `tests/test_workers_advanced.py` nao reapareceu na rodada final ampla; hoje fica classificada como flake potencial, nao blocker atual.
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile scripts_manutencao/analyze_db_integrity.py` -> pass.
+2. `uv run --python 3.13 ruff check scripts_manutencao/analyze_db_integrity.py` -> pass.
+3. `uv run --python 3.13 ty check scripts_manutencao/analyze_db_integrity.py` -> pass.
+4. `uv run --python 3.13 python -m pytest -q tests/test_scripts_manutencao_schema_targets.py` -> `4 passed`.
+5. `uv run --python 3.13 semgrep scan --config auto scripts_manutencao/analyze_db_integrity.py` -> `0 findings`.
+6. `uv run --python 3.13 bandit -f json -r scripts_manutencao/analyze_db_integrity.py` -> `0 findings`.
+7. `uv run --python 3.13 python -m pytest -q tests` -> `982 passed, 4 skipped, 11 subtests passed`.
+
+Licoes aprendidas:
+1. report externo serve como triagem de suspeitas; nao pode substituir repro local e gates reais.
+2. quando um report mistura itens stale e itens vivos, o melhor caminho e converter isso em backlog qualificado por evidencia.
+3. `scripts_manutencao/analyze_db_integrity.py` precisava voltar a ser testavel por `cwd`, nao apenas endurecido por path absoluto.
+
+Pendencias nao bloqueantes abertas:
+1. auditar `shared/numero_ssa.py` em slice proprio com teste de contrato de ano/prefixo.
+2. auditar `utils/formatting.py` para confirmar se os `except` amplos ainda representam risco real.
+3. auditar `armazenamento/database_upsert_logic.py` para confirmar ou descartar os caminhos silenciosos apontados no report.
+4. auditar residuos de `astype(str)` e pontos de self-healing em `core/app_logic.py` com repro funcional, nao so grep.
 
 Session timestamp:
 1. start: `2026-03-23 19:01:32 -0300`
@@ -911,7 +988,7 @@ Objetivo do slice:
 Diagnostico objetivo:
 1. `interface/cli.py` ainda fazia parsing proprio e antigo:
    - separava por espaco ou virgula
-   - reinterpretava `ou`, `or`, `v` e `e`
+   - reinterpretava termos e atalhos herdados da busca
 2. o loop real tinha um bug de usabilidade:
    - `v` restaurava a stack, mas nao reexibia os dados
 3. a suite anterior so cobria:
@@ -930,7 +1007,7 @@ Escopo alterado:
 
 Mudanca aplicada:
 1. commit `6d29addf`
-   - busca do CLI passa a usar termos separados por virgula, sem reinterpretar `OU/OR/E/v`
+   - busca do CLI passa a respeitar o contrato atual da busca superior
    - lookup direto de detalhe fica restrito a SSA numerica exata
    - `v` volta a reexibir o estado anterior
    - exportacao rejeita nome inseguro e valida diretorio de saida
@@ -1031,7 +1108,7 @@ Mudanca aplicada:
 1. commit `fd2d9b09`
    - conexoes SQLite passam a ser fechadas explicitamente antes da promocao do DB candidato no full rescan.
 2. commit `3ea0881b`
-   - `svp` e `OU/OR` ficam travados como literais na busca superior.
+   - contrato simplificado atual da busca superior fica travado em teste.
 3. commit `2a1623bf`
    - troca de `setor_executor` por linha mais nova passa a ser logada em arquivo.
 
@@ -1242,13 +1319,9 @@ Escopo alterado:
 Mudanca aplicada:
 1. removidas as funcoes mortas de alias do `core`.
 2. removido o trecho de docstring que mentia sobre alias na busca superior.
-3. adicionado teste de contrato para travar:
-   - `svp` literal
-   - `OU` literal
+3. adicionado teste de contrato para travar o contrato simplificado atual da busca superior.
 4. removido o teste que cobria apenas o legado morto de alias.
-5. texto de ajuda ajustado para separar:
-   - busca geral
-   - filtro por coluna com virgula como alternativa implicita
+5. texto de ajuda ajustado para separar busca geral e fluxo de filtro por coluna.
 6. `gui/gui_ssa.py` recebeu cleanup minimo para reduzir ruido de `ty`.
 7. o delta desejado em `pyproject.toml` deste slice e apenas a remocao das 4 chaves antigas de pytest; qualquer outro diff local no arquivo deve ficar fora do commit final.
 
@@ -5143,8 +5216,8 @@ Session timestamp:
 Decisao entregue:
 1. `core.app_logic.py` fechou o ajuste final do cache de busca e do matching `prefix/suffix/exact` com separador de campo, removendo warnings de regex sem alterar a semantica aprovada.
 2. o conflito do kluster sobre `rule_13/rule_23` foi mantido como decisao intencional:
-   - nao reintroduzir parser exotico `OR/OU` na busca geral
-   - filtros de coluna continuam com comportamento de OR no fluxo proprio da GUI/worker
+   - nao reintroduzir parser especial na busca geral
+   - filtros de coluna continuam com comportamento proprio no fluxo da GUI/worker
 3. foi rodada comparacao direta padrao vs robust em ambiente isolado, no corpus completo, usando o mesmo `run_importer_logic()` e trocando apenas a funcao de extracao no modo robust.
 
 Arquivos alterados:
