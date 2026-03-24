@@ -2,61 +2,50 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-24 09h28
+## CURRENT TRUTH 2026-03-24 13h04
 
 - Objetivo consolidado desta rodada:
-  1. fechar os gates pre-PR sem abrir PR.
-  2. atualizar a leitura do report MIMO com base em repro real e regressao completa.
-  3. restaurar o contrato de `scripts_manutencao/analyze_db_integrity.py` sem reabrir SQL dinamico.
+  1. fechar a frente `numero_ssa`/write path com patch minimo e commit atomico.
+  2. parar o drift de regra entre `shared`, util de storage e caminhos de escrita.
+  3. documentar de forma explicita o que ainda falta antes de qualquer PR.
 - Estado confirmado:
   1. branch alvo continua `dev`.
   2. release/tag publicada mais recente em `dev`: `v4.35`.
-  3. metadata central de versao local deve permanecer alinhada em `4.35`:
-     - `VERSION`
-     - `config/version.json`
-     - `pyproject.toml`
-  4. pacote local ainda nao commitado desta rodada:
-     - `core/app_logic.py`
-     - `core/cache_manager.py`
-     - `core/handler_base.py`
-     - `extracao/extractor.py`
-     - `scripts_manutencao/analyze_db_integrity.py`
-     - `tests/test_cli_loop_filter_rounds.py`
-     - `tests/test_filter_regression.py`
-     - `utils/robust_logging.py`
+  3. commit funcional entregue nesta frente:
+     - `5aeadd9e` `STABILITY_PATCH: centralize numero_ssa storage normalization`
+  4. residuos locais fora de escopo continuam presentes:
+     - `M armazenamento/database.py`
+     - `M core/app_logic.py`
+     - `M core/cache_manager.py`
+     - `M core/handler_base.py`
+     - `M extracao/extractor.py`
+     - `M scripts_manutencao/analyze_db_integrity.py`
+     - `M tests/test_cli_loop_filter_rounds.py`
+     - `M tests/test_db_reset_and_upsert.py`
+     - `M tests/test_filter_regression.py`
+     - `M utils/robust_logging.py`
 - Diagnostico tecnico consolidado:
-  1. a base local atual passou pela regressao ampla completa:
-     - `pytest -q tests` -> `982 passed, 4 skipped, 11 subtests passed`
-  2. o bloco `scripts_manutencao/analyze_db_integrity.py` foi corrigido no contrato que os testes esperam:
-     - prefere `cwd/data/ssas.db` quando existir
-     - cai para `repo_root/data/ssas.db` so quando necessario
-     - separa query/log de importacoes recentes
-     - centraliza a regra SQL de valor invalido
-  3. o report MIMO de `2026-03-23 17:50 BRT` precisa ser lido como triagem, nao como estado atual:
-     - stale/ja fechado no estado local atual:
-       - falha de sidecar WAL/SHM
-       - gap de `scripts_manutencao/analyze_db_integrity.py`
-       - falha ampla de regressao
-     - ainda candidatos, sem claim de bug real nesta rodada:
-       - `shared/numero_ssa.py`
-       - `utils/formatting.py`
-       - `armazenamento/database_upsert_logic.py`
-       - `core/app_logic.py`
-       - `gui/ssa/gui_filters_advanced_ui.py`
-  4. nota de risco futura sobre `df.copy()`:
-     - o alerta de side effect em `_prepare_dataframe_for_simple_insert()` foi auditado
-     - mutacao do `DataFrame` do chamador nao foi reproduzida no estado atual
-     - se `prepare_dataframe_for_storage()` deixar de materializar novo `DataFrame`, reabrir o ponto e restaurar `df.copy()` no mesmo slice
-  4. a falha de performance em `tests/test_workers_advanced.py` nao reproduziu na regressao final; tratar como flake potencial ate novo repro
-- Validacao consolidada:
-  1. `py_compile`, `ruff` e `ty` verdes no conjunto alterado.
-  2. `tests/test_scripts_manutencao_schema_targets.py` -> `4 passed`.
-  3. `semgrep` focado no script de manutencao -> `0 findings`.
-  4. `bandit` focado no script de manutencao -> `0 findings`.
-  5. `tests/` inteiro -> `982 passed, 4 skipped, 11 subtests passed`.
-- Pendencia ainda aberta para o proximo ciclo:
-  1. escolher um item confirmado do report MIMO e abrir slice proprio, em vez de tratar o report inteiro como estado atual.
-  2. se o usuario quiser aterrissagem completa, consolidar commit atomico e revalidar antes de qualquer PR.
+  1. o `.0` vazava por regras duplicadas de normalizacao no write path.
+  2. o patch correto foi centralizar a normalizacao de storage e fazer os dois caminhos de escrita usarem a mesma regra.
+  3. o artefato decimal canonico `NNNNNNNNN.0` agora e eliminado no inicio do fluxo de escrita.
+  4. salvaguardas posteriores continuam a validar id canonico e nao devem ser removidas.
+  5. licao de regressao:
+     - esse problema ja voltou varias vezes
+     - a causa recorrente foi drift entre helpers e caminhos paralelos
+     - qualquer novo ajuste em `numero_ssa` precisa sair da fonte central e vir com matriz de regressao de storage
+- Validacao consolidada do slice:
+  1. `py_compile`, `ruff`, `isort` e `ty` verdes no escopo tocado.
+  2. `pytest` focado de normalizacao/storage -> `45 passed`.
+- Pendencias reais ainda abertas:
+  1. blindar storage contra valores com letras que ainda possam cair em limpeza legacy.
+  2. resolver aliases validos em `_needs_db_only_derivadas_sync` antes do lookup de tabela canonica.
+  3. reduzir o custo de `sanitize_textual_null_sentinels` para lotes grandes.
+  4. convergir helper local de data em `database_upsert_logic.py` para util compartilhado.
+  5. so depois disso retomar `core/app_logic.py` e `utils/formatting.py` na ordem definida pelo usuario.
+- Estado do Kluster local:
+  1. tentativa correta foi via `pnpm.CMD dlx @klusterai/kluster-verify-code-mcp@latest --server=https://api.kluster.ai`.
+  2. o servidor MCP local respondeu ao `initialize`, mas `tools/list` expôs so `kluster_failure_notification`.
+  3. tratar isso como bloqueio de ferramenta local, nao como review limpo.
 
 ## HISTORICAL SNAPSHOT 2026-03-23 19h01
 

@@ -2,55 +2,42 @@
 
 Release/tag publicada mais recente na branch `dev`: `v4.35`.
 
-## Current Truth (2026-03-24 09:28 -0300)
+## Current Truth (2026-03-24 13:04 -0300)
 
 - Baseline publicado mais recente: `v4.35`.
-- Estado local atual:
-  - ha um pacote local de estabilizacao ainda nao commitado apos `v4.35`
-  - arquivos locais alterados neste pacote:
-    - `core/app_logic.py`
-    - `core/cache_manager.py`
-    - `core/handler_base.py`
-    - `extracao/extractor.py`
-    - `scripts_manutencao/analyze_db_integrity.py`
-    - `tests/test_cli_loop_filter_rounds.py`
-    - `tests/test_filter_regression.py`
-    - `utils/robust_logging.py`
-- Contrato atual ja revalidado localmente:
+- Commit funcional mais recente ja entregue em `dev`:
+  - `5aeadd9e` `STABILITY_PATCH: centralize numero_ssa storage normalization`
+- O que esse commit fechou de fato:
+  - o write path deixou de depender de regras duplicadas de normalizacao de `numero_ssa`
+  - `database_upsert_logic.py` e `database_optimized.py` passaram a usar a regra central de storage
+  - o artefato decimal canonico `NNNNNNNNN.0` agora morre no inicio do fluxo de escrita
+  - salvaguardas posteriores continuam ativas para impedir persistencia de ids nao canonicos
+- Contrato atual que deve ser preservado:
   - `numero_ssa`, `derivada_de` e `numero_ssa_relacionada_*` seguem canonicos em texto
-  - semanas e contadores de reprogramacao seguem nullable ints no readback
-  - `pd.NA` nao vaza como `"<NA>"` em exibicao, filtro por coluna, filtros avancados nem no sort de `num_reprogramacoes`
-  - `scripts_manutencao/analyze_db_integrity.py` voltou a respeitar `tmp_path/data/ssas.db` em testes, sem reabrir SQL dinamico
-- Validacao local mais recente:
-  - `uv run --python 3.13 python -m pytest -q tests` -> `982 passed, 4 skipped, 11 subtests passed`
-  - `py_compile`, `ruff` e `ty` verdes no conjunto alterado desta rodada
-  - `semgrep` focado nos arquivos tocados -> `0 findings`
-  - `bandit` focado nos arquivos tocados -> sem `medium/high` em runtime; sobram falsos positivos baixos e ruido esperado de testes
-  - metadata central de versao local sincronizada para `4.35`:
-    - `VERSION`
-    - `config/version.json`
-    - `pyproject.toml`
-- Triagem atualizada do report MIMO de 2026-03-23 17:50 BRT:
-  - itens confirmados como stale ou ja fechados no estado local atual:
-    - falha do full rescan com sidecars WAL/SHM
-    - gap de regressao em `scripts_manutencao/analyze_db_integrity.py`
-    - falha geral de regressao ampla
-  - itens que continuam candidatos e ainda exigem auditoria dedicada antes de qualquer claim:
-    - `shared/numero_ssa.py` ano hardcoded/prefixo 2026+
-    - `utils/formatting.py` `except` amplos e fallbacks de stringificacao
-    - `armazenamento/database_upsert_logic.py` caminhos silenciosos
-    - `core/app_logic.py` pontos de self-healing e residuos de `astype(str)`
-    - `gui/ssa/gui_filters_advanced_ui.py` complexidade e excesso de `try/except`
-  - leitura correta do report hoje:
-    - serve como triagem de suspeitas
-    - nao deve ser tratado como fonte de verdade sem repro e gate local
+  - strings `"<NA>"`, `"None"`, `"nan"`, `"null"` e equivalentes nao devem ser persistidas como texto literal no banco
+  - a busca textual nao usa nem documenta operadores textuais legados; isso nao faz parte do produto
+- Validacao local mais recente e confiavel:
+  - `uv run --python 3.13 python -m py_compile ...` no escopo de `numero_ssa`/write path -> verde
+  - `uv run --python 3.13 ruff check ...` no mesmo escopo -> verde
+  - `uv run --python 3.13 python -m isort --check-only ...` no mesmo escopo -> verde
+  - `uv run --python 3.13 ty check ...` no mesmo escopo -> verde
+  - `uv run --python 3.13 python -m pytest -q tests/test_normalization_rules.py tests/test_ssa_normalization_db.py tests/test_numero_ssa_normalization_cross.py tests/test_numero_ssa_hyphen_repetition.py tests/test_formatting.py tests/test_database.py tests/test_database_upsert_canonical_write.py tests/test_database_optimized_alias_views.py tests/test_database_upsert_prepare.py` -> `45 passed`
+- Licao aprendida obrigatoria:
+  - este problema de `numero_ssa` e `.0` ja voltou mais de uma vez
+  - a causa recorrente nao foi ausencia de teste unitario simples, e sim drift de regra entre `shared`, `armazenamento` e caminhos paralelos de escrita
+  - qualquer novo ajuste em normalizacao tem de partir da fonte central e vir com matriz de regressao do write path
+- Findings externos ainda abertos e reais o bastante para nao serem escondidos:
+  - `HIGH`: rejeicao strict ainda precisa blindar o caminho de storage contra valores com letras que possam cair em limpeza legacy
+  - `MEDIUM`: `_needs_db_only_derivadas_sync` precisa resolver aliases validos antes do lookup canonico
+  - `MEDIUM`: `sanitize_textual_null_sentinels` ainda merece corte de custo para lotes grandes
+  - `LOW`: helper local de data em `database_upsert_logic.py` ainda deve convergir para util compartilhado
 - Estado operacional:
   - branch alvo de estabilizacao continua `dev`
-  - working tree local ainda pode ficar sujo por arquivos fora de escopo (`.python-version`, `config/*`, `data/ssas.db`, `docs_entrada/*`, backups locais)
-  - diagnostico local do full rescan continua o mesmo:
-    - discovery atual considera `.xlsx` na raiz de `docs_entrada` e, opcionalmente, em `processadas/`
-    - nesta maquina: `489` `.xlsx` elegiveis na raiz, `0` em `processadas/` e `135` `.xls` fora do pipeline principal
-    - se o desktop de trabalho ficou preso em `439`, a primeira hipotese segue elegibilidade/discovery, nao cache/hash viciado
+  - ha outros arquivos Python locais alterados fora deste README; este slice nao mexe neles
+  - o Kluster via MCP local continua bloqueado nesta sessao:
+    - tentativa via `pnpm.CMD dlx @klusterai/kluster-verify-code-mcp@latest --server=https://api.kluster.ai`
+    - resultado local: `initialize` respondeu, mas `tools/list` expôs so `kluster_failure_notification`
+    - isso e bloqueio de ferramenta, nao review clean
 
 ## Historical Snapshot (2026-03-23 19:01 -0300)
 
