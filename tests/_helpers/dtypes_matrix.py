@@ -14,6 +14,7 @@ Campos de cada entrada:
   policy: ver acima
   notes: observações adicionais
 """
+
 from __future__ import annotations
 
 DTYPES_MATRIX = [
@@ -21,31 +22,31 @@ DTYPES_MATRIX = [
         "name": "numero_ssa",
         "expected_dtype": "object",  # armazenado como texto padronizado
         "policy": "required|normalized",
-        "notes": "identificador canonico numerico; planilhas atuais usam 9 digitos, com compatibilidade legacy isolada em helper"
+        "notes": "identificador canonico numerico; planilhas atuais usam 9 digitos, com compatibilidade legacy isolada em helper",
     },
     {
         "name": "situacao",
         "expected_dtype": "object",
         "policy": "required",
-        "notes": "Estado textual da solicitação"
+        "notes": "Estado textual da solicitação",
     },
     {
         "name": "data_cadastro",
         "expected_dtype": "object",  # strings normalizadas YYYY-MM-DD HH:MM:SS
         "policy": "optional",
-        "notes": "Pode ser vazia e posterior enriquecimento pode converter para datetime"
+        "notes": "Pode ser vazia e posterior enriquecimento pode converter para datetime",
     },
     {
         "name": "descricao_ssa",
         "expected_dtype": "object",
         "policy": "optional",
-        "notes": "Texto livre descritivo"
+        "notes": "Texto livre descritivo",
     },
     {
         "name": "setor_executor",
         "expected_dtype": "object",
         "policy": "optional",
-        "notes": "Código/identificação do setor executor"
+        "notes": "Código/identificação do setor executor",
     },
 ]
 
