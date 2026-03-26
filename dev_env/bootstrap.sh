@@ -33,12 +33,7 @@ echo "[info] OS detectado: $OS"
 ensure_build_deps() {
   case "$OS" in
     debian)
-      if have_cmd apt; then
-        echo "[info] Instalando dependencias de build para pyenv (sudo pode ser solicitado)"
-        sudo apt update -y
-        sudo apt install -y build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
-          libsqlite3-dev curl llvm tk-dev libncursesw5-dev xz-utils libffi-dev liblzma-dev ca-certificates
-      fi
+      :
       ;;
     mac)
       if have_cmd brew; then
@@ -50,6 +45,20 @@ ensure_build_deps() {
       ;;
     *) ;;
   esac
+}
+
+ensure_pyenv_clone_deps() {
+  if [[ "$OS" != "debian" ]] || ! have_cmd apt; then
+    return 0
+  fi
+  if ! have_cmd sudo; then
+    echo "[aviso] sudo nao encontrado; seguindo para fallback .venv sem bootstrap do pyenv"
+    return 1
+  fi
+  echo "[info] Instalando dependencias de build para pyenv (sudo pode ser solicitado)"
+  sudo apt update -y
+  sudo apt install -y build-essential git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
+    libsqlite3-dev curl llvm tk-dev libncursesw5-dev xz-utils libffi-dev liblzma-dev ca-certificates
 }
 
 ensure_pyenv() {
@@ -67,6 +76,7 @@ ensure_pyenv() {
   if have_cmd pyenv; then
     echo "[aviso] pyenv encontrado sem pyenv-virtualenv; instalando plugin fixado"
   else
+    ensure_pyenv_clone_deps || return 1
     if [[ -x "$PYENV_ROOT/bin/pyenv" || -d "$PYENV_ROOT/.git" ]]; then
       echo "[info] Reutilizando instalacao existente de pyenv em $PYENV_ROOT"
     elif [[ -d "$PYENV_ROOT" ]] && [[ -z "$(find "$PYENV_ROOT" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
