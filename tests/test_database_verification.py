@@ -402,6 +402,60 @@ class TestDatabaseRepair:
         assert result is True
         assert "arquivo_origem" in query_db(db_path, 'ssa_table').columns
 
+    def test_verify_missing_required_columns_exposes_repair_metadata(self, tmp_path):
+        """Schema drift de colunas obrigatorias deve aparecer explicitamente no report."""
+        db_path = os.path.join(tmp_path, 'missing_required_report.db')
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE ssa_table (
+                    numero_ssa INTEGER,
+                    descricao_ssa TEXT
+                )
+                """
+            )
+            conn.commit()
+
+        report = verify_database_integrity(db_path, table_name='ssa_table')
+
+        assert report['is_valid'] is False
+        assert sorted(report['missing_required_columns']) == ['data_cadastro', 'situacao']
+        assert report['repair_suggestion'] is not None
+
+    def test_repair_adds_missing_required_columns_when_table_exists(self, tmp_path):
+        """Reparo minimo deve adicionar colunas obrigatorias ausentes quando a tabela ja existe."""
+        db_path = os.path.join(tmp_path, 'repair_missing_required.db')
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE ssa_table (
+                    numero_ssa INTEGER,
+                    descricao_ssa TEXT
+                )
+                """
+            )
+            conn.commit()
+
+        schema_path = os.path.join(tmp_path, 'schema.sql')
+        with open(schema_path, 'w') as f:
+            f.write(
+                """
+                CREATE TABLE IF NOT EXISTS ssa_table (
+                    numero_ssa INTEGER,
+                    situacao TEXT,
+                    data_cadastro TEXT,
+                    descricao_ssa TEXT
+                );
+                """
+            )
+
+        result = repair_database_if_needed(db_path, schema_path, table_name='ssa_table')
+
+        assert result is True
+        columns = query_db(db_path, 'ssa_table').columns.tolist()
+        assert 'situacao' in columns
+        assert 'data_cadastro' in columns
+
     def test_repair_nonexistent_database_avoids_false_warning(self, tmp_path, caplog):
         """Banco ausente em bootstrap nao deve logar warning generico de problema."""
         db_path = os.path.join(tmp_path, 'new_bootstrap.db')
@@ -504,6 +558,75 @@ class TestDatabaseRepair:
         with sqlite3.connect(db_path) as conn:
             row_count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
         assert row_count == 1
+
+    def test_repair_prefers_restore_flow_before_reinitialize_when_corrupted(self, tmp_path, monkeypatch):
+        """Caminho de corrupcao nao deve reusar initialize_database diretamente no banco original."""
+        db_path = os.path.join(tmp_path, 'corrupted_prefers_restore.db')
+        schema_path = os.path.join(tmp_path, 'schema.sql')
+
+        with open(schema_path, 'w') as f:
+            f.write(
+                """
+                CREATE TABLE IF NOT EXISTS ssa_table (
+                    numero_ssa INTEGER,
+                    situacao TEXT,
+                    data_cadastro TEXT,
+                    descricao_ssa TEXT
+                );
+                """
+            )
+
+        initialize_database(db_path, schema_path)
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro, descricao_ssa)
+                VALUES (?, ?, ?, ?)
+                """,
+                (202312346, 'STE', '2023-12-02 11:00:00', 'Restore branch'),
+            )
+            conn.commit()
+
+        real_verify = database_integrity_module.verify_database_integrity
+        calls = {'count': 0}
+
+        def _fake_verify(path, table_name='ssa_table'):
+            if path == db_path and calls['count'] == 0:
+                calls['count'] += 1
+                return {
+                    'is_valid': False,
+                    'issues': ['forced corruption branch'],
+                    'warnings': [],
+                    'database_exists': True,
+                    'database_accessible': False,
+                    'table_exists': False,
+                    'schema_valid': False,
+                    'data_consistent': False,
+                    'disk_space_sufficient': True,
+                    'file_permissions_ok': True,
+                    'needs_creation': False,
+                    'missing_required_columns': [],
+                    'missing_optional_columns': [],
+                    'repair_suggestion': None,
+                    'table_name': 'ssa_table',
+                }
+            return real_verify(path, table_name=table_name)
+
+        initialize_calls: list[str] = []
+
+        def _guarded_initialize(path, schema):
+            initialize_calls.append(path)
+            assert path != db_path
+            return initialize_database(path, schema)
+
+        monkeypatch.setattr(database_integrity_module, "verify_database_integrity", _fake_verify)
+        monkeypatch.setattr("armazenamento.database.initialize_database", _guarded_initialize)
+
+        result = repair_database_if_needed(db_path, schema_path, table_name='ssa_table')
+
+        assert result in (True, False)
+        assert any(path != db_path for path in initialize_calls)
+        assert all(path != db_path for path in initialize_calls)
 
 
 if __name__ == '__main__':

@@ -69,7 +69,9 @@ def verify_database_integrity(
         'disk_space_sufficient': False,
         'file_permissions_ok': False,
         'needs_creation': False,
+        'missing_required_columns': [],
         'missing_optional_columns': [],
+        'repair_suggestion': None,
     }
     try:
         if not is_valid_identifier(report['table_name']):
@@ -159,7 +161,12 @@ def verify_database_integrity(
 
                     missing = [c for c in required_columns if c not in existing_columns]
                     if missing:
+                        report['missing_required_columns'] = missing
                         report['issues'].append(f"Colunas obrigatorias ausentes: {missing}")
+                        report['repair_suggestion'] = (
+                            "Execute repair_database_if_needed() ou migracao de schema "
+                            f"para adicionar: {missing}"
+                        )
                         report['is_valid'] = False
                     else:
                         report['schema_valid'] = True
@@ -184,6 +191,7 @@ def repair_database_if_needed(
     try:
         integrity_report = verify_database_integrity(db_path, table_name)
         missing_optional_columns = integrity_report.get('missing_optional_columns', [])
+        missing_required_columns = integrity_report.get('missing_required_columns', [])
         if integrity_report['is_valid'] and not missing_optional_columns:
             logger.info("Banco de dados integro - nenhum reparo necessario")
             return True
@@ -208,18 +216,6 @@ def repair_database_if_needed(
             from .database import initialize_database  # lazy
             initialize_database(db_path, schema_file)
             repaired = True
-        elif not integrity_report['table_exists']:
-            logger.info("Recriando schema do banco...")
-            from .database import initialize_database  # lazy
-            initialize_database(db_path, schema_file)
-            repaired = True
-        elif (
-            integrity_report['table_exists']
-            and 'arquivo_origem' in missing_optional_columns
-        ):
-            from .database import ensure_column_exists  # lazy
-            if ensure_column_exists(db_path, integrity_report['table_name'], 'arquivo_origem', 'TEXT'):
-                repaired = True
         elif not integrity_report['data_consistent']:
             logger.warning("Detectada corrupcao no banco - tentando backup/restore...")
             backup_path = f"{db_path}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -245,7 +241,8 @@ def repair_database_if_needed(
                             raise ValueError("No compatible SSA table found for repair backup.")
                         if not is_valid_identifier(source_table):
                             raise ValueError(f"Invalid SQL identifier: {source_table}")
-                        df_backup = pd.read_sql_query(f"SELECT * FROM {source_table}", conn)
+                        quoted_source_table = _quote_identifier(source_table)
+                        df_backup = pd.read_sql_query(f"SELECT * FROM {quoted_source_table}", conn)
                     except Exception as e:  # pragma: no cover
                         logger.error("Nao foi possivel extrair dados do banco corrompido: %s", e)
                 if not df_backup.empty:
@@ -280,6 +277,42 @@ def repair_database_if_needed(
                     logger.warning("Nenhum dado foi extraido do banco corrompido para restauracao.")
             except Exception as e:  # pragma: no cover
                 logger.error("Falha no processo de backup/restore: %s", e)
+        elif not integrity_report['table_exists']:
+            logger.info("Recriando schema do banco...")
+            from .database import initialize_database  # lazy
+            initialize_database(db_path, schema_file)
+            repaired = True
+        elif integrity_report['table_exists'] and missing_required_columns:
+            from .database import ensure_column_exists  # lazy
+            required_column_types = {
+                'numero_ssa': 'INTEGER',
+                'situacao': 'TEXT',
+                'data_cadastro': 'TEXT',
+                'descricao_ssa': 'TEXT',
+            }
+            repaired_columns: list[str] = []
+            for column_name in missing_required_columns:
+                column_type = required_column_types.get(column_name)
+                if not column_type:
+                    logger.warning("Tipo de coluna obrigatoria nao mapeado para reparo: %s", column_name)
+                    continue
+                if ensure_column_exists(
+                    db_path,
+                    integrity_report['table_name'],
+                    column_name,
+                    column_type,
+                ):
+                    repaired_columns.append(column_name)
+            if repaired_columns:
+                logger.info("Colunas obrigatorias adicionadas no reparo: %s", repaired_columns)
+                repaired = True
+        elif (
+            integrity_report['table_exists']
+            and 'arquivo_origem' in missing_optional_columns
+        ):
+            from .database import ensure_column_exists  # lazy
+            if ensure_column_exists(db_path, integrity_report['table_name'], 'arquivo_origem', 'TEXT'):
+                repaired = True
         if repaired:
             final_check = verify_database_integrity(db_path, table_name)
             if final_check['is_valid']:

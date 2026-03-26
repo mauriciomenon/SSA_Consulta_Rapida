@@ -1260,7 +1260,11 @@ def _finish_sync_run(
 
 
 def _scan_materialization_integrity(conn: sqlite3.Connection) -> dict[str, Any]:
-    """Validate materialized derivadas tables inside current transaction."""
+    """Validate materialized derivadas tables inside current transaction.
+
+    The scan also returns the active matrix rows so the caller can reuse them
+    for fingerprinting without issuing a second identical query.
+    """
 
     matrix_rows = conn.execute(
         """
@@ -1337,6 +1341,7 @@ def _scan_materialization_integrity(conn: sqlite3.Connection) -> dict[str, Any]:
         "is_consistent": is_consistent,
         "issue_counts": issue_counts,
         "matrix_active_edges": len(matrix_rows),
+        "matrix_rows": matrix_rows,
         "source_active_edges": len(source_rows),
         "summary_nodes": len(summary_nodes),
         "samples": {
@@ -1746,13 +1751,7 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
 
 
         integrity_scan = _scan_materialization_integrity(conn)
-        matrix_rows = conn.execute(
-            """
-            SELECT parent_ssa, child_ssa, source_flags
-            FROM ssa_derivada_matrix
-            WHERE active = 1
-            """
-        ).fetchall()
+        matrix_rows = integrity_scan.get("matrix_rows", [])
         issue_counts = dict(integrity_scan["issue_counts"])
 
         latest = conn.execute(
@@ -1773,7 +1772,11 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
             if not latest_fingerprint and latest[3]:
                 try:
                     payload = json.loads(latest[3])
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as exc:
+                    logger.warning(
+                        "Payload de sync_run sem JSON valido para graph_fingerprint: %s",
+                        exc,
+                    )
                     payload = {}
                 latest_fingerprint = payload.get("graph_fingerprint")
         fingerprint_mismatch = (

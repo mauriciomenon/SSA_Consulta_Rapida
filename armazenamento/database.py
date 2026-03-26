@@ -367,11 +367,14 @@ def _resolve_target_table(conn: _sqlite3_typehint.Connection, table_name: str) -
     if not is_valid_identifier(safe_table_name):
         raise ValueError(f"Invalid SQL identifier for table: {table_name!r}")
 
-    cache_key = (_get_connection_db_path(conn), safe_table_name)
+    lookup_name = safe_table_name.casefold()
+    cache_key = (_get_connection_db_path(conn), lookup_name)
     if cache_key in _resolved_table_cache:
         return _resolved_table_cache[cache_key]
 
-    if safe_table_name in LEGACY_SSA_TABLE_ALIASES:
+    if lookup_name == CANONICAL_SSA_TABLE.casefold() or lookup_name in {
+        alias.casefold() for alias in LEGACY_SSA_TABLE_ALIASES
+    }:
         canonical_row = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
             (CANONICAL_SSA_TABLE,),
@@ -381,8 +384,8 @@ def _resolve_target_table(conn: _sqlite3_typehint.Connection, table_name: str) -
             return CANONICAL_SSA_TABLE
 
     row = conn.execute(
-        "SELECT name, type FROM sqlite_master WHERE name=?",
-        (safe_table_name,),
+        "SELECT name, type FROM sqlite_master WHERE lower(name)=?",
+        (lookup_name,),
     ).fetchone()
     if row and row[1] == 'view':
         canonical_row = conn.execute(
@@ -394,6 +397,29 @@ def _resolve_target_table(conn: _sqlite3_typehint.Connection, table_name: str) -
             return CANONICAL_SSA_TABLE
     _resolved_table_cache[cache_key] = safe_table_name
     return safe_table_name
+
+
+def resolve_target_table(conn: _sqlite3_typehint.Connection, table_name: str) -> str:
+    """Public wrapper for canonical table resolution across runtime entry points."""
+    return _resolve_target_table(conn, table_name)
+
+
+def count_distinct_derivada_edges(
+    conn: _sqlite3_typehint.Connection,
+    table_name: str,
+) -> int:
+    """Count distinct derivada edges on the resolved runtime table/view."""
+    resolved_table_name = resolve_target_table(conn, table_name)
+    query = f"""
+        SELECT COUNT(*)
+        FROM (
+            SELECT numero_ssa, derivada_de
+            FROM {_quote_identifier(resolved_table_name)}
+            WHERE derivada_de IS NOT NULL
+            GROUP BY numero_ssa, derivada_de
+        ) AS db_edges
+    """
+    return int(conn.execute(query).fetchone()[0] or 0)
 
 def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
     """Insere um DataFrame em uma tabela do banco (modo simples).
@@ -453,8 +479,10 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
             # Caminho novo: abrir conexao via caminho
             start_time = time.time()
             logger.info("Iniciando insercao padrao: %s registros em '%s'", len(work_df), table_name)
+            if db_path is None:
+                raise ValueError("db_path ausente no caminho padrao de insercao")
 
-            with get_db_connection(db_path) as conn:  # type: ignore[arg-type]
+            with get_db_connection(cast(str, db_path)) as conn:
                 active_conn = conn
                 cur = conn.cursor()
                 cur.execute("PRAGMA journal_mode")

@@ -153,8 +153,9 @@ def sanitize_textual_null_sentinels(frame: pd.DataFrame) -> pd.DataFrame:
     for col_idx, _col in enumerate(frame.columns):
         series = frame.iloc[:, col_idx]
         if pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series):
+            text_series = series if pd.api.types.is_string_dtype(series) else series.astype("string")
             sentinel_mask = (
-                series.astype("string")
+                text_series
                 .str.strip()
                 .str.casefold()
                 .isin(_TEXTUAL_NULL_SENTINELS)
@@ -903,25 +904,10 @@ def prepare_dataframe_for_upsert(frame: pd.DataFrame) -> pd.DataFrame:
         'executado',
         'concluido',
     ]
-    def _to_string_date(val) -> str | None:
-        try:
-            if pd.isna(val) or val in (None, ''):
-                return None
-            val_str = str(val)
-            iso_like = bool(re.match(r"^\d{4}-\d{2}-\d{2}", val_str))
-            if iso_like:
-                dt = pd.to_datetime(val_str, errors='coerce', dayfirst=False)
-            else:
-                dt = pd.to_datetime(val_str, errors='coerce', dayfirst=True)
-            if pd.isna(dt):
-                return None
-            return dt.strftime('%Y-%m-%d %H:%M:%S')
-        except Exception:  # pragma: no cover
-            return None
     for c in date_columns:
         if c in work_local.columns:
             try:
-                work_local[c] = work_local[c].map(_to_string_date)
+                work_local[c] = work_local[c].map(parse_any_date)
             except Exception:  # pragma: no cover
                 pass
     return work_local
@@ -954,14 +940,14 @@ def insert_dataframe_with_smart_upsert_impl(
     conn: Any = None
     conn_cm = None
     if hasattr(db_path, 'cursor'):  # conexão externa
-        conn: Any = db_path
+        conn = cast(Any, db_path)
         close_after = False
     else:
         conn_cm = _db_mod.get_db_connection(db_path)
-        conn = conn_cm.__enter__()
+        conn = cast(Any, conn_cm.__enter__())
         close_after = True
     try:
-        cursor = conn.cursor()  # type: ignore[attr-defined]
+        cursor = cast(Any, conn).cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         existing_tables = {r[0] for r in cursor.fetchall()}
         table_name = _db_mod._resolve_target_table(
@@ -1025,7 +1011,7 @@ def insert_dataframe_with_smart_upsert_impl(
         if not has_ssa.empty:
             inserted = _perform_upsert(has_ssa, table_name, conn)
             logger.info("Processados %s registros com numero_ssa via upsert", inserted)
-        conn.commit()  # type: ignore[attr-defined]
+        cast(Any, conn).commit()
         logger.info("Inserção completada com sucesso")
         return True
     except Exception:

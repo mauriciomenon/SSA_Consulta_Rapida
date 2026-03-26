@@ -4,6 +4,10 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
+export PYENV_ROOT="${PYENV_ROOT:-$HOME/.pyenv}"
+PYENV_GIT_REF="${PYENV_GIT_REF:-v2.6.11}"
+PYENV_VIRTUALENV_GIT_REF="${PYENV_VIRTUALENV_GIT_REF:-v1.2.4}"
+
 VENV_NAME=$(cat .python-version 2>/dev/null || true)
 if [[ -z "${VENV_NAME:-}" ]]; then
   echo "[info] .python-version nao encontrado; usarei nome padrao ssa_consulta_rapida_py313"
@@ -49,14 +53,27 @@ ensure_build_deps() {
 }
 
 ensure_pyenv() {
-  if have_cmd pyenv; then
+  if have_cmd pyenv && pyenv virtualenv --version >/dev/null 2>&1; then
     echo "[ok] pyenv encontrado"
     return
   fi
-  echo "[info] Instalando pyenv (metodo oficial)"
-  # Instala o pyenv + plugins (pyenv-virtualenv) via instalador oficial
-  curl -fsSL https://pyenv.run | bash
-  export PATH="$HOME/.pyenv/bin:$PATH"
+  if ! have_cmd git; then
+    echo "[erro] git nao encontrado; instale git para bootstrap seguro do pyenv"
+    exit 1
+  fi
+  if have_cmd pyenv; then
+    echo "[aviso] pyenv encontrado sem pyenv-virtualenv; instalando plugin fixado"
+  else
+    echo "[info] Instalando pyenv de refs fixadas"
+    git clone --branch "$PYENV_GIT_REF" --depth 1 https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
+  fi
+  if [[ ! -d "$PYENV_ROOT/plugins/pyenv-virtualenv" ]]; then
+    mkdir -p "$PYENV_ROOT/plugins"
+    git clone --branch "$PYENV_VIRTUALENV_GIT_REF" --depth 1 \
+      https://github.com/pyenv/pyenv-virtualenv.git \
+      "$PYENV_ROOT/plugins/pyenv-virtualenv"
+  fi
+  export PATH="$PYENV_ROOT/bin:$PATH"
   eval "$(pyenv init -)"
   eval "$(pyenv virtualenv-init -)"
 }
@@ -83,7 +100,7 @@ ensure_direnv() {
 
 init_pyenv_shell() {
   if have_cmd pyenv; then
-    export PATH="$HOME/.pyenv/bin:$PATH"
+    export PATH="$PYENV_ROOT/bin:$PATH"
     eval "$(pyenv init -)"
     eval "$(pyenv virtualenv-init -)"
   fi
@@ -96,8 +113,8 @@ create_virtualenv_if_missing() {
       echo "[erro] python3 nao encontrado para criar fallback .venv"
       exit 1
     fi
-    if ! python3 -m venv --help >/dev/null 2>&1; then
-      echo "[erro] modulo venv indisponivel no python3 atual"
+    if ! python3 -m venv --help >/dev/null 2>&1 || ! python3 -m ensurepip --version >/dev/null 2>&1; then
+      echo "[erro] venv/ensurepip indisponivel no python3 atual; instale python3-venv"
       exit 1
     fi
     python3 -m venv .venv
@@ -161,4 +178,3 @@ create_virtualenv_if_missing
 configure_direnv_hint
 
 echo "[ok] Ambiente pronto."
-

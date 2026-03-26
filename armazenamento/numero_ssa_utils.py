@@ -16,7 +16,6 @@ Motivação:
  redirecionadas para cá.
 """
 from __future__ import annotations
-
 import re
 from typing import Iterable
 
@@ -31,6 +30,7 @@ NUMERO_SSA_LEN = 9
 NUMERO_SSA_ANO_MIN = 1980
 NUMERO_SSA_ANO_MAX = 2050
 _CANONICAL_DECIMAL_ARTIFACT = re.compile(r"^\s*(\d{9})\.0+\s*$")
+_ASCII_LETTERS_RE = re.compile(r"[A-Za-z]")
 
 __all__ = [
     # núcleo strict
@@ -62,6 +62,12 @@ def _strip_canonical_decimal_artifact(value):
     if match is None:
         return value
     return match.group(1)
+
+
+def _contains_ascii_letters(value) -> bool:
+    if value is None:
+        return False
+    return _ASCII_LETTERS_RE.search(str(value)) is not None
 
 
 def _normalize_numero_ssa_value(value) -> int | None:
@@ -101,6 +107,8 @@ def normalize_numero_ssa_storage(value) -> str | None:
     strict_value = normalize_numero_ssa_strict(value)
     if strict_value is not None:
         return strict_value
+    if _contains_ascii_letters(value):
+        return None
     legacy_value = normalize_numero_ssa(value)
     if legacy_value is None:
         return None
@@ -140,6 +148,7 @@ def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         return df
     out = df.copy()
     out['numero_ssa'] = pd.Series([
-        _normalize_numero_ssa_value(v) for v in out['numero_ssa']
+        None if _contains_ascii_letters(v) else _normalize_numero_ssa_value(v)
+        for v in out['numero_ssa']
     ], dtype='object')
     return out
