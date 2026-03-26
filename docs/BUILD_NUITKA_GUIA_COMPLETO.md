@@ -1,6 +1,6 @@
 # Guia Completo (Historico/Laboratorio) - Build com Nuitka
 
-## CURRENT TRUTH (v4.33)
+## CURRENT TRUTH (v4.36)
 
 - Sync deste guia: `2026-03-11 22:25 -0300`.
 - Fluxo canonico Nuitka (sempre via uv wrappers):

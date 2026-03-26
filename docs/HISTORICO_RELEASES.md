@@ -581,7 +581,7 @@ custom_formatting = True
 ## **SUPORTE E MANUTENCAO**
 
 ### **Politica de Suporte**
-- **v4.33**: Baseline estavel ativo
+- **v4.36**: Baseline estavel ativo
 - **v4.31**: Suporte de compatibilidade em migracao
 - **Versoes anteriores**: Tratadas como historico
 
@@ -591,6 +591,6 @@ custom_formatting = True
 - **Scripts**: Scripts de manutencao e diagnostico
 
 ### **Atualizacao Recomendada**
-Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao mais recente estavel (v4.33).
+Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao mais recente estavel (v4.36).
 
 **Status**: Desenvolvimento ativo com releases regulares a cada 2-3 meses.

@@ -3,17 +3,19 @@
 Fonte: docs/RECOVERY_BACKLOG.md
 Total itens: 108
 
-## Update 2026-03-10 16:55 (docs full sync)
+## Update 2026-03-26 11:40 (pr46 comment triage sync)
 
 1. Estado operacional confirmado:
-   - PR ativo: `#45` (`codex/sprint-importacao-grave-fixes-20260305` -> `dev`).
-   - threads abertas: `0`.
-2. Bloqueios externos ainda ativos no merge:
-   - `CodeFactor`
-   - `code/snyk` (quota)
-   - `security/snyk` (quota)
+   - PR ativo: `#46` (`dev` -> `main`).
+   - review threads via API GitHub: `86` unresolved total, `80` atuais nao outdated.
+2. Checks externos observados no ciclo:
+   - nenhum bloqueio externo confirmado no rollup consultado.
+   - `CodeFactor`, `DeepSource`, `CodeQL`, `Snyk`, `Semgrep` e `Socket` estavam em `pass`.
 3. Debt de curto prazo mantido:
-   - campanha `BLE001` segue prioritaria com contagem base `860`.
+   - `P0`: blindar storage contra letras na limpeza legacy.
+   - `P1`: aliases validos em `_needs_db_only_derivadas_sync`.
+   - `P1`: reduzir custo de `sanitize_textual_null_sentinels`.
+   - `P2`: convergir helper local de data.
 
 ## Update 2026-03-10 (near-term stabilization queue)
 

@@ -266,6 +266,10 @@ Pendencias nao bloqueantes abertas:
 
 ## Update 2026-03-23 17:20 - full rescan possivelmente preso em 439 arquivos (DEFERRED_NOTE)
 
+Status final:
+1. falso alarme no codigo atual.
+2. a leitura posterior deslocou a causa para discovery/corpus elegivel naquela maquina, nao bug confirmado de hash/cache.
+
 Session timestamp:
 1. start: `2026-03-23 17:19:41 -0300`
 2. diagnostico ainda nao iniciado nesta rodada; somente registro da suspeita e sincronizacao de docs

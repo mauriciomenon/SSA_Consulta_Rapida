@@ -3,7 +3,9 @@ version = 1
 # DeepSource is installed as a GitHub App and runs checks on PRs targeting `dev`.
 # This config exists to prevent noisy/unstable failures when the App is enabled.
 exclude_patterns = [
-  "**/*",
+  "build/**",
+  "dist/**",
+  "**/__pycache__/**",
 ]
 
 [[analyzers]]

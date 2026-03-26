@@ -93,14 +93,26 @@ uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64 --a
 ### Windows (PowerShell)
 
 ```powershell
-# Ajustar nome do exe conforme versao atual
-& "C:\Users\mauri\git\SSA_Consulta_Rapida\launchers\dist\windows_amd64\SSA_CLI_v4.33_windows_amd64.exe" --help
+# Copiar o binario para fora do repo antes do smoke
+$DIST_ROOT = "C:\Windows\Temp"
+$CLI_BIN = Get-ChildItem "$DIST_ROOT\SSA_CLI_v*_windows_amd64.exe" -ErrorAction SilentlyContinue |
+  Sort-Object LastWriteTime -Descending |
+  Select-Object -First 1 -ExpandProperty FullName
+if (-not $CLI_BIN) {
+  throw "Nenhum binario SSA_CLI_v*_windows_amd64.exe encontrado em $DIST_ROOT"
+}
+& $CLI_BIN --help
 ```
 
 ### Linux/WSL
 
 ```bash
-/tmp/SSA_CLI_v4.33_debian_amd64 --help
+CLI_BIN="$(ls -t /tmp/SSA_CLI_v*_debian_amd64 2>/dev/null | head -n 1)"
+if [ -z "$CLI_BIN" ]; then
+  echo "[erro] nenhum binario SSA_CLI_v*_debian_amd64 encontrado em /tmp" >&2
+  exit 1
+fi
+"$CLI_BIN" --help
 ```
 
 ### macOS

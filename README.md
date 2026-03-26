@@ -440,7 +440,7 @@ Links uteis:
 - Python 3.10+ (preferir 3.13+ quando disponivel)
 - Windows (testado) ou ambiente compativel com PyQt6
 
-## Instalação
+## Instalacao
 ```bash
 # preferencial
 uv venv
@@ -451,9 +451,10 @@ uv run --python $PY_RUNTIME main.py --gui
 
 ```pwsh
 # compatibilidade (sem uv)
-uv venv --python 3.13 .venv
+python -m venv .venv
 . .venv\Scripts\Activate.ps1
-uv pip install --python 3.13 -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
 ## Activation helpers (cross-platform)
@@ -474,7 +475,7 @@ Usage after cloning:
 
 Tip: The repository contains a `.gitattributes` entry that enforces LF for `.envrc` and shell scripts so `direnv` will not fail due to CRLF. If you prefer `direnv`, WSL is the recommended environment for evaluating `.envrc`.
 
-**Windows + direnv (scoop):** se `direnv exec` não achar o binário, aponte `DIRENV_BIN` para o caminho retornado por `where direnv` (converta para formato WSL com `cygpath -u` se estiver dentro do bash). Evite hardcode de usuário/caminho; ajuste também `XDG_*` se necessário. Em caso de dúvida, ative o ambiente manualmente com `.venv\\Scripts\\Activate.ps1`.
+**Windows + direnv (scoop):** se `direnv exec` nao achar o binario, aponte `DIRENV_BIN` para o caminho retornado por `where direnv` (converta para formato WSL com `cygpath -u` se estiver dentro do bash). Evite hardcode de usuario/caminho; ajuste tambem `XDG_*` se necessario. Em caso de duvida, ative o ambiente manualmente com `.venv\\Scripts\\Activate.ps1`.
 
 
 Para build Windows com compressao UPX (reducao de tamanho), instale tambem:
