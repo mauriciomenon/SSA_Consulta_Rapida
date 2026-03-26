@@ -690,7 +690,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `gui/ssa/gui_filters_advanced_ui.py`
      - `gui/mixins/filter_gui_ssa_mixin.py`
      - `gui/gui_ssa.py`
-  4. o triplo clique em limpar filtros foi avaliado como razoavel, mas deve virar slice proprio chamando confirmacao para hard reset, nao reset silencioso.
+  4. naquele ponto, o triplo clique em limpar filtros foi avaliado como melhoria separada; depois, no mesmo dia, o atalho foi promovido em slice proprio com confirmacao para hard reset.
 - Validacao consolidada:
   1. `py_compile`, `ruff` e `ty` verdes no escopo alterado.
   2. `tests/test_gui_filters_advanced_logic.py` -> `15 passed`.

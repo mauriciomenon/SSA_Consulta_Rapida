@@ -82,12 +82,14 @@ pwsh -File scripts_manutencao/quick_recovery.ps1 -Action restore
 git stash pop
 ```
 
-## Fallback com uv venv manual
+## Fallback manual sem uv
 
 ```powershell
-uv venv --python 3.13 .venv
-uv pip install --python 3.13 -r requirements.txt
-uv run --python 3.13 main.py
+python -m venv .venv
+. .venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python main.py
 ```
 
 ## Build silencioso (Windows e Debian)
@@ -99,9 +101,10 @@ dev_env\build\build_nuitka_clean.bat --silent
 dev_env\build\build_pyoxidizer.bat --silent
 
 # Debian via WSL
-wsl -e bash -lc "cd /mnt/c/Users/mauri/git/SSA_Consulta_Rapida && bash dev_env/build/build_pyinstaller_debian.sh --silent"
-wsl -e bash -lc "cd /mnt/c/Users/mauri/git/SSA_Consulta_Rapida && bash dev_env/build/build_nuitka_debian.sh --silent"
-wsl -e bash -lc "cd /mnt/c/Users/mauri/git/SSA_Consulta_Rapida && bash dev_env/build/build_pyoxidizer_debian.sh --silent"
+$REPO_ROOT = "/mnt/c/caminho/para/SSA_Consulta_Rapida"
+wsl -e bash -lc "cd $REPO_ROOT && bash dev_env/build/build_pyinstaller_debian.sh --silent"
+wsl -e bash -lc "cd $REPO_ROOT && bash dev_env/build/build_nuitka_debian.sh --silent"
+wsl -e bash -lc "cd $REPO_ROOT && bash dev_env/build/build_pyoxidizer_debian.sh --silent"
 ```
 
 ## Notas
@@ -109,3 +112,4 @@ wsl -e bash -lc "cd /mnt/c/Users/mauri/git/SSA_Consulta_Rapida && bash dev_env/b
 1. Para fluxo operacional e handoff, usar `docs/RECOVERY_BACKLOG.md`.
 2. Para troubleshooting geral, usar `docs/TROUBLESHOOTING.md`.
 3. Para troubleshooting de importacao, usar `docs/TROUBLESHOOTING_IMPORTACAO.md`.
+4. Antes dos comandos WSL acima, ajuste `$REPO_ROOT` para o caminho montado do repo no seu ambiente.

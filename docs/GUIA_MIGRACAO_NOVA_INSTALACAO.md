@@ -80,14 +80,14 @@ $PY_RUNTIME = "3.13"
 uv run --python $PY_RUNTIME python --version
 
 # Opcional: fluxo manual sem uv (apenas fallback)
-uv venv --python 3.13 venv
+python -m venv .venv
 
 # Ativar ambiente (apenas para fluxo manual fallback)
 # Metodo 1 - PowerShell
-.\venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 
 # Metodo 2 - CMD/Batch
-.\venv\Scripts\activate.bat
+.\.venv\Scripts\activate.bat
 
 # Metodo 3 - Usar script incluido
 .\activate_env.ps1
@@ -99,11 +99,11 @@ uv venv --python 3.13 venv
 uv sync
 
 # Compatibilidade sem uv
-uv pip install --python $PY_RUNTIME --upgrade pip
-uv pip install --python $PY_RUNTIME -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 
 # Verificar instalacao
-uv pip list --python $PY_RUNTIME
+python -m pip list
 ```
 
 ---
@@ -163,10 +163,10 @@ Get-ExecutionPolicy -List
 ### **Passo 3: Verificar Configuracao**
 ```powershell
 # Verificar se o ambiente esta ativo
-uv run --python $PY_RUNTIME python -c "import sys; print('Ambiente ativo:' if 'venv' in sys.path[0] else 'Ambiente NAO ativo')"
+python -c "import sys; in_venv = sys.prefix != sys.base_prefix; print('Ambiente ativo:' if in_venv else 'Ambiente NAO ativo')"
 
 # Listar pacotes instalados
-uv pip list --python $PY_RUNTIME | findstr -i "pandas pyqt6 openpyxl"
+python -m pip list | findstr -i "pandas pyqt6 openpyxl"
 ```
 
 ---
@@ -175,16 +175,32 @@ uv pip list --python $PY_RUNTIME | findstr -i "pandas pyqt6 openpyxl"
 
 ### **Teste 1: Help do Sistema**
 ```powershell
-# Verificar help completo
+# Verificar help completo (uv-first)
 uv run --python $PY_RUNTIME main.py --help
+
+# Fallback manual sem uv
+python main.py --help
 
 # Deve exibir help detalhado com todas as opcoes
 ```
 
 ### **Teste 2: Verificacao da Estrutura**
 ```powershell
-# Verificar modulos principais
+# Verificar modulos principais (uv-first)
 uv run --python $PY_RUNTIME python -c "
+import sys, os
+sys.path.insert(0, '.')
+try:
+    from core import app_logic
+    from armazenamento import database
+    from interface import cli
+    print('Todos os modulos carregados com sucesso')
+except ImportError as e:
+    print(f'Erro ao importar: {e}')
+"
+
+# Fallback manual sem uv
+python -c "
 import sys, os
 sys.path.insert(0, '.')
 try:
@@ -199,8 +215,11 @@ except ImportError as e:
 
 ### **Teste 3: Criacao do Banco**
 ```powershell
-# Criar estrutura do banco (sem dados)
+# Criar estrutura do banco (sem dados, uv-first)
 uv run --python $PY_RUNTIME main.py --reset-db
+
+# Fallback manual sem uv
+python main.py --reset-db
 
 # Verificar se o banco foi criado
 ls data\ssas.db
@@ -229,14 +248,23 @@ ls docs_entrada
 
 ### **Passo 2: Importacao Inicial**
 ```powershell
-# Importacao padrao (primeira vez)
+# Importacao padrao (primeira vez, uv-first)
 uv run --python $PY_RUNTIME main.py
 
-# Ou importacao otimizada (recomendado para arquivos grandes)
+# Fallback manual sem uv
+python main.py
+
+# Ou importacao otimizada (recomendado para arquivos grandes, uv-first)
 uv run --python $PY_RUNTIME main.py --optimized
 
-# Ou forcar reimportacao completa
+# Fallback manual sem uv
+python main.py --optimized
+
+# Ou forcar reimportacao completa (uv-first)
 uv run --python $PY_RUNTIME main.py --force-rescan
+
+# Fallback manual sem uv
+python main.py --force-rescan
 ```
 
 ### **Passo 3: Verificar Importacao**
@@ -254,8 +282,11 @@ type data\file_cache.json
 
 ### **Teste 1: Interface CLI**
 ```powershell
-# Testar CLI interativo
+# Testar CLI interativo (uv-first)
 uv run --python $PY_RUNTIME main.py
+
+# Fallback manual sem uv
+python main.py
 
 # Comandos de teste na CLI:
 # - Digite: help
@@ -265,8 +296,11 @@ uv run --python $PY_RUNTIME main.py
 
 ### **Teste 2: Interface Grafica**
 ```powershell
-# Testar GUI
+# Testar GUI (uv-first)
 uv run --python $PY_RUNTIME main.py --gui
+
+# Fallback manual sem uv
+python main.py --gui
 
 # Verificar funcionalidades:
 # - Carregamento da tabela
@@ -276,11 +310,17 @@ uv run --python $PY_RUNTIME main.py --gui
 
 ### **Teste 3: Executar Testes Automatizados**
 ```powershell
-# Executar testes basicos
+# Executar testes basicos (uv-first)
 uv run --python $PY_RUNTIME -m pytest tests\test_imports.py -v
 
-# Executar teste de banco
+# Fallback manual sem uv
+python -m pytest tests\test_imports.py -v
+
+# Executar teste de banco (uv-first)
 uv run --python $PY_RUNTIME -m pytest tests\test_database.py -q
+
+# Fallback manual sem uv
+python -m pytest tests\test_database.py -q
 
 # Executar teste de sistema completo
 uv run --python $PY_RUNTIME python tests\teste_sistema_completo.py
@@ -461,6 +501,6 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 
 ---
 
-*Ultima atualizacao: 10/03/2026 - v4.33*
+*Ultima atualizacao: 10/03/2026 - v4.36*
 *Para duvidas ou problemas, consulte o repositorio no GitHub*
 

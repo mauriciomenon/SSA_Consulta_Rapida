@@ -2,9 +2,9 @@
 
 Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Windows, macOS e Linux.
 
-## CURRENT TRUTH (v4.33)
+## CURRENT TRUTH (v4.36)
 
-- Sync deste guia: `2026-03-11 23:35 -0300`.
+- Sync deste guia: `2026-03-26 11:40 -0300`.
 - Relatorio consolidado deste ciclo:
   - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 - Runbook operacional 3x3:

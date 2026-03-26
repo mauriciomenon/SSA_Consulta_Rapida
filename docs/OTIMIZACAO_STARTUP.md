@@ -41,7 +41,7 @@ pyoxidizer build --release
 
 Resultado em: `build/x86_64-pc-windows-msvc/release/install/`
 
-Veja: [docs/BUILD_PYOXIDIZER.md](BUILD_PYOXIDIZER.md)
+Veja: [BUILD_PYOXIDIZER.md](BUILD_PYOXIDIZER.md)
 
 ### 3. Lazy Imports (Nao Implementado)
 
@@ -80,7 +80,7 @@ pyoxidizer build --release
 - Pastas editaveis separadas
 - Tamanho: ~150-200MB
 
-Veja: [docs/BUILD_PYOXIDIZER.md](BUILD_PYOXIDIZER.md)
+Veja: [BUILD_PYOXIDIZER.md](BUILD_PYOXIDIZER.md)
 
 ### Para Desenvolvimento: Python Direto
 

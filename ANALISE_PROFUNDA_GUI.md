@@ -1,4 +1,4 @@
-# Analise Profunda GUI (v4.27)
+# Analise Profunda GUI (v4.36)
 
 Documento de referencia ativa para estado tecnico da GUI PyQt6.
 Escopo: diagnostico objetivo, riscos reais e plano minimo reversivel.
@@ -10,8 +10,8 @@ Escopo: diagnostico objetivo, riscos reais e plano minimo reversivel.
 - Politica ativa: patch minimo, sem mudanca de layout sem pedido explicito, validacao por gates.
 
 ## Estado atual confirmado
-- Release baseline: `4.27`.
-- Branch de trabalho: `codex/dev-filtros-stability`.
+- Release baseline: `4.36`.
+- Branch de trabalho: `dev`.
 - Fluxo de execucao recomendado:
   - `uv run --python 3.13 python main.py --gui`
   - fallback: `3.12 -> 3.11 -> 3.10`
