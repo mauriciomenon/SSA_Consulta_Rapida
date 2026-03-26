@@ -14,8 +14,8 @@ a atualizacao do banco de dados SQLite e o gerenciamento do cache.
 # - Related modules: extracao.extractor, armazenamento.database,
 #   armazenamento.database_validation, armazenamento.database_integrity.
 
-import json
 import hashlib
+import json
 import logging
 import os
 import re
