@@ -85,9 +85,13 @@ class FilterSearchCacheManager:
         df: pd.DataFrame, available_search_cols: list[str]
     ) -> tuple[str, tuple[str, ...], int, str | None]:
         data_token = df.attrs.setdefault(FILTER_SEARCH_TOKEN_ATTR, uuid.uuid4().hex)
-        fingerprint = FilterSearchCacheManager._compute_fingerprint(
-            df, available_search_cols
-        )
+        cached_search_data = df.attrs.get(FILTER_SEARCH_CACHE_ATTR)
+        if isinstance(cached_search_data, dict):
+            fingerprint = FilterSearchCacheManager._compute_fingerprint(
+                df, available_search_cols
+            )
+        else:
+            fingerprint = None
         return (data_token, tuple(available_search_cols), len(df.index), fingerprint)
 
     @staticmethod
