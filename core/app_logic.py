@@ -96,7 +96,8 @@ class FilterSearchCacheManager:
 
     @staticmethod
     def get_cached_search_data(
-        df: pd.DataFrame, search_cache_token: tuple[str, tuple[str, ...], int]
+        df: pd.DataFrame,
+        search_cache_token: tuple[str, tuple[str, ...], int, str | None],
     ) -> Optional[dict[str, Any]]:
         cached_search_data = df.attrs.get(FILTER_SEARCH_CACHE_ATTR)
         if (
@@ -109,7 +110,7 @@ class FilterSearchCacheManager:
     @staticmethod
     def store_cached_search_data(
         df: pd.DataFrame,
-        search_cache_token: tuple[str, tuple[str, ...], int],
+        search_cache_token: tuple[str, tuple[str, ...], int, str | None],
         base_lower_df: pd.DataFrame,
         row_search_text: pd.Series,
     ) -> None:
