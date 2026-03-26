@@ -53,13 +53,16 @@ ensure_build_deps() {
 }
 
 ensure_pyenv() {
+  if ! have_cmd pyenv && [[ -x "$PYENV_ROOT/bin/pyenv" ]]; then
+    export PATH="$PYENV_ROOT/bin:$PATH"
+  fi
   if have_cmd pyenv && pyenv virtualenv --version >/dev/null 2>&1; then
     echo "[ok] pyenv encontrado"
     return
   fi
   if ! have_cmd git; then
     echo "[erro] git nao encontrado; instale git para bootstrap seguro do pyenv"
-    exit 1
+    return 1
   fi
   if have_cmd pyenv; then
     echo "[aviso] pyenv encontrado sem pyenv-virtualenv; instalando plugin fixado"
@@ -72,7 +75,7 @@ ensure_pyenv() {
       git clone --branch "$PYENV_GIT_REF" --depth 1 https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
     elif [[ -e "$PYENV_ROOT" ]]; then
       echo "[erro] PYENV_ROOT ja existe mas nao parece uma instalacao valida de pyenv: $PYENV_ROOT"
-      exit 1
+      return 1
     else
       echo "[info] Instalando pyenv de refs fixadas"
       git clone --branch "$PYENV_GIT_REF" --depth 1 https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
