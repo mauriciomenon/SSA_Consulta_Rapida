@@ -84,6 +84,28 @@ def test_prepare_dataframe_for_upsert_rejects_letters_in_storage_ids() -> None:
     assert pd.isna(out.loc[1, "derivada_de"])
 
 
+def test_prepare_dataframe_for_upsert_rejects_unicode_letters_in_storage_ids() -> None:
+    original = pd.DataFrame(
+        {
+            "numero_ssa": ["XX202500777.0YY", "AB202500777.0", "A202500777", "A202500777", "2025A0777", "Ä202500777", "202500777ß"],
+            "derivada_de": ["202500123", "202500123", "202500123", "Ä202500123", "202500123", "202500123", "202500123"],
+            "data_cadastro": ["01/01/2025"] * 7,
+        }
+    )
+
+    out = prepare_dataframe_for_upsert(original)
+
+    for idx in range(len(out.index)):
+        assert pd.isna(out.loc[idx, "numero_ssa"])
+    assert out.loc[0, "derivada_de"] == "202500123"
+    assert out.loc[1, "derivada_de"] == "202500123"
+    assert out.loc[2, "derivada_de"] == "202500123"
+    assert pd.isna(out.loc[3, "derivada_de"])
+    assert out.loc[4, "derivada_de"] == "202500123"
+    assert out.loc[5, "derivada_de"] == "202500123"
+    assert out.loc[6, "derivada_de"] == "202500123"
+
+
 def test_prepare_dataframe_for_upsert_parses_excel_serial_dates() -> None:
     original = pd.DataFrame(
         {

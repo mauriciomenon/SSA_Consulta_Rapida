@@ -63,3 +63,32 @@ def test_non_optimized_upsert_does_not_clean_letters_into_canonical_ids(tmp_path
     assert row is not None
     assert row[0] is None
     assert row[1] is None
+
+
+def test_non_optimized_upsert_does_not_clean_unicode_letters_into_canonical_ids(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "test_non_optimized_unicode_letters.db")
+    database.initialize_database(db_path, "config/schema.sql")
+    database.set_optimized_mode(False)
+
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["Ä202500777"],
+            "derivada_de": ["ß202500123"],
+            "data_cadastro": [pd.Timestamp("2025-01-01")],
+            "situacao": ["TESTE"],
+            "descricao_ssa": ["non-optimized-unicode-letters"],
+        }
+    )
+
+    ok = database.insert_dataframe_with_smart_upsert(df, db_path, table_name="ssas")
+    assert ok is True
+
+    with database.get_db_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT numero_ssa, derivada_de FROM ssa_table WHERE descricao_ssa = ?",
+            ("non-optimized-unicode-letters",),
+        ).fetchone()
+
+    assert row is not None
+    assert row[0] is None
+    assert row[1] is None

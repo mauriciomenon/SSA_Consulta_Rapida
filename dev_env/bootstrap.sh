@@ -64,8 +64,19 @@ ensure_pyenv() {
   if have_cmd pyenv; then
     echo "[aviso] pyenv encontrado sem pyenv-virtualenv; instalando plugin fixado"
   else
-    echo "[info] Instalando pyenv de refs fixadas"
-    git clone --branch "$PYENV_GIT_REF" --depth 1 https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
+    if [[ -x "$PYENV_ROOT/bin/pyenv" || -d "$PYENV_ROOT/.git" ]]; then
+      echo "[info] Reutilizando instalacao existente de pyenv em $PYENV_ROOT"
+    elif [[ -d "$PYENV_ROOT" ]] && [[ -z "$(find "$PYENV_ROOT" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
+      echo "[info] Instalando pyenv de refs fixadas"
+      rmdir "$PYENV_ROOT"
+      git clone --branch "$PYENV_GIT_REF" --depth 1 https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
+    elif [[ -e "$PYENV_ROOT" ]]; then
+      echo "[erro] PYENV_ROOT ja existe mas nao parece uma instalacao valida de pyenv: $PYENV_ROOT"
+      exit 1
+    else
+      echo "[info] Instalando pyenv de refs fixadas"
+      git clone --branch "$PYENV_GIT_REF" --depth 1 https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
+    fi
   fi
   if [[ ! -d "$PYENV_ROOT/plugins/pyenv-virtualenv" ]]; then
     mkdir -p "$PYENV_ROOT/plugins"
