@@ -198,9 +198,14 @@ def test_filter_dataframe_invalidates_cache_after_in_place_value_change() -> Non
 
     first = filter_dataframe(df, ["adm"], ["descricao_ssa"])
     assert list(first["numero_ssa"]) == ["202500001"]
+    cached_before = df.attrs["_filter_search_cache"]
+    token_before = cached_before["token"]
 
     df.loc[0, "descricao_ssa"] = "STE equipe"
 
     second = filter_dataframe(df, ["ste"], ["descricao_ssa"])
+    cached_after = df.attrs["_filter_search_cache"]
 
     assert list(second["numero_ssa"]) == ["202500001"]
+    assert cached_after["token"] != token_before
+    assert list(cached_after["row_search_text"]) == ["ste equipe"]
