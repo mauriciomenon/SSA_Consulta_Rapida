@@ -288,17 +288,26 @@ If streaming is not available in your shell, the instructions file shows a Power
 Foram aplicadas melhorias recentes de qualidade de codigo:
 
 - Reducao de numeros magicos: constantes adicionadas em `armazenamento/database.py` (`NUMERO_SSA_LEN`, limites de ano, `MAX_TEXT_LEN`, etc.).
-- Normalizacao de `numero_ssa`: funcoes consolidadas e uso consistente das regras (YYYY + 5 digitos) com validacao defensiva.
+- Normalizacao de `numero_ssa`: funcoes consolidadas e uso consistente das regras com validacao defensiva.
 	 - Regra estrita atual (camada core):
-		 * Somente 9 digitos apos remocao de hifens/espacos (`YYYYXXXXX`).
+		 * Referencia operacional atual: 9 digitos (`YYYYXXXXX`) nas planilhas validadas do fluxo principal.
 		 * Ano inicial entre 1980 e 2050.
 		 * Valores com letras ou simbolos fora de `[0-9 -]` sao rejeitados.
 			 * Hifen opcional e aceito apenas em formato `YYYY-XXXXX` quando os 5 digitos finais NAO sao todos identicos.
 				 - Exemplo aceito: `2025-12345` → `202512345`.
 				 - Exemplo rejeitado: `2025-22222` (marcado como invalido e filtrado no importador).
-			 * No formato sem hifen (`YYYYXXXXX`), a checagem de repeticao dos 5 ultimos digitos nao e aplicada por compatibilidade historica.
-			 * Strings maiores que 9 digitos nao sao truncadas; sao rejeitadas para evitar colisoes silenciosas.
+			 * No formato sem hifen, a checagem de repeticao dos 5 ultimos digitos nao e aplicada por compatibilidade historica.
+			 * Valores longos e compatibilidades legadas nao devem ser usados como referencia de export atual sem evidencia de planilha real.
+	 - Helpers legados:
+		 * `normalize_numero_ssa(...)` ainda preserva compatibilidade de exibicao para entradas curtas e alguns casos numericos sinteticos.
+		 * detalhes de compatibilidade legacy permanecem cobertos por testes e pelo codigo, sem servir como referencia de export atual.
+		 * Esses caminhos legados nao substituem a referencia operacional das planilhas atuais, que nesta rodada foi validada com `202600654`.
 	 - Testes que cobrem as regras: `tests/test_numero_ssa_normalization_cross.py` e `tests/test_numero_ssa_hyphen_repetition.py`.
+- Importacao externa pela GUI:
+	 - `Importar XLS/XLSX externo` aceita um ou mais `.xlsx` de qualquer pasta escolhida pelo usuario.
+	 - Cada arquivo selecionado e copiado com seguranca para `docs_entrada` quando ainda estiver fora da pasta.
+	 - Se o arquivo ja estiver em `docs_entrada`, ele nao e recopiado.
+	 - A aplicacao no banco ocorre somente para os arquivos explicitamente selecionados nessa acao.
 - Linhas longas (>100 colunas) quebradas para melhorar leitura e conformidade com lint.
 - Sistema de logging robusto com metricas automaticas de performance.
 - Cache systems inteligentes para GUI e Streamlit com ganhos massivos de performance.

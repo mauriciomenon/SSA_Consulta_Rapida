@@ -27,7 +27,8 @@ CASES = [
     ("197912345", None),  # year too low
     ("205112345", None),  # year too high
     ("20251234", None),  # 8 digits
-    ("2026000654", "2026000654"),  # 10 digits from current export -> accept
+    ("202600654", "202600654"),  # 9-digit numeric case from current export pattern
+    ("2026000654", "2026000654"),  # synthetic 10-digit legacy-compat case
     ("XX202512345YY", None),  # contains letters -> invalid
 ]
 

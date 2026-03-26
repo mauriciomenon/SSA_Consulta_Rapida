@@ -200,6 +200,8 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     source_root.mkdir()
     source = source_root / "entrada.xlsx"
     source.write_text("new", encoding="utf-8")
+    source_ok_2 = source_root / "segunda.xlsx"
+    source_ok_2.write_text("new-2", encoding="utf-8")
     source2 = source_root / "outra.xls"
     source2.write_text("legacy", encoding="utf-8")
 
@@ -207,7 +209,10 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     monkeypatch.setattr(
         gui_ssa.QFileDialog,
         "getOpenFileNames",
-        lambda *args, **kwargs: ([str(source), str(source2)], "Arquivos Excel"),
+        lambda *args, **kwargs: (
+            [str(source), str(source_ok_2), str(source2)],
+            "Arquivos Excel",
+        ),
     )
     monkeypatch.setattr(
         gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None
@@ -227,14 +232,18 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     window = _Window()
     result = gui_ssa.SSAMainWindow.import_external_excel_files(cast(Any, window))
 
-    assert result["copied"] == 1
+    assert result["copied"] == 2
     assert result["skipped"] == 0
     assert result["failed"] == 0
     assert result["unsupported"] == 1
     assert result["db_updated"] is True
     assert (docs_dir / "entrada__1.xlsx").exists()
+    assert (docs_dir / "segunda.xlsx").exists()
     assert not (docs_dir / "outra.xls").exists()
-    assert captured["paths"] == [str(docs_dir / "entrada__1.xlsx")]
+    assert captured["paths"] == [
+        str(docs_dir / "entrada__1.xlsx"),
+        str(docs_dir / "segunda.xlsx"),
+    ]
     assert "Importacao externa concluida" in window.status_label.text
 
 
