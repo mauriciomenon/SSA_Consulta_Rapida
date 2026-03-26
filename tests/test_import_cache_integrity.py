@@ -70,7 +70,7 @@ def test_force_import_orders_snapshot_files_by_embedded_datetime(
         return pd.DataFrame(
             [
                 {
-                    "numero_ssa": "2026000654",
+                    "numero_ssa": "202600654",
                     "situacao": "ABERTA",
                     "data_cadastro": "01/01/2026",
                     "descricao_ssa": "ssa teste",
@@ -98,7 +98,7 @@ def test_force_import_orders_snapshot_files_by_embedded_datetime(
     with database.get_db_connection(str(data_dir / "test.db")) as conn:
         row = conn.execute(
             "SELECT numero_ssa, setor_executor, arquivo_origem FROM ssa_table WHERE numero_ssa = ?",
-            ("2026000654",),
+            ("202600654",),
         ).fetchone()
 
-    assert row == ("2026000654", "STE", newer.name)
+    assert row == ("202600654", "STE", newer.name)

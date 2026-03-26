@@ -246,6 +246,12 @@ ls docs_entrada
 - Multiplos arquivos
 - Diferentes estruturas de coluna
 
+**Fluxo seguro pela GUI (`Importar XLS/XLSX externo`):**
+- voce pode selecionar um ou mais `.xlsx` de qualquer pasta local
+- cada arquivo selecionado e copiado para `docs_entrada` quando ainda estiver fora dessa pasta
+- se o arquivo ja estiver em `docs_entrada`, ele e reaproveitado sem copia duplicada
+- a atualizacao no banco e aplicada somente para os arquivos explicitamente selecionados nessa acao
+
 ### **Passo 2: Importacao Inicial**
 ```powershell
 # Importacao padrao (primeira vez, uv-first)

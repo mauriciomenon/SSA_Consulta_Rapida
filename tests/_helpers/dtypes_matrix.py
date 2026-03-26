@@ -21,7 +21,7 @@ DTYPES_MATRIX = [
         "name": "numero_ssa",
         "expected_dtype": "object",  # armazenado como texto padronizado
         "policy": "required|normalized",
-        "notes": "9 dígitos, padding/ajuste via normalize_numero_ssa"
+        "notes": "identificador canonico numerico; planilhas atuais usam 9 digitos, com compatibilidade legacy isolada em helper"
     },
     {
         "name": "situacao",
