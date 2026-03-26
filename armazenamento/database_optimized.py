@@ -25,6 +25,7 @@ import time
 import pandas as pd
 
 from shared.date_utils import parse_datetime_series_mixed
+from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES
 from utils.robust_logging import get_robust_logger
 
 from .database import (
@@ -114,19 +115,32 @@ def sqlite_safe_chunksize(num_columns: int, cap: int = SQLITE_DEFAULT_CHUNK_CAP)
 
 
 def _resolve_physical_table(conn, table_name: str) -> str:
-    """Map legacy view aliases (ssas/ssa_chamados) to the physical table when present."""
+    """Map legacy aliases to the canonical physical table when present."""
     try:
+        normalized_name = str(table_name or "").strip().casefold()
+        if normalized_name == CANONICAL_SSA_TABLE.casefold() or normalized_name in {
+            alias.casefold() for alias in LEGACY_SSA_TABLE_ALIASES
+        }:
+            cursor = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (CANONICAL_SSA_TABLE,),
+            )
+            if cursor.fetchone():
+                return CANONICAL_SSA_TABLE
         cursor = conn.execute(
             "SELECT name, type FROM sqlite_master WHERE name=?",
             (table_name,),
         )
         row = cursor.fetchone()
-        if row and row[1] == "view" and table_name in {"ssas", "ssa_chamados"}:
+        if row and row[1] == "view" and normalized_name in {
+            alias.casefold() for alias in LEGACY_SSA_TABLE_ALIASES
+        }:
             cursor2 = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='ssa_table'"
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (CANONICAL_SSA_TABLE,),
             )
             if cursor2.fetchone():
-                return "ssa_table"
+                return CANONICAL_SSA_TABLE
     except Exception as exc:  # pragma: no cover
         logger.debug("Falha ao resolver tabela fisica para %s: %s", table_name, exc)
     return table_name
@@ -226,6 +240,14 @@ def insert_dataframe_optimized(
                 )
 
         with get_db_connection(db_path) as conn:
+            target_table = _resolve_physical_table(conn, table_name)
+            if not is_valid_identifier(target_table):
+                raise ValueError(f"Invalid SQL identifier for table: {target_table!r}")
+
+            # ensure_columns_exist commits on schema changes, so run it before the
+            # explicit batch transaction to keep the import body atomic.
+            ensure_columns_exist(conn, target_table, work)
+
             # ===== CONFIGURAÇÕES DE PERFORMANCE SQLITE =====
             logger.info("FIX APLICANDO OTIMIZAÇÕES SQLITE")
             conn.execute("PRAGMA journal_mode=WAL")  # Permite leituras concorrentes
@@ -247,9 +269,6 @@ def insert_dataframe_optimized(
                 f"OK Configurações aplicadas: journal_mode={journal_mode}, cache_size={cache_size}"
             )
 
-            target_table = _resolve_physical_table(conn, table_name)
-            if not is_valid_identifier(target_table):
-                raise ValueError(f"Invalid SQL identifier for table: {target_table!r}")
             target_table_sql = _quote_identifier(target_table)
 
             # Criar índice temporário se não existir
@@ -268,10 +287,6 @@ def insert_dataframe_optimized(
                 no_ssa = work.copy()
 
             total_inserted = 0
-
-            # ===== GARANTIR QUE TODAS AS COLUNAS EXISTEM =====
-            # Adicionar colunas faltantes antes de inserir
-            ensure_columns_exist(conn, target_table, work)
 
             # ===== INSERIR REGISTROS SEM SSA (APPEND SIMPLES) =====
             if not no_ssa.empty:
@@ -448,7 +463,7 @@ def insert_dataframe_optimized(
                             logger.info(
                                 "Nenhuma coluna atualizavel encontrada; pulando atualizacao"
                             )
-                        elif _has_referencing_foreign_keys(conn, target_table):
+                        else:
                             validated_update_columns = []
                             quoted_update_columns = []
                             for col in update_columns:
@@ -474,45 +489,6 @@ def insert_dataframe_optimized(
                             total_inserted += len(update_df)
                             logger.info(
                                 "[OK] Atualizados %s registros existentes via UPDATE",
-                                len(update_df),
-                            )
-                        else:
-                            ssa_list = list(update_df["numero_ssa"])
-                            for i in range(0, len(ssa_list), CHUNK_SIZE):
-                                chunk_ssas = ssa_list[i : i + CHUNK_SIZE]
-                                ssa_placeholders = ",".join(["?"] * len(chunk_ssas))
-                                delete_query = f"DELETE FROM {target_table_sql} WHERE numero_ssa IN ({ssa_placeholders})"
-                                conn.execute(delete_query, chunk_ssas)
-
-                            insert_columns = list(update_df.columns)
-                            for col in insert_columns:
-                                if not is_valid_identifier(col):
-                                    raise ValueError(
-                                        f"Invalid SQL identifier for column: {col!r}"
-                                    )
-                            quoted_columns = ", ".join(
-                                [f'"{col}"' for col in insert_columns]
-                            )
-                            value_placeholders = ", ".join(["?"] * len(insert_columns))
-                            insert_sql = (
-                                f"INSERT INTO {target_table_sql} ({quoted_columns}) "
-                                f"VALUES ({value_placeholders})"
-                            )
-                            for i in range(0, len(update_df), CHUNK_SIZE):
-                                chunk = update_df.iloc[i : i + CHUNK_SIZE]
-                                normalized_chunk = (
-                                    chunk[insert_columns]
-                                    .astype("object")
-                                    .where(pd.notna(chunk[insert_columns]), None)
-                                )
-                                params = list(
-                                    normalized_chunk.itertuples(index=False, name=None)
-                                )
-                                if params:
-                                    conn.executemany(insert_sql, params)
-                            total_inserted += len(update_df)
-                            logger.info(
-                                "[OK] Atualizados %s registros existentes",
                                 len(update_df),
                             )
                         if savepoint_started:

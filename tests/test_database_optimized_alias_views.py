@@ -10,6 +10,7 @@ from armazenamento import database
 from armazenamento.database_optimized import (
     disable_optimized_import,
     enable_optimized_import,
+    insert_dataframe_optimized,
 )
 
 
@@ -83,3 +84,45 @@ def test_optimized_insert_normalizes_decimal_ssa_artifacts(tmp_path: Path) -> No
     finally:
         disable_optimized_import()
         Path(db_path).unlink(missing_ok=True)
+
+
+def test_optimized_insert_resolves_legacy_alias_without_view_object(
+    tmp_path: Path,
+) -> None:
+    db_path = str(tmp_path / "canonical_only.db")
+
+    with database.get_db_connection(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE ssa_table (
+                numero_ssa TEXT PRIMARY KEY,
+                data_cadastro TEXT,
+                situacao TEXT,
+                descricao_ssa TEXT
+            )
+            """
+        )
+        conn.commit()
+
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500111"],
+            "data_cadastro": [pd.Timestamp("2025-01-01")],
+            "situacao": ["TESTE"],
+            "descricao_ssa": ["alias-sem-view"],
+        }
+    )
+
+    assert insert_dataframe_optimized(df, db_path, table_name="ssas") is True
+
+    with database.get_db_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT descricao_ssa FROM ssa_table WHERE numero_ssa = ?",
+            ("202500111",),
+        ).fetchone()
+        alias_table_count = conn.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='ssas'"
+        ).fetchone()[0]
+
+    assert row == ("alias-sem-view",)
+    assert alias_table_count == 0
