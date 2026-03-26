@@ -7,7 +7,10 @@ import pandas as pd
 import pytest
 
 from armazenamento import database
-from armazenamento.database_optimized import disable_optimized_import, enable_optimized_import
+from armazenamento.database_optimized import (
+    disable_optimized_import,
+    enable_optimized_import,
+)
 from core.app_logic import run_importer_logic
 from extracao import extractor
 
