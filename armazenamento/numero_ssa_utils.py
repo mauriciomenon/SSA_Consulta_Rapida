@@ -7,7 +7,7 @@ Objetivos:
 
 API Pública (estável):
  - normalize_numero_ssa_strict(value) -> str | None
- - normalize_numero_ssa_int(value) -> int | None  (apenas se exatamente 9 dígitos e ano válido)
+ - normalize_numero_ssa_int(value) -> int | None  (legado: corta para 9 digitos e valida ano)
  - batch_normalize_series(series) -> pd.Series (str|None)  preservando índices
 
 Motivação:
@@ -30,12 +30,12 @@ NUMERO_SSA_LEN = 9
 NUMERO_SSA_ANO_MIN = 1980
 NUMERO_SSA_ANO_MAX = 2050
 _CANONICAL_DECIMAL_ARTIFACT = re.compile(r"^\s*(\d{9})\.0+\s*$")
-_ASCII_LETTERS_RE = re.compile(r"[A-Za-z]")
 
 __all__ = [
     # núcleo strict
     "normalize_numero_ssa_strict",
     "normalize_numero_ssa_storage",
+    "normalize_numero_ssa_int",
     # nomes legados expostos (valor inteiro e formato display)
     "_normalize_numero_ssa_value",
     "normalize_numero_ssa",
@@ -64,10 +64,13 @@ def _strip_canonical_decimal_artifact(value):
     return match.group(1)
 
 
-def _contains_ascii_letters(value) -> bool:
+def _contains_letters(value) -> bool:
     if value is None:
         return False
-    return _ASCII_LETTERS_RE.search(str(value)) is not None
+    try:
+        return any(char.isalpha() for char in str(value))
+    except Exception:  # pragma: no cover
+        return False
 
 
 def _normalize_numero_ssa_value(value) -> int | None:
@@ -102,12 +105,16 @@ def _normalize_numero_ssa_value(value) -> int | None:
         return None
 
 
+def normalize_numero_ssa_int(value) -> int | None:
+    return _normalize_numero_ssa_value(value)
+
+
 def normalize_numero_ssa_storage(value) -> str | None:
     """Return canonical storage form for numero_ssa as text."""
     strict_value = normalize_numero_ssa_strict(value)
     if strict_value is not None:
         return strict_value
-    if _contains_ascii_letters(value):
+    if _contains_letters(value):
         return None
     legacy_value = normalize_numero_ssa(value)
     if legacy_value is None:
@@ -148,7 +155,7 @@ def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         return df
     out = df.copy()
     out['numero_ssa'] = pd.Series([
-        None if _contains_ascii_letters(v) else _normalize_numero_ssa_value(v)
+        None if _contains_letters(v) else _normalize_numero_ssa_value(v)
         for v in out['numero_ssa']
     ], dtype='object')
     return out
