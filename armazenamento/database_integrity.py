@@ -285,7 +285,7 @@ def repair_database_if_needed(
         elif integrity_report['table_exists'] and missing_required_columns:
             from .database import ensure_column_exists  # lazy
             required_column_types = {
-                'numero_ssa': 'INTEGER',
+                'numero_ssa': 'TEXT',
                 'situacao': 'TEXT',
                 'data_cadastro': 'TEXT',
                 'descricao_ssa': 'TEXT',
