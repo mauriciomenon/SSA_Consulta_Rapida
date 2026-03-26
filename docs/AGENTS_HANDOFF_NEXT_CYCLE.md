@@ -2,19 +2,17 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-24 15h29
+## CURRENT TRUTH 2026-03-26 09h15
 
 - Leitura rapida:
   1. branch alvo: `dev`
   2. metadata local ativa: `4.36`
-  3. ultima tag publicada em `dev`: `v4.35`
-  4. este pacote documental deve ser fechado com commit/push para devolver o working tree limpo
+  3. ultima tag publicada em `dev`: `v4.36`
+  4. existe um slice local aberto com CI/storage/docs e fechamento de PR ainda pendente
 - PASSO 0 OBRIGATORIO:
-  1. fazer o Kluster funcionar antes de qualquer novo patch
-  2. reproduzir o sintoma local atual:
-     - `initialize` responde
-     - `tools/list` expõe so `kluster_failure_notification`
-  3. se necessario, ajustar a configuracao MCP relacionada ao Kluster no primeiro slice da nova conversa
+  1. revisar o slice local aberto do PR `dev -> main`
+  2. responder as threads do PR por status claro
+  3. decidir o destino de `.envrc` e classificar residuos locais antes de commit/push
 - Prioridade operacional:
   1. `P0`: blindar storage contra valores com letras que possam cair em limpeza legacy
   2. `P1`: resolver aliases validos em `_needs_db_only_derivadas_sync`
@@ -60,10 +58,9 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   3. `0d823b25` `STABILITY_PATCH: align simple insert with storage sanitization`
   4. `0bdee642` `STABILITY_PATCH: isolate CLI loop subprocess DB fixture`
 - Estado do Kluster local:
-  1. tentativa valida via `pnpm.CMD dlx @klusterai/kluster-verify-code-mcp@latest --server=https://api.kluster.ai`
-  2. `initialize` respondeu, mas `tools/list` expôs so `kluster_failure_notification`
-  3. tratar como bloqueio de ferramenta local, nao review limpo
-  4. ajuste de config MCP fica explicitamente permitido como primeiro trabalho da nova conversa
+  1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
+  2. timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo
+  3. Kluster continua obrigatorio como gate apos alteracoes
 
 ## HISTORICAL SNAPSHOT 2026-03-23 19h01
 

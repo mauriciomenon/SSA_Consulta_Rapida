@@ -2,11 +2,38 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
-## **RELEASE v4.33 - CURRENT RELEASE**
+## **RELEASE v4.36 - CURRENT RELEASE**
+
+**Data de Lancamento**: Marco 2026
+**Tipo**: Stabilization baseline and release alignment
+**Status**: Estavel
+
+### **Principais entregas**
+- Baseline operacional promovido para `4.36`.
+- Tag/release GitHub publicada como `v4.36`.
+- Docs vivos de controle consolidados em torno de `AGENTS.md`, `docs/README.md`,
+  `docs/NEXT_CHAT_MIGRATION.md`, `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` e
+  `docs/RECOVERY_BACKLOG.md`.
+- Backlog real priorizado para a proxima rodada:
+  - blindagem de storage contra limpeza legacy com letras
+  - aliases validos em `_needs_db_only_derivadas_sync`
+  - custo de `sanitize_textual_null_sentinels`
+  - convergencia de helper local de data em upsert
+
+### **Documentacao da versao**
+- `README.md` (baseline `4.36`)
+- `docs/README.md`
+- `docs/NEXT_CHAT_MIGRATION.md`
+- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- `docs/RECOVERY_BACKLOG.md`
+
+---
+
+## **RELEASE v4.33 - HISTORICAL SNAPSHOT**
 
 **Data de Lancamento**: Marco 2026
 **Tipo**: Baseline update para full rescan validado com metricas consolidadas
-**Status**: Estavel
+**Status**: Snapshot historico
 
 ### **Principais entregas**
 - Full rescan real executado de ponta a ponta com evidencia em:

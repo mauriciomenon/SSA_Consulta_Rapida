@@ -249,6 +249,21 @@ CREATE INDEX IF NOT EXISTS idx_derivada_sync_run_started ON ssa_derivada_sync_ru
 """
 
 
+def _execute_sql_script_without_committing(conn: sqlite3.Connection, sql_script: str) -> None:
+    statement_lines: list[str] = []
+    for line in sql_script.splitlines():
+        if not line.strip():
+            continue
+        statement_lines.append(line)
+        statement = "\n".join(statement_lines).strip()
+        if sqlite3.complete_statement(statement):
+            conn.execute(statement)
+            statement_lines.clear()
+    trailing = "\n".join(statement_lines).strip()
+    if trailing:
+        raise ValueError("Incomplete derivadas schema SQL script")
+
+
 def ensure_derivadas_schema_on_connection(
     conn: sqlite3.Connection,
     *,
@@ -261,9 +276,9 @@ def ensure_derivadas_schema_on_connection(
       - False: schema-only checks/migrations without data updates.
     """
 
-    conn.executescript(DERIVADAS_TABLES_SQL)
+    _execute_sql_script_without_committing(conn, DERIVADAS_TABLES_SQL)
     _ensure_derivadas_columns(conn, include_legacy_backfill=include_legacy_backfill)
-    conn.executescript(DERIVADAS_INDEXES_SQL)
+    _execute_sql_script_without_committing(conn, DERIVADAS_INDEXES_SQL)
 
 
 def _existing_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:

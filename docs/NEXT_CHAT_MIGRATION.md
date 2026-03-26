@@ -2,20 +2,17 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-24 15h29
+## CURRENT TRUTH 2026-03-26 09h15
 
 - Leitura rapida:
   1. branch ativa: `dev`
   2. metadata local ativa: `4.36`
-  3. ultima tag publicada em `dev`: `v4.35`
-  4. este pacote documental deve ser fechado com commit/push para devolver o working tree limpo
+  3. ultima tag publicada em `dev`: `v4.36`
+  4. existe um slice local aberto com CI/storage/docs e fechamento de PR ainda pendente
 - PASSO 0 OBRIGATORIO NO PROXIMO CHAT:
-  1. fazer o Kluster funcionar antes de qualquer novo patch
-  2. reproduzir primeiro o sintoma atual:
-     - `pnpm.CMD dlx @klusterai/kluster-verify-code-mcp@latest --server=https://api.kluster.ai`
-     - `initialize` responde
-     - `tools/list` expõe so `kluster_failure_notification`
-  3. se isso persistir, revisar e ajustar a configuracao MCP do Kluster, se necessario
+  1. revisar o slice local aberto do PR `dev -> main`
+  2. responder as threads por status claro
+  3. decidir o destino de `.envrc` e classificar residuos locais antes de commit/push
   4. arquivos de referencia para esse passo:
      - `AGENTS.md`
      - `.github/instructions/kluster-code-verify.instructions.md`
@@ -31,7 +28,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. drift de normalizacao no write path foi removido
   2. docs e testes foram alinhados ao contrato simplificado atual
   3. slices locais sujos foram aterrados
-  4. `4.36` foi preparado sem adiantar tag publicada
+  4. `v4.36` ja foi publicada
 - Integridade do contexto:
   1. nada foi perdido nesta reorganizacao documental
   2. historicos antigos continuam preservados abaixo como auditoria
@@ -71,10 +68,9 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   3. `0d823b25` `STABILITY_PATCH: align simple insert with storage sanitization`
   4. `0bdee642` `STABILITY_PATCH: isolate CLI loop subprocess DB fixture`
 - Estado do Kluster local:
-  1. tentativa valida via `pnpm.CMD dlx @klusterai/kluster-verify-code-mcp@latest --server=https://api.kluster.ai`
-  2. `initialize` respondeu, mas `tools/list` expôs so `kluster_failure_notification`
-  3. tratar como bloqueio de ferramenta local, nao review limpo
-  4. se for necessario mexer em config MCP, isso e permitido como primeiro slice da nova conversa
+  1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
+  2. se o review remoto voltar a dar timeout em `manualCheck`, tratar como bloqueio de ferramenta, nao como finding do repo
+  3. Kluster continua obrigatorio como gate apos alteracoes
 
 ## HISTORICAL SNAPSHOT 2026-03-23 19h01
 

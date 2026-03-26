@@ -1,14 +1,14 @@
 # SSA Consulta Rapida v4.36
 
-Release/tag publicada mais recente na branch `dev`: `v4.35`.
+Release/tag publicada mais recente na branch `dev`: `v4.36`.
 
-## Current Truth (2026-03-24 15:29 -0300)
+## Current Truth (2026-03-26 09:15 -0300)
 
 - Estado operacional:
   - metadata local ativa: `4.36`
-  - ultima tag publicada em `dev`: `v4.35`
-  - branch `dev` deve permanecer sincronizado com remoto e working tree limpo ao fechar este pacote DOC_SYNC
-  - `4.36` ja esta preparado em metadata, runtime e docs ativos, sem criar tag
+  - ultima tag publicada em `dev`: `v4.36`
+  - branch `dev` deve fechar o slice local aberto com commit atomico, push e resposta de PR por status
+  - `4.36` ja esta publicado em metadata, runtime, docs ativos e release/tag
 - Validacao atual:
   - `uv run --python 3.13 python -m py_compile` em tracked Python -> verde
   - `uv run --python 3.13 ruff check .` -> verde
@@ -30,13 +30,13 @@ Release/tag publicada mais recente na branch `dev`: `v4.35`.
   - `docs/RECOVERY_BACKLOG.md` -> backlog priorizado e historico
   - `docs/README.md` -> indice da documentacao viva
 - Estado de review auxiliar:
-  - tentativa local via `pnpm.CMD dlx @klusterai/kluster-verify-code-mcp@latest --server=https://api.kluster.ai`
-  - `initialize` respondeu, mas `tools/list` expôs so `kluster_failure_notification`
-  - isto e bloqueio de ferramenta local, nao review clean
+  - configuracao MCP local do Kluster foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
+  - timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo nem review clean
 - Primeira acao obrigatoria na proxima conversa:
-  - fazer o Kluster funcionar antes de novos patches
-  - se necessario, revisar e ajustar a configuracao MCP relacionada ao Kluster
-  - referencias para isso:
+  - revisar o slice local aberto do PR `dev -> main`
+  - responder as threads do PR por status: corrigido, falso positivo, decisao intencional ou deferido
+  - decidir o destino de `.envrc` e classificar residuos locais fora do escopo antes do fechamento
+  - referencias operacionais:
     - `.github/instructions/kluster-code-verify.instructions.md`
     - `docs/CCR_LLM_PROVIDERS_SETUP.md`
     - `docs/OPENCODE_CONFIG.md`

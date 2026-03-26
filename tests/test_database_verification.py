@@ -9,6 +9,8 @@ import sqlite3
 
 import pandas as pd
 import pytest
+import armazenamento.database_integrity as database_integrity_module
+import armazenamento.database_upsert_logic as database_upsert_logic
 import armazenamento.database_validation as database_validation
 
 from armazenamento.database import (
@@ -120,6 +122,42 @@ class TestDatabaseVerification:  # noqa: D101
 
         assert report['is_valid'] is True
         assert report['table_name'] == 'ssa_table'
+        assert report['table_exists'] is True
+
+    def test_verify_view_only_alias_is_accepted(self, tmp_path):
+        """Quando so existe uma view compativel, o report nao deve falhar por falso negativo."""
+        db_path = os.path.join(tmp_path, 'view_only_alias.db')
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            """
+            CREATE TABLE source_rows (
+                numero_ssa INTEGER,
+                situacao TEXT,
+                data_cadastro TEXT,
+                descricao_ssa TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO source_rows (numero_ssa, situacao, data_cadastro, descricao_ssa)
+            VALUES (202312345, 'STE', '2023-12-01 10:00:00', 'Teste view')
+            """
+        )
+        conn.execute(
+            """
+            CREATE VIEW ssas AS
+            SELECT numero_ssa, situacao, data_cadastro, descricao_ssa
+            FROM source_rows
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        report = verify_database_integrity(db_path, table_name='ssas')
+
+        assert report['is_valid'] is True
+        assert report['table_name'] == 'ssas'
         assert report['table_exists'] is True
 
     def test_verify_corrupted_database(self, tmp_path):
@@ -408,6 +446,64 @@ class TestDatabaseRepair:
         result = repair_database_if_needed(db_path, schema_path, table_name='ssas')
 
         assert result is True
+
+    def test_repair_failed_restore_preserves_original_database(self, tmp_path, monkeypatch):
+        """Falha no restore nao deve apagar o banco original antes da substituicao segura."""
+        db_path = os.path.join(tmp_path, 'restore_preserves_original.db')
+        schema_path = os.path.join(tmp_path, 'schema.sql')
+
+        with open(schema_path, 'w') as f:
+            f.write("""
+            CREATE TABLE IF NOT EXISTS ssa_table (
+                numero_ssa INTEGER,
+                situacao TEXT,
+                data_cadastro TEXT,
+                descricao_ssa TEXT
+            );
+            """)
+
+        initialize_database(db_path, schema_path)
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro, descricao_ssa)
+                VALUES (?, ?, ?, ?)
+                """,
+                (202312345, 'STE', '2023-12-01 10:00:00', 'Original'),
+            )
+            conn.commit()
+
+        monkeypatch.setattr(
+            database_integrity_module,
+            "verify_database_integrity",
+            lambda *_args, **_kwargs: {
+                'is_valid': False,
+                'issues': ['forced corruption'],
+                'warnings': [],
+                'database_exists': True,
+                'database_accessible': True,
+                'table_exists': True,
+                'schema_valid': True,
+                'data_consistent': False,
+                'disk_space_sufficient': True,
+                'file_permissions_ok': True,
+                'needs_creation': False,
+                'missing_optional_columns': [],
+                'table_name': 'ssa_table',
+            },
+        )
+        monkeypatch.setattr(
+            database_upsert_logic,
+            "insert_dataframe_with_smart_upsert_impl",
+            lambda *_args, **_kwargs: False,
+        )
+
+        result = repair_database_if_needed(db_path, schema_path, table_name='ssa_table')
+
+        assert result is False
+        with sqlite3.connect(db_path) as conn:
+            row_count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
+        assert row_count == 1
 
 
 if __name__ == '__main__':

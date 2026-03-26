@@ -6,6 +6,7 @@ import pytest
 
 from armazenamento.derivadas_schema import (
     ensure_derivadas_schema,
+    ensure_derivadas_schema_on_connection,
     has_derivadas_schema,
     scan_derivadas_read_schema_readiness_from_path,
     scan_derivadas_schema_readiness_from_path,
@@ -65,3 +66,18 @@ def test_has_derivadas_schema_rejects_invalid_identifier(temp_db):
     with sqlite3.connect(temp_db) as conn:
         with pytest.raises(ValueError):
             has_derivadas_schema(conn, required=("ssa_derivada_matrix;drop",))
+
+
+def test_ensure_schema_preserves_outer_transaction(temp_db):
+    with sqlite3.connect(temp_db) as conn:
+        conn.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)")
+        conn.execute("INSERT INTO t (name) VALUES ('before')")
+        conn.commit()
+        conn.execute("BEGIN")
+        conn.execute("INSERT INTO t (name) VALUES ('inside_tx_before_schema')")
+        ensure_derivadas_schema_on_connection(conn)
+        conn.execute("ROLLBACK")
+
+    with sqlite3.connect(temp_db) as conn:
+        rows = conn.execute("SELECT name FROM t ORDER BY id").fetchall()
+    assert rows == [('before',)]

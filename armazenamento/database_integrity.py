@@ -137,7 +137,7 @@ def verify_database_integrity(
                 resolved_table_name = _resolve_report_table_name(conn, report['table_name'])
                 report['table_name'] = resolved_table_name
                 cursor = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                    "SELECT name FROM sqlite_master WHERE type IN ('table','view') AND name=?",
                     (resolved_table_name,),
                 )
                 if cursor.fetchone():
@@ -228,6 +228,7 @@ def repair_database_if_needed(
                 logger.info("Backup criado em: %s", backup_path)
                 from .database import get_db_connection, initialize_database  # lazy
                 from . import database_upsert_logic as _up
+                df_backup = pd.DataFrame()
                 with get_db_connection(db_path) as conn:
                     try:
                         table_candidates = list(dict.fromkeys([table_name, *ALL_SSA_TABLE_NAMES]))
@@ -245,18 +246,38 @@ def repair_database_if_needed(
                         if not is_valid_identifier(source_table):
                             raise ValueError(f"Invalid SQL identifier: {source_table}")
                         df_backup = pd.read_sql_query(f"SELECT * FROM {source_table}", conn)
-                        if not df_backup.empty:
-                            os.remove(db_path)
-                            initialize_database(db_path, schema_file)
-                            if _up.insert_dataframe_with_smart_upsert_impl(
-                                df_backup,
-                                db_path,
-                                CANONICAL_SSA_TABLE,
-                            ):
-                                logger.info("Dados restaurados com sucesso apos correcao")
-                                repaired = True
                     except Exception as e:  # pragma: no cover
                         logger.error("Nao foi possivel extrair dados do banco corrompido: %s", e)
+                if not df_backup.empty:
+                    repair_path = f"{db_path}.repair_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    try:
+                        initialize_database(repair_path, schema_file)
+                        if _up.insert_dataframe_with_smart_upsert_impl(
+                            df_backup,
+                            repair_path,
+                            CANONICAL_SSA_TABLE,
+                        ):
+                            repair_check = verify_database_integrity(repair_path, table_name)
+                            if repair_check['is_valid']:
+                                os.replace(repair_path, db_path)
+                                logger.info("Dados restaurados com sucesso apos correcao")
+                                repaired = True
+                            else:
+                                logger.error(
+                                    "Banco reparado temporario falhou na validacao final: %s",
+                                    repair_check['issues'],
+                                )
+                    finally:
+                        if os.path.exists(repair_path) and not repaired:
+                            try:
+                                os.remove(repair_path)
+                            except OSError as cleanup_error:  # pragma: no cover
+                                logger.warning(
+                                    "Nao foi possivel remover banco temporario de reparo: %s",
+                                    cleanup_error,
+                                )
+                else:
+                    logger.warning("Nenhum dado foi extraido do banco corrompido para restauracao.")
             except Exception as e:  # pragma: no cover
                 logger.error("Falha no processo de backup/restore: %s", e)
         if repaired:

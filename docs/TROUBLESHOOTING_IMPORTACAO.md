@@ -1,4 +1,4 @@
-# Troubleshooting de Importacao (Baseline v4.33)
+# Troubleshooting de Importacao (Baseline v4.36)
 
 Guia ativo para diagnosticar falhas de importacao de planilhas.
 
