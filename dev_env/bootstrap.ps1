@@ -49,7 +49,7 @@ function Ensure-VirtualEnv() {
     $list = (& pyenv install -l) -split "`n" | ForEach-Object { $_.Trim() }
     $ver = $null
     foreach ($major in @('3.13', '3.12', '3.11', '3.10')) {
-      $candidate = $list | Where-Object { $_ -match ("^{0}\\.[0-9]+$" -f [regex]::Escape($major)) } | Select-Object -Last 1
+      $candidate = $list | Where-Object { $_ -match ("^{0}\.[0-9]+$" -f [regex]::Escape($major)) } | Select-Object -Last 1
       if ($candidate) {
         $ver = $candidate
         break

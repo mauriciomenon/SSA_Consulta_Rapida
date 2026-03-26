@@ -1,12 +1,12 @@
-# INDEX de Documentacao (Baseline v4.33)
+# INDEX de Documentacao (Baseline v4.36)
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-03-12 00:45 -0300)
+## Sync status (2026-03-26 07:35 -0300)
 
-1. Baseline ativo confirmado: `4.33`.
+1. Baseline ativo confirmado: `4.36`.
 2. Branch operacional: `dev`.
-3. Ultimo commit local na sincronizacao deste index: `30dedc34`.
+3. Release/tag publicada relevante: `v4.36`.
 4. Relatorio consolidado do ciclo de build:
    - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 5. Runbook operacional 3x3:
@@ -14,7 +14,7 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 
 ## Regras de leitura
 
-1. Baseline ativo de versao: `4.33`.
+1. Baseline ativo de versao: `4.36`.
 2. Arquivos em `docs/archive/` sao historicos e nao substituem docs ativos.
 3. Em conflito de informacao, prevalece:
    - `AGENTS.md` (raiz)

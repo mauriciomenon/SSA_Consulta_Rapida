@@ -11,16 +11,15 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 ### ESTADO OPERACIONAL ATUAL
 1. branch ativa: `dev`
 2. metadata local ativa: `4.36`
-3. ultima tag publicada em `dev`: `v4.35`
-4. este pacote DOC_SYNC deve ser fechado com commit/push para devolver o working tree limpo
+3. ultima tag publicada em `dev`: `v4.36`
+4. existe um slice local aberto com CI/storage/docs e fechamento de PR ainda pendente
 5. nada foi perdido no historico; os blocos abaixo permanecem como trilha de auditoria
 
 ### PASSO 0 DA PROXIMA CONVERSA
-1. fazer o Kluster funcionar antes de qualquer patch novo
-2. reproduzir o sintoma local atual:
-   - `initialize` responde
-   - `tools/list` expõe so `kluster_failure_notification`
-3. se necessario, ajustar configuracao MCP do Kluster no primeiro slice
+1. revisar o slice local aberto do PR `dev -> main`
+2. responder as threads do PR por status claro
+3. decidir o destino de `.envrc` e classificar residuos locais antes de commit/push
+4. rodar os gates finais do escopo alterado antes do fechamento
 4. referencias:
    - `AGENTS.md`
    - `.github/instructions/kluster-code-verify.instructions.md`
@@ -38,7 +37,28 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 ### FECHADO E NAO REABRIR SEM EVIDENCIA NOVA
 1. operadores textuais legados de busca nao fazem parte do produto.
 2. write path de `numero_ssa` deve partir da fonte central, sem regra paralela.
-3. `4.36` ja esta preparado em metadata, runtime e docs, sem tag nova.
+3. `4.36` ja esta publicado em metadata, runtime, docs e release/tag.
+
+## Update 2026-03-26 09:15 - release/tag v4.36 publicada e docs vivos corrigidos (DOC_SYNC + DEFERRED_NOTE)
+
+Session timestamp:
+1. start: `2026-03-26 09:15:31 -0300`
+2. fim: `2026-03-26 09:15:31 -0300`
+
+Objetivo do slice:
+1. remover drift restante dos docs vivos apos a publicacao de `v4.36`.
+2. alinhar README, handoff, migration e backlog ao fato de que a release/tag ja foi publicada.
+3. preservar os blocos historicos antigos como auditoria, sem reescrever snapshots.
+
+Diagnostico objetivo:
+1. os docs vivos centrais ainda falavam em `v4.35` como ultima tag publicada.
+2. isso conflitava com o estado atual de [docs/HISTORICO_RELEASES.md](C:/Users/mauri/git/SSA_Consulta_Rapida/docs/HISTORICO_RELEASES.md) e [docs/INDEX.md](C:/Users/mauri/git/SSA_Consulta_Rapida/docs/INDEX.md), que ja tratam `v4.36` como release publicada.
+3. o passo 0 documental tambem ficou stale ao continuar tratando configuracao do Kluster como prerequisito obrigatorio da proxima conversa.
+
+Decisao aplicada:
+1. os docs vivos passam a registrar `v4.36` como ultima tag publicada em `dev`.
+2. o passo 0 volta a ser aterrissar o slice local aberto do PR, e nao reabrir configuracao MCP como tarefa obrigatoria.
+3. timeout eventual de review remoto do Kluster continua sendo bloqueio de ferramenta, nao finding do repo.
 
 ### COMO LER ESTE ARQUIVO
 1. ler primeiro `ACTIVE PRIORITIES`.

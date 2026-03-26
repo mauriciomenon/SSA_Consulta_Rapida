@@ -1,9 +1,9 @@
-# Guia Completo de Migracao - SSA Consulta Rapida v4.33
+# Guia Completo de Migracao - SSA Consulta Rapida v4.36
 
 **Data de Criacao:** 27 de Agosto de 2025  
-**Versao do Sistema:** v4.33 (Estavel)  
+**Versao do Sistema:** v4.36 (Estavel)  
 **Tipo:** Migracao Completa para Nova Instalacao  
-**Sync:** 10/03/2026 16:55 -0300  
+**Sync:** 26/03/2026 07:35 -0300  
 
 ---
 

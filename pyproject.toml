@@ -8,6 +8,7 @@ py-modules = []
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
+addopts = ["--ignore=tests/legacy_tests"]
 markers = [
   "performance: performance tests",
   "integration: integration tests",
