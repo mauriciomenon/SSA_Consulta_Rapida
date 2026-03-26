@@ -216,7 +216,8 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     monkeypatch.setattr(
         core_app_logic,
         "import_explicit_files_to_database",
-        lambda file_paths, **kwargs: captured.setdefault("paths", list(file_paths)) or True,
+        lambda file_paths, **kwargs: captured.setdefault("paths", list(file_paths))
+        or True,
     )
 
     class _Window:
@@ -278,7 +279,8 @@ def test_import_external_excel_files_applies_staged_file_without_recopiar(
     monkeypatch.setattr(
         core_app_logic,
         "import_explicit_files_to_database",
-        lambda file_paths, **kwargs: captured.setdefault("paths", list(file_paths)) or True,
+        lambda file_paths, **kwargs: captured.setdefault("paths", list(file_paths))
+        or True,
     )
 
     class _Window:

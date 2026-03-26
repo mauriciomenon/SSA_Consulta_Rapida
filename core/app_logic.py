@@ -2686,7 +2686,9 @@ def import_explicit_files_to_database(
             docs_dir_path=safe_docs_dir,
         )
         if not explicit_resolved:
-            logger.info("Nenhum arquivo explicito valido foi fornecido para importacao.")
+            logger.info(
+                "Nenhum arquivo explicito valido foi fornecido para importacao."
+            )
             return False
         data_dir = safe_db_path.parent
         db_name = safe_db_path.name
