@@ -3617,7 +3617,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             ajuda_menu.addAction(about_action)
 
     def import_external_excel_files(self):
-        """Importa arquivos XLS/XLSX externos para docs_entrada com copia segura."""
+        """Importa XLSX para docs_entrada e aplica apenas os selecionados no banco."""
         selected_files, _ = QFileDialog.getOpenFileNames(
             self,
             "Selecionar arquivos Excel para importar",
@@ -3626,7 +3626,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         )
 
         if not selected_files:
-            return {"copied": 0, "skipped": 0, "failed": 0, "unsupported": 0}
+            return {
+                "copied": 0,
+                "skipped": 0,
+                "failed": 0,
+                "unsupported": 0,
+                "db_updated": False,
+            }
 
         docs_path = os.path.join(project_root, "docs_entrada")
         os.makedirs(docs_path, exist_ok=True)
@@ -3635,6 +3641,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         skipped = 0
         failed = 0
         unsupported = 0
+        staged_for_import: list[str] = []
 
         for source_path in selected_files:
             source = str(source_path or "").strip()
@@ -3659,7 +3666,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             source_abs = os.path.abspath(source)
             destination_abs = os.path.abspath(base_destination)
             if source_abs == destination_abs:
-                skipped += 1
+                staged_for_import.append(destination_abs)
                 continue
 
             destination = SSAMainWindow._build_unique_destination_path(
@@ -3670,13 +3677,43 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             try:
                 shutil.copy2(source, destination)
                 copied += 1
+                staged_for_import.append(destination)
             except Exception as exc:
                 logger.warning("Falha ao copiar arquivo externo '%s': %s", source, exc)
                 failed += 1
 
+        db_updated = False
+        if staged_for_import:
+            try:
+                from core import app_logic
+
+                db_updated = bool(
+                    app_logic.import_explicit_files_to_database(
+                        staged_for_import,
+                        docs_dir=docs_path,
+                        db_path=DB_PATH,
+                        raise_on_error=True,
+                    )
+                )
+                if db_updated and hasattr(self, "load_data"):
+                    try:
+                        self.load_data()
+                    except Exception as exc:
+                        logger.warning(
+                            "Falha ao recarregar dados apos importacao explicita: %s",
+                            exc,
+                        )
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao aplicar importacao explicita no banco: %s", exc
+                )
+                failed += len(staged_for_import)
+                staged_for_import = []
+
         summary = (
             f"Status: Importacao externa concluida - copiados={copied}, "
-            f"ignorados={skipped}, nao_suportados={unsupported}, falhas={failed}."
+            f"ignorados={skipped}, nao_suportados={unsupported}, falhas={failed}, "
+            f"aplicado_no_banco={'sim' if db_updated else 'nao'}."
         )
         if hasattr(self, "status_label"):
             self.status_label.setText(summary)
@@ -3690,7 +3727,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     f"Copiados: {copied}\n"
                     f"Ignorados: {skipped}\n"
                     f"Nao suportados: {unsupported}\n"
-                    f"Falhas: {failed}\n\n"
+                    f"Falhas: {failed}\n"
+                    f"Aplicado no banco: {'sim' if db_updated else 'nao'}\n\n"
                     f"Destino: {docs_path}"
                 ),
             )
@@ -3700,6 +3738,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             "skipped": skipped,
             "failed": failed,
             "unsupported": unsupported,
+            "db_updated": db_updated,
         }
 
     def _resolve_settings_file_path(self) -> str:

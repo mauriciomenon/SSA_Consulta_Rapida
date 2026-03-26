@@ -5,6 +5,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any, cast
 
+from core import app_logic as core_app_logic
 from gui import gui_ssa
 
 
@@ -211,6 +212,12 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     monkeypatch.setattr(
         gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None
     )
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        core_app_logic,
+        "import_explicit_files_to_database",
+        lambda file_paths, **kwargs: captured.setdefault("paths", list(file_paths)) or True,
+    )
 
     class _Window:
         def __init__(self) -> None:
@@ -223,8 +230,10 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     assert result["skipped"] == 0
     assert result["failed"] == 0
     assert result["unsupported"] == 1
+    assert result["db_updated"] is True
     assert (docs_dir / "entrada__1.xlsx").exists()
     assert not (docs_dir / "outra.xls").exists()
+    assert captured["paths"] == [str(docs_dir / "entrada__1.xlsx")]
     assert "Importacao externa concluida" in window.status_label.text
 
 
@@ -238,7 +247,49 @@ def test_import_external_excel_files_empty_selection_returns_consistent_schema(
     )
 
     result = gui_ssa.SSAMainWindow.import_external_excel_files(cast(Any, object()))
-    assert result == {"copied": 0, "skipped": 0, "failed": 0, "unsupported": 0}
+    assert result == {
+        "copied": 0,
+        "skipped": 0,
+        "failed": 0,
+        "unsupported": 0,
+        "db_updated": False,
+    }
+
+
+def test_import_external_excel_files_applies_staged_file_without_recopiar(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    staged = docs_dir / "entrada.xlsx"
+    staged.write_text("dados", encoding="utf-8")
+
+    monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
+    monkeypatch.setattr(
+        gui_ssa.QFileDialog,
+        "getOpenFileNames",
+        lambda *args, **kwargs: ([str(staged)], "Arquivos Excel"),
+    )
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None
+    )
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        core_app_logic,
+        "import_explicit_files_to_database",
+        lambda file_paths, **kwargs: captured.setdefault("paths", list(file_paths)) or True,
+    )
+
+    class _Window:
+        def __init__(self) -> None:
+            self.status_label = _DummyLabel()
+
+    result = gui_ssa.SSAMainWindow.import_external_excel_files(cast(Any, _Window()))
+    assert result["copied"] == 0
+    assert result["failed"] == 0
+    assert result["db_updated"] is True
+    assert captured["paths"] == [str(staged)]
 
 
 def test_open_settings_file_with_backup_creates_backup(
