@@ -15,6 +15,7 @@ a atualizacao do banco de dados SQLite e o gerenciamento do cache.
 #   armazenamento.database_validation, armazenamento.database_integrity.
 
 import json
+import hashlib
 import logging
 import os
 import re
@@ -43,7 +44,7 @@ from extracao import extractor  # noqa: E402
 from shared.db_names import CANONICAL_SSA_TABLE  # noqa: E402
 from utils import caching  # noqa: E402
 from utils.path_safety import PathSafetyError  # noqa: E402
-from utils.path_safety import ensure_path_is_allowed
+from utils.path_safety import ensure_path_is_allowed  # noqa: E402
 
 # Configura logger especifico para este modulo
 logger = logging.getLogger(__name__)
@@ -68,11 +69,26 @@ class FilterSearchCacheManager:
     """Manage per-DataFrame search cache attrs for filter_dataframe()."""
 
     @staticmethod
+    def _compute_fingerprint(
+        df: pd.DataFrame, available_search_cols: list[str]
+    ) -> str | None:
+        if not available_search_cols:
+            return None
+        search_df = df.loc[:, available_search_cols]
+        hashed = pd.util.hash_pandas_object(search_df, index=True)
+        return hashlib.blake2b(
+            hashed.to_numpy(copy=False).tobytes(), digest_size=16
+        ).hexdigest()
+
+    @staticmethod
     def build_token(
         df: pd.DataFrame, available_search_cols: list[str]
-    ) -> tuple[str, tuple[str, ...], int]:
+    ) -> tuple[str, tuple[str, ...], int, str | None]:
         data_token = df.attrs.setdefault(FILTER_SEARCH_TOKEN_ATTR, uuid.uuid4().hex)
-        return (data_token, tuple(available_search_cols), len(df.index))
+        fingerprint = FilterSearchCacheManager._compute_fingerprint(
+            df, available_search_cols
+        )
+        return (data_token, tuple(available_search_cols), len(df.index), fingerprint)
 
     @staticmethod
     def get_cached_search_data(
