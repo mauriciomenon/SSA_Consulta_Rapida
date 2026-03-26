@@ -713,6 +713,66 @@ def test_sync_sheet_only_verify_only_works_without_ssa_table(tmp_path: Path):
     assert report["reconciliation"]["orphan_children_count"] == 1
 
 
+def test_sync_tracks_longer_closure_paths_in_max_distance(temp_db):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", "202500001"),
+            ("202500003", "202500001"),
+            ("202500004", "202500002"),
+            ("202500005", "202500003"),
+            ("202500005", "202500004"),
+        ],
+    )
+
+    sync_derivadas(temp_db)
+
+    with sqlite3.connect(temp_db) as conn:
+        closure_row = conn.execute(
+            """
+            SELECT min_distance, max_distance, path_count
+            FROM ssa_derivada_closure
+            WHERE ancestor_ssa = '202500001' AND descendant_ssa = '202500005'
+            """
+        ).fetchone()
+
+    assert closure_row == (2, 3, 1)
+
+
+def test_sync_include_db_source_true_treats_missing_ssa_table_as_empty_source(
+    tmp_path: Path,
+):
+    db_path = tmp_path / "include_db_source_without_ssa_table.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE only_dummy_table (id INTEGER PRIMARY KEY)")
+        conn.commit()
+
+    sheet_file = tmp_path / "derivadas_sheet_only_with_db_flag.csv"
+    with sheet_file.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(
+            fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"]
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "parent_ssa": "202500001",
+                "child_ssa": "202500002",
+                "relation_label": "Derivada da",
+            }
+        )
+
+    report = sync_derivadas(
+        str(db_path),
+        include_db_source=True,
+        sheet_file=str(sheet_file),
+    )
+
+    assert report["db_stats"]["accepted_edges"] == 0
+    assert report["sheet_stats"]["accepted_edges"] == 1
+    assert report["active_edges"] == 1
+
+
 def test_sync_rolls_back_partial_writes_and_persists_error_run(temp_db, monkeypatch):
     _insert_ssa_rows(
         temp_db,

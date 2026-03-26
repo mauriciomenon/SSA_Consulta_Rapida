@@ -786,12 +786,13 @@ def _build_closure_rows(
 
     # Avoid enumerating all simple paths (can explode in DAGs with merges). We compute:
     # - min_distance: shortest path length (BFS)
-    # - max_distance: currently equals min_distance (stable and cheap)
+    # - max_distance: longest discovered depth within depth_cap
     # - path_count: number of distinct shortest paths (saturated to cap)
     path_count_cap = 1_000_000
 
     for ancestor in adjacency.keys():
         dist: dict[str, int] = {ancestor: 0}
+        max_dist: dict[str, int] = {ancestor: 0}
         count: dict[str, int] = {ancestor: 1}
         queue = deque((ancestor,))
         while queue:
@@ -813,12 +814,29 @@ def _build_closure_rows(
                         updated if updated < path_count_cap else path_count_cap
                     )
 
+        max_queue = deque((ancestor,))
+        while max_queue:
+            node = max_queue.popleft()
+            depth = max_dist[node]
+            if depth >= depth_cap:
+                continue
+            for child in adjacency.get(node, ()):
+                next_depth = depth + 1
+                previous_max = max_dist.get(child)
+                if previous_max is None or next_depth > previous_max:
+                    max_dist[child] = next_depth
+                    max_queue.append(child)
+
         for descendant, min_distance in dist.items():
             if descendant == ancestor:
                 continue
             key = (ancestor, descendant)
             shortest_paths = count.get(descendant, 1)
-            metrics[key] = [min_distance, min_distance, shortest_paths]
+            metrics[key] = [
+                min_distance,
+                max_dist.get(descendant, min_distance),
+                shortest_paths,
+            ]
 
     closure_rows = [
         (ancestor, descendant, values[0], values[1], values[2])
@@ -1501,6 +1519,7 @@ def sync_derivadas(
 
     with get_db_connection(db_path) as conn:
         _configure_derivadas_connection(conn)
+        db_source_table_exists = _table_exists(conn, table_name=table_name)
 
         source_edges: list[SourceEdge] = []
         db_stats: dict[str, Any] = {"accepted_edges": 0}
@@ -1509,7 +1528,7 @@ def sync_derivadas(
         sheet_multiparent: dict[str, Any] = {}
         sheet_file_reports: list[dict[str, Any]] = []
 
-        if include_db_source:
+        if include_db_source and db_source_table_exists:
             db_result = collect_db_edges(conn, table_name=table_name)
             source_edges.extend(db_result["edges"])
             db_stats = db_result["stats"]
@@ -1561,7 +1580,7 @@ def sync_derivadas(
 
         merged_edges = _merge_edges(source_edges)
 
-        if include_db_source or _table_exists(conn, table_name=table_name):
+        if db_source_table_exists:
             all_ssa = _fetch_all_ssa(conn, table_name=table_name)
         else:
             all_ssa = set()
