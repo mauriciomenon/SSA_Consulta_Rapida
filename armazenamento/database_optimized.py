@@ -464,33 +464,104 @@ def insert_dataframe_optimized(
                                 "Nenhuma coluna atualizavel encontrada; pulando atualizacao"
                             )
                         else:
-                            validated_update_columns = []
-                            quoted_update_columns = []
-                            for col in update_columns:
-                                if not is_valid_identifier(col):
-                                    raise ValueError(
-                                        f"Invalid SQL identifier for column: {col!r}"
-                                    )
-                                validated_update_columns.append(col)
-                                quoted_update_columns.append(_quote_identifier(col))
-                            set_clause = ", ".join(
-                                [f"{col}=?" for col in quoted_update_columns]
-                            )
-                            update_sql = f"UPDATE {target_table_sql} SET {set_clause} WHERE numero_ssa=?"
-                            for i in range(0, len(update_df), CHUNK_SIZE):
-                                chunk = update_df.iloc[i : i + CHUNK_SIZE]
-                                params = list(
-                                    chunk[
-                                        validated_update_columns + ["numero_ssa"]
-                                    ].itertuples(index=False, name=None)
+                            ssa_list = list(update_df["numero_ssa"])
+                            existing_rows_by_ssa: dict[str, dict[str, object | None]] = {}
+                            for i in range(0, len(ssa_list), CHUNK_SIZE):
+                                chunk_ssas = ssa_list[i : i + CHUNK_SIZE]
+                                ssa_placeholders = ",".join(["?"] * len(chunk_ssas))
+                                select_query = (
+                                    f"SELECT * FROM {target_table_sql} "
+                                    f"WHERE numero_ssa IN ({ssa_placeholders})"
                                 )
-                                if params:
-                                    conn.executemany(update_sql, params)
-                            total_inserted += len(update_df)
-                            logger.info(
-                                "[OK] Atualizados %s registros existentes via UPDATE",
-                                len(update_df),
+                                existing_chunk = pd.read_sql_query(
+                                    select_query, conn, params=chunk_ssas
+                                )
+                                if existing_chunk.empty:
+                                    continue
+                                existing_chunk = (
+                                    existing_chunk.astype("object").where(
+                                        pd.notna(existing_chunk), None
+                                    )
+                                )
+                                existing_chunk["numero_ssa"] = (
+                                    existing_chunk["numero_ssa"].map(
+                                        normalize_numero_ssa_storage
+                                    )
+                                )
+                                existing_chunk = existing_chunk[
+                                    existing_chunk["numero_ssa"].notna()
+                                ]
+                                for existing_row in existing_chunk.to_dict("records"):
+                                    numero_ssa = str(existing_row["numero_ssa"])
+                                    existing_rows_by_ssa[numero_ssa] = existing_row
+
+                            normalized_update_df = update_df.astype("object").where(
+                                pd.notna(update_df), None
                             )
+                            merged_rows: list[dict[str, object | None]] = []
+                            for update_row in normalized_update_df.to_dict("records"):
+                                numero_ssa = update_row.get("numero_ssa")
+                                if numero_ssa is None:
+                                    continue
+                                merged_row = (
+                                    existing_rows_by_ssa.get(str(numero_ssa), {}).copy()
+                                )
+                                merged_row.update(update_row)
+                                merged_rows.append(merged_row)
+
+                            if not merged_rows:
+                                logger.info(
+                                    "Nenhuma linha elegivel para reinsert apos merge"
+                                )
+                            else:
+                                merged_df = pd.DataFrame(merged_rows)
+                                insert_columns = list(merged_df.columns)
+                                for i in range(0, len(update_df), CHUNK_SIZE):
+                                    chunk_ssas = ssa_list[i : i + CHUNK_SIZE]
+                                    ssa_placeholders = ",".join(
+                                        ["?"] * len(chunk_ssas)
+                                    )
+                                    delete_query = (
+                                        f"DELETE FROM {target_table_sql} "
+                                        f"WHERE numero_ssa IN ({ssa_placeholders})"
+                                    )
+                                    conn.execute(delete_query, chunk_ssas)
+
+                                for col in insert_columns:
+                                    if not is_valid_identifier(col):
+                                        raise ValueError(
+                                            f"Invalid SQL identifier for column: {col!r}"
+                                        )
+                                quoted_columns = ", ".join(
+                                    [_quote_identifier(col) for col in insert_columns]
+                                )
+                                value_placeholders = ", ".join(
+                                    ["?"] * len(insert_columns)
+                                )
+                                insert_sql = (
+                                    f"INSERT INTO {target_table_sql} ({quoted_columns}) "
+                                    f"VALUES ({value_placeholders})"
+                                )
+                                insert_chunk_size = sqlite_safe_chunksize(
+                                    len(insert_columns)
+                                )
+                                for i in range(0, len(merged_df), insert_chunk_size):
+                                    chunk = merged_df.iloc[i : i + insert_chunk_size]
+                                    normalized_chunk = chunk[insert_columns].astype(
+                                        "object"
+                                    ).where(pd.notna(chunk[insert_columns]), None)
+                                    params = list(
+                                        normalized_chunk.itertuples(
+                                            index=False, name=None
+                                        )
+                                    )
+                                    if params:
+                                        conn.executemany(insert_sql, params)
+                                total_inserted += len(update_df)
+                                logger.info(
+                                    "[OK] Atualizados %s registros existentes via delete+insert",
+                                    len(update_df),
+                                )
                         if savepoint_started:
                             conn.execute("RELEASE SAVEPOINT ssa_batch_update")
                     except Exception:
