@@ -13,6 +13,7 @@ from typing import Any, Iterable
 
 from armazenamento.database import get_db_connection
 from armazenamento.identifier_utils import is_valid_identifier
+from utils.path_safety import ensure_path_is_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -441,7 +442,8 @@ def scan_derivadas_schema_readiness(
 def scan_derivadas_schema_readiness_from_path(db_path: str) -> dict[str, Any]:
     """Run schema readiness scan from DB path without applying migrations."""
 
-    if not os.path.exists(db_path):
+    safe_db_path = str(ensure_path_is_allowed(db_path, purpose="scan derivadas schema"))
+    if not os.path.exists(safe_db_path):
         required_tables = list(DERIVADAS_TABLES)
         return {
             "is_ready": False,
@@ -450,7 +452,7 @@ def scan_derivadas_schema_readiness_from_path(db_path: str) -> dict[str, Any]:
             "missing_columns": {},
             "existing_columns": {},
         }
-    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+    with sqlite3.connect(f"file:{safe_db_path}?mode=ro", uri=True) as conn:
         return scan_derivadas_schema_readiness(conn)
 
 
@@ -483,14 +485,15 @@ def scan_derivadas_read_schema_readiness_from_path(db_path: str) -> dict[str, An
     """Run read-path schema readiness scan from DB path without migration."""
 
     required_tables = sorted(READ_REQUIRED_COLUMNS.keys())
-    if not os.path.exists(db_path):
+    safe_db_path = str(ensure_path_is_allowed(db_path, purpose="scan derivadas read schema"))
+    if not os.path.exists(safe_db_path):
         return {
             "is_ready": False,
             "required_tables": required_tables,
             "missing_tables": required_tables,
             "missing_columns": {},
         }
-    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+    with sqlite3.connect(f"file:{safe_db_path}?mode=ro", uri=True) as conn:
         return scan_derivadas_read_schema_readiness(conn)
 
 
