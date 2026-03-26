@@ -125,6 +125,62 @@ def test_run_importer_logic_writes_report_on_no_changes(
     assert payload["files"]["ignored_legacy_excel"] == ["legado.xls"]
 
 
+def test_run_importer_logic_explicit_files_bypass_discovery_and_process_only_targets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+    file_ok = docs_dir / "ok.xlsx"
+    file_ok.write_text("placeholder", encoding="utf-8")
+
+    _allow_tmp_path(monkeypatch, tmp_path)
+    _mock_db_ok(monkeypatch)
+    monkeypatch.setattr(
+        app_logic,
+        "_get_files_to_process",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("discovery nao deveria ser chamado no modo explicito")
+        ),
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("derivadas discovery nao deveria rodar no modo explicito")
+        ),
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_run_derivadas_sync_phase",
+        lambda *args, **kwargs: (True, [], {"db_stats": {}, "merge_stats": {}}),
+    )
+    seen: list[str] = []
+    monkeypatch.setattr(
+        app_logic,
+        "_import_single_file",
+        lambda file_path, *args, **kwargs: (seen.append(str(file_path)) or True, 1),
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_after_import",
+        lambda *args, **kwargs: None,
+    )
+
+    updated = app_logic.run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+        explicit_files=[str(file_ok)],
+    )
+
+    assert updated is True
+    assert seen == [str(file_ok)]
+
+
 def test_run_importer_logic_writes_report_on_success(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -190,6 +246,70 @@ def test_run_importer_logic_writes_report_on_success(
     assert payload["counts"]["ignored_legacy_excel_count"] == 1
     assert payload["files"]["success"] == ["ok.xlsx"]
     assert payload["files"]["ignored_legacy_excel"] == ["legado.xls"]
+
+
+def test_run_importer_logic_diff_processes_only_new_files_after_cache_update(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    file_old = docs_dir / "old.xlsx"
+    file_old.write_text("old", encoding="utf-8")
+
+    _allow_tmp_path(monkeypatch, tmp_path)
+    _mock_db_ok(monkeypatch)
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_run_derivadas_sync_phase",
+        lambda *args, **kwargs: (True, [], {"db_stats": {}, "merge_stats": {}}),
+    )
+    first_seen: list[str] = []
+    second_seen: list[str] = []
+
+    def _import_first(file_path: str, *args, **kwargs) -> tuple[bool, int]:
+        first_seen.append(Path(file_path).name)
+        return True, 1
+
+    monkeypatch.setattr(app_logic, "_import_single_file", _import_first)
+    assert (
+        app_logic.run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(data_dir),
+            db_name="test.db",
+            table_name="ssa_table",
+            force_import=False,
+        )
+        is True
+    )
+    assert first_seen == ["old.xlsx"]
+
+    file_new = docs_dir / "new.xlsx"
+    file_new.write_text("new", encoding="utf-8")
+
+    def _import_second(file_path: str, *args, **kwargs) -> tuple[bool, int]:
+        second_seen.append(Path(file_path).name)
+        return True, 1
+
+    monkeypatch.setattr(app_logic, "_import_single_file", _import_second)
+    assert (
+        app_logic.run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(data_dir),
+            db_name="test.db",
+            table_name="ssa_table",
+            force_import=False,
+        )
+        is True
+    )
+    assert second_seen == ["new.xlsx"]
 
 
 def test_run_importer_logic_report_includes_file_phase_metrics(

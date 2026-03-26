@@ -26,7 +26,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, List, Optional, Sequence, cast
 
 import pandas as pd
 
@@ -203,6 +203,43 @@ def _resolve_import_targets(docs_dir: str, db_path: str) -> tuple[Path, Path]:
         expect_directory=False,
     )
     return docs_dir_path, db_path_path
+
+
+def _resolve_explicit_import_files(
+    file_paths: Sequence[str | os.PathLike[str]],
+    *,
+    docs_dir_path: Path,
+) -> List[str]:
+    """Resolve explicit XLSX files and ensure they stay under docs_dir."""
+    docs_dir_resolved = docs_dir_path.resolve()
+    resolved_files: List[str] = []
+    seen: set[str] = set()
+    for raw_path in file_paths:
+        if raw_path is None:
+            continue
+        candidate = ensure_path_is_allowed(
+            raw_path,
+            purpose="explicit_import_file",
+            base=docs_dir_resolved,
+            must_exist=True,
+            expect_directory=False,
+        )
+        if candidate.suffix.casefold() != ".xlsx":
+            raise PathSafetyError(
+                f"explicit_import_file: '{candidate}' deve ser um arquivo .xlsx."
+            )
+        try:
+            candidate.relative_to(docs_dir_resolved)
+        except ValueError as exc:
+            raise PathSafetyError(
+                f"explicit_import_file: '{candidate}' fora de docs_dir '{docs_dir_resolved}'."
+            ) from exc
+        normalized = str(candidate)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        resolved_files.append(normalized)
+    return resolved_files
 
 
 # --- Funcoes Auxiliares Refatoradas ---
@@ -1725,6 +1762,7 @@ def run_importer_logic(
     force_import: bool = False,
     should_cancel: Optional[Callable[[], bool]] = None,
     progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+    explicit_files: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> bool:
     """
     Executa a logica principal de importacao de dados.
@@ -1738,6 +1776,8 @@ def run_importer_logic(
         should_cancel (Optional[Callable[[], bool]]): Callback consultivo que indica
             se a importacao deve ser interrompida. Deve retornar True para cancelar.
         progress_callback (Optional[Callable]): Callback para reportar progresso da importacao.
+        explicit_files (Optional[Sequence[str | os.PathLike[str]]]): Se informado,
+            processa apenas esses arquivos .xlsx ja presentes em docs_dir.
 
     Returns:
         bool: True se o banco de dados foi atualizado, False caso contrario.
@@ -1944,20 +1984,35 @@ def run_importer_logic(
                     "Politica ativa: move_processed_after_import foi desativado em full rescan."
                 )
                 move_processed_after_import = False
-        files_to_process = _get_files_to_process(
-            docs_dir,
-            cache_file,
-            force_import,
-            include_processadas=include_processadas,
-            processadas_subdir=str(discovery_settings["processadas_subdir"]),
-            ignore_subdirs=ignore_subdirs,
-        )
-        derivadas_sheet_files = _discover_derivadas_sheet_files(
-            docs_dir,
-            include_processadas=include_processadas,
-            processadas_subdir=str(discovery_settings["processadas_subdir"]),
-            ignore_subdirs=ignore_subdirs,
-        )
+        if explicit_files is not None:
+            files_to_process = _resolve_explicit_import_files(
+                explicit_files,
+                docs_dir_path=docs_dir_path,
+            )
+            logger.info(
+                "Modo de importacao explicita ativado com %s arquivo(s).",
+                len(files_to_process),
+            )
+            derivadas_sheet_files = [
+                file_path
+                for file_path in files_to_process
+                if _is_derivadas_sheet_file(file_path)
+            ]
+        else:
+            files_to_process = _get_files_to_process(
+                docs_dir,
+                cache_file,
+                force_import,
+                include_processadas=include_processadas,
+                processadas_subdir=str(discovery_settings["processadas_subdir"]),
+                ignore_subdirs=ignore_subdirs,
+            )
+            derivadas_sheet_files = _discover_derivadas_sheet_files(
+                docs_dir,
+                include_processadas=include_processadas,
+                processadas_subdir=str(discovery_settings["processadas_subdir"]),
+                ignore_subdirs=ignore_subdirs,
+            )
         db_only_derivadas_sync = False
         auto_derivadas_sync_enabled = bool(force_import)
         total_files = len(files_to_process)
@@ -2611,6 +2666,46 @@ def import_files_to_database(
         return False
     except Exception as e:
         logger.error(f"Erro na importacao de arquivos: {e}")
+        if raise_on_error:
+            raise
+        return False
+
+
+def import_explicit_files_to_database(
+    file_paths: Sequence[str | os.PathLike[str]],
+    *,
+    docs_dir: str = "docs_entrada",
+    db_path: str = "data/ssas.db",
+    raise_on_error: bool = False,
+) -> bool:
+    """Import explicit XLSX files already staged under docs_dir into the database."""
+    try:
+        safe_docs_dir, safe_db_path = _resolve_import_targets(docs_dir, db_path)
+        explicit_resolved = _resolve_explicit_import_files(
+            file_paths,
+            docs_dir_path=safe_docs_dir,
+        )
+        if not explicit_resolved:
+            logger.info("Nenhum arquivo explicito valido foi fornecido para importacao.")
+            return False
+        data_dir = safe_db_path.parent
+        db_name = safe_db_path.name
+        os.makedirs(data_dir, exist_ok=True)
+        return run_importer_logic(
+            docs_dir=str(safe_docs_dir),
+            data_dir=str(data_dir),
+            db_name=db_name,
+            table_name="ssa_table",
+            force_import=False,
+            explicit_files=explicit_resolved,
+        )
+    except PathSafetyError as e:
+        logger.error(f"Caminho rejeitado na importacao explicita: {e}")
+        if raise_on_error:
+            raise
+        return False
+    except Exception as e:
+        logger.error(f"Erro na importacao explicita de arquivos: {e}")
         if raise_on_error:
             raise
         return False
