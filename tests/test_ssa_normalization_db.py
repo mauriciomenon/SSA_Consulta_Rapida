@@ -21,9 +21,11 @@ def test_normalize_numero_ssa_value_various():
 
 
 def test_normalize_numero_ssa_dataframe_apply():
-    df = pd.DataFrame({"numero_ssa": [None, "abc123", "12345678", "202501234"]})
+    df = pd.DataFrame(
+        {"numero_ssa": [None, "abc123", "12345678", "202501234", "2026000654"]}
+    )
     out = normalize_numero_ssa_dataframe(df)
-    assert list(out["numero_ssa"]) == [None, None, None, "202501234"]
+    assert list(out["numero_ssa"]) == [None, None, None, "202501234", "2026000654"]
 
 
 def test_normalize_numero_ssa_dataframe_preserves_index_alignment():
@@ -57,6 +59,8 @@ def test_normalize_numero_ssa_basic():
     assert normalize_numero_ssa("2601234") == "202601234"
     # ja com 9 digitos mantem
     assert normalize_numero_ssa("202500045") == "202500045"
+    # export atual com 10 digitos deve permanecer canonico
+    assert normalize_numero_ssa("2026000654") == "2026000654"
     # >9 nao trunca mais no helper legacy
     assert normalize_numero_ssa("202512345678") is None
     # vazios/nulos retornam None

@@ -15,6 +15,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from utils.file_metadata import best_datetime_for_file
+
 logger = logging.getLogger(__name__)
 
 _CACHE_LOCK_TIMEOUT_SEC = 5.0
@@ -288,7 +290,17 @@ def get_all_xlsx_files(
                         xlsx_files.append(os.path.join(root, filename))
 
     # Deterministic ordering for stable runs and tests.
-    xlsx_files = sorted({os.path.abspath(path) for path in xlsx_files})
+    # When filenames encode snapshot datetimes, process older snapshots first so the
+    # newest snapshot wins on tie-sensitive upsert fields.
+    xlsx_files = sorted(
+        {os.path.abspath(path) for path in xlsx_files},
+        key=lambda path: (
+            best_datetime_for_file(path) is None,
+            best_datetime_for_file(path),
+            os.path.basename(path).casefold(),
+            path.casefold(),
+        ),
+    )
     logger.debug(
         "Encontrados %s arquivo(s) .xlsx em '%s' (include_processadas=%s).",
         len(xlsx_files),
