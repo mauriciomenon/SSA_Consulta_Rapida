@@ -185,6 +185,7 @@ class TestDatabaseVerification:  # noqa: D101
         assert report["database_accessible"] is False
         assert report["data_consistent"] is False
         assert not report["is_valid"]
+        assert report["needs_creation"] is True
 
 
 class TestDataValidation:
@@ -245,6 +246,22 @@ class TestDataValidation:
         assert len(report["warnings"]) > 0
         assert "inválidos" in str(report["warnings"])
         assert len(report["invalid_rows"]) > 0
+
+    def test_validate_rejects_numero_ssa_with_letters_under_storage_rules(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["ABC202512345XYZ", "202512346"],
+                "situacao": ["Pendente", "Executada"],
+                "data_cadastro": ["2025-01-01 10:00:00", "2025-01-02 10:00:00"],
+                "descricao_ssa": ["Com letras", "Valida"],
+            }
+        )
+
+        report = validate_dataframe_before_insert(df)
+
+        assert report["is_valid"] is True
+        assert "inválidos" in str(report["warnings"])
+        assert 0 in report["invalid_rows"]
 
     def test_validate_invalid_rows_has_no_duplicate_indexes(self):
         """Garante que invalid_rows nao repete indice para numero_ssa ausente."""
@@ -313,6 +330,21 @@ class TestDataValidation:
         assert "duplicate_numero_ssa_conflict" in rules
         assert "duplicate_numero_ssa_exact" not in rules
         assert "duplicados conflitantes" in str(report["warnings"])
+
+    def test_validate_duplicate_ssa_uses_canonical_storage_key(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["2025-12345", "202512345"],
+                "situacao": ["STE", "APG"],
+                "data_cadastro": ["2022-04-13 10:11:15", "2022-04-13 10:11:15"],
+                "descricao_ssa": ["Descricao 1", "Descricao 2"],
+            }
+        )
+
+        report = validate_dataframe_before_insert(df)
+
+        rules = {violation["rule"] for violation in report["violations"]}
+        assert "duplicate_numero_ssa_conflict" in rules
 
     def test_validate_missing_data_cadastro_exceptions_keep_non_allowed_invalid(self):
         """SCC/ADI/ASE sem data sao permitidos, mas status fora da lista seguem invalidos."""

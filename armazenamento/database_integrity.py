@@ -98,6 +98,7 @@ def verify_database_integrity(
                 report["issues"].append(
                     "Arquivo de banco encontrado mas vazio (0 bytes) - invalido"
                 )
+                report["needs_creation"] = True
                 report["is_valid"] = False
                 return report
         except Exception as e:  # pragma: no cover

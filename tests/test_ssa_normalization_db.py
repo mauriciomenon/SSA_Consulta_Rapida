@@ -26,6 +26,17 @@ def test_normalize_numero_ssa_dataframe_apply():
     assert list(out["numero_ssa"]) == [None, None, None, "202501234"]
 
 
+def test_normalize_numero_ssa_dataframe_preserves_index_alignment():
+    df = pd.DataFrame(
+        {"numero_ssa": ["202501234", "202512345"]},
+        index=[10, 20],
+    )
+    out = normalize_numero_ssa_dataframe(df)
+    assert list(out.index) == [10, 20]
+    assert out.loc[10, "numero_ssa"] == "202501234"
+    assert out.loc[20, "numero_ssa"] == "202512345"
+
+
 # tests/test_ssa_normalization_db.py
 import os
 import sys
