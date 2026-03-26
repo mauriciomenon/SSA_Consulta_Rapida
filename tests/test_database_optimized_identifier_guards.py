@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
 import sqlite3
+from contextlib import contextmanager
 
 import pandas as pd
 
 import armazenamento.database_optimized as database_optimized_module
 from armazenamento.database_optimized import (
-    _quote_identifier,
     _has_referencing_foreign_keys,
+    _quote_identifier,
     insert_dataframe_optimized,
 )
 
@@ -70,7 +70,9 @@ def test_quote_identifier_rejects_invalid_column_identifier() -> None:
         pass
 
 
-def test_insert_dataframe_optimized_begins_immediate_transaction(tmp_path, monkeypatch) -> None:
+def test_insert_dataframe_optimized_begins_immediate_transaction(
+    tmp_path, monkeypatch
+) -> None:
     db_path = str(tmp_path / "immediate_transaction.db")
     statements: list[str] = []
 
@@ -99,7 +101,9 @@ def test_insert_dataframe_optimized_begins_immediate_transaction(tmp_path, monke
         finally:
             tracked_conn.close()
 
-    monkeypatch.setattr(database_optimized_module, "get_db_connection", _tracking_connection)
+    monkeypatch.setattr(
+        database_optimized_module, "get_db_connection", _tracking_connection
+    )
 
     df = pd.DataFrame(
         {

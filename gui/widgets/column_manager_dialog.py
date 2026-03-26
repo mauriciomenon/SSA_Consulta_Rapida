@@ -1,19 +1,34 @@
 # gui/widgets/column_manager_dialog.py
 # Dialog for managing column visibility and order
 
-from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QListWidget, QListWidgetItem, QPushButton, QDialogButtonBox,
-    QAbstractItemView
-)
-from PyQt6.QtCore import Qt
 import logging
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QDialog,
+    QDialogButtonBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QVBoxLayout,
+)
 
 
 class ColumnManagerDialog(QDialog):
     """Dialogo para marcar e reordenar colunas visiveis."""
 
-    def __init__(self, display_map, selected_columns, default_columns=None, available_columns=None, parent=None):
+    def __init__(
+        self,
+        display_map,
+        selected_columns,
+        default_columns=None,
+        available_columns=None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.setWindowTitle("Configurar colunas visiveis")
         self.resize(420, 500)
@@ -30,7 +45,8 @@ class ColumnManagerDialog(QDialog):
         else:
             self.available_columns = list(
                 dict.fromkeys(
-                    self.available_columns + [c for c in all_from_map if c not in self.available_columns]
+                    self.available_columns
+                    + [c for c in all_from_map if c not in self.available_columns]
                 )
             )
         self._build_ui(selected_columns)
@@ -40,7 +56,9 @@ class ColumnManagerDialog(QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        hint = QLabel("Marque as colunas que deseja ver. Arraste as linhas marcadas para reordenar.")
+        hint = QLabel(
+            "Marque as colunas que deseja ver. Arraste as linhas marcadas para reordenar."
+        )
         hint.setWordWrap(True)
         layout.addWidget(hint)
 
@@ -55,8 +73,12 @@ class ColumnManagerDialog(QDialog):
         self.list_widget = QListWidget()
         try:
             self.list_widget.setAlternatingRowColors(True)
-            self.list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-            self.list_widget.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+            self.list_widget.setSelectionMode(
+                QAbstractItemView.SelectionMode.ExtendedSelection
+            )
+            self.list_widget.setDragDropMode(
+                QAbstractItemView.DragDropMode.InternalMove
+            )
             self.list_widget.setDefaultDropAction(Qt.DropAction.MoveAction)
         except Exception:
             pass
@@ -79,7 +101,9 @@ class ColumnManagerDialog(QDialog):
         tools_row.addWidget(self.clear_all_btn)
         layout.addLayout(tools_row)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -103,32 +127,49 @@ class ColumnManagerDialog(QDialog):
                     )
             item = QListWidgetItem(display_name)
             try:
-                flags = item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable
+                flags = (
+                    item.flags()
+                    | Qt.ItemFlag.ItemIsUserCheckable
+                    | Qt.ItemFlag.ItemIsDragEnabled
+                    | Qt.ItemFlag.ItemIsSelectable
+                )
                 item.setFlags(flags)
             except Exception as e:
                 # Avoid silent failure (B110): log at debug, continue rendering list
-                logging.getLogger(__name__).debug("Nao foi possivel ajustar flags do item '%s': %s", display_name, e)
+                logging.getLogger(__name__).debug(
+                    "Nao foi possivel ajustar flags do item '%s': %s", display_name, e
+                )
             item.setData(Qt.ItemDataRole.UserRole, col)
             if selected_columns:
-                state = Qt.CheckState.Checked if col in selected_columns else Qt.CheckState.Unchecked
+                state = (
+                    Qt.CheckState.Checked
+                    if col in selected_columns
+                    else Qt.CheckState.Unchecked
+                )
             else:
-                state = Qt.CheckState.Checked if col in self.default_columns else Qt.CheckState.Unchecked
+                state = (
+                    Qt.CheckState.Checked
+                    if col in self.default_columns
+                    else Qt.CheckState.Unchecked
+                )
             item.setCheckState(state)
             self.list_widget.addItem(item)
 
     def _apply_filter(self, text):
-        text = (text or '').strip().casefold()
+        text = (text or "").strip().casefold()
         for i in range(self.list_widget.count()):
             item = self.list_widget.item(i)
             if not item:
                 continue
             display = item.text().casefold()
-            internal = str(item.data(Qt.ItemDataRole.UserRole) or '').casefold()
+            internal = str(item.data(Qt.ItemDataRole.UserRole) or "").casefold()
             visible = not text or text in display or text in internal
             try:
                 item.setHidden(not visible)
             except Exception as e:
-                logging.getLogger(__name__).debug("Falha ao ocultar/mostrar item '%s': %s", display, e)
+                logging.getLogger(__name__).debug(
+                    "Falha ao ocultar/mostrar item '%s': %s", display, e
+                )
 
     def restore_defaults(self):
         self._populate_list(self.default_columns)

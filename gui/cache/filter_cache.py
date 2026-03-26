@@ -2,10 +2,11 @@
 # LRU cache for filter results
 
 import hashlib
-from collections import OrderedDict
 import math
 import os
 import threading
+from collections import OrderedDict
+
 import pandas as pd
 
 from utils.robust_logging import get_robust_logger
@@ -37,7 +38,12 @@ class FilterCache:
         self.max_size = max_size
         self._max_entry_bytes = _resolve_cache_max_entry_bytes()
         self._cache = OrderedDict()  # LRU cache
-        self._stats = {'hits': 0, 'misses': 0, 'evictions': 0, 'skipped_large_entries': 0}
+        self._stats = {
+            "hits": 0,
+            "misses": 0,
+            "evictions": 0,
+            "skipped_large_entries": 0,
+        }
         # This cache is shared across FilterWorker instances and accessed from QThreads.
         # Protect internal state to prevent races (e.g., key in cache then pop KeyError).
         self._lock = lock or threading.Lock()
@@ -51,12 +57,19 @@ class FilterCache:
     ) -> str:
         """Gera chave unica para cache baseada nos parametros de filtro."""
         # Converte search_chunks em string deterministica
-        chunks_str = str(sorted([str(sorted(chunk)) if isinstance(chunk, list) else str(chunk) for chunk in search_chunks]))
+        chunks_str = str(
+            sorted(
+                [
+                    str(sorted(chunk)) if isinstance(chunk, list) else str(chunk)
+                    for chunk in search_chunks
+                ]
+            )
+        )
 
         # Cria hash combinado
         context_str = cache_context or ""
         combined = f"{df_hash}|{chunks_str}|{default_mode}|{context_str}"
-        return hashlib.md5(combined.encode('utf-8')).hexdigest()
+        return hashlib.md5(combined.encode("utf-8")).hexdigest()
 
     def get(
         self,
@@ -66,7 +79,9 @@ class FilterCache:
         cache_context: str | None = None,
     ) -> pd.DataFrame | None:
         """Recupera resultado do cache se disponivel."""
-        key = self._generate_key(df_hash, search_chunks, default_mode, cache_context=cache_context)
+        key = self._generate_key(
+            df_hash, search_chunks, default_mode, cache_context=cache_context
+        )
         result = None
 
         with self._lock:
@@ -74,10 +89,10 @@ class FilterCache:
                 # Move para o final (marca como recentemente usado)
                 result = self._cache.pop(key)
                 self._cache[key] = result
-                self._stats['hits'] += 1
+                self._stats["hits"] += 1
                 logger.debug(f"Cache hit for filter key: {key[:8]}...")
             else:
-                self._stats['misses'] += 1
+                self._stats["misses"] += 1
                 logger.debug(f"Cache miss for filter key: {key[:8]}...")
                 return None
 
@@ -113,14 +128,16 @@ class FilterCache:
                 entry_bytes = None
             if entry_bytes is not None and entry_bytes > self._max_entry_bytes:
                 with self._lock:
-                    self._stats['skipped_large_entries'] += 1
+                    self._stats["skipped_large_entries"] += 1
                 logger.info(
                     "FilterCache.put skipped large DataFrame entry (bytes=%s, max_bytes=%s)",
                     entry_bytes,
                     self._max_entry_bytes,
                 )
                 return
-        key = self._generate_key(df_hash, search_chunks, default_mode, cache_context=cache_context)
+        key = self._generate_key(
+            df_hash, search_chunks, default_mode, cache_context=cache_context
+        )
         result_copy = result.copy()
 
         with self._lock:
@@ -136,15 +153,22 @@ class FilterCache:
                 # Remove item mais antigo (primeiro na OrderedDict)
                 oldest_key = next(iter(self._cache))
                 del self._cache[oldest_key]
-                self._stats['evictions'] += 1
+                self._stats["evictions"] += 1
 
-            logger.debug(f"Cache put for filter key: {key[:8]}... (size: {len(self._cache)})")
+            logger.debug(
+                f"Cache put for filter key: {key[:8]}... (size: {len(self._cache)})"
+            )
 
     def clear(self):
         """Limpa todo o cache."""
         with self._lock:
             self._cache.clear()
-            self._stats = {'hits': 0, 'misses': 0, 'evictions': 0, 'skipped_large_entries': 0}
+            self._stats = {
+                "hits": 0,
+                "misses": 0,
+                "evictions": 0,
+                "skipped_large_entries": 0,
+            }
             logger.debug("Filter cache cleared")
 
     def get_stats(self) -> dict:
@@ -153,20 +177,20 @@ class FilterCache:
             size = len(self._cache)
             stats = dict(self._stats)
 
-        total = stats['hits'] + stats['misses']
-        hit_rate = (stats['hits'] / total * 100) if total > 0 else 0
+        total = stats["hits"] + stats["misses"]
+        hit_rate = (stats["hits"] / total * 100) if total > 0 else 0
 
         return {
-            'size': size,
-            'max_size': self.max_size,
-            'hits': stats['hits'],
-            'misses': stats['misses'],
-            'evictions': stats['evictions'],
-            'skipped_large_entries': stats['skipped_large_entries'],
-            'max_entry_mb': (
+            "size": size,
+            "max_size": self.max_size,
+            "hits": stats["hits"],
+            "misses": stats["misses"],
+            "evictions": stats["evictions"],
+            "skipped_large_entries": stats["skipped_large_entries"],
+            "max_entry_mb": (
                 round(self._max_entry_bytes / (1024 * 1024), 3)
                 if self._max_entry_bytes is not None
                 else None
             ),
-            'hit_rate': hit_rate,
+            "hit_rate": hit_rate,
         }

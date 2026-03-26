@@ -1,7 +1,7 @@
-import os
 import ast
-from pathlib import Path
+import os
 from collections import defaultdict
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -69,7 +69,7 @@ def find_cycles(edges):
     def dfs(u: str):
         temp.add(u)
         stack.append(u)
-        for v in edges.get(u, ()): 
+        for v in edges.get(u, ()):
             if v not in temp and v not in perm:
                 dfs(v)
             elif v in temp:
@@ -112,8 +112,17 @@ def main():
             if src == "armazenamento" and tgt in {"gui", "interface"}:
                 violations.append((src, tgt, "storage must not import GUI layers"))
             # utils should be bottom-only
-            if src == "utils" and tgt in {"core", "gui", "interface", "armazenamento", "extracao", "exportacao"}:
-                violations.append((src, tgt, "utils should not import domain/application layers"))
+            if src == "utils" and tgt in {
+                "core",
+                "gui",
+                "interface",
+                "armazenamento",
+                "extracao",
+                "exportacao",
+            }:
+                violations.append(
+                    (src, tgt, "utils should not import domain/application layers")
+                )
     print("\n== Layer Violations (heuristic) ==")
     if not violations:
         print("None")

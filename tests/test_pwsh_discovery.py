@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+
 from scripts import pwsh_discovery
 
 
@@ -19,10 +20,8 @@ def test_pick_pwsh_with_workspace(tmp_path):
     pw = shutil.which("pwsh") or shutil.which("powershell")
     sample_path = pw or r"C:\Program Files\PowerShell\7\pwsh.exe"
     settings = {
-        "terminal.integrated.profiles.windows": {
-            "PowerShell 7": {"path": sample_path}
-        },
-        "terminal.external.windowsExec": sample_path
+        "terminal.integrated.profiles.windows": {"PowerShell 7": {"path": sample_path}},
+        "terminal.external.windowsExec": sample_path,
     }
     with open(vs / "settings.json", "w", encoding="utf-8") as f:
         json.dump(settings, f)

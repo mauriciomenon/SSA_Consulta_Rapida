@@ -40,7 +40,10 @@ def test_choose_latest_prefers_name_over_mtime(tmp_path):
 def test_extract_datetime_from_filename_variants():
     cases = [
         ("Todas as SSAs - 15-07-2025_0143PM (2).xlsx", datetime(2025, 7, 15, 13, 43)),
-        ("IEE3_Emissor__202401_20250715_Todas as SSAs - 15-07-2025_1033AM.xlsx", datetime(2025, 7, 15, 10, 33)),
+        (
+            "IEE3_Emissor__202401_20250715_Todas as SSAs - 15-07-2025_1033AM.xlsx",
+            datetime(2025, 7, 15, 10, 33),
+        ),
         ("SSAs Executadas_15-07-2025_0239PM.xlsx", datetime(2025, 7, 15, 14, 39)),
         ("Consulta SSA - 14-07-2025_0343PM.xlsx", datetime(2025, 7, 14, 15, 43)),
         ("Pendentes de Execucao_15-07-2025_0223PM.xlsx", datetime(2025, 7, 15, 14, 23)),
@@ -57,8 +60,20 @@ def test_extract_datetime_from_filename_invalid():
 def test_should_update_ssa_logic():
     assert should_update_ssa(None, datetime(2025, 7, 14, 10, 0).isoformat()) is True
     assert should_update_ssa(datetime(2025, 7, 14, 10, 0).isoformat(), None) is False
-    assert should_update_ssa(datetime(2025, 7, 14, 10, 0).isoformat(), datetime(2025, 7, 15, 9, 0).isoformat()) is True
-    assert should_update_ssa(datetime(2025, 7, 15, 9, 0).isoformat(), datetime(2025, 7, 14, 10, 0).isoformat()) is False
+    assert (
+        should_update_ssa(
+            datetime(2025, 7, 14, 10, 0).isoformat(),
+            datetime(2025, 7, 15, 9, 0).isoformat(),
+        )
+        is True
+    )
+    assert (
+        should_update_ssa(
+            datetime(2025, 7, 15, 9, 0).isoformat(),
+            datetime(2025, 7, 14, 10, 0).isoformat(),
+        )
+        is False
+    )
 
 
 def test_get_file_metadata_shapes(tmp_path):

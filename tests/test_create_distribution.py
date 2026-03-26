@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from pathlib import Path
 import zipfile
+from pathlib import Path
 
 from scripts import create_distribution
 
 
-def test_create_zip_package_returns_none_when_exe_missing(tmp_path: Path, monkeypatch, caplog) -> None:
+def test_create_zip_package_returns_none_when_exe_missing(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
     project_root = tmp_path / "project"
     build_dir = project_root / "builds" / "fake"
     dist_output = project_root / "dist_packages"
@@ -82,15 +84,21 @@ def test_create_zip_package_excludes_local_data_and_excel_from_canonical_pyinsta
     dist_output = project_root / "dist_packages"
     dist_output.mkdir(parents=True)
 
-    (canonical_dir / "SSA_GUI_v1_windows_amd64.exe").write_text("fake exe", encoding="utf-8")
+    (canonical_dir / "SSA_GUI_v1_windows_amd64.exe").write_text(
+        "fake exe", encoding="utf-8"
+    )
     (canonical_dir / "ssas.db").write_text("db", encoding="utf-8")
     (canonical_dir / "sample.xlsx").write_text("xlsx", encoding="utf-8")
     (canonical_dir / "sample.xls").write_text("xls", encoding="utf-8")
     (canonical_dir / "keep.txt").write_text("ok", encoding="utf-8")
     (canonical_dir / "data").mkdir()
-    (canonical_dir / "data" / "should_not_copy.txt").write_text("secret", encoding="utf-8")
+    (canonical_dir / "data" / "should_not_copy.txt").write_text(
+        "secret", encoding="utf-8"
+    )
     (canonical_dir / "docs_entrada").mkdir()
-    (canonical_dir / "docs_entrada" / "input.xlsx").write_text("excel", encoding="utf-8")
+    (canonical_dir / "docs_entrada" / "input.xlsx").write_text(
+        "excel", encoding="utf-8"
+    )
 
     monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
     monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
@@ -440,7 +448,9 @@ def test_create_zip_package_returns_none_when_build_directory_is_missing(
     assert "Diretorio de build ausente" in caplog.text
 
 
-def test_compile_installer_returns_missing_when_iscc_is_unavailable(monkeypatch) -> None:
+def test_compile_installer_returns_missing_when_iscc_is_unavailable(
+    monkeypatch,
+) -> None:
     monkeypatch.delenv("INNO_SETUP_COMPILER", raising=False)
     monkeypatch.setattr(create_distribution.shutil, "which", lambda _: None)
     monkeypatch.setattr(create_distribution.os.path, "exists", lambda _: False)
@@ -470,7 +480,9 @@ def test_compile_installer_accepts_absolute_env_override_in_trusted_parent(
     trusted_iscc.write_text("fake", encoding="utf-8")
 
     monkeypatch.setenv("INNO_SETUP_COMPILER", str(trusted_iscc))
-    monkeypatch.setattr(create_distribution.shutil, "which", lambda _: str(trusted_iscc))
+    monkeypatch.setattr(
+        create_distribution.shutil, "which", lambda _: str(trusted_iscc)
+    )
 
     recorded_cmd: dict[str, list[str]] = {}
 
@@ -733,8 +745,14 @@ def test_create_inno_setup_script_includes_sample_db_when_option_enabled(
     expected_db = str((sample_db_dir / "ssas_example.db").resolve()).replace("/", "\\")
     expected_readme = str((sample_db_dir / "LEIA-ME.txt").resolve()).replace("/", "\\")
     assert 'Name: "{userdocs}\\SSA Consulta Rapida\\BancoExemplo"' in iss_content
-    assert f'Source: "{expected_db}"; DestDir: "{{userdocs}}\\SSA Consulta Rapida\\BancoExemplo"; DestName: "ssas_example.db"; Flags: ignoreversion' in iss_content
-    assert f'Source: "{expected_readme}"; DestDir: "{{userdocs}}\\SSA Consulta Rapida\\BancoExemplo"; DestName: "LEIA-ME.txt"; Flags: ignoreversion' in iss_content
+    assert (
+        f'Source: "{expected_db}"; DestDir: "{{userdocs}}\\SSA Consulta Rapida\\BancoExemplo"; DestName: "ssas_example.db"; Flags: ignoreversion'
+        in iss_content
+    )
+    assert (
+        f'Source: "{expected_readme}"; DestDir: "{{userdocs}}\\SSA Consulta Rapida\\BancoExemplo"; DestName: "LEIA-ME.txt"; Flags: ignoreversion'
+        in iss_content
+    )
 
 
 def test_create_inno_setup_script_includes_selected_local_db_when_option_enabled(
@@ -778,7 +796,10 @@ def test_create_inno_setup_script_includes_selected_local_db_when_option_enabled
     iss_content = iss_path.read_text(encoding="utf-8")
     expected_db = str(selected_local_db.resolve()).replace("/", "\\")
     assert 'Name: "{userdocs}\\SSA Consulta Rapida\\BancoLocal"' in iss_content
-    assert f'Source: "{expected_db}"; DestDir: "{{userdocs}}\\SSA Consulta Rapida\\BancoLocal"; DestName: "ssas.db"; Flags: ignoreversion' in iss_content
+    assert (
+        f'Source: "{expected_db}"; DestDir: "{{userdocs}}\\SSA Consulta Rapida\\BancoLocal"; DestName: "ssas.db"; Flags: ignoreversion'
+        in iss_content
+    )
 
 
 def test_create_inno_setup_script_uses_absolute_source_when_relpath_fails(

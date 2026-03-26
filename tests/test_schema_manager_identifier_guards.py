@@ -16,7 +16,7 @@ def test_ensure_columns_exist_rejects_invalid_column_identifier() -> None:
         conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
         before = _table_columns(conn, "ssa_table")
 
-        df = pd.DataFrame({"bad\"name": ["x"]})
+        df = pd.DataFrame({'bad"name': ["x"]})
         with pytest.raises(ValueError, match="Invalid SQL identifier for column"):
             ensure_columns_exist(conn, "ssa_table", df)
 

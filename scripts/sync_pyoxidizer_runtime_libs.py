@@ -85,7 +85,9 @@ def main(argv: list[str]) -> int:
     lib_dirs = tuple(args.lib_dir) if args.lib_dir else DEFAULT_LIB_DIRS
     copied_any = False
     for lib_dir_name in lib_dirs:
-        copied_any = _copy_lib_dir(site_packages, lib_dir_name, target_lib_dir) or copied_any
+        copied_any = (
+            _copy_lib_dir(site_packages, lib_dir_name, target_lib_dir) or copied_any
+        )
 
     if not copied_any:
         print("[erro] nenhuma pasta .libs foi copiada")

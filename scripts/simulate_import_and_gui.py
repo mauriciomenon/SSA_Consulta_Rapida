@@ -12,10 +12,11 @@ Uso isolado:
 
 Integração com loop de testes: script pode ser chamado após cada iteração.
 """
+
 from __future__ import annotations
 
-import os
 import argparse
+import os
 import sqlite3
 import time
 from contextlib import suppress
@@ -72,7 +73,10 @@ def simulate_gui_cycle(db_path: str):
     window.load_data()
     # Aguarda carregamento (polling simples)
     timeout = time.time() + 10
-    while getattr(window, "data_loader_thread", None) and not getattr(window.data_loader_thread, "isFinished", lambda: True)():
+    while (
+        getattr(window, "data_loader_thread", None)
+        and not getattr(window.data_loader_thread, "isFinished", lambda: True)()
+    ):
         if time.time() > timeout:
             break
         app.processEvents()
@@ -95,8 +99,16 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--db", default=DEFAULT_DB)
     parser.add_argument("--iterations", type=int, default=1)
-    parser.add_argument("--excel", default="docs_entrada/Consulta SSA - 10-09-2025_0307PM (1).xlsx", help="Planilha real a tentar importar antes dos lotes sintéticos")
-    parser.add_argument("--import-real-once", action="store_true", help="Importa planilha real apenas se tabela vazia")
+    parser.add_argument(
+        "--excel",
+        default="docs_entrada/Consulta SSA - 10-09-2025_0307PM (1).xlsx",
+        help="Planilha real a tentar importar antes dos lotes sintéticos",
+    )
+    parser.add_argument(
+        "--import-real-once",
+        action="store_true",
+        help="Importa planilha real apenas se tabela vazia",
+    )
     args = parser.parse_args()
 
     ensure_db_initialized(args.db)
@@ -105,8 +117,9 @@ def main():
     excel_path = Path(args.excel)
     if excel_path.exists():
         try:
-            from utils.robust_importer import import_excel_robust  # import local
             from armazenamento import database as _db
+            from utils.robust_importer import import_excel_robust  # import local
+
             # Condição opcional: só importar se vazio
             do_import = True
             if args.import_real_once:
@@ -119,9 +132,13 @@ def main():
                 df_real, stats = import_excel_robust(str(excel_path))
                 if not df_real.empty:
                     _db.insert_dataframe_with_smart_upsert(df_real, args.db, "ssas")
-                    print(f"[SIMULATION] Import real: {len(df_real)} linhas | stats dup_drop={stats.get('duplicate_rows_dropped')} invalid_ssa={stats.get('invalid_numero_ssa_rows')}")
+                    print(
+                        f"[SIMULATION] Import real: {len(df_real)} linhas | stats dup_drop={stats.get('duplicate_rows_dropped')} invalid_ssa={stats.get('invalid_numero_ssa_rows')}"
+                    )
                 else:
-                    print("[SIMULATION] Planilha real lida mas resultou DataFrame vazio")
+                    print(
+                        "[SIMULATION] Planilha real lida mas resultou DataFrame vazio"
+                    )
         except Exception as e:  # pragma: no cover
             print(f"[SIMULATION] Falha importando planilha real: {e}")
 

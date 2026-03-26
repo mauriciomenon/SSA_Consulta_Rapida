@@ -71,7 +71,9 @@ def get_parent(db_path: str, ssa: Any, *, include_inactive: bool = False) -> str
     return None
 
 
-def get_children(db_path: str, ssa: Any, *, include_inactive: bool = False) -> list[str]:
+def get_children(
+    db_path: str, ssa: Any, *, include_inactive: bool = False
+) -> list[str]:
     parent_ssa = _normalize_or_none(ssa)
     if not parent_ssa:
         return []
@@ -107,7 +109,9 @@ def children_count(db_path: str, ssa: Any, *, include_inactive: bool = False) ->
         return int(value)
 
 
-def get_ancestors(db_path: str, ssa: Any, *, max_distance: int | None = None) -> list[dict[str, Any]]:
+def get_ancestors(
+    db_path: str, ssa: Any, *, max_distance: int | None = None
+) -> list[dict[str, Any]]:
     descendant_ssa = _normalize_or_none(ssa)
     if not descendant_ssa:
         return []
@@ -146,7 +150,9 @@ def get_ancestors(db_path: str, ssa: Any, *, max_distance: int | None = None) ->
         ]
 
 
-def get_descendants(db_path: str, ssa: Any, *, max_distance: int | None = None) -> list[dict[str, Any]]:
+def get_descendants(
+    db_path: str, ssa: Any, *, max_distance: int | None = None
+) -> list[dict[str, Any]]:
     ancestor_ssa = _normalize_or_none(ssa)
     if not ancestor_ssa:
         return []
@@ -298,7 +304,9 @@ def _collect_paths(
     max_states = safe_max_nodes
     max_paths = safe_max_nodes
 
-    stack: list[tuple[str, list[str], set[str]]] = [(start_ssa, [start_ssa], {start_ssa})]
+    stack: list[tuple[str, list[str], set[str]]] = [
+        (start_ssa, [start_ssa], {start_ssa})
+    ]
     paths: list[list[str]] = []
     states_seen = 1
 
@@ -372,7 +380,9 @@ def get_paths_up(
         return _collect_paths(adjacency, child, depth=depth, max_nodes=max_nodes)
 
 
-def get_top_by_metric(db_path: str, metric: str, *, limit: int = 20) -> list[dict[str, Any]]:
+def get_top_by_metric(
+    db_path: str, metric: str, *, limit: int = 20
+) -> list[dict[str, Any]]:
     if metric not in ALLOWED_TOP_METRICS:
         raise ValueError(f"Unsupported top metric: {metric}")
     safe_limit = max(1, min(int(limit), 500))

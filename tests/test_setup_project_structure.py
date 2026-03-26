@@ -2,6 +2,7 @@
 
 Prevents silent removal/regression of the utility required by main.py.
 """
+
 from __future__ import annotations
 
 from utils import setup_project_structure

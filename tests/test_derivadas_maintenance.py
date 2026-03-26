@@ -21,7 +21,10 @@ def _seed_base_data(db_path: str) -> None:
     with sqlite3.connect(db_path) as conn:
         conn.executemany(
             "INSERT INTO ssa_table (numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
-            [(numero_ssa, derivada_de, f"SSA {numero_ssa}") for numero_ssa, derivada_de in rows],
+            [
+                (numero_ssa, derivada_de, f"SSA {numero_ssa}")
+                for numero_ssa, derivada_de in rows
+            ],
         )
         conn.commit()
 
@@ -68,7 +71,9 @@ def test_maintenance_interval_guard(temp_db):
     _seed_base_data(temp_db)
     sync_derivadas(temp_db)
 
-    result = run_derivadas_maintenance(temp_db, min_interval_seconds=3600, auto_heal=True)
+    result = run_derivadas_maintenance(
+        temp_db, min_interval_seconds=3600, auto_heal=True
+    )
     assert result["ran"] is False
     assert result["reason"] == "interval_guard"
 
@@ -99,7 +104,9 @@ def test_maintenance_interval_guard_remains_read_only_under_write_lock(temp_db):
     lock_conn.execute("BEGIN IMMEDIATE")
     started_at = time.perf_counter()
     try:
-        result = run_derivadas_maintenance(temp_db, min_interval_seconds=3600, auto_heal=True)
+        result = run_derivadas_maintenance(
+            temp_db, min_interval_seconds=3600, auto_heal=True
+        )
         op_elapsed = time.perf_counter() - started_at
     finally:
         lock_conn.rollback()
@@ -173,7 +180,9 @@ def test_maintenance_on_fresh_db_reports_schema_not_ready(temp_db):
     assert result["scan"]["schema_ready"] is False
 
 
-def test_maintenance_returns_database_locked_state_on_exclusive_lock(temp_db, monkeypatch):
+def test_maintenance_returns_database_locked_state_on_exclusive_lock(
+    temp_db, monkeypatch
+):
     _seed_base_data(temp_db)
     sync_derivadas(temp_db)
     monkeypatch.setattr(derivadas_sync_module, "DERIVADAS_BUSY_TIMEOUT_MS", 200)
@@ -181,7 +190,9 @@ def test_maintenance_returns_database_locked_state_on_exclusive_lock(temp_db, mo
     lock_conn = sqlite3.connect(temp_db, timeout=0.1, check_same_thread=False)
     lock_conn.execute("BEGIN EXCLUSIVE")
     try:
-        result = run_derivadas_maintenance(temp_db, min_interval_seconds=0, auto_heal=False)
+        result = run_derivadas_maintenance(
+            temp_db, min_interval_seconds=0, auto_heal=False
+        )
     finally:
         lock_conn.rollback()
         lock_conn.close()

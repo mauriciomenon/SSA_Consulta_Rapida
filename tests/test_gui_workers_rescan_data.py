@@ -159,6 +159,7 @@ def _build_main_py(tmp_path: Path) -> str:
 
 def test_rescan_data_cancel_does_not_break_when_stop_raises(tmp_path):
     created_workers = []
+
     class _WorkerStopRaisesTracked(_WorkerStopRaises):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
@@ -185,7 +186,9 @@ def test_rescan_data_cancel_does_not_break_when_stop_raises(tmp_path):
 
     assert created_workers
     assert created_workers[0].stop_called is True
-    assert window.status_label.text == "Status: Cancelamento solicitado no reescaneamento."
+    assert (
+        window.status_label.text == "Status: Cancelamento solicitado no reescaneamento."
+    )
     assert window._active_rescan_worker is None
     assert window._active_rescan_dialog is None
     assert global_workers == []
@@ -194,6 +197,7 @@ def test_rescan_data_cancel_does_not_break_when_stop_raises(tmp_path):
 
 def test_rescan_data_releases_stale_worker_when_isrunning_raises_after_dialog(tmp_path):
     created_workers = []
+
     class _WorkerIsRunningRaisesTracked(_WorkerIsRunningRaises):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
@@ -285,7 +289,9 @@ def test_rescan_data_sets_cancel_status_even_when_worker_not_running(tmp_path):
         sip_module=None,
     )
 
-    assert window.status_label.text == "Status: Cancelamento solicitado no reescaneamento."
+    assert (
+        window.status_label.text == "Status: Cancelamento solicitado no reescaneamento."
+    )
 
 
 def test_rescan_data_shows_progress_dialog_without_blocking(tmp_path):
@@ -324,7 +330,9 @@ def test_rescan_data_diff_mode_skips_prompt_and_sets_force_import_false(tmp_path
     captured_modes: list[bool] = []
 
     class _WorkerCaptureMode(_BaseWorker):
-        def __init__(self, _main_py_path: str, _project_root: str, force_import: bool = True):
+        def __init__(
+            self, _main_py_path: str, _project_root: str, force_import: bool = True
+        ):
             super().__init__(_main_py_path, _project_root)
             captured_modes.append(bool(force_import))
 
@@ -359,7 +367,9 @@ def test_rescan_data_full_mode_skips_prompt_and_sets_force_import_true(tmp_path)
     captured_modes: list[bool] = []
 
     class _WorkerCaptureMode(_BaseWorker):
-        def __init__(self, _main_py_path: str, _project_root: str, force_import: bool = True):
+        def __init__(
+            self, _main_py_path: str, _project_root: str, force_import: bool = True
+        ):
             super().__init__(_main_py_path, _project_root)
             captured_modes.append(bool(force_import))
 
@@ -394,7 +404,9 @@ def test_rescan_data_prompt_without_qmessagebox_uses_incremental_mode(tmp_path):
     captured_modes: list[bool] = []
 
     class _WorkerCaptureMode(_BaseWorker):
-        def __init__(self, _main_py_path: str, _project_root: str, force_import: bool = True):
+        def __init__(
+            self, _main_py_path: str, _project_root: str, force_import: bool = True
+        ):
             super().__init__(_main_py_path, _project_root)
             captured_modes.append(bool(force_import))
 

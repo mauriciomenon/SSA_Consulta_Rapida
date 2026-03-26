@@ -135,11 +135,26 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert len(window._menu_bar.menus["Opcoes"].actions) == 4
     assert len(window._menu_bar.menus["Ajuda"].actions) == 2
 
-    arquivo_labels = [getattr(action, "_text", "") for action in window._menu_bar.menus["Arquivo"].actions]
-    importacao_labels = [getattr(action, "_text", "") for action in window._menu_bar.menus["Importacao"].actions]
-    database_labels = [getattr(action, "_text", "") for action in window._menu_bar.menus["Database"].actions]
-    opcoes_labels = [getattr(action, "_text", "") for action in window._menu_bar.menus["Opcoes"].actions]
-    ajuda_labels = [getattr(action, "_text", "") for action in window._menu_bar.menus["Ajuda"].actions]
+    arquivo_labels = [
+        getattr(action, "_text", "")
+        for action in window._menu_bar.menus["Arquivo"].actions
+    ]
+    importacao_labels = [
+        getattr(action, "_text", "")
+        for action in window._menu_bar.menus["Importacao"].actions
+    ]
+    database_labels = [
+        getattr(action, "_text", "")
+        for action in window._menu_bar.menus["Database"].actions
+    ]
+    opcoes_labels = [
+        getattr(action, "_text", "")
+        for action in window._menu_bar.menus["Opcoes"].actions
+    ]
+    ajuda_labels = [
+        getattr(action, "_text", "")
+        for action in window._menu_bar.menus["Ajuda"].actions
+    ]
 
     assert arquivo_labels == [
         "Recarregar Dados",
@@ -193,7 +208,9 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
         "getOpenFileNames",
         lambda *args, **kwargs: ([str(source), str(source2)], "Arquivos Excel"),
     )
-    monkeypatch.setattr(gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None
+    )
 
     class _Window:
         def __init__(self) -> None:
@@ -211,7 +228,9 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     assert "Importacao externa concluida" in window.status_label.text
 
 
-def test_import_external_excel_files_empty_selection_returns_consistent_schema(monkeypatch) -> None:
+def test_import_external_excel_files_empty_selection_returns_consistent_schema(
+    monkeypatch,
+) -> None:
     monkeypatch.setattr(
         gui_ssa.QFileDialog,
         "getOpenFileNames",
@@ -222,7 +241,9 @@ def test_import_external_excel_files_empty_selection_returns_consistent_schema(m
     assert result == {"copied": 0, "skipped": 0, "failed": 0, "unsupported": 0}
 
 
-def test_open_settings_file_with_backup_creates_backup(monkeypatch, tmp_path: Path) -> None:
+def test_open_settings_file_with_backup_creates_backup(
+    monkeypatch, tmp_path: Path
+) -> None:
     settings_dir = tmp_path / "config"
     settings_dir.mkdir()
     settings_path = settings_dir / "settings.json"
@@ -238,7 +259,11 @@ def test_open_settings_file_with_backup_creates_backup(monkeypatch, tmp_path: Pa
     monkeypatch.setattr(
         gui_ssa,
         "QDesktopServices",
-        type("DummyDesktopServices", (), {"openUrl": staticmethod(lambda *args, **kwargs: True)}),
+        type(
+            "DummyDesktopServices",
+            (),
+            {"openUrl": staticmethod(lambda *args, **kwargs: True)},
+        ),
         raising=False,
     )
 
@@ -258,13 +283,17 @@ def test_open_settings_file_with_backup_creates_backup(monkeypatch, tmp_path: Pa
     assert len(backups) == 1
     assert "editor externo" in window.status_label.text
 
-    result_second = gui_ssa.SSAMainWindow.open_settings_file_with_backup(cast(Any, window))
+    result_second = gui_ssa.SSAMainWindow.open_settings_file_with_backup(
+        cast(Any, window)
+    )
     backups_after_second = list(settings_dir.glob("settings.json.bak_*"))
     assert result_second["opened"] is True
     assert len(backups_after_second) == 2
 
 
-def test_reset_settings_to_defaults_overwrites_user_file(monkeypatch, tmp_path: Path) -> None:
+def test_reset_settings_to_defaults_overwrites_user_file(
+    monkeypatch, tmp_path: Path
+) -> None:
     config_dir = tmp_path / "config_runtime"
     config_dir.mkdir()
     default_settings = {
@@ -302,7 +331,9 @@ def test_reset_settings_to_defaults_overwrites_user_file(monkeypatch, tmp_path: 
     assert "padrao restauradas" in window.status_label.text
 
 
-def test_consolidate_input_files_moves_by_last_report(monkeypatch, tmp_path: Path) -> None:
+def test_consolidate_input_files_moves_by_last_report(
+    monkeypatch, tmp_path: Path
+) -> None:
     docs_dir = tmp_path / "docs_entrada"
     logs_dir = tmp_path / "logs"
     docs_dir.mkdir()
@@ -325,7 +356,9 @@ def test_consolidate_input_files_moves_by_last_report(monkeypatch, tmp_path: Pat
     )
 
     monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
-    monkeypatch.setattr(gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None
+    )
 
     class _Window:
         def __init__(self) -> None:
@@ -366,7 +399,11 @@ def test_consolidate_input_files_does_not_route_error_status_to_nosurvivor(
     payload = {
         "paths": {"docs_dir": str(docs_dir)},
         "file_reports": [
-            {"file": "error.xlsx", "status": "extraction_error", "counts": {"rows_inserted": 0}},
+            {
+                "file": "error.xlsx",
+                "status": "extraction_error",
+                "counts": {"rows_inserted": 0},
+            },
         ],
     }
     (logs_dir / "import_run_20260309_000001_000001.json").write_text(
@@ -375,7 +412,9 @@ def test_consolidate_input_files_does_not_route_error_status_to_nosurvivor(
     )
 
     monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
-    monkeypatch.setattr(gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None
+    )
 
     class _Window:
         def __init__(self) -> None:
@@ -433,7 +472,9 @@ def test_consolidate_input_files_keeps_update_only_out_of_nosurvivor(
     )
 
     monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
-    monkeypatch.setattr(gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None
+    )
 
     class _Window:
         def __init__(self) -> None:

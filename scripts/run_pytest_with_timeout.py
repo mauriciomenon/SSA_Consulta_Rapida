@@ -25,8 +25,14 @@ def ensure_local_ai_dir():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--test", required=True, help="pytest path or args (e.g. tests/test_terminal_integration.py)")
-    parser.add_argument("--timeout", type=int, default=10, help="timeout in seconds for the pytest run")
+    parser.add_argument(
+        "--test",
+        required=True,
+        help="pytest path or args (e.g. tests/test_terminal_integration.py)",
+    )
+    parser.add_argument(
+        "--timeout", type=int, default=10, help="timeout in seconds for the pytest run"
+    )
     parser.add_argument("--log", default=None, help="optional log path")
     args, extra = parser.parse_known_args()
 
@@ -48,7 +54,7 @@ def main():
         proc = None
         try:
             popen_kwargs = {}
-            if os.name != 'nt':
+            if os.name != "nt":
                 # Isolate child process group so killpg does not target this wrapper process.
                 popen_kwargs["start_new_session"] = True
             proc = subprocess.Popen(
@@ -60,19 +66,35 @@ def main():
             try:
                 proc.wait(timeout=args.timeout)
                 logf.write(f"\n=== Process exited with code {proc.returncode} ===\n")
-                print(f"pytest finished with exit code {proc.returncode}; log: {logpath}")
+                print(
+                    f"pytest finished with exit code {proc.returncode}; log: {logpath}"
+                )
                 return proc.returncode
             except subprocess.TimeoutExpired:
                 # Timeout: attempt to kill process tree
                 try:
-                    if os.name == 'nt':
-                        res = subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    if os.name == "nt":
+                        res = subprocess.run(
+                            ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
                         if res.returncode != 0:
                             # fallback to PowerShell Stop-Process if taskkill is not available/succeeds
                             pwsh = shutil.which("pwsh") or shutil.which("powershell")
                             if pwsh:
                                 try:
-                                    subprocess.run([pwsh, "-NoProfile", "-NonInteractive", "-Command", f"Stop-Process -Id {proc.pid} -Force -ErrorAction SilentlyContinue"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                    subprocess.run(
+                                        [
+                                            pwsh,
+                                            "-NoProfile",
+                                            "-NonInteractive",
+                                            "-Command",
+                                            f"Stop-Process -Id {proc.pid} -Force -ErrorAction SilentlyContinue",
+                                        ],
+                                        stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.DEVNULL,
+                                    )
                                 except Exception:
                                     try:
                                         proc.kill()
@@ -98,7 +120,7 @@ def main():
                     proc.wait(timeout=5)
                 except Exception:
                     try:
-                        if os.name != 'nt':
+                        if os.name != "nt":
                             try:
                                 os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
                             except Exception:
@@ -112,7 +134,9 @@ def main():
                     except Exception:
                         pass
 
-                logf.write(f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n")
+                logf.write(
+                    f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n"
+                )
                 print(f"TIMEOUT: pytest exceeded {args.timeout}s; log: {logpath}")
                 return 124
         except BaseException as e:
@@ -120,7 +144,9 @@ def main():
                 logf.write(f"\n=== ERROR: {e} ===\n")
                 logf.flush()
             except Exception:
-                print(f"[ERR] failed to write wrapper error to log: {e}", file=sys.stderr)
+                print(
+                    f"[ERR] failed to write wrapper error to log: {e}", file=sys.stderr
+                )
             if proc is not None and proc.poll() is None:
                 try:
                     if os.name == "nt":

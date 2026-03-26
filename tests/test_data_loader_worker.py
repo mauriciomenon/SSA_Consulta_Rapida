@@ -5,7 +5,9 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-pytest.importorskip("PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste")
+pytest.importorskip(
+    "PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste"
+)
 from PyQt6.QtWidgets import QApplication
 
 from gui.workers.data_loader_worker import DataLoaderWorker

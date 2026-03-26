@@ -15,12 +15,13 @@
 #
 # Run: python -m gui.gui_ssa_dev
 """
+
 from __future__ import annotations
 
+import sys
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
-import threading
-import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -28,12 +29,8 @@ if str(ROOT) not in sys.path:
 
 from PyQt6 import QtCore, QtWidgets  # noqa: E402
 
-from utils.remote_itaipu import (  # noqa: E402
-    fetch_pending_ssas,
-    RequestOptions,
-    map_to_dataframe,
-    to_json_pretty,
-)
+from utils.remote_itaipu import RequestOptions  # noqa: E402
+from utils.remote_itaipu import fetch_pending_ssas, map_to_dataframe, to_json_pretty
 
 
 class FetchWorker(QtCore.QObject):
@@ -193,7 +190,9 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         items: List[Dict[str, Any]] = []
         if isinstance(payload, list):
-            items = [cast(Dict[str, Any], item) for item in payload if isinstance(item, dict)]
+            items = [
+                cast(Dict[str, Any], item) for item in payload if isinstance(item, dict)
+            ]
         self.json_edit.setPlainText(to_json_pretty(items))
         df = map_to_dataframe(items)
         if df is None:
@@ -220,6 +219,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 def main() -> None:
     import sys
+
     app = QtWidgets.QApplication(sys.argv)
     w = MainWindow()
     w.show()

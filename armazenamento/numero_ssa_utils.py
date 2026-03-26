@@ -15,16 +15,16 @@ Motivação:
  Este módulo substitui essas cópias. Durante a refatoração, chamadas internas serão
  redirecionadas para cá.
 """
+
 from __future__ import annotations
+
 import re
 from typing import Iterable
 
 import pandas as pd
 
-from shared.numero_ssa import \
-    normalize_numero_ssa as _normalize_numero_ssa_legacy
-from shared.numero_ssa import \
-    normalize_strict as _strict  # fonte unica de verdade
+from shared.numero_ssa import normalize_numero_ssa as _normalize_numero_ssa_legacy
+from shared.numero_ssa import normalize_strict as _strict  # fonte unica de verdade
 
 NUMERO_SSA_LEN = 9
 NUMERO_SSA_ANO_MIN = 1980
@@ -146,16 +146,17 @@ def extract_candidate_digits(value) -> str:
     return re.sub(r"\D", "", str(value))
 
 
-def bulk_int_or_none(values: Iterable) -> list[int | None]:  # pragma: no cover (usado esporadicamente)
+def bulk_int_or_none(
+    values: Iterable,
+) -> list[int | None]:  # pragma: no cover (usado esporadicamente)
     return [_normalize_numero_ssa_value(v) for v in values]
 
 
 def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    if 'numero_ssa' not in df.columns:
+    if "numero_ssa" not in df.columns:
         return df
     out = df.copy()
-    out['numero_ssa'] = pd.Series([
-        normalize_numero_ssa_storage(v)
-        for v in out['numero_ssa']
-    ], dtype='object')
+    out["numero_ssa"] = pd.Series(
+        [normalize_numero_ssa_storage(v) for v in out["numero_ssa"]], dtype="object"
+    )
     return out

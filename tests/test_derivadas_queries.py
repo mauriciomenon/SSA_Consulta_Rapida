@@ -6,7 +6,6 @@ import time
 import pytest
 
 from armazenamento.derivadas_queries import (
-    get_ssa_hierarchy_snapshot,
     get_ancestors,
     get_children,
     get_descendants,
@@ -15,6 +14,7 @@ from armazenamento.derivadas_queries import (
     get_parents,
     get_paths_down,
     get_paths_up,
+    get_ssa_hierarchy_snapshot,
     get_top_by_metric,
 )
 from armazenamento.derivadas_sync import sync_derivadas
@@ -30,7 +30,10 @@ def _seed_graph(db_path: str) -> None:
     with sqlite3.connect(db_path) as conn:
         conn.executemany(
             "INSERT INTO ssa_table (numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
-            [(numero_ssa, derivada_de, f"SSA {numero_ssa}") for numero_ssa, derivada_de in rows],
+            [
+                (numero_ssa, derivada_de, f"SSA {numero_ssa}")
+                for numero_ssa, derivada_de in rows
+            ],
         )
         conn.commit()
     sync_derivadas(db_path)
@@ -45,7 +48,10 @@ def _seed_cycle_graph(db_path: str) -> None:
     with sqlite3.connect(db_path) as conn:
         conn.executemany(
             "INSERT INTO ssa_table (numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
-            [(numero_ssa, derivada_de, f"SSA {numero_ssa}") for numero_ssa, derivada_de in rows],
+            [
+                (numero_ssa, derivada_de, f"SSA {numero_ssa}")
+                for numero_ssa, derivada_de in rows
+            ],
         )
         conn.commit()
     sync_derivadas(db_path)
@@ -68,7 +74,11 @@ def test_ancestors_descendants_and_profile(temp_db):
     profile = get_hierarchy_profile(temp_db, "202500001")
 
     assert [item["ssa"] for item in ancestors] == ["202500002", "202500001"]
-    assert [item["ssa"] for item in descendants] == ["202500002", "202500004", "202500003"]
+    assert [item["ssa"] for item in descendants] == [
+        "202500002",
+        "202500004",
+        "202500003",
+    ]
     assert profile["direct_children_count"] == 2
     assert profile["descendants_count"] == 3
 
@@ -124,7 +134,11 @@ def test_snapshot_returns_gui_friendly_payload(temp_db):
     assert snapshot["children_count"] == 2
     assert snapshot["has_children"] is True
     assert snapshot["hierarchy_profile"]["descendants_count"] == 3
-    assert [row["ssa"] for row in snapshot["descendants"]] == ["202500002", "202500004", "202500003"]
+    assert [row["ssa"] for row in snapshot["descendants"]] == [
+        "202500002",
+        "202500004",
+        "202500003",
+    ]
 
 
 def test_snapshot_returns_empty_for_invalid_ssa(temp_db):

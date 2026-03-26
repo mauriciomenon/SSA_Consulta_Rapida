@@ -1,7 +1,9 @@
 import pandas as pd
 import pytest
 
-pytest.importorskip("PyQt6", reason="Dependencia PyQt6 indisponivel no ambiente de teste")
+pytest.importorskip(
+    "PyQt6", reason="Dependencia PyQt6 indisponivel no ambiente de teste"
+)
 
 from gui.mixins.filter_gui_ssa_mixin import FilterGUISSAMixin
 

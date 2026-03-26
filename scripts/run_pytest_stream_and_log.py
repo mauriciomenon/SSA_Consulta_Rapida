@@ -19,12 +19,9 @@ import json
 import os
 import sys
 
-from pytest_stream_common import (
-    ensure_log_path,
-    get_stream_logger,
-    resolve_safe_logpath as _resolve_safe_logpath,
-    run_streaming_pytest,
-)
+from pytest_stream_common import ensure_log_path, get_stream_logger
+from pytest_stream_common import resolve_safe_logpath as _resolve_safe_logpath
+from pytest_stream_common import run_streaming_pytest
 
 logger = get_stream_logger(__name__)
 
@@ -34,7 +31,11 @@ def main():
     parser.add_argument("--test", required=True)
     parser.add_argument("--timeout", type=int, default=None)
     parser.add_argument("--log", default=None)
-    parser.add_argument("--fallback-tee", action="store_true", help="If streaming fails, print instruction for tee fallback")
+    parser.add_argument(
+        "--fallback-tee",
+        action="store_true",
+        help="If streaming fails, print instruction for tee fallback",
+    )
     args = parser.parse_args()
 
     # Try to read workspace settings for defaults
@@ -50,8 +51,13 @@ def main():
     if args.timeout is None:
         args.timeout = int(ws_settings.get("pytestWrapper", {}).get("timeout", 10))
 
-    fallback_to_tee = bool(ws_settings.get("pytestWrapper", {}).get("fallbackToTee", False) or args.fallback_tee)
-    kill_tree_default = bool(ws_settings.get("pytestWrapper", {}).get("killProcessTree", True))
+    fallback_to_tee = bool(
+        ws_settings.get("pytestWrapper", {}).get("fallbackToTee", False)
+        or args.fallback_tee
+    )
+    kill_tree_default = bool(
+        ws_settings.get("pytestWrapper", {}).get("killProcessTree", True)
+    )
 
     logdir = os.path.join(os.getcwd(), "local_ai_private")
     try:

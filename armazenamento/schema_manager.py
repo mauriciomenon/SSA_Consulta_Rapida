@@ -15,7 +15,9 @@ def _quote_identifier(identifier: str) -> str:
     return f'"{identifier}"'
 
 
-def ensure_columns_exist(conn: sqlite3.Connection, table_name: str, df: pd.DataFrame) -> None:
+def ensure_columns_exist(
+    conn: sqlite3.Connection, table_name: str, df: pd.DataFrame
+) -> None:
     """
     Ensure all DataFrame columns exist in the table.
 
@@ -60,15 +62,15 @@ def ensure_columns_exist(conn: sqlite3.Connection, table_name: str, df: pd.DataF
         dtype = df[col].dtype
 
         if pd.api.types.is_integer_dtype(dtype):
-            sql_type = 'INTEGER'
+            sql_type = "INTEGER"
         elif pd.api.types.is_float_dtype(dtype):
-            sql_type = 'REAL'
+            sql_type = "REAL"
         elif pd.api.types.is_bool_dtype(dtype):
-            sql_type = 'INTEGER'
+            sql_type = "INTEGER"
         elif pd.api.types.is_datetime64_any_dtype(dtype):
-            sql_type = 'TEXT'
+            sql_type = "TEXT"
         else:
-            sql_type = 'TEXT'
+            sql_type = "TEXT"
 
         try:
             cursor.execute(
@@ -77,7 +79,7 @@ def ensure_columns_exist(conn: sqlite3.Connection, table_name: str, df: pd.DataF
             )
             logger.info(f"[OK] Coluna adicionada: {col} ({sql_type})")
         except sqlite3.OperationalError as e:
-            if 'duplicate column name' not in str(e).lower():
+            if "duplicate column name" not in str(e).lower():
                 logger.error(f"[ERRO] Falha ao adicionar coluna {col}: {e}")
                 raise
 

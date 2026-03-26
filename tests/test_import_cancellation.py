@@ -9,7 +9,9 @@ import pytest
 from core.app_logic import run_importer_logic
 
 
-def test_should_cancel_stops_between_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_should_cancel_stops_between_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
     for i in range(5):
@@ -48,8 +50,14 @@ def test_should_cancel_stops_between_files(tmp_path: Path, monkeypatch: pytest.M
     # Avoid real Excel parsing and DB writes: focus on cancellation + cache behavior.
     import core.app_logic as app_logic
 
-    monkeypatch.setattr(app_logic.extractor, "extract_data_from_excel", fake_extract_data_from_excel)
-    monkeypatch.setattr(app_logic.database, "insert_dataframe_with_smart_upsert", fake_insert_dataframe_with_smart_upsert)
+    monkeypatch.setattr(
+        app_logic.extractor, "extract_data_from_excel", fake_extract_data_from_excel
+    )
+    monkeypatch.setattr(
+        app_logic.database,
+        "insert_dataframe_with_smart_upsert",
+        fake_insert_dataframe_with_smart_upsert,
+    )
 
     cancel_flag = {"cancel": False}
 

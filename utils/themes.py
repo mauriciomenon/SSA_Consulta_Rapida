@@ -5,7 +5,7 @@ Define paletas de cores e roles para multiplos temas visuais, incluindo
 temas claros, escuros e populares como Dracula, Gruvbox, Tokyo Night, etc.
 """
 
-from PyQt6.QtGui import QPalette, QColor
+from PyQt6.QtGui import QColor, QPalette
 
 # Definicao de roles (papeis) de cores para cada tema
 THEME_ROLES: dict[str, dict[str, str]] = {
@@ -355,19 +355,39 @@ def get_theme_roles(name: str) -> dict[str, str]:
     # Keep popup/checkbox colors coherent with the active theme.
     # Avoid a fixed dark popup fallback when the selected theme is light.
     if not specific or "popup_bg" not in specific:
-        roles["popup_bg"] = roles.get("input_bg") or roles.get("panel_bg") or roles["popup_bg"]
+        roles["popup_bg"] = (
+            roles.get("input_bg") or roles.get("panel_bg") or roles["popup_bg"]
+        )
     if not specific or "popup_text" not in specific:
-        roles["popup_text"] = roles.get("input_text") or roles.get("panel_text") or roles["popup_text"]
+        roles["popup_text"] = (
+            roles.get("input_text") or roles.get("panel_text") or roles["popup_text"]
+        )
     if not specific or "popup_border" not in specific:
-        roles["popup_border"] = roles.get("input_border") or roles.get("panel_border") or roles["popup_border"]
+        roles["popup_border"] = (
+            roles.get("input_border")
+            or roles.get("panel_border")
+            or roles["popup_border"]
+        )
     if not specific or "popup_header_text" not in specific:
-        roles["popup_header_text"] = roles.get("popup_text") or roles.get("panel_text") or roles["popup_header_text"]
+        roles["popup_header_text"] = (
+            roles.get("popup_text")
+            or roles.get("panel_text")
+            or roles["popup_header_text"]
+        )
     if not specific or "checkbox_border" not in specific:
-        roles["checkbox_border"] = roles.get("input_border") or roles.get("panel_border") or roles["checkbox_border"]
+        roles["checkbox_border"] = (
+            roles.get("input_border")
+            or roles.get("panel_border")
+            or roles["checkbox_border"]
+        )
     if not specific or "checkbox_bg" not in specific:
-        roles["checkbox_bg"] = roles.get("popup_bg") or roles.get("input_bg") or roles["checkbox_bg"]
+        roles["checkbox_bg"] = (
+            roles.get("popup_bg") or roles.get("input_bg") or roles["checkbox_bg"]
+        )
     if not specific or "checkbox_checked_bg" not in specific:
-        roles["checkbox_checked_bg"] = roles.get("accent") or roles["checkbox_checked_bg"]
+        roles["checkbox_checked_bg"] = (
+            roles.get("accent") or roles["checkbox_checked_bg"]
+        )
     if not specific or "checkbox_checked_fg" not in specific:
         roles["checkbox_checked_fg"] = "#ffffff"
     return roles
@@ -638,14 +658,3 @@ def normalize_theme(name: str) -> str:
     if name in ("nord",):
         return "nord"
     return "dark"
-
-
-
-
-
-
-
-
-
-
-

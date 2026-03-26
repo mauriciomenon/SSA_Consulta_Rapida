@@ -1,12 +1,17 @@
 # gui/widgets/rescan_progress_dialog.py
 # Progress dialog for database rescanning
 
-from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QTextEdit,
-    QPushButton, QProgressBar, QLabel
-)
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+)
 
 
 class RescanProgressDialog(QDialog):
@@ -131,14 +136,18 @@ class RescanProgressDialog(QDialog):
 
         if success:
             self.status_label.setText("Reescaneamento concluido com sucesso!")
-            self.status_label.setStyleSheet("font-weight: bold; font-size: 12pt; color: green;")
+            self.status_label.setStyleSheet(
+                "font-weight: bold; font-size: 12pt; color: green;"
+            )
             self.progress_bar.setValue(100)
         else:
             final_message = message.strip() if isinstance(message, str) else ""
             if not final_message:
                 final_message = "Erro nao detalhado pelo processo de reescaneamento."
             self.status_label.setText(f"Reescaneamento falhou: {final_message}")
-            self.status_label.setStyleSheet("font-weight: bold; font-size: 12pt; color: red;")
+            self.status_label.setStyleSheet(
+                "font-weight: bold; font-size: 12pt; color: red;"
+            )
             self.append_error(f"\nERRO FINAL: {final_message}")
 
     def reject(self) -> None:

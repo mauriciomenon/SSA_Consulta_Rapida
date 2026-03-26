@@ -102,6 +102,7 @@ def reader_join_timeout_seconds() -> float:
 
 def resolve_safe_logpath(logdir: str, user_log: str | None) -> str:
     from pathlib import Path
+
     from utils.path_safety import PathSafetyError, ensure_path_is_allowed
 
     base_dir = os.path.abspath(logdir)
@@ -164,7 +165,12 @@ def _terminate_process(
             except (ProcessLookupError, PermissionError, OSError) as exc:
                 logger.warning("SIGTERM process group failed: %s", exc)
                 process.kill()
-    except (ProcessLookupError, PermissionError, OSError, subprocess.SubprocessError) as exc:
+    except (
+        ProcessLookupError,
+        PermissionError,
+        OSError,
+        subprocess.SubprocessError,
+    ) as exc:
         logger.warning("terminate process failed: %s", exc)
         try:
             process.kill()
@@ -190,7 +196,11 @@ def _wait_for_termination(process: subprocess.Popen[str], *, logger) -> None:
             logger.warning("forced process kill failed: %s", kill_exc)
         try:
             process.wait(timeout=5)
-        except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError) as wait_exc:
+        except (
+            subprocess.TimeoutExpired,
+            subprocess.SubprocessError,
+            OSError,
+        ) as wait_exc:
             logger.warning("second wait for process termination failed: %s", wait_exc)
 
 
@@ -212,7 +222,9 @@ def run_streaming_pytest(
 
     start = time.time()
     if os.name == "nt":
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        process = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        )
     else:
         process = subprocess.Popen(
             cmd,
@@ -257,14 +269,15 @@ def run_streaming_pytest(
                     return
                 dropped_lines += 1
                 warn_count = dropped_lines
-                should_warn = (
-                    warn_count == 1
-                    or (warn_count % dropped_warn_every == 0 and warn_count != last_warned)
+                should_warn = warn_count == 1 or (
+                    warn_count % dropped_warn_every == 0 and warn_count != last_warned
                 )
                 if should_warn:
                     last_warned = warn_count
             if should_warn:
-                robust_logger.warning("output queue full; dropped %s line(s)", warn_count)
+                robust_logger.warning(
+                    "output queue full; dropped %s line(s)", warn_count
+                )
 
     def _reader_worker() -> None:
         try:
@@ -294,8 +307,10 @@ def run_streaming_pytest(
         def _flush_if_needed(force: bool = False) -> None:
             nonlocal pending_flush_lines, last_flush
             now = time.monotonic()
-            if force or pending_flush_lines >= flush_every or (
-                pending_flush_lines > 0 and (now - last_flush) >= 1.0
+            if (
+                force
+                or pending_flush_lines >= flush_every
+                or (pending_flush_lines > 0 and (now - last_flush) >= 1.0)
             ):
                 logf.flush()
                 pending_flush_lines = 0
@@ -360,8 +375,12 @@ def run_streaming_pytest(
             return ret
 
         except BaseException as exc:
-            robust_logger.exception("unexpected failure while streaming pytest output: %s", exc)
-            logf.write(f"[ERR] unexpected failure while streaming pytest output: {exc}\n")
+            robust_logger.exception(
+                "unexpected failure while streaming pytest output: %s", exc
+            )
+            logf.write(
+                f"[ERR] unexpected failure while streaming pytest output: {exc}\n"
+            )
             pending_flush_lines += 1
             _flush_if_needed(force=True)
             _terminate_process(

@@ -2,6 +2,7 @@
 """
 Verificação rápida de integridade do banco após importação
 """
+
 import sqlite3
 import sys
 
@@ -13,13 +14,17 @@ def verificar_integridade():
     print("=" * 60)
 
     try:
-        conn = sqlite3.connect('data/ssas.db')
+        conn = sqlite3.connect("data/ssas.db")
         cursor = conn.cursor()
 
         # Verificações básicas
         total = cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}").fetchone()[0]
-        unicos = cursor.execute(f"SELECT COUNT(DISTINCT numero_ssa) FROM {TABLE_NAME}").fetchone()[0]
-        nulls_ssa = cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE numero_ssa IS NULL").fetchone()[0]
+        unicos = cursor.execute(
+            f"SELECT COUNT(DISTINCT numero_ssa) FROM {TABLE_NAME}"
+        ).fetchone()[0]
+        nulls_ssa = cursor.execute(
+            f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE numero_ssa IS NULL"
+        ).fetchone()[0]
         vazios_desc = cursor.execute(
             f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE descricao_ssa IS NULL OR descricao_ssa = ''"
         ).fetchone()[0]
@@ -35,7 +40,9 @@ def verificar_integridade():
             f"SELECT numero_ssa, situacao, descricao_ssa FROM {TABLE_NAME} LIMIT 5"
         ).fetchall()
         for ssa, situacao, desc in amostras:
-            desc_preview = (desc[:50] + "...") if desc and len(desc) > 50 else (desc or "N/A")
+            desc_preview = (
+                (desc[:50] + "...") if desc and len(desc) > 50 else (desc or "N/A")
+            )
             print(f"  SSA {ssa}: {situacao} - {desc_preview}")
 
         # Verificar situações
@@ -51,8 +58,12 @@ def verificar_integridade():
         # Status geral
         duplicatas = total - unicos
         print("\nOK RESULTADO GERAL:")
-        print(f"  - Zero duplicatas: {'OK SIM' if duplicatas == 0 else 'ERR NÃO - ' + str(duplicatas) + ' duplicatas'}")
-        print(f"  - Dados válidos: {'OK SIM' if nulls_ssa == 0 else 'WARN ' + str(nulls_ssa) + ' registros sem numero_ssa'}")
+        print(
+            f"  - Zero duplicatas: {'OK SIM' if duplicatas == 0 else 'ERR NÃO - ' + str(duplicatas) + ' duplicatas'}"
+        )
+        print(
+            f"  - Dados válidos: {'OK SIM' if nulls_ssa == 0 else 'WARN ' + str(nulls_ssa) + ' registros sem numero_ssa'}"
+        )
         print(f"  - Importação: {'OK SUCESSO' if total > 0 else 'ERR FALHOU'}")
 
         return total > 0 and duplicatas == 0
@@ -60,6 +71,7 @@ def verificar_integridade():
     except Exception as e:
         print(f"ERR ERRO na verificação: {e}")
         return False
+
 
 if __name__ == "__main__":
     sucesso = verificar_integridade()

@@ -5,6 +5,7 @@ The goal is to stop Streamlit/CLI inputs from reaching arbitrary locations
 outside the project or temp roots. Extra bases can be added via the
 SSA_EXTRA_ALLOWED_PATHS env var (os.pathsep-separated).
 """
+
 from __future__ import annotations
 
 import os
@@ -108,6 +109,8 @@ def ensure_path_is_allowed(
     if expect_directory is True and candidate.exists() and not candidate.is_dir():
         raise PathSafetyError(f"{purpose}: '{candidate}' precisa ser um diretorio.")
     if expect_directory is False and candidate.exists() and candidate.is_dir():
-        raise PathSafetyError(f"{purpose}: '{candidate}' deve ser um arquivo, nao um diretorio.")
+        raise PathSafetyError(
+            f"{purpose}: '{candidate}' deve ser um arquivo, nao um diretorio."
+        )
 
     return candidate

@@ -38,8 +38,13 @@ def test_config_command_reloads_initial_state_after_config(monkeypatch):
         return {"default_filters": ["new_default"], "user_preferences": {}}
 
     monkeypatch.setattr(cli, "load_settings", _fake_load_settings)
-    monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {"numero_ssa": "Numero SSA"})
-    def _fake_render_single_page(df, _display_map, _settings, _print_cache, terms, **_kwargs):
+    monkeypatch.setattr(
+        cli, "load_display_mappings_integrity", lambda: {"numero_ssa": "Numero SSA"}
+    )
+
+    def _fake_render_single_page(
+        df, _display_map, _settings, _print_cache, terms, **_kwargs
+    ):
         render_calls.append((df, list(terms)))
         return None
 
@@ -76,13 +81,21 @@ def test_config_command_without_default_filter_change_skips_requery(monkeypatch)
             return "c"
         raise KeyboardInterrupt
 
-    def _fake_render_single_page(df, _display_map, _settings, _print_cache, terms, **_kwargs):
+    def _fake_render_single_page(
+        df, _display_map, _settings, _print_cache, terms, **_kwargs
+    ):
         render_calls.append((df, list(terms)))
         return None
 
     monkeypatch.setattr(cli, "_get_initial_state", _fake_get_initial_state)
-    monkeypatch.setattr(cli, "load_settings", lambda: {"default_filters": ["keep"], "user_preferences": {}})
-    monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {"numero_ssa": "Numero SSA"})
+    monkeypatch.setattr(
+        cli,
+        "load_settings",
+        lambda: {"default_filters": ["keep"], "user_preferences": {}},
+    )
+    monkeypatch.setattr(
+        cli, "load_display_mappings_integrity", lambda: {"numero_ssa": "Numero SSA"}
+    )
     monkeypatch.setattr(cli, "_render_single_page", _fake_render_single_page)
     monkeypatch.setattr(cli, "_reset_pagination_state", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(cli, "handle_config_command", lambda: None)

@@ -10,7 +10,9 @@ from core.app_logic import run_importer_logic
 def _patch_integrity_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     import core.app_logic as app_logic
 
-    monkeypatch.setattr(app_logic.database, "repair_database_if_needed", lambda *a, **k: True)
+    monkeypatch.setattr(
+        app_logic.database, "repair_database_if_needed", lambda *a, **k: True
+    )
     monkeypatch.setattr(
         app_logic.database,
         "verify_database_integrity",
@@ -45,7 +47,9 @@ def _patch_integrity_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_run_importer_triggers_derivadas_sync_for_special_sheets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_run_importer_triggers_derivadas_sync_for_special_sheets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
     regular = docs_dir / "Consulta SSA - 13-02-2026_0121PM.xlsx"
@@ -61,12 +65,18 @@ def test_run_importer_triggers_derivadas_sync_for_special_sheets(tmp_path: Path,
 
     from utils import path_safety
 
-    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
     _patch_integrity_ok(monkeypatch)
 
     import core.app_logic as app_logic
 
-    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [str(regular), str(special_old), str(special_new)])
+    monkeypatch.setattr(
+        app_logic,
+        "_get_files_to_process",
+        lambda *a, **k: [str(regular), str(special_old), str(special_new)],
+    )
 
     imported_files: list[str] = []
 
@@ -117,11 +127,15 @@ def test_run_importer_triggers_derivadas_sync_for_special_sheets(tmp_path: Path,
     assert len(sync_calls) == 1
     assert sync_calls[0]["actor"] == "importer-derivadas-sync"
     assert "sheet_file" not in sync_calls[0] or sync_calls[0]["sheet_file"] is None
-    assert sorted(sync_calls[0]["sheet_files"]) == sorted([str(special_old), str(special_new)])
+    assert sorted(sync_calls[0]["sheet_files"]) == sorted(
+        [str(special_old), str(special_new)]
+    )
     assert set(cached_files) == {str(regular), str(special_old), str(special_new)}
 
 
-def test_run_importer_keeps_running_when_derivadas_sync_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_run_importer_keeps_running_when_derivadas_sync_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
     special = docs_dir / "SSAs Derivadas e Relacionadas_13-02-2026_0131PM.xlsx"
@@ -130,16 +144,28 @@ def test_run_importer_keeps_running_when_derivadas_sync_fails(tmp_path: Path, mo
 
     from utils import path_safety
 
-    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
     _patch_integrity_ok(monkeypatch)
 
     import core.app_logic as app_logic
 
-    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [str(special)])
-    monkeypatch.setattr(app_logic, "sync_derivadas", lambda **kwargs: (_ for _ in ()).throw(RuntimeError("sync boom")))
+    monkeypatch.setattr(
+        app_logic, "_get_files_to_process", lambda *a, **k: [str(special)]
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "sync_derivadas",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("sync boom")),
+    )
 
     cache_calls = {"n": 0}
-    monkeypatch.setattr(app_logic, "_update_cache_after_import", lambda *a, **k: cache_calls.__setitem__("n", cache_calls["n"] + 1))
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_after_import",
+        lambda *a, **k: cache_calls.__setitem__("n", cache_calls["n"] + 1),
+    )
 
     updated = run_importer_logic(
         docs_dir=str(docs_dir),
@@ -164,14 +190,20 @@ def test_run_importer_runs_dedicated_derivadas_phase_even_without_regular_files(
 
     from utils import path_safety
 
-    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
     _patch_integrity_ok(monkeypatch)
 
     import core.app_logic as app_logic
 
     monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
     import_calls = {"n": 0}
-    monkeypatch.setattr(app_logic, "_import_single_file", lambda *a, **k: import_calls.__setitem__("n", import_calls["n"] + 1))
+    monkeypatch.setattr(
+        app_logic,
+        "_import_single_file",
+        lambda *a, **k: import_calls.__setitem__("n", import_calls["n"] + 1),
+    )
 
     sync_calls: list[dict] = []
 
@@ -195,7 +227,11 @@ def test_run_importer_runs_dedicated_derivadas_phase_even_without_regular_files(
     monkeypatch.setattr(app_logic, "sync_derivadas", _fake_sync)
 
     cached_files: list[str] = []
-    monkeypatch.setattr(app_logic, "_update_cache_after_import", lambda processed_files, *a, **k: cached_files.extend(processed_files))
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_after_import",
+        lambda processed_files, *a, **k: cached_files.extend(processed_files),
+    )
 
     updated = run_importer_logic(
         docs_dir=str(docs_dir),
@@ -225,7 +261,9 @@ def test_run_importer_rejects_special_sync_without_parse_evidence(
 
     from utils import path_safety
 
-    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
     _patch_integrity_ok(monkeypatch)
 
     import core.app_logic as app_logic
@@ -271,12 +309,16 @@ def test_run_importer_runs_db_only_derivadas_sync_for_regular_import(
 
     from utils import path_safety
 
-    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
     _patch_integrity_ok(monkeypatch)
 
     import core.app_logic as app_logic
 
-    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [str(regular)])
+    monkeypatch.setattr(
+        app_logic, "_get_files_to_process", lambda *a, **k: [str(regular)]
+    )
     monkeypatch.setattr(app_logic, "_import_single_file", lambda *a, **k: (True, 5))
 
     sync_calls: list[dict] = []
@@ -293,7 +335,11 @@ def test_run_importer_runs_db_only_derivadas_sync_for_regular_import(
     monkeypatch.setattr(app_logic, "sync_derivadas", _fake_sync)
 
     cached_files: list[str] = []
-    monkeypatch.setattr(app_logic, "_update_cache_after_import", lambda processed_files, *a, **k: cached_files.extend(processed_files))
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_after_import",
+        lambda processed_files, *a, **k: cached_files.extend(processed_files),
+    )
 
     updated = run_importer_logic(
         docs_dir=str(docs_dir),
@@ -322,7 +368,9 @@ def test_run_importer_accepts_db_materialization_when_special_sheet_has_no_edges
 
     from utils import path_safety
 
-    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
     _patch_integrity_ok(monkeypatch)
 
     import core.app_logic as app_logic
@@ -365,26 +413,33 @@ def test_run_importer_accepts_db_materialization_when_special_sheet_has_no_edges
     assert cache_calls["n"] == 0
 
 
-def test_run_importer_runs_db_only_sync_when_preflight_requires(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_run_importer_runs_db_only_sync_when_preflight_requires(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
     data_dir = tmp_path / "data"
 
     from utils import path_safety
 
-    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
     _patch_integrity_ok(monkeypatch)
 
     import core.app_logic as app_logic
 
     monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
-    monkeypatch.setattr(app_logic, "_needs_db_only_derivadas_sync", lambda *a, **k: True)
+    monkeypatch.setattr(
+        app_logic, "_needs_db_only_derivadas_sync", lambda *a, **k: True
+    )
 
     sync_calls: list[dict] = []
     monkeypatch.setattr(
         app_logic,
         "sync_derivadas",
-        lambda **kwargs: sync_calls.append(kwargs) or {
+        lambda **kwargs: sync_calls.append(kwargs)
+        or {
             "sheet_files": [],
             "db_stats": {"accepted_edges": 4},
             "sheet_stats": {"accepted_edges": 0, "special_layout_detected": 0},
@@ -424,7 +479,9 @@ def test_run_importer_skips_db_only_preflight_when_cancel_requested(
 
     from utils import path_safety
 
-    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
     _patch_integrity_ok(monkeypatch)
 
     import core.app_logic as app_logic
@@ -433,7 +490,9 @@ def test_run_importer_skips_db_only_preflight_when_cancel_requested(
     monkeypatch.setattr(
         app_logic,
         "_needs_db_only_derivadas_sync",
-        lambda *a, **k: (_ for _ in ()).throw(AssertionError("preflight should not run after cancel")),
+        lambda *a, **k: (_ for _ in ()).throw(
+            AssertionError("preflight should not run after cancel")
+        ),
     )
 
     progress_events: list[tuple[str, dict]] = []
@@ -468,16 +527,24 @@ def test_run_importer_skips_db_only_sync_when_preflight_not_required(
 
     from utils import path_safety
 
-    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
     _patch_integrity_ok(monkeypatch)
 
     import core.app_logic as app_logic
 
     monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
-    monkeypatch.setattr(app_logic, "_needs_db_only_derivadas_sync", lambda *a, **k: False)
+    monkeypatch.setattr(
+        app_logic, "_needs_db_only_derivadas_sync", lambda *a, **k: False
+    )
 
     sync_calls = {"n": 0}
-    monkeypatch.setattr(app_logic, "sync_derivadas", lambda **kwargs: sync_calls.__setitem__("n", sync_calls["n"] + 1))
+    monkeypatch.setattr(
+        app_logic,
+        "sync_derivadas",
+        lambda **kwargs: sync_calls.__setitem__("n", sync_calls["n"] + 1),
+    )
 
     updated = run_importer_logic(
         docs_dir=str(docs_dir),
@@ -502,12 +569,16 @@ def test_run_importer_blocks_success_when_derivadas_consistency_fails(
 
     from utils import path_safety
 
-    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
     _patch_integrity_ok(monkeypatch)
 
     import core.app_logic as app_logic
 
-    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [str(regular)])
+    monkeypatch.setattr(
+        app_logic, "_get_files_to_process", lambda *a, **k: [str(regular)]
+    )
     monkeypatch.setattr(app_logic, "_import_single_file", lambda *a, **k: (True, 3))
     monkeypatch.setattr(
         app_logic,
@@ -562,7 +633,9 @@ def test_run_importer_reports_consistency_issue_counts_in_progress_error(
 
     from utils import path_safety
 
-    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
     _patch_integrity_ok(monkeypatch)
 
     import core.app_logic as app_logic
@@ -623,7 +696,9 @@ def test_run_importer_rejects_special_sheet_without_individual_evidence(
 
     from utils import path_safety
 
-    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
     _patch_integrity_ok(monkeypatch)
 
     import core.app_logic as app_logic
@@ -674,7 +749,9 @@ def test_run_importer_rejects_special_sheet_when_aggregate_evidence_is_incomplet
 
     from utils import path_safety
 
-    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
     _patch_integrity_ok(monkeypatch)
 
     import core.app_logic as app_logic

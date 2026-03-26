@@ -13,9 +13,9 @@ import pandas as pd
 from gui.helpers.formatting_helpers import highlight_text
 from gui.helpers.theme_helpers import pick_css_color
 from gui.qt_stubs import QTimer
-from utils.themes import get_theme_roles
 from utils.formatting import format_cell
 from utils.robust_logging import get_robust_logger
+from utils.themes import get_theme_roles
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
@@ -217,7 +217,9 @@ def _format_details_html(
         formatted_value = format_cell(value, col)
         if not formatted_value:
             continue
-        display_name = DETAIL_DISPLAY_OVERRIDES.get(col, window.internal_to_display.get(col, col))
+        display_name = DETAIL_DISPLAY_OVERRIDES.get(
+            col, window.internal_to_display.get(col, col)
+        )
         if highlight_search_terms and search_terms:
             formatted_value = _highlight_text(window, formatted_value, search_terms)
         else:
@@ -229,8 +231,8 @@ def _format_details_html(
         html_lines.append(
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
-            f"font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;\">"
+            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+            f'font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;">'
             f"{display_name_html}:</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
@@ -250,7 +252,7 @@ def _format_details_html(
                 display = html_module.escape(item)
                 items.append(
                     f'<a href="ssa:{href}" style="color:{link_color}; '
-                    f"text-decoration:none; border-bottom: 1px solid {link_color};\">"
+                    f'text-decoration:none; border-bottom: 1px solid {link_color};">'
                     f"{display}</a>"
                 )
             derived_text = ", ".join(items)
@@ -264,8 +266,8 @@ def _format_details_html(
         html_lines.append(
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
-            f"font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;\">"
+            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+            f'font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;">'
             f"{html_module.escape(label)}:</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
@@ -288,8 +290,8 @@ def _format_details_html(
         html_lines.append(
             f"<tr>"
             f'<td colspan="2" style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
-            f"font-weight: bold; font-size: {label_font_size_pt}pt;\">Relacoes de Derivadas</td>"
+            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+            f'font-weight: bold; font-size: {label_font_size_pt}pt;">Relacoes de Derivadas</td>'
             f"</tr>"
         )
 
@@ -300,7 +302,7 @@ def _format_details_html(
                 href_parent = _normalize_ssa_value(window, parent_list[0])
                 mae_direta_text = (
                     f'<a href="ssa-details:{href_parent}" style="color:{link_color}; '
-                    f"text-decoration:none; border-bottom: 1px solid {link_color};\">"
+                    f'text-decoration:none; border-bottom: 1px solid {link_color};">'
                     f"{first_parent}</a>"
                 )
             else:
@@ -310,8 +312,8 @@ def _format_details_html(
         html_lines.append(
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
-            f"font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;\">Mae direta:</td>"
+            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+            f'font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;">Mae direta:</td>'
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
             f"{mae_direta_text}</td>"
@@ -327,12 +329,14 @@ def _format_details_html(
                     display_child = html_module.escape(_ssa_display(child))
                     child_items.append(
                         f'<a href="ssa:{href_child}" style="color:{link_color}; '
-                        f"text-decoration:none; border-bottom: 1px solid {link_color};\">"
+                        f'text-decoration:none; border-bottom: 1px solid {link_color};">'
                         f"{display_child}</a>"
                     )
                 filhas_text = ", ".join(child_items)
             else:
-                filhas_text = ", ".join(html_module.escape(_ssa_display(child)) for child in top_children)
+                filhas_text = ", ".join(
+                    html_module.escape(_ssa_display(child)) for child in top_children
+                )
             if len(children_list) > DERIVADAS_DETAILS_TOP_N:
                 filhas_text = f"{filhas_text} ... (+{len(children_list) - DERIVADAS_DETAILS_TOP_N})"
         else:
@@ -340,8 +344,8 @@ def _format_details_html(
         html_lines.append(
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
-            f"font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;\">"
+            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+            f'font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;">'
             f"Filhas diretas ({len(children_list)}):</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
@@ -352,8 +356,8 @@ def _format_details_html(
         html_lines.append(
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
-            f"font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;\">"
+            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+            f'font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;">'
             f"Descendentes ({descendants_count}):</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
@@ -364,7 +368,7 @@ def _format_details_html(
         if linkify:
             open_tree_text = (
                 f'<a href="derivadas:tree" style="color:{link_color}; '
-                f"text-decoration:none; border-bottom: 1px solid {link_color};\">"
+                f'text-decoration:none; border-bottom: 1px solid {link_color};">'
                 "Abrir arvore completa</a>"
             )
         else:
@@ -372,8 +376,8 @@ def _format_details_html(
         html_lines.append(
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
-            f"font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;\">Acoes:</td>"
+            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+            f'font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;">Acoes:</td>'
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
             f"{open_tree_text}</td>"
@@ -522,16 +526,28 @@ def update_details_from_selection(window):
     if selected_ssa is not None and selected_ssa == skip_ssa:
         window.table_widget.setProperty("details_skip_selection_once_for_ssa", None)
         try:
-            if not window.details_text.document().isEmpty() and render_signature == current_signature:
+            if (
+                not window.details_text.document().isEmpty()
+                and render_signature == current_signature
+            ):
                 return
         except Exception:
-            if window.details_text.toPlainText().strip() and render_signature == current_signature:
+            if (
+                window.details_text.toPlainText().strip()
+                and render_signature == current_signature
+            ):
                 return
     try:
-        if not window.details_text.document().isEmpty() and render_signature == current_signature:
+        if (
+            not window.details_text.document().isEmpty()
+            and render_signature == current_signature
+        ):
             return
     except Exception:
-        if window.details_text.toPlainText().strip() and render_signature == current_signature:
+        if (
+            window.details_text.toPlainText().strip()
+            and render_signature == current_signature
+        ):
             return
     _update_details_from_series(window, series)
 
@@ -572,7 +588,9 @@ def _update_details_from_series(window, series):
         window.details_text.setProperty("details_render_signature", render_signature)
         return
     except Exception as exc:
-        logger.debug("Falha ao renderizar detalhes em HTML; aplicando fallback texto: %s", exc)
+        logger.debug(
+            "Falha ao renderizar detalhes em HTML; aplicando fallback texto: %s", exc
+        )
 
     def field_sort_key(item):
         col, _ = item
@@ -589,7 +607,9 @@ def _update_details_from_series(window, series):
         formatted_value = format_cell(value, col)
         if not formatted_value:
             continue
-        display_name = DETAIL_DISPLAY_OVERRIDES.get(col, window.internal_to_display.get(col, col))
+        display_name = DETAIL_DISPLAY_OVERRIDES.get(
+            col, window.internal_to_display.get(col, col)
+        )
         lines.append(f"{display_name}: {formatted_value}")
     details_str = "\n".join(lines)
     try:
@@ -602,13 +622,18 @@ def _update_details_from_series(window, series):
 def _get_derivadas_for_ssa(window, numero_ssa):
     if window.df_completo is None or window.df_completo.empty:
         return []
-    if "derivada_de" not in window.df_completo.columns or "numero_ssa" not in window.df_completo.columns:
+    if (
+        "derivada_de" not in window.df_completo.columns
+        or "numero_ssa" not in window.df_completo.columns
+    ):
         return []
     num_norm = _normalize_ssa_value(window, numero_ssa)
     if not num_norm:
         return []
     try:
-        series_norm = _get_cached_normalized_series(window, window.df_completo, "derivada_de")
+        series_norm = _get_cached_normalized_series(
+            window, window.df_completo, "derivada_de"
+        )
         mask = series_norm.eq(num_norm)
         derived_raw = window.df_completo.loc[mask, "numero_ssa"].tolist()
         derived = []
@@ -633,7 +658,9 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
             and not window.df_exibido.empty
             and "numero_ssa" in window.df_exibido.columns
         ):
-            series_norm = _get_cached_normalized_series(window, window.df_exibido, "numero_ssa")
+            series_norm = _get_cached_normalized_series(
+                window, window.df_exibido, "numero_ssa"
+            )
             mask = series_norm.eq(num_norm)
             if mask.any():
                 positions = mask.to_numpy().nonzero()[0]
@@ -669,7 +696,9 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
                 and not window.df_exibido.empty
                 and "numero_ssa" in window.df_exibido.columns
             ):
-                series_norm = _get_cached_normalized_series(window, window.df_exibido, "numero_ssa")
+                series_norm = _get_cached_normalized_series(
+                    window, window.df_exibido, "numero_ssa"
+                )
                 mask = series_norm.eq(num_norm)
                 if mask.any():
                     positions = mask.to_numpy().nonzero()[0]
@@ -679,20 +708,28 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
             return
         page_size = int(getattr(window.paginator, "page_size", 50))
         if page_size <= 0:
-            logger.warning("Page size invalido ao saltar para SSA %s: %s", num_norm, page_size)
+            logger.warning(
+                "Page size invalido ao saltar para SSA %s: %s", num_norm, page_size
+            )
             return
         page = int(pos // page_size + 1)
         try:
             window.paginator.current_page = page
         except Exception as exc:
-            logger.debug("Falha ao atualizar pagina atual no salto para SSA %s: %s", num_norm, exc)
+            logger.debug(
+                "Falha ao atualizar pagina atual no salto para SSA %s: %s",
+                num_norm,
+                exc,
+            )
         window.display_current_page(page, update_details=False)
         row_in_page = int(pos % page_size)
         target_series = None
         try:
             target_series = window.df_exibido.iloc[int(pos)]
         except Exception as exc:
-            logger.debug("Falha ao resolver serie alvo no salto para SSA %s: %s", num_norm, exc)
+            logger.debug(
+                "Falha ao resolver serie alvo no salto para SSA %s: %s", num_norm, exc
+            )
         _update_details_from_series(window, target_series)
         window.table_widget.setProperty(
             "details_skip_selection_once_for_ssa",
@@ -707,12 +744,22 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
                     return
                 window.table_widget.selectRow(row_in_page)
             except Exception as exc:
-                logger.debug("Falha ao selecionar linha %s no salto para SSA %s: %s", row_in_page, num_norm, exc)
+                logger.debug(
+                    "Falha ao selecionar linha %s no salto para SSA %s: %s",
+                    row_in_page,
+                    num_norm,
+                    exc,
+                )
 
         try:
             QTimer.singleShot(0, _select_target_row_later)
         except Exception as exc:
-            logger.debug("Falha ao agendar selecao da linha %s no salto para SSA %s: %s", row_in_page, num_norm, exc)
+            logger.debug(
+                "Falha ao agendar selecao da linha %s no salto para SSA %s: %s",
+                row_in_page,
+                num_norm,
+                exc,
+            )
             _select_target_row_later()
     except Exception as exc:
         logger.debug("Falha ao navegar para SSA %s: %s", numero_ssa, exc)
@@ -809,7 +856,9 @@ def _get_derivadas_relations_info(window, numero_ssa):
             profile = derivadas_queries.get_hierarchy_profile(db_path, num_norm) or {}
             descendants_count = int(profile.get("descendants_count") or 0)
         except Exception as exc:
-            logger.debug("Falha ao ler relacoes de derivadas no DB para %s: %s", num_norm, exc)
+            logger.debug(
+                "Falha ao ler relacoes de derivadas no DB para %s: %s", num_norm, exc
+            )
 
     if not children:
         children = _get_derivadas_for_ssa(window, num_norm)
@@ -860,12 +909,16 @@ def _collect_derivadas_tree_data(window, numero_ssa):
             ancestors = derivadas_queries.get_ancestors(db_path, target)
             profile = derivadas_queries.get_hierarchy_profile(db_path, target) or {}
         except Exception as exc:
-            logger.debug("Falha ao coletar arvore de derivadas no DB para %s: %s", target, exc)
+            logger.debug(
+                "Falha ao coletar arvore de derivadas no DB para %s: %s", target, exc
+            )
 
     if not children:
         children = _get_derivadas_for_ssa(window, target)
     direct_children_count = int(profile.get("direct_children_count") or len(children))
-    descendants_count = int(profile.get("descendants_count") or len(descendants) or len(children))
+    descendants_count = int(
+        profile.get("descendants_count") or len(descendants) or len(children)
+    )
     return {
         "target": target,
         "parents": parents,
@@ -886,7 +939,9 @@ def _build_derivadas_tree_html(
 ):
     if not link_color:
         roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
-        link_color = roles.get("accent") or roles.get("panel_text") or roles.get("label_color")
+        link_color = (
+            roles.get("accent") or roles.get("panel_text") or roles.get("label_color")
+        )
     data = _collect_derivadas_tree_data(window, numero_ssa)
     target = data.get("target", "")
     if not target:
@@ -898,7 +953,7 @@ def _build_derivadas_tree_html(
             return html_module.escape(str(value))
         return (
             f'<a href="ssa-panel:{safe}" style="color:{link_color}; '
-            f"text-decoration:none; border-bottom: 1px solid {link_color};\">"
+            f'text-decoration:none; border-bottom: 1px solid {link_color};">'
             f"{html_module.escape(str(safe))}</a>"
         )
 
@@ -922,7 +977,9 @@ def _build_derivadas_tree_html(
     lines.append("<br/>")
 
     children = data.get("children", [])
-    lines.append(f"<b>SSAs derivadas diretas ({int(data.get('direct_children_count', 0))})</b><br/>")
+    lines.append(
+        f"<b>SSAs derivadas diretas ({int(data.get('direct_children_count', 0))})</b><br/>"
+    )
     if children:
         for child in children:
             lines.append(f"&nbsp;&nbsp;{_ssa_link(child)}<br/>")
@@ -968,8 +1025,14 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
 
     try:
         from PyQt6.QtCore import Qt
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QPushButton, QSplitter
         from PyQt6.QtGui import QPalette
+        from PyQt6.QtWidgets import (
+            QDialog,
+            QPushButton,
+            QSplitter,
+            QTextBrowser,
+            QVBoxLayout,
+        )
     except Exception:
         return
 
@@ -1023,7 +1086,9 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         if family:
             dialog_font_family = family
     except Exception as exc:
-        logger.debug("Falha ao obter fonte base da UI para dialogo de detalhes: %s", exc)
+        logger.debug(
+            "Falha ao obter fonte base da UI para dialogo de detalhes: %s", exc
+        )
 
     def _render_target(ssa_target):
         normalized = _normalize_ssa_value(window, ssa_target)
@@ -1093,8 +1158,12 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     content_splitter.setStretchFactor(0, DERIVADAS_DIALOG_RATIO_LEFT)
     content_splitter.setStretchFactor(1, DERIVADAS_DIALOG_RATIO_RIGHT)
     total_ratio = DERIVADAS_DIALOG_RATIO_LEFT + DERIVADAS_DIALOG_RATIO_RIGHT
-    left_width = max(90, int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_LEFT / total_ratio))
-    right_width = max(360, int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_RIGHT / total_ratio))
+    left_width = max(
+        90, int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_LEFT / total_ratio)
+    )
+    right_width = max(
+        360, int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_RIGHT / total_ratio)
+    )
     content_splitter.setSizes([left_width, right_width])
     root_layout.addWidget(content_splitter)
 
@@ -1113,7 +1182,9 @@ def _filter_by_derivadas(window, numero_ssa):
     try:
         window._build_column_filters_panel()
     except Exception as exc:
-        logger.warning("Falha ao reconstruir painel de filtros ao filtrar por derivadas: %s", exc)
+        logger.warning(
+            "Falha ao reconstruir painel de filtros ao filtrar por derivadas: %s", exc
+        )
     window._refresh_after_filter_change()
 
 
@@ -1123,7 +1194,10 @@ def _clear_derivadas_filter(window):
     try:
         window._build_column_filters_panel()
     except Exception as exc:
-        logger.warning("Falha ao reconstruir painel de filtros ao limpar filtro de derivadas: %s", exc)
+        logger.warning(
+            "Falha ao reconstruir painel de filtros ao limpar filtro de derivadas: %s",
+            exc,
+        )
     window._refresh_after_filter_change()
     if window._last_derivada_origem:
         _jump_to_ssa(window, window._last_derivada_origem)

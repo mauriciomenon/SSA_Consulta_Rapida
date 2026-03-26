@@ -1,4 +1,5 @@
 """Streamlit frontend otimizado para explorar SSAs utilizando o banco local."""
+
 # Last modified: 2025-10-29T11:45:00 (improved arrow compatibility)
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ from pathlib import Path
 from typing import Any, Optional, Tuple, cast
 
 import pandas as pd
+
 
 def _get_project_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -50,6 +52,7 @@ get_app_version = version_module.get_app_version
 try:
     st = cast(Any, importlib.import_module("streamlit"))
 except ModuleNotFoundError:
+
     class _StreamlitStub:
         session_state = None
 
@@ -60,19 +63,22 @@ except ModuleNotFoundError:
 
 # pandas >= 3 keeps copy-on-write always enabled.
 
+
 # Inicializar logging robusto
 class _ASCIIOnlyFilter(logging.Filter):
     @staticmethod
     def _to_ascii(value):
         if isinstance(value, str):
-            return value.encode('ascii', 'ignore').decode('ascii')
+            return value.encode("ascii", "ignore").decode("ascii")
         return value
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.msg = self._to_ascii(record.msg)
         if record.args:
             if isinstance(record.args, dict):
-                record.args = {key: self._to_ascii(value) for key, value in record.args.items()}
+                record.args = {
+                    key: self._to_ascii(value) for key, value in record.args.items()
+                }
             else:
                 record.args = tuple(self._to_ascii(arg) for arg in record.args)
         if record.exc_text:
@@ -82,6 +88,7 @@ class _ASCIIOnlyFilter(logging.Filter):
 
 try:
     from utils.robust_logging import setup_logging
+
     setup_logging()
 except Exception:
     logging.basicConfig(level=logging.INFO)
@@ -90,7 +97,7 @@ logger = logging.getLogger(__name__)
 ascii_filter = _ASCIIOnlyFilter()
 for handler in logging.getLogger().handlers:
     handler.addFilter(ascii_filter)
-logger.debug("Logging configurado para Streamlit", extra={'component': 'streamlit'})
+logger.debug("Logging configurado para Streamlit", extra={"component": "streamlit"})
 
 DB_PATH_DEFAULT = os.environ.get("SSA_DB_PATH", "data/ssas.db")
 DOCS_DIR_DEFAULT = os.environ.get("SSA_DOCS_DIR", "docs_entrada")
@@ -130,7 +137,9 @@ def _resolve_api_timeout_seconds() -> float:
         logger.warning("Invalid SSA_STREAMLIT_API_TIMEOUT_SECONDS value: %r", raw)
         return 12.0
     if not math.isfinite(timeout_value) or timeout_value <= 0:
-        logger.warning("Invalid SSA_STREAMLIT_API_TIMEOUT_SECONDS non-positive/non-finite: %r", raw)
+        logger.warning(
+            "Invalid SSA_STREAMLIT_API_TIMEOUT_SECONDS non-positive/non-finite: %r", raw
+        )
         return 12.0
     return max(2.0, timeout_value)
 
@@ -151,7 +160,7 @@ def _resolve_cache_max_entry_bytes() -> Optional[int]:
 
 class StreamlitFilterCache:
     """Cache inteligente para filtros do Streamlit com TTL e estatisticas."""
-    
+
     def __init__(self, max_size: int = 30, ttl_seconds: int = 300):
         self.max_size = max_size
         self.ttl_seconds = ttl_seconds
@@ -159,40 +168,42 @@ class StreamlitFilterCache:
         self._use_session_state = False
         self._local_cache: dict[str, dict[str, Any]] = {}
         self._local_stats: dict[str, int] = {
-            'hits': 0,
-            'misses': 0,
-            'evictions': 0,
-            'skipped_large_entries': 0,
+            "hits": 0,
+            "misses": 0,
+            "evictions": 0,
+            "skipped_large_entries": 0,
         }
         self._initialize_backend()
 
     def _initialize_backend(self) -> None:
-        if not hasattr(st, 'session_state'):
+        if not hasattr(st, "session_state"):
             return
         try:
             session_state = st.session_state
             if session_state is None:
                 return
-            if 'filter_cache' not in session_state:
+            if "filter_cache" not in session_state:
                 session_state.filter_cache = {}
-            if 'cache_stats' not in session_state:
+            if "cache_stats" not in session_state:
                 session_state.cache_stats = {
-                    'hits': 0,
-                    'misses': 0,
-                    'evictions': 0,
-                    'skipped_large_entries': 0,
+                    "hits": 0,
+                    "misses": 0,
+                    "evictions": 0,
+                    "skipped_large_entries": 0,
                 }
-            session_state.cache_stats.setdefault('skipped_large_entries', 0)
+            session_state.cache_stats.setdefault("skipped_large_entries", 0)
             self._use_session_state = True
         except Exception as exc:
-            logger.debug("Streamlit session_state unavailable in current runtime: %s", exc)
+            logger.debug(
+                "Streamlit session_state unavailable in current runtime: %s", exc
+            )
 
     def _resolve_backend(self) -> tuple[dict[str, Any], dict[str, int]]:
         if self._use_session_state:
             stats = st.session_state.cache_stats
-            stats.setdefault('skipped_large_entries', 0)
+            stats.setdefault("skipped_large_entries", 0)
             return st.session_state.filter_cache, stats
-        self._local_stats.setdefault('skipped_large_entries', 0)
+        self._local_stats.setdefault("skipped_large_entries", 0)
         return self._local_cache, self._local_stats
 
     def _entry_too_large(self, result: pd.DataFrame) -> bool:
@@ -205,34 +216,36 @@ class StreamlitFilterCache:
         cache, stats = self._resolve_backend()
         entry = cache.get(key)
         if not entry:
-            stats['misses'] += 1
+            stats["misses"] += 1
             return None
-        if time.time() - entry['timestamp'] >= self.ttl_seconds:
+        if time.time() - entry["timestamp"] >= self.ttl_seconds:
             del cache[key]
-            stats['misses'] += 1
+            stats["misses"] += 1
             return None
         cache[key] = cache.pop(key)
-        stats['hits'] += 1
-        return entry['data'].copy()
+        stats["hits"] += 1
+        return entry["data"].copy()
 
-    def _store_by_key(self, key: str, result: pd.DataFrame, meta: Optional[dict[str, Any]] = None) -> bool:
+    def _store_by_key(
+        self, key: str, result: pd.DataFrame, meta: Optional[dict[str, Any]] = None
+    ) -> bool:
         cache, stats = self._resolve_backend()
         if self._entry_too_large(result):
-            stats['skipped_large_entries'] += 1
+            stats["skipped_large_entries"] += 1
             return False
         if key in cache:
             del cache[key]
         while len(cache) >= self.max_size:
             oldest_key = next(iter(cache))
             del cache[oldest_key]
-            stats['evictions'] += 1
+            stats["evictions"] += 1
         cache[key] = {
-            'data': result.copy(),
-            'timestamp': time.time(),
-            'meta': meta or {},
+            "data": result.copy(),
+            "timestamp": time.time(),
+            "meta": meta or {},
         }
         return True
-    
+
     def _generate_key(
         self,
         df_shape: Tuple[int, int],
@@ -245,18 +258,18 @@ class StreamlitFilterCache:
     ) -> str:
         """Gera chave unica para o cache baseada nos parametros de filtro."""
         params = {
-            'shape': df_shape,
-            'search': search_terms,
-            'situacoes': sorted(situacoes) if situacoes else [],
-            'executores': sorted(executores) if executores else [],
-            'emissores': sorted(emissores) if emissores else [],
-            'advanced_filters': _normalize_cache_value(advanced_filters or {}),
-            'df_token': df_token,
+            "shape": df_shape,
+            "search": search_terms,
+            "situacoes": sorted(situacoes) if situacoes else [],
+            "executores": sorted(executores) if executores else [],
+            "emissores": sorted(emissores) if emissores else [],
+            "advanced_filters": _normalize_cache_value(advanced_filters or {}),
+            "df_token": df_token,
         }
-        
+
         params_str = str(sorted(params.items()))
-        return hashlib.md5(params_str.encode('utf-8')).hexdigest()
-    
+        return hashlib.md5(params_str.encode("utf-8")).hexdigest()
+
     def get(
         self,
         df_shape: Tuple[int, int],
@@ -278,7 +291,7 @@ class StreamlitFilterCache:
             df_token=df_token,
         )
         return self._get_by_key(key)
-    
+
     def put(
         self,
         df_shape: Tuple[int, int],
@@ -306,28 +319,28 @@ class StreamlitFilterCache:
                 "StreamlitFilterCache.put skipped large DataFrame entry (max_bytes=%s)",
                 self._max_entry_bytes,
             )
-    
+
     def get_stats(self) -> dict:
         """Retorna estatisticas do cache."""
         cache, stats = self._resolve_backend()
-        total = stats['hits'] + stats['misses']
-        hit_rate = (stats['hits'] / total * 100) if total > 0 else 0
+        total = stats["hits"] + stats["misses"]
+        hit_rate = (stats["hits"] / total * 100) if total > 0 else 0
 
         return {
-            'size': len(cache),
-            'entries': len(cache),
-            'max_size': self.max_size,
-            'hits': stats['hits'],
-            'misses': stats['misses'],
-            'evictions': stats['evictions'],
-            'skipped_large_entries': stats['skipped_large_entries'],
-            'max_entry_mb': (
+            "size": len(cache),
+            "entries": len(cache),
+            "max_size": self.max_size,
+            "hits": stats["hits"],
+            "misses": stats["misses"],
+            "evictions": stats["evictions"],
+            "skipped_large_entries": stats["skipped_large_entries"],
+            "max_entry_mb": (
                 round(self._max_entry_bytes / (1024 * 1024), 3)
                 if self._max_entry_bytes is not None
                 else None
             ),
-            'hit_rate': hit_rate,
-            'ttl_seconds': self.ttl_seconds
+            "hit_rate": hit_rate,
+            "ttl_seconds": self.ttl_seconds,
         }
 
     def clear(self):
@@ -335,25 +348,27 @@ class StreamlitFilterCache:
         if self._use_session_state:
             st.session_state.filter_cache = {}
             st.session_state.cache_stats = {
-                'hits': 0,
-                'misses': 0,
-                'evictions': 0,
-                'skipped_large_entries': 0,
+                "hits": 0,
+                "misses": 0,
+                "evictions": 0,
+                "skipped_large_entries": 0,
             }
         else:
             self._local_cache = {}
             self._local_stats = {
-                'hits': 0,
-                'misses': 0,
-                'evictions': 0,
-                'skipped_large_entries': 0,
+                "hits": 0,
+                "misses": 0,
+                "evictions": 0,
+                "skipped_large_entries": 0,
             }
 
     # --- Metodos de compatibilidade com scripts de teste ---
     def get_cached_filter(self, key: str) -> Optional[pd.DataFrame]:
         return self._get_by_key(key)
 
-    def cache_filter_result(self, key: str, result: pd.DataFrame, meta: Optional[dict] = None):
+    def cache_filter_result(
+        self, key: str, result: pd.DataFrame, meta: Optional[dict] = None
+    ):
         stored = self._store_by_key(key, result=result, meta=meta)
         if not stored:
             logger.info(
@@ -542,11 +557,13 @@ def load_dataframe(db_path: str) -> pd.DataFrame:
         logger.error(f"Unexpected error loading data from {db_path}: {e}")
         return pd.DataFrame()
 
+
 # Aplica cache do Streamlit se disponivel; adiciona clear() no fallback
 if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
     load_dataframe = st.cache_data(show_spinner=False)(load_dataframe)
 else:
     setattr(load_dataframe, "clear", lambda: None)
+
 
 # Alias para compatibilidade: funcao utilitaria esperada pelos testes
 def apply_filters_with_cache(
@@ -584,7 +601,7 @@ def _compute_df_cache_token(df: pd.DataFrame) -> tuple[Any, ...]:
         token = (0, columns, None, None)
         df.attrs["_streamlit_cache_token"] = token
         return token
-    sample_column = 'numero_ssa' if 'numero_ssa' in df.columns else df.columns[0]
+    sample_column = "numero_ssa" if "numero_ssa" in df.columns else df.columns[0]
     sample_series = df[sample_column]
     head_values = tuple(str(value) for value in sample_series.head(10).tolist())
     tail_values = tuple(str(value) for value in sample_series.tail(10).tolist())
@@ -626,7 +643,9 @@ def _update_render_telemetry(width_profile: str, render_ms: float) -> None:
     if not hasattr(st, "session_state") or st.session_state is None:
         return
     render_stats = st.session_state.get("streamlit_render_stats", {})
-    profile_stats = render_stats.get(width_profile, {"count": 0, "total_ms": 0.0, "last_ms": 0.0})
+    profile_stats = render_stats.get(
+        width_profile, {"count": 0, "total_ms": 0.0, "last_ms": 0.0}
+    )
     profile_stats["count"] = int(profile_stats.get("count", 0)) + 1
     profile_stats["total_ms"] = float(profile_stats.get("total_ms", 0.0)) + render_ms
     profile_stats["last_ms"] = render_ms
@@ -791,10 +810,15 @@ def _resolve_streamlit_ui_state_path() -> Path:
             expect_directory=None,
         )
     except PathSafetyError as exc:
-        logger.warning("SSA_CONFIG_DIR invalido para streamlit state (%s). Usando config padrao.", exc)
+        logger.warning(
+            "SSA_CONFIG_DIR invalido para streamlit state (%s). Usando config padrao.",
+            exc,
+        )
         cfg_dir = project_root / "config"
 
-    file_name = os.environ.get("SSA_STREAMLIT_UI_STATE_FILE", STREAMLIT_UI_STATE_FILE_DEFAULT).strip()
+    file_name = os.environ.get(
+        "SSA_STREAMLIT_UI_STATE_FILE", STREAMLIT_UI_STATE_FILE_DEFAULT
+    ).strip()
     if not file_name:
         file_name = STREAMLIT_UI_STATE_FILE_DEFAULT
     candidate = Path(file_name)
@@ -820,7 +844,9 @@ def _load_persisted_streamlit_state() -> dict[str, Any]:
         with open(state_path, "r", encoding="utf-8") as handle:
             payload = json.load(handle)
     except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
-        logger.warning("Falha ao ler estado persistido do Streamlit (%s): %s", state_path, exc)
+        logger.warning(
+            "Falha ao ler estado persistido do Streamlit (%s): %s", state_path, exc
+        )
         return {}
     if not isinstance(payload, dict):
         return {}
@@ -829,10 +855,16 @@ def _load_persisted_streamlit_state() -> dict[str, Any]:
     if width_profile not in WIDTH_PROFILE_OPTIONS:
         width_profile = "Padrao (1600)"
     return {
-        "theme_name": _normalize_streamlit_theme_name(payload.get("theme_name", DEFAULT_STREAMLIT_THEME)),
+        "theme_name": _normalize_streamlit_theme_name(
+            payload.get("theme_name", DEFAULT_STREAMLIT_THEME)
+        ),
         "width_profile": width_profile,
-        "width_profile_by_bucket": _normalize_width_profile_memory(payload.get("width_profile_by_bucket", {})),
-        "streamlit_render_stats": _normalize_render_stats(payload.get("streamlit_render_stats", {})),
+        "width_profile_by_bucket": _normalize_width_profile_memory(
+            payload.get("width_profile_by_bucket", {})
+        ),
+        "streamlit_render_stats": _normalize_render_stats(
+            payload.get("streamlit_render_stats", {})
+        ),
     }
 
 
@@ -856,7 +888,9 @@ def _persist_streamlit_state(
             )
         ),
         "width_profile": width_profile,
-        "width_profile_by_bucket": _normalize_width_profile_memory(width_profile_by_bucket),
+        "width_profile_by_bucket": _normalize_width_profile_memory(
+            width_profile_by_bucket
+        ),
         "streamlit_render_stats": _normalize_render_stats(streamlit_render_stats),
         "updated_at": time.time(),
     }
@@ -890,7 +924,9 @@ def _resolve_width_profile_for_bucket(table_state: dict[str, Any]) -> tuple[str,
                 width_px = WIDTH_PROFILE_PIXELS.get(fallback_profile, 1600)
 
     width_bucket = _resolve_width_bucket(width_px)
-    memory = _normalize_width_profile_memory(table_state.get("width_profile_by_bucket", {}))
+    memory = _normalize_width_profile_memory(
+        table_state.get("width_profile_by_bucket", {})
+    )
     selected_profile = str(memory.get(width_bucket, fallback_profile))
     if selected_profile not in WIDTH_PROFILE_OPTIONS:
         selected_profile = fallback_profile
@@ -902,7 +938,9 @@ def _remember_width_profile_for_bucket(
     width_bucket: str,
     width_profile: str,
 ) -> None:
-    memory = _normalize_width_profile_memory(table_state.get("width_profile_by_bucket", {}))
+    memory = _normalize_width_profile_memory(
+        table_state.get("width_profile_by_bucket", {})
+    )
     if width_profile in WIDTH_PROFILE_OPTIONS:
         memory[str(width_bucket)] = width_profile
     table_state["width_profile_by_bucket"] = memory
@@ -949,7 +987,7 @@ def apply_cli_filters(df: pd.DataFrame, search_text: str) -> pd.DataFrame:
     """Aplica filtros CLI com fallback para caso sem cache."""
     if not search_text.strip():
         return df
-    raw_terms = [term.strip() for term in search_text.split(',') if term.strip()]
+    raw_terms = [term.strip() for term in search_text.split(",") if term.strip()]
     parsed = parse_search_terms(raw_terms)
     return filter_dataframe(df, parsed)
 
@@ -1036,13 +1074,19 @@ def _compute_sidebar_weekly_kpis(
 
     return {
         "executadas_semana_atual": int(exec_week.eq(current_week).fillna(False).sum()),
-        "executadas_semana_anterior": int(exec_week.eq(previous_week).fillna(False).sum()),
+        "executadas_semana_anterior": int(
+            exec_week.eq(previous_week).fillna(False).sum()
+        ),
         "emitidas_semana_atual": int(emit_week.eq(current_week).fillna(False).sum()),
-        "emitidas_semana_anterior": int(emit_week.eq(previous_week).fillna(False).sum()),
+        "emitidas_semana_anterior": int(
+            emit_week.eq(previous_week).fillna(False).sum()
+        ),
     }
 
 
-def _compute_sidebar_weekly_kpis_cached(df: pd.DataFrame, reference_day: str) -> dict[str, int]:
+def _compute_sidebar_weekly_kpis_cached(
+    df: pd.DataFrame, reference_day: str
+) -> dict[str, int]:
     try:
         reference_dt = datetime.strptime(reference_day, "%Y-%m-%d")
     except ValueError:
@@ -1106,7 +1150,14 @@ def _compute_derivada_flags(df: pd.DataFrame) -> tuple[pd.Series, pd.Series, pd.
 
 def _build_derivada_context_map(df: pd.DataFrame) -> pd.DataFrame:
     if "numero_ssa" not in df.columns:
-        return pd.DataFrame(columns=["numero_ssa", "_tem_derivada_ctx", "_tem_derivadas_ctx", "_qtd_derivadas_ctx"])
+        return pd.DataFrame(
+            columns=[
+                "numero_ssa",
+                "_tem_derivada_ctx",
+                "_tem_derivadas_ctx",
+                "_qtd_derivadas_ctx",
+            ]
+        )
     has_derivada, has_children, qtd_derivadas = _compute_derivada_flags(df)
     numero_series = df["numero_ssa"].fillna("").astype(str).str.strip()
     context_map = pd.DataFrame(
@@ -1120,12 +1171,16 @@ def _build_derivada_context_map(df: pd.DataFrame) -> pd.DataFrame:
     return context_map
 
 
-def _attach_derivada_context(df: pd.DataFrame, base_context_map: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+def _attach_derivada_context(
+    df: pd.DataFrame, base_context_map: Optional[pd.DataFrame] = None
+) -> pd.DataFrame:
     if df.empty:
         return df
     if "numero_ssa" not in df.columns:
         return df
-    context_map = base_context_map if isinstance(base_context_map, pd.DataFrame) else None
+    context_map = (
+        base_context_map if isinstance(base_context_map, pd.DataFrame) else None
+    )
     if context_map is None:
         if "derivada_de" not in df.columns:
             return df
@@ -1144,6 +1199,7 @@ def _build_active_summary(
     consult_api: bool,
 ) -> list[str]:
     summary: list[str] = []
+
     def _append_values(label: str, values: list[Any]) -> None:
         if values:
             summary.append(f"{label}: " + ", ".join(str(value) for value in values))
@@ -1151,25 +1207,50 @@ def _build_active_summary(
     if search_terms.strip():
         summary.append(f"Busca: {search_terms.strip()}")
     if situacao_filter:
-        summary.append("Situacao: " + ", ".join(str(value) for value in situacao_filter))
+        summary.append(
+            "Situacao: " + ", ".join(str(value) for value in situacao_filter)
+        )
     if executor_filter:
-        summary.append("Executor: " + ", ".join(str(value) for value in executor_filter))
+        summary.append(
+            "Executor: " + ", ".join(str(value) for value in executor_filter)
+        )
     if emissor_filter:
         summary.append("Emissor: " + ", ".join(str(value) for value in emissor_filter))
     _append_values("Executor(resp)", list(advanced_filters.get("executor_resp") or []))
-    _append_values("Executor(resp)(!)", list(advanced_filters.get("executor_resp_exclude") or []))
+    _append_values(
+        "Executor(resp)(!)", list(advanced_filters.get("executor_resp_exclude") or [])
+    )
     _append_values("Estado+", list(advanced_filters.get("estado") or []))
     _append_values("Estado+(!)", list(advanced_filters.get("estado_exclude") or []))
     _append_values("Ano emissao", list(advanced_filters.get("ano_emissao") or []))
-    _append_values("Ano emissao(!)", list(advanced_filters.get("ano_emissao_exclude") or []))
+    _append_values(
+        "Ano emissao(!)", list(advanced_filters.get("ano_emissao_exclude") or [])
+    )
     _append_values("Ano execucao", list(advanced_filters.get("ano_execucao") or []))
-    _append_values("Ano execucao(!)", list(advanced_filters.get("ano_execucao_exclude") or []))
-    _append_values("AnoSemana emissao", list(advanced_filters.get("ano_semana_emissao") or []))
-    _append_values("AnoSemana emissao(!)", list(advanced_filters.get("ano_semana_emissao_exclude") or []))
-    _append_values("AnoSemana execucao", list(advanced_filters.get("ano_semana_execucao") or []))
-    _append_values("AnoSemana execucao(!)", list(advanced_filters.get("ano_semana_execucao_exclude") or []))
-    _append_values("Reprogramacoes", list(advanced_filters.get("num_reprogramacoes") or []))
-    _append_values("Reprogramacoes(!)", list(advanced_filters.get("num_reprogramacoes_exclude") or []))
+    _append_values(
+        "Ano execucao(!)", list(advanced_filters.get("ano_execucao_exclude") or [])
+    )
+    _append_values(
+        "AnoSemana emissao", list(advanced_filters.get("ano_semana_emissao") or [])
+    )
+    _append_values(
+        "AnoSemana emissao(!)",
+        list(advanced_filters.get("ano_semana_emissao_exclude") or []),
+    )
+    _append_values(
+        "AnoSemana execucao", list(advanced_filters.get("ano_semana_execucao") or [])
+    )
+    _append_values(
+        "AnoSemana execucao(!)",
+        list(advanced_filters.get("ano_semana_execucao_exclude") or []),
+    )
+    _append_values(
+        "Reprogramacoes", list(advanced_filters.get("num_reprogramacoes") or [])
+    )
+    _append_values(
+        "Reprogramacoes(!)",
+        list(advanced_filters.get("num_reprogramacoes_exclude") or []),
+    )
     if advanced_filters["tem_derivada"] != "todos":
         summary.append(f"Tem derivada: {advanced_filters['tem_derivada']}")
     if advanced_filters["tem_derivadas"] != "todos":
@@ -1181,7 +1262,10 @@ def _build_active_summary(
             + " ate "
             + str(advanced_filters["data_emissao_fim"] or "-")
         )
-    if advanced_filters["data_execucao_inicio"] or advanced_filters["data_execucao_fim"]:
+    if (
+        advanced_filters["data_execucao_inicio"]
+        or advanced_filters["data_execucao_fim"]
+    ):
         summary.append(
             "Data execucao: "
             + str(advanced_filters["data_execucao_inicio"] or "-")
@@ -1287,7 +1371,9 @@ def _apply_yearweek_manual_boundary_filter(
     return filtered_df[mask]
 
 
-def _apply_advanced_streamlit_filters(filtered_df: pd.DataFrame, advanced_filters: Optional[dict[str, Any]]) -> pd.DataFrame:
+def _apply_advanced_streamlit_filters(
+    filtered_df: pd.DataFrame, advanced_filters: Optional[dict[str, Any]]
+) -> pd.DataFrame:
     adv = advanced_filters or {}
     if not adv:
         return filtered_df
@@ -1305,10 +1391,16 @@ def _apply_advanced_streamlit_filters(filtered_df: pd.DataFrame, advanced_filter
         exclude_values=list(adv.get("estado_exclude") or []),
     )
 
-    ano_emissao_values = [int(v) for v in (adv.get("ano_emissao") or []) if str(v).isdigit()]
-    ano_emissao_exclude_values = [int(v) for v in (adv.get("ano_emissao_exclude") or []) if str(v).isdigit()]
+    ano_emissao_values = [
+        int(v) for v in (adv.get("ano_emissao") or []) if str(v).isdigit()
+    ]
+    ano_emissao_exclude_values = [
+        int(v) for v in (adv.get("ano_emissao_exclude") or []) if str(v).isdigit()
+    ]
     if ano_emissao_values or ano_emissao_exclude_values:
-        ano_emissao_series = _compute_year_from_date_series(filtered_df, "data_cadastro")
+        ano_emissao_series = _compute_year_from_date_series(
+            filtered_df, "data_cadastro"
+        )
         filtered_df = _apply_numeric_series_include_exclude_filter(
             filtered_df,
             series=ano_emissao_series,
@@ -1316,10 +1408,16 @@ def _apply_advanced_streamlit_filters(filtered_df: pd.DataFrame, advanced_filter
             exclude_values=ano_emissao_exclude_values,
         )
 
-    ano_execucao_values = [int(v) for v in (adv.get("ano_execucao") or []) if str(v).isdigit()]
-    ano_execucao_exclude_values = [int(v) for v in (adv.get("ano_execucao_exclude") or []) if str(v).isdigit()]
+    ano_execucao_values = [
+        int(v) for v in (adv.get("ano_execucao") or []) if str(v).isdigit()
+    ]
+    ano_execucao_exclude_values = [
+        int(v) for v in (adv.get("ano_execucao_exclude") or []) if str(v).isdigit()
+    ]
     if ano_execucao_values or ano_execucao_exclude_values:
-        ano_execucao_series = _compute_year_from_week_series(filtered_df, "semana_executada")
+        ano_execucao_series = _compute_year_from_week_series(
+            filtered_df, "semana_executada"
+        )
         filtered_df = _apply_numeric_series_include_exclude_filter(
             filtered_df,
             series=ano_execucao_series,
@@ -1327,10 +1425,18 @@ def _apply_advanced_streamlit_filters(filtered_df: pd.DataFrame, advanced_filter
             exclude_values=ano_execucao_exclude_values,
         )
 
-    ano_semana_emissao_values = [int(v) for v in (adv.get("ano_semana_emissao") or []) if str(v).isdigit()]
-    ano_semana_emissao_exclude_values = [int(v) for v in (adv.get("ano_semana_emissao_exclude") or []) if str(v).isdigit()]
+    ano_semana_emissao_values = [
+        int(v) for v in (adv.get("ano_semana_emissao") or []) if str(v).isdigit()
+    ]
+    ano_semana_emissao_exclude_values = [
+        int(v)
+        for v in (adv.get("ano_semana_emissao_exclude") or [])
+        if str(v).isdigit()
+    ]
     if ano_semana_emissao_values or ano_semana_emissao_exclude_values:
-        ano_semana_emissao_series = _compute_yearweek_from_date_series(filtered_df, "data_cadastro")
+        ano_semana_emissao_series = _compute_yearweek_from_date_series(
+            filtered_df, "data_cadastro"
+        )
         filtered_df = _apply_numeric_series_include_exclude_filter(
             filtered_df,
             series=ano_semana_emissao_series,
@@ -1338,10 +1444,18 @@ def _apply_advanced_streamlit_filters(filtered_df: pd.DataFrame, advanced_filter
             exclude_values=ano_semana_emissao_exclude_values,
         )
 
-    ano_semana_execucao_values = [int(v) for v in (adv.get("ano_semana_execucao") or []) if str(v).isdigit()]
-    ano_semana_execucao_exclude_values = [int(v) for v in (adv.get("ano_semana_execucao_exclude") or []) if str(v).isdigit()]
+    ano_semana_execucao_values = [
+        int(v) for v in (adv.get("ano_semana_execucao") or []) if str(v).isdigit()
+    ]
+    ano_semana_execucao_exclude_values = [
+        int(v)
+        for v in (adv.get("ano_semana_execucao_exclude") or [])
+        if str(v).isdigit()
+    ]
     if ano_semana_execucao_values or ano_semana_execucao_exclude_values:
-        ano_semana_execucao_series = _compute_yearweek_from_week_series(filtered_df, "semana_executada")
+        ano_semana_execucao_series = _compute_yearweek_from_week_series(
+            filtered_df, "semana_executada"
+        )
         filtered_df = _apply_numeric_series_include_exclude_filter(
             filtered_df,
             series=ano_semana_execucao_series,
@@ -1349,10 +1463,20 @@ def _apply_advanced_streamlit_filters(filtered_df: pd.DataFrame, advanced_filter
             exclude_values=ano_semana_execucao_exclude_values,
         )
 
-    reprog_values = [int(v) for v in (adv.get("num_reprogramacoes") or []) if str(v).isdigit()]
-    reprog_exclude_values = [int(v) for v in (adv.get("num_reprogramacoes_exclude") or []) if str(v).isdigit()]
-    if (reprog_values or reprog_exclude_values) and "num_reprogramacoes" in filtered_df.columns:
-        nums = pd.to_numeric(filtered_df["num_reprogramacoes"], errors="coerce").astype("Int64")
+    reprog_values = [
+        int(v) for v in (adv.get("num_reprogramacoes") or []) if str(v).isdigit()
+    ]
+    reprog_exclude_values = [
+        int(v)
+        for v in (adv.get("num_reprogramacoes_exclude") or [])
+        if str(v).isdigit()
+    ]
+    if (
+        reprog_values or reprog_exclude_values
+    ) and "num_reprogramacoes" in filtered_df.columns:
+        nums = pd.to_numeric(filtered_df["num_reprogramacoes"], errors="coerce").astype(
+            "Int64"
+        )
         filtered_df = _apply_numeric_series_include_exclude_filter(
             filtered_df,
             series=nums,
@@ -1427,27 +1551,29 @@ def apply_all_filters_cached(
     )
     if cached_result is not None:
         return cached_result
-    
+
     # Cache miss - aplica filtros
     start_time = time.time()
-    
+
     # Filtro de busca textual
     filtered_df = apply_cli_filters(df, search_terms)
-    
+
     # Filtros de selecao multipla
-    if situacoes and 'situacao' in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df['situacao'].isin(situacoes)]
-    if executores and 'setor_executor' in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df['setor_executor'].isin(executores)]
-    if emissores and 'setor_emissor' in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df['setor_emissor'].isin(emissores)]
+    if situacoes and "situacao" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["situacao"].isin(situacoes)]
+    if executores and "setor_executor" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["setor_executor"].isin(executores)]
+    if emissores and "setor_emissor" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["setor_emissor"].isin(emissores)]
 
     filtered_df = _apply_advanced_streamlit_filters(filtered_df, advanced_filters)
-    
+
     # Reset index
     filtered_df = filtered_df.reset_index(drop=True)
-    filtered_df = _attach_derivada_context(filtered_df, base_context_map=base_derivada_context_map)
-    
+    filtered_df = _attach_derivada_context(
+        filtered_df, base_context_map=base_derivada_context_map
+    )
+
     # Armazena no cache
     filter_cache.put(
         df.shape,
@@ -1459,12 +1585,12 @@ def apply_all_filters_cached(
         advanced_filters=advanced_filters,
         df_token=df_token,
     )
-    
+
     # Log performance se demorou mais que 100ms
     elapsed = time.time() - start_time
     if elapsed > 0.1:
         logger.info("Filtro streamlit executado em %.2fs (cache miss)", elapsed)
-    
+
     return filtered_df
 
 
@@ -1483,7 +1609,12 @@ def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
         dtype_str = str(series.dtype)
 
         # Skip modern nullable dtypes (already Arrow-compatible)
-        if dtype_str.startswith('string') or dtype_str in ['Int64', 'Int32', 'Float64', 'Float32']:
+        if dtype_str.startswith("string") or dtype_str in [
+            "Int64",
+            "Int32",
+            "Float64",
+            "Float32",
+        ]:
             continue
 
         if series.dtype == "object":
@@ -1505,7 +1636,7 @@ def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
                     # If mostly numeric, try to preserve as numeric
                     if majority_type in (int, float):
                         try:
-                            safe[col] = pd.to_numeric(series, errors='coerce')
+                            safe[col] = pd.to_numeric(series, errors="coerce")
                             conversions_made.append(f"{col}: mixed->numeric")
                             continue
                         except Exception:
@@ -1537,15 +1668,15 @@ def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
 
 def _build_filter_options(df: pd.DataFrame) -> tuple[list[Any], list[Any], list[Any]]:
     situacoes = sorted(
-        df.get('situacao', pd.Series(dtype=str)).dropna().unique().tolist(),
+        df.get("situacao", pd.Series(dtype=str)).dropna().unique().tolist(),
         key=lambda value: str(value),
     )
     executores = sorted(
-        df.get('setor_executor', pd.Series(dtype=str)).dropna().unique().tolist(),
+        df.get("setor_executor", pd.Series(dtype=str)).dropna().unique().tolist(),
         key=lambda value: str(value),
     )
     emissores = sorted(
-        df.get('setor_emissor', pd.Series(dtype=str)).dropna().unique().tolist(),
+        df.get("setor_emissor", pd.Series(dtype=str)).dropna().unique().tolist(),
         key=lambda value: str(value),
     )
     return situacoes, executores, emissores
@@ -1585,7 +1716,9 @@ def _build_advanced_filter_options(df: pd.DataFrame) -> dict[str, list[Any]]:
         .tolist()
     )
     reprog_values = (
-        pd.to_numeric(df.get("num_reprogramacoes", pd.Series(dtype="Int64")), errors="coerce")
+        pd.to_numeric(
+            df.get("num_reprogramacoes", pd.Series(dtype="Int64")), errors="coerce"
+        )
         .dropna()
         .astype(int)
         .unique()
@@ -1602,7 +1735,9 @@ def _build_advanced_filter_options(df: pd.DataFrame) -> dict[str, list[Any]]:
     }
 
 
-def _build_table_with_derivada_context(view_df: pd.DataFrame, filtered_df: pd.DataFrame) -> pd.DataFrame:
+def _build_table_with_derivada_context(
+    view_df: pd.DataFrame, filtered_df: pd.DataFrame
+) -> pd.DataFrame:
     if view_df.empty:
         return view_df
     if "numero_ssa" not in filtered_df.columns:
@@ -1620,14 +1755,20 @@ def _build_table_with_derivada_context(view_df: pd.DataFrame, filtered_df: pd.Da
     merged = view_df.merge(context_map, on="numero_ssa", how="left")
     merged["_tem_derivada_ctx"] = merged["_tem_derivada_ctx"].fillna("Nao")
     merged["_tem_derivadas_ctx"] = merged["_tem_derivadas_ctx"].fillna("Nao")
-    merged["_qtd_derivadas_ctx"] = pd.to_numeric(
-        merged["_qtd_derivadas_ctx"],
-        errors="coerce",
-    ).fillna(0).astype(int)
+    merged["_qtd_derivadas_ctx"] = (
+        pd.to_numeric(
+            merged["_qtd_derivadas_ctx"],
+            errors="coerce",
+        )
+        .fillna(0)
+        .astype(int)
+    )
     return merged
 
 
-def _paginate_dataframe(df: pd.DataFrame, page: int, page_size: int) -> tuple[pd.DataFrame, int]:
+def _paginate_dataframe(
+    df: pd.DataFrame, page: int, page_size: int
+) -> tuple[pd.DataFrame, int]:
     if page_size <= 0:
         raise ValueError("page_size must be greater than zero")
     total_pages = max(1, math.ceil(len(df) / page_size))
@@ -1698,11 +1839,15 @@ def _resolve_include_exclude_values(
             exclude_values.append(mapped)
 
     if include_values and exclude_values:
-        include_values = [value for value in include_values if value not in exclude_values]
+        include_values = [
+            value for value in include_values if value not in exclude_values
+        ]
     return include_values, exclude_values
 
 
-def _parse_manual_boundary_conditions(raw_value: Any, *, is_start: bool) -> list[tuple[str, pd.Timestamp]]:
+def _parse_manual_boundary_conditions(
+    raw_value: Any, *, is_start: bool
+) -> list[tuple[str, pd.Timestamp]]:
     include_tokens, exclude_tokens = _split_manual_filter_tokens(raw_value)
     conditions: list[tuple[str, pd.Timestamp]] = []
 
@@ -1721,13 +1866,13 @@ def _parse_manual_boundary_conditions(raw_value: Any, *, is_start: bool) -> list
 
 def _default_visible_columns(columns: list[str]) -> list[str]:
     core = [
-        'numero_ssa',
-        'situacao',
-        'descricao_ssa',
-        'setor_executor',
-        'setor_emissor',
-        'data_cadastro',
-        'prazo_limite',
+        "numero_ssa",
+        "situacao",
+        "descricao_ssa",
+        "setor_executor",
+        "setor_emissor",
+        "data_cadastro",
+        "prazo_limite",
     ]
     picked = [col for col in columns if col in core]
     return picked if picked else list(columns[:10])
@@ -1790,7 +1935,11 @@ def _list_spreadsheet_files_count(docs_dir: str) -> int:
             return 0
         count = 0
         for file_path in docs_path.iterdir():
-            if file_path.is_file() and file_path.suffix.lower() in {".xlsx", ".xls", ".csv"}:
+            if file_path.is_file() and file_path.suffix.lower() in {
+                ".xlsx",
+                ".xls",
+                ".csv",
+            }:
                 count += 1
         return count
     except Exception:
@@ -1804,11 +1953,15 @@ def _is_real_streamlit_runtime() -> bool:
         exists_fn = getattr(runtime_module, "exists", None)
         if callable(exists_fn):
             return bool(exists_fn())
-        has_ui_api = callable(getattr(st, 'set_page_config', None)) and callable(getattr(st, 'columns', None))
-        has_state = hasattr(st, 'session_state') and st.session_state is not None
+        has_ui_api = callable(getattr(st, "set_page_config", None)) and callable(
+            getattr(st, "columns", None)
+        )
+        has_state = hasattr(st, "session_state") and st.session_state is not None
         return bool(has_ui_api and has_state)
     except Exception:
         return False
+
+
 REAL_RUNTIME = _is_real_streamlit_runtime()
 
 if REAL_RUNTIME:
@@ -1822,7 +1975,9 @@ if REAL_RUNTIME:
         st.session_state["streamlit_theme_name"] = _normalize_streamlit_theme_name(
             persisted_boot_state.get("theme_name", DEFAULT_STREAMLIT_THEME)
         )
-    active_theme_name = _normalize_streamlit_theme_name(st.session_state.get("streamlit_theme_name"))
+    active_theme_name = _normalize_streamlit_theme_name(
+        st.session_state.get("streamlit_theme_name")
+    )
     st.session_state["streamlit_theme_name"] = active_theme_name
     st.markdown(_build_streamlit_theme_css(active_theme_name), unsafe_allow_html=True)
 
@@ -1915,7 +2070,9 @@ if REAL_RUNTIME and not raw_df.empty:
         try:
             base_derivada_context_map = _build_derivada_context_map(raw_df)
         except Exception as exc:
-            logger.debug("Falha ao precomputar contexto de derivadas no Streamlit: %s", exc)
+            logger.debug(
+                "Falha ao precomputar contexto de derivadas no Streamlit: %s", exc
+            )
             base_derivada_context_map = None
     available_columns_runtime = _columns_with_data(raw_df, list(raw_df.columns))
     if not available_columns_runtime:
@@ -1931,7 +2088,9 @@ if REAL_RUNTIME and not raw_df.empty:
         sidebar_filtered_metric_slot = st.empty()
         exec_col, emit_col = st.columns(2)
         exec_col.metric("Exec semana atual", weekly_kpis["executadas_semana_atual"])
-        exec_col.metric("Exec semana anterior", weekly_kpis["executadas_semana_anterior"])
+        exec_col.metric(
+            "Exec semana anterior", weekly_kpis["executadas_semana_anterior"]
+        )
         emit_col.metric("Emit semana atual", weekly_kpis["emitidas_semana_atual"])
         emit_col.metric("Emit semana anterior", weekly_kpis["emitidas_semana_anterior"])
 
@@ -1976,7 +2135,9 @@ if REAL_RUNTIME and not raw_df.empty:
         available_columns = _columns_with_data(raw_df, list(raw_df.columns))
         if not available_columns:
             available_columns = list(raw_df.columns)
-        column_display_names = {col: DISPLAY_MAPPINGS.get(col, col) for col in available_columns}
+        column_display_names = {
+            col: DISPLAY_MAPPINGS.get(col, col) for col in available_columns
+        }
         default_columns = _default_visible_columns(list(available_columns))
         column_presets = _build_column_presets(list(available_columns))
 
@@ -2017,7 +2178,9 @@ if REAL_RUNTIME and not raw_df.empty:
                 "tem_derivadas_mode": "todos",
                 "use_calendar_mode": False,
                 "limit_rows": limit_rows,
-                "selected_display": [column_display_names[col] for col in default_columns],
+                "selected_display": [
+                    column_display_names[col] for col in default_columns
+                ],
             }
         filter_state = st.session_state[state_key]
         filter_state.setdefault("executor_resp_exclude", [])
@@ -2028,10 +2191,18 @@ if REAL_RUNTIME and not raw_df.empty:
         filter_state.setdefault("ano_semana_execucao_exclude", [])
         filter_state.setdefault("num_reprogramacoes_exclude", [])
         filter_state["situacao_sel"] = [
-            value for value in filter_state.get("situacao_sel", []) if value in situacoes
+            value
+            for value in filter_state.get("situacao_sel", [])
+            if value in situacoes
         ]
-        filter_state["executor_sel"] = [value for value in filter_state.get("executor_sel", []) if value in executores]
-        filter_state["emissor_sel"] = [value for value in filter_state.get("emissor_sel", []) if value in emissores]
+        filter_state["executor_sel"] = [
+            value
+            for value in filter_state.get("executor_sel", [])
+            if value in executores
+        ]
+        filter_state["emissor_sel"] = [
+            value for value in filter_state.get("emissor_sel", []) if value in emissores
+        ]
         filter_state["executor_resp_sel"] = [
             value
             for value in filter_state.get("executor_resp_sel", [])
@@ -2067,18 +2238,42 @@ if REAL_RUNTIME and not raw_df.empty:
             for value in filter_state.get("num_reprogramacoes_sel", [])
             if value in advanced_options.get("num_reprogramacoes", [])
         ]
-        filter_state["data_emissao_inicio"] = str(filter_state.get("data_emissao_inicio", "") or "")
-        filter_state["data_emissao_fim"] = str(filter_state.get("data_emissao_fim", "") or "")
-        filter_state["data_execucao_inicio"] = str(filter_state.get("data_execucao_inicio", "") or "")
-        filter_state["data_execucao_fim"] = str(filter_state.get("data_execucao_fim", "") or "")
-        if str(filter_state.get("tem_derivada_mode", "todos")).lower() not in {"todos", "sim", "nao"}:
+        filter_state["data_emissao_inicio"] = str(
+            filter_state.get("data_emissao_inicio", "") or ""
+        )
+        filter_state["data_emissao_fim"] = str(
+            filter_state.get("data_emissao_fim", "") or ""
+        )
+        filter_state["data_execucao_inicio"] = str(
+            filter_state.get("data_execucao_inicio", "") or ""
+        )
+        filter_state["data_execucao_fim"] = str(
+            filter_state.get("data_execucao_fim", "") or ""
+        )
+        if str(filter_state.get("tem_derivada_mode", "todos")).lower() not in {
+            "todos",
+            "sim",
+            "nao",
+        }:
             filter_state["tem_derivada_mode"] = "todos"
-        if str(filter_state.get("tem_derivadas_mode", "todos")).lower() not in {"todos", "sim", "nao"}:
+        if str(filter_state.get("tem_derivadas_mode", "todos")).lower() not in {
+            "todos",
+            "sim",
+            "nao",
+        }:
             filter_state["tem_derivadas_mode"] = "todos"
-        filter_state["use_calendar_mode"] = bool(filter_state.get("use_calendar_mode", False))
+        filter_state["use_calendar_mode"] = bool(
+            filter_state.get("use_calendar_mode", False)
+        )
         valid_display_values = set(column_display_names.values())
-        selected_display_state = [value for value in filter_state.get("selected_display", []) if value in valid_display_values]
-        filter_state["selected_display"] = selected_display_state or [column_display_names[col] for col in default_columns]
+        selected_display_state = [
+            value
+            for value in filter_state.get("selected_display", [])
+            if value in valid_display_values
+        ]
+        filter_state["selected_display"] = selected_display_state or [
+            column_display_names[col] for col in default_columns
+        ]
 
         table_state_key = "streamlit_table_state"
         if table_state_key not in st.session_state:
@@ -2089,7 +2284,9 @@ if REAL_RUNTIME and not raw_df.empty:
                 "table_height": 600,
                 "auto_width": True,
                 "page_number": 1,
-                "width_profile": str(persisted_streamlit_state.get("width_profile", "Padrao (1600)")),
+                "width_profile": str(
+                    persisted_streamlit_state.get("width_profile", "Padrao (1600)")
+                ),
                 "width_profile_by_bucket": _normalize_width_profile_memory(
                     persisted_streamlit_state.get("width_profile_by_bucket", {})
                 ),
@@ -2106,11 +2303,15 @@ if REAL_RUNTIME and not raw_df.empty:
         table_state["auto_width"] = bool(table_state.get("auto_width", True))
         table_state["sort_desc"] = bool(table_state.get("sort_desc", False))
         table_state["page_number"] = int(table_state.get("page_number", 1))
-        table_state["width_profile"] = str(table_state.get("width_profile", "Padrao (1600)"))
+        table_state["width_profile"] = str(
+            table_state.get("width_profile", "Padrao (1600)")
+        )
         table_state["width_profile_by_bucket"] = _normalize_width_profile_memory(
             table_state.get("width_profile_by_bucket", {})
         )
-        table_state["table_mode"] = str(table_state.get("table_mode", "Tabela + grafico"))
+        table_state["table_mode"] = str(
+            table_state.get("table_mode", "Tabela + grafico")
+        )
         table_state["compact_mode"] = bool(table_state.get("compact_mode", False))
 
         with st.form("filters_form", clear_on_submit=False):
@@ -2221,7 +2422,9 @@ if REAL_RUNTIME and not raw_df.empty:
             tem_derivada_input = advanced_row_2[3].selectbox(
                 "Tem derivada",
                 options=deriv_mode_options,
-                index=deriv_mode_options.index(str(filter_state.get("tem_derivada_mode", "todos"))),
+                index=deriv_mode_options.index(
+                    str(filter_state.get("tem_derivada_mode", "todos"))
+                ),
             )
             advanced_row_2_manual = st.columns(4)
             ano_semana_emissao_manual_input = advanced_row_2_manual[0].text_input(
@@ -2311,13 +2514,18 @@ if REAL_RUNTIME and not raw_df.empty:
             tem_derivadas_input = st.selectbox(
                 "Tem derivadas (estrutura)",
                 options=deriv_mode_options,
-                index=deriv_mode_options.index(str(filter_state.get("tem_derivadas_mode", "todos"))),
+                index=deriv_mode_options.index(
+                    str(filter_state.get("tem_derivadas_mode", "todos"))
+                ),
             )
             st.caption("Colunas visiveis")
-            st.caption("Essas colunas sao refletidas na aba Tabela e podem ser ajustadas la tambem.")
+            st.caption(
+                "Essas colunas sao refletidas na aba Tabela e podem ser ajustadas la tambem."
+            )
             display_options = [column_display_names[col] for col in available_columns]
             selected_display_base = filter_state.get(
-                "selected_display", [column_display_names[col] for col in default_columns]
+                "selected_display",
+                [column_display_names[col] for col in default_columns],
             )
             mark_all_columns = st.checkbox(
                 "Marcar tudo",
@@ -2389,7 +2597,9 @@ if REAL_RUNTIME and not raw_df.empty:
                 "tem_derivadas_mode": "todos",
                 "use_calendar_mode": False,
                 "limit_rows": 500,
-                "selected_display": [column_display_names[col] for col in default_columns],
+                "selected_display": [
+                    column_display_names[col] for col in default_columns
+                ],
             }
             st.session_state[table_state_key] = {
                 "sort_column": "(Sem ordenacao)",
@@ -2419,12 +2629,22 @@ if REAL_RUNTIME and not raw_df.empty:
                     legacy_rerun_fn()
 
         if preset_core:
-            filter_state["selected_display"] = [column_display_names[col] for col in column_presets["core"]]
+            filter_state["selected_display"] = [
+                column_display_names[col] for col in column_presets["core"]
+            ]
         elif preset_all:
-            filter_state["selected_display"] = [column_display_names[col] for col in column_presets["all"]]
+            filter_state["selected_display"] = [
+                column_display_names[col] for col in column_presets["all"]
+            ]
         elif preset_min:
-            min_cols = [col for col in ("numero_ssa", "situacao", "descricao_ssa") if col in available_columns]
-            filter_state["selected_display"] = [column_display_names[col] for col in min_cols]
+            min_cols = [
+                col
+                for col in ("numero_ssa", "situacao", "descricao_ssa")
+                if col in available_columns
+            ]
+            filter_state["selected_display"] = [
+                column_display_names[col] for col in min_cols
+            ]
 
         if apply_filters or apply_search_now:
             st.session_state[state_key] = {
@@ -2446,13 +2666,19 @@ if REAL_RUNTIME and not raw_df.empty:
                 "ano_execucao_manual": str(ano_execucao_manual_input or "").strip(),
                 "ano_execucao_exclude": [],
                 "ano_semana_emissao_sel": list(ano_semana_emissao_input),
-                "ano_semana_emissao_manual": str(ano_semana_emissao_manual_input or "").strip(),
+                "ano_semana_emissao_manual": str(
+                    ano_semana_emissao_manual_input or ""
+                ).strip(),
                 "ano_semana_emissao_exclude": [],
                 "ano_semana_execucao_sel": list(ano_semana_execucao_input),
-                "ano_semana_execucao_manual": str(ano_semana_execucao_manual_input or "").strip(),
+                "ano_semana_execucao_manual": str(
+                    ano_semana_execucao_manual_input or ""
+                ).strip(),
                 "ano_semana_execucao_exclude": [],
                 "num_reprogramacoes_sel": list(num_reprogramacoes_input),
-                "num_reprogramacoes_manual": str(num_reprogramacoes_manual_input or "").strip(),
+                "num_reprogramacoes_manual": str(
+                    num_reprogramacoes_manual_input or ""
+                ).strip(),
                 "num_reprogramacoes_exclude": [],
                 "data_emissao_inicio": (
                     _format_date_input(data_emissao_inicio_picker)
@@ -2501,9 +2727,16 @@ if REAL_RUNTIME and not raw_df.empty:
         tem_derivada_mode = str(filter_state.get("tem_derivada_mode", "todos"))
         tem_derivadas_mode = str(filter_state.get("tem_derivadas_mode", "todos"))
         limit_rows = int(filter_state.get("limit_rows", 500))
-        selected_display = list(filter_state.get("selected_display", [column_display_names[col] for col in default_columns]))
+        selected_display = list(
+            filter_state.get(
+                "selected_display",
+                [column_display_names[col] for col in default_columns],
+            )
+        )
         display_to_internal = {v: k for k, v in column_display_names.items()}
-        selected_columns = [display_to_internal.get(name, name) for name in selected_display]
+        selected_columns = [
+            display_to_internal.get(name, name) for name in selected_display
+        ]
 
     situacao_filter = _normalize_filter_selection(situacao_sel, situacoes)
     executor_filter = _normalize_filter_selection(executor_sel, executores)
@@ -2528,20 +2761,26 @@ if REAL_RUNTIME and not raw_df.empty:
         advanced_options.get("ano_execucao", []),
         filter_state.get("ano_execucao_manual", ""),
     )
-    ano_semana_emissao_filter, ano_semana_emissao_exclude = _resolve_include_exclude_values(
-        ano_semana_emissao_sel,
-        advanced_options.get("ano_semana_emissao", []),
-        filter_state.get("ano_semana_emissao_manual", ""),
+    ano_semana_emissao_filter, ano_semana_emissao_exclude = (
+        _resolve_include_exclude_values(
+            ano_semana_emissao_sel,
+            advanced_options.get("ano_semana_emissao", []),
+            filter_state.get("ano_semana_emissao_manual", ""),
+        )
     )
-    ano_semana_execucao_filter, ano_semana_execucao_exclude = _resolve_include_exclude_values(
-        ano_semana_execucao_sel,
-        advanced_options.get("ano_semana_execucao", []),
-        filter_state.get("ano_semana_execucao_manual", ""),
+    ano_semana_execucao_filter, ano_semana_execucao_exclude = (
+        _resolve_include_exclude_values(
+            ano_semana_execucao_sel,
+            advanced_options.get("ano_semana_execucao", []),
+            filter_state.get("ano_semana_execucao_manual", ""),
+        )
     )
-    num_reprogramacoes_filter, num_reprogramacoes_exclude = _resolve_include_exclude_values(
-        num_reprogramacoes_sel,
-        advanced_options.get("num_reprogramacoes", []),
-        filter_state.get("num_reprogramacoes_manual", ""),
+    num_reprogramacoes_filter, num_reprogramacoes_exclude = (
+        _resolve_include_exclude_values(
+            num_reprogramacoes_sel,
+            advanced_options.get("num_reprogramacoes", []),
+            filter_state.get("num_reprogramacoes_manual", ""),
+        )
     )
     filter_state["executor_resp_exclude"] = list(executor_resp_exclude)
     filter_state["estado_exclude"] = list(estado_exclude)
@@ -2608,7 +2847,9 @@ if REAL_RUNTIME and not raw_df.empty:
 
     with tab_table:
         with st.expander("Colunas exibidas (atalho rapido)", expanded=False):
-            quick_display_options = [column_display_names[col] for col in available_columns]
+            quick_display_options = [
+                column_display_names[col] for col in available_columns
+            ]
             quick_selected_default = filter_state.get(
                 "selected_display",
                 [column_display_names[col] for col in default_columns],
@@ -2621,7 +2862,9 @@ if REAL_RUNTIME and not raw_df.empty:
             quick_selected_display = st.multiselect(
                 "Colunas da tabela",
                 options=quick_display_options,
-                default=quick_display_options if quick_mark_all else quick_selected_default,
+                default=quick_display_options
+                if quick_mark_all
+                else quick_selected_default,
                 key="table_quick_selected_display",
             )
             if quick_mark_all:
@@ -2658,9 +2901,9 @@ if REAL_RUNTIME and not raw_df.empty:
         status_cols[1].metric("Total banco", original_count)
         status_cols[2].metric("Colunas exibidas", len(view_df.columns))
 
-        if 'situacao' in filtered_df.columns and total_ssas:
-            status_counts = filtered_df['situacao'].value_counts()
-            executadas = int(status_counts.get('EXECUTADA', 0))
+        if "situacao" in filtered_df.columns and total_ssas:
+            status_counts = filtered_df["situacao"].value_counts()
+            executadas = int(status_counts.get("EXECUTADA", 0))
             exec_rate = (executadas / total_ssas * 100) if total_ssas else 0
             st.caption(f"Execucao concluida: {exec_rate:.1f}%")
         else:
@@ -2669,15 +2912,21 @@ if REAL_RUNTIME and not raw_df.empty:
         info_cols = st.columns(3)
         info_cols[0].metric(
             "Situacoes distintas",
-            int(filtered_df["situacao"].nunique()) if "situacao" in filtered_df.columns else 0,
+            int(filtered_df["situacao"].nunique())
+            if "situacao" in filtered_df.columns
+            else 0,
         )
         info_cols[1].metric(
             "Executores distintos",
-            int(filtered_df["setor_executor"].nunique()) if "setor_executor" in filtered_df.columns else 0,
+            int(filtered_df["setor_executor"].nunique())
+            if "setor_executor" in filtered_df.columns
+            else 0,
         )
         info_cols[2].metric(
             "Emissores distintos",
-            int(filtered_df["setor_emissor"].nunique()) if "setor_emissor" in filtered_df.columns else 0,
+            int(filtered_df["setor_emissor"].nunique())
+            if "setor_emissor" in filtered_df.columns
+            else 0,
         )
 
         primary_controls = st.columns([2.0, 0.9, 1.3, 1.0])
@@ -2686,19 +2935,28 @@ if REAL_RUNTIME and not raw_df.empty:
             primary_controls[0].selectbox(
                 "Ordenar por",
                 sort_options,
-                index=sort_options.index(table_state.get("sort_column", "(Sem ordenacao)"))
+                index=sort_options.index(
+                    table_state.get("sort_column", "(Sem ordenacao)")
+                )
                 if table_state.get("sort_column", "(Sem ordenacao)") in sort_options
                 else 0,
             )
         )
-        sort_desc = bool(primary_controls[1].checkbox("Desc", value=table_state.get("sort_desc", False)))
+        sort_desc = bool(
+            primary_controls[1].checkbox(
+                "Desc", value=table_state.get("sort_desc", False)
+            )
+        )
         table_mode_options = ["Tabela", "Tabela + grafico"]
         table_mode = str(
             primary_controls[2].radio(
                 "Visualizacao",
                 options=table_mode_options,
-                index=table_mode_options.index(table_state.get("table_mode", "Tabela + grafico"))
-                if table_state.get("table_mode", "Tabela + grafico") in table_mode_options
+                index=table_mode_options.index(
+                    table_state.get("table_mode", "Tabela + grafico")
+                )
+                if table_state.get("table_mode", "Tabela + grafico")
+                in table_mode_options
                 else 1,
                 horizontal=True,
             )
@@ -2729,8 +2987,14 @@ if REAL_RUNTIME and not raw_df.empty:
                 else 1,
             )
         )
-        auto_width = bool(secondary_controls[2].checkbox("Auto largura", value=table_state.get("auto_width", True)))
-        default_width_profile, width_bucket = _resolve_width_profile_for_bucket(table_state)
+        auto_width = bool(
+            secondary_controls[2].checkbox(
+                "Auto largura", value=table_state.get("auto_width", True)
+            )
+        )
+        default_width_profile, width_bucket = _resolve_width_profile_for_bucket(
+            table_state
+        )
         width_profile = str(
             secondary_controls[3].selectbox(
                 "Perfil largura",
@@ -2756,7 +3020,9 @@ if REAL_RUNTIME and not raw_df.empty:
             len(table_view_df),
         )
         if guarded_page_size:
-            st.caption("Guard ativo para pagina grande: limite de 500 linhas por pagina.")
+            st.caption(
+                "Guard ativo para pagina grande: limite de 500 linhas por pagina."
+            )
 
         _, total_pages = _paginate_dataframe(table_view_df, page=1, page_size=page_size)
         default_page = min(max(int(table_state.get("page_number", 1)), 1), total_pages)
@@ -2774,7 +3040,9 @@ if REAL_RUNTIME and not raw_df.empty:
             page_col_right.caption(
                 "Dica: use perfil de largura maior para reduzir truncamento de descricao."
             )
-        page_df, total_pages = _paginate_dataframe(table_view_df, page=page_number, page_size=page_size)
+        page_df, total_pages = _paginate_dataframe(
+            table_view_df, page=page_number, page_size=page_size
+        )
         table_state.update(
             {
                 "sort_column": sort_column,
@@ -2784,7 +3052,9 @@ if REAL_RUNTIME and not raw_df.empty:
                 "auto_width": auto_width,
                 "page_number": page_number,
                 "width_profile": width_profile,
-                "width_profile_by_bucket": table_state.get("width_profile_by_bucket", {}),
+                "width_profile_by_bucket": table_state.get(
+                    "width_profile_by_bucket", {}
+                ),
                 "table_mode": table_mode,
                 "compact_mode": compact_mode,
             }
@@ -2842,44 +3112,50 @@ if REAL_RUNTIME and not raw_df.empty:
             )
             st.markdown(chips, unsafe_allow_html=True)
 
-        if table_mode == "Tabela + grafico" and 'situacao' in filtered_df.columns and not filtered_df.empty:
+        if (
+            table_mode == "Tabela + grafico"
+            and "situacao" in filtered_df.columns
+            and not filtered_df.empty
+        ):
             chart_df = (
-                filtered_df['situacao']
+                filtered_df["situacao"]
                 .value_counts()
-                .rename_axis('Situacao')
-                .reset_index(name='Quantidade')
+                .rename_axis("Situacao")
+                .reset_index(name="Quantidade")
             )
             st.subheader("Distribuicao por Situacao")
-            st.bar_chart(chart_df.set_index('Situacao'))
+            st.bar_chart(chart_df.set_index("Situacao"))
             extra_charts = st.columns(2)
-            if 'setor_executor' in filtered_df.columns:
+            if "setor_executor" in filtered_df.columns:
                 top_exec = (
-                    filtered_df['setor_executor']
-                    .fillna('(vazio)')
+                    filtered_df["setor_executor"]
+                    .fillna("(vazio)")
                     .astype(str)
                     .value_counts()
                     .head(8)
-                    .rename_axis('Setor executor')
-                    .reset_index(name='Quantidade')
+                    .rename_axis("Setor executor")
+                    .reset_index(name="Quantidade")
                 )
                 extra_charts[0].caption("Principais executores")
-                extra_charts[0].bar_chart(top_exec.set_index('Setor executor'))
-            if 'setor_emissor' in filtered_df.columns:
+                extra_charts[0].bar_chart(top_exec.set_index("Setor executor"))
+            if "setor_emissor" in filtered_df.columns:
                 top_emis = (
-                    filtered_df['setor_emissor']
-                    .fillna('(vazio)')
+                    filtered_df["setor_emissor"]
+                    .fillna("(vazio)")
                     .astype(str)
                     .value_counts()
                     .head(8)
-                    .rename_axis('Setor emissor')
-                    .reset_index(name='Quantidade')
+                    .rename_axis("Setor emissor")
+                    .reset_index(name="Quantidade")
                 )
                 extra_charts[1].caption("Principais emissores")
-                extra_charts[1].bar_chart(top_emis.set_index('Setor emissor'))
+                extra_charts[1].bar_chart(top_emis.set_index("Setor emissor"))
 
             timeline_charts = st.columns(2)
             if "data_execucao" in filtered_df.columns:
-                exec_timeline = pd.to_datetime(filtered_df["data_execucao"], errors="coerce").dropna()
+                exec_timeline = pd.to_datetime(
+                    filtered_df["data_execucao"], errors="coerce"
+                ).dropna()
                 if not exec_timeline.empty:
                     exec_weekly = (
                         exec_timeline.dt.to_period("W")
@@ -2892,7 +3168,9 @@ if REAL_RUNTIME and not raw_df.empty:
                     timeline_charts[0].caption("Execucao por semana")
                     timeline_charts[0].line_chart(exec_weekly.set_index("Semana"))
             if "data_emissao" in filtered_df.columns:
-                emit_timeline = pd.to_datetime(filtered_df["data_emissao"], errors="coerce").dropna()
+                emit_timeline = pd.to_datetime(
+                    filtered_df["data_emissao"], errors="coerce"
+                ).dropna()
                 if not emit_timeline.empty:
                     emit_weekly = (
                         emit_timeline.dt.to_period("W")
@@ -2918,12 +3196,12 @@ if REAL_RUNTIME and not raw_df.empty:
                 mime="text/csv",
                 help=f"Exporta {len(view_df)} registros em CSV",
             )
-            json_text = view_df.to_json(orient='records', date_format='iso', indent=2)
+            json_text = view_df.to_json(orient="records", date_format="iso", indent=2)
             if json_text is None:
                 raise RuntimeError("to_json retornou None")
             st.download_button(
                 "Baixar JSON",
-                json_text.encode('utf-8'),
+                json_text.encode("utf-8"),
                 file_name=f"ssas_api_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                 mime="application/json",
                 help="Formato JSON para integracao com APIs",
@@ -2934,6 +3212,7 @@ if REAL_RUNTIME and not raw_df.empty:
             if st.button("Gerar Excel", help="Prepara arquivo Excel com formatacao"):
                 try:
                     import io
+
                     from openpyxl import Workbook
                     from openpyxl.styles import Font, PatternFill
 
@@ -2942,10 +3221,18 @@ if REAL_RUNTIME and not raw_df.empty:
                     ws = wb.active
                     ws.title = "SSAs Filtradas"
                     for col_num, col_name in enumerate(view_df.columns, 1):
-                        cell = ws.cell(row=1, column=col_num, value=rename_map.get(col_name, col_name))
+                        cell = ws.cell(
+                            row=1,
+                            column=col_num,
+                            value=rename_map.get(col_name, col_name),
+                        )
                         cell.font = Font(bold=True)
-                        cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-                    for row_num, row_data in enumerate(view_df.itertuples(index=False), 2):
+                        cell.fill = PatternFill(
+                            start_color="366092", end_color="366092", fill_type="solid"
+                        )
+                    for row_num, row_data in enumerate(
+                        view_df.itertuples(index=False), 2
+                    ):
                         for col_num, value in enumerate(row_data, 1):
                             ws.cell(row=row_num, column=col_num, value=value)
                     wb.save(buffer)
@@ -2974,7 +3261,7 @@ if REAL_RUNTIME and not raw_df.empty:
             cache_stats = filter_cache.get_stats()
             st.metric("Entradas", f"{cache_stats['size']} / {cache_stats['max_size']}")
             st.metric("Hit rate", f"{cache_stats['hit_rate']:.1f}%")
-            st.metric("Evictions", cache_stats['evictions'])
+            st.metric("Evictions", cache_stats["evictions"])
             if st.button("Limpar cache", key="clear_cache_ops"):
                 filter_cache.clear()
                 st.info("Cache limpo.")
@@ -2994,7 +3281,9 @@ if REAL_RUNTIME and not raw_df.empty:
                     if st.button("Limpar telemetria", key="clear_render_telemetry"):
                         st.session_state["streamlit_render_stats"] = {}
                         _persist_streamlit_state(
-                            width_profile=str(table_state.get("width_profile", "Padrao (1600)")),
+                            width_profile=str(
+                                table_state.get("width_profile", "Padrao (1600)")
+                            ),
                             width_profile_by_bucket=_normalize_width_profile_memory(
                                 table_state.get("width_profile_by_bucket", {})
                             ),
@@ -3005,7 +3294,9 @@ if REAL_RUNTIME and not raw_df.empty:
                 else:
                     profile_stats = None
                 if profile_stats:
-                    st.caption(_format_render_stats_line(selected_profile, profile_stats))
+                    st.caption(
+                        _format_render_stats_line(selected_profile, profile_stats)
+                    )
 
         with ops_right:
             with st.expander("Fonte de dados avancada", expanded=False):
@@ -3020,9 +3311,15 @@ if REAL_RUNTIME and not raw_df.empty:
                     key="ops_source_docs_dir",
                 )
                 source_actions = st.columns([1.1, 1.1, 1.8])
-                apply_source = source_actions[0].button("Aplicar fonte", key="apply_source_paths")
-                run_load = source_actions[1].button("Carregar dados", key="load_data_ops")
-                run_reimport = source_actions[2].button("Reimportar planilhas", key="reimport_data_ops")
+                apply_source = source_actions[0].button(
+                    "Aplicar fonte", key="apply_source_paths"
+                )
+                run_load = source_actions[1].button(
+                    "Carregar dados", key="load_data_ops"
+                )
+                run_reimport = source_actions[2].button(
+                    "Reimportar planilhas", key="reimport_data_ops"
+                )
                 if apply_source:
                     try:
                         resolved_db = str(
@@ -3043,7 +3340,9 @@ if REAL_RUNTIME and not raw_df.empty:
                             "db_path": resolved_db,
                             "docs_dir": resolved_docs,
                         }
-                        st.success("Fonte aplicada. Recarregue dados para refletir mudancas.")
+                        st.success(
+                            "Fonte aplicada. Recarregue dados para refletir mudancas."
+                        )
                     except PathSafetyError as exc:
                         st.error(str(exc))
                 if run_load or run_reimport:
@@ -3097,22 +3396,35 @@ if REAL_RUNTIME and not raw_df.empty:
                                 if col in mapped.columns
                             ]
                             recent_df = mapped[cols].copy()
-                            if hasattr(st, "session_state") and st.session_state is not None:
+                            if (
+                                hasattr(st, "session_state")
+                                and st.session_state is not None
+                            ):
                                 st.session_state["recent_api_df"] = recent_df
                             st.success(f"API retornou {len(recent_df)} registros.")
                         else:
                             st.info("API sem novos registros.")
                     except Exception as exc:  # noqa: BLE001
                         logger.error("Falha ao consultar API Itaipu: %s", exc)
-                        st.warning("Nao foi possivel consultar API. Dashboard segue com base local.")
+                        st.warning(
+                            "Nao foi possivel consultar API. Dashboard segue com base local."
+                        )
                 if api_actions[1].button("Limpar snapshot API", key="clear_api_data"):
                     _clear_recent_api_snapshot()
                     st.info("Snapshot de API removido.")
-                api_actions[2].caption("Atualizacao manual para evitar bloqueio em reruns.")
+                api_actions[2].caption(
+                    "Atualizacao manual para evitar bloqueio em reruns."
+                )
                 if hasattr(st, "session_state") and st.session_state is not None:
                     recent_df = st.session_state.get("recent_api_df")
                 if _api_snapshot_available(consult_api, recent_df):
                     snapshot_df = cast(pd.DataFrame, recent_df)
-                    st.dataframe(ensure_arrow_compatible(snapshot_df), width='stretch', height=240)
+                    st.dataframe(
+                        ensure_arrow_compatible(snapshot_df),
+                        width="stretch",
+                        height=240,
+                    )
             else:
-                st.info("Ative a opcao de API na aba Filtros para consultar dados recentes.")
+                st.info(
+                    "Ative a opcao de API na aba Filtros para consultar dados recentes."
+                )

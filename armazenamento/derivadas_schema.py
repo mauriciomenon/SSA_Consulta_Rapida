@@ -96,7 +96,13 @@ EXPECTED_COLUMNS: dict[str, dict[str, str]] = {
 
 READ_REQUIRED_COLUMNS: dict[str, set[str]] = {
     "ssa_derivada_matrix": {"parent_ssa", "child_ssa", "source_flags", "active"},
-    "ssa_derivada_closure": {"ancestor_ssa", "descendant_ssa", "min_distance", "max_distance", "path_count"},
+    "ssa_derivada_closure": {
+        "ancestor_ssa",
+        "descendant_ssa",
+        "min_distance",
+        "max_distance",
+        "path_count",
+    },
     "ssa_derivada_summary": {
         "ssa",
         "direct_parents_count",
@@ -251,7 +257,9 @@ CREATE INDEX IF NOT EXISTS idx_derivada_sync_run_started ON ssa_derivada_sync_ru
 """
 
 
-def _execute_sql_script_without_committing(conn: sqlite3.Connection, sql_script: str) -> None:
+def _execute_sql_script_without_committing(
+    conn: sqlite3.Connection, sql_script: str
+) -> None:
     statement_lines: list[str] = []
     for line in sql_script.splitlines():
         if not line.strip():
@@ -292,17 +300,27 @@ def _existing_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
 
 def _validate_ddl_sql_type(sql_type: str, *, table_name: str, column_name: str) -> str:
     if not isinstance(sql_type, str) or not sql_type.strip():
-        raise ValueError(f"Invalid sql_type for {table_name}.{column_name}: {sql_type!r}")
+        raise ValueError(
+            f"Invalid sql_type for {table_name}.{column_name}: {sql_type!r}"
+        )
     lowered = sql_type.casefold()
     if any(token in lowered for token in (";", "--", "/*", "*/")):
-        raise ValueError(f"Unsafe sql_type for {table_name}.{column_name}: {sql_type!r}")
+        raise ValueError(
+            f"Unsafe sql_type for {table_name}.{column_name}: {sql_type!r}"
+        )
     if "\n" in sql_type or "\r" in sql_type:
-        raise ValueError(f"Unsafe sql_type for {table_name}.{column_name}: {sql_type!r}")
+        raise ValueError(
+            f"Unsafe sql_type for {table_name}.{column_name}: {sql_type!r}"
+        )
     return sql_type.strip()
 
 
-def _safe_add_column_sql_type(sql_type: str, *, table_name: str, column_name: str) -> str:
-    safe_type = _validate_ddl_sql_type(sql_type, table_name=table_name, column_name=column_name)
+def _safe_add_column_sql_type(
+    sql_type: str, *, table_name: str, column_name: str
+) -> str:
+    safe_type = _validate_ddl_sql_type(
+        sql_type, table_name=table_name, column_name=column_name
+    )
     lowered = safe_type.casefold()
     if "not null" not in lowered or "default" in lowered:
         return safe_type
@@ -326,12 +344,16 @@ def _safe_add_column_sql_type(sql_type: str, *, table_name: str, column_name: st
     )
 
 
-def _ensure_derivadas_columns(conn: sqlite3.Connection, *, include_legacy_backfill: bool) -> None:
+def _ensure_derivadas_columns(
+    conn: sqlite3.Connection, *, include_legacy_backfill: bool
+) -> None:
     conn.execute("SAVEPOINT derivadas_ensure_columns")
     try:
         for table_name, expected in EXPECTED_COLUMNS.items():
             if not is_valid_identifier(table_name):
-                raise ValueError(f"Invalid table identifier for schema migration: {table_name!r}")
+                raise ValueError(
+                    f"Invalid table identifier for schema migration: {table_name!r}"
+                )
             existing = _existing_columns(conn, table_name)
             if not existing:
                 continue
@@ -350,7 +372,9 @@ def _ensure_derivadas_columns(conn: sqlite3.Connection, *, include_legacy_backfi
                         f'ALTER TABLE "{table_name}" ADD COLUMN "{column_name}" {safe_type}'
                     )
                     logger.info(
-                        "Derivadas schema migration: added column %s.%s", table_name, column_name
+                        "Derivadas schema migration: added column %s.%s",
+                        table_name,
+                        column_name,
                     )
                 except sqlite3.OperationalError as exc:
                     if "duplicate column name" not in str(exc).lower():
@@ -485,7 +509,9 @@ def scan_derivadas_read_schema_readiness_from_path(db_path: str) -> dict[str, An
     """Run read-path schema readiness scan from DB path without migration."""
 
     required_tables = sorted(READ_REQUIRED_COLUMNS.keys())
-    safe_db_path = str(ensure_path_is_allowed(db_path, purpose="scan derivadas read schema"))
+    safe_db_path = str(
+        ensure_path_is_allowed(db_path, purpose="scan derivadas read schema")
+    )
     if not os.path.exists(safe_db_path):
         return {
             "is_ready": False,
@@ -497,7 +523,9 @@ def scan_derivadas_read_schema_readiness_from_path(db_path: str) -> dict[str, An
         return scan_derivadas_read_schema_readiness(conn)
 
 
-def has_derivadas_schema(conn: sqlite3.Connection, required: Iterable[str] = DERIVADAS_TABLES) -> bool:
+def has_derivadas_schema(
+    conn: sqlite3.Connection, required: Iterable[str] = DERIVADAS_TABLES
+) -> bool:
     """Return True when all required derivadas tables exist."""
 
     names = {str(name) for name in required}

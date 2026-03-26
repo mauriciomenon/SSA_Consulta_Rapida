@@ -141,10 +141,11 @@ def _prepare_frozen_runtime(app_dir: str) -> Path:
     os.chdir(runtime_dir)
     return runtime_dir
 
+
 # Adicionar diretorio raiz ao path CORRETAMENTE
-if getattr(sys, 'frozen', False):
+if getattr(sys, "frozen", False):
     # Executavel PyInstaller - buscar na raiz dos dados empacotados
-    if hasattr(sys, '_MEIPASS'):
+    if hasattr(sys, "_MEIPASS"):
         # PyInstaller - usar diretorio do executavel, NAO _MEIPASS (pasta temporaria)
         app_dir = os.path.dirname(os.path.abspath(sys.executable))
     else:
@@ -155,6 +156,7 @@ else:
     app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 sys.path.insert(0, app_dir)
+
 
 def main():
     """Entry point CLI v3.10.
@@ -167,6 +169,7 @@ def main():
     if os.environ.get("SSA_SMOKE_TEST") == "1":
         try:
             from utils.version import get_app_version  # import leve
+
             version = get_app_version()
             print(f"SMOKE_CLI_OK v{version}")
             sys.exit(0)
@@ -176,14 +179,19 @@ def main():
 
     try:
         from interface.cli import start_cli_loop
-        db_path = os.environ.get("SSA_DB_PATH") or os.path.join(app_dir, "data", "ssas.db")
+
+        db_path = os.environ.get("SSA_DB_PATH") or os.path.join(
+            app_dir, "data", "ssas.db"
+        )
         table_name = os.environ.get("SSA_TABLE_NAME") or "ssa_table"
         start_cli_loop(db_path, table_name)
     except ImportError as e:
         print(f"ERRO: Nao foi possivel importar interface.cli: {e}")
         print(f"Path atual: {sys.path}")
         print(f"App dir: {app_dir}")
-        print(f"Arquivos em app_dir: {os.listdir(app_dir) if os.path.exists(app_dir) else 'N/A'}")
+        print(
+            f"Arquivos em app_dir: {os.listdir(app_dir) if os.path.exists(app_dir) else 'N/A'}"
+        )
         sys.exit(1)
     except Exception as e:
         print(f"ERRO: Falha inesperada ao iniciar CLI: {e}")
@@ -191,6 +199,7 @@ def main():
         print(f"Path atual: {sys.path}")
         print(f"App dir: {app_dir}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

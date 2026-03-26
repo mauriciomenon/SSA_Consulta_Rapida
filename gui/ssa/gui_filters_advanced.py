@@ -4,17 +4,22 @@
 
 from __future__ import annotations
 
+from .gui_filters_advanced_logic import (
+    _apply_advanced_filters,
+    _build_derivadas_tree,
+    _cache_token,
+)
 from .gui_filters_advanced_state import (
     DIVISAO_SETORES,
-    SECTOR_TO_DIV,
     MONO_FONT_FAMILY,
+    SECTOR_TO_DIV,
     AdvancedFilterState,
     configure_adv_filters_constants,
 )
 from .gui_filters_advanced_ui import (
-    _attach_multiselect_menu,
     _apply_advanced_filters_from_ui,
     _apply_divisao_to_setor_checks,
+    _attach_multiselect_menu,
     _build_advanced_filters_panel,
     _checkbox_value,
     _clear_advanced_filters,
@@ -54,7 +59,6 @@ from .gui_filters_advanced_ui import (
     _update_derivadas_button_state,
     _update_multiselect_button,
 )
-from .gui_filters_advanced_logic import _apply_advanced_filters, _build_derivadas_tree, _cache_token
 
 __all__ = [
     "DIVISAO_SETORES",

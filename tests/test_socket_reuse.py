@@ -42,6 +42,7 @@ def test_reuseaddr_flag_roundtrip(loopback_addr: LoopbackAddr) -> None:
     except OSError as exc:  # pragma: no cover - guard for exotic OSes
         pytest.skip(f"Plataforma nao permite reuso imediato da porta: {exc}")
 
+
 def test_reuseaddr_allows_immediate_rebind(loopback_addr: LoopbackAddr) -> None:
     with contextlib.closing(_bind_socket(loopback_addr, reuse=True)):
         pass

@@ -10,11 +10,14 @@ Escopos cobertos:
 
 Estes testes usam DataFrame sintetico em memoria para simular planilha.
 """
+
 from __future__ import annotations
 
 import io
+
 import pandas as pd
 import pytest
+
 from utils.robust_importer import import_excel_robust
 
 
@@ -90,14 +93,14 @@ def test_synonym_collapse_and_coalescence(tmp_path):
     # Situacao resultante deve ser 'ABERTA' (primeira linha preencheu com merge) ou 'FECHADA'? ->
     # Coalescencia linha-a-linha antes da deduplicacao significa que a primeira linha tera 'ABERTA'
     # e a segunda linha 'FECHADA'; apos ordenar por data (02/09 > 01/09) a linha FECHADA permanece.
-    assert out_df.loc[0, 'situacao'] == 'FECHADA'
+    assert out_df.loc[0, "situacao"] == "FECHADA"
     # Numero SSA normalizado permanece como string de 9 digitos
-    assert out_df.loc[0, 'numero_ssa'] == '202500001'
+    assert out_df.loc[0, "numero_ssa"] == "202500001"
     # Data de cadastro canonica
-    assert str(out_df.loc[0, 'data_cadastro']).startswith('2025-09-02')
+    assert str(out_df.loc[0, "data_cadastro"]).startswith("2025-09-02")
     # Estatisticas coerentes
-    assert stats['duplicate_rows_dropped'] == 1
-    assert stats['invalid_numero_ssa_rows'] == 0
+    assert stats["duplicate_rows_dropped"] == 1
+    assert stats["invalid_numero_ssa_rows"] == 0
 
 
 def test_date_parsing_and_serial_excel(tmp_path):
@@ -106,13 +109,16 @@ def test_date_parsing_and_serial_excel(tmp_path):
     df = pd.DataFrame(
         {
             "N\u00ba SSA": ["202500010", "202500011"],
-            "Emitida Em": ["2025-09-10", 45500],  # primeira ISO, segunda serial excel (~2048-??) so valida se converter
+            "Emitida Em": [
+                "2025-09-10",
+                45500,
+            ],  # primeira ISO, segunda serial excel (~2048-??) so valida se converter
         }
     )
     out_df, stats = _roundtrip_import(df, tmp_path)
     assert len(out_df) == 2
-    assert all(isinstance(v, str) or v is None for v in out_df['data_cadastro'])
-    assert 'data_cadastro' in stats['date_parse_failures']
+    assert all(isinstance(v, str) or v is None for v in out_df["data_cadastro"])
+    assert "data_cadastro" in stats["date_parse_failures"]
 
 
 def test_invalid_numero_ssa_filtered(tmp_path):
@@ -125,8 +131,8 @@ def test_invalid_numero_ssa_filtered(tmp_path):
     out_df, stats = _roundtrip_import(df, tmp_path)
     # Apenas a linha com 202511111 e valida; 'abc' invalido e '2025-22222' rejeitado por regra de hifen repetido
     assert len(out_df) == 1
-    assert out_df.loc[0, 'numero_ssa'] == '202511111'
-    assert stats['invalid_numero_ssa_rows'] == 2
+    assert out_df.loc[0, "numero_ssa"] == "202511111"
+    assert stats["invalid_numero_ssa_rows"] == 2
 
 
 def test_dedup_keeps_latest_date(tmp_path):
@@ -139,9 +145,9 @@ def test_dedup_keeps_latest_date(tmp_path):
     )
     out_df, stats = _roundtrip_import(df, tmp_path)
     assert len(out_df) == 1
-    assert out_df.loc[0, 'situacao'] == 'S3'
-    assert str(out_df.loc[0, 'data_cadastro']).startswith('2025-09-03')
-    assert stats['duplicate_rows_dropped'] == 2
+    assert out_df.loc[0, "situacao"] == "S3"
+    assert str(out_df.loc[0, "data_cadastro"]).startswith("2025-09-03")
+    assert stats["duplicate_rows_dropped"] == 2
 
 
 def test_semantic_duplicate_columns_are_resolved_before_upsert(tmp_path):
@@ -294,5 +300,5 @@ def test_blank_numero_ssa_removed(tmp_path, bad_value):
     )
     out_df, stats = _roundtrip_import(df, tmp_path)
     assert len(out_df) == 1
-    assert out_df.loc[0, 'numero_ssa'] == '202500777'
-    assert stats['invalid_numero_ssa_rows'] == 1
+    assert out_df.loc[0, "numero_ssa"] == "202500777"
+    assert stats["invalid_numero_ssa_rows"] == 1

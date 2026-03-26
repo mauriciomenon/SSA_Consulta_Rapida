@@ -1,6 +1,6 @@
+import builtins
 import os
 import sys
-import builtins
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:

@@ -10,7 +10,9 @@ import extracao.extractor as extractor
 
 
 def _patch_integrity_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(app_logic.database, "repair_database_if_needed", lambda *a, **k: True)
+    monkeypatch.setattr(
+        app_logic.database, "repair_database_if_needed", lambda *a, **k: True
+    )
     monkeypatch.setattr(
         app_logic.database,
         "verify_database_integrity",
@@ -68,8 +70,12 @@ def test_run_importer_updates_deterministic_failure_cache_by_error_code(
         list(path_safety.ALLOWED_ROOTS) + [tmp_path],
     )
     _patch_integrity_ok(monkeypatch)
-    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [str(bad_file)])
-    monkeypatch.setattr(app_logic, "_discover_derivadas_sheet_files", lambda *_a, **_k: [])
+    monkeypatch.setattr(
+        app_logic, "_get_files_to_process", lambda *a, **k: [str(bad_file)]
+    )
+    monkeypatch.setattr(
+        app_logic, "_discover_derivadas_sheet_files", lambda *_a, **_k: []
+    )
     monkeypatch.setattr(
         app_logic,
         "_import_single_file",
@@ -85,7 +91,9 @@ def test_run_importer_updates_deterministic_failure_cache_by_error_code(
     monkeypatch.setattr(
         app_logic,
         "_update_cache_for_deterministic_failures",
-        lambda failed_files, cache_file, docs_dir: deterministic_calls.append(list(failed_files)),
+        lambda failed_files, cache_file, docs_dir: deterministic_calls.append(
+            list(failed_files)
+        ),
     )
     cache_after_calls = {"n": 0}
     monkeypatch.setattr(
@@ -97,7 +105,8 @@ def test_run_importer_updates_deterministic_failure_cache_by_error_code(
     monkeypatch.setattr(
         app_logic,
         "_write_import_run_report",
-        lambda payload: captured.setdefault("payload", payload) or str(tmp_path / "report.json"),
+        lambda payload: captured.setdefault("payload", payload)
+        or str(tmp_path / "report.json"),
     )
 
     updated = app_logic.run_importer_logic(
@@ -138,7 +147,9 @@ def test_run_importer_does_not_mark_cancelled_as_deterministic_failure(
         "_get_files_to_process",
         lambda *a, **k: [str(cancelled_file)],
     )
-    monkeypatch.setattr(app_logic, "_discover_derivadas_sheet_files", lambda *_a, **_k: [])
+    monkeypatch.setattr(
+        app_logic, "_discover_derivadas_sheet_files", lambda *_a, **_k: []
+    )
     monkeypatch.setattr(
         app_logic,
         "_import_single_file",
@@ -154,7 +165,9 @@ def test_run_importer_does_not_mark_cancelled_as_deterministic_failure(
     monkeypatch.setattr(
         app_logic,
         "_update_cache_for_deterministic_failures",
-        lambda failed_files, cache_file, docs_dir: deterministic_calls.append(list(failed_files)),
+        lambda failed_files, cache_file, docs_dir: deterministic_calls.append(
+            list(failed_files)
+        ),
     )
     cache_after_calls = {"n": 0}
     monkeypatch.setattr(

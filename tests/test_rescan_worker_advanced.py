@@ -5,11 +5,11 @@ Este módulo contém testes de unidade e integração para o RescanWorker,
 responsável por reescanear dados de forma assíncrona.
 """
 
+import logging
 import os
 import sys
-import logging
 import threading
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -23,7 +23,6 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from gui.workers.rescan_worker import RescanWorker, _LogHandler  # noqa: E402
-
 
 # =============================================================================
 # Fixtures
@@ -292,7 +291,9 @@ class TestRescanWorkerIntegration:
         assert "Iniciando Reescaneamento" in signal_collector.output_lines[0]
         assert signal_collector.finished_success is True
 
-    def test_run_full_without_updates_without_context_emits_success(self, rescan_worker, signal_collector):
+    def test_run_full_without_updates_without_context_emits_success(
+        self, rescan_worker, signal_collector
+    ):
         """Full sem contexto de arquivos permanece como no-op valido."""
         rescan_worker.output_line.connect(signal_collector.on_output)
         rescan_worker.finished_success.connect(signal_collector.on_finished_success)
@@ -304,9 +305,14 @@ class TestRescanWorkerIntegration:
 
         assert signal_collector.finished_success is True
         assert signal_collector.finished_error is None
-        assert any("Reescaneamento Completo Concluido (sem alteracoes)" in line for line in signal_collector.output_lines)
+        assert any(
+            "Reescaneamento Completo Concluido (sem alteracoes)" in line
+            for line in signal_collector.output_lines
+        )
 
-    def test_run_full_without_updates_with_processed_context_emits_error(self, rescan_worker, signal_collector):
+    def test_run_full_without_updates_with_processed_context_emits_error(
+        self, rescan_worker, signal_collector
+    ):
         """Full com arquivos no ciclo e retorno False deve sinalizar erro."""
         rescan_worker.output_line.connect(signal_collector.on_output)
         rescan_worker.finished_success.connect(signal_collector.on_finished_success)
@@ -318,15 +324,22 @@ class TestRescanWorkerIntegration:
             callback("finish", {"total": 2, "processed": 0, "errors": []})
             return False
 
-        with patch("gui.workers.rescan_worker.run_importer_logic", side_effect=_mock_importer):
+        with patch(
+            "gui.workers.rescan_worker.run_importer_logic", side_effect=_mock_importer
+        ):
             rescan_worker.run()
 
         assert signal_collector.finished_success is False
         assert signal_collector.finished_error is not None
         assert "sem atualizacoes" in signal_collector.finished_error.lower()
-        assert any("Reescaneamento Completo Falhou" in line for line in signal_collector.output_lines)
+        assert any(
+            "Reescaneamento Completo Falhou" in line
+            for line in signal_collector.output_lines
+        )
 
-    def test_run_diff_with_only_deterministic_rejections_emits_success_message(self, signal_collector):
+    def test_run_diff_with_only_deterministic_rejections_emits_success_message(
+        self, signal_collector
+    ):
         worker = RescanWorker("main.py", ".", force_import=False)
         worker.output_line.connect(signal_collector.on_output)
         worker.finished_success.connect(signal_collector.on_finished_success)
@@ -349,20 +362,25 @@ class TestRescanWorkerIntegration:
             )
             return False
 
-        with patch("gui.workers.rescan_worker.run_importer_logic", side_effect=_mock_importer):
+        with patch(
+            "gui.workers.rescan_worker.run_importer_logic", side_effect=_mock_importer
+        ):
             worker.run()
 
         assert signal_collector.finished_success is True
         assert signal_collector.finished_error is None
         assert any(
-            "Rejeicoes Deterministicas" in line for line in signal_collector.output_lines
+            "Rejeicoes Deterministicas" in line
+            for line in signal_collector.output_lines
         )
         assert not any(
             "Nenhum arquivo novo ou alterado foi encontrado." in line
             for line in signal_collector.output_lines
         )
 
-    def test_run_full_with_only_deterministic_rejections_emits_success_message(self, signal_collector):
+    def test_run_full_with_only_deterministic_rejections_emits_success_message(
+        self, signal_collector
+    ):
         worker = RescanWorker("main.py", ".", force_import=True)
         worker.output_line.connect(signal_collector.on_output)
         worker.finished_success.connect(signal_collector.on_finished_success)
@@ -385,15 +403,21 @@ class TestRescanWorkerIntegration:
             )
             return False
 
-        with patch("gui.workers.rescan_worker.run_importer_logic", side_effect=_mock_importer):
+        with patch(
+            "gui.workers.rescan_worker.run_importer_logic", side_effect=_mock_importer
+        ):
             worker.run()
 
         assert signal_collector.finished_success is True
         assert signal_collector.finished_error is None
         assert any(
-            "Rejeicoes Deterministicas" in line for line in signal_collector.output_lines
+            "Rejeicoes Deterministicas" in line
+            for line in signal_collector.output_lines
         )
-        assert not any("Reescaneamento Completo Falhou" in line for line in signal_collector.output_lines)
+        assert not any(
+            "Reescaneamento Completo Falhou" in line
+            for line in signal_collector.output_lines
+        )
 
     def test_run_emits_error_on_exception(self, rescan_worker, signal_collector):
         """Testa que run() emite error em exceção."""

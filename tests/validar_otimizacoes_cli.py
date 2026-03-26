@@ -8,32 +8,37 @@ import os
 import re
 import sys
 
+
 def verificar_otimizacoes_cli():
     """Verifica se todas as otimizações CLI foram aplicadas corretamente."""
 
-    cli_path = os.path.join('interface', 'cli.py')
+    cli_path = os.path.join("interface", "cli.py")
 
     if not os.path.exists(cli_path):
         print("ERR Arquivo interface/cli.py não encontrado!")
         return False
 
-    with open(cli_path, 'r', encoding='utf-8') as f:
+    with open(cli_path, "r", encoding="utf-8") as f:
         content = f.read()
 
     verificacoes = []
 
     # 1. Verificar cache de configurações
-    if '_config_changed = False' in content:
-        if 'if _config_changed:' in content:
-            verificacoes.append("OK Cache de configurações CLI implementado com flag _config_changed")
+    if "_config_changed = False" in content:
+        if "if _config_changed:" in content:
+            verificacoes.append(
+                "OK Cache de configurações CLI implementado com flag _config_changed"
+            )
         else:
-            verificacoes.append("ERR Flag _config_changed definida mas não utilizada corretamente")
+            verificacoes.append(
+                "ERR Flag _config_changed definida mas não utilizada corretamente"
+            )
     else:
         verificacoes.append("ERR Cache de configurações CLI não implementado")
 
     # 2. Verificar cache de parsing de termos
-    if '_parse_cache = {}' in content:
-        if 'cache_key = f"{' in content and 'parse_search_terms' in content:
+    if "_parse_cache = {}" in content:
+        if 'cache_key = f"{' in content and "parse_search_terms" in content:
             verificacoes.append("OK Cache de parsing de termos implementado")
         else:
             verificacoes.append("ERR Cache de parsing declarado mas não utilizado")
@@ -41,11 +46,11 @@ def verificar_otimizacoes_cli():
         verificacoes.append("ERR Cache de parsing de termos não implementado")
 
     # 3. Verificar cache em _apply_default_filters
-    apply_filter_pattern = r'def _apply_default_filters.*?return filter_dataframe'
+    apply_filter_pattern = r"def _apply_default_filters.*?return filter_dataframe"
     apply_filter_match = re.search(apply_filter_pattern, content, re.DOTALL)
     if apply_filter_match:
         apply_filter_code = apply_filter_match.group(0)
-        if '_cache' in apply_filter_code and 'cache_key' in apply_filter_code:
+        if "_cache" in apply_filter_code and "cache_key" in apply_filter_code:
             verificacoes.append("OK Cache implementado em _apply_default_filters")
         else:
             verificacoes.append("ERR Cache não implementado em _apply_default_filters")
@@ -53,29 +58,41 @@ def verificar_otimizacoes_cli():
         verificacoes.append("ERR Função _apply_default_filters não encontrada")
 
     # 4. Verificar cache de formatação
-    if '_cached_pretty_print_df' in content:
-        if '_print_cache = {}' in content:
-            verificacoes.append("OK Cache de formatação CLI implementado com _cached_pretty_print_df")
+    if "_cached_pretty_print_df" in content:
+        if "_print_cache = {}" in content:
+            verificacoes.append(
+                "OK Cache de formatação CLI implementado com _cached_pretty_print_df"
+            )
         else:
-            verificacoes.append("ERR Função _cached_pretty_print_df criada mas cache não inicializado")
+            verificacoes.append(
+                "ERR Função _cached_pretty_print_df criada mas cache não inicializado"
+            )
     else:
         verificacoes.append("ERR Cache de formatação CLI não implementado")
 
     # 5. Verificar uso do cache em handlers principais
-    cached_calls = content.count('_cached_pretty_print_df')
+    cached_calls = content.count("_cached_pretty_print_df")
     if cached_calls >= 5:  # Deve ter várias chamadas substituídas
-        verificacoes.append(f"OK Cache de formatação amplamente utilizado ({cached_calls} chamadas)")
+        verificacoes.append(
+            f"OK Cache de formatação amplamente utilizado ({cached_calls} chamadas)"
+        )
     elif cached_calls > 0:
-        verificacoes.append(f"WARN  Cache de formatação parcialmente utilizado ({cached_calls} chamadas)")
+        verificacoes.append(
+            f"WARN  Cache de formatação parcialmente utilizado ({cached_calls} chamadas)"
+        )
     else:
         verificacoes.append("ERR Cache de formatação não utilizado")
 
     # 6. Verificar remoção de recarregamentos desnecessários
-    if content.count('load_settings()') <= 3:  # Deve ter reduzido significativamente
-        verificacoes.append("OK Recarregamentos desnecessários de configurações eliminados")
+    if content.count("load_settings()") <= 3:  # Deve ter reduzido significativamente
+        verificacoes.append(
+            "OK Recarregamentos desnecessários de configurações eliminados"
+        )
     else:
-        load_count = content.count('load_settings()')
-        verificacoes.append(f"WARN  Ainda há muitos recarregamentos de configurações ({load_count})")
+        load_count = content.count("load_settings()")
+        verificacoes.append(
+            f"WARN  Ainda há muitos recarregamentos de configurações ({load_count})"
+        )
 
     # Exibir resultados
     print("INFO VALIDAÇÃO DAS OTIMIZAÇÕES CLI - ORDEM DE EXECUÇÃO:")
@@ -103,6 +120,7 @@ def verificar_otimizacoes_cli():
         print("FIX Revisar implementações restantes.")
         return False
 
+
 def exibir_metricas_cli():
     """Exibe as métricas de performance esperadas para o CLI."""
     print("\nINFO MÉTRICAS DE PERFORMANCE CLI ESPERADAS:")
@@ -112,6 +130,7 @@ def exibir_metricas_cli():
     print("• Cache de formatação: ~60% menos reprocessamento de tabelas")
     print("• Cache de filtros padrão: ~80% menos processamento inicial")
     print("• Responsividade geral: Melhoria significativa na navegação")
+
 
 def exibir_comparacao_cli():
     """Exibe comparação antes/depois das otimizações."""
@@ -129,28 +148,27 @@ def exibir_comparacao_cli():
     print("  • Formatação cacheada com hash tracking inteligente")
     print("  • Filtros padrão processados uma vez por sessão")
 
+
 def main():
     """Função principal do validador CLI."""
     print("START VALIDADOR DE OTIMIZAÇÕES CLI - ORDEM DE EXECUÇÃO")
     print("=" * 65)
 
     # Mudar para o diretório do projeto
-    if os.path.basename(os.getcwd()) != 'SSA_Consulta_Rapida':
-        possible_paths = [
-            '.',
-            '../SSA_Consulta_Rapida',
-            './SSA_Consulta_Rapida'
-        ]
+    if os.path.basename(os.getcwd()) != "SSA_Consulta_Rapida":
+        possible_paths = [".", "../SSA_Consulta_Rapida", "./SSA_Consulta_Rapida"]
 
         found = False
         for path in possible_paths:
-            if os.path.exists(os.path.join(path, 'interface', 'cli.py')):
+            if os.path.exists(os.path.join(path, "interface", "cli.py")):
                 os.chdir(path)
                 found = True
                 break
 
         if not found:
-            print("ERR Não foi possível encontrar o diretório do projeto SSA_Consulta_Rapida")
+            print(
+                "ERR Não foi possível encontrar o diretório do projeto SSA_Consulta_Rapida"
+            )
             return False
 
     # Executar verificações
@@ -159,6 +177,7 @@ def main():
     exibir_comparacao_cli()
 
     return resultado
+
 
 if __name__ == "__main__":
     success = main()

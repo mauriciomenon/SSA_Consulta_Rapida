@@ -19,7 +19,10 @@ def _seed_cli_data(db_path: str) -> None:
     with sqlite3.connect(db_path) as conn:
         conn.executemany(
             "INSERT INTO ssa_table (numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
-            [(numero_ssa, derivada_de, f"SSA {numero_ssa}") for numero_ssa, derivada_de in rows],
+            [
+                (numero_ssa, derivada_de, f"SSA {numero_ssa}")
+                for numero_ssa, derivada_de in rows
+            ],
         )
         conn.commit()
 
@@ -40,7 +43,19 @@ def test_cli_sync_and_info(temp_db, capsys):
     assert rc_sync == 0
     _ = capsys.readouterr()
 
-    rc_info = main(["--db", temp_db, "--output", "json", "info", "202500001", "--with-lineage", "--depth", "5"])
+    rc_info = main(
+        [
+            "--db",
+            temp_db,
+            "--output",
+            "json",
+            "info",
+            "202500001",
+            "--with-lineage",
+            "--depth",
+            "5",
+        ]
+    )
     assert rc_info == 0
     out_info = capsys.readouterr().out
     parsed_info = json.loads(out_info)
@@ -57,7 +72,22 @@ def test_cli_parents_and_top(temp_db, capsys):
     parsed_parents = json.loads(capsys.readouterr().out)
     assert parsed_parents["parents"] == ["202500002"]
 
-    assert main(["--db", temp_db, "--output", "json", "top", "--metric", "descendants", "--limit", "1"]) == 0
+    assert (
+        main(
+            [
+                "--db",
+                temp_db,
+                "--output",
+                "json",
+                "top",
+                "--metric",
+                "descendants",
+                "--limit",
+                "1",
+            ]
+        )
+        == 0
+    )
     parsed_top = json.loads(capsys.readouterr().out)
     assert parsed_top["rows"]
     assert parsed_top["rows"][0]["ssa"] == "202500001"
@@ -95,7 +125,20 @@ def test_cli_maintenance_interval_guard(temp_db, capsys):
     assert main(["--db", temp_db, "--output", "json", "sync"]) == 0
     _ = capsys.readouterr()
 
-    assert main(["--db", temp_db, "--output", "json", "maintenance", "--min-interval-seconds", "3600"]) == 0
+    assert (
+        main(
+            [
+                "--db",
+                temp_db,
+                "--output",
+                "json",
+                "maintenance",
+                "--min-interval-seconds",
+                "3600",
+            ]
+        )
+        == 0
+    )
     parsed = json.loads(capsys.readouterr().out)
     assert parsed["ran"] is False
     assert parsed["reason"] == "interval_guard"
@@ -156,14 +199,30 @@ def test_cli_snapshot_returns_hierarchy_payload(temp_db, capsys):
     assert main(["--db", temp_db, "--output", "json", "sync"]) == 0
     _ = capsys.readouterr()
 
-    assert main(["--db", temp_db, "--output", "json", "snapshot", "202500001", "--depth", "5"]) == 0
+    assert (
+        main(
+            [
+                "--db",
+                temp_db,
+                "--output",
+                "json",
+                "snapshot",
+                "202500001",
+                "--depth",
+                "5",
+            ]
+        )
+        == 0
+    )
     parsed = json.loads(capsys.readouterr().out)
     assert parsed["ssa"] == "202500001"
     assert parsed["children_count"] == 1
     assert parsed["hierarchy_profile"]["descendants_count"] >= 1
 
 
-def test_cli_sync_accepts_sheet_files_glob(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_cli_sync_accepts_sheet_files_glob(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
     first = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0124PM.xlsx"
     second = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0137PM.xlsx"
     first.write_bytes(b"x")
@@ -195,7 +254,9 @@ def test_cli_sync_accepts_sheet_files_glob(monkeypatch: pytest.MonkeyPatch, tmp_
     assert captured["sheet_files"] == [str(first), str(second)]
 
 
-def test_cli_sync_accepts_special_docs_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_cli_sync_accepts_special_docs_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
     first = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0124PM.xlsx"
     second = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0137PM.xlsx"
     regular = tmp_path / "Consulta SSA - 13-02-2026_0121PM.xlsx"
@@ -246,7 +307,9 @@ def test_cli_sync_special_docs_dir_requires_existing_dir(tmp_path: Path):
         )
 
 
-def test_cli_sync_require_consistency_fails_when_scan_detects_issues(monkeypatch: pytest.MonkeyPatch):
+def test_cli_sync_require_consistency_fails_when_scan_detects_issues(
+    monkeypatch: pytest.MonkeyPatch,
+):
     monkeypatch.setattr(
         derivadas_cli,
         "sync_derivadas",
@@ -275,8 +338,12 @@ def test_cli_sync_require_consistency_fails_when_scan_detects_issues(monkeypatch
         )
 
 
-def test_cli_entrypoint_returns_error_code_and_json_on_exception(monkeypatch: pytest.MonkeyPatch, capsys):
-    monkeypatch.setattr(derivadas_cli, "main", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+def test_cli_entrypoint_returns_error_code_and_json_on_exception(
+    monkeypatch: pytest.MonkeyPatch, capsys
+):
+    monkeypatch.setattr(
+        derivadas_cli, "main", lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
 
     rc = derivadas_cli._main_entrypoint()
     out = capsys.readouterr().out

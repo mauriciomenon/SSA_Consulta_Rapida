@@ -7,8 +7,10 @@ import logging
 import re
 import sqlite3
 from contextlib import closing
+
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
+
 from armazenamento.database import query_db
 from armazenamento.identifier_utils import is_valid_identifier
 from shared.db_names import ALL_SSA_TABLE_NAMES, CANONICAL_SSA_TABLE
@@ -18,14 +20,26 @@ logger = logging.getLogger(__name__)
 
 class DataLoaderWorker(QThread):
     """Thread para carregar dados do banco com suporte seguro a paginação."""
+
     data_loaded = pyqtSignal(pd.DataFrame)
     error_occurred = pyqtSignal(str)
 
     _ALLOWED_ORDER_COLUMNS = {
-        'numero_ssa', 'situacao', 'data_cadastro', 'semana_cadastro',
-        'semana_programada', 'semana_executada', 'setor_emissor', 'setor_executor',
-        'descricao_ssa', 'localizacao_codigo', 'equipamento', 'solicitante',
-        'grau_prioridade_emissao', 'grau_prioridade_planejamento', 'derivada_de',
+        "numero_ssa",
+        "situacao",
+        "data_cadastro",
+        "semana_cadastro",
+        "semana_programada",
+        "semana_executada",
+        "setor_emissor",
+        "setor_executor",
+        "descricao_ssa",
+        "localizacao_codigo",
+        "equipamento",
+        "solicitante",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "derivada_de",
     }
 
     def __init__(self, db_path, table_name, limit=None, offset=0, order_by=None):
@@ -143,16 +157,27 @@ class DataLoaderWorker(QThread):
             if "numero_ssa" in base.columns:
                 ssa_text = base["numero_ssa"].astype(str)
                 ssa_digits = ssa_text.str.replace(r"\D+", "", regex=True)
-                ssa_int = pd.to_numeric(ssa_digits, errors="coerce").fillna(-1).astype("int64")
+                ssa_int = (
+                    pd.to_numeric(ssa_digits, errors="coerce")
+                    .fillna(-1)
+                    .astype("int64")
+                )
             else:
                 ssa_int = pd.Series([-1] * len(base), index=base.index)
-            base = base.assign(__is_ste=is_ste, __ssa=ssa_int).sort_values(
-                by=["__is_ste", "__ssa"],
-                ascending=[True, False],
-                na_position="last",
-            ).drop(columns=["__is_ste", "__ssa"])
+            base = (
+                base.assign(__is_ste=is_ste, __ssa=ssa_int)
+                .sort_values(
+                    by=["__is_ste", "__ssa"],
+                    ascending=[True, False],
+                    na_position="last",
+                )
+                .drop(columns=["__is_ste", "__ssa"])
+            )
         except (KeyError, TypeError, ValueError, AttributeError) as exc:
-            logger.warning("Falha na ordenacao inicial durante preprocessamento do DataLoaderWorker: %s", exc)
+            logger.warning(
+                "Falha na ordenacao inicial durante preprocessamento do DataLoaderWorker: %s",
+                exc,
+            )
         return base
 
     def _build_non_null_columns(self, df: pd.DataFrame) -> list[str]:
@@ -183,7 +208,9 @@ class DataLoaderWorker(QThread):
         sanitized_df = df.copy()
         for ssa_col in ("numero_ssa", "derivada_de"):
             if ssa_col in sanitized_df.columns:
-                sanitized_df[ssa_col] = sanitized_df[ssa_col].map(self._sanitize_ssa_like_value)
+                sanitized_df[ssa_col] = sanitized_df[ssa_col].map(
+                    self._sanitize_ssa_like_value
+                )
         pre_sorted_df = self._build_initial_sorted_dataframe(sanitized_df)
         non_null_cols = self._build_non_null_columns(sanitized_df)
         try:
@@ -191,7 +218,9 @@ class DataLoaderWorker(QThread):
             pre_sorted_df.attrs["ssa_sanitized_df"] = sanitized_df
             pre_sorted_df.attrs["ssa_non_null_cols"] = non_null_cols
         except (AttributeError, TypeError, ValueError) as exc:
-            logger.debug("Falha ao anexar attrs de preprocessamento no DataLoaderWorker: %s", exc)
+            logger.debug(
+                "Falha ao anexar attrs de preprocessamento no DataLoaderWorker: %s", exc
+            )
         return pre_sorted_df
 
     def run(self):
@@ -224,7 +253,7 @@ class DataLoaderWorker(QThread):
 
             if self._is_cancelled():
                 return
-            df = query_db(self.db_path, '', query, raise_on_error=True)
+            df = query_db(self.db_path, "", query, raise_on_error=True)
             if self._is_cancelled():
                 return
             if not isinstance(df, pd.DataFrame):
@@ -232,7 +261,10 @@ class DataLoaderWorker(QThread):
             try:
                 df = self._prepare_dataframe_for_ui(df)
             except (TypeError, ValueError, AttributeError, KeyError) as exc:
-                logger.warning("Falha no preprocessamento do DataLoaderWorker; mantendo DataFrame bruto: %s", exc)
+                logger.warning(
+                    "Falha no preprocessamento do DataLoaderWorker; mantendo DataFrame bruto: %s",
+                    exc,
+                )
             # Resultado vazio eh valido com paginacao (pagina sem linhas).
             self.data_loaded.emit(df)
         except (

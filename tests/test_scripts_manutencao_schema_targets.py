@@ -12,7 +12,9 @@ def _load_module(module_path: Path, module_name: str):
     return module
 
 
-def _create_test_db(db_path: Path, rows: list[tuple[str, str, str, str, str, str]] | None = None) -> None:
+def _create_test_db(
+    db_path: Path, rows: list[tuple[str, str, str, str, str, str]] | None = None
+) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     schema_path = Path(__file__).resolve().parents[1] / "config" / "schema_unified.sql"
     if rows is None:
@@ -41,7 +43,9 @@ def test_analyze_db_integrity_uses_ssa_table_and_runs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     module = _load_module(
-        Path(__file__).resolve().parents[1] / "scripts_manutencao" / "analyze_db_integrity.py",
+        Path(__file__).resolve().parents[1]
+        / "scripts_manutencao"
+        / "analyze_db_integrity.py",
         "analyze_db_integrity_test",
     )
     result = module.analyze_database_integrity()
@@ -51,7 +55,9 @@ def test_analyze_db_integrity_uses_ssa_table_and_runs(tmp_path, monkeypatch):
     assert result["total_records"] == 2
 
 
-def test_analyze_db_integrity_reports_empty_fields_as_aggregate_flag(tmp_path, monkeypatch):
+def test_analyze_db_integrity_reports_empty_fields_as_aggregate_flag(
+    tmp_path, monkeypatch
+):
     db_path = tmp_path / "data" / "ssas.db"
     _create_test_db(
         db_path,
@@ -63,7 +69,9 @@ def test_analyze_db_integrity_reports_empty_fields_as_aggregate_flag(tmp_path, m
     monkeypatch.chdir(tmp_path)
 
     module = _load_module(
-        Path(__file__).resolve().parents[1] / "scripts_manutencao" / "analyze_db_integrity.py",
+        Path(__file__).resolve().parents[1]
+        / "scripts_manutencao"
+        / "analyze_db_integrity.py",
         "analyze_db_integrity_aggregate_flag_test",
     )
     result = module.analyze_database_integrity()
@@ -71,13 +79,17 @@ def test_analyze_db_integrity_reports_empty_fields_as_aggregate_flag(tmp_path, m
     assert result["empty_fields"] is True
 
 
-def test_analyze_db_integrity_handles_empty_table_without_zero_division(tmp_path, monkeypatch):
+def test_analyze_db_integrity_handles_empty_table_without_zero_division(
+    tmp_path, monkeypatch
+):
     db_path = tmp_path / "data" / "ssas.db"
     _create_test_db(db_path, rows=[])
     monkeypatch.chdir(tmp_path)
 
     module = _load_module(
-        Path(__file__).resolve().parents[1] / "scripts_manutencao" / "analyze_db_integrity.py",
+        Path(__file__).resolve().parents[1]
+        / "scripts_manutencao"
+        / "analyze_db_integrity.py",
         "analyze_db_integrity_empty_table_test",
     )
     result = module.analyze_database_integrity()
@@ -86,7 +98,9 @@ def test_analyze_db_integrity_handles_empty_table_without_zero_division(tmp_path
     assert result["empty_fields"] is False
 
 
-def test_analyze_db_integrity_duplicate_count_not_limited_to_top10(tmp_path, monkeypatch):
+def test_analyze_db_integrity_duplicate_count_not_limited_to_top10(
+    tmp_path, monkeypatch
+):
     db_path = tmp_path / "data" / "ssas.db"
     rows: list[tuple[str, str, str, str, str, str]] = []
     for idx in range(12):
@@ -97,7 +111,9 @@ def test_analyze_db_integrity_duplicate_count_not_limited_to_top10(tmp_path, mon
     monkeypatch.chdir(tmp_path)
 
     module = _load_module(
-        Path(__file__).resolve().parents[1] / "scripts_manutencao" / "analyze_db_integrity.py",
+        Path(__file__).resolve().parents[1]
+        / "scripts_manutencao"
+        / "analyze_db_integrity.py",
         "analyze_db_integrity_duplicate_count_test",
     )
     result = module.analyze_database_integrity()

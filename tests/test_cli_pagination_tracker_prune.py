@@ -15,7 +15,9 @@ def test_prune_pagination_tracker_keeps_only_active_stack_entries():
     cli._reset_pagination_state(top_df)
     cli._reset_pagination_state(orphan_df)
 
-    cli._prune_pagination_tracker_for_stack([(base_df, []), (top_df, ["a"])], force=True)
+    cli._prune_pagination_tracker_for_stack(
+        [(base_df, []), (top_df, ["a"])], force=True
+    )
 
     base_key = cli._pagination_state_key_for_df(base_df)
     top_key = cli._pagination_state_key_for_df(top_df)

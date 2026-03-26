@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import types
 import errno as errno_mod
 import os
+import types
 
 import interface.cli_enhancement_manager as cli_mgr_mod
 from interface.cli_enhancement_manager import CLIEnhancementManager

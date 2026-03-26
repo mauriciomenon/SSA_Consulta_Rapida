@@ -7,6 +7,7 @@ import json
 import os
 import re
 from typing import Any, Dict, Iterable, List
+
 from core import config_manager as core_config_manager
 from core.config_manager import atomic_write_json_file
 from utils.robust_logging import get_robust_logger
@@ -30,6 +31,7 @@ CONFIG_PATH = _resolve_gui_main_preferences_path()
 def get_gui_main_preferences_path() -> str:
     """Return current GUI preferences path resolved from active config hierarchy."""
     return _resolve_gui_main_preferences_path()
+
 
 # Contract: these columns must always be available in GUI defaults and mappings.
 REQUIRED_DISPLAY_COLUMNS: List[str] = [
@@ -132,12 +134,17 @@ DEFAULT_GUI_MAIN_PREFERENCES: Dict[str, Any] = {
 DEFAULT_GUI_MAIN_PREFERENCES["display_mappings"] = copy.deepcopy(
     DEFAULT_GUI_MAIN_PREFERENCES["column_display_names"]
 )
-DEFAULT_GUI_MAIN_PREFERENCES["required_display_columns"] = list(REQUIRED_DISPLAY_COLUMNS)
-HARD_DEFAULT_GUI_MAIN_PREFERENCES: Dict[str, Any] = copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
+DEFAULT_GUI_MAIN_PREFERENCES["required_display_columns"] = list(
+    REQUIRED_DISPLAY_COLUMNS
+)
+HARD_DEFAULT_GUI_MAIN_PREFERENCES: Dict[str, Any] = copy.deepcopy(
+    DEFAULT_GUI_MAIN_PREFERENCES
+)
 
 
 def _hard_default_preferences_copy() -> Dict[str, Any]:
     return copy.deepcopy(HARD_DEFAULT_GUI_MAIN_PREFERENCES)
+
 
 # Columns kept in DB for compatibility only; do not offer in interactive GUI selectors.
 COMPATIBILITY_NULL_UI_COLUMNS = {
@@ -151,8 +158,19 @@ COMPATIBILITY_NULL_UI_COLUMNS = {
     "situacao_da_parcial",
 }
 
-_MERGE_KEYS = {"display_columns", "hidden_columns", "column_display_names", "column_widths", "gui_settings"}
-_LEGACY_INVALID_COLUMN_KEYS = {"Número da SSA", "Numero da SSA", "No SSA", "Data Cadastro"}
+_MERGE_KEYS = {
+    "display_columns",
+    "hidden_columns",
+    "column_display_names",
+    "column_widths",
+    "gui_settings",
+}
+_LEGACY_INVALID_COLUMN_KEYS = {
+    "Número da SSA",
+    "Numero da SSA",
+    "No SSA",
+    "Data Cadastro",
+}
 
 
 def _unique_str_list(values: Iterable[Any]) -> List[str]:
@@ -199,7 +217,9 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
         hidden_columns = _unique_str_list(loaded_hidden)
     else:
         hidden_columns = list(DEFAULT_GUI_MAIN_PREFERENCES["hidden_columns"])
-    hidden_columns = [column for column in hidden_columns if column not in display_columns]
+    hidden_columns = [
+        column for column in hidden_columns if column not in display_columns
+    ]
     merged["hidden_columns"] = hidden_columns
 
     names = copy.deepcopy(DEFAULT_COLUMN_DISPLAY_NAMES)
@@ -236,7 +256,8 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
         )
     for column in display_columns:
         names.setdefault(
-            column, DEFAULT_COLUMN_DISPLAY_NAMES.get(column, _build_fallback_label(column))
+            column,
+            DEFAULT_COLUMN_DISPLAY_NAMES.get(column, _build_fallback_label(column)),
         )
     merged["column_display_names"] = names
     merged["display_mappings"] = copy.deepcopy(names)
@@ -327,11 +348,15 @@ def ensure_gui_main_preferences_file(config_path: str | None = None) -> bool:
         _create_gui_main_preferences_file(config_path)
         return True
     except Exception as exc:
-        logger.error("Unable to ensure GUI preferences file at %s: %s", config_path, exc)
+        logger.error(
+            "Unable to ensure GUI preferences file at %s: %s", config_path, exc
+        )
         return False
 
 
-def reload_gui_main_preferences_in_place(*, auto_create: bool = False) -> Dict[str, Any]:
+def reload_gui_main_preferences_in_place(
+    *, auto_create: bool = False
+) -> Dict[str, Any]:
     """Reload GUI preferences from disk into shared in-memory dict."""
     loaded = load_gui_main_preferences(auto_create=auto_create)
     GUI_MAIN_PREFERENCES.clear()
@@ -370,14 +395,22 @@ def load_gui_main_preferences(
     if not config_path:
         config_path = get_gui_main_preferences_path()
     if not os.path.exists(config_path):
-        logger.warning("GUI main preferences not found at %s, using defaults.", config_path)
+        logger.warning(
+            "GUI main preferences not found at %s, using defaults.", config_path
+        )
         if auto_create:
             try:
                 _create_gui_main_preferences_file(config_path)
             except OSError as exc:
-                logger.error("Unable to create GUI preferences at %s: %s", config_path, exc)
+                logger.error(
+                    "Unable to create GUI preferences at %s: %s", config_path, exc
+                )
             except Exception as exc:
-                logger.error("Unexpected error creating GUI preferences at %s: %s", config_path, exc)
+                logger.error(
+                    "Unexpected error creating GUI preferences at %s: %s",
+                    config_path,
+                    exc,
+                )
         return _hard_default_preferences_copy()
 
     try:
@@ -391,17 +424,27 @@ def load_gui_main_preferences(
         return _hard_default_preferences_copy()
 
     if not isinstance(loaded_config, dict):
-        logger.warning("Invalid GUI preference structure at %s, using defaults.", config_path)
+        logger.warning(
+            "Invalid GUI preference structure at %s, using defaults.", config_path
+        )
         return _hard_default_preferences_copy()
     if not _has_minimum_preferences_integrity(loaded_config):
-        logger.warning("GUI preferences integrity check failed at %s, using defaults.", config_path)
+        logger.warning(
+            "GUI preferences integrity check failed at %s, using defaults.", config_path
+        )
         if auto_create:
             try:
                 _create_gui_main_preferences_file(config_path)
             except OSError as exc:
-                logger.error("Unable to recreate GUI preferences at %s: %s", config_path, exc)
+                logger.error(
+                    "Unable to recreate GUI preferences at %s: %s", config_path, exc
+                )
             except Exception as exc:
-                logger.error("Unexpected error recreating GUI preferences at %s: %s", config_path, exc)
+                logger.error(
+                    "Unexpected error recreating GUI preferences at %s: %s",
+                    config_path,
+                    exc,
+                )
         return _hard_default_preferences_copy()
 
     return _merge_preferences(loaded_config)

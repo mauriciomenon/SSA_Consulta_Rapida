@@ -4,7 +4,9 @@ from typing import Union
 
 import pandas as pd
 
-from armazenamento.database_integrity import repair_database_if_needed as _core_repair_database_if_needed
+from armazenamento.database_integrity import (
+    repair_database_if_needed as _core_repair_database_if_needed,
+)
 from utils.robust_logging import get_robust_logger
 
 TABLE_NAME = "ssa_table"
@@ -87,10 +89,9 @@ def _get_schema_path() -> Path:
 
 
 def _build_empty_metric_select(field_name: str) -> str:
-    return (
-        "SUM(CASE WHEN {invalid_clause} "
-        "THEN 1 ELSE 0 END) AS {field}"
-    ).format(field=field_name, invalid_clause=_build_invalid_value_clause(field_name))
+    return ("SUM(CASE WHEN {invalid_clause} THEN 1 ELSE 0 END) AS {field}").format(
+        field=field_name, invalid_clause=_build_invalid_value_clause(field_name)
+    )
 
 
 def _build_invalid_value_clause(field_name: str) -> str:
@@ -104,10 +105,15 @@ def _build_query(template: str) -> str:
 _CORE_METRICS_QUERY = _build_query(
     _CORE_METRICS_QUERY_TEMPLATE.replace(
         "__METRIC_SELECTS__",
-        ",\n        ".join(_build_empty_metric_select(field) for field in CORE_METRIC_FIELDS),
+        ",\n        ".join(
+            _build_empty_metric_select(field) for field in CORE_METRIC_FIELDS
+        ),
     ).replace(
         "__CORE_EMPTY_RECORD_CLAUSE__",
-        " AND ".join(f"({_build_invalid_value_clause(field)})" for field in REQUIRED_EMPTY_RECORD_FIELDS),
+        " AND ".join(
+            f"({_build_invalid_value_clause(field)})"
+            for field in REQUIRED_EMPTY_RECORD_FIELDS
+        ),
     ),
 )
 
@@ -143,7 +149,9 @@ def _query_core_metrics(conn: sqlite3.Connection) -> tuple[int, dict[str, int], 
 
 def _query_duplicates(conn: sqlite3.Connection) -> tuple[pd.DataFrame, int]:
     duplicates = pd.read_sql_query(_DUPLICATES_QUERY, conn)
-    total_duplicated = int(duplicates.iloc[0]["total_duplicated"]) if len(duplicates) > 0 else 0
+    total_duplicated = (
+        int(duplicates.iloc[0]["total_duplicated"]) if len(duplicates) > 0 else 0
+    )
     return duplicates, total_duplicated
 
 
@@ -153,7 +161,9 @@ def _log_duplicates(duplicates: pd.DataFrame, total_duplicated: int) -> None:
         logger.warning("   Top 10 numeros de SSA mais duplicados:")
         for _, row in duplicates.iterrows():
             logger.warning("     SSA %s: %s copias", row["numero_ssa"], row["count"])
-        logger.warning("   Total de registros duplicados para remocao: %s", f"{total_duplicated:,}")
+        logger.warning(
+            "   Total de registros duplicados para remocao: %s", f"{total_duplicated:,}"
+        )
         return
     logger.info("OK Nenhuma duplicata encontrada por numero_ssa")
 
@@ -210,12 +220,17 @@ def verify_database_integrity():
         if empty_count > 0:
             any_empty_fields = True
             percentage = (empty_count / total_records * 100) if total_records else 0.0
-            logger.warning("   ERR %s: %s vazios (%.1f%%)", field, f"{empty_count:,}", percentage)
+            logger.warning(
+                "   ERR %s: %s vazios (%.1f%%)", field, f"{empty_count:,}", percentage
+            )
         else:
             logger.info("   OK %s: Todos preenchidos", field)
 
     if empty_records > 0:
-        logger.warning("ERR REGISTROS VAZIOS: %s registros sem dados essenciais", f"{empty_records:,}")
+        logger.warning(
+            "ERR REGISTROS VAZIOS: %s registros sem dados essenciais",
+            f"{empty_records:,}",
+        )
 
     import_dates = pd.DataFrame(columns=["date", "count"])
     try:
@@ -230,11 +245,11 @@ def verify_database_integrity():
     _log_recommendations(len(duplicates) > 0, total_duplicated)
 
     summary: dict[str, object] = {
-        'total_records': int(total_records),
-        'has_duplicates': len(duplicates) > 0,
-        'duplicate_count': total_duplicated,
-        'empty_fields': any_empty_fields or int(empty_records) > 0,
-        'recent_import_dates': import_dates.to_dict(orient='records'),
+        "total_records": int(total_records),
+        "has_duplicates": len(duplicates) > 0,
+        "duplicate_count": total_duplicated,
+        "empty_fields": any_empty_fields or int(empty_records) > 0,
+        "recent_import_dates": import_dates.to_dict(orient="records"),
     }
     summary["stats_dict"] = summary.copy()
     return summary
@@ -245,10 +260,14 @@ def analyze_database_integrity():
     return verify_database_integrity()
 
 
-def repair_database_if_needed(report: dict[str, object] | None = None) -> dict[str, object]:
+def repair_database_if_needed(
+    report: dict[str, object] | None = None,
+) -> dict[str, object]:
     """Run integrity-check + repair flow when issues are detected."""
     current_report = report or verify_database_integrity()
-    needs_repair = bool(current_report.get("has_duplicates") or current_report.get("empty_fields"))
+    needs_repair = bool(
+        current_report.get("has_duplicates") or current_report.get("empty_fields")
+    )
     repaired = False
     if needs_repair:
         repaired = _core_repair_database_if_needed(

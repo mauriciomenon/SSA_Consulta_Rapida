@@ -22,11 +22,12 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
-
 Mode = Literal["pre-pr", "post-pr"]
 TablePresence = Literal["present", "absent", "unknown"]
 
-DEFAULT_STEP_TIMEOUT_SECONDS = int(os.environ.get("SSA_DEV_GUARD_STEP_TIMEOUT_SECONDS", "900"))
+DEFAULT_STEP_TIMEOUT_SECONDS = int(
+    os.environ.get("SSA_DEV_GUARD_STEP_TIMEOUT_SECONDS", "900")
+)
 PYTHON_EXE = sys.executable
 
 
@@ -47,7 +48,9 @@ class StepResult:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Derivadas local pre/post PR guard (Python fallback)")
+    parser = argparse.ArgumentParser(
+        description="Derivadas local pre/post PR guard (Python fallback)"
+    )
     parser.add_argument("--mode", choices=("pre-pr", "post-pr"), default="pre-pr")
     parser.add_argument("--db", dest="db_path", default="data/ssas.db")
     parser.add_argument("--skip-tests", action="store_true")
@@ -86,7 +89,9 @@ def _as_text(value: str | bytes | None) -> str:
     return value
 
 
-def build_steps(options: argparse.Namespace, *, include_sync_verify: bool) -> list[Step]:
+def build_steps(
+    options: argparse.Namespace, *, include_sync_verify: bool
+) -> list[Step]:
     lint_targets = [
         "armazenamento/derivadas_schema.py",
         "armazenamento/derivadas_queries.py",
@@ -115,23 +120,51 @@ def build_steps(options: argparse.Namespace, *, include_sync_verify: bool) -> li
 
     steps: list[Step] = []
     if not options.skip_lint:
-        steps.append(Step(name="py_compile", cmd=[PYTHON_EXE, "-m", "py_compile", *lint_targets]))
-        steps.append(Step(name="ruff_check", cmd=[PYTHON_EXE, "-m", "ruff", "check", *lint_targets]))
+        steps.append(
+            Step(name="py_compile", cmd=[PYTHON_EXE, "-m", "py_compile", *lint_targets])
+        )
+        steps.append(
+            Step(
+                name="ruff_check",
+                cmd=[PYTHON_EXE, "-m", "ruff", "check", *lint_targets],
+            )
+        )
 
     if options.mode == "pre-pr":
         if not options.skip_tests:
-            steps.append(Step(name="pytest_derivadas_suite", cmd=[PYTHON_EXE, "-m", "pytest", "-q", *derivadas_tests]))
+            steps.append(
+                Step(
+                    name="pytest_derivadas_suite",
+                    cmd=[PYTHON_EXE, "-m", "pytest", "-q", *derivadas_tests],
+                )
+            )
         if not options.skip_health:
             steps.append(
                 Step(
                     name="schema_scan",
-                    cmd=[PYTHON_EXE, "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "schema-scan"],
+                    cmd=[
+                        PYTHON_EXE,
+                        "scripts/derivadas_cli.py",
+                        "--db",
+                        options.db_path,
+                        "--output",
+                        "json",
+                        "schema-scan",
+                    ],
                 )
             )
             steps.append(
                 Step(
                     name="consistency_scan",
-                    cmd=[PYTHON_EXE, "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "scan"],
+                    cmd=[
+                        PYTHON_EXE,
+                        "scripts/derivadas_cli.py",
+                        "--db",
+                        options.db_path,
+                        "--output",
+                        "json",
+                        "scan",
+                    ],
                 )
             )
             if include_sync_verify:
@@ -153,24 +186,53 @@ def build_steps(options: argparse.Namespace, *, include_sync_verify: bool) -> li
             steps.append(
                 Step(
                     name="sync_stats",
-                    cmd=[PYTHON_EXE, "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "stats"],
+                    cmd=[
+                        PYTHON_EXE,
+                        "scripts/derivadas_cli.py",
+                        "--db",
+                        options.db_path,
+                        "--output",
+                        "json",
+                        "stats",
+                    ],
                 )
             )
         return steps
 
     if not options.skip_tests:
-        steps.append(Step(name="pytest_post_pr_smoke", cmd=[PYTHON_EXE, "-m", "pytest", "-q", *post_pr_tests]))
+        steps.append(
+            Step(
+                name="pytest_post_pr_smoke",
+                cmd=[PYTHON_EXE, "-m", "pytest", "-q", *post_pr_tests],
+            )
+        )
     if not options.skip_health:
         steps.append(
             Step(
                 name="schema_scan",
-                cmd=[PYTHON_EXE, "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "schema-scan"],
+                cmd=[
+                    PYTHON_EXE,
+                    "scripts/derivadas_cli.py",
+                    "--db",
+                    options.db_path,
+                    "--output",
+                    "json",
+                    "schema-scan",
+                ],
             )
         )
         steps.append(
             Step(
                 name="consistency_scan",
-                cmd=[PYTHON_EXE, "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "scan"],
+                cmd=[
+                    PYTHON_EXE,
+                    "scripts/derivadas_cli.py",
+                    "--db",
+                    options.db_path,
+                    "--output",
+                    "json",
+                    "scan",
+                ],
             )
         )
         steps.append(
@@ -193,7 +255,15 @@ def build_steps(options: argparse.Namespace, *, include_sync_verify: bool) -> li
         steps.append(
             Step(
                 name="sync_stats",
-                cmd=[PYTHON_EXE, "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "stats"],
+                cmd=[
+                    PYTHON_EXE,
+                    "scripts/derivadas_cli.py",
+                    "--db",
+                    options.db_path,
+                    "--output",
+                    "json",
+                    "stats",
+                ],
             )
         )
     return steps
@@ -238,7 +308,9 @@ def run_step(step: Step) -> StepResult:
 def write_report(options: argparse.Namespace, results: list[StepResult]) -> str:
     report_dir = Path(os.getcwd()) / options.output_dir
     report_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = dt.datetime.now(dt.timezone.utc).isoformat().replace(":", "-").replace(".", "-")
+    timestamp = (
+        dt.datetime.now(dt.timezone.utc).isoformat().replace(":", "-").replace(".", "-")
+    )
     report_path = report_dir / f"dev_ai_guard_{options.mode}_{timestamp}_py.json"
     payload = {
         "mode": options.mode,
@@ -248,7 +320,9 @@ def write_report(options: argparse.Namespace, results: list[StepResult]) -> str:
         "steps": [asdict(item) for item in results],
         "runner": "python-fallback",
     }
-    report_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    report_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     return str(report_path)
 
 
@@ -262,14 +336,18 @@ def main(argv: list[str] | None = None) -> int:
         and table_presence == "absent"
     )
     if auto_skipped_sync_verify:
-        print("Notice: skipping sync_verify_only because table 'ssa_table' is missing in DB.")
+        print(
+            "Notice: skipping sync_verify_only because table 'ssa_table' is missing in DB."
+        )
     if (
         options.mode == "pre-pr"
         and not options.skip_health
         and not options.skip_sync_verify
         and table_presence == "unknown"
     ):
-        print("Notice: table presence check returned unknown; keeping sync_verify_only enabled.")
+        print(
+            "Notice: table presence check returned unknown; keeping sync_verify_only enabled."
+        )
 
     include_sync_verify = not auto_skipped_sync_verify and not options.skip_sync_verify
     steps = build_steps(options, include_sync_verify=include_sync_verify)

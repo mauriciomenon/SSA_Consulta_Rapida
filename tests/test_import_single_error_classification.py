@@ -19,7 +19,9 @@ def _valid_df() -> pd.DataFrame:
     )
 
 
-def test_import_single_file_preserves_database_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_import_single_file_preserves_database_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setattr(
         app_logic.extractor,
         "extract_data_from_excel",
@@ -28,17 +30,34 @@ def test_import_single_file_preserves_database_error(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(
         app_logic.database,
         "validate_dataframe_before_insert",
-        lambda *args, **kwargs: {"is_valid": True, "violations": [], "invalid_by_column": {}, "issues": []},
+        lambda *args, **kwargs: {
+            "is_valid": True,
+            "violations": [],
+            "invalid_by_column": {},
+            "issues": [],
+        },
     )
-    monkeypatch.setattr(app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None)
-    monkeypatch.setattr(app_logic.database, "insert_dataframe_with_smart_upsert", lambda *args, **kwargs: False)
+    monkeypatch.setattr(
+        app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        app_logic.database,
+        "insert_dataframe_with_smart_upsert",
+        lambda *args, **kwargs: False,
+    )
 
     file_path = str(tmp_path / "input.xlsx")
-    with pytest.raises(app_logic.DatabaseError, match="Erro ao inserir dados do arquivo"):
-        app_logic._import_single_file(file_path, str(tmp_path / "db.sqlite"), "ssa_table")
+    with pytest.raises(
+        app_logic.DatabaseError, match="Erro ao inserir dados do arquivo"
+    ):
+        app_logic._import_single_file(
+            file_path, str(tmp_path / "db.sqlite"), "ssa_table"
+        )
 
 
-def test_import_single_file_keeps_unexpected_error_context(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_import_single_file_keeps_unexpected_error_context(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setattr(
         app_logic.extractor,
         "extract_data_from_excel",
@@ -47,21 +66,34 @@ def test_import_single_file_keeps_unexpected_error_context(monkeypatch: pytest.M
     monkeypatch.setattr(
         app_logic.database,
         "validate_dataframe_before_insert",
-        lambda *args, **kwargs: {"is_valid": True, "violations": [], "invalid_by_column": {}, "issues": []},
+        lambda *args, **kwargs: {
+            "is_valid": True,
+            "violations": [],
+            "invalid_by_column": {},
+            "issues": [],
+        },
     )
-    monkeypatch.setattr(app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None
+    )
 
     def _raise_unexpected(*args, **kwargs):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(app_logic.database, "insert_dataframe_with_smart_upsert", _raise_unexpected)
+    monkeypatch.setattr(
+        app_logic.database, "insert_dataframe_with_smart_upsert", _raise_unexpected
+    )
 
     file_path = str(tmp_path / "input.xlsx")
     with pytest.raises(app_logic.ExtractionError, match="boom"):
-        app_logic._import_single_file(file_path, str(tmp_path / "db.sqlite"), "ssa_table")
+        app_logic._import_single_file(
+            file_path, str(tmp_path / "db.sqlite"), "ssa_table"
+        )
 
 
-def test_import_single_file_raises_when_extractor_returns_none(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_import_single_file_raises_when_extractor_returns_none(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setattr(
         app_logic.extractor,
         "extract_data_from_excel",
@@ -70,7 +102,9 @@ def test_import_single_file_raises_when_extractor_returns_none(monkeypatch: pyte
 
     file_path = str(tmp_path / "input.xlsx")
     with pytest.raises(app_logic.ExtractionError, match="retornou None"):
-        app_logic._import_single_file(file_path, str(tmp_path / "db.sqlite"), "ssa_table")
+        app_logic._import_single_file(
+            file_path, str(tmp_path / "db.sqlite"), "ssa_table"
+        )
 
 
 def test_import_single_file_honors_cancel_before_empty_dataframe_branch(
@@ -125,12 +159,20 @@ def test_import_single_file_logs_friendly_duplicate_labels(
             "issues": [],
         },
     )
-    monkeypatch.setattr(app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None)
-    monkeypatch.setattr(app_logic.database, "insert_dataframe_with_smart_upsert", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        app_logic.database,
+        "insert_dataframe_with_smart_upsert",
+        lambda *args, **kwargs: True,
+    )
 
     caplog.set_level("WARNING")
     file_path = str(tmp_path / "input.xlsx")
-    ok, count = app_logic._import_single_file(file_path, str(tmp_path / "db.sqlite"), "ssa_table")
+    ok, count = app_logic._import_single_file(
+        file_path, str(tmp_path / "db.sqlite"), "ssa_table"
+    )
 
     assert ok is True
     assert count == 1

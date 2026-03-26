@@ -5,15 +5,15 @@ Utilitários para gerenciamento de cache de arquivos, baseado em hashes.
 Usado para determinar se arquivos Excel foram modificados desde a última importação.
 """
 
-import os
-import json
-import hashlib
 import errno
+import hashlib
+import json
 import logging
+import os
 import tempfile
 import time
 from pathlib import Path
-from typing import List, Dict, Union, Any, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ _CACHE_LOCK_TIMEOUT_SEC = 5.0
 _CACHE_LOCK_RETRY_SEC = 0.05
 _CACHE_STALE_MIN_AGE_SEC = 2.0
 _CACHE_STALE_FORCE_AGE_SEC = 300.0
+
 
 def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
     """Write JSON atomically to avoid corrupted/truncated cache files.
@@ -53,12 +54,18 @@ def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
             try:
                 os.close(fd)
             except OSError as exc:
-                logger.warning("Failed to close cache temp file descriptor for '%s': %s", cache_file, exc)
+                logger.warning(
+                    "Failed to close cache temp file descriptor for '%s': %s",
+                    cache_file,
+                    exc,
+                )
         if tmp_path:
             try:
                 os.remove(tmp_path)
             except OSError as exc:
-                logger.warning("Failed to remove cache temp file '%s': %s", tmp_path, exc)
+                logger.warning(
+                    "Failed to remove cache temp file '%s': %s", tmp_path, exc
+                )
 
 
 def _cache_lock_path(cache_file: str) -> str:
@@ -158,7 +165,9 @@ def _acquire_cache_lock(lock_path: str) -> int:
             try:
                 os.write(lock_fd, f"{os.getpid()}\n".encode("ascii", "ignore"))
             except OSError as exc:
-                logger.debug("Failed to write cache lock metadata '%s': %s", lock_path, exc)
+                logger.debug(
+                    "Failed to write cache lock metadata '%s': %s", lock_path, exc
+                )
             return lock_fd
         except FileExistsError:
             if _recover_stale_cache_lock(lock_path):
@@ -167,7 +176,9 @@ def _acquire_cache_lock(lock_path: str) -> int:
                 raise TimeoutError(f"Timeout acquiring cache write lock: {lock_path}")
             time.sleep(_CACHE_LOCK_RETRY_SEC)
         except OSError as exc:
-            raise RuntimeError(f"Failed to acquire cache write lock '{lock_path}': {exc}") from exc
+            raise RuntimeError(
+                f"Failed to acquire cache write lock '{lock_path}': {exc}"
+            ) from exc
 
 
 def _release_cache_lock(lock_fd: int, lock_path: str) -> None:
@@ -202,7 +213,11 @@ def _merge_cache_updates(cache_updates: Dict[str, Any], cache_file: str) -> None
 
         if changed:
             _atomic_write_json(current_cache, cache_file)
-            logger.debug("Cache merged and saved in '%s' (%s update entries).", cache_file, len(cache_updates))
+            logger.debug(
+                "Cache merged and saved in '%s' (%s update entries).",
+                cache_file,
+                len(cache_updates),
+            )
     finally:
         _release_cache_lock(lock_fd, lock_path)
 
@@ -217,6 +232,7 @@ def _safe_file_stat(file_path: str) -> Optional[Tuple[int, int]]:
 
     mtime_ns = getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000))
     return int(st.st_size), int(mtime_ns)
+
 
 def _cache_key_for_file(file_path: str, docs_dir: str) -> str:
     """Return a stable cache key using the relative path inside docs_dir."""
@@ -263,7 +279,8 @@ def get_all_xlsx_files(
             for root, dirnames, filenames in os.walk(processadas_dir):
                 if dirnames:
                     dirnames[:] = [
-                        dirname for dirname in dirnames
+                        dirname
+                        for dirname in dirnames
                         if dirname.strip().casefold() not in ignored
                     ]
                 for filename in filenames:
@@ -295,6 +312,7 @@ def get_ignored_legacy_excel_files(directory: str) -> List[str]:
     )
     return sorted(legacy_xls_files)
 
+
 def _calculate_hash(file_path: str, block_size: int = 65536) -> str:
     """
     Calcula o hash SHA-256 de um arquivo lendo-o em blocos.
@@ -309,7 +327,7 @@ def _calculate_hash(file_path: str, block_size: int = 65536) -> str:
     logger.debug(f"Calculando hash para '{file_path}'...")
     hash_sha256 = hashlib.sha256()
     try:
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             # Lê o arquivo em blocos para eficiência de memória
             for chunk in iter(lambda: f.read(block_size), b""):
                 hash_sha256.update(chunk)
@@ -320,19 +338,23 @@ def _calculate_hash(file_path: str, block_size: int = 65536) -> str:
         logger.error(f"Erro ao ler o arquivo {file_path} para hashing: {e}")
         return ""
 
+
 def load_cache(cache_file: str) -> Dict[str, Any]:
     """Carrega o cache de um arquivo JSON."""
     if not os.path.exists(cache_file):
         logger.debug(f"Arquivo de cache '{cache_file}' não encontrado.")
         return {}
     try:
-        with open(cache_file, 'r', encoding='utf-8') as f:
+        with open(cache_file, "r", encoding="utf-8") as f:
             cache = json.load(f)
         logger.debug(f"Cache carregado com {len(cache)} entradas.")
         return cache
     except (json.JSONDecodeError, UnicodeDecodeError, IOError) as e:
-        logger.warning(f"Erro ao carregar cache de '{cache_file}': {e}. Iniciando novo cache.")
+        logger.warning(
+            f"Erro ao carregar cache de '{cache_file}': {e}. Iniciando novo cache."
+        )
         return {}
+
 
 def save_cache(cache: Dict[str, Any], cache_file: str):
     """Salva o cache em um arquivo JSON."""
@@ -348,6 +370,7 @@ def save_cache(cache: Dict[str, Any], cache_file: str):
         # Cache nao eh critico para a importacao; nao deve derrubar o processo.
         # Ainda assim, logamos o erro para diagnostico.
         logger.exception("Erro ao salvar cache em '%s': %s", cache_file, e)
+
 
 def get_files_to_process(
     docs_dir: str,
@@ -454,7 +477,9 @@ def get_files_to_process(
             updated_cache[file_cache_key] = new_entry
             cache_updated = True
 
-    logger.info(f"{len(files_to_process)} arquivo(s) identificado(s) para processamento (novos ou modificados).")
+    logger.info(
+        f"{len(files_to_process)} arquivo(s) identificado(s) para processamento (novos ou modificados)."
+    )
 
     # Persist cache upgrades even when nothing is imported, so subsequent runs can
     # avoid hashing every file.
@@ -468,10 +493,17 @@ def get_files_to_process(
             try:
                 _merge_cache_updates(cache_updates, cache_file_path)
             except (OSError, RuntimeError, TimeoutError, ValueError, TypeError) as exc:
-                logger.exception("Erro ao mesclar atualizacao de cache em '%s': %s", cache_file_path, exc)
+                logger.exception(
+                    "Erro ao mesclar atualizacao de cache em '%s': %s",
+                    cache_file_path,
+                    exc,
+                )
     return files_to_process
 
-def update_cache_for_files(file_paths: List[str], cache_file: str, docs_dir: Optional[str] = None):
+
+def update_cache_for_files(
+    file_paths: List[str], cache_file: str, docs_dir: Optional[str] = None
+):
     """
     Atualiza o cache com os hashes dos arquivos processados com sucesso.
 
@@ -483,19 +515,29 @@ def update_cache_for_files(file_paths: List[str], cache_file: str, docs_dir: Opt
     cache_updates: Dict[str, Any] = {}
     for file_path in file_paths:
         filename = os.path.basename(file_path)
-        file_cache_key = _cache_key_for_file(file_path, docs_dir) if docs_dir else filename
+        file_cache_key = (
+            _cache_key_for_file(file_path, docs_dir) if docs_dir else filename
+        )
         stat_sig = _safe_file_stat(file_path)
         if stat_sig is None:
             continue
         size, mtime_ns = stat_sig
         file_hash = _calculate_hash(file_path)
-        if file_hash: # Só atualiza se o hash foi calculado com sucesso
-            cache_updates[file_cache_key] = {"sha256": file_hash, "size": size, "mtime_ns": mtime_ns}
+        if file_hash:  # Só atualiza se o hash foi calculado com sucesso
+            cache_updates[file_cache_key] = {
+                "sha256": file_hash,
+                "size": size,
+                "mtime_ns": mtime_ns,
+            }
         else:
-            logger.warning(f"Nao foi possivel atualizar o cache para {file_path} (hash falhou).")
+            logger.warning(
+                f"Nao foi possivel atualizar o cache para {file_path} (hash falhou)."
+            )
 
     if cache_updates:
         try:
             _merge_cache_updates(cache_updates, cache_file)
         except (OSError, RuntimeError, TimeoutError, ValueError, TypeError) as exc:
-            logger.exception("Erro ao mesclar atualizacao de cache em '%s': %s", cache_file, exc)
+            logger.exception(
+                "Erro ao mesclar atualizacao de cache em '%s': %s", cache_file, exc
+            )

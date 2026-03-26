@@ -36,7 +36,9 @@ def test_non_optimized_upsert_writes_canonical_ssa_ids(tmp_path: Path) -> None:
     assert str(row[1]) == "202500123"
 
 
-def test_non_optimized_upsert_does_not_clean_letters_into_canonical_ids(tmp_path: Path) -> None:
+def test_non_optimized_upsert_does_not_clean_letters_into_canonical_ids(
+    tmp_path: Path,
+) -> None:
     db_path = str(tmp_path / "test_non_optimized_letters.db")
     database.initialize_database(db_path, "config/schema.sql")
     database.set_optimized_mode(False)
@@ -65,7 +67,9 @@ def test_non_optimized_upsert_does_not_clean_letters_into_canonical_ids(tmp_path
     assert row[1] is None
 
 
-def test_non_optimized_upsert_does_not_clean_unicode_letters_into_canonical_ids(tmp_path: Path) -> None:
+def test_non_optimized_upsert_does_not_clean_unicode_letters_into_canonical_ids(
+    tmp_path: Path,
+) -> None:
     db_path = str(tmp_path / "test_non_optimized_unicode_letters.db")
     database.initialize_database(db_path, "config/schema.sql")
     database.set_optimized_mode(False)

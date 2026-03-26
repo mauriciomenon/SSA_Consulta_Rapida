@@ -1,12 +1,15 @@
 import pytest
 
-pytest.importorskip("PyQt6", reason="Dependencia PyQt6 indisponivel no ambiente de teste")
+pytest.importorskip(
+    "PyQt6", reason="Dependencia PyQt6 indisponivel no ambiente de teste"
+)
 from PyQt6.QtWidgets import QApplication
 
 import gui.workers.rescan_worker as rescan_worker_mod  # noqa: E402
 from gui.workers.rescan_worker import RescanWorker  # noqa: E402
 
 project_root = "pythonpath-configured"
+
 
 @pytest.fixture(scope="module", autouse=True)
 def qapp():

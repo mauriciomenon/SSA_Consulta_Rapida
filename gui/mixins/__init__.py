@@ -13,8 +13,8 @@ from gui.mixins.tab_context_gui_ssa_mixin import TabContextGUISSAMixin
 # from gui.mixins.theme_gui_ssa_mixin import ThemeGUISSAMixin
 
 __all__ = [
-    'FilterGUISSAMixin',
-    'TabContextGUISSAMixin',
+    "FilterGUISSAMixin",
+    "TabContextGUISSAMixin",
     # 'DisplayGUISSAMixin',
     # 'EventGUISSAMixin',
     # 'ThemeGUISSAMixin'

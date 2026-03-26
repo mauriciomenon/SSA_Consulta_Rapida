@@ -10,9 +10,13 @@ os.environ.setdefault("PYTHONUNBUFFERED", "1")
 
 # Basic logging config if not already configured
 if not logging.getLogger().handlers:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
+    )
 
-logging.getLogger(__name__).info("conftest initialized (unbuffered=%s)", os.environ.get("PYTHONUNBUFFERED"))
+logging.getLogger(__name__).info(
+    "conftest initialized (unbuffered=%s)", os.environ.get("PYTHONUNBUFFERED")
+)
 #!/usr/bin/env python3
 """Configurações de teste globais e fixtures compartilhadas.
 

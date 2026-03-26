@@ -1,14 +1,17 @@
 # gui/workers/rescan_worker.py
 # Worker thread for database rescanning
 
+import logging
 import os
 import sys
-import logging
 import threading
+
 from PyQt6.QtCore import QThread, pyqtSignal
 
 # Add project root to path for imports
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -59,7 +62,7 @@ class RescanWorker(QThread):
             self.error_line,
             error_observer=self._mark_runtime_error,
         )
-        self.logger = logging.getLogger('ssa')
+        self.logger = logging.getLogger("ssa")
 
         self._logger_attached = False
 
@@ -84,14 +87,18 @@ class RescanWorker(QThread):
                 try:
                     self.logger.removeHandler(self.log_handler)
                 except Exception as exc:
-                    logger.warning("Falha ao remover handler de logger do reescaneamento: %s", exc)
+                    logger.warning(
+                        "Falha ao remover handler de logger do reescaneamento: %s", exc
+                    )
             if _LOGGER_REFCOUNT > 0:
                 _LOGGER_REFCOUNT -= 1
             if _LOGGER_REFCOUNT == 0 and _LOGGER_PREV_LEVEL is not None:
                 try:
                     self.logger.setLevel(_LOGGER_PREV_LEVEL)
                 except Exception as exc:
-                    logger.warning("Falha ao restaurar nivel de logger do reescaneamento: %s", exc)
+                    logger.warning(
+                        "Falha ao restaurar nivel de logger do reescaneamento: %s", exc
+                    )
                 else:
                     _LOGGER_PREV_LEVEL = None
             self._logger_attached = False
@@ -101,44 +108,46 @@ class RescanWorker(QThread):
         if self._should_stop:
             return
 
-        if event_type == 'start':
-            total = data.get('total', 0)
+        if event_type == "start":
+            total = data.get("total", 0)
             self._last_total_files = int(total)
             self._last_processed_files = 0
             self.output_line.emit(f"Total de {total} arquivos para processar")
             self.progress.emit(10, "Iniciando processamento...")
 
-        elif event_type == 'file_start':
-            filename = data.get('filename', '')
-            current = data.get('current', 0)
-            total = data.get('total', 1)
+        elif event_type == "file_start":
+            filename = data.get("filename", "")
+            current = data.get("current", 0)
+            total = data.get("total", 1)
             percentage = int(10 + (current / total * 70))  # 10% to 80%
             self.output_line.emit(f"[{current}/{total}] Processando: {filename}")
             self.progress.emit(percentage, f"Arquivo {current}/{total}")
 
-        elif event_type == 'file_success':
-            filename = data.get('filename', '')
-            records = data.get('records', 0)
+        elif event_type == "file_success":
+            filename = data.get("filename", "")
+            records = data.get("records", 0)
             self.output_line.emit(f"[OK] {filename}: {records} registros")
 
-        elif event_type == 'file_error':
-            filename = data.get('filename', '')
-            error = data.get('error', 'Unknown error')
+        elif event_type == "file_error":
+            filename = data.get("filename", "")
+            error = data.get("error", "Unknown error")
             self._mark_runtime_error()
             self.error_line.emit(f"[ERRO] {filename}: {error}")
 
-        elif event_type == 'finish':
-            total = data.get('total', 0)
-            processed = data.get('processed', 0)
-            errors = data.get('errors', [])
+        elif event_type == "finish":
+            total = data.get("total", 0)
+            processed = data.get("processed", 0)
+            errors = data.get("errors", [])
             self._last_total_files = int(total)
             self._last_processed_files = int(processed)
             self._last_deterministic_failure_count = int(
-                data.get('deterministic_failure_count', 0)
+                data.get("deterministic_failure_count", 0)
             )
-            self._last_rejection_only = bool(data.get('rejection_only', False))
+            self._last_rejection_only = bool(data.get("rejection_only", False))
             self.output_line.emit("")
-            self.output_line.emit(f"Processamento concluido: {processed}/{total} arquivos")
+            self.output_line.emit(
+                f"Processamento concluido: {processed}/{total} arquivos"
+            )
             if errors:
                 self.output_line.emit(f"Erros: {len(errors)} arquivos falharam")
             self.progress.emit(90, "Finalizando...")
@@ -161,10 +170,10 @@ class RescanWorker(QThread):
 
             # Call modular import function directly
             success = run_importer_logic(
-                docs_dir='docs_entrada',
-                data_dir='data',
-                db_name='ssas.db',
-                table_name='ssa_table',
+                docs_dir="docs_entrada",
+                data_dir="data",
+                db_name="ssas.db",
+                table_name="ssa_table",
                 force_import=self.force_import,
                 should_cancel=lambda: self._should_stop,
                 progress_callback=self._progress_callback,
@@ -182,7 +191,9 @@ class RescanWorker(QThread):
             elif self._last_rejection_only:
                 self.progress.emit(100, "Concluido com arquivos rejeitados por regra")
                 self.output_line.emit("")
-                self.output_line.emit("=== Reescaneamento Concluido com Rejeicoes Deterministicas ===")
+                self.output_line.emit(
+                    "=== Reescaneamento Concluido com Rejeicoes Deterministicas ==="
+                )
                 self.output_line.emit(
                     "Arquivos fora do padrao esperado foram ignorados sem bloquear o banco atual."
                 )
@@ -191,8 +202,12 @@ class RescanWorker(QThread):
                 if not self.force_import:
                     self.progress.emit(100, "Concluido sem alteracoes")
                     self.output_line.emit("")
-                    self.output_line.emit("=== Reescaneamento Concluido (sem alteracoes) ===")
-                    self.output_line.emit("Nenhum arquivo novo ou alterado foi encontrado.")
+                    self.output_line.emit(
+                        "=== Reescaneamento Concluido (sem alteracoes) ==="
+                    )
+                    self.output_line.emit(
+                        "Nenhum arquivo novo ou alterado foi encontrado."
+                    )
                     self.finished_success.emit()
                 else:
                     if self._has_runtime_errors or self._last_total_files > 0:
@@ -200,16 +215,28 @@ class RescanWorker(QThread):
                         self.output_line.emit("")
                         self.output_line.emit("=== Reescaneamento Completo Falhou ===")
                         if self._has_runtime_errors:
-                            self.output_line.emit("Importacao falhou com erros durante o processamento.")
-                            self.finished_error.emit("Importacao completa falhou com erros")
+                            self.output_line.emit(
+                                "Importacao falhou com erros durante o processamento."
+                            )
+                            self.finished_error.emit(
+                                "Importacao completa falhou com erros"
+                            )
                         else:
-                            self.output_line.emit("Importacao concluida mas nenhum dado foi atualizado.")
-                            self.finished_error.emit("Importacao completa sem atualizacoes")
+                            self.output_line.emit(
+                                "Importacao concluida mas nenhum dado foi atualizado."
+                            )
+                            self.finished_error.emit(
+                                "Importacao completa sem atualizacoes"
+                            )
                     else:
                         self.progress.emit(100, "Concluido sem alteracoes")
                         self.output_line.emit("")
-                        self.output_line.emit("=== Reescaneamento Completo Concluido (sem alteracoes) ===")
-                        self.output_line.emit("Importacao concluida sem dados atualizados.")
+                        self.output_line.emit(
+                            "=== Reescaneamento Completo Concluido (sem alteracoes) ==="
+                        )
+                        self.output_line.emit(
+                            "Importacao concluida sem dados atualizados."
+                        )
                         self.finished_success.emit()
 
         except Exception as exc:

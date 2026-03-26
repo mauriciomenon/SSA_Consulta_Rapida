@@ -3,6 +3,7 @@
 
 Usa a função pública normalize_numero_ssa (se existir) ou fallback para lógica interna.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -29,7 +30,8 @@ def test_normalization_cases(normalization_cases):
 @pytest.mark.parametrize(
     "entrada",
     [
-        "202512345", 202512345,
+        "202512345",
+        202512345,
     ],
 )
 def test_normalization_idempotent_for_valid_values(entrada):
