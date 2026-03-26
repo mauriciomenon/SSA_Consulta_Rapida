@@ -14,7 +14,7 @@ from shared.import_contract import (
     VALIDATION_REQUIRED_COLUMNS,
 )
 
-from .numero_ssa_utils import _normalize_numero_ssa_value
+from .numero_ssa_utils import normalize_numero_ssa_storage
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ def _validate_required_columns(df: pd.DataFrame, report: dict[str, Any]) -> None
 def _validate_numero_ssa(df: pd.DataFrame, report: dict[str, Any]) -> None:
     if "numero_ssa" not in df.columns:
         return
-    normalized_ssa = df["numero_ssa"].map(_normalize_numero_ssa_value)
+    normalized_ssa = df["numero_ssa"].map(normalize_numero_ssa_storage)
     invalid_ssa_mask = normalized_ssa.isna()
     invalid_count = int(invalid_ssa_mask.sum())
     if invalid_count == 0:
@@ -158,10 +158,14 @@ def _validate_date_columns(df: pd.DataFrame, report: dict[str, Any]) -> None:
 def _validate_duplicate_ssa(df: pd.DataFrame, report: dict[str, Any]) -> None:
     if "numero_ssa" not in df.columns:
         return
-    valid_ssa_df = df[df["numero_ssa"].notna()]
+    canonical_ssa = df["numero_ssa"].map(normalize_numero_ssa_storage)
+    valid_ssa_df = df.loc[canonical_ssa.notna()].copy()
     if valid_ssa_df.empty:
         return
-    duplicated_ssa = valid_ssa_df.duplicated(subset=["numero_ssa"], keep=False)
+    valid_ssa_df["numero_ssa_canonical"] = canonical_ssa.loc[valid_ssa_df.index]
+    duplicated_ssa = valid_ssa_df.duplicated(
+        subset=["numero_ssa_canonical"], keep=False
+    )
     duplicate_count = int(duplicated_ssa.sum())
     if duplicate_count == 0:
         return
@@ -169,7 +173,7 @@ def _validate_duplicate_ssa(df: pd.DataFrame, report: dict[str, Any]) -> None:
     exact_duplicate_indices: list[int] = []
     conflicting_duplicate_indices: list[int] = []
     duplicate_groups = valid_ssa_df.loc[duplicated_ssa].groupby(
-        "numero_ssa", sort=False, dropna=False
+        "numero_ssa_canonical", sort=False, dropna=False
     )
     for _, group in duplicate_groups:
         if len(group.drop_duplicates()) == 1:

@@ -157,6 +157,8 @@ def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         return df
     out = df.copy()
     out["numero_ssa"] = pd.Series(
-        [normalize_numero_ssa_storage(v) for v in out["numero_ssa"]], dtype="object"
+        [normalize_numero_ssa_storage(v) for v in out["numero_ssa"]],
+        index=out.index,
+        dtype="object",
     )
     return out
