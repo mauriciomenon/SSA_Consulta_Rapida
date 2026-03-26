@@ -157,7 +157,9 @@ def test_ensure_derivadas_schema_validates_path_before_open(tmp_path, monkeypatc
         captured["purpose"] = purpose
         raise PermissionError("blocked")
 
-    monkeypatch.setattr("armazenamento.derivadas_schema.ensure_path_is_allowed", _raise_blocked)
+    monkeypatch.setattr(
+        "armazenamento.derivadas_schema.ensure_path_is_allowed", _raise_blocked
+    )
 
     with pytest.raises(PermissionError, match="blocked"):
         ensure_derivadas_schema(str(db_path))

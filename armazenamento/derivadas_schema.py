@@ -425,7 +425,9 @@ def ensure_derivadas_schema_for_read(conn: sqlite3.Connection) -> None:
 def ensure_derivadas_schema(db_path: str) -> None:
     """Create derivadas schema objects in a DB path if needed."""
 
-    safe_db_path = str(ensure_path_is_allowed(db_path, purpose="ensure derivadas schema"))
+    safe_db_path = str(
+        ensure_path_is_allowed(db_path, purpose="ensure derivadas schema")
+    )
     with get_db_connection(safe_db_path) as conn:
         ensure_derivadas_schema_on_connection(conn)
         conn.commit()
