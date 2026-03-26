@@ -186,3 +186,21 @@ def test_filter_dataframe_rebuilds_search_cache_for_refined_subset() -> None:
     assert len(cached_search_data["row_search_text"]) == len(first.index)
     assert "_filter_search_cache" not in refined.attrs
     assert "_filter_search_token" not in refined.attrs
+
+
+def test_filter_dataframe_invalidates_cache_after_in_place_value_change() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001"],
+            "descricao_ssa": ["ADM equipe"],
+        }
+    )
+
+    first = filter_dataframe(df, ["adm"], ["descricao_ssa"])
+    assert list(first["numero_ssa"]) == ["202500001"]
+
+    df.loc[0, "descricao_ssa"] = "STE equipe"
+
+    second = filter_dataframe(df, ["ste"], ["descricao_ssa"])
+
+    assert list(second["numero_ssa"]) == ["202500001"]
