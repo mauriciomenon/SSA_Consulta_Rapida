@@ -132,9 +132,12 @@ def _resolve_physical_table(conn, table_name: str) -> str:
             (table_name,),
         )
         row = cursor.fetchone()
-        if row and row[1] == "view" and normalized_name in {
-            alias.casefold() for alias in LEGACY_SSA_TABLE_ALIASES
-        }:
+        if (
+            row
+            and row[1] == "view"
+            and normalized_name
+            in {alias.casefold() for alias in LEGACY_SSA_TABLE_ALIASES}
+        ):
             cursor2 = conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
                 (CANONICAL_SSA_TABLE,),
@@ -465,7 +468,9 @@ def insert_dataframe_optimized(
                             )
                         else:
                             ssa_list = list(update_df["numero_ssa"])
-                            existing_rows_by_ssa: dict[str, dict[str, object | None]] = {}
+                            existing_rows_by_ssa: dict[
+                                str, dict[str, object | None]
+                            ] = {}
                             for i in range(0, len(ssa_list), CHUNK_SIZE):
                                 chunk_ssas = ssa_list[i : i + CHUNK_SIZE]
                                 ssa_placeholders = ",".join(["?"] * len(chunk_ssas))
@@ -478,16 +483,12 @@ def insert_dataframe_optimized(
                                 )
                                 if existing_chunk.empty:
                                     continue
-                                existing_chunk = (
-                                    existing_chunk.astype("object").where(
-                                        pd.notna(existing_chunk), None
-                                    )
+                                existing_chunk = existing_chunk.astype("object").where(
+                                    pd.notna(existing_chunk), None
                                 )
-                                existing_chunk["numero_ssa"] = (
-                                    existing_chunk["numero_ssa"].map(
-                                        normalize_numero_ssa_storage
-                                    )
-                                )
+                                existing_chunk["numero_ssa"] = existing_chunk[
+                                    "numero_ssa"
+                                ].map(normalize_numero_ssa_storage)
                                 existing_chunk = existing_chunk[
                                     existing_chunk["numero_ssa"].notna()
                                 ]
@@ -503,9 +504,9 @@ def insert_dataframe_optimized(
                                 numero_ssa = update_row.get("numero_ssa")
                                 if numero_ssa is None:
                                     continue
-                                merged_row = (
-                                    existing_rows_by_ssa.get(str(numero_ssa), {}).copy()
-                                )
+                                merged_row = existing_rows_by_ssa.get(
+                                    str(numero_ssa), {}
+                                ).copy()
                                 merged_row.update(update_row)
                                 merged_rows.append(merged_row)
 
@@ -518,9 +519,7 @@ def insert_dataframe_optimized(
                                 insert_columns = list(merged_df.columns)
                                 for i in range(0, len(update_df), CHUNK_SIZE):
                                     chunk_ssas = ssa_list[i : i + CHUNK_SIZE]
-                                    ssa_placeholders = ",".join(
-                                        ["?"] * len(chunk_ssas)
-                                    )
+                                    ssa_placeholders = ",".join(["?"] * len(chunk_ssas))
                                     delete_query = (
                                         f"DELETE FROM {target_table_sql} "
                                         f"WHERE numero_ssa IN ({ssa_placeholders})"
@@ -547,9 +546,11 @@ def insert_dataframe_optimized(
                                 )
                                 for i in range(0, len(merged_df), insert_chunk_size):
                                     chunk = merged_df.iloc[i : i + insert_chunk_size]
-                                    normalized_chunk = chunk[insert_columns].astype(
-                                        "object"
-                                    ).where(pd.notna(chunk[insert_columns]), None)
+                                    normalized_chunk = (
+                                        chunk[insert_columns]
+                                        .astype("object")
+                                        .where(pd.notna(chunk[insert_columns]), None)
+                                    )
                                     params = list(
                                         normalized_chunk.itertuples(
                                             index=False, name=None
