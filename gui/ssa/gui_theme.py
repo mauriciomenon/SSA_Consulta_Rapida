@@ -9,29 +9,29 @@ import os
 import sys
 
 from core.config_manager import atomic_write_json_file
-from utils.themes import get_palette, get_theme_roles, normalize_theme
 from utils.robust_logging import get_robust_logger
+from utils.themes import get_palette, get_theme_roles, normalize_theme
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
 
 def get_theme_catalog():
     light_themes = [
-        ("Classico", 'classico'),
-        ("Mint Light", 'mint-light'),
-        ("Paper", 'paper'),
-        ("Solarized Light", 'solarized-light'),
-        ("Windows 7", 'windows7'),
+        ("Classico", "classico"),
+        ("Mint Light", "mint-light"),
+        ("Paper", "paper"),
+        ("Solarized Light", "solarized-light"),
+        ("Windows 7", "windows7"),
     ]
     dark_themes = [
-        ("Catppuccin (Mocha)", 'catppuccin'),
-        ("Dark", 'dark'),
-        ("Dracula", 'dracula'),
-        ("Grayscale", 'grayscale'),
-        ("Gruvbox", 'gruvbox'),
-        ("Nord", 'nord'),
-        ("Solarized Dark", 'solarized-dark'),
-        ("Tokyo Night", 'tokyo-night'),
+        ("Catppuccin (Mocha)", "catppuccin"),
+        ("Dark", "dark"),
+        ("Dracula", "dracula"),
+        ("Grayscale", "grayscale"),
+        ("Gruvbox", "gruvbox"),
+        ("Nord", "nord"),
+        ("Solarized Dark", "solarized-dark"),
+        ("Tokyo Night", "tokyo-night"),
     ]
     return light_themes, dark_themes
 
@@ -53,7 +53,9 @@ def resolve_startup_theme(gui_settings: dict) -> str:
     return "gruvbox"
 
 
-def persist_gui_preferences(gui_prefs: dict, project_root: str, *, retries: int = 1) -> bool:
+def persist_gui_preferences(
+    gui_prefs: dict, project_root: str, *, retries: int = 1
+) -> bool:
     attempts = max(0, int(retries or 0)) + 1
     for attempt in range(attempts):
         try:
@@ -75,12 +77,21 @@ def persist_gui_preferences(gui_prefs: dict, project_root: str, *, retries: int 
 
 
 def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
-    from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QComboBox, QCheckBox, QDialogButtonBox
+    from PyQt6.QtWidgets import (
+        QCheckBox,
+        QComboBox,
+        QDialog,
+        QDialogButtonBox,
+        QLabel,
+        QVBoxLayout,
+    )
 
     light_themes, dark_themes = get_theme_catalog()
     gui_settings = gui_prefs.get("gui_settings", {})
     theme_default = gui_settings.get("theme_default")
-    current_theme = normalize_theme(getattr(window, "_current_theme", "") or theme_default or "gruvbox")
+    current_theme = normalize_theme(
+        getattr(window, "_current_theme", "") or theme_default or "gruvbox"
+    )
     is_default_theme = normalize_theme(theme_default or "") == current_theme
 
     dialog = QDialog(window)
@@ -126,7 +137,9 @@ def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
     try:
         window.apply_theme(selected_theme_key)
     except Exception as exc:
-        logger.warning("Falha ao aplicar tema selecionado '%s': %s", selected_theme_key, exc)
+        logger.warning(
+            "Falha ao aplicar tema selecionado '%s': %s", selected_theme_key, exc
+        )
         return
 
     gui_settings = gui_prefs.setdefault("gui_settings", {})
@@ -144,20 +157,23 @@ def _apply_global_palette(window, normalized: str, same_theme: bool):
         return window.palette()
     try:
         from PyQt6.QtWidgets import QApplication, QStyleFactory
+
         app_instance = QApplication.instance()
         app = app_instance if isinstance(app_instance, QApplication) else None
         pal = get_palette(normalized)
         try:
             if app is not None:
                 styles = QStyleFactory.keys()
-                if styles and 'Fusion' in styles:
-                    app.setStyle('Fusion')
+                if styles and "Fusion" in styles:
+                    app.setStyle("Fusion")
         except Exception as exc:
             logger.debug("Falha ao forcar estilo Fusion na aplicacao: %s", exc)
         if app is not None:
             app.setPalette(pal)
             try:
-                cached_theme_name = str(getattr(window, "_last_global_theme_name", "") or "")
+                cached_theme_name = str(
+                    getattr(window, "_last_global_theme_name", "") or ""
+                )
                 cached_qss = getattr(window, "_last_global_theme_qss", None)
                 if (
                     cached_theme_name != normalized
@@ -202,14 +218,14 @@ def _apply_central_widget_theme(window, normalized: str, pal) -> None:
                     existing = existing[:start].rstrip()
             normalized_name = normalize_theme(normalized)
             if normalized_name in {
-                'grayscale',
-                'gruvbox',
-                'dark',
-                'dracula',
-                'solarized-dark',
-                'tokyo-night',
-                'catppuccin',
-                'nord',
+                "grayscale",
+                "gruvbox",
+                "dark",
+                "dracula",
+                "solarized-dark",
+                "tokyo-night",
+                "catppuccin",
+                "nord",
             }:
                 bg = pal.window().color().name()
                 block = build_central_widget_qss(bg)
@@ -233,11 +249,12 @@ def _apply_tabs_theme(window, pal, roles: dict) -> None:
     try:
         if hasattr(window, "main_tabs") and window.main_tabs is not None:
             from PyQt6.QtGui import QPalette as _QPal
+
             tab_bg = pal.color(_QPal.ColorRole.Window).name()
             tab_text = pal.color(_QPal.ColorRole.WindowText).name()
             tab_mid = pal.color(_QPal.ColorRole.Mid).name()
-            accent = roles.get('accent', tab_text)
-            support_color = roles.get('support_text_color', tab_text)
+            accent = roles.get("accent", tab_text)
+            support_color = roles.get("support_text_color", tab_text)
             tab_css = (
                 "QTabWidget::pane {"
                 f" border:1px solid {tab_mid};"
@@ -267,7 +284,9 @@ def _apply_table_header_theme(window) -> None:
         header = window.table_widget.horizontalHeader()
         header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
     except Exception as exc:
-        logger.debug("Falha ao aplicar estilo no header da tabela durante apply_theme: %s", exc)
+        logger.debug(
+            "Falha ao aplicar estilo no header da tabela durante apply_theme: %s", exc
+        )
 
 
 def _update_tab_contexts(window, normalized: str) -> None:
@@ -282,7 +301,10 @@ def _update_tab_contexts(window, normalized: str) -> None:
                 if active_kind and ctx.get("tab_kind") == active_kind:
                     ctx["_theme_name"] = normalized
                     break
-                if active_search is not None and ctx.get("search_input") is active_search:
+                if (
+                    active_search is not None
+                    and ctx.get("search_input") is active_search
+                ):
                     ctx["_theme_name"] = normalized
                     break
     except Exception as exc:
@@ -301,30 +323,41 @@ def _apply_theme_widget_styles(
     from gui.helpers import build_group_box_qss, build_line_edit_qss
 
     try:
-        light_themes = {'windows7', 'classico', 'solarized-light', 'mint-light', 'paper'}
-        selector = getattr(window, 'column_selector', None)
+        light_themes = {
+            "windows7",
+            "classico",
+            "solarized-light",
+            "mint-light",
+            "paper",
+        }
+        selector = getattr(window, "column_selector", None)
         pal_active = window.palette()
         from PyQt6.QtGui import QPalette as _QPal
+
         txt = pal_active.color(_QPal.ColorRole.WindowText).name()
         base = pal_active.color(_QPal.ColorRole.Base).name()
         mid = pal_active.color(_QPal.ColorRole.Mid).name()
         high = pal_active.color(_QPal.ColorRole.Highlight).name()
-        label_color = roles.get('label_color', txt)
-        support_color = roles.get('support_text_color', label_color)
-        indicator_color = roles.get('indicator_text_color', support_color)
-        summary_color = roles.get('summary_text_color', label_color)
-        summary_bg = roles.get('summary_frame_bg', roles.get('panel_bg', base))
-        summary_border = roles.get('summary_frame_border', roles.get('panel_border', mid))
-        accent = roles.get('accent', high)
-        accent_soft = roles.get('accent_soft', support_color)
-        input_bg = roles.get('input_bg', base)
-        input_text = roles.get('input_text', txt)
-        input_border = roles.get('input_border', mid)
-        input_focus = roles.get('input_border_focus', accent)
-        input_placeholder = roles.get('input_placeholder', support_color)
-        panel_bg = roles.get('panel_bg', pal_active.color(_QPal.ColorRole.Window).name())
-        panel_text = roles.get('panel_text', txt)
-        panel_border = roles.get('panel_border', input_border)
+        label_color = roles.get("label_color", txt)
+        support_color = roles.get("support_text_color", label_color)
+        indicator_color = roles.get("indicator_text_color", support_color)
+        summary_color = roles.get("summary_text_color", label_color)
+        summary_bg = roles.get("summary_frame_bg", roles.get("panel_bg", base))
+        summary_border = roles.get(
+            "summary_frame_border", roles.get("panel_border", mid)
+        )
+        accent = roles.get("accent", high)
+        accent_soft = roles.get("accent_soft", support_color)
+        input_bg = roles.get("input_bg", base)
+        input_text = roles.get("input_text", txt)
+        input_border = roles.get("input_border", mid)
+        input_focus = roles.get("input_border_focus", accent)
+        input_placeholder = roles.get("input_placeholder", support_color)
+        panel_bg = roles.get(
+            "panel_bg", pal_active.color(_QPal.ColorRole.Window).name()
+        )
+        panel_text = roles.get("panel_text", txt)
+        panel_border = roles.get("panel_border", input_border)
         window._current_theme_roles = dict(roles)
         try:
             highlight_fg = pal_active.color(_QPal.ColorRole.HighlightedText).name()
@@ -335,12 +368,16 @@ def _apply_theme_widget_styles(
         window._highlight_text_color = highlight_fg or None
         window._highlight_font_weight = highlight_weight_default
 
-        if hasattr(window, 'search_label'):
-            window.search_label.setStyleSheet(f"color: {label_color}; font-weight: 600;")
+        if hasattr(window, "search_label"):
+            window.search_label.setStyleSheet(
+                f"color: {label_color}; font-weight: 600;"
+            )
 
-        if hasattr(window, 'search_input') and window.search_input is not None:
+        if hasattr(window, "search_input") and window.search_input is not None:
             window.search_input.setStyleSheet(
-                build_line_edit_qss(input_text, input_bg, input_border, input_focus, input_placeholder)
+                build_line_edit_qss(
+                    input_text, input_bg, input_border, input_focus, input_placeholder
+                )
             )
 
         tool_btn_css = (
@@ -379,7 +416,9 @@ def _apply_theme_widget_styles(
                 try:
                     btn.setStyleSheet(tool_btn_css)
                 except Exception as exc:
-                    logger.debug("Falha ao aplicar estilo no botao avancado %s: %s", name, exc)
+                    logger.debug(
+                        "Falha ao aplicar estilo no botao avancado %s: %s", name, exc
+                    )
         action_btn_css = (
             "QPushButton {"
             f" color: {panel_text}; background: {panel_bg}; border:1px solid {panel_border};"
@@ -397,7 +436,9 @@ def _apply_theme_widget_styles(
                 try:
                     btn.setStyleSheet(action_btn_css)
                 except Exception as exc:
-                    logger.debug("Falha ao aplicar estilo no botao de acao %s: %s", name, exc)
+                    logger.debug(
+                        "Falha ao aplicar estilo no botao de acao %s: %s", name, exc
+                    )
         combo_css = (
             "QComboBox {"
             f" color: {input_text}; background: {input_bg}; border:1px solid {input_border};"
@@ -418,7 +459,9 @@ def _apply_theme_widget_styles(
                 try:
                     combo.setStyleSheet(combo_css)
                 except Exception as exc:
-                    logger.debug("Falha ao aplicar estilo no combo avancado %s: %s", name, exc)
+                    logger.debug(
+                        "Falha ao aplicar estilo no combo avancado %s: %s", name, exc
+                    )
         adv_line_edits = [
             "adv_week_emissao_start",
             "adv_week_emissao_end",
@@ -430,24 +473,41 @@ def _apply_theme_widget_styles(
             if widget is not None:
                 try:
                     widget.setStyleSheet(
-                        build_line_edit_qss(input_text, input_bg, input_border, input_focus, input_placeholder)
+                        build_line_edit_qss(
+                            input_text,
+                            input_bg,
+                            input_border,
+                            input_focus,
+                            input_placeholder,
+                        )
                     )
                 except Exception as exc:
-                    logger.debug("Falha ao aplicar estilo no campo avancado %s: %s", name, exc)
+                    logger.debug(
+                        "Falha ao aplicar estilo no campo avancado %s: %s", name, exc
+                    )
 
-        if hasattr(window, 'details_text'):
-            if hasattr(window, 'details_group'):
+        if hasattr(window, "details_text"):
+            if hasattr(window, "details_group"):
                 try:
                     from PyQt6.QtGui import QFont
+
                     base_font = window.details_group.font()
                     size = base_font.pointSizeF()
                     if size <= 0:
                         size = float(base_font.pointSize())
                     if size > 0:
-                        cached_font = getattr(window, "_details_text_small_font_cached", None)
-                        cached_size = getattr(window, "_details_text_small_font_base_size", None)
-                        cached_family = getattr(window, "_details_text_small_font_base_family", None)
-                        cached_weight = getattr(window, "_details_text_small_font_base_weight", None)
+                        cached_font = getattr(
+                            window, "_details_text_small_font_cached", None
+                        )
+                        cached_size = getattr(
+                            window, "_details_text_small_font_base_size", None
+                        )
+                        cached_family = getattr(
+                            window, "_details_text_small_font_base_family", None
+                        )
+                        cached_weight = getattr(
+                            window, "_details_text_small_font_base_weight", None
+                        )
                         should_rebuild = (
                             not isinstance(cached_font, QFont)
                             or not isinstance(cached_size, (int, float))
@@ -460,15 +520,23 @@ def _apply_theme_widget_styles(
                             small_font.setPointSizeF(max(size - 1.5, 1.0))
                             window._details_text_small_font_cached = small_font
                             window._details_text_small_font_base_size = float(size)
-                            window._details_text_small_font_base_family = base_font.family()
-                            window._details_text_small_font_base_weight = int(base_font.weight())
-                        active_small_font = getattr(window, "_details_text_small_font_cached", None)
+                            window._details_text_small_font_base_family = (
+                                base_font.family()
+                            )
+                            window._details_text_small_font_base_weight = int(
+                                base_font.weight()
+                            )
+                        active_small_font = getattr(
+                            window, "_details_text_small_font_cached", None
+                        )
                         if isinstance(active_small_font, QFont):
                             window.details_text.setFont(active_small_font)
                 except Exception as exc:
-                    logger.debug("Falha ao ajustar fonte reduzida no painel de detalhes: %s", exc)
+                    logger.debug(
+                        "Falha ao ajustar fonte reduzida no painel de detalhes: %s", exc
+                    )
             if normalized in light_themes:
-                window.details_text.setStyleSheet('')
+                window.details_text.setStyleSheet("")
             else:
                 window.details_text.setStyleSheet(
                     "QTextEdit {"
@@ -478,20 +546,20 @@ def _apply_theme_widget_styles(
 
         group_css = build_group_box_qss(panel_text, panel_border, panel_bg)
 
-        if hasattr(window, 'details_group'):
+        if hasattr(window, "details_group"):
             if normalized in light_themes:
-                window.details_group.setStyleSheet('')
+                window.details_group.setStyleSheet("")
             else:
                 window.details_group.setStyleSheet(group_css)
 
-        if hasattr(window, 'col_filters_group'):
+        if hasattr(window, "col_filters_group"):
             if normalized in light_themes:
-                window.col_filters_group.setStyleSheet('')
+                window.col_filters_group.setStyleSheet("")
             else:
                 window.col_filters_group.setStyleSheet(group_css)
-        if hasattr(window, 'adv_filters_group'):
+        if hasattr(window, "adv_filters_group"):
             if normalized in light_themes:
-                window.adv_filters_group.setStyleSheet('')
+                window.adv_filters_group.setStyleSheet("")
             else:
                 window.adv_filters_group.setStyleSheet(group_css)
         action_widget = getattr(window, "_adv_filters_action_widget", None)
@@ -502,55 +570,67 @@ def _apply_theme_widget_styles(
                 else:
                     action_widget.setStyleSheet(group_css)
             except Exception as exc:
-                logger.debug("Falha ao aplicar estilo no action box dos filtros avancados: %s", exc)
+                logger.debug(
+                    "Falha ao aplicar estilo no action box dos filtros avancados: %s",
+                    exc,
+                )
 
         highlight_style = (
             f"font-weight:600; color:{accent}; background:{panel_bg}; "
             f"border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
         )
         window._week_label_style = highlight_style
-        if hasattr(window, 'week_label'):
+        if hasattr(window, "week_label"):
             window.week_label.setStyleSheet(highlight_style)
 
-        if hasattr(window, 'status_label'):
+        if hasattr(window, "status_label"):
             window.status_label.setStyleSheet(
                 f"color:{accent}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
             )
 
-        if hasattr(window, 'search_help'):
+        if hasattr(window, "search_help"):
             css = f"font-size:10px; color:{support_color}; margin:0; padding:0;"
-            if hasattr(window, 'status_label'):
+            if hasattr(window, "status_label"):
                 try:
                     window.search_help.setFont(window.status_label.font())
                 except Exception as exc:
-                    logger.debug("Falha ao sincronizar fonte de search_help com status_label: %s", exc)
+                    logger.debug(
+                        "Falha ao sincronizar fonte de search_help com status_label: %s",
+                        exc,
+                    )
             window.search_help.setStyleSheet(css)
 
-        if hasattr(window, 'col_filter_indicator'):
+        if hasattr(window, "col_filter_indicator"):
             window.col_filter_indicator.setStyleSheet(f"color:{indicator_color};")
 
-        if hasattr(window, 'filters_summary_label'):
+        if hasattr(window, "filters_summary_label"):
             window.filters_summary_label.setStyleSheet(f"color:{summary_color};")
 
-        if hasattr(window, 'filters_summary_frame'):
+        if hasattr(window, "filters_summary_frame"):
             window.filters_summary_frame.setStyleSheet(
                 "QFrame {"
                 f" background:{summary_bg}; border:1px solid {summary_border}; border-radius:4px; padding:4px;"
                 " }"
             )
-        if hasattr(window, 'clear_all_filters_btn'):
+        if hasattr(window, "clear_all_filters_btn"):
             window.clear_all_filters_btn.setStyleSheet(highlight_style)
-        if hasattr(window, 'export_list_btn'):
+        if hasattr(window, "export_list_btn"):
             try:
                 window.export_list_btn.setStyleSheet(highlight_style)
             except Exception as exc:
-                logger.debug("Falha ao aplicar estilo no botao export_list_btn: %s", exc)
-        if hasattr(window, 'undo_filter_btn'):
+                logger.debug(
+                    "Falha ao aplicar estilo no botao export_list_btn: %s", exc
+                )
+        if hasattr(window, "undo_filter_btn"):
             try:
                 window.undo_filter_btn.setStyleSheet(highlight_style)
             except Exception as exc:
-                logger.debug("Falha ao aplicar estilo no botao undo_filter_btn: %s", exc)
-        if hasattr(window, "add_column_filter_btn") and hasattr(window, "clear_all_btn"):
+                logger.debug(
+                    "Falha ao aplicar estilo no botao undo_filter_btn: %s", exc
+                )
+        if hasattr(window, "add_column_filter_btn") and hasattr(
+            window, "clear_all_btn"
+        ):
             footer_btn_style = (
                 f"QPushButton {{ color:{panel_text}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:4px 10px; }}\n"
                 f"QPushButton:hover {{ border:1px solid {accent}; }}\n"
@@ -559,13 +639,18 @@ def _apply_theme_widget_styles(
                 window.add_column_filter_btn.setStyleSheet(footer_btn_style)
                 window.clear_all_btn.setStyleSheet(footer_btn_style)
             except Exception as exc:
-                logger.debug("Falha ao aplicar estilo consistente para botoes de filtros por coluna: %s", exc)
+                logger.debug(
+                    "Falha ao aplicar estilo consistente para botoes de filtros por coluna: %s",
+                    exc,
+                )
 
-        if selector is not None and hasattr(selector, 'summary_label'):
+        if selector is not None and hasattr(selector, "summary_label"):
             selector.summary_label.setStyleSheet(f"color:{indicator_color};")
 
-        if hasattr(window, 'col_filters_hint'):
-            window.col_filters_hint.setStyleSheet(f"color:{support_color}; font-size: 11px;")
+        if hasattr(window, "col_filters_hint"):
+            window.col_filters_hint.setStyleSheet(
+                f"color:{support_color}; font-size: 11px;"
+            )
     except Exception as exc:
         logger.warning("Falha no bloco principal de estilizacao do tema: %s", exc)
 
@@ -576,33 +661,47 @@ def _refresh_filter_widgets_for_theme(window, normalized: str) -> None:
             # Force a full advanced-menu rebuild under the active theme.
             setattr(window, "_adv_options_dirty", True)
         except Exception as exc:
-            logger.debug("Falha ao marcar opcoes avancadas como dirty apos troca de tema: %s", exc)
+            logger.debug(
+                "Falha ao marcar opcoes avancadas como dirty apos troca de tema: %s",
+                exc,
+            )
         if getattr(window, "_current_tab_kind", None) == "filters":
             window._pending_theme_refresh_column_filters = normalized
             try:
                 if hasattr(window, "_refresh_advanced_filter_options"):
                     window._refresh_advanced_filter_options()
             except Exception as exc:
-                logger.debug("Falha ao atualizar menus avancados apos troca de tema: %s", exc)
+                logger.debug(
+                    "Falha ao atualizar menus avancados apos troca de tema: %s", exc
+                )
         else:
             window._refresh_column_filter_widgets()
             window._pending_theme_refresh_column_filters = None
     except Exception as exc:
-        logger.debug("Falha ao atualizar widgets dinamicos de filtro por coluna no tema: %s", exc)
+        logger.debug(
+            "Falha ao atualizar widgets dinamicos de filtro por coluna no tema: %s", exc
+        )
 
 
-def _persist_theme_selection(window, normalized: str, gui_prefs: dict, project_root: str) -> None:
+def _persist_theme_selection(
+    window, normalized: str, gui_prefs: dict, project_root: str
+) -> None:
     try:
-        gui_settings = gui_prefs.setdefault('gui_settings', {})
-        if gui_settings.get('theme') != normalized:
-            gui_settings['theme'] = normalized
+        gui_settings = gui_prefs.setdefault("gui_settings", {})
+        if gui_settings.get("theme") != normalized:
+            gui_settings["theme"] = normalized
             ok = persist_gui_preferences(gui_prefs, project_root, retries=1)
             if not ok:
                 if not os.environ.get("PYTEST_CURRENT_TEST"):
                     try:
-                        window.status_label.setText("Status: Tema aplicado; falha ao salvar preferencia.")
+                        window.status_label.setText(
+                            "Status: Tema aplicado; falha ao salvar preferencia."
+                        )
                     except Exception as exc:
-                        logger.debug("Falha ao atualizar status_label apos persistencia de tema: %s", exc)
+                        logger.debug(
+                            "Falha ao atualizar status_label apos persistencia de tema: %s",
+                            exc,
+                        )
     except Exception as exc:
         logger.warning("Falha ao persistir tema em gui_main_preferences.json: %s", exc)
 
@@ -668,14 +767,14 @@ def reapply_current_theme_widget_styles(
 
 
 def apply_macos_contrast(window, theme_name: str) -> None:
-    if sys.platform != 'darwin':
+    if sys.platform != "darwin":
         return
     normalized = normalize_theme(theme_name)
     roles = get_theme_roles(normalized)
-    text_color = roles.get('panel_text')
-    bg_color = roles.get('panel_bg')
-    border_color = roles.get('panel_border')
-    label_color = roles.get('label_color')
+    text_color = roles.get("panel_text")
+    bg_color = roles.get("panel_bg")
+    border_color = roles.get("panel_border")
+    label_color = roles.get("label_color")
     block = (
         "/* SSA_MAC_QSS_START */\n"
         "QLineEdit, QTextEdit, QTextBrowser {"
@@ -693,7 +792,15 @@ def apply_macos_contrast(window, theme_name: str) -> None:
             if start != -1 and end != -1 and end > start:
                 end += len("/* SSA_MAC_QSS_END */")
                 existing = existing[:start] + existing[end:]
-            new_qss = (existing + ("\n" if existing and not existing.endswith("\n") else "") + block).strip()
+            new_qss = (
+                existing
+                + ("\n" if existing and not existing.endswith("\n") else "")
+                + block
+            ).strip()
             central.setStyleSheet(new_qss)
     except Exception as exc:
-        logger.debug("Falha ao aplicar ajustes de contraste macOS no tema %s: %s", normalized, exc)
+        logger.debug(
+            "Falha ao aplicar ajustes de contraste macOS no tema %s: %s",
+            normalized,
+            exc,
+        )

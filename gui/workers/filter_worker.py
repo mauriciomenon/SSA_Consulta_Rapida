@@ -3,17 +3,19 @@
 
 import hashlib
 import logging
+
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from gui.cache import FilterCache
 from core.app_logic import filter_dataframe, parse_search_terms
+from gui.cache import FilterCache
 
 logger = logging.getLogger(__name__)
 
 
 class FilterWorker(QThread):
     """Thread para filtrar dados com cache inteligente."""
+
     filter_finished = pyqtSignal(pd.DataFrame)  # Emite o DataFrame filtrado
     error_occurred = pyqtSignal(str)
 
@@ -24,7 +26,7 @@ class FilterWorker(QThread):
         self,
         df_completo,
         search_chunks,
-        default_mode: str = 'contains',
+        default_mode: str = "contains",
         cache_context: str | None = None,
     ):
         super().__init__()
@@ -50,7 +52,9 @@ class FilterWorker(QThread):
         try:
             return bool(self.isInterruptionRequested())
         except Exception as exc:
-            logger.debug("Falha ao consultar estado de interrupcao do FilterWorker: %s", exc)
+            logger.debug(
+                "Falha ao consultar estado de interrupcao do FilterWorker: %s", exc
+            )
             return False
 
     @staticmethod
@@ -82,7 +86,11 @@ class FilterWorker(QThread):
                             candidate = mid_start + int(round(idx * step))
                             if not mid_indices or candidate != mid_indices[-1]:
                                 mid_indices.append(candidate)
-                mid_df = df_completo.iloc[mid_indices] if mid_indices else df_completo.iloc[0:0]
+                mid_df = (
+                    df_completo.iloc[mid_indices]
+                    if mid_indices
+                    else df_completo.iloc[0:0]
+                )
                 sample_df = pd.concat(
                     [head_df, mid_df, tail_df],
                     axis=0,
@@ -113,7 +121,9 @@ class FilterWorker(QThread):
             if self._is_cancelled():
                 return
             if self.df_completo is None:
-                logger.warning("FilterWorker recebeu df_completo=None; emitindo resultado vazio")
+                logger.warning(
+                    "FilterWorker recebeu df_completo=None; emitindo resultado vazio"
+                )
                 self.filter_finished.emit(pd.DataFrame())
                 return
             # Verifica cache primeiro
@@ -136,7 +146,9 @@ class FilterWorker(QThread):
                     if self._is_cancelled():
                         return
                     if terms:
-                        parsed = parse_search_terms(terms, default_mode=self.default_mode)
+                        parsed = parse_search_terms(
+                            terms, default_mode=self.default_mode
+                        )
                         if self._is_cancelled():
                             return
                         frames.append(filter_dataframe(self.df_completo, parsed))
@@ -145,7 +157,11 @@ class FilterWorker(QThread):
                     if self._is_cancelled():
                         return
                 if frames:
-                    df_filtrado = pd.concat(frames, axis=0, ignore_index=False).drop_duplicates().reset_index(drop=True)
+                    df_filtrado = (
+                        pd.concat(frames, axis=0, ignore_index=False)
+                        .drop_duplicates()
+                        .reset_index(drop=True)
+                    )
                 else:
                     df_filtrado = self.df_completo.copy()
             else:

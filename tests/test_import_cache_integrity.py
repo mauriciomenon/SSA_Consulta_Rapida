@@ -8,7 +8,9 @@ import pytest
 from core.app_logic import run_importer_logic
 
 
-def test_cache_not_updated_when_extraction_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cache_not_updated_when_extraction_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
     (docs_dir / "broken.xlsx").write_text("not an xlsx file", encoding="utf-8")
@@ -35,4 +37,3 @@ def test_cache_not_updated_when_extraction_fails(tmp_path: Path, monkeypatch: py
 
     assert updated is False
     assert not (data_dir / "file_cache.json").exists()
-

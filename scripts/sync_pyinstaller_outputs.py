@@ -19,7 +19,6 @@ import argparse
 import shutil
 from pathlib import Path
 
-
 PLATFORMS = ("windows_amd64", "debian_amd64", "macos_arm64")
 
 

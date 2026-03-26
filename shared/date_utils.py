@@ -7,13 +7,14 @@ Goals:
   * Always return string in format 'YYYY-MM-DD HH:MM:SS' or None.
   * No timezone localization: treat naive datetimes as UTC-like neutral.
 """
+
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Iterable
-import pandas as pd
-from datetime import timedelta
 import re
+from datetime import datetime, timedelta
+from typing import Iterable
+
+import pandas as pd
 
 __all__ = ["parse_any_date", "bulk_parse_dates", "parse_datetime_series_mixed"]
 
@@ -21,12 +22,14 @@ EXCEL_EPOCH = "1899-12-30"
 
 _ISO_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2}")
 
+
 def parse_any_date(value) -> str | None:
     if value is None:
         return None
     # Fast path for pandas NaT-like
     try:
         import math
+
         if isinstance(value, float) and math.isnan(value):  # noqa: PLR2004
             return None
     except Exception:  # pragma: no cover
@@ -62,6 +65,7 @@ def parse_any_date(value) -> str | None:
         if not pd.isna(dt):
             return dt.strftime("%Y-%m-%d %H:%M:%S")
     return None
+
 
 def bulk_parse_dates(values: Iterable) -> list[str | None]:
     return [parse_any_date(v) for v in values]

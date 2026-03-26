@@ -22,9 +22,9 @@ def normalize_chunk_for_parse(chunk: str) -> list[str]:
         return []
     cleaned = str(chunk).strip()
     # Replace em-dash and en-dash with regular dash for consistency
-    cleaned = cleaned.replace('–', '-').replace('—', '-')
+    cleaned = cleaned.replace("–", "-").replace("—", "-")
     # Split by commas only
-    tokens = [term.strip() for term in cleaned.split(',') if term.strip()]
+    tokens = [term.strip() for term in cleaned.split(",") if term.strip()]
     return tokens
 
 
@@ -45,7 +45,7 @@ def format_search_display(chunks: list[list[str]]) -> str:
         return ""
     # Since we always have single chunk, return first chunk as comma-separated
     if chunks and chunks[0]:
-        return ', '.join(chunks[0])
+        return ", ".join(chunks[0])
     return ""
 
 

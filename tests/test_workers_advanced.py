@@ -13,8 +13,8 @@ Arquitetura de Testes:
 """
 
 import os
-import sys
 import sqlite3
+import sys
 import time
 from contextlib import closing
 from typing import Any, cast
@@ -27,8 +27,8 @@ import pytest
 pytest.importorskip(
     "PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste"
 )
-from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QThread
+from PyQt6.QtWidgets import QApplication
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
@@ -36,7 +36,6 @@ if project_root not in sys.path:
 
 from gui.workers.data_loader_worker import DataLoaderWorker  # noqa: E402
 from gui.workers.filter_worker import FilterWorker  # noqa: E402
-
 
 # =============================================================================
 # Fixtures
@@ -212,7 +211,9 @@ class TestDataLoaderWorkerUnit:
         # Deve retornar tabela solicitada como fallback
         assert worker._resolve_target_table() == "test_table"
 
-    def test_resolve_target_table_rejects_invalid_identifier_and_falls_back_to_canonical(self, tmp_path):
+    def test_resolve_target_table_rejects_invalid_identifier_and_falls_back_to_canonical(
+        self, tmp_path
+    ):
         """Testa que tabela invalida nao reaproveita politica local divergente."""
         db_path = tmp_path / "test.db"
         with closing(sqlite3.connect(db_path)):

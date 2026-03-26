@@ -4,9 +4,10 @@ Elimina inconsistências nas assinaturas dos handlers (1-6 parâmetros).
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
-import pandas as pd
 from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import pandas as pd
 
 
 class HandlerContext:
@@ -19,11 +20,11 @@ class HandlerContext:
         self,
         config_manager: Any = None,
         cache_manager: Any = None,
-        output_format: str = 'table',
+        output_format: str = "table",
         max_width: Optional[int] = None,
         show_summary: bool = True,
         debug_mode: bool = False,
-        **kwargs
+        **kwargs,
     ):
         """
         Inicializa contexto do handler.
@@ -68,11 +69,11 @@ class HandlerContext:
     def get_stats(self) -> Dict[str, Any]:
         """Retorna estatísticas do processamento."""
         return {
-            'processed_rows': self.processed_rows,
-            'filtered_rows': self.filtered_rows,
-            'error_count': self.error_count,
-            'warnings_count': len(self.warnings),
-            'warnings': self.warnings
+            "processed_rows": self.processed_rows,
+            "filtered_rows": self.filtered_rows,
+            "error_count": self.error_count,
+            "warnings_count": len(self.warnings),
+            "warnings": self.warnings,
         }
 
 
@@ -85,10 +86,10 @@ class HandlerResult:
         self,
         success: bool = True,
         data: Optional[pd.DataFrame] = None,
-        message: str = '',
-        output_text: str = '',
+        message: str = "",
+        output_text: str = "",
         stats: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """
         Inicializa resultado do handler.
@@ -125,7 +126,7 @@ class HandlerBase(ABC):
     Padroniza interface e elimina inconsistências de assinatura.
     """
 
-    def __init__(self, name: str, description: str = ''):
+    def __init__(self, name: str, description: str = ""):
         """
         Inicializa handler base.
 
@@ -135,7 +136,7 @@ class HandlerBase(ABC):
         """
         self.name = name
         self.description = description
-        self._supported_formats = ['table', 'json', 'csv']
+        self._supported_formats = ["table", "json", "csv"]
 
     @abstractmethod
     def execute(self, context: HandlerContext) -> HandlerResult:
@@ -170,11 +171,7 @@ class HandlerBase(ABC):
 
         return errors
 
-    def format_output(
-        self,
-        data: pd.DataFrame,
-        context: HandlerContext
-    ) -> str:
+    def format_output(self, data: pd.DataFrame, context: HandlerContext) -> str:
         """
         Formata dados para saída.
 
@@ -190,9 +187,9 @@ class HandlerBase(ABC):
 
         format_type = context.output_format.lower()
 
-        if format_type == 'json':
-            return data.to_json(orient='records', indent=2)
-        elif format_type == 'csv':
+        if format_type == "json":
+            return data.to_json(orient="records", indent=2)
+        elif format_type == "csv":
             return data.to_csv(index=False)
         else:  # table (default)
             return self._format_table(data, context)
@@ -211,18 +208,16 @@ class HandlerBase(ABC):
         # Usa cache se disponível
         if context.cache_manager:
             cache_key = context.cache_manager.get_dataframe_hash(
-                data,
-                f"table_{context.max_width}_{context.output_format}"
+                data, f"table_{context.max_width}_{context.output_format}"
             )
             cached_output = context.cache_manager.get_cached_output(cache_key)
             if cached_output:
                 return cached_output
 
         # Calcula larguras das colunas
-        if context.config_manager and hasattr(context.config_manager, 'width_manager'):
+        if context.config_manager and hasattr(context.config_manager, "width_manager"):
             widths = context.config_manager.width_manager.calculate_column_widths(
-                data,
-                max_table_width=context.max_width
+                data, max_table_width=context.max_width
             )
             formatted_output = self._apply_column_widths(data, widths)
         else:
@@ -230,16 +225,12 @@ class HandlerBase(ABC):
             formatted_output = str(data.to_string(index=False, max_colwidth=50))
 
         # Armazena no cache
-        if context.cache_manager and 'cache_key' in locals():
+        if context.cache_manager and "cache_key" in locals():
             context.cache_manager.cache_output(cache_key, formatted_output)
 
         return formatted_output
 
-    def _apply_column_widths(
-        self,
-        data: pd.DataFrame,
-        widths: Dict[str, int]
-    ) -> str:
+    def _apply_column_widths(self, data: pd.DataFrame, widths: Dict[str, int]) -> str:
         """Aplica larguras específicas às colunas."""
         output_lines = []
 
@@ -249,14 +240,14 @@ class HandlerBase(ABC):
             width = widths.get(col, 20)
             header = str(col)[:width].ljust(width)
             headers.append(header)
-        output_lines.append(' | '.join(headers))
+        output_lines.append(" | ".join(headers))
 
         # Separador
         separators = []
         for col in data.columns:
             width = widths.get(col, 20)
-            separators.append('-' * width)
-        output_lines.append(' | '.join(separators))
+            separators.append("-" * width)
+        output_lines.append(" | ".join(separators))
 
         # Dados
         for _, row in data.iterrows():
@@ -265,9 +256,9 @@ class HandlerBase(ABC):
                 width = widths.get(col, 20)
                 value = str(row[col])[:width].ljust(width)
                 row_parts.append(value)
-            output_lines.append(' | '.join(row_parts))
+            output_lines.append(" | ".join(row_parts))
 
-        return '\n'.join(output_lines)
+        return "\n".join(output_lines)
 
     def get_supported_formats(self) -> List[str]:
         """Retorna formatos suportados pelo handler."""
@@ -281,9 +272,9 @@ class HandlerBase(ABC):
     def create_result(
         self,
         data: Optional[pd.DataFrame] = None,
-        message: str = '',
+        message: str = "",
         context: Optional[HandlerContext] = None,
-        success: bool = True
+        success: bool = True,
     ) -> HandlerResult:
         """
         Cria resultado padronizado.
@@ -297,7 +288,7 @@ class HandlerBase(ABC):
         Returns:
             Resultado padronizado
         """
-        output_text = ''
+        output_text = ""
         stats = {}
 
         if data is not None and not data.empty and context:
@@ -310,7 +301,7 @@ class HandlerBase(ABC):
             message=message,
             output_text=output_text,
             stats=stats,
-            metadata={'handler': self.name}
+            metadata={"handler": self.name},
         )
 
 
@@ -320,15 +311,13 @@ class FilterHandlerBase(HandlerBase):
     Especialização para handlers que filtram dados.
     """
 
-    def __init__(self, name: str, description: str = ''):
+    def __init__(self, name: str, description: str = ""):
         super().__init__(name, description)
         self._filter_cache = {}
 
     @abstractmethod
     def apply_filters(
-        self,
-        data: pd.DataFrame,
-        context: HandlerContext
+        self, data: pd.DataFrame, context: HandlerContext
     ) -> pd.DataFrame:
         """
         Aplica filtros específicos aos dados.
@@ -357,7 +346,7 @@ class FilterHandlerBase(HandlerBase):
         if validation_errors:
             return HandlerResult(
                 success=False,
-                message=f"Erros de validação: {'; '.join(validation_errors)}"
+                message=f"Erros de validação: {'; '.join(validation_errors)}",
             )
 
         try:
@@ -365,9 +354,7 @@ class FilterHandlerBase(HandlerBase):
             base_data = self._load_base_data(context)
             if base_data.empty:
                 return HandlerResult(
-                    success=True,
-                    data=base_data,
-                    message="Nenhum dado base encontrado"
+                    success=True, data=base_data, message="Nenhum dado base encontrado"
                 )
 
             context.processed_rows = len(base_data)
@@ -380,14 +367,13 @@ class FilterHandlerBase(HandlerBase):
             return self.create_result(
                 data=filtered_data,
                 message=f"Filtro aplicado: {context.filtered_rows} de {context.processed_rows} registros",
-                context=context
+                context=context,
             )
 
         except Exception as e:
             context.error_count += 1
             return HandlerResult(
-                success=False,
-                message=f"Erro durante filtro: {str(e)}"
+                success=False, message=f"Erro durante filtro: {str(e)}"
             )
 
     @abstractmethod
@@ -411,17 +397,14 @@ class ExportHandlerBase(HandlerBase):
     Especialização para handlers que exportam dados.
     """
 
-    def __init__(self, name: str, description: str = ''):
+    def __init__(self, name: str, description: str = ""):
         super().__init__(name, description)
-        self.add_supported_format('xlsx')
-        self.add_supported_format('parquet')
+        self.add_supported_format("xlsx")
+        self.add_supported_format("parquet")
 
     @abstractmethod
     def export_data(
-        self,
-        data: pd.DataFrame,
-        output_path: Path,
-        context: HandlerContext
+        self, data: pd.DataFrame, output_path: Path, context: HandlerContext
     ) -> bool:
         """
         Exporta dados para arquivo.
@@ -450,13 +433,10 @@ class ExportHandlerBase(HandlerBase):
             # Carrega dados para exportação
             export_data = self._load_export_data(context)
             if export_data.empty:
-                return HandlerResult(
-                    success=True,
-                    message="Nenhum dado para exportar"
-                )
+                return HandlerResult(success=True, message="Nenhum dado para exportar")
 
             # Define caminho de saída
-            output_path = Path(context.get_param('output_path', 'output.csv'))
+            output_path = Path(context.get_param("output_path", "output.csv"))
 
             # Executa exportação
             success = self.export_data(export_data, output_path, context)
@@ -466,18 +446,14 @@ class ExportHandlerBase(HandlerBase):
                     success=True,
                     data=export_data,
                     message=f"Dados exportados para: {output_path}",
-                    metadata={'output_path': str(output_path)}
+                    metadata={"output_path": str(output_path)},
                 )
             else:
-                return HandlerResult(
-                    success=False,
-                    message="Falha na exportação"
-                )
+                return HandlerResult(success=False, message="Falha na exportação")
 
         except Exception as e:
             return HandlerResult(
-                success=False,
-                message=f"Erro durante exportação: {str(e)}"
+                success=False, message=f"Erro durante exportação: {str(e)}"
             )
 
     @abstractmethod

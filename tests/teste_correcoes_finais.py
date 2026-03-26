@@ -4,9 +4,10 @@ Teste das Correções Finais - SSA Consulta Rápida
 Valida correções de truncamento, resize, labels e compatibilidade
 """
 
+import json
 import os
 import sys
-import json
+
 
 def test_gui_main_preferences():
     """Testa se gui_main_preferences.json tem as configurações corretas."""
@@ -18,10 +19,12 @@ def test_gui_main_preferences():
         print(f"ERR Arquivo {config_file} não encontrado")
         return False
 
-    with open(config_file, 'r', encoding='utf-8') as f:
+    with open(config_file, "r", encoding="utf-8") as f:
         config = json.load(f)
 
-    display_mappings = config.get("display_mappings", config.get("column_display_names", {}))
+    display_mappings = config.get(
+        "display_mappings", config.get("column_display_names", {})
+    )
 
     tests = [
         ("semana_programada", "Prog.", "Label deve ser 'Prog.' (não 'Sem. Prog.')"),
@@ -44,6 +47,7 @@ def test_gui_main_preferences():
 
     return all_passed
 
+
 def test_gui_import():
     """Testa se a GUI principal pode ser importada sem erros."""
     print("\nINFO TESTANDO IMPORTAÇÃO GUI")
@@ -51,8 +55,11 @@ def test_gui_import():
 
     try:
         from gui.gui_ssa import load_gui_main_preferences
+
         prefs = load_gui_main_preferences()
-        display_mappings = prefs.get("display_mappings", prefs.get("column_display_names", {}))
+        display_mappings = prefs.get(
+            "display_mappings", prefs.get("column_display_names", {})
+        )
         print("OK GUI importada com sucesso")
         print(f"OK Preferências carregadas: {len(display_mappings)} labels")
         key_labels = ["setor_executor", "situacao", "semana_programada"]
@@ -64,6 +71,7 @@ def test_gui_import():
         print(f"ERR Erro ao importar GUI: {e}")
         return False
 
+
 def test_cli_compatibility():
     """Verifica se CLI ainda funciona após mudanças."""
     print("\nTESTANDO COMPATIBILIDADE CLI")
@@ -72,14 +80,17 @@ def test_cli_compatibility():
     try:
         # Testa importação de módulos CLI principais
         from interface import cli  # noqa: F401
+
         print("OK CLI módulo importado com sucesso")
 
         # Verifica table_printer
         from interface import table_printer  # noqa: F401
+
         print("OK Table printer importado com sucesso")
 
         # Verifica core.config_manager
         from core.config_manager import load_display_mappings_integrity
+
         display_map = load_display_mappings_integrity()
         print(f"OK Display mappings carregado: {len(display_map)} items")
 
@@ -88,18 +99,21 @@ def test_cli_compatibility():
         print(f"ERR Erro no CLI: {e}")
         return False
 
+
 def test_gui_principal_disponivel():
     """Verifica se GUI principal continua importável (substitui PoC)."""
     print("\nTEST TESTANDO DISPONIBILIDADE GUI PRINCIPAL")
     print("=" * 50)
     try:
         from gui.gui_ssa import SSAMainWindow
+
         _ = SSAMainWindow  # acesso simbólico
         print("OK GUI Principal disponível")
         return True
     except Exception as e:
         print(f"ERR GUI Principal indisponível: {e}")
         return False
+
 
 def main():
     """Executa todos os testes."""
@@ -111,7 +125,7 @@ def main():
         ("Configurações GUI Principal", test_gui_main_preferences),
         ("Importação GUI", test_gui_import),
         ("Compatibilidade CLI", test_cli_compatibility),
-    ("Disponibilidade GUI Principal", test_gui_principal_disponivel),
+        ("Disponibilidade GUI Principal", test_gui_principal_disponivel),
     ]
 
     results = []
@@ -150,6 +164,7 @@ def main():
         print("Revise as configurações e implementações")
 
     return all_passed
+
 
 if __name__ == "__main__":
     success = main()

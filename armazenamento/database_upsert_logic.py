@@ -53,7 +53,9 @@ def _validate_canonical_storage_ids(work_local: pd.DataFrame) -> None:
             continue
         series = work_local[col].dropna().astype(str).str.strip()
         if series.str.contains(".", regex=False).any():
-            raise ValueError(f"Non-canonical value detected in {col}; decimal artifact is not allowed")
+            raise ValueError(
+                f"Non-canonical value detected in {col}; decimal artifact is not allowed"
+            )
 
 
 def _infer_sql_type(series: pd.Series | None) -> str:
@@ -153,10 +155,13 @@ def sanitize_textual_null_sentinels(frame: pd.DataFrame) -> pd.DataFrame:
     for col_idx, _col in enumerate(frame.columns):
         series = frame.iloc[:, col_idx]
         if pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series):
-            text_series = series if pd.api.types.is_string_dtype(series) else series.astype("string")
+            text_series = (
+                series
+                if pd.api.types.is_string_dtype(series)
+                else series.astype("string")
+            )
             sentinel_mask = (
-                text_series
-                .str.strip()
+                text_series.str.strip()
                 .str.casefold()
                 .isin(_TEXTUAL_NULL_SENTINELS)
                 .to_numpy(dtype=bool, na_value=False)
@@ -176,10 +181,14 @@ def prepare_dataframe_for_storage(
 ) -> pd.DataFrame:
     work_local = apply_column_whitelist(frame)
     work_local = sanitize_textual_null_sentinels(work_local).reset_index(drop=True)
-    if 'numero_ssa' in work_local.columns:
-        work_local['numero_ssa'] = work_local['numero_ssa'].map(normalize_numero_ssa_storage)
-    if normalize_derivada and 'derivada_de' in work_local.columns:
-        work_local['derivada_de'] = work_local['derivada_de'].map(normalize_numero_ssa_storage)
+    if "numero_ssa" in work_local.columns:
+        work_local["numero_ssa"] = work_local["numero_ssa"].map(
+            normalize_numero_ssa_storage
+        )
+    if normalize_derivada and "derivada_de" in work_local.columns:
+        work_local["derivada_de"] = work_local["derivada_de"].map(
+            normalize_numero_ssa_storage
+        )
     return work_local
 
 
@@ -195,15 +204,21 @@ def _append_dataframe_rows(
     columns = [str(col) for col in frame.columns]
     if not columns:
         return 0
-    effective_chunk_size = int(chunk_size) if chunk_size and chunk_size > 0 else max(1, min(500, 999 // len(columns)))
+    effective_chunk_size = (
+        int(chunk_size)
+        if chunk_size and chunk_size > 0
+        else max(1, min(500, 999 // len(columns)))
+    )
     quoted_table = _quote_identifier(table_name)
     quoted_columns = ", ".join(_quote_identifier(col) for col in columns)
     placeholders = ", ".join(["?"] * len(columns))
-    insert_sql = f"INSERT INTO {quoted_table} ({quoted_columns}) VALUES ({placeholders})"
+    insert_sql = (
+        f"INSERT INTO {quoted_table} ({quoted_columns}) VALUES ({placeholders})"
+    )
     cursor = conn.cursor()
     total_inserted = 0
     for start in range(0, len(frame), effective_chunk_size):
-        chunk = frame.iloc[start:start + effective_chunk_size]
+        chunk = frame.iloc[start : start + effective_chunk_size]
         rows = [
             tuple(_coerce_sqlite_scalar(value) for value in row)
             for row in chunk.itertuples(index=False, name=None)
@@ -224,7 +239,9 @@ def _begin_transaction_if_needed(conn: Any, *, context: str) -> None:
     except _sqlite3_typehint.OperationalError as exc:
         in_transaction_after_error = getattr(conn, "in_transaction", None)
         if in_transaction_after_error is not None and bool(in_transaction_after_error):
-            logger.debug("BEGIN ignorado em %s (transacao ja ativa apos erro): %s", context, exc)
+            logger.debug(
+                "BEGIN ignorado em %s (transacao ja ativa apos erro): %s", context, exc
+            )
             return
         logger.error("Falha ao iniciar transacao em %s: %s", context, exc)
         raise
@@ -249,7 +266,9 @@ def _sync_dynamic_columns_and_schema(
     reserved_names = {
         str(col)
         for col in work.columns
-        if isinstance(col, str) and is_valid_identifier(col) and not _is_placeholder_column_name(col)
+        if isinstance(col, str)
+        and is_valid_identifier(col)
+        and not _is_placeholder_column_name(col)
     }
     assigned_names: set[str] = set()
     ordered_columns = sorted(work.columns, key=lambda value: str(value).lower())
@@ -276,11 +295,15 @@ def _sync_dynamic_columns_and_schema(
         reserved_names.add(sanitized)
 
     if drop_columns:
-        logger.warning("Colunas dinamicas placeholder foram descartadas: %s", drop_columns)
-        work = work.drop(columns=drop_columns, errors='ignore')
+        logger.warning(
+            "Colunas dinamicas placeholder foram descartadas: %s", drop_columns
+        )
+        work = work.drop(columns=drop_columns, errors="ignore")
 
     if rename_map:
-        logger.warning("Colunas dinamicas foram sanitizadas para SQL seguro: %s", rename_map)
+        logger.warning(
+            "Colunas dinamicas foram sanitizadas para SQL seguro: %s", rename_map
+        )
         work = work.rename(columns=rename_map)
 
     # Enforce whitelist after dynamic rename/drop to avoid schema drift by env policy.
@@ -288,8 +311,12 @@ def _sync_dynamic_columns_and_schema(
 
     missing_columns = [col for col in final_work.columns if col not in existing_columns]
     for col in missing_columns:
-        sql_type = _infer_sql_type(final_work[col] if col in final_work.columns else None)
-        logger.info("Adicionando coluna ausente '%s' ao schema (tipo %s)", col, sql_type)
+        sql_type = _infer_sql_type(
+            final_work[col] if col in final_work.columns else None
+        )
+        logger.info(
+            "Adicionando coluna ausente '%s' ao schema (tipo %s)", col, sql_type
+        )
         if not is_valid_identifier(col):
             raise ValueError(f"Invalid SQL identifier for column: {col}")
         if isinstance(db_path, str):
@@ -303,16 +330,17 @@ def _sync_dynamic_columns_and_schema(
 
 
 def _should_update_existing(existing_row: pd.Series, new_row: pd.Series) -> bool:
-    existing_date = existing_row.get('data_cadastro')
-    new_date = new_row.get('data_cadastro')
+    existing_date = existing_row.get("data_cadastro")
+    new_date = new_row.get("data_cadastro")
     try:
+
         def _parse(dt):  # evita E731 lambda
-            if dt in (None, '') or (isinstance(dt, float) and pd.isna(dt)):
+            if dt in (None, "") or (isinstance(dt, float) and pd.isna(dt)):
                 return None
             parsed = parse_any_date(dt)
             if parsed is None:
                 return None
-            return pd.to_datetime(parsed, errors='coerce', format="%Y-%m-%d %H:%M:%S")
+            return pd.to_datetime(parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S")
 
         e_dt = _parse(existing_date)
         n_dt = _parse(new_date)
@@ -335,8 +363,8 @@ def _should_update_existing(existing_row: pd.Series, new_row: pd.Series) -> bool
             # Ambos válidos
             try:
                 # Converter para nanos epoch se possível (evita mypy/pylance reclamação de NaTType)
-                n_val = getattr(n_dt, 'value', None)
-                e_val = getattr(e_dt, 'value', None)
+                n_val = getattr(n_dt, "value", None)
+                e_val = getattr(e_dt, "value", None)
                 if n_val is None or e_val is None:
                     return True
                 return bool(n_val >= e_val)
@@ -350,15 +378,17 @@ def _should_update_existing(existing_row: pd.Series, new_row: pd.Series) -> bool
 def _resolve_upsert_config() -> tuple[dict[str, int], list[str], list[str]]:
     status_order_env = os.environ.get("SSA_STATUS_ORDER")
     status_order_list = (
-        [s.strip() for s in status_order_env.split(',') if s.strip()]
+        [s.strip() for s in status_order_env.split(",") if s.strip()]
         if status_order_env
         else ["ABERTO", "EM_ANALISE", "EM_EXECUCAO", "SCA", "STE"]
     )
     status_rank = {s: i for i, s in enumerate(status_order_list)}
     desc_cols_env = os.environ.get("SSA_DESC_COLUMNS")
-    description_columns = [c.strip() for c in desc_cols_env.split(',') if c.strip()] if desc_cols_env else [
-        "descricao_ssa", "descricao", "detalhes", "comentarios"
-    ]
+    description_columns = (
+        [c.strip() for c in desc_cols_env.split(",") if c.strip()]
+        if desc_cols_env
+        else ["descricao_ssa", "descricao", "detalhes", "comentarios"]
+    )
     date_columns = [
         "data_cadastro",
         "prazo_limite",
@@ -383,10 +413,14 @@ def _resolve_upsert_config() -> tuple[dict[str, int], list[str], list[str]]:
 def _resolve_short_circuit_policy(policy_override: str | None = None) -> str:
     runtime_policy = _RUNTIME_SHORT_CIRCUIT_POLICY
     policy = (
-        policy_override
-        or runtime_policy
-        or os.environ.get("SSA_UPSERT_SHORT_CIRCUIT_POLICY", "consulta_only")
-    ).strip().lower()
+        (
+            policy_override
+            or runtime_policy
+            or os.environ.get("SSA_UPSERT_SHORT_CIRCUIT_POLICY", "consulta_only")
+        )
+        .strip()
+        .lower()
+    )
     if not policy:
         return "consulta_only"
     if policy not in _VALID_UPSERT_POLICIES:
@@ -433,7 +467,7 @@ def _parse_upsert_dt(value: Any):
     try:
         if _is_empty_upsert_value(value):
             return None
-        return pd.to_datetime(value, errors='coerce')
+        return pd.to_datetime(value, errors="coerce")
     except Exception:
         return None
 
@@ -448,9 +482,9 @@ def _merge_complement_row(
     result = existing_row.copy()
     for col in new_row.index:
         new_val = new_row[col]
-        if col == 'numero_ssa':
+        if col == "numero_ssa":
             continue
-        if col == 'situacao':
+        if col == "situacao":
             old_val = result.get(col)
             if _is_empty_upsert_value(old_val) and not _is_empty_upsert_value(new_val):
                 result[col] = new_val
@@ -473,7 +507,11 @@ def _merge_complement_row(
             if _is_empty_upsert_value(old_val) and not _is_empty_upsert_value(new_val):
                 result[col] = new_val
             else:
-                if isinstance(new_val, str) and isinstance(old_val, str) and len(new_val) > len(old_val) + 10:
+                if (
+                    isinstance(new_val, str)
+                    and isinstance(old_val, str)
+                    and len(new_val) > len(old_val) + 10
+                ):
                     result[col] = new_val
             continue
         old_val = result.get(col)
@@ -484,17 +522,23 @@ def _merge_complement_row(
     return result
 
 
-def _merge_overwrite_with_incoming_non_empty(existing_row: pd.Series, new_row: pd.Series) -> pd.Series:
+def _merge_overwrite_with_incoming_non_empty(
+    existing_row: pd.Series, new_row: pd.Series
+) -> pd.Series:
     incoming = new_row.reindex(existing_row.index, fill_value=None)
     empty_mask = incoming.apply(
-        lambda value: pd.isna(value) or value in (None, '') or (isinstance(value, str) and value.strip() == '')
+        lambda value: pd.isna(value)
+        or value in (None, "")
+        or (isinstance(value, str) and value.strip() == "")
     )
     merged = existing_row.where(empty_mask, incoming)
     for col in new_row.index:
         if col not in merged.index:
             merged[col] = new_row[col]
     if not isinstance(merged, pd.Series):
-        raise TypeError("Expected pd.Series from _merge_overwrite_with_incoming_non_empty")
+        raise TypeError(
+            "Expected pd.Series from _merge_overwrite_with_incoming_non_empty"
+        )
     return merged
 
 
@@ -507,12 +551,16 @@ def _log_setor_executor_change_if_needed(
     incoming_sector = incoming_row.get("setor_executor")
     merged_sector = merged_row.get("setor_executor")
 
-    if _is_empty_upsert_value(existing_sector) or _is_empty_upsert_value(incoming_sector):
+    if _is_empty_upsert_value(existing_sector) or _is_empty_upsert_value(
+        incoming_sector
+    ):
         return
 
     existing_text = str(existing_sector).strip()
     incoming_text = str(incoming_sector).strip()
-    merged_text = "" if _is_empty_upsert_value(merged_sector) else str(merged_sector).strip()
+    merged_text = (
+        "" if _is_empty_upsert_value(merged_sector) else str(merged_sector).strip()
+    )
 
     if not existing_text or not incoming_text:
         return
@@ -652,14 +700,14 @@ def _should_enable_exact_overlap_short_circuit(
         ]
         return len(source_values) == 1
 
-    if 'arquivo_origem' not in chunk.columns:
+    if "arquivo_origem" not in chunk.columns:
         return False
     source_values = [
         str(value).strip().casefold()
-        for value in chunk['arquivo_origem'].dropna().unique().tolist()
+        for value in chunk["arquivo_origem"].dropna().unique().tolist()
         if str(value).strip()
     ]
-    return len(source_values) == 1 and source_values[0].startswith('consulta ssa')
+    return len(source_values) == 1 and source_values[0].startswith("consulta ssa")
 
 
 def _load_existing_chunk_caches(
@@ -675,7 +723,7 @@ def _load_existing_chunk_caches(
         return pd.DataFrame(), {}, {}
     existing_parts: list[pd.DataFrame] = []
     for start in range(0, len(chunk_num_ssa), _SQLITE_IN_MAX_VARS):
-        query_ids = chunk_num_ssa[start:start + _SQLITE_IN_MAX_VARS]
+        query_ids = chunk_num_ssa[start : start + _SQLITE_IN_MAX_VARS]
         placeholders = ", ".join(["?"] * len(query_ids))
         part = pd.read_sql_query(
             f"SELECT * FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",
@@ -689,7 +737,7 @@ def _load_existing_chunk_caches(
         if existing_parts
         else pd.DataFrame()
     )
-    if existing_chunk.empty or 'numero_ssa' not in existing_chunk.columns:
+    if existing_chunk.empty or "numero_ssa" not in existing_chunk.columns:
         return existing_chunk, {}, {}
     existing_raw_by_ssa: dict[str, tuple[Any, ...]] = {}
     existing_chunk_tuple_by_ssa: dict[str, tuple[Any, ...]] = {}
@@ -704,7 +752,9 @@ def _load_existing_chunk_caches(
         return existing_chunk, existing_raw_by_ssa, existing_chunk_tuple_by_ssa
     existing_chunk_for_compare = existing_chunk.reindex(columns=chunk_columns)
     compare_rows = existing_chunk_for_compare.itertuples(index=False, name=None)
-    existing_row_pairs = zip(existing_chunk.itertuples(index=False, name=None), compare_rows, strict=False)
+    existing_row_pairs = zip(
+        existing_chunk.itertuples(index=False, name=None), compare_rows, strict=False
+    )
     for existing_row_tuple, compare_tuple in existing_row_pairs:
         numero_val = compare_tuple[numero_ssa_idx]
         cache_key = _upsert_cache_key(numero_val)
@@ -733,12 +783,12 @@ def _load_existing_row_series(
 
 
 def _build_existing_series_cache(existing_chunk: pd.DataFrame) -> dict[str, pd.Series]:
-    if existing_chunk.empty or 'numero_ssa' not in existing_chunk.columns:
+    if existing_chunk.empty or "numero_ssa" not in existing_chunk.columns:
         return {}
     existing_by_ssa: dict[str, pd.Series] = {}
     for existing_row_tuple in existing_chunk.itertuples(index=False, name=None):
         existing_row = pd.Series(existing_row_tuple, index=existing_chunk.columns)
-        numero_val = existing_row.get('numero_ssa')
+        numero_val = existing_row.get("numero_ssa")
         cache_key = _upsert_cache_key(numero_val)
         if cache_key is None:
             continue
@@ -801,7 +851,7 @@ def _collect_chunk_upsert_delta(
             raise TypeError("Expected pd.Series from _prepare_upsert_target_row")
         if should_persist:
             if has_existing and existing_row is not None:
-                delete_keys.add(existing_row.get('numero_ssa'))
+                delete_keys.add(existing_row.get("numero_ssa"))
             merged_cache_row = target_row.copy()
             rows_to_persist[cache_key] = merged_cache_row
             existing_by_ssa[cache_key] = merged_cache_row
@@ -813,13 +863,19 @@ def _collect_chunk_upsert_delta(
     return rows_to_persist, delete_keys, changed_rows
 
 
-def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size: int | None = None) -> int:
+def _perform_upsert(
+    has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size: int | None = None
+) -> int:
     complementary_mode = os.environ.get("SSA_ENABLE_COMPLEMENTARY") == "1"
     effective_policy = _resolve_short_circuit_policy()
     status_rank, description_columns, date_columns = _resolve_upsert_config()
     os.environ.get("SSA_TERMINAL_STATUSES")  # leitura única (telemetria futura)
 
-    effective_chunk_size = chunk_size if chunk_size is not None else _resolve_upsert_chunk_size(len(has_ssa))
+    effective_chunk_size = (
+        chunk_size
+        if chunk_size is not None
+        else _resolve_upsert_chunk_size(len(has_ssa))
+    )
     total_upserted = 0
     quoted_table_name = _quote_identifier(table_name)
     _begin_transaction_if_needed(conn, context="_perform_upsert")
@@ -829,9 +885,9 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
         len(has_ssa),
     )
     for start in range(0, len(has_ssa), effective_chunk_size):
-        chunk = has_ssa.iloc[start:start + effective_chunk_size]
+        chunk = has_ssa.iloc[start : start + effective_chunk_size]
         chunk_columns = list(chunk.columns)
-        numero_ssa_idx = chunk.columns.get_loc('numero_ssa')
+        numero_ssa_idx = chunk.columns.get_loc("numero_ssa")
         enable_exact_overlap_short_circuit = _should_enable_exact_overlap_short_circuit(
             chunk,
             policy=effective_policy,
@@ -839,20 +895,19 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
         )
 
         chunk_num_ssa: list[Any] = (
-            chunk['numero_ssa']
-            .dropna()
-            .drop_duplicates()
-            .tolist()
+            chunk["numero_ssa"].dropna().drop_duplicates().tolist()
         )
 
         existing_by_ssa: dict[str, pd.Series] = {}
-        existing_chunk, existing_raw_by_ssa, existing_chunk_tuple_by_ssa = _load_existing_chunk_caches(
-            conn,
-            quoted_table_name,
-            chunk_num_ssa,
-            chunk_columns,
-            numero_ssa_idx,
-            enable_exact_overlap_short_circuit=enable_exact_overlap_short_circuit,
+        existing_chunk, existing_raw_by_ssa, existing_chunk_tuple_by_ssa = (
+            _load_existing_chunk_caches(
+                conn,
+                quoted_table_name,
+                chunk_num_ssa,
+                chunk_columns,
+                numero_ssa_idx,
+                enable_exact_overlap_short_circuit=enable_exact_overlap_short_circuit,
+            )
         )
         if existing_chunk.empty and len(chunk_num_ssa) == len(chunk):
             _append_dataframe_rows(conn, table_name, chunk)
@@ -887,22 +942,22 @@ def prepare_dataframe_for_upsert(frame: pd.DataFrame) -> pd.DataFrame:
     work_local = prepare_dataframe_for_storage(frame, normalize_derivada=True)
     _validate_canonical_storage_ids(work_local)
     date_columns = [
-        'data_cadastro',
-        'prazo_limite',
-        'data_limite',
-        'desde',
-        'desde_1',
-        'desde_2',
-        'ate',
-        'ate_1',
-        'ate_2',
-        'data_inicio_programada',
-        'data_programacao',
-        'data_inicio_reprogramada',
-        'data_reprogramacao',
-        'instalacao_estimada',
-        'executado',
-        'concluido',
+        "data_cadastro",
+        "prazo_limite",
+        "data_limite",
+        "desde",
+        "desde_1",
+        "desde_2",
+        "ate",
+        "ate_1",
+        "ate_2",
+        "data_inicio_programada",
+        "data_programacao",
+        "data_inicio_reprogramada",
+        "data_reprogramacao",
+        "instalacao_estimada",
+        "executado",
+        "concluido",
     ]
     for c in date_columns:
         if c in work_local.columns:
@@ -922,7 +977,7 @@ def apply_column_whitelist(df: pd.DataFrame) -> pd.DataFrame:
     wl = os.environ.get("SSA_ALLOWED_COLUMNS")
     if not wl:
         return df
-    allowed = {c.strip() for c in wl.split(',') if c.strip()}
+    allowed = {c.strip() for c in wl.split(",") if c.strip()}
     if not allowed:
         return df
     drop_cols = [c for c in df.columns if c not in allowed]
@@ -937,9 +992,10 @@ def insert_dataframe_with_smart_upsert_impl(
 ) -> bool:
     work = prepare_dataframe_for_upsert(df)
     from . import database as _db_mod  # lazy import evita circularidade
+
     conn: Any = None
     conn_cm = None
-    if hasattr(db_path, 'cursor'):  # conexão externa
+    if hasattr(db_path, "cursor"):  # conexão externa
         conn = cast(Any, db_path)
         close_after = False
     else:
@@ -981,8 +1037,10 @@ def insert_dataframe_with_smart_upsert_impl(
                 table_name,
             )
         if table_exists:
-            from .identifier_utils import \
-                is_valid_identifier  # local import to avoid cycles
+            from .identifier_utils import (
+                is_valid_identifier,
+            )  # local import to avoid cycles
+
             if not is_valid_identifier(table_name):
                 raise ValueError(f"Invalid SQL identifier for table: {table_name}")
             cursor.execute(f"PRAGMA table_info({_quote_identifier(table_name)})")
@@ -995,17 +1053,25 @@ def insert_dataframe_with_smart_upsert_impl(
                 conn=conn,
                 db_module=_db_mod,
             )
-        if 'numero_ssa' not in work.columns:
+        if "numero_ssa" not in work.columns:
             has_ssa = pd.DataFrame()
             no_ssa = work.copy()
         else:
-            has_ssa = work[work['numero_ssa'].notna()].copy()
-            no_ssa = work[work['numero_ssa'].isna()].copy()
-        _begin_transaction_if_needed(conn, context="insert_dataframe_with_smart_upsert_impl")
+            has_ssa = work[work["numero_ssa"].notna()].copy()
+            no_ssa = work[work["numero_ssa"].isna()].copy()
+        _begin_transaction_if_needed(
+            conn, context="insert_dataframe_with_smart_upsert_impl"
+        )
         if not no_ssa.empty:
             # Cálculo dinâmico do chunk size para evitar "too many SQL variables"
-            chunk_size = min(500, max(1, 999 // len(no_ssa.columns))) if len(no_ssa.columns) > 0 else 500
-            logger.debug(f"Chunk size calculado para inserção sem SSA: {chunk_size} linhas para {len(no_ssa.columns)} colunas")
+            chunk_size = (
+                min(500, max(1, 999 // len(no_ssa.columns)))
+                if len(no_ssa.columns) > 0
+                else 500
+            )
+            logger.debug(
+                f"Chunk size calculado para inserção sem SSA: {chunk_size} linhas para {len(no_ssa.columns)} colunas"
+            )
             _append_dataframe_rows(conn, table_name, no_ssa, chunk_size=chunk_size)
             logger.info("Inseridos %s registros sem numero_ssa", len(no_ssa))
         if not has_ssa.empty:
@@ -1015,7 +1081,11 @@ def insert_dataframe_with_smart_upsert_impl(
         logger.info("Inserção completada com sucesso")
         return True
     except Exception:
-        if conn is not None and hasattr(conn, "in_transaction") and bool(conn.in_transaction):
+        if (
+            conn is not None
+            and hasattr(conn, "in_transaction")
+            and bool(conn.in_transaction)
+        ):
             try:
                 rollback_fn = getattr(conn, "rollback", None)
                 if callable(rollback_fn):

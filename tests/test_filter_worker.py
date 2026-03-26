@@ -7,7 +7,9 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-pytest.importorskip("PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste")
+pytest.importorskip(
+    "PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste"
+)
 from PyQt6.QtWidgets import QApplication
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -71,7 +73,9 @@ class TestFilterWorker:
 
         results_second = []
         worker_second = FilterWorker(df2, chunks)
-        worker_second.filter_finished.connect(lambda df: results_second.append(df.copy()))
+        worker_second.filter_finished.connect(
+            lambda df: results_second.append(df.copy())
+        )
         worker_second.error_occurred.connect(errors.append)
         worker_second.run()
 
@@ -113,7 +117,9 @@ class TestFilterWorker:
         worker.filter_finished.connect(lambda frame: emitted.append(frame))
         worker.error_occurred.connect(errors.append)
 
-        with patch("gui.workers.filter_worker.filter_dataframe", side_effect=_fake_filter):
+        with patch(
+            "gui.workers.filter_worker.filter_dataframe", side_effect=_fake_filter
+        ):
             worker.run()
 
         assert calls["count"] == 1
@@ -144,16 +150,22 @@ class TestFilterWorker:
                 return dataframe[dataframe["texto"] == "alfa"].copy()
             return dataframe[dataframe["texto"] == "beta"].copy()
 
-        with patch("gui.workers.filter_worker.filter_dataframe", side_effect=_fake_filter):
+        with patch(
+            "gui.workers.filter_worker.filter_dataframe", side_effect=_fake_filter
+        ):
             first = []
             worker_first = FilterWorker(df, [["x"]], cache_context='{"adv":"A"}')
-            worker_first.filter_finished.connect(lambda frame: first.append(frame.copy()))
+            worker_first.filter_finished.connect(
+                lambda frame: first.append(frame.copy())
+            )
             worker_first.error_occurred.connect(errors.append)
             worker_first.run()
 
             second = []
             worker_second = FilterWorker(df, [["x"]], cache_context='{"adv":"B"}')
-            worker_second.filter_finished.connect(lambda frame: second.append(frame.copy()))
+            worker_second.filter_finished.connect(
+                lambda frame: second.append(frame.copy())
+            )
             worker_second.error_occurred.connect(errors.append)
             worker_second.run()
 
@@ -182,14 +194,18 @@ class TestFilterWorker:
             '"advanced_filters_active":false,"exclude_ste_sca":true}'
         )
 
-        with patch("gui.workers.filter_worker.filter_dataframe", side_effect=_fake_filter):
+        with patch(
+            "gui.workers.filter_worker.filter_dataframe", side_effect=_fake_filter
+        ):
             first = []
             worker_first = FilterWorker(
                 df,
                 [["x"]],
                 cache_context=context_with_column_filter,
             )
-            worker_first.filter_finished.connect(lambda frame: first.append(frame.copy()))
+            worker_first.filter_finished.connect(
+                lambda frame: first.append(frame.copy())
+            )
             worker_first.error_occurred.connect(errors.append)
             worker_first.run()
 
@@ -199,7 +215,9 @@ class TestFilterWorker:
                 [["x"]],
                 cache_context=context_with_exclude,
             )
-            worker_second.filter_finished.connect(lambda frame: second.append(frame.copy()))
+            worker_second.filter_finished.connect(
+                lambda frame: second.append(frame.copy())
+            )
             worker_second.error_occurred.connect(errors.append)
             worker_second.run()
 

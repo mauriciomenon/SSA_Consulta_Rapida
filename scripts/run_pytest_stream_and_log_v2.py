@@ -12,12 +12,9 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
-from pytest_stream_common import (
-    ensure_log_path,
-    get_stream_logger,
-    resolve_safe_logpath as _resolve_safe_logpath,
-    run_streaming_pytest,
-)
+from pytest_stream_common import ensure_log_path, get_stream_logger
+from pytest_stream_common import resolve_safe_logpath as _resolve_safe_logpath
+from pytest_stream_common import run_streaming_pytest
 
 # Ensure scripts directory is importable for helper modules
 _SCRIPT_DIR = os.path.dirname(__file__)
@@ -47,10 +44,26 @@ def main():
     parser.add_argument("--test", required=True)
     parser.add_argument("--timeout", type=int, default=None)
     parser.add_argument("--log", default=None)
-    parser.add_argument("--fallback-tee", action="store_true", help="If streaming fails, print instruction for tee fallback")
-    parser.add_argument("--dry-run", action="store_true", help="do not execute pytest; only print what would run")
-    parser.add_argument("--list-candidates", action="store_true", help="print discovered pwsh/powershell candidates and exit")
-    parser.add_argument("--verbose", action="store_true", help="print discovered pwsh/powershell candidates before running")
+    parser.add_argument(
+        "--fallback-tee",
+        action="store_true",
+        help="If streaming fails, print instruction for tee fallback",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="do not execute pytest; only print what would run",
+    )
+    parser.add_argument(
+        "--list-candidates",
+        action="store_true",
+        help="print discovered pwsh/powershell candidates and exit",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="print discovered pwsh/powershell candidates before running",
+    )
     args = parser.parse_args()
 
     ws_settings = {}
@@ -65,8 +78,13 @@ def main():
     if args.timeout is None:
         args.timeout = int(ws_settings.get("pytestWrapper", {}).get("timeout", 10))
 
-    fallback_to_tee = bool(ws_settings.get("pytestWrapper", {}).get("fallbackToTee", False) or args.fallback_tee)
-    kill_tree_default = bool(ws_settings.get("pytestWrapper", {}).get("killProcessTree", True))
+    fallback_to_tee = bool(
+        ws_settings.get("pytestWrapper", {}).get("fallbackToTee", False)
+        or args.fallback_tee
+    )
+    kill_tree_default = bool(
+        ws_settings.get("pytestWrapper", {}).get("killProcessTree", True)
+    )
 
     logdir = os.path.join(os.getcwd(), "local_ai_private")
     try:
@@ -88,7 +106,10 @@ def main():
             f.write("=== DRY RUN: streaming wrapper did not execute pytest ===\n")
             f.flush()
         print(header)
-        print("DRY RUN: streaming wrapper would have started pytest. Log written to:", logpath)
+        print(
+            "DRY RUN: streaming wrapper would have started pytest. Log written to:",
+            logpath,
+        )
         return 0
 
     if args.list_candidates:

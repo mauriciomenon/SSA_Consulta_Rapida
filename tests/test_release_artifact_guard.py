@@ -44,13 +44,19 @@ def test_backup_artifacts_are_not_tracked():
         text=True,
         check=False,
     )
-    assert tracked_result.returncode == 0, f"git ls-files falhou: {tracked_result.stderr}"
+    assert tracked_result.returncode == 0, (
+        f"git ls-files falhou: {tracked_result.stderr}"
+    )
 
     tracked_files = {
         line.strip() for line in tracked_result.stdout.splitlines() if line.strip()
     }
     forbidden_tokens = [".backup_", ".py.bak_", ".py.planv", "_bkp_"]
     offenders = [
-        path for path in sorted(tracked_files) if any(token in path for token in forbidden_tokens)
+        path
+        for path in sorted(tracked_files)
+        if any(token in path for token in forbidden_tokens)
     ]
-    assert offenders == [], f"Arquivos de backup nao devem ser versionados: {offenders[:10]}"
+    assert offenders == [], (
+        f"Arquivos de backup nao devem ser versionados: {offenders[:10]}"
+    )

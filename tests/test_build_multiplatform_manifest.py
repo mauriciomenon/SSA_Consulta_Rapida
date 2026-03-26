@@ -36,17 +36,25 @@ def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
     assert entries["SSA_CLI_v4.33_macos_arm64"]["kind"] == "directory"
     assert entries["SSA_GUI_v4.33_macos_arm64.app"]["kind"] == "directory"
     assert entries["notes.txt"]["kind"] == "file"
-    assert entries["SSA_GUI_v4.33_macos_arm64.app"]["path"].replace("\\", "/").startswith("macos_arm64/")
+    assert (
+        entries["SSA_GUI_v4.33_macos_arm64.app"]["path"]
+        .replace("\\", "/")
+        .startswith("macos_arm64/")
+    )
 
 
-def test_build_executable_uses_platform_specific_add_data_separator(tmp_path, monkeypatch):
+def test_build_executable_uses_platform_specific_add_data_separator(
+    tmp_path, monkeypatch
+):
     builder = MultiPlatformBuilder()
     builder.base_dir = tmp_path
     builder.launchers_dir = tmp_path / "launchers"
     builder.platforms_dir = builder.launchers_dir / "platforms"
 
     (builder.launchers_dir / "cli_entry.py").parent.mkdir(parents=True, exist_ok=True)
-    (builder.launchers_dir / "cli_entry.py").write_text("print('ok')\n", encoding="utf-8")
+    (builder.launchers_dir / "cli_entry.py").write_text(
+        "print('ok')\n", encoding="utf-8"
+    )
     (builder.base_dir / "config").mkdir(parents=True, exist_ok=True)
     (builder.base_dir / "resources").mkdir(parents=True, exist_ok=True)
     (builder.base_dir / "resources" / "app_icon.ico").write_bytes(b"ico")
@@ -79,7 +87,9 @@ def test_build_executable_uses_platform_specific_add_data_separator(tmp_path, mo
         },
     }
 
-    ok = builder.build_executable("windows_amd64", "cli", tmp_path / "python.exe", config)
+    ok = builder.build_executable(
+        "windows_amd64", "cli", tmp_path / "python.exe", config
+    )
     assert ok is True
     assert captured_cmds, "subprocess.run nao foi chamado"
     windows_cmd = captured_cmds[-1]
@@ -111,7 +121,9 @@ def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
     app_bin.write_bytes(b"gui-bin")
     info_plist = app_bundle / "Contents" / "Info.plist"
     with open(info_plist, "wb") as plist_file:
-        plistlib.dump({"CFBundleName": "legacy", "CFBundleDisplayName": "legacy"}, plist_file)
+        plistlib.dump(
+            {"CFBundleName": "legacy", "CFBundleDisplayName": "legacy"}, plist_file
+        )
 
     captured_cmds = []
 
@@ -125,10 +137,15 @@ def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
         Path(cmd[-1]).write_bytes(b"dmg-content")
         return _Result()
 
-    monkeypatch.setattr("launchers.build_multiplatform.shutil.which", lambda name: "/usr/bin/hdiutil" if name == "hdiutil" else None)
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.shutil.which",
+        lambda name: "/usr/bin/hdiutil" if name == "hdiutil" else None,
+    )
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
 
-    ok = builder.post_process("macos_arm64", {"post_build": {"compress": False, "package": "dmg"}})
+    ok = builder.post_process(
+        "macos_arm64", {"post_build": {"compress": False, "package": "dmg"}}
+    )
     assert ok is True
     assert captured_cmds, "hdiutil nao foi chamado"
 
@@ -146,7 +163,9 @@ def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
     assert plist_data["CFBundleName"] == builder.APP_DISPLAY_NAME
     assert plist_data["CFBundleDisplayName"] == builder.APP_DISPLAY_NAME
 
-    manifest = json.loads((platform_dir / "build_manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (platform_dir / "build_manifest.json").read_text(encoding="utf-8")
+    )
     names = {entry["name"] for entry in manifest["executables"]}
     assert dmg_path.name in names
 
@@ -157,12 +176,19 @@ def test_post_process_macos_dmg_fails_when_gui_app_missing(tmp_path, monkeypatch
     platform_dir = builder.dist_dir / "macos_arm64"
     platform_dir.mkdir(parents=True)
 
-    monkeypatch.setattr("launchers.build_multiplatform.shutil.which", lambda name: "/usr/bin/hdiutil" if name == "hdiutil" else None)
-    ok = builder.post_process("macos_arm64", {"post_build": {"compress": False, "package": "dmg"}})
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.shutil.which",
+        lambda name: "/usr/bin/hdiutil" if name == "hdiutil" else None,
+    )
+    ok = builder.post_process(
+        "macos_arm64", {"post_build": {"compress": False, "package": "dmg"}}
+    )
     assert ok is False
 
 
-def test_post_process_macos_dmg_cli_only_skips_when_gui_not_requested(tmp_path, monkeypatch):
+def test_post_process_macos_dmg_cli_only_skips_when_gui_not_requested(
+    tmp_path, monkeypatch
+):
     builder = MultiPlatformBuilder()
     builder.dist_dir = tmp_path / "dist"
     platform_dir = builder.dist_dir / "macos_arm64"

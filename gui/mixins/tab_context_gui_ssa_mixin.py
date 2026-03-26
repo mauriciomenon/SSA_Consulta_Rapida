@@ -1,4 +1,5 @@
 """Tab context sync mixin extracted from SSAMainWindow."""
+
 from __future__ import annotations
 
 import logging
@@ -33,8 +34,8 @@ class TabContextGUISSAMixin:
                 self,
                 "_data_revision_df_ids",
                 (
-                id(self.df_completo),
-                id(self.df_exibido),
+                    id(self.df_completo),
+                    id(self.df_exibido),
                 ),
             )
         except AttributeError:
@@ -68,15 +69,23 @@ class TabContextGUISSAMixin:
                 except AttributeError:
                     pass
                 except Exception as exc:
-                    logger.debug("Falha ao parar debounce no bind da aba de filtros: %s", exc)
+                    logger.debug(
+                        "Falha ao parar debounce no bind da aba de filtros: %s", exc
+                    )
         except Exception as exc:
-            logger.debug("Falha ao sincronizar busca durante bind da aba de filtros: %s", exc)
+            logger.debug(
+                "Falha ao sincronizar busca durante bind da aba de filtros: %s", exc
+            )
         try:
             self._sync_clear_filter_button_state()
         except Exception as exc:
-            logger.debug("Falha ao atualizar estado do botao limpar apos bind de aba: %s", exc)
+            logger.debug(
+                "Falha ao atualizar estado do botao limpar apos bind de aba: %s", exc
+            )
 
-    def _sync_bind_filter_options(self: _TabContextHostProtocol, tab_kind: str | None) -> None:
+    def _sync_bind_filter_options(
+        self: _TabContextHostProtocol, tab_kind: str | None
+    ) -> None:
         try:
             if tab_kind == "filters" and self.adv_filters_group is not None:
                 if self._adv_options_dirty or not self._adv_values_cache:
@@ -84,11 +93,16 @@ class TabContextGUISSAMixin:
                         self._refresh_advanced_filter_options()
                         setattr(self, "_adv_options_dirty", False)
                     except Exception as exc:
-                        logger.warning("Falha ao atualizar opcoes avancadas no bind da aba filtros: %s", exc)
+                        logger.warning(
+                            "Falha ao atualizar opcoes avancadas no bind da aba filtros: %s",
+                            exc,
+                        )
         except AttributeError:
             pass
         except Exception as exc:
-            logger.debug("Falha no bloco de refresh de opcoes avancadas no bind de aba: %s", exc)
+            logger.debug(
+                "Falha no bloco de refresh de opcoes avancadas no bind de aba: %s", exc
+            )
 
         try:
             if not self.exclude_ste_checkbox.isVisible():
@@ -96,7 +110,9 @@ class TabContextGUISSAMixin:
         except AttributeError:
             pass
         except Exception as exc:
-            logger.debug("Falha ao normalizar estado exclude_ste no bind de aba: %s", exc)
+            logger.debug(
+                "Falha ao normalizar estado exclude_ste no bind de aba: %s", exc
+            )
 
     def _sync_bind_profile_selector(self: _TabContextHostProtocol) -> None:
         selector = getattr(self, "profile_selector", None)
@@ -113,19 +129,28 @@ class TabContextGUISSAMixin:
                 signals_blocked = True
                 selector.setCurrentIndex(idx)
         except Exception as exc:
-            logger.debug("Falha ao sincronizar seletor de perfil no bind de aba: %s", exc)
+            logger.debug(
+                "Falha ao sincronizar seletor de perfil no bind de aba: %s", exc
+            )
         finally:
             if signals_blocked:
                 try:
                     selector.blockSignals(False)
                 except Exception as exc:
-                    logger.debug("Falha ao reativar sinais do seletor de perfil no bind de aba: %s", exc)
+                    logger.debug(
+                        "Falha ao reativar sinais do seletor de perfil no bind de aba: %s",
+                        exc,
+                    )
 
-    def _sync_bind_table_state(self: _TabContextHostProtocol, ctx: dict, tab_kind: str | None) -> None:
+    def _sync_bind_table_state(
+        self: _TabContextHostProtocol, ctx: dict, tab_kind: str | None
+    ) -> None:
         try:
             self.column_selector.set_selected_columns(self.visible_columns)
         except Exception as exc:
-            logger.debug("Falha ao sincronizar colunas visiveis no seletor da aba: %s", exc)
+            logger.debug(
+                "Falha ao sincronizar colunas visiveis no seletor da aba: %s", exc
+            )
 
         try:
             df_id = id(self.df_exibido)
@@ -133,12 +158,18 @@ class TabContextGUISSAMixin:
                 self.paginator.set_dataframe(self.df_exibido)
                 ctx["_paginator_df_id"] = df_id
         except Exception as exc:
-            logger.debug("Falha ao sincronizar dataframe no paginator durante bind de aba: %s", exc)
+            logger.debug(
+                "Falha ao sincronizar dataframe no paginator durante bind de aba: %s",
+                exc,
+            )
         try:
             if tab_kind != "filters":
                 self._build_column_filters_panel()
         except Exception as exc:
-            logger.debug("Falha ao reconstruir painel de filtros por coluna no bind de aba: %s", exc)
+            logger.debug(
+                "Falha ao reconstruir painel de filtros por coluna no bind de aba: %s",
+                exc,
+            )
         try:
             if tab_kind != "filters" and self._pending_theme_refresh_column_filters:
                 self._refresh_column_filter_widgets()
@@ -146,12 +177,18 @@ class TabContextGUISSAMixin:
         except AttributeError:
             pass
         except Exception as exc:
-            logger.debug("Falha ao aplicar refresh pendente de tema nos filtros por coluna: %s", exc)
+            logger.debug(
+                "Falha ao aplicar refresh pendente de tema nos filtros por coluna: %s",
+                exc,
+            )
         try:
             if tab_kind != "filters":
                 self._update_col_filter_indicator()
         except Exception as exc:
-            logger.debug("Falha ao atualizar indicador de filtros por coluna no bind de aba: %s", exc)
+            logger.debug(
+                "Falha ao atualizar indicador de filtros por coluna no bind de aba: %s",
+                exc,
+            )
         try:
             self._update_filters_summary()
         except Exception as exc:
@@ -159,7 +196,9 @@ class TabContextGUISSAMixin:
         try:
             self._update_undo_button_state()
         except Exception as exc:
-            logger.debug("Falha ao atualizar estado do botao undo no bind de aba: %s", exc)
+            logger.debug(
+                "Falha ao atualizar estado do botao undo no bind de aba: %s", exc
+            )
         try:
             if tab_kind != "filters":
                 self.update_filter_tags()
@@ -178,7 +217,11 @@ class TabContextGUISSAMixin:
             logger.warning("Falha ao reaplicar tema no bind de aba: %s", exc)
         try:
             current_page = max(1, self.paginator.current_page)
-            render_key = (id(self.df_exibido), current_page, tuple(self.visible_columns))
+            render_key = (
+                id(self.df_exibido),
+                current_page,
+                tuple(self.visible_columns),
+            )
             if ctx.get("_last_render_key") != render_key:
                 self.display_current_page(current_page)
                 ctx["_last_render_key"] = render_key
@@ -203,7 +246,10 @@ class TabContextGUISSAMixin:
             elif hasattr(self, "_sync_bottom_panel_heights"):
                 self._sync_bottom_panel_heights()
         except Exception as exc:
-            logger.debug("Falha ao sincronizar altura dos paineis inferiores no bind de aba: %s", exc)
+            logger.debug(
+                "Falha ao sincronizar altura dos paineis inferiores no bind de aba: %s",
+                exc,
+            )
 
     def _sync_checks_to_tab_context(self: _TabContextHostProtocol):
         """Mantem o contexto da aba Filtros com as listas de checkboxes reconstruidas."""
@@ -226,6 +272,8 @@ class TabContextGUISSAMixin:
                     continue
                 filters_ctx[attr] = value
                 synced += 1
-            logger.debug("_sync_checks_to_tab_context: %s atributos sincronizados", synced)
+            logger.debug(
+                "_sync_checks_to_tab_context: %s atributos sincronizados", synced
+            )
         except Exception as e:
             logger.error("Erro em _sync_checks_to_tab_context: %s", e)

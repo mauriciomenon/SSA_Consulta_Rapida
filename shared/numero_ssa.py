@@ -23,6 +23,7 @@ Rationale for the mixed rules:
 
 Legacy helper functions in other modules should delegate here to avoid drift.
 """
+
 from __future__ import annotations
 
 import re
@@ -39,6 +40,7 @@ __all__ = [
     "bulk_normalize",
     "normalize_numero_ssa",
 ]
+
 
 def _digits(value) -> str:
     return re.sub(r"\D", "", str(value)) if value is not None else ""
@@ -60,6 +62,7 @@ def _expand_two_digit_year_sequence(trimmed: str) -> str | None:
     if YEAR_MIN <= year_1900 <= YEAR_MAX:
         return f"{year_1900}{suffix}"
     return None
+
 
 def normalize_strict(value) -> str | None:
     """Return canonical 9-digit numero_ssa or ``None`` if invalid.
@@ -89,7 +92,7 @@ def normalize_strict(value) -> str | None:
     # Se houver caracteres nao numericos exceto espaco ou hifen, rejeita
     if re.search(r"[^0-9\-\s]", text):
         return None
-    had_dash = '-' in text
+    had_dash = "-" in text
     compact = re.sub(r"[\s-]+", "", text)
     digits = _digits(compact)
     if len(digits) != LENGTH:
@@ -108,11 +111,14 @@ def normalize_strict(value) -> str | None:
             return None
     return digits
 
+
 def is_valid_numero_ssa(value) -> bool:
     return normalize_strict(value) is not None
 
+
 def bulk_normalize(values: Iterable) -> list[str | None]:
     return [normalize_strict(v) for v in values]
+
 
 def normalize_numero_ssa(value) -> str | None:  # noqa: PLR0911
     """Replica regra legacy de exibicao (padding / prefixos).
@@ -124,7 +130,7 @@ def normalize_numero_ssa(value) -> str | None:  # noqa: PLR0911
     raw = re.sub(r"\D", "", str(value))
     if not raw:
         return None
-    trimmed = raw.lstrip('0')
+    trimmed = raw.lstrip("0")
     if not trimmed:
         return None
     n_trim = len(trimmed)

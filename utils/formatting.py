@@ -8,11 +8,12 @@ Regras de formatação compartilhadas entre CLI/GUI:
 - Colunas de semana como inteiros
 - numero_ssa como string canônica de 9 dígitos quando possível
 """
+
 from __future__ import annotations
 
 import math
-from datetime import date, datetime
 import re
+from datetime import date, datetime
 from typing import Optional
 
 import pandas as pd
@@ -55,7 +56,7 @@ def _format_number(v) -> str:
         if abs(v - round(v)) < 1e-9:
             return str(int(round(v)))
         # Caso contrário, usa formato compacto sem zeros à direita excessivos
-        s = ("%g" % v)
+        s = "%g" % v
         return s
     # Pandas tipos numéricos
     if isinstance(v, (pd.Int64Dtype, pd.Float64Dtype)):

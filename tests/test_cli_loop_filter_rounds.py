@@ -40,7 +40,9 @@ def _build_cli_subprocess_env(repo_root: Path, tmp_path: Path) -> dict[str, str]
     return env
 
 
-def test_start_cli_loop_keeps_session_after_clear(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_start_cli_loop_keeps_session_after_clear(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     base_df = pd.DataFrame({"numero_ssa": ["202500001", "202500002"]})
     filtered_df = pd.DataFrame({"numero_ssa": ["202500002"]})
     render_calls: list[tuple[pd.DataFrame, list[str]]] = []
@@ -53,12 +55,17 @@ def test_start_cli_loop_keeps_session_after_clear(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(
         cli,
         "load_settings",
-        lambda: {"default_filters": [], "user_preferences": {"filter_mode_default": "contains"}},
+        lambda: {
+            "default_filters": [],
+            "user_preferences": {"filter_mode_default": "contains"},
+        },
     )
     monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {})
     monkeypatch.setattr(cli, "_show_initial_help", lambda: None)
     monkeypatch.setattr(cli, "_reset_pagination_state", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(cli, "_prune_pagination_tracker_for_stack", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        cli, "_prune_pagination_tracker_for_stack", lambda *_args, **_kwargs: None
+    )
 
     def _fake_parse_search_terms(terms, default_mode="contains"):
         return [(default_mode, term) for term in terms]
@@ -69,7 +76,9 @@ def test_start_cli_loop_keeps_session_after_clear(monkeypatch: pytest.MonkeyPatc
             return filtered_df
         return df
 
-    def _fake_render_single_page(df, _display_map, _settings, _print_cache, terms, **_kwargs):
+    def _fake_render_single_page(
+        df, _display_map, _settings, _print_cache, terms, **_kwargs
+    ):
         render_calls.append((df, list(terms)))
         return None
 
@@ -96,7 +105,9 @@ def test_start_cli_loop_keeps_session_after_clear(monkeypatch: pytest.MonkeyPatc
     ]
 
 
-def test_render_cli_page_exits_when_printer_requests_app_exit(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_render_cli_page_exits_when_printer_requests_app_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     df = pd.DataFrame({"numero_ssa": ["202500001"]})
 
     monkeypatch.setattr(
@@ -118,7 +129,9 @@ def test_render_cli_page_exits_when_printer_requests_app_exit(monkeypatch: pytes
     assert excinfo.value.code == 0
 
 
-def test_start_cli_loop_accumulates_literal_terms_without_rewriting(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_start_cli_loop_accumulates_literal_terms_without_rewriting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     base_df = pd.DataFrame({"numero_ssa": ["202500001", "202500002", "202500003"]})
     after_first = pd.DataFrame({"numero_ssa": ["202500001", "202500003"]})
     after_second = pd.DataFrame({"numero_ssa": ["202500003"]})
@@ -133,7 +146,10 @@ def test_start_cli_loop_accumulates_literal_terms_without_rewriting(monkeypatch:
     monkeypatch.setattr(
         cli,
         "load_settings",
-        lambda: {"default_filters": [], "user_preferences": {"filter_mode_default": "contains"}},
+        lambda: {
+            "default_filters": [],
+            "user_preferences": {"filter_mode_default": "contains"},
+        },
     )
     monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {})
     monkeypatch.setattr(cli, "_show_initial_help", lambda: None)
@@ -152,7 +168,9 @@ def test_start_cli_loop_accumulates_literal_terms_without_rewriting(monkeypatch:
             return after_second
         raise AssertionError(f"unexpected filter call: {values!r}")
 
-    def _fake_render_single_page(df, _display_map, _settings, _print_cache, terms, **_kwargs):
+    def _fake_render_single_page(
+        df, _display_map, _settings, _print_cache, terms, **_kwargs
+    ):
         render_calls.append((df, list(terms)))
         return None
 
@@ -183,21 +201,30 @@ def test_start_cli_loop_accumulates_literal_terms_without_rewriting(monkeypatch:
     ]
 
 
-def test_start_cli_loop_back_rerenders_previous_state(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_start_cli_loop_back_rerenders_previous_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     base_df = pd.DataFrame({"numero_ssa": ["202500001", "202500002"]})
     filtered_df = pd.DataFrame({"numero_ssa": ["202500002"]})
     render_calls: list[tuple[pd.DataFrame, list[str], int | None]] = []
 
-    monkeypatch.setattr(cli, "_get_initial_state", lambda *_args, **_kwargs: (base_df, []))
+    monkeypatch.setattr(
+        cli, "_get_initial_state", lambda *_args, **_kwargs: (base_df, [])
+    )
     monkeypatch.setattr(
         cli,
         "load_settings",
-        lambda: {"default_filters": [], "user_preferences": {"filter_mode_default": "contains"}},
+        lambda: {
+            "default_filters": [],
+            "user_preferences": {"filter_mode_default": "contains"},
+        },
     )
     monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {})
     monkeypatch.setattr(cli, "_show_initial_help", lambda: None)
     monkeypatch.setattr(cli, "_reset_pagination_state", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(cli, "_prune_pagination_tracker_for_stack", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        cli, "_prune_pagination_tracker_for_stack", lambda *_args, **_kwargs: None
+    )
 
     def _fake_parse_search_terms(terms, default_mode="contains"):
         return [(default_mode, term) for term in terms]
@@ -208,7 +235,9 @@ def test_start_cli_loop_back_rerenders_previous_state(monkeypatch: pytest.Monkey
             return filtered_df
         return df
 
-    def _fake_render_single_page(df, _display_map, _settings, _print_cache, terms, **kwargs):
+    def _fake_render_single_page(
+        df, _display_map, _settings, _print_cache, terms, **kwargs
+    ):
         render_calls.append((df, list(terms), kwargs.get("start_page")))
         return None
 
@@ -235,16 +264,23 @@ def test_start_cli_loop_back_rerenders_previous_state(monkeypatch: pytest.Monkey
     ]
 
 
-def test_start_cli_loop_treats_short_year_as_literal_search(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_start_cli_loop_treats_short_year_as_literal_search(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     base_df = pd.DataFrame({"numero_ssa": ["202500001", "202400001"]})
     parse_calls: list[list[str]] = []
     render_calls: list[tuple[pd.DataFrame, list[str]]] = []
 
-    monkeypatch.setattr(cli, "_get_initial_state", lambda *_args, **_kwargs: (base_df, []))
+    monkeypatch.setattr(
+        cli, "_get_initial_state", lambda *_args, **_kwargs: (base_df, [])
+    )
     monkeypatch.setattr(
         cli,
         "load_settings",
-        lambda: {"default_filters": [], "user_preferences": {"filter_mode_default": "contains"}},
+        lambda: {
+            "default_filters": [],
+            "user_preferences": {"filter_mode_default": "contains"},
+        },
     )
     monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {})
     monkeypatch.setattr(cli, "_show_initial_help", lambda: None)
@@ -255,14 +291,22 @@ def test_start_cli_loop_treats_short_year_as_literal_search(monkeypatch: pytest.
         parse_calls.append(values)
         return [(default_mode, term) for term in values]
 
-    def _fake_render_single_page(df, _display_map, _settings, _print_cache, terms, **_kwargs):
+    def _fake_render_single_page(
+        df, _display_map, _settings, _print_cache, terms, **_kwargs
+    ):
         render_calls.append((df, list(terms)))
         return None
 
     monkeypatch.setattr(cli, "parse_search_terms", _fake_parse_search_terms)
     monkeypatch.setattr(cli, "filter_dataframe", lambda df, _parsed_terms: df)
     monkeypatch.setattr(cli, "_render_single_page", _fake_render_single_page)
-    monkeypatch.setattr(cli, "_show_ssa_details", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("nao deveria abrir detalhe")))
+    monkeypatch.setattr(
+        cli,
+        "_show_ssa_details",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("nao deveria abrir detalhe")
+        ),
+    )
 
     inputs = iter(["2025", "q"])
 
@@ -282,7 +326,9 @@ def test_start_cli_loop_treats_short_year_as_literal_search(monkeypatch: pytest.
     assert render_calls == [(base_df, ["2025"])]
 
 
-def test_start_cli_loop_opens_detail_for_exact_ssa_number(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_start_cli_loop_opens_detail_for_exact_ssa_number(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     base_df = pd.DataFrame(
         {
             "numero_ssa": ["202500001"],
@@ -291,18 +337,35 @@ def test_start_cli_loop_opens_detail_for_exact_ssa_number(monkeypatch: pytest.Mo
     )
     details_calls: list[str] = []
 
-    monkeypatch.setattr(cli, "_get_initial_state", lambda *_args, **_kwargs: (base_df, []))
+    monkeypatch.setattr(
+        cli, "_get_initial_state", lambda *_args, **_kwargs: (base_df, [])
+    )
     monkeypatch.setattr(
         cli,
         "load_settings",
-        lambda: {"default_filters": [], "user_preferences": {"filter_mode_default": "contains"}},
+        lambda: {
+            "default_filters": [],
+            "user_preferences": {"filter_mode_default": "contains"},
+        },
     )
     monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {})
     monkeypatch.setattr(cli, "_show_initial_help", lambda: None)
     monkeypatch.setattr(cli, "_render_single_page", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(cli, "_reset_pagination_state", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(cli, "filter_dataframe", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("nao deveria filtrar")))
-    monkeypatch.setattr(cli, "parse_search_terms", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("nao deveria parsear")))
+    monkeypatch.setattr(
+        cli,
+        "filter_dataframe",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("nao deveria filtrar")
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "parse_search_terms",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("nao deveria parsear")
+        ),
+    )
     monkeypatch.setattr(
         cli,
         "_show_ssa_details",
@@ -326,11 +389,16 @@ def test_start_cli_loop_opens_detail_for_exact_ssa_number(monkeypatch: pytest.Mo
     assert details_calls == ["202500001"]
 
 
-def test_handle_export_rejects_unsafe_filename(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_handle_export_rejects_unsafe_filename(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     exporter_calls: list[tuple[pd.DataFrame, str, str, dict]] = []
     current_df = pd.DataFrame({"numero_ssa": ["202500001"]})
 
-    monkeypatch.setattr("exportacao.exporter.export_dataframe", lambda *args: exporter_calls.append(args))
+    monkeypatch.setattr(
+        "exportacao.exporter.export_dataframe",
+        lambda *args: exporter_calls.append(args),
+    )
 
     cli._handle_export(["e", "../relatorio"], current_df, "docs_saida", {})
 
@@ -339,11 +407,19 @@ def test_handle_export_rejects_unsafe_filename(monkeypatch: pytest.MonkeyPatch, 
     assert exporter_calls == []
 
 
-def test_handle_sort_rejects_zero_index(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_handle_sort_rejects_zero_index(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     current_df = pd.DataFrame({"numero_ssa": ["202500001"], "situacao": ["ADM"]})
     results_stack = [(current_df, [])]
 
-    monkeypatch.setattr(cli, "_render_single_page", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("nao deveria renderizar")))
+    monkeypatch.setattr(
+        cli,
+        "_render_single_page",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("nao deveria renderizar")
+        ),
+    )
 
     cli._handle_sort(["ord", "0"], results_stack, {}, {}, True, {})
 
@@ -353,7 +429,9 @@ def test_handle_sort_rejects_zero_index(monkeypatch: pytest.MonkeyPatch, capsys:
     assert results_stack == [(current_df, [])]
 
 
-def test_cached_pretty_print_df_cache_key_includes_rendered_rows(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cached_pretty_print_df_cache_key_includes_rendered_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     settings = {"user_preferences": {}, "display_settings": {}}
     display_map = {"numero_ssa": "Numero SSA"}
     cache: dict[str, tuple[str, dict]] = {}
@@ -362,10 +440,16 @@ def test_cached_pretty_print_df_cache_key_includes_rendered_rows(monkeypatch: py
     df_a = pd.DataFrame({"numero_ssa": ["202500001", "202500002"]})
     df_b = pd.DataFrame({"numero_ssa": ["202500001", "202500999"]})
 
-    monkeypatch.setattr(cli.enhancement_manager, "is_enhanced_printer_enabled", lambda: False)
-    monkeypatch.setattr(cli.EnhancedTablePrinter, "get_terminal_size", lambda _self: (10, 120))
+    monkeypatch.setattr(
+        cli.enhancement_manager, "is_enhanced_printer_enabled", lambda: False
+    )
+    monkeypatch.setattr(
+        cli.EnhancedTablePrinter, "get_terminal_size", lambda _self: (10, 120)
+    )
 
-    def _fake_pretty_print_df(df: pd.DataFrame, _display_map: dict, _settings: dict) -> None:
+    def _fake_pretty_print_df(
+        df: pd.DataFrame, _display_map: dict, _settings: dict
+    ) -> None:
         render_count["count"] += 1
         print("|".join(df["numero_ssa"].tolist()))
 
@@ -386,7 +470,9 @@ def test_build_cli_plain_help_text_reflects_current_search_contract() -> None:
     assert "h ou ?    Ajuda completa" in help_text
 
 
-def test_build_cli_prompt_hint_lines_disambiguates_detail_back_and_remove_term() -> None:
+def test_build_cli_prompt_hint_lines_disambiguates_detail_back_and_remove_term() -> (
+    None
+):
     prompt_line, help_line = cli._build_cli_prompt_hint_lines()
 
     assert "termos por virgula" in prompt_line
@@ -421,15 +507,20 @@ def test_handle_remove_filter_last_term_reuses_last_rendered_page(
     render_calls: list[tuple[pd.DataFrame, list[str], int | None]] = []
 
     monkeypatch.setattr(cli, "_reset_pagination_state", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(cli, "_prune_pagination_tracker_for_stack", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        cli, "_prune_pagination_tracker_for_stack", lambda *_args, **_kwargs: None
+    )
     monkeypatch.setattr(cli, "_handle_back", lambda stack: stack.pop())
     monkeypatch.setattr(cli, "_last_rendered_page_for", lambda _df: 4)
     monkeypatch.setattr(
         cli,
         "_render_cli_page",
-        lambda df, _display_map, _settings, _print_cache, terms, **kwargs: render_calls.append(
-            (df, list(terms), kwargs.get("start_page"))
-        ),
+        lambda df,
+        _display_map,
+        _settings,
+        _print_cache,
+        terms,
+        **kwargs: render_calls.append((df, list(terms), kwargs.get("start_page"))),
     )
 
     cli._handle_remove_filter(["x", "mel4"], results_stack, {}, {}, {})
@@ -479,7 +570,9 @@ def test_handle_help_normal_path_uses_plain_layout_without_box_art(
     out = capsys.readouterr().out
     lines = [line for line in out.splitlines() if line]
     assert "force-rescan    Alias explicito para rescan" in out
-    assert all("║" not in line and "╔" not in line and "╚" not in line for line in lines)
+    assert all(
+        "║" not in line and "╔" not in line and "╚" not in line for line in lines
+    )
     assert max(len(line) for line in lines) <= 79
 
 
@@ -515,15 +608,22 @@ def test_prompt_hint_lines_stay_short_and_two_line_friendly() -> None:
     assert len(help_line) <= 79
 
 
-def test_start_cli_loop_accepts_force_rescan_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_start_cli_loop_accepts_force_rescan_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     base_df = pd.DataFrame({"numero_ssa": ["202500001"]})
     calls: list[str] = []
 
-    monkeypatch.setattr(cli, "_get_initial_state", lambda *_args, **_kwargs: (base_df, []))
+    monkeypatch.setattr(
+        cli, "_get_initial_state", lambda *_args, **_kwargs: (base_df, [])
+    )
     monkeypatch.setattr(
         cli,
         "load_settings",
-        lambda: {"default_filters": [], "user_preferences": {"filter_mode_default": "contains"}},
+        lambda: {
+            "default_filters": [],
+            "user_preferences": {"filter_mode_default": "contains"},
+        },
     )
     monkeypatch.setattr(cli, "load_display_mappings_integrity", lambda: {})
     monkeypatch.setattr(cli, "_show_initial_help", lambda: None)
@@ -571,7 +671,9 @@ def test_cli_subprocess_help_then_quit_exits_cleanly(tmp_path: Path) -> None:
     assert "Saindo..." in result.stdout
 
 
-def test_cli_subprocess_force_rescan_non_interactive_exits_cleanly(tmp_path: Path) -> None:
+def test_cli_subprocess_force_rescan_non_interactive_exits_cleanly(
+    tmp_path: Path,
+) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     env = _build_cli_subprocess_env(repo_root, tmp_path)
 
@@ -613,8 +715,12 @@ def test_toggle_and_enhanced_commands_use_compact_ascii_feedback(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr(cli.enhancement_manager, "toggle_debug", lambda: True)
-    monkeypatch.setattr(cli.enhancement_manager, "enable_enhanced_printer", lambda: None)
-    monkeypatch.setattr(cli.enhancement_manager, "disable_enhanced_printer", lambda: None)
+    monkeypatch.setattr(
+        cli.enhancement_manager, "enable_enhanced_printer", lambda: None
+    )
+    monkeypatch.setattr(
+        cli.enhancement_manager, "disable_enhanced_printer", lambda: None
+    )
 
     cli._toggle_cli_debug_command()
     cli._set_enhanced_cli_enabled(False)
@@ -665,7 +771,9 @@ def test_handle_show_more_rejects_show_all_in_non_interactive_mode(
     monkeypatch.setattr(
         cli,
         "_render_single_page",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("nao deveria renderizar")),
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("nao deveria renderizar")
+        ),
     )
 
     cli._handle_show_more([(df, ["mel4"])], {}, {}, {}, ["z"])

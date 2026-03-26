@@ -3,11 +3,12 @@ Cache Manager - Sistema Unificado de Cache
 Elimina os 4 sistemas de cache independentes.
 """
 
-from typing import Any, Dict, Optional, List
 import hashlib
 import json
-import pandas as pd
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import pandas as pd
 
 
 class CacheManager:
@@ -25,22 +26,18 @@ class CacheManager:
         """
         self.max_entries = max_entries
         self._caches: Dict[str, Dict[str, Any]] = {
-            'widths': {},           # Cache de larguras computadas
-            'dataframes': {},       # Cache de DataFrames formatados
-            'configurations': {},   # Cache de configurações
-            'column_sets': {},      # Cache de sets de colunas
-            'outputs': {},          # Cache de saídas formatadas (CLI)
+            "widths": {},  # Cache de larguras computadas
+            "dataframes": {},  # Cache de DataFrames formatados
+            "configurations": {},  # Cache de configurações
+            "column_sets": {},  # Cache de sets de colunas
+            "outputs": {},  # Cache de saídas formatadas (CLI)
         }
         self._access_times: Dict[str, Dict[str, datetime]] = {
             cache_name: {} for cache_name in self._caches.keys()
         }
-        self._stats: Dict[str, int] = {
-            'hits': 0,
-            'misses': 0,
-            'evictions': 0
-        }
+        self._stats: Dict[str, int] = {"hits": 0, "misses": 0, "evictions": 0}
 
-    def get_dataframe_hash(self, df: pd.DataFrame, extra_info: str = '') -> str:
+    def get_dataframe_hash(self, df: pd.DataFrame, extra_info: str = "") -> str:
         """
         Gera hash único para um DataFrame.
 
@@ -53,26 +50,24 @@ class CacheManager:
         """
         # Cria identificador baseado na estrutura e tamanho do DataFrame
         df_info = {
-            'shape': df.shape,
-            'columns': list(df.columns),
-            'dtypes': str(df.dtypes.to_dict()),
-            'extra': extra_info
+            "shape": df.shape,
+            "columns": list(df.columns),
+            "dtypes": str(df.dtypes.to_dict()),
+            "extra": extra_info,
         }
 
         # Inclui sample dos dados para detectar mudanças de conteúdo
         if not df.empty:
             # Usa primeiras e últimas linhas para detecção eficiente
             sample_data = pd.concat([df.head(2), df.tail(2)]) if len(df) > 4 else df
-            df_info['sample'] = sample_data.to_string()
+            df_info["sample"] = sample_data.to_string()
 
         # MD5 is used only for deterministic cache keys, never for security.
         info_str = json.dumps(df_info, sort_keys=True, default=str)
         return hashlib.md5(info_str.encode(), usedforsecurity=False).hexdigest()
 
     def get_cached_widths(
-        self,
-        df_hash: str,
-        table_width: Optional[int] = None
+        self, df_hash: str, table_width: Optional[int] = None
     ) -> Optional[Dict[str, int]]:
         """
         Recupera larguras do cache.
@@ -85,13 +80,10 @@ class CacheManager:
             Dict com larguras ou None se não encontrado
         """
         cache_key = f"{df_hash}_{table_width}" if table_width else df_hash
-        return self._get_from_cache('widths', cache_key)
+        return self._get_from_cache("widths", cache_key)
 
     def cache_widths(
-        self,
-        df_hash: str,
-        widths: Dict[str, int],
-        table_width: Optional[int] = None
+        self, df_hash: str, widths: Dict[str, int], table_width: Optional[int] = None
     ) -> None:
         """
         Armazena larguras no cache.
@@ -102,7 +94,7 @@ class CacheManager:
             table_width: Largura da tabela (opcional)
         """
         cache_key = f"{df_hash}_{table_width}" if table_width else df_hash
-        self._put_in_cache('widths', cache_key, widths.copy())
+        self._put_in_cache("widths", cache_key, widths.copy())
 
     def get_cached_formatted_df(self, df_hash: str) -> Optional[pd.DataFrame]:
         """
@@ -114,7 +106,7 @@ class CacheManager:
         Returns:
             DataFrame formatado ou None se não encontrado
         """
-        return self._get_from_cache('dataframes', df_hash)
+        return self._get_from_cache("dataframes", df_hash)
 
     def cache_formatted_df(self, df_hash: str, formatted_df: pd.DataFrame) -> None:
         """
@@ -126,7 +118,7 @@ class CacheManager:
         """
         # Cria cópia para evitar modificações externas
         df_copy = formatted_df.copy()
-        self._put_in_cache('dataframes', df_hash, df_copy)
+        self._put_in_cache("dataframes", df_hash, df_copy)
 
     def get_cached_config(self, config_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -138,7 +130,7 @@ class CacheManager:
         Returns:
             Dict com configuração ou None se não encontrado
         """
-        return self._get_from_cache('configurations', config_name)
+        return self._get_from_cache("configurations", config_name)
 
     def cache_config(self, config_name: str, config_data: Dict[str, Any]) -> None:
         """
@@ -148,7 +140,7 @@ class CacheManager:
             config_name: Nome da configuração
             config_data: Dados da configuração
         """
-        self._put_in_cache('configurations', config_name, config_data.copy())
+        self._put_in_cache("configurations", config_name, config_data.copy())
 
     def get_cached_column_set(self, set_name: str) -> Optional[List[str]]:
         """
@@ -160,7 +152,7 @@ class CacheManager:
         Returns:
             Lista de colunas ou None se não encontrado
         """
-        return self._get_from_cache('column_sets', set_name)
+        return self._get_from_cache("column_sets", set_name)
 
     def cache_column_set(self, set_name: str, columns: List[str]) -> None:
         """
@@ -170,7 +162,7 @@ class CacheManager:
             set_name: Nome do set
             columns: Lista de colunas
         """
-        self._put_in_cache('column_sets', set_name, columns.copy())
+        self._put_in_cache("column_sets", set_name, columns.copy())
 
     def get_cached_output(self, output_hash: str) -> Optional[str]:
         """
@@ -182,7 +174,7 @@ class CacheManager:
         Returns:
             String formatada ou None se não encontrado
         """
-        return self._get_from_cache('outputs', output_hash)
+        return self._get_from_cache("outputs", output_hash)
 
     def cache_output(self, output_hash: str, output_text: str) -> None:
         """
@@ -192,7 +184,7 @@ class CacheManager:
             output_hash: Hash da saída
             output_text: Texto formatado
         """
-        self._put_in_cache('outputs', output_hash, output_text)
+        self._put_in_cache("outputs", output_hash, output_text)
 
     def _get_from_cache(self, cache_name: str, key: str) -> Optional[Any]:
         """Recupera item do cache específico."""
@@ -203,10 +195,10 @@ class CacheManager:
         if key in cache:
             # Atualiza tempo de acesso
             self._access_times[cache_name][key] = datetime.now()
-            self._stats['hits'] += 1
+            self._stats["hits"] += 1
             return cache[key]
 
-        self._stats['misses'] += 1
+        self._stats["misses"] += 1
         return None
 
     def _put_in_cache(self, cache_name: str, key: str, value: Any) -> None:
@@ -242,7 +234,7 @@ class CacheManager:
         if oldest_key in access_times:
             del access_times[oldest_key]
 
-        self._stats['evictions'] += 1
+        self._stats["evictions"] += 1
 
     def invalidate_cache(self, cache_name: Optional[str] = None) -> None:
         """
@@ -264,26 +256,26 @@ class CacheManager:
     def get_cache_stats(self) -> Dict[str, Any]:
         """Retorna estatísticas detalhadas do cache."""
         stats: Dict[str, Any] = {
-            'hits': self._stats['hits'],
-            'misses': self._stats['misses'],
-            'evictions': self._stats['evictions'],
+            "hits": self._stats["hits"],
+            "misses": self._stats["misses"],
+            "evictions": self._stats["evictions"],
         }
 
         # Adiciona estatísticas por cache
         cache_details = {}
         for cache_name, cache in self._caches.items():
             cache_details[cache_name] = {
-                'entries': len(cache),
-                'keys': list(cache.keys())[:5],  # Primeiras 5 chaves
-                'memory_estimate': len(str(cache))
+                "entries": len(cache),
+                "keys": list(cache.keys())[:5],  # Primeiras 5 chaves
+                "memory_estimate": len(str(cache)),
             }
 
-        stats['cache_details'] = cache_details
-        stats['total_entries'] = sum(len(cache) for cache in self._caches.values())
+        stats["cache_details"] = cache_details
+        stats["total_entries"] = sum(len(cache) for cache in self._caches.values())
 
         # Calcula hit rate
-        total_requests = stats['hits'] + stats['misses']
-        stats['hit_rate'] = stats['hits'] / total_requests if total_requests > 0 else 0
+        total_requests = stats["hits"] + stats["misses"]
+        stats["hit_rate"] = stats["hits"] / total_requests if total_requests > 0 else 0
 
         return stats
 
@@ -307,7 +299,8 @@ class CacheManager:
             access_times = self._access_times[cache_name]
 
             old_keys = [
-                key for key, access_time in access_times.items()
+                key
+                for key, access_time in access_times.items()
                 if access_time < cutoff_time
             ]
 
@@ -323,17 +316,17 @@ class CacheManager:
     def export_cache_for_debugging(self) -> Dict[str, Any]:
         """Exporta estado do cache para debugging."""
         export_data = {
-            'timestamp': datetime.now().isoformat(),
-            'stats': self.get_cache_stats(),
-            'caches': {}
+            "timestamp": datetime.now().isoformat(),
+            "stats": self.get_cache_stats(),
+            "caches": {},
         }
 
         # Exporta apenas metadados dos caches (não os dados completos)
         for cache_name, cache in self._caches.items():
-            export_data['caches'][cache_name] = {
-                'keys': list(cache.keys()),
-                'entry_count': len(cache),
-                'sample_key': list(cache.keys())[0] if cache else None
+            export_data["caches"][cache_name] = {
+                "keys": list(cache.keys()),
+                "entry_count": len(cache),
+                "sample_key": list(cache.keys())[0] if cache else None,
             }
 
         return export_data

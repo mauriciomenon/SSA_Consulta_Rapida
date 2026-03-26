@@ -225,7 +225,9 @@ def _sheet_stats_has_parse_evidence(stats: dict[str, Any] | None) -> bool:
     return accepted_edges > 0 or special_layout_detected > 0 or informational_rows > 0
 
 
-def _build_sheet_evidence_summary(sheet_file_reports: list[dict[str, Any]]) -> dict[str, Any]:
+def _build_sheet_evidence_summary(
+    sheet_file_reports: list[dict[str, Any]],
+) -> dict[str, Any]:
     files_total = len(sheet_file_reports)
     files_with_evidence = 0
     files_without_evidence: list[str] = []
@@ -244,7 +246,9 @@ def _build_sheet_evidence_summary(sheet_file_reports: list[dict[str, Any]]) -> d
     }
 
 
-def collect_db_edges(conn: sqlite3.Connection, table_name: str = "ssa_table") -> dict[str, Any]:
+def collect_db_edges(
+    conn: sqlite3.Connection, table_name: str = "ssa_table"
+) -> dict[str, Any]:
     """Collect normalized parent->child edges from `numero_ssa -> derivada_de`."""
 
     safe_table = _validate_table_name(table_name)
@@ -294,7 +298,11 @@ def collect_db_edges(conn: sqlite3.Connection, table_name: str = "ssa_table") ->
             )
         )
 
-    multiparent = {child: sorted(parents) for child, parents in child_to_parents.items() if len(parents) > 1}
+    multiparent = {
+        child: sorted(parents)
+        for child, parents in child_to_parents.items()
+        if len(parents) > 1
+    }
     return {
         "edges": edges,
         "stats": {
@@ -310,7 +318,9 @@ def collect_db_edges(conn: sqlite3.Connection, table_name: str = "ssa_table") ->
     }
 
 
-def _load_sheet_dataframe(sheet_file: str, sheet_name: str | None = None) -> list[pd.DataFrame]:
+def _load_sheet_dataframe(
+    sheet_file: str, sheet_name: str | None = None
+) -> list[pd.DataFrame]:
     if not isinstance(sheet_file, str) or not sheet_file.strip():
         raise ValueError("sheet_file must be a non-empty path string")
     if not os.path.exists(sheet_file):
@@ -414,9 +424,15 @@ def _resolve_sheet_columns(
     label_col: str | None,
 ) -> tuple[str | None, str | None, str | None]:
     columns = [str(col) for col in frame.columns]
-    resolved_parent = _resolve_sheet_column_name(columns, parent_col, aliases=SHEET_PARENT_ALIASES)
-    resolved_child = _resolve_sheet_column_name(columns, child_col, aliases=SHEET_CHILD_ALIASES)
-    resolved_label = _resolve_sheet_column_name(columns, label_col, aliases=SHEET_LABEL_ALIASES)
+    resolved_parent = _resolve_sheet_column_name(
+        columns, parent_col, aliases=SHEET_PARENT_ALIASES
+    )
+    resolved_child = _resolve_sheet_column_name(
+        columns, child_col, aliases=SHEET_CHILD_ALIASES
+    )
+    resolved_label = _resolve_sheet_column_name(
+        columns, label_col, aliases=SHEET_LABEL_ALIASES
+    )
     return resolved_parent, resolved_child, resolved_label
 
 
@@ -452,11 +468,13 @@ def collect_sheet_edges(
         if frame is None or frame.empty:
             continue
 
-        resolved_parent_col, resolved_child_col, resolved_label_col = _resolve_sheet_columns(
-            frame,
-            parent_col=parent_col,
-            child_col=child_col,
-            label_col=label_col,
+        resolved_parent_col, resolved_child_col, resolved_label_col = (
+            _resolve_sheet_columns(
+                frame,
+                parent_col=parent_col,
+                child_col=child_col,
+                label_col=label_col,
+            )
         )
         if not resolved_parent_col or not resolved_child_col:
             stats["missing_columns"] += int(len(frame))
@@ -490,7 +508,11 @@ def collect_sheet_edges(
                 continue
             seen_pairs.add(key)
             child_to_parents[child_norm].add(parent_norm)
-            relation_label = _clean_relation_label(row.get(resolved_label_col)) if resolved_label_col else None
+            relation_label = (
+                _clean_relation_label(row.get(resolved_label_col))
+                if resolved_label_col
+                else None
+            )
             edges.append(
                 SourceEdge(
                     parent_ssa=parent_norm,
@@ -504,11 +526,17 @@ def collect_sheet_edges(
 
     stats["accepted_edges"] = len(edges)
     if not edges and int(stats.get("missing_columns", 0)) > 0:
-        fallback = _collect_special_visual_sheet_edges(sheet_file=sheet_file, sheet_name=sheet_name)
+        fallback = _collect_special_visual_sheet_edges(
+            sheet_file=sheet_file, sheet_name=sheet_name
+        )
         fallback_stats = fallback.get("stats") or {}
         if int(fallback_stats.get("special_layout_detected", 0)) > 0:
             return fallback
-    multiparent = {child: sorted(parents) for child, parents in child_to_parents.items() if len(parents) > 1}
+    multiparent = {
+        child: sorted(parents)
+        for child, parents in child_to_parents.items()
+        if len(parents) > 1
+    }
     stats["multiparent_in_source"] = len(multiparent)
     return {"edges": edges, "stats": stats, "multiparent_detail": multiparent}
 
@@ -557,12 +585,22 @@ def _collect_special_visual_sheet_edges(
             continue
 
         header_row = frame.iloc[SPECIAL_SHEET_HEADER_ROW_INDEX]
-        child_header = _normalize_sheet_column_name(header_row.iloc[SPECIAL_SHEET_CHILD_COL_INDEX])
-        relation_header = _normalize_sheet_column_name(header_row.iloc[SPECIAL_SHEET_RELATION_COL_INDEX])
-        parent_header = _normalize_sheet_column_name(header_row.iloc[SPECIAL_SHEET_PARENT_COL_INDEX])
+        child_header = _normalize_sheet_column_name(
+            header_row.iloc[SPECIAL_SHEET_CHILD_COL_INDEX]
+        )
+        relation_header = _normalize_sheet_column_name(
+            header_row.iloc[SPECIAL_SHEET_RELATION_COL_INDEX]
+        )
+        parent_header = _normalize_sheet_column_name(
+            header_row.iloc[SPECIAL_SHEET_PARENT_COL_INDEX]
+        )
 
         # Detect expected visual matrix markers before parsing.
-        if child_header != "numerodassa" or parent_header != "numerodassa" or relation_header != "relacao":
+        if (
+            child_header != "numerodassa"
+            or parent_header != "numerodassa"
+            or relation_header != "relacao"
+        ):
             continue
 
         stats["special_layout_detected"] += 1
@@ -615,7 +653,11 @@ def _collect_special_visual_sheet_edges(
             )
 
     stats["accepted_edges"] = len(edges)
-    multiparent = {child: sorted(parents) for child, parents in child_to_parents.items() if len(parents) > 1}
+    multiparent = {
+        child: sorted(parents)
+        for child, parents in child_to_parents.items()
+        if len(parents) > 1
+    }
     stats["multiparent_in_source"] = len(multiparent)
     return {"edges": edges, "stats": stats, "multiparent_detail": multiparent}
 
@@ -689,7 +731,9 @@ def _cycle_nodes_scc(edges: list[tuple[str, str]]) -> set[str]:
         if node in visited:
             continue
         visited.add(node)
-        stack: list[tuple[str, Iterator[str]]] = [(node, iter(adjacency.get(node, ())))]  # (node, iterator)
+        stack: list[tuple[str, Iterator[str]]] = [
+            (node, iter(adjacency.get(node, ())))
+        ]  # (node, iterator)
         while stack:
             current, it = stack[-1]
             try:
@@ -725,12 +769,17 @@ def _cycle_nodes_scc(edges: list[tuple[str, str]]) -> set[str]:
     return cycles
 
 
-def _build_closure_rows(edges: list[tuple[str, str]], depth_cap: int = 32) -> tuple[list[tuple[str, str, int, int, int]], set[str]]:
+def _build_closure_rows(
+    edges: list[tuple[str, str]], depth_cap: int = 32
+) -> tuple[list[tuple[str, str, int, int, int]], set[str]]:
     adjacency: dict[str, tuple[str, ...]] = defaultdict(tuple)
     children_map: dict[str, list[str]] = defaultdict(list)
     for parent, child in edges:
         children_map[parent].append(child)
-    adjacency = {parent: tuple(sorted(set(children), key=lambda value: value.casefold())) for parent, children in children_map.items()}
+    adjacency = {
+        parent: tuple(sorted(set(children), key=lambda value: value.casefold()))
+        for parent, children in children_map.items()
+    }
 
     cycle_nodes = _cycle_nodes_scc(edges)
     metrics: dict[tuple[str, str], list[int]] = {}
@@ -760,7 +809,9 @@ def _build_closure_rows(edges: list[tuple[str, str]], depth_cap: int = 32) -> tu
                     continue
                 if next_depth == prev_depth:
                     updated = count.get(child, 1) + count.get(node, 1)
-                    count[child] = updated if updated < path_count_cap else path_count_cap
+                    count[child] = (
+                        updated if updated < path_count_cap else path_count_cap
+                    )
 
         for descendant, min_distance in dist.items():
             if descendant == ancestor:
@@ -839,7 +890,9 @@ def _build_summary_rows(
         ancestors = ancestors_info.get(node, [])
         descendants = descendants_info.get(node, [])
         ancestors_count = len({ancestor for ancestor, _min_d, _max_d in ancestors})
-        descendants_count = len({descendant for descendant, _min_d, _max_d in descendants})
+        descendants_count = len(
+            {descendant for descendant, _min_d, _max_d in descendants}
+        )
 
         level_candidates_min: list[int] = []
         level_candidates_max: list[int] = []
@@ -854,7 +907,9 @@ def _build_summary_rows(
         level_max = max(level_candidates_max) if level_candidates_max else None
 
         levels_above_max = level_max if level_max is not None else 0
-        levels_below_max = max((max_d for _desc, _min_d, max_d in descendants), default=0)
+        levels_below_max = max(
+            (max_d for _desc, _min_d, max_d in descendants), default=0
+        )
         has_cycle = 1 if node in cycle_nodes else 0
         component_size = component_sizes.get(node, 1)
 
@@ -879,7 +934,9 @@ def _build_summary_rows(
 
 def _fetch_all_ssa(conn: sqlite3.Connection, table_name: str) -> set[str]:
     safe_table = _validate_table_name(table_name)
-    rows = conn.execute(f'SELECT numero_ssa FROM "{safe_table}" WHERE numero_ssa IS NOT NULL').fetchall()
+    rows = conn.execute(
+        f'SELECT numero_ssa FROM "{safe_table}" WHERE numero_ssa IS NOT NULL'
+    ).fetchall()
     out: set[str] = set()
     for row in rows:
         normalized = _normalize_ssa(row[0])
@@ -910,10 +967,18 @@ def _analyze_reconciliation(
     pair_edges = [(edge.parent_ssa, edge.child_ssa) for edge in matrix_edges]
 
     child_parents = _build_child_parent_map(pair_edges)
-    multiparent_children = {child: sorted(parents) for child, parents in child_parents.items() if len(parents) > 1}
+    multiparent_children = {
+        child: sorted(parents)
+        for child, parents in child_parents.items()
+        if len(parents) > 1
+    }
 
-    orphan_parents = sorted({parent for parent, _child in pair_edges if parent not in all_ssa})
-    orphan_children = sorted({child for _parent, child in pair_edges if child not in all_ssa})
+    orphan_parents = sorted(
+        {parent for parent, _child in pair_edges if parent not in all_ssa}
+    )
+    orphan_children = sorted(
+        {child for _parent, child in pair_edges if child not in all_ssa}
+    )
 
     db_parents: dict[str, set[str]] = defaultdict(set)
     sheet_parents: dict[str, set[str]] = defaultdict(set)
@@ -948,7 +1013,9 @@ def _analyze_reconciliation(
         "orphan_children_sample": orphan_children[:20],
         "db_vs_sheet_conflict_count": len(db_vs_sheet_conflicts),
         "db_vs_sheet_conflict_sample": dict(list(db_vs_sheet_conflicts.items())[:20]),
-        "source_distribution": dict(sorted(source_distribution.items(), key=lambda item: int(item[0]))),
+        "source_distribution": dict(
+            sorted(source_distribution.items(), key=lambda item: int(item[0]))
+        ),
         "cycle_node_count": len(cycle_nodes),
         "cycle_node_sample": sorted(cycle_nodes)[:20],
     }
@@ -1032,7 +1099,14 @@ def _matrix_from_active_sources(conn: sqlite3.Connection) -> list[MatrixEdge]:
     ).fetchall()
 
     grouped: dict[tuple[str, str], list[SourceEdge]] = defaultdict(list)
-    for parent_ssa, child_ssa, source_name, source_flag, relation_type, relation_raw_label in rows:
+    for (
+        parent_ssa,
+        child_ssa,
+        source_name,
+        source_flag,
+        relation_type,
+        relation_raw_label,
+    ) in rows:
         grouped[(parent_ssa, child_ssa)].append(
             SourceEdge(
                 parent_ssa=parent_ssa,
@@ -1121,7 +1195,9 @@ def _upsert_matrix_rows(
 
     existing_pairs = {
         (row[0], row[1])
-        for row in conn.execute("SELECT parent_ssa, child_ssa FROM ssa_derivada_matrix").fetchall()
+        for row in conn.execute(
+            "SELECT parent_ssa, child_ssa FROM ssa_derivada_matrix"
+        ).fetchall()
     }
     active_pairs = {(edge.parent_ssa, edge.child_ssa) for edge in matrix_edges}
     stale_pairs = existing_pairs - active_pairs
@@ -1142,7 +1218,11 @@ def _upsert_matrix_rows(
             )
 
 
-def _replace_closure(conn: sqlite3.Connection, closure_rows: list[tuple[str, str, int, int, int]], timestamp: str) -> None:
+def _replace_closure(
+    conn: sqlite3.Connection,
+    closure_rows: list[tuple[str, str, int, int, int]],
+    timestamp: str,
+) -> None:
     conn.execute("DELETE FROM ssa_derivada_closure")
     if not closure_rows:
         return
@@ -1157,11 +1237,16 @@ def _replace_closure(conn: sqlite3.Connection, closure_rows: list[tuple[str, str
             last_sync_at
         ) VALUES (?, ?, ?, ?, ?, ?)
         """,
-        [(ancestor, descendant, min_d, max_d, path_count, timestamp) for ancestor, descendant, min_d, max_d, path_count in closure_rows],
+        [
+            (ancestor, descendant, min_d, max_d, path_count, timestamp)
+            for ancestor, descendant, min_d, max_d, path_count in closure_rows
+        ],
     )
 
 
-def _replace_summary(conn: sqlite3.Connection, summary_rows: list[tuple[Any, ...]]) -> None:
+def _replace_summary(
+    conn: sqlite3.Connection, summary_rows: list[tuple[Any, ...]]
+) -> None:
     conn.execute("DELETE FROM ssa_derivada_summary")
     if not summary_rows:
         return
@@ -1209,7 +1294,15 @@ def _start_sync_run(
             merged_edges
         ) VALUES (?, ?, ?, ?, 'running', ?, ?, ?)
         """,
-        (mode, actor, ",".join(managed_sources), started_at, db_edges, sheet_edges, merged_edges),
+        (
+            mode,
+            actor,
+            ",".join(managed_sources),
+            started_at,
+            db_edges,
+            sheet_edges,
+            merged_edges,
+        ),
     )
     run_id = row.lastrowid
     if run_id is None:
@@ -1298,14 +1391,17 @@ def _scan_materialization_integrity(conn: sqlite3.Connection) -> dict[str, Any]:
         [
             pair
             for pair in matrix_pairs
-            if pair in source_flags_by_pair and matrix_pairs[pair] != source_flags_by_pair[pair]
+            if pair in source_flags_by_pair
+            and matrix_pairs[pair] != source_flags_by_pair[pair]
         ]
     )
     invalid_matrix_pairs = sorted(
         [
             pair
             for pair in matrix_pairs
-            if pair[0] == pair[1] or not _normalize_ssa(pair[0]) or not _normalize_ssa(pair[1])
+            if pair[0] == pair[1]
+            or not _normalize_ssa(pair[0])
+            or not _normalize_ssa(pair[1])
         ]
     )
 
@@ -1345,12 +1441,19 @@ def _scan_materialization_integrity(conn: sqlite3.Connection) -> dict[str, Any]:
         "source_active_edges": len(source_rows),
         "summary_nodes": len(summary_nodes),
         "samples": {
-            "missing_source_pairs": [f"{parent}->{child}" for parent, child in missing_source_pairs[:20]],
-            "source_without_matrix_pairs": [
-                f"{parent}->{child}" for parent, child in source_without_matrix_pairs[:20]
+            "missing_source_pairs": [
+                f"{parent}->{child}" for parent, child in missing_source_pairs[:20]
             ],
-            "flag_mismatch_pairs": [f"{parent}->{child}" for parent, child in flag_mismatch_pairs[:20]],
-            "invalid_matrix_pairs": [f"{parent}->{child}" for parent, child in invalid_matrix_pairs[:20]],
+            "source_without_matrix_pairs": [
+                f"{parent}->{child}"
+                for parent, child in source_without_matrix_pairs[:20]
+            ],
+            "flag_mismatch_pairs": [
+                f"{parent}->{child}" for parent, child in flag_mismatch_pairs[:20]
+            ],
+            "invalid_matrix_pairs": [
+                f"{parent}->{child}" for parent, child in invalid_matrix_pairs[:20]
+            ],
             "summary_missing_nodes": summary_missing_nodes[:20],
             "summary_extra_nodes": summary_extra_nodes[:20],
         },
@@ -1376,7 +1479,7 @@ def sync_derivadas(
 
     normalized_sheet_files: list[str] = []
     seen_sheet_files: set[str] = set()
-    for candidate in ([sheet_file] if sheet_file else []):
+    for candidate in [sheet_file] if sheet_file else []:
         normalized = _normalize_sheet_file_path(candidate)
         if normalized and normalized not in seen_sheet_files:
             normalized_sheet_files.append(normalized)
@@ -1427,21 +1530,29 @@ def sync_derivadas(
                 current_stats = dict(sheet_result.get("stats") or {})
                 for key, value in current_stats.items():
                     if isinstance(value, int):
-                        merged_sheet_stats[key] = int(merged_sheet_stats.get(key, 0)) + value
+                        merged_sheet_stats[key] = (
+                            int(merged_sheet_stats.get(key, 0)) + value
+                        )
                     else:
                         merged_sheet_stats[key] = value
                 sheet_file_reports.append(
                     {
                         "sheet_file": current_sheet_file,
                         "stats": current_stats,
-                        "has_parse_evidence": _sheet_stats_has_parse_evidence(current_stats),
+                        "has_parse_evidence": _sheet_stats_has_parse_evidence(
+                            current_stats
+                        ),
                     }
                 )
                 current_multiparent = sheet_result.get("multiparent_detail") or {}
                 for child_ssa, parents in current_multiparent.items():
                     if isinstance(parents, list):
-                        merged_sheet_multiparent[str(child_ssa)].update(str(parent) for parent in parents)
-            sheet_stats = merged_sheet_stats if merged_sheet_stats else {"accepted_edges": 0}
+                        merged_sheet_multiparent[str(child_ssa)].update(
+                            str(parent) for parent in parents
+                        )
+            sheet_stats = (
+                merged_sheet_stats if merged_sheet_stats else {"accepted_edges": 0}
+            )
             sheet_stats["files_count"] = len(normalized_sheet_files)
             sheet_multiparent = {
                 child_ssa: sorted(parents)
@@ -1454,7 +1565,9 @@ def sync_derivadas(
             all_ssa = _fetch_all_ssa(conn, table_name=table_name)
         else:
             all_ssa = set()
-        reconciliation_pre = _analyze_reconciliation(all_ssa, merged_edges, source_edges)
+        reconciliation_pre = _analyze_reconciliation(
+            all_ssa, merged_edges, source_edges
+        )
         managed_sources = sorted({edge.source_name for edge in source_edges})
 
         report: dict[str, Any] = {
@@ -1473,8 +1586,14 @@ def sync_derivadas(
             },
             "reconciliation": reconciliation_pre,
             "source_multiparent": {
-                SOURCE_DB_FIELD: {"count": len(db_multiparent), "sample": dict(list(db_multiparent.items())[:20])},
-                SOURCE_SHEET_DERIVADAS: {"count": len(sheet_multiparent), "sample": dict(list(sheet_multiparent.items())[:20])},
+                SOURCE_DB_FIELD: {
+                    "count": len(db_multiparent),
+                    "sample": dict(list(db_multiparent.items())[:20]),
+                },
+                SOURCE_SHEET_DERIVADAS: {
+                    "count": len(sheet_multiparent),
+                    "sample": dict(list(sheet_multiparent.items())[:20]),
+                },
             },
             "timestamp": timestamp,
         }
@@ -1502,10 +1621,17 @@ def sync_derivadas(
 
         try:
             _begin_derivadas_write_transaction(conn)
-            _upsert_source_rows(conn, source_edges, managed_sources=managed_sources, timestamp=timestamp)
+            _upsert_source_rows(
+                conn, source_edges, managed_sources=managed_sources, timestamp=timestamp
+            )
 
             matrix_edges = _matrix_from_active_sources(conn)
-            _upsert_matrix_rows(conn, matrix_edges=matrix_edges, timestamp=timestamp, full_rebuild=full_rebuild)
+            _upsert_matrix_rows(
+                conn,
+                matrix_edges=matrix_edges,
+                timestamp=timestamp,
+                full_rebuild=full_rebuild,
+            )
 
             active_rows = conn.execute(
                 """
@@ -1524,9 +1650,14 @@ def sync_derivadas(
                 )
                 for row in active_rows
             ]
-            edge_pairs = [(edge.parent_ssa, edge.child_ssa) for edge in active_matrix_edges]
+            edge_pairs = [
+                (edge.parent_ssa, edge.child_ssa) for edge in active_matrix_edges
+            ]
             edge_fingerprint = _graph_fingerprint(
-                [(edge.parent_ssa, edge.child_ssa, edge.source_flags) for edge in active_matrix_edges]
+                [
+                    (edge.parent_ssa, edge.child_ssa, edge.source_flags)
+                    for edge in active_matrix_edges
+                ]
             )
 
             closure_rows, cycle_nodes = _build_closure_rows(edge_pairs)
@@ -1560,7 +1691,9 @@ def sync_derivadas(
                 active_edges=len(active_matrix_edges),
                 status="ok",
                 graph_fingerprint=edge_fingerprint,
-                message=json.dumps({"graph_fingerprint": edge_fingerprint}, ensure_ascii=False),
+                message=json.dumps(
+                    {"graph_fingerprint": edge_fingerprint}, ensure_ascii=False
+                ),
             )
             conn.commit()
 
@@ -1620,11 +1753,24 @@ def get_sync_stats(db_path: str) -> dict[str, Any]:
                 "latest_sync": None,
             }
 
-        matrix_active = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1").fetchone()[0]
-        matrix_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0]
-        closure_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_closure").fetchone()[0]
-        summary_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_summary").fetchone()[0]
-        sync_run_cols = {row[1] for row in conn.execute("PRAGMA table_info(ssa_derivada_sync_run)").fetchall()}
+        matrix_active = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1"
+        ).fetchone()[0]
+        matrix_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_matrix"
+        ).fetchone()[0]
+        closure_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_closure"
+        ).fetchone()[0]
+        summary_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_summary"
+        ).fetchone()[0]
+        sync_run_cols = {
+            row[1]
+            for row in conn.execute(
+                "PRAGMA table_info(ssa_derivada_sync_run)"
+            ).fetchall()
+        }
         has_actor = "actor" in sync_run_cols
         if has_actor:
             latest_sql = """
@@ -1748,7 +1894,6 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
                     "fingerprint": {"current": None, "latest_sync": None},
                 },
             }
-
 
         integrity_scan = _scan_materialization_integrity(conn)
         matrix_rows = integrity_scan.get("matrix_rows", [])
@@ -1904,7 +2049,9 @@ def run_derivadas_maintenance(
             return {
                 "ran": False,
                 "reason": "interval_guard",
-                "next_in_seconds": int(max(0, int(min_interval_seconds) - delta.total_seconds())),
+                "next_in_seconds": int(
+                    max(0, int(min_interval_seconds) - delta.total_seconds())
+                ),
             }
 
     try:
@@ -1928,10 +2075,20 @@ def run_derivadas_maintenance(
         }
 
     if scan_report["is_consistent"]:
-        return {"ran": True, "scan_only": True, "is_consistent": True, "scan": scan_report}
+        return {
+            "ran": True,
+            "scan_only": True,
+            "is_consistent": True,
+            "scan": scan_report,
+        }
 
     if not auto_heal:
-        return {"ran": True, "scan_only": True, "is_consistent": False, "scan": scan_report}
+        return {
+            "ran": True,
+            "scan_only": True,
+            "is_consistent": False,
+            "scan": scan_report,
+        }
 
     try:
         heal_report = self_heal_derivadas(
@@ -1967,10 +2124,14 @@ def export_reconciliation_csv(report: dict[str, Any], output_file: str) -> None:
         "verify_only": report.get("verify_only"),
         "source_edges": (report.get("merge_stats") or {}).get("source_edges", 0),
         "merged_edges": (report.get("merge_stats") or {}).get("merged_edges", 0),
-        "multiparent_children_count": reconciliation.get("multiparent_children_count", 0),
+        "multiparent_children_count": reconciliation.get(
+            "multiparent_children_count", 0
+        ),
         "orphan_parents_count": reconciliation.get("orphan_parents_count", 0),
         "orphan_children_count": reconciliation.get("orphan_children_count", 0),
-        "db_vs_sheet_conflict_count": reconciliation.get("db_vs_sheet_conflict_count", 0),
+        "db_vs_sheet_conflict_count": reconciliation.get(
+            "db_vs_sheet_conflict_count", 0
+        ),
         "cycle_node_count": reconciliation.get("cycle_node_count", 0),
     }
     fieldnames = list(row.keys())

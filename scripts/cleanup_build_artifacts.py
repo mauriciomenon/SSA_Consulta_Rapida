@@ -71,7 +71,11 @@ def main() -> int:
         return 1
 
     if args.scope == "full" and not args.yes:
-        answer = input("Confirmar cleanup FULL (remove builds/dist/dist_packages)? [s/N]: ").strip().lower()
+        answer = (
+            input("Confirmar cleanup FULL (remove builds/dist/dist_packages)? [s/N]: ")
+            .strip()
+            .lower()
+        )
         if answer not in {"s", "sim", "y", "yes"}:
             print("[info] cleanup cancelado")
             return 0

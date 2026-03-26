@@ -4,6 +4,7 @@ This module provides helper functions used by test fixtures to create an
 isolated SQLite database instance using the project schema, and convenience
 assertions for row counts.
 """
+
 from __future__ import annotations
 
 import os
@@ -51,17 +52,23 @@ def fetch_all(db_path: str, table: str) -> list[tuple]:
 def assert_rowcount(db_path: str, table: str, expected: int) -> None:
     rows = fetch_all(db_path, table)
     actual = len(rows)
-    assert actual == expected, f"Rowcount mismatch for {table}: got {actual}, expected {expected}"
+    assert actual == expected, (
+        f"Rowcount mismatch for {table}: got {actual}, expected {expected}"
+    )
 
 
-def insert_raw_rows(db_path: str, table: str, columns: Iterable[str], rows: Iterable[Iterable[Any]]) -> None:
+def insert_raw_rows(
+    db_path: str, table: str, columns: Iterable[str], rows: Iterable[Iterable[Any]]
+) -> None:
     conn = sqlite3.connect(db_path)
     try:
         column_names = list(columns)
         col_list = ",".join(column_names)
         placeholders = ",".join(["?"] * len(column_names))
         normalized_rows = [tuple(row) for row in rows]
-        conn.executemany(f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})", normalized_rows)
+        conn.executemany(
+            f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})", normalized_rows
+        )
         conn.commit()
     finally:
         conn.close()

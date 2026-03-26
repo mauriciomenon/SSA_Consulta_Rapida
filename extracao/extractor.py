@@ -6,22 +6,27 @@ Lê arquivos .xlsx, identifica cabeçalhos, normaliza nomes de colunas usando
 `config/column_mappings.json` e converte tipos de dados fundamentais.
 """
 
-import os
-import pandas as pd
-import re
-from typing import Optional, Dict, Any, Callable
 import logging
+import os
+import re
+from typing import Any, Callable, Dict, Optional
+
+import pandas as pd
+
 from shared.column_mappings import load_column_mappings_integrity
 from shared.import_contract import MANDATORY_SCHEMA_COLUMNS
 from utils.robust_importer import import_excel_robust
 
 logger = logging.getLogger(__name__)
 
+
 class ExtractionError(Exception):
     """Erro durante a extração de dados de um arquivo."""
+
     def __init__(self, message: str, error_code: str | None = None):
         super().__init__(message)
         self.error_code = error_code
+
 
 def _load_column_mappings() -> dict:
     """
@@ -33,12 +38,19 @@ def _load_column_mappings() -> dict:
     """
     try:
         mappings = load_column_mappings_integrity()
-        inverted_map = {alias: canonical for canonical, aliases in mappings.items() for alias in aliases}
-        logger.debug(f"Mapeamento de colunas carregado com {len(inverted_map)} entradas (via integridade).")
+        inverted_map = {
+            alias: canonical
+            for canonical, aliases in mappings.items()
+            for alias in aliases
+        }
+        logger.debug(
+            f"Mapeamento de colunas carregado com {len(inverted_map)} entradas (via integridade)."
+        )
         return inverted_map
     except Exception as e:
         logger.error(f"Falha ao carregar mapeamentos de coluna com integridade: {e}")
         return {}
+
 
 def _deduplicate_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Ensure column names are unique while keeping semantic aliases when possible."""
@@ -52,13 +64,26 @@ def _deduplicate_columns(df: pd.DataFrame) -> pd.DataFrame:
 
     # Canonical resolution map - subsequent duplicates get deterministic names.
     duplicate_resolution: dict[str, list[str]] = {
-        'desde': ['desde', 'desde_1', 'desde_2'],
-        'ate': ['ate', 'ate_1', 'ate_2'],
-        'sn': ['sn_retirado', 'sn_instalado', 'sn_extra'],
-        'numero_ssa': ['numero_ssa', 'numero_ssa_relacionada_1', 'numero_ssa_relacionada_2', 'numero_ssa_relacionada_3'],
-        'setor_emissor': ['setor_emissor', 'setor_emissor_relacionado_1', 'setor_emissor_relacionado_2'],
-        'setor_executor': ['setor_executor', 'setor_executor_relacionado_1', 'setor_executor_relacionado_2'],
-        'situacao': ['situacao', 'situacao_relacionada_1', 'situacao_relacionada_2'],
+        "desde": ["desde", "desde_1", "desde_2"],
+        "ate": ["ate", "ate_1", "ate_2"],
+        "sn": ["sn_retirado", "sn_instalado", "sn_extra"],
+        "numero_ssa": [
+            "numero_ssa",
+            "numero_ssa_relacionada_1",
+            "numero_ssa_relacionada_2",
+            "numero_ssa_relacionada_3",
+        ],
+        "setor_emissor": [
+            "setor_emissor",
+            "setor_emissor_relacionado_1",
+            "setor_emissor_relacionado_2",
+        ],
+        "setor_executor": [
+            "setor_executor",
+            "setor_executor_relacionado_1",
+            "setor_executor_relacionado_2",
+        ],
+        "situacao": ["situacao", "situacao_relacionada_1", "situacao_relacionada_2"],
     }
 
     for original_name in df.columns:
@@ -105,30 +130,30 @@ def _normalize_tempo_excedido_value(value) -> str | None:
             qty = int(number)
         except ValueError:
             return text
-        if unit == 'mi':
-            units['minutes'] += qty
-        elif unit == 'm':
-            units['minutes'] += qty
-        elif unit == 'mo':
-            units['months'] += qty
-        elif unit == 'd':
-            units['days'] += qty
-        elif unit == 'h':
-            units['hours'] += qty
-    parts = ['P']
-    if units['months']:
+        if unit == "mi":
+            units["minutes"] += qty
+        elif unit == "m":
+            units["minutes"] += qty
+        elif unit == "mo":
+            units["months"] += qty
+        elif unit == "d":
+            units["days"] += qty
+        elif unit == "h":
+            units["hours"] += qty
+    parts = ["P"]
+    if units["months"]:
         parts.append(f"{units['months']}M")
-    if units['days']:
+    if units["days"]:
         parts.append(f"{units['days']}D")
     time_parts: list[str] = []
-    if units['hours']:
+    if units["hours"]:
         time_parts.append(f"{units['hours']}H")
-    if units['minutes']:
+    if units["minutes"]:
         time_parts.append(f"{units['minutes']}M")
     if time_parts:
-        parts.append('T' + ''.join(time_parts))
-    normalized = ''.join(parts)
-    return normalized if normalized != 'P' else text
+        parts.append("T" + "".join(time_parts))
+    normalized = "".join(parts)
+    return normalized if normalized != "P" else text
 
 
 def _record_debug_phase_columns(
@@ -160,13 +185,17 @@ def _summarize_invalid_identity_rows(
             "payload_columns_sample": [],
         }
 
-    payload_columns = [col for col in invalid_rows.columns if col not in {"numero_ssa", "descricao_ssa"}]
+    payload_columns = [
+        col
+        for col in invalid_rows.columns
+        if col not in {"numero_ssa", "descricao_ssa"}
+    ]
     if payload_columns:
         payload_frame = invalid_rows[payload_columns].copy()
         for col in payload_columns:
-            if pd.api.types.is_object_dtype(payload_frame[col]) or pd.api.types.is_string_dtype(
+            if pd.api.types.is_object_dtype(
                 payload_frame[col]
-            ):
+            ) or pd.api.types.is_string_dtype(payload_frame[col]):
                 stripped = payload_frame[col].astype("string").str.strip()
                 payload_frame[col] = payload_frame[col].mask(stripped.eq(""), pd.NA)
         payload_presence = payload_frame.notna().any(axis=1)
@@ -176,9 +205,7 @@ def _summarize_invalid_identity_rows(
     payload_removed = int(payload_presence.sum())
     empty_removed = int((~payload_presence).sum())
     payload_columns_sample = [
-        str(col)
-        for col in payload_columns
-        if payload_frame[col].notna().any()
+        str(col) for col in payload_columns if payload_frame[col].notna().any()
     ][:8]
     return {
         "total_removed": int(len(invalid_rows)),
@@ -199,92 +226,103 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
         pd.DataFrame: O DataFrame com tipos de dados normalizados.
     """
     logger.debug("Iniciando normalização de tipos de dados...")
-    df_normalized = df.copy() # Trabalha em uma cópia
+    df_normalized = df.copy()  # Trabalha em uma cópia
 
     # --- Conversao de numero_ssa para Int64 nullable ---
-    if 'numero_ssa' in df_normalized.columns:
+    if "numero_ssa" in df_normalized.columns:
         logger.debug("Convertendo 'numero_ssa' para Int64...")
-        df_normalized['numero_ssa'] = pd.to_numeric(df_normalized['numero_ssa'], errors='coerce').astype('Int64')
+        df_normalized["numero_ssa"] = pd.to_numeric(
+            df_normalized["numero_ssa"], errors="coerce"
+        ).astype("Int64")
 
     # --- Conversao de data_cadastro para datetime ---
-    if 'data_cadastro' in df_normalized.columns:
+    if "data_cadastro" in df_normalized.columns:
         logger.debug("Convertendo 'data_cadastro' para datetime...")
-        df_normalized['data_cadastro'] = pd.to_datetime(
-            df_normalized['data_cadastro'],
-            errors='coerce',
-            dayfirst=True # Assume DD/MM/YYYY
+        df_normalized["data_cadastro"] = pd.to_datetime(
+            df_normalized["data_cadastro"],
+            errors="coerce",
+            dayfirst=True,  # Assume DD/MM/YYYY
         )
-        missing_mask = df_normalized['data_cadastro'].isna()
+        missing_mask = df_normalized["data_cadastro"].isna()
         if missing_mask.any():
             logger.debug(
                 "Detectados %s registros sem 'data_cadastro' apos conversao inicial; aplicando fallbacks.",
-                int(missing_mask.sum())
+                int(missing_mask.sum()),
             )
             fallback_candidates = [
-                'desde',
-                'desde_1',
-                'data_inicio_programada',
-                'data_programacao',
+                "desde",
+                "desde_1",
+                "data_inicio_programada",
+                "data_programacao",
             ]
             for col in fallback_candidates:
                 if col not in df_normalized.columns:
                     continue
                 candidate_series = pd.to_datetime(
-                    df_normalized[col],
-                    errors='coerce',
-                    dayfirst=True
+                    df_normalized[col], errors="coerce", dayfirst=True
                 )
                 fill_mask = missing_mask & candidate_series.notna()
                 if fill_mask.any():
-                    df_normalized.loc[fill_mask, 'data_cadastro'] = candidate_series.loc[fill_mask]
-                    missing_mask = df_normalized['data_cadastro'].isna()
+                    df_normalized.loc[fill_mask, "data_cadastro"] = (
+                        candidate_series.loc[fill_mask]
+                    )
+                    missing_mask = df_normalized["data_cadastro"].isna()
                     logger.debug(
                         "Preenchidos %s registros de 'data_cadastro' usando coluna '%s'. Restantes sem data: %s",
                         int(fill_mask.sum()),
                         col,
-                        int(missing_mask.sum())
+                        int(missing_mask.sum()),
                     )
                     if not missing_mask.any():
                         break
             if missing_mask.any():
                 logger.debug(
                     "Ainda restam %s registros sem 'data_cadastro' apos fallbacks.",
-                    int(missing_mask.sum())
+                    int(missing_mask.sum()),
                 )
 
     # --- Conversao de colunas de semana para Int64 nullable ---
-    semana_columns = [col for col in df_normalized.columns if 'semana' in col.lower()]
+    semana_columns = [col for col in df_normalized.columns if "semana" in col.lower()]
     for col in semana_columns:
         logger.debug(f"Convertendo coluna de semana '{col}' para Int64...")
-        df_normalized[col] = pd.to_numeric(df_normalized[col], errors='coerce').astype('Int64')
+        df_normalized[col] = pd.to_numeric(df_normalized[col], errors="coerce").astype(
+            "Int64"
+        )
 
     # --- Conversao de outras colunas numericas conhecidas ---
     numeric_columns = [
-        'total_de_reprogramacoes',
+        "total_de_reprogramacoes",
     ]
     for col in numeric_columns:
         if col in df_normalized.columns:
             logger.debug(f"Convertendo '{col}' para Int64...")
-            df_normalized[col] = pd.to_numeric(df_normalized[col], errors='coerce').astype('Int64')
+            df_normalized[col] = pd.to_numeric(
+                df_normalized[col], errors="coerce"
+            ).astype("Int64")
 
     # Keep canonical numeric semantics for reprogramacoes:
     # - num_reprogramacoes accepts only strict numeric values
     # - total_de_reprogramacoes backfills num_reprogramacoes when available
-    if 'num_reprogramacoes' in df_normalized.columns:
+    if "num_reprogramacoes" in df_normalized.columns:
         logger.debug("Convertendo 'num_reprogramacoes' para Int64 (strict numeric)...")
-        num_series = pd.to_numeric(df_normalized['num_reprogramacoes'], errors='coerce')
-        if 'total_de_reprogramacoes' in df_normalized.columns:
-            backfill_mask = num_series.isna() & df_normalized['total_de_reprogramacoes'].notna()
+        num_series = pd.to_numeric(df_normalized["num_reprogramacoes"], errors="coerce")
+        if "total_de_reprogramacoes" in df_normalized.columns:
+            backfill_mask = (
+                num_series.isna() & df_normalized["total_de_reprogramacoes"].notna()
+            )
             if backfill_mask.any():
                 logger.debug(
                     "Backfill de 'num_reprogramacoes' com 'total_de_reprogramacoes' em %s linhas.",
                     int(backfill_mask.sum()),
                 )
-                num_series.loc[backfill_mask] = df_normalized.loc[backfill_mask, 'total_de_reprogramacoes']
-        df_normalized['num_reprogramacoes'] = num_series.astype('Int64')
+                num_series.loc[backfill_mask] = df_normalized.loc[
+                    backfill_mask, "total_de_reprogramacoes"
+                ]
+        df_normalized["num_reprogramacoes"] = num_series.astype("Int64")
 
     logger.debug("Normalização de tipos concluída.")
     return df_normalized
+
 
 def extract_data_from_excel(
     file_path: str,
@@ -308,6 +346,7 @@ def extract_data_from_excel(
     base_name = os.path.basename(file_path) if file_path else "arquivo"
     saw_header = False
     try:
+
         def _check_cancel() -> None:
             if should_cancel is not None and should_cancel():
                 raise ExtractionError(
@@ -318,7 +357,7 @@ def extract_data_from_excel(
         _check_cancel()
         all_sheets_data = []
         column_mappings = _load_column_mappings()
-        with pd.ExcelFile(file_path, engine='openpyxl') as xl_file:
+        with pd.ExcelFile(file_path, engine="openpyxl") as xl_file:
             for sheet_name in xl_file.sheet_names:
                 _check_cancel()
                 logger.debug(f"Processando planilha '{sheet_name}'...")
@@ -338,7 +377,7 @@ def extract_data_from_excel(
                 for idx, value in enumerate(sheet_df.iloc[:, 0]):
                     if idx % 250 == 0:
                         _check_cancel()
-                    if pd.notna(value) and str(value).strip() != '':
+                    if pd.notna(value) and str(value).strip() != "":
                         header_row_idx = idx
                         break
 
@@ -353,7 +392,7 @@ def extract_data_from_excel(
                         context_name=sheet_name,
                     )
                     # Remove linhas anteriores ao cabecalho e o proprio cabecalho
-                    sheet_df = sheet_df.drop(sheet_df.index[:header_row_idx + 1])
+                    sheet_df = sheet_df.drop(sheet_df.index[: header_row_idx + 1])
                     # Reseta o indice
                     sheet_df = sheet_df.reset_index(drop=True)
 
@@ -387,7 +426,9 @@ def extract_data_from_excel(
                     if not sheet_df.empty:
                         all_sheets_data.append(sheet_df)
                     else:
-                        logger.debug(f"Planilha '{sheet_name}' está vazia após processamento.")
+                        logger.debug(
+                            f"Planilha '{sheet_name}' está vazia após processamento."
+                        )
                 else:
                     logger.warning(
                         "Planilha '%s' em '%s' nao possui cabecalho identificavel.",
@@ -402,20 +443,20 @@ def extract_data_from_excel(
                     file_path,
                 )
                 return pd.DataFrame()
-            raise ExtractionError(
-                f"No header found in any sheet for file: {base_name}"
-            )
+            raise ExtractionError(f"No header found in any sheet for file: {base_name}")
 
         # Combina dados de todas as planilhas
         combined_df = pd.concat(all_sheets_data, ignore_index=True, sort=False)
 
         # Remove linhas completamente vazias
         initial_len = len(combined_df)
-        combined_df.dropna(how='all', inplace=True)
+        combined_df.dropna(how="all", inplace=True)
         final_len = len(combined_df)
         early_empty_removed = initial_len - final_len
         if initial_len != final_len:
-            logger.debug(f"Removidas {initial_len - final_len} linhas completamente vazias.")
+            logger.debug(
+                f"Removidas {initial_len - final_len} linhas completamente vazias."
+            )
 
         if combined_df.empty:
             logger.warning(
@@ -442,28 +483,35 @@ def extract_data_from_excel(
         def _is_unnamed_header_value(header_value: Any) -> bool:
             if isinstance(header_value, str):
                 normalized_header = header_value.strip().lower()
-                return normalized_header in {"", "nan"} or normalized_header.startswith("unnamed:")
+                return normalized_header in {"", "nan"} or normalized_header.startswith(
+                    "unnamed:"
+                )
             return bool(pd.isna(header_value))
 
-        if (
-            "anomalia" in combined_df.columns
-            and not {
-                "total_tempo_tpe_executada",
-                "total_tempo_tex_executada",
-                "total_tempo_tpo_executada",
-            }.intersection(set(combined_df.columns))
-        ):
+        if "anomalia" in combined_df.columns and not {
+            "total_tempo_tpe_executada",
+            "total_tempo_tex_executada",
+            "total_tempo_tpo_executada",
+        }.intersection(set(combined_df.columns)):
             anomaly_idx = list(combined_df.columns).index("anomalia")
             trailing_positions = list(range(anomaly_idx + 1, len(combined_df.columns)))
             trailing_unnamed_positions = [
-                pos for pos in trailing_positions if _is_unnamed_header_value(combined_df.columns[pos])
+                pos
+                for pos in trailing_positions
+                if _is_unnamed_header_value(combined_df.columns[pos])
             ]
             if trailing_unnamed_positions == trailing_positions:
                 if len(trailing_unnamed_positions) == 3:
                     renamed_columns = list(combined_df.columns)
-                    renamed_columns[trailing_unnamed_positions[0]] = "total_tempo_tpe_executada"
-                    renamed_columns[trailing_unnamed_positions[1]] = "total_tempo_tex_executada"
-                    renamed_columns[trailing_unnamed_positions[2]] = "total_tempo_tpo_executada"
+                    renamed_columns[trailing_unnamed_positions[0]] = (
+                        "total_tempo_tpe_executada"
+                    )
+                    renamed_columns[trailing_unnamed_positions[1]] = (
+                        "total_tempo_tex_executada"
+                    )
+                    renamed_columns[trailing_unnamed_positions[2]] = (
+                        "total_tempo_tpo_executada"
+                    )
                     combined_df.columns = renamed_columns
                     logger.info(
                         "Arquivo '%s' possui 3 colunas finais sem header apos 'anomalia'; remapeadas para totais TPE/TEX/TPO executada.",
@@ -496,7 +544,12 @@ def extract_data_from_excel(
         if (
             len(trailing_unnamed_positions) == 1
             and "total_tempo_tex_executada" not in combined_df.columns
-            and {"execucao_parcial", "responsavel_execucao", "descricao_execucao", "prazo_limite"}.issubset(set(combined_df.columns))
+            and {
+                "execucao_parcial",
+                "responsavel_execucao",
+                "descricao_execucao",
+                "prazo_limite",
+            }.issubset(set(combined_df.columns))
         ):
             tex_pos = trailing_unnamed_positions[0]
             previous_named = combined_df.columns[tex_pos - 1] if tex_pos > 0 else None
@@ -534,7 +587,9 @@ def extract_data_from_excel(
         if missing_required:
             missing_required_sorted = sorted(missing_required)
             available_columns = sorted(str(col) for col in combined_df.columns)
-            debug_phase_names = sorted(_debug_phases.keys()) if isinstance(_debug_phases, dict) else []
+            debug_phase_names = (
+                sorted(_debug_phases.keys()) if isinstance(_debug_phases, dict) else []
+            )
             raise ExtractionError(
                 "Missing required columns after normalization: "
                 f"{missing_required_sorted}; "
@@ -543,24 +598,28 @@ def extract_data_from_excel(
                 error_code="MISSING_REQUIRED_COLUMNS",
             )
 
-        if 'prazo_limite' in combined_df.columns:
-            status_col = 'status_execucao_prazo'
+        if "prazo_limite" in combined_df.columns:
+            status_col = "status_execucao_prazo"
             status_map = {
-                'fora de prazo': 'Fora de Prazo',
-                'dentro do prazo': 'Dentro do Prazo',
-                'não aplica': 'Não Se Aplica',
-                'nao aplica': 'Não Se Aplica',
+                "fora de prazo": "Fora de Prazo",
+                "dentro do prazo": "Dentro do Prazo",
+                "não aplica": "Não Se Aplica",
+                "nao aplica": "Não Se Aplica",
             }
-            prazo_series = combined_df['prazo_limite'].astype(str).str.strip()
+            prazo_series = combined_df["prazo_limite"].astype(str).str.strip()
             status_series = pd.Series(pd.NA, index=combined_df.index, dtype="object")
             status_mask = prazo_series.str.lower().isin(status_map.keys())
             if status_mask.any():
-                combined_df.loc[status_mask, 'prazo_limite'] = pd.NA
-                status_series.loc[status_mask] = prazo_series.loc[status_mask].str.lower().map(status_map)
+                combined_df.loc[status_mask, "prazo_limite"] = pd.NA
+                status_series.loc[status_mask] = (
+                    prazo_series.loc[status_mask].str.lower().map(status_map)
+                )
             combined_df[status_col] = status_series
 
-        if 'tempo_excedido' in combined_df.columns:
-            combined_df['tempo_excedido'] = combined_df['tempo_excedido'].apply(_normalize_tempo_excedido_value)
+        if "tempo_excedido" in combined_df.columns:
+            combined_df["tempo_excedido"] = combined_df["tempo_excedido"].apply(
+                _normalize_tempo_excedido_value
+            )
 
         logger.debug(f"Colunas renomeadas. Novas colunas: {list(combined_df.columns)}")
 
@@ -579,13 +638,15 @@ def extract_data_from_excel(
 
                 # 2. Substitui strings que representam valores nulos por pd.NA
                 # Isso é importante para consistência após a conversão para string
-                combined_df[col] = combined_df[col].replace(['nan', 'None', 'NaN', '<NA>'], pd.NA)
+                combined_df[col] = combined_df[col].replace(
+                    ["nan", "None", "NaN", "<NA>"], pd.NA
+                )
 
                 # 3. Remove espaços extras no início e no fim
                 combined_df[col] = combined_df[col].str.strip()
 
                 # 4. Substitui strings vazias resultantes por pd.NA
-                combined_df[col] = combined_df[col].replace('', pd.NA)
+                combined_df[col] = combined_df[col].replace("", pd.NA)
 
                 # Nota: A normalização Unicode e remoção de caracteres de controle
                 # podem ser feitas aqui se necessário, mas o table_printer.py
@@ -599,11 +660,22 @@ def extract_data_from_excel(
         before_validation = len(combined_df)
 
         # Remover registros completamente inválidos (sem SSA e sem descrição)
-        numero_series = combined_df['numero_ssa'] if 'numero_ssa' in combined_df.columns else pd.Series([pd.NA] * len(combined_df), index=combined_df.index, dtype="object")
-        descricao_series = combined_df['descricao_ssa'] if 'descricao_ssa' in combined_df.columns else pd.Series([pd.NA] * len(combined_df), index=combined_df.index, dtype="object")
-        valid_mask = (
-            (numero_series.notna() & (numero_series != '')) |
-            (descricao_series.notna() & (descricao_series != ''))
+        numero_series = (
+            combined_df["numero_ssa"]
+            if "numero_ssa" in combined_df.columns
+            else pd.Series(
+                [pd.NA] * len(combined_df), index=combined_df.index, dtype="object"
+            )
+        )
+        descricao_series = (
+            combined_df["descricao_ssa"]
+            if "descricao_ssa" in combined_df.columns
+            else pd.Series(
+                [pd.NA] * len(combined_df), index=combined_df.index, dtype="object"
+            )
+        )
+        valid_mask = (numero_series.notna() & (numero_series != "")) | (
+            descricao_series.notna() & (descricao_series != "")
         )
 
         invalid_summary = _summarize_invalid_identity_rows(combined_df, ~valid_mask)
@@ -620,7 +692,9 @@ def extract_data_from_excel(
         if invalid_summary.get("total_removed", 0) > 0:
             invalid_count = int(invalid_summary.get("total_removed", 0))
             payload_cols = invalid_summary.get("payload_columns_sample") or []
-            payload_txt = f" (colunas: {', '.join(payload_cols)})" if payload_cols else ""
+            payload_txt = (
+                f" (colunas: {', '.join(payload_cols)})" if payload_cols else ""
+            )
             logger.warning(
                 "Extracao - %s: removidos %s registros invalidos sem identidade: %s vazios, %s com payload%s",
                 base_name,
@@ -631,8 +705,10 @@ def extract_data_from_excel(
             )
 
         # Validar campos críticos e avisar sobre problemas
-        if 'numero_ssa' in combined_df.columns:
-            empty_ssa = combined_df['numero_ssa'].isna() | (combined_df['numero_ssa'] == '')
+        if "numero_ssa" in combined_df.columns:
+            empty_ssa = combined_df["numero_ssa"].isna() | (
+                combined_df["numero_ssa"] == ""
+            )
             if empty_ssa.sum() > 0:
                 logger.warning(
                     "Extracao - %s: %s registros sem numero de SSA (mantidos por descricao valida)",
@@ -640,8 +716,12 @@ def extract_data_from_excel(
                     int(empty_ssa.sum()),
                 )
 
-        if 'semana_cadastro' in combined_df.columns:
-            empty_week = combined_df['semana_cadastro'].isna() | (combined_df['semana_cadastro'] == '') | (combined_df['semana_cadastro'] == '-')
+        if "semana_cadastro" in combined_df.columns:
+            empty_week = (
+                combined_df["semana_cadastro"].isna()
+                | (combined_df["semana_cadastro"] == "")
+                | (combined_df["semana_cadastro"] == "-")
+            )
             if empty_week.sum() > 0:
                 logger.warning(
                     "Extracao - %s: %s registros sem semana de cadastro",
@@ -670,8 +750,13 @@ def extract_data_from_excel(
         )
         raise ExtractionError(f"Parser error reading Excel file: {base_name}") from e
     except Exception as e:
-        logger.error("Erro inesperado ao processar '%s': %s", file_path, e, exc_info=True)
-        raise ExtractionError(f"Unexpected error processing Excel file: {base_name}") from e
+        logger.error(
+            "Erro inesperado ao processar '%s': %s", file_path, e, exc_info=True
+        )
+        raise ExtractionError(
+            f"Unexpected error processing Excel file: {base_name}"
+        ) from e
+
 
 def read_report(file_path: str) -> tuple[pd.DataFrame, Dict[str, Any]]:
     """
@@ -689,9 +774,14 @@ def read_report(file_path: str) -> tuple[pd.DataFrame, Dict[str, Any]]:
     if not os.path.exists(file_path):
         metadata: Dict[str, Any] = {
             "source_path": file_path,
-            "stats_dict": {"status": "error", "error": f"File not found: {os.path.basename(file_path)}"},
+            "stats_dict": {
+                "status": "error",
+                "error": f"File not found: {os.path.basename(file_path)}",
+            },
         }
-        logger.warning("Falha em read_report para '%s': arquivo nao encontrado", file_path)
+        logger.warning(
+            "Falha em read_report para '%s': arquivo nao encontrado", file_path
+        )
         return pd.DataFrame(), metadata
 
     df, stats_dict = import_excel_robust(file_path)

@@ -1,16 +1,18 @@
 # gui/widgets/column_selector.py
 # Widget for column selection with manager dialog
 
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QDialog
+import logging
+
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QFont
-import logging
+from PyQt6.QtWidgets import QDialog, QHBoxLayout, QPushButton, QWidget
 
 from gui.widgets.column_manager_dialog import ColumnManagerDialog
 
 
 class ColumnSelector(QWidget):
     """Widget compacto que abre o gerenciador de colunas."""
+
     columns_changed = pyqtSignal(list)
 
     def __init__(
@@ -42,7 +44,9 @@ class ColumnSelector(QWidget):
         layout.setSpacing(6)
 
         self.manage_button = QPushButton()
-        self.manage_button.setToolTip("Configurar colunas rapidas (marcar, ordenar e restaurar padrao)")
+        self.manage_button.setToolTip(
+            "Configurar colunas rapidas (marcar, ordenar e restaurar padrao)"
+        )
         self.manage_button.clicked.connect(self.open_dialog)
         layout.addWidget(self.manage_button)
         layout.addStretch()
@@ -53,7 +57,7 @@ class ColumnSelector(QWidget):
             self.selected_internal_columns,
             default_columns=self.default_columns,
             available_columns=self.available_columns,
-            parent=self
+            parent=self,
         )
         try:
             result = dialog.exec()
@@ -116,4 +120,6 @@ class ColumnSelector(QWidget):
             try:
                 self.manage_button.setFont(font)
             except Exception as e2:
-                logging.getLogger(__name__).debug("Falha ao aplicar fonte do resumo: %s | fallback=%s", e1, e2)
+                logging.getLogger(__name__).debug(
+                    "Falha ao aplicar fonte do resumo: %s | fallback=%s", e1, e2
+                )

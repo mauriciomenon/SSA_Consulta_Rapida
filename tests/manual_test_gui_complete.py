@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Test complete GUI workflow without opening window."""
 
-import sys
 import os
+import sys
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-DB_PATH = os.path.join(project_root, 'data', 'ssas.db')
-TABLE_NAME = 'ssa_table'
+DB_PATH = os.path.join(project_root, "data", "ssas.db")
+TABLE_NAME = "ssa_table"
 
 print("=" * 80)
 print("TESTE COMPLETO DO FLUXO DA GUI (SEM ABRIR JANELA)")
@@ -27,6 +27,7 @@ print()
 print("[2] Importando DataLoaderWorker...")
 try:
     from armazenamento.database import query_db
+
     print("[OK] Imports bem sucedidos")
 except Exception as e:
     print(f"[ERRO] Falha no import: {e}")
@@ -36,8 +37,8 @@ except Exception as e:
 print()
 print("[3] Testando query que o worker usa...")
 try:
-    query = 'SELECT * FROM ssa_table'
-    df = query_db(DB_PATH, '', query)
+    query = "SELECT * FROM ssa_table"
+    df = query_db(DB_PATH, "", query)
 
     if df.empty:
         print("[ERRO] Query retornou DataFrame vazio")
@@ -51,13 +52,14 @@ try:
 except Exception as e:
     print(f"[ERRO] Query falhou: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
 # Test 4: Check required columns
 print()
 print("[4] Verificando colunas essenciais...")
-required = ['numero_ssa', 'situacao', 'data_cadastro', 'descricao_ssa']
+required = ["numero_ssa", "situacao", "data_cadastro", "descricao_ssa"]
 missing = [col for col in required if col not in df.columns]
 
 if missing:

@@ -1,6 +1,6 @@
 import re
 
-with open('gui/gui_ssa.py', 'r', encoding='utf-8') as f:
+with open("gui/gui_ssa.py", "r", encoding="utf-8") as f:
     lines = f.readlines()
 
 # Find SSAMainWindow methods
@@ -10,23 +10,23 @@ current_method = None
 current_line = None
 
 for i, line in enumerate(lines, 1):
-    if 'class SSAMainWindow' in line:
+    if "class SSAMainWindow" in line:
         in_main_window = True
         print(f"SSAMainWindow starts at line {i}")
         continue
 
     if in_main_window:
         # Check if we've exited the class
-        if line.startswith('def ') and not line.startswith('    def '):
+        if line.startswith("def ") and not line.startswith("    def "):
             break
-        if line.startswith('class ') and 'SSAMainWindow' not in line:
+        if line.startswith("class ") and "SSAMainWindow" not in line:
             break
 
         # Check for method definition
-        if re.match(r'^    def ', line):
+        if re.match(r"^    def ", line):
             if current_method and current_line is not None:
                 methods.append((current_line, current_method, i - current_line))
-            method_name = line.strip().split('(')[0].replace('def ', '')
+            method_name = line.strip().split("(")[0].replace("def ", "")
             current_method = method_name
             current_line = i
 
@@ -48,22 +48,40 @@ other_methods = []
 
 for line_num, method_name, size in methods:
     # Theme related
-    if 'theme' in method_name.lower() or 'color' in method_name.lower() or 'palette' in method_name.lower():
+    if (
+        "theme" in method_name.lower()
+        or "color" in method_name.lower()
+        or "palette" in method_name.lower()
+    ):
         theme_methods.append((line_num, method_name))
     # Filter related
-    elif 'filter' in method_name.lower() or 'search' in method_name.lower():
+    elif "filter" in method_name.lower() or "search" in method_name.lower():
         filter_methods.append((line_num, method_name))
     # Export related
-    elif 'export' in method_name.lower() or 'save' in method_name.lower():
+    elif "export" in method_name.lower() or "save" in method_name.lower():
         export_methods.append((line_num, method_name))
     # UI building
-    elif any(x in method_name.lower() for x in ['init_ui', 'create', 'setup', 'build', '_ui', 'toolbar', 'menu', 'statusbar']):
+    elif any(
+        x in method_name.lower()
+        for x in [
+            "init_ui",
+            "create",
+            "setup",
+            "build",
+            "_ui",
+            "toolbar",
+            "menu",
+            "statusbar",
+        ]
+    ):
         ui_methods.append((line_num, method_name))
     # Data operations
-    elif any(x in method_name.lower() for x in ['load', 'data', 'update_table', 'populate']):
+    elif any(
+        x in method_name.lower() for x in ["load", "data", "update_table", "populate"]
+    ):
         data_methods.append((line_num, method_name))
     # Event handlers
-    elif any(x in method_name.lower() for x in ['on_', '_on_', 'handle', 'click']):
+    elif any(x in method_name.lower() for x in ["on_", "_on_", "handle", "click"]):
         event_methods.append((line_num, method_name))
     else:
         other_methods.append((line_num, method_name))

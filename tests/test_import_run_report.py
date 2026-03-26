@@ -215,7 +215,9 @@ def test_run_importer_logic_report_includes_file_phase_metrics(
         lambda *args, **kwargs: [],
     )
 
-    def _fake_import_single_file(file_path: str, db_path: str, *args, **kwargs) -> tuple[bool, int]:
+    def _fake_import_single_file(
+        file_path: str, db_path: str, *args, **kwargs
+    ) -> tuple[bool, int]:
         metrics_out = kwargs.get("_metrics_out")
         if isinstance(metrics_out, dict):
             metrics_out.update(
@@ -240,7 +242,10 @@ def test_run_importer_logic_report_includes_file_phase_metrics(
                         "total_removed": 2,
                         "empty_removed": 1,
                         "payload_removed": 1,
-                        "payload_columns_sample": ["data_cadastro", "responsavel_execucao"],
+                        "payload_columns_sample": [
+                            "data_cadastro",
+                            "responsavel_execucao",
+                        ],
                     },
                 }
             )
@@ -347,7 +352,9 @@ def test_run_importer_logic_moves_processed_files_and_updates_cache_paths(
         lambda *args, **kwargs: [],
     )
 
-    def _fake_import_single_file(file_path: str, db_path: str, *args, **kwargs) -> tuple[bool, int]:
+    def _fake_import_single_file(
+        file_path: str, db_path: str, *args, **kwargs
+    ) -> tuple[bool, int]:
         if Path(file_path).name == "empty.xlsx":
             return True, 0
         return True, 5
@@ -361,7 +368,9 @@ def test_run_importer_logic_moves_processed_files_and_updates_cache_paths(
 
     captured_cache: dict[str, Any] = {}
 
-    def _capture_cache_paths(processed_files: list[str], cache_file: str, docs_dir: str) -> None:
+    def _capture_cache_paths(
+        processed_files: list[str], cache_file: str, docs_dir: str
+    ) -> None:
         captured_cache["paths"] = list(processed_files)
         captured_cache["cache_file"] = cache_file
         captured_cache["docs_dir"] = docs_dir
@@ -505,8 +514,12 @@ def test_run_importer_logic_full_rescan_enforces_subdir_policy_and_upsert_policy
         captured["discover_kwargs"] = dict(kwargs)
         return []
 
-    monkeypatch.setattr(app_logic, "_get_files_to_process", _capture_get_files_to_process)
-    monkeypatch.setattr(app_logic, "_discover_derivadas_sheet_files", _capture_discover_derivadas)
+    monkeypatch.setattr(
+        app_logic, "_get_files_to_process", _capture_get_files_to_process
+    )
+    monkeypatch.setattr(
+        app_logic, "_discover_derivadas_sheet_files", _capture_discover_derivadas
+    )
     monkeypatch.setattr(
         app_logic,
         "_run_derivadas_sync_phase",
@@ -721,7 +734,9 @@ def test_run_importer_logic_full_rescan_success_promotes_candidate_at_end(
         lambda *args, **kwargs: (True, [], {"db_stats": {}, "merge_stats": {}}),
     )
 
-    def _fake_import_single_file(file_path: str, db_path: str, *args, **kwargs) -> tuple[bool, int]:
+    def _fake_import_single_file(
+        file_path: str, db_path: str, *args, **kwargs
+    ) -> tuple[bool, int]:
         conn = sqlite3.connect(db_path)
         try:
             conn.execute("DELETE FROM ssa_table")

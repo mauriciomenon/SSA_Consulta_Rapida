@@ -1,17 +1,20 @@
 # tests/test_caching.py
-import pytest
+import json
 import os
 import sys
-import json
+
+import pytest
 
 # Adiciona a raiz do projeto ao path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
-from utils.caching import get_files_to_process, _calculate_hash, get_all_xlsx_files  # noqa: E402
 import utils.caching as caching  # noqa: E402
+from utils.caching import get_all_xlsx_files  # noqa: E402
+from utils.caching import _calculate_hash, get_files_to_process
 
 # --- Fixture: Preparando o Ambiente de Teste ---
+
 
 @pytest.fixture
 def temp_docs_dir(tmp_path):
@@ -27,7 +30,9 @@ def temp_docs_dir(tmp_path):
 
     return str(docs_dir)
 
+
 # --- Testes ---
+
 
 def test_get_files_to_process_all_new(temp_docs_dir):
     """
@@ -46,6 +51,7 @@ def test_get_files_to_process_all_new(temp_docs_dir):
     assert "relatorio_a.xlsx" in filenames
     assert "relatorio_b.xlsx" in filenames
 
+
 def test_get_files_to_process_one_modified(temp_docs_dir):
     """
     Testa o cenário onde um arquivo foi modificado e deve ser reprocessado.
@@ -56,7 +62,7 @@ def test_get_files_to_process_one_modified(temp_docs_dir):
 
     initial_cache = {
         "relatorio_a.xlsx": _calculate_hash(file_a_path),
-        "relatorio_b.xlsx": _calculate_hash(file_b_path)
+        "relatorio_b.xlsx": _calculate_hash(file_b_path),
     }
 
     # Modificamos o conteúdo do arquivo A
@@ -70,6 +76,7 @@ def test_get_files_to_process_one_modified(temp_docs_dir):
     assert len(files_to_process) == 1
     assert os.path.basename(files_to_process[0]) == "relatorio_a.xlsx"
 
+
 def test_get_files_to_process_no_changes(temp_docs_dir):
     """
     Testa o cenário onde não há nenhuma alteração nos arquivos.
@@ -80,7 +87,7 @@ def test_get_files_to_process_no_changes(temp_docs_dir):
 
     current_cache = {
         "relatorio_a.xlsx": _calculate_hash(file_a_path),
-        "relatorio_b.xlsx": _calculate_hash(file_b_path)
+        "relatorio_b.xlsx": _calculate_hash(file_b_path),
     }
 
     # 2. Ação
@@ -88,10 +95,12 @@ def test_get_files_to_process_no_changes(temp_docs_dir):
 
     # 3. Verificação: Nenhum arquivo deve ser processado.
     assert len(files_to_process) == 0
-    assert not files_to_process # Outra forma de verificar se a lista está vazia
+    assert not files_to_process  # Outra forma de verificar se a lista está vazia
 
 
-def test_get_files_to_process_skips_hash_when_metadata_unchanged(temp_docs_dir, monkeypatch):
+def test_get_files_to_process_skips_hash_when_metadata_unchanged(
+    temp_docs_dir, monkeypatch
+):
     file_a_path = os.path.join(temp_docs_dir, "relatorio_a.xlsx")
     file_b_path = os.path.join(temp_docs_dir, "relatorio_b.xlsx")
 
@@ -160,7 +169,9 @@ def test_get_files_to_process_upgrades_legacy_cache_file(tmp_path, monkeypatch):
     assert files_to_process == []
 
 
-def test_get_files_to_process_requeues_when_stat_unavailable(temp_docs_dir, monkeypatch):
+def test_get_files_to_process_requeues_when_stat_unavailable(
+    temp_docs_dir, monkeypatch
+):
     def _no_stat(_path):  # noqa: ARG001
         return None
 
@@ -207,7 +218,10 @@ def test_get_all_xlsx_files_includes_processadas_and_ignores_nosurvivor(tmp_path
     (nosurvivor / "ignorar.xlsx").write_text("d", encoding="utf-8")
 
     root_only = get_all_xlsx_files(str(docs_dir))
-    assert [os.path.basename(path) for path in root_only] == ["raiz.xlsx", "raiz_upper.XLSX"]
+    assert [os.path.basename(path) for path in root_only] == [
+        "raiz.xlsx",
+        "raiz_upper.XLSX",
+    ]
 
     with_processadas = get_all_xlsx_files(
         str(docs_dir),

@@ -4,6 +4,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+
 import utils.caching as caching
 
 
@@ -52,7 +53,10 @@ def test_save_cache_concurrent_writes_last_writer_wins_with_valid_json(tmp_path)
     ]
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(caching.save_cache, payload, str(cache_file)) for payload in payloads]
+        futures = [
+            executor.submit(caching.save_cache, payload, str(cache_file))
+            for payload in payloads
+        ]
         for future in futures:
             future.result()
 

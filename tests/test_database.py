@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 
 # Adiciona a raiz do projeto ao path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
 # Importa as funções a serem testadas
@@ -25,29 +25,28 @@ from armazenamento.database import query_db  # noqa: E402
 
 # --- Fixtures ---
 
+
 @pytest.fixture
 def temp_db_path():
     """Cria um caminho temporário para o banco de dados de teste."""
     temp_dir = tempfile.mkdtemp()
-    db_path = os.path.join(temp_dir, 'test_db.sqlite')
+    db_path = os.path.join(temp_dir, "test_db.sqlite")
     yield db_path
     shutil.rmtree(temp_dir)
+
 
 @pytest.fixture
 def sample_dataframe():
     """Cria um DataFrame de exemplo para testes."""
-    data = {
-        'id': [1, 2, 3],
-        'nome': ['Alice', 'Bob', 'Charlie'],
-        'idade': [30, 25, 35]
-    }
+    data = {"id": [1, 2, 3], "nome": ["Alice", "Bob", "Charlie"], "idade": [30, 25, 35]}
     return pd.DataFrame(data)
+
 
 @pytest.fixture
 def sample_schema_file():
     """Cria um arquivo de schema temporário para testes."""
     temp_dir = tempfile.mkdtemp()
-    schema_path = os.path.join(temp_dir, 'test_schema.sql')
+    schema_path = os.path.join(temp_dir, "test_schema.sql")
     schema_content = """
     CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY,
@@ -55,18 +54,20 @@ def sample_schema_file():
         idade INTEGER
     );
     """
-    with open(schema_path, 'w') as f:
+    with open(schema_path, "w") as f:
         f.write(schema_content)
     yield schema_path
     shutil.rmtree(temp_dir)
 
+
 # --- Testes ---
+
 
 def test_get_db_connection_context_manager(temp_db_path):
     """Testa o context manager get_db_connection."""
     with get_db_connection(temp_db_path) as conn:
         assert isinstance(conn, sqlite3.Connection)
-        assert conn.total_changes == 0 # Nenhuma mudança ainda
+        assert conn.total_changes == 0  # Nenhuma mudança ainda
 
     # Verifica se a conexão foi fechada implicitamente
     # (Difícil de testar diretamente, mas o contexto garante)
@@ -86,7 +87,7 @@ def test_initialize_database_success(temp_db_path, sample_schema_file, monkeypat
 
 def test_insert_dataframe_to_db_success(temp_db_path, sample_dataframe):
     """Testa a inserção bem-sucedida de um DataFrame."""
-    table_name = 'teste_usuarios'
+    table_name = "teste_usuarios"
 
     # 1. Cria a tabela manualmente para o teste
     with get_db_connection(temp_db_path) as conn:
@@ -108,19 +109,19 @@ def test_insert_dataframe_to_db_success(temp_db_path, sample_dataframe):
     df_from_db = query_db(temp_db_path, table_name)
     assert len(df_from_db) == len(sample_dataframe)
     # Verifica se os dados são iguais (reset_index para comparar corretamente)
-    expected_df = sample_dataframe.sort_values('id').reset_index(drop=True).copy()
+    expected_df = sample_dataframe.sort_values("id").reset_index(drop=True).copy()
     expected_df["id"] = expected_df["id"].astype("Int64")
     expected_df["nome"] = expected_df["nome"].astype("string")
     expected_df["idade"] = expected_df["idade"].astype("Int64")
     pd.testing.assert_frame_equal(
-        df_from_db.sort_values('id').reset_index(drop=True),
+        df_from_db.sort_values("id").reset_index(drop=True),
         expected_df,
     )
 
 
 def test_query_db_success(temp_db_path, sample_dataframe):
     """Testa uma consulta bem-sucedida."""
-    table_name = 'teste_consulta'
+    table_name = "teste_consulta"
 
     # 1. Cria a tabela e insere dados
     with get_db_connection(temp_db_path) as conn:
@@ -136,19 +137,24 @@ def test_query_db_success(temp_db_path, sample_dataframe):
     insert_dataframe_to_db(sample_dataframe, temp_db_path, table_name)
 
     # 2. Faz uma consulta
-    df_result = query_db(temp_db_path, table_name, "SELECT * FROM teste_consulta WHERE idade > ?", (27,))
+    df_result = query_db(
+        temp_db_path, table_name, "SELECT * FROM teste_consulta WHERE idade > ?", (27,)
+    )
 
     # 3. Verifica o resultado
-    expected_result = sample_dataframe[sample_dataframe['idade'] > 27].copy()
+    expected_result = sample_dataframe[sample_dataframe["idade"] > 27].copy()
     expected_result["id"] = expected_result["id"].astype("Int64")
     expected_result["nome"] = expected_result["nome"].astype("string")
     expected_result["idade"] = expected_result["idade"].astype("Int64")
-    pd.testing.assert_frame_equal(df_result.sort_values('id').reset_index(drop=True),
-                                  expected_result.sort_values('id').reset_index(drop=True))
+    pd.testing.assert_frame_equal(
+        df_result.sort_values("id").reset_index(drop=True),
+        expected_result.sort_values("id").reset_index(drop=True),
+    )
+
 
 def test_query_db_empty_result(temp_db_path, sample_dataframe):
     """Testa uma consulta que retorna resultado vazio."""
-    table_name = 'teste_consulta_vazia'
+    table_name = "teste_consulta_vazia"
 
     with get_db_connection(temp_db_path) as conn:
         conn.execute("""
@@ -162,11 +168,16 @@ def test_query_db_empty_result(temp_db_path, sample_dataframe):
 
     insert_dataframe_to_db(sample_dataframe, temp_db_path, table_name)
 
-    df_result = query_db(temp_db_path, table_name, "SELECT * FROM teste_consulta_vazia WHERE idade > ?", (100,))
+    df_result = query_db(
+        temp_db_path,
+        table_name,
+        "SELECT * FROM teste_consulta_vazia WHERE idade > ?",
+        (100,),
+    )
 
     assert df_result.empty
     # Verifica se as colunas estão corretas mesmo com resultado vazio
-    assert list(df_result.columns) == ['id', 'nome', 'idade']
+    assert list(df_result.columns) == ["id", "nome", "idade"]
 
 
 def test_query_db_keeps_nullable_integer_columns_without_float_promotion(temp_db_path):
@@ -292,7 +303,7 @@ def test_query_db_unexpected_error_is_not_suppressed(temp_db_path, monkeypatch):
 def test_insert_dataframe_to_db_empty_df(temp_db_path):
     """Testa a inserção de um DataFrame vazio."""
     empty_df = pd.DataFrame()
-    table_name = 'tabela_vazia'
+    table_name = "tabela_vazia"
 
     # Cria a tabela
     with get_db_connection(temp_db_path) as conn:
@@ -301,7 +312,7 @@ def test_insert_dataframe_to_db_empty_df(temp_db_path):
 
     success = insert_dataframe_to_db(empty_df, temp_db_path, table_name)
 
-    assert success is True # Deve retornar True mesmo para DF vazio
+    assert success is True  # Deve retornar True mesmo para DF vazio
 
     # Verifica que a tabela ainda existe e está vazia
     df_result = query_db(temp_db_path, table_name)
@@ -348,7 +359,12 @@ def test_insert_dataframe_to_db_allows_replace_for_generic_table(temp_db_path):
         conn.commit()
 
     assert insert_dataframe_to_db(initial_df, temp_db_path, table_name) is True
-    assert insert_dataframe_to_db(replacement_df, temp_db_path, table_name, if_exists="replace") is True
+    assert (
+        insert_dataframe_to_db(
+            replacement_df, temp_db_path, table_name, if_exists="replace"
+        )
+        is True
+    )
 
     result = query_db(temp_db_path, table_name)
     expected_df = replacement_df.copy()
@@ -357,7 +373,9 @@ def test_insert_dataframe_to_db_allows_replace_for_generic_table(temp_db_path):
     pd.testing.assert_frame_equal(result.reset_index(drop=True), expected_df)
 
 
-def test_insert_dataframe_to_db_rolls_back_partial_write_on_to_sql_failure(temp_db_path, monkeypatch):
+def test_insert_dataframe_to_db_rolls_back_partial_write_on_to_sql_failure(
+    temp_db_path, monkeypatch
+):
     table_name = "teste_rollback"
     df = pd.DataFrame(
         [
@@ -380,7 +398,9 @@ def test_insert_dataframe_to_db_rolls_back_partial_write_on_to_sql_failure(temp_
     original_to_sql = pd.DataFrame.to_sql
 
     def _partial_insert_then_fail(self, name, conn, *args, **kwargs):
-        conn.execute("INSERT INTO teste_rollback (id, nome) VALUES (?, ?)", (999, "parcial"))
+        conn.execute(
+            "INSERT INTO teste_rollback (id, nome) VALUES (?, ?)", (999, "parcial")
+        )
         raise RuntimeError("falha simulada no to_sql")
 
     monkeypatch.setattr(pd.DataFrame, "to_sql", _partial_insert_then_fail)

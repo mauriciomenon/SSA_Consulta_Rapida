@@ -4,9 +4,9 @@ Script para converter SVG para ICO, ICNS e PNG
 Usado no build dos executaveis multi-plataforma
 """
 
-import os
-import io
 import importlib
+import io
+import os
 from typing import Any
 
 
@@ -25,6 +25,7 @@ def _require_pillow_image() -> Any:
 
 
 cairosvg = _import_optional_module("cairosvg")
+
 
 def convert_svg_to_ico(svg_path, ico_path, sizes=[16, 32, 48, 64, 128, 256]):
     """Converte SVG para ICO com multiplos tamanhos (Windows)"""
@@ -48,12 +49,13 @@ def convert_svg_to_ico(svg_path, ico_path, sizes=[16, 32, 48, 64, 128, 256]):
     # Salvar como ICO
     images[0].save(
         ico_path,
-        format='ICO',
+        format="ICO",
         sizes=[(img.width, img.height) for img in images],
-        append_images=images[1:]
+        append_images=images[1:],
     )
 
     print(f"Icone ICO convertido: {ico_path}")
+
 
 def convert_svg_to_icns(svg_path, icns_path, sizes=[16, 32, 64, 128, 256, 512, 1024]):
     """Converte SVG para ICNS (macOS)"""
@@ -83,18 +85,22 @@ def convert_svg_to_icns(svg_path, icns_path, sizes=[16, 32, 64, 128, 256, 512, 1
                 (256, "icon_256x256.png"),
                 (512, "icon_256x256@2x.png"),
                 (512, "icon_512x512.png"),
-                (1024, "icon_512x512@2x.png")
+                (1024, "icon_512x512@2x.png"),
             ]
 
             for size, filename in iconset_sizes:
-                png_data = cairosvg.svg2png(url=svg_path, output_width=size, output_height=size)
+                png_data = cairosvg.svg2png(
+                    url=svg_path, output_width=size, output_height=size
+                )
                 img = image_module.open(io.BytesIO(png_data))
-                img.save(os.path.join(iconset_dir, filename), format='PNG')
+                img.save(os.path.join(iconset_dir, filename), format="PNG")
 
             # Usar iconutil para gerar ICNS
-            result = subprocess.run([
-                'iconutil', '-c', 'icns', iconset_dir, '-o', icns_path
-            ], capture_output=True, text=True)
+            result = subprocess.run(
+                ["iconutil", "-c", "icns", iconset_dir, "-o", icns_path],
+                capture_output=True,
+                text=True,
+            )
 
             if result.returncode == 0:
                 print(f"Icone ICNS convertido: {icns_path}")
@@ -108,9 +114,10 @@ def convert_svg_to_icns(svg_path, icns_path, sizes=[16, 32, 64, 128, 256, 512, 1
         # Fallback: converter para PNG de alta resolucao
         png_data = cairosvg.svg2png(url=svg_path, output_width=1024, output_height=1024)
         img = image_module.open(io.BytesIO(png_data))
-        img.save(icns_path.replace('.icns', '.png'), format='PNG')
+        img.save(icns_path.replace(".icns", ".png"), format="PNG")
         print(f"Icone PNG criado como fallback: {icns_path.replace('.icns', '.png')}")
         return True
+
 
 def convert_svg_to_png(svg_path, png_path, size=256):
     """Converte SVG para PNG (Linux)"""
@@ -121,10 +128,11 @@ def convert_svg_to_png(svg_path, png_path, size=256):
     # Converter SVG para PNG
     png_data = cairosvg.svg2png(url=svg_path, output_width=size, output_height=size)
 
-    with open(png_path, 'wb') as f:
+    with open(png_path, "wb") as f:
         f.write(png_data)
 
     print(f"Icone PNG convertido: {png_path}")
+
 
 def convert_all_icons():
     """Converte icone SVG para todos os formatos necessarios"""
@@ -164,6 +172,7 @@ def convert_all_icons():
         success = False
 
     return success
+
 
 if __name__ == "__main__":
     success = convert_all_icons()

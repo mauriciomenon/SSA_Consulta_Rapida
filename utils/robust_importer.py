@@ -14,19 +14,21 @@ Objetivos:
 
 Retorna: (DataFrame normalizado, stats_dict).
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict, field
 import json
 import logging
 import os
 import re
 import unicodedata
+from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
-from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
+
 from shared.date_utils import parse_any_date
+from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +120,7 @@ class ImportStats:
 
 # ----------------- Utilidades -----------------
 
+
 def _strip_accents(text: str) -> str:
     nfkd = unicodedata.normalize("NFKD", text)
     return "".join(ch for ch in nfkd if not unicodedata.combining(ch))
@@ -130,7 +133,9 @@ def _canonicalize_header(h: str) -> str:
     return h2.lower()
 
 
-def _build_alias_mapping(mapping_json_path: str) -> Tuple[Dict[str, str], Dict[str, List[str]]]:
+def _build_alias_mapping(
+    mapping_json_path: str,
+) -> Tuple[Dict[str, str], Dict[str, List[str]]]:
     try:
         with open(mapping_json_path, encoding="utf-8") as f:
             data = json.load(f)
@@ -234,6 +239,7 @@ def _resolve_semantic_duplicate_columns(
 
 # ----------------- Nucleo -----------------
 
+
 def import_excel_robust(
     file_path: str | pd.ExcelFile,
     *,
@@ -262,7 +268,9 @@ def import_excel_robust(
         date_parse_failures={},
     )
 
-    if not isinstance(excel_source, pd.ExcelFile) and not os.path.exists(excel_source):  # Falha primária
+    if not isinstance(excel_source, pd.ExcelFile) and not os.path.exists(
+        excel_source
+    ):  # Falha primária
         logger.error("Arquivo não encontrado: %s", excel_source)
         return pd.DataFrame(), stats.to_dict()
 
@@ -306,10 +314,17 @@ def import_excel_robust(
 
     # Heurística 1: cabeçalho mesclado único replicado por todas as colunas (ex.: um título abrangendo a linha)
     # Sinal: muitos (>5) nomes de colunas idênticos e não vazios -> provavelmente a linha 0 é só título e a linha real de cabeçalhos é a próxima
-    distinct_non_empty = {str(c).strip() for c in raw_df.columns if str(c).strip() != '' and not str(c).lower().startswith('unnamed')}
+    distinct_non_empty = {
+        str(c).strip()
+        for c in raw_df.columns
+        if str(c).strip() != "" and not str(c).lower().startswith("unnamed")
+    }
     if len(distinct_non_empty) == 1 and raw_df.shape[1] > 5:
         if debug_enabled:
-            logger.debug("[import_excel_robust] Detectado header mesclado único (%s). Tentando reinterpretar próxima linha como cabeçalho real.", list(distinct_non_empty)[0])
+            logger.debug(
+                "[import_excel_robust] Detectado header mesclado único (%s). Tentando reinterpretar próxima linha como cabeçalho real.",
+                list(distinct_non_empty)[0],
+            )
         try:
             # Releitura bruta sem header para inspecionar.
             raw_no_header = _read_excel_source(
@@ -323,13 +338,20 @@ def import_excel_robust(
             for ridx in range(1, max_scan):  # começa em 1 (linha 0 é título)
                 row = raw_no_header.iloc[ridx]
                 non_null = row.dropna()
-                str_like = [v for v in non_null if isinstance(v, str) and 0 < len(v.strip()) < 80]
+                str_like = [
+                    v
+                    for v in non_null
+                    if isinstance(v, str) and 0 < len(v.strip()) < 80
+                ]
                 if len(str_like) >= 5:
                     candidate_idx = ridx
                     break
             if candidate_idx is not None:
                 if debug_enabled:
-                    logger.debug("[import_excel_robust] Linha %d escolhida como header real.", candidate_idx)
+                    logger.debug(
+                        "[import_excel_robust] Linha %d escolhida como header real.",
+                        candidate_idx,
+                    )
                 raw_df = _read_excel_source(
                     excel_source,
                     sheet_name=sheet_name,
@@ -337,10 +359,14 @@ def import_excel_robust(
                 )
             else:
                 if debug_enabled:
-                    logger.debug("[import_excel_robust] Nenhuma linha candidata encontrada; mantendo header original.")
+                    logger.debug(
+                        "[import_excel_robust] Nenhuma linha candidata encontrada; mantendo header original."
+                    )
         except Exception as e:  # pragma: no cover
             if debug_enabled:
-                logger.debug("[import_excel_robust] Falha ao reprocessar header mesclado: %s", e)
+                logger.debug(
+                    "[import_excel_robust] Falha ao reprocessar header mesclado: %s", e
+                )
 
     stats.total_rows_in = len(raw_df)
     stats.original_columns_count = len(raw_df.columns)
@@ -351,7 +377,9 @@ def import_excel_robust(
     _header_cache: dict[str, str] = {}
 
     # Função auxiliar interna para tentar reconstruir DataFrame com um header específico e remapear.
-    def _attempt_reheader(candidate_header_row: int) -> tuple[pd.DataFrame, dict[str, list[str]], dict[str, str]]:
+    def _attempt_reheader(
+        candidate_header_row: int,
+    ) -> tuple[pd.DataFrame, dict[str, list[str]], dict[str, str]]:
         try:
             tmp_df = _read_excel_source(
                 excel_source,
@@ -388,7 +416,10 @@ def import_excel_robust(
     # tentar detectar linha de cabeçalho real entre as primeiras 10 linhas.
     if len(canonical_groups) <= 1 and raw_df.shape[1] > 5:
         if debug_enabled:
-            logger.debug("[import_excel_robust] Apenas %d colunas canônicas detectadas; tentando reheader multi-linha.", len(canonical_groups))
+            logger.debug(
+                "[import_excel_robust] Apenas %d colunas canônicas detectadas; tentando reheader multi-linha.",
+                len(canonical_groups),
+            )
         best_df = raw_df
         best_groups = canonical_groups
         best_map = original_to_canonical
@@ -406,7 +437,11 @@ def import_excel_robust(
                 best_df, best_groups, best_map = tmp_df, tmp_groups, tmp_map
                 improved = True
                 if debug_enabled:
-                    logger.debug("[import_excel_robust] Reheader candidate %d => %d grupos.", candidate, len(tmp_groups))
+                    logger.debug(
+                        "[import_excel_robust] Reheader candidate %d => %d grupos.",
+                        candidate,
+                        len(tmp_groups),
+                    )
                 if len(best_groups) >= 5:  # heurística de suficiência
                     break
         stats.header_candidate_lines_considered = scan_limit
@@ -415,16 +450,21 @@ def import_excel_robust(
             canonical_groups = best_groups
             original_to_canonical = best_map
             if debug_enabled:
-                logger.debug("[import_excel_robust] Reheader aplicado com sucesso. Total grupos=%d", len(canonical_groups))
+                logger.debug(
+                    "[import_excel_robust] Reheader aplicado com sucesso. Total grupos=%d",
+                    len(canonical_groups),
+                )
             # tentar identificar qual linha foi escolhida (busca reversa por matching de colunas)
             try:  # pragma: no cover (heurística simples)
-                stats.selected_header_line_index = next((i for i in range(scan_limit) if i != 0), None)
+                stats.selected_header_line_index = next(
+                    (i for i in range(scan_limit) if i != 0), None
+                )
             except Exception:
                 stats.selected_header_line_index = None
 
     # Promoção explícita: garantir que exista coluna 'numero_ssa' se algum alias conhecido apareceu
-    if 'numero_ssa' not in canonical_groups:
-        numero_alias_keys = [k for k, v in alias_map.items() if v == 'numero_ssa']
+    if "numero_ssa" not in canonical_groups:
+        numero_alias_keys = [k for k, v in alias_map.items() if v == "numero_ssa"]
         candidate_cols = []
         for col in raw_df.columns:
             norm = _canonicalize_header(str(col))
@@ -432,8 +472,8 @@ def import_excel_robust(
                 candidate_cols.append(col)
         if candidate_cols:
             sel = candidate_cols[0]
-            canonical_groups['numero_ssa'] = [sel]
-            original_to_canonical[sel] = 'numero_ssa'
+            canonical_groups["numero_ssa"] = [sel]
+            original_to_canonical[sel] = "numero_ssa"
             if debug_enabled:
                 logger.debug(
                     "[import_excel_robust] Promovida coluna '%s' a numero_ssa (fallback explicito)",
@@ -444,10 +484,17 @@ def import_excel_robust(
     # Ex: 'SSAs com Desvio na Programação' aparecendo como único cabeçalho => gera apenas 1 coluna mapeada.
     # Heurística: se mapped_columns_count ficar muito baixo depois (tratado mais adiante) ou
     # se só existir 1 coluna e ela contém > 70% de valores NaN vs linhas totais, tentar usar primeira linha como header real.
-    if len(raw_df.columns) == 1 and raw_df.columns[0] and raw_df.columns[0].strip() != '' and raw_df.iloc[0].notna().sum() > 3:
+    if (
+        len(raw_df.columns) == 1
+        and raw_df.columns[0]
+        and raw_df.columns[0].strip() != ""
+        and raw_df.iloc[0].notna().sum() > 3
+    ):
         # Verifica se a primeira linha parece mais um cabeçalho (strings curtas diversificadas)
         possible_header = raw_df.iloc[0].tolist()
-        string_cells = [c for c in possible_header if isinstance(c, str) and 0 < len(c) < 60]
+        string_cells = [
+            c for c in possible_header if isinstance(c, str) and 0 < len(c) < 60
+        ]
         if len(string_cells) >= 3:
             new_headers = []
             for idx, val in enumerate(possible_header):
@@ -456,7 +503,10 @@ def import_excel_robust(
                     base = f"col_{idx}"
                 new_headers.append(base)
             if debug_enabled:
-                logger.debug("[import_excel_robust] Reinterpretando primeira linha como cabeçalho: %s", new_headers)
+                logger.debug(
+                    "[import_excel_robust] Reinterpretando primeira linha como cabeçalho: %s",
+                    new_headers,
+                )
             raw_df = raw_df.iloc[1:].reset_index(drop=True)
             raw_df.columns = new_headers
             # Reprocessar mapeamentos com novos headers
@@ -473,18 +523,22 @@ def import_excel_robust(
                     alias_hit_counter += 1
                 original_to_canonical[col] = canonical
                 canonical_groups.setdefault(canonical, []).append(col)
-            if 'numero_ssa' not in canonical_groups:
+            if "numero_ssa" not in canonical_groups:
                 # tenta novamente promover numero_ssa
-                numero_alias_keys = [k for k, v in alias_map.items() if v == 'numero_ssa']
+                numero_alias_keys = [
+                    k for k, v in alias_map.items() if v == "numero_ssa"
+                ]
                 for col in raw_df.columns:
                     norm = _canonicalize_header(str(col))
                     if norm in numero_alias_keys:
-                        canonical_groups['numero_ssa'] = [col]
-                        original_to_canonical[col] = 'numero_ssa'
+                        canonical_groups["numero_ssa"] = [col]
+                        original_to_canonical[col] = "numero_ssa"
                         break
 
     if debug_enabled:
-        logger.debug("[import_excel_robust] Mapeamento colunas => %s", original_to_canonical)
+        logger.debug(
+            "[import_excel_robust] Mapeamento colunas => %s", original_to_canonical
+        )
 
     # Construir DF novo com coalescência garantindo que cada canônico aparece só uma vez
     new_cols: Dict[str, pd.Series] = {}
@@ -509,11 +563,11 @@ def import_excel_robust(
         alias_map=alias_map,
     )
     # Garantia extra: remover colunas duplicadas exatas 'numero_ssa' mantendo somente a primeira
-    if 'numero_ssa' in work_df.columns:
+    if "numero_ssa" in work_df.columns:
         seen = False
         keep = []
         for c in work_df.columns:
-            if c == 'numero_ssa':
+            if c == "numero_ssa":
                 if not seen:
                     keep.append(c)
                     seen = True
@@ -529,7 +583,9 @@ def import_excel_robust(
         original = work_df["numero_ssa"].copy()
         cleaned_series, valid_mask = _clean_numero_ssa_series(original)
         if debug_enabled:
-            logger.debug("[import_excel_robust] original numero_ssa=%s", original.tolist())
+            logger.debug(
+                "[import_excel_robust] original numero_ssa=%s", original.tolist()
+            )
             logger.debug(
                 "[import_excel_robust] cleaned numero_ssa=%s valid_mask=%s",
                 cleaned_series.tolist(),
@@ -540,7 +596,7 @@ def import_excel_robust(
         # Contar inválidos (inclui vazios / None)
         stats.invalid_numero_ssa_rows = int((~valid_mask).sum())
         # Preservar somente linhas onde numero_ssa limpo não é None se solicitado
-    # (Primeiro promovemos coluna para manter consistência de schema mesmo sem filtragem)
+        # (Primeiro promovemos coluna para manter consistência de schema mesmo sem filtragem)
         work_df.drop(columns=["numero_ssa"], inplace=True)
         work_df.rename(columns={"_numero_ssa_clean": "numero_ssa"}, inplace=True)
         if drop_empty_numero_ssa:
@@ -551,11 +607,11 @@ def import_excel_robust(
                     "[import_excel_robust] removidas %d linhas com numero_ssa vazio/invalido",
                     before - len(work_df),
                 )
-        work_df['numero_ssa'] = work_df['numero_ssa'].astype('string')
+        work_df["numero_ssa"] = work_df["numero_ssa"].astype("string")
         if debug_enabled:
             logger.debug(
                 "[import_excel_robust] numero_ssa apos limpeza: %s",
-                work_df['numero_ssa'].head().tolist(),
+                work_df["numero_ssa"].head().tolist(),
             )
 
     for column_name in SSA_IDENTIFIER_COLUMNS:
@@ -597,7 +653,9 @@ def import_excel_robust(
                 temp = work_df.copy()
                 temp["_dt"] = pd.to_datetime(temp["data_cadastro"], errors="coerce")
                 # Ordenar por numero_ssa e data desc
-                temp.sort_values(["numero_ssa", "_dt"], ascending=[True, False], inplace=True)
+                temp.sort_values(
+                    ["numero_ssa", "_dt"], ascending=[True, False], inplace=True
+                )
                 before = len(temp)
                 temp = temp.drop_duplicates(subset=["numero_ssa"], keep="first")
                 stats.duplicate_rows_dropped = before - len(temp)
@@ -614,15 +672,15 @@ def import_excel_robust(
 
     # Filtragem adicional de numero_ssa inválido que escapou por formatação com traços ou caracteres
     # (ex.: '2025-22222' pode gerar '202522222' com tamanho incorreto / ano inválido após strip).
-    if 'numero_ssa' in work_df.columns:
+    if "numero_ssa" in work_df.columns:
         # Como já filtramos inválidos, apenas garantir tipo string consistente
-        work_df['numero_ssa'] = work_df['numero_ssa'].astype('string')
+        work_df["numero_ssa"] = work_df["numero_ssa"].astype("string")
 
     # Remover colunas "Unnamed:" (pandas cria ao exportar índices) para evitar falha no insert SQL.
     unnamed_cols = [
         c
         for c in work_df.columns
-        if c.startswith('unnamed:') or c.startswith('Unnamed:')
+        if c.startswith("unnamed:") or c.startswith("Unnamed:")
     ]
     if unnamed_cols:
         work_df.drop(columns=unnamed_cols, inplace=True)
@@ -654,9 +712,12 @@ def import_excel_robust(
         os.makedirs("reports", exist_ok=True)
         # Enriquecimento leve: adicionar timestamp e versão de schema se disponível.
         from datetime import datetime, timezone
+
         schema_version = None
         try:
-            with open("config/version.json", encoding="utf-8") as vf:  # reutiliza caso exista
+            with open(
+                "config/version.json", encoding="utf-8"
+            ) as vf:  # reutiliza caso exista
                 data_v = json.load(vf)
                 schema_version = data_v.get("version") or data_v.get("app_version")
         except Exception:  # pragma: no cover
@@ -667,7 +728,9 @@ def import_excel_robust(
         )
         if schema_version:
             enriched["schema_version"] = schema_version
-        with open(os.path.join("reports", "last_import_stats.json"), "w", encoding="utf-8") as fh:
+        with open(
+            os.path.join("reports", "last_import_stats.json"), "w", encoding="utf-8"
+        ) as fh:
             json.dump(enriched, fh, ensure_ascii=False, indent=2)
     except Exception:  # pragma: no cover
         pass

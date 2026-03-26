@@ -1,12 +1,16 @@
 import ast
-import pandas as pd
 import re
 import warnings
 from pathlib import Path
 
-from gui.ssa.gui_filters_advanced_logic import _apply_advanced_filters, _compute_years_from_data_cadastro
+import pandas as pd
+
 from gui.ssa import gui_filters_advanced_logic as adv_logic
 from gui.ssa import gui_filters_advanced_ui as adv_ui
+from gui.ssa.gui_filters_advanced_logic import (
+    _apply_advanced_filters,
+    _compute_years_from_data_cadastro,
+)
 
 
 class _DummyWindow:
@@ -111,7 +115,9 @@ def test_has_active_advanced_filters_detects_reprogramacoes_filter():
 
 
 def test_apply_advanced_filters_applies_week_range_filter():
-    window = _DummyWindow({"semana_emissao_inicio": 202501, "semana_emissao_fim": 202502})
+    window = _DummyWindow(
+        {"semana_emissao_inicio": 202501, "semana_emissao_fim": 202502}
+    )
     df = pd.DataFrame(
         {
             "numero_ssa": ["202500001", "202500002", "202500003"],
@@ -233,7 +239,9 @@ def test_apply_advanced_filters_reprogramacoes_eq_lte_gte():
         }
     )
 
-    window_eq = _DummyWindow({"num_reprogramacoes_mode": "eq", "num_reprogramacoes_values": ["2"]})
+    window_eq = _DummyWindow(
+        {"num_reprogramacoes_mode": "eq", "num_reprogramacoes_values": ["2"]}
+    )
     filtered_eq = _apply_advanced_filters(
         window_eq,
         df,
@@ -243,7 +251,9 @@ def test_apply_advanced_filters_reprogramacoes_eq_lte_gte():
     )
     assert filtered_eq["numero_ssa"].tolist() == ["202500003"]
 
-    window_lte = _DummyWindow({"num_reprogramacoes_mode": "lte", "num_reprogramacoes_values": ["1"]})
+    window_lte = _DummyWindow(
+        {"num_reprogramacoes_mode": "lte", "num_reprogramacoes_values": ["1"]}
+    )
     filtered_lte = _apply_advanced_filters(
         window_lte,
         df,
@@ -253,7 +263,9 @@ def test_apply_advanced_filters_reprogramacoes_eq_lte_gte():
     )
     assert filtered_lte["numero_ssa"].tolist() == ["202500001", "202500002"]
 
-    window_gte = _DummyWindow({"num_reprogramacoes_mode": "gte", "num_reprogramacoes_values": ["2"]})
+    window_gte = _DummyWindow(
+        {"num_reprogramacoes_mode": "gte", "num_reprogramacoes_values": ["2"]}
+    )
     filtered_gte = _apply_advanced_filters(
         window_gte,
         df,
@@ -342,20 +354,28 @@ def test_apply_advanced_filters_derives_divisao_from_setor_columns(monkeypatch):
 
 def test_advanced_filter_keys_from_ui_are_covered_by_logic_or_active_detector():
     ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
-    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(encoding="utf-8")
+    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(
+        encoding="utf-8"
+    )
 
     produced_keys = set(re.findall(r'data\["([^"]+)"\]\s*=', ui_source))
     has_active_block = _get_has_active_block(ui_source)
 
     uncovered = sorted(
-        key for key in produced_keys if key not in logic_source and f'data.get("{key}")' not in has_active_block
+        key
+        for key in produced_keys
+        if key not in logic_source and f'data.get("{key}")' not in has_active_block
     )
-    assert not uncovered, f"Advanced filter keys without logic/active coverage: {', '.join(uncovered)}"
+    assert not uncovered, (
+        f"Advanced filter keys without logic/active coverage: {', '.join(uncovered)}"
+    )
 
 
 def test_logic_and_detector_keys_are_produced_by_ui_or_marked_legacy():
     ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
-    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(encoding="utf-8")
+    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(
+        encoding="utf-8"
+    )
 
     produced_keys = set(re.findall(r'data\["([^"]+)"\]\s*=', ui_source))
     has_active_block = _get_has_active_block(ui_source)
@@ -378,13 +398,21 @@ def test_logic_and_detector_keys_are_produced_by_ui_or_marked_legacy():
     }
 
     consumed_keys = detector_keys | direct_logic_keys | column_group_keys | alias_keys
-    uncovered = sorted(key for key in consumed_keys if key not in produced_keys and key not in legacy_keys)
-    assert not uncovered, f"Logic/detector keys without UI producer or legacy allowlist: {', '.join(uncovered)}"
+    uncovered = sorted(
+        key
+        for key in consumed_keys
+        if key not in produced_keys and key not in legacy_keys
+    )
+    assert not uncovered, (
+        f"Logic/detector keys without UI producer or legacy allowlist: {', '.join(uncovered)}"
+    )
 
 
 def test_week_exclude_contract_keys_are_explicit_noop_allowlist_only():
     ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
-    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(encoding="utf-8")
+    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(
+        encoding="utf-8"
+    )
     produced_keys = set(re.findall(r'data\["([^"]+)"\]\s*=', ui_source))
     has_active_block = _get_has_active_block(ui_source)
     detector_keys = set(re.findall(r'data\.get\("([^"]+)"\)', has_active_block))

@@ -7,12 +7,13 @@ Covers the business rule introduced in `core.numero_ssa.normalize_strict`:
 Also validates the importer path to ensure the cleaning layer applies the
 same logic (no divergence between core and importer).
 """
+
 from __future__ import annotations
 
 import pandas as pd
 
 from core.numero_ssa import normalize_strict
-from utils.robust_importer import import_excel_robust, _clean_numero_ssa_series
+from utils.robust_importer import _clean_numero_ssa_series, import_excel_robust
 
 
 def test_direct_normalize_strict_hyphen_cases():

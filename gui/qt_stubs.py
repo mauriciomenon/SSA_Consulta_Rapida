@@ -3,36 +3,37 @@
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 QT_AVAILABLE = True
 try:
     from PyQt6 import sip as _pyqt_sip
-    from PyQt6.QtCore import Qt, QSignalBlocker, QTimer
+    from PyQt6.QtCore import QSignalBlocker, Qt, QTimer
     from PyQt6.QtWidgets import (
         QApplication,
-        QComboBox,
         QCheckBox,
+        QComboBox,
         QDialog,
         QDialogButtonBox,
         QFrame,
         QGridLayout,
         QGroupBox,
         QHBoxLayout,
+        QHeaderView,
         QLabel,
         QLineEdit,
         QMenu,
         QPushButton,
         QScrollArea,
         QSizePolicy,
+        QTableWidgetItem,
         QTextEdit,
         QToolButton,
         QVBoxLayout,
         QWidget,
         QWidgetAction,
-        QHeaderView,
-        QTableWidgetItem,
     )
+
     sip: Any = _pyqt_sip
 except ImportError:
     QT_AVAILABLE = False

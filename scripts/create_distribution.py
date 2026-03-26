@@ -24,8 +24,7 @@ from typing import Optional
 
 # Configuracao de logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -87,7 +86,7 @@ BUILD_SYSTEMS = {
         "exe_path": "builds/nuitka/windows_amd64/main.exe",
         "base_dir": "builds/nuitka/windows_amd64",
         "internal_dir": None,
-    }
+    },
 }
 
 # Diretorios que devem ser criados para o usuario
@@ -155,7 +154,9 @@ def _has_primary_executable(build_dir: Path, build_system: str) -> bool:
                 ]
                 for embedded in embedded_candidates:
                     if embedded.is_file():
-                        if embedded.suffix.lower() == ".exe" or os.access(embedded, os.X_OK):
+                        if embedded.suffix.lower() == ".exe" or os.access(
+                            embedded, os.X_OK
+                        ):
                             return True
         return False
 
@@ -176,7 +177,9 @@ def _has_primary_executable(build_dir: Path, build_system: str) -> bool:
     return False
 
 
-def _resolve_primary_executable_name(source_dir: Path, prefer_gui: bool = False) -> Optional[str]:
+def _resolve_primary_executable_name(
+    source_dir: Path, prefer_gui: bool = False
+) -> Optional[str]:
     """Resolve executavel principal dentro de um diretorio de build."""
     if not source_dir.exists() or not source_dir.is_dir():
         return None
@@ -411,14 +414,20 @@ def _resolve_local_db_asset(local_db_path: str) -> Optional[Path]:
     try:
         resolved = candidate.resolve(strict=True)
     except FileNotFoundError:
-        logger.error("Banco local explicitamente solicitado nao encontrado: %s", candidate)
+        logger.error(
+            "Banco local explicitamente solicitado nao encontrado: %s", candidate
+        )
         return None
 
     if not resolved.is_file():
-        logger.error("Banco local explicitamente solicitado nao e arquivo: %s", resolved)
+        logger.error(
+            "Banco local explicitamente solicitado nao e arquivo: %s", resolved
+        )
         return None
     if resolved.suffix.lower() != ".db":
-        logger.error("Banco local explicitamente solicitado deve terminar em .db: %s", resolved)
+        logger.error(
+            "Banco local explicitamente solicitado deve terminar em .db: %s", resolved
+        )
         return None
     return resolved
 
@@ -460,13 +469,14 @@ def _detect_primary_executable_name(package_dir: Path) -> Optional[str]:
     exe_like = sorted(
         p.name
         for p in file_entries
-        if p.name.lower().endswith(".exe")
-        or (p.suffix == "" and os.access(p, os.X_OK))
+        if p.name.lower().endswith(".exe") or (p.suffix == "" and os.access(p, os.X_OK))
     )
     if exe_like:
         return exe_like[0]
 
-    app_like = sorted(p.name for p in entries if p.is_dir() and p.name.lower().endswith(".app"))
+    app_like = sorted(
+        p.name for p in entries if p.is_dir() and p.name.lower().endswith(".app")
+    )
     if app_like:
         return app_like[0]
 
@@ -501,7 +511,9 @@ def _resolve_inno_source(build_system: str) -> Optional[tuple[Path, str]]:
             PROJECT_ROOT / "launchers" / "dist" / "windows_amd64",
         )
         if _has_packagable_content(canonical_windows):
-            exe_name = _resolve_primary_executable_name(canonical_windows, prefer_gui=True)
+            exe_name = _resolve_primary_executable_name(
+                canonical_windows, prefer_gui=True
+            )
             if exe_name:
                 return canonical_windows, exe_name
 
@@ -549,13 +561,15 @@ def _is_canonical_pyinstaller_directory(build_dir: Path) -> bool:
 def get_version() -> str:
     """Le o numero de versao do arquivo VERSION ou retorna default."""
     try:
-        with open(VERSION_FILE, 'r', encoding='utf-8') as f:
+        with open(VERSION_FILE, "r", encoding="utf-8") as f:
             return f.read().strip()
     except Exception:
         try:
-            with open(PROJECT_ROOT / "config" / "version.json", 'r', encoding='utf-8') as f:
+            with open(
+                PROJECT_ROOT / "config" / "version.json", "r", encoding="utf-8"
+            ) as f:
                 data = json.load(f)
-                return str(data.get('version_short') or data.get('version') or '0.0.0')
+                return str(data.get("version_short") or data.get("version") or "0.0.0")
         except Exception:
             return "0.0.0"
 
@@ -635,7 +649,7 @@ def create_readme_usuario(
 """
 
     readme_content = f"""SSA Consulta Rapida v{version}
-Build: {BUILD_SYSTEMS[build_system]['name']}
+Build: {BUILD_SYSTEMS[build_system]["name"]}
 
 INSTALACAO E USO
 
@@ -683,7 +697,7 @@ SUPORTE
 
 - Documentacao completa: docs/
 - Versao: {version}
-- Build System: {BUILD_SYSTEMS[build_system]['name']}
+- Build System: {BUILD_SYSTEMS[build_system]["name"]}
 
 ATUALIZACAO
 
@@ -694,7 +708,7 @@ Para atualizar, substitua apenas o executavel principal mantendo:
 """
 
     readme_path = target_dir / "LEIA-ME-USUARIO.txt"
-    with open(readme_path, 'w', encoding='utf-8') as f:
+    with open(readme_path, "w", encoding="utf-8") as f:
         f.write(readme_content)
 
     logger.info("README para usuario criado")
@@ -717,7 +731,9 @@ def _copy_runtime_bundle(
     else:
         exe_path_value = build_info.get("exe_path")
         if not isinstance(exe_path_value, str):
-            logger.error("Configuracao invalida: exe_path ausente para %s", build_system)
+            logger.error(
+                "Configuracao invalida: exe_path ausente para %s", build_system
+            )
             return False
         exe_src = PROJECT_ROOT / exe_path_value
         if not exe_src.is_file():
@@ -757,9 +773,11 @@ def _copy_runtime_bundle(
     return True
 
 
-def _write_package_version_file(package_dir: Path, version: str, build_name: str) -> None:
+def _write_package_version_file(
+    package_dir: Path, version: str, build_name: str
+) -> None:
     """Escreve VERSION.txt no pacote staged."""
-    with open(package_dir / "VERSION.txt", 'w') as f:
+    with open(package_dir / "VERSION.txt", "w") as f:
         f.write(f"{version}\n")
         f.write(f"Build System: {build_name}\n")
         f.write(f"Data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -767,7 +785,7 @@ def _write_package_version_file(package_dir: Path, version: str, build_name: str
 
 def _create_package_zip(package_dir: Path, package_name: str, zip_path: Path) -> None:
     """Gera arquivo ZIP final a partir do pacote staged."""
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(package_dir):
             for file in files:
                 file_path = Path(root) / file
@@ -889,7 +907,7 @@ def create_zip_package(
 
 def _normalize_windows_path(raw_value: str) -> str:
     """Normaliza path para formato Windows e remove aspas."""
-    return raw_value.replace("/", "\\").replace('"', '')
+    return raw_value.replace("/", "\\").replace('"', "")
 
 
 def _build_inno_excludes_str() -> str:
@@ -959,12 +977,14 @@ def _build_inno_iss_content(
     """Renderiza conteudo do arquivo ISS."""
     setup_icon_line = f"SetupIconFile={setup_icon_spec}" if setup_icon_spec else ""
     sample_db_dirs_section = f"{sample_db_dirs_block}\n" if sample_db_dirs_block else ""
-    sample_db_files_section = f"{sample_db_files_block}\n" if sample_db_files_block else ""
+    sample_db_files_section = (
+        f"{sample_db_files_block}\n" if sample_db_files_block else ""
+    )
     local_db_dirs_section = f"{local_db_dirs_block}\n" if local_db_dirs_block else ""
     local_db_files_section = f"{local_db_files_block}\n" if local_db_files_block else ""
     return f"""
 ; Script Inno Setup para SSA Consulta Rapida
-; Build System: {BUILD_SYSTEMS[build_system]['name']}
+; Build System: {BUILD_SYSTEMS[build_system]["name"]}
 ; Versao: {version}
 
 #define MyAppName "SSA Consulta Rapida"
@@ -1055,17 +1075,21 @@ def create_inno_setup_script(
     logger.info(f"Criando script Inno Setup para {BUILD_SYSTEMS[build_system]['name']}")
     resolved = _resolve_inno_source(build_system)
     if resolved is None:
-        logger.error("Nao foi possivel resolver origem para instalador: %s", build_system)
+        logger.error(
+            "Nao foi possivel resolver origem para instalador: %s", build_system
+        )
         return None
 
     source_dir, exe_name = resolved
     source_dir_spec = _normalize_windows_path(str(source_dir.resolve()))
     dist_output_spec = _normalize_windows_path(str(DIST_OUTPUT.resolve()))
-    exe_name = exe_name.replace('"', '')
+    exe_name = exe_name.replace('"', "")
     inno_excludes_str = _build_inno_excludes_str()
     setup_icon_spec = _resolve_inno_setup_icon()
     if setup_icon_spec is None:
-        logger.warning("Icone Inno Setup nao encontrado; instalador sera gerado sem SetupIconFile")
+        logger.warning(
+            "Icone Inno Setup nao encontrado; instalador sera gerado sem SetupIconFile"
+        )
     sample_db_source_spec = None
     sample_db_readme_source_spec = None
     if include_sample_db:
@@ -1108,7 +1132,7 @@ def create_inno_setup_script(
     )
 
     iss_path = DIST_OUTPUT / f"installer_{build_system}.iss"
-    with open(iss_path, 'w', encoding='utf-8') as f:
+    with open(iss_path, "w", encoding="utf-8") as f:
         f.write(iss_content)
 
     logger.info(f"  Script ISS criado: {iss_path.name}")
@@ -1169,12 +1193,14 @@ def _get_iscc_path() -> Optional[str]:
                 configured_path,
             )
 
-    possible_paths.extend([
-        r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-        r"C:\Program Files\Inno Setup 6\ISCC.exe",
-        r"C:\Program Files (x86)\Inno Setup 5\ISCC.exe",
-        r"C:\Program Files\Inno Setup 5\ISCC.exe",
-    ])
+    possible_paths.extend(
+        [
+            r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+            r"C:\Program Files\Inno Setup 6\ISCC.exe",
+            r"C:\Program Files (x86)\Inno Setup 5\ISCC.exe",
+            r"C:\Program Files\Inno Setup 5\ISCC.exe",
+        ]
+    )
 
     for path in possible_paths:
         if os.path.exists(path):
@@ -1186,10 +1212,7 @@ def _run_iscc_compile(iscc_path: str, iss_path: Path) -> str:
     """Executa compilacao do instalador com ISCC."""
     try:
         result = subprocess.run(
-            [iscc_path, str(iss_path)],
-            capture_output=True,
-            text=True,
-            timeout=300
+            [iscc_path, str(iss_path)], capture_output=True, text=True, timeout=300
         )
 
         if result.returncode == 0:
@@ -1214,7 +1237,9 @@ def compile_installer(iss_path: Path) -> str:
     iscc_path = _get_iscc_path()
     if not iscc_path:
         logger.warning("Inno Setup nao encontrado. Instalador nao sera criado.")
-        logger.info("  Para criar instaladores, instale Inno Setup de: https://jrsoftware.org/isdl.php")
+        logger.info(
+            "  Para criar instaladores, instale Inno Setup de: https://jrsoftware.org/isdl.php"
+        )
         return "missing"
 
     return _run_iscc_compile(iscc_path, iss_path)
@@ -1227,22 +1252,20 @@ def main():
     parser.add_argument(
         "--build-system",
         choices=list(BUILD_SYSTEMS.keys()),
-        help="Build system especifico para empacotar"
+        help="Build system especifico para empacotar",
     )
     parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Criar pacotes para todos os build systems"
+        "--all", action="store_true", help="Criar pacotes para todos os build systems"
     )
     parser.add_argument(
         "--skip-installer",
         action="store_true",
-        help="Pular criacao do instalador (criar apenas ZIP)"
+        help="Pular criacao do instalador (criar apenas ZIP)",
     )
     parser.add_argument(
         "--installer-only",
         action="store_true",
-        help="Criar apenas instalador (pular ZIP)"
+        help="Criar apenas instalador (pular ZIP)",
     )
     parser.add_argument(
         "--include-sample-db",
@@ -1282,9 +1305,9 @@ def main():
     # Processar cada build system
     results = {}
     for bs in build_systems:
-        logger.info(f"\n{'='*60}")
+        logger.info(f"\n{'=' * 60}")
         logger.info(f"Processando: {BUILD_SYSTEMS[bs]['name']}")
-        logger.info(f"{'='*60}\n")
+        logger.info(f"{'=' * 60}\n")
 
         results[bs] = {"zip": None, "installer": None}
 
@@ -1312,9 +1335,9 @@ def main():
                 results[bs]["installer"] = "script_failed"
 
     # Relatorio final
-    logger.info(f"\n{'='*60}")
+    logger.info(f"\n{'=' * 60}")
     logger.info("RELATORIO FINAL")
-    logger.info(f"{'='*60}\n")
+    logger.info(f"{'=' * 60}\n")
 
     for bs, result in results.items():
         logger.info(f"{BUILD_SYSTEMS[bs]['name']}:")

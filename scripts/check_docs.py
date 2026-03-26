@@ -24,13 +24,14 @@ Futuras extensões (não implementadas agora):
   - Análise de seções obrigatórias por tipo.
   - Integração com agregador de índice.
 """
+
 from __future__ import annotations
 
 import argparse
 import json
 import os
 import re
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence
 
@@ -142,25 +143,63 @@ def evaluate_file(path: Path, min_lines: int, min_nonempty: int) -> Optional[Doc
     total = len(lines)
     nonempty = sum(1 for line in lines if line.strip())
     if total < min_lines:
-        return DocIssue(str(path), "too_few_lines", f"linhas={total} < {min_lines}", total, nonempty)
+        return DocIssue(
+            str(path), "too_few_lines", f"linhas={total} < {min_lines}", total, nonempty
+        )
     if nonempty < min_nonempty:
-        return DocIssue(str(path), "too_sparse", f"não-vazias={nonempty} < {min_nonempty}", total, nonempty)
+        return DocIssue(
+            str(path),
+            "too_sparse",
+            f"não-vazias={nonempty} < {min_nonempty}",
+            total,
+            nonempty,
+        )
     placeholder = has_placeholder(lines)
     if placeholder:
-        return DocIssue(str(path), "placeholder", f"padrao detectado: {placeholder}", total, nonempty)
+        return DocIssue(
+            str(path),
+            "placeholder",
+            f"padrao detectado: {placeholder}",
+            total,
+            nonempty,
+        )
     return None
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Valida arquivos Markdown do repositório.")
-    parser.add_argument("--min-lines", type=int, default=DEFAULT_MIN_LINES, help="Mínimo de linhas totais por arquivo")
-    parser.add_argument("--min-nonempty", type=int, default=DEFAULT_MIN_NONEMPTY, help="Mínimo de linhas não vazias")
-    parser.add_argument("--fail-on-issues", action="store_true", help="Retorna código 1 se encontrar issues")
+    parser = argparse.ArgumentParser(
+        description="Valida arquivos Markdown do repositório."
+    )
+    parser.add_argument(
+        "--min-lines",
+        type=int,
+        default=DEFAULT_MIN_LINES,
+        help="Mínimo de linhas totais por arquivo",
+    )
+    parser.add_argument(
+        "--min-nonempty",
+        type=int,
+        default=DEFAULT_MIN_NONEMPTY,
+        help="Mínimo de linhas não vazias",
+    )
+    parser.add_argument(
+        "--fail-on-issues",
+        action="store_true",
+        help="Retorna código 1 se encontrar issues",
+    )
     parser.add_argument("--json", action="store_true", help="Saída em JSON")
     parser.add_argument("--output", help="Arquivo para gravar JSON (quando --json)")
-    parser.add_argument("--verbose", action="store_true", help="Exibe arquivos analisados e status simplificado")
-    parser.add_argument("--paths", nargs="*", help="Lista opcional de caminhos/dirs para filtrar")
-    parser.add_argument("--exclude", nargs="*", help="Padrões simples (substring) a excluir")
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Exibe arquivos analisados e status simplificado",
+    )
+    parser.add_argument(
+        "--paths", nargs="*", help="Lista opcional de caminhos/dirs para filtrar"
+    )
+    parser.add_argument(
+        "--exclude", nargs="*", help="Padrões simples (substring) a excluir"
+    )
     return parser.parse_args(argv)
 
 
@@ -221,7 +260,13 @@ def main(argv: Optional[List[str]] = None) -> int:
                     Path(ns.output).parent.mkdir(parents=True, exist_ok=True)
                     Path(ns.output).write_text(serialized, encoding="utf-8")
                 except Exception as write_err:  # noqa: BLE001
-                    print(json.dumps({"warning": f"falha ao gravar output: {write_err}"}, ensure_ascii=False), flush=True)
+                    print(
+                        json.dumps(
+                            {"warning": f"falha ao gravar output: {write_err}"},
+                            ensure_ascii=False,
+                        ),
+                        flush=True,
+                    )
         else:
             print("=== CHECK DOCS REPORT ===")
             print(f"Arquivos candidatos: {stats.total_files}")
@@ -230,7 +275,9 @@ def main(argv: Optional[List[str]] = None) -> int:
             if issues:
                 print("\nDetalhes:")
                 for i in issues[:50]:
-                    print(f" - {i.path} :: {i.issue_type} :: {i.detail} (linhas={i.lines}, não-vazias={i.nonempty})")
+                    print(
+                        f" - {i.path} :: {i.issue_type} :: {i.detail} (linhas={i.lines}, não-vazias={i.nonempty})"
+                    )
                 if len(issues) > 50:
                     print(f"... +{len(issues) - 50} adicionais")
             else:

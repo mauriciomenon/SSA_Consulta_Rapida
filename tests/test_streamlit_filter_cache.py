@@ -10,34 +10,34 @@ from dev_env.streamlit_app import (
     STREAMLIT_APP_TITLE,
     STREAMLIT_THEME_PALETTES,
     StreamlitFilterCache,
-    apply_all_filters_cached,
     _api_snapshot_available,
+    _apply_large_page_guard,
     _build_advanced_filter_options,
-    _build_streamlit_theme_css,
-    _clear_recent_api_snapshot,
-    _build_table_caption,
-    _format_render_stats_line,
-    _build_streamlit_column_config,
     _build_column_presets,
     _build_filter_options,
-    _compute_sidebar_weekly_kpis,
+    _build_streamlit_column_config,
+    _build_streamlit_theme_css,
+    _build_table_caption,
+    _clear_recent_api_snapshot,
     _columns_with_data,
-    _compute_table_render_height,
     _compute_df_cache_token,
+    _compute_sidebar_weekly_kpis,
+    _compute_table_render_height,
     _default_visible_columns,
+    _format_render_stats_line,
+    _load_persisted_streamlit_state,
     _normalize_filter_selection,
     _normalize_streamlit_theme_name,
-    _apply_large_page_guard,
     _normalize_width_profile_memory,
-    _load_persisted_streamlit_state,
     _paginate_dataframe,
     _persist_streamlit_state,
     _remember_width_profile_for_bucket,
+    _resolve_situacao_quick_mode,
+    _resolve_streamlit_ui_state_path,
     _resolve_width_bucket,
     _resolve_width_profile_for_bucket,
-    _resolve_streamlit_ui_state_path,
-    _resolve_situacao_quick_mode,
     _update_render_telemetry,
+    apply_all_filters_cached,
     st,
 )
 from gui.simple_width_manager import SimpleWidthManager
@@ -47,7 +47,12 @@ def test_streamlit_filter_cache_compat_methods_work_in_local_fallback() -> None:
     cache = StreamlitFilterCache(max_size=2, ttl_seconds=30)
     cache._use_session_state = False
     cache._local_cache = {}
-    cache._local_stats = {"hits": 0, "misses": 0, "evictions": 0, "skipped_large_entries": 0}
+    cache._local_stats = {
+        "hits": 0,
+        "misses": 0,
+        "evictions": 0,
+        "skipped_large_entries": 0,
+    }
 
     data = pd.DataFrame({"numero_ssa": ["202500001"], "situacao": ["ABERTO"]})
     cache.cache_filter_result("k1", data, {"source": "test"})
@@ -64,7 +69,12 @@ def test_streamlit_filter_cache_key_token_distinguishes_same_shape_data() -> Non
     cache = StreamlitFilterCache(max_size=2, ttl_seconds=30)
     cache._use_session_state = False
     cache._local_cache = {}
-    cache._local_stats = {"hits": 0, "misses": 0, "evictions": 0, "skipped_large_entries": 0}
+    cache._local_stats = {
+        "hits": 0,
+        "misses": 0,
+        "evictions": 0,
+        "skipped_large_entries": 0,
+    }
 
     df1 = pd.DataFrame(
         {
@@ -92,7 +102,12 @@ def test_streamlit_filter_cache_stats_parity_between_main_and_compat_methods() -
     cache = StreamlitFilterCache(max_size=1, ttl_seconds=30)
     cache._use_session_state = False
     cache._local_cache = {}
-    cache._local_stats = {"hits": 0, "misses": 0, "evictions": 0, "skipped_large_entries": 0}
+    cache._local_stats = {
+        "hits": 0,
+        "misses": 0,
+        "evictions": 0,
+        "skipped_large_entries": 0,
+    }
 
     df1 = pd.DataFrame({"numero_ssa": ["202500001"]})
     df2 = pd.DataFrame({"numero_ssa": ["202500002"]})
@@ -105,12 +120,19 @@ def test_streamlit_filter_cache_stats_parity_between_main_and_compat_methods() -
     assert stats["size"] == 1
 
 
-def test_streamlit_filter_cache_skips_large_entry_when_limit_is_set(monkeypatch) -> None:
+def test_streamlit_filter_cache_skips_large_entry_when_limit_is_set(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("SSA_CACHE_MAX_MB", "0.0001")
     cache = StreamlitFilterCache(max_size=2, ttl_seconds=30)
     cache._use_session_state = False
     cache._local_cache = {}
-    cache._local_stats = {"hits": 0, "misses": 0, "evictions": 0, "skipped_large_entries": 0}
+    cache._local_stats = {
+        "hits": 0,
+        "misses": 0,
+        "evictions": 0,
+        "skipped_large_entries": 0,
+    }
 
     large_df = pd.DataFrame({"descricao_ssa": ["x" * 4096, "y" * 4096]})
     cache.cache_filter_result("k_large", large_df)
@@ -121,12 +143,19 @@ def test_streamlit_filter_cache_skips_large_entry_when_limit_is_set(monkeypatch)
     assert stats["max_entry_mb"] is not None
 
 
-def test_streamlit_filter_cache_keeps_small_entry_when_limit_allows(monkeypatch) -> None:
+def test_streamlit_filter_cache_keeps_small_entry_when_limit_allows(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("SSA_CACHE_MAX_MB", "64")
     cache = StreamlitFilterCache(max_size=2, ttl_seconds=30)
     cache._use_session_state = False
     cache._local_cache = {}
-    cache._local_stats = {"hits": 0, "misses": 0, "evictions": 0, "skipped_large_entries": 0}
+    cache._local_stats = {
+        "hits": 0,
+        "misses": 0,
+        "evictions": 0,
+        "skipped_large_entries": 0,
+    }
 
     small_df = pd.DataFrame({"numero_ssa": ["202500001"], "situacao": ["ABERTO"]})
     cache.cache_filter_result("k_small", small_df, {"source": "test"})
@@ -467,7 +496,9 @@ def test_build_table_caption_compact() -> None:
 def test_update_render_telemetry_updates_session_state(monkeypatch) -> None:
     session_state = {}
     monkeypatch.setattr(st, "session_state", session_state, raising=False)
-    monkeypatch.setattr("dev_env.streamlit_app._persist_streamlit_state", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        "dev_env.streamlit_app._persist_streamlit_state", lambda **_kwargs: None
+    )
     _update_render_telemetry("Padrao (1600)", 10.0)
     _update_render_telemetry("Padrao (1600)", 20.0)
     stats = session_state["streamlit_render_stats"]["Padrao (1600)"]
@@ -479,7 +510,9 @@ def test_update_render_telemetry_updates_session_state(monkeypatch) -> None:
 def test_update_render_telemetry_keeps_profile_window(monkeypatch) -> None:
     session_state = {}
     monkeypatch.setattr(st, "session_state", session_state, raising=False)
-    monkeypatch.setattr("dev_env.streamlit_app._persist_streamlit_state", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        "dev_env.streamlit_app._persist_streamlit_state", lambda **_kwargs: None
+    )
 
     for idx in range(MAX_RENDER_TELEMETRY_PROFILES + 3):
         _update_render_telemetry(f"profile-{idx}", float(idx))
@@ -515,7 +548,9 @@ def test_streamlit_state_persistence_roundtrip(tmp_path, monkeypatch) -> None:
     assert loaded["streamlit_render_stats"]["Largo (2000)"]["count"] == 2
 
 
-def test_streamlit_state_persistence_invalid_json_returns_empty(tmp_path, monkeypatch) -> None:
+def test_streamlit_state_persistence_invalid_json_returns_empty(
+    tmp_path, monkeypatch
+) -> None:
     monkeypatch.setenv("SSA_CONFIG_DIR", str(tmp_path))
     monkeypatch.setenv("SSA_STREAMLIT_UI_STATE_FILE", "streamlit_ui_state_test.json")
     state_path = _resolve_streamlit_ui_state_path()
@@ -652,7 +687,9 @@ def test_clear_recent_api_snapshot_updates_session_state(monkeypatch) -> None:
     assert session_state["recent_api_df"] is None
 
 
-def test_clear_recent_api_snapshot_is_idempotent_without_existing_key(monkeypatch) -> None:
+def test_clear_recent_api_snapshot_is_idempotent_without_existing_key(
+    monkeypatch,
+) -> None:
     session_state = {}
     monkeypatch.setattr(st, "session_state", session_state, raising=False)
 

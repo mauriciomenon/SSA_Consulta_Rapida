@@ -100,7 +100,7 @@ def test_ensure_schema_preserves_outer_transaction(temp_db):
 
     with sqlite3.connect(temp_db) as conn:
         rows = conn.execute("SELECT name FROM t ORDER BY id").fetchall()
-    assert rows == [('before',)]
+    assert rows == [("before",)]
 
 
 def test_ensure_schema_adds_not_null_columns_with_safe_defaults(temp_db):

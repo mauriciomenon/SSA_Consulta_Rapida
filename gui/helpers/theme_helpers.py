@@ -5,7 +5,6 @@ import re
 
 from PyQt6.QtGui import QPalette
 
-
 _HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 _COLOR_NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_-]*$")
 
@@ -115,8 +114,13 @@ def build_group_box_qss(panel_text: str, panel_border: str, panel_bg: str) -> st
     )
 
 
-def build_line_edit_qss(input_text: str, input_bg: str, input_border: str,
-                        input_focus: str, input_placeholder: str) -> str:
+def build_line_edit_qss(
+    input_text: str,
+    input_bg: str,
+    input_border: str,
+    input_focus: str,
+    input_placeholder: str,
+) -> str:
     """
     Build QSS for QLineEdit styling with focus and placeholder.
 

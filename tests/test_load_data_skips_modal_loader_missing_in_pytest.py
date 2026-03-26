@@ -30,7 +30,9 @@ class _DummyTimer:
         return None
 
 
-def test_load_data_skips_modal_when_loader_missing_under_pytest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_data_skips_modal_when_loader_missing_under_pytest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from gui import gui_ssa
 
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "1")
@@ -40,7 +42,11 @@ def test_load_data_skips_modal_when_loader_missing_under_pytest(tmp_path: Path, 
 
     monkeypatch.setattr(gui_ssa, "DB_PATH", str(db_path))
     monkeypatch.setattr(gui_ssa, "DataLoaderWorker", None)
-    monkeypatch.setattr(gui_ssa.QMessageBox, "critical", lambda *a, **k: pytest.fail("QMessageBox.critical called"))
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox,
+        "critical",
+        lambda *a, **k: pytest.fail("QMessageBox.critical called"),
+    )
 
     dummy = cast(Any, SimpleNamespace())
     dummy.status_label = _StateSink()
@@ -65,7 +71,9 @@ def test_load_data_skips_modal_when_loader_missing_under_pytest(tmp_path: Path, 
     assert dummy.search_button.value is True
 
 
-def test_load_data_handles_loader_constructor_failure_under_pytest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_data_handles_loader_constructor_failure_under_pytest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from gui import gui_ssa
 
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "1")
@@ -79,7 +87,11 @@ def test_load_data_handles_loader_constructor_failure_under_pytest(tmp_path: Pat
 
     monkeypatch.setattr(gui_ssa, "DB_PATH", str(db_path))
     monkeypatch.setattr(gui_ssa, "DataLoaderWorker", _BrokenLoader)
-    monkeypatch.setattr(gui_ssa.QMessageBox, "critical", lambda *a, **k: pytest.fail("QMessageBox.critical called"))
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox,
+        "critical",
+        lambda *a, **k: pytest.fail("QMessageBox.critical called"),
+    )
 
     dummy = cast(Any, SimpleNamespace())
     dummy.status_label = _StateSink()

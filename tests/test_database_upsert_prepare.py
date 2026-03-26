@@ -50,7 +50,9 @@ def test_prepare_dataframe_for_upsert_sanitizes_textual_null_sentinels() -> None
     assert pd.isna(out.loc[1, "responsavel_programacao"])
 
 
-def test_prepare_dataframe_for_upsert_handles_non_unique_index_without_corruption() -> None:
+def test_prepare_dataframe_for_upsert_handles_non_unique_index_without_corruption() -> (
+    None
+):
     original = pd.DataFrame(
         {
             "numero_ssa": ["202500880", "202500881", "202500882"],
@@ -87,8 +89,24 @@ def test_prepare_dataframe_for_upsert_rejects_letters_in_storage_ids() -> None:
 def test_prepare_dataframe_for_upsert_rejects_unicode_letters_in_storage_ids() -> None:
     original = pd.DataFrame(
         {
-            "numero_ssa": ["XX202500777.0YY", "AB202500777.0", "A202500777", "A202500777", "2025A0777", "Ä202500777", "202500777ß"],
-            "derivada_de": ["202500123", "202500123", "202500123", "Ä202500123", "202500123", "202500123", "202500123"],
+            "numero_ssa": [
+                "XX202500777.0YY",
+                "AB202500777.0",
+                "A202500777",
+                "A202500777",
+                "2025A0777",
+                "Ä202500777",
+                "202500777ß",
+            ],
+            "derivada_de": [
+                "202500123",
+                "202500123",
+                "202500123",
+                "Ä202500123",
+                "202500123",
+                "202500123",
+                "202500123",
+            ],
             "data_cadastro": ["01/01/2025"] * 7,
         }
     )

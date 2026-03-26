@@ -4,10 +4,11 @@ Detector de Código Frankenstein
 Identifica implementações misturadas, redundantes e inconsistentes no código.
 """
 
+import json
 import os
 import re
 import sys
-import json
+
 
 def analisar_implementacoes_misturadas():
     """Identifica implementações conflitantes ou misturadas."""
@@ -21,97 +22,111 @@ def analisar_implementacoes_misturadas():
     print()
 
     # 1. Analisar GUI - Implementações misturadas
-    gui_path = os.path.join('gui', 'gui_ssa.py')
+    gui_path = os.path.join("gui", "gui_ssa.py")
     if os.path.exists(gui_path):
-        with open(gui_path, 'r', encoding='utf-8') as f:
+        with open(gui_path, "r", encoding="utf-8") as f:
             gui_content = f.read()
 
         print("INFO ANALISANDO GUI...")
 
         # Detectar múltiplas estratégias de largura
         width_strategies = {
-            'best-fit': gui_content.count('best-fit'),
-            'MIN_CHAR_SIZES': gui_content.count('MIN_CHAR_SIZES'),
-            'column_widths': gui_content.count('column_widths'),
-            'pixel_widths': gui_content.count('pixel_widths'),
-            '_gui_column_pixel_widths': gui_content.count('_gui_column_pixel_widths'),
-            '_saved_gui_column_widths': gui_content.count('_saved_gui_column_widths')
+            "best-fit": gui_content.count("best-fit"),
+            "MIN_CHAR_SIZES": gui_content.count("MIN_CHAR_SIZES"),
+            "column_widths": gui_content.count("column_widths"),
+            "pixel_widths": gui_content.count("pixel_widths"),
+            "_gui_column_pixel_widths": gui_content.count("_gui_column_pixel_widths"),
+            "_saved_gui_column_widths": gui_content.count("_saved_gui_column_widths"),
         }
 
         active_strategies = [k for k, v in width_strategies.items() if v > 0]
         if len(active_strategies) > 3:
-            frankenstein_code.append(f" GUI: {len(active_strategies)} estratégias de largura diferentes ({', '.join(active_strategies)})")
+            frankenstein_code.append(
+                f" GUI: {len(active_strategies)} estratégias de largura diferentes ({', '.join(active_strategies)})"
+            )
 
         # Detectar múltiplos sistemas de cache
         cache_systems = {
-            '_widths_computed_for_df_hash': gui_content.count('_widths_computed_for_df_hash'),
-            '_formatted_df_cache': gui_content.count('_formatted_df_cache'),
-            '_column_sets_cache': gui_content.count('_column_sets_cache'),
-            '_cached_default_mode': gui_content.count('_cached_default_mode')
+            "_widths_computed_for_df_hash": gui_content.count(
+                "_widths_computed_for_df_hash"
+            ),
+            "_formatted_df_cache": gui_content.count("_formatted_df_cache"),
+            "_column_sets_cache": gui_content.count("_column_sets_cache"),
+            "_cached_default_mode": gui_content.count("_cached_default_mode"),
         }
 
         cache_count = sum(1 for v in cache_systems.values() if v > 0)
         if cache_count > 2:
-            frankenstein_code.append(f" GUI: {cache_count} sistemas de cache independentes")
+            frankenstein_code.append(
+                f" GUI: {cache_count} sistemas de cache independentes"
+            )
 
         # Detectar configurações misturadas
         config_sources = {
-            'GUI_MAIN_PREFERENCES': gui_content.count('GUI_MAIN_PREFERENCES'),
-            'load_display_mappings': gui_content.count('load_display_mappings'),
-            'get_settings': gui_content.count('get_settings'),
-            'settings.json': gui_content.count('settings.json')
+            "GUI_MAIN_PREFERENCES": gui_content.count("GUI_MAIN_PREFERENCES"),
+            "load_display_mappings": gui_content.count("load_display_mappings"),
+            "get_settings": gui_content.count("get_settings"),
+            "settings.json": gui_content.count("settings.json"),
         }
 
         config_mix = sum(1 for v in config_sources.values() if v > 0)
         if config_mix > 2:
-            frankenstein_code.append(f" GUI: {config_mix} fontes de configuração misturadas")
+            frankenstein_code.append(
+                f" GUI: {config_mix} fontes de configuração misturadas"
+            )
 
     # 2. Analisar CLI - Implementações inconsistentes
-    cli_path = os.path.join('interface', 'cli.py')
+    cli_path = os.path.join("interface", "cli.py")
     if os.path.exists(cli_path):
-        with open(cli_path, 'r', encoding='utf-8') as f:
+        with open(cli_path, "r", encoding="utf-8") as f:
             cli_content = f.read()
 
         print("INFO ANALISANDO CLI...")
 
         # Detectar handlers com assinaturas inconsistentes
-        handler_patterns = re.findall(r'def (_handle_\w+)\(([^)]+)\):', cli_content)
+        handler_patterns = re.findall(r"def (_handle_\w+)\(([^)]+)\):", cli_content)
         param_counts = {}
         for handler, params in handler_patterns:
-            param_count = len([p.strip() for p in params.split(',') if p.strip()])
+            param_count = len([p.strip() for p in params.split(",") if p.strip()])
             param_counts[handler] = param_count
 
         if param_counts:
             min_params = min(param_counts.values())
             max_params = max(param_counts.values())
             if max_params - min_params > 2:
-                frankenstein_code.append(f" CLI: Handlers inconsistentes ({min_params}-{max_params} parâmetros)")
+                frankenstein_code.append(
+                    f" CLI: Handlers inconsistentes ({min_params}-{max_params} parâmetros)"
+                )
 
         # Detectar imports desnecessários ou duplicados
-        imports = re.findall(r'^(from .+ import .+|import .+)$', cli_content, re.MULTILINE)
+        imports = re.findall(
+            r"^(from .+ import .+|import .+)$", cli_content, re.MULTILINE
+        )
         import_modules = set()
         duplicate_imports = []
 
         for imp in imports:
-            if 'from' in imp:
-                module = imp.split('from')[1].split('import')[0].strip()
+            if "from" in imp:
+                module = imp.split("from")[1].split("import")[0].strip()
             else:
-                module = imp.replace('import', '').strip().split('.')[0]
+                module = imp.replace("import", "").strip().split(".")[0]
 
             if module in import_modules:
                 duplicate_imports.append(module)
             import_modules.add(module)
 
         if duplicate_imports:
-            frankenstein_code.append(f" CLI: Imports duplicados/redundantes ({len(duplicate_imports)})")
+            frankenstein_code.append(
+                f" CLI: Imports duplicados/redundantes ({len(duplicate_imports)})"
+            )
 
     # 3. Analisar configurações - Estruturas inconsistentes
     config_files = [
-        'config/gui_main_preferences.json',
-        'config/display_mappings.json',
-        'config/column_priority.json',
-        'config/settings.json',
-        'config/default_settings.json'
+        "config/gui_main_preferences.json",
+        "config/display_mappings.json",
+        "config/column_priority.json",
+        "config/settings.json",
+        "config/default_settings.json",
     ]
 
     print("INFO ANALISANDO CONFIGURAÇÕES...")
@@ -120,12 +135,12 @@ def analisar_implementacoes_misturadas():
     for config_file in config_files:
         if os.path.exists(config_file):
             try:
-                with open(config_file, 'r', encoding='utf-8') as f:
+                with open(config_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 config_structures[config_file] = {
-                    'keys': set(data.keys()) if isinstance(data, dict) else set(),
-                    'type': type(data).__name__,
-                    'size': len(data) if hasattr(data, '__len__') else 0
+                    "keys": set(data.keys()) if isinstance(data, dict) else set(),
+                    "type": type(data).__name__,
+                    "size": len(data) if hasattr(data, "__len__") else 0,
                 }
             except Exception:
                 pass
@@ -133,16 +148,19 @@ def analisar_implementacoes_misturadas():
     # Detectar chaves duplicadas entre arquivos
     all_keys = {}
     for file, info in config_structures.items():
-        for key in info['keys']:
+        for key in info["keys"]:
             if key not in all_keys:
                 all_keys[key] = []
             all_keys[key].append(file)
 
     duplicate_keys = {k: v for k, v in all_keys.items() if len(v) > 1}
     if duplicate_keys:
-        frankenstein_code.append(f" CONFIG: {len(duplicate_keys)} chaves duplicadas entre arquivos")
+        frankenstein_code.append(
+            f" CONFIG: {len(duplicate_keys)} chaves duplicadas entre arquivos"
+        )
 
     return frankenstein_code, issues, warnings
+
 
 def analisar_funcoes_redundantes():
     """Identifica funções duplicadas ou muito similares."""
@@ -155,19 +173,19 @@ def analisar_funcoes_redundantes():
 
     # Analisar arquivos Python principais
     python_files = [
-        'gui/gui_ssa.py',
-        'interface/cli.py',
-        'core/app_logic.py',
-        'utils/table_printer.py'
+        "gui/gui_ssa.py",
+        "interface/cli.py",
+        "core/app_logic.py",
+        "utils/table_printer.py",
     ]
 
     for file_path in python_files:
         if os.path.exists(file_path):
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
             # Extrair definições de função
-            functions = re.findall(r'def (\w+)\([^)]*\):', content)
+            functions = re.findall(r"def (\w+)\([^)]*\):", content)
 
             for func in functions:
                 if func not in function_signatures:
@@ -181,6 +199,7 @@ def analisar_funcoes_redundantes():
 
     return redundant_functions
 
+
 def analisar_padroes_inconsistentes():
     """Identifica padrões de código inconsistentes."""
 
@@ -188,14 +207,14 @@ def analisar_padroes_inconsistentes():
     inconsistencies = []
 
     # Analisar nomenclatura de variáveis
-    gui_path = 'gui/gui_ssa.py'
-    cli_path = 'interface/cli.py'
+    gui_path = "gui/gui_ssa.py"
+    cli_path = "interface/cli.py"
 
     patterns = {
-        'cache_vars': r'(\w*cache\w*|_\w*cache\w*)',
-        'df_vars': r'(\w*df\w*|dataframe\w*)',
-        'settings_vars': r'(\w*settings\w*|\w*config\w*)',
-        'width_vars': r'(\w*width\w*|\w*largura\w*)'
+        "cache_vars": r"(\w*cache\w*|_\w*cache\w*)",
+        "df_vars": r"(\w*df\w*|dataframe\w*)",
+        "settings_vars": r"(\w*settings\w*|\w*config\w*)",
+        "width_vars": r"(\w*width\w*|\w*largura\w*)",
     }
 
     for pattern_name, pattern in patterns.items():
@@ -203,12 +222,12 @@ def analisar_padroes_inconsistentes():
         cli_vars = set()
 
         if os.path.exists(gui_path):
-            with open(gui_path, 'r', encoding='utf-8') as f:
+            with open(gui_path, "r", encoding="utf-8") as f:
                 gui_content = f.read()
             gui_vars = set(re.findall(pattern, gui_content))
 
         if os.path.exists(cli_path):
-            with open(cli_path, 'r', encoding='utf-8') as f:
+            with open(cli_path, "r", encoding="utf-8") as f:
                 cli_content = f.read()
             cli_vars = set(re.findall(pattern, cli_content))
 
@@ -218,15 +237,21 @@ def analisar_padroes_inconsistentes():
             for gui_var in gui_vars:
                 for cli_var in cli_vars:
                     # Se têm conceito similar mas nomes diferentes
-                    if (gui_var != cli_var and
-                        len(gui_var) > 3 and len(cli_var) > 3 and
-                        (gui_var in cli_var or cli_var in gui_var)):
+                    if (
+                        gui_var != cli_var
+                        and len(gui_var) > 3
+                        and len(cli_var) > 3
+                        and (gui_var in cli_var or cli_var in gui_var)
+                    ):
                         common_concept_different_names.append(f"{gui_var} vs {cli_var}")
 
             if common_concept_different_names:
-                inconsistencies.append(f" {pattern_name}: nomenclatura inconsistente ({len(common_concept_different_names)} casos)")
+                inconsistencies.append(
+                    f" {pattern_name}: nomenclatura inconsistente ({len(common_concept_different_names)} casos)"
+                )
 
     return inconsistencies
+
 
 def analisar_arquitetura_mista():
     """Identifica mistura de padrões arquiteturais."""
@@ -235,75 +260,87 @@ def analisar_arquitetura_mista():
     architectural_issues = []
 
     # Verificar se há mistura de padrões
-    gui_path = 'gui/gui_ssa.py'
+    gui_path = "gui/gui_ssa.py"
     if os.path.exists(gui_path):
-        with open(gui_path, 'r', encoding='utf-8') as f:
+        with open(gui_path, "r", encoding="utf-8") as f:
             gui_content = f.read()
 
         # Detectar mistura de paradigmas
         paradigms = {
-            'OOP': len(re.findall(r'class \w+', gui_content)),
-            'Functional': len(re.findall(r'def \w+\(.*\) -> \w+', gui_content)),
-            'Procedural': len(re.findall(r'def \w+\([^)]*\):\s*"""[^"]*"""', gui_content)),
-            'Global_vars': len(re.findall(r'^[A-Z_]+\s*=', gui_content, re.MULTILINE))
+            "OOP": len(re.findall(r"class \w+", gui_content)),
+            "Functional": len(re.findall(r"def \w+\(.*\) -> \w+", gui_content)),
+            "Procedural": len(
+                re.findall(r'def \w+\([^)]*\):\s*"""[^"]*"""', gui_content)
+            ),
+            "Global_vars": len(re.findall(r"^[A-Z_]+\s*=", gui_content, re.MULTILINE)),
         }
 
         active_paradigms = [k for k, v in paradigms.items() if v > 5]
         if len(active_paradigms) > 2:
-            architectural_issues.append(f" Mistura de paradigmas: {', '.join(active_paradigms)}")
+            architectural_issues.append(
+                f" Mistura de paradigmas: {', '.join(active_paradigms)}"
+            )
 
         # Detectar dependências circulares potenciais
-        imports = re.findall(r'from (\w+(?:\.\w+)*) import', gui_content)
-        local_imports = [imp for imp in imports if not imp.startswith(('sys', 'os', 'json', 'pd', 'Qt'))]
+        imports = re.findall(r"from (\w+(?:\.\w+)*) import", gui_content)
+        local_imports = [
+            imp
+            for imp in imports
+            if not imp.startswith(("sys", "os", "json", "pd", "Qt"))
+        ]
 
         if len(local_imports) > 10:
-            architectural_issues.append(f"RUN Muitas dependências locais ({len(local_imports)})")
+            architectural_issues.append(
+                f"RUN Muitas dependências locais ({len(local_imports)})"
+            )
 
     return architectural_issues
+
 
 def sugerir_refatoracoes():
     """Sugere refatorações específicas para eliminar código frankenstein."""
 
     refactorings = [
         {
-            'categoria': ' Eliminação de Frankenstein',
-            'sugestões': [
-                'DONE Unificar estratégias de largura em uma única classe WidthManager',
-                'DONE Consolidar sistemas de cache em CacheManager unificado',
-                'DONE Criar ConfigurationManager central para todas as configurações',
-                'DONE Padronizar assinaturas de handlers em interface comum'
-            ]
+            "categoria": " Eliminação de Frankenstein",
+            "sugestões": [
+                "DONE Unificar estratégias de largura em uma única classe WidthManager",
+                "DONE Consolidar sistemas de cache em CacheManager unificado",
+                "DONE Criar ConfigurationManager central para todas as configurações",
+                "DONE Padronizar assinaturas de handlers em interface comum",
+            ],
         },
         {
-            'categoria': 'RUN Eliminação de Redundância',
-            'sugestões': [
-                ' Criar classe base HandlerBase para handlers CLI',
-                ' Extrair funções comuns para módulo utils.common',
-                ' Unificar nomenclatura de variáveis entre GUI e CLI',
-                ' Consolidar imports duplicados em __init__.py'
-            ]
+            "categoria": "RUN Eliminação de Redundância",
+            "sugestões": [
+                " Criar classe base HandlerBase para handlers CLI",
+                " Extrair funções comuns para módulo utils.common",
+                " Unificar nomenclatura de variáveis entre GUI e CLI",
+                " Consolidar imports duplicados em __init__.py",
+            ],
         },
         {
-            'categoria': ' Melhoria Arquitetural',
-            'sugestões': [
-                ' Implementar padrão Strategy para algoritmos de largura',
-                ' Aplicar padrão Observer para eventos de resize',
-                ' Usar padrão Factory para criação de handlers',
-                ' Implementar padrão Command para operações de filtro'
-            ]
+            "categoria": " Melhoria Arquitetural",
+            "sugestões": [
+                " Implementar padrão Strategy para algoritmos de largura",
+                " Aplicar padrão Observer para eventos de resize",
+                " Usar padrão Factory para criação de handlers",
+                " Implementar padrão Command para operações de filtro",
+            ],
         },
         {
-            'categoria': 'CLEAN Limpeza de Código',
-            'sugestões': [
-                ' Remover código morto e funções não utilizadas',
-                ' Eliminar imports desnecessários com autoflake',
-                ' Padronizar docstrings com formato consistente',
-                ' Aplicar formatação consistente com black/isort'
-            ]
-        }
+            "categoria": "CLEAN Limpeza de Código",
+            "sugestões": [
+                " Remover código morto e funções não utilizadas",
+                " Eliminar imports desnecessários com autoflake",
+                " Padronizar docstrings com formato consistente",
+                " Aplicar formatação consistente com black/isort",
+            ],
+        },
     ]
 
     return refactorings
+
 
 def main():
     """Executa análise completa de código frankenstein."""
@@ -312,10 +349,10 @@ def main():
     print()
 
     # Muda para o diretório do projeto
-    if os.path.basename(os.getcwd()) != 'SSA_Consulta_Rapida':
-        possible_paths = ['.', '../SSA_Consulta_Rapida', './SSA_Consulta_Rapida']
+    if os.path.basename(os.getcwd()) != "SSA_Consulta_Rapida":
+        possible_paths = [".", "../SSA_Consulta_Rapida", "./SSA_Consulta_Rapida"]
         for path in possible_paths:
-            if os.path.exists(os.path.join(path, 'gui', 'gui_ssa.py')):
+            if os.path.exists(os.path.join(path, "gui", "gui_ssa.py")):
                 os.chdir(path)
                 break
 
@@ -362,15 +399,19 @@ def main():
     print("FIX REFATORAÇÕES SUGERIDAS:")
     for refactoring in refactorings:
         print(f"\nIN {refactoring['categoria']}:")
-        for sugestao in refactoring['sugestões']:
+        for sugestao in refactoring["sugestões"]:
             print(f"  {sugestao}")
 
     print()
     print("=" * 55)
 
     # Resumo
-    total_issues = (len(frankenstein_code) + len(redundant_functions) +
-                   len(inconsistencies) + len(architectural_issues))
+    total_issues = (
+        len(frankenstein_code)
+        + len(redundant_functions)
+        + len(inconsistencies)
+        + len(architectural_issues)
+    )
 
     if total_issues == 0:
         print("OK CÓDIGO RELATIVAMENTE LIMPO!")
@@ -385,9 +426,12 @@ def main():
         print(f" CÓDIGO FRANKENSTEIN SEVERO ({total_issues} pontos)")
         severity = "SEVERO"
 
-    print(f"Recomendação: {'Refatoração necessária' if total_issues > 5 else 'Melhorias pontuais'}")
+    print(
+        f"Recomendação: {'Refatoração necessária' if total_issues > 5 else 'Melhorias pontuais'}"
+    )
 
     return severity
+
 
 if __name__ == "__main__":
     severity = main()

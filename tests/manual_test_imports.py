@@ -1,5 +1,6 @@
 import os
 import sys
+
 print("Import basico OK")
 
 # Adiciona o diretório raiz do projeto ao sys.path

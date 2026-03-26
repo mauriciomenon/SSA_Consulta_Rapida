@@ -47,7 +47,9 @@ def test_filter_dataframe_raw_term_modes_match_any_searchable_field() -> None:
     assert set(out_suffix["numero_ssa"]) == {"202500003"}
 
 
-def test_get_filtered_data_reads_canonical_table_without_legacy_view(tmp_path: Path) -> None:
+def test_get_filtered_data_reads_canonical_table_without_legacy_view(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "ssa_canonica.sqlite"
     conn = sqlite3.connect(db_path)
     conn.execute(
@@ -73,7 +75,9 @@ def test_get_filtered_data_reads_canonical_table_without_legacy_view(tmp_path: P
     assert out.iloc[0]["descricao_ssa"] == "SSA canonica"
 
 
-def test_filter_dataframe_default_search_columns_match_solicitante_and_setor_executor() -> None:
+def test_filter_dataframe_default_search_columns_match_solicitante_and_setor_executor() -> (
+    None
+):
     df = pd.DataFrame(
         {
             "numero_ssa": ["202500001", "202500002"],
@@ -87,7 +91,9 @@ def test_filter_dataframe_default_search_columns_match_solicitante_and_setor_exe
     assert list(out["numero_ssa"]) == ["202500001"]
 
 
-def test_filter_dataframe_default_search_columns_match_responsavel_execucao_and_setor_executor() -> None:
+def test_filter_dataframe_default_search_columns_match_responsavel_execucao_and_setor_executor() -> (
+    None
+):
     df = pd.DataFrame(
         {
             "numero_ssa": ["202500001", "202500002"],
@@ -115,7 +121,9 @@ def test_filter_dataframe_default_search_columns_require_terms_in_same_row() -> 
     assert out.empty
 
 
-def test_filter_dataframe_default_search_columns_allow_terms_in_different_columns_same_row() -> None:
+def test_filter_dataframe_default_search_columns_allow_terms_in_different_columns_same_row() -> (
+    None
+):
     df = pd.DataFrame(
         {
             "numero_ssa": ["202500001", "202500002"],
@@ -130,7 +138,9 @@ def test_filter_dataframe_default_search_columns_allow_terms_in_different_column
     assert list(out["numero_ssa"]) == ["202500001"]
 
 
-def test_parse_search_terms_keeps_literals_and_does_not_parse_logical_keywords() -> None:
+def test_parse_search_terms_keeps_literals_and_does_not_parse_logical_keywords() -> (
+    None
+):
     terms = parse_search_terms(["svp", "OU", "mel4"])
 
     assert [term["value"] for term in terms] == ["svp", "OU", "mel4"]

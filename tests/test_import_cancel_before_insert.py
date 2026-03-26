@@ -8,7 +8,9 @@ import pytest
 from core.app_logic import run_importer_logic
 
 
-def test_should_cancel_can_abort_before_db_insert(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_should_cancel_can_abort_before_db_insert(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
     (docs_dir / "file_0.xlsx").write_bytes(b"dummy")
@@ -28,7 +30,9 @@ def test_should_cancel_can_abort_before_db_insert(tmp_path: Path, monkeypatch: p
     import core.app_logic as app_logic
 
     # Make integrity checks deterministic and cheap.
-    monkeypatch.setattr(app_logic.database, "repair_database_if_needed", lambda *a, **k: True)
+    monkeypatch.setattr(
+        app_logic.database, "repair_database_if_needed", lambda *a, **k: True
+    )
     monkeypatch.setattr(
         app_logic.database,
         "verify_database_integrity",
@@ -56,14 +60,23 @@ def test_should_cancel_can_abort_before_db_insert(tmp_path: Path, monkeypatch: p
             }
         )
 
-    monkeypatch.setattr(app_logic.extractor, "extract_data_from_excel", fake_extract_data_from_excel)
+    monkeypatch.setattr(
+        app_logic.extractor, "extract_data_from_excel", fake_extract_data_from_excel
+    )
 
     monkeypatch.setattr(
         app_logic.database,
         "validate_dataframe_before_insert",
-        lambda *a, **k: {"is_valid": True, "violations": [], "invalid_by_column": {}, "issues": []},
+        lambda *a, **k: {
+            "is_valid": True,
+            "violations": [],
+            "invalid_by_column": {},
+            "issues": [],
+        },
     )
-    monkeypatch.setattr(app_logic.database, "ensure_column_exists", lambda *a, **k: None)
+    monkeypatch.setattr(
+        app_logic.database, "ensure_column_exists", lambda *a, **k: None
+    )
 
     insert_count = {"n": 0}
 
@@ -71,7 +84,11 @@ def test_should_cancel_can_abort_before_db_insert(tmp_path: Path, monkeypatch: p
         insert_count["n"] += 1
         return True
 
-    monkeypatch.setattr(app_logic.database, "insert_dataframe_with_smart_upsert", fake_insert_dataframe_with_smart_upsert)
+    monkeypatch.setattr(
+        app_logic.database,
+        "insert_dataframe_with_smart_upsert",
+        fake_insert_dataframe_with_smart_upsert,
+    )
 
     cancel_calls = {"n": 0}
 
@@ -93,4 +110,3 @@ def test_should_cancel_can_abort_before_db_insert(tmp_path: Path, monkeypatch: p
 
     assert updated is False
     assert insert_count["n"] == 0
-

@@ -1,12 +1,13 @@
 # ruff: noqa: E402
 # tests/test_extracao.py
-import pytest
-import pandas as pd
 import os
 import sys
 
+import pandas as pd
+import pytest
+
 # Adiciona a raiz do projeto ao path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
 from extracao.extractor import (
@@ -19,6 +20,7 @@ from extracao.extractor import (
 
 # --- Fixtures: Preparando o Ambiente de Teste ---
 
+
 @pytest.fixture
 def temp_excel_file(tmp_path):
     """
@@ -27,21 +29,22 @@ def temp_excel_file(tmp_path):
     """
     # Dados de exemplo que vamos colocar no Excel
     data = {
-        'Nº SSA': [202500101, 202500102],
-        'Local': ['Sala A', 'Sala B'],
-        'Descrição da SSA': ['Problema no servidor', 'Falha na rede'],
-        'Emitida Em': ['01/07/2025', '15/07/2025'],
-        'Coluna Inutil': [None, None] # Coluna que deve ser ignorada
+        "Nº SSA": [202500101, 202500102],
+        "Local": ["Sala A", "Sala B"],
+        "Descrição da SSA": ["Problema no servidor", "Falha na rede"],
+        "Emitida Em": ["01/07/2025", "15/07/2025"],
+        "Coluna Inutil": [None, None],  # Coluna que deve ser ignorada
     }
     df = pd.DataFrame(data)
 
     # Escreve cabecalho na primeira linha para o fluxo robust-only de read_report.
     file_path = tmp_path / "relatorio_teste.xlsx"
-    writer = pd.ExcelWriter(file_path, engine='openpyxl')
+    writer = pd.ExcelWriter(file_path, engine="openpyxl")
     df.to_excel(writer, index=False)
     writer.close()
 
     return str(file_path)
+
 
 @pytest.fixture
 def setup_test_config(monkeypatch):
@@ -53,22 +56,27 @@ def setup_test_config(monkeypatch):
     """
     # Mapeamento de colunas de exemplo
     test_mappings = {
-      "numero_ssa": ["Nº SSA"],
-      "localizacao": ["Local"],
-      "descricao_ssa": ["Descrição da SSA"],
-      "data_cadastro": ["Emitida Em"]
+        "numero_ssa": ["Nº SSA"],
+        "localizacao": ["Local"],
+        "descricao_ssa": ["Descrição da SSA"],
+        "data_cadastro": ["Emitida Em"],
     }
 
     # Função interna que irá substituir a _load_column_mappings original
     def mock_load_mappings():
-        return {alias: canonical for canonical, aliases in test_mappings.items() for alias in aliases}
+        return {
+            alias: canonical
+            for canonical, aliases in test_mappings.items()
+            for alias in aliases
+        }
 
     # Diz ao pytest para usar a nossa função 'mock_load_mappings' sempre que
     # a função '_load_column_mappings' for chamada no módulo 'extractor'.
-    monkeypatch.setattr('extracao.extractor._load_column_mappings', mock_load_mappings)
+    monkeypatch.setattr("extracao.extractor._load_column_mappings", mock_load_mappings)
 
 
 # --- Testes ---
+
 
 def test_read_report_success(temp_excel_file, setup_test_config):
     """
@@ -83,12 +91,12 @@ def test_read_report_success(temp_excel_file, setup_test_config):
     assert not df.empty
 
     # Verifica colunas esperadas no fluxo robust-only.
-    expected_columns = ['numero_ssa', 'local', 'descricao_ssa', 'data_cadastro']
+    expected_columns = ["numero_ssa", "local", "descricao_ssa", "data_cadastro"]
     assert all(col in df.columns for col in expected_columns)
 
     # Verifica se os dados foram lidos corretamente
-    assert str(df['numero_ssa'].iloc[0]) == "202500101"
-    assert df['local'].iloc[1] == 'Sala B'
+    assert str(df["numero_ssa"].iloc[0]) == "202500101"
+    assert df["local"].iloc[1] == "Sala B"
 
 
 def test_read_report_returns_error_metadata_on_missing_file(tmp_path):
@@ -211,8 +219,14 @@ def test_extract_data_from_excel_classifies_invalid_identity_rows(
     assert "data_cadastro" in summary["payload_columns_sample"]
     assert "responsavel_execucao" in summary["payload_columns_sample"]
     assert extracted.attrs["row_count_before_invalid_filter"] == 3
-    assert "Extracao - invalid_identity_rows.xlsx: removidos 2 registros invalidos sem identidade" in caplog.text
-    assert "Extracao concluida para 'invalid_identity_rows.xlsx': 1 linhas validas, 2 invalidos sem identidade" in caplog.text
+    assert (
+        "Extracao - invalid_identity_rows.xlsx: removidos 2 registros invalidos sem identidade"
+        in caplog.text
+    )
+    assert (
+        "Extracao concluida para 'invalid_identity_rows.xlsx': 1 linhas validas, 2 invalidos sem identidade"
+        in caplog.text
+    )
 
 
 def test_extract_data_from_excel_preserves_empty_required_alias_until_normalization(
@@ -277,9 +291,7 @@ def test_extract_data_from_excel_handles_duplicate_header_labels_without_ambigui
     assert "data_cadastro" in extracted.columns
 
 
-def test_extract_data_from_excel_drops_nan_header_columns_safely(
-    tmp_path, monkeypatch
-):
+def test_extract_data_from_excel_drops_nan_header_columns_safely(tmp_path, monkeypatch):
     rows = [
         [None, "Cabecalho visual", None, None, None],
         ["Numero da SSA", "Descricao da SSA", "Emitida Em", float("nan"), float("nan")],
@@ -342,7 +354,12 @@ def test_extract_data_from_excel_remaps_executadas_trailing_nan_columns_to_tempo
 
     assert str(extracted["numero_ssa"].iloc[0]) == "202500103"
     assert debug_phases["header_raw"][-4:] == ["Anomalia", "nan", "nan", "nan"]
-    assert debug_phases["after_empty_column_prune"][-4:] == ["Anomalia", "nan", "nan", "nan"]
+    assert debug_phases["after_empty_column_prune"][-4:] == [
+        "Anomalia",
+        "nan",
+        "nan",
+        "nan",
+    ]
     assert debug_phases["after_rename"][-4:] == ["anomalia", "nan", "nan", "nan"]
     assert debug_phases["after_structural_repair"][-4:] == [
         "anomalia",
@@ -399,8 +416,14 @@ def test_extract_data_from_excel_remaps_single_numeric_tex_column_after_anomalia
     assert debug_phases["header_raw"][-3:] == ["Anomalia", "nan", "nan"]
     assert debug_phases["after_empty_column_prune"][-2:] == ["Anomalia", "nan"]
     assert debug_phases["after_rename"][-2:] == ["anomalia", "nan"]
-    assert debug_phases["after_structural_repair"][-2:] == ["anomalia", "total_tempo_tex_executada"]
-    assert debug_phases["after_deduplicate"][-2:] == ["anomalia", "total_tempo_tex_executada"]
+    assert debug_phases["after_structural_repair"][-2:] == [
+        "anomalia",
+        "total_tempo_tex_executada",
+    ]
+    assert debug_phases["after_deduplicate"][-2:] == [
+        "anomalia",
+        "total_tempo_tex_executada",
+    ]
     assert extracted["total_tempo_tex_executada"].iloc[0] == pytest.approx(2.5)
     assert "nan" not in extracted.columns
 
@@ -419,7 +442,14 @@ def test_extract_data_from_excel_does_not_remap_textual_unnamed_column_to_tex(
             float("nan"),
             float("nan"),
         ],
-        [202500105, "SSA executada texto", "01/07/2025", "Sem anomalia", None, "texto livre"],
+        [
+            202500105,
+            "SSA executada texto",
+            "01/07/2025",
+            "Sem anomalia",
+            None,
+            "texto livre",
+        ],
     ]
     df = pd.DataFrame(rows)
     file_path = tmp_path / "SSAs Executadas_textual_nan.xlsx"
@@ -464,7 +494,18 @@ def test_extract_data_from_excel_remaps_single_numeric_tex_column_when_anomalia_
             "Anomalia",
             float("nan"),
         ],
-        [202500106, "SSA tex degradada", "01/07/2025", 1, "Tecnico", "Servico", "Dentro do Prazo", None, None, 4.25],
+        [
+            202500106,
+            "SSA tex degradada",
+            "01/07/2025",
+            1,
+            "Tecnico",
+            "Servico",
+            "Dentro do Prazo",
+            None,
+            None,
+            4.25,
+        ],
     ]
     df = pd.DataFrame(rows)
     file_path = tmp_path / "SSAs Executadas_22-07-2025_0303PM (2).xlsx"
@@ -494,8 +535,14 @@ def test_extract_data_from_excel_remaps_single_numeric_tex_column_when_anomalia_
     assert "Sistema de Origem" not in debug_phases["after_empty_column_prune"]
     assert "Anomalia" not in debug_phases["after_empty_column_prune"]
     assert debug_phases["after_rename"][-2:] == ["prazo_limite", "nan"]
-    assert debug_phases["after_structural_repair"][-2:] == ["prazo_limite", "total_tempo_tex_executada"]
-    assert debug_phases["after_deduplicate"][-2:] == ["prazo_limite", "total_tempo_tex_executada"]
+    assert debug_phases["after_structural_repair"][-2:] == [
+        "prazo_limite",
+        "total_tempo_tex_executada",
+    ]
+    assert debug_phases["after_deduplicate"][-2:] == [
+        "prazo_limite",
+        "total_tempo_tex_executada",
+    ]
     assert extracted["total_tempo_tex_executada"].iloc[0] == pytest.approx(4.25)
     assert "nan" not in extracted.columns
 
@@ -561,7 +608,9 @@ def test_normalize_datatypes_num_reprogramacoes_text_without_total_becomes_null(
     assert pd.isna(out["num_reprogramacoes"].iloc[0])
 
 
-def test_extract_data_from_excel_uses_standard_path_and_not_read_report(temp_excel_file, monkeypatch):
+def test_extract_data_from_excel_uses_standard_path_and_not_read_report(
+    temp_excel_file, monkeypatch
+):
     called = False
 
     def _fail_fast(*_args, **_kwargs):

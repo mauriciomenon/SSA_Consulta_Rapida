@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-import sqlite3
 import shutil
+import sqlite3
 from pathlib import Path
 
 from utils.robust_logging import get_robust_logger
@@ -11,8 +11,8 @@ logger = get_robust_logger().get_logger(__name__, "maintenance")
 
 def limpar_banco():
     """Limpa completamente o banco de dados"""
-    db_path = Path('data/ssas.db')
-    backup_path = Path('data/ssas_backup_antes_limpeza_final.db')
+    db_path = Path("data/ssas.db")
+    backup_path = Path("data/ssas_backup_antes_limpeza_final.db")
 
     try:
         # Fazer backup se banco existir
@@ -29,7 +29,7 @@ def limpar_banco():
 
             cursor.execute(f"DELETE FROM {TABLE_NAME}")
             conn.commit()
-            cursor.execute('VACUUM')  # Otimizar o banco
+            cursor.execute("VACUUM")  # Otimizar o banco
 
             cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
             count_after = cursor.fetchone()[0]
@@ -42,5 +42,6 @@ def limpar_banco():
 
     return True
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     limpar_banco()

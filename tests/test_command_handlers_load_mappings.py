@@ -9,7 +9,9 @@ import interface.command_handlers as command_handlers
 
 def test_load_mappings_handler_delegates_display_mappings(monkeypatch):
     payload = {"numero_ssa": "N SSA"}
-    monkeypatch.setattr(command_handlers, "load_display_mappings_integrity", lambda: payload)
+    monkeypatch.setattr(
+        command_handlers, "load_display_mappings_integrity", lambda: payload
+    )
 
     result = command_handlers._load_mappings_handler("display_mappings.json")
 
@@ -42,7 +44,9 @@ def test_load_mappings_handler_returns_dict_when_json_is_valid(monkeypatch):
     assert result == payload
 
 
-def test_load_mappings_handler_returns_empty_when_display_loader_raises(monkeypatch, caplog):
+def test_load_mappings_handler_returns_empty_when_display_loader_raises(
+    monkeypatch, caplog
+):
     command_handlers._MAPPINGS_CACHE_MANAGER.clear()
 
     def _boom():

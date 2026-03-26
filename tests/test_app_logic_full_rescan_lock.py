@@ -20,7 +20,9 @@ def _build_wal_db(db_path: Path) -> None:
         conn.close()
 
 
-def test_recreate_database_for_full_rescan_without_external_lock(tmp_path: Path) -> None:
+def test_recreate_database_for_full_rescan_without_external_lock(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "ssas.db"
     _build_wal_db(db_path)
 
@@ -43,7 +45,9 @@ def test_recreate_database_for_full_rescan_without_external_lock(tmp_path: Path)
     assert int(row[0]) == 2
 
 
-def test_recreate_database_for_full_rescan_moves_existing_sidecars(tmp_path: Path) -> None:
+def test_recreate_database_for_full_rescan_moves_existing_sidecars(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "ssas.db"
     _build_wal_db(db_path)
 

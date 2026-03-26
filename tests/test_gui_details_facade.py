@@ -6,7 +6,9 @@ from typing import Any, cast
 
 import pytest
 
-pytest.importorskip("PyQt6", reason="Dependencia PyQt6 indisponivel no ambiente de teste")
+pytest.importorskip(
+    "PyQt6", reason="Dependencia PyQt6 indisponivel no ambiente de teste"
+)
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
@@ -16,7 +18,9 @@ from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 
 
-def test_format_details_html_facade_forwards_label_font_size_pt(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_format_details_html_facade_forwards_label_font_size_pt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls: dict[str, object] = {}
 
     def _fake_format_details_html(
@@ -35,7 +39,9 @@ def test_format_details_html_facade_forwards_label_font_size_pt(monkeypatch: pyt
         calls["label_font_size_pt"] = label_font_size_pt
         return "ok"
 
-    monkeypatch.setattr(ssa_gui_details, "_format_details_html", _fake_format_details_html)
+    monkeypatch.setattr(
+        ssa_gui_details, "_format_details_html", _fake_format_details_html
+    )
 
     dummy_window = cast(Any, object())
     payload = {"numero_ssa": "202500001"}

@@ -10,15 +10,16 @@ Features:
 
 Note: Do not disable SSL verification in production. Pass verify_ssl=True when possible.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Iterable, List, Dict, Any, Optional
-import time
+import importlib
 import json
 import os
-import importlib
 import threading
+import time
+from dataclasses import dataclass
+from typing import Any, Dict, Iterable, List, Optional
 
 
 def _import_requests() -> Any:
@@ -33,6 +34,7 @@ def _import_aiohttp() -> Any:
         return importlib.import_module("aiohttp")
     except ImportError as exc:
         raise RuntimeError("aiohttp dependency not installed") from exc
+
 
 def _env_url_or_default(name: str, default_url: str) -> str:
     value = os.getenv(name)
@@ -152,13 +154,19 @@ def fetch_ssa_detail(
     return {}
 
 
-def filter_by_executors(items: Iterable[Dict[str, Any]], executors: Iterable[str]) -> List[Dict[str, Any]]:
+def filter_by_executors(
+    items: Iterable[Dict[str, Any]], executors: Iterable[str]
+) -> List[Dict[str, Any]]:
     targets = {str(x).strip().lower() for x in executors if str(x).strip()}
     if not targets:
         return list(items)
     out: List[Dict[str, Any]] = []
     for it in items:
-        sector = str(it.get("ExecutorSector") or it.get("setor_executor") or "").strip().lower()
+        sector = (
+            str(it.get("ExecutorSector") or it.get("setor_executor") or "")
+            .strip()
+            .lower()
+        )
         if sector in targets:
             out.append(it)
     return out
@@ -167,6 +175,7 @@ def filter_by_executors(items: Iterable[Dict[str, Any]], executors: Iterable[str
 def map_to_dataframe(items: Iterable[Dict[str, Any]]):
     try:
         import pandas as pd
+
         df = pd.DataFrame(list(items))
         # Normalize common column names used in the app
         rename_map = {
@@ -218,7 +227,9 @@ async def fetch_pending_ssas_async(
     try:
         for attempt in range(opts.retries + 1):
             try:
-                async with session.get(BASE_PENDING, params=params, ssl=ssl_ctx) as resp:
+                async with session.get(
+                    BASE_PENDING, params=params, ssl=ssl_ctx
+                ) as resp:
                     resp.raise_for_status()
                     data = await resp.json()
                     if isinstance(data, list):
@@ -285,6 +296,7 @@ async def fetch_ssa_detail_async(
 
 async def _async_sleep_backoff(attempt: int, base: float) -> None:
     import asyncio as _asyncio
+
     await _asyncio.sleep(max(0.0, base * (2 ** max(0, attempt - 1))))
 
 

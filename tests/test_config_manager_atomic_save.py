@@ -11,14 +11,18 @@ if project_root not in sys.path:
 import core.config_manager as config_manager  # noqa: E402
 
 
-def test_save_settings_is_atomic_and_does_not_corrupt_existing_file(tmp_path, monkeypatch):
+def test_save_settings_is_atomic_and_does_not_corrupt_existing_file(
+    tmp_path, monkeypatch
+):
     cfg_dir = tmp_path / "cfg"
     cfg_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
     settings_path = cfg_dir / "settings.json"
 
     initial = {"a": 1}
-    settings_path.write_text(json.dumps(initial, indent=4, ensure_ascii=False), encoding="utf-8")
+    settings_path.write_text(
+        json.dumps(initial, indent=4, ensure_ascii=False), encoding="utf-8"
+    )
     original_text = settings_path.read_text(encoding="utf-8")
 
     tmp_prefix = f".{settings_path.name}.tmp."
@@ -77,7 +81,11 @@ def test_ensure_default_settings_raises_in_fail_fast_mode(tmp_path, monkeypatch)
     example = cfg_dir / "default_settings.json.example"
     example.write_text("{}", encoding="utf-8")
 
-    monkeypatch.setattr(config_manager, "_atomic_copy_file", lambda _src, _dst: (_ for _ in ()).throw(IOError("copy boom")))
+    monkeypatch.setattr(
+        config_manager,
+        "_atomic_copy_file",
+        lambda _src, _dst: (_ for _ in ()).throw(IOError("copy boom")),
+    )
 
     with pytest.raises(RuntimeError, match="ensure_default_settings failed"):
         config_manager.ensure_default_settings(fail_fast=True)
@@ -88,7 +96,11 @@ def test_ensure_default_settings_reports_generate_failure(tmp_path, monkeypatch)
     cfg_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
 
-    monkeypatch.setattr(config_manager, "_atomic_copy_file", lambda _s, _d: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(
+        config_manager,
+        "_atomic_copy_file",
+        lambda _s, _d: (_ for _ in ()).throw(FileNotFoundError()),
+    )
 
     def _fail_write(*_args, **_kwargs):
         raise IOError("write boom")

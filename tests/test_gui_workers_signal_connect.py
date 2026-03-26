@@ -39,7 +39,9 @@ def test_connect_signal_prefers_positional_queued(monkeypatch):
     signal = _SignalPositionalQueuedOnly(queued_token)
     monkeypatch.setattr(gui_workers, "_QT_QUEUED", queued_token, raising=True)
 
-    connected = gui_workers._connect_signal(signal, lambda: None, label="test.positional")
+    connected = gui_workers._connect_signal(
+        signal, lambda: None, label="test.positional"
+    )
 
     assert connected is True
     assert len(signal.calls) == 1

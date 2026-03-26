@@ -1,11 +1,12 @@
 # gui/widgets/filter_help_dialog.py
 # Dialog showing filter syntax help
 
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QDialogButtonBox
+from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser, QVBoxLayout
 
 try:
     from utils.version import get_app_version
 except ImportError:  # Centralizacao: fallback minimo
+
     def get_app_version(project_root: str | None = None) -> str:
         _ = project_root
         return "0.0.0"

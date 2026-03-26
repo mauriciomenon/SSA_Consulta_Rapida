@@ -12,15 +12,18 @@ import pandas as pd
 import pytest
 
 import armazenamento.derivadas_sync as derivadas_sync
-from armazenamento.derivadas_sync import get_sync_stats, sync_derivadas
 from armazenamento.derivadas_schema import ensure_derivadas_schema_on_connection
+from armazenamento.derivadas_sync import get_sync_stats, sync_derivadas
 
 
 def _insert_ssa_rows(db_path: str, rows: list[tuple[str, str | None]]) -> None:
     with sqlite3.connect(db_path) as conn:
         conn.executemany(
             "INSERT INTO ssa_table (numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
-            [(numero_ssa, derivada_de, f"SSA {numero_ssa}") for numero_ssa, derivada_de in rows],
+            [
+                (numero_ssa, derivada_de, f"SSA {numero_ssa}")
+                for numero_ssa, derivada_de in rows
+            ],
         )
         conn.commit()
 
@@ -44,8 +47,12 @@ def test_sync_from_db_materializes_matrix_closure_summary(temp_db):
     assert report["reconciliation"]["db_vs_sheet_conflict_count"] == 0
 
     with sqlite3.connect(temp_db) as conn:
-        matrix_active = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1").fetchone()[0]
-        closure_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_closure").fetchone()[0]
+        matrix_active = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1"
+        ).fetchone()[0]
+        closure_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_closure"
+        ).fetchone()[0]
         summary_root = conn.execute(
             """
             SELECT direct_children_count, descendants_count
@@ -107,7 +114,10 @@ def test_sync_cycle_detection_marks_only_cycle_nodes(temp_db):
     assert rows["202500002"] == 1
     assert rows["202500003"] == 0
 
-def test_verify_only_reports_db_vs_sheet_conflict_without_writing(temp_db, tmp_path: Path):
+
+def test_verify_only_reports_db_vs_sheet_conflict_without_writing(
+    temp_db, tmp_path: Path
+):
     _insert_ssa_rows(
         temp_db,
         [
@@ -119,9 +129,17 @@ def test_verify_only_reports_db_vs_sheet_conflict_without_writing(temp_db, tmp_p
 
     sheet_file = tmp_path / "derivadas.csv"
     with sheet_file.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"])
+        writer = csv.DictWriter(
+            fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"]
+        )
         writer.writeheader()
-        writer.writerow({"parent_ssa": "202500009", "child_ssa": "202500002", "relation_label": "Derivada da"})
+        writer.writerow(
+            {
+                "parent_ssa": "202500009",
+                "child_ssa": "202500002",
+                "relation_label": "Derivada da",
+            }
+        )
 
     report = sync_derivadas(
         temp_db,
@@ -155,7 +173,9 @@ def test_sync_resolves_sheet_column_aliases(temp_db, tmp_path: Path):
     with sheet_file.open("w", encoding="utf-8", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=["SSA Mae", "SSA Filha", "Relacao"])
         writer.writeheader()
-        writer.writerow({"SSA Mae": "202500001", "SSA Filha": "202500002", "Relacao": "Derivada da"})
+        writer.writerow(
+            {"SSA Mae": "202500001", "SSA Filha": "202500002", "Relacao": "Derivada da"}
+        )
 
     report = sync_derivadas(
         temp_db,
@@ -195,15 +215,31 @@ def test_sync_merges_edges_from_multiple_sheet_files(temp_db, tmp_path: Path):
 
     sheet_one = tmp_path / "derivadas_part_1.csv"
     with sheet_one.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"])
+        writer = csv.DictWriter(
+            fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"]
+        )
         writer.writeheader()
-        writer.writerow({"parent_ssa": "202500001", "child_ssa": "202500002", "relation_label": "Derivada da"})
+        writer.writerow(
+            {
+                "parent_ssa": "202500001",
+                "child_ssa": "202500002",
+                "relation_label": "Derivada da",
+            }
+        )
 
     sheet_two = tmp_path / "derivadas_part_2.csv"
     with sheet_two.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"])
+        writer = csv.DictWriter(
+            fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"]
+        )
         writer.writeheader()
-        writer.writerow({"parent_ssa": "202500001", "child_ssa": "202500003", "relation_label": "Derivada da"})
+        writer.writerow(
+            {
+                "parent_ssa": "202500001",
+                "child_ssa": "202500003",
+                "relation_label": "Derivada da",
+            }
+        )
 
     report = sync_derivadas(
         temp_db,
@@ -237,7 +273,9 @@ def test_sync_merges_edges_from_multiple_sheet_files(temp_db, tmp_path: Path):
     assert rows == [("202500001", "202500002"), ("202500001", "202500003")]
 
 
-def test_sync_deduplicates_sheet_files_across_relative_and_absolute_paths(temp_db, tmp_path: Path):
+def test_sync_deduplicates_sheet_files_across_relative_and_absolute_paths(
+    temp_db, tmp_path: Path
+):
     _insert_ssa_rows(
         temp_db,
         [
@@ -248,9 +286,17 @@ def test_sync_deduplicates_sheet_files_across_relative_and_absolute_paths(temp_d
 
     sheet_file = tmp_path / "derivadas.csv"
     with sheet_file.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"])
+        writer = csv.DictWriter(
+            fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"]
+        )
         writer.writeheader()
-        writer.writerow({"parent_ssa": "202500001", "child_ssa": "202500002", "relation_label": "Derivada da"})
+        writer.writerow(
+            {
+                "parent_ssa": "202500001",
+                "child_ssa": "202500002",
+                "relation_label": "Derivada da",
+            }
+        )
 
     relative = os.path.relpath(str(sheet_file.resolve()), start=str(Path.cwd()))
     absolute = str(sheet_file.resolve())
@@ -280,7 +326,22 @@ def test_sync_parses_special_visual_derivadas_sheet_layout(temp_db, tmp_path: Pa
 
     sheet_file = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0124PM.xlsx"
     visual_rows = [
-        [None, None, None, "SSAs Derivadas e Relacionadas", None, None, None, None, None, None, None, None, None, None],
+        [
+            None,
+            None,
+            None,
+            "SSAs Derivadas e Relacionadas",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
         [
             "Numero da SSA",
             "Localizacao",
@@ -297,11 +358,86 @@ def test_sync_parses_special_visual_derivadas_sheet_layout(temp_db, tmp_path: Pa
             "Setor Executor",
             "Situacao",
         ],
-        ["202500001", None, None, None, None, None, None, None, None, None, None, None, None, None],
-        [None, None, None, None, None, "202500001", None, None, None, None, None, None, None, None],
-        [None, None, None, None, None, "Sem derivadas em visualizacao simplificada.", None, None, None, None, None, None, None, None],
-        [None, None, None, None, None, "202500002", None, None, None, "Derivada da", "202500001", None, None, None],
-        [None, None, None, None, None, "202500003", None, None, None, "Derivada da", "202500001", None, None, None],
+        [
+            "202500001",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        [
+            None,
+            None,
+            None,
+            None,
+            None,
+            "202500001",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        [
+            None,
+            None,
+            None,
+            None,
+            None,
+            "Sem derivadas em visualizacao simplificada.",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        [
+            None,
+            None,
+            None,
+            None,
+            None,
+            "202500002",
+            None,
+            None,
+            None,
+            "Derivada da",
+            "202500001",
+            None,
+            None,
+            None,
+        ],
+        [
+            None,
+            None,
+            None,
+            None,
+            None,
+            "202500003",
+            None,
+            None,
+            None,
+            "Derivada da",
+            "202500001",
+            None,
+            None,
+            None,
+        ],
     ]
     pd.DataFrame(visual_rows).to_excel(sheet_file, index=False, header=False)
 
@@ -346,15 +482,21 @@ def test_full_rebuild_hard_removes_stale_matrix_rows(temp_db):
     assert first["active_edges"] == 2
 
     with sqlite3.connect(temp_db) as conn:
-        conn.execute("UPDATE ssa_table SET derivada_de = NULL WHERE numero_ssa = '202500003'")
+        conn.execute(
+            "UPDATE ssa_table SET derivada_de = NULL WHERE numero_ssa = '202500003'"
+        )
         conn.commit()
 
     second = sync_derivadas(temp_db, full_rebuild=True)
     assert second["active_edges"] == 1
 
     with sqlite3.connect(temp_db) as conn:
-        total_matrix = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0]
-        active_matrix = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1").fetchone()[0]
+        total_matrix = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_matrix"
+        ).fetchone()[0]
+        active_matrix = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1"
+        ).fetchone()[0]
 
     assert total_matrix == 1
     assert active_matrix == 1
@@ -393,7 +535,10 @@ def test_schema_migration_handles_legacy_matrix_without_active_column(temp_db):
         ensure_derivadas_schema_on_connection(conn)
         conn.commit()
 
-        cols = [row[1] for row in conn.execute("PRAGMA table_info(ssa_derivada_matrix)").fetchall()]
+        cols = [
+            row[1]
+            for row in conn.execute("PRAGMA table_info(ssa_derivada_matrix)").fetchall()
+        ]
         row = conn.execute(
             """
             SELECT relation_type, relation_raw_label, active
@@ -510,7 +655,9 @@ def test_sync_rejects_missing_sheet_file(temp_db, tmp_path: Path):
         assert False, "sync_derivadas should fail for non-existing sheet_file"
 
 
-def test_sync_rejects_corrupt_excel_sheet_file_with_clear_error(temp_db, tmp_path: Path):
+def test_sync_rejects_corrupt_excel_sheet_file_with_clear_error(
+    temp_db, tmp_path: Path
+):
     _insert_ssa_rows(
         temp_db,
         [
@@ -521,7 +668,9 @@ def test_sync_rejects_corrupt_excel_sheet_file_with_clear_error(temp_db, tmp_pat
     corrupt = tmp_path / "corrupt.xlsx"
     corrupt.write_bytes(b"not-a-real-workbook")
 
-    with pytest.raises(ValueError, match="Failed to parse sheet source file") as exc_info:
+    with pytest.raises(
+        ValueError, match="Failed to parse sheet source file"
+    ) as exc_info:
         sync_derivadas(
             temp_db,
             include_db_source=False,
@@ -539,9 +688,17 @@ def test_sync_sheet_only_verify_only_works_without_ssa_table(tmp_path: Path):
 
     sheet_file = tmp_path / "derivadas_sheet_only.csv"
     with sheet_file.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"])
+        writer = csv.DictWriter(
+            fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"]
+        )
         writer.writeheader()
-        writer.writerow({"parent_ssa": "202500001", "child_ssa": "202500002", "relation_label": "Derivada da"})
+        writer.writerow(
+            {
+                "parent_ssa": "202500001",
+                "child_ssa": "202500002",
+                "relation_label": "Derivada da",
+            }
+        )
 
     report = sync_derivadas(
         str(db_path),
@@ -574,9 +731,15 @@ def test_sync_rolls_back_partial_writes_and_persists_error_run(temp_db, monkeypa
         sync_derivadas(temp_db)
 
     with sqlite3.connect(temp_db) as conn:
-        matrix_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0]
-        closure_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_closure").fetchone()[0]
-        summary_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_summary").fetchone()[0]
+        matrix_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_matrix"
+        ).fetchone()[0]
+        closure_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_closure"
+        ).fetchone()[0]
+        summary_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_summary"
+        ).fetchone()[0]
         latest_run = conn.execute(
             """
             SELECT status, active_edges
@@ -626,13 +789,17 @@ def test_sync_aborts_when_integrity_check_fails(temp_db, monkeypatch):
             },
         }
 
-    monkeypatch.setattr(derivadas_sync, "_scan_materialization_integrity", _fake_integrity_scan)
+    monkeypatch.setattr(
+        derivadas_sync, "_scan_materialization_integrity", _fake_integrity_scan
+    )
 
     with pytest.raises(RuntimeError, match="integrity check failed"):
         sync_derivadas(temp_db)
 
     with sqlite3.connect(temp_db) as conn:
-        matrix_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0]
+        matrix_total = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_matrix"
+        ).fetchone()[0]
         latest_run = conn.execute(
             """
             SELECT status, active_edges

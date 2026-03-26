@@ -24,7 +24,9 @@ def docs_entrada_dir() -> Path:
 @pytest.fixture
 def excel_file_path(docs_entrada_dir: Path) -> Path:
     files = sorted(
-        file_path for file_path in docs_entrada_dir.iterdir() if file_path.suffix.lower() == ".xlsx" and not file_path.name.startswith("~$")
+        file_path
+        for file_path in docs_entrada_dir.iterdir()
+        if file_path.suffix.lower() == ".xlsx" and not file_path.name.startswith("~$")
     )
     if not files:
         pytest.skip("no xlsx files found in docs_entrada")
@@ -44,7 +46,9 @@ def temp_db_path(tmp_path: Path) -> Path:
     return tmp_path / "ssa_data.db"
 
 
-def _write_markdown_report(report_path: Path, *, excel_name: str, row_count: int, inserted_count: int) -> None:
+def _write_markdown_report(
+    report_path: Path, *, excel_name: str, row_count: int, inserted_count: int
+) -> None:
     content = (
         "# Legacy Single Import Report\n\n"
         f"- excel_file: {excel_name}\n"
@@ -54,8 +58,15 @@ def _write_markdown_report(report_path: Path, *, excel_name: str, row_count: int
     report_path.write_text(content, encoding="utf-8")
 
 
-def test_single_file(extracted_dataframe: pd.DataFrame, temp_db_path: Path, tmp_path: Path, excel_file_path: Path) -> None:
-    success = insert_dataframe_to_db(extracted_dataframe, str(temp_db_path), "ssa_table")
+def test_single_file(
+    extracted_dataframe: pd.DataFrame,
+    temp_db_path: Path,
+    tmp_path: Path,
+    excel_file_path: Path,
+) -> None:
+    success = insert_dataframe_to_db(
+        extracted_dataframe, str(temp_db_path), "ssa_table"
+    )
     assert success is True
 
     with sqlite3.connect(temp_db_path) as conn:

@@ -6,7 +6,9 @@ import sys
 import pandas as pd
 import pytest
 
-pytest.importorskip("PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste")
+pytest.importorskip(
+    "PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste"
+)
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:

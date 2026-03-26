@@ -193,10 +193,11 @@ def _prepare_frozen_runtime(app_dir: str) -> Path:
     os.chdir(runtime_dir)
     return runtime_dir
 
+
 # Adicionar diretorio raiz ao path CORRETAMENTE
-if getattr(sys, 'frozen', False):
+if getattr(sys, "frozen", False):
     # Executavel PyInstaller - buscar na raiz dos dados empacotados
-    if hasattr(sys, '_MEIPASS'):
+    if hasattr(sys, "_MEIPASS"):
         # PyInstaller - usar diretorio do executavel, NAO _MEIPASS (pasta temporaria)
         app_dir = os.path.dirname(os.path.abspath(sys.executable))
     else:
@@ -208,13 +209,15 @@ else:
 
 sys.path.insert(0, app_dir)
 
+
 def main():
     """Entry point GUI v3.10"""
     try:
-        from utils import setup_project_structure
-        from core.config_manager import ensure_default_settings
         from PyQt6.QtWidgets import QApplication
+
+        from core.config_manager import ensure_default_settings
         from gui.gui_ssa import SSAMainWindow
+        from utils import setup_project_structure
 
         setup_project_structure.setup_dirs()
         ensure_default_settings(fail_fast=False)
@@ -229,11 +232,14 @@ def main():
         print(f"ERRO: Nao foi possivel importar modulos GUI: {e}")
         print(f"Path atual: {sys.path}")
         print(f"App dir: {app_dir}")
-        print(f"Arquivos em app_dir: {os.listdir(app_dir) if os.path.exists(app_dir) else 'N/A'}")
+        print(
+            f"Arquivos em app_dir: {os.listdir(app_dir) if os.path.exists(app_dir) else 'N/A'}"
+        )
         sys.exit(1)
     except Exception as e:
         print(f"ERRO na GUI: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

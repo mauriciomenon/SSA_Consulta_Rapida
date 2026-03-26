@@ -18,12 +18,13 @@ Notas:
 - Timeouts são controláveis por constantes no arquivo.
 """
 
-import os
 import json
+import os
 import shutil
 import subprocess
-import pytest
 from typing import List
+
+import pytest
 
 try:
     import json5  # type: ignore[import-not-found]
@@ -37,7 +38,9 @@ SHELL_GENERIC_TIMEOUT = 10
 
 
 def _user_settings_path_windows() -> str:
-    appdata = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Roaming")
+    appdata = os.environ.get("APPDATA") or os.path.join(
+        os.path.expanduser("~"), "AppData", "Roaming"
+    )
     return os.path.join(appdata, "Code", "User", "settings.json")
 
 
@@ -191,11 +194,13 @@ def get_pwsh_candidates(settings: dict) -> List[str]:
         candidates.append(ext)
 
     # Also consider the explicit WindowsApps path often used by MS Store
-    candidates.extend([
-        r"C:\\Program Files\\PowerShell\\7\\pwsh.exe",
-        r"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-        r"C:\\Windows\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe",
-    ])
+    candidates.extend(
+        [
+            r"C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+            r"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            r"C:\\Windows\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe",
+        ]
+    )
 
     # Normalize environment variables
     candidates = [os.path.expandvars(str(c)) for c in candidates if c]
@@ -241,12 +246,16 @@ def test_pwsh_path_discovered_and_exists():
     )
 
 
-def _try_spawn(cmd: List[str], timeout: int = SHELL_GENERIC_TIMEOUT) -> subprocess.CompletedProcess:
+def _try_spawn(
+    cmd: List[str], timeout: int = SHELL_GENERIC_TIMEOUT
+) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired as e:
         # Make timeout explicit so CI or caller can identify a hang
-        raise RuntimeError(f"Hang detected: command {cmd} timed out after {timeout}s") from e
+        raise RuntimeError(
+            f"Hang detected: command {cmd} timed out after {timeout}s"
+        ) from e
 
 
 def test_spawn_shell_and_invoke_python():
@@ -261,21 +270,37 @@ def test_spawn_shell_and_invoke_python():
         shell = powershell
         is_pwsh = False
     else:
-        pytest.skip("Nem 'pwsh' nem 'powershell' disponíveis no PATH; pulando testes de spawn")
+        pytest.skip(
+            "Nem 'pwsh' nem 'powershell' disponíveis no PATH; pulando testes de spawn"
+        )
 
     # Test: simple echo/print command
     if is_pwsh:
-        cmd_echo = [shell, "-NoLogo", "-NoProfile", "-Command", "Write-Output 'ok'; exit 0"]
+        cmd_echo = [
+            shell,
+            "-NoLogo",
+            "-NoProfile",
+            "-Command",
+            "Write-Output 'ok'; exit 0",
+        ]
     else:
         # powershell.exe uses different quoting semantics
-        cmd_echo = [shell, "-NoLogo", "-NoProfile", "-Command", "Write-Output 'ok'; exit 0"]
+        cmd_echo = [
+            shell,
+            "-NoLogo",
+            "-NoProfile",
+            "-Command",
+            "Write-Output 'ok'; exit 0",
+        ]
 
     proc = _try_spawn(cmd_echo, timeout=5)
-    assert proc.returncode == 0, f"Shell retornou código {proc.returncode}; stderr: {proc.stderr}"
+    assert proc.returncode == 0, (
+        f"Shell retornou código {proc.returncode}; stderr: {proc.stderr}"
+    )
     assert "ok" in proc.stdout.strip(), f"Saída inesperada do shell: {proc.stdout!r}"
 
     # Test: invoke Python via the shell to ensure shell→Python integration
-    py_cmd = "python -c \"import sys; print(sys.executable)\""
+    py_cmd = 'python -c "import sys; print(sys.executable)"'
     cmd_python = [shell, "-NoLogo", "-NoProfile", "-Command", py_cmd]
     proc2 = _try_spawn(cmd_python, timeout=7)
 
@@ -289,14 +314,18 @@ def test_spawn_shell_and_invoke_python():
         assert proc2.stdout.strip(), "Python via shell retornou stdout vazio"
         # Basic sanity: printed path contains 'python' or endswith .exe on Windows
         out = proc2.stdout.strip().lower()
-        assert "python" in out or out.endswith('.exe'), f"Saída python inesperada: {proc2.stdout!r}"
+        assert "python" in out or out.endswith(".exe"), (
+            f"Saída python inesperada: {proc2.stdout!r}"
+        )
 
 
 def test_workspace_vscode_settings_env_vars():
     # Check workspace .vscode/settings.json for SSA_ENV_* variables as a helpful hint
     ws_settings_path = os.path.join(os.getcwd(), ".vscode", "settings.json")
     if not os.path.exists(ws_settings_path):
-        pytest.skip("Workspace .vscode/settings.json não existe; pule este teste se não aplicável")
+        pytest.skip(
+            "Workspace .vscode/settings.json não existe; pule este teste se não aplicável"
+        )
 
     try:
         ws = _load_json_or_jsonc(ws_settings_path)
@@ -306,7 +335,15 @@ def test_workspace_vscode_settings_env_vars():
     envs = ws.get("terminal.integrated.env.windows", {}) or {}
     # Ensure keys exist or skip
     if not envs:
-        pytest.skip("Nenhuma variável terminal.integrated.env.windows definida no workspace settings")
+        pytest.skip(
+            "Nenhuma variável terminal.integrated.env.windows definida no workspace settings"
+        )
 
-    assert "SSA_ENV_REPO_ROOT" in envs, "SSA_ENV_REPO_ROOT ausente em workspace .vscode/settings.json"
-    assert envs.get("SSA_ENV_PLATFORM") in ("windows", "windows-bash", None) or isinstance(envs.get("SSA_ENV_PLATFORM"), str)
+    assert "SSA_ENV_REPO_ROOT" in envs, (
+        "SSA_ENV_REPO_ROOT ausente em workspace .vscode/settings.json"
+    )
+    assert envs.get("SSA_ENV_PLATFORM") in (
+        "windows",
+        "windows-bash",
+        None,
+    ) or isinstance(envs.get("SSA_ENV_PLATFORM"), str)

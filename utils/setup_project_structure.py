@@ -16,6 +16,7 @@ Responsibilities
     ``SSA_EXTRA_DIRS=dir1,dir2``
 * Lightweight validation step used by a guard test
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -72,7 +73,9 @@ def _load_legacy_required_dirs() -> list[str]:  # pragma: no cover - caminho opc
     if not module_path_raw:
         return []
     module_path = os.path.realpath(os.path.abspath(module_path_raw))
-    project_root = os.path.realpath(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)))
+    project_root = os.path.realpath(
+        os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+    )
     allow_external = os.environ.get("SSA_ALLOW_EXTERNAL_LEGACY_SETUP_MODULE") == "1"
     if not allow_external and not _is_within_base(module_path, project_root):
         logger.warning(
@@ -102,7 +105,9 @@ def _load_legacy_required_dirs() -> list[str]:  # pragma: no cover - caminho opc
                     legacy_iter = [legacy_raw]
                 elif isinstance(legacy_raw, Iterable):
                     try:
-                        legacy_iter = list(legacy_raw)  # materializa para iteração única
+                        legacy_iter = list(
+                            legacy_raw
+                        )  # materializa para iteração única
                     except Exception:  # pragma: no cover
                         legacy_iter = [legacy_raw]
                 else:
@@ -123,7 +128,9 @@ def _load_legacy_required_dirs() -> list[str]:  # pragma: no cover - caminho opc
     return []
 
 
-def setup_dirs(base_path: str | None = None, ensure_permissions: bool = False) -> SetupResult:
+def setup_dirs(
+    base_path: str | None = None, ensure_permissions: bool = False
+) -> SetupResult:
     """Ensure required directories exist.
 
     Parameters
@@ -172,7 +179,9 @@ def setup_dirs(base_path: str | None = None, ensure_permissions: bool = False) -
 
     logger.debug(
         "setup_dirs concluído: created=%s existing=%s errors=%s",
-        len(result.created), len(result.existing), len(result.errors)
+        len(result.created),
+        len(result.existing),
+        len(result.errors),
     )
     return result
 
@@ -180,14 +189,18 @@ def setup_dirs(base_path: str | None = None, ensure_permissions: bool = False) -
 # Backwards compatibility object-style API expected in main:
 class SetupProjectStructure:  # Renamed to follow CapWords; keep legacy alias below
     @staticmethod
-    def setup_dirs(base_path: str | None = None, ensure_permissions: bool = False) -> SetupResult:
+    def setup_dirs(
+        base_path: str | None = None, ensure_permissions: bool = False
+    ) -> SetupResult:
         return setup_dirs(base_path, ensure_permissions=ensure_permissions)
 
     @staticmethod
     def validate(base_path: str | None = None) -> bool:
         """Quick validation used by tests: all required dirs present."""
         if base_path is None:
-            base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+            base_path = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), os.pardir)
+            )
         # Montar lista coerente (base + possíveis legados + extras env)
         working_required = list(_BASE_REQUIRED_DIRS)
         for add in _load_legacy_required_dirs():
@@ -198,15 +211,19 @@ class SetupProjectStructure:  # Renamed to follow CapWords; keep legacy alias be
             for part in [p.strip() for p in extra_raw.split(",") if p.strip()]:
                 if part not in working_required:
                     working_required.append(part)
-        missing = [d for d in working_required if not os.path.isdir(os.path.join(base_path, d))]
+        missing = [
+            d for d in working_required if not os.path.isdir(os.path.join(base_path, d))
+        ]
         if missing:
             logger.warning("Diretórios faltando: %s", missing)
             return False
         return True
 
+
 # Module-level validate helper for tests/tools expecting validate symbol directly
 def validate(base_path: str | None = None) -> bool:  # pragma: no cover - delega
     return SetupProjectStructure.validate(base_path)
+
 
 # Backwards compatibility alias (legacy lowercase name still referenced externally)
 setup_project_structure = SetupProjectStructure

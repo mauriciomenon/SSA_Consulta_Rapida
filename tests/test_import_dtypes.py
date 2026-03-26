@@ -6,10 +6,12 @@ Foco:
   * Normalização de numero_ssa através do fluxo de importação
   * Verificar que colunas essenciais existem na base após insert
 """
+
 from __future__ import annotations
 
-import pandas as pd
 import sqlite3
+
+import pandas as pd
 
 from armazenamento import database
 from tests._helpers.dtypes_matrix import DTYPES_BY_NAME
@@ -55,15 +57,27 @@ def test_basic_import_dataframe(temp_db, sample_import_dataframe):
     assert all(isinstance(v, str) for v in roundtrip_df["numero_ssa"].tolist())
 
     # Verifica dtypes esperados para subconjunto presente
-    for col in ["numero_ssa", "situacao", "data_cadastro", "descricao_ssa", "setor_executor"]:
+    for col in [
+        "numero_ssa",
+        "situacao",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_executor",
+    ]:
         if col in df.columns:  # DataFrame original
             expected = DTYPES_BY_NAME.get(col)
             if expected:
                 actual_dtype = str(df[col].dtype)
                 expected_dtype = expected["expected_dtype"]
-                if expected_dtype == "object" and actual_dtype in {"object", "str", "string"}:
+                if expected_dtype == "object" and actual_dtype in {
+                    "object",
+                    "str",
+                    "string",
+                }:
                     continue
-                assert actual_dtype == expected_dtype, f"dtype inesperado {col}: {df[col].dtype}"
+                assert actual_dtype == expected_dtype, (
+                    f"dtype inesperado {col}: {df[col].dtype}"
+                )
 
 
 def test_import_idempotent_insert(temp_db, sample_import_dataframe):

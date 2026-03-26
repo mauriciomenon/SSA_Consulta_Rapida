@@ -5,13 +5,13 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 import sys
+from contextlib import contextmanager
 
 import pandas as pd
 
+from gui.qt_stubs import QHeaderView, Qt, QTableWidgetItem, QTimer
 from gui.ssa import gui_details as ssa_gui_details
-from gui.qt_stubs import Qt, QHeaderView, QTableWidgetItem, QTimer
 from utils.formatting import format_dataframe_for_display
 from utils.robust_logging import get_robust_logger
 
@@ -42,7 +42,9 @@ def _fallback_column_width(col_name: str) -> int:
     return 80
 
 
-def _build_page_render_signature(window, display_df: pd.DataFrame, display_headers: list[str]) -> tuple:
+def _build_page_render_signature(
+    window, display_df: pd.DataFrame, display_headers: list[str]
+) -> tuple:
     try:
         viewport_width = int(window.table_widget.viewport().width())
     except Exception:
@@ -50,7 +52,11 @@ def _build_page_render_signature(window, display_df: pd.DataFrame, display_heade
 
     row_markers: tuple[tuple[str, ...], ...] = tuple()
     try:
-        marker_columns = [col for col in ("numero_ssa", "derivada_de", "situacao") if col in display_df.columns]
+        marker_columns = [
+            col
+            for col in ("numero_ssa", "derivada_de", "situacao")
+            if col in display_df.columns
+        ]
         if not marker_columns:
             marker_columns = list(display_df.columns[: min(3, len(display_df.columns))])
         if marker_columns:
@@ -139,12 +145,16 @@ def _freeze_table_batch_state(window, header):
         yield
     finally:
         try:
-            if updates_enabled is not None and hasattr(window.table_widget, "setUpdatesEnabled"):
+            if updates_enabled is not None and hasattr(
+                window.table_widget, "setUpdatesEnabled"
+            ):
                 window.table_widget.setUpdatesEnabled(updates_enabled)
         except Exception as exc:
             logger.debug("Falha ao restaurar updatesEnabled da tabela: %s", exc)
         try:
-            if sorting_enabled is not None and hasattr(window.table_widget, "setSortingEnabled"):
+            if sorting_enabled is not None and hasattr(
+                window.table_widget, "setSortingEnabled"
+            ):
                 window.table_widget.setSortingEnabled(sorting_enabled)
         except Exception as exc:
             logger.debug("Falha ao restaurar sorting da tabela: %s", exc)
@@ -154,7 +164,11 @@ def _freeze_table_batch_state(window, header):
         except Exception as exc:
             logger.debug("Falha ao restaurar sinais da tabela: %s", exc)
         try:
-            if header is not None and header_updates_enabled is not None and hasattr(header, "setUpdatesEnabled"):
+            if (
+                header is not None
+                and header_updates_enabled is not None
+                and hasattr(header, "setUpdatesEnabled")
+            ):
                 header.setUpdatesEnabled(header_updates_enabled)
         except Exception as exc:
             logger.debug("Falha ao restaurar updatesEnabled do header: %s", exc)
@@ -168,9 +182,13 @@ def _freeze_table_batch_state(window, header):
 def _refresh_initial_details(window, *, update_details):
     if not update_details:
         return
-    first_row_series = window._get_series_from_row(0) if window.table_widget.rowCount() > 0 else None
+    first_row_series = (
+        window._get_series_from_row(0) if window.table_widget.rowCount() > 0 else None
+    )
     try:
-        next_signature = ssa_gui_details._get_details_render_signature(window, first_row_series)
+        next_signature = ssa_gui_details._get_details_render_signature(
+            window, first_row_series
+        )
         current_signature = window.details_text.property("details_render_signature")
         if (
             first_row_series is not None
@@ -204,7 +222,9 @@ def display_current_page(window, page_number, *, update_details=True):
         if hasattr(window, "_ensure_data_revision"):
             window._ensure_data_revision()
     except Exception as exc:
-        logger.debug("Falha ao validar revisao de dados antes de renderizar pagina: %s", exc)
+        logger.debug(
+            "Falha ao validar revisao de dados antes de renderizar pagina: %s", exc
+        )
 
     # Congela redimensionamento automatico durante a reconstrucao da tabela
     try:
@@ -220,7 +240,7 @@ def display_current_page(window, page_number, *, update_details=True):
         # Determina colunas validas a partir de df_exibido (mesmo vazio, mantem schema)
         valid_cols = []
         try:
-            base_cols = list(getattr(window, 'df_exibido', pd.DataFrame()).columns)
+            base_cols = list(getattr(window, "df_exibido", pd.DataFrame()).columns)
             if base_cols:
                 valid_cols = [c for c in window.visible_columns if c in base_cols]
         except Exception as exc:
@@ -228,16 +248,20 @@ def display_current_page(window, page_number, *, update_details=True):
             valid_cols = list(window.visible_columns)
 
         if not valid_cols:
-            valid_cols = [c for c in window.default_columns if c in base_cols] if base_cols else list(window.visible_columns)
+            valid_cols = (
+                [c for c in window.default_columns if c in base_cols]
+                if base_cols
+                else list(window.visible_columns)
+            )
 
         # Atualiza colunas atuais (inclui '#') e aplica cabecalhos
-        window._current_display_columns = ['#'] + list(valid_cols)
+        window._current_display_columns = ["#"] + list(valid_cols)
         window.table_widget.setColumnCount(len(window._current_display_columns))
         headers = []
         for col in window._current_display_columns:
-            base = '#' if col == '#' else window.internal_to_display.get(col, col)
+            base = "#" if col == "#" else window.internal_to_display.get(col, col)
             term = window._active_column_filters.get(col)
-            has_filter = bool(term) and str(term).strip() != '' and col != '#'
+            has_filter = bool(term) and str(term).strip() != "" and col != "#"
             headers.append(f"[f] {base}" if has_filter else base)
         try:
             window.table_widget.setHorizontalHeaderLabels(headers)
@@ -252,14 +276,24 @@ def display_current_page(window, page_number, *, update_details=True):
             try:
                 window.table_widget.setColumnWidth(i, max(30, int(px)))
             except Exception as exc:
-                logger.debug("Falha ao aplicar largura da coluna %s em tabela vazia: %s", col_name, exc)
+                logger.debug(
+                    "Falha ao aplicar largura da coluna %s em tabela vazia: %s",
+                    col_name,
+                    exc,
+                )
 
         # Garantia extra para a primeira coluna de dados
         try:
-            if window.table_widget.columnCount() > 1 and window.table_widget.columnWidth(1) == 0:
+            if (
+                window.table_widget.columnCount() > 1
+                and window.table_widget.columnWidth(1) == 0
+            ):
                 window.table_widget.setColumnWidth(1, 80)
         except Exception as exc:
-            logger.debug("Falha ao reforcar largura da primeira coluna de dados em tabela vazia: %s", exc)
+            logger.debug(
+                "Falha ao reforcar largura da primeira coluna de dados em tabela vazia: %s",
+                exc,
+            )
 
         # Restaura modo interativo com limites minimos apos aplicar larguras
         try:
@@ -268,16 +302,24 @@ def display_current_page(window, page_number, *, update_details=True):
                 header.setMinimumSectionSize(26)
                 header.setDefaultSectionSize(92)
         except Exception as exc:
-            logger.debug("Falha ao restaurar configuracao do header em tabela vazia: %s", exc)
+            logger.debug(
+                "Falha ao restaurar configuracao do header em tabela vazia: %s", exc
+            )
         if update_details:
             ssa_gui_details._update_details_from_series(window, None)
         return
 
     # Seleciona apenas as colunas visiveis
-    cols_to_show = [col for col in window.visible_columns if col in window.df_para_tabela.columns]
+    cols_to_show = [
+        col for col in window.visible_columns if col in window.df_para_tabela.columns
+    ]
     if not cols_to_show:
         # Se nenhuma coluna selecionada for valida, mostra as padroes
-        cols_to_show = [col for col in window.default_columns if col in window.df_para_tabela.columns]
+        cols_to_show = [
+            col
+            for col in window.default_columns
+            if col in window.df_para_tabela.columns
+        ]
         if not cols_to_show:
             # Ultimo recurso: mostra todas
             cols_to_show = window.df_para_tabela.columns.tolist()
@@ -287,16 +329,18 @@ def display_current_page(window, page_number, *, update_details=True):
 
     display_df = window.df_para_tabela[cols_to_show].copy()
     # Mantem colunas atuais para mapear indice->nome ao salvar larguras
-    window._current_display_columns = ['#'] + list(display_df.columns)
+    window._current_display_columns = ["#"] + list(display_df.columns)
 
     # Adiciona a coluna de indice '#'
-    if '#' not in display_df.columns:
+    if "#" not in display_df.columns:
         display_df.insert(
             0,
-            '#',
+            "#",
             range(
                 (window.paginator.current_page - 1) * window.paginator.page_size + 1,
-                (window.paginator.current_page - 1) * window.paginator.page_size + 1 + len(display_df)
+                (window.paginator.current_page - 1) * window.paginator.page_size
+                + 1
+                + len(display_df),
             ),
         )
 
@@ -320,7 +364,9 @@ def display_current_page(window, page_number, *, update_details=True):
                         for col in display_df.columns
                     )
             except Exception as exc:
-                logger.debug("Falha ao compor assinatura de largura para chave de cache: %s", exc)
+                logger.debug(
+                    "Falha ao compor assinatura de largura para chave de cache: %s", exc
+                )
             display_df_hash = (
                 data_uuid,
                 df_exibido_id,
@@ -353,10 +399,10 @@ def display_current_page(window, page_number, *, update_details=True):
     # Define cabecalhos de exibicao com indicador de filtro [f] por coluna
     display_headers = []
     for col in display_df.columns:
-        base = '#' if col == '#' else window.internal_to_display.get(col, col)
+        base = "#" if col == "#" else window.internal_to_display.get(col, col)
         term = window._active_column_filters.get(col)
-        has_filter = bool(term) and str(term).strip() != ''
-        if has_filter and col != '#':
+        has_filter = bool(term) and str(term).strip() != ""
+        if has_filter and col != "#":
             base = f"[f] {base}"
         display_headers.append(base)
 
@@ -387,17 +433,23 @@ def display_current_page(window, page_number, *, update_details=True):
                         # Keep table cells single-line to avoid visual clipping on fixed row height.
                         if item_text:
                             if "\\n" in item_text or "\\r" in item_text:
-                                item_text = item_text.replace("\\n", " ").replace("\\r", " ")
+                                item_text = item_text.replace("\\n", " ").replace(
+                                    "\\r", " "
+                                )
                             if "\n" in item_text or "\r" in item_text:
                                 item_text = " ".join(item_text.split())
 
                         item = QTableWidgetItem(item_text)
-                        item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                        item.setTextAlignment(
+                            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
+                        )
                         # Armazena o indice da linha original nos dados filtrados para referencia
-                        if col_name == '#':
+                        if col_name == "#":
                             item.setData(
                                 Qt.ItemDataRole.UserRole,
-                                row_idx + (window.paginator.current_page - 1) * window.paginator.page_size,
+                                row_idx
+                                + (window.paginator.current_page - 1)
+                                * window.paginator.page_size,
                             )
                         window.table_widget.setItem(row_idx, col_idx, item)
                     except Exception as exc:
@@ -410,7 +462,9 @@ def display_current_page(window, page_number, *, update_details=True):
                             exc,
                         )
                         try:
-                            window.table_widget.setItem(row_idx, col_idx, QTableWidgetItem(""))
+                            window.table_widget.setItem(
+                                row_idx, col_idx, QTableWidgetItem("")
+                            )
                         except Exception as fallback_exc:
                             logger.debug(
                                 "Falha ao aplicar fallback vazio na celula (row=%s col=%s): %s",
@@ -419,7 +473,10 @@ def display_current_page(window, page_number, *, update_details=True):
                                 fallback_exc,
                             )
             if cell_render_failures:
-                logger.warning("Renderizacao da tabela concluiu com %s falhas de celula.", cell_render_failures)
+                logger.warning(
+                    "Renderizacao da tabela concluiu com %s falhas de celula.",
+                    cell_render_failures,
+                )
 
     # Recalcula larguras APENAS quando o conjunto/ordem de colunas muda
     # ou quando a largura util do viewport mudar significativamente
@@ -428,8 +485,12 @@ def display_current_page(window, page_number, *, update_details=True):
         vw = window.table_widget.viewport().width()
     except Exception:
         vw = -1
-    need_cols = (not hasattr(window, '_widths_columns_sig')) or (window._widths_columns_sig != cols_sig)
-    need_vw = (not hasattr(window, '_last_viewport_w')) or (abs(vw - window._last_viewport_w) > 12)
+    need_cols = (not hasattr(window, "_widths_columns_sig")) or (
+        window._widths_columns_sig != cols_sig
+    )
+    need_vw = (not hasattr(window, "_last_viewport_w")) or (
+        abs(vw - window._last_viewport_w) > 12
+    )
     if bool(getattr(window, "_skip_width_recompute_once", False)):
         window._skip_width_recompute_once = False
         need_cols = False
@@ -446,7 +507,7 @@ def display_current_page(window, page_number, *, update_details=True):
         # Usa a coluna diretamente do DataFrame (que ja inclui '#')
         col_key = col_name
 
-        px = getattr(window, '_gui_column_pixel_widths', {}).get(col_key)
+        px = getattr(window, "_gui_column_pixel_widths", {}).get(col_key)
 
         # Se nao ha largura calculada, usa configuracao salva manualmente pelo usuario
         if px is None:
@@ -502,30 +563,35 @@ def display_current_page(window, page_number, *, update_details=True):
     except Exception as exc:
         logger.debug("Falha ao agendar reforco de largura de colunas: %s", exc)
 
+
 # --- Wrappers de compatibilidade com testes antigos (PoC) ---
 def display_data(window, df):  # usado em testes legados
     try:
-        if df is None or getattr(df, 'empty', True):
+        if df is None or getattr(df, "empty", True):
             return
         window.df_completo = df.copy()
         window.df_exibido = df.copy()
         window.paginator.set_dataframe(window.df_exibido)
-        window.display_current_page(getattr(window.paginator, 'current_page', 1))
+        window.display_current_page(getattr(window.paginator, "current_page", 1))
     except Exception as exc:
-        logger.warning("Falha ao exibir DataFrame via display_data de compatibilidade: %s", exc)
+        logger.warning(
+            "Falha ao exibir DataFrame via display_data de compatibilidade: %s", exc
+        )
+
 
 def _force_column_widths(window):
     """Forca reaplicacao das larguras das colunas para garantir que sejam respeitadas."""
-    if not hasattr(window, 'visible_columns') or not window.visible_columns:
+    if not hasattr(window, "visible_columns") or not window.visible_columns:
         return
 
-    for i, col_name in enumerate(['#'] + window.visible_columns):
+    for i, col_name in enumerate(["#"] + window.visible_columns):
         # Busca largura salva das configuracoes
         px = window._saved_gui_column_widths.get(col_name)
         if px is not None:
             current_width = window.table_widget.columnWidth(i)
             if current_width != px:
                 window.table_widget.setColumnWidth(i, int(px))
+
 
 def _ensure_nonzero_column_widths(window):
     """Garante que nenhuma coluna permanece com largura 0.
@@ -541,11 +607,14 @@ def _ensure_nonzero_column_widths(window):
                 try:
                     window.table_widget.resizeColumnToContents(i)
                 except Exception as exc:
-                    logger.debug("Falha ao redimensionar coluna %s por conteudo: %s", i, exc)
+                    logger.debug(
+                        "Falha ao redimensionar coluna %s por conteudo: %s", i, exc
+                    )
                 if window.table_widget.columnWidth(i) == 0:
                     window.table_widget.setColumnWidth(i, 80)
     except Exception as exc:
         logger.debug("Falha ao garantir larguras nao zeradas da tabela: %s", exc)
+
 
 def _set_safe_width_for_col_index(window, idx: int, px: int = 80):
     """Define uma largura segura para um indice de coluna, se possivel."""
@@ -559,6 +628,7 @@ def _set_safe_width_for_col_index(window, idx: int, px: int = 80):
     except Exception as exc:
         logger.debug("Falha ao aplicar largura segura para coluna %s: %s", idx, exc)
 
+
 def _compute_widths_for_df(
     df: pd.DataFrame,
     visible_columns,
@@ -570,7 +640,7 @@ def _compute_widths_for_df(
 ):
     if not visible_columns:
         return None
-    if hasattr(df, 'columns'):
+    if hasattr(df, "columns"):
         existing_visible_cols = [col for col in visible_columns if col in df.columns]
         if not existing_visible_cols:
             return None
@@ -580,20 +650,18 @@ def _compute_widths_for_df(
         visible_df = df
     table_width = widget_width
     if table_width < 500:
-        table_width = max(1000 if sys.platform == 'darwin' else 1400, window_width - 50)
+        table_width = max(1000 if sys.platform == "darwin" else 1400, window_width - 50)
     else:
         table_width = table_width - 40
-    min_width = 1100 if sys.platform == 'darwin' else 1400
+    min_width = 1100 if sys.platform == "darwin" else 1400
     table_width = max(table_width, min_width)
-    correct_column_order = ['#'] + existing_visible_cols
+    correct_column_order = ["#"] + existing_visible_cols
     column_widths = width_manager.compute_optimal_widths(
-        df=visible_df,
-        available_width=table_width,
-        column_order=correct_column_order
+        df=visible_df, available_width=table_width, column_order=correct_column_order
     )
     if sys.platform == "darwin":
         column_widths = {
-            key: (value + 2 if key != '#' else value)
+            key: (value + 2 if key != "#" else value)
             for key, value in column_widths.items()
         }
     return column_widths
@@ -605,29 +673,34 @@ def _compute_gui_column_widths(window, df: pd.DataFrame):
     Substitui 150+ linhas de codigo frankenstein por uma chamada limpa.
     """
     try:
-        visible_columns = getattr(window, 'visible_columns', None)
+        visible_columns = getattr(window, "visible_columns", None)
         if isinstance(visible_columns, (list, tuple)):
             visible_columns = list(visible_columns)
         else:
             visible_columns = []
         if not visible_columns:
             return
-        width_manager = getattr(window, 'width_manager', None)
+        width_manager = getattr(window, "width_manager", None)
         if width_manager is None:
             logger.debug("WidthManager nao inicializado; pulando calculo de larguras.")
             return
 
-        internal_to_display = getattr(window, 'internal_to_display', {})
-        saved_widths = getattr(window, '_saved_gui_column_widths', {})
+        internal_to_display = getattr(window, "internal_to_display", {})
+        saved_widths = getattr(window, "_saved_gui_column_widths", {})
         try:
             widget_width = int(window.table_widget.width())
         except Exception as exc:
-            logger.debug("Falha ao ler largura do table_widget em _compute_gui_column_widths: %s", exc)
+            logger.debug(
+                "Falha ao ler largura do table_widget em _compute_gui_column_widths: %s",
+                exc,
+            )
             widget_width = 0
         try:
             window_width = int(window.width())
         except Exception as exc:
-            logger.debug("Falha ao ler largura da janela em _compute_gui_column_widths: %s", exc)
+            logger.debug(
+                "Falha ao ler largura da janela em _compute_gui_column_widths: %s", exc
+            )
             window_width = widget_width
 
         column_widths = _compute_widths_for_df(
@@ -647,20 +720,23 @@ def _compute_gui_column_widths(window, df: pd.DataFrame):
     except Exception as exc:
         logger.error("Falha em _compute_gui_column_widths: %s", exc)
         # Fallback para larguras minimas das colunas visiveis apenas
-        visible_cols = ['#'] + (visible_columns if visible_columns else [])
+        visible_cols = ["#"] + (visible_columns if visible_columns else [])
         window._gui_column_pixel_widths = {col: 100 for col in visible_cols}
 
-def _on_header_section_resized(window, logical_index: int, old_size: int, new_size: int):
+
+def _on_header_section_resized(
+    window, logical_index: int, old_size: int, new_size: int
+):
     """Salva a largura ajustada pelo usuario na configuracao persistente."""
     try:
-        cols = getattr(window, '_current_display_columns', None)
+        cols = getattr(window, "_current_display_columns", None)
         if not cols or logical_index < 0 or logical_index >= len(cols):
             return
         col_name = cols[logical_index]
         new_px = max(30, min(int(new_size), 1200))
         if col_name:
             window._saved_gui_column_widths[col_name] = new_px
-            if hasattr(window, '_gui_column_pixel_widths'):
+            if hasattr(window, "_gui_column_pixel_widths"):
                 window._gui_column_pixel_widths[col_name] = new_px
             _schedule_column_width_preferences_persist(window)
     except Exception as exc:  # noqa: BLE001

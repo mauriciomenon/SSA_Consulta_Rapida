@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import json
 
-import core.config_manager as config_manager
 import pytest
 
+import core.config_manager as config_manager
 
-def test_load_display_mappings_integrity_restores_file_and_returns_restored(tmp_path, monkeypatch):
+
+def test_load_display_mappings_integrity_restores_file_and_returns_restored(
+    tmp_path, monkeypatch
+):
     cfg_dir = tmp_path / "cfg"
     monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
 
@@ -37,8 +40,16 @@ def test_load_column_mappings_integrity_restores_invalid_file(tmp_path, monkeypa
 @pytest.mark.parametrize(
     ("loader_name", "expected_name", "filename"),
     [
-        ("load_display_mappings_integrity", "DEFAULT_DISPLAY_MAPPINGS", "display_mappings.json"),
-        ("load_column_mappings_integrity", "DEFAULT_COLUMN_MAPPINGS", "column_mappings.json"),
+        (
+            "load_display_mappings_integrity",
+            "DEFAULT_DISPLAY_MAPPINGS",
+            "display_mappings.json",
+        ),
+        (
+            "load_column_mappings_integrity",
+            "DEFAULT_COLUMN_MAPPINGS",
+            "column_mappings.json",
+        ),
     ],
 )
 def test_load_mappings_integrity_returns_defaults_when_restore_write_fails(

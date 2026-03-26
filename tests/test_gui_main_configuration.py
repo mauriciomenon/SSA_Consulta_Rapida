@@ -3,10 +3,10 @@ Testes para o sistema de configuracao isolado da GUI Principal (main.py --gui)
 Valida carregamento, estrutura e isolamento das configuracoes.
 """
 
+import importlib
 import json
 import os
 import sys
-import importlib
 from unittest.mock import mock_open, patch
 
 import pytest
@@ -23,6 +23,7 @@ class TestGUIMainConfiguration:
     def test_gui_main_preferences_contract_available_without_file(self):
         """Contrato de configuracao deve existir mesmo sem arquivo local versionado."""
         from gui.gui_config import load_gui_main_preferences
+
         with patch("gui.gui_config.os.path.exists", return_value=False):
             config = load_gui_main_preferences()
 
@@ -51,6 +52,7 @@ class TestGUIMainConfiguration:
     def test_load_gui_main_preferences_fallback(self):
         """Testa fallback quando arquivo nao existe."""
         from gui.gui_config import load_gui_main_preferences
+
         with patch("gui.gui_config.os.path.exists", return_value=False):
             config = load_gui_main_preferences()
             assert "display_columns" in config
@@ -59,7 +61,9 @@ class TestGUIMainConfiguration:
             assert "derivada_de" in config["display_columns"]
             assert config["version"] == "1.0.0"
 
-    def test_load_gui_main_preferences_honors_ssa_config_dir(self, tmp_path, monkeypatch):
+    def test_load_gui_main_preferences_honors_ssa_config_dir(
+        self, tmp_path, monkeypatch
+    ):
         """GUI config deve respeitar SSA_CONFIG_DIR ao resolver gui_main_preferences.json."""
         from gui.gui_config import load_gui_main_preferences
 
@@ -85,7 +89,9 @@ class TestGUIMainConfiguration:
         assert config["column_widths"]["numero_ssa"] == 99
         assert config["column_display_names"]["numero_ssa"] == "No SSA"
 
-    def test_load_gui_main_preferences_with_missing_ssa_config_dir_uses_defaults(self, tmp_path, monkeypatch):
+    def test_load_gui_main_preferences_with_missing_ssa_config_dir_uses_defaults(
+        self, tmp_path, monkeypatch
+    ):
         """Quando SSA_CONFIG_DIR aponta para pasta ausente, contrato default deve permanecer estavel."""
         from gui.gui_config import load_gui_main_preferences
 
@@ -99,7 +105,9 @@ class TestGUIMainConfiguration:
         assert "column_display_names" in config
         assert "numero_ssa" in config["column_display_names"]
 
-    def test_get_gui_main_preferences_path_reflects_runtime_env_change(self, tmp_path, monkeypatch):
+    def test_get_gui_main_preferences_path_reflects_runtime_env_change(
+        self, tmp_path, monkeypatch
+    ):
         from gui import gui_config
 
         cfg_dir = tmp_path / "cfg_runtime"
@@ -111,7 +119,9 @@ class TestGUIMainConfiguration:
         assert resolved.endswith("gui_main_preferences.json")
         assert str(cfg_dir) in resolved
 
-    def test_load_gui_main_preferences_explicit_path_has_precedence_over_env(self, tmp_path, monkeypatch):
+    def test_load_gui_main_preferences_explicit_path_has_precedence_over_env(
+        self, tmp_path, monkeypatch
+    ):
         from gui.gui_config import load_gui_main_preferences
 
         cfg_dir_env = tmp_path / "cfg_env"
@@ -140,6 +150,7 @@ class TestGUIMainConfiguration:
     def test_load_gui_main_preferences_invalid_json(self):
         """Testa comportamento com JSON invalido."""
         from gui.gui_config import load_gui_main_preferences
+
         with patch("gui.gui_config.open", mock_open(read_data="invalid json")):
             with patch("gui.gui_config.os.path.exists", return_value=True):
                 config = load_gui_main_preferences()
@@ -156,7 +167,10 @@ class TestGUIMainConfiguration:
         }
 
         from gui.gui_config import REQUIRED_DISPLAY_COLUMNS, load_gui_main_preferences
-        with patch("gui.gui_config.open", mock_open(read_data=json.dumps(partial_config))):
+
+        with patch(
+            "gui.gui_config.open", mock_open(read_data=json.dumps(partial_config))
+        ):
             with patch("gui.gui_config.os.path.exists", return_value=True):
                 config = load_gui_main_preferences()
 
@@ -171,8 +185,8 @@ class TestGUIMainConfiguration:
 
     def test_gui_main_preferences_isolation_from_cli(self):
         """Verifica que as configuracoes sao independentes do CLI."""
-        from gui.gui_config import GUI_MAIN_PREFERENCES
         from core.config_manager import load_settings
+        from gui.gui_config import GUI_MAIN_PREFERENCES
 
         try:
             cli_settings = load_settings()
@@ -262,7 +276,9 @@ class TestGUIMainConfiguration:
         except ImportError as e:
             pytest.fail(f"GUI Main nao deveria depender de modulos do CLI: {e}")
         finally:
-            for module_name in sorted(modules_to_restore.keys(), key=lambda item: item.count(".")):
+            for module_name in sorted(
+                modules_to_restore.keys(), key=lambda item: item.count(".")
+            ):
                 module_obj = modules_to_restore[module_name]
                 sys.modules[module_name] = module_obj
 

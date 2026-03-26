@@ -2,7 +2,9 @@ import os
 
 import pytest
 
-pytest.importorskip("PyQt6", reason="Dependencia PyQt6 indisponivel no ambiente de teste")
+pytest.importorskip(
+    "PyQt6", reason="Dependencia PyQt6 indisponivel no ambiente de teste"
+)
 
 from unittest.mock import patch
 
@@ -25,7 +27,9 @@ class _DummyWindow(FilterGUISSAMixin):
 
 def test_on_filter_error_skips_modal_dialog_in_pytest(monkeypatch):
     # Be explicit even though pytest sets this env var.
-    monkeypatch.setenv("PYTEST_CURRENT_TEST", os.environ.get("PYTEST_CURRENT_TEST") or "1")
+    monkeypatch.setenv(
+        "PYTEST_CURRENT_TEST", os.environ.get("PYTEST_CURRENT_TEST") or "1"
+    )
 
     win = _DummyWindow()
     with patch.object(mixin_module.QMessageBox, "critical") as critical:

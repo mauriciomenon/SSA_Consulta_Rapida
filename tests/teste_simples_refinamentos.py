@@ -4,10 +4,11 @@ Teste Simples de Refinamentos
 Valida as otimizações sem dependências externas pesadas.
 """
 
+import json
 import os
 import sys
 import time
-import json
+
 
 def teste_cache_operacoes():
     """Testa se as operações de cache estão funcionando."""
@@ -16,8 +17,8 @@ def teste_cache_operacoes():
 
     # Simula o cache de sets de colunas da GUI
     cache = {}
-    test_columns = ['col1', 'col2', 'col3', 'col4', 'col5'] * 100
-    expandable_columns = ['col1', 'col3', 'col5']
+    test_columns = ["col1", "col2", "col3", "col4", "col5"] * 100
+    expandable_columns = ["col1", "col3", "col5"]
 
     # Teste sem cache (operação original)
     start_time = time.time()
@@ -38,11 +39,15 @@ def teste_cache_operacoes():
 
         expandable_key = f"expandable_{cache_key}"
         if expandable_key not in cache:
-            cache[expandable_key] = [col for col in expandable_columns if col in df_columns_set]
+            cache[expandable_key] = [
+                col for col in expandable_columns if col in df_columns_set
+            ]
         cache[expandable_key]
     time_with_cache = time.time() - start_time
 
-    improvement = (time_without_cache / time_with_cache) if time_with_cache > 0 else float('inf')
+    improvement = (
+        (time_without_cache / time_with_cache) if time_with_cache > 0 else float("inf")
+    )
 
     print(f"  Sem cache (1000x): {time_without_cache:.4f}s")
     print(f"  Com cache (1000x): {time_with_cache:.4f}s")
@@ -53,15 +58,18 @@ def teste_cache_operacoes():
 
     return improvement > 1.5
 
+
 def teste_configuracoes_json():
     """Testa a integridade das configurações JSON."""
     print("TEST TESTE DE CONFIGURAÇÕES JSON")
     print("-" * 40)
 
     config_files = {
-        'config/gui_main_preferences.json': ['display_columns'],  # Removido display_mappings
-        'config/display_mappings.json': [],
-        'config/column_priority.json': []
+        "config/gui_main_preferences.json": [
+            "display_columns"
+        ],  # Removido display_mappings
+        "config/display_mappings.json": [],
+        "config/column_priority.json": [],
     }
 
     all_valid = True
@@ -70,7 +78,7 @@ def teste_configuracoes_json():
     for config_file, required_keys in config_files.items():
         if os.path.exists(config_file):
             try:
-                with open(config_file, 'r', encoding='utf-8') as f:
+                with open(config_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
                 entries = len(data) if isinstance(data, dict) else 0
@@ -80,7 +88,9 @@ def teste_configuracoes_json():
                 missing_keys = [key for key in required_keys if key not in data]
 
                 if missing_keys:
-                    print(f"  WARN  {config_file}: {entries} entradas, faltam: {missing_keys}")
+                    print(
+                        f"  WARN  {config_file}: {entries} entradas, faltam: {missing_keys}"
+                    )
                     all_valid = False
                 else:
                     print(f"  OK {config_file}: {entries} entradas válidas")
@@ -96,10 +106,13 @@ def teste_configuracoes_json():
             all_valid = False
 
     print(f"  Total de configurações: {total_entries}")
-    print(f"  Status: {'OK TODAS VÁLIDAS' if all_valid else 'WARN PROBLEMAS ENCONTRADOS'}")
+    print(
+        f"  Status: {'OK TODAS VÁLIDAS' if all_valid else 'WARN PROBLEMAS ENCONTRADOS'}"
+    )
     print()
 
     return all_valid
+
 
 def teste_estrutura_arquivos():
     """Testa se os arquivos refinados existem e têm o tamanho esperado."""
@@ -107,11 +120,11 @@ def teste_estrutura_arquivos():
     print("-" * 40)
 
     arquivos_importantes = {
-        'gui/gui_ssa.py': 50000,  # Pelo menos 50KB (arquivo grande com otimizações)
-        'interface/cli.py': 15000,  # Pelo menos 15KB
-        'config/gui_main_preferences.json': 100,  # Pelo menos 100 bytes
-        'RELATORIO_CORRECOES_FINAIS.md': 1000,  # Documentação
-        'validar_otimizacoes_execucao.py': 1000,  # Scripts de validação
+        "gui/gui_ssa.py": 50000,  # Pelo menos 50KB (arquivo grande com otimizações)
+        "interface/cli.py": 15000,  # Pelo menos 15KB
+        "config/gui_main_preferences.json": 100,  # Pelo menos 100 bytes
+        "RELATORIO_CORRECOES_FINAIS.md": 1000,  # Documentação
+        "validar_otimizacoes_execucao.py": 1000,  # Scripts de validação
     }
 
     all_present = True
@@ -122,16 +135,21 @@ def teste_estrutura_arquivos():
             if size >= min_size:
                 print(f"  OK {arquivo}: {size:,} bytes")
             else:
-                print(f"  WARN  {arquivo}: {size:,} bytes (menor que esperado: {min_size:,})")
+                print(
+                    f"  WARN  {arquivo}: {size:,} bytes (menor que esperado: {min_size:,})"
+                )
                 all_present = False
         else:
             print(f"  ERR {arquivo}: Não encontrado")
             all_present = False
 
-    print(f"  Status: {'OK ESTRUTURA OK' if all_present else 'WARN ARQUIVOS FALTANDO/PEQUENOS'}")
+    print(
+        f"  Status: {'OK ESTRUTURA OK' if all_present else 'WARN ARQUIVOS FALTANDO/PEQUENOS'}"
+    )
     print()
 
     return all_present
+
 
 def teste_hash_tracking():
     """Testa o sistema de hash tracking implementado."""
@@ -143,7 +161,14 @@ def teste_hash_tracking():
     cache_misses = 0
 
     # Simula diferentes DataFrames por seus hashes
-    dataframe_hashes = ['hash_001', 'hash_002', 'hash_001', 'hash_003', 'hash_001', 'hash_002']
+    dataframe_hashes = [
+        "hash_001",
+        "hash_002",
+        "hash_001",
+        "hash_003",
+        "hash_001",
+        "hash_002",
+    ]
     computed_widths = {}
 
     for df_hash in dataframe_hashes:
@@ -155,7 +180,7 @@ def teste_hash_tracking():
             cache_misses += 1
             # Simula computação cara
             time.sleep(0.001)  # 1ms de computação simulada
-            computed_widths[df_hash] = {'col1': 100, 'col2': 150, 'col3': 200}
+            computed_widths[df_hash] = {"col1": 100, "col2": 150, "col3": 200}
 
     total_operations = len(dataframe_hashes)
     cache_hit_rate = (cache_hits / total_operations) * 100
@@ -165,10 +190,13 @@ def teste_hash_tracking():
     print(f"  Cache misses: {cache_misses}")
     print(f"  Taxa de acerto: {cache_hit_rate:.1f}%")
     print(f"  Entries no cache: {len(computed_widths)}")
-    print(f"  Status: {'OK CACHE EFICIENTE' if cache_hit_rate >= 50 else 'WARN CACHE POUCO EFICIENTE'}")
+    print(
+        f"  Status: {'OK CACHE EFICIENTE' if cache_hit_rate >= 50 else 'WARN CACHE POUCO EFICIENTE'}"
+    )
     print()
 
     return cache_hit_rate >= 50
+
 
 def main():
     """Executa todos os testes simples."""
@@ -177,10 +205,10 @@ def main():
     print()
 
     # Muda para o diretório do projeto se necessário
-    if os.path.basename(os.getcwd()) != 'SSA_Consulta_Rapida':
-        possible_paths = ['.', '../SSA_Consulta_Rapida', './SSA_Consulta_Rapida']
+    if os.path.basename(os.getcwd()) != "SSA_Consulta_Rapida":
+        possible_paths = [".", "../SSA_Consulta_Rapida", "./SSA_Consulta_Rapida"]
         for path in possible_paths:
-            if os.path.exists(os.path.join(path, 'gui')):
+            if os.path.exists(os.path.join(path, "gui")):
                 os.chdir(path)
                 break
 
@@ -215,9 +243,12 @@ def main():
 
     print()
     print(f"  Status final: {status}")
-    print(f"  Pronto para produção: {'SIM' if passed >= total * 0.75 else 'NECESSITA AJUSTES'}")
+    print(
+        f"  Pronto para produção: {'SIM' if passed >= total * 0.75 else 'NECESSITA AJUSTES'}"
+    )
 
     return passed >= total * 0.75
+
 
 if __name__ == "__main__":
     success = main()

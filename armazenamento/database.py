@@ -9,9 +9,9 @@ Responsavel por criar tabelas, inserir DataFrames e consultar dados.
 import logging
 import os
 import sqlite3
+import sqlite3 as _sqlite3_typehint  # alias para type checking leve
 import time
 from contextlib import contextmanager
-import sqlite3 as _sqlite3_typehint  # alias para type checking leve
 from typing import Any, Literal, cast
 
 import pandas as pd
@@ -34,6 +34,7 @@ MAX_TEXT_LEN = 1000
 # Flag global para controlar modo otimizado (substituiu monkey-patching)
 _use_optimized_mode = False
 _resolved_table_cache: dict[tuple[str, str], str] = {}
+
 
 def set_optimized_mode(enabled: bool) -> None:
     """
@@ -61,10 +62,12 @@ def _clear_resolved_table_cache(db_path: str | None = None) -> None:
     for key in stale_keys:
         _resolved_table_cache.pop(key, None)
 
+
 # --- Gerenciamento de Conexao ---
 
 # Nome do arquivo de schema (exposto para testes)
-schema_file = 'schema.sql'
+schema_file = "schema.sql"
+
 
 @contextmanager
 def get_db_connection(db_path: str):
@@ -97,11 +100,15 @@ def get_db_connection(db_path: str):
         if conn:
             conn.close()
 
+
 # --- Funcoes de Banco de Dados ---
 
 # armazenamento/database.py
 
-def initialize_database(db_path: str | _sqlite3_typehint.Connection, schema_file: str = 'schema.sql'):
+
+def initialize_database(
+    db_path: str | _sqlite3_typehint.Connection, schema_file: str = "schema.sql"
+):
     """
     Inicializa o banco de dados aplicando o schema SQL informado.
 
@@ -124,23 +131,27 @@ def initialize_database(db_path: str | _sqlite3_typehint.Connection, schema_file
     # 1) Se for absoluto, deve existir; caso contrario, erro imediato
     if os.path.isabs(schema_file):
         if not os.path.exists(schema_file):
-            raise FileNotFoundError(f"Arquivo de schema absoluto nao encontrado: '{schema_file}'")
+            raise FileNotFoundError(
+                f"Arquivo de schema absoluto nao encontrado: '{schema_file}'"
+            )
         schema_path = schema_file
     elif os.path.exists(schema_file):  # 2) relativo direto
         schema_path = schema_file
     else:  # 3) fallback config
         current_file_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(current_file_dir)
-        candidate = os.path.join(project_root, 'config', os.path.basename(schema_file))
+        candidate = os.path.join(project_root, "config", os.path.basename(schema_file))
         if os.path.exists(candidate):
             schema_path = candidate
         else:
-            config_dir = os.path.join(project_root, 'config')
+            config_dir = os.path.join(project_root, "config")
             if os.path.isdir(config_dir):
                 try:
                     logger.info("Conteudo da pasta config: %s", os.listdir(config_dir))
                 except OSError as exc:
-                    logger.warning("Falha ao listar pasta config '%s': %s", config_dir, exc)
+                    logger.warning(
+                        "Falha ao listar pasta config '%s': %s", config_dir, exc
+                    )
             raise FileNotFoundError(
                 "Arquivo de schema nao encontrado. Tentativas: '\n"
                 f"- relativo ao CWD: {os.path.abspath(schema_file)}\n"
@@ -148,7 +159,7 @@ def initialize_database(db_path: str | _sqlite3_typehint.Connection, schema_file
             )
 
     logger.info(f"Aplicando schema a partir de: '{schema_path}'")
-    with open(schema_path, encoding='utf-8') as f:
+    with open(schema_path, encoding="utf-8") as f:
         schema_sql = f.read()
 
     # Permitir que testes passem uma conexao ja aberta (retrocompatibilidade)
@@ -166,6 +177,7 @@ def initialize_database(db_path: str | _sqlite3_typehint.Connection, schema_file
 
     logger.info("Banco de dados inicializado com sucesso.")
     return True
+
 
 def query_db(
     db_path: str,
@@ -194,7 +206,9 @@ def query_db(
                 resolved_table = _resolve_target_table(conn, table_name)
                 effective_query = f"SELECT * FROM {_quote_identifier(resolved_table)}"
 
-            logger.debug("Executando consulta: %s com params: %s", effective_query, params)
+            logger.debug(
+                "Executando consulta: %s com params: %s", effective_query, params
+            )
             # pd.read_sql_query e otimo para SELECTs
             df = pd.read_sql_query(
                 effective_query,
@@ -219,7 +233,8 @@ def query_db(
         )
         return pd.DataFrame()
 
-IfExistsPolicy = Literal['fail', 'replace', 'append']
+
+IfExistsPolicy = Literal["fail", "replace", "append"]
 
 
 def _is_ssa_target_alias(name: str) -> bool:
@@ -276,23 +291,30 @@ def get_ssa_query(table_name: str = CANONICAL_SSA_TABLE) -> str:
 
 
 def _validate_insert_policy(table_name: str, if_exists: IfExistsPolicy) -> None:
-    if if_exists == 'replace' and _is_ssa_target_alias(table_name):
+    if if_exists == "replace" and _is_ssa_target_alias(table_name):
         raise ValueError(
             "if_exists='replace' e proibido para a tabela canonica de SSA; "
             "use reset/schema-first antes da insercao"
         )
 
 
-def _prepare_dataframe_for_simple_insert(df: pd.DataFrame, *, legacy_mode: bool) -> pd.DataFrame:
+def _prepare_dataframe_for_simple_insert(
+    df: pd.DataFrame, *, legacy_mode: bool
+) -> pd.DataFrame:
     if df.empty:
         if legacy_mode:
             raise ValueError("DataFrame vazio fornecido (modo legado)")
-        logger.warning("DataFrame vazio fornecido para insercao (modo novo). Nada a fazer.")
+        logger.warning(
+            "DataFrame vazio fornecido para insercao (modo novo). Nada a fazer."
+        )
         return df.copy()
 
     work_df = df
     try:
-        from .database_upsert_logic import prepare_dataframe_for_storage as _prepare_storage_df
+        from .database_upsert_logic import (
+            prepare_dataframe_for_storage as _prepare_storage_df,
+        )
+
         work_df = _prepare_storage_df(work_df, normalize_derivada=False)
     except Exception as exc:  # pragma: no cover
         logger.exception(
@@ -301,8 +323,8 @@ def _prepare_dataframe_for_simple_insert(df: pd.DataFrame, *, legacy_mode: bool)
         )
         raise
 
-    if 'numero_ssa' in work_df.columns:
-        work_df = work_df[work_df['numero_ssa'].notna()].reset_index(drop=True)
+    if "numero_ssa" in work_df.columns:
+        work_df = work_df[work_df["numero_ssa"].notna()].reset_index(drop=True)
 
     if work_df.empty and legacy_mode:
         raise ValueError("DataFrame sem linhas validas apos normalizacao")
@@ -323,15 +345,24 @@ def _execute_simple_insert(
     mode_label: str,
 ) -> bool:
     batch_size = _calculate_simple_insert_batch_size(len(work_df.columns))
-    logger.debug("Batch size calculado (%s): %s linhas para %s colunas", mode_label, batch_size, len(work_df.columns))
+    logger.debug(
+        "Batch size calculado (%s): %s linhas para %s colunas",
+        mode_label,
+        batch_size,
+        len(work_df.columns),
+    )
     work_df.reset_index(drop=True, inplace=True)
 
-    if 'numero_ssa' in work_df.columns:
-        ssa_count = work_df['numero_ssa'].notna().sum()
-        logger.info("Registros com SSA (%s): %s/%s", mode_label, ssa_count, len(work_df))
+    if "numero_ssa" in work_df.columns:
+        ssa_count = work_df["numero_ssa"].notna().sum()
+        logger.info(
+            "Registros com SSA (%s): %s/%s", mode_label, ssa_count, len(work_df)
+        )
 
     insert_start = time.time()
-    work_df.to_sql(final_table, conn, if_exists=if_exists, index=False, chunksize=batch_size)
+    work_df.to_sql(
+        final_table, conn, if_exists=if_exists, index=False, chunksize=batch_size
+    )
     insert_time = time.time() - insert_start
 
     conn.commit()
@@ -387,7 +418,7 @@ def _resolve_target_table(conn: _sqlite3_typehint.Connection, table_name: str) -
         "SELECT name, type FROM sqlite_master WHERE lower(name)=?",
         (lookup_name,),
     ).fetchone()
-    if row and row[1] == 'view':
+    if row and row[1] == "view":
         canonical_row = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
             (CANONICAL_SSA_TABLE,),
@@ -421,6 +452,7 @@ def count_distinct_derivada_edges(
     """
     return int(conn.execute(query).fetchone()[0] or 0)
 
+
 def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
     """Insere um DataFrame em uma tabela do banco (modo simples).
 
@@ -450,22 +482,24 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
         df: pd.DataFrame = args[0]
         db_path: str = args[1]
         table_name: str = args[2]
-        if_exists: IfExistsPolicy = kwargs.get('if_exists', 'append')
+        if_exists: IfExistsPolicy = kwargs.get("if_exists", "append")
         legacy_mode = False
         legacy_conn: _sqlite3_typehint.Connection | None = None
     else:
         # Legado: (conn, df [, table])
         legacy_conn = args[0]
-        if not isinstance(legacy_conn, _sqlite3_typehint.Connection):  # pragma: no cover
+        if not isinstance(
+            legacy_conn, _sqlite3_typehint.Connection
+        ):  # pragma: no cover
             raise TypeError("Primeiro argumento legado deve ser conexao sqlite3")
         if len(args) < 2:
             raise TypeError("Uso legado requer (conn, df [, table_name])")
         df = args[1]
         if not isinstance(df, pd.DataFrame):  # pragma: no cover
             raise TypeError("Segundo argumento legado deve ser DataFrame")
-        table_name = args[2] if len(args) >= 3 else 'ssas'
+        table_name = args[2] if len(args) >= 3 else "ssas"
         db_path = None
-        if_exists = kwargs.get('if_exists', 'append')
+        if_exists = kwargs.get("if_exists", "append")
         legacy_mode = True
 
     work_df = _prepare_dataframe_for_simple_insert(df, legacy_mode=legacy_mode)
@@ -478,7 +512,11 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
         if not legacy_mode:
             # Caminho novo: abrir conexao via caminho
             start_time = time.time()
-            logger.info("Iniciando insercao padrao: %s registros em '%s'", len(work_df), table_name)
+            logger.info(
+                "Iniciando insercao padrao: %s registros em '%s'",
+                len(work_df),
+                table_name,
+            )
             if db_path is None:
                 raise ValueError("db_path ausente no caminho padrao de insercao")
 
@@ -489,7 +527,11 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
                 journal_mode = cur.fetchone()[0]
                 cur.execute("PRAGMA cache_size")
                 cache_size = cur.fetchone()[0]
-                logger.info("Configuracoes SQLite: journal_mode=%s, cache_size=%s", journal_mode, cache_size)
+                logger.info(
+                    "Configuracoes SQLite: journal_mode=%s, cache_size=%s",
+                    journal_mode,
+                    cache_size,
+                )
 
                 final_table = _resolve_target_table(conn, table_name)
                 _validate_insert_policy(final_table, if_exists)
@@ -498,16 +540,22 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
                     work_df,
                     final_table,
                     if_exists,
-                    mode_label='padrao',
+                    mode_label="padrao",
                 )
                 total_time = time.time() - start_time
-                logger.debug("Tempo total com setup (%s): %.2fs", final_table, total_time)
+                logger.debug(
+                    "Tempo total com setup (%s): %.2fs", final_table, total_time
+                )
 
-            logger.info("%s linhas inseridas (modo padrao) em '%s'", len(work_df), table_name)
+            logger.info(
+                "%s linhas inseridas (modo padrao) em '%s'", len(work_df), table_name
+            )
             return True
         # Legado: ja temos conexao aberta
         start_time = time.time()
-        logger.info("Iniciando insercao legado: %s registros em '%s'", len(work_df), table_name)
+        logger.info(
+            "Iniciando insercao legado: %s registros em '%s'", len(work_df), table_name
+        )
 
         if legacy_conn is None:  # pragma: no cover
             raise RuntimeError("Conexao legado ausente em insert_dataframe_to_db")
@@ -519,12 +567,14 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
             work_df,
             final_table,
             if_exists,
-            mode_label='legado',
+            mode_label="legado",
         )
         total_time = time.time() - start_time
         logger.debug("Tempo total com setup (%s): %.2fs", final_table, total_time)
 
-        logger.info("%s linhas inseridas (modo legado) em '%s'", len(work_df), final_table)
+        logger.info(
+            "%s linhas inseridas (modo legado) em '%s'", len(work_df), final_table
+        )
         return True
     except ValueError:
         raise
@@ -533,14 +583,16 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
             try:
                 active_conn.rollback()
             except Exception:
-                logger.exception("Falha ao executar rollback explicito em insert_dataframe_to_db")
+                logger.exception(
+                    "Falha ao executar rollback explicito em insert_dataframe_to_db"
+                )
         logger.error(f"Falha ao inserir dados na tabela '{table_name}': {e}")
         return False
 
 
 def reset_database(
     db_path: str,
-    mode: str = 'table',
+    mode: str = "table",
     _table_name: str = CANONICAL_SSA_TABLE,  # parametro legado nao usado
     schema_path: str | None = None,
 ) -> bool:
@@ -550,15 +602,17 @@ def reset_database(
     - mode = 'table': recria somente a tabela alvo usando o schema.
     """
     try:
-        if mode == 'file':
+        if mode == "file":
             if os.path.exists(db_path):
                 os.remove(db_path)
             _clear_resolved_table_cache(db_path)
             return True
-        if mode == 'table':
+        if mode == "table":
             # Reaplica o schema
             if schema_path is None:
-                schema_path = schema_file  # usa padrao e resolucao em initialize_database
+                schema_path = (
+                    schema_file  # usa padrao e resolucao em initialize_database
+                )
             initialize_database(db_path, schema_path)
             _clear_resolved_table_cache(db_path)
             return True
@@ -671,7 +725,6 @@ def ensure_column_exists(
 from . import database_upsert_logic as _up  # noqa: E402  # import unico para usar diretamente funcoes refatoradas
 
 
-
 def configure_upsert_short_circuit_policy(policy: str | None) -> None:
     """Configura politica de short-circuit usada no upsert do processo atual."""
     _up.set_runtime_short_circuit_policy(policy)
@@ -697,18 +750,24 @@ def insert_dataframe_with_smart_upsert(
     # Suporte retrocompativel:
     #  - Novo contrato: (df, db_path, table_name)
     #  - Contrato legado usado em testes: (conn, df) ou (conn, df, table_name)
-    if isinstance(df, _sqlite3_typehint.Connection):  # padrao antigo: primeiro arg e conexao
+    if isinstance(
+        df, _sqlite3_typehint.Connection
+    ):  # padrao antigo: primeiro arg e conexao
         conn = df
         real_df = db_path  # neste formato, segundo argumento e o DataFrame
         if not isinstance(real_df, pd.DataFrame):  # tipo incorreto
-            logger.error("Uso legado invalido: segundo argumento deve ser DataFrame quando primeiro e conexao")
+            logger.error(
+                "Uso legado invalido: segundo argumento deve ser DataFrame quando primeiro e conexao"
+            )
             return False
         # real_df ja garantido DataFrame acima; apenas verificar vazio
         if real_df.empty:
             return True
         # Modo legado sempre usa implementacao padrao (nao suportado por optimized)
         try:
-            return _up.insert_dataframe_with_smart_upsert_impl(real_df, conn, table_name)
+            return _up.insert_dataframe_with_smart_upsert_impl(
+                real_df, conn, table_name
+            )
         except Exception as e:  # pragma: no cover
             logger.error(f"Falha na insercao (legacy conn mode): {e}")
             return False
@@ -724,6 +783,7 @@ def insert_dataframe_with_smart_upsert(
             assert isinstance(real_df, pd.DataFrame)
             assert isinstance(db_path, str)
             from .database_optimized import insert_dataframe_optimized
+
             return insert_dataframe_optimized(real_df, db_path, table_name)
         except Exception as e:  # pragma: no cover
             logger.error(f"Falha na insercao otimizada: {e}")
@@ -733,15 +793,17 @@ def insert_dataframe_with_smart_upsert(
         try:
             assert isinstance(real_df, pd.DataFrame)
             assert isinstance(db_path, str)
-            return _up.insert_dataframe_with_smart_upsert_impl(real_df, db_path, table_name)
+            return _up.insert_dataframe_with_smart_upsert_impl(
+                real_df, db_path, table_name
+            )
         except Exception as e:  # pragma: no cover
             logger.error(f"Falha na insercao: {e}")
             return False
 
 
 from .numero_ssa_utils import _normalize_numero_ssa_value  # noqa: E402, F401
-from .numero_ssa_utils import (  # noqa: E402
-    normalize_numero_ssa as _normalize_numero_ssa_display,
+from .numero_ssa_utils import normalize_numero_ssa as _normalize_numero_ssa_display  # noqa: E402
+from .numero_ssa_utils import (
     normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe,
 )
 
@@ -756,11 +818,13 @@ def normalize_numero_ssa(value) -> str | None:  # retrocompat
 
 # --- Funcoes de Verificacao e Integridade do Banco ---
 
+
 def verify_database_integrity(
     db_path: str,
     table_name: str = CANONICAL_SSA_TABLE,
 ) -> dict[str, Any]:  # compat wrapper
     from . import database_integrity as _int
+
     return _int.verify_database_integrity(db_path, table_name)
 
 
@@ -769,13 +833,15 @@ def validate_dataframe_before_insert(
     table_name: str = CANONICAL_SSA_TABLE,
 ) -> dict[str, Any]:  # compat wrapper
     from . import database_validation as _val
+
     return _val.validate_dataframe_before_insert(df, table_name)
 
 
 def repair_database_if_needed(
     db_path: str,
-    schema_file: str = 'schema.sql',
+    schema_file: str = "schema.sql",
     table_name: str = CANONICAL_SSA_TABLE,
 ) -> bool:  # compat wrapper
     from . import database_integrity as _int
+
     return _int.repair_database_if_needed(db_path, schema_file, table_name)

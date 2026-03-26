@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """Smoke tests de sanidade da GUI principal em modo headless."""
 
+import inspect
 import os
 import sys
-import inspect
 from contextlib import suppress
 from unittest.mock import patch
 
 import pytest
 
-pytest.importorskip("PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste")
+pytest.importorskip(
+    "PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste"
+)
 from PyQt6.QtWidgets import QApplication  # noqa: E402
-
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
@@ -47,7 +48,7 @@ def test_gui_instantiation(window):
 
     try:
         # Import em modo headless
-        from gui.gui_ssa import SSAMainWindow, QT_AVAILABLE
+        from gui.gui_ssa import QT_AVAILABLE, SSAMainWindow
 
         print(f"  Qt disponivel: {QT_AVAILABLE}")
 
@@ -57,9 +58,13 @@ def test_gui_instantiation(window):
         # Verifica alguns atributos basicos
         assert hasattr(window, "df_completo"), "Atributo 'df_completo' ausente"
         print("  [OK] Atributo 'df_completo' existe")
-        assert hasattr(window, "initiate_filtering"), "Metodo 'initiate_filtering' ausente"
+        assert hasattr(window, "initiate_filtering"), (
+            "Metodo 'initiate_filtering' ausente"
+        )
         print("  [OK] Metodo 'initiate_filtering' acessivel")
-        assert hasattr(window, "_apply_column_filters"), "Metodo '_apply_column_filters' ausente"
+        assert hasattr(window, "_apply_column_filters"), (
+            "Metodo '_apply_column_filters' ausente"
+        )
         print("  [OK] Metodo '_apply_column_filters' acessivel")
 
     except ImportError as e:
@@ -93,14 +98,20 @@ def test_no_method_conflicts():
         from gui.mixins import FilterGUISSAMixin
 
         # Obtem metodos da classe
-        ssa_methods = {name: getattr(SSAMainWindow, name)
-                       for name in dir(SSAMainWindow)
-                       if not name.startswith('__') and callable(getattr(SSAMainWindow, name, None))}
+        ssa_methods = {
+            name: getattr(SSAMainWindow, name)
+            for name in dir(SSAMainWindow)
+            if not name.startswith("__")
+            and callable(getattr(SSAMainWindow, name, None))
+        }
 
         # Obtem metodos do mixin
-        mixin_methods = {name: getattr(FilterGUISSAMixin, name)
-                         for name in dir(FilterGUISSAMixin)
-                         if not name.startswith('__') and callable(getattr(FilterGUISSAMixin, name, None))}
+        mixin_methods = {
+            name: getattr(FilterGUISSAMixin, name)
+            for name in dir(FilterGUISSAMixin)
+            if not name.startswith("__")
+            and callable(getattr(FilterGUISSAMixin, name, None))
+        }
 
         # Verifica se metodos do mixin estao presentes
         mixin_method_names = set(mixin_methods.keys())
@@ -139,5 +150,5 @@ def main():
     return pytest.main([__file__, "-q"])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

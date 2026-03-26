@@ -1,5 +1,6 @@
-import pytest
 from typing import Any, cast
+
+import pytest
 
 
 def test_open_docs_folder_uses_qdesktopservices_when_available(monkeypatch, tmp_path):
@@ -22,9 +23,19 @@ def test_open_docs_folder_uses_qdesktopservices_when_available(monkeypatch, tmp_
             return True
 
     monkeypatch.setattr(gui_ssa, "QDesktopServices", DummyQDesktopServices)
-    monkeypatch.setattr(gui_ssa.subprocess, "run", lambda *a, **k: pytest.fail("subprocess.run called"))
-    monkeypatch.setattr(gui_ssa.subprocess, "Popen", lambda *a, **k: pytest.fail("subprocess.Popen called"))
-    monkeypatch.setattr(gui_ssa.QMessageBox, "warning", lambda *a, **k: pytest.fail("QMessageBox.warning called"))
+    monkeypatch.setattr(
+        gui_ssa.subprocess, "run", lambda *a, **k: pytest.fail("subprocess.run called")
+    )
+    monkeypatch.setattr(
+        gui_ssa.subprocess,
+        "Popen",
+        lambda *a, **k: pytest.fail("subprocess.Popen called"),
+    )
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox,
+        "warning",
+        lambda *a, **k: pytest.fail("QMessageBox.warning called"),
+    )
 
     gui_ssa.SSAMainWindow.open_docs_folder(cast(Any, object()))
 
@@ -36,8 +47,14 @@ def test_resolve_platform_open_command_prefers_absolute_windows_launcher(monkeyp
 
     monkeypatch.setattr(gui_ssa.sys, "platform", "win32")
     monkeypatch.setenv("WINDIR", r"C:\\Windows")
-    monkeypatch.setattr(gui_ssa.os.path, "isfile", lambda path: path == r"C:\Windows\explorer.exe")
-    monkeypatch.setattr(gui_ssa.shutil, "which", lambda _name: pytest.fail("shutil.which should not be called"))
+    monkeypatch.setattr(
+        gui_ssa.os.path, "isfile", lambda path: path == r"C:\Windows\explorer.exe"
+    )
+    monkeypatch.setattr(
+        gui_ssa.shutil,
+        "which",
+        lambda _name: pytest.fail("shutil.which should not be called"),
+    )
 
     resolved = gui_ssa.SSAMainWindow._resolve_platform_open_command()
 
@@ -54,7 +71,11 @@ def test_open_docs_folder_missing_skips_modal_under_pytest(monkeypatch, tmp_path
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "1")
 
     monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
-    monkeypatch.setattr(gui_ssa.QMessageBox, "warning", lambda *a, **k: pytest.fail("QMessageBox.warning called"))
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox,
+        "warning",
+        lambda *a, **k: pytest.fail("QMessageBox.warning called"),
+    )
 
     gui_ssa.SSAMainWindow.open_docs_folder(cast(Any, object()))
 
@@ -84,9 +105,15 @@ def test_open_docs_folder_missing_prompts_and_creates_folder(monkeypatch, tmp_pa
             return True
 
     monkeypatch.setattr(gui_ssa, "QDesktopServices", DummyQDesktopServices)
-    monkeypatch.setattr(gui_ssa.QMessageBox, "StandardButton", _StdButtons, raising=False)
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox, "StandardButton", _StdButtons, raising=False
+    )
     monkeypatch.setattr(gui_ssa.QMessageBox, "question", _question, raising=False)
-    monkeypatch.setattr(gui_ssa.QMessageBox, "warning", lambda *a, **k: pytest.fail("QMessageBox.warning called"))
+    monkeypatch.setattr(
+        gui_ssa.QMessageBox,
+        "warning",
+        lambda *a, **k: pytest.fail("QMessageBox.warning called"),
+    )
 
     target_folder = tmp_path / "docs_entrada"
     assert not target_folder.exists()

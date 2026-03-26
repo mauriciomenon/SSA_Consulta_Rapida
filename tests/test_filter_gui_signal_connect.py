@@ -38,7 +38,9 @@ def test_connect_filter_signal_prefers_positional_queued(monkeypatch):
     signal = _SignalPositionalQueuedOnly(queued_token)
     monkeypatch.setattr(filter_mixin, "_FILTER_QT_QUEUED", queued_token, raising=True)
 
-    connected = filter_mixin._connect_filter_signal(signal, lambda: None, label="test.positional")
+    connected = filter_mixin._connect_filter_signal(
+        signal, lambda: None, label="test.positional"
+    )
 
     assert connected is True
     assert len(signal.calls) == 1
@@ -52,7 +54,9 @@ def test_connect_filter_signal_falls_back_to_keyword_queued(monkeypatch):
     signal = _SignalKeywordQueuedOnly(queued_token)
     monkeypatch.setattr(filter_mixin, "_FILTER_QT_QUEUED", queued_token, raising=True)
 
-    connected = filter_mixin._connect_filter_signal(signal, lambda: None, label="test.keyword")
+    connected = filter_mixin._connect_filter_signal(
+        signal, lambda: None, label="test.keyword"
+    )
 
     assert connected is True
     assert len(signal.calls) == 2
@@ -66,5 +70,7 @@ def test_connect_filter_signal_falls_back_to_keyword_queued(monkeypatch):
 
 
 def test_connect_filter_signal_returns_false_for_missing_signal():
-    connected = filter_mixin._connect_filter_signal(None, lambda: None, label="test.none")
+    connected = filter_mixin._connect_filter_signal(
+        None, lambda: None, label="test.none"
+    )
     assert connected is False

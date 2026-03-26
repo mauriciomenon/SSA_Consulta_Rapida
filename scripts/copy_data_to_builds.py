@@ -15,8 +15,8 @@ Uso:
 
 import argparse
 import shutil
-from pathlib import Path
 import sys
+from pathlib import Path
 
 PYINSTALLER_CANONICAL_DIRS = (
     "launchers/dist/windows_amd64",
@@ -146,7 +146,9 @@ def copy_data_to_build(
         db_size_mb = source_db.stat().st_size / (1024 * 1024)
         if db_size_mb > 100:
             if verbose:
-                print(f"WARN  Pulando DB grande ({db_size_mb:.1f} MB) - risco de dados sensiveis")
+                print(
+                    f"WARN  Pulando DB grande ({db_size_mb:.1f} MB) - risco de dados sensiveis"
+                )
             db_ok = False
             success = False
 
@@ -158,9 +160,7 @@ def copy_data_to_build(
     excel_files: list[Path] = []
     if docs_entrada.exists():
         excel_files = sorted(
-            docs_entrada.glob("*.xlsx"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True
+            docs_entrada.glob("*.xlsx"), key=lambda p: p.stat().st_mtime, reverse=True
         )
     elif verbose:
         print("WARN  Diretorio docs_entrada nao encontrado")
@@ -199,7 +199,9 @@ def copy_data_to_build(
 
         copied_count = 0
         if verbose and excel_files:
-            print(f"INFO Copiando Excel samples para {runtime_dir} (maximo {max_excel_files}):")
+            print(
+                f"INFO Copiando Excel samples para {runtime_dir} (maximo {max_excel_files}):"
+            )
 
         for excel_file in excel_files[:max_excel_files]:
             target_excel = target_docs_entrada_dir / excel_file.name
@@ -210,7 +212,9 @@ def copy_data_to_build(
                     print(f"    {excel_file.name} ({size_kb:.0f} KB)")
                 copied_count += 1
             except Exception as e:
-                print(f"   ERR Erro ao copiar {excel_file.name} para {runtime_dir}: {e}")
+                print(
+                    f"   ERR Erro ao copiar {excel_file.name} para {runtime_dir}: {e}"
+                )
                 success = False
 
         if verbose and copied_count > 0:
@@ -220,39 +224,33 @@ def copy_data_to_build(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Copia dados (DB e Excel) para builds"
-    )
+    parser = argparse.ArgumentParser(description="Copia dados (DB e Excel) para builds")
     parser.add_argument(
         "--build-system",
         choices=["pyinstaller", "pyoxidizer", "nuitka"],
-        help="Build system especifico para copiar dados"
+        help="Build system especifico para copiar dados",
     )
     parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Copiar para todos os builds existentes"
+        "--all", action="store_true", help="Copiar para todos os builds existentes"
     )
     parser.add_argument(
         "--db-path",
         default="data/ssas.db",
-        help="Caminho para o arquivo do banco de dados (default: data/ssas.db)"
+        help="Caminho para o arquivo do banco de dados (default: data/ssas.db)",
     )
     parser.add_argument(
         "--docs-dir",
         default="docs_entrada",
-        help="Diretorio de entrada de documentos Excel (default: docs_entrada)"
+        help="Diretorio de entrada de documentos Excel (default: docs_entrada)",
     )
     parser.add_argument(
         "--max-excels",
         type=int,
         default=3,
-        help="Quantidade maxima de arquivos Excel para copiar (default: 3)"
+        help="Quantidade maxima de arquivos Excel para copiar (default: 3)",
     )
     parser.add_argument(
-        "--quiet",
-        action="store_true",
-        help="Modo silencioso (menos output)"
+        "--quiet", action="store_true", help="Modo silencioso (menos output)"
     )
     parser.add_argument(
         "--allow-local-data",
@@ -330,7 +328,9 @@ def main():
         for build_dir in existing_dirs:
             if verbose:
                 print("=" * 60)
-                print(f"Copiando dados para build: {args.build_system.upper()} -> {build_dir}")
+                print(
+                    f"Copiando dados para build: {args.build_system.upper()} -> {build_dir}"
+                )
                 print("=" * 60)
                 print()
             success = copy_data_to_build(

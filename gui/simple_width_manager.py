@@ -4,9 +4,11 @@ Elimina código frankenstein com implementação funcional mínima.
 """
 
 import logging
+
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
 
 class SimpleWidthManager:
     """
@@ -17,24 +19,24 @@ class SimpleWidthManager:
     def __init__(self):
         """Inicializa o gerenciador simples."""
         self.min_char_sizes = {
-            '#': 3,
-            'numero_ssa': 8,
-            'localizacao_codigo': 7,
-            'situacao': 4,
-            'descricao_ssa': 25,
-            'data_cadastro': 9,
-            'setor_emissor': 5,
-            'setor_executor': 5,
-            'derivada_de': 8,
-            'semana_programada': 6,
-            'descricao_execucao': 20,
-            'semana_cadastro': 7,
-            'solicitante': 18,  # Aumentado para acomodar "MAURICIO MENON"
-            'grau_prioridade_emissao': 4,
-            'grau_prioridade_planejamento': 4
+            "#": 3,
+            "numero_ssa": 8,
+            "localizacao_codigo": 7,
+            "situacao": 4,
+            "descricao_ssa": 25,
+            "data_cadastro": 9,
+            "setor_emissor": 5,
+            "setor_executor": 5,
+            "derivada_de": 8,
+            "semana_programada": 6,
+            "descricao_execucao": 20,
+            "semana_cadastro": 7,
+            "solicitante": 18,  # Aumentado para acomodar "MAURICIO MENON"
+            "grau_prioridade_emissao": 4,
+            "grau_prioridade_planejamento": 4,
         }
 
-        self.expandable_columns = ['descricao_ssa', 'descricao_execucao', 'solicitante']
+        self.expandable_columns = ["descricao_ssa", "descricao_execucao", "solicitante"]
         self.max_pixel_widths = {
             "descricao_ssa": 620,
             "descricao_execucao": 560,
@@ -45,7 +47,7 @@ class SimpleWidthManager:
         self,
         df,  # DataFrame
         available_width: int,
-        column_order=None
+        column_order=None,
     ):
         """
         ALGORITMO SIMPLES E FUNCIONAL - BASE DETERMINISTICA COM CRESCIMENTO
@@ -66,58 +68,61 @@ class SimpleWidthManager:
         else:
             # Lista de colunas ordenada deterministicamente
             df_columns = sorted(df.columns.tolist())
-            columns = ['#'] + df_columns if '#' not in df_columns else sorted(df.columns.tolist())
+            columns = (
+                ["#"] + df_columns
+                if "#" not in df_columns
+                else sorted(df.columns.tolist())
+            )
 
         # LARGURAS FIXAS CONSTANTES - TAMANHO EXATO SEMPRE IGUAL
         fixed_widths = {}
         expandable_cols = []  # Colunas que podem crescer
 
         for i, col in enumerate(columns):
-
-            if col == '#':
+            if col == "#":
                 fixed_widths[col] = 24
 
-            elif col == 'numero_ssa':
+            elif col == "numero_ssa":
                 fixed_widths[col] = 85  # leve incremento adicional
 
-            elif col == 'situacao':
+            elif col == "situacao":
                 fixed_widths[col] = 40  # +5 px leve
 
-            elif col == 'setor_executor':
+            elif col == "setor_executor":
                 fixed_widths[col] = 52
 
-            elif col == 'setor_emissor':
+            elif col == "setor_emissor":
                 fixed_widths[col] = 52
 
-            elif col == 'localizacao_codigo':
+            elif col == "localizacao_codigo":
                 fixed_widths[col] = 76
 
-            elif col == 'data_cadastro':
+            elif col == "data_cadastro":
                 fixed_widths[col] = 95  # +10 px leve
 
-            elif col == 'semana_cadastro':
+            elif col == "semana_cadastro":
                 fixed_widths[col] = 72
 
-            elif col == 'semana_programada':
+            elif col == "semana_programada":
                 fixed_widths[col] = 68
 
-            elif col == 'derivada_de':
+            elif col == "derivada_de":
                 fixed_widths[col] = 86  # evita truncar IDs numericos em "Derivada de"
 
-            elif col == 'grau_prioridade_emissao':
+            elif col == "grau_prioridade_emissao":
                 fixed_widths[col] = 70  # +5 px leve
 
-            elif col == 'grau_prioridade_planejamento':
+            elif col == "grau_prioridade_planejamento":
                 fixed_widths[col] = 70  # +5 px leve
 
-            elif col == 'solicitante':
+            elif col == "solicitante":
                 fixed_widths[col] = 220  # mais folga para caber nomes completos
 
-            elif col == 'descricao_ssa':
+            elif col == "descricao_ssa":
                 fixed_widths[col] = 470  # +20 px leve
                 expandable_cols.append(col)
 
-            elif col == 'descricao_execucao':
+            elif col == "descricao_execucao":
                 fixed_widths[col] = 370  # +20 px leve
                 expandable_cols.append(col)
 
@@ -143,12 +148,14 @@ class SimpleWidthManager:
 
         for col, width in list(fixed_widths.items()):
             max_px = int(self.max_pixel_widths.get(col, 1000))
-            min_px = 24 if col == '#' else 30
+            min_px = 24 if col == "#" else 30
             fixed_widths[col] = max(min_px, min(int(width), max_px))
 
         return fixed_widths
 
-    def capture_current_column_widths(self, table_widget, current_columns) -> dict[str, int]:
+    def capture_current_column_widths(
+        self, table_widget, current_columns
+    ) -> dict[str, int]:
         captured: dict[str, int] = {}
         if table_widget is None:
             return captured
@@ -196,7 +203,7 @@ class SimpleWidthManager:
                     exc,
                 )
                 continue
-            min_px = 24 if col_name == '#' else 30
+            min_px = 24 if col_name == "#" else 30
             safe_width = max(min_px, min(width_int, col_max))
             try:
                 table_widget.setColumnWidth(idx, safe_width)
@@ -231,7 +238,7 @@ class SimpleWidthManager:
             column_order=column_order,
         )
         buckets = {}
-        for col in (column_order or list(df.columns)):
+        for col in column_order or list(df.columns):
             pixel_width = int(widths.get(col, 120))
             # Keep proportional-priority columns expanded whenever possible.
             if col in {"descricao_ssa", "descricao_execucao"}:
@@ -275,7 +282,9 @@ class SimpleWidthManager:
         if len(sample_series) > int(sample_limit):
             sample_series = sample_series.sample(n=int(sample_limit), random_state=0)
 
-        normalized = sample_series.map(lambda value: value.replace("\n", " ").replace("\r", " ").strip())
+        normalized = sample_series.map(
+            lambda value: value.replace("\n", " ").replace("\r", " ").strip()
+        )
         measure_cache: dict[str, int] = {}
 
         def _measure_cached(value: str) -> int:

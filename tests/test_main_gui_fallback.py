@@ -50,7 +50,9 @@ def test_main_gui_unexpected_import_error_exits_with_failure(
         calls["cli"] += 1
 
     monkeypatch.setattr(cli, "start_cli_loop", fake_start_cli_loop)
-    _patch_gui_import_failure(monkeypatch, RuntimeError("simulated runtime import failure"))
+    _patch_gui_import_failure(
+        monkeypatch, RuntimeError("simulated runtime import failure")
+    )
 
     with pytest.raises(SystemExit) as excinfo:
         main.main(cli_args=["--skip-import", "--gui", "--log-level", "CRITICAL"])

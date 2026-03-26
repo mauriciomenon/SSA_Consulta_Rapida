@@ -3,13 +3,17 @@ from __future__ import annotations
 import pytest
 
 
-def test_main_skip_import_does_not_call_importer(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_main_skip_import_does_not_call_importer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import core.app_logic as app_logic
     import interface.cli as cli
     import main
 
     def unexpected_import(*args, **kwargs):  # noqa: ARG001
-        raise AssertionError("run_importer_logic should not be called when --skip-import is set")
+        raise AssertionError(
+            "run_importer_logic should not be called when --skip-import is set"
+        )
 
     called = {"n": 0}
 

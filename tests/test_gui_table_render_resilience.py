@@ -94,8 +94,14 @@ class TestGUITableRenderResilience:
         assert self.window.table_widget.rowCount() == len(self.base_df)
         assert self.window.table_widget.item(0, 0) is not None
 
-    def test_display_current_page_skips_redundant_detail_refresh_for_same_signature(self):
-        with patch.object(ssa_gui_details, "_update_details_from_series", wraps=ssa_gui_details._update_details_from_series) as update_details:
+    def test_display_current_page_skips_redundant_detail_refresh_for_same_signature(
+        self,
+    ):
+        with patch.object(
+            ssa_gui_details,
+            "_update_details_from_series",
+            wraps=ssa_gui_details._update_details_from_series,
+        ) as update_details:
             self.window.display_current_page(1)
             QApplication.processEvents()
             self.window.display_current_page(1)
@@ -104,7 +110,11 @@ class TestGUITableRenderResilience:
         assert update_details.call_count == 1
 
     def test_display_current_page_refreshes_details_when_search_terms_change(self):
-        with patch.object(ssa_gui_details, "_update_details_from_series", wraps=ssa_gui_details._update_details_from_series) as update_details:
+        with patch.object(
+            ssa_gui_details,
+            "_update_details_from_series",
+            wraps=ssa_gui_details._update_details_from_series,
+        ) as update_details:
             self.window.display_current_page(1)
             QApplication.processEvents()
             self.window.search_input.setText("Teste A")
@@ -125,17 +135,26 @@ class TestGUITableRenderResilience:
         paged_df = pd.concat([self.base_df, extra_rows], ignore_index=True)
         self._set_window_dataframe(paged_df, page_size=2)
 
-        with patch.object(ssa_gui_details, "_update_details_from_series", wraps=ssa_gui_details._update_details_from_series) as update_details:
+        with patch.object(
+            ssa_gui_details,
+            "_update_details_from_series",
+            wraps=ssa_gui_details._update_details_from_series,
+        ) as update_details:
             self.window.display_current_page(1)
             QApplication.processEvents()
             self.window.display_current_page(2)
             QApplication.processEvents()
 
-        expected_page = format_dataframe_for_display(paged_df.iloc[2:4][self.window.visible_columns].copy())
+        expected_page = format_dataframe_for_display(
+            paged_df.iloc[2:4][self.window.visible_columns].copy()
+        )
         assert update_details.call_count == 2
         assert self.window.table_widget.rowCount() == 2
         numero_ssa_col = self.window._current_display_columns.index("numero_ssa")
-        assert self.window.table_widget.item(0, numero_ssa_col).text() == expected_page.iloc[0]["numero_ssa"]
+        assert (
+            self.window.table_widget.item(0, numero_ssa_col).text()
+            == expected_page.iloc[0]["numero_ssa"]
+        )
 
     def test_display_current_page_restores_widget_batch_state_after_render(self):
         header = self.window.table_widget.horizontalHeader()
@@ -162,7 +181,11 @@ class TestGUITableRenderResilience:
         assert "Teste A" in details_html
 
     def test_display_current_page_can_skip_initial_details_update(self):
-        with patch.object(ssa_gui_details, "_update_details_from_series", wraps=ssa_gui_details._update_details_from_series) as update_details:
+        with patch.object(
+            ssa_gui_details,
+            "_update_details_from_series",
+            wraps=ssa_gui_details._update_details_from_series,
+        ) as update_details:
             self.window.display_current_page(1, update_details=False)
             QApplication.processEvents()
 
@@ -176,7 +199,9 @@ class TestGUITableRenderResilience:
         initial_html = str(self.window.details_text.toHtml() or "")
         initial_ssa = self.window._details_current_ssa
 
-        paged_df = pd.concat([self.base_df, self.base_df.iloc[:2].copy()], ignore_index=True)
+        paged_df = pd.concat(
+            [self.base_df, self.base_df.iloc[:2].copy()], ignore_index=True
+        )
         paged_df.loc[3:, "numero_ssa"] = [44, 55]
         paged_df.loc[3:, "descricao_ssa"] = ["Outro D", "Outro E"]
         self._set_window_dataframe(paged_df, page_size=2)
@@ -184,9 +209,14 @@ class TestGUITableRenderResilience:
         self.window.display_current_page(2, update_details=False)
         QApplication.processEvents()
 
-        expected_page = format_dataframe_for_display(paged_df.iloc[2:4][self.window.visible_columns].copy())
+        expected_page = format_dataframe_for_display(
+            paged_df.iloc[2:4][self.window.visible_columns].copy()
+        )
         numero_ssa_col = self.window._current_display_columns.index("numero_ssa")
-        assert self.window.table_widget.item(0, numero_ssa_col).text() == expected_page.iloc[0]["numero_ssa"]
+        assert (
+            self.window.table_widget.item(0, numero_ssa_col).text()
+            == expected_page.iloc[0]["numero_ssa"]
+        )
         assert self.window._details_current_ssa == initial_ssa
         assert str(self.window.details_text.toHtml() or "") == initial_html
 
@@ -197,15 +227,24 @@ class TestGUITableRenderResilience:
         replacement_df = self.base_df.copy()
         replacement_df.loc[:, "numero_ssa"] = [101, 102, 103]
         replacement_df.loc[:, "descricao_ssa"] = ["Novo A", "Novo B", "Novo C"]
-        replacement_df.loc[:, "descricao_execucao"] = ["Exec Novo A", "Exec Novo B", "Exec Novo C"]
+        replacement_df.loc[:, "descricao_execucao"] = [
+            "Exec Novo A",
+            "Exec Novo B",
+            "Exec Novo C",
+        ]
         self._set_window_dataframe(replacement_df, page_size=10)
 
         self.window.display_current_page(1)
         QApplication.processEvents()
 
-        expected_page = format_dataframe_for_display(replacement_df[self.window.visible_columns].copy())
+        expected_page = format_dataframe_for_display(
+            replacement_df[self.window.visible_columns].copy()
+        )
         numero_ssa_col = self.window._current_display_columns.index("numero_ssa")
-        assert self.window.table_widget.item(0, numero_ssa_col).text() == expected_page.iloc[0]["numero_ssa"]
+        assert (
+            self.window.table_widget.item(0, numero_ssa_col).text()
+            == expected_page.iloc[0]["numero_ssa"]
+        )
         assert self.window._details_current_ssa == 101
         details_html = str(self.window.details_text.toHtml() or "")
         assert "Novo A" in details_html
