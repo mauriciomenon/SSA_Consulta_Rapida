@@ -146,3 +146,23 @@ def test_ensure_schema_adds_not_null_columns_with_safe_defaults(temp_db):
 
     assert matrix_row == ("", "", "")
     assert closure_row == (1, 1, "")
+
+
+def test_ensure_derivadas_schema_validates_path_before_open(tmp_path, monkeypatch):
+    db_path = tmp_path / "blocked_derivadas.db"
+    captured = {}
+
+    def _raise_blocked(path, purpose):
+        captured["path"] = path
+        captured["purpose"] = purpose
+        raise PermissionError("blocked")
+
+    monkeypatch.setattr("armazenamento.derivadas_schema.ensure_path_is_allowed", _raise_blocked)
+
+    with pytest.raises(PermissionError, match="blocked"):
+        ensure_derivadas_schema(str(db_path))
+
+    assert captured == {
+        "path": str(db_path),
+        "purpose": "ensure derivadas schema",
+    }
