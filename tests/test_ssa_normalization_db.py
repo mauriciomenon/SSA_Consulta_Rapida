@@ -23,7 +23,7 @@ def test_normalize_numero_ssa_dataframe_apply():
         'numero_ssa': [None, 'abc123', '12345678', '202501234']
     })
     out = normalize_numero_ssa_dataframe(df)
-    assert list(out['numero_ssa']) == [None, None, None, 202501234]
+    assert list(out['numero_ssa']) == [None, None, None, '202501234']
 # tests/test_ssa_normalization_db.py
 import os
 import sys

@@ -155,7 +155,7 @@ def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         return df
     out = df.copy()
     out['numero_ssa'] = pd.Series([
-        None if _contains_letters(v) else _normalize_numero_ssa_value(v)
+        normalize_numero_ssa_storage(v)
         for v in out['numero_ssa']
     ], dtype='object')
     return out
