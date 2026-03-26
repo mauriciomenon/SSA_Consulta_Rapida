@@ -224,6 +224,7 @@ def insert_dataframe_optimized(
             conn.execute("PRAGMA cache_size=10000")        # Cache maior = menos I/O
             conn.execute("PRAGMA temp_store=MEMORY")       # Operações temporárias em RAM
             conn.execute("PRAGMA mmap_size=268435456")     # Memory-mapped I/O (256MB)
+            conn.execute("BEGIN IMMEDIATE")
 
             # LOG: Verificar configurações aplicadas
             cur = conn.cursor()

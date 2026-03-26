@@ -41,12 +41,16 @@ function Ensure-VirtualEnv() {
     return
   }
 
-  $existing = (& pyenv virtualenvs --bare) -split "`n" | ForEach-Object { $_.Trim() }
+  $existingRaw = & pyenv virtualenvs --bare
+  if ($LASTEXITCODE -ne 0) { throw "Falha ao listar virtualenvs do pyenv-win." }
+  $existing = $existingRaw -split "`n" | ForEach-Object { $_.Trim() }
   if ($existing -contains $VenvName) {
     Write-Host "[ok] Virtualenv '$VenvName' já existe"
   } else {
     Write-Host "[info] Criando virtualenv '$VenvName'"
-    $list = (& pyenv install -l) -split "`n" | ForEach-Object { $_.Trim() }
+    $listRaw = & pyenv install -l
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao listar versoes do pyenv-win." }
+    $list = $listRaw -split "`n" | ForEach-Object { $_.Trim() }
     $ver = $null
     foreach ($major in @('3.13', '3.12', '3.11', '3.10')) {
       $candidate = $list | Where-Object { $_ -match ("^{0}\.[0-9]+$" -f [regex]::Escape($major)) } | Select-Object -Last 1
@@ -57,13 +61,18 @@ function Ensure-VirtualEnv() {
     }
     if (-not $ver) { throw "Nao foi possivel descobrir versao Python suportada (3.13-3.10) no pyenv-win." }
     pyenv install -s $ver
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar Python $ver via pyenv-win." }
     pyenv virtualenv $ver $VenvName
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao criar virtualenv $VenvName." }
   }
 
   # Ativa sem alterar .python-version
   pyenv activate $VenvName
+  if ($LASTEXITCODE -ne 0) { throw "Falha ao ativar virtualenv '$VenvName'." }
   python -m pip install -U pip
+  if ($LASTEXITCODE -ne 0) { throw "Falha ao atualizar pip no ambiente '$VenvName'." }
   python -m pip install -r requirements.txt
+  if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar requirements.txt no ambiente '$VenvName'." }
 }
 
 Ensure-PyenvWin

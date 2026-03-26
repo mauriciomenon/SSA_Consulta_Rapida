@@ -107,11 +107,24 @@ if exist "%STAGE_DIR%" (
 )
 mkdir "%STAGE_DIR%"
 copy /Y "%REPO_ROOT%\pyoxidizer.bzl" "%STAGE_DIR%\pyoxidizer.bzl" >nul
+if errorlevel 1 (
+    echo Erro ao copiar "pyoxidizer.bzl" para staging.
+    exit /b 1
+)
 copy /Y "%REPO_ROOT%\main.py" "%STAGE_DIR%\main.py" >nul
+if errorlevel 1 (
+    echo Erro ao copiar "main.py" para staging.
+    exit /b 1
+)
 for %%D in (core gui armazenamento extracao utils interface exportacao shared config resources themes) do (
     if exist "%REPO_ROOT%\%%D" (
         if /I "%COPY_TOOL%"=="xcopy" (
             "%XCOPY_EXE%" /E /I /Y "%REPO_ROOT%\%%D\*" "%STAGE_DIR%\%%D\" >nul
+            set "XCOPY_RC=!ERRORLEVEL!"
+            if !XCOPY_RC! GEQ 2 (
+                echo Erro ao copiar "%%D" para staging via xcopy. Codigo: !XCOPY_RC!
+                exit /b 1
+            )
         ) else (
             "%ROBOCOPY_EXE%" "%REPO_ROOT%\%%D" "%STAGE_DIR%\%%D" /E /NFL /NDL /NJH /NJS /NP >nul
             set "ROBO_RC=!ERRORLEVEL!"
@@ -161,6 +174,11 @@ if not exist "%TARGET_BUILD_DIR%" (
 )
 if /I "%COPY_TOOL%"=="xcopy" (
     "%XCOPY_EXE%" /E /I /Y "%SOURCE_INSTALL%\*" "%TARGET_BUILD_DIR%\" >nul
+    set "XCOPY_RC=!ERRORLEVEL!"
+    if !XCOPY_RC! GEQ 2 (
+        echo Erro ao copiar install para target via xcopy. Codigo: !XCOPY_RC!
+        exit /b 1
+    )
 ) else (
     "%ROBOCOPY_EXE%" "%SOURCE_INSTALL%" "%TARGET_BUILD_DIR%" /E /NFL /NDL /NJH /NJS /NP >nul
     set "ROBO_RC=!ERRORLEVEL!"

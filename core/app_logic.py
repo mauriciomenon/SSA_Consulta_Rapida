@@ -37,7 +37,7 @@ from utils import caching  # noqa: E402
 from extracao import extractor  # noqa: E402
 from armazenamento import database  # noqa: E402
 from armazenamento.derivadas_sync import scan_derivadas_consistency, sync_derivadas  # noqa: E402
-from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES  # noqa: E402
+from shared.db_names import CANONICAL_SSA_TABLE  # noqa: E402
 from utils.path_safety import PathSafetyError, ensure_path_is_allowed  # noqa: E402
 
 # Configura logger especifico para este modulo
@@ -513,35 +513,36 @@ def _needs_db_only_derivadas_sync(
 ) -> bool:
     """Decide if derivadas sync should run with DB-only source when no files changed."""
 
+    normalized_table_name = str(table_name or "").strip()
+
     if should_cancel and should_cancel():
         logger.info("Cancelamento solicitado antes do preflight DB-only de derivadas.")
         return False
 
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(table_name or "")):
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", normalized_table_name):
         logger.warning("Nome de tabela invalido para preflight de derivadas: %r", table_name)
-        return False
-
-    resolved_table_name = (
-        CANONICAL_SSA_TABLE
-        if table_name in LEGACY_SSA_TABLE_ALIASES
-        else table_name
-    )
-
-    edge_count_query = _DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE.get(resolved_table_name)
-    if edge_count_query is None:
-        logger.warning(
-            "Tabela nao suportada para preflight DB-only de derivadas: %r",
-            resolved_table_name,
-        )
         return False
 
     try:
         with database.get_db_connection(db_path) as conn:
+            resolved_table_name = database.resolve_target_table(
+                cast(sqlite3.Connection, conn),
+                normalized_table_name,
+            )
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", resolved_table_name):
+                logger.warning(
+                    "Tabela resolvida invalida para preflight DB-only de derivadas: %r",
+                    resolved_table_name,
+                )
+                return False
             if should_cancel and should_cancel():
                 logger.info("Cancelamento solicitado durante preflight DB-only de derivadas.")
                 return False
             db_edges_count = int(
-                conn.execute(edge_count_query).fetchone()[0]
+                database.count_distinct_derivada_edges(
+                    cast(sqlite3.Connection, conn),
+                    normalized_table_name,
+                )
             )
             if db_edges_count <= 0:
                 return False

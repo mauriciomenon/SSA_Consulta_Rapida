@@ -23,22 +23,23 @@ from shared.numero_ssa import normalize_numero_ssa as _normalize_ssa_str
 def _is_nullish(v) -> bool:
     if v is None:
         return True
+    if v is pd.NA:
+        return True
     try:
-        if v is pd.NA:
-            return True
-        # Trata NaN/NaT
         if pd.isna(v):
             return True
-        if isinstance(v, float) and math.isnan(v):
-            return True
-        if isinstance(v, pd.Timestamp) and pd.isna(v):
-            return True
-        if isinstance(v, (pd.NaT.__class__,)):
-            return True
-        if isinstance(v, str) and v.strip().lower() in {"", "nan", "nat", "none", "null"}:
-            return True
-    except Exception:
-        pass
+    except TypeError:
+        return False
+    except ValueError:
+        return False
+    if isinstance(v, float) and math.isnan(v):
+        return True
+    if isinstance(v, pd.Timestamp) and pd.isna(v):
+        return True
+    if isinstance(v, (pd.NaT.__class__,)):
+        return True
+    if isinstance(v, str) and v.strip().lower() in {"", "nan", "nat", "none", "null"}:
+        return True
     return False
 
 

@@ -116,7 +116,11 @@ class TestFilterRegression:
             result = filter_dataframe(df, search_terms=[search_term])
             assert len(result) >= 1, f"Should find '{search_term}' as literal text"
 
-    def test_db_only_derivadas_preflight_accepts_legacy_ssas_alias(self, tmp_path):
+    @pytest.mark.parametrize(
+        "table_name",
+        ["ssas", "SSA_TABLE", "SSAS", "ssa_chamados", " SSA_CHAMADOS "],
+    )
+    def test_db_only_derivadas_preflight_accepts_legacy_ssa_aliases(self, tmp_path, table_name):
         """Legacy aliases should resolve to the canonical derivadas preflight query."""
         db_path = tmp_path / "derivadas_alias.sqlite"
         with sqlite3.connect(db_path) as conn:
@@ -128,6 +132,26 @@ class TestFilterRegression:
                 );
                 INSERT INTO ssa_table (numero_ssa, derivada_de) VALUES
                     ('202500001', '202500000');
+                """
+            )
+
+        assert app_logic._needs_db_only_derivadas_sync(str(db_path), table_name) is True
+
+    def test_db_only_derivadas_preflight_accepts_view_only_ssas_alias(self, tmp_path):
+        """The preflight must also work when only the compatibility view exists."""
+        db_path = tmp_path / "derivadas_alias_view.sqlite"
+        with sqlite3.connect(db_path) as conn:
+            conn.executescript(
+                """
+                CREATE TABLE base_ssa (
+                    numero_ssa TEXT,
+                    derivada_de TEXT
+                );
+                INSERT INTO base_ssa (numero_ssa, derivada_de) VALUES
+                    ('202500001', '202500000');
+                CREATE VIEW ssas AS
+                SELECT numero_ssa, derivada_de
+                FROM base_ssa;
                 """
             )
 

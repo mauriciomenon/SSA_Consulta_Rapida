@@ -19,6 +19,7 @@ sys.path.insert(0, project_root)
 # Importa as funções a serem testadas
 # Assumindo que database.py esteja em armazenamento/database.py
 from armazenamento.database import get_db_connection  # noqa: E402
+from armazenamento.database import initialize_database  # noqa: E402
 from armazenamento.database import insert_dataframe_to_db  # noqa: E402
 from armazenamento.database import query_db  # noqa: E402
 
@@ -73,23 +74,14 @@ def test_get_db_connection_context_manager(temp_db_path):
 
 def test_initialize_database_success(temp_db_path, sample_schema_file, monkeypatch):
     """Testa a inicialização bem-sucedida do banco de dados."""
-    # Mocka o caminho do schema para usar o temporário
-    # Captura a função original para evitar recursão ao chamar dentro do lambda
-    _orig_join = os.path.join
-    monkeypatch.setattr(
-        "armazenamento.database.os.path.join",
-        lambda *args: sample_schema_file if 'schema.sql' in args else _orig_join(*args)
-    )
+    assert initialize_database(temp_db_path, schema_file=sample_schema_file) is True
 
-    # Mocka o nome do arquivo schema
-    monkeypatch.setattr("armazenamento.database.schema_file", os.path.basename(sample_schema_file))
+    with get_db_connection(temp_db_path) as conn:
+        tables = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='usuarios'"
+        ).fetchall()
 
-    # Como o patching do caminho pode ser tricky, vamos testar a lógica principal
-    # simulando a criação da tabela diretamente e verificando se funciona.
-    # Um teste mais robusto exigiria refatorar initialize_database para injetar o caminho do schema.
-
-    # Alternativa: Testar query_db e insert_dataframe_to_db que dependem de um DB válido.
-    pass # Placeholder para este teste complexo de setup
+    assert tables == [("usuarios",)]
 
 
 def test_insert_dataframe_to_db_success(temp_db_path, sample_dataframe):

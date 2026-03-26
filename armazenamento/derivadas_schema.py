@@ -7,6 +7,7 @@ flows. It can be safely called before sync/query routines without affecting GUI.
 from __future__ import annotations
 
 import logging
+import os
 import sqlite3
 from typing import Any, Iterable
 
@@ -299,6 +300,31 @@ def _validate_ddl_sql_type(sql_type: str, *, table_name: str, column_name: str) 
     return sql_type.strip()
 
 
+def _safe_add_column_sql_type(sql_type: str, *, table_name: str, column_name: str) -> str:
+    safe_type = _validate_ddl_sql_type(sql_type, table_name=table_name, column_name=column_name)
+    lowered = safe_type.casefold()
+    if "not null" not in lowered or "default" in lowered:
+        return safe_type
+
+    explicit_defaults = {
+        ("ssa_derivada_closure", "min_distance"): "1",
+        ("ssa_derivada_closure", "max_distance"): "1",
+    }
+    explicit_default = explicit_defaults.get((table_name, column_name))
+    if explicit_default is not None:
+        return f"{safe_type} DEFAULT {explicit_default}"
+
+    if lowered.startswith("text"):
+        return f"{safe_type} DEFAULT ''"
+    if lowered.startswith("integer"):
+        return f"{safe_type} DEFAULT 0"
+    if lowered.startswith("real") or lowered.startswith("numeric"):
+        return f"{safe_type} DEFAULT 0"
+    raise ValueError(
+        f"Unsafe NOT NULL add-column type without default for {table_name}.{column_name}: {sql_type!r}"
+    )
+
+
 def _ensure_derivadas_columns(conn: sqlite3.Connection, *, include_legacy_backfill: bool) -> None:
     conn.execute("SAVEPOINT derivadas_ensure_columns")
     try:
@@ -315,7 +341,7 @@ def _ensure_derivadas_columns(conn: sqlite3.Connection, *, include_legacy_backfi
                     )
                 if column_name in existing:
                     continue
-                safe_type = _validate_ddl_sql_type(
+                safe_type = _safe_add_column_sql_type(
                     sql_type, table_name=table_name, column_name=column_name
                 )
                 try:
@@ -415,7 +441,16 @@ def scan_derivadas_schema_readiness(
 def scan_derivadas_schema_readiness_from_path(db_path: str) -> dict[str, Any]:
     """Run schema readiness scan from DB path without applying migrations."""
 
-    with get_db_connection(db_path) as conn:
+    if not os.path.exists(db_path):
+        required_tables = list(DERIVADAS_TABLES)
+        return {
+            "is_ready": False,
+            "required_tables": required_tables,
+            "missing_tables": sorted(required_tables),
+            "missing_columns": {},
+            "existing_columns": {},
+        }
+    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
         return scan_derivadas_schema_readiness(conn)
 
 
@@ -447,7 +482,15 @@ def scan_derivadas_read_schema_readiness(conn: sqlite3.Connection) -> dict[str, 
 def scan_derivadas_read_schema_readiness_from_path(db_path: str) -> dict[str, Any]:
     """Run read-path schema readiness scan from DB path without migration."""
 
-    with get_db_connection(db_path) as conn:
+    required_tables = sorted(READ_REQUIRED_COLUMNS.keys())
+    if not os.path.exists(db_path):
+        return {
+            "is_ready": False,
+            "required_tables": required_tables,
+            "missing_tables": required_tables,
+            "missing_columns": {},
+        }
+    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
         return scan_derivadas_read_schema_readiness(conn)
 
 
