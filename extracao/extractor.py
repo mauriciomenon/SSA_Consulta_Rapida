@@ -14,6 +14,7 @@ from typing import Any, Callable, Dict, Optional
 import pandas as pd
 
 from shared.column_mappings import load_column_mappings_integrity
+from shared.date_utils import parse_datetime_series_mixed
 from shared.import_contract import MANDATORY_SCHEMA_COLUMNS
 from utils.robust_importer import import_excel_robust
 
@@ -238,10 +239,8 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
     # --- Conversao de data_cadastro para datetime ---
     if "data_cadastro" in df_normalized.columns:
         logger.debug("Convertendo 'data_cadastro' para datetime...")
-        df_normalized["data_cadastro"] = pd.to_datetime(
-            df_normalized["data_cadastro"],
-            errors="coerce",
-            dayfirst=True,  # Assume DD/MM/YYYY
+        df_normalized["data_cadastro"] = parse_datetime_series_mixed(
+            df_normalized["data_cadastro"]
         )
         missing_mask = df_normalized["data_cadastro"].isna()
         if missing_mask.any():
@@ -258,8 +257,8 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
             for col in fallback_candidates:
                 if col not in df_normalized.columns:
                     continue
-                candidate_series = pd.to_datetime(
-                    df_normalized[col], errors="coerce", dayfirst=True
+                candidate_series = parse_datetime_series_mixed(
+                    df_normalized[col]
                 )
                 fill_mask = missing_mask & candidate_series.notna()
                 if fill_mask.any():

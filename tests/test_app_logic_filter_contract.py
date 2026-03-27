@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from io import StringIO
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -9,6 +11,7 @@ import pytest
 from armazenamento import database
 from core import app_logic
 from core.app_logic import filter_dataframe, get_filtered_data, parse_search_terms
+from interface.table_printer import pretty_print_df
 
 
 def _get_project_root() -> Path:
@@ -98,6 +101,29 @@ def _prepare_import_update_runtime(
         _fake_extract_transition,
     )
     return docs_dir, data_dir, db_path
+
+
+def _write_real_ssa_excel(
+    file_path: Path,
+    *,
+    numero_ssa: str,
+    situacao: str,
+    setor_executor: str,
+    data_cadastro: str,
+    descricao_ssa: str,
+) -> None:
+    df = pd.DataFrame(
+        [
+            {
+                "Numero SSA": numero_ssa,
+                "Situacao": situacao,
+                "Setor Executor": setor_executor,
+                "Emitida Em": data_cadastro,
+                "Descricao": descricao_ssa,
+            }
+        ]
+    )
+    df.to_excel(file_path, index=False)
 
 
 def test_filter_dataframe_preserves_group_or_for_preparsed_terms() -> None:
@@ -387,3 +413,91 @@ def test_get_filtered_data_reflects_updated_state_after_diff_reimport(
     assert list(updated["setor_executor"]) == ["BBB2"]
     assert list(updated["arquivo_origem"]) == ["tracked.xlsx"]
     assert list(searched["numero_ssa"]) == ["202500001"]
+
+
+def test_cli_render_reflects_updated_state_after_real_excel_import(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "test.db"
+    old_file = docs_dir / "old.xlsx"
+    new_file = docs_dir / "new.xlsx"
+
+    _allow_tmp_path(monkeypatch, tmp_path)
+    _init_runtime_ssa_db(db_path)
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_run_derivadas_sync_phase",
+        lambda *args, **kwargs: (True, [], {"db_stats": {}, "merge_stats": {}}),
+    )
+
+    _write_real_ssa_excel(
+        old_file,
+        numero_ssa="202500001",
+        situacao="ADM",
+        setor_executor="AAA1",
+        data_cadastro="2025-01-01 00:00:00",
+        descricao_ssa="SSA antiga real",
+    )
+    _write_real_ssa_excel(
+        new_file,
+        numero_ssa="202500001",
+        situacao="STE",
+        setor_executor="BBB2",
+        data_cadastro="2025-01-02 00:00:00",
+        descricao_ssa="SSA atualizada real",
+    )
+
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(old_file), str(new_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+
+    updated = get_filtered_data(
+        str(db_path),
+        filters={"situacao": "STE", "setor_executor": "BBB2"},
+    )
+    searched = filter_dataframe(updated, ["atualizada", "bbb2"])
+
+    display_map = {
+        "numero_ssa": "Numero SSA",
+        "situacao": "Situacao",
+        "setor_executor": "Executor",
+        "descricao_ssa": "Descricao",
+        "data_cadastro": "Data Cadastro",
+        "arquivo_origem": "Arquivo",
+    }
+    settings = {
+        "display_settings": {
+            "column_visibility": {},
+            "column_widths": {},
+            "max_auto_scroll_pages": 1,
+        },
+        "user_preferences": {"auto_scroll_to_end": False},
+    }
+
+    with patch("interface.table_printer.get_terminal_size", return_value=(25, 120)):
+        with patch("builtins.input", return_value="q"):
+            with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
+                pretty_print_df(searched, display_map, settings)
+                output = mock_stdout.getvalue()
+
+    assert list(searched["numero_ssa"]) == ["202500001"]
+    assert "SSA atualizada real" in output
+    assert "BBB2" in output
+    assert "STE" in output
+    assert "ADM" not in output
