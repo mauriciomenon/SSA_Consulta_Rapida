@@ -4,9 +4,15 @@ import sqlite3
 from pathlib import Path
 from typing import Any, cast
 
+import pandas as pd
 import pytest
 
+from armazenamento import database
 from core import app_logic
+
+
+def _get_project_root() -> Path:
+    return Path(__file__).resolve().parents[1]
 
 
 def _allow_tmp_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -78,6 +84,90 @@ def _read_descricao(db_path: Path) -> str:
         conn.close()
     assert row is not None
     return str(row[0])
+
+
+def _init_runtime_ssa_db(db_path: Path) -> None:
+    schema_path = _get_project_root() / "config" / "schema.sql"
+    ok = database.initialize_database(str(db_path), str(schema_path))
+    assert ok is True
+
+
+def _read_ssa_state(
+    db_path: Path,
+    numero_ssa: str,
+) -> tuple[str, str, str, str]:
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT situacao, setor_executor, data_cadastro, arquivo_origem
+            FROM ssa_table
+            WHERE numero_ssa = ?
+            """,
+            (numero_ssa,),
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    return (
+        "" if row[0] is None else str(row[0]),
+        "" if row[1] is None else str(row[1]),
+        "" if row[2] is None else str(row[2]),
+        "" if row[3] is None else str(row[3]),
+    )
+
+
+def _count_ssa_rows(db_path: Path, numero_ssa: str) -> int:
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM ssa_table WHERE numero_ssa = ?",
+            (numero_ssa,),
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    return int(row[0])
+
+
+def _build_ssa_import_df(
+    *,
+    numero_ssa: str,
+    situacao: str,
+    setor_executor: str,
+    data_cadastro: str,
+    descricao_ssa: str,
+) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "numero_ssa": numero_ssa,
+                "situacao": situacao,
+                "setor_executor": setor_executor,
+                "data_cadastro": data_cadastro,
+                "descricao_ssa": descricao_ssa,
+            }
+        ]
+    )
+
+
+def _fake_extract_state_transition(file_path: str, should_cancel=None):  # noqa: ARG001
+    marker = Path(file_path).read_text(encoding="utf-8")
+    if marker == "old":
+        return _build_ssa_import_df(
+            numero_ssa="202500001",
+            situacao="ADM",
+            setor_executor="AAA1",
+            data_cadastro="2025-01-01 00:00:00",
+            descricao_ssa="ssa old",
+        )
+    return _build_ssa_import_df(
+        numero_ssa="202500001",
+        situacao="STE",
+        setor_executor="BBB2",
+        data_cadastro="2025-01-02 00:00:00",
+        descricao_ssa="ssa new",
+    )
 
 
 def test_run_importer_logic_writes_report_on_no_changes(
@@ -310,6 +400,142 @@ def test_run_importer_logic_diff_processes_only_new_files_after_cache_update(
         is True
     )
     assert second_seen == ["new.xlsx"]
+
+
+def test_import_explicit_files_to_database_updates_existing_ssa_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "test.db"
+    old_file = docs_dir / "old.xlsx"
+    new_file = docs_dir / "new.xlsx"
+    old_file.write_text("old", encoding="utf-8")
+    new_file.write_text("new", encoding="utf-8")
+
+    _allow_tmp_path(monkeypatch, tmp_path)
+    _init_runtime_ssa_db(db_path)
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_run_derivadas_sync_phase",
+        lambda *args, **kwargs: (True, [], {"db_stats": {}, "merge_stats": {}}),
+    )
+
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        _fake_extract_state_transition,
+    )
+
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(old_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+    assert _read_ssa_state(db_path, "202500001") == (
+        "ADM",
+        "AAA1",
+        "2025-01-01 00:00:00",
+        "old.xlsx",
+    )
+
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(new_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+    assert _count_ssa_rows(db_path, "202500001") == 1
+    assert _read_ssa_state(db_path, "202500001") == (
+        "STE",
+        "BBB2",
+        "2025-01-02 00:00:00",
+        "new.xlsx",
+    )
+
+
+def test_run_importer_logic_diff_reprocesses_modified_file_and_updates_existing_ssa(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "test.db"
+    tracked_file = docs_dir / "tracked.xlsx"
+    tracked_file.write_text("old", encoding="utf-8")
+
+    _allow_tmp_path(monkeypatch, tmp_path)
+    _init_runtime_ssa_db(db_path)
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_run_derivadas_sync_phase",
+        lambda *args, **kwargs: (True, [], {"db_stats": {}, "merge_stats": {}}),
+    )
+
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        _fake_extract_state_transition,
+    )
+
+    assert (
+        app_logic.run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(data_dir),
+            db_name="test.db",
+            table_name="ssa_table",
+            force_import=False,
+        )
+        is True
+    )
+    assert _read_ssa_state(db_path, "202500001") == (
+        "ADM",
+        "AAA1",
+        "2025-01-01 00:00:00",
+        "tracked.xlsx",
+    )
+
+    tracked_file.write_text("new", encoding="utf-8")
+
+    assert (
+        app_logic.run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(data_dir),
+            db_name="test.db",
+            table_name="ssa_table",
+            force_import=False,
+        )
+        is True
+    )
+    assert _count_ssa_rows(db_path, "202500001") == 1
+    assert _read_ssa_state(db_path, "202500001") == (
+        "STE",
+        "BBB2",
+        "2025-01-02 00:00:00",
+        "tracked.xlsx",
+    )
 
 
 def test_run_importer_logic_report_includes_file_phase_metrics(
