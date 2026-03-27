@@ -298,10 +298,10 @@ Foram aplicadas melhorias recentes de qualidade de codigo:
 				 - Exemplo rejeitado: `2025-22222` (marcado como invalido e filtrado no importador).
 			 * No formato sem hifen, a checagem de repeticao dos 5 ultimos digitos nao e aplicada por compatibilidade historica.
 			 * Valores longos e compatibilidades legadas nao devem ser usados como referencia de export atual sem evidencia de planilha real.
-	 - Helpers legados:
-		 * `normalize_numero_ssa(...)` ainda preserva compatibilidade de exibicao para entradas curtas e alguns casos numericos sinteticos.
-		 * detalhes de compatibilidade legacy permanecem cobertos por testes e pelo codigo, sem servir como referencia de export atual.
-		 * Esses caminhos legados nao substituem a referencia operacional das planilhas atuais, que nesta rodada foi validada com `202600654`.
+	 - Compatibilidade de exibicao:
+		 * `normalize_numero_ssa(...)` padroniza entradas curtas com prefixo de ano e zero-padding para a API publica atual.
+		 * Esse caminho de compatibilidade nao define o contrato operacional de export/import.
+		 * A referencia operacional validada nesta rodada continua sendo `202600654` e demais SSAs reais de 9 digitos.
 	 - Testes que cobrem as regras: `tests/test_numero_ssa_normalization_cross.py` e `tests/test_numero_ssa_hyphen_repetition.py`.
 - Importacao externa pela GUI:
 	 - `Importar XLS/XLSX externo` aceita um ou mais `.xlsx` de qualquer pasta escolhida pelo usuario.
@@ -323,7 +323,7 @@ Componentes extraidos (estado atual):
 - `database_upsert_logic.py`: preparacao e logica de upsert (merge condicional, modos complementar vs. simples, normalizacao de datas) – expoe `prepare_dataframe_for_upsert`, `apply_column_whitelist` e `insert_dataframe_with_smart_upsert_impl`.
 - `database_integrity.py`: verificacao e reparo (`verify_database_integrity`, `repair_database_if_needed`).
 - `database_validation.py`: validacao pre-insercao (`validate_dataframe_before_insert`).
-- `numero_ssa_utils.py`: fonte unica para normalizacao de `numero_ssa` (strict, legado inteiro, formato display, batch dataframe).
+- `numero_ssa_utils.py`: fonte unica para normalizacao de `numero_ssa` (strict, valor inteiro, formato display, batch dataframe).
 
 No arquivo `database.py` permanecem apenas:
 - Conexao (`get_db_connection`) e inicializacao (`initialize_database`).
@@ -866,7 +866,7 @@ Regra (_resumida_):
 - Remove nao-digitos.
 - Menos que 5 digitos ⇒ retorna como esta (sem prefixo artificial nesta versao).
 - 9 digitos comecando com `2025` ⇒ mantido.
-- >=9 digitos sem atender condicao anterior ⇒ ultimos 9.
+- Mais que 9 digitos ⇒ descarta com aviso e log; nao trunca.
 
 ### Comportamento de Paginacao
 - Tamanho de pagina = `linhas_terminal - LOW_HEIGHT_MARGIN` (margem = 8).

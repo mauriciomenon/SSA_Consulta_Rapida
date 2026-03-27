@@ -5,39 +5,92 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
-### P0 - bloquear antes de nova tag
-1. blindar storage contra valores com letras que possam cair em limpeza legacy.
+### P0 - fechar antes de qualquer novo patch
+1. aterrar o slice local aberto de `numero_ssa`:
+   - separar definitivamente strict/storage/display
+   - revisar diff local aberto
+   - commit atomico, push e checar bots do PR `dev -> main`
+2. parar de manter docs vivos stale sobre slices ja fechados ou sobre worktree antigo.
 
 ### ESTADO OPERACIONAL ATUAL
 1. branch ativa: `dev`
 2. metadata local ativa: `4.36`
 3. ultima tag publicada em `dev`: `v4.36`
-4. existe um slice local aberto com CI/storage/docs e fechamento de PR ainda pendente
-5. nada foi perdido no historico; os blocos abaixo permanecem como trilha de auditoria
+4. existe um slice local aberto de `numero_ssa`:
+   - `shared/numero_ssa.py`
+   - `armazenamento/numero_ssa_utils.py`
+   - `armazenamento/database.py`
+   - `utils/formatting.py`
+   - `tests/test_ssa_normalization_db.py`
+   - `README.md`
+5. o PR `dev -> main` ainda tem muitas threads abertas no GitHub, mas o sinal real restante caiu para hardening/documentacao e itens deferidos
+6. nada foi perdido no historico; os blocos abaixo permanecem como trilha de auditoria
 
-### PASSO 0 DA PROXIMA CONVERSA
-1. revisar o slice local aberto do PR `dev -> main`
-2. responder as threads do PR por status claro
-3. decidir o destino de `.envrc` e classificar residuos locais antes de commit/push
-4. rodar os gates finais do escopo alterado antes do fechamento
-4. referencias:
+### PASSO 0 ANTES DE QUALQUER NOVA FRENTE
+1. revisar e aterrar o slice local aberto de `numero_ssa`
+2. rodar os gates finais do escopo alterado e confirmar bots/checks do PR
+3. sincronizar backlog/handoff/docs vivos depois do push
+4. responder apenas as threads do PR cujo status realmente mudou neste ciclo
+5. referencias:
    - `AGENTS.md`
+   - `docs/NUNCA_CONFIE_IA.md`
    - `.github/instructions/kluster-code-verify.instructions.md`
-   - `docs/CCR_LLM_PROVIDERS_SETUP.md`
-   - `docs/OPENCODE_CONFIG.md`
    - `docs/README.md`
 
 ### P1 - fechar antes da rodada final de release
 1. resolver aliases validos em `_needs_db_only_derivadas_sync` antes do lookup canonico.
 2. reduzir o custo de `sanitize_textual_null_sentinels` para lotes grandes.
+3. endurecer rollback/error boundary em:
+   - `armazenamento/database.py`
+   - `armazenamento/database_upsert_logic.py`
+   - `armazenamento/database_optimized.py`
+4. auditar testes viciados no fluxo critico de dados/CLI:
+   - nao aceitar teste synthetic definindo contrato operacional
+   - nao aceitar teste que so prova "nao travou"
 
 ### P2 - pode entrar no fechamento final, mas sem reabrir arquitetura
 1. convergir helper local de data em `database_upsert_logic.py` para util compartilhado.
+2. decidir explicitamente o contrato de discovery:
+   - `.xlsx` so na raiz de `docs_entrada`
+   - ou subpastas arbitrarias
+   - `.xls` segue fora enquanto nao houver decisao de produto
+3. hygiene documental do PR 46 sem impacto de runtime:
+   - `docs/OHMYOPENCODE_MANUAL.md`
+   - comentarios de ferramentas de analise estaticas
+4. `codeql.yml` e build/tooling secundario seguem como hardening opcional, nao blocker atual
 
 ### FECHADO E NAO REABRIR SEM EVIDENCIA NOVA
 1. operadores textuais legados de busca nao fazem parte do produto.
 2. write path de `numero_ssa` deve partir da fonte central, sem regra paralela.
 3. `4.36` ja esta publicado em metadata, runtime, docs e release/tag.
+4. `numero_ssa` real validado nesta rodada continua `9 digitos`; nao tratar `10 digitos` como contrato sem planilha real e pipeline real.
+5. regex/XML bruto de `.xlsx` nao prova valor extraido de `numero_ssa`.
+
+## Update 2026-03-26 22:01 - plano consolidado de pendencias do PR e do repo (DOC_SYNC + DEFERRED_NOTE)
+
+Session timestamp:
+1. start: `2026-03-26 22:01:42 -0300`
+2. fim: `2026-03-26 22:01:42 -0300`
+
+Objetivo do slice:
+1. consolidar o que realmente ficou para tras no PR `dev -> main`.
+2. registrar o estado do slice local aberto sem deixar sujeira invisivel no repo.
+3. criar um anti-playbook para nao repetir erros de inferencia e teste synthetic em caminhos criticos.
+
+Diagnostico objetivo:
+1. `docs/RECOVERY_BACKLOG.md`, `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` e `docs/README.md` estavam stale e ainda falavam de um slice local mais antigo.
+2. o worktree atual tem um slice funcional aberto em `numero_ssa`, sem commit, que precisa ser aterrado antes de abrir frente nova.
+3. o PR `46` ainda tem muitas threads abertas no GitHub, mas o sinal real restante ficou concentrado em:
+   - hardening de rollback/error path
+   - aliases validos em derivadas
+   - custo de saneamento textual
+   - helper local de data
+   - higiene documental secundaria
+
+Decisao aplicada:
+1. o topo do backlog passa a refletir o slice local real aberto hoje.
+2. o proximo ciclo nao deve reabrir review difusa sem antes aterrar esse slice.
+3. os erros de inferencia e de teste synthetic entram em `docs/NUNCA_CONFIE_IA.md` como regra de contencao.
 
 ## Update 2026-03-26 09:15 - release/tag v4.36 publicada e docs vivos corrigidos (DOC_SYNC + DEFERRED_NOTE)
 
@@ -169,8 +222,6 @@ Leitura e decisao:
 2. isto fica registrado como `NAO_BLOQUEANTE_DEFERIDO` com criterio claro de reavaliacao.
 3. se `prepare_dataframe_for_storage()` deixar de devolver um novo `DataFrame` no fluxo de insercao simples, reabrir o ponto e restaurar `df.copy()` no mesmo slice.
 
-## Update 2026-03-23 19:01 - diagnostico local do full rescan alinhado ao contrato real (DOC_SYNC + DEFERRED_NOTE)
-
 ## Update 2026-03-24 09:28 - triagem do report MIMO e gates pre-PR locais (DOC_SYNC + DEFERRED_NOTE)
 
 Session timestamp:
@@ -220,6 +271,8 @@ Pendencias nao bloqueantes abertas:
 2. auditar `utils/formatting.py` para confirmar se os `except` amplos ainda representam risco real.
 3. auditar `armazenamento/database_upsert_logic.py` para confirmar ou descartar os caminhos silenciosos apontados no report.
 4. auditar residuos de `astype(str)` e pontos de self-healing em `core/app_logic.py` com repro funcional, nao so grep.
+
+## Update 2026-03-23 19:01 - diagnostico local do full rescan alinhado ao contrato real (DOC_SYNC + DEFERRED_NOTE)
 
 Session timestamp:
 1. start: `2026-03-23 19:01:32 -0300`
