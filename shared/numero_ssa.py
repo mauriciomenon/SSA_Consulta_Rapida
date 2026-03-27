@@ -26,15 +26,16 @@ Compatibility facades in other modules should delegate here to avoid drift.
 
 from __future__ import annotations
 
-import logging
 import re
 from typing import Iterable
+
+from utils.robust_logging import get_robust_logger
 
 YEAR_MIN = 1980
 YEAR_MAX = 2050
 VALID_LENGTHS = {9}
 _CANONICAL_DECIMAL_ARTIFACT = re.compile(r"^\s*(\d+)\.0+\s*$")
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "core")
 
 __all__ = [
     "YEAR_MIN",
@@ -95,6 +96,13 @@ def normalize_strict(value) -> str | None:
     if len(digits) > max(VALID_LENGTHS):
         logger.warning(
             "numero_ssa descartado por exceder 9 digitos: raw=%r digits=%s",
+            value,
+            digits,
+        )
+        return None
+    if 0 < len(digits) < 5:
+        logger.warning(
+            "numero_ssa descartado por ter menos de 5 digitos: raw=%r digits=%s",
             value,
             digits,
         )
