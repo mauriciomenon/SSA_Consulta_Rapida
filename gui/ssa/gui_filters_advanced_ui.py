@@ -38,7 +38,7 @@ from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 _DERIVADA_ALL_STE_LABEL = "Derivadas em STE/SES"
-_MACRO_BAIXAR_EXCLUDED_STATUSES = ["SCA", "SES", "STE"]
+_MACRO_BAIXAR_EXCLUDED_STATUSES = ["SAD", "SCA", "SES", "STE"]
 
 # Layout constants
 LAYOUT_MIN_VALID_WIDTH = 1

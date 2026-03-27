@@ -18,6 +18,31 @@ from utils.robust_logging import get_robust_logger
 logger = get_robust_logger().get_logger(__name__, "gui")
 
 
+def _get_visual_filter_columns(window, *, context: str) -> set[str]:
+    visual_filter_columns: set[str] = set()
+    get_visual_filter_columns = getattr(window, "_get_visual_filter_columns", None)
+    if not callable(get_visual_filter_columns):
+        return visual_filter_columns
+    try:
+        visual_filter_columns = set(get_visual_filter_columns())
+    except Exception as exc:
+        logger.debug(
+            "Falha ao coletar colunas visuais filtradas em %s: %s",
+            context,
+            exc,
+        )
+    return visual_filter_columns
+
+
+def _build_display_headers(window, columns: list[str], visual_filter_columns: set[str]) -> list[str]:
+    headers: list[str] = []
+    for col in columns:
+        base = "#" if col == "#" else window.internal_to_display.get(col, col)
+        has_filter = col != "#" and col in visual_filter_columns
+        headers.append(f"[f] {base}" if has_filter else base)
+    return headers
+
+
 def _fallback_column_width(col_name: str) -> int:
     if col_name == "#":
         return 24
@@ -257,12 +282,12 @@ def display_current_page(window, page_number, *, update_details=True):
         # Atualiza colunas atuais (inclui '#') e aplica cabecalhos
         window._current_display_columns = ["#"] + list(valid_cols)
         window.table_widget.setColumnCount(len(window._current_display_columns))
-        headers = []
-        for col in window._current_display_columns:
-            base = "#" if col == "#" else window.internal_to_display.get(col, col)
-            term = window._active_column_filters.get(col)
-            has_filter = bool(term) and str(term).strip() != "" and col != "#"
-            headers.append(f"[f] {base}" if has_filter else base)
+        visual_filter_columns = _get_visual_filter_columns(
+            window, context="tabela vazia"
+        )
+        headers = _build_display_headers(
+            window, window._current_display_columns, visual_filter_columns
+        )
         try:
             window.table_widget.setHorizontalHeaderLabels(headers)
         except Exception as exc:
@@ -397,14 +422,12 @@ def display_current_page(window, page_number, *, update_details=True):
         display_df = cached_formatted
 
     # Define cabecalhos de exibicao com indicador de filtro [f] por coluna
-    display_headers = []
-    for col in display_df.columns:
-        base = "#" if col == "#" else window.internal_to_display.get(col, col)
-        term = window._active_column_filters.get(col)
-        has_filter = bool(term) and str(term).strip() != ""
-        if has_filter and col != "#":
-            base = f"[f] {base}"
-        display_headers.append(base)
+    visual_filter_columns = _get_visual_filter_columns(
+        window, context="pagina renderizada"
+    )
+    display_headers = _build_display_headers(
+        window, list(display_df.columns), visual_filter_columns
+    )
 
     render_signature = _build_page_render_signature(window, display_df, display_headers)
     previous_signature = getattr(window, "_last_table_render_signature", None)
