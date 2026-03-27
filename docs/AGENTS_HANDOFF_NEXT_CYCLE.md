@@ -8,17 +8,17 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. branch alvo: `dev`
   2. metadata local ativa: `4.36`
   3. ultima tag publicada em `dev`: `v4.36`
-  4. existe um slice local aberto de `numero_ssa`/display/storage sem commit
+  4. os slices recentes de `numero_ssa`, importacao explicita e prova de update/query ja foram aterrados
 - PASSO 0 OBRIGATORIO ANTES DE QUALQUER NOVA FRENTE:
-  1. revisar o diff local aberto do slice `numero_ssa`
-  2. commit atomico e push do slice aberto
-  3. checar bots/checks do PR `dev -> main`
+  1. revisar checks e comentarios mais recentes do PR `dev -> main`
+  2. confirmar worktree limpo
+  3. atacar apenas o proximo `P1` com evidencia nova
   4. so depois responder threads cujo status mudou de verdade
 - Prioridade operacional:
-  1. `P0`: aterrar o slice aberto que separa strict, storage e exibicao
-  2. `P1`: resolver aliases validos em `_needs_db_only_derivadas_sync`
-  3. `P1`: reduzir custo de `sanitize_textual_null_sentinels`
-  4. `P1`: endurecer rollback/error boundary em `database*`
+  1. `P0`: manter fechado o contrato de `numero_ssa` sem reabrir heuristica ou truncagem
+  2. `P1`: adicionar teste negativo para impedir overwrite por arquivo mais antigo
+  3. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
+  4. `P2`: endurecer rollback/error boundary residual em `database*`
   5. `P2`: convergir helper local de data em `database_upsert_logic.py`
 - Estado tecnico fechado:
   1. o `.0` vazava por regras duplicadas no write path
@@ -55,9 +55,10 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   8. `docs/GUIA_DISTRIBUICAO.md`
   9. `.github/instructions/kluster-code-verify.instructions.md`
 - Commits recentes desta frente:
-  1. `f9c71b77` `HOTFIX_BLOCKER: remove synthetic 10-digit SSA path`
-  2. `6f8f9600` `DOC_SYNC: align numero_ssa docs and import tests`
-  3. `a908334f` `HOTFIX_BLOCKER: import explicit external files into DB`
+  1. `be66c865` `STABILITY_PATCH: prove query state after import updates`
+  2. `8e3e0a7f` `STABILITY_PATCH: prove DB state updates in import paths`
+  3. `19ee40f6` `HOTFIX_BLOCKER: reject overlong numero_ssa values`
+  4. `a908334f` `HOTFIX_BLOCKER: import explicit external files into DB`
 - Estado do Kluster local:
   1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   2. timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo
