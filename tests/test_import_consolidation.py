@@ -6,7 +6,9 @@ from pathlib import Path
 from core.import_consolidation import consolidate_input_files
 
 
-def test_consolidate_input_files_moves_success_and_zero_survivor(tmp_path: Path) -> None:
+def test_consolidate_input_files_moves_success_and_zero_survivor(
+    tmp_path: Path,
+) -> None:
     docs_dir = tmp_path / "docs_entrada"
     logs_dir = tmp_path / "logs"
     docs_dir.mkdir()

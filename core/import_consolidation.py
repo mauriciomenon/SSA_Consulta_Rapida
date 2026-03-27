@@ -132,8 +132,7 @@ def consolidate_input_files(
             "rows_updated": int((counts.get("rows_updated", 0) or 0)),
             "rows_changed": int((counts.get("rows_changed", 0) or 0)),
             "rows_ready_for_insert": int(
-                counts.get("rows_ready_for_insert", counts.get("rows_inserted", 0))
-                or 0
+                counts.get("rows_ready_for_insert", counts.get("rows_inserted", 0)) or 0
             ),
         }
 

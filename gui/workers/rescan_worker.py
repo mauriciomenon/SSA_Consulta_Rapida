@@ -21,8 +21,9 @@ if project_root not in sys.path:
 
 from core.app_logic import run_importer_logic  # noqa: E402
 from core.import_consolidation import consolidate_input_files  # noqa: E402
+from utils.path_safety import PathSafetyError  # noqa: E402
+from utils.path_safety import ensure_path_is_allowed
 from utils.robust_logging import get_robust_logger  # noqa: E402
-from utils.path_safety import PathSafetyError, ensure_path_is_allowed  # noqa: E402
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
@@ -390,9 +391,7 @@ class RescanWorker(QThread):
         if not source_path.is_file():
             raise FileNotFoundError(f"Arquivo inexistente: {normalized}")
         if source_path.suffix.casefold() not in {".xlsx", ".xls"}:
-            raise ValueError(
-                f"Arquivo nao suportado pelo pipeline: {source_path.name}"
-            )
+            raise ValueError(f"Arquivo nao suportado pelo pipeline: {source_path.name}")
         return str(source_path)
 
     def _stage_source_files(self) -> tuple[list[str], dict[str, int]]:
@@ -428,9 +427,7 @@ class RescanWorker(QThread):
                 continue
             except ValueError as exc:
                 unsupported += 1
-                self.output_line.emit(
-                    f"[IGNORADO] {exc}"
-                )
+                self.output_line.emit(f"[IGNORADO] {exc}")
                 continue
             except Exception as exc:
                 failed += 1
