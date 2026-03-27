@@ -18,9 +18,10 @@ import pytest
 pytest.importorskip(
     "PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste"
 )
+from PyQt6.QtWidgets import QApplication
+
 from core.import_staging import build_unique_destination_path  # noqa: E402
 from core.import_staging import stage_external_import_files
-from PyQt6.QtWidgets import QApplication
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
@@ -311,7 +312,8 @@ class TestRescanWorkerIntegration:
 
         try:
             with patch(
-                "gui.workers.rescan_worker.run_importer_logic", side_effect=_mock_importer
+                "gui.workers.rescan_worker.run_importer_logic",
+                side_effect=_mock_importer,
             ):
                 worker.run()
             assert signal_collector.finished_success is True

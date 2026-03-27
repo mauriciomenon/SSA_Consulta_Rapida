@@ -49,6 +49,7 @@ except Exception:
     pyqtSignal = cast(Any, _fallback_pyqt_signal)
     QThread = cast(Any, _FallbackQThread)
 
+
 # Add project root to path for imports
 def _get_project_root() -> str:
     return str(Path(__file__).resolve().parents[2])
@@ -58,8 +59,8 @@ project_root = _get_project_root()
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from utils.robust_logging import get_robust_logger  # noqa: E402
 from utils.path_safety import ensure_path_is_allowed  # noqa: E402
+from utils.robust_logging import get_robust_logger  # noqa: E402
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
@@ -71,9 +72,7 @@ def run_importer_logic(*args, **kwargs):
 
 
 def consolidate_input_files(*args, **kwargs):
-    from core.import_consolidation import (
-        consolidate_input_files as consolidate_impl,
-    )
+    from core.import_consolidation import consolidate_input_files as consolidate_impl
 
     return consolidate_impl(*args, **kwargs)
 
@@ -373,7 +372,9 @@ class RescanWorker(QThread):
         )
         return int(result.get("failed", 0) or 0) == 0
 
-    def _finish_success(self, outcome: RescanOutcome, banner: str, message: str) -> None:
+    def _finish_success(
+        self, outcome: RescanOutcome, banner: str, message: str
+    ) -> None:
         self.last_outcome = outcome
         self.progress.emit(100, message)
         self.output_line.emit("")
