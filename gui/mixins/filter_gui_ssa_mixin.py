@@ -2372,7 +2372,10 @@ class FilterGUISSAMixin:
             summary_text = "Nenhum filtro ativo"
 
         active_state = bool(active_filters)
-        if hasattr(self, "filters_summary_frame") and self.filters_summary_frame is not None:
+        if (
+            hasattr(self, "filters_summary_frame")
+            and self.filters_summary_frame is not None
+        ):
             roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
             active_border = (
                 roles.get("accent")
@@ -2381,16 +2384,11 @@ class FilterGUISSAMixin:
                 or "palette(highlight)"
             )
             idle_border = (
-                roles.get("input_border")
-                or roles.get("panel_border")
-                or "palette(mid)"
+                roles.get("input_border") or roles.get("panel_border") or "palette(mid)"
             )
             frame_border = active_border if active_state else idle_border
             self.filters_summary_frame.setStyleSheet(
-                "QFrame {"
-                f"border:1px solid {frame_border};"
-                "border-radius:4px;"
-                "}"
+                f"QFrame {{border:1px solid {frame_border};border-radius:4px;}}"
             )
         if hasattr(self, "filters_summary_label"):
             self.filters_summary_label.setText(summary_text)

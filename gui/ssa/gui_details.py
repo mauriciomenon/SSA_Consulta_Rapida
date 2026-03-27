@@ -13,8 +13,7 @@ import pandas as pd
 from gui.helpers.formatting_helpers import highlight_text
 from gui.helpers.theme_helpers import pick_css_color
 from gui.qt_stubs import QTimer
-from shared.ssa_status import format_status_display
-from shared.ssa_status import get_status_code
+from shared.ssa_status import format_status_display, get_status_code
 from utils.formatting import format_cell
 from utils.robust_logging import get_robust_logger
 from utils.themes import get_theme_roles
@@ -985,7 +984,9 @@ def _build_derivadas_tree_html(
         safe = _normalize_ssa_value(window, value)
         if not safe:
             return html_module.escape(str(value))
-        status_code = str(status_hint or _get_situacao_for_ssa(window, safe)).strip().upper()
+        status_code = (
+            str(status_hint or _get_situacao_for_ssa(window, safe)).strip().upper()
+        )
         label = safe if not status_code else f"{safe} ({status_code})"
         return (
             f'<a href="ssa-panel:{safe}" style="color:{link_color}; '

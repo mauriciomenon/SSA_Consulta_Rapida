@@ -728,7 +728,10 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(self.window, "_refresh_after_filter_change", _fake_refresh)
         self.window._apply_advanced_filters_from_ui(store_only=False)
         status = self.window.filtered_status_label.text()
-        assert status == "Status: 5 de 5 SSAs. Aviso: nenhuma derivada encontrada para o filtro."
+        assert (
+            status
+            == "Status: 5 de 5 SSAs. Aviso: nenhuma derivada encontrada para o filtro."
+        )
         assert "Aviso: nenhuma derivada encontrada para o filtro." in status
 
     def test_update_filters_summary_styles_active_state(self):
@@ -2007,7 +2010,9 @@ class TestGUIFilterLogic:
                 "parents": ["202516514"],
                 "children": ["202600029"],
                 "descendants": [{"ssa": "202600030", "situacao": "STE"}],
-                "ancestors": [{"ssa": "202516514", "situacao": "STE", "min_distance": 1}],
+                "ancestors": [
+                    {"ssa": "202516514", "situacao": "STE", "min_distance": 1}
+                ],
                 "direct_children_count": 1,
                 "descendants_count": 1,
             },
@@ -2051,7 +2056,9 @@ class TestGUIFilterLogic:
 
                 return _P()
 
-        handled = self.window.eventFilter(self.window._details_text_viewport, _FakeEvent())
+        handled = self.window.eventFilter(
+            self.window._details_text_viewport, _FakeEvent()
+        )
 
         clipboard = QApplication.clipboard()
         assert handled is True
