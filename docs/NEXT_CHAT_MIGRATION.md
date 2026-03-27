@@ -2,7 +2,7 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-27 16h45
+## CURRENT TRUTH 2026-03-27 18h10
 
 - Leitura rapida:
   1. branch ativa: `dev`
@@ -44,10 +44,13 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   14. a coluna `#` abre a SSA no SAM
   15. o detalhe da SSA expande `situacao`, copia o numero por duplo clique e mostra derivadas em arvore textual
   16. `load_other_database()` saiu da UI thread no runtime normal
+  17. upsert nao-complementar passou a bloquear downgrade de `situacao` quando `data_cadastro` empata
+  18. teste de regressao para `202600654` em empate de data foi adicionado no fluxo de importacao explicita
 - O que ainda falta apos o sprint GUI:
   1. revisar staging/copy da importacao externa na thread principal
   2. revisar hotspots de render/refresh apos filtros
   3. decidir se a arvore textual de derivadas ja basta para distribuicao ou se merece uma rodada futura propria
+  4. validar no ambiente de operacao se a SSA `202600654` permanece `STE` apos ciclos parciais de atualizacao
 - Integridade do contexto:
   1. nada foi perdido nesta reorganizacao documental
   2. historicos antigos continuam preservados abaixo como auditoria

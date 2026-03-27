@@ -19,6 +19,9 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - aliases validos em `_needs_db_only_derivadas_sync`
   - custo de `sanitize_textual_null_sentinels`
   - convergencia de helper local de data em upsert
+- Hotfix de banco desta frente:
+  - upsert nao-complementar bloqueia downgrade de `situacao` em empate de `data_cadastro`
+  - cobertura de regressao adicionada para evitar `STE -> ADM` por ordem de arquivo
 
 ### **Documentacao da versao**
 - `README.md` (baseline `4.36`)
