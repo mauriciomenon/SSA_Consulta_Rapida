@@ -7,7 +7,7 @@ Objetivo
 - Manter validacao final e decisao tecnica no agente principal.
 
 Ferramenta
-- Binario: `/opt/homebrew/bin/qwen`
+- Binario: `qwen` disponivel no `PATH`
 - Modelo padrao: `qwen3-coder-plus`
 - Modo recomendado: one-shot com prompt curto e formato de saida fixo.
 
@@ -17,7 +17,7 @@ Setup minimo
 2. Teste de vida do modelo:
    - `qwen -m qwen3-coder-plus "Responda apenas: OK QWEN"`
 3. Rodar no root do repo:
-   - `cd /Users/menon/git/SSA_Consulta_Rapida`
+   - `cd "$REPO_ROOT"`
 4. Rodar testes no ambiente correto:
    - preferencial: `uv run --python 3.13 pytest -q <alvo>`
    - fallback: `.venv/bin/python -m pytest -q <alvo>`
@@ -79,8 +79,8 @@ Observacao
 - A decisao tecnica final, validacao, e responsabilidade de merge permanecem no agente principal.
 
 Arquivos de regra (fonte oficial)
-- Regra global de processo: `/Users/menon/git/SSA_Consulta_Rapida/AGENTS.md`
-- Regra detalhada de uso do Qwen: `/Users/menon/git/SSA_Consulta_Rapida/docs/QWEN_CODE_DELEGATION_CONFIG.md`
+- Regra global de processo: `$REPO_ROOT/AGENTS.md`
+- Regra detalhada de uso do Qwen: `$REPO_ROOT/docs/QWEN_CODE_DELEGATION_CONFIG.md`
 
 Como utilizar (resumo rapido)
 1. Antes de analise/decisao complexa: aplicar a regra de reasoning definida em `AGENTS.md`.

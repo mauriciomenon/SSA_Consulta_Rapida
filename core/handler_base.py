@@ -111,7 +111,7 @@ class HandlerResult:
 
     def has_data(self) -> bool:
         """Verifica se há dados no resultado."""
-        return self.data is not None and not self.data.empty
+        return isinstance(self.data, pd.DataFrame) and not self.data.empty
 
     def get_row_count(self) -> int:
         """Retorna número de linhas no resultado."""

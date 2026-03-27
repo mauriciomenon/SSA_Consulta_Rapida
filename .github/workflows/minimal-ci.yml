@@ -4,32 +4,14 @@ on:
   push:
     branches: [main, dev]
     paths:
-      - "interface/cli_enhancement_manager.py"
-      - "core/app_logic.py"
-      - "armazenamento/database_optimized.py"
-      - "gui/ssa/gui_filters_advanced_logic.py"
-      - "dev_env/streamlit_app.py"
-      - "tests/test_cli_enhancement_manager_lock_usage.py"
-      - "tests/test_import_cancellation.py"
-      - "tests/test_database_optimized_identifier_guards.py"
-      - "tests/test_gui_filters_advanced_logic.py"
-      - "tests/test_streamlit_filter_cache.py"
+      - "**/*.py"
       - "pyproject.toml"
       - "requirements*.txt"
       - ".github/workflows/minimal-ci.yml"
   pull_request:
     branches: [main, dev]
     paths:
-      - "interface/cli_enhancement_manager.py"
-      - "core/app_logic.py"
-      - "armazenamento/database_optimized.py"
-      - "gui/ssa/gui_filters_advanced_logic.py"
-      - "dev_env/streamlit_app.py"
-      - "tests/test_cli_enhancement_manager_lock_usage.py"
-      - "tests/test_import_cancellation.py"
-      - "tests/test_database_optimized_identifier_guards.py"
-      - "tests/test_gui_filters_advanced_logic.py"
-      - "tests/test_streamlit_filter_cache.py"
+      - "**/*.py"
       - "pyproject.toml"
       - "requirements*.txt"
       - ".github/workflows/minimal-ci.yml"
@@ -58,54 +40,24 @@ jobs:
           set -euo pipefail
           uv sync --extra dev
 
-      - name: Py compile critical paths
+      - name: Py compile tracked Python paths
         run: |
           set -euo pipefail
-          uv run --python 3.13 python -m py_compile \
-            interface/cli_enhancement_manager.py \
-            core/app_logic.py \
-            armazenamento/database_optimized.py \
-            gui/ssa/gui_filters_advanced_logic.py \
-            dev_env/streamlit_app.py \
-            tests/test_cli_enhancement_manager_lock_usage.py \
-            tests/test_import_cancellation.py \
-            tests/test_database_optimized_identifier_guards.py \
-            tests/test_gui_filters_advanced_logic.py \
-            tests/test_streamlit_filter_cache.py
+          git ls-files -z "*.py" | xargs -0 uv run --python 3.13 python -m py_compile
 
       - name: Ruff
         run: |
           set -euo pipefail
-          uv run --python 3.13 ruff check \
-            interface/cli_enhancement_manager.py \
-            core/app_logic.py \
-            armazenamento/database_optimized.py \
-            gui/ssa/gui_filters_advanced_logic.py \
-            dev_env/streamlit_app.py \
-            tests/test_cli_enhancement_manager_lock_usage.py \
-            tests/test_import_cancellation.py \
-            tests/test_database_optimized_identifier_guards.py \
-            tests/test_gui_filters_advanced_logic.py \
-            tests/test_streamlit_filter_cache.py
+          uv run --python 3.13 ruff check .
 
       - name: Ty
         run: |
           set -euo pipefail
-          uv run --python 3.13 ty check \
-            interface/cli_enhancement_manager.py \
-            core/app_logic.py \
-            armazenamento/database_optimized.py \
-            gui/ssa/gui_filters_advanced_logic.py \
-            dev_env/streamlit_app.py
+          uv run --python 3.13 ty check .
 
       - name: Focused pytest suite
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
           set -euo pipefail
-          uv run --python 3.13 pytest -q \
-            tests/test_cli_enhancement_manager_lock_usage.py \
-            tests/test_import_cancellation.py \
-            tests/test_database_optimized_identifier_guards.py \
-            tests/test_gui_filters_advanced_logic.py \
-            tests/test_streamlit_filter_cache.py
+          uv run --python 3.13 pytest -q tests

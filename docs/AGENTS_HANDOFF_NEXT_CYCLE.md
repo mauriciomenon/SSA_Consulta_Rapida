@@ -2,23 +2,24 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-26 22h01
+## CURRENT TRUTH 2026-03-27 00h52
 
 - Leitura rapida:
   1. branch alvo: `dev`
   2. metadata local ativa: `4.36`
   3. ultima tag publicada em `dev`: `v4.36`
-  4. os slices recentes de `numero_ssa`, importacao explicita e prova de update/query ja foram aterrados
+  4. os slices recentes de `numero_ssa`, importacao explicita, prova de update/query e protecao contra downgrade por arquivo antigo ja foram aterrados
 - PASSO 0 OBRIGATORIO ANTES DE QUALQUER NOVA FRENTE:
   1. revisar checks e comentarios mais recentes do PR `dev -> main`
   2. confirmar worktree limpo
-  3. atacar apenas o proximo `P1` com evidencia nova
-  4. so depois responder threads cujo status mudou de verdade
+  3. confirmar que o gate do Kluster esta disponivel antes do primeiro patch; se o review remoto oscilar, registrar o bloqueio exato
+  4. atacar apenas o proximo `P1` com evidencia nova
+  5. so depois responder threads cujo status mudou de verdade
 - Prioridade operacional:
   1. `P0`: manter fechado o contrato de `numero_ssa` sem reabrir heuristica ou truncagem
-  2. `P1`: adicionar teste negativo para impedir overwrite por arquivo mais antigo
-  3. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
-  4. `P2`: endurecer rollback/error boundary residual em `database*`
+  2. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
+  3. `P1`: endurecer rollback/error boundary residual em `database*`
+  4. `P1`: auditar testes viciados no fluxo critico de dados/CLI
   5. `P2`: convergir helper local de data em `database_upsert_logic.py`
 - Estado tecnico fechado:
   1. o `.0` vazava por regras duplicadas no write path
@@ -55,10 +56,10 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   8. `docs/GUIA_DISTRIBUICAO.md`
   9. `.github/instructions/kluster-code-verify.instructions.md`
 - Commits recentes desta frente:
-  1. `be66c865` `STABILITY_PATCH: prove query state after import updates`
-  2. `8e3e0a7f` `STABILITY_PATCH: prove DB state updates in import paths`
-  3. `19ee40f6` `HOTFIX_BLOCKER: reject overlong numero_ssa values`
-  4. `a908334f` `HOTFIX_BLOCKER: import explicit external files into DB`
+  1. `6c58298d` `STABILITY_PATCH: guard import state against older files`
+  2. `e52e9c5b` `STABILITY_PATCH: validate real import update flows`
+  3. `5169511b` `HOTFIX_BLOCKER: harden numero_ssa contract`
+  4. `0bdd2ef6` `HOTFIX_BLOCKER: log discarded short numero_ssa`
 - Estado do Kluster local:
   1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   2. timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo

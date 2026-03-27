@@ -20,26 +20,27 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ### PASSO 0 ANTES DE QUALQUER NOVA FRENTE
 1. revisar checks e comentarios mais recentes do PR
-2. rodar os gates finais do proximo escopo alterado
-3. manter backlog/handoff/docs vivos sincronizados depois de cada push
-4. responder apenas as threads do PR cujo status realmente mudou neste ciclo
-5. referencias:
+2. confirmar que o gate do Kluster esta disponivel antes do primeiro patch; se o review remoto oscilar, registrar o bloqueio exato
+3. rodar os gates finais do proximo escopo alterado
+4. manter backlog/handoff/docs vivos sincronizados depois de cada push
+5. responder apenas as threads do PR cujo status realmente mudou neste ciclo
+6. referencias:
    - `AGENTS.md`
    - `docs/NUNCA_CONFIE_IA.md`
    - `.github/instructions/kluster-code-verify.instructions.md`
    - `docs/README.md`
 
 ### P1 - fechar antes da rodada final de release
-1. adicionar teste negativo para impedir que arquivo mais antigo sobrescreva estado novo no banco.
-2. decidir explicitamente a paridade CLI vs GUI para diff/full import e discovery.
-3. endurecer rollback/error boundary residual em:
+1. decidir explicitamente a paridade CLI vs GUI para diff/full import e discovery.
+2. endurecer rollback/error boundary residual em:
    - `armazenamento/database.py`
    - `armazenamento/database_upsert_logic.py`
    - `armazenamento/database_optimized.py`
-4. auditar testes viciados no fluxo critico de dados/CLI:
+3. auditar testes viciados no fluxo critico de dados/CLI:
    - nao aceitar teste synthetic definindo contrato operacional
    - nao aceitar teste que so prova "nao travou"
-5. manter a prova de update de estado no banco no caminho de importacao explicita, diff e consulta/filtro sem regressao
+4. manter a prova de update de estado no banco no caminho de importacao explicita, diff e consulta/filtro sem regressao
+5. manter a prova negativa de que arquivo mais antigo nao rebaixa estado mais novo no banco
 
 ### P2 - backlog legitimo, mas nao bug aberto hoje
 1. aliases em `_needs_db_only_derivadas_sync` ja aparecem mitigados no runtime atual; reabrir so com repro nova.
