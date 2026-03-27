@@ -170,9 +170,7 @@ def _fake_extract_state_transition(file_path: str, should_cancel=None):  # noqa:
     )
 
 
-def _fake_extract_state_transition_same_date(
-    file_path: str, should_cancel=None
-):  # noqa: ARG001
+def _fake_extract_state_transition_same_date(file_path: str, should_cancel=None):  # noqa: ARG001
     marker = Path(file_path).read_text(encoding="utf-8")
     if marker == "old":
         return _build_ssa_import_df(
