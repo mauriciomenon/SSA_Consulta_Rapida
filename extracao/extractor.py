@@ -257,9 +257,7 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
             for col in fallback_candidates:
                 if col not in df_normalized.columns:
                     continue
-                candidate_series = parse_datetime_series_mixed(
-                    df_normalized[col]
-                )
+                candidate_series = parse_datetime_series_mixed(df_normalized[col])
                 fill_mask = missing_mask & candidate_series.notna()
                 if fill_mask.any():
                     df_normalized.loc[fill_mask, "data_cadastro"] = (
