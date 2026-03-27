@@ -1,6 +1,12 @@
 # AGENTS Handoff For Next Cycle
 
-Este handoff esta pronto para reutilizacao no proximo ciclo.
+Arquivo historico arquivado.
+Todos os blocos `CURRENT TRUTH` abaixo sao snapshots preservados e nao representam a fonte ativa atual.
+
+Fontes ativas atuais:
+1. `AGENTS.md`
+2. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+3. `docs/NEXT_CHAT_MIGRATION.md`
 
 ## CURRENT TRUTH 2026-03-09 08:41 - authoritative block
 

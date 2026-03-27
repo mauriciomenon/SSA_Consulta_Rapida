@@ -1,7 +1,7 @@
 # ARQUITETURA_IMPORTACAO legacy snapshot
 
 Este arquivo era um rascunho tecnico antigo e foi movido para archive.
-Ele nao e documento ativo de arquitetura no baseline v4.32.
+Ele nao e documento ativo de arquitetura no baseline atual `v4.36`.
 
 ## Uso correto
 
