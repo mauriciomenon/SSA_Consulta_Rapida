@@ -25,7 +25,8 @@ from typing import Iterable
 
 import pandas as pd
 
-from shared.numero_ssa import YEAR_MAX, YEAR_MIN, normalize_strict as _strict
+from shared.numero_ssa import YEAR_MAX, YEAR_MIN
+from shared.numero_ssa import normalize_strict as _strict
 from shared.numero_ssa import strip_canonical_decimal_artifact
 
 NUMERO_SSA_LEN = 9

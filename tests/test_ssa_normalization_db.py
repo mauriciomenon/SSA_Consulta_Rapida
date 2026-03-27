@@ -1,6 +1,6 @@
 # ruff: noqa: E402
-from datetime import datetime
 import logging
+from datetime import datetime
 
 import pandas as pd
 
