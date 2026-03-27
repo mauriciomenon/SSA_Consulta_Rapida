@@ -14,6 +14,7 @@
   - o detalhe da SSA agora expande `situacao`, copia o numero por duplo clique e mostra derivadas em arvore textual
   - `load_other_database()` passou a validar banco em background no runtime normal
   - upsert passou a bloquear downgrade de `situacao` em empate de `data_cadastro`
+  - o dialogo de detalhes ganhou aba dedicada `Arvore` com estrutura vertical (arvore em cima, detalhes embaixo)
 
 ## Regras de interpretacao
 

@@ -56,10 +56,12 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
    - detalhe da SSA com `situacao` expandida
    - copia do numero por duplo clique
    - arvore textual de derivadas mais clara
+   - aba dedicada `Arvore` com layout vertical para navegacao de relacoes
 7. revisar os hotspots restantes da thread principal apos:
    - `update_derivadas_from_sources()` em background
    - `load_other_database()` em background
 8. fechar a reorganizacao dos docs historicos segundo `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
+9. otimizar caminho de normalizacao da arvore/detalhes para reduzir custo em massa sem quebrar contrato de SSA
 
 ### P2 - backlog legitimo, mas nao bug aberto hoje
 1. aliases em `_needs_db_only_derivadas_sync` ja aparecem mitigados no runtime atual; reabrir so com repro nova.
@@ -86,6 +88,30 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 ## Update 2026-03-26 22:01 - plano consolidado de pendencias do PR e do repo (DOC_SYNC + DEFERRED_NOTE)
 
 ## Update 2026-03-27 18:10 - hotfix anti-downgrade de situacao no upsert (HOTFIX_BLOCKER + DOC_SYNC)
+
+## Update 2026-03-27 19:15 - aba dedicada de arvore de derivadas (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-27 18:20:00 -0300`
+2. fim: `2026-03-27 19:15:00 -0300`
+
+Objetivo do slice:
+1. entregar a pendencia da aba dedicada para visualizacao de derivadas.
+2. manter patch minimo no dialogo de detalhes, sem mexer no resto da GUI.
+3. atualizar docs vivos no mesmo ciclo.
+
+Diagnostico objetivo:
+1. o dialogo anterior tinha apenas painel lateral + detalhes; faltava a aba dedicada pedida.
+2. a equipe queria uma visualizacao mais clara da arvore com leitura rapida de relacoes.
+3. o patch precisava manter navegaçao por link e nao piorar a responsividade.
+
+Decisao aplicada:
+1. adicionada aba `Arvore` no dialogo de detalhes.
+2. aba `Arvore` usa layout vertical:
+   - topo: arvore navegavel
+   - base: detalhes da SSA alvo
+3. bloco Mermaid em texto foi incluido como apoio tecnico.
+4. follow-up registrado: recuperar vetorizaçao de `_normalize_ssa_series` para custo menor em massa.
 
 Session timestamp:
 1. start: `2026-03-27 17:40:00 -0300`

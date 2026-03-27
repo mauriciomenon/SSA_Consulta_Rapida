@@ -2,7 +2,7 @@
 
 Release/tag publicada mais recente na branch `dev`: `v4.36`.
 
-## Current Truth (2026-03-27 18:10 -0300)
+## Current Truth (2026-03-27 19:15 -0300)
 
 - Estado operacional:
   - metadata local ativa: `4.36`
@@ -24,6 +24,10 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - o numero da SSA no detalhe copia para a area de transferencia por duplo clique
   - a area de derivadas ficou mais larga e passou a usar arvore textual com `numero (STATUS)`
   - `load_other_database()` passou a validar o arquivo em background no runtime normal
+  - dialogo de detalhes agora tem aba dedicada `Arvore`:
+    - metade superior: arvore navegavel
+    - metade inferior: detalhes da SSA atual
+    - bloco Mermaid em texto para leitura tecnica rapida
 - Hotfix de banco entregue nesta frente:
   - upsert nao-complementar agora evita downgrade de `situacao` quando `data_cadastro` empata
   - caso real protegido: manter `STE` e bloquear sobrescrita para `ADM` em empate de data
@@ -31,7 +35,8 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - regressao coberta em testes de upsert e importacao explicita
 - Follow-up apos o sprint GUI:
   - continuar a varredura de chamadas pesadas restantes na thread principal
-  - manter o detalhe de derivadas textual simples; um grafo richer fica como refinamento futuro, nao como patch minimo obrigatorio
+  - otimizar `_normalize_ssa_series` da tela de detalhes para recuperar vetorizaçao plena sem perder o contrato central de normalizacao
+  - manter o detalhe de derivadas textual e aba dedicada estaveis; um grafo visual renderizado continua como refinamento futuro
 - Validacao atual:
   - `uv run --python 3.13 python -m py_compile` em tracked Python -> verde
   - `uv run --python 3.13 ruff check .` -> verde
