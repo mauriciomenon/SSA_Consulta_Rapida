@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime
 
 # Force unbuffered stdout/stderr for visibility in CI / tooling
 os.environ.setdefault("PYTHONUNBUFFERED", "1")
@@ -95,14 +94,13 @@ def sample_upsert_batches() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 @pytest.fixture()
 def normalization_cases() -> list[tuple[str | int | None, str | None]]:
-    current_year = datetime.now().year
     return [
         (None, None),
         ("", None),
         ("00000", None),
-        ("123", f"{current_year}00123"),
+        ("123", None),
         ("202512345", "202512345"),
         ("202512345678", None),
-        ("2101234", "202101234"),  # caso especial 7 digitos iniciando 21
-        ("2601234", "202601234"),  # caso especial 7 digitos iniciando 26
+        ("2101234", None),
+        ("2601234", None),
     ]

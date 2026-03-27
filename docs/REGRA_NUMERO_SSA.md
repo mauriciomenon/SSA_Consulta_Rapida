@@ -16,14 +16,14 @@ APIs principais
   - manter ano no intervalo 1980-2050
   - tratar sobrecomprimento como caso legacy, nunca como evidencia de export atual
 
-- Compatibilidades legacy:
-  - helpers antigos de exibicao e normalizacao continuam existindo por retrocompatibilidade
-  - esses detalhes ficam cobertos por testes e pelo codigo
-  - nao devem ser usados para redefinir o contrato operacional atual sem evidencia de planilha real
+- Fachadas publicas retrocompativeis:
+  - nomes antigos continuam existindo para evitar quebra de imports
+  - essas fachadas agora seguem o mesmo contrato canonico de 9 digitos
+  - entradas curtas nao devem virar SSA valida por prefixo de ano, zero-padding ou outras heuristicas de exibicao
 
 Motivacao
 - Evitar SSAs invalidos (comprimento incorreto ou ano fora do intervalo).
-- Manter comportamento previsivel para exibicao de casos curtos (ex.: rascunhos, entradas parciais) sem comprometer a persistencia.
+- Evitar que exibicao ou retrocompatibilidade redefinam o contrato de persistencia.
 - Evitar aceitar silenciosamente entradas com letras ou sobrecomprimento.
 - Separar claramente referencia operacional atual de compatibilidades legacy do helper.
 
@@ -33,5 +33,5 @@ Testes relacionados
 
 Observacoes
 - A camada de persistencia deve sempre usar a funcao numerica `_normalize_numero_ssa_value` (retorna `None` quando invalido).
-- A camada de exibicao pode usar `normalize_numero_ssa` para representar entradas parciais de maneira consistente, sem comprometer a validacao.
+- A camada de exibicao deve mostrar o valor canonico somente quando ele for valido; entradas invalidas permanecem invalidas.
 

@@ -1,5 +1,3 @@
-from datetime import datetime
-
 import pandas as pd
 
 from utils.formatting import format_cell, format_dataframe_for_display
@@ -20,7 +18,6 @@ def test_format_cell_dates():
 
 
 def test_format_dataframe_for_display_and_ssa():
-    current_year = datetime.now().year
     df = pd.DataFrame(
         {
             "numero_ssa": ["123", "202500045", None],
@@ -30,8 +27,8 @@ def test_format_dataframe_for_display_and_ssa():
         }
     )
     out = format_dataframe_for_display(df)
-    # numero_ssa formatted to 9 digits (uses current year prefix for short legacy values)
-    assert out.loc[0, "numero_ssa"] == f"{current_year}00123"
+    # numero_ssa so exibe valor canonico quando valido
+    assert out.loc[0, "numero_ssa"] == ""
     assert out.loc[1, "numero_ssa"] == "202500045"
     assert out.loc[2, "numero_ssa"] == ""
     # semana becomes int string without .0
