@@ -57,3 +57,16 @@ def test_cross_layer_overlong_value_is_rejected_with_log(caplog) -> None:
     assert database._normalize_numero_ssa_value("2025123456") is None
 
     assert "exceder 9 digitos" in caplog.text
+
+
+def test_cross_layer_too_short_value_is_rejected_with_log(caplog) -> None:
+    caplog.set_level(logging.WARNING)
+
+    series, mask = _clean_numero_ssa_series(pd.Series(["123"]))
+
+    assert normalize_strict("123") is None
+    assert database._normalize_numero_ssa_value("123") is None
+    assert database.normalize_numero_ssa("123") is None
+    assert bool(mask.iloc[0]) is False
+    assert pd.isna(series.iloc[0])
+    assert "menos de 5 digitos" in caplog.text
