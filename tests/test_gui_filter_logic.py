@@ -2956,6 +2956,64 @@ class TestGUIFilterLogic:
 
         assert "Falha ao atualizar derivadas" in self.window.status_label.text()
 
+    def test_update_derivadas_from_sources_async_path_delivers_result_and_resets_flags(
+        self, monkeypatch, tmp_path
+    ):
+        db_file = tmp_path / "ssas.db"
+        db_file.write_bytes(b"sqlite-placeholder")
+
+        monkeypatch.setattr(gui_ssa, "DB_PATH", str(db_file))
+        monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+        monkeypatch.setattr(
+            self.window, "_resolve_derivadas_table_name", lambda _db_path: "ssa_table"
+        )
+        monkeypatch.setattr(self.window, "_list_special_derivadas_sheets", lambda: [])
+        monkeypatch.setattr(
+            gui_ssa,
+            "sync_derivadas",
+            lambda **kwargs: {
+                "merge_stats": {"merged_edges": 3},
+                "db_stats": {"accepted_edges": 3},
+                "sheet_stats": {"accepted_edges": 0},
+            },
+        )
+        monkeypatch.setattr(
+            gui_ssa,
+            "scan_derivadas_consistency",
+            lambda **kwargs: {
+                "schema_ready": True,
+                "is_consistent": True,
+                "issue_counts": {},
+            },
+        )
+        monkeypatch.setattr(self.window, "_update_derivadas_button_state", lambda: None)
+
+        class _ImmediateTimer:
+            @staticmethod
+            def singleShot(_msec, callback):
+                callback()
+
+        class _InlineThread:
+            def __init__(self, target=None, daemon=None, **_kwargs):
+                self._target = target
+                self.daemon = daemon
+
+            def start(self):
+                if self._target is not None:
+                    self._target()
+
+        monkeypatch.setattr(gui_ssa, "QTimer", _ImmediateTimer)
+        monkeypatch.setattr(gui_ssa.threading, "Thread", _InlineThread)
+
+        result = self.window.update_derivadas_from_sources()
+        QApplication.processEvents()
+
+        assert result["ok"] is True
+        assert result["started"] is True
+        assert self.window._derivadas_sync_running is False
+        assert self.window._derivadas_sync_thread is None
+        assert "Derivadas atualizadas" in self.window.status_label.text()
+
     def test_resolve_derivadas_table_name_requires_schema_compatibility(self, tmp_path):
         db_file = tmp_path / "resolver.db"
         conn = sqlite3.connect(db_file)
