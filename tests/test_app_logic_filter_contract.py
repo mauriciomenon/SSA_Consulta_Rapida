@@ -307,9 +307,7 @@ def test_get_filtered_data_reflects_updated_state_after_explicit_import(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    docs_dir, _data_dir, db_path = _prepare_import_update_runtime(
-        tmp_path, monkeypatch
-    )
+    docs_dir, _data_dir, db_path = _prepare_import_update_runtime(tmp_path, monkeypatch)
     old_file = docs_dir / "old.xlsx"
     new_file = docs_dir / "new.xlsx"
     old_file.write_text("old", encoding="utf-8")
@@ -352,9 +350,7 @@ def test_get_filtered_data_reflects_updated_state_after_diff_reimport(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    docs_dir, data_dir, db_path = _prepare_import_update_runtime(
-        tmp_path, monkeypatch
-    )
+    docs_dir, data_dir, db_path = _prepare_import_update_runtime(tmp_path, monkeypatch)
     tracked_file = docs_dir / "tracked.xlsx"
     tracked_file.write_text("old", encoding="utf-8")
 
