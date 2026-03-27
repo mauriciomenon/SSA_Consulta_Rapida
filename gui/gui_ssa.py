@@ -4377,17 +4377,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         return CANONICAL_SSA_TABLE
 
     def update_derivadas_from_sources(self):
-        def _has_sheet_parse_evidence(entry: dict) -> bool:
-            if not isinstance(entry, dict):
-                return False
-            raw_stats = entry.get("stats")
-            stats = raw_stats if isinstance(raw_stats, dict) else {}
-            has_flag = bool(entry.get("has_parse_evidence"))
-            accepted = int(stats.get("accepted_edges", 0) or 0)
-            special_layout = int(stats.get("special_layout_detected", 0) or 0)
-            informational = int(stats.get("informational_rows_skipped", 0) or 0)
-            return has_flag or accepted > 0 or special_layout > 0 or informational > 0
-
         db_path = DB_PATH
         if not db_path or not os.path.exists(db_path):
             if os.environ.get("PYTEST_CURRENT_TEST"):
@@ -4413,18 +4402,140 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         previous_progress_value = (
             int(self.progress_bar.value()) if hasattr(self, "progress_bar") else 0
         )
+        previous_ui_state = {
+            "status": previous_status,
+            "progress_visible": previous_progress_visible,
+            "progress_range": previous_progress_range,
+            "progress_value": previous_progress_value,
+        }
 
+        if bool(getattr(self, "_derivadas_sync_running", False)):
+            if hasattr(self, "status_label"):
+                self.status_label.setText("Status: Atualizacao de derivadas ja em andamento.")
+            return {
+                "ok": False,
+                "reason": "already_running",
+                "db_path": db_path,
+                "table_name": table_name,
+            }
+
+        self._start_derivadas_sync_ui_state(
+            previous_ui_state, "Status: Atualizando derivadas via DB..."
+        )
+
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            result = SSAMainWindow._execute_derivadas_sync_job(
+                db_path=db_path,
+                table_name=table_name,
+                special_files=special_files,
+            )
+            return SSAMainWindow._finalize_derivadas_sync_result(
+                self, result, previous_ui_state=previous_ui_state
+            )
+
+        self._derivadas_sync_running = True
+        self._derivadas_sync_thread = None
+        self._derivadas_sync_pending_result = None
+        self._derivadas_sync_phase_status = "Status: Atualizando derivadas via DB..."
+        self._derivadas_sync_ui_state = previous_ui_state
+
+        def _window_alive() -> bool:
+            if self is None:
+                return False
+            if not hasattr(self, "metaObject"):
+                return True
+            if sip is None:
+                return True
+            try:
+                return not sip.isdeleted(self)
+            except Exception:
+                return False
+
+        def _set_phase_status(text: str) -> None:
+            self._derivadas_sync_phase_status = str(text or "")
+
+        def _work() -> None:
+            try:
+                result = SSAMainWindow._execute_derivadas_sync_job(
+                    db_path=db_path,
+                    table_name=table_name,
+                    special_files=special_files,
+                    status_callback=_set_phase_status,
+                )
+            except Exception as exc:
+                result = {"ok": False, "error": str(exc)}
+            self._derivadas_sync_pending_result = result
+
+        def _poll_delivery() -> None:
+            if not _window_alive():
+                self._derivadas_sync_pending_result = None
+                self._derivadas_sync_thread = None
+                self._derivadas_sync_running = False
+                return
+            phase_status = str(getattr(self, "_derivadas_sync_phase_status", "") or "")
+            if phase_status and hasattr(self, "status_label"):
+                self.status_label.setText(phase_status)
+            pending = getattr(self, "_derivadas_sync_pending_result", None)
+            if pending is None:
+                if bool(getattr(self, "_derivadas_sync_running", False)):
+                    QTimer.singleShot(100, _poll_delivery)
+                return
+            self._derivadas_sync_pending_result = None
+            SSAMainWindow._finalize_derivadas_sync_result(self, pending)
+
+        worker = threading.Thread(target=_work, daemon=True)
+        self._derivadas_sync_thread = worker
+        worker.start()
+        QTimer.singleShot(100, _poll_delivery)
+        return {
+            "ok": True,
+            "started": True,
+            "db_path": db_path,
+            "table_name": table_name,
+        }
+
+    def _start_derivadas_sync_ui_state(
+        self, previous_ui_state: dict[str, Any], initial_status: str
+    ) -> None:
         try:
             self.update_derivadas_button.setEnabled(False)
             if hasattr(self, "progress_bar"):
-                # Do not force visibility here; showing/hiding this widget changes
-                # toolbar geometry and causes perceived layout shifts in filters tab.
-                if previous_progress_visible:
+                if bool(previous_ui_state.get("progress_visible")):
                     self.progress_bar.setVisible(True)
                 self.progress_bar.setRange(0, 0)
             if hasattr(self, "status_label"):
-                self.status_label.setText("Status: Atualizando derivadas via DB...")
+                self.status_label.setText(initial_status)
+        except Exception as exc:
+            logger.warning(
+                "Falha ao preparar estado visual antes do sync manual de derivadas: %s",
+                exc,
+            )
 
+    @staticmethod
+    def _execute_derivadas_sync_job(
+        *,
+        db_path: str,
+        table_name: str,
+        special_files: list[str],
+        status_callback=None,
+    ) -> dict[str, Any]:
+        def _set_status(text: str) -> None:
+            if callable(status_callback):
+                status_callback(text)
+
+        def _has_sheet_parse_evidence(entry: dict[str, Any]) -> bool:
+            if not isinstance(entry, dict):
+                return False
+            raw_stats = entry.get("stats")
+            stats = raw_stats if isinstance(raw_stats, dict) else {}
+            has_flag = bool(entry.get("has_parse_evidence"))
+            accepted = int(stats.get("accepted_edges", 0) or 0)
+            special_layout = int(stats.get("special_layout_detected", 0) or 0)
+            informational = int(stats.get("informational_rows_skipped", 0) or 0)
+            return has_flag or accepted > 0 or special_layout > 0 or informational > 0
+
+        try:
+            _set_status("Status: Atualizando derivadas via DB...")
             db_report = sync_derivadas(
                 db_path=db_path,
                 table_name=table_name,
@@ -4437,10 +4548,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             db_stats = db_report.get("db_stats") or {}
             db_edges = int(db_stats.get("accepted_edges", 0) or 0)
             if special_files:
-                if hasattr(self, "status_label"):
-                    self.status_label.setText(
-                        f"Status: Atualizando derivadas via planilhas especiais ({len(special_files)})..."
-                    )
+                _set_status(
+                    "Status: Atualizando derivadas via planilhas especiais "
+                    f"({len(special_files)})..."
+                )
                 final_report = sync_derivadas(
                     db_path=db_path,
                     table_name=table_name,
@@ -4494,6 +4605,44 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     "Derivadas inconsistente apos sync manual: "
                     f"{json.dumps(issue_counts, ensure_ascii=True)}"
                 )
+            return {
+                "ok": True,
+                "db_edges": db_edges,
+                "sheet_edges": sheet_edges,
+                "merged_edges": merged_edges,
+            }
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
+    def _finalize_derivadas_sync_result(
+        self,
+        result: dict[str, Any],
+        *,
+        previous_ui_state: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        previous = previous_ui_state or getattr(self, "_derivadas_sync_ui_state", {}) or {}
+        self._derivadas_sync_running = False
+        self._derivadas_sync_thread = None
+        self._derivadas_sync_pending_result = None
+        self._derivadas_sync_phase_status = ""
+
+        try:
+            self.update_derivadas_button.setEnabled(True)
+            if hasattr(self, "progress_bar"):
+                self.progress_bar.setVisible(bool(previous.get("progress_visible")))
+                progress_range = previous.get("progress_range") or (0, 0)
+                self.progress_bar.setRange(progress_range[0], progress_range[1])
+                self.progress_bar.setValue(int(previous.get("progress_value", 0) or 0))
+        except Exception as exc:
+            logger.warning(
+                "Falha ao restaurar estado visual do sync manual de derivadas: %s",
+                exc,
+            )
+
+        if bool(result.get("ok")):
+            merged_edges = int(result.get("merged_edges", 0) or 0)
+            db_edges = int(result.get("db_edges", 0) or 0)
+            sheet_edges = int(result.get("sheet_edges", 0) or 0)
             if hasattr(self, "status_label"):
                 self.status_label.setText(
                     "Status: Derivadas atualizadas (merged="
@@ -4506,28 +4655,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     "Falha ao atualizar estado do botao de derivadas apos sync manual: %s",
                     exc,
                 )
-        except Exception as exc:
-            logger.exception("Falha ao atualizar derivadas manualmente: %s", exc)
-            if hasattr(self, "status_label"):
-                self.status_label.setText("Status: Falha ao atualizar derivadas.")
-            if os.environ.get("PYTEST_CURRENT_TEST"):
-                return
-            QMessageBox.critical(self, "Erro", f"Falha ao atualizar derivadas: {exc}")
-        finally:
-            self.update_derivadas_button.setEnabled(True)
-            if hasattr(self, "progress_bar"):
-                self.progress_bar.setVisible(previous_progress_visible)
-                self.progress_bar.setRange(
-                    previous_progress_range[0], previous_progress_range[1]
-                )
-                self.progress_bar.setValue(previous_progress_value)
-            if hasattr(self, "status_label"):
-                current_status = self.status_label.text()
-                keep_status = current_status.startswith(
-                    "Status: Derivadas atualizadas"
-                ) or current_status.startswith("Status: Falha ao atualizar derivadas")
-                if not keep_status:
-                    self.status_label.setText(previous_status)
+            return result
+
+        error = str(result.get("error") or "Erro desconhecido")
+        logger.error("Falha ao atualizar derivadas manualmente: %s", error)
+        if hasattr(self, "status_label"):
+            self.status_label.setText("Status: Falha ao atualizar derivadas.")
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            QMessageBox.critical(self, "Erro", f"Falha ao atualizar derivadas: {error}")
+        return result
 
     def load_other_database(self):
         """Permite selecionar e carregar outro arquivo de banco de dados."""
