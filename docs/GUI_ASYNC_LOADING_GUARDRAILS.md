@@ -2,6 +2,11 @@
 
 Este documento define as regras de segurança para o carregamento assíncrono da GUI (`load_data`) e para evitar regressões do tipo race condition, deadlock e inconsistência de estado.
 
+## Atualizacao 2026-03-27
+
+- `update_derivadas_from_sources()` e `load_other_database()` passaram a seguir a mesma diretriz: I/O e validacao fora do thread principal no runtime normal.
+- Em testes (`PYTEST_CURRENT_TEST`), o caminho sincrono controlado continua permitido para manter a harness deterministica.
+
 ## Objetivos
 
 - Garantir que apenas o carregamento mais recente atualize a UI.
@@ -37,6 +42,15 @@ Este documento define as regras de segurança para o carregamento assíncrono da
 
 - Evento obsoleto:
   - Não altera dataset, botões, texto de status ou paginação.
+
+## Guardrails adicionais para outras operacoes pesadas
+
+- Validacao de banco selecionado por arquivo:
+  - nao consultar schema/tabela no thread principal do runtime normal;
+  - entregar resultado de volta por timer/sinal, com guarda de estado de janela.
+- Sync manual de derivadas:
+  - nao usar `processEvents()` como substituto de background real;
+  - runtime normal deve executar o bloco pesado fora da UI.
 
 ## Anti-patterns proibidos
 

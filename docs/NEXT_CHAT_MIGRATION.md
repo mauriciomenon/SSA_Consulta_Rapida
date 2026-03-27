@@ -2,7 +2,7 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-27 03h35
+## CURRENT TRUTH 2026-03-27 16h45
 
 - Leitura rapida:
   1. branch ativa: `dev`
@@ -22,7 +22,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `docs/README.md`
 - Prioridade imediata:
   1. `P0`: manter fechado o contrato de `numero_ssa` sem reabrir truncagem ou regra paralela
-  2. `P1`: concluir o sprint GUI aberto sem reintroduzir carga pesada no thread principal
+  2. `P1`: revisar hotspots restantes da thread principal apos o sprint GUI entregue
   3. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
   4. `P1`: endurecimento residual de rollback/error boundary em `database*`
   5. `P1`: auditoria de testes viciados em dados/CLI
@@ -39,14 +39,15 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   9. macro `Baixar` ja exclui `SAD`
   10. o prompt de filtro por coluna ganhou hint explicito e largura minima padronizada
   11. `update_derivadas_from_sources()` saiu do thread principal em runtime normal
-- O que ainda falta do sprint GUI:
-  1. borda destacada na caixa de filtros ativos
-  2. nova caixa `filtrado/total` na barra superior
-  3. botao `Abrir SAM`
-  4. hyperlink na coluna `#`
-  5. `situacao` expandida no detalhe da SSA
-  6. copia por duplo clique do numero da SSA
-  7. melhoria visual da arvore de derivadas
+  12. a caixa `Filtros ativos` ganhou borda destacada e texto em negrito quando ativa
+  13. a barra superior ganhou `Abrir SAM`, a caixa `Status: X de Y SSAs` e `Semana Atual` centralizado
+  14. a coluna `#` abre a SSA no SAM
+  15. o detalhe da SSA expande `situacao`, copia o numero por duplo clique e mostra derivadas em arvore textual
+  16. `load_other_database()` saiu da UI thread no runtime normal
+- O que ainda falta apos o sprint GUI:
+  1. revisar staging/copy da importacao externa na thread principal
+  2. revisar hotspots de render/refresh apos filtros
+  3. decidir se a arvore textual de derivadas ja basta para distribuicao ou se merece uma rodada futura propria
 - Integridade do contexto:
   1. nada foi perdido nesta reorganizacao documental
   2. historicos antigos continuam preservados abaixo como auditoria
@@ -86,10 +87,13 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   3. `31dc9c99` `STABILITY_PATCH: move derivadas sync off ui thread`
   4. `9983a757` `STABILITY_PATCH: tighten async import gui contract`
   5. `9da3eca0` push de follow-up do contrato assincrono ja publicado
+  6. `b343c621` `STABILITY_PATCH: finish gui sam status and details sprint`
 - Estado do Kluster local:
   1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   2. se o review remoto voltar a dar timeout em `manualCheck`, tratar como bloqueio de ferramenta, nao como finding do repo
   3. Kluster continua obrigatorio como gate apos alteracoes
+ - Estudo novo de organizacao documental:
+  1. `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 
 ## HISTORICAL SNAPSHOT 2026-03-23 19h01
 

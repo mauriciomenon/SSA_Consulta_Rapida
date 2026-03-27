@@ -2,14 +2,22 @@
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-03-26 07:35 -0300)
+## Sync status (2026-03-27 16:45 -0300)
 
 1. Baseline ativo confirmado: `4.36`.
 2. Branch operacional: `dev`.
 3. Release/tag publicada relevante: `v4.36`.
-4. Relatorio consolidado do ciclo de build:
+4. Sprint GUI desta frente ja foi aterrado no runtime:
+   - `Abrir SAM`
+   - status `filtrado/total`
+   - `#` abrindo SAM externo
+   - `situacao` expandida no detalhe
+   - copia por duplo clique do numero da SSA
+   - derivadas em arvore textual e detalhe mais largo
+   - `load_other_database()` fora da UI thread em runtime normal
+5. Relatorio consolidado do ciclo de build:
    - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
-5. Runbook operacional 3x3:
+6. Runbook operacional 3x3:
    - `docs/BUILD_3X3_RUNBOOK.md`
 
 ## Regras de leitura
@@ -66,6 +74,7 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 - `docs/GUI_ASYNC_LOADING_GUARDRAILS.md`
 - `docs/WORKERS_API_DOCUMENTATION.md`
 - `docs/WORKERS_ARCHITECTURE_DIAGRAMS.md`
+- `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 
 ## Build e distribuicao
 
@@ -106,3 +115,4 @@ de mesmo tema em `docs/`.
 - `docs/archive/ARQUITETURA_IMPORTACAO_legacy_until_20260309_1901.md`
 - `docs/archive/TROUBLESHOOTING_legacy_until_20260309_1901.md`
 - `docs/archive/TROUBLESHOOTING_IMPORTACAO_legacy_until_20260309_1901.md`
+- `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`

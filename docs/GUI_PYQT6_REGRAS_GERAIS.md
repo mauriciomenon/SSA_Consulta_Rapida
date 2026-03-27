@@ -18,8 +18,13 @@
 ## Atualizacao 2026-03-27 (filtros e thread principal)
 - O marcador `[f]` no cabecalho deve refletir tanto filtro de coluna quanto filtro avancado equivalente.
 - O resumo `Filtros ativos` nao deve duplicar o mesmo conceito vindo de mais de uma fonte de estado.
+- A caixa `Filtros ativos` pode usar borda destacada e negrito como estado visual de filtro ativo, sem trocar o contrato do `[f]`.
 - O prompt `Filtrar "nome da coluna"` deve expor hint curto de sintaxe no proprio dialogo.
 - Operacao manual pesada de derivadas nao deve bloquear a GUI; runtime normal deve usar background e entrega por sinais/timer.
+- Validacao de banco selecionado em `load_other_database()` tambem nao deve bloquear a GUI no runtime normal.
+- Contagem `filtrado/total` deve ficar separada da caixa operacional de status.
+- Links operacionais externos simples, como `Abrir SAM` e o clique no `#`, podem usar navegador padrao sem navegador embutido.
+- O detalhe da SSA deve expandir a sigla de `situacao` e permitir copia direta do numero sem alterar o texto exibido.
 
 ## 1) Escopo e disciplina de mudanca
 - Diagnosticar antes de editar, com evidencia objetiva.
