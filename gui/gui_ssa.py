@@ -4411,7 +4411,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         if bool(getattr(self, "_derivadas_sync_running", False)):
             if hasattr(self, "status_label"):
-                self.status_label.setText("Status: Atualizacao de derivadas ja em andamento.")
+                self.status_label.setText(
+                    "Status: Atualizacao de derivadas ja em andamento."
+                )
             return {
                 "ok": False,
                 "reason": "already_running",
@@ -4620,7 +4622,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         *,
         previous_ui_state: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        previous = previous_ui_state or getattr(self, "_derivadas_sync_ui_state", {}) or {}
+        previous = (
+            previous_ui_state or getattr(self, "_derivadas_sync_ui_state", {}) or {}
+        )
         self._derivadas_sync_running = False
         self._derivadas_sync_thread = None
         self._derivadas_sync_pending_result = None
