@@ -5,9 +5,9 @@ Objetivos:
  - Reutilizar a função já consolidada em ``core.numero_ssa.normalize_strict``
  - Fornecer conversão para inteiro (quando aplicável) usada por caminhos legados
 
-API Pública (estável):
+API Publica (estavel):
  - normalize_numero_ssa_strict(value) -> str | None
- - normalize_numero_ssa_int(value) -> int | None  (legado: corta para 9 digitos e valida ano)
+ - normalize_numero_ssa_int(value) -> int | None
  - batch_normalize_series(series) -> pd.Series (str|None)  preservando índices
 
 Motivação:
@@ -29,7 +29,7 @@ from shared.numero_ssa import normalize_strict as _strict  # fonte unica de verd
 NUMERO_SSA_LEN = 9
 NUMERO_SSA_ANO_MIN = 1980
 NUMERO_SSA_ANO_MAX = 2050
-_CANONICAL_DECIMAL_ARTIFACT = re.compile(r"^\s*(\d{9})\.0+\s*$")
+_CANONICAL_DECIMAL_ARTIFACT = re.compile(r"^\s*(\d+)\.0+\s*$")
 
 __all__ = [
     # núcleo strict
@@ -74,33 +74,14 @@ def _contains_letters(value) -> bool:
 
 
 def _normalize_numero_ssa_value(value) -> int | None:
-    """Versão numérica (legado) com regra de corte para >9 dígitos.
-
-    Comportamento exigido pelos testes legados:
-      * Remove não dígitos.
-      * Se tiver mais que 9 dígitos, usa apenas os primeiros 9.
-      * Exige exatamente 9 dígitos após o eventual corte.
-      * Ano deve estar dentro do intervalo permitido.
-    (Regras adicionais de rejeição mais complexas ficam a cargo da versão strict
-     quando chamada diretamente nos testes específicos.)
-    """
+    """Versao numerica legada alinhada ao helper strict central."""
     if value is None:
         return None
-    try:
-        digits = re.sub(r"\D", "", str(value))
-    except Exception:  # pragma: no cover
-        return None
-    if not digits:
-        return None
-    if len(digits) > NUMERO_SSA_LEN:
-        digits = digits[:NUMERO_SSA_LEN]
-    if len(digits) != NUMERO_SSA_LEN:
+    strict_value = normalize_numero_ssa_strict(_strip_canonical_decimal_artifact(value))
+    if strict_value is None:
         return None
     try:
-        ano = int(digits[:4])
-        if not (NUMERO_SSA_ANO_MIN <= ano <= NUMERO_SSA_ANO_MAX):
-            return None
-        return int(digits)
+        return int(strict_value)
     except Exception:  # pragma: no cover
         return None
 

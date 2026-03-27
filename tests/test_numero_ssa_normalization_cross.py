@@ -28,7 +28,6 @@ CASES = [
     ("205112345", None),  # year too high
     ("20251234", None),  # 8 digits
     ("202600654", "202600654"),  # 9-digit numeric case from current export pattern
-    ("2026000654", "2026000654"),  # synthetic 10-digit legacy-compat case
     ("XX202512345YY", None),  # contains letters -> invalid
 ]
 
@@ -44,8 +43,6 @@ def test_cross_layer_normalization(raw, expected):
     # Legacy int normalizer should match when expected not None
     legacy = database._normalize_numero_ssa_value(raw)
     if expected is None:
-        assert legacy is None or str(legacy).zfill(9) != expected
-    elif len(expected) == 10:
-        assert legacy is None or str(legacy) != expected
+        assert legacy is None
     else:
         assert str(legacy).zfill(9) == expected

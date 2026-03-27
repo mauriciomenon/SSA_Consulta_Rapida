@@ -1,7 +1,7 @@
 """Centralized numero_ssa normalization utilities.
 
 Strict policy (canonical key) adopted for cross-layer consistency:
-    * Base rule: strip non-digits and obtain **exactly** 9 or 10 digits - otherwise reject.
+    * Base rule: strip non-digits and obtain **exactly** 9 digits - otherwise reject.
     * Year guard: first 4 digits must be within inclusive range 1980..2050.
     * Additional hardening (to satisfy regression tests):
             - If the original value contains alphabetic characters (letters), reject
@@ -10,7 +10,7 @@ Strict policy (canonical key) adopted for cross-layer consistency:
                 ``YYYY-XXXXX`` where the last 5 digits are *not all identical*.
                 This differentiates an accepted test case (``2025-12345``) from a
                 deliberately invalid one (``2025-22222``) used in importer filtering.
-    * We do NOT accept over-long numeric strings ( >10 digits ) by truncation -
+    * We do NOT accept over-long numeric strings ( >9 digits ) by truncation -
         they are rejected to avoid accidental conflation.
 
 Rationale for the mixed rules:
@@ -32,7 +32,7 @@ from typing import Iterable
 
 YEAR_MIN = 1980
 YEAR_MAX = 2050
-VALID_LENGTHS = {9, 10}
+VALID_LENGTHS = {9}
 
 __all__ = [
     "normalize_strict",
@@ -65,18 +65,18 @@ def _expand_two_digit_year_sequence(trimmed: str) -> str | None:
 
 
 def normalize_strict(value) -> str | None:
-    """Return canonical 9/10-digit numero_ssa or ``None`` if invalid.
+    """Return canonical 9-digit numero_ssa or ``None`` if invalid.
 
     Enforcement steps:
       1. Reject None / empty early.
       2. Reject any value containing alphabetic characters (regression test requirement).
-      3. Extract digits; must yield exactly 9 or 10.
+      3. Extract digits; must yield exactly 9.
       4. Year range validation (first four digits).
       5. If original contained a dash ('-'), allow only pattern YYYY-XXXXX where
          the last 5 digits are *not* all identical (business/test heuristic) -
          otherwise reject. (Accepts ``2025-12345``; rejects ``2025-22222``.)
 
-    Note: We purposely *do not* silently truncate over-length sequences to 9/10 digits;
+    Note: We purposely *do not* silently truncate over-length sequences to 9 digits;
     callers should clean upstream or treat such cases as invalid.
     """
     if value is None:
@@ -142,9 +142,6 @@ def normalize_numero_ssa(value) -> str | None:  # noqa: PLR0911
             return expanded
     if len(raw) < 9:
         return raw.zfill(9)
-    if len(raw) == 10:
-        strict_value = normalize_strict(raw)
-        return strict_value
-    if len(raw) > 10:
+    if len(raw) > 9:
         return None
     return raw

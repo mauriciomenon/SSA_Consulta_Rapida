@@ -16,8 +16,8 @@ def test_normalize_numero_ssa_value_various():
     assert _normalize_numero_ssa_value("ABC123") is None
     # 8 dígitos é inválido
     assert _normalize_numero_ssa_value("12345678") is None
-    # 10+ dígitos: usa primeiros 9; se ano válido, aceita
-    assert _normalize_numero_ssa_value("2025123456") == 202512345
+    # 10+ digitos: helper numerico legado nao aceita mais sobrecomprimento
+    assert _normalize_numero_ssa_value("2025123456") is None
 
 
 def test_normalize_numero_ssa_dataframe_apply():
@@ -29,7 +29,6 @@ def test_normalize_numero_ssa_dataframe_apply():
                 "12345678",
                 "202501234",
                 "202600654",
-                "2026000654",
             ]
         }
     )
@@ -40,7 +39,6 @@ def test_normalize_numero_ssa_dataframe_apply():
         None,
         "202501234",
         "202600654",
-        "2026000654",
     ]
 
 
@@ -77,8 +75,8 @@ def test_normalize_numero_ssa_basic():
     assert normalize_numero_ssa("202500045") == "202500045"
     # caso atual de export com 9 digitos permanece canonico
     assert normalize_numero_ssa("202600654") == "202600654"
-    # compatibilidade legacy sintetica com 10 digitos continua coberta por teste
-    assert normalize_numero_ssa("2026000654") == "2026000654"
+    # 10 digitos nao sao referencia do contrato operacional atual
+    assert normalize_numero_ssa("2026000654") is None
     # >9 nao trunca mais no helper legacy
     assert normalize_numero_ssa("202512345678") is None
     # vazios/nulos retornam None
