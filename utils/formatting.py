@@ -6,7 +6,7 @@ Regras de formatação compartilhadas entre CLI/GUI:
 - Não exibir NaN/NaT/None (vira string vazia, a CLI pode mapear para "-")
 - Datas como dia/mês/ano (dd/mm/YYYY)
 - Colunas de semana como inteiros
-- numero_ssa como string canônica de 9 dígitos quando possível
+- numero_ssa como string canonica de 9 digitos somente quando valido
 """
 
 from __future__ import annotations
@@ -102,7 +102,7 @@ def format_cell(value, column: Optional[str] = None) -> str:
     if _is_nullish(value):
         return ""
 
-    # numero_ssa: 9 dígitos para exibição, se possível
+    # numero_ssa: exibe apenas o valor canonico valido
     if column == "numero_ssa":
         if _normalize_ssa_str is not None:
             try:

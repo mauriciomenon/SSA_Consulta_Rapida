@@ -298,9 +298,9 @@ Foram aplicadas melhorias recentes de qualidade de codigo:
 				 - Exemplo rejeitado: `2025-22222` (marcado como invalido e filtrado no importador).
 			 * No formato sem hifen, a checagem de repeticao dos 5 ultimos digitos nao e aplicada por compatibilidade historica.
 			 * Valores longos e compatibilidades legadas nao devem ser usados como referencia de export atual sem evidencia de planilha real.
-	 - Compatibilidade de exibicao:
-		 * `normalize_numero_ssa(...)` padroniza entradas curtas com prefixo de ano e zero-padding para a API publica atual.
-		 * Esse caminho de compatibilidade nao define o contrato operacional de export/import.
+	 - Fachada publica retrocompativel:
+		 * `normalize_numero_ssa(...)` agora segue o mesmo contrato canonico de 9 digitos.
+		 * Entradas curtas, letras e sobrecomprimento nao viram SSA valida por exibicao.
 		 * A referencia operacional validada nesta rodada continua sendo `202600654` e demais SSAs reais de 9 digitos.
 	 - Testes que cobrem as regras: `tests/test_numero_ssa_normalization_cross.py` e `tests/test_numero_ssa_hyphen_repetition.py`.
 - Importacao externa pela GUI:
@@ -323,7 +323,7 @@ Componentes extraidos (estado atual):
 - `database_upsert_logic.py`: preparacao e logica de upsert (merge condicional, modos complementar vs. simples, normalizacao de datas) – expoe `prepare_dataframe_for_upsert`, `apply_column_whitelist` e `insert_dataframe_with_smart_upsert_impl`.
 - `database_integrity.py`: verificacao e reparo (`verify_database_integrity`, `repair_database_if_needed`).
 - `database_validation.py`: validacao pre-insercao (`validate_dataframe_before_insert`).
-- `numero_ssa_utils.py`: fonte unica para normalizacao de `numero_ssa` (strict, valor inteiro, formato display, batch dataframe).
+- `numero_ssa_utils.py`: fonte unica para normalizacao de `numero_ssa` (strict, valor inteiro, fachada publica retrocompativel, batch dataframe).
 
 No arquivo `database.py` permanecem apenas:
 - Conexao (`get_db_connection`) e inicializacao (`initialize_database`).

@@ -6,8 +6,6 @@ Usa a função pública normalize_numero_ssa (se existir) ou fallback para lógi
 
 from __future__ import annotations
 
-from datetime import datetime
-
 import pytest
 
 from armazenamento import database
@@ -43,14 +41,13 @@ def test_normalization_idempotent_for_valid_values(entrada):
     assert norm.isdigit()
 
 
-def test_normalization_short_values_use_current_year_prefix():
-    current_year = datetime.now().year
-    assert _normalize("123") == f"{current_year}00123"
+def test_normalization_short_values_are_rejected():
+    assert _normalize("123") is None
 
 
 def test_normalization_rejects_overlong_legacy_values():
     assert _normalize("202512345000") is None
 
 
-def test_normalization_accepts_two_digit_year_beyond_2025():
-    assert _normalize("2601234") == "202601234"
+def test_normalization_rejects_short_two_digit_year_sequences():
+    assert _normalize("2601234") is None

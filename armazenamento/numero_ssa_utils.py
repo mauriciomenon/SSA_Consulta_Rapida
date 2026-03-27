@@ -3,7 +3,7 @@
 Objetivos:
  - Centralizar a logica (evitando divergencias entre modulos de upsert, validacao e integridade)
  - Reutilizar a funcao ja consolidada em ``shared.numero_ssa.normalize_strict``
- - Fornecer conversao para inteiro e formato de exibicao usados pela API publica atual
+ - Fornecer conversao para inteiro e fachada retrocompativel para a API publica atual
 
 API Publica (estavel):
  - normalize_numero_ssa_strict(value) -> str | None
@@ -20,14 +20,11 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime
 from typing import Iterable
 
 import pandas as pd
 
-from shared.numero_ssa import YEAR_MAX, YEAR_MIN
 from shared.numero_ssa import normalize_strict as _strict
-from shared.numero_ssa import strip_canonical_decimal_artifact
 
 NUMERO_SSA_LEN = 9
 logger = logging.getLogger(__name__)
@@ -53,24 +50,6 @@ def normalize_numero_ssa_strict(value) -> str | None:
     return _strict(value)
 
 
-def _current_display_year() -> str:
-    return str(datetime.now().year)
-
-
-def _expand_two_digit_year_sequence(trimmed: str) -> str | None:
-    if len(trimmed) != 7 or not trimmed.isdigit():
-        return None
-    yy = int(trimmed[:2])
-    suffix = trimmed[2:]
-    year_2000 = 2000 + yy
-    year_1900 = 1900 + yy
-    if YEAR_MIN <= year_2000 <= YEAR_MAX:
-        return f"{year_2000}{suffix}"
-    if YEAR_MIN <= year_1900 <= YEAR_MAX:
-        return f"{year_1900}{suffix}"
-    return None
-
-
 def normalize_numero_ssa_int(value) -> int | None:
     """Public integer normalization aligned with strict canonical validation."""
     if value is None:
@@ -90,32 +69,8 @@ def normalize_numero_ssa_storage(value) -> str | None:
 
 
 def normalize_numero_ssa(value) -> str | None:
-    """Display compatibility helper with minimal decimal-artifact tolerance."""
-    if value is None:
-        return None
-    raw = re.sub(r"\D", "", str(strip_canonical_decimal_artifact(value)))
-    if not raw:
-        return None
-    trimmed = raw.lstrip("0")
-    if not trimmed:
-        return None
-    n_trim = len(trimmed)
-    if n_trim <= 5:
-        return _current_display_year() + trimmed.zfill(5)
-    if n_trim == 7:
-        expanded = _expand_two_digit_year_sequence(trimmed)
-        if expanded is not None:
-            return expanded
-    if len(raw) < 9:
-        return raw.zfill(9)
-    if len(raw) > 9:
-        logger.warning(
-            "numero_ssa descartado na compatibilidade de exibicao por exceder 9 digitos: raw=%r digits=%s",
-            value,
-            raw,
-        )
-        return None
-    return raw
+    """Compat wrapper alinhado ao mesmo contrato canonico de storage."""
+    return normalize_numero_ssa_strict(value)
 
 
 def batch_normalize_series(series: pd.Series) -> pd.Series:
