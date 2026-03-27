@@ -323,7 +323,7 @@ Componentes extraidos (estado atual):
 - `database_upsert_logic.py`: preparacao e logica de upsert (merge condicional, modos complementar vs. simples, normalizacao de datas) – expoe `prepare_dataframe_for_upsert`, `apply_column_whitelist` e `insert_dataframe_with_smart_upsert_impl`.
 - `database_integrity.py`: verificacao e reparo (`verify_database_integrity`, `repair_database_if_needed`).
 - `database_validation.py`: validacao pre-insercao (`validate_dataframe_before_insert`).
-- `numero_ssa_utils.py`: fonte unica para normalizacao de `numero_ssa` (strict, valor inteiro, fachada publica retrocompativel, batch dataframe).
+- `numero_ssa_utils.py`: fonte unica para normalizacao de `numero_ssa` (strict, storage textual canonico, helper numerico interno legado e batch dataframe).
 
 No arquivo `database.py` permanecem apenas:
 - Conexao (`get_db_connection`) e inicializacao (`initialize_database`).
@@ -864,7 +864,7 @@ Mesclagem de larguras:
 ### Normalizacao do Numero SSA
 Regra (_resumida_):
 - Remove nao-digitos.
-- Menos que 5 digitos ⇒ retorna como esta (sem prefixo artificial nesta versao).
+- Menos que 5 digitos ⇒ descarta com aviso e log; nao prefixa ano nem faz padding.
 - 9 digitos comecando com `2025` ⇒ mantido.
 - Mais que 9 digitos ⇒ descarta com aviso e log; nao trunca.
 

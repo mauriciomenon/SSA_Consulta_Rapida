@@ -802,10 +802,10 @@ def insert_dataframe_with_smart_upsert(
 
 
 from .numero_ssa_utils import normalize_numero_ssa as _normalize_numero_ssa_display  # noqa: E402
-from .numero_ssa_utils import (
-    normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe,
-)  # noqa: E402
-from .numero_ssa_utils import normalize_numero_ssa_int as _normalize_numero_ssa_value  # noqa: E402, F401
+from .numero_ssa_utils import normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe  # noqa: E402
+from . import numero_ssa_utils as _numero_ssa_utils  # noqa: E402
+
+_normalize_numero_ssa_value = _numero_ssa_utils._normalize_numero_ssa_int_legacy
 
 
 def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:  # retrocompat

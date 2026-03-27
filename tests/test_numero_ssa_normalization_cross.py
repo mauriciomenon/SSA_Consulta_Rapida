@@ -42,7 +42,7 @@ def test_cross_layer_normalization(raw, expected):
     series, mask = _clean_numero_ssa_series(pd.Series([raw]))
     got = series.iloc[0] if mask.iloc[0] else None
     assert got == expected
-    # Legacy int normalizer should match when expected not None
+    # Internal numeric legacy helper should still mirror the canonical value.
     legacy = database._normalize_numero_ssa_value(raw)
     if expected is None:
         assert legacy is None

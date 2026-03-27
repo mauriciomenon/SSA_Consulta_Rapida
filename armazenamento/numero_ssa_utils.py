@@ -1,19 +1,21 @@
 """Utilidades compartilhadas para normalizacao de numero_ssa.
 
 Objetivos:
- - Centralizar a logica (evitando divergencias entre modulos de upsert, validacao e integridade)
- - Reutilizar a funcao ja consolidada em ``shared.numero_ssa.normalize_strict``
- - Fornecer conversao para inteiro e fachada retrocompativel para a API publica atual
+ - Centralizar a logica e evitar drift entre runtime, upsert e validacao.
+ - Reutilizar a funcao canonica em ``shared.numero_ssa.normalize_strict``.
+ - Expor apenas o contrato textual canonico para a API publica.
 
-API Publica (estavel):
+API publica (estavel):
  - normalize_numero_ssa_strict(value) -> str | None
- - normalize_numero_ssa_int(value) -> int | None
- - batch_normalize_series(series) -> pd.Series (str|None)  preservando índices
+ - normalize_numero_ssa_storage(value) -> str | None
+ - normalize_numero_ssa(value) -> str | None
+ - normalize_numero_ssa_dataframe(df) -> pd.DataFrame
+ - batch_normalize_series(series) -> pd.Series (str|None)
 
-Motivacao:
- Os arquivos gigantes introduzidos anteriormente duplicaram esta logica varias vezes.
- Este modulo substitui essas copias. As facades publicas de compatibilidade
- continuam delegando para ca para evitar drift entre runtime, upsert e testes.
+Compatibilidade interna:
+ - existe um helper numerico legado apenas para callsites antigos internos.
+ - ele nao faz parte do contrato publico nem do write path do banco.
+ - valor curto invalido deve ser descartado e logado, sem prefixo de ano.
 """
 
 from __future__ import annotations
@@ -30,10 +32,9 @@ NUMERO_SSA_LEN = 9
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    # núcleo strict
+    # nucleo strict
     "normalize_numero_ssa_strict",
     "normalize_numero_ssa_storage",
-    "normalize_numero_ssa_int",
     # nomes publicos de compatibilidade
     "normalize_numero_ssa",
     "normalize_numero_ssa_dataframe",
@@ -50,8 +51,8 @@ def normalize_numero_ssa_strict(value) -> str | None:
     return _strict(value)
 
 
-def normalize_numero_ssa_int(value) -> int | None:
-    """Public integer normalization aligned with strict canonical validation."""
+def _normalize_numero_ssa_int_legacy(value) -> int | None:
+    """Internal legacy helper for old numeric-only callsites."""
     if value is None:
         return None
     strict_value = normalize_numero_ssa_strict(value)
@@ -95,7 +96,7 @@ def extract_candidate_digits(value) -> str:
 def bulk_int_or_none(
     values: Iterable,
 ) -> list[int | None]:  # pragma: no cover (usado esporadicamente)
-    return [normalize_numero_ssa_int(v) for v in values]
+    return [_normalize_numero_ssa_int_legacy(v) for v in values]
 
 
 def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:
