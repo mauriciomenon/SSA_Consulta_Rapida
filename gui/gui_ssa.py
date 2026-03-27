@@ -2909,7 +2909,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                         self.show_header_context_menu(p)
                         return True
             details_viewport = getattr(self, "_details_text_viewport", None)
-            if obj is details_viewport and event.type() == QEvent.Type.MouseButtonDblClick:
+            if (
+                obj is details_viewport
+                and event.type() == QEvent.Type.MouseButtonDblClick
+            ):
                 pos = getattr(event, "position", None)
                 if callable(pos):
                     point = pos().toPoint()
@@ -4785,7 +4788,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         has_rows = bool(test_df is not None and not test_df.empty)
         return {"ok": has_rows, "db_file": db_file}
 
-    def _finalize_database_candidate_validation(self, result: dict[str, Any]) -> dict[str, Any]:
+    def _finalize_database_candidate_validation(
+        self, result: dict[str, Any]
+    ) -> dict[str, Any]:
         self._other_db_validation_running = False
         self._other_db_validation_thread = None
         self._other_db_validation_pending_result = None
