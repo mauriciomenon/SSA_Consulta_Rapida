@@ -3617,7 +3617,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             ajuda_menu.addAction(about_action)
 
     def import_external_excel_files(self):
-        """Importa XLSX para docs_entrada e aplica apenas os selecionados no banco."""
+        """Prepara XLSX para importacao explicita assincrona e os enfileira."""
         selected_files, _ = QFileDialog.getOpenFileNames(
             self,
             "Selecionar arquivos Excel para importar",
@@ -3631,6 +3631,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "skipped": 0,
                 "failed": 0,
                 "unsupported": 0,
+                "staged": 0,
+                "result_scope": "staging",
                 "db_updated": False,
                 "db_update_requested": False,
                 "queued": False,
@@ -3713,12 +3715,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 failed += len(staged_for_import)
                 staged_for_import = []
 
-        summary = (
-            f"Status: Importacao externa preparada - copiados={copied}, "
-            f"ignorados={skipped}, nao_suportados={unsupported}, falhas={failed}, "
-            f"enfileirada={'sim' if queued else 'nao'}."
-        )
-        if hasattr(self, "status_label"):
+        staged_count = len(staged_for_import)
+        if hasattr(self, "status_label") and not queued:
+            summary = (
+                f"Status: Importacao externa preparada - copiados={copied}, "
+                f"ignorados={skipped}, nao_suportados={unsupported}, falhas={failed}, "
+                f"enfileirada=nao."
+            )
             self.status_label.setText(summary)
 
         return {
@@ -3726,6 +3729,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             "skipped": skipped,
             "failed": failed,
             "unsupported": unsupported,
+            "staged": staged_count,
+            "result_scope": "staging",
             "db_updated": False,
             "db_update_requested": queued,
             "queued": queued,

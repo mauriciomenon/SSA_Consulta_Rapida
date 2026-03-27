@@ -30,6 +30,10 @@ class _Window:
         self._active_rescan_worker = None
         self._active_rescan_dialog = None
         self.status_label = _StatusLabel()
+        self.load_calls = 0
+
+    def load_data(self) -> None:
+        self.load_calls += 1
 
 
 class _DialogCancelAndFinish:
@@ -324,6 +328,124 @@ def test_rescan_data_shows_progress_dialog_without_blocking(tmp_path):
     assert created_dialogs[0].show_called is True
     assert created_dialogs[0].show_non_modal_called is True
     assert window._active_rescan_dialog is created_dialogs[0]
+
+
+def test_rescan_data_explicit_mode_does_not_set_started_status_on_main_label(tmp_path):
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_BaseWorker,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="explicit",
+        explicit_files=("docs_entrada/a.xlsx",),
+        operation_label="Importacao externa",
+    )
+
+    assert window.status_label.text == ""
+
+
+def test_rescan_data_explicit_cancel_uses_specific_status_text(tmp_path):
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_BaseWorker,
+        rescan_dialog_cls=_DialogCancelNoFinish,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="explicit",
+        explicit_files=("docs_entrada/a.xlsx",),
+        operation_label="Importacao externa",
+    )
+
+    assert window.status_label.text == "Status: Cancelamento solicitado na importacao externa."
+
+
+def test_rescan_data_explicit_success_without_updates_does_not_reload(tmp_path):
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_BaseWorker,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="explicit",
+        explicit_files=("docs_entrada/a.xlsx",),
+        operation_label="Importacao externa",
+        reload_on_success=True,
+    )
+
+    worker = window._active_rescan_worker
+    assert worker is not None
+    worker.last_outcome = "no_changes"
+    worker.finished_success.emit()
+
+    assert window.load_calls == 0
+    assert window.status_label.text == "Status: Importacao externa concluida sem alteracoes."
+
+
+def test_rescan_data_explicit_success_with_updates_reloads(tmp_path):
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_BaseWorker,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="explicit",
+        explicit_files=("docs_entrada/a.xlsx",),
+        operation_label="Importacao externa",
+        reload_on_success=True,
+    )
+
+    worker = window._active_rescan_worker
+    assert worker is not None
+    worker.last_outcome = "updated"
+    worker.finished_success.emit()
+
+    assert window.load_calls == 1
+    assert window.status_label.text == "Status: Importacao externa concluida."
 
 
 def test_rescan_data_diff_mode_skips_prompt_and_sets_force_import_false(tmp_path):
