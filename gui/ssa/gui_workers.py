@@ -5,12 +5,12 @@
 
 from __future__ import annotations
 
+import inspect
 import os
 import re
 import threading
 import time
 import uuid
-import inspect
 from time import perf_counter
 
 import pandas as pd
