@@ -363,6 +363,7 @@ def _should_update_existing(existing_row: pd.Series, new_row: pd.Series) -> bool
     existing_date = existing_row.get("data_cadastro")
     new_date = new_row.get("data_cadastro")
     try:
+
         def _situacao_rank(value: Any) -> int:
             code = str(value or "").strip().upper()
             return _SITUACAO_RANK.get(code, 0)
