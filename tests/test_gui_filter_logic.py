@@ -31,6 +31,7 @@ from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
+from gui.widgets.column_filter_dialog import ColumnFilterDialog  # noqa: E402
 from gui.widgets.filter_help_dialog import FilterHelpDialog  # noqa: E402
 
 ORIGINAL_LOAD_DATA = SSAMainWindow.load_data
@@ -2208,12 +2209,21 @@ class TestGUIFilterLogic:
         logical_index = 2  # "#"(0), numero_ssa(1), situacao(2)
         pos = QPoint(header.sectionPosition(logical_index) + 2, 5)
 
-        with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("STE", True)):
-            self.window.show_header_context_menu(pos)
-            QApplication.processEvents()
+        captured = {}
+
+        def _fake_prompt(full_name, initial_value=""):
+            captured["full_name"] = full_name
+            captured["initial_value"] = initial_value
+            return "STE"
+
+        monkeypatch.setattr(self.window, "_prompt_column_filter_term", _fake_prompt)
+        self.window.show_header_context_menu(pos)
+        QApplication.processEvents()
 
         assert self.window._active_column_filters["situacao"] == "STE"
         assert self.window._last_filter_state is not None
+        assert captured["full_name"] == "Situacao"
+        assert captured["initial_value"] == ""
         snapshot_filters = (
             self.window._last_filter_state.get("active_column_filters") or {}
         )
@@ -2326,6 +2336,19 @@ class TestGUIFilterLogic:
         self.window.show_header_context_menu(pos)
 
         assert calls["count"] == 1
+
+    def test_column_filter_dialog_shows_hint_and_minimum_width(self):
+        dialog = ColumnFilterDialog(
+            "Solicitante",
+            "ABC",
+            hint_text="Aceita termo, !termo para exclusao",
+            min_width=420,
+        )
+
+        labels = [label.text() for label in dialog.findChildren(QLabel)]
+        assert "Termo para 'Solicitante'" in labels
+        assert "Aceita termo, !termo para exclusao" in labels
+        assert dialog.minimumWidth() >= 420
 
     def test_show_all_columns_by_affinity_reorders_same_select_all_set(
         self, monkeypatch

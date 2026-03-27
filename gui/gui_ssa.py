@@ -99,6 +99,9 @@ RETIRED_WORKER_TTL_SEC = 300.0
 RETIRED_WORKER_FORCE_WAIT_MS = 500
 logger.addHandler(logging.NullHandler())
 
+_COLUMN_FILTER_DIALOG_MIN_WIDTH = 420
+_COLUMN_FILTER_DIALOG_HINT = "Aceita termo, !termo para exclusao"
+
 EXCLUDED_CANONICAL_UI_COLUMNS = {
     "id",
     "desde",
@@ -222,7 +225,12 @@ try:
     from gui.mixins import FilterGUISSAMixin  # noqa: E402
     from gui.mixins import TabContextGUISSAMixin
     from gui.widgets import ColumnSelector  # noqa: E402
-    from gui.widgets import ColumnManagerDialog, DataPaginator, FilterHelpDialog
+    from gui.widgets import (
+        ColumnFilterDialog,
+        ColumnManagerDialog,
+        DataPaginator,
+        FilterHelpDialog,
+    )
 
     # Import workers, cache, widgets, and helpers from separate modules
     from gui.workers import DataLoaderWorker, FilterWorker  # noqa: E402
@@ -234,6 +242,7 @@ except ImportError as exc:
     logger.warning("PyQt6 import failed, using headless stub mode: %s", exc)
     DataLoaderWorker = cast(Any, None)
     FilterWorker = cast(Any, None)
+    ColumnFilterDialog = cast(Any, None)
     FilterCache = cast(Any, None)
 
     # Stubs mánimos para permitir import em ambiente CI sem libs grãficas
@@ -2771,6 +2780,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             logger.exception("Erro ao processar clique no cabecalho da tabela: %s", exc)
 
     # --- Filtro por coluna via clique direito no cabeçalho ---
+    def _prompt_column_filter_term(self, full_name: str, initial_value: str = ""):
+        if not QT_AVAILABLE or ColumnFilterDialog is None:
+            return self.search_input.text().strip()
+        try:
+            dialog = ColumnFilterDialog(
+                full_name,
+                str(initial_value or ""),
+                hint_text=_COLUMN_FILTER_DIALOG_HINT,
+                min_width=_COLUMN_FILTER_DIALOG_MIN_WIDTH,
+                parent=self,
+            )
+            accepted = dialog.exec() == QDialog.DialogCode.Accepted
+            if not accepted:
+                return None
+            return dialog.get_value()
+        except Exception as exc:
+            logger.debug("Falha ao abrir dialogo de filtro por coluna: %s", exc)
+            return self.search_input.text().strip()
+
     def show_header_context_menu(self, pos):
         try:
             header = self.table_widget.horizontalHeader()
@@ -2786,7 +2814,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 return
 
             menu = QMenu(self)
-            full_name = self._resolve_column_display_name(col_name)
+            full_name = self._expand_column_alias_for_filter(col_name)
             apply_action = QAction(f"Filtrar '{full_name}'...", self)
             clear_action = QAction("Limpar filtro desta coluna", self)
             clear_all_action = QAction("Limpar todos filtros de colunas", self)
@@ -2794,27 +2822,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             show_all_affinity_action = QAction("Exibir todas colunas (afinidade)", self)
 
             def _apply():
-                term = None
-                input_dialog_cls = cast(Any, None)
-                if QT_AVAILABLE:
-                    try:
-                        from PyQt6.QtWidgets import QInputDialog
-
-                        input_dialog_cls = QInputDialog
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao importar QInputDialog no filtro por coluna: %s",
-                            exc,
-                        )
-                if input_dialog_cls is not None:
-                    ok = False
-                    term, ok = input_dialog_cls.getText(
-                        self, "Filtro por coluna", f"Termo para '{full_name}':"
-                    )
-                    if not ok:
-                        term = None
-                else:
-                    term = self.search_input.text().strip()
+                term = self._prompt_column_filter_term(
+                    full_name,
+                    str(self._active_column_filters.get(col_name, "")).strip(),
+                )
                 if term is not None:
                     normalized_term = str(term).strip()
                     if (
