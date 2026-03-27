@@ -1,5 +1,15 @@
 # Indicios Importacao - Sessao 2026-03-05
 
+## Historical Snapshot Notice
+
+Este arquivo preserva evidencias de sessoes historicas de importacao.
+Branches `codex/...` e comandos abaixo sao contexto da epoca, nao instrucao operacional atual.
+
+Fonte ativa atual:
+1. `README.md`
+2. `docs/ARQUITETURA_IMPORTACAO.md`
+3. `docs/TROUBLESHOOTING_IMPORTACAO.md`
+
 ## Sessao 2026-03-09 - full rescan real end-to-end (pacote unico)
 
 ### Escopo executado

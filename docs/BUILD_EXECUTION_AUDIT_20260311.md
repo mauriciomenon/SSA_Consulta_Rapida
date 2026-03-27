@@ -1,6 +1,14 @@
 # Build Execution Audit 2026-03-11
 
-## Current Truth
+## Historical Snapshot
+
+Este arquivo descreve uma auditoria historica de build daquela rodada.
+Nao usar este bloco como `Current Truth` atual.
+
+Fontes ativas atuais:
+1. `docs/BUILD_SYSTEM.md`
+2. `docs/BUILD_MULTIPLATFORM.md`
+3. `docs/GUIA_DISTRIBUICAO.md`
 
 - Sync timestamp: 2026-03-12 00:45 -0300
 - Branch alvo: `dev`

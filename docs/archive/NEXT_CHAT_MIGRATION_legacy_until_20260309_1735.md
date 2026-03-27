@@ -1,6 +1,12 @@
 # Next Chat Migration Guide
 
-Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
+Arquivo historico arquivado.
+Todos os blocos `CURRENT TRUTH` abaixo sao snapshots preservados e nao representam a fonte ativa atual.
+
+Fontes ativas atuais:
+1. `AGENTS.md`
+2. `docs/NEXT_CHAT_MIGRATION.md`
+3. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 
 ## CURRENT TRUTH 2026-03-09 17:35 - start from here
 
