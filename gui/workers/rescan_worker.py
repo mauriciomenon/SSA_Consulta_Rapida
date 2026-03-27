@@ -3,9 +3,11 @@
 
 import logging
 import os
+import shutil
 import sys
 import threading
 from enum import Enum
+from pathlib import Path
 from typing import Sequence
 
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -18,7 +20,9 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from core.app_logic import run_importer_logic  # noqa: E402
+from core.import_consolidation import consolidate_input_files  # noqa: E402
 from utils.robust_logging import get_robust_logger  # noqa: E402
+from utils.path_safety import PathSafetyError, ensure_path_is_allowed  # noqa: E402
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
@@ -61,7 +65,9 @@ class RescanWorker(QThread):
         project_root,
         force_import: bool = True,
         explicit_files: Sequence[str] | None = None,
+        source_files: Sequence[str] | None = None,
         operation_label: str = "Reescaneamento",
+        operation_kind: str = "import",
     ):
         super().__init__()
         self.main_py_path = main_py_path  # Not used anymore but kept for compatibility
@@ -70,8 +76,13 @@ class RescanWorker(QThread):
         self.explicit_files = (
             tuple(str(path) for path in explicit_files) if explicit_files else None
         )
+        self.source_files = (
+            tuple(str(path) for path in source_files) if source_files else None
+        )
         normalized_label = str(operation_label or "").strip()
         self.operation_label = normalized_label or "Reescaneamento"
+        normalized_kind = str(operation_kind or "").strip().lower()
+        self.operation_kind = normalized_kind or "import"
         self._should_stop = False
         self._has_runtime_errors = False
         self._last_total_files = 0
@@ -185,11 +196,12 @@ class RescanWorker(QThread):
             self._last_processed_files = 0
             self._last_deterministic_failure_count = 0
             self._last_rejection_only = False
-            mode_label = (
-                "EXPLICITA"
-                if self.explicit_files
-                else ("FULL" if self.force_import else "DIFF")
-            )
+            if self.operation_kind == "consolidate":
+                mode_label = "CONSOLIDATE"
+            elif self.explicit_files or self.source_files:
+                mode_label = "EXPLICITA"
+            else:
+                mode_label = "FULL" if self.force_import else "DIFF"
             self.output_line.emit(
                 f"=== Iniciando {self.operation_label} ({mode_label}) ==="
             )
@@ -198,6 +210,43 @@ class RescanWorker(QThread):
 
             # Add log handler to capture import messages
             self._attach_logger()
+
+            if self.operation_kind == "consolidate":
+                success = self._run_consolidation_operation()
+                if self._should_stop:
+                    self.last_outcome = RescanOutcome.CANCELLED
+                    self.finished_error.emit("Processo cancelado pelo usuario")
+                    return
+                if success:
+                    self.progress.emit(100, "Concluido com sucesso")
+                    self.output_line.emit("")
+                    self.output_line.emit("=== Operacao Concluida ===")
+                    self.finished_success.emit()
+                else:
+                    self.last_outcome = RescanOutcome.ERROR
+                    self.progress.emit(100, "Falha na consolidacao")
+                    self.output_line.emit("")
+                    self.output_line.emit("=== Consolidacao Falhou ===")
+                    self.finished_error.emit("Consolidacao falhou")
+                return
+
+            if self.source_files:
+                staged_files, summary = self._stage_source_files()
+                self.explicit_files = tuple(staged_files) if staged_files else None
+                if self._should_stop:
+                    self.last_outcome = RescanOutcome.CANCELLED
+                    self.finished_error.emit("Processo cancelado pelo usuario")
+                    return
+                if not self.explicit_files:
+                    if summary["failed"] > 0:
+                        self.last_outcome = RescanOutcome.ERROR
+                        self.finished_error.emit(
+                            "Importacao externa sem arquivos validos apos staging"
+                        )
+                    else:
+                        self.last_outcome = RescanOutcome.NO_CHANGES
+                        self.finished_success.emit()
+                    return
 
             # Call modular import function directly
             success = run_importer_logic(
@@ -298,6 +347,145 @@ class RescanWorker(QThread):
     def _mark_runtime_error(self, _message: str = "") -> None:
         """Mark that runtime emitted at least one error signal."""
         self._has_runtime_errors = True
+
+    def _build_unique_destination_path(self, destination_path: str) -> str:
+        if not os.path.exists(destination_path):
+            return destination_path
+        base, ext = os.path.splitext(destination_path)
+        idx = 1
+        max_attempts = 10000
+        while idx <= max_attempts:
+            candidate = f"{base}__{idx}{ext}"
+            if not os.path.exists(candidate):
+                return candidate
+            idx += 1
+        raise RuntimeError(
+            f"Nao foi possivel gerar nome unico apos {max_attempts} tentativas: {destination_path}"
+        )
+
+    @staticmethod
+    def _validate_selected_source_path(raw_source: str) -> str:
+        source = str(raw_source or "").strip()
+        if not source:
+            raise ValueError("Caminho vazio para staging externo.")
+        if any(ch in source for ch in ("\x00", "\n", "\r")):
+            raise ValueError("Caminho externo contem caracteres invalidos.")
+        normalized = os.path.abspath(os.path.normpath(source))
+        if os.path.basename(normalized).startswith("-"):
+            raise ValueError("Caminho externo inicia com '-' e nao e permitido.")
+        source_path = Path(normalized)
+        if source_path.exists():
+            try:
+                ensure_path_is_allowed(
+                    source_path,
+                    purpose="explicit_import_source",
+                    must_exist=True,
+                    expect_directory=False,
+                )
+            except PathSafetyError as exc:
+                logger.debug(
+                    "Arquivo externo fora da allowlist padrao; validando por selecao explicita: %s",
+                    exc,
+                )
+        if not source_path.is_file():
+            raise FileNotFoundError(f"Arquivo inexistente: {normalized}")
+        if source_path.suffix.casefold() not in {".xlsx", ".xls"}:
+            raise ValueError(
+                f"Arquivo nao suportado pelo pipeline: {source_path.name}"
+            )
+        return str(source_path)
+
+    def _stage_source_files(self) -> tuple[list[str], dict[str, int]]:
+        docs_path = ensure_path_is_allowed(
+            Path(self.project_root) / "docs_entrada",
+            purpose="explicit_import_docs_dir",
+            base=Path(self.project_root),
+            must_exist=False,
+            expect_directory=True,
+        )
+        os.makedirs(docs_path, exist_ok=True)
+
+        copied = 0
+        skipped = 0
+        failed = 0
+        unsupported = 0
+        staged_files: list[str] = []
+        source_files = tuple(self.source_files or ())
+        total_sources = len(source_files)
+
+        for index, raw_source in enumerate(source_files, start=1):
+            if self._should_stop:
+                break
+            source = str(raw_source or "").strip()
+            self.output_line.emit(
+                f"[STAGE {index}/{total_sources}] Preparando: {os.path.basename(source) or source}"
+            )
+            try:
+                validated_source = self._validate_selected_source_path(source)
+            except FileNotFoundError:
+                failed += 1
+                self.error_line.emit(f"[ERRO] Arquivo inexistente: {source}")
+                continue
+            except ValueError as exc:
+                unsupported += 1
+                self.output_line.emit(
+                    f"[IGNORADO] {exc}"
+                )
+                continue
+            except Exception as exc:
+                failed += 1
+                self.error_line.emit(
+                    f"[ERRO] Falha ao validar arquivo externo '{source}': {exc}"
+                )
+                continue
+
+            base_name = os.path.basename(validated_source)
+            base_destination = os.path.join(docs_path, base_name)
+            source_abs = os.path.abspath(validated_source)
+            destination_abs = os.path.abspath(base_destination)
+            if source_abs == destination_abs:
+                staged_files.append(destination_abs)
+                continue
+
+            destination = self._build_unique_destination_path(base_destination)
+            try:
+                shutil.copy2(validated_source, destination)
+                copied += 1
+                staged_files.append(destination)
+            except Exception as exc:
+                failed += 1
+                self.error_line.emit(
+                    f"[ERRO] Falha ao copiar arquivo externo '{validated_source}': {exc}"
+                )
+
+        summary = {
+            "copied": copied,
+            "skipped": skipped,
+            "failed": failed,
+            "unsupported": unsupported,
+            "staged": len(staged_files),
+        }
+        self.output_line.emit(
+            "Staging concluido: "
+            f"copiados={copied}, ignorados={skipped}, "
+            f"nao_suportados={unsupported}, falhas={failed}, staged={len(staged_files)}"
+        )
+        return staged_files, summary
+
+    def _run_consolidation_operation(self) -> bool:
+        result = consolidate_input_files(
+            project_root=self.project_root,
+            should_cancel=lambda: self._should_stop,
+            progress_callback=lambda pct, message: self.progress.emit(pct, message),
+            output_callback=self.output_line.emit,
+            error_callback=self.error_line.emit,
+        )
+        self.last_outcome = (
+            RescanOutcome.UPDATED
+            if int(result.get("moved", 0) or 0) > 0
+            else RescanOutcome.NO_CHANGES
+        )
+        return int(result.get("failed", 0) or 0) == 0
 
 
 class _LogHandler(logging.Handler):

@@ -1,10 +1,11 @@
 """
 Testes para RescanWorker
 
-Este módulo contém testes de unidade e integração para o RescanWorker,
-responsável por reescanear dados de forma assíncrona.
+Este modulo contem testes de unidade e integracao para o RescanWorker,
+responsavel por reescanear dados de forma assincrona.
 """
 
+import json
 import logging
 import os
 import sys
@@ -22,7 +23,11 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from gui.workers.rescan_worker import RescanWorker, _LogHandler  # noqa: E402
+from gui.workers.rescan_worker import (  # noqa: E402
+    RescanOutcome,
+    RescanWorker,
+    _LogHandler,
+)
 
 # =============================================================================
 # Fixtures
@@ -494,6 +499,81 @@ class TestRescanWorkerIntegration:
                     "docs_entrada/a.xlsx",
                     "docs_entrada/b.xlsx",
                 )
+        finally:
+            if worker._logger_attached:
+                worker._detach_logger()
+
+    def test_run_stages_source_files_before_importer(self, tmp_path):
+        docs_dir = tmp_path / "docs_entrada"
+        docs_dir.mkdir()
+        source_dir = tmp_path / "fontes"
+        source_dir.mkdir()
+        source = source_dir / "entrada.xlsx"
+        source.write_text("payload", encoding="utf-8")
+        source_legacy = source_dir / "entrada_legacy.xls"
+        source_legacy.write_text("payload-legacy", encoding="utf-8")
+
+        worker = RescanWorker(
+            main_py_path=str(tmp_path / "main.py"),
+            project_root=str(tmp_path),
+            force_import=False,
+            source_files=(str(source), str(source_legacy)),
+            operation_label="Importacao externa",
+        )
+        try:
+            with patch("gui.workers.rescan_worker.run_importer_logic") as mock_importer:
+                mock_importer.return_value = True
+                worker.run()
+
+                staged_file = docs_dir / "entrada.xlsx"
+                staged_legacy = docs_dir / "entrada_legacy.xls"
+                assert staged_file.exists()
+                assert staged_legacy.exists()
+                assert worker.last_outcome == RescanOutcome.UPDATED
+                call_kwargs = mock_importer.call_args[1]
+                assert call_kwargs["explicit_files"] == (
+                    str(staged_file),
+                    str(staged_legacy),
+                )
+        finally:
+            if worker._logger_attached:
+                worker._detach_logger()
+
+    def test_run_consolidation_operation_moves_files(self, tmp_path, signal_collector):
+        docs_dir = tmp_path / "docs_entrada"
+        logs_dir = tmp_path / "logs"
+        docs_dir.mkdir()
+        logs_dir.mkdir()
+        (docs_dir / "ok.xlsx").write_text("ok", encoding="utf-8")
+
+        payload = {
+            "paths": {"docs_dir": str(docs_dir)},
+            "file_reports": [
+                {"file": "ok.xlsx", "counts": {"rows_inserted": 1}},
+            ],
+        }
+        (logs_dir / "import_run_20260327_000001_000001.json").write_text(
+            json.dumps(payload),
+            encoding="utf-8",
+        )
+
+        worker = RescanWorker(
+            main_py_path=str(tmp_path / "main.py"),
+            project_root=str(tmp_path),
+            force_import=False,
+            operation_label="Consolidacao de arquivos",
+            operation_kind="consolidate",
+        )
+        worker.finished_success.connect(signal_collector.on_finished_success)
+        worker.finished_error.connect(signal_collector.on_finished_error)
+        worker.output_line.connect(signal_collector.on_output)
+
+        try:
+            worker.run()
+            assert worker.last_outcome == RescanOutcome.UPDATED
+            assert signal_collector.finished_success is True
+            assert signal_collector.finished_error is None
+            assert (docs_dir / "processadas" / "ok.xlsx").exists()
         finally:
             if worker._logger_attached:
                 worker._detach_logger()

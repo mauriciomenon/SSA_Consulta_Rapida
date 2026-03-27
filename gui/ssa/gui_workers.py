@@ -125,7 +125,20 @@ def _success_status_text(is_explicit_import: bool, outcome: RescanOutcome) -> st
     return "Status: Importacao externa concluida sem alteracoes."
 
 
-def _cancel_request_status_text(is_explicit_import: bool) -> tuple[str, str]:
+def _consolidation_status_text(outcome: RescanOutcome) -> str:
+    if outcome == RescanOutcome.UPDATED:
+        return "Status: Consolidacao de arquivos concluida."
+    return "Status: Consolidacao de arquivos concluida sem alteracoes."
+
+
+def _cancel_request_status_text(
+    is_explicit_import: bool, operation_kind: str
+) -> tuple[str, str]:
+    if operation_kind == "consolidate":
+        return (
+            "Status: Cancelamento solicitado na consolidacao de arquivos.",
+            "consolidate.cancel.requested",
+        )
     if is_explicit_import:
         return (
             "Status: Cancelamento solicitado na importacao externa.",
@@ -137,6 +150,25 @@ def _cancel_request_status_text(is_explicit_import: bool) -> tuple[str, str]:
     )
 
 
+def _already_running_status_text(
+    *, is_explicit_import: bool, operation_kind: str
+) -> tuple[str, str]:
+    if operation_kind == "consolidate":
+        return (
+            "Status: Consolidacao de arquivos ja em andamento.",
+            "consolidate.already_running",
+        )
+    if is_explicit_import:
+        return (
+            "Status: Importacao externa ja em andamento.",
+            "explicit_import.already_running",
+        )
+    return (
+        "Status: Reescaneamento ja em andamento.",
+        "rescan.already_running",
+    )
+
+
 def _build_rescan_worker(
     rescan_worker_cls,
     *,
@@ -144,7 +176,9 @@ def _build_rescan_worker(
     project_root: str,
     force_import: bool,
     explicit_files: tuple[str, ...],
+    source_files: tuple[str, ...],
     operation_label: str,
+    operation_kind: str,
 ):
     init_signature = inspect.signature(rescan_worker_cls.__init__)
     accepted_params = {
@@ -155,8 +189,12 @@ def _build_rescan_worker(
         worker_kwargs["force_import"] = force_import
     if "explicit_files" in accepted_params:
         worker_kwargs["explicit_files"] = explicit_files or None
+    if "source_files" in accepted_params:
+        worker_kwargs["source_files"] = source_files or None
     if "operation_label" in accepted_params:
         worker_kwargs["operation_label"] = operation_label
+    if "operation_kind" in accepted_params:
+        worker_kwargs["operation_kind"] = operation_kind
     return rescan_worker_cls(main_py_path, project_root, **worker_kwargs)
 
 
@@ -1211,12 +1249,16 @@ def rescan_data(
     sip_module,
     rescan_mode: str = "prompt",
     explicit_files: tuple[str, ...] | None = None,
+    source_files: tuple[str, ...] | None = None,
     operation_label: str = "Reescaneamento",
     reload_on_success: bool = False,
+    operation_kind: str = "import",
 ) -> None:
     normalized_mode = str(rescan_mode or "prompt").strip().lower()
     explicit_files_tuple = tuple(str(path) for path in explicit_files or ())
-    is_explicit_import = bool(explicit_files_tuple)
+    source_files_tuple = tuple(str(path) for path in source_files or ())
+    normalized_kind = str(operation_kind or "import").strip().lower() or "import"
+    is_explicit_import = bool(explicit_files_tuple or source_files_tuple)
     if is_explicit_import:
         normalized_mode = "explicit"
     if normalized_mode not in {"prompt", "diff", "full", "explicit"}:
@@ -1286,18 +1328,14 @@ def rescan_data(
     if active_worker is not None:
         try:
             if is_rescan_worker_running(active_worker, sip_module):
+                running_text, running_context = _already_running_status_text(
+                    is_explicit_import=is_explicit_import,
+                    operation_kind=normalized_kind,
+                )
                 _set_status_label_text(
                     window,
-                    (
-                        "Status: Importacao externa ja em andamento."
-                        if is_explicit_import
-                        else "Status: Reescaneamento ja em andamento."
-                    ),
-                    context=(
-                        "explicit_import.already_running"
-                        if is_explicit_import
-                        else "rescan.already_running"
-                    ),
+                    running_text,
+                    context=running_context,
                 )
                 return
         except Exception as exc:
@@ -1334,7 +1372,9 @@ def rescan_data(
         project_root=project_root,
         force_import=force_import,
         explicit_files=explicit_files_tuple,
+        source_files=source_files_tuple,
         operation_label=operation_label,
+        operation_kind=normalized_kind,
     )
     window._active_rescan_worker = worker
 
@@ -1404,11 +1444,17 @@ def rescan_data(
             _set_status_label_text(
                 window,
                 (
+                    "Status: Consolidacao de arquivos cancelada."
+                    if normalized_kind == "consolidate"
+                    else
                     "Status: Importacao externa cancelada."
                     if is_explicit_import
                     else "Status: Reescaneamento cancelado."
                 ),
                 context=(
+                    "consolidate.success.cancelled"
+                    if normalized_kind == "consolidate"
+                    else
                     "explicit_import.success.cancelled"
                     if is_explicit_import
                     else "rescan.success.cancelled"
@@ -1433,10 +1479,16 @@ def rescan_data(
                 )
         _set_status_label_text(
             window,
-            _success_status_text(is_explicit_import, outcome),
+            (
+                _consolidation_status_text(outcome)
+                if normalized_kind == "consolidate"
+                else _success_status_text(is_explicit_import, outcome)
+            ),
             context=(
                 "explicit_import.success.done"
                 if is_explicit_import
+                else "consolidate.success.done"
+                if normalized_kind == "consolidate"
                 else "rescan.success.done"
             ),
         )
@@ -1449,11 +1501,17 @@ def rescan_data(
             _set_status_label_text(
                 window,
                 (
+                    "Status: Consolidacao de arquivos cancelada."
+                    if normalized_kind == "consolidate"
+                    else
                     "Status: Importacao externa cancelada."
                     if is_explicit_import
                     else "Status: Reescaneamento cancelado."
                 ),
                 context=(
+                    "consolidate.error.cancelled"
+                    if normalized_kind == "consolidate"
+                    else
                     "explicit_import.error.cancelled"
                     if is_explicit_import
                     else "rescan.error.cancelled"
@@ -1467,11 +1525,20 @@ def rescan_data(
         _set_status_label_text(
             window,
             (
+                "Status: Erro na consolidacao de arquivos."
+                if normalized_kind == "consolidate"
+                else
                 "Status: Erro na importacao externa."
                 if is_explicit_import
                 else "Status: Erro no reescaneamento."
             ),
-            context="explicit_import.error" if is_explicit_import else "rescan.error",
+            context=(
+                "explicit_import.error"
+                if is_explicit_import
+                else "consolidate.error"
+                if normalized_kind == "consolidate"
+                else "rescan.error"
+            ),
         )
         _release_worker_ref()
 
@@ -1504,7 +1571,9 @@ def rescan_data(
         nonlocal cancelled
         cancelled = True
         running = is_rescan_worker_running(worker, sip_module)
-        cancel_text, cancel_context = _cancel_request_status_text(is_explicit_import)
+        cancel_text, cancel_context = _cancel_request_status_text(
+            is_explicit_import, normalized_kind
+        )
         _set_status_label_text(
             window,
             cancel_text,
@@ -1522,7 +1591,13 @@ def rescan_data(
     progress_dialog.cancel_requested.connect(on_cancel_requested)
 
     worker.start()
-    if not is_explicit_import:
+    if normalized_kind == "consolidate":
+        _set_status_label_text(
+            window,
+            "Status: Consolidacao de arquivos em andamento.",
+            context="consolidate.started",
+        )
+    elif not is_explicit_import:
         _set_status_label_text(
             window,
             "Status: Reescaneamento em andamento.",
