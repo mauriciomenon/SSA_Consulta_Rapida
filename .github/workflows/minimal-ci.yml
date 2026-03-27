@@ -40,20 +40,58 @@ jobs:
           set -euo pipefail
           uv sync --extra dev
 
+      - name: Detect changed Python files
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE_SHA="${{ github.event.before }}"
+          fi
+          git diff --name-only "$BASE_SHA" "${{ github.sha }}" -- "*.py" > .changed_python_files
+          if [ ! -s .changed_python_files ]; then
+            echo "No changed Python files detected for scoped static checks."
+          else
+            echo "Changed Python files:"
+            cat .changed_python_files
+          fi
+
       - name: Py compile tracked Python paths
         run: |
           set -euo pipefail
-          git ls-files -z "*.py" | xargs -0 uv run --python 3.13 python -m py_compile
+          uv run --python 3.13 python - <<'PY'
+from pathlib import Path
+import py_compile
+
+files_path = Path(".changed_python_files")
+files = [line.strip() for line in files_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+if not files:
+    print("No changed Python files to compile.")
+else:
+    for file_path in files:
+        py_compile.compile(file_path, doraise=True)
+PY
 
       - name: Ruff
         run: |
           set -euo pipefail
-          uv run --python 3.13 ruff check .
+          mapfile -t files < .changed_python_files
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No changed Python files for Ruff."
+          else
+            uv run --python 3.13 ruff check "${files[@]}"
+          fi
 
       - name: Ty
         run: |
           set -euo pipefail
-          uv run --python 3.13 ty check .
+          mapfile -t files < .changed_python_files
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No changed Python files for Ty."
+          else
+            uv run --python 3.13 ty check "${files[@]}"
+          fi
 
       - name: Focused pytest suite
         env:
