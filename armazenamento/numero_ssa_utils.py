@@ -1,43 +1,42 @@
-"""Utilidades compartilhadas para normalização de numero_ssa.
+"""Utilidades compartilhadas para normalizacao de numero_ssa.
 
 Objetivos:
- - Centralizar a lógica (evitando divergências entre módulos de upsert, validação e integridade)
- - Reutilizar a função já consolidada em ``core.numero_ssa.normalize_strict``
- - Fornecer conversão para inteiro (quando aplicável) usada por caminhos legados
+ - Centralizar a logica (evitando divergencias entre modulos de upsert, validacao e integridade)
+ - Reutilizar a funcao ja consolidada em ``shared.numero_ssa.normalize_strict``
+ - Fornecer conversao para inteiro e formato de exibicao usados pela API publica atual
 
 API Publica (estavel):
  - normalize_numero_ssa_strict(value) -> str | None
  - normalize_numero_ssa_int(value) -> int | None
  - batch_normalize_series(series) -> pd.Series (str|None)  preservando índices
 
-Motivação:
- Os arquivos gigantes introduzidos anteriormente duplicaram esta lógica várias vezes.
- Este módulo substitui essas cópias. Durante a refatoração, chamadas internas serão
- redirecionadas para cá.
+Motivacao:
+ Os arquivos gigantes introduzidos anteriormente duplicaram esta logica varias vezes.
+ Este modulo substitui essas copias. As facades publicas de compatibilidade
+ continuam delegando para ca para evitar drift entre runtime, upsert e testes.
 """
 
 from __future__ import annotations
 
+import logging
 import re
+from datetime import datetime
 from typing import Iterable
 
 import pandas as pd
 
-from shared.numero_ssa import normalize_numero_ssa as _normalize_numero_ssa_legacy
-from shared.numero_ssa import normalize_strict as _strict  # fonte unica de verdade
+from shared.numero_ssa import YEAR_MAX, YEAR_MIN, normalize_strict as _strict
+from shared.numero_ssa import strip_canonical_decimal_artifact
 
 NUMERO_SSA_LEN = 9
-NUMERO_SSA_ANO_MIN = 1980
-NUMERO_SSA_ANO_MAX = 2050
-_CANONICAL_DECIMAL_ARTIFACT = re.compile(r"^\s*(\d+)\.0+\s*$")
+logger = logging.getLogger(__name__)
 
 __all__ = [
     # núcleo strict
     "normalize_numero_ssa_strict",
     "normalize_numero_ssa_storage",
     "normalize_numero_ssa_int",
-    # nomes legados expostos (valor inteiro e formato display)
-    "_normalize_numero_ssa_value",
+    # nomes publicos de compatibilidade
     "normalize_numero_ssa",
     "normalize_numero_ssa_dataframe",
     # util de lote
@@ -46,38 +45,36 @@ __all__ = [
 
 
 def normalize_numero_ssa_strict(value) -> str | None:
-    """Wrapper explícito para clareza sem expor ``_strict`` direto fora do módulo.
+    """Wrapper explicito para clareza sem expor ``_strict`` direto fora do modulo.
 
-    Mantém compatibilidade sem duplicar implementação.
+    Mantem compatibilidade sem duplicar implementacao.
     """
     return _strict(value)
 
 
-def _strip_canonical_decimal_artifact(value):
-    """Collapse legacy Excel float artifacts for canonical 9-digit identifiers only."""
+def _current_display_year() -> str:
+    return str(datetime.now().year)
+
+
+def _expand_two_digit_year_sequence(trimmed: str) -> str | None:
+    if len(trimmed) != 7 or not trimmed.isdigit():
+        return None
+    yy = int(trimmed[:2])
+    suffix = trimmed[2:]
+    year_2000 = 2000 + yy
+    year_1900 = 1900 + yy
+    if YEAR_MIN <= year_2000 <= YEAR_MAX:
+        return f"{year_2000}{suffix}"
+    if YEAR_MIN <= year_1900 <= YEAR_MAX:
+        return f"{year_1900}{suffix}"
+    return None
+
+
+def normalize_numero_ssa_int(value) -> int | None:
+    """Public integer normalization aligned with strict canonical validation."""
     if value is None:
         return None
-    text = str(value).strip()
-    match = _CANONICAL_DECIMAL_ARTIFACT.fullmatch(text)
-    if match is None:
-        return value
-    return match.group(1)
-
-
-def _contains_letters(value) -> bool:
-    if value is None:
-        return False
-    try:
-        return any(char.isalpha() for char in str(value))
-    except Exception:  # pragma: no cover
-        return False
-
-
-def _normalize_numero_ssa_value(value) -> int | None:
-    """Versao numerica legada alinhada ao helper strict central."""
-    if value is None:
-        return None
-    strict_value = normalize_numero_ssa_strict(_strip_canonical_decimal_artifact(value))
+    strict_value = normalize_numero_ssa_strict(value)
     if strict_value is None:
         return None
     try:
@@ -86,26 +83,38 @@ def _normalize_numero_ssa_value(value) -> int | None:
         return None
 
 
-def normalize_numero_ssa_int(value) -> int | None:
-    return _normalize_numero_ssa_value(value)
-
-
 def normalize_numero_ssa_storage(value) -> str | None:
     """Return canonical storage form for numero_ssa as text."""
-    strict_value = normalize_numero_ssa_strict(value)
-    if strict_value is not None:
-        return strict_value
-    if _contains_letters(value):
-        return None
-    legacy_value = normalize_numero_ssa(value)
-    if legacy_value is None:
-        return None
-    return normalize_numero_ssa_strict(legacy_value)
+    return normalize_numero_ssa_strict(value)
 
 
 def normalize_numero_ssa(value) -> str | None:
-    """Legacy display/storage helper with minimal decimal-artifact tolerance."""
-    return _normalize_numero_ssa_legacy(_strip_canonical_decimal_artifact(value))
+    """Display compatibility helper with minimal decimal-artifact tolerance."""
+    if value is None:
+        return None
+    raw = re.sub(r"\D", "", str(strip_canonical_decimal_artifact(value)))
+    if not raw:
+        return None
+    trimmed = raw.lstrip("0")
+    if not trimmed:
+        return None
+    n_trim = len(trimmed)
+    if n_trim <= 5:
+        return _current_display_year() + trimmed.zfill(5)
+    if n_trim == 7:
+        expanded = _expand_two_digit_year_sequence(trimmed)
+        if expanded is not None:
+            return expanded
+    if len(raw) < 9:
+        return raw.zfill(9)
+    if len(raw) > 9:
+        logger.warning(
+            "numero_ssa descartado na compatibilidade de exibicao por exceder 9 digitos: raw=%r digits=%s",
+            value,
+            raw,
+        )
+        return None
+    return raw
 
 
 def batch_normalize_series(series: pd.Series) -> pd.Series:
@@ -130,16 +139,13 @@ def extract_candidate_digits(value) -> str:
 def bulk_int_or_none(
     values: Iterable,
 ) -> list[int | None]:  # pragma: no cover (usado esporadicamente)
-    return [_normalize_numero_ssa_value(v) for v in values]
+    return [normalize_numero_ssa_int(v) for v in values]
 
 
 def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     if "numero_ssa" not in df.columns:
         return df
     out = df.copy()
-    out["numero_ssa"] = pd.Series(
-        [normalize_numero_ssa_storage(v) for v in out["numero_ssa"]],
-        index=out.index,
-        dtype="object",
-    )
+    mapped = out["numero_ssa"].map(normalize_numero_ssa_storage)
+    out["numero_ssa"] = mapped.astype("object").where(mapped.notna(), None)
     return out

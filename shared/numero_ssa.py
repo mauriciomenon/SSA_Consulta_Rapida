@@ -14,31 +14,36 @@ Strict policy (canonical key) adopted for cross-layer consistency:
         they are rejected to avoid accidental conflation.
 
 Rationale for the mixed rules:
-    The codebase historically had lenient, CLI-oriented normalization that
+    The codebase previously had lenient, CLI-oriented normalization that
     aggressively stripped characters. Recent unification requires a *predictable*
-    and *auditable* canonical key while keeping backward compatibility for one
-    legacy dash pattern used in tests. The selective dash allowance plus letter
+    and *auditable* canonical key while keeping compatibility for one
+    dash pattern used in tests. The selective dash allowance plus letter
     rejection ensures we do not silently accept values that were intended to be
     flagged as invalid in data quality tests.
 
-Legacy helper functions in other modules should delegate here to avoid drift.
+Compatibility facades in other modules should delegate here to avoid drift.
 """
 
 from __future__ import annotations
 
+import logging
 import re
-from datetime import datetime
 from typing import Iterable
 
 YEAR_MIN = 1980
 YEAR_MAX = 2050
 VALID_LENGTHS = {9}
+_CANONICAL_DECIMAL_ARTIFACT = re.compile(r"^\s*(\d+)\.0+\s*$")
+logger = logging.getLogger(__name__)
 
 __all__ = [
+    "YEAR_MIN",
+    "YEAR_MAX",
+    "VALID_LENGTHS",
+    "strip_canonical_decimal_artifact",
     "normalize_strict",
     "is_valid_numero_ssa",
     "bulk_normalize",
-    "normalize_numero_ssa",
 ]
 
 
@@ -46,22 +51,14 @@ def _digits(value) -> str:
     return re.sub(r"\D", "", str(value)) if value is not None else ""
 
 
-def _current_legacy_year() -> str:
-    return str(datetime.now().year)
-
-
-def _expand_two_digit_year_sequence(trimmed: str) -> str | None:
-    if len(trimmed) != 7 or not trimmed.isdigit():
+def strip_canonical_decimal_artifact(value):
+    if value is None:
         return None
-    yy = int(trimmed[:2])
-    suffix = trimmed[2:]
-    year_2000 = 2000 + yy
-    year_1900 = 1900 + yy
-    if YEAR_MIN <= year_2000 <= YEAR_MAX:
-        return f"{year_2000}{suffix}"
-    if YEAR_MIN <= year_1900 <= YEAR_MAX:
-        return f"{year_1900}{suffix}"
-    return None
+    text = str(value).strip()
+    match = _CANONICAL_DECIMAL_ARTIFACT.fullmatch(text)
+    if match is None:
+        return value
+    return match.group(1)
 
 
 def normalize_strict(value) -> str | None:
@@ -81,7 +78,7 @@ def normalize_strict(value) -> str | None:
     """
     if value is None:
         return None
-    text = str(value).strip()
+    text = str(strip_canonical_decimal_artifact(value)).strip()
     if not text:
         return None
     # 1. Remover separadores neutros permitidos ('-' e espacos). Mantem politica rigida contra letras e outros simbolos.
@@ -95,6 +92,13 @@ def normalize_strict(value) -> str | None:
     had_dash = "-" in text
     compact = re.sub(r"[\s-]+", "", text)
     digits = _digits(compact)
+    if len(digits) > max(VALID_LENGTHS):
+        logger.warning(
+            "numero_ssa descartado por exceder 9 digitos: raw=%r digits=%s",
+            value,
+            digits,
+        )
+        return None
     if len(digits) not in VALID_LENGTHS:
         return None
     # 3. Year validation
@@ -118,30 +122,3 @@ def is_valid_numero_ssa(value) -> bool:
 
 def bulk_normalize(values: Iterable) -> list[str | None]:
     return [normalize_strict(v) for v in values]
-
-
-def normalize_numero_ssa(value) -> str | None:  # noqa: PLR0911
-    """Replica regra legacy de exibicao (padding / prefixos).
-
-    Mantida aqui para centralizar e permitir que `database.py` apenas reexporte.
-    """
-    if value is None:
-        return None
-    raw = re.sub(r"\D", "", str(value))
-    if not raw:
-        return None
-    trimmed = raw.lstrip("0")
-    if not trimmed:
-        return None
-    n_trim = len(trimmed)
-    if n_trim <= 5:
-        return _current_legacy_year() + trimmed.zfill(5)
-    if n_trim == 7:
-        expanded = _expand_two_digit_year_sequence(trimmed)
-        if expanded is not None:
-            return expanded
-    if len(raw) < 9:
-        return raw.zfill(9)
-    if len(raw) > 9:
-        return None
-    return raw

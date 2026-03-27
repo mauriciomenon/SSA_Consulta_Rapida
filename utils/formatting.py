@@ -18,7 +18,7 @@ from typing import Optional
 
 import pandas as pd
 
-from shared.numero_ssa import normalize_numero_ssa as _normalize_ssa_str
+from armazenamento.numero_ssa_utils import normalize_numero_ssa as _normalize_ssa_str
 
 
 def _is_nullish(v) -> bool:
