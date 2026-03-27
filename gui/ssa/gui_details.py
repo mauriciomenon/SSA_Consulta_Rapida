@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import html as html_module
 import os
+from typing import Mapping, cast
 
 import pandas as pd
 
 from gui.helpers.formatting_helpers import highlight_text
 from gui.helpers.theme_helpers import pick_css_color
 from gui.qt_stubs import QTimer
+from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 from shared.ssa_status import format_status_display, get_status_code
 from utils.formatting import format_cell
 from utils.robust_logging import get_robust_logger
@@ -40,6 +42,17 @@ SSA_NORM_CACHE_MAX_ENTRIES = 64
 DERIVADAS_DIALOG_MIN_WIDTH = 960
 DERIVADAS_DIALOG_TREE_MIN_WIDTH = 180
 DERIVADAS_DIALOG_DETAILS_MIN_WIDTH = 520
+
+
+def _init_readonly_text_browser(browser, *, min_width: int | None = None, min_height: int | None = None):
+    browser.setReadOnly(True)
+    browser.setOpenLinks(False)
+    browser.setOpenExternalLinks(False)
+    if min_width is not None:
+        browser.setMinimumWidth(min_width)
+    if min_height is not None:
+        browser.setMinimumHeight(min_height)
+    return browser
 
 
 def configure_details_constants(
@@ -174,6 +187,7 @@ def _format_details_html(
     linkify=False,
     label_font_size_pt=None,
     font_family=None,
+    derivadas_rel_override=None,
 ):
     """Formata dados da SSA como HTML com highlight opcional."""
     if font_size_pt is None:
@@ -306,7 +320,11 @@ def _format_details_html(
             f"</tr>"
         )
 
-    derivadas_rel = _get_derivadas_relations_info(window, series.get("numero_ssa"))
+    derivadas_rel = (
+        derivadas_rel_override
+        if isinstance(derivadas_rel_override, dict)
+        else _get_derivadas_relations_info(window, series.get("numero_ssa"))
+    )
     if derivadas_rel.get("has_data"):
         parent_list = derivadas_rel.get("parents", [])
         children_list = derivadas_rel.get("children", [])
@@ -438,6 +456,9 @@ def _normalize_ssa_value(window, value):
     text = str(raw).strip()
     if not text:
         return ""
+    strict_value = normalize_numero_ssa_strict(text)
+    if strict_value:
+        return strict_value
     if text.count(".") == 1:
         whole, fractional = text.split(".", 1)
         if whole.isdigit() and fractional and set(fractional) <= {"0"}:
@@ -445,25 +466,20 @@ def _normalize_ssa_value(window, value):
     lowered = text.casefold()
     if lowered in ("nan", "none", "nat", "<na>"):
         return ""
-    try:
+    if text.isdigit():
+        # Compat branch: GUI tests and local temporary IDs can still be short numeric.
+        return text
+    if text and all(ch.isdigit() or ch in ".- " for ch in text):
         digits = "".join(ch for ch in text if ch.isdigit())
-    except Exception:
-        digits = ""
-    if digits:
-        return digits
+        if digits:
+            return digits
     return lowered
 
 
 def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
-    """Normaliza valores de SSA em modo vetorizado (mais rapido que apply)."""
+    """Normaliza valores de SSA de forma compat com contrato central e GUI local."""
     try:
-        s = series.astype("string").fillna("").str.strip()
-        s = s.str.replace(r"^(\d+)\.0+$", r"\1", regex=True)
-        lowered = s.str.casefold()
-        empty_mask = s.eq("") | lowered.isin(("nan", "none", "nat", "<na>"))
-        digits = s.str.replace(r"\D+", "", regex=True)
-        out = digits.where(digits.ne(""), lowered)
-        return out.where(~empty_mask, "")
+        return series.map(lambda value: _normalize_ssa_value(window, value))
     except Exception as exc:
         logger.debug("Falha ao normalizar SSA series; fallback apply: %s", exc)
         try:
@@ -969,13 +985,18 @@ def _build_derivadas_tree_html(
     link_color=None,
     tree_font_pt=None,
     font_family=None,
+    tree_data_override=None,
 ):
     if not link_color:
         roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
         link_color = (
             roles.get("accent") or roles.get("panel_text") or roles.get("label_color")
         )
-    data = _collect_derivadas_tree_data(window, numero_ssa)
+    data = (
+        tree_data_override
+        if isinstance(tree_data_override, dict)
+        else _collect_derivadas_tree_data(window, numero_ssa)
+    )
     target = data.get("target", "")
     if not target:
         return ""
@@ -1052,6 +1073,59 @@ def _build_derivadas_tree_html(
     return "".join(lines)
 
 
+def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
+    target = str(data.get("target", "") or "").strip()
+    if not target:
+        return ""
+
+    def _node_id(value: str) -> str:
+        digits = "".join(ch for ch in value if ch.isdigit())
+        return f"N{digits}" if digits else f"N_{abs(hash(value))}"
+
+    def _label(value: str) -> str:
+        clean = str(value).replace('"', "'")
+        return clean
+
+    lines = ["flowchart TD"]
+    lines.append(f'  {_node_id(target)}["{_label(target)}"]')
+
+    parents = data.get("parents", [])
+    if isinstance(parents, list):
+        for raw in parents:
+            parent = str(raw).strip()
+            if not parent:
+                continue
+            lines.append(f'  {_node_id(parent)}["{_label(parent)}"] --> {_node_id(target)}')
+
+    children = data.get("children", [])
+    if isinstance(children, list):
+        for raw in children:
+            child = str(raw).strip()
+            if not child:
+                continue
+            lines.append(f'  {_node_id(target)} --> {_node_id(child)}["{_label(child)}"]')
+
+    descendants = data.get("descendants", [])
+    if isinstance(descendants, list):
+        for raw in descendants:
+            if not isinstance(raw, dict):
+                continue
+            raw_map = cast(dict[str, object], raw)
+            ssa = str(raw_map.get("ssa", "")).strip()
+            parent = str(raw_map.get("parent", "")).strip()
+            if not ssa:
+                continue
+            if parent:
+                lines.append(
+                    f'  {_node_id(parent)} --> {_node_id(ssa)}["{_label(ssa)}"]'
+                )
+            else:
+                lines.append(
+                    f'  {_node_id(target)} -.-> {_node_id(ssa)}["{_label(ssa)}"]'
+                )
+    return "\n".join(lines)
+
+
 def _open_details_dialog_for_ssa(window, numero_ssa):
     target = _normalize_ssa_value(window, numero_ssa)
     if not target:
@@ -1067,8 +1141,10 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             QDialog,
             QPushButton,
             QSplitter,
+            QTabWidget,
             QTextBrowser,
             QVBoxLayout,
+            QWidget,
         )
     except Exception:
         return
@@ -1079,20 +1155,29 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     dialog.setMinimumHeight(DERIVADAS_DIALOG_MIN_HEIGHT)
 
     root_layout = QVBoxLayout(dialog)
+    tabs = QTabWidget(dialog)
+    tab_details = QWidget(tabs)
+    tab_tree = QWidget(tabs)
+    tabs.addTab(tab_details, "Detalhes")
+    tabs.addTab(tab_tree, "Arvore")
+
+    tab_details_layout = QVBoxLayout(tab_details)
+    tab_tree_layout = QVBoxLayout(tab_tree)
     content_splitter = QSplitter(Qt.Orientation.Horizontal)
     content_splitter.setChildrenCollapsible(False)
+    tree_tab_splitter = QSplitter(Qt.Orientation.Vertical)
+    tree_tab_splitter.setChildrenCollapsible(False)
 
-    tree_browser = QTextBrowser()
-    tree_browser.setReadOnly(True)
-    tree_browser.setOpenLinks(False)
-    tree_browser.setOpenExternalLinks(False)
-    tree_browser.setMinimumWidth(DERIVADAS_DIALOG_TREE_MIN_WIDTH)
-
-    details_browser = QTextBrowser()
-    details_browser.setReadOnly(True)
-    details_browser.setOpenLinks(False)
-    details_browser.setOpenExternalLinks(False)
-    details_browser.setMinimumWidth(DERIVADAS_DIALOG_DETAILS_MIN_WIDTH)
+    tree_browser = _init_readonly_text_browser(
+        QTextBrowser(), min_width=DERIVADAS_DIALOG_TREE_MIN_WIDTH
+    )
+    details_browser = _init_readonly_text_browser(
+        QTextBrowser(), min_width=DERIVADAS_DIALOG_DETAILS_MIN_WIDTH
+    )
+    tree_tab_browser = _init_readonly_text_browser(QTextBrowser(), min_height=220)
+    tree_tab_details_browser = _init_readonly_text_browser(
+        QTextBrowser(), min_height=220
+    )
 
     try:
         link_color = window.palette().color(QPalette.ColorRole.Highlight).name()
@@ -1135,6 +1220,18 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         if series_target is None:
             return False
         current_target["ssa"] = normalized
+        tree_data = _collect_derivadas_tree_data(window, normalized)
+        derivadas_rel = {
+            "has_data": bool(
+                tree_data.get("parents")
+                or tree_data.get("children")
+                or int(tree_data.get("descendants_count", 0)) > 0
+            ),
+            "parents": tree_data.get("parents", []),
+            "children": tree_data.get("children", []),
+            "descendants_count": int(tree_data.get("descendants_count", 0)),
+        }
+
         html_details = _format_details_html(
             window,
             series_target,
@@ -1143,6 +1240,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             linkify=True,
             label_font_size_pt=dialog_label_font_pt,
             font_family=dialog_font_family,
+            derivadas_rel_override=derivadas_rel,
         )
         details_browser.setHtml(html_details)
         tree_html = _build_derivadas_tree_html(
@@ -1151,11 +1249,29 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             link_color=link_color,
             tree_font_pt=dialog_tree_font_pt,
             font_family=dialog_font_family,
+            tree_data_override=tree_data,
         )
+        mermaid_text = _build_derivadas_mermaid_text(tree_data)
         if tree_html:
             tree_browser.setHtml(tree_html)
+            if mermaid_text:
+                tree_tab_browser.setHtml(
+                    tree_html
+                    + (
+                        "<br/><b>Mermaid (texto):</b><br/>"
+                        "<pre style=\"white-space:pre-wrap;\">"
+                        f"{html_module.escape(mermaid_text)}"
+                        "</pre>"
+                    )
+                )
+            else:
+                tree_tab_browser.setHtml(tree_html)
         else:
             tree_browser.setPlainText("Arvore de derivadas indisponivel para esta SSA.")
+            tree_tab_browser.setPlainText(
+                "Arvore de derivadas indisponivel para esta SSA."
+            )
+        tree_tab_details_browser.setHtml(html_details)
         return True
 
     def _handle_dialog_anchor(url):
@@ -1188,6 +1304,8 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
 
     tree_browser.anchorClicked.connect(_handle_dialog_anchor)
     details_browser.anchorClicked.connect(_handle_dialog_anchor)
+    tree_tab_browser.anchorClicked.connect(_handle_dialog_anchor)
+    tree_tab_details_browser.anchorClicked.connect(_handle_dialog_anchor)
     if not _render_target(target):
         return
 
@@ -1206,7 +1324,15 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_RIGHT / total_ratio),
     )
     content_splitter.setSizes([left_width, right_width])
-    root_layout.addWidget(content_splitter)
+    tree_tab_splitter.addWidget(tree_tab_browser)
+    tree_tab_splitter.addWidget(tree_tab_details_browser)
+    tree_tab_splitter.setStretchFactor(0, 1)
+    tree_tab_splitter.setStretchFactor(1, 1)
+    tree_tab_splitter.setSizes([350, 350])
+
+    tab_details_layout.addWidget(content_splitter)
+    tab_tree_layout.addWidget(tree_tab_splitter)
+    root_layout.addWidget(tabs)
 
     close_button = QPushButton("Fechar")
     close_button.clicked.connect(dialog.accept)

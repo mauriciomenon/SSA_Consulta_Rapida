@@ -2001,6 +2001,30 @@ class TestGUIFilterLogic:
         assert "APG - Aguardando Programacao" in html
         assert "copy-ssa:202600023" in html
 
+    def test_details_html_uses_derivadas_override_without_query(self, monkeypatch):
+        series = self.base_df.iloc[0].copy()
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_derivadas_relations_info",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("nao deveria consultar derivadas sem override")
+            ),
+        )
+        html = ssa_gui_details._format_details_html(
+            self.window,
+            series,
+            highlight_search_terms=False,
+            linkify=True,
+            derivadas_rel_override={
+                "has_data": True,
+                "parents": ["999"],
+                "children": ["1001"],
+                "descendants_count": 1,
+            },
+        )
+        assert "Relacoes de Derivadas" in html
+        assert "Filhas diretas (1)" in html
+
     def test_derivadas_tree_html_includes_status_codes(self, monkeypatch):
         monkeypatch.setattr(
             ssa_gui_details,
@@ -2033,6 +2057,40 @@ class TestGUIFilterLogic:
         assert "202600023 (APG)" in html
         assert "202516514 (STE)" in html
         assert "202600029 (SPG)" in html
+
+    def test_build_derivadas_mermaid_text_generates_edges(self):
+        data: dict[str, object] = {
+            "target": "202600023",
+            "parents": ["202516514"],
+            "children": ["202600029", "202600030"],
+            "descendants": [{"ssa": "202600031", "parent": "202600029"}],
+        }
+        mermaid = ssa_gui_details._build_derivadas_mermaid_text(data)
+        assert mermaid.startswith("flowchart TD")
+        assert 'N202516514["202516514"] --> N202600023' in mermaid
+        assert 'N202600023 --> N202600029["202600029"]' in mermaid
+        assert 'N202600029 --> N202600031["202600031"]' in mermaid
+
+    def test_build_derivadas_mermaid_text_returns_empty_without_target(self):
+        assert ssa_gui_details._build_derivadas_mermaid_text({}) == ""
+
+    def test_open_details_dialog_builds_dedicated_tree_tab(self, monkeypatch):
+        self.window.df_exibido = self.base_df.copy()
+        captured = {}
+
+        def _fake_exec(dialog):
+            tabs = dialog.findChildren(QtWidgets.QTabWidget)
+            if not tabs:
+                captured["labels"] = []
+                return 0
+            tab = tabs[0]
+            captured["labels"] = [tab.tabText(i) for i in range(tab.count())]
+            return 0
+
+        monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
+        self.window._open_details_dialog_for_ssa("1")
+        assert "labels" in captured
+        assert captured["labels"] == ["Detalhes", "Arvore"]
 
     def test_details_number_double_click_copies_current_ssa(self, monkeypatch):
         self.window._details_current_ssa = "202600023"
