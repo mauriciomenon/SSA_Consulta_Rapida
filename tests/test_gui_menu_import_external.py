@@ -5,7 +5,6 @@ import sqlite3
 from pathlib import Path
 from typing import Any, cast
 
-from core import app_logic as core_app_logic
 from gui import gui_ssa
 
 
@@ -219,10 +218,9 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     )
     captured: dict[str, Any] = {}
     monkeypatch.setattr(
-        core_app_logic,
-        "import_explicit_files_to_database",
-        lambda file_paths, **kwargs: captured.setdefault("paths", list(file_paths))
-        or True,
+        gui_ssa.ssa_gui_workers,
+        "rescan_data",
+        lambda _window, **kwargs: captured.setdefault("kwargs", dict(kwargs)),
     )
 
     class _Window:
@@ -236,15 +234,19 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     assert result["skipped"] == 0
     assert result["failed"] == 0
     assert result["unsupported"] == 1
-    assert result["db_updated"] is True
+    assert result["db_updated"] is False
+    assert result["db_update_requested"] is True
+    assert result["queued"] is True
     assert (docs_dir / "entrada__1.xlsx").exists()
     assert (docs_dir / "segunda.xlsx").exists()
     assert not (docs_dir / "outra.xls").exists()
-    assert captured["paths"] == [
+    assert list(captured["kwargs"]["explicit_files"]) == [
         str(docs_dir / "entrada__1.xlsx"),
         str(docs_dir / "segunda.xlsx"),
     ]
-    assert "Importacao externa concluida" in window.status_label.text
+    assert captured["kwargs"]["rescan_mode"] == "explicit"
+    assert captured["kwargs"]["reload_on_success"] is True
+    assert "enfileirada=sim" in window.status_label.text
 
 
 def test_import_external_excel_files_empty_selection_returns_consistent_schema(
@@ -263,6 +265,8 @@ def test_import_external_excel_files_empty_selection_returns_consistent_schema(
         "failed": 0,
         "unsupported": 0,
         "db_updated": False,
+        "db_update_requested": False,
+        "queued": False,
     }
 
 
@@ -286,10 +290,9 @@ def test_import_external_excel_files_applies_staged_file_without_recopiar(
     )
     captured: dict[str, Any] = {}
     monkeypatch.setattr(
-        core_app_logic,
-        "import_explicit_files_to_database",
-        lambda file_paths, **kwargs: captured.setdefault("paths", list(file_paths))
-        or True,
+        gui_ssa.ssa_gui_workers,
+        "rescan_data",
+        lambda _window, **kwargs: captured.setdefault("kwargs", dict(kwargs)),
     )
 
     class _Window:
@@ -299,8 +302,10 @@ def test_import_external_excel_files_applies_staged_file_without_recopiar(
     result = gui_ssa.SSAMainWindow.import_external_excel_files(cast(Any, _Window()))
     assert result["copied"] == 0
     assert result["failed"] == 0
-    assert result["db_updated"] is True
-    assert captured["paths"] == [str(staged)]
+    assert result["db_updated"] is False
+    assert result["db_update_requested"] is True
+    assert result["queued"] is True
+    assert list(captured["kwargs"]["explicit_files"]) == [str(staged)]
 
 
 def test_open_settings_file_with_backup_creates_backup(
