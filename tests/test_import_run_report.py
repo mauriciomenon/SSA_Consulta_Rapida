@@ -170,6 +170,29 @@ def _fake_extract_state_transition(file_path: str, should_cancel=None):  # noqa:
     )
 
 
+def _write_real_ssa_excel(
+    file_path: Path,
+    *,
+    numero_ssa: str,
+    situacao: str,
+    setor_executor: str,
+    data_cadastro: str,
+    descricao_ssa: str,
+) -> None:
+    df = pd.DataFrame(
+        [
+            {
+                "Numero SSA": numero_ssa,
+                "Situacao": situacao,
+                "Setor Executor": setor_executor,
+                "Emitida Em": data_cadastro,
+                "Descricao": descricao_ssa,
+            }
+        ]
+    )
+    df.to_excel(file_path, index=False)
+
+
 def _prepare_runtime_import_update(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -581,6 +604,138 @@ def test_run_importer_logic_diff_reprocess_older_file_does_not_downgrade_existin
 
     tracked_file.write_text("old", encoding="utf-8")
 
+    assert (
+        app_logic.run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(data_dir),
+            db_name="test.db",
+            table_name="ssa_table",
+            force_import=False,
+        )
+        is True
+    )
+
+    assert _count_ssa_rows(db_path, "202500001") == 1
+    assert _read_ssa_state(db_path, "202500001") == (
+        "STE",
+        "BBB2",
+        "2025-01-02 00:00:00",
+        "tracked.xlsx",
+    )
+
+
+def test_import_explicit_files_to_database_real_xlsx_batch_preserves_newest_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "test.db"
+    old_file = docs_dir / "old.xlsx"
+    new_file = docs_dir / "new.xlsx"
+
+    _write_real_ssa_excel(
+        old_file,
+        numero_ssa="202500001",
+        situacao="ADM",
+        setor_executor="AAA1",
+        data_cadastro="2025-01-01 00:00:00",
+        descricao_ssa="ssa old real",
+    )
+    _write_real_ssa_excel(
+        new_file,
+        numero_ssa="202500001",
+        situacao="STE",
+        setor_executor="BBB2",
+        data_cadastro="2025-01-02 00:00:00",
+        descricao_ssa="ssa new real",
+    )
+
+    _allow_tmp_path(monkeypatch, tmp_path)
+    _init_runtime_ssa_db(db_path)
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_run_derivadas_sync_phase",
+        lambda *args, **kwargs: (True, [], {"db_stats": {}, "merge_stats": {}}),
+    )
+
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(old_file), str(new_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+
+    assert _count_ssa_rows(db_path, "202500001") == 1
+    assert _read_ssa_state(db_path, "202500001") == (
+        "STE",
+        "BBB2",
+        "2025-01-02 00:00:00",
+        "new.xlsx",
+    )
+
+
+def test_run_importer_logic_diff_real_xlsx_modified_file_updates_without_downgrade(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "test.db"
+    tracked_file = docs_dir / "tracked.xlsx"
+
+    _allow_tmp_path(monkeypatch, tmp_path)
+    _init_runtime_ssa_db(db_path)
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_run_derivadas_sync_phase",
+        lambda *args, **kwargs: (True, [], {"db_stats": {}, "merge_stats": {}}),
+    )
+
+    _write_real_ssa_excel(
+        tracked_file,
+        numero_ssa="202500001",
+        situacao="STE",
+        setor_executor="BBB2",
+        data_cadastro="2025-01-02 00:00:00",
+        descricao_ssa="ssa new real",
+    )
+    assert (
+        app_logic.run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(data_dir),
+            db_name="test.db",
+            table_name="ssa_table",
+            force_import=False,
+        )
+        is True
+    )
+
+    _write_real_ssa_excel(
+        tracked_file,
+        numero_ssa="202500001",
+        situacao="ADM",
+        setor_executor="AAA1",
+        data_cadastro="2025-01-01 00:00:00",
+        descricao_ssa="ssa old real",
+    )
     assert (
         app_logic.run_importer_logic(
             docs_dir=str(docs_dir),
