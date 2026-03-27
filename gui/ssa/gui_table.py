@@ -34,7 +34,9 @@ def _get_visual_filter_columns(window, *, context: str) -> set[str]:
     return visual_filter_columns
 
 
-def _build_display_headers(window, columns: list[str], visual_filter_columns: set[str]) -> list[str]:
+def _build_display_headers(
+    window, columns: list[str], visual_filter_columns: set[str]
+) -> list[str]:
     headers: list[str] = []
     for col in columns:
         base = "#" if col == "#" else window.internal_to_display.get(col, col)

@@ -2225,7 +2225,7 @@ class FilterGUISSAMixin:
         if or_text:
             _append_unique_text(
                 active_filters,
-                f"Filtro OU: {self._format_column_filter_display_value(or_text)}"
+                f"Filtro OU: {self._format_column_filter_display_value(or_text)}",
             )
 
         # Filtros de coluna (exibição)
