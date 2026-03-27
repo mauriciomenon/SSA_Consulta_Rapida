@@ -436,9 +436,7 @@ def test_import_explicit_files_to_database_updates_existing_ssa_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    docs_dir, _data_dir, db_path = _prepare_runtime_import_update(
-        tmp_path, monkeypatch
-    )
+    docs_dir, _data_dir, db_path = _prepare_runtime_import_update(tmp_path, monkeypatch)
     old_file = docs_dir / "old.xlsx"
     new_file = docs_dir / "new.xlsx"
     old_file.write_text("old", encoding="utf-8")
@@ -482,9 +480,7 @@ def test_import_explicit_files_to_database_preserves_newer_state_against_older_f
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    docs_dir, _data_dir, db_path = _prepare_runtime_import_update(
-        tmp_path, monkeypatch
-    )
+    docs_dir, _data_dir, db_path = _prepare_runtime_import_update(tmp_path, monkeypatch)
     old_file = docs_dir / "old.xlsx"
     new_file = docs_dir / "new.xlsx"
     old_file.write_text("old", encoding="utf-8")
@@ -522,9 +518,7 @@ def test_run_importer_logic_diff_reprocesses_modified_file_and_updates_existing_
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    docs_dir, data_dir, db_path = _prepare_runtime_import_update(
-        tmp_path, monkeypatch
-    )
+    docs_dir, data_dir, db_path = _prepare_runtime_import_update(tmp_path, monkeypatch)
     tracked_file = docs_dir / "tracked.xlsx"
     tracked_file.write_text("old", encoding="utf-8")
 
@@ -570,9 +564,7 @@ def test_run_importer_logic_diff_reprocess_older_file_does_not_downgrade_existin
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    docs_dir, data_dir, db_path = _prepare_runtime_import_update(
-        tmp_path, monkeypatch
-    )
+    docs_dir, data_dir, db_path = _prepare_runtime_import_update(tmp_path, monkeypatch)
     tracked_file = docs_dir / "tracked.xlsx"
     tracked_file.write_text("new", encoding="utf-8")
 
