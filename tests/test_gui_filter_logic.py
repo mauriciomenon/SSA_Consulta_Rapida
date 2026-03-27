@@ -184,6 +184,15 @@ class TestGUIFilterLogic:
         ]
         assert visible_named == []
 
+    def test_top_toolbar_exposes_sam_button_and_filtered_status_box(self):
+        sam_button = getattr(self.window, "open_sam_button", None)
+        filtered_status = getattr(self.window, "filtered_status_label", None)
+
+        assert sam_button is not None
+        assert str(sam_button.text() or "") == "Abrir SAM"
+        assert filtered_status is not None
+        assert str(filtered_status.text() or "") == "Status: 0 de 0 SSAs"
+
     def test_search_and_pagination_rows_place_controls_in_expected_lines(self):
         main_ctx = self.window._tab_contexts[0]
         search_input = main_ctx["search_input"]
@@ -698,16 +707,15 @@ class TestGUIFilterLogic:
         self.window._refresh_after_filter_change()
         QApplication.processEvents()
 
-        status = self.window.status_label.text()
-        assert "SSAs filtradas" in status
-        assert "1 de 5" in status
+        status = self.window.filtered_status_label.text()
+        assert status == "Status: 1 de 5 SSAs"
 
     def test_set_filtered_count_status_accepts_suffix(self):
         self.window._set_filtered_count_status(
             "", filtered_total=2, original_total=5, suffix="Aviso: teste."
         )
-        status = self.window.status_label.text()
-        assert status == "Status: SSAs filtradas: 2 de 5. Aviso: teste."
+        status = self.window.filtered_status_label.text()
+        assert status == "Status: 2 de 5 SSAs. Aviso: teste."
 
     def test_apply_advanced_filters_notice_uses_count_status_helper(self, monkeypatch):
         self.window._pending_search_display = "Busca X"
@@ -719,10 +727,19 @@ class TestGUIFilterLogic:
 
         monkeypatch.setattr(self.window, "_refresh_after_filter_change", _fake_refresh)
         self.window._apply_advanced_filters_from_ui(store_only=False)
-        status = self.window.status_label.text()
-        assert "Status: SSAs filtradas:" in status
-        assert "para 'Busca X'" in status
+        status = self.window.filtered_status_label.text()
+        assert status == "Status: 5 de 5 SSAs. Aviso: nenhuma derivada encontrada para o filtro."
         assert "Aviso: nenhuma derivada encontrada para o filtro." in status
+
+    def test_update_filters_summary_styles_active_state(self):
+        self.window._active_column_filters = {"setor_executor": "IEE3"}
+
+        self.window._update_filters_summary()
+
+        frame_css = str(self.window.filters_summary_frame.styleSheet() or "")
+        label_css = str(self.window.filters_summary_label.styleSheet() or "")
+        assert "border:1px solid" in frame_css
+        assert "font-weight:700" in label_css
 
     def test_find_unmapped_alias_columns_reports_only_unmapped(self):
         self.window.internal_to_display["numero_ssa"] = "Numero SSA"
@@ -1968,6 +1985,134 @@ class TestGUIFilterLogic:
         assert "Abrir arvore completa" in html
         assert "derivadas:tree" in html
         assert "ssa-details:9000" in html
+
+    def test_details_html_expands_situacao_and_links_numero_ssa_for_copy(self):
+        series = self.base_df.iloc[0].copy()
+        series["numero_ssa"] = "202600023"
+        series["situacao"] = "APG"
+
+        html = self.window._format_details_html(
+            series, highlight_search_terms=False, linkify=True
+        )
+
+        assert "APG - Aguardando Programacao" in html
+        assert "copy-ssa:202600023" in html
+
+    def test_derivadas_tree_html_includes_status_codes(self, monkeypatch):
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_collect_derivadas_tree_data",
+            lambda *_args, **_kwargs: {
+                "target": "202600023",
+                "parents": ["202516514"],
+                "children": ["202600029"],
+                "descendants": [{"ssa": "202600030", "situacao": "STE"}],
+                "ancestors": [{"ssa": "202516514", "situacao": "STE", "min_distance": 1}],
+                "direct_children_count": 1,
+                "descendants_count": 1,
+            },
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_situacao_for_ssa",
+            lambda _window, numero: {
+                "202600023": "APG",
+                "202516514": "STE",
+                "202600029": "SPG",
+                "202600030": "STE",
+            }.get(str(numero), ""),
+        )
+
+        html = ssa_gui_details._build_derivadas_tree_html(self.window, "202600023")
+
+        assert "202600023 (APG)" in html
+        assert "202516514 (STE)" in html
+        assert "202600029 (SPG)" in html
+
+    def test_details_number_double_click_copies_current_ssa(self, monkeypatch):
+        self.window._details_current_ssa = "202600023"
+        self.window.details_text.setHtml(
+            '<a href="copy-ssa:202600023" style="text-decoration:none;">202600023</a>'
+        )
+        monkeypatch.setattr(
+            self.window.details_text,
+            "anchorAt",
+            lambda _point: "copy-ssa:202600023",
+        )
+
+        class _FakeEvent:
+            def type(self):
+                return gui_ssa.QEvent.Type.MouseButtonDblClick
+
+            def position(self):
+                class _P:
+                    def toPoint(self_inner):
+                        return QPoint(1, 1)
+
+                return _P()
+
+        handled = self.window.eventFilter(self.window._details_text_viewport, _FakeEvent())
+
+        clipboard = QApplication.clipboard()
+        assert handled is True
+        assert clipboard is not None
+        assert clipboard.text() == "202600023"
+
+    def test_clicking_hash_column_opens_sam_ssa_url(self, monkeypatch):
+        self.window.display_current_page(1)
+        opened = []
+
+        monkeypatch.setattr(
+            gui_ssa.QDesktopServices,
+            "openUrl",
+            lambda url: opened.append(url.toString()) or True,
+        )
+
+        self.window.on_table_cell_clicked(0, 0)
+
+        assert opened == [
+            "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx?SerialNumber=1&language=pt"
+        ]
+
+    def test_open_sam_home_uses_default_browser(self, monkeypatch):
+        opened = []
+
+        monkeypatch.setattr(
+            gui_ssa.QDesktopServices,
+            "openUrl",
+            lambda url: opened.append(url.toString()) or True,
+        )
+
+        result = self.window._open_sam_home()
+
+        assert result is True
+        assert opened == ["https://osprd.itaipu/SAM_SMA/"]
+
+    def test_load_other_database_validates_selected_db_without_blocking_contract(
+        self, monkeypatch, tmp_path
+    ):
+        db_file = tmp_path / "other.db"
+        db_file.write_text("stub", encoding="utf-8")
+        original_db_path = gui_ssa.DB_PATH
+
+        monkeypatch.setattr(
+            gui_ssa.QFileDialog,
+            "getOpenFileName",
+            lambda *args, **kwargs: (str(db_file), ""),
+        )
+        monkeypatch.setattr(
+            gui_ssa,
+            "query_db",
+            lambda *_args, **_kwargs: pd.DataFrame({"numero_ssa": ["1"]}),
+        )
+
+        try:
+            result = self.window.load_other_database()
+            assert bool(result["ok"]) is True
+            assert gui_ssa.DB_PATH == str(db_file)
+            assert "Banco alternativo selecionado" in self.window.status_label.text()
+        finally:
+            gui_ssa.DB_PATH = original_db_path
 
     def test_details_anchor_derivadas_tree_opens_popup(self):
         self.window._details_current_ssa = "12.19.117.87"
@@ -4254,9 +4399,8 @@ class TestGUIFilterLogic:
 
         self.window.on_filter_finished(self.base_df.copy(), request_id=77)
 
-        status = self.window.status_label.text()
-        assert "Status: SSAs filtradas:" in status
-        assert "para 'Teste'" in status
+        status = self.window.filtered_status_label.text()
+        assert status == "Status: 5 de 5 SSAs"
 
     def test_load_data_replaces_previous_loader_worker_and_tracks_request(self):
         class _FakeSignal:

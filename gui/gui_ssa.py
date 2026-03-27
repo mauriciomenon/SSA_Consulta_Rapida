@@ -101,6 +101,11 @@ logger.addHandler(logging.NullHandler())
 
 _COLUMN_FILTER_DIALOG_MIN_WIDTH = 420
 _COLUMN_FILTER_DIALOG_HINT = "Aceita termo, !termo para exclusao"
+SAM_HOME_URL = "https://osprd.itaipu/SAM_SMA/"
+SAM_SSA_PUBLIC_VIEW_URL = (
+    "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx"
+    "?SerialNumber={numero_ssa}&language=pt"
+)
 
 EXCLUDED_CANONICAL_UI_COLUMNS = {
     "id",
@@ -1341,6 +1346,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         toolbar_layout = QHBoxLayout()
 
         # Botões principais de dados
+        self.open_sam_button = QPushButton("Abrir SAM")
+        self.open_sam_button.setToolTip("Abrir pagina principal do SAM no navegador")
+        self.open_sam_button.clicked.connect(self._open_sam_home)
+        toolbar_layout.addWidget(cast(Any, self.open_sam_button))
+
         self.load_button = QPushButton("Carregar Dados")
         self.load_button.setToolTip("Carregar dados do banco de dados existente")
         self.load_button.clicked.connect(self.load_data)
@@ -1375,10 +1385,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self.week_label.setStyleSheet(self._week_label_style)
         self.week_label.setToolTip("Semana ISO atual")
         toolbar_layout.addSpacing(6)
-        toolbar_layout.addWidget(cast(Any, self.week_label))
-
-        # Espaçamento antes do status
         toolbar_layout.addStretch()
+        toolbar_layout.addWidget(cast(Any, self.week_label))
+        toolbar_layout.addStretch()
+
+        self.filtered_status_label = QLabel("Status: 0 de 0 SSAs")
+        self.filtered_status_label.setStyleSheet(
+            "border:1px solid palette(mid); border-radius:4px; padding:2px 6px;"
+        )
+        self.filtered_status_label.setMinimumWidth(170)
+        self.filtered_status_label.setMaximumWidth(240)
+        self.filtered_status_label.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+        )
+        toolbar_layout.addWidget(cast(Any, self.filtered_status_label))
 
         # Status em caixa e progresso
         self.status_label = QLabel("Status: Aguardando carregamento dos dados...")
@@ -1386,10 +1406,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             "border:1px solid palette(mid); border-radius:4px; padding:2px 6px;"
         )
         # Keep toolbar geometry stable even when status text gets longer.
-        self.status_label.setMinimumWidth(520)
+        self.status_label.setMinimumWidth(280)
         self.status_label.setMaximumWidth(520)
         self.status_label.setSizePolicy(
-            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed
         )
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
@@ -1783,6 +1803,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             )
 
         table_widget.doubleClicked.connect(self.on_table_double_click)
+        table_widget.cellClicked.connect(self.on_table_cell_clicked)
         table_widget.itemSelectionChanged.connect(self.update_details_from_selection)
 
         try:
@@ -1839,6 +1860,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             details_viewport = details_text.viewport()
             if details_viewport is not None:
                 details_viewport.setAutoFillBackground(False)
+                details_viewport.installEventFilter(self)
+                self._details_text_viewport = details_viewport
         except Exception as exc:
             logger.debug(
                 "Falha ao configurar preenchimento do viewport de detalhes: %s", exc
@@ -2885,6 +2908,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                             p = event.pos()
                         self.show_header_context_menu(p)
                         return True
+            details_viewport = getattr(self, "_details_text_viewport", None)
+            if obj is details_viewport and event.type() == QEvent.Type.MouseButtonDblClick:
+                pos = getattr(event, "position", None)
+                if callable(pos):
+                    point = pos().toPoint()
+                else:
+                    point = event.pos()
+                details_text = getattr(self, "details_text", None)
+                anchor = ""
+                if details_text is not None:
+                    try:
+                        anchor = str(details_text.anchorAt(point) or "")
+                    except Exception:
+                        anchor = ""
+                if anchor.startswith("copy-ssa:"):
+                    target = anchor[len("copy-ssa:") :].strip().lstrip("/")
+                    if target:
+                        self._copy_ssa_to_clipboard(target)
+                        return True
         except Exception as exc:
             logger.debug("Falha no eventFilter do header da tabela: %s", exc)
         return super().eventFilter(obj, event)
@@ -3252,6 +3294,71 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             linkify=linkify,
             label_font_size_pt=label_font_size_pt,
         )
+
+    @staticmethod
+    def _build_sam_ssa_url(numero_ssa: str) -> str:
+        return SAM_SSA_PUBLIC_VIEW_URL.format(numero_ssa=str(numero_ssa).strip())
+
+    def _open_url_in_browser(self, url: str, *, success_status: str) -> bool:
+        safe_url = str(url or "").strip()
+        if not safe_url:
+            return False
+        try:
+            ok = bool(QDesktopServices.openUrl(QUrl(safe_url)))
+        except Exception as exc:
+            logger.warning("Falha ao abrir URL externa %s: %s", safe_url, exc)
+            ok = False
+        if ok and hasattr(self, "status_label"):
+            self.status_label.setText(success_status)
+        return ok
+
+    def _open_sam_home(self):
+        opened = self._open_url_in_browser(
+            SAM_HOME_URL,
+            success_status="Status: SAM aberto no navegador.",
+        )
+        if not opened and not os.environ.get("PYTEST_CURRENT_TEST"):
+            QMessageBox.warning(self, "Erro", "Falha ao abrir o SAM no navegador.")
+        return opened
+
+    def _open_sam_ssa(self, numero_ssa: str):
+        safe_numero = self._normalize_ssa_value(numero_ssa)
+        if not safe_numero:
+            return False
+        opened = self._open_url_in_browser(
+            self._build_sam_ssa_url(safe_numero),
+            success_status=f"Status: SSA {safe_numero} aberta no SAM.",
+        )
+        if not opened and not os.environ.get("PYTEST_CURRENT_TEST"):
+            QMessageBox.warning(
+                self,
+                "Erro",
+                f"Falha ao abrir a SSA {safe_numero} no navegador.",
+            )
+        return opened
+
+    def _copy_ssa_to_clipboard(
+        self, numero_ssa: str, *, status_text: str = "Status: Numero da SSA copiado."
+    ) -> bool:
+        safe_numero = self._normalize_ssa_value(numero_ssa)
+        if not safe_numero:
+            return False
+        clipboard = QApplication.clipboard()
+        if clipboard is None:
+            return False
+        clipboard.setText(safe_numero)
+        if hasattr(self, "status_label"):
+            self.status_label.setText(status_text)
+        return True
+
+    def on_table_cell_clicked(self, row: int, column: int):
+        if column != 0:
+            return
+        series = self._get_series_from_row(row)
+        if series is None:
+            return
+        numero_ssa = series.get("numero_ssa")
+        self._open_sam_ssa(str(numero_ssa or ""))
 
     def on_table_double_click(self, index):
         """Mostra janela de detalhes formatada ao duplo clique."""
@@ -4669,6 +4776,56 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             QMessageBox.critical(self, "Erro", f"Falha ao atualizar derivadas: {error}")
         return result
 
+    @staticmethod
+    def _validate_database_candidate(db_file: str) -> dict[str, Any]:
+        try:
+            test_df = query_db(db_file, TABLE_NAME)
+        except Exception as exc:
+            return {"ok": False, "error": str(exc), "db_file": db_file}
+        has_rows = bool(test_df is not None and not test_df.empty)
+        return {"ok": has_rows, "db_file": db_file}
+
+    def _finalize_database_candidate_validation(self, result: dict[str, Any]) -> dict[str, Any]:
+        self._other_db_validation_running = False
+        self._other_db_validation_thread = None
+        self._other_db_validation_pending_result = None
+
+        db_file = str(result.get("db_file") or "").strip()
+        if bool(result.get("ok")) and db_file:
+            global DB_PATH
+            DB_PATH = db_file
+            self.status_label.setText(
+                f"Status: Banco alternativo selecionado: {os.path.basename(db_file)}"
+            )
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.information(
+                    self,
+                    "Sucesso",
+                    (
+                        f"Banco de dados selecionado: {os.path.basename(db_file)}\n\n"
+                        "Clique em 'Carregar Dados' para carregar os dados."
+                    ),
+                )
+            return result
+
+        error = str(result.get("error") or "").strip()
+        if error:
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.critical(
+                    self, "Erro", f"Erro ao abrir o banco de dados: {error}"
+                )
+            self.status_label.setText("Status: Falha ao validar banco alternativo.")
+            return result
+
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            QMessageBox.warning(
+                self,
+                "Erro",
+                "O arquivo selecionado nao contem dados validos na tabela principal de SSAs.",
+            )
+        self.status_label.setText("Status: Banco alternativo invalido.")
+        return {"ok": False, "db_file": db_file}
+
     def load_other_database(self):
         """Permite selecionar e carregar outro arquivo de banco de dados."""
         file_dialog = QFileDialog()
@@ -4680,31 +4837,56 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         )
 
         if db_file and os.path.exists(db_file):
-            try:
-                # Testa se o arquivo eh um banco valido
-                test_df = query_db(db_file, TABLE_NAME)
-                if test_df is not None and not test_df.empty:
-                    # Atualiza o caminho do banco
-                    global DB_PATH
-                    DB_PATH = db_file
-                    self.status_label.setText(
-                        f"Status: Banco alternativo selecionado: {os.path.basename(db_file)}"
-                    )
-                    QMessageBox.information(
-                        self,
-                        "Sucesso",
-                        f"Banco de dados selecionado: {os.path.basename(db_file)}\n\nClique em 'Carregar Dados' para carregar os dados.",
-                    )
-                else:
-                    QMessageBox.warning(
-                        self,
-                        "Erro",
-                        "O arquivo selecionado nao contem dados validos na tabela principal de SSAs.",
-                    )
-            except Exception as e:
-                QMessageBox.critical(
-                    self, "Erro", f"Erro ao abrir o banco de dados: {e}"
+            if bool(getattr(self, "_other_db_validation_running", False)):
+                self.status_label.setText(
+                    "Status: Validacao de banco alternativo ja em andamento."
                 )
+                return {"ok": False, "reason": "already_running", "db_file": db_file}
+            self.status_label.setText("Status: Validando banco alternativo...")
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                result = SSAMainWindow._validate_database_candidate(db_file)
+                return self._finalize_database_candidate_validation(result)
+
+            self._other_db_validation_running = True
+            self._other_db_validation_thread = None
+            self._other_db_validation_pending_result = None
+
+            def _window_alive() -> bool:
+                if self is None:
+                    return False
+                if not hasattr(self, "metaObject"):
+                    return True
+                if sip is None:
+                    return True
+                try:
+                    return not sip.isdeleted(self)
+                except Exception:
+                    return False
+
+            def _work() -> None:
+                self._other_db_validation_pending_result = (
+                    SSAMainWindow._validate_database_candidate(db_file)
+                )
+
+            def _poll_delivery() -> None:
+                if not _window_alive():
+                    self._other_db_validation_pending_result = None
+                    self._other_db_validation_thread = None
+                    self._other_db_validation_running = False
+                    return
+                pending = getattr(self, "_other_db_validation_pending_result", None)
+                if pending is None:
+                    if bool(getattr(self, "_other_db_validation_running", False)):
+                        QTimer.singleShot(100, _poll_delivery)
+                    return
+                self._other_db_validation_pending_result = None
+                SSAMainWindow._finalize_database_candidate_validation(self, pending)
+
+            worker = threading.Thread(target=_work, daemon=True)
+            self._other_db_validation_thread = worker
+            worker.start()
+            QTimer.singleShot(100, _poll_delivery)
+            return {"ok": True, "started": True, "db_file": db_file}
         elif db_file:  # Arquivo selecionado mas nao existe
             QMessageBox.warning(self, "Erro", "Arquivo selecionado nao existe.")
 

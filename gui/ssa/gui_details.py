@@ -13,6 +13,8 @@ import pandas as pd
 from gui.helpers.formatting_helpers import highlight_text
 from gui.helpers.theme_helpers import pick_css_color
 from gui.qt_stubs import QTimer
+from shared.ssa_status import format_status_display
+from shared.ssa_status import get_status_code
 from utils.formatting import format_cell
 from utils.robust_logging import get_robust_logger
 from utils.themes import get_theme_roles
@@ -29,13 +31,16 @@ HIGHLIGHT_FONT_WEIGHT = "bold"
 MONO_FONT_FAMILY = "monospace"
 HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
 DERIVADAS_DETAILS_TOP_N = 5
-DERIVADAS_DIALOG_RATIO_LEFT = 20
-DERIVADAS_DIALOG_RATIO_RIGHT = 80
+DERIVADAS_DIALOG_RATIO_LEFT = 28
+DERIVADAS_DIALOG_RATIO_RIGHT = 72
 DERIVADAS_DIALOG_MIN_HEIGHT = 650
 DERIVADAS_DIALOG_DETAILS_FONT_PT = 12.0
 DERIVADAS_DIALOG_TREE_FONT_PT = 12.0
 DERIVADAS_DIALOG_LABEL_FONT_PT = 11.0
 SSA_NORM_CACHE_MAX_ENTRIES = 64
+DERIVADAS_DIALOG_MIN_WIDTH = 960
+DERIVADAS_DIALOG_TREE_MIN_WIDTH = 180
+DERIVADAS_DIALOG_DETAILS_MIN_WIDTH = 520
 
 
 def configure_details_constants(
@@ -147,6 +152,21 @@ def _highlight_text(window, text, terms):
             return highlight_text(text, terms)
 
 
+def _get_situacao_for_ssa(window, numero_ssa) -> str:
+    try:
+        series = _get_series_for_ssa(window, numero_ssa)
+    except Exception as exc:
+        logger.debug("Falha ao resolver situacao para SSA %s: %s", numero_ssa, exc)
+        return ""
+    if series is None:
+        return ""
+    try:
+        value = series.get("situacao")
+    except Exception:
+        value = ""
+    return get_status_code(value)
+
+
 def _format_details_html(
     window,
     series,
@@ -217,10 +237,22 @@ def _format_details_html(
         formatted_value = format_cell(value, col)
         if not formatted_value:
             continue
+        if col == "situacao":
+            formatted_value = format_status_display(formatted_value)
         display_name = DETAIL_DISPLAY_OVERRIDES.get(
             col, window.internal_to_display.get(col, col)
         )
-        if highlight_search_terms and search_terms:
+        if col == "numero_ssa" and linkify:
+            safe_ssa = _normalize_ssa_value(window, formatted_value)
+            escaped_value = html_module.escape(formatted_value)
+            if safe_ssa:
+                formatted_value = (
+                    f'<a href="copy-ssa:{safe_ssa}" style="color:{text_color}; '
+                    f'text-decoration:none;">{escaped_value}</a>'
+                )
+            else:
+                formatted_value = escaped_value
+        elif highlight_search_terms and search_terms:
             formatted_value = _highlight_text(window, formatted_value, search_terms)
         else:
             formatted_value = html_module.escape(formatted_value)
@@ -402,8 +434,8 @@ def _normalize_ssa_value(window, value):
                 return ""
             if raw.is_integer():
                 raw = int(raw)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Falha ao normalizar artefato float de SSA %r: %s", value, exc)
     text = str(raw).strip()
     if not text:
         return ""
@@ -607,6 +639,8 @@ def _update_details_from_series(window, series):
         formatted_value = format_cell(value, col)
         if not formatted_value:
             continue
+        if col == "situacao":
+            formatted_value = format_status_display(formatted_value)
         display_name = DETAIL_DISPLAY_OVERRIDES.get(
             col, window.internal_to_display.get(col, col)
         )
@@ -947,15 +981,39 @@ def _build_derivadas_tree_html(
     if not target:
         return ""
 
-    def _ssa_link(value):
+    def _ssa_link(value, *, status_hint: str | None = None):
         safe = _normalize_ssa_value(window, value)
         if not safe:
             return html_module.escape(str(value))
+        status_code = str(status_hint or _get_situacao_for_ssa(window, safe)).strip().upper()
+        label = safe if not status_code else f"{safe} ({status_code})"
         return (
             f'<a href="ssa-panel:{safe}" style="color:{link_color}; '
             f'text-decoration:none; border-bottom: 1px solid {link_color};">'
-            f"{html_module.escape(str(safe))}</a>"
+            f"{html_module.escape(label)}</a>"
         )
+
+    def _append_branch(lines, title: str, entries, *, count: int | None = None):
+        title_text = title if count is None else f"{title} ({count})"
+        lines.append(f"<b>{html_module.escape(title_text)}</b><br/>")
+        if not entries:
+            lines.append("&nbsp;&nbsp;`- nenhuma<br/><br/>")
+            return
+        last_index = len(entries) - 1
+        for index, entry in enumerate(entries):
+            prefix = "`-" if index == last_index else "|-"
+            if isinstance(entry, dict):
+                ssa = str(entry.get("ssa", "")).strip()
+                if not ssa:
+                    continue
+                status_hint = str(entry.get("situacao", "")).strip().upper()
+                rendered = _ssa_link(ssa, status_hint=status_hint)
+                if "min_distance" in entry and entry.get("min_distance") is not None:
+                    rendered = f"{rendered} (dist={entry.get('min_distance')})"
+            else:
+                rendered = _ssa_link(entry)
+            lines.append(f"&nbsp;&nbsp;{prefix} {rendered}<br/>")
+        lines.append("<br/>")
 
     lines = []
     if tree_font_pt is None:
@@ -965,51 +1023,29 @@ def _build_derivadas_tree_html(
     lines.append(
         f'<div style="font-family:{font_family}; font-size:{tree_font_pt:.2f}pt; line-height:1.45;">'
     )
-    lines.append("<b>Lista de derivadas:</b><br/><br/>")
-    lines.append(f"<b>{_ssa_link(target)}</b><br/><br/>")
-    parents = data.get("parents", [])
-    lines.append("<b>SSA originaria</b><br/>")
-    if parents:
-        for parent in parents:
-            lines.append(f"&nbsp;&nbsp;{_ssa_link(parent)}<br/>")
-    else:
-        lines.append("&nbsp;&nbsp;nenhuma<br/>")
-    lines.append("<br/>")
-
-    children = data.get("children", [])
-    lines.append(
-        f"<b>SSAs derivadas diretas ({int(data.get('direct_children_count', 0))})</b><br/>"
+    lines.append("<b>Arvore de derivadas:</b><br/><br/>")
+    _append_branch(lines, "SSA atual", [target])
+    _append_branch(lines, "SSA originaria", data.get("parents", []))
+    _append_branch(
+        lines,
+        "SSAs derivadas diretas",
+        data.get("children", []),
+        count=int(data.get("direct_children_count", 0)),
     )
-    if children:
-        for child in children:
-            lines.append(f"&nbsp;&nbsp;{_ssa_link(child)}<br/>")
-    else:
-        lines.append("&nbsp;&nbsp;nenhuma<br/>")
-    lines.append("<br/>")
-
     descendants = data.get("descendants", [])
-    desc_count = int(data.get("descendants_count", 0))
-    lines.append(f"<b>SSAs derivadas de derivadas ({desc_count})</b><br/>")
-    if descendants:
-        for item in descendants[:50]:
-            ssa = str(item.get("ssa", "")).strip()
-            if ssa:
-                lines.append(f"&nbsp;&nbsp;{_ssa_link(ssa)}<br/>")
-        extra = len(descendants) - min(len(descendants), 50)
-        if extra > 0:
-            lines.append(f"&nbsp;&nbsp;... (+{extra})<br/>")
-    else:
-        lines.append("&nbsp;&nbsp;nenhuma<br/>")
-
+    visible_descendants = descendants[:50]
+    _append_branch(
+        lines,
+        "SSAs derivadas de derivadas",
+        visible_descendants,
+        count=int(data.get("descendants_count", 0)),
+    )
+    extra_descendants = len(descendants) - len(visible_descendants)
+    if extra_descendants > 0:
+        lines.append(f"&nbsp;&nbsp;... (+{extra_descendants})<br/><br/>")
     ancestors = data.get("ancestors", [])
     if ancestors:
-        lines.append("<br/>")
-        lines.append(f"<b>Ancestrais ({len(ancestors)})</b><br/>")
-        for item in ancestors[:50]:
-            ssa = str(item.get("ssa", "")).strip()
-            dist = item.get("min_distance")
-            if ssa:
-                lines.append(f"&nbsp;&nbsp;- {_ssa_link(ssa)} (dist={dist})<br/>")
+        _append_branch(lines, "Ancestrais", ancestors[:50], count=len(ancestors))
 
     lines.append("</div>")
     return "".join(lines)
@@ -1038,7 +1074,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
 
     dialog = QDialog(window)
     dialog.setWindowTitle(f"Detalhes da SSA #{target}")
-    dialog.setMinimumWidth(700)
+    dialog.setMinimumWidth(DERIVADAS_DIALOG_MIN_WIDTH)
     dialog.setMinimumHeight(DERIVADAS_DIALOG_MIN_HEIGHT)
 
     root_layout = QVBoxLayout(dialog)
@@ -1049,13 +1085,13 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     tree_browser.setReadOnly(True)
     tree_browser.setOpenLinks(False)
     tree_browser.setOpenExternalLinks(False)
-    tree_browser.setMinimumWidth(90)
+    tree_browser.setMinimumWidth(DERIVADAS_DIALOG_TREE_MIN_WIDTH)
 
     details_browser = QTextBrowser()
     details_browser.setReadOnly(True)
     details_browser.setOpenLinks(False)
     details_browser.setOpenExternalLinks(False)
-    details_browser.setMinimumWidth(360)
+    details_browser.setMinimumWidth(DERIVADAS_DIALOG_DETAILS_MIN_WIDTH)
 
     try:
         link_color = window.palette().color(QPalette.ColorRole.Highlight).name()
@@ -1132,6 +1168,8 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             target_href = href[len("ssa-panel:") :].strip().lstrip("/")
             _render_target(target_href)
             return
+        if href.startswith("copy-ssa:"):
+            return
         if href.startswith("ssa-details:"):
             target_href = href[len("ssa-details:") :].strip().lstrip("/")
             _render_target(target_href)
@@ -1159,10 +1197,12 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     content_splitter.setStretchFactor(1, DERIVADAS_DIALOG_RATIO_RIGHT)
     total_ratio = DERIVADAS_DIALOG_RATIO_LEFT + DERIVADAS_DIALOG_RATIO_RIGHT
     left_width = max(
-        90, int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_LEFT / total_ratio)
+        DERIVADAS_DIALOG_TREE_MIN_WIDTH,
+        int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_LEFT / total_ratio),
     )
     right_width = max(
-        360, int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_RIGHT / total_ratio)
+        DERIVADAS_DIALOG_DETAILS_MIN_WIDTH,
+        int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_RIGHT / total_ratio),
     )
     content_splitter.setSizes([left_width, right_width])
     root_layout.addWidget(content_splitter)

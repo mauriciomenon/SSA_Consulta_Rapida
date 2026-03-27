@@ -256,8 +256,10 @@ class FilterGUISSAMixin:
                 widget.objectName()
             except RuntimeError:
                 continue
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao validar widget de busca ao montar snapshot: %s", exc
+                )
             widgets.append(widget)
         return widgets
 
@@ -1746,18 +1748,14 @@ class FilterGUISSAMixin:
                 else 0
             )
         )
-        query = str(search_text or "").strip()
         suffix_text = str(suffix or "").strip()
-        if suffix_text and not suffix_text.startswith(" "):
-            suffix_text = f" {suffix_text}"
-        if query:
-            self.status_label.setText(
-                f"Status: SSAs filtradas: {total_filtrado} de {total_original} para '{query}'.{suffix_text}"
-            )
-        else:
-            self.status_label.setText(
-                f"Status: SSAs filtradas: {total_filtrado} de {total_original}.{suffix_text}"
-            )
+        target_label = getattr(self, "filtered_status_label", None)
+        if target_label is None:
+            target_label = self.status_label
+        status_text = f"Status: {total_filtrado} de {total_original} SSAs"
+        if suffix_text:
+            status_text = f"{status_text}. {suffix_text}"
+        target_label.setText(status_text)
 
     def _refresh_column_filter_widgets(self):
         labels = getattr(self, "_column_filter_labels", {}) or {}
@@ -2373,9 +2371,32 @@ class FilterGUISSAMixin:
         else:
             summary_text = "Nenhum filtro ativo"
 
-        # Atualiza label de resumo principal
+        active_state = bool(active_filters)
+        if hasattr(self, "filters_summary_frame") and self.filters_summary_frame is not None:
+            roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
+            active_border = (
+                roles.get("accent")
+                or roles.get("input_border_focus")
+                or roles.get("panel_text")
+                or "palette(highlight)"
+            )
+            idle_border = (
+                roles.get("input_border")
+                or roles.get("panel_border")
+                or "palette(mid)"
+            )
+            frame_border = active_border if active_state else idle_border
+            self.filters_summary_frame.setStyleSheet(
+                "QFrame {"
+                f"border:1px solid {frame_border};"
+                "border-radius:4px;"
+                "}"
+            )
         if hasattr(self, "filters_summary_label"):
             self.filters_summary_label.setText(summary_text)
+            self.filters_summary_label.setStyleSheet(
+                "font-weight:700;" if active_state else "font-weight:400;"
+            )
 
     def _format_column_filter_display_value(
         self, raw: str, *, column: str | None = None
