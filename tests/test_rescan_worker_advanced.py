@@ -465,6 +465,32 @@ class TestRescanWorkerIntegration:
             assert callable(call_kwargs["should_cancel"])
             assert callable(call_kwargs["progress_callback"])
 
+    def test_run_calls_importer_with_explicit_files(self):
+        """Testa que run() encaminha explicit_files no modo de importacao explicita."""
+        worker = RescanWorker(
+            main_py_path="/path/main.py",
+            project_root="/project",
+            force_import=False,
+            explicit_files=("docs_entrada/a.xlsx", "docs_entrada/b.xlsx"),
+            operation_label="Importacao externa",
+        )
+        try:
+            with patch("gui.workers.rescan_worker.run_importer_logic") as mock_importer:
+                mock_importer.return_value = True
+                worker.run()
+
+                mock_importer.assert_called_once()
+                call_kwargs = mock_importer.call_args[1]
+
+                assert call_kwargs["force_import"] is False
+                assert call_kwargs["explicit_files"] == (
+                    "docs_entrada/a.xlsx",
+                    "docs_entrada/b.xlsx",
+                )
+        finally:
+            if worker._logger_attached:
+                worker._detach_logger()
+
     def test_progress_sequence(self, rescan_worker, signal_collector):
         """Testa sequência completa de progresso."""
         rescan_worker.output_line.connect(signal_collector.on_output)

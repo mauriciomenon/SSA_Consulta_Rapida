@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 import threading
+from typing import Sequence
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -44,11 +45,23 @@ class RescanWorker(QThread):
     finished_success = pyqtSignal()
     finished_error = pyqtSignal(str)
 
-    def __init__(self, main_py_path, project_root, force_import: bool = True):
+    def __init__(
+        self,
+        main_py_path,
+        project_root,
+        force_import: bool = True,
+        explicit_files: Sequence[str] | None = None,
+        operation_label: str = "Reescaneamento",
+    ):
         super().__init__()
         self.main_py_path = main_py_path  # Not used anymore but kept for compatibility
         self.project_root = project_root
         self.force_import = bool(force_import)
+        self.explicit_files = (
+            tuple(str(path) for path in explicit_files) if explicit_files else None
+        )
+        normalized_label = str(operation_label or "").strip()
+        self.operation_label = normalized_label or "Reescaneamento"
         self._should_stop = False
         self._has_runtime_errors = False
         self._last_total_files = 0
@@ -160,8 +173,14 @@ class RescanWorker(QThread):
             self._last_processed_files = 0
             self._last_deterministic_failure_count = 0
             self._last_rejection_only = False
-            mode_label = "FULL" if self.force_import else "DIFF"
-            self.output_line.emit(f"=== Iniciando Reescaneamento ({mode_label}) ===")
+            mode_label = (
+                "EXPLICITA"
+                if self.explicit_files
+                else ("FULL" if self.force_import else "DIFF")
+            )
+            self.output_line.emit(
+                f"=== Iniciando {self.operation_label} ({mode_label}) ==="
+            )
             self.output_line.emit("")
             self.progress.emit(5, "Configurando...")
 
@@ -175,6 +194,7 @@ class RescanWorker(QThread):
                 db_name="ssas.db",
                 table_name="ssa_table",
                 force_import=self.force_import,
+                explicit_files=self.explicit_files,
                 should_cancel=lambda: self._should_stop,
                 progress_callback=self._progress_callback,
             )
@@ -186,7 +206,7 @@ class RescanWorker(QThread):
             if success:
                 self.progress.emit(100, "Concluido com sucesso")
                 self.output_line.emit("")
-                self.output_line.emit("=== Reescaneamento Concluido ===")
+                self.output_line.emit("=== Operacao Concluida ===")
                 self.finished_success.emit()
             elif self._last_rejection_only:
                 self.progress.emit(100, "Concluido com arquivos rejeitados por regra")
@@ -240,8 +260,8 @@ class RescanWorker(QThread):
                         self.finished_success.emit()
 
         except Exception as exc:
-            logger.exception("Erro inesperado no reescaneamento")
-            message = f"Erro ao executar reescaneamento: {exc}"
+            logger.exception("Erro inesperado na operacao de importacao")
+            message = f"Erro ao executar operacao de importacao: {exc}"
             self.error_line.emit(message)
             self.finished_error.emit(message)
         finally:

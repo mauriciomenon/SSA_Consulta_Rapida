@@ -3632,6 +3632,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "failed": 0,
                 "unsupported": 0,
                 "db_updated": False,
+                "db_update_requested": False,
+                "queued": False,
             }
 
         docs_path = os.path.join(project_root, "docs_entrada")
@@ -3641,6 +3643,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         skipped = 0
         failed = 0
         unsupported = 0
+        queued = False
         staged_for_import: list[str] = []
 
         for source_path in selected_files:
@@ -3682,63 +3685,50 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 logger.warning("Falha ao copiar arquivo externo '%s': %s", source, exc)
                 failed += 1
 
-        db_updated = False
         if staged_for_import:
             try:
-                from core import app_logic
+                from gui.widgets import RescanProgressDialog
+                from gui.workers import RescanWorker
 
-                db_updated = bool(
-                    app_logic.import_explicit_files_to_database(
-                        staged_for_import,
-                        docs_dir=docs_path,
-                        db_path=DB_PATH,
-                        raise_on_error=True,
-                    )
+                ssa_gui_workers.rescan_data(
+                    self,
+                    project_root=project_root,
+                    rescan_worker_cls=RescanWorker,
+                    rescan_dialog_cls=RescanProgressDialog,
+                    qmessagebox=QMessageBox,
+                    global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
+                    global_meta=GLOBAL_RETIRED_RESCAN_META,
+                    max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
+                    retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+                    retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+                    sip_module=sip,
+                    rescan_mode="explicit",
+                    explicit_files=tuple(staged_for_import),
+                    operation_label="Importacao externa",
+                    reload_on_success=True,
                 )
-                if db_updated and hasattr(self, "load_data"):
-                    try:
-                        self.load_data()
-                    except Exception as exc:
-                        logger.warning(
-                            "Falha ao recarregar dados apos importacao explicita: %s",
-                            exc,
-                        )
+                queued = True
             except Exception as exc:
-                logger.warning(
-                    "Falha ao aplicar importacao explicita no banco: %s", exc
-                )
+                logger.warning("Falha ao iniciar importacao externa: %s", exc)
                 failed += len(staged_for_import)
                 staged_for_import = []
 
         summary = (
-            f"Status: Importacao externa concluida - copiados={copied}, "
+            f"Status: Importacao externa preparada - copiados={copied}, "
             f"ignorados={skipped}, nao_suportados={unsupported}, falhas={failed}, "
-            f"aplicado_no_banco={'sim' if db_updated else 'nao'}."
+            f"enfileirada={'sim' if queued else 'nao'}."
         )
         if hasattr(self, "status_label"):
             self.status_label.setText(summary)
-
-        if not os.environ.get("PYTEST_CURRENT_TEST"):
-            QMessageBox.information(
-                self,
-                "Importacao externa",
-                (
-                    "Importacao concluida.\n\n"
-                    f"Copiados: {copied}\n"
-                    f"Ignorados: {skipped}\n"
-                    f"Nao suportados: {unsupported}\n"
-                    f"Falhas: {failed}\n"
-                    f"Aplicado no banco: {'sim' if db_updated else 'nao'}\n\n"
-                    f"Destino: {docs_path}"
-                ),
-            )
 
         return {
             "copied": copied,
             "skipped": skipped,
             "failed": failed,
             "unsupported": unsupported,
-            "db_updated": db_updated,
+            "db_updated": False,
+            "db_update_requested": queued,
+            "queued": queued,
         }
 
     def _resolve_settings_file_path(self) -> str:
