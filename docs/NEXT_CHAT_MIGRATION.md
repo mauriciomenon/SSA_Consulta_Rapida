@@ -8,11 +8,11 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. branch ativa: `dev`
   2. metadata local ativa: `4.36`
   3. ultima tag publicada em `dev`: `v4.36`
-  4. existe um slice local aberto com CI/storage/docs e fechamento de PR ainda pendente
+  4. os slices recentes de `numero_ssa`, importacao explicita e prova de update/query ja foram aterrados e pushados
 - PASSO 0 OBRIGATORIO NO PROXIMO CHAT:
-  1. revisar o slice local aberto do PR `dev -> main`
-  2. responder as threads por status claro
-  3. decidir o destino de `.envrc` e classificar residuos locais antes de commit/push
+  1. revisar os checks e comentarios mais recentes do PR `dev -> main`
+  2. continuar apenas pelos itens `P1/P2` com evidencia nova
+  3. confirmar worktree limpo antes de abrir frente nova
   4. arquivos de referencia para esse passo:
      - `AGENTS.md`
      - `.github/instructions/kluster-code-verify.instructions.md`
@@ -20,15 +20,16 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `docs/OPENCODE_CONFIG.md`
      - `docs/README.md`
 - Prioridade imediata:
-  1. `P0`: blindar storage contra valores com letras que possam cair em limpeza legacy
-  2. `P1`: resolver aliases validos antes do lookup em `_needs_db_only_derivadas_sync`
-  3. `P1`: reduzir custo de `sanitize_textual_null_sentinels` em lotes grandes
-  4. `P2`: convergir helper local de data em `database_upsert_logic.py`
+  1. `P0`: manter fechado o contrato de `numero_ssa` sem reabrir truncagem ou regra paralela
+  2. `P1`: adicionar teste negativo para impedir overwrite por arquivo mais antigo
+  3. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
+  4. `P2`: endurecimento residual de rollback/error boundary em `database*`
 - O que ja esta fechado:
   1. drift de normalizacao no write path foi removido
   2. docs e testes foram alinhados ao contrato simplificado atual
   3. slices locais sujos foram aterrados
   4. `v4.36` ja foi publicada
+  5. a prova de update de estado no banco agora existe no caminho de importacao explicita, diff e consulta/filtro
 - Integridade do contexto:
   1. nada foi perdido nesta reorganizacao documental
   2. historicos antigos continuam preservados abaixo como auditoria
@@ -63,10 +64,10 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   9. `docs/CCR_LLM_PROVIDERS_SETUP.md`
   10. `docs/OPENCODE_CONFIG.md`
 - Commits mais recentes desta frente:
-  1. `bdf612d0` `STABILITY_PATCH: close pytest ty bandit minfix slice`
-  2. `f4af8d20` `STABILITY_PATCH: stabilize simplified filter contract and derivadas alias preflight`
-  3. `0d823b25` `STABILITY_PATCH: align simple insert with storage sanitization`
-  4. `0bdee642` `STABILITY_PATCH: isolate CLI loop subprocess DB fixture`
+  1. `be66c865` `STABILITY_PATCH: prove query state after import updates`
+  2. `8e3e0a7f` `STABILITY_PATCH: prove DB state updates in import paths`
+  3. `19ee40f6` `HOTFIX_BLOCKER: reject overlong numero_ssa values`
+  4. `a908334f` `HOTFIX_BLOCKER: apply explicit single-file import`
 - Estado do Kluster local:
   1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   2. se o review remoto voltar a dar timeout em `manualCheck`, tratar como bloqueio de ferramenta, nao como finding do repo

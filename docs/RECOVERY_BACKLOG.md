@@ -5,31 +5,23 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
-### P0 - fechar antes de qualquer novo patch
-1. aterrar o slice local aberto de `numero_ssa`:
-   - separar definitivamente strict/storage/display
-   - revisar diff local aberto
-   - commit atomico, push e checar bots do PR `dev -> main`
-2. parar de manter docs vivos stale sobre slices ja fechados ou sobre worktree antigo.
+### P0 - manter o topo vivo correto
+1. nao reabrir contrato fechado de `numero_ssa` sem planilha real + pipeline real + teste cross-layer
+2. nao manter docs vivos stale sobre slices ja fechados ou sobre worktree antigo
+3. confirmar worktree limpo antes de qualquer nova frente
 
 ### ESTADO OPERACIONAL ATUAL
 1. branch ativa: `dev`
 2. metadata local ativa: `4.36`
 3. ultima tag publicada em `dev`: `v4.36`
-4. existe um slice local aberto de `numero_ssa`:
-   - `shared/numero_ssa.py`
-   - `armazenamento/numero_ssa_utils.py`
-   - `armazenamento/database.py`
-   - `utils/formatting.py`
-   - `tests/test_ssa_normalization_db.py`
-   - `README.md`
+4. os slices recentes de `numero_ssa`, importacao explicita e prova de update/query ja foram aterrados
 5. o PR `dev -> main` ainda tem muitas threads abertas no GitHub, mas o sinal real restante caiu para hardening/documentacao e itens deferidos
 6. nada foi perdido no historico; os blocos abaixo permanecem como trilha de auditoria
 
 ### PASSO 0 ANTES DE QUALQUER NOVA FRENTE
-1. revisar e aterrar o slice local aberto de `numero_ssa`
-2. rodar os gates finais do escopo alterado e confirmar bots/checks do PR
-3. sincronizar backlog/handoff/docs vivos depois do push
+1. revisar checks e comentarios mais recentes do PR
+2. rodar os gates finais do proximo escopo alterado
+3. manter backlog/handoff/docs vivos sincronizados depois de cada push
 4. responder apenas as threads do PR cujo status realmente mudou neste ciclo
 5. referencias:
    - `AGENTS.md`
@@ -38,26 +30,31 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
    - `docs/README.md`
 
 ### P1 - fechar antes da rodada final de release
-1. resolver aliases validos em `_needs_db_only_derivadas_sync` antes do lookup canonico.
-2. reduzir o custo de `sanitize_textual_null_sentinels` para lotes grandes.
-3. endurecer rollback/error boundary em:
+1. adicionar teste negativo para impedir que arquivo mais antigo sobrescreva estado novo no banco.
+2. decidir explicitamente a paridade CLI vs GUI para diff/full import e discovery.
+3. endurecer rollback/error boundary residual em:
    - `armazenamento/database.py`
    - `armazenamento/database_upsert_logic.py`
    - `armazenamento/database_optimized.py`
 4. auditar testes viciados no fluxo critico de dados/CLI:
    - nao aceitar teste synthetic definindo contrato operacional
    - nao aceitar teste que so prova "nao travou"
+5. manter a prova de update de estado no banco no caminho de importacao explicita, diff e consulta/filtro sem regressao
+
+### P2 - backlog legitimo, mas nao bug aberto hoje
+1. aliases em `_needs_db_only_derivadas_sync` ja aparecem mitigados no runtime atual; reabrir so com repro nova.
+2. `sanitize_textual_null_sentinels` segue como custo/perf de lote grande, nao como falha funcional atual.
+3. convergir helper local de data em `database_upsert_logic.py` para util compartilhado.
 
 ### P2 - pode entrar no fechamento final, mas sem reabrir arquitetura
-1. convergir helper local de data em `database_upsert_logic.py` para util compartilhado.
-2. decidir explicitamente o contrato de discovery:
+1. decidir explicitamente o contrato de discovery:
    - `.xlsx` so na raiz de `docs_entrada`
    - ou subpastas arbitrarias
    - `.xls` segue fora enquanto nao houver decisao de produto
-3. hygiene documental do PR 46 sem impacto de runtime:
+2. hygiene documental do PR 46 sem impacto de runtime:
    - `docs/OHMYOPENCODE_MANUAL.md`
    - comentarios de ferramentas de analise estaticas
-4. `codeql.yml` e build/tooling secundario seguem como hardening opcional, nao blocker atual
+3. `codeql.yml` e build/tooling secundario seguem como hardening opcional, nao blocker atual
 
 ### FECHADO E NAO REABRIR SEM EVIDENCIA NOVA
 1. operadores textuais legados de busca nao fazem parte do produto.

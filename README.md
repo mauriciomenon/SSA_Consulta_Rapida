@@ -7,7 +7,7 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
 - Estado operacional:
   - metadata local ativa: `4.36`
   - ultima tag publicada em `dev`: `v4.36`
-  - branch `dev` deve fechar o slice local aberto com commit atomico, push e resposta de PR por status
+  - branch `dev` esta sincronizada com os slices recentes de `numero_ssa`, importacao explicita e provas de update/query
   - `4.36` ja esta publicado em metadata, runtime, docs ativos e release/tag
 - Validacao atual:
   - `uv run --python 3.13 python -m py_compile` em tracked Python -> verde
@@ -19,10 +19,10 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - strings `"<NA>"`, `"None"`, `"nan"`, `"null"` e equivalentes nao devem ser persistidas como texto literal no banco
   - a busca textual nao usa nem documenta operadores textuais legados
 - Prioridades reais antes da proxima tag:
-  - `P0`: blindar storage contra valores com letras que possam cair em limpeza legacy
-  - `P1`: resolver aliases validos antes do lookup em `_needs_db_only_derivadas_sync`
-  - `P1`: reduzir custo de `sanitize_textual_null_sentinels` para lotes grandes
-  - `P2`: convergir helper local de data em `database_upsert_logic.py` para util compartilhado
+  - `P0`: manter fechado o contrato de `numero_ssa` sem reabrir truncagem, heuristica de exibicao ou teste synthetic
+  - `P1`: provar por teste negativo que arquivo mais antigo nao sobrescreve estado novo no banco
+  - `P1`: decidir a paridade CLI vs GUI para diff/full import e discovery
+  - `P2`: tratar hardening residual de rollback/error boundary em `database*`
 - Docs vivos para continuidade:
   - `AGENTS.md` -> regras, proibicoes, processo e politicas obrigatorias
   - `docs/NEXT_CHAT_MIGRATION.md` -> roteiro curto para proximo chat
@@ -33,9 +33,9 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - configuracao MCP local do Kluster foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   - timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo nem review clean
 - Primeira acao obrigatoria na proxima conversa:
-  - revisar o slice local aberto do PR `dev -> main`
-  - responder as threads do PR por status: corrigido, falso positivo, decisao intencional ou deferido
-  - decidir o destino de `.envrc` e classificar residuos locais fora do escopo antes do fechamento
+  - revisar o estado atual do PR `dev -> main` e os checks mais recentes
+  - continuar apenas pelos itens `P1/P2` ainda abertos com evidencia nova
+  - revalidar se existe residuo local antes de abrir frente nova
   - referencias operacionais:
     - `.github/instructions/kluster-code-verify.instructions.md`
     - `docs/CCR_LLM_PROVIDERS_SETUP.md`
