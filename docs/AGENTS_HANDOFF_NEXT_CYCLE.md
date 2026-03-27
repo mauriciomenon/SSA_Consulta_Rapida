@@ -2,7 +2,7 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-27 03h35
+## CURRENT TRUTH 2026-03-27 16h45
 
 - Leitura rapida:
   1. branch alvo: `dev`
@@ -17,25 +17,30 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   5. so depois responder threads cujo status mudou de verdade
 - Prioridade operacional:
   1. `P0`: manter fechado o contrato de `numero_ssa` sem reabrir heuristica ou truncagem
-  2. `P1`: concluir o sprint GUI aberto sem reintroduzir custo na UI thread
+  2. `P1`: revisar os hotspots restantes da thread principal apos o sprint GUI
   3. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
   4. `P1`: endurecer rollback/error boundary residual em `database*`
   5. `P1`: auditar testes viciados no fluxo critico de dados/CLI
   6. `P2`: convergir helper local de data em `database_upsert_logic.py`
-- Sprint GUI ja entregue em commits anteriores desta frente:
+- Sprint GUI entregue nesta frente:
   1. `[f]` no cabecalho sincronizado com filtros avancados equivalentes
   2. dedupe do resumo `Filtros ativos`
   3. macro `Baixar` com `SAD`
   4. dialogo de filtro por coluna com hint e largura minima padronizada
   5. sync manual de derivadas movido para background em runtime normal
-- Sprint GUI ainda pendente:
-  1. borda destacada da caixa de filtros ativos
-  2. nova caixa `filtrado/total` e refinamento da barra superior
-  3. botao `Abrir SAM`
-  4. hyperlink na coluna `#`
-  5. detalhe da SSA com `situacao` expandida
-  6. copia por duplo clique do numero da SSA
-  7. visualizacao melhor da arvore de derivadas
+  6. caixa `Filtros ativos` com borda destacada e texto em negrito quando ativa
+  7. botao `Abrir SAM`
+  8. nova caixa `Status: X de Y SSAs`
+  9. `Semana Atual` centralizado entre os controles
+  10. `#` da lista abrindo a SSA no SAM
+  11. detalhe da SSA com `situacao` expandida
+  12. copia por duplo clique do numero da SSA no detalhe
+  13. visualizacao de derivadas em arvore textual mais clara
+  14. `load_other_database()` em background no runtime normal
+- Follow-up do sprint GUI:
+  1. staging/copy de importacao externa ainda merece revisao de thread principal
+  2. render/table refresh apos filtros ainda e hotspot provavel de custo
+  3. se houver nova rodada de UX, evoluir a arvore textual de derivadas sem reabrir engine pesada agora
 - Estado tecnico fechado:
   1. o `.0` vazava por regras duplicadas no write path
   2. a normalizacao de storage foi centralizada
@@ -70,11 +75,13 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   7. `docs/NUNCA_CONFIE_IA.md`
   8. `docs/GUIA_DISTRIBUICAO.md`
   9. `.github/instructions/kluster-code-verify.instructions.md`
+  10. `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 - Commits recentes desta frente:
   1. `194fc4e7` `STABILITY_PATCH: sync visual filter indicators`
   2. `cd06941f` `STABILITY_PATCH: improve column filter prompt`
   3. `31dc9c99` `STABILITY_PATCH: move derivadas sync off ui thread`
   4. `9983a757` `STABILITY_PATCH: tighten async import gui contract`
+  5. `b343c621` `STABILITY_PATCH: finish gui sam status and details sprint`
 - Estado do Kluster local:
   1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   2. timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo

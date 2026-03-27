@@ -7,6 +7,7 @@
 - `RescanWorker` tambem sustenta o fluxo de importacao explicita disparado pela GUI.
 - O sync manual de derivadas agora roda fora do thread principal em runtime normal, com entrega do resultado de volta para a GUI.
 - O estado de fila/execucao passou a ser mais explicito no contrato da GUI para evitar falso sinal de `db_updated` imediato.
+- A validacao de `load_other_database()` agora segue o mesmo principio: trabalho de I/O fora do thread principal e entrega posterior na GUI.
 
 Este documento descreve a arquitetura, interfaces e APIs dos workers assíncronos utilizados na interface gráfica do sistema SSA Consulta Rápida.
 

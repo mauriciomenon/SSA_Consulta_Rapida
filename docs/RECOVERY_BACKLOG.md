@@ -47,12 +47,18 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
    - nao aceitar teste que so prova "nao travou"
 4. manter a prova de update de estado no banco no caminho de importacao explicita, diff e consulta/filtro sem regressao
 5. manter a prova negativa de que arquivo mais antigo nao rebaixa estado mais novo no banco
-6. concluir o sprint GUI aberto:
+6. manter o sprint GUI entregue sem regressao:
    - borda destacada em filtros ativos
    - status `filtrado/total`
    - `Abrir SAM`
    - hyperlink `#`
-   - detalhe da SSA com `situacao` expandida e arvore de derivadas melhor
+   - detalhe da SSA com `situacao` expandida
+   - copia do numero por duplo clique
+   - arvore textual de derivadas mais clara
+7. revisar os hotspots restantes da thread principal apos:
+   - `update_derivadas_from_sources()` em background
+   - `load_other_database()` em background
+8. fechar a reorganizacao dos docs historicos segundo `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 
 ### P2 - backlog legitimo, mas nao bug aberto hoje
 1. aliases em `_needs_db_only_derivadas_sync` ja aparecem mitigados no runtime atual; reabrir so com repro nova.
@@ -77,6 +83,34 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 5. regex/XML bruto de `.xlsx` nao prova valor extraido de `numero_ssa`.
 
 ## Update 2026-03-26 22:01 - plano consolidado de pendencias do PR e do repo (DOC_SYNC + DEFERRED_NOTE)
+
+## Update 2026-03-27 16:45 - sprint GUI final aterrado e docs historicos em reorganizacao (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-27 15:46:31 -0300`
+2. fim: `2026-03-27 16:45:00 -0300`
+
+Objetivo do slice:
+1. fechar o restante do sprint GUI de distribuicao num ciclo so.
+2. manter o patch minimo, sem reabrir layout amplo nem refatoracao transversal.
+3. atualizar os docs vivos e consolidar um estudo de reorganizacao para docs legados/historicos.
+
+Diagnostico objetivo:
+1. o sprint GUI ainda tinha itens de UX/operacao abertos no topo vivo:
+   - `Abrir SAM`
+   - status `filtrado/total`
+   - hyperlink `#`
+   - `situacao` expandida
+   - copia do numero por duplo clique
+   - derivadas mais claras
+2. ainda havia ao menos um hotspot de UI thread relevante fora do sync manual de derivadas:
+   - `load_other_database()`
+3. os docs vivos ainda tratavam esse bloco como pendente, e faltava um estudo unico para reorganizar historicos.
+
+Decisao aplicada:
+1. o sprint GUI foi aterrado no runtime em `b343c621`.
+2. a documentacao viva passa a tratar o sprint como entregue e move o foco para hotspots residuais da thread principal.
+3. a reorganizacao de docs legados passa a ser guiada por `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`, sem reescrever fatos historicos.
 
 ## Update 2026-03-27 03:35 - docs vivos sincronizados com o sprint GUI inicial ja publicado (DOC_SYNC)
 

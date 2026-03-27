@@ -2,25 +2,31 @@
 
 Release/tag publicada mais recente na branch `dev`: `v4.36`.
 
-## Current Truth (2026-03-27 03:35 -0300)
+## Current Truth (2026-03-27 16:45 -0300)
 
 - Estado operacional:
   - metadata local ativa: `4.36`
   - ultima tag publicada em `dev`: `v4.36`
   - branch `dev` esta sincronizada com os slices recentes de `numero_ssa`, importacao explicita, provas de update/query e o sprint inicial de filtros/GUI descrito abaixo
   - `4.36` ja esta publicado em metadata, runtime, docs ativos e release/tag
-- Sprint GUI ja entregue em commits anteriores desta frente:
+- Sprint GUI entregue nesta frente:
   - `[f]` no cabecalho agora sincroniza filtros por coluna e filtros avancados
   - resumo `Filtros ativos` deixou de duplicar entradas equivalentes
+  - caixa `Filtros ativos` ganhou borda destacada e texto em negrito quando ha filtro ativo
   - macro `Baixar` passou a excluir `SAD` alem de `SCA`, `SES` e `STE`
   - o prompt `Filtrar "nome da coluna"` ganhou hint `Aceita termo, !termo para exclusao` e largura minima padronizada
   - `update_derivadas_from_sources()` saiu do thread principal em runtime normal
-- Sprint GUI ainda pendente:
-  - borda destacada na caixa de filtros ativos
-  - caixa nova de status `filtrado/total`
   - botao `Abrir SAM`
-  - hyperlink na coluna `#`
-  - detalhe da SSA com `situacao` expandida e arvore de derivadas mais clara
+  - caixa nova `Status: X de Y SSAs` ficou separada da caixa operacional
+  - `Semana Atual` ficou recentralizado entre os controles da barra superior
+  - o `#` da lista abre a SSA no SAM externo
+  - o detalhe da SSA expande `situacao` para `SIGLA - descricao`
+  - o numero da SSA no detalhe copia para a area de transferencia por duplo clique
+  - a area de derivadas ficou mais larga e passou a usar arvore textual com `numero (STATUS)`
+  - `load_other_database()` passou a validar o arquivo em background no runtime normal
+- Follow-up apos o sprint GUI:
+  - continuar a varredura de chamadas pesadas restantes na thread principal
+  - manter o detalhe de derivadas textual simples; um grafo richer fica como refinamento futuro, nao como patch minimo obrigatorio
 - Validacao atual:
   - `uv run --python 3.13 python -m py_compile` em tracked Python -> verde
   - `uv run --python 3.13 ruff check .` -> verde
@@ -32,15 +38,17 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - a busca textual nao usa nem documenta operadores textuais legados
 - Prioridades reais antes da proxima tag:
   - `P0`: manter fechado o contrato de `numero_ssa` sem reabrir truncagem, heuristica de exibicao ou teste synthetic
-  - `P1`: concluir o sprint GUI aberto sem reintroduzir travamento no thread principal
+  - `P1`: revisar os hotspots restantes da thread principal apos o sprint GUI
   - `P1`: decidir a paridade CLI vs GUI para diff/full import e discovery
   - `P2`: tratar hardening residual de rollback/error boundary em `database*`
+  - `P2`: consolidar a reorganizacao de docs historicos apontada em `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 - Docs vivos para continuidade:
   - `AGENTS.md` -> regras, proibicoes, processo e politicas obrigatorias
   - `docs/NEXT_CHAT_MIGRATION.md` -> roteiro curto para proximo chat
   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` -> handoff de execucao
   - `docs/RECOVERY_BACKLOG.md` -> backlog priorizado e historico
   - `docs/README.md` -> indice da documentacao viva
+  - `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md` -> estudo de reorganizacao de docs legados/historicos
 - Estado de review auxiliar:
   - configuracao MCP local do Kluster foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   - timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo nem review clean

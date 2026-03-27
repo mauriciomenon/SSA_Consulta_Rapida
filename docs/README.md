@@ -10,6 +10,9 @@
   - a macro `Baixar` agora exclui `SAD/SCA/SES/STE`
   - o prompt de filtro por coluna ganhou hint padronizado
   - o sync manual de derivadas saiu do thread principal em runtime normal
+  - a barra superior ganhou `Abrir SAM`, status filtrado/total e semana centralizada
+  - o detalhe da SSA agora expande `situacao`, copia o numero por duplo clique e mostra derivadas em arvore textual
+  - `load_other_database()` passou a validar banco em background no runtime normal
 
 ## Regras de interpretacao
 
@@ -60,6 +63,7 @@
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - `docs/HISTORICO_RELEASES.md`
 - `docs/NUNCA_CONFIE_IA.md`
+- `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 
 ## Primeira leitura obrigatoria no proximo chat
 
