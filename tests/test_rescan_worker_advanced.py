@@ -290,6 +290,7 @@ class TestRescanWorkerIntegration:
         assert len(signal_collector.output_lines) > 0
         assert "Iniciando Reescaneamento" in signal_collector.output_lines[0]
         assert signal_collector.finished_success is True
+        assert rescan_worker.last_outcome == "updated"
 
     def test_run_full_without_updates_without_context_emits_success(
         self, rescan_worker, signal_collector
@@ -305,6 +306,7 @@ class TestRescanWorkerIntegration:
 
         assert signal_collector.finished_success is True
         assert signal_collector.finished_error is None
+        assert rescan_worker.last_outcome == "no_changes"
         assert any(
             "Reescaneamento Completo Concluido (sem alteracoes)" in line
             for line in signal_collector.output_lines
@@ -331,6 +333,7 @@ class TestRescanWorkerIntegration:
 
         assert signal_collector.finished_success is False
         assert signal_collector.finished_error is not None
+        assert rescan_worker.last_outcome == "error"
         assert "sem atualizacoes" in signal_collector.finished_error.lower()
         assert any(
             "Reescaneamento Completo Falhou" in line
@@ -369,6 +372,7 @@ class TestRescanWorkerIntegration:
 
         assert signal_collector.finished_success is True
         assert signal_collector.finished_error is None
+        assert worker.last_outcome == "rejections_only"
         assert any(
             "Rejeicoes Deterministicas" in line
             for line in signal_collector.output_lines
@@ -410,6 +414,7 @@ class TestRescanWorkerIntegration:
 
         assert signal_collector.finished_success is True
         assert signal_collector.finished_error is None
+        assert worker.last_outcome == "rejections_only"
         assert any(
             "Rejeicoes Deterministicas" in line
             for line in signal_collector.output_lines
@@ -432,6 +437,7 @@ class TestRescanWorkerIntegration:
             rescan_worker.run()
 
         assert signal_collector.finished_error is not None
+        assert rescan_worker.last_outcome == "error"
         assert "Erro de teste" in signal_collector.finished_error
         assert len(signal_collector.error_lines) > 0
 
@@ -446,6 +452,7 @@ class TestRescanWorkerIntegration:
             rescan_worker.run()
 
         assert signal_collector.finished_error is not None
+        assert rescan_worker.last_outcome == "cancelled"
         assert "cancelado" in signal_collector.finished_error.lower()
 
     def test_run_calls_importer_with_correct_params(self, rescan_worker):

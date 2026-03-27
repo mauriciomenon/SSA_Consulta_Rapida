@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 import threading
+from enum import Enum
 from typing import Sequence
 
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -17,12 +18,21 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from core.app_logic import run_importer_logic  # noqa: E402
+from utils.robust_logging import get_robust_logger  # noqa: E402
 
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 _LOGGER_LOCK = threading.Lock()
 _LOGGER_REFCOUNT = 0
 _LOGGER_PREV_LEVEL = None
+
+
+class RescanOutcome(str, Enum):
+    UPDATED = "updated"
+    NO_CHANGES = "no_changes"
+    REJECTIONS_ONLY = "rejections_only"
+    CANCELLED = "cancelled"
+    ERROR = "error"
 
 
 class RescanWorker(QThread):
@@ -68,6 +78,7 @@ class RescanWorker(QThread):
         self._last_processed_files = 0
         self._last_deterministic_failure_count = 0
         self._last_rejection_only = False
+        self.last_outcome = RescanOutcome.NO_CHANGES
 
         # Set up logging to capture import messages
         self.log_handler = _LogHandler(
@@ -75,7 +86,7 @@ class RescanWorker(QThread):
             self.error_line,
             error_observer=self._mark_runtime_error,
         )
-        self.logger = logging.getLogger("ssa")
+        self.logger = get_robust_logger().get_logger("ssa", "gui")
 
         self._logger_attached = False
 
@@ -168,6 +179,7 @@ class RescanWorker(QThread):
     def run(self):
         """Execute rescan in background thread using modular import."""
         try:
+            self.last_outcome = RescanOutcome.NO_CHANGES
             self._has_runtime_errors = False
             self._last_total_files = 0
             self._last_processed_files = 0
@@ -200,15 +212,18 @@ class RescanWorker(QThread):
             )
 
             if self._should_stop:
+                self.last_outcome = RescanOutcome.CANCELLED
                 self.finished_error.emit("Processo cancelado pelo usuario")
                 return
 
             if success:
+                self.last_outcome = RescanOutcome.UPDATED
                 self.progress.emit(100, "Concluido com sucesso")
                 self.output_line.emit("")
                 self.output_line.emit("=== Operacao Concluida ===")
                 self.finished_success.emit()
             elif self._last_rejection_only:
+                self.last_outcome = RescanOutcome.REJECTIONS_ONLY
                 self.progress.emit(100, "Concluido com arquivos rejeitados por regra")
                 self.output_line.emit("")
                 self.output_line.emit(
@@ -220,6 +235,7 @@ class RescanWorker(QThread):
                 self.finished_success.emit()
             else:
                 if not self.force_import:
+                    self.last_outcome = RescanOutcome.NO_CHANGES
                     self.progress.emit(100, "Concluido sem alteracoes")
                     self.output_line.emit("")
                     self.output_line.emit(
@@ -231,6 +247,7 @@ class RescanWorker(QThread):
                     self.finished_success.emit()
                 else:
                     if self._has_runtime_errors or self._last_total_files > 0:
+                        self.last_outcome = RescanOutcome.ERROR
                         self.progress.emit(100, "Falha no reescaneamento completo")
                         self.output_line.emit("")
                         self.output_line.emit("=== Reescaneamento Completo Falhou ===")
@@ -249,6 +266,7 @@ class RescanWorker(QThread):
                                 "Importacao completa sem atualizacoes"
                             )
                     else:
+                        self.last_outcome = RescanOutcome.NO_CHANGES
                         self.progress.emit(100, "Concluido sem alteracoes")
                         self.output_line.emit("")
                         self.output_line.emit(
@@ -260,6 +278,7 @@ class RescanWorker(QThread):
                         self.finished_success.emit()
 
         except Exception as exc:
+            self.last_outcome = RescanOutcome.ERROR
             logger.exception("Erro inesperado na operacao de importacao")
             message = f"Erro ao executar operacao de importacao: {exc}"
             self.error_line.emit(message)

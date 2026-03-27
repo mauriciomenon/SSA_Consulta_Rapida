@@ -10,10 +10,12 @@ import re
 import threading
 import time
 import uuid
+import inspect
 from time import perf_counter
 
 import pandas as pd
 
+from gui.workers.rescan_worker import RescanOutcome
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
@@ -103,6 +105,59 @@ def _connect_signal(signal, slot, *, label: str) -> bool:
     except Exception as exc:
         logger.debug("Falha ao conectar signal %s: %s", label, exc)
         return False
+
+
+def _configure_operation_dialog(progress_dialog, operation_label: str) -> None:
+    try:
+        if hasattr(progress_dialog, "set_operation_label"):
+            progress_dialog.set_operation_label(operation_label)
+    except Exception as exc:
+        logger.debug("Falha ao configurar rotulo da operacao no dialogo: %s", exc)
+
+
+def _success_status_text(is_explicit_import: bool, outcome: RescanOutcome) -> str:
+    if not is_explicit_import:
+        return "Status: Reescaneamento concluido. Clique em 'Recarregar Dados' para atualizar."
+    if outcome == RescanOutcome.UPDATED:
+        return "Status: Importacao externa concluida."
+    if outcome == RescanOutcome.REJECTIONS_ONLY:
+        return "Status: Importacao externa concluida com rejeicoes de regra."
+    return "Status: Importacao externa concluida sem alteracoes."
+
+
+def _cancel_request_status_text(is_explicit_import: bool) -> tuple[str, str]:
+    if is_explicit_import:
+        return (
+            "Status: Cancelamento solicitado na importacao externa.",
+            "explicit_import.cancel.requested",
+        )
+    return (
+        "Status: Cancelamento solicitado no reescaneamento.",
+        "rescan.cancel.requested",
+    )
+
+
+def _build_rescan_worker(
+    rescan_worker_cls,
+    *,
+    main_py_path: str,
+    project_root: str,
+    force_import: bool,
+    explicit_files: tuple[str, ...],
+    operation_label: str,
+):
+    init_signature = inspect.signature(rescan_worker_cls.__init__)
+    accepted_params = {
+        name for name in init_signature.parameters.keys() if name != "self"
+    }
+    worker_kwargs = {}
+    if "force_import" in accepted_params:
+        worker_kwargs["force_import"] = force_import
+    if "explicit_files" in accepted_params:
+        worker_kwargs["explicit_files"] = explicit_files or None
+    if "operation_label" in accepted_params:
+        worker_kwargs["operation_label"] = operation_label
+    return rescan_worker_cls(main_py_path, project_root, **worker_kwargs)
 
 
 def _safe_disconnect(signal, label: str) -> None:
@@ -1265,19 +1320,7 @@ def rescan_data(
         main_py_path = "main.py"
 
     progress_dialog = rescan_dialog_cls(window)
-    if is_explicit_import:
-        try:
-            progress_dialog.setWindowTitle("Importacao externa em andamento")
-        except Exception as exc:
-            logger.debug(
-                "Falha ao ajustar titulo do dialogo de importacao externa: %s", exc
-            )
-        try:
-            progress_dialog.status_label.setText("Iniciando importacao externa...")
-        except Exception as exc:
-            logger.debug(
-                "Falha ao ajustar texto do dialogo de importacao externa: %s", exc
-            )
+    _configure_operation_dialog(progress_dialog, operation_label)
     try:
         window._active_rescan_dialog = progress_dialog
     except Exception as exc:
@@ -1285,18 +1328,14 @@ def rescan_data(
             "Falha ao registrar referencia do dialogo de reescaneamento: %s", exc
         )
 
-    try:
-        worker = rescan_worker_cls(
-            main_py_path,
-            project_root,
-            force_import=force_import,
-            explicit_files=explicit_files_tuple or None,
-            operation_label=operation_label,
-        )
-    except TypeError as exc:
-        if "force_import" not in str(exc):
-            raise
-        worker = rescan_worker_cls(main_py_path, project_root)
+    worker = _build_rescan_worker(
+        rescan_worker_cls,
+        main_py_path=main_py_path,
+        project_root=project_root,
+        force_import=force_import,
+        explicit_files=explicit_files_tuple,
+        operation_label=operation_label,
+    )
     window._active_rescan_worker = worker
 
     _connect_signal(
@@ -1354,6 +1393,12 @@ def rescan_data(
 
     def on_success():
         nonlocal cancelled
+        outcome = getattr(worker, "last_outcome", RescanOutcome.UPDATED)
+        if not isinstance(outcome, RescanOutcome):
+            try:
+                outcome = RescanOutcome(str(outcome or RescanOutcome.UPDATED.value))
+            except ValueError:
+                outcome = RescanOutcome.UPDATED
         if cancelled:
             progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
             _set_status_label_text(
@@ -1375,7 +1420,11 @@ def rescan_data(
         _release_worker_ref()
         progress_dialog.set_finished(True)
         _release_dialog_ref()
-        if reload_on_success and hasattr(window, "load_data"):
+        if (
+            reload_on_success
+            and outcome == RescanOutcome.UPDATED
+            and hasattr(window, "load_data")
+        ):
             try:
                 window.load_data()
             except Exception as exc:
@@ -1384,11 +1433,7 @@ def rescan_data(
                 )
         _set_status_label_text(
             window,
-            (
-                "Status: Importacao externa concluida."
-                if is_explicit_import
-                else "Status: Reescaneamento concluido. Clique em 'Recarregar Dados' para atualizar."
-            ),
+            _success_status_text(is_explicit_import, outcome),
             context=(
                 "explicit_import.success.done"
                 if is_explicit_import
@@ -1459,10 +1504,11 @@ def rescan_data(
         nonlocal cancelled
         cancelled = True
         running = is_rescan_worker_running(worker, sip_module)
+        cancel_text, cancel_context = _cancel_request_status_text(is_explicit_import)
         _set_status_label_text(
             window,
-            "Status: Cancelamento solicitado no reescaneamento.",
-            context="rescan.cancel.requested",
+            cancel_text,
+            context=cancel_context,
         )
         if running:
             try:
@@ -1476,15 +1522,12 @@ def rescan_data(
     progress_dialog.cancel_requested.connect(on_cancel_requested)
 
     worker.start()
-    _set_status_label_text(
-        window,
-        (
-            "Status: Importacao externa em andamento."
-            if is_explicit_import
-            else "Status: Reescaneamento em andamento."
-        ),
-        context=("explicit_import.started" if is_explicit_import else "rescan.started"),
-    )
+    if not is_explicit_import:
+        _set_status_label_text(
+            window,
+            "Status: Reescaneamento em andamento.",
+            context="rescan.started",
+        )
     with _GLOBAL_WORKERS_LOCK:
         if worker not in global_workers:
             global_workers.append(worker)

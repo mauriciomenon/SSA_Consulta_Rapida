@@ -234,6 +234,8 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     assert result["skipped"] == 0
     assert result["failed"] == 0
     assert result["unsupported"] == 1
+    assert result["staged"] == 2
+    assert result["result_scope"] == "staging"
     assert result["db_updated"] is False
     assert result["db_update_requested"] is True
     assert result["queued"] is True
@@ -246,7 +248,7 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     ]
     assert captured["kwargs"]["rescan_mode"] == "explicit"
     assert captured["kwargs"]["reload_on_success"] is True
-    assert "enfileirada=sim" in window.status_label.text
+    assert window.status_label.text == ""
 
 
 def test_import_external_excel_files_empty_selection_returns_consistent_schema(
@@ -264,6 +266,8 @@ def test_import_external_excel_files_empty_selection_returns_consistent_schema(
         "skipped": 0,
         "failed": 0,
         "unsupported": 0,
+        "staged": 0,
+        "result_scope": "staging",
         "db_updated": False,
         "db_update_requested": False,
         "queued": False,
@@ -302,6 +306,8 @@ def test_import_external_excel_files_applies_staged_file_without_recopiar(
     result = gui_ssa.SSAMainWindow.import_external_excel_files(cast(Any, _Window()))
     assert result["copied"] == 0
     assert result["failed"] == 0
+    assert result["staged"] == 1
+    assert result["result_scope"] == "staging"
     assert result["db_updated"] is False
     assert result["db_update_requested"] is True
     assert result["queued"] is True

@@ -29,12 +29,20 @@ class RescanProgressDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._operation_label = "Reescaneamento"
         self.setWindowTitle("Reescaneamento em Andamento")
         self.setModal(False)
         self.resize(800, 600)
         self._cancel_requested = False
         self._finished = False
         self.setup_ui()
+
+    def set_operation_label(self, operation_label: str) -> None:
+        label = str(operation_label or "").strip() or "Reescaneamento"
+        self._operation_label = label
+        self.setWindowTitle(f"{label} em andamento")
+        if not self._finished and not self._cancel_requested:
+            self.status_label.setText(f"Iniciando {label.lower()}...")
 
     def show_non_modal(self) -> None:
         """Show the dialog without blocking the main window."""
@@ -135,7 +143,9 @@ class RescanProgressDialog(QDialog):
         self.close_button.setEnabled(True)
 
         if success:
-            self.status_label.setText("Reescaneamento concluido com sucesso!")
+            self.status_label.setText(
+                f"Operacao concluida com sucesso: {self._operation_label}."
+            )
             self.status_label.setStyleSheet(
                 "font-weight: bold; font-size: 12pt; color: green;"
             )
@@ -143,8 +153,10 @@ class RescanProgressDialog(QDialog):
         else:
             final_message = message.strip() if isinstance(message, str) else ""
             if not final_message:
-                final_message = "Erro nao detalhado pelo processo de reescaneamento."
-            self.status_label.setText(f"Reescaneamento falhou: {final_message}")
+                final_message = "Erro nao detalhado pelo processo da operacao."
+            self.status_label.setText(
+                f"Operacao falhou ({self._operation_label}): {final_message}"
+            )
             self.status_label.setStyleSheet(
                 "font-weight: bold; font-size: 12pt; color: red;"
             )
