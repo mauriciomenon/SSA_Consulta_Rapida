@@ -25,6 +25,10 @@
 - Contagem `filtrado/total` deve ficar separada da caixa operacional de status.
 - Links operacionais externos simples, como `Abrir SAM` e o clique no `#`, podem usar navegador padrao sem navegador embutido.
 - O detalhe da SSA deve expandir a sigla de `situacao` e permitir copia direta do numero sem alterar o texto exibido.
+- Quando o fluxo exigir exploracao de derivadas, preferir aba dedicada no dialogo de detalhes com:
+  1. arvore de relacoes na metade superior
+  2. detalhes da SSA na metade inferior
+  3. navegacao por links entre SSAs
 
 ## 1) Escopo e disciplina de mudanca
 - Diagnosticar antes de editar, com evidencia objetiva.
