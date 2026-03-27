@@ -3,7 +3,11 @@ setlocal EnableExtensions EnableDelayedExpansion
 REM Build script PyOxidizer (windows_amd64) com uv/python 3.13.
 
 set "SILENT=0"
-if /I "%~1"=="--silent" set "SILENT=1"
+set "WITH_LOCAL_DATA=0"
+for %%A in (%*) do (
+    if /I "%%~A"=="--silent" set "SILENT=1"
+    if /I "%%~A"=="--with-local-data" set "WITH_LOCAL_DATA=1"
+)
 
 for %%I in ("%~dp0..\..") do set "REPO_ROOT=%%~fI"
 set "LOG_DIR=%REPO_ROOT%\launchers\logs"
@@ -61,7 +65,7 @@ if defined VCToolsInstallDir (
     if exist "%MSVC_LINK%" (
         set "PATH=%VCToolsInstallDir%bin\Hostx64\x64;%PATH%"
         set "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=%MSVC_LINK%"
-        if "%SILENT%"=="0" echo Linker MSVC for?ado: "%MSVC_LINK%"
+        if "%SILENT%"=="0" echo Linker MSVC forcado: "%MSVC_LINK%"
     )
 )
 
@@ -203,16 +207,24 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if "%SILENT%"=="1" (
-    uv run --python 3.13 "%REPO_ROOT%\scripts\copy_data_to_builds.py" --build-system pyoxidizer --allow-local-data >> "%LOG_FILE%" 2>&1
-) else (
-    uv run --python 3.13 "%REPO_ROOT%\scripts\copy_data_to_builds.py" --build-system pyoxidizer --allow-local-data
-)
+if "%WITH_LOCAL_DATA%"=="1" (
+    if "%SILENT%"=="1" (
+        uv run --python 3.13 "%REPO_ROOT%\scripts\copy_data_to_builds.py" --build-system pyoxidizer --allow-local-data >> "%LOG_FILE%" 2>&1
+    ) else (
+        uv run --python 3.13 "%REPO_ROOT%\scripts\copy_data_to_builds.py" --build-system pyoxidizer --allow-local-data
+    )
 
-if errorlevel 1 (
-    echo Build PyOxidizer concluiu, mas copia de dados falhou. Veja o log: "%LOG_FILE%"
-    if "%SILENT%"=="0" pause
-    exit /b 1
+    if errorlevel 1 (
+        echo Build PyOxidizer concluiu, mas copia de dados falhou. Veja o log: "%LOG_FILE%"
+        if "%SILENT%"=="0" pause
+        exit /b 1
+    )
+) else (
+    if "%SILENT%"=="1" (
+        echo [build_pyoxidizer] pulando copia de dados locais. Use --with-local-data para habilitar.>> "%LOG_FILE%"
+    ) else (
+        echo INFO Pulando copia de dados locais. Use --with-local-data para habilitar.
+    )
 )
 
 echo Build PyOxidizer concluido com sucesso.

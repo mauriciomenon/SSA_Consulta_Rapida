@@ -6,6 +6,7 @@ import pandas as pd
 from armazenamento.database import (
     _normalize_numero_ssa_value,
     normalize_numero_ssa_dataframe,
+    normalize_numero_ssa_dataframe_storage,
 )
 
 
@@ -48,6 +49,15 @@ def test_normalize_numero_ssa_dataframe_apply():
         "202501234",
         "202600654",
     ]
+
+
+def test_normalize_numero_ssa_dataframe_storage_matches_compat_alias() -> None:
+    df = pd.DataFrame({"numero_ssa": ["202500777.0", "abc123", None]})
+
+    canonical = normalize_numero_ssa_dataframe_storage(df)
+    compat = normalize_numero_ssa_dataframe(df)
+
+    assert canonical.to_dict("list") == compat.to_dict("list")
 
 
 def test_normalize_numero_ssa_dataframe_rejects_short_display_only_values() -> None:

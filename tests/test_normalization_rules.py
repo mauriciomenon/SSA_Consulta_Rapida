@@ -6,6 +6,9 @@ Usa a função pública normalize_numero_ssa (se existir) ou fallback para lógi
 
 from __future__ import annotations
 
+from typing import Any, cast
+
+import pandas as pd
 import pytest
 
 from armazenamento import database
@@ -51,3 +54,23 @@ def test_normalization_rejects_overlong_legacy_values():
 
 def test_normalization_rejects_short_two_digit_year_sequences():
     assert _normalize("2601234") is None
+
+
+def test_dataframe_storage_api_is_textual_and_explicit():
+    out = database.normalize_numero_ssa_dataframe_storage(
+        pd.DataFrame({"numero_ssa": ["202500777.0", "ABC123"]})
+    )
+    assert list(out["numero_ssa"]) == ["202500777", None]
+
+
+def test_invalid_table_name_dispatch_returns_false(tmp_path):
+    frame = pd.DataFrame([{"numero_ssa": "202401234", "situacao": "OK"}])
+    db_path = str(tmp_path / "x.sqlite")
+    assert (
+        database.insert_dataframe_with_smart_upsert(
+            frame,
+            db_path,
+            cast(Any, None),
+        )
+        is False
+    )

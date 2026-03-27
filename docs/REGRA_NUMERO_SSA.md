@@ -35,5 +35,7 @@ Testes relacionados
 Observacoes
 - A camada de persistencia deve sempre usar a forma textual canonica do `numero_ssa`.
 - O helper numerico interno `_normalize_numero_ssa_value` existe apenas para compatibilidade de callsites legados e nao define o contrato do banco.
+- Para DataFrame, o nome explicito do caminho canonico e `normalize_numero_ssa_dataframe_storage(...)`; `normalize_numero_ssa_dataframe(...)` permanece apenas como alias legado de nome para o mesmo comportamento textual.
+- Qualquer regra antiga de prefixar ano para valor curto deve ser tratada como historica e superada pela decisao atual: curto invalido descarta e loga.
 - A camada de exibicao deve mostrar o valor canonico somente quando ele for valido; entradas invalidas permanecem invalidas.
 
