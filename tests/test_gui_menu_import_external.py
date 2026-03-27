@@ -190,11 +190,6 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    docs_dir = tmp_path / "docs_entrada"
-    docs_dir.mkdir()
-    existing = docs_dir / "entrada.xlsx"
-    existing.write_text("old", encoding="utf-8")
-
     source_root = tmp_path / "fontes"
     source_root.mkdir()
     source = source_root / "entrada.xlsx"
@@ -230,24 +225,24 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     window = _Window()
     result = gui_ssa.SSAMainWindow.import_external_excel_files(cast(Any, window))
 
-    assert result["copied"] == 2
+    assert result["selected"] == 3
+    assert result["copied"] == 0
     assert result["skipped"] == 0
     assert result["failed"] == 0
-    assert result["unsupported"] == 1
-    assert result["staged"] == 2
-    assert result["result_scope"] == "staging"
+    assert result["unsupported"] == 0
+    assert result["staged"] == 3
+    assert result["result_scope"] == "queue"
     assert result["db_updated"] is False
     assert result["db_update_requested"] is True
     assert result["queued"] is True
-    assert (docs_dir / "entrada__1.xlsx").exists()
-    assert (docs_dir / "segunda.xlsx").exists()
-    assert not (docs_dir / "outra.xls").exists()
-    assert list(captured["kwargs"]["explicit_files"]) == [
-        str(docs_dir / "entrada__1.xlsx"),
-        str(docs_dir / "segunda.xlsx"),
+    assert list(captured["kwargs"]["source_files"]) == [
+        str(source),
+        str(source_ok_2),
+        str(source2),
     ]
     assert captured["kwargs"]["rescan_mode"] == "explicit"
     assert captured["kwargs"]["reload_on_success"] is True
+    assert captured["kwargs"]["operation_kind"] == "import"
     assert window.status_label.text == ""
 
 
@@ -262,12 +257,13 @@ def test_import_external_excel_files_empty_selection_returns_consistent_schema(
 
     result = gui_ssa.SSAMainWindow.import_external_excel_files(cast(Any, object()))
     assert result == {
+        "selected": 0,
         "copied": 0,
         "skipped": 0,
         "failed": 0,
         "unsupported": 0,
         "staged": 0,
-        "result_scope": "staging",
+        "result_scope": "queue",
         "db_updated": False,
         "db_update_requested": False,
         "queued": False,
@@ -304,14 +300,56 @@ def test_import_external_excel_files_applies_staged_file_without_recopiar(
             self.status_label = _DummyLabel()
 
     result = gui_ssa.SSAMainWindow.import_external_excel_files(cast(Any, _Window()))
+    assert result["selected"] == 1
     assert result["copied"] == 0
     assert result["failed"] == 0
     assert result["staged"] == 1
-    assert result["result_scope"] == "staging"
+    assert result["result_scope"] == "queue"
     assert result["db_updated"] is False
     assert result["db_update_requested"] is True
     assert result["queued"] is True
-    assert list(captured["kwargs"]["explicit_files"]) == [str(staged)]
+    assert list(captured["kwargs"]["source_files"]) == [str(staged)]
+
+
+def test_import_external_excel_files_filters_invalid_and_unsupported_before_queue(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "fontes"
+    source_root.mkdir()
+    ok_file = source_root / "ok.xlsx"
+    ok_file.write_text("ok", encoding="utf-8")
+    unsupported = source_root / "nota.txt"
+    unsupported.write_text("txt", encoding="utf-8")
+    missing = source_root / "sumiu.xlsx"
+
+    monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
+    monkeypatch.setattr(
+        gui_ssa.QFileDialog,
+        "getOpenFileNames",
+        lambda *args, **kwargs: (
+            [str(ok_file), str(unsupported), str(missing)],
+            "Arquivos Excel",
+        ),
+    )
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        gui_ssa.ssa_gui_workers,
+        "rescan_data",
+        lambda _window, **kwargs: captured.setdefault("kwargs", dict(kwargs)),
+    )
+
+    class _Window:
+        def __init__(self) -> None:
+            self.status_label = _DummyLabel()
+
+    result = gui_ssa.SSAMainWindow.import_external_excel_files(cast(Any, _Window()))
+
+    assert result["selected"] == 3
+    assert result["failed"] == 1
+    assert result["unsupported"] == 1
+    assert result["staged"] == 1
+    assert list(captured["kwargs"]["source_files"]) == [str(ok_file)]
 
 
 def test_open_settings_file_with_backup_creates_backup(
@@ -407,169 +445,75 @@ def test_reset_settings_to_defaults_overwrites_user_file(
 def test_consolidate_input_files_moves_by_last_report(
     monkeypatch, tmp_path: Path
 ) -> None:
-    docs_dir = tmp_path / "docs_entrada"
-    logs_dir = tmp_path / "logs"
-    docs_dir.mkdir()
-    logs_dir.mkdir()
-
-    (docs_dir / "ok.xlsx").write_text("ok", encoding="utf-8")
-    (docs_dir / "zero.xlsx").write_text("zero", encoding="utf-8")
-    (docs_dir / "pending.xlsx").write_text("pending", encoding="utf-8")
-
-    payload = {
-        "paths": {"docs_dir": str(docs_dir)},
-        "file_reports": [
-            {"file": "ok.xlsx", "counts": {"rows_inserted": 5}},
-            {"file": "zero.xlsx", "counts": {"rows_inserted": 0}},
-        ],
-    }
-    (logs_dir / "import_run_20260308_000001_000001.json").write_text(
-        json.dumps(payload),
-        encoding="utf-8",
-    )
-
     monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
+    captured: dict[str, Any] = {}
     monkeypatch.setattr(
-        gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None
+        gui_ssa.ssa_gui_workers,
+        "rescan_data",
+        lambda _window, **kwargs: captured.setdefault("kwargs", dict(kwargs)),
     )
 
     class _Window:
         def __init__(self) -> None:
             self.status_label = _DummyLabel()
-
-        def _resolve_latest_project_import_report(self, docs_path: str):
-            return gui_ssa.SSAMainWindow._resolve_latest_project_import_report(
-                cast(Any, self), docs_path
-            )
-
-        def _build_unique_destination_path(self, destination_path: str) -> str:
-            return gui_ssa.SSAMainWindow._build_unique_destination_path(
-                cast(Any, self), destination_path
-            )
-
-    window = _Window()
-    result = gui_ssa.SSAMainWindow.consolidate_input_files(cast(Any, window))
-
-    assert result["moved"] == 2
-    assert result["nosurvivor"] == 1
-    assert result["pending"] == 1
-    assert (docs_dir / "processadas" / "ok.xlsx").exists()
-    assert (docs_dir / "processadas" / "nosurvivor" / "zero.xlsx").exists()
-    assert (docs_dir / "pending.xlsx").exists()
-
-
-def test_consolidate_input_files_does_not_route_error_status_to_nosurvivor(
-    monkeypatch,
-    tmp_path: Path,
-) -> None:
-    docs_dir = tmp_path / "docs_entrada"
-    logs_dir = tmp_path / "logs"
-    docs_dir.mkdir()
-    logs_dir.mkdir()
-
-    (docs_dir / "error.xlsx").write_text("error", encoding="utf-8")
-
-    payload = {
-        "paths": {"docs_dir": str(docs_dir)},
-        "file_reports": [
-            {
-                "file": "error.xlsx",
-                "status": "extraction_error",
-                "counts": {"rows_inserted": 0},
-            },
-        ],
-    }
-    (logs_dir / "import_run_20260309_000001_000001.json").write_text(
-        json.dumps(payload),
-        encoding="utf-8",
-    )
-
-    monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
-    monkeypatch.setattr(
-        gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None
-    )
-
-    class _Window:
-        def __init__(self) -> None:
-            self.status_label = _DummyLabel()
-
-        def _resolve_latest_project_import_report(self, docs_path: str):
-            return gui_ssa.SSAMainWindow._resolve_latest_project_import_report(
-                cast(Any, self), docs_path
-            )
-
-        def _build_unique_destination_path(self, destination_path: str) -> str:
-            return gui_ssa.SSAMainWindow._build_unique_destination_path(
-                cast(Any, self), destination_path
-            )
 
     window = _Window()
     result = gui_ssa.SSAMainWindow.consolidate_input_files(cast(Any, window))
 
     assert result["moved"] == 0
     assert result["nosurvivor"] == 0
-    assert result["pending"] == 1
-    assert (docs_dir / "error.xlsx").exists()
-    assert not (docs_dir / "processadas" / "nosurvivor" / "error.xlsx").exists()
+    assert result["pending"] == 0
+    assert result["failed"] == 0
+    assert result["queued"] is True
+    assert result["result_scope"] == "queue"
+    assert captured["kwargs"]["operation_kind"] == "consolidate"
+    assert captured["kwargs"]["operation_label"] == "Consolidacao de arquivos"
 
 
-def test_consolidate_input_files_keeps_update_only_out_of_nosurvivor(
+def test_consolidate_input_files_does_not_route_error_status_to_nosurvivor(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    docs_dir = tmp_path / "docs_entrada"
-    logs_dir = tmp_path / "logs"
-    docs_dir.mkdir()
-    logs_dir.mkdir()
-
-    (docs_dir / "update_only.xlsx").write_text("update_only", encoding="utf-8")
-
-    payload = {
-        "paths": {"docs_dir": str(docs_dir)},
-        "file_reports": [
-            {
-                "file": "update_only.xlsx",
-                "status": "success",
-                "counts": {
-                    "rows_inserted": 0,
-                    "rows_updated": 5,
-                    "rows_changed": 5,
-                    "rows_ready_for_insert": 0,
-                },
-            },
-        ],
-    }
-    (logs_dir / "import_run_20260309_000002_000001.json").write_text(
-        json.dumps(payload),
-        encoding="utf-8",
-    )
-
     monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
+    captured: dict[str, Any] = {}
     monkeypatch.setattr(
-        gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None
+        gui_ssa.ssa_gui_workers,
+        "rescan_data",
+        lambda _window, **kwargs: captured.setdefault("kwargs", dict(kwargs)),
     )
 
     class _Window:
         def __init__(self) -> None:
             self.status_label = _DummyLabel()
 
-        def _resolve_latest_project_import_report(self, docs_path: str):
-            return gui_ssa.SSAMainWindow._resolve_latest_project_import_report(
-                cast(Any, self), docs_path
-            )
+    window = _Window()
+    result = gui_ssa.SSAMainWindow.consolidate_input_files(cast(Any, window))
 
-        def _build_unique_destination_path(self, destination_path: str) -> str:
-            return gui_ssa.SSAMainWindow._build_unique_destination_path(
-                cast(Any, self), destination_path
-            )
+    assert result["queued"] is True
+    assert captured["kwargs"]["operation_kind"] == "consolidate"
+
+
+def test_consolidate_input_files_keeps_update_only_out_of_nosurvivor(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        gui_ssa.ssa_gui_workers,
+        "rescan_data",
+        lambda _window, **kwargs: captured.setdefault("kwargs", dict(kwargs)),
+    )
+
+    class _Window:
+        def __init__(self) -> None:
+            self.status_label = _DummyLabel()
 
     window = _Window()
     result = gui_ssa.SSAMainWindow.consolidate_input_files(cast(Any, window))
 
-    assert result["moved"] == 1
-    assert result["nosurvivor"] == 0
-    assert (docs_dir / "processadas" / "update_only.xlsx").exists()
-    assert not (docs_dir / "processadas" / "nosurvivor" / "update_only.xlsx").exists()
+    assert result["queued"] is True
+    assert captured["kwargs"]["operation_kind"] == "consolidate"
 
 
 def test_open_processadas_folder_routes_to_helper(monkeypatch, tmp_path: Path) -> None:

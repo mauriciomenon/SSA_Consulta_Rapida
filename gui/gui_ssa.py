@@ -3617,81 +3617,67 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             ajuda_menu.addAction(about_action)
 
     def import_external_excel_files(self):
-        """Prepara XLSX para importacao explicita assincrona e os enfileira."""
+        """Enfileira importacao externa; o staging roda em background."""
         selected_files, _ = QFileDialog.getOpenFileNames(
             self,
             "Selecionar arquivos Excel para importar",
             os.path.expanduser("~"),
-            "Arquivos Excel (*.xlsx);;Todos os Arquivos (*)",
+            "Arquivos Excel (*.xlsx *.xls);;Todos os Arquivos (*)",
         )
 
         if not selected_files:
             return {
+                "selected": 0,
                 "copied": 0,
                 "skipped": 0,
                 "failed": 0,
                 "unsupported": 0,
                 "staged": 0,
-                "result_scope": "staging",
+                "result_scope": "queue",
                 "db_updated": False,
                 "db_update_requested": False,
                 "queued": False,
             }
 
-        docs_path = os.path.join(project_root, "docs_entrada")
-        os.makedirs(docs_path, exist_ok=True)
-
+        selected_count = len(selected_files)
         copied = 0
         skipped = 0
         failed = 0
         unsupported = 0
         queued = False
-        staged_for_import: list[str] = []
-
-        for source_path in selected_files:
-            source = str(source_path or "").strip()
+        safe_selected_files: list[str] = []
+        for raw_source in selected_files:
+            source = str(raw_source or "").strip()
             if not source:
                 skipped += 1
                 continue
-            if not os.path.isfile(source):
+            try:
+                validated_source = SSAMainWindow._validate_local_open_target(
+                    source,
+                    must_exist=True,
+                    expect_dir=False,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Importacao externa rejeitou caminho invalido '%s': %s",
+                    source,
+                    exc,
+                )
                 failed += 1
                 continue
-
-            base_name = os.path.basename(source)
-            lowered_name = base_name.casefold()
-            if not lowered_name.endswith(".xlsx"):
-                unsupported += 1
+            if not validated_source.casefold().endswith((".xlsx", ".xls")):
                 logger.info(
                     "Importacao externa ignorou arquivo nao suportado pelo pipeline: %s",
-                    source,
+                    validated_source,
                 )
+                unsupported += 1
                 continue
-            base_destination = os.path.join(docs_path, base_name)
+            safe_selected_files.append(validated_source)
+        try:
+            from gui.widgets import RescanProgressDialog
+            from gui.workers import RescanWorker
 
-            source_abs = os.path.abspath(source)
-            destination_abs = os.path.abspath(base_destination)
-            if source_abs == destination_abs:
-                staged_for_import.append(destination_abs)
-                continue
-
-            destination = SSAMainWindow._build_unique_destination_path(
-                self,
-                base_destination,
-            )
-
-            try:
-                shutil.copy2(source, destination)
-                copied += 1
-                staged_for_import.append(destination)
-            except Exception as exc:
-                logger.warning("Falha ao copiar arquivo externo '%s': %s", source, exc)
-                failed += 1
-
-        if staged_for_import:
-            try:
-                from gui.widgets import RescanProgressDialog
-                from gui.workers import RescanWorker
-
+            if safe_selected_files:
                 ssa_gui_workers.rescan_data(
                     self,
                     project_root=project_root,
@@ -3705,32 +3691,32 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
                     sip_module=sip,
                     rescan_mode="explicit",
-                    explicit_files=tuple(staged_for_import),
+                    source_files=tuple(safe_selected_files),
                     operation_label="Importacao externa",
                     reload_on_success=True,
+                    operation_kind="import",
                 )
                 queued = True
-            except Exception as exc:
-                logger.warning("Falha ao iniciar importacao externa: %s", exc)
-                failed += len(staged_for_import)
-                staged_for_import = []
+        except Exception as exc:
+            logger.warning("Falha ao iniciar importacao externa: %s", exc)
+            failed += len(safe_selected_files)
 
-        staged_count = len(staged_for_import)
         if hasattr(self, "status_label") and not queued:
             summary = (
-                f"Status: Importacao externa preparada - copiados={copied}, "
-                f"ignorados={skipped}, nao_suportados={unsupported}, falhas={failed}, "
+                f"Status: Importacao externa preparada - selecionados={selected_count}, "
+                f"falhas={failed}, "
                 f"enfileirada=nao."
             )
             self.status_label.setText(summary)
 
         return {
+            "selected": selected_count,
             "copied": copied,
             "skipped": skipped,
             "failed": failed,
             "unsupported": unsupported,
-            "staged": staged_count,
-            "result_scope": "staging",
+            "staged": len(safe_selected_files) if queued else 0,
+            "result_scope": "queue",
             "db_updated": False,
             "db_update_requested": queued,
             "queued": queued,
@@ -3973,161 +3959,47 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             "backup_path": backup_path,
         }
 
-    def _resolve_latest_project_import_report(
-        self, docs_path: str
-    ) -> dict[str, Any] | None:
-        logs_dir = os.path.join(project_root, "logs")
-        if not os.path.isdir(logs_dir):
-            return None
-        report_paths = sorted(
-            (
-                os.path.join(logs_dir, name)
-                for name in os.listdir(logs_dir)
-                if name.startswith("import_run_") and name.endswith(".json")
-            ),
-            key=os.path.getmtime,
-            reverse=True,
-        )
-        docs_abs = os.path.abspath(docs_path)
-        for report_path in report_paths:
-            payload = None
-            try:
-                with open(report_path, "r", encoding="utf-8") as handle:
-                    payload = json.load(handle)
-            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-                logger.debug("Ignorando report invalido '%s': %s", report_path, exc)
-            if not isinstance(payload, dict):
-                continue
-            payload_docs = str((payload.get("paths") or {}).get("docs_dir") or "")
-            if os.path.abspath(payload_docs) != docs_abs:
-                continue
-            file_reports = payload.get("file_reports") or []
-            if isinstance(file_reports, list) and file_reports:
-                payload["_report_path"] = report_path
-                return payload
-        return None
-
     def consolidate_input_files(self):
-        """Consolida arquivos de docs_entrada para processadas usando o ultimo report."""
-        docs_path = os.path.join(project_root, "docs_entrada")
-        if not os.path.isdir(docs_path):
-            if not os.environ.get("PYTEST_CURRENT_TEST"):
-                QMessageBox.warning(self, "Erro", f"Pasta nao encontrada: {docs_path}")
-            return {"moved": 0, "nosurvivor": 0, "pending": 0, "failed": 0}
-
-        report = self._resolve_latest_project_import_report(docs_path)
-        if report is None:
-            if not os.environ.get("PYTEST_CURRENT_TEST"):
-                QMessageBox.information(
-                    self,
-                    "Consolidacao",
-                    "Nenhum import_run com file_reports para docs_entrada foi encontrado.",
-                )
-            return {"moved": 0, "nosurvivor": 0, "pending": 0, "failed": 0}
-
-        processadas_dir = os.path.join(docs_path, "processadas")
-        nosurvivor_dir = os.path.join(processadas_dir, "nosurvivor")
-        os.makedirs(processadas_dir, exist_ok=True)
-        os.makedirs(nosurvivor_dir, exist_ok=True)
-
-        file_rows: dict[str, dict[str, int | str]] = {}
-        mutation_fields = (
-            "rows_inserted",
-            "rows_updated",
-            "rows_changed",
-            "rows_ready_for_insert",
-        )
-        for entry in report.get("file_reports", []):
-            if not isinstance(entry, dict):
-                continue
-            file_name = str(entry.get("file") or "").strip()
-            if not file_name:
-                continue
-            status = str(entry.get("status") or "").strip().casefold()
-            counts = entry.get("counts") or {}
-            rows_inserted = int((counts.get("rows_inserted", 0) or 0))
-            rows_updated = int((counts.get("rows_updated", 0) or 0))
-            rows_changed = int((counts.get("rows_changed", 0) or 0))
-            rows_ready_for_insert = int(
-                counts.get("rows_ready_for_insert", rows_inserted) or 0
-            )
-            file_rows[file_name] = {
-                "status": status,
-                "rows_inserted": rows_inserted,
-                "rows_updated": rows_updated,
-                "rows_changed": rows_changed,
-                "rows_ready_for_insert": rows_ready_for_insert,
-            }
-
-        moved = 0
-        moved_nosurvivor = 0
-        pending = 0
+        """Enfileira consolidacao de docs_entrada para processadas em background."""
+        queued = False
         failed = 0
-        for base_name in os.listdir(docs_path):
-            source_path = os.path.join(docs_path, base_name)
-            if not os.path.isfile(source_path):
-                continue
-            lowered = base_name.casefold()
-            if not (lowered.endswith(".xlsx") or lowered.endswith(".xls")):
-                continue
-            if base_name not in file_rows:
-                pending += 1
-                continue
+        try:
+            from gui.widgets import RescanProgressDialog
+            from gui.workers import RescanWorker
 
-            file_meta = file_rows.get(base_name, {})
-            status = str(file_meta.get("status") or "").casefold()
-            has_mutation = any(
-                int(file_meta.get(name, 0) or 0) > 0 for name in mutation_fields
-            )
-            is_success_status = status in {"", "success", "no_rows"}
-            is_zero_survivor = is_success_status and not has_mutation
-            target_dir = processadas_dir
-            if not is_success_status:
-                pending += 1
-                continue
-            if is_zero_survivor:
-                target_dir = nosurvivor_dir
-            destination = self._build_unique_destination_path(
-                os.path.join(target_dir, base_name)
-            )
-            try:
-                shutil.move(source_path, destination)
-                moved += 1
-                if target_dir == nosurvivor_dir:
-                    moved_nosurvivor += 1
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao mover arquivo na consolidacao '%s': %s",
-                    source_path,
-                    exc,
-                )
-                failed += 1
-
-        summary = (
-            f"Status: Consolidacao concluida - movidos={moved}, "
-            f"nosurvivor={moved_nosurvivor}, pendentes={pending}, falhas={failed}."
-        )
-        if hasattr(self, "status_label"):
-            self.status_label.setText(summary)
-        if not os.environ.get("PYTEST_CURRENT_TEST"):
-            QMessageBox.information(
+            ssa_gui_workers.rescan_data(
                 self,
-                "Consolidacao de arquivos",
-                (
-                    "Consolidacao concluida.\n\n"
-                    f"Movidos: {moved}\n"
-                    f"Para nosurvivor: {moved_nosurvivor}\n"
-                    f"Pendentes sem evidencia no ultimo report: {pending}\n"
-                    f"Falhas: {failed}\n\n"
-                    f"Report usado: {report.get('_report_path', 'n/a')}"
-                ),
+                project_root=project_root,
+                rescan_worker_cls=RescanWorker,
+                rescan_dialog_cls=RescanProgressDialog,
+                qmessagebox=QMessageBox,
+                global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
+                global_meta=GLOBAL_RETIRED_RESCAN_META,
+                max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
+                retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+                retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+                sip_module=sip,
+                rescan_mode="diff",
+                operation_label="Consolidacao de arquivos",
+                reload_on_success=False,
+                operation_kind="consolidate",
+            )
+            queued = True
+        except Exception as exc:
+            logger.warning("Falha ao iniciar consolidacao de arquivos: %s", exc)
+            failed = 1
+
+        if hasattr(self, "status_label") and not queued:
+            self.status_label.setText(
+                "Status: Falha ao enfileirar consolidacao de arquivos."
             )
         return {
-            "moved": moved,
-            "nosurvivor": moved_nosurvivor,
-            "pending": pending,
+            "moved": 0,
+            "nosurvivor": 0,
+            "pending": 0,
             "failed": failed,
-            "report_path": str(report.get("_report_path", "")),
+            "queued": queued,
+            "result_scope": "queue",
         }
 
     def rescan_data(self):
@@ -4541,8 +4413,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 self.progress_bar.setRange(0, 0)
             if hasattr(self, "status_label"):
                 self.status_label.setText("Status: Atualizando derivadas via DB...")
-            if QT_AVAILABLE:
-                QApplication.processEvents()
 
             db_report = sync_derivadas(
                 db_path=db_path,
@@ -4560,8 +4430,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     self.status_label.setText(
                         f"Status: Atualizando derivadas via planilhas especiais ({len(special_files)})..."
                     )
-                if QT_AVAILABLE:
-                    QApplication.processEvents()
                 final_report = sync_derivadas(
                     db_path=db_path,
                     table_name=table_name,
