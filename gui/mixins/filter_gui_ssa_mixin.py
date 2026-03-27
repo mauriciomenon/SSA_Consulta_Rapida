@@ -81,6 +81,65 @@ _EXCLUDED_TERMINAL_STATUSES = frozenset({"SCA", "SES", "STE"})
 _EXCLUDED_TERMINAL_SUMMARY = "situacao!=SCA/SES/STE"
 _CLEAR_FILTER_HARD_RESET_CLICK_TARGET = 3
 _CLEAR_FILTER_HARD_RESET_WINDOW_SEC = 3.0
+_ADVANCED_FILTER_VISUAL_COLUMN_MAP = {
+    "setor_executor": ("setor_executor",),
+    "setor_executor_exclude_values": ("setor_executor",),
+    "setor_emissor": ("setor_emissor",),
+    "setor_emissor_exclude_values": ("setor_emissor",),
+    "divisao": ("divisao",),
+    "divisao_exclude_values": ("divisao",),
+    "situacao": ("situacao",),
+    "situacao_exclude_values": ("situacao",),
+    "solicitante": ("solicitante", "responsavel_solicitante"),
+    "solicitante_exclude_values": ("solicitante", "responsavel_solicitante"),
+    "responsavel_programacao": ("responsavel_programacao",),
+    "responsavel_programacao_exclude_values": ("responsavel_programacao",),
+    "responsavel_execucao": ("responsavel_execucao",),
+    "responsavel_execucao_exclude_values": ("responsavel_execucao",),
+    "prioridade_emissao_values": ("prioridade_emissao", "grau_prioridade_emissao"),
+    "prioridade_emissao_exclude_values": (
+        "prioridade_emissao",
+        "grau_prioridade_emissao",
+    ),
+    "prioridade_planejamento_values": (
+        "prioridade_planejamento",
+        "grau_prioridade_planejamento",
+    ),
+    "prioridade_planejamento_exclude_values": (
+        "prioridade_planejamento",
+        "grau_prioridade_planejamento",
+    ),
+    "ano_emissao": ("data_cadastro",),
+    "ano_emissao_values": ("data_cadastro",),
+    "ano_emissao_exclude_values": ("data_cadastro",),
+    "ano_execucao": ("data_programada",),
+    "ano_execucao_values": ("data_programada",),
+    "ano_execucao_exclude_values": ("data_programada",),
+    "semana_emissao_inicio": ("semana_cadastro",),
+    "semana_emissao_fim": ("semana_cadastro",),
+    "semana_execucao_inicio": ("semana_programada",),
+    "semana_execucao_fim": ("semana_programada",),
+    "derivada_has": ("derivada_de",),
+    "derivada_all_ste": ("derivada_de",),
+    "derivada_is": ("derivada_de",),
+}
+
+
+def _append_unique_text(target: list[str], value: str) -> None:
+    text = str(value or "").strip()
+    if not text or text in target:
+        return
+    target.append(text)
+
+
+def _summary_week_range(start: Any, end: Any) -> str | None:
+    if start is None and end is None:
+        return None
+    if start is None:
+        return f"<= {end}"
+    if end is None:
+        return f">= {start}"
+    return f"{start}-{end}"
 
 
 def _qt_parent(obj: Any) -> QWidget | None:
@@ -251,6 +310,40 @@ class FilterGUISSAMixin:
         except Exception:
             has_advanced = False
         return bool(has_search or has_column_filters or has_exclude_ste or has_advanced)
+
+    def _get_visual_filter_columns(self) -> set[str]:
+        columns: set[str] = set()
+        try:
+            for col_name, raw_value in (
+                getattr(self, "_active_column_filters", {}) or {}
+            ).items():
+                if col_name == "#":
+                    continue
+                if str(raw_value).strip():
+                    columns.add(str(col_name))
+        except Exception as exc:
+            logger.debug(
+                "Falha ao coletar colunas visuais de filtros por coluna: %s", exc
+            )
+
+        if not bool(getattr(self, "_advanced_filters_active", False)):
+            return columns
+
+        adv = getattr(self, "_advanced_filters", None) or {}
+
+        def _has_value(value) -> bool:
+            if value is None:
+                return False
+            if isinstance(value, (list, tuple, set)):
+                return any(str(item).strip() for item in value)
+            return bool(str(value).strip())
+
+        for key, mapped_columns in _ADVANCED_FILTER_VISUAL_COLUMN_MAP.items():
+            if not _has_value(adv.get(key)):
+                continue
+            columns.update(mapped_columns)
+
+        return columns
 
     def _iter_clear_filter_buttons(self):
         seen_ids = set()
@@ -2112,7 +2205,9 @@ class FilterGUISSAMixin:
 
         # Filtro de busca geral
         if hasattr(self, "search_input") and self.search_input.text().strip():
-            active_filters.append(f"Busca: '{self.search_input.text().strip()}'")
+            _append_unique_text(
+                active_filters, f"Busca: '{self.search_input.text().strip()}'"
+            )
 
         def _display_name(col: str) -> str:
             if col == "setor_executor":
@@ -2128,7 +2223,8 @@ class FilterGUISSAMixin:
         # Filtro OU dedicado (exibição)
         or_text = str(getattr(self, "_dedicated_or_text", "") or "").strip()
         if or_text:
-            active_filters.append(
+            _append_unique_text(
+                active_filters,
                 f"Filtro OU: {self._format_column_filter_display_value(or_text)}"
             )
 
@@ -2149,7 +2245,7 @@ class FilterGUISSAMixin:
                     ", ".join(group.get("values", []))
                 )
                 if values_txt:
-                    active_filters.append(f"{label}: {values_txt}")
+                    _append_unique_text(active_filters, f"{label}: {values_txt}")
 
             for col_name, filter_value in self._active_column_filters.items():
                 if col_name in self._column_to_or_group:
@@ -2159,7 +2255,9 @@ class FilterGUISSAMixin:
                 )
                 if not normalized_value:
                     continue
-                active_filters.append(f"{_display_name(col_name)}: {normalized_value}")
+                _append_unique_text(
+                    active_filters, f"{_display_name(col_name)}: {normalized_value}"
+                )
 
         adv = getattr(self, "_advanced_filters", None) or {}
         adv_active = bool(getattr(self, "_advanced_filters_active", False))
@@ -2174,18 +2272,9 @@ class FilterGUISSAMixin:
             if not txt:
                 return
             if op:
-                active_filters.append(f"{label} {op} {txt}")
+                _append_unique_text(active_filters, f"{label} {op} {txt}")
             else:
-                active_filters.append(f"{label}: {txt}")
-
-        def _fmt_week_range(start, end):
-            if start is None and end is None:
-                return None
-            if start is None:
-                return f"<= {end}"
-            if end is None:
-                return f">= {start}"
-            return f"{start}-{end}"
+                _append_unique_text(active_filters, f"{label}: {txt}")
 
         if adv_active:
             _add_adv("Executor", adv.get("setor_executor"))
@@ -2243,14 +2332,14 @@ class FilterGUISSAMixin:
             _add_adv("Ano Execucao", ano_execucao_vals)
             _add_adv("Ano Execucao", ano_execucao_exc, "!=")
 
-            em_range = _fmt_week_range(
+            em_range = _summary_week_range(
                 adv.get("semana_emissao_inicio"), adv.get("semana_emissao_fim")
             )
             if em_range:
                 label = "Semana Emissao"
                 op = "!=" if adv.get("semana_emissao_exclude") else None
                 _add_adv(label, [em_range], op)
-            ex_range = _fmt_week_range(
+            ex_range = _summary_week_range(
                 adv.get("semana_execucao_inicio"), adv.get("semana_execucao_fim")
             )
             if ex_range:
@@ -2259,13 +2348,13 @@ class FilterGUISSAMixin:
                 _add_adv(label, [ex_range], op)
 
             if adv.get("derivada_has"):
-                active_filters.append("Possui derivada")
+                _append_unique_text(active_filters, "Possui derivada")
             # Compatibilidade: mantemos a chave legada "derivada_all_ste",
             # mas o comportamento funcional agora considera STE e SES.
             if adv.get("derivada_all_ste"):
-                active_filters.append("Derivadas em STE/SES")
+                _append_unique_text(active_filters, "Derivadas em STE/SES")
             if adv.get("derivada_is"):
-                active_filters.append("SSA derivada")
+                _append_unique_text(active_filters, "SSA derivada")
             if adv.get("macro_filter"):
                 macro_val = adv.get("macro_filter")
                 macro_label = (
@@ -2273,10 +2362,10 @@ class FilterGUISSAMixin:
                     if macro_val == "ssas_para_baixar"
                     else str(macro_val)
                 )
-                active_filters.append(f"Macro: {macro_label}")
+                _append_unique_text(active_filters, f"Macro: {macro_label}")
 
         if getattr(self, "_exclude_ste_sca", False):
-            active_filters.append(_EXCLUDED_TERMINAL_SUMMARY)
+            _append_unique_text(active_filters, _EXCLUDED_TERMINAL_SUMMARY)
 
         # Monta texto do resumo
         if active_filters:
@@ -2380,10 +2469,10 @@ class FilterGUISSAMixin:
                 "Falha ao consultar visibilidade do indicador de filtro de coluna: %s",
                 exc,
             )
-        # Ativo quando existe ao menos um termo nao vazio em filtros por coluna
+        # O label textual segue refletindo apenas o painel de filtros por coluna.
         active = any(
-            (str(v).strip() != "")
-            for _, v in (self._active_column_filters or {}).items()
+            str(value).strip()
+            for value in (getattr(self, "_active_column_filters", {}) or {}).values()
         )
         txt = "Filtros por coluna: Ativo" if active else "Filtros por coluna: Nao ativo"
         try:

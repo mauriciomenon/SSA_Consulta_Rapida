@@ -24,7 +24,7 @@ from PyQt6.QtCore import QPoint, QSize, Qt, QUrl  # noqa: E402
 from PyQt6.QtGui import QCloseEvent, QFont, QResizeEvent  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtWidgets import QLineEdit  # noqa: E402
-from PyQt6.QtWidgets import QApplication, QLabel, QPushButton
+from PyQt6.QtWidgets import QApplication, QLabel, QPushButton  # noqa: E402
 
 from gui import gui_ssa  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
@@ -406,35 +406,39 @@ class TestGUIFilterLogic:
         # Com base no filtro aplicado, nada resta após excluir SCA/SES/STE
         assert Counter(remaining) == Counter([])
 
-    def test_macro_baixar_excludes_sca_ses_ste_and_keeps_ste_or_ses_derivadas(self):
+    def test_macro_baixar_excludes_sad_sca_ses_ste_and_keeps_ste_or_ses_derivadas(
+        self,
+    ):
         macro_df = pd.DataFrame(
             {
-                "numero_ssa": ["100", "101", "102", "200", "201"],
-                "situacao": ["APV", "STE", "SES", "APV", "SCA"],
-                "derivada_de": ["", "100", "100", "", "200"],
-                "localizacao_codigo": ["LOC1"] * 5,
-                "descricao_localizacao": ["Desc"] * 5,
-                "equipamento": ["EQ1"] * 5,
-                "semana_cadastro": [202501] * 5,
-                "semana_programada": [202503] * 5,
-                "data_cadastro": ["2025-01-01"] * 5,
+                "numero_ssa": ["100", "101", "102", "200", "201", "202"],
+                "situacao": ["APV", "STE", "SES", "APV", "SCA", "SAD"],
+                "derivada_de": ["", "100", "100", "", "200", "200"],
+                "localizacao_codigo": ["LOC1"] * 6,
+                "descricao_localizacao": ["Desc"] * 6,
+                "equipamento": ["EQ1"] * 6,
+                "semana_cadastro": [202501] * 6,
+                "semana_programada": [202503] * 6,
+                "data_cadastro": ["2025-01-01"] * 6,
                 "descricao_ssa": [
                     "Origem A",
                     "Filha STE",
                     "Filha SES",
                     "Origem B",
                     "Filha SCA",
+                    "Filha SAD",
                 ],
-                "setor_executor": ["IEE3", "IEE3", "IEE3", "MEL4", "MEL4"],
-                "setor_emissor": ["IEE3", "IEE3", "IEE3", "MEL4", "MEL4"],
+                "setor_executor": ["IEE3", "IEE3", "IEE3", "MEL4", "MEL4", "MEL4"],
+                "setor_emissor": ["IEE3", "IEE3", "IEE3", "MEL4", "MEL4", "MEL4"],
                 "descricao_execucao": [
                     "Exec A",
                     "Exec B",
                     "Exec C",
                     "Exec D",
                     "Exec E",
+                    "Exec F",
                 ],
-                "solicitante": ["User1", "User2", "User3", "User4", "User5"],
+                "solicitante": ["User1", "User2", "User3", "User4", "User5", "User6"],
             }
         )
         self.window.df_completo = macro_df.copy()
@@ -455,8 +459,38 @@ class TestGUIFilterLogic:
         assert self.window._advanced_filters.get("derivada_all_ste") is True
         assert set(
             self.window._advanced_filters.get("situacao_exclude_values") or []
-        ) == {"SCA", "SES", "STE"}
+        ) == {"SAD", "SCA", "SES", "STE"}
         assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == ["100"]
+
+    def test_filters_summary_deduplicates_column_and_advanced_entries(self):
+        self.window._active_column_filters["setor_executor"] = "IEE3"
+        self.window._advanced_filters = {"setor_executor": ["IEE3"]}
+        self.window._advanced_filters_active = True
+
+        self.window._update_filters_summary()
+        QApplication.processEvents()
+
+        summary_text = str(self.window.filters_summary_label.text() or "")
+        assert summary_text.count("Executor: IEE3") == 1
+
+    def test_display_headers_mark_advanced_filter_columns_with_f(self):
+        if "solicitante" not in self.window.visible_columns:
+            self.window.visible_columns.append("solicitante")
+
+        self.window._active_column_filters = {
+            col: "" for col in self.window._column_filter_default_columns()
+        }
+        self.window._advanced_filters = {"solicitante": ["User1"]}
+        self.window._advanced_filters_active = True
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header_index = self.window._current_display_columns.index("solicitante")
+        header_text = str(
+            self.window.table_widget.horizontalHeaderItem(header_index).text() or ""
+        )
+        assert header_text.startswith("[f] ")
 
     def test_clear_operations_preserve_group_structure(self):
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
