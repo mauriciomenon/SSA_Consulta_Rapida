@@ -223,8 +223,10 @@ def _refresh_initial_details(window, *, update_details):
             and not window.details_text.document().isEmpty()
         ):
             return
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug(
+            "Falha ao comparar assinatura inicial de detalhes durante render: %s", exc
+        )
     ssa_gui_details._update_details_from_series(window, first_row_series)
 
 
@@ -476,6 +478,24 @@ def display_current_page(window, page_number, *, update_details=True):
                                 + (window.paginator.current_page - 1)
                                 * window.paginator.page_size,
                             )
+                            try:
+                                font = item.font()
+                                font.setUnderline(True)
+                                item.setFont(font)
+                            except Exception as exc:
+                                logger.debug(
+                                    "Falha ao aplicar estilo de link na coluna #: %s",
+                                    exc,
+                                )
+                            try:
+                                from PyQt6.QtGui import QBrush, QColor
+
+                                item.setForeground(QBrush(QColor("#4a90e2")))
+                            except Exception as exc:
+                                logger.debug(
+                                    "Falha ao aplicar cor de link na coluna #: %s", exc
+                                )
+                            item.setToolTip("Abrir SSA no SAM")
                         window.table_widget.setItem(row_idx, col_idx, item)
                     except Exception as exc:
                         cell_render_failures += 1
