@@ -170,6 +170,36 @@ def _fake_extract_state_transition(file_path: str, should_cancel=None):  # noqa:
     )
 
 
+def _prepare_runtime_import_update(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Path, Path, Path]:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "test.db"
+
+    _allow_tmp_path(monkeypatch, tmp_path)
+    _init_runtime_ssa_db(db_path)
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_run_derivadas_sync_phase",
+        lambda *args, **kwargs: (True, [], {"db_stats": {}, "merge_stats": {}}),
+    )
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        _fake_extract_state_transition,
+    )
+    return docs_dir, data_dir, db_path
+
+
 def test_run_importer_logic_writes_report_on_no_changes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -406,34 +436,13 @@ def test_import_explicit_files_to_database_updates_existing_ssa_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    docs_dir = tmp_path / "docs_entrada"
-    docs_dir.mkdir()
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    db_path = data_dir / "test.db"
+    docs_dir, _data_dir, db_path = _prepare_runtime_import_update(
+        tmp_path, monkeypatch
+    )
     old_file = docs_dir / "old.xlsx"
     new_file = docs_dir / "new.xlsx"
     old_file.write_text("old", encoding="utf-8")
     new_file.write_text("new", encoding="utf-8")
-
-    _allow_tmp_path(monkeypatch, tmp_path)
-    _init_runtime_ssa_db(db_path)
-    monkeypatch.setattr(
-        app_logic,
-        "_discover_derivadas_sheet_files",
-        lambda *args, **kwargs: [],
-    )
-    monkeypatch.setattr(
-        app_logic,
-        "_run_derivadas_sync_phase",
-        lambda *args, **kwargs: (True, [], {"db_stats": {}, "merge_stats": {}}),
-    )
-
-    monkeypatch.setattr(
-        app_logic.extractor,
-        "extract_data_from_excel",
-        _fake_extract_state_transition,
-    )
 
     assert (
         app_logic.import_explicit_files_to_database(
@@ -469,36 +478,55 @@ def test_import_explicit_files_to_database_updates_existing_ssa_state(
     )
 
 
+def test_import_explicit_files_to_database_preserves_newer_state_against_older_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir, _data_dir, db_path = _prepare_runtime_import_update(
+        tmp_path, monkeypatch
+    )
+    old_file = docs_dir / "old.xlsx"
+    new_file = docs_dir / "new.xlsx"
+    old_file.write_text("old", encoding="utf-8")
+    new_file.write_text("new", encoding="utf-8")
+
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(new_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(old_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+
+    assert _count_ssa_rows(db_path, "202500001") == 1
+    assert _read_ssa_state(db_path, "202500001") == (
+        "STE",
+        "BBB2",
+        "2025-01-02 00:00:00",
+        "new.xlsx",
+    )
+
+
 def test_run_importer_logic_diff_reprocesses_modified_file_and_updates_existing_ssa(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    docs_dir = tmp_path / "docs_entrada"
-    docs_dir.mkdir()
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    db_path = data_dir / "test.db"
+    docs_dir, data_dir, db_path = _prepare_runtime_import_update(
+        tmp_path, monkeypatch
+    )
     tracked_file = docs_dir / "tracked.xlsx"
     tracked_file.write_text("old", encoding="utf-8")
-
-    _allow_tmp_path(monkeypatch, tmp_path)
-    _init_runtime_ssa_db(db_path)
-    monkeypatch.setattr(
-        app_logic,
-        "_discover_derivadas_sheet_files",
-        lambda *args, **kwargs: [],
-    )
-    monkeypatch.setattr(
-        app_logic,
-        "_run_derivadas_sync_phase",
-        lambda *args, **kwargs: (True, [], {"db_stats": {}, "merge_stats": {}}),
-    )
-
-    monkeypatch.setattr(
-        app_logic.extractor,
-        "extract_data_from_excel",
-        _fake_extract_state_transition,
-    )
 
     assert (
         app_logic.run_importer_logic(
@@ -529,6 +557,49 @@ def test_run_importer_logic_diff_reprocesses_modified_file_and_updates_existing_
         )
         is True
     )
+    assert _count_ssa_rows(db_path, "202500001") == 1
+    assert _read_ssa_state(db_path, "202500001") == (
+        "STE",
+        "BBB2",
+        "2025-01-02 00:00:00",
+        "tracked.xlsx",
+    )
+
+
+def test_run_importer_logic_diff_reprocess_older_file_does_not_downgrade_existing_ssa(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir, data_dir, db_path = _prepare_runtime_import_update(
+        tmp_path, monkeypatch
+    )
+    tracked_file = docs_dir / "tracked.xlsx"
+    tracked_file.write_text("new", encoding="utf-8")
+
+    assert (
+        app_logic.run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(data_dir),
+            db_name="test.db",
+            table_name="ssa_table",
+            force_import=False,
+        )
+        is True
+    )
+
+    tracked_file.write_text("old", encoding="utf-8")
+
+    assert (
+        app_logic.run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(data_dir),
+            db_name="test.db",
+            table_name="ssa_table",
+            force_import=False,
+        )
+        is True
+    )
+
     assert _count_ssa_rows(db_path, "202500001") == 1
     assert _read_ssa_state(db_path, "202500001") == (
         "STE",
