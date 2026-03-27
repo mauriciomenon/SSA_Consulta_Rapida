@@ -11,6 +11,8 @@ Edge cases: valid, invalid length, wrong year, extra chars, longer strings.
 
 from __future__ import annotations
 
+import logging
+
 import pandas as pd
 import pytest
 
@@ -46,3 +48,12 @@ def test_cross_layer_normalization(raw, expected):
         assert legacy is None
     else:
         assert str(legacy).zfill(9) == expected
+
+
+def test_cross_layer_overlong_value_is_rejected_with_log(caplog) -> None:
+    caplog.set_level(logging.WARNING)
+
+    assert normalize_strict("2025123456") is None
+    assert database._normalize_numero_ssa_value("2025123456") is None
+
+    assert "exceder 9 digitos" in caplog.text

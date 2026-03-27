@@ -1,5 +1,6 @@
 # ruff: noqa: E402
 from datetime import datetime
+import logging
 
 import pandas as pd
 
@@ -18,6 +19,14 @@ def test_normalize_numero_ssa_value_various():
     assert _normalize_numero_ssa_value("12345678") is None
     # 10+ digitos: helper numerico legado nao aceita mais sobrecomprimento
     assert _normalize_numero_ssa_value("2025123456") is None
+
+
+def test_normalize_numero_ssa_value_logs_overlong_rejection(caplog) -> None:
+    caplog.set_level(logging.WARNING)
+
+    assert _normalize_numero_ssa_value("2025123456") is None
+
+    assert "exceder 9 digitos" in caplog.text
 
 
 def test_normalize_numero_ssa_dataframe_apply():
@@ -39,6 +48,24 @@ def test_normalize_numero_ssa_dataframe_apply():
         None,
         "202501234",
         "202600654",
+    ]
+
+
+def test_normalize_numero_ssa_dataframe_rejects_short_display_only_values() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": [
+                "123",
+                "202500777.0",
+            ]
+        }
+    )
+
+    out = normalize_numero_ssa_dataframe(df)
+
+    assert list(out["numero_ssa"]) == [
+        None,
+        "202500777",
     ]
 
 
@@ -82,3 +109,11 @@ def test_normalize_numero_ssa_basic():
     # vazios/nulos retornam None
     assert normalize_numero_ssa("") is None
     assert normalize_numero_ssa(None) is None
+
+
+def test_normalize_numero_ssa_display_logs_overlong_rejection(caplog) -> None:
+    caplog.set_level(logging.WARNING)
+
+    assert normalize_numero_ssa("202512345678") is None
+
+    assert "exceder 9 digitos" in caplog.text
