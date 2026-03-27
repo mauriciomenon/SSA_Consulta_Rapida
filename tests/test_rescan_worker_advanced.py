@@ -8,6 +8,7 @@ responsavel por reescanear dados de forma assincrona.
 import json
 import logging
 import os
+import shutil
 import sys
 import threading
 from unittest.mock import MagicMock, patch
@@ -17,6 +18,8 @@ import pytest
 pytest.importorskip(
     "PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste"
 )
+from core.import_staging import build_unique_destination_path  # noqa: E402
+from core.import_staging import stage_external_import_files
 from PyQt6.QtWidgets import QApplication
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -24,7 +27,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from gui.workers.rescan_worker import RescanOutcome  # noqa: E402
-from gui.workers.rescan_worker import RescanWorker, _LogHandler
+from gui.workers.rescan_worker import RescanWorker, _LogHandler  # noqa: E402
 
 # =============================================================================
 # Fixtures
@@ -292,7 +295,30 @@ class TestRescanWorkerIntegration:
         assert len(signal_collector.output_lines) > 0
         assert "Iniciando Reescaneamento" in signal_collector.output_lines[0]
         assert signal_collector.finished_success is True
-        assert rescan_worker.last_outcome == "updated"
+        assert rescan_worker.last_outcome == "no_changes"
+
+    def test_run_success_without_processed_files_marks_no_changes_when_context_exists(
+        self, signal_collector
+    ):
+        worker = RescanWorker("main.py", ".", force_import=False)
+        worker.finished_success.connect(signal_collector.on_finished_success)
+
+        def _mock_importer(**kwargs):
+            callback = kwargs["progress_callback"]
+            callback("start", {"total": 1})
+            callback("finish", {"total": 1, "processed": 0, "errors": []})
+            return True
+
+        try:
+            with patch(
+                "gui.workers.rescan_worker.run_importer_logic", side_effect=_mock_importer
+            ):
+                worker.run()
+            assert signal_collector.finished_success is True
+            assert worker.last_outcome == RescanOutcome.NO_CHANGES
+        finally:
+            if worker._logger_attached:
+                worker._detach_logger()
 
     def test_run_full_without_updates_without_context_emits_success(
         self, rescan_worker, signal_collector
@@ -381,6 +407,42 @@ class TestRescanWorkerIntegration:
         )
         assert not any(
             "Nenhum arquivo novo ou alterado foi encontrado." in line
+            for line in signal_collector.output_lines
+        )
+
+    def test_run_diff_with_runtime_errors_emits_error(self, signal_collector):
+        worker = RescanWorker("main.py", ".", force_import=False)
+        worker.output_line.connect(signal_collector.on_output)
+        worker.finished_success.connect(signal_collector.on_finished_success)
+        worker.finished_error.connect(signal_collector.on_finished_error)
+
+        def _mock_importer(**kwargs):
+            callback = kwargs["progress_callback"]
+            callback("start", {"total": 1})
+            callback("file_error", {"filename": "bad.xlsx", "error": "bad cols"})
+            callback(
+                "finish",
+                {
+                    "total": 1,
+                    "processed": 0,
+                    "errors": [("extraction", "bad.xlsx", "bad cols")],
+                    "deterministic_failure_count": 0,
+                    "rejection_only": False,
+                },
+            )
+            return False
+
+        with patch(
+            "gui.workers.rescan_worker.run_importer_logic", side_effect=_mock_importer
+        ):
+            worker.run()
+
+        assert signal_collector.finished_success is False
+        assert signal_collector.finished_error is not None
+        assert worker.last_outcome == "error"
+        assert "diferencial falhou com erros" in signal_collector.finished_error.lower()
+        assert any(
+            "Reescaneamento Diferencial Falhou" in line
             for line in signal_collector.output_lines
         )
 
@@ -474,13 +536,19 @@ class TestRescanWorkerIntegration:
             assert callable(call_kwargs["should_cancel"])
             assert callable(call_kwargs["progress_callback"])
 
-    def test_run_calls_importer_with_explicit_files(self):
+    def test_run_calls_importer_with_explicit_files(self, tmp_path):
         """Testa que run() encaminha explicit_files no modo de importacao explicita."""
+        docs_dir = tmp_path / "docs_entrada"
+        docs_dir.mkdir()
+        file_a = docs_dir / "a.xlsx"
+        file_b = docs_dir / "b.xlsx"
+        file_a.write_text("a", encoding="utf-8")
+        file_b.write_text("b", encoding="utf-8")
         worker = RescanWorker(
             main_py_path="/path/main.py",
-            project_root="/project",
+            project_root=str(tmp_path),
             force_import=False,
-            explicit_files=("docs_entrada/a.xlsx", "docs_entrada/b.xlsx"),
+            explicit_files=(str(file_a), str(file_b)),
             operation_label="Importacao externa",
         )
         try:
@@ -493,8 +561,8 @@ class TestRescanWorkerIntegration:
 
                 assert call_kwargs["force_import"] is False
                 assert call_kwargs["explicit_files"] == (
-                    "docs_entrada/a.xlsx",
-                    "docs_entrada/b.xlsx",
+                    str(file_a.resolve()),
+                    str(file_b.resolve()),
                 )
         finally:
             if worker._logger_attached:
@@ -526,7 +594,7 @@ class TestRescanWorkerIntegration:
                 staged_legacy = docs_dir / "entrada_legacy.xls"
                 assert staged_file.exists()
                 assert staged_legacy.exists()
-                assert worker.last_outcome == RescanOutcome.UPDATED
+                assert worker.last_outcome == RescanOutcome.NO_CHANGES
                 call_kwargs = mock_importer.call_args[1]
                 assert call_kwargs["explicit_files"] == (
                     str(staged_file),
@@ -535,6 +603,45 @@ class TestRescanWorkerIntegration:
         finally:
             if worker._logger_attached:
                 worker._detach_logger()
+
+    def test_stage_source_files_stops_after_copy_when_cancel_requested(self, tmp_path):
+        docs_dir = tmp_path / "docs_entrada"
+        docs_dir.mkdir()
+        source_dir = tmp_path / "fontes"
+        source_dir.mkdir()
+        source = source_dir / "cancel.xlsx"
+        source.write_text("payload", encoding="utf-8")
+
+        cancel_state = {"should_stop": False}
+        original_copy2 = shutil.copy2
+
+        def _copy_and_cancel(src, dst, *args, **kwargs):
+            cancel_state["should_stop"] = True
+            return original_copy2(src, dst, *args, **kwargs)
+
+        with patch(
+            "core.import_staging.shutil.copy2",
+            side_effect=_copy_and_cancel,
+        ):
+            staged_files, summary = stage_external_import_files(
+                project_root=str(tmp_path),
+                source_files=(str(source),),
+                should_cancel=lambda: cancel_state["should_stop"],
+            )
+        assert staged_files == []
+        assert summary["copied"] == 0
+        assert summary["failed"] == 0
+        assert not (docs_dir / "cancel.xlsx").exists()
+
+    def test_unique_destination_path_uses_reserved_set_for_collisions(self, tmp_path):
+        target = tmp_path / "entrada.xlsx"
+        target.write_text("old", encoding="utf-8")
+        reserved = {str(target.resolve())}
+
+        candidate = build_unique_destination_path(target, reserved_paths=reserved)
+
+        assert candidate.endswith("entrada__1.xlsx")
+        assert os.path.abspath(candidate) in reserved
 
     def test_run_consolidation_operation_moves_files(self, tmp_path, signal_collector):
         docs_dir = tmp_path / "docs_entrada"

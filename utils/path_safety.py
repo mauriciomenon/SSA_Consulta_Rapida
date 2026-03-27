@@ -65,6 +65,7 @@ def ensure_path_is_allowed(
     base: Path | None = None,
     must_exist: bool = False,
     expect_directory: bool | None = None,
+    extra_allowed_roots: Iterable[str | os.PathLike] | None = None,
 ) -> Path:
     """
     Normalize a user-provided path and ensure it stays inside allowed roots.
@@ -96,6 +97,13 @@ def ensure_path_is_allowed(
         candidate = candidate.resolve()
 
     allowed = ALLOWED_ROOTS
+    if extra_allowed_roots:
+        allowed = _unique(
+            [
+                *allowed,
+                *[Path(os.fspath(path)).expanduser() for path in extra_allowed_roots],
+            ]
+        )
     if not any(_is_within(candidate, root) for root in allowed):
         allowed_list = ", ".join(str(r) for r in allowed)
         raise PathSafetyError(
