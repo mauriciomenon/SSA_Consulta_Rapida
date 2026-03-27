@@ -20,6 +20,7 @@ APIs principais
   - nomes antigos continuam existindo para evitar quebra de imports
   - essas fachadas agora seguem o mesmo contrato canonico de 9 digitos
   - entradas curtas nao devem virar SSA valida por prefixo de ano, zero-padding ou outras heuristicas de exibicao
+  - decisao atual do projeto: valor curto invalido deve ser descartado e logado
 
 Motivacao
 - Evitar SSAs invalidos (comprimento incorreto ou ano fora do intervalo).
@@ -32,6 +33,7 @@ Testes relacionados
 - `tests/test_db_reset_and_upsert.py`
 
 Observacoes
-- A camada de persistencia deve sempre usar a funcao numerica `_normalize_numero_ssa_value` (retorna `None` quando invalido).
+- A camada de persistencia deve sempre usar a forma textual canonica do `numero_ssa`.
+- O helper numerico interno `_normalize_numero_ssa_value` existe apenas para compatibilidade de callsites legados e nao define o contrato do banco.
 - A camada de exibicao deve mostrar o valor canonico somente quando ele for valido; entradas invalidas permanecem invalidas.
 
