@@ -23,11 +23,8 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from gui.workers.rescan_worker import (  # noqa: E402
-    RescanOutcome,
-    RescanWorker,
-    _LogHandler,
-)
+from gui.workers.rescan_worker import RescanOutcome  # noqa: E402
+from gui.workers.rescan_worker import RescanWorker, _LogHandler
 
 # =============================================================================
 # Fixtures

@@ -1446,16 +1446,14 @@ def rescan_data(
                 (
                     "Status: Consolidacao de arquivos cancelada."
                     if normalized_kind == "consolidate"
-                    else
-                    "Status: Importacao externa cancelada."
+                    else "Status: Importacao externa cancelada."
                     if is_explicit_import
                     else "Status: Reescaneamento cancelado."
                 ),
                 context=(
                     "consolidate.success.cancelled"
                     if normalized_kind == "consolidate"
-                    else
-                    "explicit_import.success.cancelled"
+                    else "explicit_import.success.cancelled"
                     if is_explicit_import
                     else "rescan.success.cancelled"
                 ),
@@ -1503,16 +1501,14 @@ def rescan_data(
                 (
                     "Status: Consolidacao de arquivos cancelada."
                     if normalized_kind == "consolidate"
-                    else
-                    "Status: Importacao externa cancelada."
+                    else "Status: Importacao externa cancelada."
                     if is_explicit_import
                     else "Status: Reescaneamento cancelado."
                 ),
                 context=(
                     "consolidate.error.cancelled"
                     if normalized_kind == "consolidate"
-                    else
-                    "explicit_import.error.cancelled"
+                    else "explicit_import.error.cancelled"
                     if is_explicit_import
                     else "rescan.error.cancelled"
                 ),
@@ -1527,8 +1523,7 @@ def rescan_data(
             (
                 "Status: Erro na consolidacao de arquivos."
                 if normalized_kind == "consolidate"
-                else
-                "Status: Erro na importacao externa."
+                else "Status: Erro na importacao externa."
                 if is_explicit_import
                 else "Status: Erro no reescaneamento."
             ),
