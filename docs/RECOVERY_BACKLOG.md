@@ -9,6 +9,7 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 1. nao reabrir contrato fechado de `numero_ssa` sem planilha real + pipeline real + teste cross-layer
 2. nao manter docs vivos stale sobre slices ja fechados ou sobre worktree antigo
 3. confirmar worktree limpo antes de qualquer nova frente
+4. nao permitir downgrade de `situacao` em empate de `data_cadastro` no upsert nao-complementar
 
 ### ESTADO OPERACIONAL ATUAL
 1. branch ativa: `dev`
@@ -83,6 +84,30 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 5. regex/XML bruto de `.xlsx` nao prova valor extraido de `numero_ssa`.
 
 ## Update 2026-03-26 22:01 - plano consolidado de pendencias do PR e do repo (DOC_SYNC + DEFERRED_NOTE)
+
+## Update 2026-03-27 18:10 - hotfix anti-downgrade de situacao no upsert (HOTFIX_BLOCKER + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-27 17:40:00 -0300`
+2. fim: `2026-03-27 18:10:00 -0300`
+
+Objetivo do slice:
+1. corrigir regressao real no banco onde `STE` podia voltar para `ADM`.
+2. manter patch minimo no upsert nao-complementar sem refatoracao ampla.
+3. fechar regressao por teste no caminho de upsert e importacao explicita.
+
+Diagnostico objetivo:
+1. no empate de `data_cadastro`, a regra antiga aceitava `>=` sem desempate semantico.
+2. isso permitia que ordem de arquivo sobrescrevesse `situacao` mais forte por uma mais fraca.
+3. caso alvo: `202600654` com risco de `STE -> ADM`.
+
+Decisao aplicada:
+1. adicionar desempate por ranking de `situacao` quando `data_cadastro` empata.
+2. bloquear downgrade (`new_rank < existing_rank`) no empate.
+3. adicionar testes focados para:
+   - `same_date` sem downgrade em upsert
+   - `same_date` com upgrade permitido
+   - importacao explicita sem downgrade em empate de data
 
 ## Update 2026-03-27 16:45 - sprint GUI final aterrado e docs historicos em reorganizacao (STABILITY_PATCH + DOC_SYNC)
 

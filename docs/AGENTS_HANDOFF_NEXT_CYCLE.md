@@ -2,7 +2,7 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-27 16h45
+## CURRENT TRUTH 2026-03-27 18h10
 
 - Leitura rapida:
   1. branch alvo: `dev`
@@ -17,11 +17,12 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   5. so depois responder threads cujo status mudou de verdade
 - Prioridade operacional:
   1. `P0`: manter fechado o contrato de `numero_ssa` sem reabrir heuristica ou truncagem
-  2. `P1`: revisar os hotspots restantes da thread principal apos o sprint GUI
-  3. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
-  4. `P1`: endurecer rollback/error boundary residual em `database*`
-  5. `P1`: auditar testes viciados no fluxo critico de dados/CLI
-  6. `P2`: convergir helper local de data em `database_upsert_logic.py`
+  2. `P0`: manter fechado o contrato anti-downgrade de `situacao` em empate de `data_cadastro`
+  3. `P1`: revisar os hotspots restantes da thread principal apos o sprint GUI
+  4. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
+  5. `P1`: endurecer rollback/error boundary residual em `database*`
+  6. `P1`: auditar testes viciados no fluxo critico de dados/CLI
+  7. `P2`: convergir helper local de data em `database_upsert_logic.py`
 - Sprint GUI entregue nesta frente:
   1. `[f]` no cabecalho sincronizado com filtros avancados equivalentes
   2. dedupe do resumo `Filtros ativos`
@@ -82,6 +83,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   3. `31dc9c99` `STABILITY_PATCH: move derivadas sync off ui thread`
   4. `9983a757` `STABILITY_PATCH: tighten async import gui contract`
   5. `b343c621` `STABILITY_PATCH: finish gui sam status and details sprint`
+  6. `a34a54b3` `HOTFIX_BLOCKER: prevent same-date situacao downgrade`
 - Estado do Kluster local:
   1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   2. timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo

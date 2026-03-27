@@ -2,7 +2,7 @@
 
 Release/tag publicada mais recente na branch `dev`: `v4.36`.
 
-## Current Truth (2026-03-27 16:45 -0300)
+## Current Truth (2026-03-27 18:10 -0300)
 
 - Estado operacional:
   - metadata local ativa: `4.36`
@@ -24,6 +24,11 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - o numero da SSA no detalhe copia para a area de transferencia por duplo clique
   - a area de derivadas ficou mais larga e passou a usar arvore textual com `numero (STATUS)`
   - `load_other_database()` passou a validar o arquivo em background no runtime normal
+- Hotfix de banco entregue nesta frente:
+  - upsert nao-complementar agora evita downgrade de `situacao` quando `data_cadastro` empata
+  - caso real protegido: manter `STE` e bloquear sobrescrita para `ADM` em empate de data
+  - tie-breaker por ranking de `situacao` no merge de mesma data
+  - regressao coberta em testes de upsert e importacao explicita
 - Follow-up apos o sprint GUI:
   - continuar a varredura de chamadas pesadas restantes na thread principal
   - manter o detalhe de derivadas textual simples; um grafo richer fica como refinamento futuro, nao como patch minimo obrigatorio
@@ -38,6 +43,7 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - a busca textual nao usa nem documenta operadores textuais legados
 - Prioridades reais antes da proxima tag:
   - `P0`: manter fechado o contrato de `numero_ssa` sem reabrir truncagem, heuristica de exibicao ou teste synthetic
+  - `P0`: manter fechado o contrato anti-downgrade de `situacao` para empate de `data_cadastro`
   - `P1`: revisar os hotspots restantes da thread principal apos o sprint GUI
   - `P1`: decidir a paridade CLI vs GUI para diff/full import e discovery
   - `P2`: tratar hardening residual de rollback/error boundary em `database*`
