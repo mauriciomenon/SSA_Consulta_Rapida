@@ -1,10 +1,11 @@
 # Build Tooling Lessons Learned (PyInstaller/Nuitka/PyOxidizer)
 
-## Current Truth (v4.33)
+## Current Truth (v4.36)
 
-- Sync: `2026-03-11 23:35 -0300`
+- Sync: `2026-03-27 04:10 -0300`
 - Objetivo: registrar erros reais, causa-raiz, fix aplicado e comandos de validacao.
 - Escopo: Windows 11 + Debian 13 via WSL, com build via `uv`.
+- Regra atual: copia de DB/Excel locais para build agora e opt-in no script; usar `--with-local-data` no script quando o operador realmente quiser empacotar dados locais. O script repassa `--allow-local-data` apenas para `copy_data_to_builds.py`.
 - Relatorio operacional consolidado:
   - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 - Runbook operacional:

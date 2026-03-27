@@ -777,11 +777,28 @@ def insert_dataframe_with_smart_upsert(
     if isinstance(real_df, pd.DataFrame) and real_df.empty:
         return True
 
+    if not isinstance(real_df, pd.DataFrame):
+        logger.error(
+            "insert_dataframe_with_smart_upsert requer DataFrame no caminho novo; recebido: %s",
+            type(real_df).__name__,
+        )
+        return False
+    if not isinstance(db_path, str) or not db_path.strip():
+        logger.error(
+            "insert_dataframe_with_smart_upsert requer db_path str nao vazio; recebido: %r",
+            db_path,
+        )
+        return False
+    if not isinstance(table_name, str) or not table_name.strip():
+        logger.error(
+            "insert_dataframe_with_smart_upsert requer table_name str nao vazio; recebido: %r",
+            table_name,
+        )
+        return False
+
     # Dispatch: verificar se modo otimizado esta ativo
     if _use_optimized_mode:
         try:
-            assert isinstance(real_df, pd.DataFrame)
-            assert isinstance(db_path, str)
             from .database_optimized import insert_dataframe_optimized
 
             return insert_dataframe_optimized(real_df, db_path, table_name)
@@ -791,8 +808,8 @@ def insert_dataframe_with_smart_upsert(
     else:
         # Modo padrao
         try:
-            assert isinstance(real_df, pd.DataFrame)
-            assert isinstance(db_path, str)
+            # A implementacao de upsert aplica prepare_dataframe_for_upsert()
+            # internamente, incluindo whitelist e normalizacao canonica.
             return _up.insert_dataframe_with_smart_upsert_impl(
                 real_df, db_path, table_name
             )
@@ -803,15 +820,20 @@ def insert_dataframe_with_smart_upsert(
 
 from . import numero_ssa_utils as _numero_ssa_utils  # noqa: E402
 from .numero_ssa_utils import normalize_numero_ssa as _normalize_numero_ssa_display  # noqa: E402
-from .numero_ssa_utils import (
-    normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe,
-)  # noqa: E402
+from .numero_ssa_utils import normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe  # noqa: E402
+from .numero_ssa_utils import normalize_numero_ssa_dataframe_storage as _normalize_numero_ssa_dataframe_storage  # noqa: E402
 
 _normalize_numero_ssa_value = _numero_ssa_utils._normalize_numero_ssa_int_legacy
 
 
 def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:  # retrocompat
     return _normalize_numero_ssa_dataframe(df)
+
+
+def normalize_numero_ssa_dataframe_storage(
+    df: pd.DataFrame,
+) -> pd.DataFrame:  # retrocompat
+    return _normalize_numero_ssa_dataframe_storage(df)
 
 
 def normalize_numero_ssa(value) -> str | None:  # retrocompat

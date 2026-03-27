@@ -5,6 +5,7 @@ Covers equivalence between:
   * core.numero_ssa.normalize_strict
   * utils.robust_importer path cleaning
   * armazenamento.database._normalize_numero_ssa_value (legacy) when value is already valid
+  * armazenamento.database.normalize_numero_ssa_dataframe_storage (text storage path)
 
 Edge cases: valid, invalid length, wrong year, extra chars, longer strings.
 """
@@ -48,6 +49,11 @@ def test_cross_layer_normalization(raw, expected):
         assert legacy is None
     else:
         assert str(legacy).zfill(9) == expected
+
+    frame = database.normalize_numero_ssa_dataframe_storage(
+        pd.DataFrame({"numero_ssa": [raw]})
+    )
+    assert frame.iloc[0]["numero_ssa"] == expected
 
 
 def test_cross_layer_overlong_value_is_rejected_with_log(caplog) -> None:

@@ -328,7 +328,7 @@ Componentes extraidos (estado atual):
 No arquivo `database.py` permanecem apenas:
 - Conexao (`get_db_connection`) e inicializacao (`initialize_database`).
 - Facades publicas: `insert_dataframe_to_db`, `insert_dataframe_with_smart_upsert`.
-- Reexports simples de normalizacao (`normalize_numero_ssa`, `normalize_numero_ssa_dataframe`).
+- Reexports simples de normalizacao (`normalize_numero_ssa`, `normalize_numero_ssa_dataframe_storage` e alias de nome `normalize_numero_ssa_dataframe`, todos com retorno textual canonico).
 - Delegacoes finas de integridade/validacao (sem wrappers intermediarios de upsert internos removidos na etapa de reducao de complexidade).
 
 Melhorias adicionais nesta etapa:

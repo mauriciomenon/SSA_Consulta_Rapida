@@ -9,7 +9,8 @@ API publica (estavel):
  - normalize_numero_ssa_strict(value) -> str | None
  - normalize_numero_ssa_storage(value) -> str | None
  - normalize_numero_ssa(value) -> str | None
- - normalize_numero_ssa_dataframe(df) -> pd.DataFrame
+ - normalize_numero_ssa_dataframe_storage(df) -> pd.DataFrame
+ - normalize_numero_ssa_dataframe(df) -> pd.DataFrame (alias legado de nome, ainda textual)
  - batch_normalize_series(series) -> pd.Series (str|None)
 
 Compatibilidade interna:
@@ -37,6 +38,7 @@ __all__ = [
     "normalize_numero_ssa_storage",
     # nomes publicos de compatibilidade
     "normalize_numero_ssa",
+    "normalize_numero_ssa_dataframe_storage",
     "normalize_numero_ssa_dataframe",
     # util de lote
     "batch_normalize_series",
@@ -99,10 +101,16 @@ def bulk_int_or_none(
     return [_normalize_numero_ssa_int_legacy(v) for v in values]
 
 
-def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+def normalize_numero_ssa_dataframe_storage(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalize numero_ssa column to canonical text storage representation."""
     if "numero_ssa" not in df.columns:
         return df
     out = df.copy()
     mapped = out["numero_ssa"].map(normalize_numero_ssa_storage)
     out["numero_ssa"] = mapped.astype("object").where(mapped.notna(), None)
     return out
+
+
+def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Legacy name alias for textual storage normalization of numero_ssa."""
+    return normalize_numero_ssa_dataframe_storage(df)

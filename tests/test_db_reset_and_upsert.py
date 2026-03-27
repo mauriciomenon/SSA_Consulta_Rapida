@@ -105,7 +105,6 @@ def test_insert_dataframe_with_smart_upsert(tmp_path):
     assert df.iloc[0]["situacao"] == "NEW"
     assert df.iloc[0]["setor_executor"] == "MEL2"
 
-
 def test_insert_dataframe_with_smart_upsert_handles_duplicate_numero_ssa_in_chunk(
     tmp_path,
 ):
