@@ -2,6 +2,12 @@
 
 ## Visão Geral
 
+## Atualizacao 2026-03-27
+
+- `RescanWorker` tambem sustenta o fluxo de importacao explicita disparado pela GUI.
+- O sync manual de derivadas agora roda fora do thread principal em runtime normal, com entrega do resultado de volta para a GUI.
+- O estado de fila/execucao passou a ser mais explicito no contrato da GUI para evitar falso sinal de `db_updated` imediato.
+
 Este documento descreve a arquitetura, interfaces e APIs dos workers assíncronos utilizados na interface gráfica do sistema SSA Consulta Rápida.
 
 ## Índice
@@ -523,4 +529,4 @@ python -m pytest tests/test_workers_advanced.py::TestWorkerPerformance -v
 
 ---
 
-*Documentação gerada automaticamente para o branch `codex/dev-filtros-stability`*
+*Documentacao sincronizada com `dev` em 2026-03-27.*

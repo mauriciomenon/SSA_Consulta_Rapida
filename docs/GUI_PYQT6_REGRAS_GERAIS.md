@@ -15,6 +15,12 @@
   3. sem alterar posicionamento global da janela
 - Em listas de colunas para filtros, evitar placeholders de perfil e ruido tecnico.
 
+## Atualizacao 2026-03-27 (filtros e thread principal)
+- O marcador `[f]` no cabecalho deve refletir tanto filtro de coluna quanto filtro avancado equivalente.
+- O resumo `Filtros ativos` nao deve duplicar o mesmo conceito vindo de mais de uma fonte de estado.
+- O prompt `Filtrar "nome da coluna"` deve expor hint curto de sintaxe no proprio dialogo.
+- Operacao manual pesada de derivadas nao deve bloquear a GUI; runtime normal deve usar background e entrega por sinais/timer.
+
 ## 1) Escopo e disciplina de mudanca
 - Diagnosticar antes de editar, com evidencia objetiva.
 - Aplicar patch minimo por slice.

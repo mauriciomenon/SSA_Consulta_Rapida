@@ -5,6 +5,11 @@
 - Versao de referencia: `4.36`.
 - Esta pagina e a entrada curta da pasta `docs/`.
 - Navegacao oficial: `docs/INDEX.md`.
+- Current truth sincronizado com commits anteriores desta frente:
+  - filtros visuais da GUI foram sincronizados com filtros avancados
+  - a macro `Baixar` agora exclui `SAD/SCA/SES/STE`
+  - o prompt de filtro por coluna ganhou hint padronizado
+  - o sync manual de derivadas saiu do thread principal em runtime normal
 
 ## Regras de interpretacao
 
@@ -37,6 +42,7 @@
 - `docs/FILTER_TAB_OPTIMIZATIONS.md`
 - `docs/GUI_ASYNC_LOADING_GUARDRAILS.md`
 - `docs/WORKERS_API_DOCUMENTATION.md`
+- `README.md` (topo vivo do sprint atual)
 
 ### Build e distribuicao
 

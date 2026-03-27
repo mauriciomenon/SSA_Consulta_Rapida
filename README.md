@@ -2,13 +2,25 @@
 
 Release/tag publicada mais recente na branch `dev`: `v4.36`.
 
-## Current Truth (2026-03-26 09:15 -0300)
+## Current Truth (2026-03-27 03:35 -0300)
 
 - Estado operacional:
   - metadata local ativa: `4.36`
   - ultima tag publicada em `dev`: `v4.36`
-  - branch `dev` esta sincronizada com os slices recentes de `numero_ssa`, importacao explicita e provas de update/query
+  - branch `dev` esta sincronizada com os slices recentes de `numero_ssa`, importacao explicita, provas de update/query e o sprint inicial de filtros/GUI descrito abaixo
   - `4.36` ja esta publicado em metadata, runtime, docs ativos e release/tag
+- Sprint GUI ja entregue em commits anteriores desta frente:
+  - `[f]` no cabecalho agora sincroniza filtros por coluna e filtros avancados
+  - resumo `Filtros ativos` deixou de duplicar entradas equivalentes
+  - macro `Baixar` passou a excluir `SAD` alem de `SCA`, `SES` e `STE`
+  - o prompt `Filtrar "nome da coluna"` ganhou hint `Aceita termo, !termo para exclusao` e largura minima padronizada
+  - `update_derivadas_from_sources()` saiu do thread principal em runtime normal
+- Sprint GUI ainda pendente:
+  - borda destacada na caixa de filtros ativos
+  - caixa nova de status `filtrado/total`
+  - botao `Abrir SAM`
+  - hyperlink na coluna `#`
+  - detalhe da SSA com `situacao` expandida e arvore de derivadas mais clara
 - Validacao atual:
   - `uv run --python 3.13 python -m py_compile` em tracked Python -> verde
   - `uv run --python 3.13 ruff check .` -> verde
@@ -20,7 +32,7 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - a busca textual nao usa nem documenta operadores textuais legados
 - Prioridades reais antes da proxima tag:
   - `P0`: manter fechado o contrato de `numero_ssa` sem reabrir truncagem, heuristica de exibicao ou teste synthetic
-  - `P1`: provar por teste negativo que arquivo mais antigo nao sobrescreve estado novo no banco
+  - `P1`: concluir o sprint GUI aberto sem reintroduzir travamento no thread principal
   - `P1`: decidir a paridade CLI vs GUI para diff/full import e discovery
   - `P2`: tratar hardening residual de rollback/error boundary em `database*`
 - Docs vivos para continuidade:
@@ -588,10 +600,11 @@ Filtro “5 opcoes” (implementado)
 - Dica de busca (TL;DR) legivel em claro/escuro
 - Persistencia do tema em `config/gui_main_preferences.json`
 
-## GUI – filtros (TL;DR)
+## GUI - filtros (TL;DR)
 - Separe termos por virgulas: `foo, bar`
 - Modos por termo: contem (`foo`), comeca (`^foo`), termina (`foo$`), igual (`=foo`), regex (`~padrao`), excluir (`!termo`)
-- Por coluna: clique direito no cabecalho para abrir o painel; campos exibem a mesma dica TL;DR
+- Por coluna: clique direito no cabecalho para abrir o painel; o dialogo agora exibe hint explicito `Aceita termo, !termo para exclusao`
+- O marcador `[f]` no cabecalho reflete tanto filtro por coluna quanto filtro avancado equivalente
 
 ## Importacao – robustez
 - Ignora arquivos sem colunas obrigatorias (ex.: `numero_ssa`) com log
