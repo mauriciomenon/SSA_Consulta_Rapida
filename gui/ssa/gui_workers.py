@@ -1483,9 +1483,7 @@ def rescan_data(
             if is_explicit_import
             else "Status: Reescaneamento em andamento."
         ),
-        context=(
-            "explicit_import.started" if is_explicit_import else "rescan.started"
-        ),
+        context=("explicit_import.started" if is_explicit_import else "rescan.started"),
     )
     with _GLOBAL_WORKERS_LOCK:
         if worker not in global_workers:
