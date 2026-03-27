@@ -53,6 +53,7 @@
 - `docs/NEXT_CHAT_MIGRATION.md`
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - `docs/HISTORICO_RELEASES.md`
+- `docs/NUNCA_CONFIE_IA.md`
 
 ## Primeira leitura obrigatoria no proximo chat
 
@@ -60,15 +61,16 @@
 2. `docs/NEXT_CHAT_MIGRATION.md`
 3. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 4. `docs/RECOVERY_BACKLOG.md`
+5. `docs/NUNCA_CONFIE_IA.md`
 
 ## Passo 0 obrigatorio antes de novo patch
 
-1. fazer o Kluster funcionar nesta maquina/sessao antes de novos patches
-2. se necessario, revisar/ajustar a configuracao MCP ligada ao Kluster
-3. referencias:
+1. ler `docs/RECOVERY_BACKLOG.md` e `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` pelo topo
+2. revisar se existe slice local aberto antes de criar frente nova
+3. usar `docs/NUNCA_CONFIE_IA.md` como checklist antes de tocar em fluxos criticos de dados
+4. referencias:
    - `.github/instructions/kluster-code-verify.instructions.md`
-   - `docs/CCR_LLM_PROVIDERS_SETUP.md`
-   - `docs/OPENCODE_CONFIG.md`
+   - `docs/NUNCA_CONFIE_IA.md`
 
 ## Tooling padrao
 

@@ -2,27 +2,30 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-26 09h15
+## CURRENT TRUTH 2026-03-26 22h01
 
 - Leitura rapida:
   1. branch alvo: `dev`
   2. metadata local ativa: `4.36`
   3. ultima tag publicada em `dev`: `v4.36`
-  4. existe um slice local aberto com CI/storage/docs e fechamento de PR ainda pendente
-- PASSO 0 OBRIGATORIO:
-  1. revisar o slice local aberto do PR `dev -> main`
-  2. responder as threads do PR por status claro
-  3. decidir o destino de `.envrc` e classificar residuos locais antes de commit/push
+  4. existe um slice local aberto de `numero_ssa`/display/storage sem commit
+- PASSO 0 OBRIGATORIO ANTES DE QUALQUER NOVA FRENTE:
+  1. revisar o diff local aberto do slice `numero_ssa`
+  2. commit atomico e push do slice aberto
+  3. checar bots/checks do PR `dev -> main`
+  4. so depois responder threads cujo status mudou de verdade
 - Prioridade operacional:
-  1. `P0`: blindar storage contra valores com letras que possam cair em limpeza legacy
+  1. `P0`: aterrar o slice aberto que separa strict, storage e exibicao
   2. `P1`: resolver aliases validos em `_needs_db_only_derivadas_sync`
   3. `P1`: reduzir custo de `sanitize_textual_null_sentinels`
-  4. `P2`: convergir helper local de data em `database_upsert_logic.py`
+  4. `P1`: endurecer rollback/error boundary em `database*`
+  5. `P2`: convergir helper local de data em `database_upsert_logic.py`
 - Estado tecnico fechado:
   1. o `.0` vazava por regras duplicadas no write path
   2. a normalizacao de storage foi centralizada
   3. o artefato decimal canonico `NNNNNNNNN.0` agora morre no inicio do fluxo
   4. salvaguardas posteriores de id canonico devem ser mantidas
+  5. `numero_ssa` real validado nas planilhas medidas segue em `9 digitos`; a narrativa de `10 digitos` foi erro de inferencia/teste synthetic
 - Integridade do handoff:
   1. nada foi perdido na reorganizacao dos docs
   2. snapshots antigos permanecem abaixo como historico
@@ -48,213 +51,24 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   4. `docs/NEXT_CHAT_MIGRATION.md`
   5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
   6. `docs/RECOVERY_BACKLOG.md`
-  7. `docs/GUIA_DISTRIBUICAO.md`
-  8. `.github/instructions/kluster-code-verify.instructions.md`
-  9. `docs/CCR_LLM_PROVIDERS_SETUP.md`
-  10. `docs/OPENCODE_CONFIG.md`
+  7. `docs/NUNCA_CONFIE_IA.md`
+  8. `docs/GUIA_DISTRIBUICAO.md`
+  9. `.github/instructions/kluster-code-verify.instructions.md`
 - Commits recentes desta frente:
-  1. `bdf612d0` `STABILITY_PATCH: close pytest ty bandit minfix slice`
-  2. `f4af8d20` `STABILITY_PATCH: stabilize simplified filter contract and derivadas alias preflight`
-  3. `0d823b25` `STABILITY_PATCH: align simple insert with storage sanitization`
-  4. `0bdee642` `STABILITY_PATCH: isolate CLI loop subprocess DB fixture`
+  1. `f9c71b77` `HOTFIX_BLOCKER: remove synthetic 10-digit SSA path`
+  2. `6f8f9600` `DOC_SYNC: align numero_ssa docs and import tests`
+  3. `a908334f` `HOTFIX_BLOCKER: import explicit external files into DB`
 - Estado do Kluster local:
   1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   2. timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo
   3. Kluster continua obrigatorio como gate apos alteracoes
+- Pendencia documental nova:
+  1. usar `docs/NUNCA_CONFIE_IA.md` como checklist de contencao antes de tocar em fluxos criticos de dados
 
-## HISTORICAL SNAPSHOT 2026-03-23 19h01
+## HISTORICAL SNAPSHOTS
 
-- Objetivo consolidado desta rodada:
-  1. corrigir a regressao visivel de `<NA>` em exibicao.
-  2. fechar o mesmo vazamento de contrato em filtro por coluna, filtros avancados, derivadas e subset dependente de setor.
-  3. fechar o diagnostico local do full rescan que no desktop de trabalho apareceu preso em `439` arquivos.
-- Estado confirmado:
-  1. branch alvo: `dev`.
-  2. contexto funcional que gerou a regressao:
-     - `06a06e2f` `STABILITY_PATCH: keep nullable ints on DB reads`
-     - `ef5c7680` `STABILITY_PATCH: keep numero_ssa storage canonical`
-  3. commits que fecharam a regressao e a auditoria residual:
-     - `d5a9e137` `HOTFIX_BLOCKER: fix nullable display and filter contract`
-     - `25c64c58` `STABILITY_PATCH: close residual nullable filter paths`
-  4. residuos locais fora de escopo continuam presentes:
-     - `M .python-version`
-     - `M config/cli_enhancements.json`
-     - `M config/gui_main_preferences.json`
-     - `M data/ssas.db`
-     - `M pyproject.toml`
-     - `M requirements_build.txt`
-     - `?? .backups/*`
-     - `?? config/cli_enhancements.json.lock`
-     - `?? docs_entrada/*.xlsx`
-     - `?? *.bak.*`
-- Diagnostico tecnico consolidado:
-  1. o `<NA>` vinha de `pd.NA` escapando de `query_db()` para a exibicao.
-  2. o erro primario estava em [utils/formatting.py](C:/Users/mauri/git/SSA_Consulta_Rapida/utils/formatting.py):
-     - `_is_nullish()` cobria `None`, `NaN`, `NaT`
-     - nao cobria `pd.NA`
-  3. a segunda camada do problema estava em caminhos funcionais com `astype(str)`:
-     - [gui/mixins/filter_gui_ssa_mixin.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/mixins/filter_gui_ssa_mixin.py)
-     - [gui/ssa/gui_filters_advanced_logic.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/ssa/gui_filters_advanced_logic.py)
-     - [gui/gui_ssa.py](C:/Users/mauri/git/SSA_Consulta_Rapida/gui/gui_ssa.py)
-  4. o patch final principal desta rodada:
-     - `pd.NA` agora vira vazio na exibicao compartilhada
-     - filtro por coluna e filtros avancados usam `astype("string").fillna("")`
-     - sort de `num_reprogramacoes` usa `Float64`/texto vazio coerentes com `pd.NA`
-  5. auditoria residual fechada:
-     - agrupamento de derivadas terminais nao usa mais `astype(str)` cru
-     - subset dependente de setor na UI avancada nao materializa `"<NA>"`
-  6. mudancas intencionais que permanecem:
-     - `numero_ssa` textual/canonico
-     - semanas e reprogramacoes como inteiros nullable no readback
-  7. diagnostico local do full rescan fechado:
-     - discovery atual usa `.xlsx` na raiz de `docs_entrada` e, opcionalmente, em `processadas/`
-     - `.xls` legado continua fora do pipeline principal
-     - nesta maquina, a contagem real ficou:
-       - `625` arquivos totais em `docs_entrada`
-       - `489` arquivos `.xlsx` recursivos
-       - `489` arquivos `.xlsx` elegiveis na raiz
-       - `0` arquivos `.xlsx` em `processadas/`
-       - `135` arquivos `.xls` ignorados pelo pipeline principal
-     - `_get_files_to_process(..., force_import=True)` devolveu `489`
-     - leitura atual: `439` nao ficou sustentado localmente como bug de hash/cache; a hipotese principal passa a ser discovery/corpus elegivel no desktop de trabalho
-- Validacao consolidada:
-  1. `py_compile`, `ruff` e `ty` verdes no escopo alterado.
-  2. `tests/test_formatting.py` -> `4 passed`.
-  3. `tests/test_formatting.py tests/test_gui_filter_logic.py -k "nullable or num_reprogramacoes or column_filter or advanced_filter or format"` -> `32 passed, 142 deselected`.
-  4. `tests/test_database.py tests/test_formatting.py -k "query_db or format"` -> `9 passed, 8 deselected`.
-  5. `tests/test_gui_filters_advanced_logic.py` -> `16 passed`.
-  6. `tests/test_gui_table_render_resilience.py` -> `11 passed`.
-  7. `tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py -k "derivada_all_ste or divisao or refresh_advanced_filter_options_excludes_na_literal_from_sector_values"` -> `4 passed, 183 deselected`.
-  8. `tests/test_caching.py tests/test_import_run_report.py tests/test_import_derivadas_trigger.py tests/test_rescan_worker_advanced.py` -> `62 passed`.
-  9. `tests/test_database.py tests/test_formatting.py tests/test_robust_importer.py tests/test_derivadas_sync.py` -> `50 passed`.
-  10. `tests/test_gui_filters_advanced_logic.py tests/test_gui_table_render_resilience.py` -> `27 passed`.
-  11. `tests/test_workers_advanced.py tests/test_main_streamlit_launcher.py tests/test_open_docs_folder_nonblocking.py tests/test_cli_loop_filter_rounds.py` -> `75 passed`.
-  12. seletores de contrato em `tests/test_gui_filter_logic.py` para nullable/sort -> `7 passed, 164 deselected`.
-  13. `tests/test_gui_filter_logic.py` inteiro continua com limitacao de harness neste ambiente: timeout seguido de `OSError: [Errno 22] Invalid argument` em `sys.stdout.flush()`, sem finding funcional novo do runtime.
-- Pendencia ainda aberta para o proximo ciclo:
-  1. decidir se o contrato de importacao deve permanecer `root .xlsx only` ou se precisa incluir subpastas arbitrarias e/ou `.xls`.
-  2. se a politica mudar, abrir slice minimo em discovery/import com teste de contrato dedicado.
-  3. so depois decidir se ainda sobra alguma auditoria adicional de `astype(str)` residual.
-
-## HISTORICAL SNAPSHOT 2026-03-22 23h20
-
-- Objetivo consolidado desta rodada:
-  1. fechar o bug real do salto para SSA fora do `df_exibido` no fluxo assincrono.
-  2. estabilizar a integracao entre facade da janela, mixin de filtro e detalhes.
-  3. travar regressao com cobertura maior e repro manual do caso real.
-- Estado confirmado:
-  1. branch alvo: `dev`.
-  2. commit funcional novo:
-     - `f03b9721` `HOTFIX_BLOCKER: stabilize async jump to SSA`
-  3. residuos locais fora de escopo continuam presentes:
-     - `M .python-version`
-     - `M config/cli_enhancements.json`
-     - `M config/gui_main_preferences.json`
-     - `M data/ssas.db`
-     - `M pyproject.toml`
-     - `M requirements_build.txt`
-     - `?? .backups/*`
-     - `?? config/cli_enhancements.json.lock`
-     - `?? docs_entrada/*.xlsx`
-     - `?? *.bak.*`
-- Diagnostico tecnico consolidado:
-  1. o bug real estava no fluxo:
-     - `_jump_to_ssa()` -> `initiate_filtering()` -> `on_filter_finished()` -> retorno ao salto
-  2. no modo assincrono, o salto tentava continuar cedo demais quando a SSA alvo ainda nao estava em `df_exibido`.
-  3. a tentativa inicial de hotfix so ficou correta depois que a matriz maior expôs dois regressos laterais:
-     - decimal artifact em `_normalize_ssa_value`
-     - facade `_jump_to_ssa` sem aceitar `_allow_refilter`
-  4. o patch final:
-     - guarda jump pendente com `request_id`
-     - consome o jump so depois do resultado ativo do filtro
-     - preserva o contrato anterior de normalizacao da GUI
-  5. licao operacional:
-     - nao confiar em teste de helper/call_count para fluxo que cruza facade + mixin + render + detalhes
-     - usar matriz maior e repro manual sempre que houver mudanca em navegacao/assincronismo
-- Validacao consolidada:
-  1. `py_compile`, `ruff` e `ty` verdes no escopo.
-  2. `tests/test_gui_filter_logic.py tests/test_gui_table_render_resilience.py` -> `177 passed, 1 skipped`.
-  3. repro manual do caso alvo:
-     - `resolved=True`
-     - `page=2`
-     - `details_ssa=100157`
-     - `selected_rows=[12]`
-     - `pending_jump=None`
-
-## HISTORICAL SNAPSHOT 2026-03-21 08h20
-
-- Objetivo consolidado desta rodada:
-  1. fechar o bug real de lentidao no refinamento sequencial do CLI.
-  2. manter o patch minimo no `core`, sem reabrir parser nem renderer.
-  3. separar esta correcao da instrumentacao de GUI que ficou de apoio diagnostico.
-- Estado confirmado:
-  1. branch alvo: `dev`.
-  2. commit funcional novo:
-     - `ebebc1f7` `STABILITY_PATCH: drop inherited search cache in filtered dfs`
-  3. residuos locais fora de escopo continuam presentes:
-     - `M .python-version`
-     - `M config/cli_enhancements.json`
-     - `M config/gui_main_preferences.json`
-     - `M data/ssas.db`
-     - `M pyproject.toml`
-     - `M requirements_build.txt`
-     - `?? .backups/*`
-     - `?? config/cli_enhancements.json.lock`
-     - `?? docs_entrada/*.xlsx`
-     - `?? *.bak.*`
-- Diagnostico tecnico consolidado:
-  1. o repro `svp -> mel4` no CLI estava lento por cache herdado em `df.attrs`, nao por parser.
-  2. `filter_dataframe()` retornava subconjuntos ainda marcados com `_filter_search_cache` e `_filter_search_token` da base anterior.
-  3. isso fazia o segundo refinamento operar com cache montado sobre o DataFrame original inteiro.
-  4. o patch atual:
-     - remove attrs de cache do resultado filtrado
-     - centraliza o contrato em `FilterSearchCacheManager`
-     - deixa o proximo passo reconstruir cache sobre o subconjunto real
-  5. ganho medido:
-     - segundo filtro `mel4` apos `svp`: `11313 ms` -> `30.16 ms`
-     - total instrumentado da sequencia: `238.83 ms`
-- Validacao consolidada:
-  1. `py_compile`, `ruff` e `ty` verdes no escopo.
-  2. `tests/test_app_logic_filter_contract.py` -> `10 passed`.
-  3. foco de CLI relacionado ao repro -> `7 passed, 25 deselected`.
-
-## HISTORICAL SNAPSHOT 2026-03-21 00h20
-
-- Objetivo consolidado desta rodada:
-  1. fechar o ajuste de UX do CLI para atalhos de busca/filtro.
-  2. medir a pipeline de filtros da GUI com banco real.
-  3. registrar a proxima frente de performance de render.
-- Estado confirmado:
-  1. branch alvo: `dev`.
-  2. commit funcional novo:
-     - `19e68ba5` `STABILITY_PATCH: clarify CLI shortcuts and time filter refresh`
-  3. residuos locais fora de escopo continuam presentes:
-     - `M .python-version`
-     - `M config/cli_enhancements.json`
-     - `M config/gui_main_preferences.json`
-     - `M data/ssas.db`
-     - `M pyproject.toml`
-     - `M requirements_build.txt`
-     - `?? .backups/*`
-     - `?? config/cli_enhancements.json.lock`
-     - `?? docs_entrada/*.xlsx`
-     - `?? *.bak.*`
-- Diagnostico tecnico consolidado:
-  1. contrato do CLI agora esta claro:
-     - `v` = voltar
-     - `x <termo>` = remover termo
-     - `x` sozinho mostra uso
-  2. o problema de performance percebida na GUI nao se confirmou como parser/cache:
-     - o custo dominante esta no render
-     - `display_current_page(...)` ficou entre `~782 ms` e `~978 ms` nos cenarios medidos
-  3. custos secundarios:
-     - filtros por coluna: `~68-78 ms`
-     - exclusao terminal: `~56-64 ms`
-     - sync de combo rapido: `~52-70 ms`
-  4. isso explica a sensacao de congelamento entre refinamentos de filtro, mesmo sem reproduzir `8s` inteiros no harness
-- Validacao consolidada:
-  1. `py_compile`, `ruff` e `ty` verdes no escopo.
-  2. `tests/test_cli_loop_filter_rounds.py` no foco do slice -> `19 passed, 11 deselected`.
+O historico detalhado desta frente permanece centralizado em `docs/RECOVERY_BACKLOG.md`.
+Este handoff deve carregar apenas o topo vivo, para evitar divergencia e duplicacao entre documentos de continuidade.
 - Politica de render proposta para o proximo ciclo:
   1. medir e reduzir primeiro o custo de render da tabela, sem mexer no parser.
   2. considerar early-exit quando o resultado filtrado nao muda a pagina efetiva.
