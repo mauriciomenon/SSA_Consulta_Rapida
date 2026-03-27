@@ -2,7 +2,7 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-27 00h52
+## CURRENT TRUTH 2026-03-27 03h35
 
 - Leitura rapida:
   1. branch ativa: `dev`
@@ -22,10 +22,11 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `docs/README.md`
 - Prioridade imediata:
   1. `P0`: manter fechado o contrato de `numero_ssa` sem reabrir truncagem ou regra paralela
-  2. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
-  3. `P1`: endurecimento residual de rollback/error boundary em `database*`
-  4. `P1`: auditoria de testes viciados em dados/CLI
-  5. `P2`: helper local de data e hardening residual de tooling/docs
+  2. `P1`: concluir o sprint GUI aberto sem reintroduzir carga pesada no thread principal
+  3. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
+  4. `P1`: endurecimento residual de rollback/error boundary em `database*`
+  5. `P1`: auditoria de testes viciados em dados/CLI
+  6. `P2`: helper local de data e hardening residual de tooling/docs
 - O que ja esta fechado:
   1. drift de normalizacao no write path foi removido
   2. docs e testes foram alinhados ao contrato simplificado atual
@@ -33,6 +34,19 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   4. `v4.36` ja foi publicada
   5. a prova de update de estado no banco agora existe no caminho de importacao explicita, diff e consulta/filtro
   6. arquivo mais antigo nao pode mais rebaixar estado novo no banco; isso ficou travado por teste
+  7. `[f]` no cabecalho agora reflete filtros por coluna e filtros avancados equivalentes
+  8. resumo `Filtros ativos` ja deduplica entradas equivalentes
+  9. macro `Baixar` ja exclui `SAD`
+  10. o prompt de filtro por coluna ganhou hint explicito e largura minima padronizada
+  11. `update_derivadas_from_sources()` saiu do thread principal em runtime normal
+- O que ainda falta do sprint GUI:
+  1. borda destacada na caixa de filtros ativos
+  2. nova caixa `filtrado/total` na barra superior
+  3. botao `Abrir SAM`
+  4. hyperlink na coluna `#`
+  5. `situacao` expandida no detalhe da SSA
+  6. copia por duplo clique do numero da SSA
+  7. melhoria visual da arvore de derivadas
 - Integridade do contexto:
   1. nada foi perdido nesta reorganizacao documental
   2. historicos antigos continuam preservados abaixo como auditoria
@@ -67,11 +81,11 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   9. `docs/CCR_LLM_PROVIDERS_SETUP.md`
   10. `docs/OPENCODE_CONFIG.md`
 - Commits mais recentes desta frente:
-  1. `6c58298d` `STABILITY_PATCH: guard import state against older files`
-  2. `be66c865` `STABILITY_PATCH: prove query state after import updates`
-  3. `e52e9c5b` `STABILITY_PATCH: validate real import update flows`
-  4. `5169511b` `HOTFIX_BLOCKER: harden numero_ssa contract`
-  5. `0bdd2ef6` `HOTFIX_BLOCKER: log discarded short numero_ssa`
+  1. `194fc4e7` `STABILITY_PATCH: sync visual filter indicators`
+  2. `cd06941f` `STABILITY_PATCH: improve column filter prompt`
+  3. `31dc9c99` `STABILITY_PATCH: move derivadas sync off ui thread`
+  4. `9983a757` `STABILITY_PATCH: tighten async import gui contract`
+  5. `9da3eca0` push de follow-up do contrato assincrono ja publicado
 - Estado do Kluster local:
   1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   2. se o review remoto voltar a dar timeout em `manualCheck`, tratar como bloqueio de ferramenta, nao como finding do repo

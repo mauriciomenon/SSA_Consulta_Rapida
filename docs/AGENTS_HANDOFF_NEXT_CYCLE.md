@@ -2,7 +2,7 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-27 00h52
+## CURRENT TRUTH 2026-03-27 03h35
 
 - Leitura rapida:
   1. branch alvo: `dev`
@@ -17,10 +17,25 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   5. so depois responder threads cujo status mudou de verdade
 - Prioridade operacional:
   1. `P0`: manter fechado o contrato de `numero_ssa` sem reabrir heuristica ou truncagem
-  2. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
-  3. `P1`: endurecer rollback/error boundary residual em `database*`
-  4. `P1`: auditar testes viciados no fluxo critico de dados/CLI
-  5. `P2`: convergir helper local de data em `database_upsert_logic.py`
+  2. `P1`: concluir o sprint GUI aberto sem reintroduzir custo na UI thread
+  3. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
+  4. `P1`: endurecer rollback/error boundary residual em `database*`
+  5. `P1`: auditar testes viciados no fluxo critico de dados/CLI
+  6. `P2`: convergir helper local de data em `database_upsert_logic.py`
+- Sprint GUI ja entregue em commits anteriores desta frente:
+  1. `[f]` no cabecalho sincronizado com filtros avancados equivalentes
+  2. dedupe do resumo `Filtros ativos`
+  3. macro `Baixar` com `SAD`
+  4. dialogo de filtro por coluna com hint e largura minima padronizada
+  5. sync manual de derivadas movido para background em runtime normal
+- Sprint GUI ainda pendente:
+  1. borda destacada da caixa de filtros ativos
+  2. nova caixa `filtrado/total` e refinamento da barra superior
+  3. botao `Abrir SAM`
+  4. hyperlink na coluna `#`
+  5. detalhe da SSA com `situacao` expandida
+  6. copia por duplo clique do numero da SSA
+  7. visualizacao melhor da arvore de derivadas
 - Estado tecnico fechado:
   1. o `.0` vazava por regras duplicadas no write path
   2. a normalizacao de storage foi centralizada
@@ -56,10 +71,10 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   8. `docs/GUIA_DISTRIBUICAO.md`
   9. `.github/instructions/kluster-code-verify.instructions.md`
 - Commits recentes desta frente:
-  1. `6c58298d` `STABILITY_PATCH: guard import state against older files`
-  2. `e52e9c5b` `STABILITY_PATCH: validate real import update flows`
-  3. `5169511b` `HOTFIX_BLOCKER: harden numero_ssa contract`
-  4. `0bdd2ef6` `HOTFIX_BLOCKER: log discarded short numero_ssa`
+  1. `194fc4e7` `STABILITY_PATCH: sync visual filter indicators`
+  2. `cd06941f` `STABILITY_PATCH: improve column filter prompt`
+  3. `31dc9c99` `STABILITY_PATCH: move derivadas sync off ui thread`
+  4. `9983a757` `STABILITY_PATCH: tighten async import gui contract`
 - Estado do Kluster local:
   1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   2. timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo

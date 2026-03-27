@@ -15,8 +15,14 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 2. metadata local ativa: `4.36`
 3. ultima tag publicada em `dev`: `v4.36`
 4. os slices recentes de `numero_ssa`, importacao explicita e prova de update/query ja foram aterrados
-5. o PR `dev -> main` ainda tem muitas threads abertas no GitHub, mas o sinal real restante caiu para hardening/documentacao e itens deferidos
-6. nada foi perdido no historico; os blocos abaixo permanecem como trilha de auditoria
+5. os slices recentes de GUI/filtros ja aterrados em commits anteriores desta frente foram:
+   - `[f]` sincronizado com filtros avancados
+   - dedupe de `Filtros ativos`
+   - macro `Baixar` com `SAD`
+   - dialogo de filtro por coluna com hint
+   - sync manual de derivadas fora da UI thread
+6. o PR `dev -> main` ainda tem muitas threads abertas no GitHub, mas o sinal real restante caiu para hardening/documentacao e itens deferidos
+7. nada foi perdido no historico; os blocos abaixo permanecem como trilha de auditoria
 
 ### PASSO 0 ANTES DE QUALQUER NOVA FRENTE
 1. revisar checks e comentarios mais recentes do PR
@@ -41,6 +47,12 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
    - nao aceitar teste que so prova "nao travou"
 4. manter a prova de update de estado no banco no caminho de importacao explicita, diff e consulta/filtro sem regressao
 5. manter a prova negativa de que arquivo mais antigo nao rebaixa estado mais novo no banco
+6. concluir o sprint GUI aberto:
+   - borda destacada em filtros ativos
+   - status `filtrado/total`
+   - `Abrir SAM`
+   - hyperlink `#`
+   - detalhe da SSA com `situacao` expandida e arvore de derivadas melhor
 
 ### P2 - backlog legitimo, mas nao bug aberto hoje
 1. aliases em `_needs_db_only_derivadas_sync` ja aparecem mitigados no runtime atual; reabrir so com repro nova.
@@ -65,6 +77,32 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 5. regex/XML bruto de `.xlsx` nao prova valor extraido de `numero_ssa`.
 
 ## Update 2026-03-26 22:01 - plano consolidado de pendencias do PR e do repo (DOC_SYNC + DEFERRED_NOTE)
+
+## Update 2026-03-27 03:35 - docs vivos sincronizados com o sprint GUI inicial ja publicado (DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-27 03:35:00 -0300`
+2. fim: `2026-03-27 03:35:00 -0300`
+
+Objetivo do slice:
+1. alinhar os docs vivos aos commits de filtros/GUI ja publicados.
+2. parar de deixar os docs ativos presos no estado anterior ao sprint GUI.
+3. registrar claramente o que do sprint foi entregue e o que ainda ficou pendente.
+
+Diagnostico objetivo:
+1. `README.md`, `docs/README.md`, `docs/NEXT_CHAT_MIGRATION.md` e `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` ainda descreviam so o estado de `numero_ssa` e importacao.
+2. o sprint GUI atual ja tinha commits publicados, mas os docs vivos ainda nao refletiam:
+   - sincronizacao do `[f]`
+   - dedupe do resumo de filtros
+   - macro `Baixar` com `SAD`
+   - novo prompt de filtro por coluna
+   - derivadas fora da UI thread
+3. isso aumentava risco de novo drift entre runtime e documentacao de continuidade.
+
+Decisao aplicada:
+1. docs vivos passam a carregar explicitamente o estado do sprint GUI ja entregue em commits anteriores.
+2. pendencias visuais/toolbar/detalhe de SSA ficam listadas como abertas, sem fingir entrega.
+3. docs de workers e regras gerais de GUI tambem passam a mencionar o novo estado assincrono.
 
 Session timestamp:
 1. start: `2026-03-26 22:01:42 -0300`
