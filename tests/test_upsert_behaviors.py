@@ -306,3 +306,65 @@ def test_upsert_does_not_log_setor_executor_change_for_older_row(tmp_path, caplo
     assert rows.iloc[0]["setor_executor"] == "IEE3"
     assert "202501888" not in caplog.text
     assert "IEE3 -> IEE4" not in caplog.text
+
+
+def test_upsert_same_date_does_not_downgrade_situacao(tmp_path):
+    db_path = _init_db(tmp_path)
+    first = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202600654",
+                "situacao": "STE",
+                "data_cadastro": "16/01/2026",
+                "descricao_ssa": "estado final",
+                "setor_executor": "IEE3",
+            }
+        ]
+    )
+    insert_dataframe_to_db(first, db_path, "ssas")
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202600654",
+                "situacao": "ADM",
+                "data_cadastro": "16/01/2026",
+                "descricao_ssa": "tentativa downgrade",
+                "setor_executor": "IEE3",
+            }
+        ]
+    )
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is True
+    rows = _fetch_all(db_path)
+    assert len(rows) == 1
+    assert rows.iloc[0]["situacao"] == "STE"
+
+
+def test_upsert_same_date_allows_upgrade_situacao(tmp_path):
+    db_path = _init_db(tmp_path)
+    first = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202600655",
+                "situacao": "ADM",
+                "data_cadastro": "16/01/2026",
+                "descricao_ssa": "estado aguardando",
+                "setor_executor": "IEE3",
+            }
+        ]
+    )
+    insert_dataframe_to_db(first, db_path, "ssas")
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202600655",
+                "situacao": "STE",
+                "data_cadastro": "16/01/2026",
+                "descricao_ssa": "estado final",
+                "setor_executor": "IEE3",
+            }
+        ]
+    )
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is True
+    rows = _fetch_all(db_path)
+    assert len(rows) == 1
+    assert rows.iloc[0]["situacao"] == "STE"

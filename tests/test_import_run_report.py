@@ -170,6 +170,27 @@ def _fake_extract_state_transition(file_path: str, should_cancel=None):  # noqa:
     )
 
 
+def _fake_extract_state_transition_same_date(
+    file_path: str, should_cancel=None
+):  # noqa: ARG001
+    marker = Path(file_path).read_text(encoding="utf-8")
+    if marker == "old":
+        return _build_ssa_import_df(
+            numero_ssa="202600654",
+            situacao="ADM",
+            setor_executor="IEE3",
+            data_cadastro="2026-01-16 00:00:00",
+            descricao_ssa="ssa old same date",
+        )
+    return _build_ssa_import_df(
+        numero_ssa="202600654",
+        situacao="STE",
+        setor_executor="IEE3",
+        data_cadastro="2026-01-16 00:00:00",
+        descricao_ssa="ssa new same date",
+    )
+
+
 def _write_real_ssa_excel(
     file_path: Path,
     *,
@@ -533,6 +554,48 @@ def test_import_explicit_files_to_database_preserves_newer_state_against_older_f
         "STE",
         "BBB2",
         "2025-01-02 00:00:00",
+        "new.xlsx",
+    )
+
+
+def test_import_explicit_files_to_database_same_date_does_not_downgrade_situacao(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir, _data_dir, db_path = _prepare_runtime_import_update(tmp_path, monkeypatch)
+    old_file = docs_dir / "old.xlsx"
+    new_file = docs_dir / "new.xlsx"
+    old_file.write_text("old", encoding="utf-8")
+    new_file.write_text("new", encoding="utf-8")
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        _fake_extract_state_transition_same_date,
+    )
+
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(new_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(old_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+    assert _count_ssa_rows(db_path, "202600654") == 1
+    assert _read_ssa_state(db_path, "202600654") == (
+        "STE",
+        "IEE3",
+        "2026-01-16 00:00:00",
         "new.xlsx",
     )
 

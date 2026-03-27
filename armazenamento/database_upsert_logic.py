@@ -43,6 +43,36 @@ _VALID_UPSERT_POLICIES = {"consulta_only", "no_short", "all_short"}
 _RUNTIME_SHORT_CIRCUIT_POLICY: str | None = None
 _SQLITE_IN_MAX_VARS = 900
 _TEXTUAL_NULL_SENTINELS = {"", "<na>", "none", "nan", "null", "n/a", "-"}
+_SITUACAO_RANK = {
+    # Waiting/planning states
+    "AAD": 10,
+    "AAT": 10,
+    "ACC": 10,
+    "ACS": 10,
+    "ADI": 10,
+    "ADM": 10,
+    "AIM": 10,
+    "AIP": 10,
+    "AMP": 10,
+    "APG": 10,
+    "APL": 10,
+    "APV": 10,
+    "ASE": 10,
+    "ASI": 10,
+    "ASO": 10,
+    "SAS": 12,
+    # Execution states
+    "SEE": 20,
+    "SES": 20,
+    "SPG": 20,
+    "SRP": 20,
+    # Final/terminal states
+    "SAD": 30,
+    "SCA": 30,
+    "SCD": 30,
+    "SCS": 30,
+    "STE": 30,
+}
 
 # Constantes removidas (vindas do util central). Mantidas só se necessário futuro.
 
@@ -333,6 +363,9 @@ def _should_update_existing(existing_row: pd.Series, new_row: pd.Series) -> bool
     existing_date = existing_row.get("data_cadastro")
     new_date = new_row.get("data_cadastro")
     try:
+        def _situacao_rank(value: Any) -> int:
+            code = str(value or "").strip().upper()
+            return _SITUACAO_RANK.get(code, 0)
 
         def _parse(dt):  # evita E731 lambda
             if dt in (None, "") or (isinstance(dt, float) and pd.isna(dt)):
@@ -367,6 +400,13 @@ def _should_update_existing(existing_row: pd.Series, new_row: pd.Series) -> bool
                 e_val = getattr(e_dt, "value", None)
                 if n_val is None or e_val is None:
                     return True
+                if n_val == e_val:
+                    # Tie-breaker de estado para evitar regressao de situacao
+                    # quando arquivos de mesma data chegam em ordem diferente.
+                    new_rank = _situacao_rank(new_row.get("situacao"))
+                    existing_rank = _situacao_rank(existing_row.get("situacao"))
+                    if new_rank < existing_rank:
+                        return False
                 return bool(n_val >= e_val)
             except Exception:  # pragma: no cover
                 return True
