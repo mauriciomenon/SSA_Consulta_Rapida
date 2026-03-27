@@ -20,9 +20,8 @@ def build_unique_destination_path(
     destination = str(destination_path)
     normalized_destination = os.path.abspath(destination)
     if reserved_paths is not None:
-        if (
-            normalized_destination not in reserved_paths
-            and not os.path.exists(destination)
+        if normalized_destination not in reserved_paths and not os.path.exists(
+            destination
         ):
             reserved_paths.add(normalized_destination)
             return destination
