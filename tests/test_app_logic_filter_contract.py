@@ -4,8 +4,100 @@ import sqlite3
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
+from armazenamento import database
+from core import app_logic
 from core.app_logic import filter_dataframe, get_filtered_data, parse_search_terms
+
+
+def _get_project_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _allow_tmp_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from utils import path_safety
+
+    monkeypatch.setattr(
+        path_safety,
+        "ALLOWED_ROOTS",
+        list(path_safety.ALLOWED_ROOTS) + [tmp_path],
+    )
+
+
+def _init_runtime_ssa_db(db_path: Path) -> None:
+    schema_path = _get_project_root() / "config" / "schema.sql"
+    assert database.initialize_database(str(db_path), str(schema_path)) is True
+
+
+def _build_import_df(
+    *,
+    numero_ssa: str,
+    situacao: str,
+    setor_executor: str,
+    data_cadastro: str,
+    descricao_ssa: str,
+) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "numero_ssa": numero_ssa,
+                "situacao": situacao,
+                "setor_executor": setor_executor,
+                "data_cadastro": data_cadastro,
+                "descricao_ssa": descricao_ssa,
+            }
+        ]
+    )
+
+
+def _fake_extract_transition(file_path: str, should_cancel=None):  # noqa: ARG001
+    marker = Path(file_path).read_text(encoding="utf-8")
+    if marker == "old":
+        return _build_import_df(
+            numero_ssa="202500001",
+            situacao="ADM",
+            setor_executor="AAA1",
+            data_cadastro="2025-01-01 00:00:00",
+            descricao_ssa="SSA antiga",
+        )
+    return _build_import_df(
+        numero_ssa="202500001",
+        situacao="STE",
+        setor_executor="BBB2",
+        data_cadastro="2025-01-02 00:00:00",
+        descricao_ssa="SSA atualizada",
+    )
+
+
+def _prepare_import_update_runtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Path, Path, Path]:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "test.db"
+
+    _allow_tmp_path(monkeypatch, tmp_path)
+    _init_runtime_ssa_db(db_path)
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_run_derivadas_sync_phase",
+        lambda *args, **kwargs: (True, [], {"db_stats": {}, "merge_stats": {}}),
+    )
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        _fake_extract_transition,
+    )
+    return docs_dir, data_dir, db_path
 
 
 def test_filter_dataframe_preserves_group_or_for_preparsed_terms() -> None:
@@ -209,3 +301,93 @@ def test_filter_dataframe_invalidates_cache_after_in_place_value_change() -> Non
     assert list(second["numero_ssa"]) == ["202500001"]
     assert cached_after["token"] != token_before
     assert list(cached_after["row_search_text"]) == ["ste equipe"]
+
+
+def test_get_filtered_data_reflects_updated_state_after_explicit_import(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir, _data_dir, db_path = _prepare_import_update_runtime(
+        tmp_path, monkeypatch
+    )
+    old_file = docs_dir / "old.xlsx"
+    new_file = docs_dir / "new.xlsx"
+    old_file.write_text("old", encoding="utf-8")
+    new_file.write_text("new", encoding="utf-8")
+
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(old_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(new_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+
+    updated = get_filtered_data(
+        str(db_path),
+        filters={"situacao": "STE", "setor_executor": "BBB2"},
+    )
+    stale = get_filtered_data(str(db_path), filters={"situacao": "ADM"})
+    searched = filter_dataframe(updated, ["bbb2", "ste"])
+
+    assert list(updated["numero_ssa"]) == ["202500001"]
+    assert list(updated["descricao_ssa"]) == ["SSA atualizada"]
+    assert list(updated["arquivo_origem"]) == ["new.xlsx"]
+    assert stale.empty
+    assert list(searched["numero_ssa"]) == ["202500001"]
+
+
+def test_get_filtered_data_reflects_updated_state_after_diff_reimport(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir, data_dir, db_path = _prepare_import_update_runtime(
+        tmp_path, monkeypatch
+    )
+    tracked_file = docs_dir / "tracked.xlsx"
+    tracked_file.write_text("old", encoding="utf-8")
+
+    assert (
+        app_logic.run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(data_dir),
+            db_name="test.db",
+            table_name="ssa_table",
+            force_import=False,
+        )
+        is True
+    )
+
+    tracked_file.write_text("new", encoding="utf-8")
+
+    assert (
+        app_logic.run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(data_dir),
+            db_name="test.db",
+            table_name="ssa_table",
+            force_import=False,
+        )
+        is True
+    )
+
+    all_rows = get_filtered_data(str(db_path))
+    updated = get_filtered_data(str(db_path), filters={"situacao": "STE"})
+    searched = filter_dataframe(all_rows, ["atualizada", "bbb2"])
+
+    assert len(all_rows) == 1
+    assert list(updated["numero_ssa"]) == ["202500001"]
+    assert list(updated["setor_executor"]) == ["BBB2"]
+    assert list(updated["arquivo_origem"]) == ["tracked.xlsx"]
+    assert list(searched["numero_ssa"]) == ["202500001"]
