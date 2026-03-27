@@ -44,7 +44,9 @@ DERIVADAS_DIALOG_TREE_MIN_WIDTH = 180
 DERIVADAS_DIALOG_DETAILS_MIN_WIDTH = 520
 
 
-def _init_readonly_text_browser(browser, *, min_width: int | None = None, min_height: int | None = None):
+def _init_readonly_text_browser(
+    browser, *, min_width: int | None = None, min_height: int | None = None
+):
     browser.setReadOnly(True)
     browser.setOpenLinks(False)
     browser.setOpenExternalLinks(False)
@@ -1095,7 +1097,9 @@ def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
             parent = str(raw).strip()
             if not parent:
                 continue
-            lines.append(f'  {_node_id(parent)}["{_label(parent)}"] --> {_node_id(target)}')
+            lines.append(
+                f'  {_node_id(parent)}["{_label(parent)}"] --> {_node_id(target)}'
+            )
 
     children = data.get("children", [])
     if isinstance(children, list):
@@ -1103,7 +1107,9 @@ def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
             child = str(raw).strip()
             if not child:
                 continue
-            lines.append(f'  {_node_id(target)} --> {_node_id(child)}["{_label(child)}"]')
+            lines.append(
+                f'  {_node_id(target)} --> {_node_id(child)}["{_label(child)}"]'
+            )
 
     descendants = data.get("descendants", [])
     if isinstance(descendants, list):
@@ -1259,7 +1265,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
                     tree_html
                     + (
                         "<br/><b>Mermaid (texto):</b><br/>"
-                        "<pre style=\"white-space:pre-wrap;\">"
+                        '<pre style="white-space:pre-wrap;">'
                         f"{html_module.escape(mermaid_text)}"
                         "</pre>"
                     )
