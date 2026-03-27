@@ -2,18 +2,19 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-26 09h15
+## CURRENT TRUTH 2026-03-27 00h52
 
 - Leitura rapida:
   1. branch ativa: `dev`
   2. metadata local ativa: `4.36`
   3. ultima tag publicada em `dev`: `v4.36`
-  4. os slices recentes de `numero_ssa`, importacao explicita e prova de update/query ja foram aterrados e pushados
+  4. os slices recentes de `numero_ssa`, importacao explicita, prova de update/query e bloqueio de downgrade por arquivo antigo ja foram aterrados e pushados
 - PASSO 0 OBRIGATORIO NO PROXIMO CHAT:
   1. revisar os checks e comentarios mais recentes do PR `dev -> main`
-  2. continuar apenas pelos itens `P1/P2` com evidencia nova
-  3. confirmar worktree limpo antes de abrir frente nova
-  4. arquivos de referencia para esse passo:
+  2. confirmar worktree limpo antes de abrir frente nova
+  3. confirmar que o gate do Kluster esta disponivel antes do primeiro patch; se o review remoto oscilar, registrar o bloqueio exato
+  4. continuar apenas pelos itens `P1/P2` com evidencia nova
+  5. arquivos de referencia para esse passo:
      - `AGENTS.md`
      - `.github/instructions/kluster-code-verify.instructions.md`
      - `docs/CCR_LLM_PROVIDERS_SETUP.md`
@@ -21,15 +22,17 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `docs/README.md`
 - Prioridade imediata:
   1. `P0`: manter fechado o contrato de `numero_ssa` sem reabrir truncagem ou regra paralela
-  2. `P1`: adicionar teste negativo para impedir overwrite por arquivo mais antigo
-  3. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
-  4. `P2`: endurecimento residual de rollback/error boundary em `database*`
+  2. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
+  3. `P1`: endurecimento residual de rollback/error boundary em `database*`
+  4. `P1`: auditoria de testes viciados em dados/CLI
+  5. `P2`: helper local de data e hardening residual de tooling/docs
 - O que ja esta fechado:
   1. drift de normalizacao no write path foi removido
   2. docs e testes foram alinhados ao contrato simplificado atual
   3. slices locais sujos foram aterrados
   4. `v4.36` ja foi publicada
   5. a prova de update de estado no banco agora existe no caminho de importacao explicita, diff e consulta/filtro
+  6. arquivo mais antigo nao pode mais rebaixar estado novo no banco; isso ficou travado por teste
 - Integridade do contexto:
   1. nada foi perdido nesta reorganizacao documental
   2. historicos antigos continuam preservados abaixo como auditoria
@@ -64,10 +67,11 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   9. `docs/CCR_LLM_PROVIDERS_SETUP.md`
   10. `docs/OPENCODE_CONFIG.md`
 - Commits mais recentes desta frente:
-  1. `be66c865` `STABILITY_PATCH: prove query state after import updates`
-  2. `8e3e0a7f` `STABILITY_PATCH: prove DB state updates in import paths`
-  3. `19ee40f6` `HOTFIX_BLOCKER: reject overlong numero_ssa values`
-  4. `a908334f` `HOTFIX_BLOCKER: apply explicit single-file import`
+  1. `6c58298d` `STABILITY_PATCH: guard import state against older files`
+  2. `be66c865` `STABILITY_PATCH: prove query state after import updates`
+  3. `e52e9c5b` `STABILITY_PATCH: validate real import update flows`
+  4. `5169511b` `HOTFIX_BLOCKER: harden numero_ssa contract`
+  5. `0bdd2ef6` `HOTFIX_BLOCKER: log discarded short numero_ssa`
 - Estado do Kluster local:
   1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   2. se o review remoto voltar a dar timeout em `manualCheck`, tratar como bloqueio de ferramenta, nao como finding do repo

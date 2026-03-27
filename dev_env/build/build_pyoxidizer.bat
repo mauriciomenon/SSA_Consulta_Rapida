@@ -61,7 +61,6 @@ if defined VCToolsInstallDir (
     if exist "%MSVC_LINK%" (
         set "PATH=%VCToolsInstallDir%bin\Hostx64\x64;%PATH%"
         set "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=%MSVC_LINK%"
-        set "RUSTFLAGS=-Clinker=%MSVC_LINK%"
         if "%SILENT%"=="0" echo Linker MSVC for?ado: "%MSVC_LINK%"
     )
 )
@@ -190,11 +189,11 @@ if /I "%COPY_TOOL%"=="xcopy" (
 
 if "%SILENT%"=="1" (
     set "UV_PROJECT_ENVIRONMENT=.venv-pyoxidizer-runtime-win"
-    uv run --python 3.10 --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 python "%REPO_ROOT%\scripts\sync_pyoxidizer_runtime_libs.py" --target "%TARGET_BUILD_DIR%\lib" >> "%LOG_FILE%" 2>&1
+    uv run --python %UV_PYTHON% --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 python "%REPO_ROOT%\scripts\sync_pyoxidizer_runtime_libs.py" --target "%TARGET_BUILD_DIR%\lib" >> "%LOG_FILE%" 2>&1
     set "UV_PROJECT_ENVIRONMENT=.venv-win"
 ) else (
     set "UV_PROJECT_ENVIRONMENT=.venv-pyoxidizer-runtime-win"
-    uv run --python 3.10 --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 python "%REPO_ROOT%\scripts\sync_pyoxidizer_runtime_libs.py" --target "%TARGET_BUILD_DIR%\lib"
+    uv run --python %UV_PYTHON% --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 python "%REPO_ROOT%\scripts\sync_pyoxidizer_runtime_libs.py" --target "%TARGET_BUILD_DIR%\lib"
     set "UV_PROJECT_ENVIRONMENT=.venv-win"
 )
 
