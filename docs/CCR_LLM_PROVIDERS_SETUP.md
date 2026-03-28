@@ -3,7 +3,7 @@
 Data: 27/11/2025
 Status: Todos os arquivos validados - sintaxe OK
 Nota (2026-03-09): este documento e snapshot historico de setup local no Windows.
-Referencias a `.github/instructions/*.instructions` sao legadas e podem nao
+Referencias a `.github/instructions/*.instructions.md` sao legadas e podem nao
 existir no estado atual deste repo.
 
 ---
@@ -31,7 +31,7 @@ existir no estado atual deste repo.
 | Tipo | Origem | Destino |
 |------|--------|---------|
 | mcp.json | %APPDATA%\Code\User\mcp.json | %APPDATA%\Code - Insiders\User\mcp.json |
-| Instructions (16) | .github\instructions\*.instructions | %APPDATA%\Code - Insiders\User\instructions\*.instructions |
+| Instructions (16) | .github\instructions\*.instructions.md | %APPDATA%\Code - Insiders\User\instructions\*.instructions.md |
 
 ---
 

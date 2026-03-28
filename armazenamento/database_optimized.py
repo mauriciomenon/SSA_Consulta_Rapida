@@ -657,6 +657,17 @@ def insert_dataframe_optimized(
             return True
 
     except Exception as e:  # pragma: no cover - caminho de erro
+        conn_ref = locals().get("conn")
+        if conn_ref is not None:
+            try:
+                in_transaction = getattr(conn_ref, "in_transaction", False)
+                if bool(in_transaction):
+                    conn_ref.rollback()
+            except Exception as rollback_exc:
+                logger.error(
+                    "Falha ao executar rollback no caminho otimizado: %s",
+                    rollback_exc,
+                )
         logger.error("[ERRO] Erro na insercao otimizada: %s", e)
         return False
 
