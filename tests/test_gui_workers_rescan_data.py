@@ -454,7 +454,9 @@ def test_rescan_data_explicit_success_with_updates_reloads(tmp_path):
     assert window.status_label.text == "Status: Importacao externa concluida."
 
 
-def test_rescan_data_consolidate_success_uses_consolidate_context(tmp_path, monkeypatch):
+def test_rescan_data_consolidate_success_uses_consolidate_context(
+    tmp_path, monkeypatch
+):
     project_root = _build_main_py(tmp_path)
     window = _Window()
     global_workers: list = []
