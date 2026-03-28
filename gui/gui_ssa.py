@@ -3386,6 +3386,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def on_table_double_click(self, index):
         """Mostra janela de detalhes formatada ao duplo clique."""
+        clicked_column_name = ""
+        try:
+            clicked_column = int(index.column())
+        except Exception:
+            clicked_column = -1
+        try:
+            display_columns = getattr(self, "_current_display_columns", None)
+            if (
+                isinstance(display_columns, list)
+                and 0 <= clicked_column < len(display_columns)
+            ):
+                clicked_column_name = str(display_columns[clicked_column] or "")
+        except Exception:
+            clicked_column_name = ""
+
         row = index.row()
         index_item = self.table_widget.item(row, 0)
         if not index_item:
@@ -3401,6 +3416,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         series = self.df_exibido.iloc[int(original_index)]
         numero_ssa = series.get("numero_ssa")
+        if clicked_column_name == "numero_ssa":
+            self._copy_ssa_to_clipboard(numero_ssa)
+            return
         self._open_details_dialog_for_ssa(numero_ssa)
 
     def _save_page_size_pref(self, new_size: int):

@@ -2200,6 +2200,55 @@ class TestGUIFilterLogic:
             "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx?SerialNumber=1&language=pt"
         ]
 
+    def test_double_click_numero_ssa_copies_without_opening_details(self, monkeypatch):
+        self.window.display_current_page(1)
+        display_columns = list(getattr(self.window, "_current_display_columns", []) or [])
+        assert "numero_ssa" in display_columns
+        numero_col = display_columns.index("numero_ssa")
+        model_index = self.window.table_widget.model().index(0, numero_col)
+
+        copied = []
+        opened = []
+
+        monkeypatch.setattr(
+            self.window,
+            "_copy_ssa_to_clipboard",
+            lambda numero_ssa, **_kwargs: copied.append(str(numero_ssa)) or True,
+        )
+        monkeypatch.setattr(
+            self.window,
+            "_open_details_dialog_for_ssa",
+            lambda numero_ssa: opened.append(str(numero_ssa)),
+        )
+
+        self.window.on_table_double_click(model_index)
+
+        assert copied == ["1"]
+        assert opened == []
+
+    def test_double_click_non_numero_ssa_opens_details_without_copy(self, monkeypatch):
+        self.window.display_current_page(1)
+        model_index = self.window.table_widget.model().index(0, 0)
+
+        copied = []
+        opened = []
+
+        monkeypatch.setattr(
+            self.window,
+            "_copy_ssa_to_clipboard",
+            lambda numero_ssa, **_kwargs: copied.append(str(numero_ssa)) or True,
+        )
+        monkeypatch.setattr(
+            self.window,
+            "_open_details_dialog_for_ssa",
+            lambda numero_ssa: opened.append(str(numero_ssa)),
+        )
+
+        self.window.on_table_double_click(model_index)
+
+        assert copied == []
+        assert opened == ["1"]
+
     def test_clicking_hash_column_with_pd_na_does_not_raise(self, monkeypatch):
         self.window.df_completo = self.window.df_completo.copy()
         self.window.df_exibido = self.window.df_exibido.copy()
