@@ -519,7 +519,9 @@ def insert_dataframe_optimized(
                                 "Nenhuma coluna atualizavel encontrada; pulando atualizacao"
                             )
                         else:
-                            ssa_list = _normalize_unique_ssa_values(update_df["numero_ssa"])
+                            ssa_list = _normalize_unique_ssa_values(
+                                update_df["numero_ssa"]
+                            )
                             existing_rows_by_ssa: dict[
                                 str, dict[str, object | None]
                             ] = {}
