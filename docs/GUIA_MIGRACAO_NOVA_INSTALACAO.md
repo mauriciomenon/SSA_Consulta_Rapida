@@ -32,7 +32,9 @@
 ### **Ferramentas Necessarias**
 ```powershell
 # Verificar versoes instaladas
-uv run --python 3.13 python --version   # Deve ser 3.10+ (preferir 3.13+)
+uv --version             # uv instalado e acessivel no PATH
+uv run --python 3.13 python --version   # Runtime preferencial
+uv run --python 3.12 python --version   # Fallback 1 se 3.13 nao existir
 git --version             # Qualquer versao recente
 uv pip --version          # Gerenciado pelo uv
 ```

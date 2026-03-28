@@ -95,6 +95,34 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## Update 2026-03-28 18:20 - cleanup deepsource e hygiene de PR (STABILITY_PATCH + DOC_SYNC)
 
+## Update 2026-03-28 11:35 - doc sync de baseline/build/setup llm (DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-28 10:55:00 -0300`
+2. fim: `2026-03-28 11:35:00 -0300`
+
+Escopo fechado neste slice:
+1. `docs/GUIA_DISTRIBUICAO.md`:
+   - `CURRENT TRUTH` alinhado para tag publicada `v4.36`
+   - removida linguagem de fase pre-tag para estado pos-tag
+2. `docs/BUILD_MULTIPLATFORM.md`:
+   - contrato de `--all` alinhado ao comportamento real do launcher
+   - texto agora explicita "todos os apps da plataforma atual", sem cross-compilation
+3. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`:
+   - pre-requisito uv reforcado (`uv --version`) e fallback explicito para runtime (`3.12`)
+4. `docs/CCR_LLM_PROVIDERS_SETUP.md`:
+   - nome de arquivo de instructions corrigido para `ccr_llm_providers.instructions.md`
+5. `docs/OPENCODE_CONFIG.md`:
+   - referencias Gemini atualizadas para linha 2.5 (`pro`/`flash`) nas tabelas e secoes
+6. `README.md`:
+   - snapshot historico de `v4.33` marcado explicitamente como historico, nao corrente
+
+Validacao local deste slice:
+1. `uv run --python 3.13 python -m py_compile tests/test_docs_and_priority.py`: OK
+2. `uv run --python 3.13 ruff check tests/test_docs_and_priority.py`: OK
+3. `uv run --python 3.13 ty check tests/test_docs_and_priority.py`: OK
+4. `uv run --python 3.13 pytest -q tests/test_docs_and_priority.py`: `3 passed`
+
 Session timestamp:
 1. start: `2026-03-28 17:50:00 -0300`
 2. fim: `2026-03-28 18:20:00 -0300`

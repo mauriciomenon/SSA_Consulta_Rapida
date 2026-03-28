@@ -106,16 +106,20 @@ uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64
 uv run --python 3.13 launchers/build_multiplatform.py --platform debian_amd64
 ```
 
-### Build Completo (Todas as plataformas compativeis)
+### Build de todos os apps da plataforma atual
 ```bash
 uv run --python 3.13 launchers/build_multiplatform.py --all
 ```
+
+Observacao:
+- `--all` neste launcher nao faz cross-compilation.
+- O efeito pratico e construir todos os apps (`cli` + `gui`) apenas para a plataforma detectada no host atual.
 
 ### Opcoes Avancadas
 ```bash
 uv run --python 3.13 launchers/build_multiplatform.py --clean          # Limpa builds anteriores
 uv run --python 3.13 launchers/build_multiplatform.py --debug          # Build com debug info
-uv run --python 3.13 launchers/build_multiplatform.py --all            # Build para plataforma atual
+uv run --python 3.13 launchers/build_multiplatform.py --all            # Todos os apps da plataforma atual
 ```
 
 ## configuracao de Ambiente

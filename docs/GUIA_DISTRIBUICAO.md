@@ -2,10 +2,10 @@
 
 ## CURRENT TRUTH (v4.36)
 
-- Sync deste guia: `2026-03-24 15:29 -0300`.
+- Sync deste guia: `2026-03-28 11:35 -0300`.
 - Versao de referencia local: `4.36` (arquivo `VERSION`).
-- Ultima tag publicada em `dev`: `v4.35`.
-- Este guia ja esta preparado para a fase pre-tag de `4.36`.
+- Ultima tag publicada em `dev`: `v4.36`.
+- Este guia esta alinhado ao estado pos-tag de `4.36`.
 - Fluxo canonico de build: `launchers/build_multiplatform.py`.
 - Saida canonica de artefatos: `launchers/dist/<plataforma>/`.
 - Empacotamento: `scripts/create_distribution.py`.

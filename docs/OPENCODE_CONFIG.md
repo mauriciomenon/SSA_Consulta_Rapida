@@ -18,8 +18,8 @@
    - Variantes: high, medium, low
 
 3. **Google (Gemini - Para multimodal)**
-   - Modelo: `google/antigravity-gemini-3-pro`
-   - Modelo: `google/antigravity-gemini-3-flash`
+   - Modelo: `google/gemini-2.5-pro`
+   - Modelo: `google/gemini-2.5-flash`
    - Contexto: 1M tokens
    - Suporte a imagem/PDF
 
@@ -45,7 +45,7 @@
 | momus | opencode/kimi-k2.5-free | - |
 | explore | opencode/kimi-k2.5-free | - |
 | librarian | zai-coding-plan/glm-4.7 | - |
-| multimodal-looker | google/antigravity-gemini-3-flash | - |
+| multimodal-looker | google/gemini-2.5-flash | - |
 
 ### Categorias de Modelo
 
@@ -53,12 +53,12 @@
 |-----------|--------|----------|
 | deep | opencode/kimi-k2.5-free | high |
 | ultrabrain | opencode/kimi-k2.5-free | high |
-| visual-engineering | google/antigravity-gemini-3-pro | high |
-| artistry | google/antigravity-gemini-3-pro | high |
+| visual-engineering | google/gemini-2.5-pro | high |
+| artistry | google/gemini-2.5-pro | high |
 | quick | opencode/kimi-k2.5-free | - |
 | unspecified-low | zai-coding-plan/glm-4.7 | - |
 | unspecified-high | opencode/kimi-k2.5-free | high |
-| writing | google/antigravity-gemini-3-flash | - |
+| writing | google/gemini-2.5-flash | - |
 
 ### Arquivos Modificados
 
