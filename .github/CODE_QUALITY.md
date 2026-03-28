@@ -2,17 +2,17 @@
 
 This repository uses automated tools for code quality and security:
 
-## INFO Code Quality
+## Code Quality
 - **SonarCloud**: Static analysis, code smells, coverage
 - **CodeFactor**: Automated code review
 - **Codacy**: Quality metrics, duplication
 - **CodeQL**: GitHub security analysis
 
-##  Security
+## Security
 - **Snyk**: Vulnerability scanning (dependencies + code)
 - **Dependabot**: Automated dependency updates
 
-## INFO Required Secrets
+## Required Secrets
 
 Configure in repository Settings → Secrets and variables → Actions:
 
@@ -21,20 +21,20 @@ Configure in repository Settings → Secrets and variables → Actions:
 | `SONAR_TOKEN` | SonarCloud authentication | sonarcloud.io → Account → Security → Generate Token |
 | `SNYK_TOKEN` | Snyk API token | snyk.io → Account Settings → API Token |
 
-## DONE Quality Gates
+## Quality Gates
 
 - **SonarCloud**: Fails on MAJOR+ issues
 - **Snyk**: Alerts on HIGH/CRITICAL vulnerabilities
 - **CodeQL**: Weekly security scans
 
-## START Quick Setup
+## Quick Setup
 
 1. Fork/clone repository
 2. Add SONAR_TOKEN and SNYK_TOKEN secrets
 3. Push to trigger workflows
 4. Check Actions tab for results
 
-## PKG VSCode Extensions
+## VSCode Extensions
 
 ```
 sonarsource.sonarlint-vscode

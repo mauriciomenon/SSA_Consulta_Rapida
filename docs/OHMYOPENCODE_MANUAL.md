@@ -72,12 +72,13 @@ Editar `~/.claude-code-router/config.json`:
     {
       "name": "opencode-ohmy",
       "type": "openai",
-      "api_base_url": "http://localhost:PORTA_OhMyOpenCode",
+      "api_base_url": "http://localhost:3000",
       "api_key": "sk-dummy"
     }
   ]
 }
 ```
+Nota: ajuste a porta conforme sua instancia do OhMyOpenCode (env, compose ou log de startup).
 
 ### Uso
 ```bash
@@ -130,7 +131,7 @@ kimi-ohmy "review do codigo"
 | Metis | Planejamento | Kimi K2.5 | high |
 | Momus | Fallback | Kimi K2.5 Free | medium |
 | Librarian | Documentacao | Kimi K2.5 Free | medium |
-| Multimodal-looker | Imagem/PDF | Gemini 3 Flash | - |
+| Multimodal-looker | Imagem/PDF | Gemini 2.5 Flash | - |
 
 ## Categorias de Tarefa
 
@@ -138,18 +139,18 @@ kimi-ohmy "review do codigo"
 |-----------|--------|-----|
 | deep | Kimi K2.5 high | Analise profunda |
 | ultrabrain | Kimi K2.5 high | Raciocinio complexo |
-| visual-engineering | Gemini 3 Pro high | Diagramas/UI |
-| artistry | Gemini 3 Pro high | Design/UX |
+| visual-engineering | Gemini 2.5 Pro high | Diagramas/UI |
+| artistry | Gemini 2.5 Pro high | Design/UX |
 | quick | Kimi K2.5 Free low | Tarefas rapidas |
 | unspecified-low | GLM 5 low | Fallback simples |
 | unspecified-high | Kimi K2.5 high | Fallback complexo |
-| writing | Gemini 3 Flash | Texto/documentacao |
+| writing | Gemini 2.5 Flash | Texto/documentacao |
 
 ## Cadeia de Fallback
 1. Kimi K2.5 (assinatura) - Primario
 2. Kimi K2.5 Free - Fallback 1
 3. GLM 5 - Fallback 2
-4. Gemini 3 Pro/Flash - Multimodal
+4. Gemini 2.5 Pro/Flash - Multimodal
 
 ## Exemplos Praticos
 

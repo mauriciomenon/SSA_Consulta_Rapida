@@ -289,7 +289,7 @@ Eliminated ~30 lines duplicated block in `_refresh_responsavel_options` that rec
 ## Technical Notes
 
 ### Debouncing
-- Implemented with `QTimer.singleShot(True)` to execute only once
+- Implemented with `QTimer.singleShot(300, callback)` to execute only once after 300ms
 - 300ms delay balances responsiveness vs. efficiency
 - Fallback to direct refresh if timer fails
 
@@ -306,7 +306,7 @@ Eliminated ~30 lines duplicated block in `_refresh_responsavel_options` that rec
 ---
 
 **Date**: January 8, 2026  
-**Author**: GitHub Copilot  
+**Author**: Equipe do repositorio  
 **Status**: Implemented and validated
 
 ## Atualizacao 2026-03-01 (ciclo gui-tema-import)

@@ -89,9 +89,9 @@ opencode config set tools.ultrawork.enabled true
 ### Validacao
 
 ```bash
-# Verificar sintaxe JSON
-python3 -m json.tool ~/.config/opencode/opencode.json > /dev/null && echo "OK"
-python3 -m json.tool ~/.config/opencode/oh-my-opencode.json > /dev/null && echo "OK"
+# Verificar sintaxe JSON (padrao uv)
+uv run --python 3.13 python -m json.tool ~/.config/opencode/opencode.json > /dev/null && echo "OK"
+uv run --python 3.13 python -m json.tool ~/.config/opencode/oh-my-opencode.json > /dev/null && echo "OK"
 
 # Listar modelos disponiveis
 opencode models list
@@ -102,7 +102,7 @@ opencode models list
 1. **Primario**: Kimi 2.5
 2. **Secundario**: GLM 4.7
 3. **Terciario**: GLM 5
-4. **Multimodal**: Gemini 3 Pro/Flash
+4. **Multimodal**: Gemini 2.5 Pro/Flash
 
 ## Data de Configuracao
 
