@@ -14,6 +14,7 @@ a atualizacao do banco de dados SQLite e o gerenciamento do cache.
 # - Related modules: extracao.extractor, armazenamento.database,
 #   armazenamento.database_validation, armazenamento.database_integrity.
 
+import hashlib
 import json
 import logging
 import os
@@ -74,13 +75,34 @@ class FilterSearchCacheManager:
         if not available_search_cols:
             return None
         search_df = df.loc[:, available_search_cols]
-        manager_id = id(getattr(search_df, "_mgr", None))
+        row_count = len(search_df.index)
+        if row_count == 0:
+            data_digest = "empty"
+        elif row_count <= 5000:
+            hashed = pd.util.hash_pandas_object(search_df, index=True)
+            data_digest = hashlib.blake2b(
+                hashed.to_numpy(copy=False).tobytes(),
+                digest_size=16,
+            ).hexdigest()
+        else:
+            sample_size = min(64, row_count)
+            last_idx = row_count - 1
+            sample_positions = {
+                int(round(i * last_idx / float(sample_size - 1)))
+                for i in range(sample_size)
+            }
+            sample_df = search_df.iloc[sorted(sample_positions)]
+            hashed = pd.util.hash_pandas_object(sample_df, index=True)
+            data_digest = hashlib.blake2b(
+                hashed.to_numpy(copy=False).tobytes(),
+                digest_size=16,
+            ).hexdigest()
         payload = (
             id(df),
-            manager_id,
-            tuple(str(col) for col in search_df.columns),
+            tuple(str(col) for col in available_search_cols),
             tuple(str(dtype) for dtype in search_df.dtypes),
-            len(search_df.index),
+            row_count,
+            data_digest,
         )
         return repr(payload)
 
@@ -89,13 +111,9 @@ class FilterSearchCacheManager:
         df: pd.DataFrame, available_search_cols: list[str]
     ) -> tuple[str, tuple[str, ...], int, str | None]:
         data_token = df.attrs.setdefault(FILTER_SEARCH_TOKEN_ATTR, uuid.uuid4().hex)
-        cached_search_data = df.attrs.get(FILTER_SEARCH_CACHE_ATTR)
-        if isinstance(cached_search_data, dict):
-            fingerprint = FilterSearchCacheManager._compute_cache_signature(
-                df, available_search_cols
-            )
-        else:
-            fingerprint = None
+        fingerprint = FilterSearchCacheManager._compute_cache_signature(
+            df, available_search_cols
+        )
         return (data_token, tuple(available_search_cols), len(df.index), fingerprint)
 
     @staticmethod

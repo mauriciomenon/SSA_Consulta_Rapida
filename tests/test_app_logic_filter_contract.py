@@ -347,6 +347,42 @@ def test_filter_dataframe_invalidates_cache_after_in_place_value_change() -> Non
     assert list(cached_after["row_search_text"]) == ["ste equipe"]
 
 
+def test_filter_dataframe_reuses_cached_search_data_on_same_dataframe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003"],
+            "descricao_ssa": ["MEL4 alfa", "MEL4 beta", "APG gama"],
+            "setor_executor": ["IEE3", "IEE3", "MEL4"],
+        }
+    )
+
+    store_calls = {"count": 0}
+    original_store = app_logic.FilterSearchCacheManager.store_cached_search_data
+
+    def _tracked_store(
+        frame: pd.DataFrame,
+        search_cache_token,
+        base_lower_df: pd.DataFrame,
+        row_search_text: pd.Series,
+    ) -> None:
+        store_calls["count"] += 1
+        original_store(frame, search_cache_token, base_lower_df, row_search_text)
+
+    monkeypatch.setattr(
+        app_logic.FilterSearchCacheManager,
+        "store_cached_search_data",
+        staticmethod(_tracked_store),
+    )
+
+    first = filter_dataframe(df, ["mel4"], ["descricao_ssa", "setor_executor"])
+    second = filter_dataframe(df, ["mel4"], ["descricao_ssa", "setor_executor"])
+
+    assert list(first["numero_ssa"]) == list(second["numero_ssa"])
+    assert store_calls["count"] == 1
+
+
 def test_get_filtered_data_reflects_updated_state_after_explicit_import(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
