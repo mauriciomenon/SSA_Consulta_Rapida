@@ -2,7 +2,7 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-27 19h15
+## CURRENT TRUTH 2026-03-27 20h35
 
 - Leitura rapida:
   1. branch ativa: `dev`
@@ -28,6 +28,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   5. `P1`: auditoria de testes viciados em dados/CLI
   6. `P2`: helper local de data e hardening residual de tooling/docs
 - O que ja esta fechado:
+  0. implementacao runtime do sprint GUI consolidada em `b343c621` e `07ebfe1d`
   1. drift de normalizacao no write path foi removido
   2. docs e testes foram alinhados ao contrato simplificado atual
   3. slices locais sujos foram aterrados
@@ -46,13 +47,14 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   16. `load_other_database()` saiu da UI thread no runtime normal
   17. upsert nao-complementar passou a bloquear downgrade de `situacao` quando `data_cadastro` empata
   18. teste de regressao para `202600654` em empate de data foi adicionado no fluxo de importacao explicita
-  19. dialogo de detalhes ganhou aba dedicada `Arvore` (topo: arvore; base: detalhes), com bloco Mermaid em texto
+  19. dialogo de detalhes ganhou aba dedicada `Arvore` com subabas `Grafo`, `Arvore` e `Mermaid` (base: detalhes)
+  19.1. historico: item promovido de refinamento para entrega por comando explicito no ciclo atual
+  20. `_normalize_ssa_series` da tela de detalhes foi reotimizado por valores unicos para reduzir custo em massa
 - O que ainda falta apos o sprint GUI:
   1. revisar staging/copy da importacao externa na thread principal
   2. revisar hotspots de render/refresh apos filtros
-  3. otimizar `_normalize_ssa_series` de detalhes para recuperar caminho vetorizado com o contrato central preservado
-  4. decidir se a arvore textual + aba dedicada ja basta para distribuicao ou se merece rodada futura com grafo renderizado
-  4. validar no ambiente de operacao se a SSA `202600654` permanece `STE` apos ciclos parciais de atualizacao
+  3. validar no ambiente de operacao se a SSA `202600654` permanece `STE` apos ciclos parciais de atualizacao
+  4. decidir se a aba `Grafo` precisa links clicaveis por no no proximo ciclo
 - Integridade do contexto:
   1. nada foi perdido nesta reorganizacao documental
   2. historicos antigos continuam preservados abaixo como auditoria
@@ -93,6 +95,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   4. `9983a757` `STABILITY_PATCH: tighten async import gui contract`
   5. `9da3eca0` push de follow-up do contrato assincrono ja publicado
   6. `b343c621` `STABILITY_PATCH: finish gui sam status and details sprint`
+  7. `07ebfe1d` `STABILITY_PATCH: add visual derivadas graph tab`
 - Estado do Kluster local:
   1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   2. se o review remoto voltar a dar timeout em `manualCheck`, tratar como bloqueio de ferramenta, nao como finding do repo

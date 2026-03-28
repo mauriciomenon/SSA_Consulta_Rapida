@@ -2,7 +2,7 @@
 
 Release/tag publicada mais recente na branch `dev`: `v4.36`.
 
-## Current Truth (2026-03-27 19:15 -0300)
+## Current Truth (2026-03-27 20:35 -0300)
 
 - Estado operacional:
   - metadata local ativa: `4.36`
@@ -10,6 +10,7 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - branch `dev` esta sincronizada com os slices recentes de `numero_ssa`, importacao explicita, provas de update/query e o sprint inicial de filtros/GUI descrito abaixo
   - `4.36` ja esta publicado em metadata, runtime, docs ativos e release/tag
 - Sprint GUI entregue nesta frente:
+  - implementacao runtime consolidada nos commits `b343c621` e `07ebfe1d`
   - `[f]` no cabecalho agora sincroniza filtros por coluna e filtros avancados
   - resumo `Filtros ativos` deixou de duplicar entradas equivalentes
   - caixa `Filtros ativos` ganhou borda destacada e texto em negrito quando ha filtro ativo
@@ -25,9 +26,11 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - a area de derivadas ficou mais larga e passou a usar arvore textual com `numero (STATUS)`
   - `load_other_database()` passou a validar o arquivo em background no runtime normal
   - dialogo de detalhes agora tem aba dedicada `Arvore`:
-    - metade superior: arvore navegavel
-    - metade inferior: detalhes da SSA atual
-    - bloco Mermaid em texto para leitura tecnica rapida
+    - metade superior com subabas `Grafo`, `Arvore` e `Mermaid`
+    - `Grafo` renderiza visualmente as relacoes de derivadas (SVG)
+    - metade inferior continua com os detalhes da SSA selecionada
+    - implementacao em codigo: commit `07ebfe1d`
+    - historico: este item estava como refinamento e foi promovido para entrega por comando explicito no ciclo atual
 - Hotfix de banco entregue nesta frente:
   - upsert nao-complementar agora evita downgrade de `situacao` quando `data_cadastro` empata
   - caso real protegido: manter `STE` e bloquear sobrescrita para `ADM` em empate de data
@@ -35,8 +38,8 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - regressao coberta em testes de upsert e importacao explicita
 - Follow-up apos o sprint GUI:
   - continuar a varredura de chamadas pesadas restantes na thread principal
-  - otimizar `_normalize_ssa_series` da tela de detalhes para recuperar vetorizaçao plena sem perder o contrato central de normalizacao
-  - manter o detalhe de derivadas textual e aba dedicada estaveis; um grafo visual renderizado continua como refinamento futuro
+  - revisar staging/copy da importacao externa para reduzir freeze em disco lento
+  - medir e reduzir custo de refresh/render apos filtros em lote
 - Validacao atual:
   - `uv run --python 3.13 python -m py_compile` em tracked Python -> verde
   - `uv run --python 3.13 ruff check .` -> verde
