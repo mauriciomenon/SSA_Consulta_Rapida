@@ -3393,9 +3393,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             clicked_column = -1
         try:
             display_columns = getattr(self, "_current_display_columns", None)
-            if (
-                isinstance(display_columns, list)
-                and 0 <= clicked_column < len(display_columns)
+            if isinstance(display_columns, list) and 0 <= clicked_column < len(
+                display_columns
             ):
                 clicked_column_name = str(display_columns[clicked_column] or "")
         except Exception:

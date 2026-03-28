@@ -2202,7 +2202,9 @@ class TestGUIFilterLogic:
 
     def test_double_click_numero_ssa_copies_without_opening_details(self, monkeypatch):
         self.window.display_current_page(1)
-        display_columns = list(getattr(self.window, "_current_display_columns", []) or [])
+        display_columns = list(
+            getattr(self.window, "_current_display_columns", []) or []
+        )
         assert "numero_ssa" in display_columns
         numero_col = display_columns.index("numero_ssa")
         model_index = self.window.table_widget.model().index(0, numero_col)
