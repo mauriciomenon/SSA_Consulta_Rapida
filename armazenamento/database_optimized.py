@@ -267,9 +267,7 @@ def _load_existing_ssa_payloads(
     try:
         table_info = pd.read_sql_query(f"PRAGMA table_info({target_table_sql})", conn)
         names = table_info["name"].tolist() if "name" in table_info.columns else []
-        has_arquivo_origem = "arquivo_origem" in {
-            str(col).strip() for col in names
-        }
+        has_arquivo_origem = "arquivo_origem" in {str(col).strip() for col in names}
         has_data_arquivo_origem = "data_arquivo_origem" in {
             str(col).strip() for col in names
         }
