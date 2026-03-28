@@ -20,6 +20,44 @@ def _create_test_table(conn: sqlite3.Connection) -> None:
     )
 
 
+class _FailingCursor:
+    def executemany(self, _sql, _rows):
+        raise RuntimeError("forced executemany failure")
+
+
+class _TrackingConn:
+    def __init__(self, *, in_transaction: bool):
+        self.in_transaction = in_transaction
+        self.rollback_calls = 0
+        self._cursor = _FailingCursor()
+
+    def cursor(self):
+        return self._cursor
+
+    def rollback(self):
+        self.rollback_calls += 1
+
+
+def test_append_dataframe_rows_rolls_back_when_chunk_insert_fails() -> None:
+    conn = _TrackingConn(in_transaction=True)
+    frame = pd.DataFrame([{"numero_ssa": "202600001", "situacao": "ADM"}])
+
+    with pytest.raises(RuntimeError, match="forced executemany failure"):
+        upsert_logic._append_dataframe_rows(conn, "ssa_table", frame)
+
+    assert conn.rollback_calls == 1
+
+
+def test_append_dataframe_rows_does_not_rollback_without_active_transaction() -> None:
+    conn = _TrackingConn(in_transaction=False)
+    frame = pd.DataFrame([{"numero_ssa": "202600001", "situacao": "ADM"}])
+
+    with pytest.raises(RuntimeError, match="forced executemany failure"):
+        upsert_logic._append_dataframe_rows(conn, "ssa_table", frame)
+
+    assert conn.rollback_calls == 0
+
+
 def test_perform_upsert_uses_fast_path_for_unique_ssa_on_empty_target(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

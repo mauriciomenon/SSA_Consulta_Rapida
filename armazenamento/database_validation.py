@@ -35,6 +35,19 @@ def _append_unique_invalid_rows(report: dict[str, Any], indices: list[Any]) -> N
             seen_rows.add(idx)
 
 
+def _rows_are_exact_duplicates(group: pd.DataFrame) -> bool:
+    comparison_columns = [
+        col for col in group.columns if col != "numero_ssa_canonical"
+    ]
+    if not comparison_columns:
+        return True
+    base_row = group[comparison_columns].iloc[0]
+    for row_idx in range(1, len(group)):
+        if not group[comparison_columns].iloc[row_idx].equals(base_row):
+            return False
+    return True
+
+
 def _validate_required_columns(df: pd.DataFrame, report: dict[str, Any]) -> None:
     # Severidades:
     # - numero_ssa: warning (linhas sem/invalidas devem gerar aviso, nao invalidar o lote)
@@ -176,7 +189,7 @@ def _validate_duplicate_ssa(df: pd.DataFrame, report: dict[str, Any]) -> None:
         "numero_ssa_canonical", sort=False, dropna=False
     )
     for _, group in duplicate_groups:
-        if len(group.drop_duplicates()) == 1:
+        if _rows_are_exact_duplicates(group):
             exact_duplicate_indices.extend(group.index.tolist())
         else:
             conflicting_duplicate_indices.extend(group.index.tolist())

@@ -255,7 +255,28 @@ def _append_dataframe_rows(
         ]
         if not rows:
             continue
-        cursor.executemany(insert_sql, rows)
+        try:
+            cursor.executemany(insert_sql, rows)
+        except Exception as exc:
+            in_transaction = getattr(conn, "in_transaction", False)
+            if bool(in_transaction):
+                try:
+                    rollback_fn = getattr(conn, "rollback", None)
+                    if callable(rollback_fn):
+                        rollback_fn()
+                except Exception as rollback_exc:
+                    logger.error(
+                        "Falha ao executar rollback em _append_dataframe_rows: %s",
+                        rollback_exc,
+                    )
+            logger.error(
+                "Falha no append em lote para '%s' (offset=%s, size=%s): %s",
+                table_name,
+                start,
+                len(rows),
+                exc,
+            )
+            raise
         total_inserted += len(rows)
     return total_inserted
 
@@ -1047,7 +1068,7 @@ def insert_dataframe_with_smart_upsert_impl(
         conn = cast(Any, conn_cm.__enter__())
         close_after = True
     try:
-        cursor = cast(Any, conn).cursor()
+        cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         existing_tables = {r[0] for r in cursor.fetchall()}
         table_name = _db_mod._resolve_target_table(
@@ -1121,7 +1142,7 @@ def insert_dataframe_with_smart_upsert_impl(
         if not has_ssa.empty:
             inserted = _perform_upsert(has_ssa, table_name, conn)
             logger.info("Processados %s registros com numero_ssa via upsert", inserted)
-        cast(Any, conn).commit()
+        conn.commit()
         logger.info("Inserção completada com sucesso")
         return True
     except Exception:

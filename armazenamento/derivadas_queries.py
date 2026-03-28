@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from collections import defaultdict
 from contextlib import contextmanager
@@ -20,6 +21,7 @@ ALLOWED_TOP_METRICS = {
 }
 DERIVADAS_QUERY_BUSY_TIMEOUT_MS = 3000
 DERIVADAS_MAX_DISTANCE_LIMIT = 64
+logger = logging.getLogger(__name__)
 
 
 def _normalize_or_none(value: Any) -> str | None:
@@ -45,7 +47,11 @@ def _open_derivadas_connection(db_path: str):
         # Guardrail: query helpers are strictly read-only.
         conn.execute("PRAGMA query_only = ON")
         readiness = scan_derivadas_read_schema_readiness(conn)
-        yield conn, bool(readiness.get("is_ready"))
+        schema_ready = bool(readiness.get("is_ready"))
+        if schema_ready:
+            yield conn, True
+        else:
+            yield None, False
 
 
 def get_parents(db_path: str, ssa: Any, *, include_inactive: bool = False) -> list[str]:
@@ -309,6 +315,7 @@ def _collect_paths(
     ]
     paths: list[list[str]] = []
     states_seen = 1
+    truncated = False
 
     while stack and len(paths) < max_paths:
         node, path, seen = stack.pop()
@@ -319,18 +326,21 @@ def _collect_paths(
             paths.append(path)
             continue
         if states_seen >= max_states:
+            truncated = True
             paths.append(path)
             continue
 
         produced_any = False
         for nxt in reversed(children):
             if len(paths) >= max_paths:
+                truncated = True
                 break
             if nxt in seen:
                 paths.append(path + [nxt])
                 produced_any = True
                 continue
             if states_seen >= max_states:
+                truncated = True
                 break
             next_path = path + [nxt]
             stack.append((nxt, next_path, seen | {nxt}))
@@ -341,6 +351,17 @@ def _collect_paths(
             # No expansion possible due to caps; keep a partial path so callers have deterministic output.
             paths.append(path)
 
+    if stack and len(paths) >= max_paths:
+        truncated = True
+    if truncated:
+        logger.warning(
+            "Path traversal truncated for %s (depth=%s, max_nodes=%s, states=%s, paths=%s)",
+            start_ssa,
+            depth,
+            safe_max_nodes,
+            states_seen,
+            len(paths),
+        )
     if not paths:
         return [[start_ssa]]
     return paths

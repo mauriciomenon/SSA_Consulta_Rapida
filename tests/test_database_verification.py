@@ -331,6 +331,24 @@ class TestDataValidation:
         assert "duplicate_numero_ssa_exact" not in rules
         assert "duplicados conflitantes" in str(report["warnings"])
 
+    def test_validate_duplicate_ssa_exact_rows_with_unhashable_payload(self):
+        """Payload com lista nao deve quebrar validacao de duplicidade exata."""
+        df = pd.DataFrame(
+            {
+                "numero_ssa": [202205845, 202205845],
+                "situacao": ["STE", "STE"],
+                "data_cadastro": ["2022-04-13 10:11:15", "2022-04-13 10:11:15"],
+                "descricao_ssa": ["Descricao identica", "Descricao identica"],
+                "tags": [["A", "B"], ["A", "B"]],
+            }
+        )
+
+        report = validate_dataframe_before_insert(df)
+
+        rules = {violation["rule"] for violation in report["violations"]}
+        assert "duplicate_numero_ssa_exact" in rules
+        assert "duplicate_numero_ssa_conflict" not in rules
+
     def test_validate_duplicate_ssa_uses_canonical_storage_key(self):
         df = pd.DataFrame(
             {

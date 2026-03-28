@@ -62,7 +62,7 @@ def _normalize_numero_ssa_int_legacy(value) -> int | None:
         return None
     try:
         return int(strict_value)
-    except Exception:  # pragma: no cover
+    except (TypeError, ValueError):  # pragma: no cover
         return None
 
 
