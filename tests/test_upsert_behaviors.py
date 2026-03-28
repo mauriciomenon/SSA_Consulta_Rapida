@@ -414,3 +414,21 @@ def test_should_update_existing_blocks_older_snapshot_filename() -> None:
         "arquivo_origem": "Consulta SSA - 25-03-2026_0237PM.xlsx",
     }
     assert _should_update_existing(existing, incoming) is False
+
+
+def test_should_update_existing_blocks_older_data_arquivo_origem_for_generic_names() -> (
+    None
+):
+    existing = {
+        "data_cadastro": "2026-03-27 10:00:00",
+        "situacao": "ADM",
+        "arquivo_origem": "generic_new.xlsx",
+        "data_arquivo_origem": "2026-03-27 12:00:00",
+    }
+    incoming = {
+        "data_cadastro": "2026-03-28 10:00:00",
+        "situacao": "ADM",
+        "arquivo_origem": "generic_old.xlsx",
+        "data_arquivo_origem": "2026-03-26 12:00:00",
+    }
+    assert _should_update_existing(existing, incoming) is False

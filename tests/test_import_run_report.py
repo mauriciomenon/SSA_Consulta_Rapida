@@ -864,6 +864,54 @@ def test_import_explicit_generic_names_use_mtime_for_deterministic_order(
     )
 
 
+def test_import_explicit_generic_older_file_cannot_override_newer_via_data_arquivo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir, _data_dir, db_path = _prepare_runtime_import_update(tmp_path, monkeypatch)
+    old_file = docs_dir / "generic_old.xlsx"
+    new_file = docs_dir / "generic_new.xlsx"
+    old_file.write_text("old", encoding="utf-8")
+    new_file.write_text("new", encoding="utf-8")
+
+    now = time.time()
+    os.utime(old_file, (now - 120, now - 120))
+    os.utime(new_file, (now - 60, now - 60))
+
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        _fake_extract_generic_order_sensitive,
+    )
+
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(new_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(old_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+
+    assert _count_ssa_rows(db_path, "202600778") == 1
+    assert _read_ssa_state(db_path, "202600778") == (
+        "ADM",
+        "IEE3",
+        "2026-03-26 00:00:00",
+        "generic_new.xlsx",
+    )
+
+
 def test_run_importer_logic_diff_real_xlsx_modified_file_updates_without_downgrade(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

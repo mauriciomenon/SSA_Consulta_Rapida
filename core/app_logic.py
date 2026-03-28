@@ -506,11 +506,26 @@ def _import_single_file(
 
             # Garante coluna de rastreio de origem no banco
             database.ensure_column_exists(db_path, table_name, "arquivo_origem", "TEXT")
+            database.ensure_column_exists(
+                db_path, table_name, "data_arquivo_origem", "TEXT"
+            )
+            best_file_dt = best_datetime_for_file(file_path)
+            file_dt_text = (
+                best_file_dt.strftime("%Y-%m-%d %H:%M:%S")
+                if best_file_dt is not None
+                else None
+            )
             if "arquivo_origem" not in df.columns:
                 df["arquivo_origem"] = os.path.basename(file_path)
             else:
                 df["arquivo_origem"] = df["arquivo_origem"].fillna(
                     os.path.basename(file_path)
+                )
+            if "data_arquivo_origem" not in df.columns:
+                df["data_arquivo_origem"] = file_dt_text
+            else:
+                df["data_arquivo_origem"] = df["data_arquivo_origem"].fillna(
+                    file_dt_text
                 )
 
             # Conta registros antes de inserir

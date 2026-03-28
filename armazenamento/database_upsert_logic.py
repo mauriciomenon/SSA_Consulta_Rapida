@@ -401,7 +401,12 @@ def _should_update_existing(
                 return None
             return pd.to_datetime(parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S")
 
-        def _parse_file_dt(origin_value: Any) -> pd.Timestamp | None:
+        def _parse_file_dt(
+            origin_value: Any, explicit_dt_value: Any = None
+        ) -> pd.Timestamp | None:
+            explicit_parsed = parse_any_date(explicit_dt_value)
+            if explicit_parsed is not None:
+                return pd.Timestamp(explicit_parsed)
             raw = str(origin_value or "").strip()
             if not raw:
                 return None
@@ -415,8 +420,14 @@ def _should_update_existing(
         if existing_situacao == "STE" and new_situacao and new_situacao != "STE":
             return False
 
-        existing_file_dt = _parse_file_dt(existing_row.get("arquivo_origem"))
-        new_file_dt = _parse_file_dt(new_row.get("arquivo_origem"))
+        existing_file_dt = _parse_file_dt(
+            existing_row.get("arquivo_origem"),
+            existing_row.get("data_arquivo_origem"),
+        )
+        new_file_dt = _parse_file_dt(
+            new_row.get("arquivo_origem"),
+            new_row.get("data_arquivo_origem"),
+        )
         if (
             existing_file_dt is not None
             and new_file_dt is not None
