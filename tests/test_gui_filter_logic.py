@@ -502,6 +502,25 @@ class TestGUIFilterLogic:
         )
         assert header_text.startswith("[f] ")
 
+    def test_display_headers_ignore_boolean_false_in_advanced_filter_columns(self):
+        if "solicitante" not in self.window.visible_columns:
+            self.window.visible_columns.append("solicitante")
+
+        self.window._active_column_filters = {
+            col: "" for col in self.window._column_filter_default_columns()
+        }
+        self.window._advanced_filters = {"solicitante": False}
+        self.window._advanced_filters_active = True
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header_index = self.window._current_display_columns.index("solicitante")
+        header_text = str(
+            self.window.table_widget.horizontalHeaderItem(header_index).text() or ""
+        )
+        assert not header_text.startswith("[f] ")
+
     def test_clear_operations_preserve_group_structure(self):
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
         self.window._clear_single_column_filter("setor_executor", "IEE3, MEL3, MEL4")
@@ -2181,6 +2200,23 @@ class TestGUIFilterLogic:
             "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx?SerialNumber=1&language=pt"
         ]
 
+    def test_clicking_hash_column_with_pd_na_does_not_raise(self, monkeypatch):
+        self.window.df_completo = self.window.df_completo.copy()
+        self.window.df_exibido = self.window.df_exibido.copy()
+        self.window.df_completo.loc[0, "numero_ssa"] = pd.NA
+        self.window.df_exibido.loc[0, "numero_ssa"] = pd.NA
+        self.window.display_current_page(1)
+        opened = []
+
+        monkeypatch.setattr(
+            gui_ssa.QDesktopServices,
+            "openUrl",
+            lambda url: opened.append(url.toString()) or True,
+        )
+
+        self.window.on_table_cell_clicked(0, 0)
+        assert opened == []
+
     def test_open_sam_home_uses_default_browser(self, monkeypatch):
         opened = []
 
@@ -2480,6 +2516,23 @@ class TestGUIFilterLogic:
             self.window._last_filter_state.get("active_column_filters") or {}
         )
         assert str(snapshot_filters.get("situacao", "")).strip() == ""
+
+    def test_prompt_column_filter_term_returns_none_when_dialog_unavailable(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(gui_ssa, "QT_AVAILABLE", False)
+        assert self.window._prompt_column_filter_term("Situacao", "STE") is None
+
+    def test_prompt_column_filter_term_returns_none_on_dialog_exception(
+        self, monkeypatch
+    ):
+        class _DialogExplode:
+            def __init__(self, *_args, **_kwargs):
+                raise RuntimeError("dialog crash")
+
+        monkeypatch.setattr(gui_ssa, "QT_AVAILABLE", True)
+        monkeypatch.setattr(gui_ssa, "ColumnFilterDialog", _DialogExplode)
+        assert self.window._prompt_column_filter_term("Situacao", "STE") is None
 
     def test_header_context_menu_exposes_best_fit_visible_action(self, monkeypatch):
         class _FakeSignal:

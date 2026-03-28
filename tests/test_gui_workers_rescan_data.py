@@ -454,6 +454,83 @@ def test_rescan_data_explicit_success_with_updates_reloads(tmp_path):
     assert window.status_label.text == "Status: Importacao externa concluida."
 
 
+def test_rescan_data_consolidate_success_uses_consolidate_context(tmp_path, monkeypatch):
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+    contexts: list[str] = []
+
+    def _capture_status(_window, text: str, *, context: str) -> None:
+        contexts.append(str(context))
+        _window.status_label.setText(text)
+
+    monkeypatch.setattr(ssa_gui_workers, "_set_status_label_text", _capture_status)
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_BaseWorker,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="explicit",
+        explicit_files=("docs_entrada/a.xlsx",),
+        operation_kind="consolidate",
+        operation_label="Consolidacao",
+    )
+
+    worker = window._active_rescan_worker
+    assert worker is not None
+    worker.last_outcome = "updated"
+    worker.finished_success.emit()
+
+    assert contexts[-1] == "consolidate.success.done"
+
+
+def test_rescan_data_consolidate_error_uses_consolidate_context(tmp_path, monkeypatch):
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+    contexts: list[str] = []
+
+    def _capture_status(_window, text: str, *, context: str) -> None:
+        contexts.append(str(context))
+        _window.status_label.setText(text)
+
+    monkeypatch.setattr(ssa_gui_workers, "_set_status_label_text", _capture_status)
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_BaseWorker,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="explicit",
+        explicit_files=("docs_entrada/a.xlsx",),
+        operation_kind="consolidate",
+        operation_label="Consolidacao",
+    )
+
+    worker = window._active_rescan_worker
+    assert worker is not None
+    worker.finished_error.emit("boom")
+
+    assert contexts[-1] == "consolidate.error"
+
+
 def test_rescan_data_diff_mode_skips_prompt_and_sets_force_import_false(tmp_path):
     captured_modes: list[bool] = []
 

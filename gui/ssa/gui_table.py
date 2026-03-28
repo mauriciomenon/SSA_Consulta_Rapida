@@ -495,7 +495,13 @@ def display_current_page(window, page_number, *, update_details=True):
                                 logger.debug(
                                     "Falha ao aplicar cor de link na coluna #: %s", exc
                                 )
-                            item.setToolTip("Abrir SSA no SAM")
+                            try:
+                                if hasattr(item, "setToolTip"):
+                                    item.setToolTip("Abrir SSA no SAM")
+                            except Exception as exc:
+                                logger.debug(
+                                    "Falha ao aplicar tooltip na coluna #: %s", exc
+                                )
                         window.table_widget.setItem(row_idx, col_idx, item)
                     except Exception as exc:
                         cell_render_failures += 1

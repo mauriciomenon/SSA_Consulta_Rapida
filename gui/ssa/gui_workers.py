@@ -1483,10 +1483,10 @@ def rescan_data(
                 else _success_status_text(is_explicit_import, outcome)
             ),
             context=(
-                "explicit_import.success.done"
-                if is_explicit_import
-                else "consolidate.success.done"
+                "consolidate.success.done"
                 if normalized_kind == "consolidate"
+                else "explicit_import.success.done"
+                if is_explicit_import
                 else "rescan.success.done"
             ),
         )
@@ -1528,10 +1528,10 @@ def rescan_data(
                 else "Status: Erro no reescaneamento."
             ),
             context=(
-                "explicit_import.error"
-                if is_explicit_import
-                else "consolidate.error"
+                "consolidate.error"
                 if normalized_kind == "consolidate"
+                else "explicit_import.error"
+                if is_explicit_import
                 else "rescan.error"
             ),
         )

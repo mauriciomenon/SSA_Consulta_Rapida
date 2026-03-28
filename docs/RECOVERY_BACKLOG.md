@@ -89,6 +89,27 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## Update 2026-03-27 18:10 - hotfix anti-downgrade de situacao no upsert (HOTFIX_BLOCKER + DOC_SYNC)
 
+## Update 2026-03-28 16:16 - fechamento de comentarios novos do PR 46 (HOTFIX_BLOCKER + STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-28 14:35:00 -0300`
+2. fim: `2026-03-28 16:16:00 -0300`
+
+Escopo fechado neste slice:
+1. `gui/mixins/filter_gui_ssa_mixin.py`: `False` em filtro avancado nao marca mais coluna como ativa.
+2. `gui/gui_ssa.py`: fallback do prompt de filtro por coluna retorna `None` (cancelamento), sem aplicar busca global por engano.
+3. `gui/gui_ssa.py`: clique no `#` nao quebra com `pd.NA` em `numero_ssa`.
+4. `gui/ssa/gui_table.py`: falha em `setToolTip` nao derruba render da coluna `#`.
+5. `gui/ssa/gui_workers.py`: contexto de status prioriza `consolidate` antes de `explicit_import`.
+6. `.github/workflows/minimal-ci.yml`: filtra arquivos `.py` deletados antes de py_compile/ruff/ty.
+
+Validacao local deste slice:
+1. `uv run --python 3.13 python -m py_compile` (arquivos alterados): OK
+2. `uv run --python 3.13 ruff check` (arquivos alterados): OK
+3. `uv run --python 3.13 ty check` (runtime alterado): OK
+4. `uv run --python 3.13 pytest -q tests/test_gui_workers_rescan_data.py tests/test_gui_table_render_resilience.py`: `30 passed`
+5. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "display_headers_mark_advanced_filter_columns_with_f or display_headers_ignore_boolean_false_in_advanced_filter_columns or clicking_hash_column or header_context_menu or prompt_column_filter_term"`: `9 passed`
+
 ## Update 2026-03-27 19:15 - aba dedicada de arvore de derivadas (STABILITY_PATCH + DOC_SYNC)
 
 Session timestamp:

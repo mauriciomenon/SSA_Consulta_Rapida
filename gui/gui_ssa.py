@@ -2826,7 +2826,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     # --- Filtro por coluna via clique direito no cabeçalho ---
     def _prompt_column_filter_term(self, full_name: str, initial_value: str = ""):
         if not QT_AVAILABLE or ColumnFilterDialog is None:
-            return self.search_input.text().strip()
+            return None
         try:
             dialog = ColumnFilterDialog(
                 full_name,
@@ -2841,7 +2841,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return dialog.get_value()
         except Exception as exc:
             logger.debug("Falha ao abrir dialogo de filtro por coluna: %s", exc)
-            return self.search_input.text().strip()
+            return None
 
     def show_header_context_menu(self, pos):
         try:
@@ -3382,7 +3382,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         if series is None:
             return
         numero_ssa = series.get("numero_ssa")
-        self._open_sam_ssa(str(numero_ssa or ""))
+        self._open_sam_ssa(numero_ssa)
 
     def on_table_double_click(self, index):
         """Mostra janela de detalhes formatada ao duplo clique."""
