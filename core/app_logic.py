@@ -262,6 +262,7 @@ def _resolve_explicit_import_files(
             continue
         seen.add(normalized)
         resolved_files.append(normalized)
+
     def _sort_key(path: str) -> tuple[bool, datetime | None, str, str]:
         file_dt = best_datetime_for_file(path)
         return (
