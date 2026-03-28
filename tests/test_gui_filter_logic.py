@@ -2074,6 +2074,46 @@ class TestGUIFilterLogic:
     def test_build_derivadas_mermaid_text_returns_empty_without_target(self):
         assert ssa_gui_details._build_derivadas_mermaid_text({}) == ""
 
+    def test_build_derivadas_graph_html_generates_svg(self):
+        data: dict[str, object] = {
+            "target": "202600023",
+            "parents": ["202516514"],
+            "children": ["202600029", "202600030"],
+            "descendants": [{"ssa": "202600031", "parent": "202600029"}],
+            "descendants_count": 3,
+        }
+        html = ssa_gui_details._build_derivadas_graph_html(
+            self.window,
+            data,
+            link_color="#4a90e2",
+            font_family="monospace",
+        )
+        assert "<svg" in html
+        assert "202600023" in html
+        assert "marker-end" in html
+        assert "Grafo de derivadas" in html
+
+    def test_normalize_ssa_series_reuses_unique_normalizations(self, monkeypatch):
+        calls = []
+
+        def _fake_norm(_window, value):
+            calls.append(value)
+            if value is None:
+                return ""
+            return str(value)
+
+        monkeypatch.setattr(ssa_gui_details, "_normalize_ssa_value", _fake_norm)
+        series = pd.Series(["202600023", "202600023", "202600029", None, "202600029"])
+        normalized = ssa_gui_details._normalize_ssa_series(self.window, series)
+        assert normalized.tolist() == [
+            "202600023",
+            "202600023",
+            "202600029",
+            "",
+            "202600029",
+        ]
+        assert len(calls) <= 3
+
     def test_open_details_dialog_builds_dedicated_tree_tab(self, monkeypatch):
         self.window.df_exibido = self.base_df.copy()
         captured = {}
@@ -2083,14 +2123,16 @@ class TestGUIFilterLogic:
             if not tabs:
                 captured["labels"] = []
                 return 0
-            tab = tabs[0]
-            captured["labels"] = [tab.tabText(i) for i in range(tab.count())]
+            captured["labels"] = [
+                [tab.tabText(i) for i in range(tab.count())] for tab in tabs
+            ]
             return 0
 
         monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
         self.window._open_details_dialog_for_ssa("1")
         assert "labels" in captured
-        assert captured["labels"] == ["Detalhes", "Arvore"]
+        assert ["Detalhes", "Arvore"] in captured["labels"]
+        assert ["Grafo", "Arvore", "Mermaid"] in captured["labels"]
 
     def test_details_number_double_click_copies_current_ssa(self, monkeypatch):
         self.window._details_current_ssa = "202600023"

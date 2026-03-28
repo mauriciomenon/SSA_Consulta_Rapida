@@ -42,6 +42,12 @@ SSA_NORM_CACHE_MAX_ENTRIES = 64
 DERIVADAS_DIALOG_MIN_WIDTH = 960
 DERIVADAS_DIALOG_TREE_MIN_WIDTH = 180
 DERIVADAS_DIALOG_DETAILS_MIN_WIDTH = 520
+DERIVADAS_GRAPH_NODE_WIDTH = 178
+DERIVADAS_GRAPH_NODE_HEIGHT = 56
+DERIVADAS_GRAPH_X_GAP = 220
+DERIVADAS_GRAPH_Y_GAP = 130
+DERIVADAS_GRAPH_MARGIN = 48
+DERIVADAS_GRAPH_MAX_DESCENDANTS = 120
 
 
 def _init_readonly_text_browser(
@@ -479,9 +485,16 @@ def _normalize_ssa_value(window, value):
 
 
 def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
-    """Normaliza valores de SSA de forma compat com contrato central e GUI local."""
+    """Normaliza SSA em serie com cache por valor unico."""
     try:
-        return series.map(lambda value: _normalize_ssa_value(window, value))
+        series_obj = series.astype("object")
+        codes, uniques = pd.factorize(series_obj, sort=False)
+        normalized_uniques = [_normalize_ssa_value(window, value) for value in uniques]
+        resolved = [""] * len(series_obj)
+        for index, code in enumerate(codes):
+            if code >= 0:
+                resolved[index] = normalized_uniques[code]
+        return pd.Series(resolved, index=series_obj.index, dtype="object")
     except Exception as exc:
         logger.debug("Falha ao normalizar SSA series; fallback apply: %s", exc)
         try:
@@ -1132,6 +1145,229 @@ def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _build_derivadas_graph_html(
+    window,
+    data: Mapping[str, object],
+    *,
+    link_color: str,
+    font_family: str,
+) -> str:
+    target = _normalize_ssa_value(window, data.get("target"))
+    if not target:
+        return ""
+
+    def _normalize_list(entries) -> list[str]:
+        if not isinstance(entries, list):
+            return []
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for raw in entries:
+            value = _normalize_ssa_value(window, raw)
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            normalized.append(value)
+        return normalized
+
+    parents = _normalize_list(data.get("parents", []))
+    children = _normalize_list(data.get("children", []))
+    descendants_entries = data.get("descendants", [])
+    descendants: list[dict[str, str]] = []
+    if isinstance(descendants_entries, list):
+        for raw in descendants_entries[:DERIVADAS_GRAPH_MAX_DESCENDANTS]:
+            if not isinstance(raw, dict):
+                continue
+            raw_map = cast(dict[str, object], raw)
+            child = _normalize_ssa_value(window, raw_map.get("ssa"))
+            parent = _normalize_ssa_value(window, raw_map.get("parent"))
+            if not child:
+                continue
+            descendants.append({"ssa": child, "parent": parent})
+
+    nodes: set[str] = {target}
+    edges: list[tuple[str, str]] = []
+    dashed_edges: set[tuple[str, str]] = set()
+    edge_seen: set[tuple[str, str]] = set()
+
+    def _add_edge(source: str, target_node: str, *, dashed: bool = False) -> None:
+        if not source or not target_node:
+            return
+        edge = (source, target_node)
+        if edge in edge_seen:
+            return
+        edge_seen.add(edge)
+        edges.append(edge)
+        nodes.add(source)
+        nodes.add(target_node)
+        if dashed:
+            dashed_edges.add(edge)
+
+    for parent in parents:
+        _add_edge(parent, target)
+    for child in children:
+        _add_edge(target, child)
+    for row in descendants:
+        descendant = row.get("ssa", "")
+        parent = row.get("parent", "")
+        if parent:
+            _add_edge(parent, descendant)
+        else:
+            _add_edge(target, descendant, dashed=True)
+
+    levels: dict[str, int] = {target: 0}
+    for parent in parents:
+        levels[parent] = -1
+    changed = True
+    while changed:
+        changed = False
+        for source, target_node in edges:
+            if source not in levels:
+                continue
+            candidate = levels[source] + 1
+            previous = levels.get(target_node)
+            if previous is None or candidate < previous:
+                levels[target_node] = candidate
+                changed = True
+    for node in nodes:
+        levels.setdefault(node, 1)
+
+    level_nodes: dict[int, list[str]] = {}
+    for node in nodes:
+        level_nodes.setdefault(levels[node], []).append(node)
+    for level in list(level_nodes):
+        level_nodes[level] = sorted(level_nodes[level])
+
+    positions: dict[str, tuple[float, float]] = {}
+    min_level = min(level_nodes.keys())
+    node_w = DERIVADAS_GRAPH_NODE_WIDTH
+    node_h = DERIVADAS_GRAPH_NODE_HEIGHT
+    x_gap = DERIVADAS_GRAPH_X_GAP
+    y_gap = DERIVADAS_GRAPH_Y_GAP
+    margin = DERIVADAS_GRAPH_MARGIN
+
+    for level in sorted(level_nodes.keys()):
+        nodes_on_level = level_nodes[level]
+        centered_start = -((len(nodes_on_level) - 1) * x_gap) / 2.0
+        y = margin + (level - min_level) * y_gap
+        for index, node in enumerate(nodes_on_level):
+            x = centered_start + index * x_gap
+            positions[node] = (x, y)
+
+    if not positions:
+        return ""
+
+    min_x = min(x - node_w / 2.0 for x, _ in positions.values())
+    max_x = max(x + node_w / 2.0 for x, _ in positions.values())
+    min_y = min(y - node_h / 2.0 for _, y in positions.values())
+    max_y = max(y + node_h / 2.0 for _, y in positions.values())
+
+    offset_x = margin - min_x
+    offset_y = margin - min_y
+    svg_width = int(max_x - min_x + margin * 2)
+    svg_height = int(max_y - min_y + margin * 2)
+
+    theme_roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
+    text_color = pick_css_color(
+        theme_roles.get("panel_text"),
+        theme_roles.get("label_color"),
+        fallback="#d0d0d0",
+    )
+    node_fill = pick_css_color(
+        theme_roles.get("input_bg"),
+        theme_roles.get("panel_bg"),
+        fallback="#1f1f1f",
+    )
+    node_target_fill = pick_css_color(
+        theme_roles.get("accent"),
+        theme_roles.get("highlight"),
+        fallback="#2f6dd5",
+    )
+    node_stroke = pick_css_color(
+        link_color,
+        theme_roles.get("border"),
+        fallback="#4a90e2",
+    )
+
+    svg_lines = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_width}" '
+        f'height="{svg_height}" viewBox="0 0 {svg_width} {svg_height}">',
+        "<defs>",
+        '<marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto">',
+        f'<polygon points="0 0, 9 3.5, 0 7" fill="{node_stroke}" />',
+        "</marker>",
+        "</defs>",
+    ]
+
+    for source, target_node in edges:
+        source_pos = positions.get(source)
+        target_pos = positions.get(target_node)
+        if source_pos is None or target_pos is None:
+            continue
+        sx, sy = source_pos
+        tx, ty = target_pos
+        if levels.get(target_node, 0) >= levels.get(source, 0):
+            y1 = sy + node_h / 2.0
+            y2 = ty - node_h / 2.0
+        else:
+            y1 = sy - node_h / 2.0
+            y2 = ty + node_h / 2.0
+        x1 = sx + offset_x
+        x2 = tx + offset_x
+        y1 += offset_y
+        y2 += offset_y
+        dash_attr = ' stroke-dasharray="7 6"' if (source, target_node) in dashed_edges else ""
+        svg_lines.append(
+            f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
+            f'stroke="{node_stroke}" stroke-width="2.0" marker-end="url(#arrow)"{dash_attr} />'
+        )
+
+    for node, (x, y) in positions.items():
+        x0 = x - node_w / 2.0 + offset_x
+        y0 = y - node_h / 2.0 + offset_y
+        fill = node_target_fill if node == target else node_fill
+        safe_node = html_module.escape(node)
+        svg_lines.append(
+            f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{node_w}" height="{node_h}" '
+            f'rx="14" ry="14" fill="{fill}" stroke="{node_stroke}" stroke-width="1.5" />'
+        )
+        svg_lines.append(
+            f'<text x="{(x + offset_x):.1f}" y="{(y + offset_y + 5):.1f}" text-anchor="middle" '
+            f'font-family="{html_module.escape(font_family)}" font-size="13" fill="{text_color}">{safe_node}</text>'
+        )
+    svg_lines.append("</svg>")
+
+    raw_descendants_count = data.get("descendants_count", 0)
+    if isinstance(raw_descendants_count, bool):
+        descendants_count = int(raw_descendants_count)
+    elif isinstance(raw_descendants_count, int):
+        descendants_count = raw_descendants_count
+    elif isinstance(raw_descendants_count, float):
+        descendants_count = int(raw_descendants_count)
+    elif isinstance(raw_descendants_count, str):
+        try:
+            descendants_count = int(raw_descendants_count.strip() or "0")
+        except Exception:
+            descendants_count = 0
+    else:
+        descendants_count = 0
+    truncated = 0
+    if isinstance(descendants_entries, list):
+        truncated = max(0, len(descendants_entries) - len(descendants))
+    summary = (
+        f"Nos: {len(nodes)} | Relacoes: {len(edges)} | Descendentes: {descendants_count}"
+    )
+    if truncated > 0:
+        summary = f"{summary} | Exibicao parcial de descendentes: +{truncated}"
+    return (
+        "<html><body style="
+        f'"font-family:{html_module.escape(font_family)}; margin:6px;">'
+        "<div style='margin-bottom:6px; font-weight:600;'>Grafo de derivadas</div>"
+        f"{''.join(svg_lines)}"
+        f"<div style='margin-top:8px; opacity:0.85;'>{html_module.escape(summary)}</div>"
+        "</body></html>"
+    )
+
+
 def _open_details_dialog_for_ssa(window, numero_ssa):
     target = _normalize_ssa_value(window, numero_ssa)
     if not target:
@@ -1180,10 +1416,16 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     details_browser = _init_readonly_text_browser(
         QTextBrowser(), min_width=DERIVADAS_DIALOG_DETAILS_MIN_WIDTH
     )
+    tree_tab_top_tabs = QTabWidget(tab_tree)
+    tree_graph_browser = _init_readonly_text_browser(QTextBrowser(), min_height=220)
     tree_tab_browser = _init_readonly_text_browser(QTextBrowser(), min_height=220)
+    tree_tab_mermaid_browser = _init_readonly_text_browser(QTextBrowser(), min_height=220)
     tree_tab_details_browser = _init_readonly_text_browser(
         QTextBrowser(), min_height=220
     )
+    tree_tab_top_tabs.addTab(tree_graph_browser, "Grafo")
+    tree_tab_top_tabs.addTab(tree_tab_browser, "Arvore")
+    tree_tab_top_tabs.addTab(tree_tab_mermaid_browser, "Mermaid")
 
     try:
         link_color = window.palette().color(QPalette.ColorRole.Highlight).name()
@@ -1258,25 +1500,26 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             tree_data_override=tree_data,
         )
         mermaid_text = _build_derivadas_mermaid_text(tree_data)
+        graph_html = _build_derivadas_graph_html(
+            window,
+            tree_data,
+            link_color=link_color,
+            font_family=dialog_font_family,
+        )
+        if graph_html:
+            tree_graph_browser.setHtml(graph_html)
+        else:
+            tree_graph_browser.setPlainText("Grafo de derivadas indisponivel.")
         if tree_html:
             tree_browser.setHtml(tree_html)
-            if mermaid_text:
-                tree_tab_browser.setHtml(
-                    tree_html
-                    + (
-                        "<br/><b>Mermaid (texto):</b><br/>"
-                        '<pre style="white-space:pre-wrap;">'
-                        f"{html_module.escape(mermaid_text)}"
-                        "</pre>"
-                    )
-                )
-            else:
-                tree_tab_browser.setHtml(tree_html)
+            tree_tab_browser.setHtml(tree_html)
         else:
             tree_browser.setPlainText("Arvore de derivadas indisponivel para esta SSA.")
-            tree_tab_browser.setPlainText(
-                "Arvore de derivadas indisponivel para esta SSA."
-            )
+            tree_tab_browser.setPlainText("Arvore de derivadas indisponivel.")
+        if mermaid_text:
+            tree_tab_mermaid_browser.setPlainText(mermaid_text)
+        else:
+            tree_tab_mermaid_browser.setPlainText("Mermaid indisponivel.")
         tree_tab_details_browser.setHtml(html_details)
         return True
 
@@ -1311,6 +1554,8 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     tree_browser.anchorClicked.connect(_handle_dialog_anchor)
     details_browser.anchorClicked.connect(_handle_dialog_anchor)
     tree_tab_browser.anchorClicked.connect(_handle_dialog_anchor)
+    tree_graph_browser.anchorClicked.connect(_handle_dialog_anchor)
+    tree_tab_mermaid_browser.anchorClicked.connect(_handle_dialog_anchor)
     tree_tab_details_browser.anchorClicked.connect(_handle_dialog_anchor)
     if not _render_target(target):
         return
@@ -1330,7 +1575,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_RIGHT / total_ratio),
     )
     content_splitter.setSizes([left_width, right_width])
-    tree_tab_splitter.addWidget(tree_tab_browser)
+    tree_tab_splitter.addWidget(tree_tab_top_tabs)
     tree_tab_splitter.addWidget(tree_tab_details_browser)
     tree_tab_splitter.setStretchFactor(0, 1)
     tree_tab_splitter.setStretchFactor(1, 1)
