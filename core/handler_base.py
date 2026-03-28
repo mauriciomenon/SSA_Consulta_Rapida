@@ -291,7 +291,7 @@ class HandlerBase(ABC):
         output_text = ""
         stats = {}
 
-        if data is not None and not data.empty and context:
+        if isinstance(data, pd.DataFrame) and not data.empty and context:
             output_text = self.format_output(data, context)
             stats = context.get_stats()
 
