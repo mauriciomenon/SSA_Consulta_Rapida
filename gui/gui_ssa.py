@@ -1059,6 +1059,25 @@ def resolve_uv_version_text() -> str:
     return "indisponivel"
 
 
+def resolve_git_commit_hash_text() -> str:
+    """Resolve hash curto do commit atual para exibicao em UI."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+            cwd=project_root,
+        )
+        output = str(result.stdout or "").strip()
+        if output:
+            return output
+    except Exception as exc:
+        logger.debug("Falha ao resolver hash de commit: %s", exc)
+    return "indisponivel"
+
+
 def build_about_message(app_version: str) -> str:
     """Monta texto do dialogo Sobre."""
     python_version = str(sys.version.split()[0]) if sys.version else "indisponivel"
@@ -1066,6 +1085,7 @@ def build_about_message(app_version: str) -> str:
     pyqt_version = str(PYQT_VERSION_STR or "indisponivel")
     qt_version = str(QT_VERSION_STR or "indisponivel")
     uv_version = resolve_uv_version_text()
+    commit_hash = resolve_git_commit_hash_text()
     return "\n".join(
         (
             "Consulta Rapida de SSAs",
@@ -1076,6 +1096,7 @@ def build_about_message(app_version: str) -> str:
             f"PyQt6: {pyqt_version}",
             f"Qt: {qt_version}",
             f"pandas: {pandas_version}",
+            f"Commit: {commit_hash}",
         )
     )
 

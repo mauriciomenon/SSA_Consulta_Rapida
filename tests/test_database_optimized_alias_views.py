@@ -126,3 +126,41 @@ def test_optimized_insert_resolves_legacy_alias_without_view_object(
 
     assert row == ("alias-sem-view",)
     assert alias_table_count == 0
+
+
+def test_optimized_insert_same_date_does_not_downgrade_situacao(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "same_date_no_downgrade.db")
+    schema_path = _get_project_root() / "config" / "schema.sql"
+    if not schema_path.exists():
+        pytest.fail(f"Schema ausente para setup de teste: {schema_path}")
+
+    init_ok = database.initialize_database(db_path, str(schema_path))
+    assert init_ok is True
+
+    newer_or_equal = pd.DataFrame(
+        {
+            "numero_ssa": ["202600654"],
+            "data_cadastro": ["2026-01-16 00:00:00"],
+            "situacao": ["STE"],
+            "descricao_ssa": ["estado terminal"],
+        }
+    )
+    older_semantic = pd.DataFrame(
+        {
+            "numero_ssa": ["202600654"],
+            "data_cadastro": ["2026-01-16 00:00:00"],
+            "situacao": ["ADM"],
+            "descricao_ssa": ["estado antigo"],
+        }
+    )
+
+    assert insert_dataframe_optimized(newer_or_equal, db_path, table_name="ssas") is True
+    assert insert_dataframe_optimized(older_semantic, db_path, table_name="ssas") is True
+
+    with database.get_db_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT situacao FROM ssa_table WHERE numero_ssa = ?",
+            ("202600654",),
+        ).fetchone()
+    assert row is not None
+    assert row[0] == "STE"

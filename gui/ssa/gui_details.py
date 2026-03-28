@@ -1034,11 +1034,10 @@ def _build_derivadas_tree_html(
         title_text = title if count is None else f"{title} ({count})"
         lines.append(f"<b>{html_module.escape(title_text)}</b><br/>")
         if not entries:
-            lines.append("&nbsp;&nbsp;`- nenhuma<br/><br/>")
+            lines.append("&nbsp;&nbsp;- nenhuma<br/><br/>")
             return
-        last_index = len(entries) - 1
-        for index, entry in enumerate(entries):
-            prefix = "`-" if index == last_index else "|-"
+        for entry in entries:
+            prefix = "-"
             if isinstance(entry, dict):
                 ssa = str(entry.get("ssa", "")).strip()
                 if not ssa:

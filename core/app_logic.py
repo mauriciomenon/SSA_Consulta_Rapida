@@ -14,7 +14,6 @@ a atualizacao do banco de dados SQLite e o gerenciamento do cache.
 # - Related modules: extracao.extractor, armazenamento.database,
 #   armazenamento.database_validation, armazenamento.database_integrity.
 
-import hashlib
 import json
 import logging
 import os
@@ -69,16 +68,21 @@ class FilterSearchCacheManager:
     """Manage per-DataFrame search cache attrs for filter_dataframe()."""
 
     @staticmethod
-    def _compute_fingerprint(
+    def _compute_cache_signature(
         df: pd.DataFrame, available_search_cols: list[str]
     ) -> str | None:
         if not available_search_cols:
             return None
         search_df = df.loc[:, available_search_cols]
-        hashed = pd.util.hash_pandas_object(search_df, index=True)
-        return hashlib.blake2b(
-            hashed.to_numpy(copy=False).tobytes(), digest_size=16
-        ).hexdigest()
+        manager_id = id(getattr(search_df, "_mgr", None))
+        payload = (
+            id(df),
+            manager_id,
+            tuple(str(col) for col in search_df.columns),
+            tuple(str(dtype) for dtype in search_df.dtypes),
+            len(search_df.index),
+        )
+        return repr(payload)
 
     @staticmethod
     def build_token(
@@ -87,7 +91,7 @@ class FilterSearchCacheManager:
         data_token = df.attrs.setdefault(FILTER_SEARCH_TOKEN_ATTR, uuid.uuid4().hex)
         cached_search_data = df.attrs.get(FILTER_SEARCH_CACHE_ATTR)
         if isinstance(cached_search_data, dict):
-            fingerprint = FilterSearchCacheManager._compute_fingerprint(
+            fingerprint = FilterSearchCacheManager._compute_cache_signature(
                 df, available_search_cols
             )
         else:
@@ -2344,7 +2348,7 @@ def run_importer_logic(
 
 
 def parse_search_terms(
-    search_terms: List[str],
+    search_terms: Any,
     default_mode: str = "contains",
 ) -> List[Dict[str, Any]]:
     """
@@ -2366,16 +2370,28 @@ def parse_search_terms(
     Negativo: prefixar ! (ou -) antes do termo (ex.: !^adm, !=fechado, !$2025, !~regex)
     """
     parsed: List[Dict[str, Any]] = []
-    if not search_terms:
+    if search_terms is None:
         return parsed
-    if not isinstance(search_terms, list):
+    if isinstance(search_terms, list):
+        normalized_terms: list[Any] = search_terms
+    elif isinstance(search_terms, tuple):
+        normalized_terms = list(search_terms)
+    elif isinstance(search_terms, str):
+        normalized_terms = [search_terms]
+    else:
+        logger.warning(
+            "parse_search_terms recebeu tipo invalido de search_terms: %s",
+            type(search_terms).__name__,
+        )
+        return parsed
+    if len(normalized_terms) == 0:
         return parsed
 
     allowed_modes = {"contains", "prefix", "suffix", "exact", "regex"}
     fallback_mode = default_mode if default_mode in allowed_modes else "contains"
 
     # Simplified: split only by commas, then process all terms with group=0 (AND logic)
-    for raw in search_terms:
+    for raw in normalized_terms:
         if not isinstance(raw, str):
             continue
         raw_chunks = [chunk.strip() for chunk in raw.split(",")]
@@ -2417,7 +2433,7 @@ def parse_search_terms(
 
 
 def filter_dataframe(
-    df: pd.DataFrame, search_terms: list, search_columns: Optional[list] = None
+    df: pd.DataFrame, search_terms: Any, search_columns: Optional[list] = None
 ) -> pd.DataFrame:
     """
     Filtra um DataFrame com base em uma lista de termos de busca (strings) ou
@@ -2441,7 +2457,21 @@ def filter_dataframe(
     - cada termo e satisfeito quando qualquer campo pesquisavel da linha corresponder
     - termos ja parseados (dict) ainda podem carregar grupos legados para OR entre grupos
     """
-    if df is None or df.empty or not search_terms:
+    if df is None or df.empty:
+        return df
+    if isinstance(search_terms, list):
+        normalized_search_terms: list[Any] = search_terms
+    elif isinstance(search_terms, tuple):
+        normalized_search_terms = list(search_terms)
+    elif isinstance(search_terms, str):
+        normalized_search_terms = [search_terms]
+    else:
+        logger.warning(
+            "filter_dataframe recebeu search_terms invalido (%s); retornando DataFrame sem filtro",
+            type(search_terms).__name__,
+        )
+        return df
+    if len(normalized_search_terms) == 0:
         return df
 
     #  OTIMIZACAO: Usar apenas colunas prioritarias se nao especificado
@@ -2502,7 +2532,16 @@ def filter_dataframe(
                 FILTER_FIELD_SEPARATOR, " ", regex=False
             )
         )
-        row_search_text = base_lower_df.agg(FILTER_FIELD_SEPARATOR.join, axis=1)
+        if base_lower_df.shape[1] == 1:
+            row_search_text = base_lower_df.iloc[:, 0]
+        else:
+            row_search_text = base_lower_df.iloc[:, 0]
+            for column_name in base_lower_df.columns[1:]:
+                row_search_text = row_search_text.str.cat(
+                    base_lower_df[column_name],
+                    sep=FILTER_FIELD_SEPARATOR,
+                    na_rep="",
+                )
         FilterSearchCacheManager.store_cached_search_data(
             df, search_cache_token, base_lower_df, row_search_text
         )
@@ -2518,10 +2557,15 @@ def filter_dataframe(
     )
 
     # Permite tanto termos brutos (str) quanto parseados (dict)
-    if search_terms and isinstance(search_terms[0], dict):
-        terms = search_terms  # ja parseados
+    terms: List[Dict[str, Any]]
+    if isinstance(normalized_search_terms[0], dict):
+        terms = [
+            cast(Dict[str, Any], term)
+            for term in normalized_search_terms
+            if isinstance(term, dict)
+        ]
     else:
-        terms = parse_search_terms(search_terms)
+        terms = parse_search_terms(normalized_search_terms)
 
     if not terms:
         return df
@@ -2565,16 +2609,12 @@ def filter_dataframe(
 
         if mode == "regex":
             try:
-                return base_lower_df.apply(
-                    lambda col: col.str.contains(
-                        pattern, case=False, na=False, regex=True
-                    )
-                ).any(axis=1)
+                return row_search_text.str.contains(
+                    pattern, case=False, na=False, regex=True
+                )
             except re.error:
                 lowered = str(pattern).casefold()
-                return base_lower_df.apply(
-                    lambda col: col.str.contains(lowered, regex=False, na=False)
-                ).any(axis=1)
+                return row_search_text.str.contains(lowered, regex=False, na=False)
 
         lowered = str(value).casefold()
         if mode == "prefix":
