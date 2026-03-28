@@ -9,6 +9,7 @@ from armazenamento.database import (
     insert_dataframe_to_db,
     insert_dataframe_with_smart_upsert,
 )
+from armazenamento.database_upsert_logic import _should_update_existing
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS ssas (
@@ -368,3 +369,48 @@ def test_upsert_same_date_allows_upgrade_situacao(tmp_path):
     rows = _fetch_all(db_path)
     assert len(rows) == 1
     assert rows.iloc[0]["situacao"] == "STE"
+
+
+def test_upsert_newer_data_cadastro_cannot_downgrade_from_ste(tmp_path):
+    db_path = _init_db(tmp_path)
+    first = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202600656",
+                "situacao": "STE",
+                "data_cadastro": "16/01/2026",
+                "descricao_ssa": "estado terminal",
+                "setor_executor": "IEE3",
+            }
+        ]
+    )
+    insert_dataframe_to_db(first, db_path, "ssas")
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202600656",
+                "situacao": "ADM",
+                "data_cadastro": "17/01/2026",
+                "descricao_ssa": "tentativa downgrade com data maior",
+                "setor_executor": "IEE3",
+            }
+        ]
+    )
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, "ssas") is True
+    rows = _fetch_all(db_path)
+    assert len(rows) == 1
+    assert rows.iloc[0]["situacao"] == "STE"
+
+
+def test_should_update_existing_blocks_older_snapshot_filename() -> None:
+    existing = {
+        "data_cadastro": "2026-03-26 10:00:00",
+        "situacao": "ADM",
+        "arquivo_origem": "Consulta SSA - 26-03-2026_0237PM.xlsx",
+    }
+    incoming = {
+        "data_cadastro": "2026-03-27 10:00:00",
+        "situacao": "ADM",
+        "arquivo_origem": "Consulta SSA - 25-03-2026_0237PM.xlsx",
+    }
+    assert _should_update_existing(existing, incoming) is False
