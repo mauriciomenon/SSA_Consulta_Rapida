@@ -251,7 +251,7 @@ C:\Users\menon\
     |   +-- ollama_config.json         <-- Ollama config
     |
     +-- .github\instructions\
-    |   +-- ccr_llm_providers.instructions      <-- Instrucoes Copilot
+    |   +-- ccr_llm_providers.instructions.md   <-- Instrucoes Copilot
     |   +-- (outros 15 arquivos de instrucoes)
     |
     +-- docs\
