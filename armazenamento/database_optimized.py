@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from typing import Iterator
 
 import pandas as pd
 
@@ -188,6 +189,134 @@ def _has_referencing_foreign_keys(conn, target_table: str) -> bool:
     return False
 
 
+def _normalize_unique_ssa_values(ssa_values: pd.Series | list[object]) -> list[str]:
+    """Normalize and deduplicate SSA identifiers preserving input order."""
+    if isinstance(ssa_values, pd.Series):
+        raw_values = ssa_values.tolist()
+    else:
+        raw_values = ssa_values
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in raw_values:
+        numero = normalize_numero_ssa_storage(value)
+        if not numero or numero in seen:
+            continue
+        seen.add(numero)
+        normalized.append(numero)
+    return normalized
+
+
+def _iter_lookup_chunks_by_ssa(
+    conn: sqlite3.Connection,
+    *,
+    target_table_sql: str,
+    normalized_ssas: list[str],
+    select_expr: str,
+    initial_chunk_size: int = 500,
+) -> Iterator[pd.DataFrame]:
+    """Yield lookup result chunks with SQLite variables-limit fallback."""
+    if not normalized_ssas:
+        return
+    max_lookup_params = max(1, SQLITE_MAX_VARIABLES - 100)
+    lookup_chunk = min(initial_chunk_size, max_lookup_params)
+    i = 0
+    while i < len(normalized_ssas):
+        chunk_ssas = normalized_ssas[i : i + lookup_chunk]
+        if len(chunk_ssas) > max_lookup_params:
+            chunk_ssas = chunk_ssas[:max_lookup_params]
+        placeholders = ",".join(["?"] * len(chunk_ssas))
+        query = (
+            f"SELECT {select_expr} FROM {target_table_sql} "
+            f"WHERE numero_ssa IN ({placeholders})"
+        )
+        try:
+            chunk_df = pd.read_sql_query(query, conn, params=tuple(chunk_ssas))
+        except (
+            sqlite3.OperationalError,
+            pd.errors.DatabaseError,
+        ) as exc:
+            if "too many sql variables" in str(exc).lower() and lookup_chunk > 1:
+                lookup_chunk = max(1, lookup_chunk // 2)
+                logger.warning(
+                    "Ajustando chunk de lookup SSA para %s apos limite SQLite: %s",
+                    lookup_chunk,
+                    exc,
+                )
+                continue
+            raise RuntimeError(
+                f"Falha no lookup de SSAs (chunk={len(chunk_ssas)}): {exc}"
+            ) from exc
+        yield chunk_df
+        i += len(chunk_ssas)
+
+
+def _load_existing_ssa_payloads(
+    conn: sqlite3.Connection,
+    *,
+    target_table_sql: str,
+    has_ssa: pd.DataFrame,
+) -> dict[str, dict[str, object | None]]:
+    """Load existing rows metadata (date/situacao) only for incoming SSA ids."""
+    existing_dict: dict[str, dict[str, object | None]] = {}
+    unique_ssas = _normalize_unique_ssa_values(has_ssa["numero_ssa"])
+    if not unique_ssas:
+        return existing_dict
+
+    for chunk_df in _iter_lookup_chunks_by_ssa(
+        conn,
+        target_table_sql=target_table_sql,
+        normalized_ssas=unique_ssas,
+        select_expr="numero_ssa, data_cadastro, situacao",
+        initial_chunk_size=500,
+    ):
+        if not chunk_df.empty:
+            chunk_df["numero_ssa"] = chunk_df["numero_ssa"].map(
+                normalize_numero_ssa_storage
+            )
+            chunk_df = chunk_df[chunk_df["numero_ssa"].notna()]
+            chunk_df = chunk_df.astype("object").where(pd.notna(chunk_df), None)
+            chunk_columns = list(chunk_df.columns)
+            for row_values in chunk_df.itertuples(index=False, name=None):
+                current = dict(zip(chunk_columns, row_values))
+                numero = str(current.get("numero_ssa") or "").strip()
+                if not numero:
+                    continue
+                existing_dict[numero] = {
+                    "data_cadastro": current.get("data_cadastro"),
+                    "situacao": current.get("situacao"),
+                }
+
+    return existing_dict
+
+
+def _classify_upsert_rows(
+    has_ssa: pd.DataFrame,
+    existing_dict: dict[str, dict[str, object | None]],
+) -> tuple[list[pd.Series], list[pd.Series]]:
+    """Split incoming rows into insert and update groups using canonical rule."""
+    from .database_upsert_logic import _should_update_existing
+
+    to_insert: list[pd.Series] = []
+    to_update: list[pd.Series] = []
+    for _idx, row in has_ssa.iterrows():
+        numero_ssa = row["numero_ssa"]
+        if numero_ssa not in existing_dict:
+            to_insert.append(row)
+            continue
+        existing_payload = existing_dict[numero_ssa]
+        existing_row = {
+            "data_cadastro": existing_payload.get("data_cadastro"),
+            "situacao": existing_payload.get("situacao"),
+        }
+        incoming_row = {
+            "data_cadastro": row.get("data_cadastro"),
+            "situacao": row.get("situacao"),
+        }
+        if _should_update_existing(existing_row, incoming_row):
+            to_update.append(row)
+    return to_insert, to_update
+
+
 def insert_dataframe_optimized(
     df: pd.DataFrame,
     db_path: str,
@@ -323,68 +452,15 @@ def insert_dataframe_optimized(
                     )
                     return False
 
-                # OTIMIZACAO CHAVE: lookup apenas das SSAs que precisamos, em chunks
+                # OTIMIZACAO CHAVE: lookup apenas das SSAs que precisamos
                 lookup_start = time.time()
-                existing_dict = {}
+                existing_dict: dict[str, dict[str, object | None]] = {}
                 if not table_exists.empty:
-                    unique_ssas = (
-                        has_ssa["numero_ssa"]
-                        .dropna()
-                        .map(normalize_numero_ssa_storage)
-                        .dropna()
-                        .unique()
-                        .tolist()
+                    existing_dict = _load_existing_ssa_payloads(
+                        conn,
+                        target_table_sql=target_table_sql,
+                        has_ssa=has_ssa,
                     )
-                    if unique_ssas:
-                        # Respeita limite de variaveis do SQLite com margem e ajuste dinamico.
-                        max_lookup_params = max(1, SQLITE_MAX_VARIABLES - 100)
-                        lookup_chunk = min(500, max_lookup_params)
-                        i = 0
-                        while i < len(unique_ssas):
-                            chunk_ssas = unique_ssas[i : i + lookup_chunk]
-                            if len(chunk_ssas) > max_lookup_params:
-                                chunk_ssas = chunk_ssas[:max_lookup_params]
-                            placeholders = ",".join(["?"] * len(chunk_ssas))
-                            query = (
-                                f"SELECT numero_ssa, data_cadastro FROM {target_table_sql} "
-                                f"WHERE numero_ssa IN ({placeholders})"
-                            )
-                            try:
-                                chunk_df = pd.read_sql_query(
-                                    query, conn, params=chunk_ssas
-                                )
-                            except (
-                                sqlite3.OperationalError,
-                                pd.errors.DatabaseError,
-                            ) as exc:
-                                if (
-                                    "too many sql variables" in str(exc).lower()
-                                    and lookup_chunk > 1
-                                ):
-                                    lookup_chunk = max(1, lookup_chunk // 2)
-                                    logger.warning(
-                                        "Ajustando chunk de lookup SSA para %s apos limite SQLite: %s",
-                                        lookup_chunk,
-                                        exc,
-                                    )
-                                    continue
-                                raise RuntimeError(
-                                    f"Falha no lookup de SSAs (chunk={len(chunk_ssas)}): {exc}"
-                                ) from exc
-                            if not chunk_df.empty:
-                                chunk_df["numero_ssa"] = chunk_df["numero_ssa"].map(
-                                    normalize_numero_ssa_storage
-                                )
-                                chunk_df = chunk_df[chunk_df["numero_ssa"].notna()]
-                                existing_dict.update(
-                                    dict(
-                                        zip(
-                                            chunk_df["numero_ssa"],
-                                            chunk_df["data_cadastro"],
-                                        )
-                                    )
-                                )
-                            i += len(chunk_ssas)
                 lookup_time = time.time() - lookup_start
 
                 logger.info(
@@ -393,32 +469,8 @@ def insert_dataframe_optimized(
                     lookup_time,
                 )
 
-                # Classificar registros em lotes
-                to_insert = []
-                to_update = []
-
-                for idx, row in has_ssa.iterrows():
-                    numero_ssa = row["numero_ssa"]
-                    new_date = row.get("data_cadastro")
-
-                    if numero_ssa not in existing_dict:
-                        to_insert.append(row)
-                        continue
-                    # Verificar se deve atualizar baseado na data
-                    existing_date = existing_dict[numero_ssa]
-                    should_update = False
-                    if new_date and not existing_date:
-                        should_update = True
-                    elif new_date and existing_date:
-                        try:
-                            if pd.to_datetime(new_date) >= pd.to_datetime(
-                                existing_date
-                            ):
-                                should_update = True
-                        except Exception:  # pragma: no cover - caminho raro
-                            should_update = True
-                    if should_update:
-                        to_update.append(row)
+                # Classificar registros em lotes (insert vs update)
+                to_insert, to_update = _classify_upsert_rows(has_ssa, existing_dict)
 
                 # ===== INSERÇÃO EM LOTE DE NOVOS REGISTROS =====
                 if to_insert:
@@ -467,20 +519,17 @@ def insert_dataframe_optimized(
                                 "Nenhuma coluna atualizavel encontrada; pulando atualizacao"
                             )
                         else:
-                            ssa_list = list(update_df["numero_ssa"])
+                            ssa_list = _normalize_unique_ssa_values(update_df["numero_ssa"])
                             existing_rows_by_ssa: dict[
                                 str, dict[str, object | None]
                             ] = {}
-                            for i in range(0, len(ssa_list), CHUNK_SIZE):
-                                chunk_ssas = ssa_list[i : i + CHUNK_SIZE]
-                                ssa_placeholders = ",".join(["?"] * len(chunk_ssas))
-                                select_query = (
-                                    f"SELECT * FROM {target_table_sql} "
-                                    f"WHERE numero_ssa IN ({ssa_placeholders})"
-                                )
-                                existing_chunk = pd.read_sql_query(
-                                    select_query, conn, params=chunk_ssas
-                                )
+                            for existing_chunk in _iter_lookup_chunks_by_ssa(
+                                conn,
+                                target_table_sql=target_table_sql,
+                                normalized_ssas=ssa_list,
+                                select_expr="*",
+                                initial_chunk_size=CHUNK_SIZE,
+                            ):
                                 if existing_chunk.empty:
                                     continue
                                 existing_chunk = existing_chunk.astype("object").where(
@@ -492,7 +541,13 @@ def insert_dataframe_optimized(
                                 existing_chunk = existing_chunk[
                                     existing_chunk["numero_ssa"].notna()
                                 ]
-                                for existing_row in existing_chunk.to_dict("records"):
+                                existing_columns = list(existing_chunk.columns)
+                                for row_values in existing_chunk.itertuples(
+                                    index=False, name=None
+                                ):
+                                    existing_row = dict(
+                                        zip(existing_columns, row_values)
+                                    )
                                     numero_ssa = str(existing_row["numero_ssa"])
                                     existing_rows_by_ssa[numero_ssa] = existing_row
 
@@ -500,7 +555,11 @@ def insert_dataframe_optimized(
                                 pd.notna(update_df), None
                             )
                             merged_rows: list[dict[str, object | None]] = []
-                            for update_row in normalized_update_df.to_dict("records"):
+                            update_columns_all = list(normalized_update_df.columns)
+                            for row_values in normalized_update_df.itertuples(
+                                index=False, name=None
+                            ):
+                                update_row = dict(zip(update_columns_all, row_values))
                                 numero_ssa = update_row.get("numero_ssa")
                                 if numero_ssa is None:
                                     continue
@@ -517,8 +576,10 @@ def insert_dataframe_optimized(
                             else:
                                 merged_df = pd.DataFrame(merged_rows)
                                 insert_columns = list(merged_df.columns)
-                                for i in range(0, len(update_df), CHUNK_SIZE):
+                                for i in range(0, len(ssa_list), CHUNK_SIZE):
                                     chunk_ssas = ssa_list[i : i + CHUNK_SIZE]
+                                    if not chunk_ssas:
+                                        continue
                                     ssa_placeholders = ",".join(["?"] * len(chunk_ssas))
                                     delete_query = (
                                         f"DELETE FROM {target_table_sql} "

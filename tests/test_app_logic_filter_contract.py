@@ -280,6 +280,24 @@ def test_filter_dataframe_general_search_keeps_svp_literal_and_ste_negative() ->
     assert list(out["numero_ssa"]) == ["202500001"]
 
 
+def test_parse_search_terms_rejects_dataframe_input_without_ambiguous_error() -> None:
+    search_df = pd.DataFrame({"termo": ["adm"]})
+    parsed = parse_search_terms(search_df)
+    assert parsed == []
+
+
+def test_filter_dataframe_invalid_search_terms_dataframe_returns_unfiltered() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002"],
+            "descricao_ssa": ["ADM equipe", "STE equipe"],
+        }
+    )
+    invalid_search_terms = pd.DataFrame({"termo": ["adm"]})
+    out = filter_dataframe(df, invalid_search_terms)
+    assert list(out["numero_ssa"]) == ["202500001", "202500002"]
+
+
 def test_filter_dataframe_rebuilds_search_cache_for_refined_subset() -> None:
     df = pd.DataFrame(
         {

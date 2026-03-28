@@ -24,7 +24,7 @@ import os
 import re
 import sqlite3 as _sqlite3_typehint
 import sys
-from typing import Any, cast
+from typing import Any, Mapping, cast
 
 import numpy as np
 import pandas as pd
@@ -359,7 +359,10 @@ def _sync_dynamic_columns_and_schema(
     return final_work
 
 
-def _should_update_existing(existing_row: pd.Series, new_row: pd.Series) -> bool:
+def _should_update_existing(
+    existing_row: pd.Series | Mapping[str, Any],
+    new_row: pd.Series | Mapping[str, Any],
+) -> bool:
     existing_date = existing_row.get("data_cadastro")
     new_date = new_row.get("data_cadastro")
     try:
