@@ -1315,7 +1315,9 @@ def _build_derivadas_graph_html(
         x2 = tx + offset_x
         y1 += offset_y
         y2 += offset_y
-        dash_attr = ' stroke-dasharray="7 6"' if (source, target_node) in dashed_edges else ""
+        dash_attr = (
+            ' stroke-dasharray="7 6"' if (source, target_node) in dashed_edges else ""
+        )
         svg_lines.append(
             f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
             f'stroke="{node_stroke}" stroke-width="2.0" marker-end="url(#arrow)"{dash_attr} />'
@@ -1353,9 +1355,7 @@ def _build_derivadas_graph_html(
     truncated = 0
     if isinstance(descendants_entries, list):
         truncated = max(0, len(descendants_entries) - len(descendants))
-    summary = (
-        f"Nos: {len(nodes)} | Relacoes: {len(edges)} | Descendentes: {descendants_count}"
-    )
+    summary = f"Nos: {len(nodes)} | Relacoes: {len(edges)} | Descendentes: {descendants_count}"
     if truncated > 0:
         summary = f"{summary} | Exibicao parcial de descendentes: +{truncated}"
     return (
@@ -1419,7 +1419,9 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     tree_tab_top_tabs = QTabWidget(tab_tree)
     tree_graph_browser = _init_readonly_text_browser(QTextBrowser(), min_height=220)
     tree_tab_browser = _init_readonly_text_browser(QTextBrowser(), min_height=220)
-    tree_tab_mermaid_browser = _init_readonly_text_browser(QTextBrowser(), min_height=220)
+    tree_tab_mermaid_browser = _init_readonly_text_browser(
+        QTextBrowser(), min_height=220
+    )
     tree_tab_details_browser = _init_readonly_text_browser(
         QTextBrowser(), min_height=220
     )
