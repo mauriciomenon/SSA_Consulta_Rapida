@@ -246,7 +246,9 @@ def test_insert_dataframe_optimized_releases_savepoint_after_rollback(
         }
     )
 
-    assert insert_dataframe_optimized(incoming, db_path, table_name="ssa_table") is False
+    assert (
+        insert_dataframe_optimized(incoming, db_path, table_name="ssa_table") is False
+    )
 
     normalized_statements = [stmt.upper() for stmt in statements]
     assert any("SAVEPOINT SSA_BATCH_UPDATE" in stmt for stmt in normalized_statements)
@@ -254,7 +256,9 @@ def test_insert_dataframe_optimized_releases_savepoint_after_rollback(
         "ROLLBACK TO SAVEPOINT SSA_BATCH_UPDATE" in stmt
         for stmt in normalized_statements
     )
-    assert any("RELEASE SAVEPOINT SSA_BATCH_UPDATE" in stmt for stmt in normalized_statements)
+    assert any(
+        "RELEASE SAVEPOINT SSA_BATCH_UPDATE" in stmt for stmt in normalized_statements
+    )
 
     conn = sqlite3.connect(db_path)
     try:
