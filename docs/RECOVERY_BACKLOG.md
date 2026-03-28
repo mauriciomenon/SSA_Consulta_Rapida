@@ -91,6 +91,26 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## Update 2026-03-28 16:16 - fechamento de comentarios novos do PR 46 (HOTFIX_BLOCKER + STABILITY_PATCH + DOC_SYNC)
 
+## Update 2026-03-28 17:35 - duplo clique por coluna sem conflito de UX (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-28 17:22:00 -0300`
+2. fim: `2026-03-28 17:35:00 -0300`
+
+Escopo fechado neste slice:
+1. `gui/gui_ssa.py`: `on_table_double_click` agora aplica regra por coluna:
+   - coluna `numero_ssa`: copia numero e nao abre detalhes
+   - demais colunas: mantem abertura de detalhes
+2. `tests/test_gui_filter_logic.py`: cobertura nova para os dois contratos:
+   - duplo clique em `numero_ssa` copia e nao abre detalhes
+   - duplo clique em coluna diferente de `numero_ssa` abre detalhes e nao copia
+
+Validacao local deste slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py`: OK
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py`: OK
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py`: OK
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "double_click_numero_ssa_copies_without_opening_details or double_click_non_numero_ssa_opens_details_without_copy or clicking_hash_column_opens_sam_ssa_url"`: `3 passed`
+
 Session timestamp:
 1. start: `2026-03-28 14:35:00 -0300`
 2. fim: `2026-03-28 16:16:00 -0300`
