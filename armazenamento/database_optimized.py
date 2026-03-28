@@ -256,17 +256,32 @@ def _load_existing_ssa_payloads(
     target_table_sql: str,
     has_ssa: pd.DataFrame,
 ) -> dict[str, dict[str, object | None]]:
-    """Load existing rows metadata (date/situacao) only for incoming SSA ids."""
+    """Load existing rows metadata (date/situacao/source file) for incoming SSA ids."""
     existing_dict: dict[str, dict[str, object | None]] = {}
     unique_ssas = _normalize_unique_ssa_values(has_ssa["numero_ssa"])
     if not unique_ssas:
         return existing_dict
 
+    has_arquivo_origem = False
+    try:
+        table_info = pd.read_sql_query(f"PRAGMA table_info({target_table_sql})", conn)
+        names = table_info["name"].tolist() if "name" in table_info.columns else []
+        has_arquivo_origem = "arquivo_origem" in {
+            str(col).strip() for col in names
+        }
+    except Exception:
+        has_arquivo_origem = False
+    select_expr = (
+        "numero_ssa, data_cadastro, situacao, arquivo_origem"
+        if has_arquivo_origem
+        else "numero_ssa, data_cadastro, situacao"
+    )
+
     for chunk_df in _iter_lookup_chunks_by_ssa(
         conn,
         target_table_sql=target_table_sql,
         normalized_ssas=unique_ssas,
-        select_expr="numero_ssa, data_cadastro, situacao",
+        select_expr=select_expr,
         initial_chunk_size=500,
     ):
         if not chunk_df.empty:
@@ -284,6 +299,7 @@ def _load_existing_ssa_payloads(
                 existing_dict[numero] = {
                     "data_cadastro": current.get("data_cadastro"),
                     "situacao": current.get("situacao"),
+                    "arquivo_origem": current.get("arquivo_origem"),
                 }
 
     return existing_dict
@@ -307,10 +323,12 @@ def _classify_upsert_rows(
         existing_row = {
             "data_cadastro": existing_payload.get("data_cadastro"),
             "situacao": existing_payload.get("situacao"),
+            "arquivo_origem": existing_payload.get("arquivo_origem"),
         }
         incoming_row = {
             "data_cadastro": row.get("data_cadastro"),
             "situacao": row.get("situacao"),
+            "arquivo_origem": row.get("arquivo_origem"),
         }
         if _should_update_existing(existing_row, incoming_row):
             to_update.append(row)

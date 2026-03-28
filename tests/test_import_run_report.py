@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any, cast
 
@@ -186,6 +188,39 @@ def _fake_extract_state_transition_same_date(file_path: str, should_cancel=None)
         setor_executor="IEE3",
         data_cadastro="2026-01-16 00:00:00",
         descricao_ssa="ssa new same date",
+    )
+
+
+def _fake_extract_snapshot_conflict_by_filename(  # noqa: ARG001
+    file_path: str, should_cancel=None
+):
+    name = Path(file_path).name
+    if "25-03-2026" in name:
+        return _build_ssa_import_df(
+            numero_ssa="202600777",
+            situacao="ADM",
+            setor_executor="IEE3",
+            data_cadastro="2026-03-27 00:00:00",
+            descricao_ssa="snapshot antigo com data de cadastro maior",
+        )
+    return _build_ssa_import_df(
+        numero_ssa="202600777",
+        situacao="ADM",
+        setor_executor="IEE3",
+        data_cadastro="2026-03-26 00:00:00",
+        descricao_ssa="snapshot novo com data de cadastro menor",
+    )
+
+
+def _fake_extract_generic_order_sensitive(file_path: str, should_cancel=None):  # noqa: ARG001
+    name = Path(file_path).name.casefold()
+    is_new = "new" in name
+    return _build_ssa_import_df(
+        numero_ssa="202600778",
+        situacao="ADM",
+        setor_executor="IEE3",
+        data_cadastro="2026-03-26 00:00:00",
+        descricao_ssa="payload_new" if is_new else "payload_old",
     )
 
 
@@ -743,6 +778,89 @@ def test_import_explicit_files_to_database_real_xlsx_batch_preserves_newest_stat
         "BBB2",
         "2025-01-02 00:00:00",
         "new.xlsx",
+    )
+
+
+def test_import_explicit_older_snapshot_cannot_override_newer_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir, _data_dir, db_path = _prepare_runtime_import_update(tmp_path, monkeypatch)
+    newer_file = docs_dir / "Consulta SSA - 26-03-2026_0237PM.xlsx"
+    older_file = docs_dir / "Consulta SSA - 25-03-2026_0237PM.xlsx"
+    newer_file.write_text("new", encoding="utf-8")
+    older_file.write_text("old", encoding="utf-8")
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        _fake_extract_snapshot_conflict_by_filename,
+    )
+
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(newer_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(older_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+
+    assert _count_ssa_rows(db_path, "202600777") == 1
+    assert _read_ssa_state(db_path, "202600777") == (
+        "ADM",
+        "IEE3",
+        "2026-03-26 00:00:00",
+        "Consulta SSA - 26-03-2026_0237PM.xlsx",
+    )
+
+
+def test_import_explicit_generic_names_use_mtime_for_deterministic_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir, _data_dir, db_path = _prepare_runtime_import_update(tmp_path, monkeypatch)
+    old_file = docs_dir / "generic_old.xlsx"
+    new_file = docs_dir / "generic_new.xlsx"
+    old_file.write_text("old", encoding="utf-8")
+    new_file.write_text("new", encoding="utf-8")
+
+    now = time.time()
+    os.utime(old_file, (now - 120, now - 120))
+    os.utime(new_file, (now - 60, now - 60))
+
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        _fake_extract_generic_order_sensitive,
+    )
+
+    # Reversed input list should still end with newer mtime applied last.
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(new_file), str(old_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+
+    assert _count_ssa_rows(db_path, "202600778") == 1
+    assert _read_ssa_state(db_path, "202600778") == (
+        "ADM",
+        "IEE3",
+        "2026-03-26 00:00:00",
+        "generic_new.xlsx",
     )
 
 

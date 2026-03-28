@@ -31,6 +31,7 @@ import pandas as pd
 
 from shared.date_utils import parse_any_date
 from shared.db_names import CANONICAL_SSA_TABLE
+from utils.file_metadata import parse_datetime_from_filename
 
 from .numero_ssa_utils import normalize_numero_ssa_storage
 
@@ -399,6 +400,29 @@ def _should_update_existing(
             if parsed is None:
                 return None
             return pd.to_datetime(parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S")
+
+        def _parse_file_dt(origin_value: Any) -> pd.Timestamp | None:
+            raw = str(origin_value or "").strip()
+            if not raw:
+                return None
+            parsed = parse_datetime_from_filename(raw)
+            if parsed is None:
+                return None
+            return pd.Timestamp(parsed)
+
+        existing_situacao = str(existing_row.get("situacao") or "").strip().upper()
+        new_situacao = str(new_row.get("situacao") or "").strip().upper()
+        if existing_situacao == "STE" and new_situacao and new_situacao != "STE":
+            return False
+
+        existing_file_dt = _parse_file_dt(existing_row.get("arquivo_origem"))
+        new_file_dt = _parse_file_dt(new_row.get("arquivo_origem"))
+        if (
+            existing_file_dt is not None
+            and new_file_dt is not None
+            and new_file_dt < existing_file_dt
+        ):
+            return False
 
         e_dt = _parse(existing_date)
         n_dt = _parse(new_date)

@@ -43,6 +43,7 @@ from armazenamento.derivadas_sync import (  # noqa: E402
 from extracao import extractor  # noqa: E402
 from shared.db_names import CANONICAL_SSA_TABLE  # noqa: E402
 from utils import caching  # noqa: E402
+from utils.file_metadata import best_datetime_for_file  # noqa: E402
 from utils.path_safety import PathSafetyError  # noqa: E402
 from utils.path_safety import ensure_path_is_allowed  # noqa: E402
 
@@ -261,7 +262,18 @@ def _resolve_explicit_import_files(
             continue
         seen.add(normalized)
         resolved_files.append(normalized)
-    return resolved_files
+    def _sort_key(path: str) -> tuple[bool, datetime | None, str, str]:
+        file_dt = best_datetime_for_file(path)
+        return (
+            file_dt is None,
+            file_dt,
+            os.path.basename(path).casefold(),
+            path.casefold(),
+        )
+
+    # Keep explicit import deterministic and aligned with diff/full ordering:
+    # older snapshots first, newest snapshot last.
+    return sorted(resolved_files, key=_sort_key)
 
 
 # --- Funcoes Auxiliares Refatoradas ---
