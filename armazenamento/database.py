@@ -105,7 +105,9 @@ def get_db_connection(db_path: str):
 # armazenamento/database.py
 
 
-def initialize_database(db_path: str | sqlite3.Connection, schema_file: str = "schema.sql"):
+def initialize_database(
+    db_path: str | sqlite3.Connection, schema_file: str = "schema.sql"
+):
     """
     Inicializa o banco de dados aplicando o schema SQL informado.
 
@@ -813,8 +815,12 @@ def insert_dataframe_with_smart_upsert(
 
 from . import numero_ssa_utils as _numero_ssa_utils  # noqa: E402
 from .numero_ssa_utils import normalize_numero_ssa as _normalize_numero_ssa_display  # noqa: E402
-from .numero_ssa_utils import normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe  # noqa: E402
-from .numero_ssa_utils import normalize_numero_ssa_dataframe_storage as _normalize_numero_ssa_dataframe_storage  # noqa: E402
+from .numero_ssa_utils import (
+    normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe,
+)  # noqa: E402
+from .numero_ssa_utils import (
+    normalize_numero_ssa_dataframe_storage as _normalize_numero_ssa_dataframe_storage,
+)  # noqa: E402
 
 _normalize_numero_ssa_value = _numero_ssa_utils.normalize_numero_ssa_int_legacy_bridge
 
