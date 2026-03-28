@@ -48,10 +48,7 @@ def _open_derivadas_connection(db_path: str):
         conn.execute("PRAGMA query_only = ON")
         readiness = scan_derivadas_read_schema_readiness(conn)
         schema_ready = bool(readiness.get("is_ready"))
-        if schema_ready:
-            yield conn, True
-        else:
-            yield None, False
+        yield conn, schema_ready
 
 
 def get_parents(db_path: str, ssa: Any, *, include_inactive: bool = False) -> list[str]:
