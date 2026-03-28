@@ -2,7 +2,7 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-27 19h15
+## CURRENT TRUTH 2026-03-27 20h35
 
 - Leitura rapida:
   1. branch alvo: `dev`
@@ -24,6 +24,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   6. `P1`: auditar testes viciados no fluxo critico de dados/CLI
   7. `P2`: convergir helper local de data em `database_upsert_logic.py`
 - Sprint GUI entregue nesta frente:
+  0. implementacao runtime consolidada nos commits `b343c621` e `07ebfe1d`
   1. `[f]` no cabecalho sincronizado com filtros avancados equivalentes
   2. dedupe do resumo `Filtros ativos`
   3. macro `Baixar` com `SAD`
@@ -39,12 +40,14 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   13. visualizacao de derivadas em arvore textual mais clara
   14. `load_other_database()` em background no runtime normal
   15. aba dedicada `Arvore` no dialogo de detalhes, com arvore navegavel e painel inferior de detalhes
-  16. bloco Mermaid em texto adicionado na aba `Arvore` para suporte tecnico
+  16. aba `Arvore` ganhou subabas `Grafo`, `Arvore` e `Mermaid`
+  17. `_normalize_ssa_series` de detalhes foi reotimizado por valores unicos
+  18. historico: subaba `Grafo` foi promovida de refinamento para entrega por comando explicito neste ciclo
 - Follow-up do sprint GUI:
   1. staging/copy de importacao externa ainda merece revisao de thread principal
   2. render/table refresh apos filtros ainda e hotspot provavel de custo
-  3. reotimizar normalizacao em serie da tela de detalhes para reduzir custo em datasets grandes
-  4. se houver nova rodada de UX, evoluir a aba de arvore para grafo renderizado sem reabrir engine pesada agora
+  3. validar no ambiente de operacao se a SSA `202600654` permanece `STE` apos ciclos parciais de atualizacao
+  4. se houver nova rodada de UX, avaliar clique por no na subaba `Grafo`
 - Estado tecnico fechado:
   1. o `.0` vazava por regras duplicadas no write path
   2. a normalizacao de storage foi centralizada
@@ -88,6 +91,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   5. `b343c621` `STABILITY_PATCH: finish gui sam status and details sprint`
   6. `a34a54b3` `HOTFIX_BLOCKER: prevent same-date situacao downgrade`
   7. `051d3b6e` `STABILITY_PATCH: add dedicated derivadas tree tab`
+  8. `07ebfe1d` `STABILITY_PATCH: add visual derivadas graph tab`
 - Estado do Kluster local:
   1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   2. timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo

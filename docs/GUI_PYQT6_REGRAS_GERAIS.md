@@ -29,6 +29,7 @@
   1. arvore de relacoes na metade superior
   2. detalhes da SSA na metade inferior
   3. navegacao por links entre SSAs
+  4. quando houver grafo, manter renderer local (SVG) sem dependencia de engine externa
 
 ## 1) Escopo e disciplina de mudanca
 - Diagnosticar antes de editar, com evidencia objetiva.

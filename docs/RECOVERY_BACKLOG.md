@@ -61,7 +61,7 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
    - `update_derivadas_from_sources()` em background
    - `load_other_database()` em background
 8. fechar a reorganizacao dos docs historicos segundo `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
-9. otimizar caminho de normalizacao da arvore/detalhes para reduzir custo em massa sem quebrar contrato de SSA
+9. validar no ambiente de operacao a aba `Grafo` com bases grandes e decidir se precisa clique por no
 
 ### P2 - backlog legitimo, mas nao bug aberto hoje
 1. aliases em `_needs_db_only_derivadas_sync` ja aparecem mitigados no runtime atual; reabrir so com repro nova.
@@ -112,6 +112,29 @@ Decisao aplicada:
    - base: detalhes da SSA alvo
 3. bloco Mermaid em texto foi incluido como apoio tecnico.
 4. follow-up registrado: recuperar vetorizaçao de `_normalize_ssa_series` para custo menor em massa.
+
+## Update 2026-03-27 20:35 - grafo visual + normalizacao por valores unicos (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-27 19:20:00 -0300`
+2. fim: `2026-03-27 20:35:00 -0300`
+
+Objetivo do slice:
+1. fechar a pendencia da aba dedicada com grafo visual na tela de derivadas.
+2. manter patch minimo sem mexer no layout global da janela principal.
+3. reduzir custo da normalizacao em serie no dialogo de detalhes.
+
+Diagnostico objetivo:
+1. havia aba dedicada, mas sem grafo visual renderizado.
+2. `_normalize_ssa_series` ainda processava linha a linha sem reaproveitar repeticoes.
+3. era necessario manter navegacao atual por links e compatibilidade do dialogo.
+
+Decisao aplicada:
+1. implementacao runtime publicada em `07ebfe1d` (com base no sprint anterior `b343c621`).
+2. subabas `Grafo`, `Arvore` e `Mermaid` na metade superior da aba `Arvore`.
+3. `Grafo` renderiza SVG local com nos/arestas de derivadas.
+4. `_normalize_ssa_series` passou a normalizar por valores unicos com `factorize`.
+5. testes novos cobrindo SVG, subabas e regressao de normalizacao.
 
 Session timestamp:
 1. start: `2026-03-27 17:40:00 -0300`
