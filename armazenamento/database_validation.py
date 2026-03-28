@@ -36,9 +36,7 @@ def _append_unique_invalid_rows(report: dict[str, Any], indices: list[Any]) -> N
 
 
 def _rows_are_exact_duplicates(group: pd.DataFrame) -> bool:
-    comparison_columns = [
-        col for col in group.columns if col != "numero_ssa_canonical"
-    ]
+    comparison_columns = [col for col in group.columns if col != "numero_ssa_canonical"]
     if not comparison_columns:
         return True
     base_row = group[comparison_columns].iloc[0]
