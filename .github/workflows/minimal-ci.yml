@@ -54,7 +54,12 @@ jobs:
           if [ "$BASE_SHA" = "$ZERO_SHA" ]; then
             git ls-files "*.py" > .changed_python_files
           else
-            git diff --name-only "$BASE_SHA" "${{ github.sha }}" -- "*.py" > .changed_python_files
+            git diff --name-only -z "$BASE_SHA" "${{ github.sha }}" -- "*.py" \
+              | while IFS= read -r -d '' file_path; do
+                  if [ -f "$file_path" ]; then
+                    printf '%s\n' "$file_path"
+                  fi
+                done > .changed_python_files
           fi
           if [ ! -s .changed_python_files ]; then
             echo "No changed Python files detected for scoped static checks."

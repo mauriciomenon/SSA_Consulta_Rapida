@@ -336,8 +336,10 @@ class FilterGUISSAMixin:
         def _has_value(value) -> bool:
             if value is None:
                 return False
+            if isinstance(value, bool):
+                return bool(value)
             if isinstance(value, (list, tuple, set)):
-                return any(str(item).strip() for item in value)
+                return any(_has_value(item) for item in value)
             return bool(str(value).strip())
 
         for key, mapped_columns in _ADVANCED_FILTER_VISUAL_COLUMN_MAP.items():

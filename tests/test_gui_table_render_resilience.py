@@ -268,6 +268,21 @@ class TestGUITableRenderResilience:
         ]
         assert gui_warnings == []
 
+    def test_display_current_page_keeps_hash_column_when_tooltip_fails(self):
+        from gui.ssa import gui_table
+
+        class _TooltipFailItem(gui_table.QTableWidgetItem):
+            def setToolTip(self, *_args, **_kwargs):  # type: ignore[override]
+                raise RuntimeError("tooltip failure")
+
+        with patch("gui.ssa.gui_table.QTableWidgetItem", _TooltipFailItem):
+            self.window.display_current_page(1)
+            QApplication.processEvents()
+
+        first_item = self.window.table_widget.item(0, 0)
+        assert first_item is not None
+        assert first_item.text() == "1"
+
     def test_display_current_page_empty_table_clears_stale_details(self):
         self.window.display_current_page(1)
         QApplication.processEvents()
