@@ -66,6 +66,11 @@ def _normalize_numero_ssa_int_legacy(value) -> int | None:
         return None
 
 
+def normalize_numero_ssa_int_legacy_bridge(value) -> int | None:
+    """Legacy bridge for internal callsites that still expect numeric output."""
+    return _normalize_numero_ssa_int_legacy(value)
+
+
 def normalize_numero_ssa_storage(value) -> str | None:
     """Return canonical storage form for numero_ssa as text."""
     return normalize_numero_ssa_strict(value)

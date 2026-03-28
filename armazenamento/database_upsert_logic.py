@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 _INVALID_IDENTIFIER_CHARS_RE = re.compile(r"[^A-Za-z0-9_]+")
 _VALID_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _VALID_UPSERT_POLICIES = {"consulta_only", "no_short", "all_short"}
-_RUNTIME_SHORT_CIRCUIT_POLICY: str | None = None
+_RUNTIME_STATE: dict[str, str | None] = {"short_circuit_policy": None}
 _SQLITE_IN_MAX_VARS = 900
 _TEXTUAL_NULL_SENTINELS = {"", "<na>", "none", "nan", "null", "n/a", "-"}
 _SITUACAO_RANK = {
@@ -476,7 +476,7 @@ def _resolve_upsert_config() -> tuple[dict[str, int], list[str], list[str]]:
 
 
 def _resolve_short_circuit_policy(policy_override: str | None = None) -> str:
-    runtime_policy = _RUNTIME_SHORT_CIRCUIT_POLICY
+    runtime_policy = _RUNTIME_STATE["short_circuit_policy"]
     policy = (
         (
             policy_override
@@ -499,22 +499,21 @@ def _resolve_short_circuit_policy(policy_override: str | None = None) -> str:
 
 def set_runtime_short_circuit_policy(policy: str | None) -> None:
     """Configura politica de short-circuit para o processo atual."""
-    global _RUNTIME_SHORT_CIRCUIT_POLICY
     if policy is None:
-        _RUNTIME_SHORT_CIRCUIT_POLICY = None
+        _RUNTIME_STATE["short_circuit_policy"] = None
         return
     normalized = str(policy).strip().lower()
     if not normalized:
-        _RUNTIME_SHORT_CIRCUIT_POLICY = None
+        _RUNTIME_STATE["short_circuit_policy"] = None
         return
     if normalized not in _VALID_UPSERT_POLICIES:
         logger.warning(
             "Politica de short-circuit invalida '%s'; usando consulta_only",
             policy,
         )
-        _RUNTIME_SHORT_CIRCUIT_POLICY = "consulta_only"
+        _RUNTIME_STATE["short_circuit_policy"] = "consulta_only"
         return
-    _RUNTIME_SHORT_CIRCUIT_POLICY = normalized
+    _RUNTIME_STATE["short_circuit_policy"] = normalized
 
 
 def _is_empty_upsert_value(val: Any) -> bool:
