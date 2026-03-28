@@ -181,3 +181,88 @@ def test_insert_dataframe_optimized_preserves_columns_outside_batch(tmp_path) ->
         conn.close()
 
     assert row == ("descricao-nova", "NOVA", "origem-antiga.csv")
+
+
+def test_insert_dataframe_optimized_releases_savepoint_after_rollback(
+    tmp_path, monkeypatch
+) -> None:
+    db_path = str(tmp_path / "savepoint_rollback_release.db")
+    statements: list[str] = []
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE ssa_table (
+                numero_ssa TEXT PRIMARY KEY,
+                data_cadastro TEXT,
+                situacao TEXT,
+                descricao_ssa TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO ssa_table (numero_ssa, data_cadastro, situacao, descricao_ssa)
+            VALUES (?, ?, ?, ?)
+            """,
+            ("202600654", "2026-01-16 00:00:00", "ADM", "estado antigo"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    @contextmanager
+    def _tracking_connection(path: str):
+        tracked_conn = sqlite3.connect(path)
+        tracked_conn.set_trace_callback(statements.append)
+        try:
+            yield tracked_conn
+        finally:
+            tracked_conn.close()
+
+    original_normalize = database_optimized_module._normalize_unique_ssa_values
+    call_count = {"value": 0}
+
+    def _explode_normalize(*args, **kwargs):
+        call_count["value"] += 1
+        if call_count["value"] >= 2:
+            raise RuntimeError("forced savepoint failure")
+        return original_normalize(*args, **kwargs)
+
+    monkeypatch.setattr(
+        database_optimized_module, "get_db_connection", _tracking_connection
+    )
+    monkeypatch.setattr(
+        database_optimized_module, "_normalize_unique_ssa_values", _explode_normalize
+    )
+
+    incoming = pd.DataFrame(
+        {
+            "numero_ssa": ["202600654"],
+            "data_cadastro": [pd.Timestamp("2026-01-16")],
+            "situacao": ["STE"],
+            "descricao_ssa": ["estado final"],
+        }
+    )
+
+    assert insert_dataframe_optimized(incoming, db_path, table_name="ssa_table") is False
+
+    normalized_statements = [stmt.upper() for stmt in statements]
+    assert any("SAVEPOINT SSA_BATCH_UPDATE" in stmt for stmt in normalized_statements)
+    assert any(
+        "ROLLBACK TO SAVEPOINT SSA_BATCH_UPDATE" in stmt
+        for stmt in normalized_statements
+    )
+    assert any("RELEASE SAVEPOINT SSA_BATCH_UPDATE" in stmt for stmt in normalized_statements)
+
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT situacao FROM ssa_table WHERE numero_ssa = ?",
+            ("202600654",),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row == ("ADM",)

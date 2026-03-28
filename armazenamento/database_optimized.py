@@ -500,6 +500,7 @@ def insert_dataframe_optimized(
                         f"Chunk size calculado: {CHUNK_SIZE} linhas para {len(update_df.columns)} colunas"
                     )
                     savepoint_started = False
+                    savepoint_released = False
                     try:
                         conn.execute("SAVEPOINT ssa_batch_update")
                         savepoint_started = True
@@ -626,15 +627,18 @@ def insert_dataframe_optimized(
                                     "[OK] Atualizados %s registros existentes via delete+insert",
                                     len(update_df),
                                 )
-                        if savepoint_started:
+                        if savepoint_started and not savepoint_released:
                             conn.execute("RELEASE SAVEPOINT ssa_batch_update")
+                            savepoint_released = True
                     except Exception:
-                        if savepoint_started:
+                        if savepoint_started and not savepoint_released:
                             try:
                                 conn.execute("ROLLBACK TO SAVEPOINT ssa_batch_update")
+                                conn.execute("RELEASE SAVEPOINT ssa_batch_update")
+                                savepoint_released = True
                             except Exception as exc:
                                 logger.error(
-                                    "Falha ao fazer rollback do SAVEPOINT ssa_batch_update: %s",
+                                    "Falha ao finalizar rollback/release do SAVEPOINT ssa_batch_update: %s",
                                     exc,
                                 )
                         raise

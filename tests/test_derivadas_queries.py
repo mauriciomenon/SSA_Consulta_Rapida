@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sqlite3
 import time
 
@@ -104,6 +105,16 @@ def test_paths_do_not_include_spurious_partial_path_when_cycle_only(temp_db):
 
     assert ["202500001", "202500002", "202500001"] in down_paths
     assert ["202500001", "202500002"] not in down_paths
+
+
+def test_paths_emit_warning_when_truncated_by_cap(temp_db, caplog):
+    _seed_graph(temp_db)
+
+    with caplog.at_level(logging.WARNING, logger="armazenamento.derivadas_queries"):
+        down_paths = get_paths_down(temp_db, "202500001", depth=10, max_nodes=1)
+
+    assert down_paths == [["202500001"]]
+    assert "Path traversal truncated" in caplog.text
 
 
 def test_queries_remain_read_only_under_write_lock(temp_db):
