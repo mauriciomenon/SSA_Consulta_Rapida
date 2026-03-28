@@ -346,6 +346,8 @@ def insert_dataframe_optimized(
     start_time = time.time()
     logger.info(f"Iniciando inserção otimizada de {len(df)} registros...")
 
+    conn: sqlite3.Connection | None = None
+
     try:
         from .database_upsert_logic import prepare_dataframe_for_storage
 
@@ -657,12 +659,17 @@ def insert_dataframe_optimized(
             return True
 
     except Exception as e:  # pragma: no cover - caminho de erro
-        conn_ref = locals().get("conn")
+        conn_ref = conn
         if conn_ref is not None:
             try:
+                conn_ref.execute("SELECT 1")
                 in_transaction = getattr(conn_ref, "in_transaction", False)
                 if bool(in_transaction):
                     conn_ref.rollback()
+            except sqlite3.ProgrammingError:
+                logger.warning(
+                    "Rollback ignorado no caminho otimizado: conexao ja encerrada."
+                )
             except Exception as rollback_exc:
                 logger.error(
                     "Falha ao executar rollback no caminho otimizado: %s",
