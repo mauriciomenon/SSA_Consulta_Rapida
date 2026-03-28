@@ -154,8 +154,12 @@ def test_optimized_insert_same_date_does_not_downgrade_situacao(tmp_path: Path) 
         }
     )
 
-    assert insert_dataframe_optimized(newer_or_equal, db_path, table_name="ssas") is True
-    assert insert_dataframe_optimized(older_semantic, db_path, table_name="ssas") is True
+    assert (
+        insert_dataframe_optimized(newer_or_equal, db_path, table_name="ssas") is True
+    )
+    assert (
+        insert_dataframe_optimized(older_semantic, db_path, table_name="ssas") is True
+    )
 
     with database.get_db_connection(db_path) as conn:
         row = conn.execute(
