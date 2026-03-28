@@ -102,6 +102,8 @@ Escopo fechado neste slice:
 4. `gui/ssa/gui_table.py`: falha em `setToolTip` nao derruba render da coluna `#`.
 5. `gui/ssa/gui_workers.py`: contexto de status prioriza `consolidate` antes de `explicit_import`.
 6. `.github/workflows/minimal-ci.yml`: filtra arquivos `.py` deletados antes de py_compile/ruff/ty.
+7. `core/handler_base.py`: `create_result` passou a validar `DataFrame` antes de acessar `.empty` (sem `AttributeError` em callsites legados).
+8. `tests/test_handler_base_create_result.py`: cobertura nova do contrato para `data` nao-DataFrame.
 
 Validacao local deste slice:
 1. `uv run --python 3.13 python -m py_compile` (arquivos alterados): OK
@@ -109,6 +111,7 @@ Validacao local deste slice:
 3. `uv run --python 3.13 ty check` (runtime alterado): OK
 4. `uv run --python 3.13 pytest -q tests/test_gui_workers_rescan_data.py tests/test_gui_table_render_resilience.py`: `30 passed`
 5. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "display_headers_mark_advanced_filter_columns_with_f or display_headers_ignore_boolean_false_in_advanced_filter_columns or clicking_hash_column or header_context_menu or prompt_column_filter_term"`: `9 passed`
+6. `uv run --python 3.13 pytest -q tests/test_handler_base_create_result.py`: `2 passed`
 
 ## Update 2026-03-27 19:15 - aba dedicada de arvore de derivadas (STABILITY_PATCH + DOC_SYNC)
 
