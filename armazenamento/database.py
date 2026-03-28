@@ -9,7 +9,6 @@ Responsavel por criar tabelas, inserir DataFrames e consultar dados.
 import logging
 import os
 import sqlite3
-import sqlite3 as _sqlite3_typehint  # alias para type checking leve
 import time
 from contextlib import contextmanager
 from typing import Any, Literal, cast
@@ -106,9 +105,7 @@ def get_db_connection(db_path: str):
 # armazenamento/database.py
 
 
-def initialize_database(
-    db_path: str | _sqlite3_typehint.Connection, schema_file: str = "schema.sql"
-):
+def initialize_database(db_path: str | sqlite3.Connection, schema_file: str = "schema.sql"):
     """
     Inicializa o banco de dados aplicando o schema SQL informado.
 
@@ -153,7 +150,7 @@ def initialize_database(
                         "Falha ao listar pasta config '%s': %s", config_dir, exc
                     )
             raise FileNotFoundError(
-                "Arquivo de schema nao encontrado. Tentativas: '\n"
+                "Arquivo de schema nao encontrado. Tentativas:\n"
                 f"- relativo ao CWD: {os.path.abspath(schema_file)}\n"
                 f"- em config do projeto: {candidate}"
             )
@@ -163,7 +160,7 @@ def initialize_database(
         schema_sql = f.read()
 
     # Permitir que testes passem uma conexao ja aberta (retrocompatibilidade)
-    if isinstance(db_path, _sqlite3_typehint.Connection):
+    if isinstance(db_path, sqlite3.Connection):
         conn = db_path
         conn.executescript(schema_sql)
         conn.commit()
@@ -337,7 +334,7 @@ def _calculate_simple_insert_batch_size(column_count: int) -> int:
 
 
 def _execute_simple_insert(
-    conn: _sqlite3_typehint.Connection,
+    conn: sqlite3.Connection,
     work_df: pd.DataFrame,
     final_table: str,
     if_exists: IfExistsPolicy,
@@ -386,14 +383,14 @@ def _quote_identifier(name: str) -> str:
     return f'"{safe_name}"'
 
 
-def _get_connection_db_path(conn: _sqlite3_typehint.Connection) -> str:
+def _get_connection_db_path(conn: sqlite3.Connection) -> str:
     row = conn.execute("PRAGMA database_list").fetchone()
     if row and len(row) >= 3 and row[2]:
         return os.path.abspath(str(row[2]))
     return ":memory:"
 
 
-def _resolve_target_table(conn: _sqlite3_typehint.Connection, table_name: str) -> str:
+def _resolve_target_table(conn: sqlite3.Connection, table_name: str) -> str:
     safe_table_name = str(table_name or "").strip()
     if not is_valid_identifier(safe_table_name):
         raise ValueError(f"Invalid SQL identifier for table: {table_name!r}")
@@ -430,13 +427,13 @@ def _resolve_target_table(conn: _sqlite3_typehint.Connection, table_name: str) -
     return safe_table_name
 
 
-def resolve_target_table(conn: _sqlite3_typehint.Connection, table_name: str) -> str:
+def resolve_target_table(conn: sqlite3.Connection, table_name: str) -> str:
     """Public wrapper for canonical table resolution across runtime entry points."""
     return _resolve_target_table(conn, table_name)
 
 
 def count_distinct_derivada_edges(
-    conn: _sqlite3_typehint.Connection,
+    conn: sqlite3.Connection,
     table_name: str,
 ) -> int:
     """Count distinct derivada edges on the resolved runtime table/view."""
@@ -484,13 +481,11 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
         table_name: str = args[2]
         if_exists: IfExistsPolicy = kwargs.get("if_exists", "append")
         legacy_mode = False
-        legacy_conn: _sqlite3_typehint.Connection | None = None
+        legacy_conn: sqlite3.Connection | None = None
     else:
         # Legado: (conn, df [, table])
         legacy_conn = args[0]
-        if not isinstance(
-            legacy_conn, _sqlite3_typehint.Connection
-        ):  # pragma: no cover
+        if not isinstance(legacy_conn, sqlite3.Connection):  # pragma: no cover
             raise TypeError("Primeiro argumento legado deve ser conexao sqlite3")
         if len(args) < 2:
             raise TypeError("Uso legado requer (conn, df [, table_name])")
@@ -506,7 +501,7 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
     if work_df.empty:
         return True
 
-    active_conn: _sqlite3_typehint.Connection | None = legacy_conn
+    active_conn: sqlite3.Connection | None = legacy_conn
 
     try:
         if not legacy_mode:
@@ -731,7 +726,7 @@ def configure_upsert_short_circuit_policy(policy: str | None) -> None:
 
 
 def insert_dataframe_with_smart_upsert(
-    df: pd.DataFrame | _sqlite3_typehint.Connection,
+    df: pd.DataFrame | sqlite3.Connection,
     db_path: str | pd.DataFrame | None = None,
     table_name: str = CANONICAL_SSA_TABLE,
 ) -> bool:  # noqa: PLR0912, PLR0914, PLR0915
@@ -750,9 +745,7 @@ def insert_dataframe_with_smart_upsert(
     # Suporte retrocompativel:
     #  - Novo contrato: (df, db_path, table_name)
     #  - Contrato legado usado em testes: (conn, df) ou (conn, df, table_name)
-    if isinstance(
-        df, _sqlite3_typehint.Connection
-    ):  # padrao antigo: primeiro arg e conexao
+    if isinstance(df, sqlite3.Connection):  # padrao antigo: primeiro arg e conexao
         conn = df
         real_df = db_path  # neste formato, segundo argumento e o DataFrame
         if not isinstance(real_df, pd.DataFrame):  # tipo incorreto
@@ -820,14 +813,10 @@ def insert_dataframe_with_smart_upsert(
 
 from . import numero_ssa_utils as _numero_ssa_utils  # noqa: E402
 from .numero_ssa_utils import normalize_numero_ssa as _normalize_numero_ssa_display  # noqa: E402
-from .numero_ssa_utils import (
-    normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe,
-)  # noqa: E402
-from .numero_ssa_utils import (
-    normalize_numero_ssa_dataframe_storage as _normalize_numero_ssa_dataframe_storage,
-)  # noqa: E402
+from .numero_ssa_utils import normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe  # noqa: E402
+from .numero_ssa_utils import normalize_numero_ssa_dataframe_storage as _normalize_numero_ssa_dataframe_storage  # noqa: E402
 
-_normalize_numero_ssa_value = _numero_ssa_utils._normalize_numero_ssa_int_legacy
+_normalize_numero_ssa_value = _numero_ssa_utils.normalize_numero_ssa_int_legacy_bridge
 
 
 def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:  # retrocompat

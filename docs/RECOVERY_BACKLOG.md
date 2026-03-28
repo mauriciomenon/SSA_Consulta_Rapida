@@ -93,6 +93,33 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## Update 2026-03-28 17:35 - duplo clique por coluna sem conflito de UX (STABILITY_PATCH + DOC_SYNC)
 
+## Update 2026-03-28 18:20 - cleanup deepsource e hygiene de PR (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-28 17:50:00 -0300`
+2. fim: `2026-03-28 18:20:00 -0300`
+
+Escopo fechado neste slice:
+1. `armazenamento/database.py`:
+   - removido alias duplicado de `sqlite3` para typehint
+   - type hints migrados para `sqlite3.Connection`
+   - mensagem de erro de schema corrigida (`Tentativas:` sem aspas sobrando)
+   - ponte legacy de `_normalize_numero_ssa_value` agora usa facade explicita (sem acesso direto a membro protegido)
+2. `armazenamento/numero_ssa_utils.py`:
+   - adicionada facade `normalize_numero_ssa_int_legacy_bridge` para callsites legacy internos
+3. `armazenamento/database_upsert_logic.py`:
+   - removido `global` da runtime policy
+   - estado runtime migrado para dicionario mutavel local (`_RUNTIME_STATE`)
+4. `core/config_manager.py`:
+   - corrigido typo de label (`Execcutada` -> `Executada`) em `TPE` e `TEX`
+
+Validacao local deste slice:
+1. `uv run --python 3.13 python -m py_compile armazenamento/database.py armazenamento/numero_ssa_utils.py armazenamento/database_upsert_logic.py core/config_manager.py`: OK
+2. `uv run --python 3.13 ruff check armazenamento/database.py armazenamento/numero_ssa_utils.py armazenamento/database_upsert_logic.py core/config_manager.py`: OK
+3. `uv run --python 3.13 ty check armazenamento/database.py armazenamento/numero_ssa_utils.py armazenamento/database_upsert_logic.py core/config_manager.py`: OK
+4. `uv run --python 3.13 pytest -q tests/test_ssa_normalization_db.py tests/test_numero_ssa_normalization_cross.py tests/test_default_settings_import_settings.py`: `21 passed`
+5. `uv run --python 3.13 pytest -q tests/test_import_run_report.py::test_load_import_discovery_settings_invalid_upsert_policy_falls_back`: `1 passed`
+
 Session timestamp:
 1. start: `2026-03-28 17:22:00 -0300`
 2. fim: `2026-03-28 17:35:00 -0300`
