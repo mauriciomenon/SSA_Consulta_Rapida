@@ -181,6 +181,11 @@ def verify_database_integrity(
                         report["warnings"].append(
                             "Coluna 'arquivo_origem' ausente; reparo explicito pode adiciona-la."
                         )
+                    if "data_planilha" not in existing_columns:
+                        report["missing_optional_columns"].append("data_planilha")
+                        report["warnings"].append(
+                            "Coluna 'data_planilha' ausente; reparo explicito pode adiciona-la."
+                        )
 
                     missing = [c for c in required_columns if c not in existing_columns]
                     if missing:
@@ -362,14 +367,18 @@ def repair_database_if_needed(
                     "Colunas obrigatorias adicionadas no reparo: %s", repaired_columns
                 )
                 repaired = True
-        elif (
-            integrity_report["table_exists"]
-            and "arquivo_origem" in missing_optional_columns
+        elif integrity_report["table_exists"] and (
+            "arquivo_origem" in missing_optional_columns
+            or "data_planilha" in missing_optional_columns
         ):
             from .database import ensure_column_exists  # lazy
 
-            if ensure_column_exists(
+            if "arquivo_origem" in missing_optional_columns and ensure_column_exists(
                 db_path, integrity_report["table_name"], "arquivo_origem", "TEXT"
+            ):
+                repaired = True
+            if "data_planilha" in missing_optional_columns and ensure_column_exists(
+                db_path, integrity_report["table_name"], "data_planilha", "TEXT"
             ):
                 repaired = True
         if repaired:

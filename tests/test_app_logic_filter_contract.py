@@ -426,6 +426,34 @@ def test_get_filtered_data_reflects_updated_state_after_explicit_import(
     assert list(searched["numero_ssa"]) == ["202500001"]
 
 
+def test_explicit_import_persists_data_planilha_iso_from_filename(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir, _data_dir, db_path = _prepare_import_update_runtime(tmp_path, monkeypatch)
+    dated_file = docs_dir / "Consulta SSA - 26-03-2026_0237PM.xlsx"
+    dated_file.write_text("new", encoding="utf-8")
+
+    assert (
+        app_logic.import_explicit_files_to_database(
+            [str(dated_file)],
+            docs_dir=str(docs_dir),
+            db_path=str(db_path),
+            raise_on_error=True,
+        )
+        is True
+    )
+
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT data_planilha FROM ssa_table WHERE numero_ssa = ?",
+            ("202500001",),
+        ).fetchone()
+
+    assert row is not None
+    assert row[0] == "2026-03-26T14:37:00"
+
+
 def test_get_filtered_data_reflects_updated_state_after_diff_reimport(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

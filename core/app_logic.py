@@ -509,7 +509,13 @@ def _import_single_file(
             database.ensure_column_exists(
                 db_path, table_name, "data_arquivo_origem", "TEXT"
             )
+            database.ensure_column_exists(db_path, table_name, "data_planilha", "TEXT")
             best_file_dt = best_datetime_for_file(file_path)
+            file_dt_iso = (
+                best_file_dt.isoformat(timespec="seconds")
+                if best_file_dt is not None
+                else None
+            )
             file_dt_text = (
                 best_file_dt.strftime("%Y-%m-%d %H:%M:%S")
                 if best_file_dt is not None
@@ -527,6 +533,10 @@ def _import_single_file(
                 df["data_arquivo_origem"] = df["data_arquivo_origem"].fillna(
                     file_dt_text
                 )
+            if "data_planilha" not in df.columns:
+                df["data_planilha"] = file_dt_iso
+            else:
+                df["data_planilha"] = df["data_planilha"].fillna(file_dt_iso)
 
             # Conta registros antes de inserir
             record_count = len(df)

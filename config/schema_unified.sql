@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS ssa_table (
     servico_origem TEXT,
     sistema_origem TEXT,
     arquivo_origem TEXT,
+    data_planilha TEXT,
 
     -- Prioridades
     grau_prioridade_emissao TEXT,
