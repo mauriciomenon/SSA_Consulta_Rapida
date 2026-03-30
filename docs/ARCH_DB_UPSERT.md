@@ -1,18 +1,49 @@
-# ARCH DB UPSERT (legacy pointer)
+# ARCH DB UPSERT (v4.36)
 
-Documento legado mantido para compatibilidade de referencias antigas.
-Fonte ativa no baseline atual `v4.36`:
+Este arquivo e a referencia curta do contrato de update por `numero_ssa`.
+Nao e apenas ponte legado.
 
-1. `docs/SCHEMA_UNIFICADO_IMPORTACAO.md`
-2. `docs/ARQUITETURA_IMPORTACAO.md`
+## Fonte de runtime
 
-Nota tecnica 2026-03-27:
+1. `armazenamento/database_upsert_logic.py::_should_update_existing`
+2. `armazenamento/database_optimized.py::_classify_upsert_rows` (reusa a regra canonica)
 
-1. Upsert nao-complementar agora aplica tie-breaker de `situacao` quando
-   `data_cadastro` empata.
-2. Regra de seguranca: bloquear downgrade de estado no empate de data.
-3. Exemplo protegido: manter `STE` e rejeitar sobrescrita para `ADM`.
-4. Implementacao: `armazenamento/database_upsert_logic.py::_should_update_existing`.
+## Ordem real de decisao (update de linha ja existente)
 
-<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+1. Estado terminal no banco (`STE` ou `SCA`) bloqueia update.
+2. Tenta resolver timestamp de snapshot usando, nesta ordem:
+   - `data_planilha`
+   - `data_arquivo_origem`
+   - parse do nome em `arquivo_origem`
+3. Se ha contexto de arquivo novo, mas sem timestamp confiavel: bloqueia update.
+4. Se o registro existente tem timestamp de snapshot:
+   - novo mais antigo: bloqueia
+   - novo mais novo: atualiza
+   - empate: segue para comparacao auxiliar
+5. Comparacao auxiliar por `data_cadastro`:
+   - novo maior: atualiza
+   - novo menor: bloqueia
+   - empate: tie-break por ranking de `situacao` (nao permite downgrade)
+6. Sem datas parseaveis em ambos os lados: atualiza (merge defensivo).
+
+## Merge de campos
+
+Quando update e permitido:
+
+1. valor novo vazio (`None`, `""`, nulo): preserva valor antigo
+2. valor novo preenchido: sobrescreve
+
+## Garantias operacionais atuais
+
+1. `numero_ssa` permanece identificador textual canonico.
+2. `STE`/`SCA` sao imutaveis para update.
+3. Snapshot antigo nao deve sobrescrever snapshot mais novo quando timestamps existem.
+4. Fluxo otimizado e fluxo principal usam a mesma funcao de decisao.
+
+## Escopo fora deste contrato
+
+1. Matriz completa de transicao de estados (draft): `docs/SSA_STATE_MATRIX_DRAFT_20260329.md`
+2. Historico forense da mudanca de criterio: `docs/FORENSIC_UPDATE_CRITERIA_SSA_20260329.md`
+
+<!-- DOC_SYNC_MAC: 2026-03-30 contract-aligned -->
 

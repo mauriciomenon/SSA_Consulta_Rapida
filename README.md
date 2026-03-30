@@ -2,13 +2,20 @@
 
 Release/tag publicada mais recente na branch `dev`: `v4.36`.
 
-## Current Truth (2026-03-27 20:35 -0300)
+## Current Truth (2026-03-30 12:20 -0300)
 
 - Estado operacional:
   - metadata local ativa: `4.36`
   - ultima tag publicada em `dev`: `v4.36`
   - branch `dev` esta sincronizada com os slices recentes de `numero_ssa`, importacao explicita, provas de update/query e o sprint inicial de filtros/GUI descrito abaixo
   - `4.36` ja esta publicado em metadata, runtime, docs ativos e release/tag
+  - docs centrais de import/upsert foram realinhados com o contrato runtime atual
+- Contrato de update por SSA (resumo):
+  - `STE` e `SCA` no banco sao imutaveis para update
+  - usa timestamp de snapshot (`data_planilha`/`data_arquivo_origem`/nome do arquivo) antes de olhar `data_cadastro`
+  - se o arquivo novo tem contexto mas nao tem timestamp confiavel, update e bloqueado (insert-only)
+  - importacao explicita e ordenada por data de arquivo (antigo -> novo)
+  - `data_cadastro` fica como criterio auxiliar/tie-break
 - Sprint GUI entregue nesta frente:
   - implementacao runtime consolidada nos commits `b343c621` e `07ebfe1d`
   - `[f]` no cabecalho agora sincroniza filtros por coluna e filtros avancados
@@ -58,6 +65,9 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - `P2`: consolidar a reorganizacao de docs historicos apontada em `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 - Docs vivos para continuidade:
   - `AGENTS.md` -> regras, proibicoes, processo e politicas obrigatorias
+  - `docs/ARCH_DB_UPSERT.md` -> ordem real de decisao no update por `numero_ssa`
+  - `docs/ARQUITETURA_IMPORTACAO.md` -> discovery/import + metadados de snapshot
+  - `docs/TROUBLESHOOTING_IMPORTACAO.md` -> diagnostico pratico para regressao de estado/import
   - `docs/NEXT_CHAT_MIGRATION.md` -> roteiro curto para proximo chat
   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` -> handoff de execucao
   - `docs/RECOVERY_BACKLOG.md` -> backlog priorizado e historico
