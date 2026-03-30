@@ -79,3 +79,6 @@ pip install -r requirements.txt
 
 ---
 Documento gerado para padronizar execucoes consistentes e reduzir atrito em diagnosticos.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

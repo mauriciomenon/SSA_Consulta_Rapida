@@ -95,3 +95,6 @@ MISTRAL_API_KEY=sua_chave
 # Groq
 GROQ_API_KEY=sua_chave
 ```
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

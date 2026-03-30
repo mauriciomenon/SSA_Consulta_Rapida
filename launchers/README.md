@@ -90,3 +90,6 @@ uv run --python 3.13 launchers/build_multiplatform.py --clean-all
 
 - Este README substitui texto legado v3.10 com targets antigos.
 - Estado oficial de runtime/build para este ciclo e v4.33.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

@@ -117,3 +117,6 @@ Contato
 - Wrappers: `scripts/run_pytest_with_timeout_v2.py`, `scripts/run_pytest_stream_and_log_v2.py`
 
 Coloque estas instruções no repositório e adapte conforme seu ambiente local.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

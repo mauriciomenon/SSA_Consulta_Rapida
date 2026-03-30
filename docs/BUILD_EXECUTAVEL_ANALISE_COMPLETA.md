@@ -2078,3 +2078,6 @@ Este documento e parte do projeto SSA Consulta Rapida e segue a mesma licenca do
 Total de linhas: ~2,900
 Total de palavras: ~15,000
 Tempo de leitura estimado: 60-75 minutos
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

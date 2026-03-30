@@ -7,3 +7,6 @@ Ele nao descreve a prioridade operacional atual.
 Uso ativo:
 1. `docs/REFACTOR_DEPENDENCY_CYCLES.md`
 2. `docs/RECOVERY_BACKLOG.md`
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

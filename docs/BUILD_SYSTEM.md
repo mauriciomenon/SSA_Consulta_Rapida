@@ -79,3 +79,6 @@ uv run --python 3.13 build/build_all.py
 - Sem instalacao necessaria
 
 **PRONTO PARA TESTAR!**
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

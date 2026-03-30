@@ -50,3 +50,6 @@ STE e SCA: sem saida (imutaveis)
 3. Cancelamento com `SCS/SCD`: obrigatorio ou opcional.
 4. Politica final para estado desconhecido em planilha: bloquear sempre ou permitir apenas insert.
 
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

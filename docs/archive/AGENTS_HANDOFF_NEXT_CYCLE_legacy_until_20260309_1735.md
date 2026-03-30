@@ -3491,3 +3491,6 @@ Entregavel de cada slice:
   - `bandit`/`semgrep` sem novo blocker especifico do slice.
   - `trivy` clean para `uv.lock`.
   - `opencode run` bloqueado por billing no host atual (deferido nao bloqueante).
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

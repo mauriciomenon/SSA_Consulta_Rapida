@@ -337,3 +337,6 @@ origem da regra, arquivo onde ela fica, testes de regressao;
 - Teste de estabilidade que verifica "nao trava" nao substitui teste de contrato funcional do resultado esperado.
 - Textos de ajuda, tooltip e placeholder sao parte do contrato. Se o comportamento mudar, eles devem ser revisados no mesmo slice.
 - Timeout de ferramenta de review nao autoriza esconder o risco nem prosseguir como se a verificacao estivesse limpa; o bloqueio deve ser declarado com escopo exato.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

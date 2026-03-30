@@ -3187,3 +3187,6 @@ Relatorio final por slice:
 - Observacoes operacionais:
   - `opencode run` ainda bloqueado por billing no host atual.
   - `snyk test --all-projects` sem retorno util por timeout.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

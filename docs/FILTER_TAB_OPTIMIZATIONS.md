@@ -332,3 +332,6 @@ Eliminated ~30 lines duplicated block in `_refresh_responsavel_options` that rec
   - listas longas (com barra vertical) reservam largura extra para evitar corte de `Nao conter`.
 - Reversao facil:
   - setar `SIMPLE_POPUP_TEXT_CLAMP = False` em `gui/ssa/gui_filters_advanced_ui.py`.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

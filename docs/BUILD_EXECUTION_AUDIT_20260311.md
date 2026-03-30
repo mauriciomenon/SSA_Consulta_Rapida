@@ -289,3 +289,6 @@ Legenda de status:
 - `docs/NEXT_CHAT_MIGRATION.md`
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - `docs/RECOVERY_BACKLOG.md`
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

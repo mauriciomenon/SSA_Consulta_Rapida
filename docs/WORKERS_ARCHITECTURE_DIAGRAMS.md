@@ -264,3 +264,6 @@ sequenceDiagram
     FW->>Cache: put()
     FW-->>UI: filter_finished.emit
 ```
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

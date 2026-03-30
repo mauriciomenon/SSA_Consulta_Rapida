@@ -8284,3 +8284,6 @@ Historical review-thread entries were removed here to avoid duplicate pending co
 3. novos updates devem entrar no topo, logo apos `ACTIVE PRIORITIES`, para manter prioridade e baixo custo de leitura.
 4. o conteudo abaixo deste aviso deve permanecer estavel como historico, nao como area viva.
 5. quebrar essa regra volta a misturar verdade atual com arqueologia e piora manutencao, edicao e triagem.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

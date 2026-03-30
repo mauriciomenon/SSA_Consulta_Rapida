@@ -1143,3 +1143,6 @@ Legenda:
 - Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
 - Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

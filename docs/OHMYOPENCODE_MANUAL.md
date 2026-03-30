@@ -271,3 +271,6 @@ oh-my-opencode run --attach http://127.0.0.1:4321 "tarefa"
 - Comment-checker: Instalado via bun
 - LSP: Habilitar sob demanda
 - MCP: Habilitar sob demanda
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

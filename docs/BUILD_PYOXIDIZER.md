@@ -117,3 +117,6 @@ Normal. Primeira compilacao: 10-30 minutos.
 - Compila tudo para nativo
 
 Builds seguintes: 2-5 minutos (incremental).
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

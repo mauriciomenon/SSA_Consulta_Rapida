@@ -85,3 +85,6 @@ Documento rascunho: atualizar conforme scripts forem entrando. Evitar inflar com
 ---
 Atualizado em: 2025-09-12
 
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

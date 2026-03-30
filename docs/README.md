@@ -90,3 +90,6 @@
 - Runtime principal: `uv run --python 3.13 ...`
 - Fallback: `3.12 -> 3.11 -> 3.10`
 - Compatibilidade sem uv: `requirements*.txt`
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

@@ -217,3 +217,6 @@ STATUS:  Identificado, aguardando correcao
 
 **Ultima Atualizacao**: Setembro 2025  
 **Proxima Revisao**: Com release da v3.0.7
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

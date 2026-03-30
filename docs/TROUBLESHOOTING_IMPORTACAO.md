@@ -59,3 +59,6 @@ uv run --python "${PY_RUNTIME}" ty check extracao/extractor.py
   3. comando executado
   4. resultado do teste focado
   5. commit de correcao
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

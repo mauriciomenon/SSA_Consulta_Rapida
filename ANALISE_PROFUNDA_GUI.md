@@ -44,3 +44,6 @@ Escopo: diagnostico objetivo, riscos reais e plano minimo reversivel.
 - `docs/NEXT_CHAT_MIGRATION.md`
 - `docs/RECOVERY_BACKLOG.md`
 - `docs/PENDING_ACTION_MATRIX.md`
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

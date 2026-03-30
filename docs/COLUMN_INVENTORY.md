@@ -50,3 +50,6 @@
 - Campos sem rotulo em 'display_mappings' (por exemplo 'numero_desvios', 'situacao_da_parcial') aparecem apenas em fluxos internos; convem definir nomes amigaveis antes de leva-los para a UI.
 - 'arquivo_origem' e preenchido durante a importacao e fica oculto por padrao; pode ser exposto em relatorios conforme necessidade.
 - As categorias acima foram geradas por heuristicas baseadas no nome das colunas; revise antes de qualquer ajuste visual.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

@@ -122,3 +122,6 @@ pip install -r launchers/platforms/macos_arm64/requirements.txt
 # Debian AMD64
 pip install -r launchers/platforms/debian_amd64/requirements.txt
 ```
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

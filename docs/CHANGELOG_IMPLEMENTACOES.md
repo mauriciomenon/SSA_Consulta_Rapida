@@ -71,3 +71,6 @@ Arquivo legado mantido para compatibilidade com testes automatizados. O historic
 - Correcoes de assinatura de slots de menu de contexto (ex.: `copy_cell_value`).
 
 Para historico completo e decisoes arquiteturais ver: `docs/HISTORICO_RELEASES.md` e `docs_saida/CHANGELOG_IMPLEMENTACOES.md`.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+
