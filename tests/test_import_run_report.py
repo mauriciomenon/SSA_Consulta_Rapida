@@ -1360,8 +1360,8 @@ def test_run_importer_logic_full_rescan_enforces_subdir_policy_and_upsert_policy
 
     assert updated is True
     assert captured_policy["value"] == "all_short"
-    assert captured["get_files_kwargs"]["include_processadas"] is False
-    assert captured["discover_kwargs"]["include_processadas"] is False
+    assert captured["get_files_kwargs"]["include_processadas"] is True
+    assert captured["discover_kwargs"]["include_processadas"] is True
     assert captured["get_files_kwargs"]["ignore_subdirs"] == ["nosurvivor"]
     assert captured["discover_kwargs"]["ignore_subdirs"] == ["nosurvivor"]
     assert move_called["value"] is False
