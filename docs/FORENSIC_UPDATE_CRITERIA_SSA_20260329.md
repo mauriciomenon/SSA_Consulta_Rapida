@@ -11,7 +11,7 @@
 1. O algoritmo antigo (2025-08) priorizava recencia de snapshot de arquivo.
 2. No refactor de 2025-09, o nucleo de decisao mudou para comparacao por `data_cadastro`.
 3. Nos hotfixes de 2026-03, entrou trava global de `STE` no topo e depois guard de data de arquivo.
-4. Resultado: mistura de dominio (validacao x update), com risco de prioridade incorreta.
+4. Resultado atual: criterio principal voltou a depender de contexto de snapshot, com `data_cadastro` apenas auxiliar.
 
 ## Linha do tempo com evidencia
 
@@ -49,15 +49,16 @@
 
 - Persistencia de `data_arquivo_origem` no fluxo de import.
 
-## Regra atual (estado do codigo em 2026-03-29)
+## Regra atual (estado do codigo em 2026-03-30)
 
 Arquivo: `armazenamento/database_upsert_logic.py`
 
 Ordem atual de decisao:
 
-1. Gate global de `STE` (veto imediato para downgrade).
+1. Estado existente `STE` ou `SCA`: bloqueia update.
 2. Guard por data de arquivo (quando ambas datas existem).
-3. Comparacao por `data_cadastro` (`>=`) com tie-break de `situacao` no empate.
+3. Se arquivo novo tem contexto mas nao tem timestamp confiavel: bloqueia update.
+4. Comparacao por `data_cadastro` (`>=`) com tie-break de `situacao` no empate.
 
 ## Distincao correta de dominio
 
@@ -135,6 +136,11 @@ Escopo minimo para reduzir regressao imediata enquanto a matriz final e validada
 4. Quando houver contexto de arquivo, mas sem timestamp confiavel:
    - update bloqueado (arquivo pode inserir novos registros, mas nao sobrescrever existentes).
 
+Status:
+
+1. item aplicado em runtime
+2. cobertura de regressao existe em testes focados de upsert/import
+
 Referencia da matriz draft para validacao:
 
 - `docs/SSA_STATE_MATRIX_DRAFT_20260329.md`
@@ -156,5 +162,5 @@ Tentativas ja feitas:
 - Adobe Acrobat MCP: falha de autenticacao (`Token exchange failed`).
 - Extracao local com `pypdf`: `pages_with_text = 0` em `g05.pdf`.
 
-<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+<!-- DOC_SYNC_MAC: 2026-03-30 contract-aligned -->
 

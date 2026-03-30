@@ -45,6 +45,39 @@ uv run --python "${PY_RUNTIME}" ty check extracao/extractor.py
 - confirmar se o lote tem dados novos ou alterados.
 - em caso de duvida, executar full rescan.
 
+### Estado "rebaixou" apos importar planilha
+
+Checklist objetivo:
+
+1. conferir `data_planilha` e `data_arquivo_origem` da linha existente e da linha nova
+2. confirmar se o registro existente ja estava em `STE` ou `SCA` (deve bloquear update)
+3. verificar se o arquivo novo tem timestamp confiavel:
+   - se nao tiver, update de linha existente deve ser bloqueado
+4. validar ordenacao da importacao explicita:
+   - arquivo mais antigo deve entrar antes do mais novo
+
+Consulta SQL util:
+
+```sql
+SELECT
+  numero_ssa,
+  situacao,
+  data_cadastro,
+  data_planilha,
+  data_arquivo_origem,
+  arquivo_origem
+FROM ssas
+WHERE numero_ssa IN ('202600654');
+```
+
+### Arquivo valido com nome generico nao atualiza
+
+Comportamento esperado:
+
+1. se nao houver data no nome, pipeline usa `mtime/ctime`
+2. se nao houver timestamp confiavel, arquivo ainda pode inserir novos
+3. sem timestamp confiavel, nao deve sobrescrever linha existente
+
 ## Regras de seguranca operacional
 
 1. Nao aplicar suppress silencioso em erro de extracao/validacao.
@@ -60,5 +93,14 @@ uv run --python "${PY_RUNTIME}" ty check extracao/extractor.py
   4. resultado do teste focado
   5. commit de correcao
 
-<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+## Testes de regressao recomendados
+
+```bash
+uv run --python 3.13 python -m pytest -q \
+  tests/test_upsert_behaviors.py \
+  tests/test_import_run_report.py \
+  tests/test_database_optimized_alias_views.py
+```
+
+<!-- DOC_SYNC_MAC: 2026-03-30 contract-aligned -->
 

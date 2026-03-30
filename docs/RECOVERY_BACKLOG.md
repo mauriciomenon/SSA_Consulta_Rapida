@@ -9,7 +9,11 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 1. nao reabrir contrato fechado de `numero_ssa` sem planilha real + pipeline real + teste cross-layer
 2. nao manter docs vivos stale sobre slices ja fechados ou sobre worktree antigo
 3. confirmar worktree limpo antes de qualquer nova frente
-4. nao permitir downgrade de `situacao` em empate de `data_cadastro` no upsert nao-complementar
+4. manter contrato de update por snapshot + terminais:
+   - `STE`/`SCA` existentes bloqueiam update
+   - snapshot antigo nao sobrescreve snapshot novo
+   - contexto sem timestamp confiavel vira insert-only
+   - `data_cadastro` e auxiliar/tie-break
 
 ### ESTADO OPERACIONAL ATUAL
 1. branch ativa: `dev`
@@ -86,6 +90,27 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 5. regex/XML bruto de `.xlsx` nao prova valor extraido de `numero_ssa`.
 
 ## Update 2026-03-26 22:01 - plano consolidado de pendencias do PR e do repo (DOC_SYNC + DEFERRED_NOTE)
+
+## Update 2026-03-30 12:20 - doc sync de contrato de import/upsert (DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-30 11:50:00 -0300`
+2. fim: `2026-03-30 12:20:00 -0300`
+
+Escopo fechado neste slice:
+1. docs vivos de import/upsert alinhados com runtime atual:
+   - `README.md`
+   - `docs/INDEX.md`
+   - `docs/ARCH_DB_UPSERT.md`
+   - `docs/ARQUITETURA_IMPORTACAO.md`
+   - `docs/TROUBLESHOOTING_IMPORTACAO.md`
+   - `docs/FORENSIC_UPDATE_CRITERIA_SSA_20260329.md`
+   - `docs/MAC_CONTINUATION_HANDOFF_20260329.md`
+2. regra de update documentada com prioridade correta:
+   - terminal first (`STE`/`SCA`)
+   - snapshot datetime before `data_cadastro`
+   - timestamp ausente com contexto -> bloqueio de update
+3. sem alteracao de runtime, schema, testes ou layout neste slice.
 
 ## Update 2026-03-27 18:10 - hotfix anti-downgrade de situacao no upsert (HOTFIX_BLOCKER + DOC_SYNC)
 

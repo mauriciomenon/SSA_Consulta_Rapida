@@ -2,7 +2,7 @@
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-03-27 16:45 -0300)
+## Sync status (2026-03-30 12:20 -0300)
 
 1. Baseline ativo confirmado: `4.36`.
 2. Branch operacional: `dev`.
@@ -19,6 +19,13 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 6. Runbook operacional 3x3:
    - `docs/BUILD_3X3_RUNBOOK.md`
+7. Contrato de upsert/update por SSA alinhado nos docs vivos:
+   - `docs/ARCH_DB_UPSERT.md`
+   - `docs/ARQUITETURA_IMPORTACAO.md`
+   - `docs/TROUBLESHOOTING_IMPORTACAO.md`
+   - `docs/FORENSIC_UPDATE_CRITERIA_SSA_20260329.md`
+8. Handoff host-agnostic para continuidade no macOS:
+   - `docs/MAC_CONTINUATION_HANDOFF_20260329.md`
 
 ## Regras de leitura
 
@@ -118,5 +125,5 @@ de mesmo tema em `docs/`.
 - `docs/archive/TROUBLESHOOTING_IMPORTACAO_legacy_until_20260309_1901.md`
 - `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 
-<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+<!-- DOC_SYNC_MAC: 2026-03-30 contract-aligned -->
 

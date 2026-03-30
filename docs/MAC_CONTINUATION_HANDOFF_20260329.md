@@ -8,8 +8,17 @@
 
 ## Current branch and commits
 
-1. `147424ef` - HOTFIX_BLOCKER: `data_planilha` (ISO), immutable terminal states (`STE`, `SCA`), update hardening.
-2. `f115d715` - STABILITY_PATCH: full rescan now includes `processadas` by default.
+1. `dev` e a branch operacional.
+2. Para capturar o estado exato no macOS:
+
+```bash
+git log --oneline -n 8
+```
+
+3. Commits minimos que devem existir no historico recente:
+   - `147424ef` (`data_planilha` + imutabilidade `STE/SCA`)
+   - `f115d715` (full rescan com `processadas` por default)
+   - `81f05676` (doc sync host-agnostic inicial)
 
 ## Runtime behavior currently active
 
@@ -17,6 +26,7 @@
 2. `STE` and `SCA` rows are immutable in update flow.
 3. If incoming file has file-context but no trustworthy timestamp, update is blocked (insert new only).
 4. Full rescan includes `docs_entrada/processadas` by default.
+5. Explicit import is sorted by file datetime (older first, newer last).
 
 ## Matrix draft status (needs user validation)
 
@@ -31,6 +41,13 @@ Open validation items:
 2. Exact role of `APL` in planning flow.
 3. Whether `SCS/SCD` are mandatory or optional before `SCA`.
 4. Policy for forward jumps when intermediate states are missing in newer sheets.
+
+## Contract summary for update
+
+1. Existing `STE`/`SCA`: no update.
+2. New row with file-context but no reliable timestamp: no update (insert-only behavior).
+3. Older snapshot does not overwrite newer snapshot.
+4. `data_cadastro` is auxiliar/tie-break, not primary ordering source.
 
 ## macOS command baseline
 
@@ -57,4 +74,4 @@ uv run --python 3.13 python -m pytest -q \
    - `docs/POLICY_BASELINE_V1_FROZEN.md`
    - `docs/POLICY_BASELINE_V1_1_FROZEN.md`
 
-<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+<!-- DOC_SYNC_MAC: 2026-03-30 contract-aligned -->
