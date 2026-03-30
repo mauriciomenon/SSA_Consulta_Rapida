@@ -16,7 +16,7 @@
   },
   "default_filters": [],
   "import_settings": {
-    "include_processadas_in_full_rescan": false,
+    "include_processadas_in_full_rescan": true,
     "processadas_subdir": "processadas",
     "ignore_nosurvivor_in_full_rescan": true,
     "nosurvivor_subdir": "nosurvivor",

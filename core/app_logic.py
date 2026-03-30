@@ -974,7 +974,7 @@ def _load_import_discovery_settings() -> Dict[str, Any]:
     """Load import discovery flags from settings.json with safe defaults."""
     allowed_upsert_policies = {"consulta_only", "no_short", "all_short"}
     defaults: Dict[str, Any] = {
-        "include_processadas": False,
+        "include_processadas": True,
         "processadas_subdir": "processadas",
         "ignore_subdirs": ["nosurvivor"],
         "nosurvivor_subdir": "nosurvivor",
@@ -990,7 +990,7 @@ def _load_import_discovery_settings() -> Dict[str, Any]:
         settings = load_settings()
         import_settings = settings.get("import_settings") or {}
         include_processadas = bool(
-            import_settings.get("include_processadas_in_full_rescan", False)
+            import_settings.get("include_processadas_in_full_rescan", True)
         )
         processadas_subdir = (
             str(import_settings.get("processadas_subdir", "processadas")).strip()
@@ -2026,11 +2026,6 @@ def run_importer_logic(
             discovery_settings.get("move_processed_after_import", False)
         )
         if force_import:
-            if include_processadas:
-                logger.warning(
-                    "Politica ativa: include_processadas_in_full_rescan foi desativado no full rescan."
-                )
-                include_processadas = False
             nosurvivor_subdir = str(
                 discovery_settings.get("nosurvivor_subdir", "nosurvivor")
             )
