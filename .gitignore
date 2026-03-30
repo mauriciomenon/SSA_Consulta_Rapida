@@ -414,8 +414,12 @@ launchers/ESTRUTURA_*.md
 launchers/GESTAO_*.md
 launchers/GUIA_PRIVACIDADE*.md
 launchers/SISTEMA_*.md
-# AI/Copilot instructions (all)
-.github/instructions/
+# AI/Copilot instructions
+.github/instructions/*
+!.github/instructions/rules/
+!.github/instructions/rules/*.md
+opencode.json
+nul
 
 # Code quality tools (local cache and configs)
 .codacy/
