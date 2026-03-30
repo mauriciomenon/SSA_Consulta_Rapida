@@ -2,6 +2,88 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-30 12h20
+
+### Estado de repositorio e runtime
+
+1. branch ativa: `dev`
+2. ultimo commit remoto confirmado: `33b89a42` (`DOC_SYNC: alinhar contrato de update/import nos docs vivos`)
+3. metadata/tag ativa documentada: `4.36` / `v4.36`
+4. worktree limpo apos push do commit acima
+
+### O que foi feito neste ciclo (doc sync real)
+
+Docs atualizados com contrato operacional atual, sem mexer em runtime:
+
+1. `README.md`
+2. `docs/INDEX.md`
+3. `docs/ARCH_DB_UPSERT.md`
+4. `docs/ARQUITETURA_IMPORTACAO.md`
+5. `docs/TROUBLESHOOTING_IMPORTACAO.md`
+6. `docs/FORENSIC_UPDATE_CRITERIA_SSA_20260329.md`
+7. `docs/MAC_CONTINUATION_HANDOFF_20260329.md`
+8. `docs/RECOVERY_BACKLOG.md`
+
+### Contrato de update por SSA (resumo consolidado)
+
+1. chave de conflito: `numero_ssa`
+2. update bloqueado quando estado existente no banco e terminal (`STE` ou `SCA`)
+3. prioridade de snapshot:
+   - usa `data_planilha`, depois `data_arquivo_origem`, depois parse do nome em `arquivo_origem`
+4. se arquivo novo tem contexto, mas sem timestamp confiavel:
+   - no caminho de update, bloqueia sobrescrita (insert-only para novos IDs)
+5. se timestamps existem:
+   - snapshot novo mais antigo: bloqueia
+   - snapshot novo mais recente: atualiza
+6. depois do gate de snapshot, usa `data_cadastro` como auxiliar/tie-break
+7. empate de `data_cadastro` usa ranking de `situacao` para evitar downgrade
+
+### Estado das entregas de GUI pedidas anteriormente
+
+Ja aterradas e pushadas em ciclos anteriores:
+
+1. `[f]` sincronizado com filtros avancados e por coluna
+2. dedupe em `Filtros ativos`
+3. macro `Baixar` exclui `SAD` junto de `SCA/SES/STE`
+4. prompt de filtro por coluna com hint e largura melhor
+5. botao `Abrir SAM`
+6. coluna `#` abrindo link de SSA no SAM
+7. caixa de status separada (`X de Y SSAs`)
+8. `situacao` expandida no detalhe
+9. copia de numero por duplo clique no detalhe
+10. aba dedicada de arvore com subabas `Grafo`, `Arvore` e `Mermaid`
+11. `update_derivadas_from_sources()` e `load_other_database()` fora da UI thread no runtime normal
+
+### Pendencias reais (nao fechadas)
+
+1. validar em lote real de operacao se a SSA alvo continua `STE` apos sequencia mista de imports (full + explicito + diff)
+2. revisar staging/copy de importacao externa ainda na thread principal (hotspot de UI freeze residual)
+3. medir e reduzir custo de refresh/render apos filtros com base grande
+4. fechar matriz final de transicao de estados (draft -> contrato aprovado)
+5. reforcar cobertura E2E de update para:
+   - ordem adversa de arquivos explicitos
+   - arquivos com nome generico (fallback metadata)
+   - bloqueio de downgrade em combinacoes de data/estado
+
+### Plano de arranque na proxima conversa (obrigatorio)
+
+1. rodar `git status --short`
+2. revisar comentarios/checks mais recentes do PR `dev -> main`
+3. validar o caso real da SSA reportada pelo usuario diretamente no DB
+4. executar suite focada antes de qualquer alteracao:
+   - `uv run --python 3.13 python -m pytest -q tests/test_upsert_behaviors.py tests/test_import_run_report.py tests/test_database_optimized_alias_views.py tests/test_app_logic_filter_contract.py`
+5. so depois abrir patch minimo com:
+   - objetivo do slice
+   - arquivos permitidos
+   - arquivos proibidos
+
+### Validacao executada neste slice de docs
+
+1. `uv run --python 3.13 python -m py_compile tests/test_docs_and_priority.py`
+2. `uv run --python 3.13 ruff check tests/test_docs_and_priority.py`
+3. `uv run --python 3.13 ty check tests/test_docs_and_priority.py`
+4. `uv run --python 3.13 pytest -q tests/test_docs_and_priority.py` -> `3 passed`
+
 ## CURRENT TRUTH 2026-03-27 20h35
 
 - Leitura rapida:
