@@ -126,3 +126,6 @@ O pipeline garante ingestao resiliente e idempotente, reduzindo riscos de perda 
 
 ---
 _Manter este documento atualizado sempre que a semantica de importacao ou upsert for alterada._
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

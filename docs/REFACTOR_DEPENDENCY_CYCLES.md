@@ -233,3 +233,6 @@ Impact:
 
 References: docs/archive/PLANO_REFATORACAO_SSA_CONSULTA_RAPIDA.md
 ```
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

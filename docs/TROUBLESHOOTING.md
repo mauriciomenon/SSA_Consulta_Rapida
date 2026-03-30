@@ -55,3 +55,6 @@ Guia ativo de diagnostico rapido para operacao diaria.
 1. Risco alto de dados/importacao: registrar em `docs/RECOVERY_BACKLOG.md` com evidencia de arquivo/linha/log.
 2. Duvida de continuidade de sessao: atualizar `docs/NEXT_CHAT_MIGRATION.md`.
 3. Fechamento de ciclo: atualizar `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

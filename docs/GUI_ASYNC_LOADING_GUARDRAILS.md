@@ -95,3 +95,6 @@ Este documento define as regras de segurança para o carregamento assíncrono da
 
 - `tests/test_gui_filter_logic.py`
   - testes de corrida/sincronização para carga e filtro assíncronos.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

@@ -59,3 +59,6 @@ Se o ambiente corromper:
 3. Se necessario, exclua `.venv` ou `.venv_ft` e repita o passo anterior.
 
 Com isso, o setup permanece previsivel em Windows, WSL Debian e macOS.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

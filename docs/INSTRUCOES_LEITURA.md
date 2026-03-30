@@ -11,3 +11,6 @@ Instrucoes de Leitura da Documentacao
 Observacao:
 - Arquivos de saida (relatorios/resultados) permanecem em `docs_saida/`.
 - Se algum arquivo estiver faltando, consulte os backups ou o controle de versao.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

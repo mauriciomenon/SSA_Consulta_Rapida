@@ -64,3 +64,6 @@ It does not change GUI behavior.
 - Sheet import accepts resilient column aliases for parent, child, and relation label.
 - `scan` is independent from import flow and does not perform writes.
 - `maintenance` is interval-guarded and can run as a lightweight background check.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

@@ -155,3 +155,6 @@ Tentativas ja feitas:
 
 - Adobe Acrobat MCP: falha de autenticacao (`Token exchange failed`).
 - Extracao local com `pypdf`: `pages_with_text = 0` em `g05.pdf`.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

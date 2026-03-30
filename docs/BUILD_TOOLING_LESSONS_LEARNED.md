@@ -149,3 +149,6 @@
 - Regra:
   - nao esconder essas pastas em runtime.
   - seed inicial nao deve sobrescrever customizacao local do usuario.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

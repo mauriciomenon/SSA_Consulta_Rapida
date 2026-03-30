@@ -2566,3 +2566,6 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 3. qualquer estado atual novo deve entrar no topo, dentro de `CURRENT TRUTH`.
 4. qualquer pendencia nova deve entrar no topo deste arquivo ou em `docs/RECOVERY_BACKLOG.md`, por prioridade.
 5. colagem solta no fim deste arquivo aumenta custo de leitura, cria contexto stale e ja causou regressao de processo.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

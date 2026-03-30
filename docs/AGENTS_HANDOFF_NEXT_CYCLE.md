@@ -2176,3 +2176,6 @@ Este handoff deve carregar apenas o topo vivo, para evitar divergencia e duplica
 3. o topo `CURRENT TRUTH` e a unica area viva para status atual.
 4. pendencias novas entram no topo ou em `docs/RECOVERY_BACKLOG.md`, sempre por prioridade.
 5. colar estado atual no fim deste arquivo degrada leitura automatica e manutencao futura.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

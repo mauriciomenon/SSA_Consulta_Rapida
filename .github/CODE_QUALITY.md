@@ -40,3 +40,6 @@ Configure in repository Settings → Secrets and variables → Actions:
 sonarsource.sonarlint-vscode
 snyk-security.snyk-vulnerability-scanner
 ```
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

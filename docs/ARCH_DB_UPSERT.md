@@ -13,3 +13,6 @@ Nota tecnica 2026-03-27:
 2. Regra de seguranca: bloquear downgrade de estado no empate de data.
 3. Exemplo protegido: manter `STE` e rejeitar sobrescrita para `ADM`.
 4. Implementacao: `armazenamento/database_upsert_logic.py::_should_update_existing`.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

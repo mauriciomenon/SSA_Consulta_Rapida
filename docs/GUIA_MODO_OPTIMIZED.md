@@ -93,3 +93,6 @@ python main.py --optimized --gui
 **Para depuracao**: `python main.py --force-rescan`
 
 O modo `--optimized` e a **versao recomendada** para uso em producao, oferecendo performance drasticamente superior sem comprometer a seguranca dos dados.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

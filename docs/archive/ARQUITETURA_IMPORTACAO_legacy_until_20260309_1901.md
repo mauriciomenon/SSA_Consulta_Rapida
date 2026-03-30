@@ -12,3 +12,6 @@ Ele nao e documento ativo de arquitetura no baseline atual `v4.36`.
 ## Motivo do arquivamento
 
 - O conteudo antigo misturava observacoes historicas, riscos e afirmacoes que ja nao refletem o estado operacional atual.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

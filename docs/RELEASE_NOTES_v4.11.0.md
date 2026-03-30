@@ -182,3 +182,6 @@ Consulte o historico do commit `5242a65` para:
 **Executado por:** GitHub Copilot AI Assistant  
 **Aprovado por:** Mauricio Menon (@mauriciomenon)  
 **Data:** 2025-11-11
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

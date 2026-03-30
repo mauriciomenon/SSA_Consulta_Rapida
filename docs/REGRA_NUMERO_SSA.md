@@ -39,3 +39,6 @@ Observacoes
 - Qualquer regra antiga de prefixar ano para valor curto deve ser tratada como historica e superada pela decisao atual: curto invalido descarta e loga.
 - A camada de exibicao deve mostrar o valor canonico somente quando ele for valido; entradas invalidas permanecem invalidas.
 
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

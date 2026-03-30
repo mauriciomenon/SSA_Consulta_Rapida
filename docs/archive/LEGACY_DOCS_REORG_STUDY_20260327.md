@@ -117,3 +117,6 @@ This study does not:
 2. archive docs all self-identify as historical,
 3. active docs stay short and non-duplicative,
 4. link integrity is rechecked in one pass after moves.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

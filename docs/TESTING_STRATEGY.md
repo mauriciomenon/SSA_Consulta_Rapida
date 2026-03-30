@@ -99,3 +99,6 @@ Atualize este documento ao:
 - Introduzir novo marcador ou fixture
 - Elevar fase de cobertura
 - Deprecar scripts de gate ou alterar saida JSON
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

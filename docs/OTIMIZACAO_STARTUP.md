@@ -127,3 +127,6 @@ Total: 6154.86ms (6.15s)
 - Bytecode cache (.pyc) ja ajuda automaticamente
 - PyInstaller pode ser usado como alternativa de compatibilidade
 - Executavel gerado: ~100-150MB
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

@@ -266,3 +266,6 @@ uv run --python 3.13 launchers/build_multiplatform.py --debug
 ```
 
 Gera logs detalhados para diagnostico de problemas.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

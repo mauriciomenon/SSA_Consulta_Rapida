@@ -531,3 +531,6 @@ python -m pytest tests/test_workers_advanced.py::TestWorkerPerformance -v
 ---
 
 *Documentacao sincronizada com `dev` em 2026-03-27.*
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

@@ -597,3 +597,6 @@ custom_formatting = True
 Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao mais recente estavel (v4.36).
 
 **Status**: Desenvolvimento ativo com releases regulares a cada 2-3 meses.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

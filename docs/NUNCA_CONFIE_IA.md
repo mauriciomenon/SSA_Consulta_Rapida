@@ -141,3 +141,6 @@ entao a resposta correta e:
 2. medir
 3. provar
 4. so depois editar
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

@@ -512,3 +512,6 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 *Ultima atualizacao: 10/03/2026 - v4.36*
 *Para duvidas ou problemas, consulte o repositorio no GitHub*
 
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

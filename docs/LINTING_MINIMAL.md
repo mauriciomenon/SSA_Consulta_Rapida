@@ -44,3 +44,6 @@ Abra issue se encontrar:
 
 ---
 Manter a friccao baixa acelera melhorias estruturais reais.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

@@ -42,6 +42,7 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 - `docs/RECOVERY_BACKLOG.md`
 - `docs/NEXT_CHAT_MIGRATION.md`
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- `docs/MAC_CONTINUATION_HANDOFF_20260329.md`
 - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 - `docs/PENDING_ACTION_MATRIX.md`
 
@@ -116,3 +117,6 @@ de mesmo tema em `docs/`.
 - `docs/archive/TROUBLESHOOTING_legacy_until_20260309_1901.md`
 - `docs/archive/TROUBLESHOOTING_IMPORTACAO_legacy_until_20260309_1901.md`
 - `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

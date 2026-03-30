@@ -239,3 +239,6 @@ Ponto adicional:
 2. A regra de descarte por `missing_data_cadastro` remove volume alto de linhas.
 3. Ha pelo menos um caso de skip total de arquivo onde existe dado temporal em colunas alternativas, mas o fluxo nao consegue aproveitar.
 4. O DB atual ficou consistente para leitura (`integrity_check=ok`), mas com schema divergente do canonico.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

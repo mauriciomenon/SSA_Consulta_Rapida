@@ -172,3 +172,6 @@ uv run --python 3.13 scripts/cleanup_build_artifacts.py --scope full
    - CLI sem plugin PyQt6
    - handler de erro com identificacao de step + tail de log em modo silencioso
 5. Build `nuitka` Debian segue pesado no host e requer rodada dedicada para fechamento final de tempo/retorno.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

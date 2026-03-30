@@ -137,3 +137,6 @@ scoop info uv
 - **Docker Compose:** Usar `docker compose` (com espaco), nao `docker-compose` (com hifen)
 - **Java:** OpenJDK 21 instalado para Codacy CLI (Temurin preferido mas nao obrigatorio)
 - **CI/CD:** Workflows configurados apenas para branch `main`
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

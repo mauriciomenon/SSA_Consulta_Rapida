@@ -49,3 +49,6 @@ Este documento descreve a arquitetura ativa de importacao no baseline atual.
 O conteudo detalhado legado desta arquitetura foi arquivado em:
 
 - `docs/archive/ARQUITETURA_IMPORTACAO_legacy_until_20260309_1901.md`
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

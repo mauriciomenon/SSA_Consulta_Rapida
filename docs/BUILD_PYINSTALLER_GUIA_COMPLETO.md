@@ -1255,3 +1255,6 @@ VSVersionInfo(
 **Versao do guia**: 1.0
 **Autor**: Claude Code
 **Status**: Completo e testado
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+
