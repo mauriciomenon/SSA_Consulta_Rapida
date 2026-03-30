@@ -432,3 +432,61 @@ def test_should_update_existing_blocks_older_data_arquivo_origem_for_generic_nam
         "data_arquivo_origem": "2026-03-26 12:00:00",
     }
     assert _should_update_existing(existing, incoming) is False
+
+
+def test_should_update_existing_blocks_terminal_sca() -> None:
+    existing = {
+        "data_cadastro": "2026-03-27 10:00:00",
+        "situacao": "SCA",
+        "data_planilha": "2026-03-27T12:00:00",
+    }
+    incoming = {
+        "data_cadastro": "2026-03-28 10:00:00",
+        "situacao": "SEE",
+        "data_planilha": "2026-03-28T12:00:00",
+    }
+    assert _should_update_existing(existing, incoming) is False
+
+
+def test_should_update_existing_blocks_terminal_ste_with_formatted_status() -> None:
+    existing = {
+        "data_cadastro": "2026-03-27 10:00:00",
+        "situacao": "STE - Servico Terminado",
+        "data_planilha": "2026-03-27T12:00:00",
+    }
+    incoming = {
+        "data_cadastro": "2026-03-28 10:00:00",
+        "situacao": "ADM",
+        "data_planilha": "2026-03-28T12:00:00",
+    }
+    assert _should_update_existing(existing, incoming) is False
+
+
+def test_should_update_existing_blocks_when_incoming_has_no_snapshot_time() -> None:
+    existing = {
+        "data_cadastro": "2026-03-27 10:00:00",
+        "situacao": "ADM",
+        "arquivo_origem": "Consulta SSA - 27-03-2026_0900AM.xlsx",
+    }
+    incoming = {
+        "data_cadastro": "2026-03-28 10:00:00",
+        "situacao": "STE",
+        "arquivo_origem": "arquivo_sem_data.xlsx",
+    }
+    assert _should_update_existing(existing, incoming) is False
+
+
+def test_should_update_existing_accepts_newer_data_planilha_even_with_older_data_cadastro() -> (
+    None
+):
+    existing = {
+        "data_cadastro": "2026-03-27 10:00:00",
+        "situacao": "ADM",
+        "data_planilha": "2026-03-27T12:00:00",
+    }
+    incoming = {
+        "data_cadastro": "2026-03-20 10:00:00",
+        "situacao": "SEE",
+        "data_planilha": "2026-03-28T12:00:00",
+    }
+    assert _should_update_existing(existing, incoming) is True

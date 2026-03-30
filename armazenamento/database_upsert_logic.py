@@ -388,9 +388,16 @@ def _should_update_existing(
     existing_date = existing_row.get("data_cadastro")
     new_date = new_row.get("data_cadastro")
     try:
+        terminal_states = {"STE", "SCA"}
+
+        def _status_code(value: Any) -> str:
+            text = str(value or "").strip().upper()
+            if not text:
+                return ""
+            return text.split(" - ", 1)[0].strip()
 
         def _situacao_rank(value: Any) -> int:
-            code = str(value or "").strip().upper()
+            code = _status_code(value)
             return _SITUACAO_RANK.get(code, 0)
 
         def _parse(dt):  # evita E731 lambda
@@ -401,13 +408,16 @@ def _should_update_existing(
                 return None
             return pd.to_datetime(parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S")
 
-        def _parse_file_dt(
-            origin_value: Any, explicit_dt_value: Any = None
+        def _parse_snapshot_dt(
+            planilha_dt_value: Any = None,
+            origin_dt_value: Any = None,
+            origin_name_value: Any = None,
         ) -> pd.Timestamp | None:
-            explicit_parsed = parse_any_date(explicit_dt_value)
-            if explicit_parsed is not None:
-                return pd.Timestamp(explicit_parsed)
-            raw = str(origin_value or "").strip()
+            for raw_value in (planilha_dt_value, origin_dt_value):
+                parsed = parse_any_date(raw_value)
+                if parsed is not None:
+                    return pd.Timestamp(parsed)
+            raw = str(origin_name_value or "").strip()
             if not raw:
                 return None
             parsed = parse_datetime_from_filename(raw)
@@ -415,25 +425,34 @@ def _should_update_existing(
                 return None
             return pd.Timestamp(parsed)
 
-        existing_situacao = str(existing_row.get("situacao") or "").strip().upper()
-        new_situacao = str(new_row.get("situacao") or "").strip().upper()
-        if existing_situacao == "STE" and new_situacao and new_situacao != "STE":
+        existing_situacao = _status_code(existing_row.get("situacao"))
+        if existing_situacao in terminal_states:
             return False
 
-        existing_file_dt = _parse_file_dt(
-            existing_row.get("arquivo_origem"),
+        existing_file_dt = _parse_snapshot_dt(
+            existing_row.get("data_planilha"),
             existing_row.get("data_arquivo_origem"),
+            existing_row.get("arquivo_origem"),
         )
-        new_file_dt = _parse_file_dt(
-            new_row.get("arquivo_origem"),
+        new_file_dt = _parse_snapshot_dt(
+            new_row.get("data_planilha"),
             new_row.get("data_arquivo_origem"),
+            new_row.get("arquivo_origem"),
         )
-        if (
-            existing_file_dt is not None
-            and new_file_dt is not None
-            and new_file_dt < existing_file_dt
-        ):
+        has_file_context = any(
+            parse_any_date(new_row.get(field)) is not None
+            or str(new_row.get(field) or "").strip() != ""
+            for field in ("data_planilha", "data_arquivo_origem", "arquivo_origem")
+        )
+        # Sem timestamp confiavel no arquivo novo: permitir apenas inserts.
+        # Neste caminho (update) sempre bloqueia.
+        if has_file_context and new_file_dt is None:
             return False
+        if existing_file_dt is not None:
+            if new_file_dt < existing_file_dt:
+                return False
+            if new_file_dt > existing_file_dt:
+                return True
 
         e_dt = _parse(existing_date)
         n_dt = _parse(new_date)
