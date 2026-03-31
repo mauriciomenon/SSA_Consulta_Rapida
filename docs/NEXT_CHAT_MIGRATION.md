@@ -2,87 +2,70 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-30 12h20
+## CURRENT TRUTH 2026-03-31 09h16
 
 ### Estado de repositorio e runtime
 
 1. branch ativa: `dev`
-2. ultimo commit remoto confirmado: `33b89a42` (`DOC_SYNC: alinhar contrato de update/import nos docs vivos`)
-3. metadata/tag ativa documentada: `4.36` / `v4.36`
-4. worktree limpo apos push do commit acima
+2. ultimo slice funcional remoto confirmado: `d6fbb4fe` (`STABILITY_PATCH: unify advanced filter state`)
+3. commits recentes de referencia:
+   - `02ec4a30` `DOC_SYNC: add ultra technical audit report`
+   - `b7af8aef` `STABILITY_PATCH: support non-text search columns`
+   - `d6fbb4fe` `STABILITY_PATCH: unify advanced filter state`
+4. metadata/tag ativa documentada: `4.36` / `v4.36`
+5. worktree estava limpo apos o ultimo push funcional; os docs vivos precisavam deste realinhamento
 
-### O que foi feito neste ciclo (doc sync real)
+### O que foi feito nos ultimos slices
 
-Docs atualizados com contrato operacional atual, sem mexer em runtime:
-
-1. `README.md`
-2. `docs/INDEX.md`
-3. `docs/ARCH_DB_UPSERT.md`
-4. `docs/ARQUITETURA_IMPORTACAO.md`
-5. `docs/TROUBLESHOOTING_IMPORTACAO.md`
-6. `docs/FORENSIC_UPDATE_CRITERIA_SSA_20260329.md`
-7. `docs/MAC_CONTINUATION_HANDOFF_20260329.md`
-8. `docs/RECOVERY_BACKLOG.md`
-
-### Contrato de update por SSA (resumo consolidado)
-
-1. chave de conflito: `numero_ssa`
-2. update bloqueado quando estado existente no banco e terminal (`STE` ou `SCA`)
-3. prioridade de snapshot:
-   - usa `data_planilha`, depois `data_arquivo_origem`, depois parse do nome em `arquivo_origem`
-4. se arquivo novo tem contexto, mas sem timestamp confiavel:
-   - no caminho de update, bloqueia sobrescrita (insert-only para novos IDs)
-5. se timestamps existem:
-   - snapshot novo mais antigo: bloqueia
-   - snapshot novo mais recente: atualiza
-6. depois do gate de snapshot, usa `data_cadastro` como auxiliar/tie-break
-7. empate de `data_cadastro` usa ranking de `situacao` para evitar downgrade
-
-### Estado das entregas de GUI pedidas anteriormente
-
-Ja aterradas e pushadas em ciclos anteriores:
-
-1. `[f]` sincronizado com filtros avancados e por coluna
-2. dedupe em `Filtros ativos`
-3. macro `Baixar` exclui `SAD` junto de `SCA/SES/STE`
-4. prompt de filtro por coluna com hint e largura melhor
-5. botao `Abrir SAM`
-6. coluna `#` abrindo link de SSA no SAM
-7. caixa de status separada (`X de Y SSAs`)
-8. `situacao` expandida no detalhe
-9. copia de numero por duplo clique no detalhe
-10. aba dedicada de arvore com subabas `Grafo`, `Arvore` e `Mermaid`
-11. `update_derivadas_from_sources()` e `load_other_database()` fora da UI thread no runtime normal
+1. foi publicado o artefato de auditoria tecnica grande:
+   - `docs_saida/ULTRA_AUDITORIA_TECNICA_REPO_20260330.md`
+2. `core/app_logic.py::filter_dataframe()` foi corrigido para nao perder `search_columns` numericas/datetime antes da coercao para string
+3. `tests/test_app_logic_filter_contract.py` recebeu regressao para busca em colunas numericas e datetime
+4. `setor_executor` passou a sincronizar estado persistente entre combo rapido e painel avancado
+5. o painel avancado de `Solicitante` passou a materializar valores quando o dataset expoe apenas `responsavel_solicitante`
+6. o prefixo de area/setor em responsaveis deixou de derivar apenas do subconjunto filtrado
 
 ### Pendencias reais (nao fechadas)
 
-1. validar em lote real de operacao se a SSA alvo continua `STE` apos sequencia mista de imports (full + explicito + diff)
-2. revisar staging/copy de importacao externa ainda na thread principal (hotspot de UI freeze residual)
-3. medir e reduzir custo de refresh/render apos filtros com base grande
-4. fechar matriz final de transicao de estados (draft -> contrato aprovado)
-5. reforcar cobertura E2E de update para:
-   - ordem adversa de arquivos explicitos
-   - arquivos com nome generico (fallback metadata)
-   - bloqueio de downgrade em combinacoes de data/estado
+1. `svp03-targeted-repro`:
+   - reproduzir tecnicamente o caso `svp-03` / SSA `202604849`
+   - provar se a falha e parser/base search, estado de filtros, dataset exibido ou stale UI
+2. `filter-history-core`:
+   - desenhar historico de filtros para `undo` e `redo` sem refactor amplo
+3. `display-order-labels`:
+   - agrupar emissor/executor, `Data do relatorio`, detalhes da SSA e demais ajustes pontuais de rotulo/ordem
+4. `table-header-reorder`:
+   - validar habilitacao minima de drag de colunas por cabecalho
+5. `_sort_responsavel_values` ainda tem follow-up de performance para precomputacao/cache, mas isso ja e slice separado
 
 ### Plano de arranque na proxima conversa (obrigatorio)
 
 1. rodar `git status --short`
-2. revisar comentarios/checks mais recentes do PR `dev -> main`
-3. validar o caso real da SSA reportada pelo usuario diretamente no DB
-4. executar suite focada antes de qualquer alteracao:
-   - `uv run --python 3.13 python -m pytest -q tests/test_upsert_behaviors.py tests/test_import_run_report.py tests/test_database_optimized_alias_views.py tests/test_app_logic_filter_contract.py`
-5. so depois abrir patch minimo com:
+2. ler pelo topo:
+   - `AGENTS.md`
+   - `docs/NEXT_CHAT_MIGRATION.md`
+   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+   - `docs/RECOVERY_BACKLOG.md`
+3. revisar comentarios/checks mais recentes do PR `dev -> main`
+4. comecar por `svp03-targeted-repro` antes de abrir outro patch de filtros
+5. executar a suite focada coerente com o slice:
+   - busca/search: `uv run --python 3.13 python -m pytest -q tests/test_app_logic_filter_contract.py`
+   - GUI/filtros: `uv run --python 3.13 python -m pytest -q tests/test_gui_filter_logic.py -k "executor or responsavel or solicitante"`
+6. so depois abrir patch minimo com:
    - objetivo do slice
    - arquivos permitidos
    - arquivos proibidos
 
-### Validacao executada neste slice de docs
+### Validacao relevante ja executada
 
-1. `uv run --python 3.13 python -m py_compile tests/test_docs_and_priority.py`
-2. `uv run --python 3.13 ruff check tests/test_docs_and_priority.py`
-3. `uv run --python 3.13 ty check tests/test_docs_and_priority.py`
-4. `uv run --python 3.13 pytest -q tests/test_docs_and_priority.py` -> `3 passed`
+1. hotfix de busca nao textual:
+   - `py_compile`, `ruff`, `ty` -> verdes
+   - `pytest -q tests/test_app_logic_filter_contract.py` -> `20 passed`
+2. patch de sincronizacao de filtros:
+   - `py_compile`, `ruff`, `ty` -> verdes
+   - `pytest -q tests/test_gui_filter_logic.py -k "...executor...responsavel..."` -> `8 passed`
+3. baseline amplo ainda referenciado dos docs vivos:
+   - `uv run --python 3.13 python -m pytest -q tests` -> `993 passed, 4 skipped, 11 subtests passed`
 
 ## CURRENT TRUTH 2026-03-27 20h35
 

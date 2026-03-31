@@ -20,14 +20,23 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 2. metadata local ativa: `4.36`
 3. ultima tag publicada em `dev`: `v4.36`
 4. os slices recentes de `numero_ssa`, importacao explicita e prova de update/query ja foram aterrados
-5. os slices recentes de GUI/filtros ja aterrados em commits anteriores desta frente foram:
+5. slices recentes adicionais ja aterrados nesta frente:
+   - `02ec4a30` `DOC_SYNC: add ultra technical audit report`
+   - `b7af8aef` `STABILITY_PATCH: support non-text search columns`
+   - `d6fbb4fe` `STABILITY_PATCH: unify advanced filter state`
+6. os slices recentes de GUI/filtros ja aterrados em commits anteriores desta frente foram:
    - `[f]` sincronizado com filtros avancados
    - dedupe de `Filtros ativos`
    - macro `Baixar` com `SAD`
    - dialogo de filtro por coluna com hint
    - sync manual de derivadas fora da UI thread
-6. o PR `dev -> main` ainda tem muitas threads abertas no GitHub, mas o sinal real restante caiu para hardening/documentacao e itens deferidos
-7. nada foi perdido no historico; os blocos abaixo permanecem como trilha de auditoria
+7. follow-up funcional fechado agora tambem inclui:
+   - busca em `search_columns` numericas/datetime sem falso vazio
+   - estado persistente unificado de `setor_executor`
+   - alias `responsavel_solicitante` no painel avancado
+   - prefixo de area/setor de responsaveis estabilizado
+8. o PR `dev -> main` ainda tem muitas threads abertas no GitHub, mas o sinal real restante caiu para follow-ups pequenos, hardening/documentacao e itens deferidos
+9. nada foi perdido no historico; os blocos abaixo permanecem como trilha de auditoria
 
 ### PASSO 0 ANTES DE QUALQUER NOVA FRENTE
 1. revisar checks e comentarios mais recentes do PR
@@ -42,30 +51,73 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
    - `docs/README.md`
 
 ### P1 - fechar antes da rodada final de release
-1. decidir explicitamente a paridade CLI vs GUI para diff/full import e discovery.
-2. endurecer rollback/error boundary residual em:
-   - `armazenamento/database.py`
-   - `armazenamento/database_upsert_logic.py`
-   - `armazenamento/database_optimized.py`
-3. auditar testes viciados no fluxo critico de dados/CLI:
-   - nao aceitar teste synthetic definindo contrato operacional
-   - nao aceitar teste que so prova "nao travou"
-4. manter a prova de update de estado no banco no caminho de importacao explicita, diff e consulta/filtro sem regressao
-5. manter a prova negativa de que arquivo mais antigo nao rebaixa estado mais novo no banco
-6. manter o sprint GUI entregue sem regressao:
-   - borda destacada em filtros ativos
-   - status `filtrado/total`
-   - `Abrir SAM`
+1. reproduzir tecnicamente o caso `svp-03` / SSA `202604849`.
+2. definir historico de filtros para `undo` e `redo` com patch minimo e invariantes claros.
+3. agrupar ajustes pontuais de ordem/labels:
+   - emissor antes de executor
+   - `Data do relatorio`
+   - detalhes da SSA
+   - barra de filtros ativos vs navegacao
+4. validar habilitacao minima de drag de cabecalho de colunas.
+5. decidir explicitamente a paridade CLI vs GUI para diff/full import e discovery.
+6. endurecer rollback/error boundary residual em:
+    - `armazenamento/database.py`
+    - `armazenamento/database_upsert_logic.py`
+    - `armazenamento/database_optimized.py`
+7. auditar testes viciados no fluxo critico de dados/CLI:
+    - nao aceitar teste synthetic definindo contrato operacional
+    - nao aceitar teste que so prova "nao travou"
+8. manter a prova de update de estado no banco no caminho de importacao explicita, diff e consulta/filtro sem regressao
+9. manter a prova negativa de que arquivo mais antigo nao rebaixa estado mais novo no banco
+10. manter o sprint GUI entregue sem regressao:
+    - borda destacada em filtros ativos
+    - status `filtrado/total`
+    - `Abrir SAM`
    - hyperlink `#`
    - detalhe da SSA com `situacao` expandida
-   - copia do numero por duplo clique
-   - arvore textual de derivadas mais clara
-   - aba dedicada `Arvore` com layout vertical para navegacao de relacoes
-7. revisar os hotspots restantes da thread principal apos:
-   - `update_derivadas_from_sources()` em background
-   - `load_other_database()` em background
-8. fechar a reorganizacao dos docs historicos segundo `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
-9. validar no ambiente de operacao a aba `Grafo` com bases grandes e decidir se precisa clique por no
+    - copia do numero por duplo clique
+    - arvore textual de derivadas mais clara
+    - aba dedicada `Arvore` com layout vertical para navegacao de relacoes
+11. revisar os hotspots restantes da thread principal apos:
+    - `update_derivadas_from_sources()` em background
+    - `load_other_database()` em background
+12. fechar a reorganizacao dos docs historicos segundo `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
+13. validar no ambiente de operacao a aba `Grafo` com bases grandes e decidir se precisa clique por no
+
+## Update 2026-03-31 09:16 - busca nao textual + sync de filtros avancados (STABILITY_PATCH + DOC_SYNC)
+
+Session timestamp:
+1. start: `2026-03-31 08:10:00 -0300`
+2. fim: `2026-03-31 09:16:00 -0300`
+
+Escopo fechado neste slice:
+1. `docs_saida/ULTRA_AUDITORIA_TECNICA_REPO_20260330.md` foi publicada em `02ec4a30`.
+2. `core/app_logic.py`:
+   - `filter_dataframe()` deixou de derrubar busca quando `search_columns` continha apenas colunas numericas/datetime.
+3. `tests/test_app_logic_filter_contract.py`:
+   - regressao nova para busca em coluna numerica e datetime.
+4. `gui/gui_ssa.py`, `gui/ssa/gui_filters_advanced_logic.py`, `gui/ssa/gui_filters_advanced_ui.py`:
+   - unificacao de estado aplicado entre combo rapido e painel avancado para `setor_executor`
+   - alias `responsavel_solicitante` reconhecido na materializacao de `Solicitante`
+   - prefixo de area/setor de responsaveis estabilizado contra subset filtrado
+5. `tests/test_gui_filter_logic.py`:
+   - regressao nova para sync rapido/avancado e materializacao de responsaveis
+
+Validacao local deste slice:
+1. hotfix de busca:
+   - `py_compile`, `ruff`, `ty`: OK
+   - `pytest -q tests/test_app_logic_filter_contract.py`: `20 passed`
+2. patch de filtros:
+   - `py_compile`, `ruff`, `ty`: OK
+   - `pytest -q tests/test_gui_filter_logic.py -k "...executor...responsavel..."`: `8 passed`
+3. `kluster`:
+   - sem blocker funcional novo do slice
+   - restaram debt estrutural ampla e follow-up de performance para precomputacao/cache de responsaveis
+
+Pendencia aberta apos este slice:
+1. `svp-03` / SSA `202604849` segue sem reproducao tecnica conclusiva.
+2. `undo`/`redo` de filtros continua sem implementacao.
+3. drag de colunas e ajustes pontuais de ordem/labels seguem como backlog separado.
 
 ### P2 - backlog legitimo, mas nao bug aberto hoje
 1. aliases em `_needs_db_only_derivadas_sync` ja aparecem mitigados no runtime atual; reabrir so com repro nova.
