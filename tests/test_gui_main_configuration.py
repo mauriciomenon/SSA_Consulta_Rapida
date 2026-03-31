@@ -183,6 +183,59 @@ class TestGUIMainConfiguration:
         assert config["gui_settings"]["page_size"] == 25
         assert config["column_widths"]["numero_ssa"] == 10
 
+    def test_load_gui_main_preferences_migrates_managed_legacy_widths(self):
+        legacy_config = {
+            "display_columns": ["numero_ssa", "situacao"],
+            "column_display_names": {"numero_ssa": "No SSA"},
+            "column_widths": {
+                "data_cadastro": 95,
+                "grau_prioridade_emissao": 75,
+                "grau_prioridade_planejamento": 83,
+                "total_de_reprogramacoes": 120,
+                "execucao_parcial": 120,
+                "semana_executada": 120,
+                "responsavel_execucao": 120,
+            },
+            "gui_settings": {"page_size": 25},
+        }
+
+        from gui.gui_config import DEFAULT_COLUMN_WIDTHS, load_gui_main_preferences
+
+        with patch(
+            "gui.gui_config.open", mock_open(read_data=json.dumps(legacy_config))
+        ):
+            with patch("gui.gui_config.os.path.exists", return_value=True):
+                config = load_gui_main_preferences()
+
+        assert (
+            config["column_widths"]["data_cadastro"]
+            == DEFAULT_COLUMN_WIDTHS["data_cadastro"]
+        )
+        assert (
+            config["column_widths"]["grau_prioridade_emissao"]
+            == DEFAULT_COLUMN_WIDTHS["grau_prioridade_emissao"]
+        )
+        assert (
+            config["column_widths"]["grau_prioridade_planejamento"]
+            == DEFAULT_COLUMN_WIDTHS["grau_prioridade_planejamento"]
+        )
+        assert (
+            config["column_widths"]["total_de_reprogramacoes"]
+            == DEFAULT_COLUMN_WIDTHS["total_de_reprogramacoes"]
+        )
+        assert (
+            config["column_widths"]["execucao_parcial"]
+            == DEFAULT_COLUMN_WIDTHS["execucao_parcial"]
+        )
+        assert (
+            config["column_widths"]["semana_executada"]
+            == DEFAULT_COLUMN_WIDTHS["semana_executada"]
+        )
+        assert (
+            config["column_widths"]["responsavel_execucao"]
+            == DEFAULT_COLUMN_WIDTHS["responsavel_execucao"]
+        )
+
     def test_gui_main_preferences_isolation_from_cli(self):
         """Verifica que as configuracoes sao independentes do CLI."""
         from core.config_manager import load_settings

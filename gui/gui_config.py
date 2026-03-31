@@ -79,7 +79,7 @@ DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
     "arquivo_origem": "Arquivo Origem",
     "data_arquivo_origem": "Data do Arquivo de Origem",
     "total_de_reprogramacoes": "Total Reprog.",
-    "execucao_parcial": "Execucao Parcial",
+    "execucao_parcial": "Exec. Parcial",
     "semana_executada": "Sem. Exec.",
 }
 
@@ -90,21 +90,31 @@ DEFAULT_COLUMN_WIDTHS: Dict[str, int] = {
     "setor_executor": 65,
     "situacao": 51,
     "descricao_ssa": 296,
-    "data_cadastro": 100,
+    "data_cadastro": 84,
     "setor_emissor": 58,
     "derivada_de": 93,
     "semana_programada": 86,
     "descricao_execucao": 280,
     "semana_cadastro": 72,
     "grau_prioridade": 95,
-    "grau_prioridade_emissao": 95,
-    "grau_prioridade_planejamento": 95,
+    "grau_prioridade_emissao": 120,
+    "grau_prioridade_planejamento": 120,
     "solicitante": 121,
     "data_arquivo_origem": 188,
-    "total_de_reprogramacoes": 120,
-    "execucao_parcial": 95,
-    "semana_executada": 95,
-    "responsavel_execucao": 95,
+    "total_de_reprogramacoes": 128,
+    "execucao_parcial": 128,
+    "semana_executada": 96,
+    "responsavel_execucao": 150,
+}
+
+LEGACY_MANAGED_COLUMN_WIDTHS: Dict[str, set[int]] = {
+    "data_cadastro": {95},
+    "grau_prioridade_emissao": {75, 95},
+    "grau_prioridade_planejamento": {83, 110},
+    "total_de_reprogramacoes": {108, 120},
+    "execucao_parcial": {104, 120},
+    "semana_executada": {84, 120},
+    "responsavel_execucao": {120},
 }
 
 DEFAULT_GUI_SETTINGS: Dict[str, Any] = {
@@ -124,10 +134,25 @@ DEFAULT_GUI_SETTINGS: Dict[str, Any] = {
 }
 
 DEFAULT_GUI_MAIN_PREFERENCES: Dict[str, Any] = {
-    "display_columns": list(REQUIRED_DISPLAY_COLUMNS)
-    + [
+    "display_columns": [
+        "numero_ssa",
+        "localizacao_codigo",
+        "situacao",
+        "setor_emissor",
+        "setor_executor",
+        "derivada_de",
+        "data_cadastro",
         "semana_cadastro",
         "descricao_ssa",
+        "grau_prioridade_emissao",
+        "solicitante",
+        "grau_prioridade_planejamento",
+        "semana_programada",
+        "total_de_reprogramacoes",
+        "execucao_parcial",
+        "descricao_execucao",
+        "semana_executada",
+        "responsavel_execucao",
     ],
     "hidden_columns": [
         "descricao_localizacao",
@@ -206,6 +231,19 @@ def _unique_str_list(values: Iterable[Any]) -> List[str]:
 
 def _build_fallback_label(column_name: str) -> str:
     return column_name.replace("_", " ").strip().title()
+
+
+def _apply_managed_width_migrations(
+    widths: Dict[str, int], loaded_widths: Dict[str, Any] | None
+) -> None:
+    if not isinstance(loaded_widths, dict):
+        return
+    for column, legacy_values in LEGACY_MANAGED_COLUMN_WIDTHS.items():
+        raw_value = loaded_widths.get(column)
+        if not isinstance(raw_value, (int, float)):
+            continue
+        if int(raw_value) in legacy_values:
+            widths[column] = DEFAULT_COLUMN_WIDTHS[column]
 
 
 def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -287,6 +325,7 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
                 continue
             if isinstance(value, (int, float)) and value > 0:
                 widths[key.strip()] = int(value)
+    _apply_managed_width_migrations(widths, loaded_widths)
     widths.setdefault("#", DEFAULT_COLUMN_WIDTHS["#"])
     for column in display_columns:
         if column not in widths:
