@@ -47,7 +47,9 @@ class TestGUIFilterLogic:
 
     def setup_method(self):
         os.environ["SSA_SYNC_FILTER"] = "1"
-        self._gui_main_preferences_snapshot = copy.deepcopy(gui_ssa.GUI_MAIN_PREFERENCES)
+        self._gui_main_preferences_snapshot = copy.deepcopy(
+            gui_ssa.GUI_MAIN_PREFERENCES
+        )
         self._load_patch = patch.object(SSAMainWindow, "load_data", lambda self: None)
         self._load_patch.start()
         self.window = SSAMainWindow()
