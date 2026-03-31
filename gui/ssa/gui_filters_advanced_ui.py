@@ -34,6 +34,7 @@ from gui.qt_stubs import (
 )
 from utils.robust_logging import get_robust_logger
 
+from .gui_filters_advanced_logic import RESPONSAVEL_FILTER_COLUMN_CANDIDATES
 from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
 
 logger = get_robust_logger().get_logger(__name__, "gui")
@@ -2351,16 +2352,27 @@ def _sort_sectors(self, values):
     return sorted(values, key=self._sector_sort_key)
 
 
-def _sort_responsavel_values(self, df_subset, values, resp_col: str):
+def _sort_responsavel_values(self, df_subset, values, resp_col: str, df_source=None):
     if not values:
         return []
+    source_df = df_source if isinstance(df_source, pd.DataFrame) else df_subset
     sector_cols = [
-        c for c in ["setor_executor", "setor_emissor"] if c in df_subset.columns
+        c for c in ["setor_executor", "setor_emissor"] if c in source_df.columns
     ]
     sector_counts = {}
     for col in sector_cols:
         try:
-            pairs = df_subset[[col, resp_col]].dropna()
+            pairs = source_df[[col, resp_col]].dropna().copy()
+            pairs[col] = pairs[col].astype("string").fillna("").str.strip()
+            pairs[resp_col] = pairs[resp_col].astype("string").fillna("").str.strip()
+            pairs = pairs[(pairs[col] != "") & (pairs[resp_col] != "")]
+            if pairs.empty:
+                continue
+            grouped = (
+                pairs.groupby([resp_col, col], dropna=False)
+                .size()
+                .reset_index(name="count")
+            )
         except Exception as exc:
             logger.debug(
                 "Falha ao montar pares responsavel/setor (%s, %s): %s",
@@ -2369,14 +2381,10 @@ def _sort_responsavel_values(self, df_subset, values, resp_col: str):
                 exc,
             )
             continue
-        for sec, person in pairs.itertuples(index=False):
-            sec_str = str(sec).strip()
-            person_str = str(person).strip()
-            if not person_str:
-                continue
+        for person_str, sec_str, count in grouped.itertuples(index=False):
             sector_counts.setdefault(person_str, {})
             sector_counts[person_str][sec_str] = (
-                sector_counts[person_str].get(sec_str, 0) + 1
+                sector_counts[person_str].get(sec_str, 0) + int(count)
             )
 
     def _best_sector(person):
@@ -2492,12 +2500,24 @@ def _refresh_responsavel_options(self, target_prefixes=None):
             return []
 
     resp_cols = [
-        ("solicitante", "adv_responsavel_solicitante"),
-        ("responsavel_programacao", "adv_responsavel_programacao"),
-        ("responsavel_execucao", "adv_responsavel_execucao"),
+        (
+            "solicitante",
+            "adv_responsavel_solicitante",
+            RESPONSAVEL_FILTER_COLUMN_CANDIDATES["solicitante"],
+        ),
+        (
+            "responsavel_programacao",
+            "adv_responsavel_programacao",
+            RESPONSAVEL_FILTER_COLUMN_CANDIDATES["responsavel_programacao"],
+        ),
+        (
+            "responsavel_execucao",
+            "adv_responsavel_execucao",
+            RESPONSAVEL_FILTER_COLUMN_CANDIDATES["responsavel_execucao"],
+        ),
     ]
     processed_prefixes = set()
-    for col, prefix in resp_cols:
+    for key_name, prefix, candidate_cols in resp_cols:
         if prefix not in requested_prefixes:
             continue
         box = getattr(self, f"{prefix}_box", None)
@@ -2506,7 +2526,11 @@ def _refresh_responsavel_options(self, target_prefixes=None):
         checks_attr = f"{prefix}_checks"
         exclude_checks_attr = f"{prefix}_exclude_checks"
         exclude = getattr(self, f"{prefix}_exclude", None)
-        col_exists = col in self.df_completo.columns
+        source_col = next(
+            (name for name in candidate_cols if name in self.df_completo.columns),
+            None,
+        )
+        col_exists = source_col is not None
         _set_visible(box, col_exists)
         if not col_exists:
             _set_enabled(button, False)
@@ -2515,18 +2539,26 @@ def _refresh_responsavel_options(self, target_prefixes=None):
             setattr(self, exclude_checks_attr, [])
             processed_prefixes.add(prefix)
             continue
-        values = _unique_sorted(col)
+        assert source_col is not None
+        values = _unique_sorted(source_col)
         try:
-            values = self._sort_responsavel_values(df, values, col)
+            values = self._sort_responsavel_values(
+                df,
+                values,
+                source_col,
+                df_source=self.df_completo,
+            )
         except Exception as exc:
             logger.debug(
-                "Failed to sort responsavel values for column '%s': %s", col, exc
+                "Failed to sort responsavel values for column '%s': %s",
+                source_col,
+                exc,
             )
         _set_enabled(button, True)
         _set_enabled(exclude, True)
-        selected = set((self._advanced_filters or {}).get(col) or [])
+        selected = set((self._advanced_filters or {}).get(key_name) or [])
         excluded = set(
-            (self._advanced_filters or {}).get(f"{col}_exclude_values") or []
+            (self._advanced_filters or {}).get(f"{key_name}_exclude_values") or []
         )
         include_checks, exclude_checks = self._rebuild_multiselect_menu(
             button,
@@ -2677,6 +2709,7 @@ def _has_active_advanced_filters(self, data: dict) -> bool:
 
 
 def _apply_advanced_filters_from_ui(self, store_only: bool = False):
+    previous_filters = dict(getattr(self, "_advanced_filters", None) or {})
     if not store_only:
         try:
             self._store_last_filter_state()
@@ -2812,6 +2845,30 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
         data["macro_filter"] = None
 
     self._advanced_filters = data
+    executor_filters_were_active = bool(
+        previous_filters.get("setor_executor")
+        or previous_filters.get("setor_executor_exclude_values")
+        or data.get("setor_executor")
+        or data.get("setor_executor_exclude_values")
+    )
+    try:
+        if hasattr(self, "_sync_active_executor_filter_from_advanced_filters"):
+            self._sync_active_executor_filter_from_advanced_filters(
+                clear_when_missing=executor_filters_were_active
+            )
+    except Exception as exc:
+        logger.warning(
+            "Falha ao sincronizar setor executor rapido a partir do painel avancado: %s",
+            exc,
+        )
+    try:
+        if hasattr(self, "_sync_quick_setor_executor_combo_from_filters"):
+            self._sync_quick_setor_executor_combo_from_filters()
+    except Exception as exc:
+        logger.debug(
+            "Falha ao sincronizar combo rapido de setor executor apos aplicar avancado: %s",
+            exc,
+        )
     if store_only:
         return
     self._advanced_filters_active = self._has_active_advanced_filters(data)
@@ -3378,24 +3435,6 @@ def _refresh_advanced_filter_options(self):
         "_refresh_advanced_filter_options: iniciando com %s registros", len(df)
     )
     filters = self._advanced_filters or {}
-    active_filters = getattr(self, "_active_column_filters", {}) or {}
-    quick_executor_raw = str(active_filters.get("setor_executor", "") or "").strip()
-    if quick_executor_raw:
-        quick_executor_values = []
-        seen_quick = set()
-        for part in quick_executor_raw.split(","):
-            value = str(part or "").strip()
-            if not value:
-                continue
-            key = value.casefold()
-            if key in seen_quick:
-                continue
-            seen_quick.add(key)
-            quick_executor_values.append(value)
-        if quick_executor_values:
-            filters = dict(filters)
-            filters["setor_executor"] = quick_executor_values
-            filters["setor_executor_exclude_values"] = []
 
     def apply_cb():
         return self._apply_advanced_filters_from_ui()
@@ -3459,14 +3498,6 @@ def _refresh_advanced_filter_options(self):
         self._sync_responsavel_button_summaries()
     self._sync_checks_to_tab_context()
     self._sync_advanced_filter_ui()
-    if quick_executor_raw:
-        self._sync_multiselect_checks(
-            getattr(self, "adv_executor_button", None),
-            getattr(self, "adv_executor_checks", None),
-            filters.get("setor_executor"),
-            getattr(self, "adv_executor_exclude_checks", None),
-            filters.get("setor_executor_exclude_values"),
-        )
     try:
         elapsed_ms = (perf_counter() - start) * 1000.0
         logger.debug("Advanced filter options refresh: %.1fms", elapsed_ms)

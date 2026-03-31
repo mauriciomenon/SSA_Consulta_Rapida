@@ -2428,9 +2428,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _sort_sectors(self, values):
         return ssa_gui_filters._sort_sectors(self, values)
 
-    def _sort_responsavel_values(self, df_subset, values, resp_col: str):
+    def _sort_responsavel_values(
+        self, df_subset, values, resp_col: str, df_source=None
+    ):
         return ssa_gui_filters._sort_responsavel_values(
-            self, df_subset, values, resp_col
+            self, df_subset, values, resp_col, df_source=df_source
         )
 
     def _apply_divisao_to_setor_checks(self):
@@ -3102,10 +3104,69 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             values.append(item)
         return values
 
-    def _sync_advanced_executor_ui_from_active_filter(self) -> None:
+    @staticmethod
+    def _normalize_filter_sequence_values(raw_values) -> list[str]:
+        values = []
+        seen = set()
+        for raw in raw_values or []:
+            item = str(raw or "").strip()
+            if not item:
+                continue
+            key = item.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            values.append(item)
+        return values
+
+    def _sync_advanced_executor_filter_from_active_filters(
+        self, *, clear_exclude: bool = False
+    ) -> None:
         active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
         selected_raw = str(active_filters.get("setor_executor", "") or "").strip()
         selected_values = self._split_filter_csv_values(selected_raw)
+        advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
+        if selected_values:
+            advanced_filters["setor_executor"] = selected_values
+            if clear_exclude:
+                advanced_filters["setor_executor_exclude_values"] = []
+        else:
+            advanced_filters.pop("setor_executor", None)
+            if clear_exclude and not advanced_filters.get("setor_executor_exclude_values"):
+                advanced_filters.pop("setor_executor_exclude_values", None)
+        self._advanced_filters = advanced_filters
+        self._advanced_filters_active = self._has_active_advanced_filters(
+            advanced_filters
+        )
+        self._adv_options_dirty = True
+        self._mark_responsavel_dirty()
+
+    def _sync_active_executor_filter_from_advanced_filters(
+        self, *, clear_when_missing: bool = False
+    ) -> None:
+        advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
+        selected_values = self._normalize_filter_sequence_values(
+            advanced_filters.get("setor_executor")
+        )
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        if selected_values:
+            active_filters["setor_executor"] = ", ".join(selected_values)
+        elif clear_when_missing:
+            active_filters.pop("setor_executor", None)
+        self._active_column_filters = active_filters
+
+    def _sync_advanced_executor_ui_from_active_filter(self) -> None:
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
+        selected_values = self._normalize_filter_sequence_values(
+            advanced_filters.get("setor_executor")
+        )
+        exclude_values = self._normalize_filter_sequence_values(
+            advanced_filters.get("setor_executor_exclude_values")
+        )
+        if not selected_values and not exclude_values:
+            selected_raw = str(active_filters.get("setor_executor", "") or "").strip()
+            selected_values = self._split_filter_csv_values(selected_raw)
         tab_contexts = getattr(self, "_tab_contexts", None)
         if not isinstance(tab_contexts, list):
             return
@@ -3125,17 +3186,32 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     checks,
                     selected_values,
                     exclude_checks,
-                    [],
+                    exclude_values,
                 )
             else:
-                if selected_values:
+                if selected_values and exclude_values:
+                    button.setText(
+                        f"Incluir: {', '.join(selected_values)} | Diferente: {', '.join(exclude_values)}"
+                    )
+                elif selected_values:
                     button.setText(f"Incluir: {', '.join(selected_values)}")
+                elif exclude_values:
+                    button.setText(f"Diferente: {', '.join(exclude_values)}")
                 else:
                     button.setText("Selecionar")
 
     def _sync_quick_setor_executor_combo_from_filters(self) -> None:
         active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
         selected_value = str(active_filters.get("setor_executor", "") or "").strip()
+        advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
+        advanced_values = self._normalize_filter_sequence_values(
+            advanced_filters.get("setor_executor")
+        )
+        advanced_excludes = self._normalize_filter_sequence_values(
+            advanced_filters.get("setor_executor_exclude_values")
+        )
+        if not selected_value and len(advanced_values) == 1 and not advanced_excludes:
+            selected_value = advanced_values[0]
         if "," in selected_value:
             selected_value = ""
         tab_contexts = getattr(self, "_tab_contexts", None)
@@ -3157,6 +3233,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return
         active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
         selected_value = str(active_filters.get("setor_executor", "") or "").strip()
+        advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
+        advanced_values = self._normalize_filter_sequence_values(
+            advanced_filters.get("setor_executor")
+        )
+        advanced_excludes = self._normalize_filter_sequence_values(
+            advanced_filters.get("setor_executor_exclude_values")
+        )
+        if not selected_value and len(advanced_values) == 1 and not advanced_excludes:
+            selected_value = advanced_values[0]
         if "," in selected_value:
             selected_value = ""
         for ctx in tab_contexts:
@@ -3187,7 +3272,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             active_filters.pop("setor_executor", None)
         self._update_quick_setor_executor_combo_display(combo)
         self._active_column_filters = active_filters
-        self._sync_advanced_executor_ui_from_active_filter()
+        self._sync_advanced_executor_filter_from_active_filters(
+            clear_exclude=bool(selected)
+        )
+        self._sync_advanced_filter_ui()
+        if hasattr(self, "_schedule_sector_options_refresh"):
+            self._schedule_sector_options_refresh()
         self._mark_profile_as_custom()
         self._build_column_filters_panel()
         self._refresh_after_filter_change()

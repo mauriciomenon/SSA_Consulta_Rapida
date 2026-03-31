@@ -20,6 +20,11 @@ from .gui_filters_advanced_state import (
 logger = get_robust_logger().get_logger(__name__, "gui")
 MAX_ADV_CACHE_ENTRIES = 16
 _DERIVADA_TERMINAL_STATUSES = frozenset({"STE", "SES"})
+RESPONSAVEL_FILTER_COLUMN_CANDIDATES = {
+    "solicitante": ("solicitante", "responsavel_solicitante"),
+    "responsavel_programacao": ("responsavel_programacao",),
+    "responsavel_execucao": ("responsavel_execucao",),
+}
 
 
 def _to_int_set(values):
@@ -196,17 +201,17 @@ def _apply_include_exclude_filters(
             "prioridade_planejamento_exclude_values",
         ),
         (
-            ("solicitante", "responsavel_solicitante"),
+            RESPONSAVEL_FILTER_COLUMN_CANDIDATES["solicitante"],
             "solicitante",
             "solicitante_exclude_values",
         ),
         (
-            ("responsavel_programacao",),
+            RESPONSAVEL_FILTER_COLUMN_CANDIDATES["responsavel_programacao"],
             "responsavel_programacao",
             "responsavel_programacao_exclude_values",
         ),
         (
-            ("responsavel_execucao",),
+            RESPONSAVEL_FILTER_COLUMN_CANDIDATES["responsavel_execucao"],
             "responsavel_execucao",
             "responsavel_execucao_exclude_values",
         ),
