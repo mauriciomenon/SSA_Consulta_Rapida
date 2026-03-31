@@ -684,6 +684,36 @@ class TestGUIFilterLogic:
             "setor_executor"
         )
 
+    def test_default_display_columns_follow_requested_canonical_order(self):
+        expected = [
+            "numero_ssa",
+            "localizacao_codigo",
+            "situacao",
+            "setor_emissor",
+            "setor_executor",
+            "derivada_de",
+            "data_cadastro",
+            "grau_prioridade_emissao",
+            "solicitante",
+            "grau_prioridade_planejamento",
+            "semana_programada",
+            "total_de_reprogramacoes",
+            "execucao_parcial",
+            "descricao_execucao",
+            "semana_executada",
+            "responsavel_execucao",
+            "semana_cadastro",
+            "descricao_ssa",
+        ]
+        assert list(gui_ssa.GUI_MAIN_PREFERENCES["display_columns"]) == expected
+        assert list(gui_ssa.REQUIRED_DISPLAY_COLUMNS) == expected[:16]
+
+    def test_semana_programada_short_label_is_sem_prog(self):
+        assert (
+            gui_ssa.GUI_MAIN_PREFERENCES["column_display_names"]["semana_programada"]
+            == "Sem. Prog."
+        )
+
     def test_column_filter_default_order_places_emissor_before_executor(self):
         columns = list(self.window._column_filter_default_columns())
         assert columns.index("setor_emissor") < columns.index("setor_executor")
@@ -2411,6 +2441,62 @@ class TestGUIFilterLogic:
         assert handled is True
         assert clipboard is not None
         assert clipboard.text() == "202600023"
+
+    def test_details_number_single_click_copies_current_ssa(self, monkeypatch):
+        self.window._details_current_ssa = "202600023"
+        self.window.details_text.setHtml(
+            '<a href="copy-ssa:202600023" style="text-decoration:none;">202600023</a>'
+        )
+        monkeypatch.setattr(
+            self.window.details_text,
+            "anchorAt",
+            lambda _point: "copy-ssa:202600023",
+        )
+
+        class _FakeEvent:
+            def type(self):
+                return gui_ssa.QEvent.Type.MouseButtonPress
+
+            def position(self):
+                class _P:
+                    def toPoint(self_inner):
+                        return QPoint(1, 1)
+
+                return _P()
+
+        handled = self.window.eventFilter(
+            self.window._details_text_viewport, _FakeEvent()
+        )
+
+        clipboard = QApplication.clipboard()
+        assert handled is True
+        assert clipboard is not None
+        assert clipboard.text() == "202600023"
+
+    def test_details_anchor_click_copies_current_ssa(self):
+        clipboard = QApplication.clipboard()
+        assert clipboard is not None
+        clipboard.setText("")
+
+        self.window._on_details_anchor_clicked(QUrl("copy-ssa:202600023"))
+
+        assert clipboard.text() == "202600023"
+
+    def test_hidden_column_filter_still_applies_when_column_not_visible(self):
+        self.window.visible_columns = [
+            "numero_ssa",
+            "situacao",
+            "setor_executor",
+        ]
+        self.window._active_column_filters = {
+            "solicitante": "User3",
+        }
+
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        assert Counter(self._extract_visible_ssa()) == Counter([3])
+        assert "solicitante" not in self.window._current_display_columns
 
     def test_clicking_hash_column_opens_sam_ssa_url(self, monkeypatch):
         self.window.display_current_page(1)
