@@ -3071,9 +3071,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         if not ordered_columns:
             return
         ordered_visible_columns = [col for col in ordered_columns if col != "#"]
-        if (
-            not ordered_visible_columns
-            or ordered_visible_columns == list(self.visible_columns)
+        if not ordered_visible_columns or ordered_visible_columns == list(
+            self.visible_columns
         ):
             return
         preserved_widths = self._capture_current_column_widths()
