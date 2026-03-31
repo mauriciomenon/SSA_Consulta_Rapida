@@ -2,18 +2,24 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-31 09h16
+## CURRENT TRUTH 2026-03-31 09h49
 
 ### Estado de repositorio e runtime
 
 1. branch ativa: `dev`
-2. ultimo slice funcional remoto confirmado: `d6fbb4fe` (`STABILITY_PATCH: unify advanced filter state`)
-3. commits recentes de referencia:
+2. ultimo commit remoto confirmado: `7913c712` (`DOC_SYNC: align live continuity docs`)
+3. ultimo slice funcional remoto confirmado: `d6fbb4fe` (`STABILITY_PATCH: unify advanced filter state`)
+4. commits recentes de referencia:
+   - `7913c712` `DOC_SYNC: align live continuity docs`
    - `02ec4a30` `DOC_SYNC: add ultra technical audit report`
    - `b7af8aef` `STABILITY_PATCH: support non-text search columns`
    - `d6fbb4fe` `STABILITY_PATCH: unify advanced filter state`
-4. metadata/tag ativa documentada: `4.36` / `v4.36`
-5. worktree estava limpo apos o ultimo push funcional; os docs vivos precisavam deste realinhamento
+5. metadata/tag ativa documentada: `4.36` / `v4.36`
+6. worktree esta limpo e alinhado com remoto: `HEAD...origin/dev = 00`
+7. recuperacao forense apos falha externa de PowerShell confirmou que nao havia shell ativo nem operacao critica de runtime aberta nesta frente
+8. o ultimo pedido explicito recuperado no historico foi sync dos MDs vivos; isso ja foi aterrado em `7913c712`
+9. existe residuo antigo `.git\REBASE_HEAD` datado de `2025-11-26`, sem `rebase-apply`/`rebase-merge`; tratar como hygiene de Git separada, nao como rebase vivo desta sessao
+10. limite operacional desta retomada: `bandit` nao esta instalado no ambiente atual; se continuar obrigatorio, abrir slice proprio de tooling/dependency antes de cobrar esse gate
 
 ### O que foi feito nos ultimos slices
 
@@ -37,6 +43,9 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 4. `table-header-reorder`:
    - validar habilitacao minima de drag de colunas por cabecalho
 5. `_sort_responsavel_values` ainda tem follow-up de performance para precomputacao/cache, mas isso ja e slice separado
+6. `git-hygiene-rebase-residue`:
+   - decidir em slice separado se o `.git\REBASE_HEAD` stale deve ser limpo manualmente
+   - nao tratar esse residuo como prova de patch interrompido
 
 ### Plano de arranque na proxima conversa (obrigatorio)
 
