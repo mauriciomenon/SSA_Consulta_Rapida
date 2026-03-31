@@ -1,5 +1,6 @@
 """Testes específicos para filtros combinados (AND/OU) da GUI principal."""
 
+import copy
 import os
 import sqlite3
 import sys
@@ -46,6 +47,7 @@ class TestGUIFilterLogic:
 
     def setup_method(self):
         os.environ["SSA_SYNC_FILTER"] = "1"
+        self._gui_main_preferences_snapshot = copy.deepcopy(gui_ssa.GUI_MAIN_PREFERENCES)
         self._load_patch = patch.object(SSAMainWindow, "load_data", lambda self: None)
         self._load_patch.start()
         self.window = SSAMainWindow()
@@ -92,6 +94,8 @@ class TestGUIFilterLogic:
     def teardown_method(self):
         self._load_patch.stop()
         self.window.close()
+        gui_ssa.GUI_MAIN_PREFERENCES.clear()
+        gui_ssa.GUI_MAIN_PREFERENCES.update(self._gui_main_preferences_snapshot)
         try:
             gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.clear()
         except Exception:
@@ -693,6 +697,8 @@ class TestGUIFilterLogic:
             "setor_executor",
             "derivada_de",
             "data_cadastro",
+            "semana_cadastro",
+            "descricao_ssa",
             "grau_prioridade_emissao",
             "solicitante",
             "grau_prioridade_planejamento",
@@ -702,17 +708,45 @@ class TestGUIFilterLogic:
             "descricao_execucao",
             "semana_executada",
             "responsavel_execucao",
-            "semana_cadastro",
-            "descricao_ssa",
         ]
         assert list(gui_ssa.GUI_MAIN_PREFERENCES["display_columns"]) == expected
-        assert list(gui_ssa.REQUIRED_DISPLAY_COLUMNS) == expected[:16]
+        assert list(gui_ssa.REQUIRED_DISPLAY_COLUMNS) == [
+            "numero_ssa",
+            "localizacao_codigo",
+            "situacao",
+            "setor_emissor",
+            "setor_executor",
+            "derivada_de",
+            "data_cadastro",
+            "grau_prioridade_emissao",
+            "solicitante",
+            "grau_prioridade_planejamento",
+            "semana_programada",
+            "total_de_reprogramacoes",
+            "execucao_parcial",
+            "descricao_execucao",
+            "semana_executada",
+            "responsavel_execucao",
+        ]
 
     def test_semana_programada_short_label_is_sem_prog(self):
         assert (
             gui_ssa.GUI_MAIN_PREFERENCES["column_display_names"]["semana_programada"]
             == "Sem. Prog."
         )
+
+    def test_widths_and_short_labels_follow_latest_quick_adjustments(self):
+        column_names = gui_ssa.GUI_MAIN_PREFERENCES["column_display_names"]
+        column_widths = gui_ssa.GUI_MAIN_PREFERENCES["column_widths"]
+
+        assert column_names["execucao_parcial"] == "Exec. Parcial"
+        assert column_widths["data_cadastro"] == 84
+        assert column_widths["grau_prioridade_emissao"] == 120
+        assert column_widths["grau_prioridade_planejamento"] == 120
+        assert column_widths["execucao_parcial"] == 128
+        assert column_widths["total_de_reprogramacoes"] == 128
+        assert column_widths["semana_executada"] == 96
+        assert column_widths["responsavel_execucao"] == 150
 
     def test_column_filter_default_order_places_emissor_before_executor(self):
         columns = list(self.window._column_filter_default_columns())
@@ -3182,8 +3216,9 @@ class TestGUIFilterLogic:
         ):
             html = ssa_gui_details._build_derivadas_tree_html(self.window, "202602147")
 
-        assert "Lista de derivadas:" in html
-        assert '<b><a href="ssa-panel:202602147"' in html
+        assert "Arvore de derivadas:" in html
+        assert "SSA atual" in html
+        assert '<a href="ssa-panel:202602147"' in html
         assert "SSA originaria" in html
         assert "SSA originaria:" not in html
         assert "202500111" in html
