@@ -43,8 +43,8 @@ REQUIRED_DISPLAY_COLUMNS: List[str] = [
     "localizacao_codigo",
     "data_cadastro",
     "descricao_ssa",
-    "setor_executor",
     "setor_emissor",
+    "setor_executor",
     "solicitante",
     "descricao_execucao",
 ]
@@ -73,6 +73,7 @@ DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
     "responsavel_programacao": "Resp. Prog.",
     "responsavel_execucao": "Resp. Exec.",
     "arquivo_origem": "Arquivo Origem",
+    "data_arquivo_origem": "Data do Arquivo de Origem",
 }
 
 DEFAULT_COLUMN_WIDTHS: Dict[str, int] = {
@@ -92,6 +93,7 @@ DEFAULT_COLUMN_WIDTHS: Dict[str, int] = {
     "grau_prioridade_emissao": 95,
     "grau_prioridade_planejamento": 95,
     "solicitante": 121,
+    "data_arquivo_origem": 188,
 }
 
 DEFAULT_GUI_SETTINGS: Dict[str, Any] = {
@@ -274,6 +276,11 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
     for column in display_columns:
         if column not in widths:
             widths[column] = DEFAULT_COLUMN_WIDTHS.get(column, 120)
+    if "data_arquivo_origem" in widths:
+        widths["data_arquivo_origem"] = max(
+            int(widths["data_arquivo_origem"]),
+            DEFAULT_COLUMN_WIDTHS["data_arquivo_origem"],
+        )
     merged["column_widths"] = widths
 
     settings = copy.deepcopy(DEFAULT_GUI_SETTINGS)

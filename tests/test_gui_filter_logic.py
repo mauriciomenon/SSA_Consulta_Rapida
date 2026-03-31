@@ -511,6 +511,114 @@ class TestGUIFilterLogic:
         summary_text = str(self.window.filters_summary_label.text() or "")
         assert summary_text.count("Executor: IEE3") == 1
 
+    def test_filters_summary_buttons_remove_search_with_confirmation(self):
+        self.window.search_input.setText("Teste A")
+        self.window._update_filters_summary()
+        QApplication.processEvents()
+
+        summary_widget = getattr(self.window, "filters_summary_items_widget", None)
+        assert summary_widget is not None
+        buttons = summary_widget.findChildren(QPushButton)
+        search_button = next(
+            btn
+            for btn in buttons
+            if "Busca: 'Teste A'" in str(btn.text() or "")
+        )
+
+        with patch(
+            "gui.mixins.filter_gui_ssa_mixin.QMessageBox.question",
+            return_value=QtWidgets.QMessageBox.StandardButton.Yes,
+        ) as question_mock:
+            cast(Any, QTest).mouseClick(search_button, Qt.MouseButton.LeftButton)
+            QApplication.processEvents()
+
+        question_mock.assert_called_once()
+        assert self.window.search_input.text() == ""
+
+    def test_filters_summary_buttons_remove_exclude_ste_sca_with_confirmation(self):
+        self.window._on_exclude_ste_sca_toggled(True)
+        QApplication.processEvents()
+
+        summary_widget = getattr(self.window, "filters_summary_items_widget", None)
+        assert summary_widget is not None
+        buttons = summary_widget.findChildren(QPushButton)
+        exclude_button = next(
+            btn
+            for btn in buttons
+            if "situacao!=SCA/SES/STE" in str(btn.text() or "")
+        )
+
+        with patch(
+            "gui.mixins.filter_gui_ssa_mixin.QMessageBox.question",
+            return_value=QtWidgets.QMessageBox.StandardButton.Yes,
+        ):
+            cast(Any, QTest).mouseClick(exclude_button, Qt.MouseButton.LeftButton)
+            QApplication.processEvents()
+
+        assert self.window._exclude_ste_sca is False
+
+    def test_filters_summary_buttons_use_smaller_remove_bubble_font(self):
+        self.window.search_input.setText("Teste A")
+        self.window._update_filters_summary()
+        QApplication.processEvents()
+
+        summary_widget = getattr(self.window, "filters_summary_items_widget", None)
+        assert summary_widget is not None
+        buttons = summary_widget.findChildren(QPushButton)
+        search_button = next(
+            btn
+            for btn in buttons
+            if "Busca: 'Teste A'" in str(btn.text() or "")
+        )
+
+        css = str(search_button.styleSheet() or "")
+        assert str(search_button.text() or "") == "Busca: 'Teste A'"
+        assert "font-size:10px" in css
+        assert "font-weight:500" in css
+
+    def test_header_reorder_updates_visible_columns_order(self):
+        if "solicitante" not in self.window.visible_columns:
+            self.window.visible_columns.append("solicitante")
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header = self.window.table_widget.horizontalHeader()
+        situacao_index = self.window._current_display_columns.index("situacao")
+        situacao_visual_index = header.visualIndex(situacao_index)
+        header.moveSection(situacao_visual_index, 1)
+        QApplication.processEvents()
+
+        assert self.window.visible_columns[0] == "situacao"
+        assert self.window.visible_columns[1] == "numero_ssa"
+
+    def test_details_constants_place_localizacao_after_descricao(self):
+        priority = list(gui_ssa.DETAIL_FIELD_PRIORITY)
+        assert priority.index("descricao_ssa") < priority.index("localizacao_codigo")
+        assert priority.index("localizacao_codigo") == priority.index("descricao_ssa") + 1
+        assert gui_ssa.DETAIL_DISPLAY_OVERRIDES["localizacao_codigo"] == "Localizacao"
+
+    def test_details_html_renders_localizacao_label(self):
+        series = pd.Series(
+            {
+                "numero_ssa": "1",
+                "situacao": "APV",
+                "descricao_ssa": "Teste A",
+                "localizacao_codigo": "LOC1",
+            }
+        )
+        html = ssa_gui_details._format_details_html(self.window, series)
+        descricao_pos = html.index("Descricao da SSA:")
+        localizacao_pos = html.index("Localizacao:")
+        assert localizacao_pos > descricao_pos
+
+    def test_advanced_panel_context_exposes_emissor_before_executor(self):
+        _ = next(
+            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "filters"
+        )
+        grid_widgets = getattr(self.window, "_adv_filters_grid_widgets", {})
+        keys = list(grid_widgets.keys())
+        assert keys.index("emis_box") < keys.index("exec_box")
+
     def test_display_headers_mark_advanced_filter_columns_with_f(self):
         if "solicitante" not in self.window.visible_columns:
             self.window.visible_columns.append("solicitante")
@@ -552,9 +660,9 @@ class TestGUIFilterLogic:
     def test_clear_operations_preserve_group_structure(self):
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
         self.window._clear_single_column_filter("setor_executor", "IEE3, MEL3, MEL4")
-        # Grupo deve ser removido para ambos os campos
-        assert "setor_executor" not in self.window._active_column_filters
-        assert "setor_emissor" not in self.window._active_column_filters
+        # Grupo deve ser limpo sem remover as linhas do painel
+        assert self.window._active_column_filters.get("setor_executor", None) == ""
+        assert self.window._active_column_filters.get("setor_emissor", None) == ""
 
         # Reaplica valor manual e garante aplicação correta
         self.window._active_column_filters["setor_executor"] = "IEE3"
@@ -571,6 +679,49 @@ class TestGUIFilterLogic:
         )
         self.window._refresh_after_filter_change()
         assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
+
+    def test_details_and_default_display_order_place_emissor_before_executor(self):
+        priority = list(gui_ssa.DETAIL_FIELD_PRIORITY)
+        assert priority.index("setor_emissor") < priority.index("setor_executor")
+        required_columns = list(gui_ssa.REQUIRED_DISPLAY_COLUMNS)
+        assert required_columns.index("setor_emissor") < required_columns.index(
+            "setor_executor"
+        )
+
+    def test_column_filter_default_order_places_emissor_before_executor(self):
+        columns = list(self.window._column_filter_default_columns())
+        assert columns.index("setor_emissor") < columns.index("setor_executor")
+
+    def test_filters_summary_clear_keeps_column_rows_visible(self, monkeypatch):
+        self.window._active_column_filters = {
+            "descricao_ssa": "",
+            "setor_emissor": "IEE3",
+            "setor_executor": "",
+            "descricao_execucao": "",
+        }
+        monkeypatch.setattr(
+            self.window,
+            "_confirm_filter_summary_item_removal",
+            lambda _text: True,
+        )
+
+        self.window._remove_filters_summary_actions(
+            "Setor Emissor: IEE3",
+            [{"kind": "column", "column": "setor_emissor"}],
+        )
+
+        assert self.window._active_column_filters.get("setor_emissor", None) == ""
+        controls = self._get_column_filter_controls()
+        assert any("emissor" in label.casefold() for label in controls)
+
+    def test_gui_config_exposes_data_arquivo_origem_label_and_width(self):
+        assert (
+            gui_ssa.GUI_MAIN_PREFERENCES["column_display_names"]["data_arquivo_origem"]
+            == "Data do Arquivo de Origem"
+        )
+        assert (
+            gui_ssa.GUI_MAIN_PREFERENCES["column_widths"]["data_arquivo_origem"] >= 188
+        )
 
     def test_add_column_menu_includes_full_candidates_and_excludes_legacy_aliases(
         self, monkeypatch
@@ -2626,7 +2777,7 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(gui_ssa, "QMenu", _FakeMenu)
 
         header = self.window.table_widget.horizontalHeader()
-        logical_index = 2  # "#"(0), numero_ssa(1), situacao(2)
+        logical_index = self.window._current_display_columns.index("situacao")
         pos = QPoint(header.sectionPosition(logical_index) + 2, 5)
 
         captured = {}
@@ -2713,7 +2864,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         header = self.window.table_widget.horizontalHeader()
-        logical_index = 1  # "#"(0), "numero_ssa"(1)
+        logical_index = self.window._current_display_columns.index("numero_ssa")
         pos = QPoint(header.sectionPosition(logical_index) + 2, 5)
         self.window.show_header_context_menu(pos)
 
@@ -2768,7 +2919,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         header = self.window.table_widget.horizontalHeader()
-        logical_index = 1
+        logical_index = self.window._current_display_columns.index("numero_ssa")
         pos = QPoint(header.sectionPosition(logical_index) + 2, 5)
         self.window.show_header_context_menu(pos)
 

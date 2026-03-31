@@ -54,10 +54,14 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 1. reproduzir tecnicamente o caso `svp-03` / SSA `202604849`.
 2. definir historico de filtros para `undo` e `redo` com patch minimo e invariantes claros.
 3. agrupar ajustes pontuais de ordem/labels:
-   - emissor antes de executor
-   - `Data do relatorio`
-   - detalhes da SSA
-   - barra de filtros ativos vs navegacao
+    - emissor antes de executor
+    - `Data do relatorio`
+    - detalhes da SSA
+    - barra de filtros ativos vs navegacao
+4. `data_planilha` nao e campo morto no estado atual:
+   - a base local observada nesta frente tem preenchimento integral (`76569/76569`)
+   - o runtime de import/upsert continua tratando `data_planilha` como contrato ativo
+   - nao esconder da GUI nem marcar para limpeza de banco sem evidencia nova de produto/runtime
 4. validar habilitacao minima de drag de cabecalho de colunas.
 5. decidir explicitamente a paridade CLI vs GUI para diff/full import e discovery.
 6. endurecer rollback/error boundary residual em:
@@ -83,6 +87,44 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
     - `load_other_database()` em background
 12. fechar a reorganizacao dos docs historicos segundo `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 13. validar no ambiente de operacao a aba `Grafo` com bases grandes e decidir se precisa clique por no
+
+## Update 2026-03-31 09:49 - recuperacao forense de sessao interrompida (DOC_SYNC + DEFERRED_NOTE)
+
+Session timestamp:
+1. start: `2026-03-31 09:36:00 -0300`
+2. fim: `2026-03-31 09:49:00 -0300`
+
+Escopo fechado neste slice:
+1. leitura de `AGENTS.md` e dos docs vivos de continuidade antes de qualquer edicao
+2. trilha do prompt recuperada do historico do repo:
+   - auditoria tecnica grande
+   - hotfix de busca em colunas nao textuais
+   - sync de estado entre filtro rapido e avancado
+   - doc sync final dos MDs vivos
+3. ultimo pedido explicito recuperado antes da queda:
+   - atualizar os MDs vivos
+   - esse pedido ja estava aterrado em `7913c712`
+4. estado do repo confirmado nesta retomada:
+   - worktree limpo
+   - `HEAD...origin/dev = 00`
+   - nenhum shell PowerShell ativo
+   - nenhum background agent ativo
+   - nenhum patch de runtime pendente
+5. achado forense adicional:
+   - existe `.git\REBASE_HEAD` antigo (`2025-11-26`) sem `rebase-apply`/`rebase-merge`
+   - tratar como residuo stale de Git e nao como rebase vivo desta frente
+6. stashes existentes preservados sem alteracao:
+   - `stash@{0}` `config_local_staged_20260324`
+   - `stash@{1}` `WIP before syncing dev on 2026-03-20`
+
+Validacao/limitacoes desta retomada:
+1. `uv --version` -> OK
+2. `uv run --python 3.13 python -V` -> `Python 3.13.12`
+3. `bandit` indisponivel no ambiente atual:
+   - `uv run --python 3.13 python -m bandit --version`
+   - resultado: `No module named bandit`
+4. nao tratar ausencia de `bandit` ou indisponibilidade do gate Kluster como validacao verde
+5. se esse gate continuar obrigatorio, abrir slice proprio de tooling/dependency antes de cobrar o resultado
 
 ## Update 2026-03-31 09:16 - busca nao textual + sync de filtros avancados (STABILITY_PATCH + DOC_SYNC)
 

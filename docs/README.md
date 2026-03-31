@@ -12,6 +12,9 @@
   - `solicitante` no painel avancado agora reconhece alias `responsavel_solicitante`
   - o prefixo de area/setor de responsaveis ficou estavel contra subconjuntos filtrados
   - referencias de implementacao: `02ec4a30`, `b7af8aef`, `d6fbb4fe`
+  - recuperacao forense da sessao em `2026-03-31` confirmou que o ultimo commit realmente aterrado foi `7913c712` (`DOC_SYNC: align live continuity docs`)
+  - nesta retomada nao havia shell/agent ativo nem patch de runtime pendente; `HEAD...origin/dev = 00`
+  - existe residuo antigo `.git\REBASE_HEAD` datado de `2025-11-26`, sem `rebase-apply`/`rebase-merge`; tratar como hygiene de Git fora de escopo, nao como operacao viva desta frente
 
 ## Regras de interpretacao
 

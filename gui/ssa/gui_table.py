@@ -45,6 +45,28 @@ def _build_display_headers(
     return headers
 
 
+def _get_header_visual_column_order(window) -> list[str]:
+    header = window.table_widget.horizontalHeader()
+    columns = list(getattr(window, "_current_display_columns", []) or [])
+    if header is None or not columns:
+        return columns
+    ordered_pairs: list[tuple[int, str]] = []
+    for logical_index, column_name in enumerate(columns):
+        try:
+            visual_index = int(header.visualIndex(logical_index))
+        except Exception as exc:
+            logger.debug(
+                "Falha ao consultar visualIndex da coluna %s (%s): %s",
+                logical_index,
+                column_name,
+                exc,
+            )
+            visual_index = logical_index
+        ordered_pairs.append((visual_index, column_name))
+    ordered_pairs.sort(key=lambda item: item[0])
+    return [column_name for _, column_name in ordered_pairs]
+
+
 def _fallback_column_width(col_name: str) -> int:
     if col_name == "#":
         return 24
@@ -339,8 +361,9 @@ def display_current_page(window, page_number, *, update_details=True):
         return
 
     # Seleciona apenas as colunas visiveis
+    visible_selection = list(getattr(window, "visible_columns", []) or [])
     cols_to_show = [
-        col for col in window.visible_columns if col in window.df_para_tabela.columns
+        col for col in visible_selection if col in window.df_para_tabela.columns
     ]
     if not cols_to_show:
         # Se nenhuma coluna selecionada for valida, mostra as padroes
@@ -602,6 +625,29 @@ def display_current_page(window, page_number, *, update_details=True):
             header.setDefaultSectionSize(92)
     except Exception as exc:
         logger.debug("Falha ao restaurar configuracao interativa do header: %s", exc)
+
+    try:
+        if header is not None:
+            desired_visual_order = list(
+                getattr(window, "_current_display_columns", []) or []
+            )
+            current_visual_order = _get_header_visual_column_order(window)
+            if desired_visual_order and current_visual_order != desired_visual_order:
+                setattr(window, "_header_order_sync_suspended", True)
+                try:
+                    for desired_visual_index, _column_name in enumerate(
+                        desired_visual_order
+                    ):
+                        logical_index = desired_visual_order.index(_column_name)
+                        current_visual_index = int(header.visualIndex(logical_index))
+                        if current_visual_index != desired_visual_index:
+                            header.moveSection(current_visual_index, desired_visual_index)
+                finally:
+                    setattr(window, "_header_order_sync_suspended", False)
+    except Exception as exc:
+        logger.debug(
+            "Falha ao sincronizar ordem visual do header com colunas exibidas: %s", exc
+        )
 
     # Atualiza os detalhes da primeira linha sem forcar selecao automatica.
     _refresh_initial_details(window, update_details=update_details)

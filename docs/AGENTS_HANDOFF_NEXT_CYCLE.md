@@ -2,16 +2,23 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-31 09h16
+## CURRENT TRUTH 2026-03-31 09h49
 
 - Leitura rapida:
   1. branch alvo: `dev`
   2. metadata local ativa: `4.36`
   3. ultima tag publicada em `dev`: `v4.36`
   4. ultimos slices relevantes ja aterrados:
+     - `7913c712` `DOC_SYNC: align live continuity docs`
      - `02ec4a30` `DOC_SYNC: add ultra technical audit report`
      - `b7af8aef` `STABILITY_PATCH: support non-text search columns`
      - `d6fbb4fe` `STABILITY_PATCH: unify advanced filter state`
+  5. recuperacao forense desta retomada confirmou:
+     - worktree limpo
+     - `HEAD...origin/dev = 00`
+     - nenhum shell/agent ativo
+     - nenhum patch de runtime interrompido detectado
+  6. existe residuo antigo `.git\REBASE_HEAD` datado de `2025-11-26`, sem `rebase-apply`/`rebase-merge`; tratar como hygiene de Git fora do slice atual
 - PASSO 0 OBRIGATORIO ANTES DE QUALQUER NOVA FRENTE:
   1. revisar checks e comentarios mais recentes do PR `dev -> main`
   2. confirmar worktree limpo
@@ -62,6 +69,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   4. drag de colunas por cabecalho ainda precisa prova tecnica/local
   5. render/table refresh apos filtros ainda e hotspot provavel de custo
   6. staging/copy de importacao externa ainda merece revisao de thread principal
+  7. `bandit` segue indisponivel neste ambiente atual (`No module named bandit`); nao fingir gate verde
 - Estado tecnico fechado:
   1. o `.0` vazava por regras duplicadas no write path
   2. a normalizacao de storage foi centralizada

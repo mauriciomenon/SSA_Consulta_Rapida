@@ -14,6 +14,7 @@ import json
 import os
 import re
 from collections import OrderedDict
+from collections.abc import Callable
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -124,6 +125,9 @@ _ADVANCED_FILTER_VISUAL_COLUMN_MAP = {
     "derivada_is": ("derivada_de",),
 }
 
+SummaryAction = dict[str, Any]
+SummaryEntry = dict[str, Any]
+
 
 def _append_unique_text(target: list[str], value: str) -> None:
     text = str(value or "").strip()
@@ -140,6 +144,35 @@ def _summary_week_range(start: Any, end: Any) -> str | None:
     if end is None:
         return f">= {start}"
     return f"{start}-{end}"
+
+
+def _merge_summary_actions(
+    target: dict[str, SummaryEntry],
+    *,
+    text: str,
+    actions: list[SummaryAction],
+) -> None:
+    normalized_text = str(text or "").strip()
+    if not normalized_text:
+        return
+    entry = target.get(normalized_text)
+    if entry is None:
+        target[normalized_text] = {"text": normalized_text, "actions": list(actions)}
+        return
+    existing_actions = entry.setdefault("actions", [])
+    seen_signatures = {
+        json.dumps(action, sort_keys=True, ensure_ascii=True, default=str)
+        for action in existing_actions
+        if isinstance(action, dict)
+    }
+    for action in actions:
+        if not isinstance(action, dict):
+            continue
+        signature = json.dumps(action, sort_keys=True, ensure_ascii=True, default=str)
+        if signature in seen_signatures:
+            continue
+        existing_actions.append(action)
+        seen_signatures.add(signature)
 
 
 def _qt_parent(obj: Any) -> QWidget | None:
@@ -769,6 +802,12 @@ class FilterGUISSAMixin:
             if hasattr(self, "df_completo") and self.df_completo is not None
             else None,
         )
+        filtered_status_label = getattr(self, "filtered_status_label", None)
+        status_text = ""
+        if filtered_status_label is not None:
+            status_text = str(filtered_status_label.text() or "").strip()
+        if search_text and status_text:
+            self.status_label.setText(f"{status_text} para '{search_text}'")
         self._sync_clear_filter_button_state()
         self._apply_search_display()
         table_widget = getattr(self, "table_widget", None)
@@ -1769,7 +1808,6 @@ class FilterGUISSAMixin:
         self, col_name: str, current_text: Optional[str] = None
     ):
         if col_name in self._active_column_filters:
-            # Se já está vazio e o campo também está vazio, não faz nada
             try:
                 if str(
                     self._active_column_filters.get(col_name, "")
@@ -1789,9 +1827,9 @@ class FilterGUISSAMixin:
                 if group:
                     group["values"] = []
                     for member in group.get("columns", []):
-                        self._active_column_filters.pop(member, None)
+                        self._active_column_filters[member] = ""
             elif col_name in self._active_column_filters:
-                self._active_column_filters.pop(col_name, None)
+                self._active_column_filters[col_name] = ""
             self._mark_profile_as_custom()
             self._build_column_filters_panel()
             self._refresh_after_filter_change()
@@ -2200,14 +2238,7 @@ class FilterGUISSAMixin:
 
     def _update_filters_summary(self):
         """Atualiza o resumo de filtros ativos na interface"""
-        # Coleta filtros ativos
-        active_filters = []
-
-        # Filtro de busca geral
-        if hasattr(self, "search_input") and self.search_input.text().strip():
-            _append_unique_text(
-                active_filters, f"Busca: '{self.search_input.text().strip()}'"
-            )
+        summary_entries: OrderedDict[str, SummaryEntry] = OrderedDict()
 
         def _display_name(col: str) -> str:
             if col == "setor_executor":
@@ -2220,34 +2251,55 @@ class FilterGUISSAMixin:
                 return "Situacao"
             return self._resolve_column_display_name(col)
 
-        # Filtro OU dedicado (exibição)
-        or_text = str(getattr(self, "_dedicated_or_text", "") or "").strip()
-        if or_text:
-            _append_unique_text(
-                active_filters,
-                f"Filtro OU: {self._format_column_filter_display_value(or_text)}",
+        search_text = ""
+        if hasattr(self, "search_input"):
+            try:
+                search_text = str(self.search_input.text() or "").strip()
+            except Exception as exc:
+                logger.debug("Falha ao obter busca atual para resumo de filtros: %s", exc)
+        if search_text:
+            _merge_summary_actions(
+                summary_entries,
+                text=f"Busca: '{search_text}'",
+                actions=[{"kind": "search"}],
             )
 
-        # Filtros de coluna (exibição)
-        if hasattr(self, "_active_column_filters") and self._active_column_filters:
-            processed_groups = set()
+        or_text = str(getattr(self, "_dedicated_or_text", "") or "").strip()
+        if or_text:
+            _merge_summary_actions(
+                summary_entries,
+                text=f"Filtro OU: {self._format_column_filter_display_value(or_text)}",
+                actions=[{"kind": "dedicated_or"}],
+            )
+
+        active_column_filters = getattr(self, "_active_column_filters", {}) or {}
+        if active_column_filters:
             for group in getattr(self, "_column_or_groups", []):
-                if not group.get("values"):
+                values = list(group.get("values", []) or [])
+                if not values:
                     continue
-                gid = id(group)
-                processed_groups.add(gid)
-                columns = group.get("columns", [])
+                columns = list(group.get("columns", []) or [])
                 if set(columns) == {"setor_executor", "setor_emissor"}:
                     label = "Executor ou Emissor (OU)"
                 else:
                     label = f"{' ou '.join(_display_name(c) for c in columns)} (OU)"
-                values_txt = self._format_column_filter_display_value(
-                    ", ".join(group.get("values", []))
+                values_txt = self._format_column_filter_display_value(", ".join(values))
+                if not values_txt:
+                    continue
+                action_column = str(columns[0]) if columns else ""
+                _merge_summary_actions(
+                    summary_entries,
+                    text=f"{label}: {values_txt}",
+                    actions=[
+                        {
+                            "kind": "column_or_group",
+                            "column": action_column,
+                            "columns": columns,
+                        }
+                    ],
                 )
-                if values_txt:
-                    _append_unique_text(active_filters, f"{label}: {values_txt}")
 
-            for col_name, filter_value in self._active_column_filters.items():
+            for col_name, filter_value in active_column_filters.items():
                 if col_name in self._column_to_or_group:
                     continue
                 normalized_value = self._format_column_filter_display_value(
@@ -2255,14 +2307,22 @@ class FilterGUISSAMixin:
                 )
                 if not normalized_value:
                     continue
-                _append_unique_text(
-                    active_filters, f"{_display_name(col_name)}: {normalized_value}"
+                _merge_summary_actions(
+                    summary_entries,
+                    text=f"{_display_name(col_name)}: {normalized_value}",
+                    actions=[{"kind": "column", "column": str(col_name)}],
                 )
 
         adv = getattr(self, "_advanced_filters", None) or {}
         adv_active = bool(getattr(self, "_advanced_filters_active", False))
 
-        def _add_adv(label, values, op: str | None = None):
+        def _add_adv(
+            label,
+            values,
+            op: str | None = None,
+            *,
+            action_keys: list[str] | None = None,
+        ):
             if not values:
                 return
             if isinstance(values, list):
@@ -2272,38 +2332,103 @@ class FilterGUISSAMixin:
             if not txt:
                 return
             if op:
-                _append_unique_text(active_filters, f"{label} {op} {txt}")
+                text = f"{label} {op} {txt}"
             else:
-                _append_unique_text(active_filters, f"{label}: {txt}")
+                text = f"{label}: {txt}"
+            keys = [str(key) for key in (action_keys or []) if str(key).strip()]
+            if not keys:
+                return
+            _merge_summary_actions(
+                summary_entries,
+                text=text,
+                actions=[{"kind": "advanced_keys", "keys": keys}],
+            )
 
         if adv_active:
-            _add_adv("Executor", adv.get("setor_executor"))
-            _add_adv("Executor", adv.get("setor_executor_exclude_values"), "!=")
-            _add_adv("Emissor", adv.get("setor_emissor"))
-            _add_adv("Emissor", adv.get("setor_emissor_exclude_values"), "!=")
-            _add_adv("Divisao", adv.get("divisao"))
-            _add_adv("Divisao", adv.get("divisao_exclude_values"), "!=")
-            _add_adv("Situacao", adv.get("situacao"))
-            _add_adv("Situacao", adv.get("situacao_exclude_values"), "!=")
-            _add_adv("Solicitante", adv.get("solicitante"))
-            _add_adv("Solicitante", adv.get("solicitante_exclude_values"), "!=")
-            _add_adv("Resp Programacao", adv.get("responsavel_programacao"))
+            _add_adv(
+                "Executor",
+                adv.get("setor_executor"),
+                action_keys=["setor_executor"],
+            )
+            _add_adv(
+                "Executor",
+                adv.get("setor_executor_exclude_values"),
+                "!=",
+                action_keys=["setor_executor_exclude_values"],
+            )
+            _add_adv(
+                "Emissor", adv.get("setor_emissor"), action_keys=["setor_emissor"]
+            )
+            _add_adv(
+                "Emissor",
+                adv.get("setor_emissor_exclude_values"),
+                "!=",
+                action_keys=["setor_emissor_exclude_values"],
+            )
+            _add_adv("Divisao", adv.get("divisao"), action_keys=["divisao"])
+            _add_adv(
+                "Divisao",
+                adv.get("divisao_exclude_values"),
+                "!=",
+                action_keys=["divisao_exclude_values"],
+            )
+            _add_adv("Situacao", adv.get("situacao"), action_keys=["situacao"])
+            _add_adv(
+                "Situacao",
+                adv.get("situacao_exclude_values"),
+                "!=",
+                action_keys=["situacao_exclude_values"],
+            )
+            _add_adv("Solicitante", adv.get("solicitante"), action_keys=["solicitante"])
+            _add_adv(
+                "Solicitante",
+                adv.get("solicitante_exclude_values"),
+                "!=",
+                action_keys=["solicitante_exclude_values"],
+            )
+            _add_adv(
+                "Resp Programacao",
+                adv.get("responsavel_programacao"),
+                action_keys=["responsavel_programacao"],
+            )
             _add_adv(
                 "Resp Programacao",
                 adv.get("responsavel_programacao_exclude_values"),
                 "!=",
+                action_keys=["responsavel_programacao_exclude_values"],
             )
-            _add_adv("Resp Execucao", adv.get("responsavel_execucao"))
             _add_adv(
-                "Resp Execucao", adv.get("responsavel_execucao_exclude_values"), "!="
+                "Resp Execucao",
+                adv.get("responsavel_execucao"),
+                action_keys=["responsavel_execucao"],
             )
-            _add_adv("Prio Emissao", adv.get("prioridade_emissao_values"))
-            _add_adv("Prio Emissao", adv.get("prioridade_emissao_exclude_values"), "!=")
-            _add_adv("Prio Planejamento", adv.get("prioridade_planejamento_values"))
+            _add_adv(
+                "Resp Execucao",
+                adv.get("responsavel_execucao_exclude_values"),
+                "!=",
+                action_keys=["responsavel_execucao_exclude_values"],
+            )
+            _add_adv(
+                "Prio Emissao",
+                adv.get("prioridade_emissao_values"),
+                action_keys=["prioridade_emissao_values"],
+            )
+            _add_adv(
+                "Prio Emissao",
+                adv.get("prioridade_emissao_exclude_values"),
+                "!=",
+                action_keys=["prioridade_emissao_exclude_values"],
+            )
+            _add_adv(
+                "Prio Planejamento",
+                adv.get("prioridade_planejamento_values"),
+                action_keys=["prioridade_planejamento_values"],
+            )
             _add_adv(
                 "Prio Planejamento",
                 adv.get("prioridade_planejamento_exclude_values"),
                 "!=",
+                action_keys=["prioridade_planejamento_exclude_values"],
             )
 
             ano_emissao_vals = adv.get("ano_emissao_values")
@@ -2316,8 +2441,17 @@ class FilterGUISSAMixin:
                 and adv.get("ano_emissao") is not None
             ):
                 ano_emissao_exc = [adv.get("ano_emissao")]
-            _add_adv("Ano Emissao", ano_emissao_vals)
-            _add_adv("Ano Emissao", ano_emissao_exc, "!=")
+            _add_adv(
+                "Ano Emissao",
+                ano_emissao_vals,
+                action_keys=["ano_emissao", "ano_emissao_values"],
+            )
+            _add_adv(
+                "Ano Emissao",
+                ano_emissao_exc,
+                "!=",
+                action_keys=["ano_emissao_exclude", "ano_emissao_exclude_values"],
+            )
 
             ano_execucao_vals = adv.get("ano_execucao_values")
             ano_execucao_exc = adv.get("ano_execucao_exclude_values")
@@ -2329,8 +2463,17 @@ class FilterGUISSAMixin:
                 and adv.get("ano_execucao") is not None
             ):
                 ano_execucao_exc = [adv.get("ano_execucao")]
-            _add_adv("Ano Execucao", ano_execucao_vals)
-            _add_adv("Ano Execucao", ano_execucao_exc, "!=")
+            _add_adv(
+                "Ano Execucao",
+                ano_execucao_vals,
+                action_keys=["ano_execucao", "ano_execucao_values"],
+            )
+            _add_adv(
+                "Ano Execucao",
+                ano_execucao_exc,
+                "!=",
+                action_keys=["ano_execucao_exclude", "ano_execucao_exclude_values"],
+            )
 
             em_range = _summary_week_range(
                 adv.get("semana_emissao_inicio"), adv.get("semana_emissao_fim")
@@ -2338,23 +2481,41 @@ class FilterGUISSAMixin:
             if em_range:
                 label = "Semana Emissao"
                 op = "!=" if adv.get("semana_emissao_exclude") else None
-                _add_adv(label, [em_range], op)
+                action_keys = ["semana_emissao_inicio", "semana_emissao_fim"]
+                if adv.get("semana_emissao_exclude"):
+                    action_keys.append("semana_emissao_exclude")
+                _add_adv(label, [em_range], op, action_keys=action_keys)
             ex_range = _summary_week_range(
                 adv.get("semana_execucao_inicio"), adv.get("semana_execucao_fim")
             )
             if ex_range:
                 label = "Semana Execucao"
                 op = "!=" if adv.get("semana_execucao_exclude") else None
-                _add_adv(label, [ex_range], op)
+                action_keys = ["semana_execucao_inicio", "semana_execucao_fim"]
+                if adv.get("semana_execucao_exclude"):
+                    action_keys.append("semana_execucao_exclude")
+                _add_adv(label, [ex_range], op, action_keys=action_keys)
 
             if adv.get("derivada_has"):
-                _append_unique_text(active_filters, "Possui derivada")
+                _merge_summary_actions(
+                    summary_entries,
+                    text="Possui derivada",
+                    actions=[{"kind": "advanced_keys", "keys": ["derivada_has"]}],
+                )
             # Compatibilidade: mantemos a chave legada "derivada_all_ste",
             # mas o comportamento funcional agora considera STE e SES.
             if adv.get("derivada_all_ste"):
-                _append_unique_text(active_filters, "Derivadas em STE/SES")
+                _merge_summary_actions(
+                    summary_entries,
+                    text="Derivadas em STE/SES",
+                    actions=[{"kind": "advanced_keys", "keys": ["derivada_all_ste"]}],
+                )
             if adv.get("derivada_is"):
-                _append_unique_text(active_filters, "SSA derivada")
+                _merge_summary_actions(
+                    summary_entries,
+                    text="SSA derivada",
+                    actions=[{"kind": "advanced_keys", "keys": ["derivada_is"]}],
+                )
             if adv.get("macro_filter"):
                 macro_val = adv.get("macro_filter")
                 macro_label = (
@@ -2362,10 +2523,20 @@ class FilterGUISSAMixin:
                     if macro_val == "ssas_para_baixar"
                     else str(macro_val)
                 )
-                _append_unique_text(active_filters, f"Macro: {macro_label}")
+                _merge_summary_actions(
+                    summary_entries,
+                    text=f"Macro: {macro_label}",
+                    actions=[{"kind": "advanced_keys", "keys": ["macro_filter"]}],
+                )
 
         if getattr(self, "_exclude_ste_sca", False):
-            _append_unique_text(active_filters, _EXCLUDED_TERMINAL_SUMMARY)
+            _merge_summary_actions(
+                summary_entries,
+                text=_EXCLUDED_TERMINAL_SUMMARY,
+                actions=[{"kind": "exclude_ste_sca"}],
+            )
+
+        active_filters = [entry["text"] for entry in summary_entries.values()]
 
         # Monta texto do resumo
         if active_filters:
@@ -2397,6 +2568,275 @@ class FilterGUISSAMixin:
             self.filters_summary_label.setStyleSheet(
                 "font-weight:700;" if active_state else "font-weight:400;"
             )
+        try:
+            self._rebuild_filters_summary_buttons(list(summary_entries.values()))
+        except Exception as exc:
+            logger.warning(
+                "Falha ao reconstruir botoes clicaveis do resumo de filtros: %s", exc
+            )
+
+    def _clear_filters_summary_buttons(self) -> None:
+        layout = getattr(self, "filters_summary_items_layout", None)
+        if layout is None:
+            return
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def _rebuild_filters_summary_buttons(self, entries: list[SummaryEntry]) -> None:
+        self._clear_filters_summary_buttons()
+        layout = getattr(self, "filters_summary_items_layout", None)
+        container = getattr(self, "filters_summary_items_widget", None)
+        if layout is None or container is None:
+            return
+        roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
+        accent = roles.get("accent") or roles.get("input_border_focus") or "#4a90e2"
+        border = roles.get("input_border") or roles.get("panel_border") or accent
+        text_color = roles.get("panel_text") or roles.get("label_color") or "inherit"
+        background = roles.get("input_bg") or "transparent"
+        for entry in entries:
+            text = str(entry.get("text") or "").strip()
+            raw_actions = entry.get("actions")
+            if not text or not isinstance(raw_actions, list) or not raw_actions:
+                continue
+            actions: list[SummaryAction] = [
+                cast(SummaryAction, dict(action))
+                for action in raw_actions
+                if isinstance(action, dict)
+            ]
+            if not actions:
+                continue
+            button = QPushButton(text)
+            button.setToolTip(f"Clique para remover este filtro: {text}")
+            try:
+                button.setStyleSheet(
+                    "QPushButton {"
+                    f"border:1px solid {border};"
+                    "border-radius:8px;"
+                    "padding:1px 6px;"
+                    "font-size:10px;"
+                    "font-weight:500;"
+                    f"background:{background};"
+                    f"color:{text_color};"
+                    "text-align:left;"
+                    "}"
+                    "QPushButton:hover {"
+                    f"border-color:{accent};"
+                    "font-weight:600;"
+                    "}"
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao aplicar estilo em botao do resumo de filtros '%s': %s",
+                    text,
+                    exc,
+                )
+            button.clicked.connect(
+                self._build_filters_summary_click_handler(text, actions)
+            )
+            layout.addWidget(button, 0)
+        layout.addStretch(1)
+        try:
+            container.setVisible(bool(entries))
+        except Exception as exc:
+            logger.debug(
+                "Falha ao atualizar visibilidade do container de resumo de filtros: %s",
+                exc,
+            )
+
+    def _build_filters_summary_click_handler(
+        self, item_text: str, actions: list[SummaryAction]
+    ) -> Callable[[bool], None]:
+        captured_actions = list(actions)
+
+        def _handler(_checked: bool = False) -> None:
+            self._on_filters_summary_item_clicked(item_text, captured_actions)
+
+        return _handler
+
+    def _confirm_filter_summary_item_removal(self, item_text: str) -> bool:
+        buttons = getattr(QMessageBox, "StandardButton", None)
+        title = "Remover filtro"
+        message = f"Deseja remover este filtro ativo?\n\n{item_text}"
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            logger.debug("PYTEST_CURRENT_TEST set; mantendo confirmacao de remocao ativa.")
+        try:
+            if buttons is not None:
+                reply = QMessageBox.question(
+                    _qt_parent(self),
+                    title,
+                    message,
+                    buttons.Yes | buttons.No,
+                    buttons.No,
+                )
+                return reply == buttons.Yes
+            reply = QMessageBox.question(_qt_parent(self), title, message)
+            return reply == getattr(QMessageBox, "Yes", reply)
+        except Exception as exc:
+            logger.warning(
+                "Falha ao solicitar confirmacao para remocao de filtro '%s': %s",
+                item_text,
+                exc,
+            )
+            raise
+
+    def _clear_general_search_state(self) -> None:
+        self._invalidate_active_filter_request("clear_general_search_state")
+        self._cancel_active_filter_worker("clear_general_search_state", wait_ms=0)
+        self._set_filter_ui_idle()
+        try:
+            self._debounce_timer.stop()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao parar debounce ao limpar busca via resumo de filtros: %s", exc
+            )
+        self._set_search_text_across_tabs("")
+        self._pending_search_display = None
+        self._active_filter_search_display = ""
+        self._active_filter_search_request_id = None
+        self._df_last_search_filtered = self.df_completo.copy()
+
+    def _sync_exclude_ste_checkbox_state(self, checked: bool) -> None:
+        checked_bool = bool(checked)
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if isinstance(tab_contexts, list):
+            for ctx in tab_contexts:
+                if not isinstance(ctx, dict):
+                    continue
+                checkbox = ctx.get("exclude_ste_checkbox")
+                if checkbox is None:
+                    continue
+                try:
+                    checkbox.blockSignals(True)
+                    checkbox.setChecked(checked_bool)
+                finally:
+                    try:
+                        checkbox.blockSignals(False)
+                    except Exception as exc:
+                        logger.debug(
+                            "Falha ao reativar sinais de checkbox exclude_ste no resumo de filtros: %s",
+                            exc,
+                        )
+            return
+        checkbox = getattr(self, "exclude_ste_checkbox", None)
+        if checkbox is None:
+            return
+        try:
+            checkbox.blockSignals(True)
+            checkbox.setChecked(checked_bool)
+        finally:
+            try:
+                checkbox.blockSignals(False)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao reativar sinais de checkbox exclude_ste principal no resumo de filtros: %s",
+                    exc,
+                )
+
+    def _remove_filters_summary_actions(
+        self, item_text: str, actions: list[SummaryAction]
+    ) -> None:
+        if not actions:
+            return
+        if not self._confirm_filter_summary_item_removal(item_text):
+            return
+        self._safe_store_last_filter_state("remove_filters_summary_item")
+        refresh_needed = False
+        sync_advanced_ui = False
+        sync_quick_combo = False
+        status_reset_needed = False
+        pending_column_clears: list[str] = []
+        pending_advanced_keys: list[str] = []
+        for action in actions:
+            if not isinstance(action, dict):
+                continue
+            kind = str(action.get("kind") or "").strip()
+            if kind == "search":
+                self._clear_general_search_state()
+                refresh_needed = True
+                status_reset_needed = True
+                continue
+            if kind == "dedicated_or":
+                self._dedicated_or_text = ""
+                continue
+            if kind == "exclude_ste_sca":
+                self._exclude_ste_sca = False
+                self._sync_exclude_ste_checkbox_state(False)
+                sync_advanced_ui = True
+                refresh_needed = True
+                continue
+            if kind in {"column", "column_or_group"}:
+                column_name = str(action.get("column") or "").strip()
+                if not column_name:
+                    raise ValueError(
+                        f"Resumo de filtros recebeu acao sem coluna valida: {action!r}"
+                    )
+                if column_name not in pending_column_clears:
+                    pending_column_clears.append(column_name)
+                continue
+            if kind == "advanced_keys":
+                raw_keys = action.get("keys")
+                keys = [
+                    str(key).strip()
+                    for key in (raw_keys if isinstance(raw_keys, list) else [])
+                    if str(key).strip()
+                ]
+                if not keys:
+                    raise ValueError(
+                        f"Resumo de filtros recebeu advanced_keys sem chaves: {action!r}"
+                    )
+                for key in keys:
+                    if key not in pending_advanced_keys:
+                        pending_advanced_keys.append(key)
+                continue
+            raise ValueError(f"Acao de resumo de filtros nao suportada: {action!r}")
+        for key in pending_advanced_keys:
+            self._advanced_filters.pop(key, None)
+        if pending_advanced_keys:
+            self._advanced_filters_active = bool(
+                self._has_active_advanced_filters(self._advanced_filters)
+            )
+            sync_advanced_ui = True
+            refresh_needed = True
+            if any(
+                key.startswith("setor_executor") or key == "macro_filter"
+                for key in pending_advanced_keys
+            ):
+                sync_quick_combo = True
+        if pending_column_clears:
+            for column_name in pending_column_clears:
+                if column_name in self._active_column_filters or column_name in getattr(
+                    self, "_column_to_or_group", {}
+                ):
+                    if column_name in self._column_to_or_group:
+                        group = self._column_to_or_group.get(column_name)
+                        if group:
+                            group["values"] = []
+                            for member in group.get("columns", []):
+                                self._active_column_filters[member] = ""
+                    else:
+                        self._active_column_filters[column_name] = ""
+            self._build_column_filters_panel()
+            refresh_needed = True
+        if sync_advanced_ui:
+            self._sync_advanced_filter_ui()
+        if refresh_needed:
+            self._mark_profile_as_custom()
+            self._refresh_after_filter_change()
+        else:
+            self._update_filters_summary()
+        if status_reset_needed and not self._has_any_active_filters():
+            self._set_filtered_count_status("")
+        self._sync_clear_filter_button_state()
+        if sync_quick_combo:
+            self._sync_quick_setor_executor_combo_from_filters()
+
+    def _on_filters_summary_item_clicked(
+        self, item_text: str, actions: list[SummaryAction]
+    ) -> None:
+        self._remove_filters_summary_actions(item_text, actions)
 
     def _format_column_filter_display_value(
         self, raw: str, *, column: str | None = None
@@ -2567,8 +3007,8 @@ class FilterGUISSAMixin:
         """Colunas padrao sempre visiveis no painel de filtros por coluna."""
         return (
             "descricao_ssa",
-            "setor_executor",
             "setor_emissor",
+            "setor_executor",
             "descricao_execucao",
         )
 

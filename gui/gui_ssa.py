@@ -963,9 +963,10 @@ DETAIL_FIELD_PRIORITY = [
     "numero_ssa",
     "situacao",
     "descricao_ssa",
+    "localizacao_codigo",
     "descricao_servico",
-    "setor_executor",
     "setor_emissor",
+    "setor_executor",
     "data_cadastro",
     "prazo_limite",
 ]
@@ -974,6 +975,7 @@ DETAIL_DISPLAY_OVERRIDES = {
     "situacao": "Situacao",
     "semana_cadastro": "Semana de Cadastro",
     "data_cadastro": "Data de Cadastro",
+    "localizacao_codigo": "Localizacao",
     "loc": "Localizacao",
     "descricao_ssa": "Descricao da SSA",
     "setor_executor": "Setor Executor",
@@ -1729,6 +1731,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         filters_summary_frame = None
         filters_summary_label = None
+        filters_summary_items_widget = None
+        filters_summary_items_layout = None
         clear_all_filters_btn = None
         export_list_btn = None
         undo_filter_btn = None
@@ -1744,6 +1748,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     filters_summary_label.setFont(cast(Any, QFont(self._info_font)))
                 except Exception as exc:
                     logger.debug("Falha ao aplicar fonte no resumo de filtros: %s", exc)
+            filters_summary_items_widget = QWidget()
+            filters_summary_items_layout = QHBoxLayout(
+                cast(Any, filters_summary_items_widget)
+            )
+            filters_summary_items_layout.setContentsMargins(0, 0, 0, 0)
+            filters_summary_items_layout.setSpacing(6)
             clear_all_filters_btn = QPushButton("Limpar todos os filtros")
             clear_all_filters_btn.setMaximumWidth(200)
             clear_all_filters_btn.clicked.connect(self._on_clear_all_filters_clicked)
@@ -1771,10 +1781,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 logger.debug(
                     "Falha ao aplicar estilo no botao undo de filtros: %s", exc
                 )
+            summary_text_layout = QVBoxLayout()
+            summary_text_layout.setContentsMargins(0, 0, 0, 0)
+            summary_text_layout.setSpacing(4)
+            summary_text_layout.addWidget(cast(Any, filters_summary_label), 0)
+            summary_text_layout.addWidget(cast(Any, filters_summary_items_widget), 0)
+            summary_text_layout.addStretch(1)
             summary_layout.addWidget(cast(Any, clear_all_filters_btn), 0)
             summary_layout.addWidget(cast(Any, export_list_btn), 0)
             summary_layout.addWidget(cast(Any, undo_filter_btn), 0)
-            summary_layout.addWidget(cast(Any, filters_summary_label), 1)
+            summary_layout.addLayout(cast(Any, summary_text_layout), 1)
             tab_layout.addWidget(cast(Any, filters_summary_frame))
             filters_summary_frame.setVisible(True)
             try:
@@ -1832,6 +1848,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 header.setSectionsClickable(True)
                 header.setSortIndicatorShown(True)
                 try:
+                    header.setSectionsMovable(True)
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao habilitar drag and drop no header da tabela: %s", exc
+                    )
+                try:
+                    header.setFirstSectionMovable(False)
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao fixar primeira secao do header da tabela: %s", exc
+                    )
+                try:
                     header.setMinimumSectionSize(26)
                     header.setDefaultSectionSize(92)
                 except Exception as exc:
@@ -1849,6 +1877,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                         "Falha ao aplicar estilo/fonte no header da tabela: %s", exc
                     )
                 header.sectionClicked.connect(self.on_header_clicked)
+                header.sectionMoved.connect(self._on_header_section_moved)
                 header.setContextMenuPolicy(
                     cast(Any, Qt.ContextMenuPolicy.CustomContextMenu)
                 )
@@ -1972,6 +2001,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "col_filter_indicator": col_filter_indicator,
                 "filters_summary_frame": filters_summary_frame,
                 "filters_summary_label": filters_summary_label,
+                "filters_summary_items_widget": filters_summary_items_widget,
+                "filters_summary_items_layout": filters_summary_items_layout,
                 "clear_all_filters_btn": clear_all_filters_btn,
                 "export_list_btn": export_list_btn,
                 "undo_filter_btn": undo_filter_btn,
@@ -2979,10 +3010,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def on_columns_changed(self, new_columns):
         """Chamado quando a seleçção de colunas muda."""
-        self.visible_columns = new_columns
+        self.visible_columns = list(new_columns)
         if hasattr(self, "column_selector") and self.column_selector is not None:
             try:
-                self.column_selector.set_selected_columns(new_columns)
+                self.column_selector.set_selected_columns(self.visible_columns)
             except Exception as exc:
                 logger.debug(
                     "Falha ao sincronizar colunas selecionadas no selector: %s", exc
@@ -2991,6 +3022,76 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self.display_current_page(self.paginator.current_page)
         # Nota: Persistencia de preferencias removida para isolamento do CLI
         # As configurações ficam no arquivo gui_main_preferences.json
+
+    def _persist_visible_columns_order(self) -> None:
+        gui_prefs = GUI_MAIN_PREFERENCES.setdefault("display_columns", [])
+        if gui_prefs == self.visible_columns:
+            return
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            return
+        snapshot = copy.deepcopy(GUI_MAIN_PREFERENCES)
+        snapshot["display_columns"] = list(self.visible_columns)
+        try:
+            atomic_write_json_file(
+                os.path.join(project_root, "config", "gui_main_preferences.json"),
+                snapshot,
+                indent=2,
+                ensure_ascii=False,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Falha ao persistir nova ordem de colunas apos drag no header: %s", exc
+            )
+
+    def _on_header_section_moved(
+        self,
+        logical_index: int,
+        old_visual_index: int,
+        new_visual_index: int,
+    ) -> None:
+        _ = old_visual_index
+        _ = new_visual_index
+        if bool(getattr(self, "_header_order_sync_suspended", False)):
+            return
+        header = self.table_widget.horizontalHeader()
+        if header is None:
+            return
+        current_columns = list(getattr(self, "_current_display_columns", []) or [])
+        if (
+            not current_columns
+            or logical_index < 0
+            or logical_index >= len(current_columns)
+        ):
+            return
+        if current_columns[0] == "#" and header.visualIndex(0) != 0:
+            self._skip_width_recompute_once = True
+            self.display_current_page(self.paginator.current_page)
+            return
+        ordered_columns = ssa_gui_table._get_header_visual_column_order(self)
+        if not ordered_columns:
+            return
+        ordered_visible_columns = [col for col in ordered_columns if col != "#"]
+        if (
+            not ordered_visible_columns
+            or ordered_visible_columns == list(self.visible_columns)
+        ):
+            return
+        preserved_widths = self._capture_current_column_widths()
+        self.visible_columns = ordered_visible_columns
+        if hasattr(self, "column_selector") and self.column_selector is not None:
+            try:
+                self.column_selector.set_selected_columns(self.visible_columns)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao sincronizar selector apos reorder de colunas: %s", exc
+                )
+        try:
+            self._persist_visible_columns_order()
+        except Exception as exc:
+            logger.debug("Falha ao persistir nova ordem de colunas apos drag: %s", exc)
+        self._skip_width_recompute_once = True
+        self.display_current_page(self.paginator.current_page)
+        self._restore_column_widths(preserved_widths)
 
     @staticmethod
     def _order_setor_executor_values(values: list[str]) -> list[str]:
