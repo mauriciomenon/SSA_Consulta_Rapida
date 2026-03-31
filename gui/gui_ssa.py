@@ -2963,10 +2963,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                         self.show_header_context_menu(p)
                         return True
             details_viewport = getattr(self, "_details_text_viewport", None)
-            if (
-                obj is details_viewport
-                and event.type()
-                in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonDblClick)
+            if obj is details_viewport and event.type() in (
+                QEvent.Type.MouseButtonPress,
+                QEvent.Type.MouseButtonDblClick,
             ):
                 pos = getattr(event, "position", None)
                 if callable(pos):
