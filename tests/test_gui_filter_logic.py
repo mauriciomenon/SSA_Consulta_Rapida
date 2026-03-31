@@ -277,7 +277,6 @@ class TestGUIFilterLogic:
         )
         self.window._active_column_filters["setor_executor"] = "IEE3, MEL3"
         self.window._active_column_filters["setor_emissor"] = "IEE3, MEL3"
-        advanced_before = dict(getattr(self.window, "_advanced_filters", {}) or {})
         self.window._build_column_filters_panel()
         self.window._refresh_quick_setor_executor_options()
         combo = getattr(self.window, "quick_setor_executor_combo", None)
@@ -298,9 +297,9 @@ class TestGUIFilterLogic:
 
         assert self.window._active_column_filters.get("setor_executor") == "MEL4"
         assert self.window._active_column_filters.get("setor_emissor") == "IEE3, MEL3"
-        assert (
-            dict(getattr(self.window, "_advanced_filters", {}) or {}) == advanced_before
-        )
+        assert self.window._advanced_filters.get("setor_executor") == ["MEL4"]
+        assert self.window._advanced_filters.get("setor_executor_exclude_values") == []
+        assert self.window._advanced_filters_active is True
 
         self.window.main_tabs.setCurrentIndex(1)
         QApplication.processEvents()
@@ -320,6 +319,35 @@ class TestGUIFilterLogic:
         assert setor_key is not None
         setor_input, _, _, _ = controls[setor_key]
         assert str(setor_input.text() or "").strip() == "MEL4"
+
+    def test_apply_advanced_executor_syncs_back_to_quick_combo_and_active_filters(self):
+        filter_tab_idx = next(
+            idx
+            for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+
+        target = next(
+            check
+            for check in (getattr(self.window, "adv_executor_checks", []) or [])
+            if str(check.property("value") or "") == "IEE3"
+        )
+        target.setChecked(True)
+
+        self.window._apply_advanced_filters_from_ui(store_only=True)
+        self.window._sync_quick_setor_executor_combo_from_filters()
+        QApplication.processEvents()
+
+        combo = getattr(self.window, "quick_setor_executor_combo", None)
+        assert combo is not None
+        assert self.window._advanced_filters.get("setor_executor") == ["IEE3"]
+        assert self.window._active_column_filters.get("setor_executor") == "IEE3"
+        assert str(combo.currentData() or "") == "IEE3"
 
     def test_quick_setor_executor_combo_journey_updates_cache_context_and_clear_global(
         self,
@@ -1488,6 +1516,59 @@ class TestGUIFilterLogic:
             )
         assert button is not None
         assert button.text().startswith(("Incluir:", "Diferente:"))
+
+    def test_responsavel_solicitante_alias_materializes_values_in_advanced_panel(self):
+        alias_df = self.base_df.drop(columns=["solicitante"]).assign(
+            responsavel_solicitante=["Alias1", "Alias2", "Alias3", "Alias4", "Alias5"]
+        )
+        self.window.df_completo = alias_df.copy()
+        self.window.df_exibido = alias_df.copy()
+        self.window._df_last_search_filtered = alias_df.copy()
+        self.window.paginator.set_dataframe(alias_df.copy())
+
+        filter_tab_idx = next(
+            idx
+            for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        self.window._refresh_advanced_filter_options()
+        self.window._ensure_responsavel_options_materialized(
+            target_prefix="adv_responsavel_solicitante"
+        )
+        QApplication.processEvents()
+
+        values = [
+            str(check.property("value") or "")
+            for check in (
+                getattr(self.window, "adv_responsavel_solicitante_checks", []) or []
+            )
+        ]
+        assert "Alias1" in values
+        assert "Alias5" in values
+
+    def test_sort_responsavel_values_uses_full_dataset_for_area_prefix(self):
+        full_df = pd.DataFrame(
+            {
+                "solicitante": ["Andre", "Andre", "Andre", "Andre"],
+                "setor_executor": ["IEE1", "IEE1", "IEE1", "MEL4"],
+                "setor_emissor": ["", "", "", ""],
+            }
+        )
+        subset_df = full_df[full_df["setor_executor"] == "MEL4"].copy()
+
+        decorated = self.window._sort_responsavel_values(
+            subset_df,
+            ["Andre"],
+            "solicitante",
+            df_source=full_df,
+        )
+
+        assert decorated == [("Andre", decorated[0][1])]
+        assert "IEE1 - Andre" in decorated[0][1]
+        assert "MEL4 - Andre" not in decorated[0][1]
 
     def test_apply_advanced_filters_preserves_responsavel_when_not_materialized(self):
         self.window._advanced_filters = {
