@@ -165,6 +165,32 @@ def test_filter_dataframe_raw_term_modes_match_any_searchable_field() -> None:
     assert set(out_suffix["numero_ssa"]) == {"202500003"}
 
 
+def test_filter_dataframe_search_columns_support_numeric_dtype() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": [202604849, 202604850],
+            "descricao_ssa": ["SVP-03", "SVP-04"],
+        }
+    )
+
+    out = filter_dataframe(df, ["202604849"], ["numero_ssa"])
+
+    assert list(out["numero_ssa"]) == [202604849]
+
+
+def test_filter_dataframe_search_columns_support_datetime_dtype() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002"],
+            "data_cadastro": pd.to_datetime(["2026-03-31 10:15:00", None]),
+        }
+    )
+
+    out = filter_dataframe(df, ["2026-03-31"], ["data_cadastro"])
+
+    assert list(out["numero_ssa"]) == ["202500001"]
+
+
 def test_get_filtered_data_reads_canonical_table_without_legacy_view(
     tmp_path: Path,
 ) -> None:

@@ -2569,12 +2569,7 @@ def filter_dataframe(
         base_lower_df = cached_search_data["base_lower_df"]
         row_search_text = cached_search_data["row_search_text"]
     else:
-        base_str_df = (
-            df[available_search_cols]
-            .select_dtypes(include=["object", "string"])
-            .fillna("")
-            .astype(str)
-        )
+        base_str_df = df[available_search_cols].astype("string").fillna("")
         if base_str_df.shape[1] == 0:
             # Sem colunas de texto, nao ha onde buscar: retorna DataFrame vazio
             return FilterSearchCacheManager.clear_result_attrs(df.iloc[0:0])
