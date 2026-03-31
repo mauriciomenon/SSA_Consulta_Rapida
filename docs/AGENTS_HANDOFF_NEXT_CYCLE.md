@@ -2,27 +2,34 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-27 20h35
+## CURRENT TRUTH 2026-03-31 09h16
 
 - Leitura rapida:
   1. branch alvo: `dev`
   2. metadata local ativa: `4.36`
   3. ultima tag publicada em `dev`: `v4.36`
-  4. os slices recentes de `numero_ssa`, importacao explicita, prova de update/query e protecao contra downgrade por arquivo antigo ja foram aterrados
+  4. ultimos slices relevantes ja aterrados:
+     - `02ec4a30` `DOC_SYNC: add ultra technical audit report`
+     - `b7af8aef` `STABILITY_PATCH: support non-text search columns`
+     - `d6fbb4fe` `STABILITY_PATCH: unify advanced filter state`
 - PASSO 0 OBRIGATORIO ANTES DE QUALQUER NOVA FRENTE:
   1. revisar checks e comentarios mais recentes do PR `dev -> main`
   2. confirmar worktree limpo
   3. confirmar que o gate do Kluster esta disponivel antes do primeiro patch; se o review remoto oscilar, registrar o bloqueio exato
-  4. atacar apenas o proximo `P1` com evidencia nova
+  4. atacar primeiro `svp03-targeted-repro`, salvo ordem contraria explicita do usuario
   5. so depois responder threads cujo status mudou de verdade
 - Prioridade operacional:
   1. `P0`: manter fechado o contrato de `numero_ssa` sem reabrir heuristica ou truncagem
   2. `P0`: manter fechado o contrato anti-downgrade de `situacao` em empate de `data_cadastro`
-  3. `P1`: revisar os hotspots restantes da thread principal apos o sprint GUI
-  4. `P1`: decidir paridade CLI vs GUI para diff/full import e discovery
-  5. `P1`: endurecer rollback/error boundary residual em `database*`
-  6. `P1`: auditar testes viciados no fluxo critico de dados/CLI
-  7. `P2`: convergir helper local de data em `database_upsert_logic.py`
+  3. `P1`: reproduzir tecnicamente o caso `svp-03` / SSA `202604849`
+  4. `P1`: definir historico de filtros para `undo` e `redo`
+  5. `P1`: agrupar ajustes pontuais de ordem/labels sem reabrir layout geral
+  6. `P1`: validar habilitacao minima de drag de cabecalho de colunas
+  7. `P2`: revisar hotspots restantes da thread principal apos o sprint GUI
+  8. `P2`: decidir paridade CLI vs GUI para diff/full import e discovery
+  9. `P2`: endurecer rollback/error boundary residual em `database*`
+  10. `P2`: auditar testes viciados no fluxo critico de dados/CLI
+  11. `P2`: convergir helper local de data em `database_upsert_logic.py`
 - Sprint GUI entregue nesta frente:
   0. implementacao runtime consolidada nos commits `b343c621` e `07ebfe1d`
   1. `[f]` no cabecalho sincronizado com filtros avancados equivalentes
@@ -43,11 +50,18 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   16. aba `Arvore` ganhou subabas `Grafo`, `Arvore` e `Mermaid`
   17. `_normalize_ssa_series` de detalhes foi reotimizado por valores unicos
   18. historico: subaba `Grafo` foi promovida de refinamento para entrega por comando explicito neste ciclo
+- Follow-up entregue apos o sprint GUI:
+  1. `filter_dataframe()` passou a aceitar `search_columns` nao textuais sem falso vazio
+  2. `setor_executor` deixou de manter estado persistente divergente entre combo rapido e painel avancado
+  3. `Solicitante` no painel avancado passou a reconhecer `responsavel_solicitante`
+  4. prefixo de area/setor de responsaveis ficou estavel contra subset filtrado
 - Follow-up do sprint GUI:
-  1. staging/copy de importacao externa ainda merece revisao de thread principal
-  2. render/table refresh apos filtros ainda e hotspot provavel de custo
-  3. validar no ambiente de operacao se a SSA `202600654` permanece `STE` apos ciclos parciais de atualizacao
-  4. se houver nova rodada de UX, avaliar clique por no na subaba `Grafo`
+  1. `svp-03` / SSA `202604849` ainda precisa reproducao dirigida
+  2. `undo`/`redo` de filtros ainda nao existe
+  3. ordem/labels pedidas pelo usuario ainda precisam agrupamento por arquivo
+  4. drag de colunas por cabecalho ainda precisa prova tecnica/local
+  5. render/table refresh apos filtros ainda e hotspot provavel de custo
+  6. staging/copy de importacao externa ainda merece revisao de thread principal
 - Estado tecnico fechado:
   1. o `.0` vazava por regras duplicadas no write path
   2. a normalizacao de storage foi centralizada
@@ -59,8 +73,14 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   2. snapshots antigos permanecem abaixo como historico
   3. o estado atual precisa ser continuado pelo topo, nao por colagem no historico
 - Validacao atual:
-  1. `py_compile`, `ruff` e `ty` verdes
-  2. `pytest -q tests` -> `993 passed, 4 skipped, 11 subtests passed`
+  1. baseline amplo registrado nos docs vivos:
+     - `pytest -q tests` -> `993 passed, 4 skipped, 11 subtests passed`
+  2. hotfix de busca nao textual:
+     - `py_compile`, `ruff`, `ty` verdes
+     - `pytest -q tests/test_app_logic_filter_contract.py` -> `20 passed`
+  3. patch de sincronizacao de filtros:
+     - `py_compile`, `ruff`, `ty` verdes
+     - `pytest -q tests/test_gui_filter_logic.py -k "...executor...responsavel..."` -> `8 passed`
 - Regras e proibicoes que o proximo ciclo deve respeitar sem excecao:
   1. nao criar branch, PR, worktree, pasta ou tag sem autorizacao explicita
   2. nao editar nada antes de aprovar plano curto com escopo e proibicoes
@@ -84,14 +104,17 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   9. `.github/instructions/kluster-code-verify.instructions.md`
   10. `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 - Commits recentes desta frente:
-  1. `194fc4e7` `STABILITY_PATCH: sync visual filter indicators`
-  2. `cd06941f` `STABILITY_PATCH: improve column filter prompt`
-  3. `31dc9c99` `STABILITY_PATCH: move derivadas sync off ui thread`
-  4. `9983a757` `STABILITY_PATCH: tighten async import gui contract`
-  5. `b343c621` `STABILITY_PATCH: finish gui sam status and details sprint`
-  6. `a34a54b3` `HOTFIX_BLOCKER: prevent same-date situacao downgrade`
-  7. `051d3b6e` `STABILITY_PATCH: add dedicated derivadas tree tab`
-  8. `07ebfe1d` `STABILITY_PATCH: add visual derivadas graph tab`
+  1. `02ec4a30` `DOC_SYNC: add ultra technical audit report`
+  2. `b7af8aef` `STABILITY_PATCH: support non-text search columns`
+  3. `d6fbb4fe` `STABILITY_PATCH: unify advanced filter state`
+  4. `194fc4e7` `STABILITY_PATCH: sync visual filter indicators`
+  5. `cd06941f` `STABILITY_PATCH: improve column filter prompt`
+  6. `31dc9c99` `STABILITY_PATCH: move derivadas sync off ui thread`
+  7. `9983a757` `STABILITY_PATCH: tighten async import gui contract`
+  8. `b343c621` `STABILITY_PATCH: finish gui sam status and details sprint`
+  9. `a34a54b3` `HOTFIX_BLOCKER: prevent same-date situacao downgrade`
+  10. `051d3b6e` `STABILITY_PATCH: add dedicated derivadas tree tab`
+  11. `07ebfe1d` `STABILITY_PATCH: add visual derivadas graph tab`
 - Estado do Kluster local:
   1. configuracao MCP local foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
   2. timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo

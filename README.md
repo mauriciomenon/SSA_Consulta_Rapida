@@ -2,20 +2,30 @@
 
 Release/tag publicada mais recente na branch `dev`: `v4.36`.
 
-## Current Truth (2026-03-30 12:20 -0300)
+## Current Truth (2026-03-31 09:16 -0300)
 
 - Estado operacional:
   - metadata local ativa: `4.36`
   - ultima tag publicada em `dev`: `v4.36`
-  - branch `dev` esta sincronizada com os slices recentes de `numero_ssa`, importacao explicita, provas de update/query e o sprint inicial de filtros/GUI descrito abaixo
-  - `4.36` ja esta publicado em metadata, runtime, docs ativos e release/tag
-  - docs centrais de import/upsert foram realinhados com o contrato runtime atual
+  - branch `dev` recebeu os slices recentes de auditoria tecnica, hotfix de busca em colunas nao textuais e sincronizacao de filtros avancados
+  - `4.36` segue publicado em metadata, runtime, docs ativos e release/tag
+  - docs centrais de import/upsert seguem alinhados com o contrato runtime atual
+  - a continuidade imediata de GUI/filtros agora esta concentrada em `svp-03`, historico `undo/redo`, ajustes pontuais de labels/ordem e drag de cabecalho
 - Contrato de update por SSA (resumo):
   - `STE` e `SCA` no banco sao imutaveis para update
   - usa timestamp de snapshot (`data_planilha`/`data_arquivo_origem`/nome do arquivo) antes de olhar `data_cadastro`
   - se o arquivo novo tem contexto mas nao tem timestamp confiavel, update e bloqueado (insert-only)
   - importacao explicita e ordenada por data de arquivo (antigo -> novo)
   - `data_cadastro` fica como criterio auxiliar/tie-break
+- Slices recentes apos o sprint GUI inicial:
+  - `02ec4a30` `DOC_SYNC: add ultra technical audit report`
+    - publicou `docs_saida/ULTRA_AUDITORIA_TECNICA_REPO_20260330.md` para continuidade entre maquinas
+  - `b7af8aef` `STABILITY_PATCH: support non-text search columns`
+    - `filter_dataframe()` passou a aceitar `search_columns` numericas/datetime sem retornar vazio por exclusao precoce de dtype
+  - `d6fbb4fe` `STABILITY_PATCH: unify advanced filter state`
+    - `setor_executor` agora sincroniza estado aplicado entre filtro rapido e painel avancado
+    - materializacao de `solicitante` aceita alias `responsavel_solicitante`
+    - prefixo de area/setor de responsaveis deixou de depender apenas do subconjunto filtrado
 - Sprint GUI entregue nesta frente:
   - implementacao runtime consolidada nos commits `b343c621` e `07ebfe1d`
   - `[f]` no cabecalho agora sincroniza filtros por coluna e filtros avancados
@@ -44,14 +54,23 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - tie-breaker por ranking de `situacao` no merge de mesma data
   - regressao coberta em testes de upsert e importacao explicita
 - Follow-up apos o sprint GUI:
+  - reproduzir de forma dirigida o caso `svp-03` / SSA `202604849`
+  - desenhar patch minimo para historico de filtros com `undo` e `redo`
+  - agrupar ajustes pontuais de ordem/labels sem reabrir layout geral
+  - confirmar suporte minimo para drag de cabecalho sem refactor amplo
   - continuar a varredura de chamadas pesadas restantes na thread principal
-  - revisar staging/copy da importacao externa para reduzir freeze em disco lento
-  - medir e reduzir custo de refresh/render apos filtros em lote
 - Validacao atual:
-  - `uv run --python 3.13 python -m py_compile` em tracked Python -> verde
-  - `uv run --python 3.13 ruff check .` -> verde
-  - `uv run --python 3.13 ty check` -> verde
-  - `uv run --python 3.13 python -m pytest -q tests` -> `993 passed, 4 skipped, 11 subtests passed`
+  - baseline amplo registrado em `2026-03-30`:
+    - `uv run --python 3.13 python -m py_compile` em tracked Python -> verde
+    - `uv run --python 3.13 ruff check .` -> verde
+    - `uv run --python 3.13 ty check` -> verde
+    - `uv run --python 3.13 python -m pytest -q tests` -> `993 passed, 4 skipped, 11 subtests passed`
+  - validacao focada do hotfix de busca nao textual:
+    - `py_compile`, `ruff`, `ty` -> verdes
+    - `pytest -q tests/test_app_logic_filter_contract.py` -> `20 passed`
+  - validacao focada do patch de sincronizacao de filtros:
+    - `py_compile`, `ruff`, `ty` -> verdes
+    - `pytest -q tests/test_gui_filter_logic.py -k "...executor...responsavel..."` -> `8 passed`
 - Contrato atual que nao deve ser reaberto:
   - `numero_ssa`, `derivada_de` e `numero_ssa_relacionada_*` seguem canonicos em texto
   - strings `"<NA>"`, `"None"`, `"nan"`, `"null"` e equivalentes nao devem ser persistidas como texto literal no banco
@@ -59,8 +78,12 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
 - Prioridades reais antes da proxima tag:
   - `P0`: manter fechado o contrato de `numero_ssa` sem reabrir truncagem, heuristica de exibicao ou teste synthetic
   - `P0`: manter fechado o contrato anti-downgrade de `situacao` para empate de `data_cadastro`
-  - `P1`: revisar os hotspots restantes da thread principal apos o sprint GUI
-  - `P1`: decidir a paridade CLI vs GUI para diff/full import e discovery
+  - `P1`: reproduzir o caso `svp-03` / SSA `202604849` com evidencia tecnica
+  - `P1`: definir historico de filtros para `undo` e `redo`
+  - `P1`: fechar ajustes pontuais de ordem/labels sem reabrir layout geral
+  - `P1`: validar habilitacao de drag de cabecalho de colunas
+  - `P2`: revisar hotspots restantes da thread principal apos o sprint GUI
+  - `P2`: decidir a paridade CLI vs GUI para diff/full import e discovery
   - `P2`: tratar hardening residual de rollback/error boundary em `database*`
   - `P2`: consolidar a reorganizacao de docs historicos apontada em `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 - Docs vivos para continuidade:
@@ -78,7 +101,8 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo nem review clean
 - Primeira acao obrigatoria na proxima conversa:
   - revisar o estado atual do PR `dev -> main` e os checks mais recentes
-  - continuar apenas pelos itens `P1/P2` ainda abertos com evidencia nova
+  - ler `docs/NEXT_CHAT_MIGRATION.md`, `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` e `docs/RECOVERY_BACKLOG.md` pelo topo vivo
+  - começar por `svp03-targeted-repro` antes de abrir outro patch de filtros
   - revalidar se existe residuo local antes de abrir frente nova
   - referencias operacionais:
     - `.github/instructions/kluster-code-verify.instructions.md`

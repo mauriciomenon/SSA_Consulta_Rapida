@@ -6,16 +6,12 @@
 - Esta pagina e a entrada curta da pasta `docs/`.
 - Navegacao oficial: `docs/INDEX.md`.
 - Current truth sincronizado com commits anteriores desta frente:
-  - filtros visuais da GUI foram sincronizados com filtros avancados
-  - a macro `Baixar` agora exclui `SAD/SCA/SES/STE`
-  - o prompt de filtro por coluna ganhou hint padronizado
-  - o sync manual de derivadas saiu do thread principal em runtime normal
-  - a barra superior ganhou `Abrir SAM`, status filtrado/total e semana centralizada
-  - o detalhe da SSA agora expande `situacao`, copia o numero por duplo clique e mostra derivadas em arvore textual
-  - `load_other_database()` passou a validar banco em background no runtime normal
-  - upsert passou a bloquear downgrade de `situacao` em empate de `data_cadastro`
-  - o dialogo de detalhes ganhou aba dedicada `Arvore` com subabas `Grafo`, `Arvore` e `Mermaid`, mantendo detalhes na metade inferior
-  - referencia de implementacao: commit `07ebfe1d`
+  - a auditoria tecnica grande do repo foi publicada em `docs_saida/ULTRA_AUDITORIA_TECNICA_REPO_20260330.md`
+  - `filter_dataframe()` voltou a aceitar `search_columns` numericas/datetime sem falso vazio
+  - `setor_executor` passou a compartilhar estado aplicado entre filtro rapido e filtro avancado
+  - `solicitante` no painel avancado agora reconhece alias `responsavel_solicitante`
+  - o prefixo de area/setor de responsaveis ficou estavel contra subconjuntos filtrados
+  - referencias de implementacao: `02ec4a30`, `b7af8aef`, `d6fbb4fe`
 
 ## Regras de interpretacao
 
