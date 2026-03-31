@@ -2965,7 +2965,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             details_viewport = getattr(self, "_details_text_viewport", None)
             if (
                 obj is details_viewport
-                and event.type() == QEvent.Type.MouseButtonDblClick
+                and event.type()
+                in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonDblClick)
             ):
                 pos = getattr(event, "position", None)
                 if callable(pos):

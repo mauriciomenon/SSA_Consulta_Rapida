@@ -864,6 +864,11 @@ def _on_details_anchor_clicked(window, url):
         return
     if not href:
         return
+    if href.startswith("copy-ssa:"):
+        target = href[len("copy-ssa:") :].strip().lstrip("/")
+        if target:
+            window._copy_ssa_to_clipboard(target)
+        return
     if href.startswith("derivadas:tree") or href.startswith("derivadas://tree"):
         current_ssa = getattr(window, "_details_current_ssa", None)
         _show_derivadas_tree_for_ssa(window, current_ssa)
@@ -1536,6 +1541,9 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             _render_target(target_href)
             return
         if href.startswith("copy-ssa:"):
+            target_href = href[len("copy-ssa:") :].strip().lstrip("/")
+            if target_href:
+                window._copy_ssa_to_clipboard(target_href)
             return
         if href.startswith("ssa-details:"):
             target_href = href[len("ssa-details:") :].strip().lstrip("/")

@@ -36,17 +36,21 @@ def get_gui_main_preferences_path() -> str:
 # Contract: these columns must always be available in GUI defaults and mappings.
 REQUIRED_DISPLAY_COLUMNS: List[str] = [
     "numero_ssa",
-    "situacao",
-    "semana_cadastro",
-    "semana_programada",
-    "derivada_de",
     "localizacao_codigo",
-    "data_cadastro",
-    "descricao_ssa",
+    "situacao",
     "setor_emissor",
     "setor_executor",
+    "derivada_de",
+    "data_cadastro",
+    "grau_prioridade_emissao",
     "solicitante",
+    "grau_prioridade_planejamento",
+    "semana_programada",
+    "total_de_reprogramacoes",
+    "execucao_parcial",
     "descricao_execucao",
+    "semana_executada",
+    "responsavel_execucao",
 ]
 
 DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
@@ -63,7 +67,7 @@ DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
     "setor_emissor": "Emis.",
     "solicitante": "Solicitante",
     "derivada_de": "Derivada de",
-    "semana_programada": "Prog.",
+    "semana_programada": "Sem. Prog.",
     "descricao_execucao": "Descricao Execucao",
     "descricao_localizacao": "Desc. Localizacao",
     "equipamento": "Equipamento",
@@ -74,6 +78,9 @@ DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
     "responsavel_execucao": "Resp. Exec.",
     "arquivo_origem": "Arquivo Origem",
     "data_arquivo_origem": "Data do Arquivo de Origem",
+    "total_de_reprogramacoes": "Total Reprog.",
+    "execucao_parcial": "Execucao Parcial",
+    "semana_executada": "Sem. Exec.",
 }
 
 DEFAULT_COLUMN_WIDTHS: Dict[str, int] = {
@@ -94,6 +101,10 @@ DEFAULT_COLUMN_WIDTHS: Dict[str, int] = {
     "grau_prioridade_planejamento": 95,
     "solicitante": 121,
     "data_arquivo_origem": 188,
+    "total_de_reprogramacoes": 120,
+    "execucao_parcial": 95,
+    "semana_executada": 95,
+    "responsavel_execucao": 95,
 }
 
 DEFAULT_GUI_SETTINGS: Dict[str, Any] = {
@@ -113,15 +124,19 @@ DEFAULT_GUI_SETTINGS: Dict[str, Any] = {
 }
 
 DEFAULT_GUI_MAIN_PREFERENCES: Dict[str, Any] = {
-    "display_columns": list(REQUIRED_DISPLAY_COLUMNS),
+    "display_columns": list(REQUIRED_DISPLAY_COLUMNS)
+    + [
+        "semana_cadastro",
+        "descricao_ssa",
+    ],
     "hidden_columns": [
         "descricao_localizacao",
         "equipamento",
         "origem",
         "servico_origem",
         "execucao_simples",
-        "grau_prioridade_emissao",
         "arquivo_origem",
+        "responsavel_programacao",
     ],
     "column_display_names": copy.deepcopy(DEFAULT_COLUMN_DISPLAY_NAMES),
     "column_widths": copy.deepcopy(DEFAULT_COLUMN_WIDTHS),
