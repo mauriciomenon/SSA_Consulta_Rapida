@@ -2383,9 +2383,9 @@ def _sort_responsavel_values(self, df_subset, values, resp_col: str, df_source=N
             continue
         for person_str, sec_str, count in grouped.itertuples(index=False):
             sector_counts.setdefault(person_str, {})
-            sector_counts[person_str][sec_str] = (
-                sector_counts[person_str].get(sec_str, 0) + int(count)
-            )
+            sector_counts[person_str][sec_str] = sector_counts[person_str].get(
+                sec_str, 0
+            ) + int(count)
 
     def _best_sector(person):
         counts = sector_counts.get(person, {})

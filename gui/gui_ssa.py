@@ -3132,7 +3132,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 advanced_filters["setor_executor_exclude_values"] = []
         else:
             advanced_filters.pop("setor_executor", None)
-            if clear_exclude and not advanced_filters.get("setor_executor_exclude_values"):
+            if clear_exclude and not advanced_filters.get(
+                "setor_executor_exclude_values"
+            ):
                 advanced_filters.pop("setor_executor_exclude_values", None)
         self._advanced_filters = advanced_filters
         self._advanced_filters_active = self._has_active_advanced_filters(
