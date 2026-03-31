@@ -2256,7 +2256,9 @@ class FilterGUISSAMixin:
             try:
                 search_text = str(self.search_input.text() or "").strip()
             except Exception as exc:
-                logger.debug("Falha ao obter busca atual para resumo de filtros: %s", exc)
+                logger.debug(
+                    "Falha ao obter busca atual para resumo de filtros: %s", exc
+                )
         if search_text:
             _merge_summary_actions(
                 summary_entries,
@@ -2356,9 +2358,7 @@ class FilterGUISSAMixin:
                 "!=",
                 action_keys=["setor_executor_exclude_values"],
             )
-            _add_adv(
-                "Emissor", adv.get("setor_emissor"), action_keys=["setor_emissor"]
-            )
+            _add_adv("Emissor", adv.get("setor_emissor"), action_keys=["setor_emissor"])
             _add_adv(
                 "Emissor",
                 adv.get("setor_emissor_exclude_values"),
@@ -2661,7 +2661,9 @@ class FilterGUISSAMixin:
         title = "Remover filtro"
         message = f"Deseja remover este filtro ativo?\n\n{item_text}"
         if os.environ.get("PYTEST_CURRENT_TEST"):
-            logger.debug("PYTEST_CURRENT_TEST set; mantendo confirmacao de remocao ativa.")
+            logger.debug(
+                "PYTEST_CURRENT_TEST set; mantendo confirmacao de remocao ativa."
+            )
         try:
             if buttons is not None:
                 reply = QMessageBox.question(

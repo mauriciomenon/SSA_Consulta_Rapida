@@ -520,9 +520,7 @@ class TestGUIFilterLogic:
         assert summary_widget is not None
         buttons = summary_widget.findChildren(QPushButton)
         search_button = next(
-            btn
-            for btn in buttons
-            if "Busca: 'Teste A'" in str(btn.text() or "")
+            btn for btn in buttons if "Busca: 'Teste A'" in str(btn.text() or "")
         )
 
         with patch(
@@ -543,9 +541,7 @@ class TestGUIFilterLogic:
         assert summary_widget is not None
         buttons = summary_widget.findChildren(QPushButton)
         exclude_button = next(
-            btn
-            for btn in buttons
-            if "situacao!=SCA/SES/STE" in str(btn.text() or "")
+            btn for btn in buttons if "situacao!=SCA/SES/STE" in str(btn.text() or "")
         )
 
         with patch(
@@ -566,9 +562,7 @@ class TestGUIFilterLogic:
         assert summary_widget is not None
         buttons = summary_widget.findChildren(QPushButton)
         search_button = next(
-            btn
-            for btn in buttons
-            if "Busca: 'Teste A'" in str(btn.text() or "")
+            btn for btn in buttons if "Busca: 'Teste A'" in str(btn.text() or "")
         )
 
         css = str(search_button.styleSheet() or "")
@@ -594,7 +588,9 @@ class TestGUIFilterLogic:
     def test_details_constants_place_localizacao_after_descricao(self):
         priority = list(gui_ssa.DETAIL_FIELD_PRIORITY)
         assert priority.index("descricao_ssa") < priority.index("localizacao_codigo")
-        assert priority.index("localizacao_codigo") == priority.index("descricao_ssa") + 1
+        assert (
+            priority.index("localizacao_codigo") == priority.index("descricao_ssa") + 1
+        )
         assert gui_ssa.DETAIL_DISPLAY_OVERRIDES["localizacao_codigo"] == "Localizacao"
 
     def test_details_html_renders_localizacao_label(self):

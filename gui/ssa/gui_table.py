@@ -641,7 +641,9 @@ def display_current_page(window, page_number, *, update_details=True):
                         logical_index = desired_visual_order.index(_column_name)
                         current_visual_index = int(header.visualIndex(logical_index))
                         if current_visual_index != desired_visual_index:
-                            header.moveSection(current_visual_index, desired_visual_index)
+                            header.moveSection(
+                                current_visual_index, desired_visual_index
+                            )
                 finally:
                     setattr(window, "_header_order_sync_suspended", False)
     except Exception as exc:
