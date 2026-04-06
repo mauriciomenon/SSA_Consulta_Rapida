@@ -207,34 +207,60 @@ class TestGUIMainConfiguration:
             with patch("gui.gui_config.os.path.exists", return_value=True):
                 config = load_gui_main_preferences()
 
-        assert (
-            config["column_widths"]["data_cadastro"]
-            == DEFAULT_COLUMN_WIDTHS["data_cadastro"]
-        )
-        assert (
-            config["column_widths"]["grau_prioridade_emissao"]
-            == DEFAULT_COLUMN_WIDTHS["grau_prioridade_emissao"]
-        )
-        assert (
-            config["column_widths"]["grau_prioridade_planejamento"]
-            == DEFAULT_COLUMN_WIDTHS["grau_prioridade_planejamento"]
-        )
-        assert (
-            config["column_widths"]["total_de_reprogramacoes"]
-            == DEFAULT_COLUMN_WIDTHS["total_de_reprogramacoes"]
-        )
-        assert (
-            config["column_widths"]["execucao_parcial"]
-            == DEFAULT_COLUMN_WIDTHS["execucao_parcial"]
-        )
-        assert (
-            config["column_widths"]["semana_executada"]
-            == DEFAULT_COLUMN_WIDTHS["semana_executada"]
-        )
-        assert (
-            config["column_widths"]["responsavel_execucao"]
-            == DEFAULT_COLUMN_WIDTHS["responsavel_execucao"]
-        )
+        assert config["column_widths"]["data_cadastro"] == 95
+        assert config["column_widths"]["grau_prioridade_emissao"] == 75
+        assert config["column_widths"]["grau_prioridade_planejamento"] == 83
+        assert config["column_widths"]["total_de_reprogramacoes"] == 120
+        assert config["column_widths"]["execucao_parcial"] == 120
+        assert config["column_widths"]["semana_executada"] == 120
+        assert config["column_widths"]["responsavel_execucao"] == 120
+        assert DEFAULT_COLUMN_WIDTHS["responsavel_execucao"] != 120
+
+    def test_load_gui_main_preferences_preserves_explicit_hidden_required_columns(self):
+        partial_config = {
+            "display_columns": ["numero_ssa", "situacao"],
+            "hidden_columns": [
+                "grau_prioridade_emissao",
+                "execucao_parcial",
+                "responsavel_execucao",
+            ],
+            "column_display_names": {},
+            "column_widths": {},
+            "gui_settings": {},
+        }
+
+        from gui.gui_config import load_gui_main_preferences
+
+        with patch(
+            "gui.gui_config.open", mock_open(read_data=json.dumps(partial_config))
+        ):
+            with patch("gui.gui_config.os.path.exists", return_value=True):
+                config = load_gui_main_preferences()
+
+        assert "grau_prioridade_emissao" not in config["display_columns"]
+        assert "execucao_parcial" not in config["display_columns"]
+        assert "responsavel_execucao" not in config["display_columns"]
+        assert "grau_prioridade_emissao" in config["hidden_columns"]
+        assert "execucao_parcial" in config["hidden_columns"]
+        assert "responsavel_execucao" in config["hidden_columns"]
+
+    def test_load_gui_main_preferences_preserves_explicit_data_arquivo_width(self):
+        partial_config = {
+            "display_columns": ["numero_ssa", "situacao", "data_arquivo_origem"],
+            "column_display_names": {},
+            "column_widths": {"data_arquivo_origem": 100},
+            "gui_settings": {},
+        }
+
+        from gui.gui_config import load_gui_main_preferences
+
+        with patch(
+            "gui.gui_config.open", mock_open(read_data=json.dumps(partial_config))
+        ):
+            with patch("gui.gui_config.os.path.exists", return_value=True):
+                config = load_gui_main_preferences()
+
+        assert config["column_widths"]["data_arquivo_origem"] == 100
 
     def test_gui_main_preferences_isolation_from_cli(self):
         """Verifica que as configuracoes sao independentes do CLI."""

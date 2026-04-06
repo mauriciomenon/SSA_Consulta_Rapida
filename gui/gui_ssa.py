@@ -54,6 +54,7 @@ if project_root not in sys.path:
 from core.config_manager import COLUMN_AFFINITY_SCORES  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS  # noqa: E402
+from gui.gui_config import get_gui_main_preferences_path  # noqa: E402
 from gui.gui_config import load_gui_main_preferences  # noqa: F401 - re-export for compatibility
 from gui.gui_config import GUI_MAIN_PREFERENCES, REQUIRED_DISPLAY_COLUMNS
 
@@ -1142,7 +1143,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _persist_gui_preferences(self):
         try:
             atomic_write_json_file(
-                os.path.join(project_root, "config", "gui_main_preferences.json"),
+                get_gui_main_preferences_path(),
                 GUI_MAIN_PREFERENCES,
                 indent=2,
                 ensure_ascii=False,
@@ -3033,7 +3034,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         snapshot["display_columns"] = list(self.visible_columns)
         try:
             atomic_write_json_file(
-                os.path.join(project_root, "config", "gui_main_preferences.json"),
+                get_gui_main_preferences_path(),
                 snapshot,
                 indent=2,
                 ensure_ascii=False,

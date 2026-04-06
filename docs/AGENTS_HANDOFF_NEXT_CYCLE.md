@@ -2,6 +2,34 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-04-06 00h31
+
+- Leitura rapida:
+  1. branch alvo confirmada: `dev`
+  2. `HEAD...origin/dev = 00` em `4b91720c`
+  3. stash preservado fora de `dev`:
+     - `stash@{0}` `On main: pre-dev-switch-display-mappings-20260406`
+  4. ultimo slice fechado nesta rodada:
+     - hardening de preferencias GUI para preservar ocultacao do usuario, widths explicitas e path correto de config
+  5. arquivos tocados:
+     - `gui/gui_config.py`
+     - `gui/gui_ssa.py`
+     - `tests/test_gui_main_configuration.py`
+     - `tests/test_gui_preferences_atomic_write.py`
+  6. validacao:
+     - `py_compile`, `ruff`, `ty` verdes
+     - `pytest` focado -> `5 passed`
+  7. gate remoto indisponivel:
+     - `kluster` nao existe neste host (`command not found`)
+- Regra operacional importante desta retomada:
+  1. nao confundir o stash criado no `main` com trabalho pendente do `dev`
+  2. nao reaplicar `display_mappings.json` sem decidir primeiro se ele deve sair do versionamento
+  3. o proximo slice funcional deve voltar para bug real de runtime/importacao, nao para layout GUI
+- Proximo foco recomendado:
+  1. continuar pela frente funcional escolhida pelo usuario
+  2. se a frente for importacao, reabrir diagnostico no contexto atual do `dev`
+  3. se a frente for hygiene de repo, tratar `dev_env/config/display_mappings.json` em slice separado
+
 ## CURRENT TRUTH 2026-03-31 09h49
 
 - Leitura rapida:
@@ -2209,4 +2237,3 @@ Este handoff deve carregar apenas o topo vivo, para evitar divergencia e duplica
 5. colar estado atual no fim deste arquivo degrada leitura automatica e manutencao futura.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

@@ -5,6 +5,28 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-06 00:31 - GUI preference hardening
+
+Escopo fechado neste slice:
+1. revisar os ultimos commits funcionais com `Co-authored-by: Copilot` em `dev`
+2. confirmar 3 regressos reais na persistencia de preferencias GUI:
+   - colunas promovidas a `required` reexibiam campos ocultados pelo usuario
+   - migracao de widths sobrescrevia larguras legitimas por heuristica numerica
+   - persistencia de preferencias escrevia em path fixo e ignorava `SSA_CONFIG_DIR`
+3. aplicar patch minimo em `gui/gui_config.py` e `gui/gui_ssa.py`
+4. travar regressao com testes em `tests/test_gui_main_configuration.py` e `tests/test_gui_preferences_atomic_write.py`
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile ...` verde
+2. `uv run --python 3.13 ruff check ...` verde
+3. `uv run --python 3.13 ty check ...` verde
+4. `uv run --python 3.13 pytest -q tests/test_gui_main_configuration.py tests/test_gui_preferences_atomic_write.py tests/test_gui_filter_logic.py -k "default_display_columns or widths_and_short_labels or gui_config_exposes_data_arquivo_origem_label_and_width or flush_column_width_preferences or persist_visible_columns_order or quick_setor_executor_combo_reflects_advanced_selection"` -> `5 passed`
+
+Observacoes operacionais:
+1. `kluster` segue indisponivel neste host atual (`command not found`)
+2. para entrar em `dev`, foi criado stash preservado no `main`:
+   - `stash@{0}` `pre-dev-switch-display-mappings-20260406`
+
 ### P0 - manter o topo vivo correto
 1. nao reabrir contrato fechado de `numero_ssa` sem planilha real + pipeline real + teste cross-layer
 2. nao manter docs vivos stale sobre slices ja fechados ou sobre worktree antigo
@@ -8405,4 +8427,3 @@ Historical review-thread entries were removed here to avoid duplicate pending co
 5. quebrar essa regra volta a misturar verdade atual com arqueologia e piora manutencao, edicao e triagem.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-
