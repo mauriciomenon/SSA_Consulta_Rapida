@@ -51,9 +51,7 @@ def test_persist_visible_columns_order_uses_resolved_gui_config_path(
 
     monkeypatch.setattr(gui_ssa, "atomic_write_json_file", _fake_atomic)
 
-    fake_window = cast(
-        Any, SimpleNamespace(visible_columns=["numero_ssa", "situacao"])
-    )
+    fake_window = cast(Any, SimpleNamespace(visible_columns=["numero_ssa", "situacao"]))
 
     gui_ssa.SSAMainWindow._persist_visible_columns_order(fake_window)
 
