@@ -107,16 +107,6 @@ DEFAULT_COLUMN_WIDTHS: Dict[str, int] = {
     "responsavel_execucao": 150,
 }
 
-LEGACY_MANAGED_COLUMN_WIDTHS: Dict[str, set[int]] = {
-    "data_cadastro": {95},
-    "grau_prioridade_emissao": {75, 95},
-    "grau_prioridade_planejamento": {83, 110},
-    "total_de_reprogramacoes": {108, 120},
-    "execucao_parcial": {104, 120},
-    "semana_executada": {84, 120},
-    "responsavel_execucao": {120},
-}
-
 DEFAULT_GUI_SETTINGS: Dict[str, Any] = {
     "page_size": 50,
     "auto_load": False,
@@ -233,19 +223,6 @@ def _build_fallback_label(column_name: str) -> str:
     return column_name.replace("_", " ").strip().title()
 
 
-def _apply_managed_width_migrations(
-    widths: Dict[str, int], loaded_widths: Dict[str, Any] | None
-) -> None:
-    if not isinstance(loaded_widths, dict):
-        return
-    for column, legacy_values in LEGACY_MANAGED_COLUMN_WIDTHS.items():
-        raw_value = loaded_widths.get(column)
-        if not isinstance(raw_value, (int, float)):
-            continue
-        if int(raw_value) in legacy_values:
-            widths[column] = DEFAULT_COLUMN_WIDTHS[column]
-
-
 def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
     merged = copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
 
@@ -255,6 +232,11 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
             continue
         merged[key] = copy.deepcopy(value)
 
+    loaded_hidden = loaded_config.get("hidden_columns")
+    explicit_hidden_columns = set()
+    if isinstance(loaded_hidden, list):
+        explicit_hidden_columns = set(_unique_str_list(loaded_hidden))
+
     loaded_display = loaded_config.get("display_columns")
     if isinstance(loaded_display, list):
         display_columns = _unique_str_list(loaded_display)
@@ -263,11 +245,12 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
     if not display_columns:
         display_columns = list(DEFAULT_GUI_MAIN_PREFERENCES["display_columns"])
     for required in REQUIRED_DISPLAY_COLUMNS:
+        if required in explicit_hidden_columns:
+            continue
         if required not in display_columns:
             display_columns.append(required)
     merged["display_columns"] = display_columns
 
-    loaded_hidden = loaded_config.get("hidden_columns")
     if isinstance(loaded_hidden, list):
         hidden_columns = _unique_str_list(loaded_hidden)
     else:
@@ -325,16 +308,10 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
                 continue
             if isinstance(value, (int, float)) and value > 0:
                 widths[key.strip()] = int(value)
-    _apply_managed_width_migrations(widths, loaded_widths)
     widths.setdefault("#", DEFAULT_COLUMN_WIDTHS["#"])
     for column in display_columns:
         if column not in widths:
             widths[column] = DEFAULT_COLUMN_WIDTHS.get(column, 120)
-    if "data_arquivo_origem" in widths:
-        widths["data_arquivo_origem"] = max(
-            int(widths["data_arquivo_origem"]),
-            DEFAULT_COLUMN_WIDTHS["data_arquivo_origem"],
-        )
     merged["column_widths"] = widths
 
     settings = copy.deepcopy(DEFAULT_GUI_SETTINGS)

@@ -2,6 +2,38 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-04-06 00h31
+
+### Estado de repositorio e runtime
+
+1. branch ativa confirmada: `dev`
+2. `HEAD == origin/dev` confirmado em `4b91720c`
+3. worktree em `dev` esta limpo
+4. stash preservado fora desta baseline:
+   - `stash@{0}` `On main: pre-dev-switch-display-mappings-20260406`
+5. o slice desta rodada corrigiu 3 regressos de preferencias GUI:
+   - colunas explicitamente ocultadas deixaram de reaparecer por forcacao de `required`
+   - larguras explicitas deixaram de ser sobrescritas por heuristica numerica
+   - persistencia de preferencias/ordem de colunas passou a respeitar `SSA_CONFIG_DIR`
+6. arquivos tocados no slice:
+   - `gui/gui_config.py`
+   - `gui/gui_ssa.py`
+   - `tests/test_gui_main_configuration.py`
+   - `tests/test_gui_preferences_atomic_write.py`
+7. `kluster` segue indisponivel neste host atual (`command not found`)
+
+### Validacao relevante desta rodada
+
+1. `py_compile`, `ruff`, `ty` -> verdes
+2. `pytest` focado -> `5 passed`
+3. nenhum patch de importacao foi aberto nesta rodada; o foco foi apenas higiene de preferencias GUI
+
+### Proximo passo recomendado
+
+1. voltar ao escopo funcional de importacao somente depois desta baseline de GUI ficar publicada
+2. priorizar reproducao de `svp-03` / SSA `202604849` ou o proximo bug funcional explicitamente escolhido
+3. manter separado qualquer follow-up de `.gitignore`/`dev_env/config/display_mappings.json`
+
 ## CURRENT TRUTH 2026-03-31 09h49
 
 ### Estado de repositorio e runtime
@@ -2642,4 +2674,3 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 5. colagem solta no fim deste arquivo aumenta custo de leitura, cria contexto stale e ja causou regressao de processo.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-
