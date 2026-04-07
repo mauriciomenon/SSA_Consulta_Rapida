@@ -39,7 +39,7 @@ def get_gui_main_preferences_path() -> str:
 
 
 def get_gui_main_preferences_template_path() -> str:
-    """Return versioned template path used to seed local GUI preferences."""
+    """Return versioned reference file path for GUI preferences."""
     return GUI_MAIN_PREFERENCES_TEMPLATE_PATH
 
 
@@ -395,52 +395,14 @@ def _has_minimum_preferences_integrity(raw_config: Any) -> bool:
     return True
 
 
-def _load_gui_main_preferences_seed_payload() -> Dict[str, Any]:
-    """Load versioned GUI preference template, falling back to hard defaults."""
-    template_path = get_gui_main_preferences_template_path()
-    if not os.path.exists(template_path):
-        logger.warning(
-            "GUI preferences template not found at %s, using hard defaults.",
-            template_path,
-        )
-        return _hard_default_preferences_copy()
-
-    try:
-        with open(template_path, "r", encoding="utf-8") as handle:
-            loaded_template = json.load(handle)
-    except json.JSONDecodeError as exc:
-        logger.warning(
-            "Unable to parse GUI preferences template at %s: %s",
-            template_path,
-            exc,
-        )
-        return _hard_default_preferences_copy()
-    except OSError as exc:
-        logger.warning(
-            "Unable to read GUI preferences template at %s: %s",
-            template_path,
-            exc,
-        )
-        return _hard_default_preferences_copy()
-
-    if not _has_minimum_preferences_integrity(loaded_template):
-        logger.warning(
-            "GUI preferences template integrity check failed at %s; using hard defaults.",
-            template_path,
-        )
-        return _hard_default_preferences_copy()
-
-    return _merge_preferences(loaded_template)
-
-
 def _create_gui_main_preferences_file(config_path: str) -> None:
-    """Create default GUI preferences file atomically."""
+    """Create default GUI preferences file atomically from code defaults."""
     config_dir = os.path.dirname(config_path)
     if config_dir:
         os.makedirs(config_dir, exist_ok=True)
     atomic_write_json_file(
         config_path,
-        _load_gui_main_preferences_seed_payload(),
+        _hard_default_preferences_copy(),
         indent=2,
         ensure_ascii=False,
     )
@@ -477,7 +439,7 @@ def load_gui_main_preferences(
     *,
     auto_create: bool = False,
 ) -> Dict[str, Any]:
-    """Load valid GUI preferences or fall back to the versioned template/default."""
+    """Load valid GUI preferences or fall back to code defaults."""
     if not config_path:
         config_path = get_gui_main_preferences_path()
     if not os.path.exists(config_path):
@@ -497,23 +459,23 @@ def load_gui_main_preferences(
                     config_path,
                     exc,
                 )
-        return _load_gui_main_preferences_seed_payload()
+        return _hard_default_preferences_copy()
 
     try:
         with open(config_path, "r", encoding="utf-8") as handle:
             loaded_config = json.load(handle)
     except json.JSONDecodeError as exc:
         logger.error("Unable to parse GUI preferences at %s: %s", config_path, exc)
-        return _load_gui_main_preferences_seed_payload()
+        return _hard_default_preferences_copy()
     except OSError as exc:
         logger.error("Unable to read GUI preferences at %s: %s", config_path, exc)
-        return _load_gui_main_preferences_seed_payload()
+        return _hard_default_preferences_copy()
 
     if not isinstance(loaded_config, dict):
         logger.warning(
             "Invalid GUI preference structure at %s, using defaults.", config_path
         )
-        return _load_gui_main_preferences_seed_payload()
+        return _hard_default_preferences_copy()
     if not _has_minimum_preferences_integrity(loaded_config):
         logger.warning(
             "GUI preferences integrity check failed at %s, using defaults.", config_path
@@ -531,7 +493,7 @@ def load_gui_main_preferences(
                     config_path,
                     exc,
                 )
-        return _load_gui_main_preferences_seed_payload()
+        return _hard_default_preferences_copy()
 
     return _merge_preferences(loaded_config)
 

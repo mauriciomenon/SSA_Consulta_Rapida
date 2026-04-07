@@ -6,12 +6,12 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. baseline mais recente desta frente consolidou hierarquia de preferencias GUI com template versionado
+  2. baseline mais recente desta frente consolidou hierarquia de preferencias GUI e corrigiu a semantica do `.example`
   3. stash preservado fora de `dev`:
      - `stash@{0}` `On main: pre-dev-switch-display-mappings-20260406`
   4. este slice fez:
-     - template versionado `config/gui_main_preferences.json.example`
-     - bootstrap do arquivo local de preferencias a partir do template
+     - arquivo versionado de referencia `config/gui_main_preferences.json.example`
+     - bootstrap do arquivo local de preferencias a partir dos defaults em memoria do codigo
      - precedencia de largura persistida sobre largura automatica
      - baseline automatico do `SimpleWidthManager` amarrado a `DEFAULT_COLUMN_WIDTHS`
      - doc tecnico dedicado `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
@@ -38,12 +38,12 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
 - Regra operacional importante desta retomada:
   1. nao confundir o stash criado no `main` com trabalho pendente do `dev`
   2. nao reaplicar `display_mappings.json` sem decidir primeiro se ele deve sair do versionamento
-  3. o arquivo local `config/gui_main_preferences.json` continua sendo override de runtime, mas agora o repo tambem tem template versionado para auditoria
+  3. o arquivo local `config/gui_main_preferences.json` continua sendo override de runtime, e o repo agora tem um `.example` apenas como referencia de auditoria
   4. o comportamento agora precisa ser lido assim, sem ambiguidade:
-     - se faltar `config/gui_main_preferences.json` ou o runtime mudar `SSA_CONFIG_DIR`, o seed vem do template versionado
+     - se faltar `config/gui_main_preferences.json` ou o runtime mudar `SSA_CONFIG_DIR`, o runtime usa os defaults em memoria do codigo
      - se existir largura persistida valida, ela ganha da largura calculada em runtime
      - o fallback local da tabela e o baseline automatico partem do contrato canonico em `gui/gui_config.py`
-     - arquivo local tem a ultima palavra; template versionado documenta o padrao; codigo define a base
+     - arquivo local tem a ultima palavra; o `.example` documenta o padrao; codigo define a base
 - Proximo foco recomendado:
   1. separar claramente no patch futuro:
      - ordem/labels/defaults de produto

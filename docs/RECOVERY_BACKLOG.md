@@ -5,13 +5,13 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
-## Update 2026-04-07 00:30 - GUI preferences hierarchy, template versioned seed, and canonical width baseline
+## Update 2026-04-07 08:00 - GUI preferences hierarchy, reference file, and canonical width baseline
 
 Escopo fechado neste slice:
 1. manter intactos `REQUIRED_DISPLAY_COLUMNS` e `DEFAULT_COLUMN_WIDTHS` em `gui/gui_config.py`
-2. subir template versionado:
+2. subir arquivo versionado de referencia:
    - `config/gui_main_preferences.json.example`
-3. fazer o bootstrap de `gui_main_preferences.json` usar o template versionado
+3. corrigir o runtime para que `gui_main_preferences.json.example` nao seja usado como seed
 4. fazer a tabela respeitar primeiro a largura persistida no arquivo de preferencias
 5. alinhar o baseline automatico do `SimpleWidthManager` com `DEFAULT_COLUMN_WIDTHS`, sem reabrir os numeros canonicos
 6. documentar a estrutura completa em:
@@ -28,20 +28,20 @@ Arquivos tocados no slice:
 8. `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
 
 O que mudou em termos de comportamento:
-1. se `config/gui_main_preferences.json` faltar ou o runtime estiver em outro `SSA_CONFIG_DIR`, o seed vem do template versionado, nao so de defaults em memoria
+1. se `config/gui_main_preferences.json` faltar ou o runtime estiver em outro `SSA_CONFIG_DIR`, o runtime cai para os defaults em memoria do codigo
 2. se existir largura persistida valida para a coluna, ela ganha da largura calculada em runtime
 3. o fallback local de largura da tabela foi amarrado ao contrato canonico de `gui/gui_config.py`, sem numeros paralelos soltos em `gui/ssa/gui_table.py`
 4. o baseline automatico do `SimpleWidthManager` agora parte de `DEFAULT_COLUMN_WIDTHS`; o crescimento automatico so adiciona espaco por cima desse baseline
 5. o contrato fica explicito:
    - arquivo local tem a ultima palavra
-   - template versionado documenta o padrao
+   - arquivo `.example` documenta o padrao e deve espelhar o codigo
    - codigo define o contrato base
 
 Validacao desta rodada:
 1. `uv run --python 3.13 python -m py_compile gui/gui_config.py gui/ssa/gui_table.py gui/simple_width_manager.py tests/test_gui_main_configuration.py tests/test_gui_filter_logic.py tests/test_streamlit_filter_cache.py` -> verde
 2. `uv run --python 3.13 ruff check gui/gui_config.py gui/ssa/gui_table.py gui/simple_width_manager.py tests/test_gui_main_configuration.py tests/test_gui_filter_logic.py tests/test_streamlit_filter_cache.py` -> verde
 3. `uv run --python 3.13 ty check gui/gui_config.py gui/ssa/gui_table.py gui/simple_width_manager.py tests/test_gui_main_configuration.py tests/test_gui_filter_logic.py tests/test_streamlit_filter_cache.py` -> verde
-4. `uv run --python 3.13 pytest -q tests/test_gui_main_configuration.py tests/test_gui_preferences_atomic_write.py tests/test_gui_filter_logic.py tests/test_streamlit_filter_cache.py -k "auto_create_uses_versioned_template or persist_visible_columns_order_uses_resolved_gui_config_path or persist_gui_preferences_uses_atomic_writer or table_render_prefers_saved_gui_width_over_computed_width or on_header_clicked_preserves_column_widths_after_sort or flush_column_width_preferences_persists_changed_values or preserves_explicit_hidden_required_columns or preserves_explicit_data_arquivo_width or compute_optimal_widths_uses_canonical_defaults_for_fixed_columns or simple_width_manager_uses_canonical_baseline_for_fixed_columns or simple_cache_manager_keeps_maximum_of_five_entries"` -> `11 passed, 276 deselected`
+4. `uv run --python 3.13 pytest -q tests/test_gui_main_configuration.py tests/test_gui_preferences_atomic_write.py tests/test_gui_filter_logic.py tests/test_streamlit_filter_cache.py -k "auto_create_uses_code_defaults or persist_visible_columns_order_uses_resolved_gui_config_path or persist_gui_preferences_uses_atomic_writer or table_render_prefers_saved_gui_width_over_computed_width or on_header_clicked_preserves_column_widths_after_sort or flush_column_width_preferences_persists_changed_values or preserves_explicit_hidden_required_columns or preserves_explicit_data_arquivo_width or compute_optimal_widths_uses_canonical_defaults_for_fixed_columns or simple_width_manager_uses_canonical_baseline_for_fixed_columns or simple_cache_manager_keeps_maximum_of_five_entries or reference_file_matches_code_defaults"` -> `11 passed, 276 deselected`
 
 Observacoes operacionais:
 1. `kluster` validou o escopo tocado sem blocker funcional deste slice; apos os ajustes restaram apenas debts estruturais antigos em `gui/simple_width_manager.py` e o debt semantico de nome do filtro `exclude_ste_sca`, todos fora deste escopo

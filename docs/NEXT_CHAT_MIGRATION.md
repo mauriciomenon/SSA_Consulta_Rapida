@@ -7,12 +7,12 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. `HEAD` local inclui o slice de hierarquia de preferencias GUI e template versionado
+2. `HEAD` local inclui o slice de hierarquia de preferencias GUI e a correcao de que o `.example` nao participa do runtime
 3. worktree do slice foi validado localmente com `py_compile`, `ruff`, `ty` e `pytest` focado
 4. stash preservado fora desta baseline:
    - `stash@{0}` `On main: pre-dev-switch-display-mappings-20260406`
 5. este slice consolidou a hierarquia correta de preferencias GUI:
-   - template versionado em `config/gui_main_preferences.json.example`
+   - arquivo versionado de referencia em `config/gui_main_preferences.json.example`
    - arquivo local efetivo continua `config/gui_main_preferences.json`
    - largura persistida do arquivo agora prevalece sobre largura automatica da tabela
    - o baseline automatico do `SimpleWidthManager` agora parte de `DEFAULT_COLUMN_WIDTHS`, sem numeros paralelos para colunas fixas
@@ -30,10 +30,10 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 8. doc tecnico novo desta frente:
    - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
    - o doc agora explicita, em texto direto:
-     - seed por template versionado quando faltar arquivo local ou mudar `SSA_CONFIG_DIR`
+     - runtime cai para defaults em memoria quando faltar arquivo local ou mudar `SSA_CONFIG_DIR`
      - largura persistida vencendo a largura automatica
      - fallback local da tabela preso ao contrato canonico
-     - arquivo local com ultima palavra, template documentando o padrao e codigo definindo a base
+     - arquivo local com ultima palavra, `.example` documentando o padrao e codigo definindo a base
 9. PR ativo desta baseline:
    - `#46` `dev -> main`
    - `mergeStateStatus=UNSTABLE`

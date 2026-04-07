@@ -1,19 +1,19 @@
 # GUI Main Preferences Structure
 
-Este documento descreve a estrutura canonica de preferencias da GUI principal e a hierarquia de decisao entre codigo, template versionado, arquivo local e runtime.
+Este documento descreve a estrutura canonica de preferencias da GUI principal e a hierarquia de decisao entre codigo, arquivo local, referencia versionada e runtime.
 
 ## Objetivo
 
 1. manter nomes, ordem e larguras de colunas amarrados de forma simples
 2. garantir que o arquivo de preferencias local tenha a ultima palavra quando existir
 3. evitar dependencia de JSON local ignorado como unica fonte humana-legivel do contrato
-4. preservar fallback seguro quando o arquivo local estiver ausente ou invalido
+4. preservar fallback seguro quando o arquivo local estiver ausente ou invalido, sempre a partir do codigo
 
 ## Arquivos envolvidos
 
 1. contrato default em codigo:
    - `gui/gui_config.py`
-2. template versionado do padrao:
+2. arquivo versionado de referencia:
    - `config/gui_main_preferences.json.example`
 3. arquivo local efetivo da GUI:
    - `config/gui_main_preferences.json`
@@ -42,13 +42,14 @@ Em `gui/gui_config.py` ficam os contratos base:
      - `column_widths`
      - `gui_settings`
 
-### 2. Template versionado
+### 2. Arquivo versionado de referencia
 
 `config/gui_main_preferences.json.example` existe para:
 
 1. documentar o padrao completo de forma legivel
-2. servir como seed para criar o arquivo local real quando ele nao existir
-3. permitir auditoria de contrato sem depender do arquivo ignorado do usuario
+2. servir como referencia para o usuario editar manualmente se quiser
+3. permanecer igual ao que esta definido no codigo, ate mudanca explicita de produto
+4. permitir auditoria de contrato sem depender do arquivo ignorado do usuario
 
 ### 3. Arquivo local efetivo
 
@@ -59,7 +60,7 @@ Regras:
 1. pode divergir localmente por gosto do usuario
 2. nao deve ser usado como unica fonte de release
 3. quando existir e estiver valido, prevalece sobre o default em codigo
-4. quando estiver ausente, a GUI usa o template versionado como seed/fallback
+4. quando estiver ausente, a GUI usa os defaults em memoria do codigo
 
 ### 4. Runtime da tabela
 
@@ -73,22 +74,23 @@ Isso evita que o algoritmo automatico derrube uma largura explicitamente escolhi
 
 ## O que mudou em termos de comportamento
 
-1. se `config/gui_main_preferences.json` faltar ou o runtime estiver em outro `SSA_CONFIG_DIR`, o seed vem do template versionado, nao so de defaults em memoria
+1. se `config/gui_main_preferences.json` faltar ou o runtime estiver em outro `SSA_CONFIG_DIR`, o runtime cai para os defaults em memoria do codigo
 2. se existir largura persistida valida para a coluna, ela ganha da largura calculada em runtime
 3. o fallback local de largura da tabela foi amarrado ao contrato canonico de `gui/gui_config.py`, sem numeros paralelos soltos em `gui/ssa/gui_table.py`
 4. o baseline automatico do `SimpleWidthManager` agora parte de `DEFAULT_COLUMN_WIDTHS`; o crescimento automatico so adiciona espaco por cima desse baseline, sem reabrir os numeros canonicos
 5. o contrato fica assim:
    - arquivo local tem a ultima palavra
-   - template versionado documenta o padrao
+   - o arquivo `.example` documenta o padrao e deve espelhar o codigo
    - codigo define o contrato base
 
 ## O que este desenho fez de forma diferente do plano estrutural maior
 
 1. este trabalho nao mudou `REQUIRED_DISPLAY_COLUMNS`
 2. este trabalho nao mudou `DEFAULT_COLUMN_WIDTHS`
-3. o slice 1 fechou primeiro a hierarquia de preferencias, o template versionado e a precedencia da largura salva
+3. o slice 1 fechou primeiro a hierarquia de preferencias e a precedencia da largura salva
 4. o slice 2 atacou apenas o desalinhamento remanescente do width manager automatico, fazendo-o partir do baseline canonico em vez de manter numeros paralelos
-5. isso foi propositalmente menor do que a critica estrutural mais ampla feita aos commits do Copilot: o objetivo aqui foi corrigir a arquitetura minima sem reabrir a sua decisao de produto sobre ordem e tamanhos
+5. este ajuste corretivo remove a semantica errada que fazia o runtime usar o `.example` como seed
+6. isso foi propositalmente menor do que a critica estrutural mais ampla feita aos commits do Copilot: o objetivo aqui foi corrigir a arquitetura minima sem reabrir a sua decisao de produto sobre ordem e tamanhos
 
 ## Schema logico do JSON
 
@@ -180,17 +182,15 @@ Uso:
 ### Caso 2: arquivo local nao existe
 
 1. a GUI resolve o caminho local efetivo
-2. usa `config/gui_main_preferences.json.example` como seed
-3. se `auto_create=True`, cria o arquivo local a partir desse template
-4. se o template falhar, cai no hard default em memoria
+2. usa os defaults em memoria do codigo
+3. se `auto_create=True`, cria o arquivo local a partir desses defaults
 
 ### Caso 3: arquivo local esta invalido
 
 1. loga erro objetivo
 2. nao tenta remendo chave-a-chave nem recuperacao silenciosa
-3. cai no template versionado
-4. se `auto_create=True`, o arquivo local pode ser recriado a partir do template
-5. se o template tambem falhar, cai no hard default em memoria
+3. cai nos defaults em memoria do codigo
+4. se `auto_create=True`, o arquivo local pode ser recriado a partir desses defaults
 
 ## Caminho resolvido por ambiente
 
@@ -202,7 +202,7 @@ Isso permite:
 2. testes isolados
 3. empacotamento com raiz de config redirecionada
 
-O template versionado continua vindo do repo.
+O arquivo `.example` continua vindo do repo, mas nao participa do runtime.
 
 ## Amarracao entre nome, ordem e largura
 
@@ -240,7 +240,7 @@ Esse nome e a chave unica usada em:
 ## O que este desenho evita
 
 1. helper paliativo escondido em runtime
-2. depender de JSON ignorado sem template versionado
+2. depender de JSON ignorado sem referencia versionada
 3. largura automatica derrotando escolha explicita do usuario
 4. perda de rastreabilidade sobre nome, ordem e tamanho
 
