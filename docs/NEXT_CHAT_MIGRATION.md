@@ -27,6 +27,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - aceita `left|center|right`
    - default canonico `center`
    - valor invalido volta para `center`
+   - menu atual: `Opcoes -> Alinhamento da tabela`
 6. o contrato de largura nao mudou:
    - `DEFAULT_COLUMN_WIDTHS` intacto
    - largura persistida continua vencendo largura automatica
@@ -57,8 +58,9 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - ajuste pontual da matriz `short/medium/long`
    - teste de regressao correspondente
 4. se houver follow-up de alinhamento, manter separado:
-   - este slice atual so muda o contrato e o render das celulas
-   - qualquer opcao clicavel em menu deve entrar em slice proprio em `gui/gui_ssa.py`
+   - o contrato e o render ja existem
+   - a opcao clicavel atual ficou em `gui/gui_ssa.py`
+   - qualquer expansao para dialogo/toolbar ainda deve entrar em slice proprio
 5. nao mexer no renderer paralelo `handler_base` sem prova de callsite ativo
 6. seguir com `git status --short` no inicio e ignorar `.sisyphus/` por default
 7. antes de novo patch, ler:

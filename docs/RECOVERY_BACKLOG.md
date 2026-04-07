@@ -14,9 +14,9 @@ Escopo fechado neste slice:
 4. aplicar o alinhamento configurado apenas nas celulas da tabela, sem tocar layout nem menus
 
 Observacoes de expansao futura:
-1. o slice atual e deliberadamente config-only; nao abre menu novo nem botao novo
-2. se houver demanda para trocar isso pela GUI, o ponto natural fica em `gui/gui_ssa.py` dentro de `Opcoes`
-3. essa expansao deve entrar em slice proprio, com persistencia reaproveitando `GUI_MAIN_PREFERENCES`
+1. o menu atual fica em `Opcoes -> Alinhamento da tabela`
+2. qualquer expansao futura para dialogo, toolbar ou perfil visual mais amplo deve entrar em slice proprio
+3. a persistencia deve continuar reaproveitando `GUI_MAIN_PREFERENCES`
 
 ## Update 2026-04-07 - adaptive GUI header labels
 
