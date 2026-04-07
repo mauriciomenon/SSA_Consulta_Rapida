@@ -9,13 +9,13 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 3. Release/tag publicada relevante: `v4.36`.
 4. `HEAD == origin/dev` confirmado no fim do slice atual.
 5. Ultimos slices funcionais relevantes nesta frente:
-   - `3fa1b38d` `STABILITY_PATCH: version gui preferences template and width precedence`
+   - `3fa1b38d` `STABILITY_PATCH: version gui preferences reference file and width precedence`
    - slice atual desta rodada: alinhamento do baseline automatico do width manager ao contrato canonico, sem reabrir `DEFAULT_COLUMN_WIDTHS`
 6. O contrato de preferencias GUI agora precisa ser lido assim:
-   - se faltar `config/gui_main_preferences.json` ou mudar `SSA_CONFIG_DIR`, o seed vem do template versionado
+   - se faltar `config/gui_main_preferences.json` ou mudar `SSA_CONFIG_DIR`, o runtime usa os defaults em memoria do codigo
    - largura persistida valida vence a largura automatica
    - fallback local da tabela e baseline automatico partem de `gui/gui_config.py`
-   - arquivo local tem a ultima palavra; template versionado documenta o padrao; codigo define a base
+   - arquivo local tem a ultima palavra; o `.example` documenta o padrao; codigo define a base
 7. PR operacional atual:
    - `#46` `dev -> main`
    - `mergeStateStatus=UNSTABLE`

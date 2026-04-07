@@ -262,10 +262,11 @@ class TestGUIMainConfiguration:
 
         assert config["column_widths"]["data_arquivo_origem"] == 100
 
-    def test_load_gui_main_preferences_auto_create_uses_versioned_template(
+    def test_load_gui_main_preferences_auto_create_uses_code_defaults(
         self, tmp_path, monkeypatch
     ):
         from gui import gui_config
+        from gui.gui_config import DEFAULT_GUI_MAIN_PREFERENCES
 
         cfg_dir = tmp_path / "cfg_runtime"
         cfg_dir.mkdir()
@@ -303,10 +304,33 @@ class TestGUIMainConfiguration:
         created = json.loads(created_path.read_text(encoding="utf-8"))
 
         assert created_path.exists()
-        assert created["column_widths"]["numero_ssa"] == 111
-        assert created["gui_settings"]["page_size"] == 99
-        assert config["column_widths"]["numero_ssa"] == 111
-        assert config["gui_settings"]["page_size"] == 99
+        assert (
+            created["column_widths"]["numero_ssa"]
+            == DEFAULT_GUI_MAIN_PREFERENCES["column_widths"]["numero_ssa"]
+        )
+        assert (
+            created["gui_settings"]["page_size"]
+            == DEFAULT_GUI_MAIN_PREFERENCES["gui_settings"]["page_size"]
+        )
+        assert (
+            config["column_widths"]["numero_ssa"]
+            == DEFAULT_GUI_MAIN_PREFERENCES["column_widths"]["numero_ssa"]
+        )
+        assert (
+            config["gui_settings"]["page_size"]
+            == DEFAULT_GUI_MAIN_PREFERENCES["gui_settings"]["page_size"]
+        )
+
+    def test_gui_main_preferences_reference_file_matches_code_defaults(self):
+        from gui.gui_config import (
+            DEFAULT_GUI_MAIN_PREFERENCES,
+            get_gui_main_preferences_template_path,
+        )
+
+        with open(get_gui_main_preferences_template_path(), "r", encoding="utf-8") as fh:
+            reference_payload = json.load(fh)
+
+        assert reference_payload == DEFAULT_GUI_MAIN_PREFERENCES
 
     def test_gui_main_preferences_isolation_from_cli(self):
         """Verifica que as configuracoes sao independentes do CLI."""
