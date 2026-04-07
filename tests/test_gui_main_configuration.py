@@ -327,7 +327,9 @@ class TestGUIMainConfiguration:
             get_gui_main_preferences_template_path,
         )
 
-        with open(get_gui_main_preferences_template_path(), "r", encoding="utf-8") as fh:
+        with open(
+            get_gui_main_preferences_template_path(), "r", encoding="utf-8"
+        ) as fh:
             reference_payload = json.load(fh)
 
         assert reference_payload == DEFAULT_GUI_MAIN_PREFERENCES
