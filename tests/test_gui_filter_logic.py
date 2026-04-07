@@ -781,6 +781,10 @@ class TestGUIFilterLogic:
         assert header_text == "Numero SSA"
 
     def test_display_current_page_centers_table_cells_by_default(self):
+        gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {}).pop(
+            "table_cell_alignment", None
+        )
+
         self.window.display_current_page(1)
         QApplication.processEvents()
 
