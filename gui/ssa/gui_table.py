@@ -129,7 +129,9 @@ def _apply_adaptive_header_labels(window) -> None:
     try:
         header = window.table_widget.horizontalHeader()
     except Exception as exc:
-        logger.debug("Falha ao obter header para recalcular labels adaptativos: %s", exc)
+        logger.debug(
+            "Falha ao obter header para recalcular labels adaptativos: %s", exc
+        )
         return
     if header is None:
         return
@@ -147,7 +149,10 @@ def _apply_adaptive_header_labels(window) -> None:
         except Exception as exc:
             logger.debug("Falha ao ler assinatura da fonte do header: %s", exc)
 
-    if getattr(window, "_adaptive_header_label_width_cache_font", None) != font_signature:
+    if (
+        getattr(window, "_adaptive_header_label_width_cache_font", None)
+        != font_signature
+    ):
         setattr(window, "_adaptive_header_label_width_cache", {})
         setattr(window, "_adaptive_header_label_width_cache_font", font_signature)
 
@@ -167,8 +172,10 @@ def _apply_adaptive_header_labels(window) -> None:
         try:
             available_px = int(window.table_widget.columnWidth(logical_index))
             has_filter = column_name != "#" and column_name in visual_filter_columns
-            runtime_label = "#" if column_name == "#" else str(
-                window.internal_to_display.get(column_name, column_name)
+            runtime_label = (
+                "#"
+                if column_name == "#"
+                else str(window.internal_to_display.get(column_name, column_name))
             )
             signature = (available_px, has_filter, runtime_label)
             next_signatures[column_name] = signature
@@ -615,9 +622,9 @@ def display_current_page(window, page_number, *, update_details=True):
         window, list(display_df.columns), visual_filter_columns
     )
     gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
-    table_cell_alignment_name = str(
-        gui_settings.get("table_cell_alignment", "center")
-    ).strip().lower()
+    table_cell_alignment_name = (
+        str(gui_settings.get("table_cell_alignment", "center")).strip().lower()
+    )
     horizontal_alignment = _TABLE_CELL_HORIZONTAL_ALIGNMENT_MAP.get(
         table_cell_alignment_name,
         Qt.AlignmentFlag.AlignHCenter,
