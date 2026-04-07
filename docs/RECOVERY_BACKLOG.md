@@ -5,6 +5,19 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-07 - table cell alignment from GUI preferences
+
+Escopo fechado neste slice:
+1. adicionar `gui_settings.table_cell_alignment` ao contrato canonico da GUI
+2. aceitar apenas `left`, `center` e `right`
+3. usar `center` por default e como fallback de valor invalido
+4. aplicar o alinhamento configurado apenas nas celulas da tabela, sem tocar layout nem menus
+
+Observacoes de expansao futura:
+1. o slice atual e deliberadamente config-only; nao abre menu novo nem botao novo
+2. se houver demanda para trocar isso pela GUI, o ponto natural fica em `gui/gui_ssa.py` dentro de `Opcoes`
+3. essa expansao deve entrar em slice proprio, com persistencia reaproveitando `GUI_MAIN_PREFERENCES`
+
 ## Update 2026-04-07 - adaptive GUI header labels
 
 Escopo fechado neste slice:

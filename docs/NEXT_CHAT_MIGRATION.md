@@ -22,6 +22,11 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - a escolha runtime tenta `long -> medium -> short`
    - o calculo reserva espaco para `[f] ` e para margem lateral
    - se nada couber, fica `short`
+6. o alinhamento das celulas da tabela agora deve ser lido assim:
+   - sai de `gui_settings.table_cell_alignment`
+   - aceita `left|center|right`
+   - default canonico `center`
+   - valor invalido volta para `center`
 6. o contrato de largura nao mudou:
    - `DEFAULT_COLUMN_WIDTHS` intacto
    - largura persistida continua vencendo largura automatica
@@ -51,9 +56,12 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 3. se houver follow-up de labels, limitar a:
    - ajuste pontual da matriz `short/medium/long`
    - teste de regressao correspondente
-4. nao mexer no renderer paralelo `handler_base` sem prova de callsite ativo
-5. seguir com `git status --short` no inicio e ignorar `.sisyphus/` por default
-6. antes de novo patch, ler:
+4. se houver follow-up de alinhamento, manter separado:
+   - este slice atual so muda o contrato e o render das celulas
+   - qualquer opcao clicavel em menu deve entrar em slice proprio em `gui/gui_ssa.py`
+5. nao mexer no renderer paralelo `handler_base` sem prova de callsite ativo
+6. seguir com `git status --short` no inicio e ignorar `.sisyphus/` por default
+7. antes de novo patch, ler:
    - `AGENTS.md`
    - `docs/NEXT_CHAT_MIGRATION.md`
    - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`

@@ -262,6 +262,44 @@ class TestGUIMainConfiguration:
 
         assert config["column_widths"]["data_arquivo_origem"] == 100
 
+    def test_load_gui_main_preferences_preserves_valid_table_cell_alignment(self):
+        partial_config = {
+            "display_columns": ["numero_ssa", "situacao"],
+            "column_display_names": {},
+            "column_widths": {},
+            "gui_settings": {"table_cell_alignment": "right"},
+        }
+
+        from gui.gui_config import load_gui_main_preferences
+
+        with patch(
+            "gui.gui_config.open", mock_open(read_data=json.dumps(partial_config))
+        ):
+            with patch("gui.gui_config.os.path.exists", return_value=True):
+                config = load_gui_main_preferences()
+
+        assert config["gui_settings"]["table_cell_alignment"] == "right"
+
+    def test_load_gui_main_preferences_invalid_table_cell_alignment_falls_back_to_center(
+        self,
+    ):
+        partial_config = {
+            "display_columns": ["numero_ssa", "situacao"],
+            "column_display_names": {},
+            "column_widths": {},
+            "gui_settings": {"table_cell_alignment": "diagonal"},
+        }
+
+        from gui.gui_config import load_gui_main_preferences
+
+        with patch(
+            "gui.gui_config.open", mock_open(read_data=json.dumps(partial_config))
+        ):
+            with patch("gui.gui_config.os.path.exists", return_value=True):
+                config = load_gui_main_preferences()
+
+        assert config["gui_settings"]["table_cell_alignment"] == "center"
+
     def test_load_gui_main_preferences_auto_create_uses_code_defaults(
         self, tmp_path, monkeypatch
     ):
@@ -378,8 +416,10 @@ class TestGUIMainConfiguration:
         assert "page_size" in settings
         assert "debounce_delay" in settings
         assert "default_filter_mode" in settings
+        assert "table_cell_alignment" in settings
         assert isinstance(settings["page_size"], int)
         assert settings["page_size"] > 0
+        assert settings["table_cell_alignment"] == "center"
 
     def test_display_columns_validation(self):
         """Testa lista de colunas de exibicao."""
