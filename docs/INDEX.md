@@ -17,8 +17,9 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - fallback local da tabela e baseline automatico partem de `gui/gui_config.py`
    - arquivo local tem a ultima palavra; o `.example` documenta o padrao; codigo define a base
    - reorder e hide/show de colunas persistem no mesmo arquivo local
-   - o header da tabela usa alias fixo por coluna; nao ha algoritmo dinamico de label curta/media/longa hoje
-   - a CLI continua fora do contrato de labels/visibilidade da GUI
+   - o header da GUI agora usa matriz explicita `short/medium/long` por coluna e escolhe a maior variante que cabe na largura real, com reserva para `[f] `
+   - a CLI continua fora do contrato de preferencias da GUI, mas segue usando `display_map`, `short_labels`, `fixed_widths` e alternancia `short/full`
+   - `core/handler_base.py:197` permanece apenas como renderer paralelo documentado, fora do caminho principal `main.py -> interface/cli.py -> interface/table_printer.py`
 7. PR operacional atual:
    - `#46` `dev -> main`
    - `mergeStateStatus=UNSTABLE`

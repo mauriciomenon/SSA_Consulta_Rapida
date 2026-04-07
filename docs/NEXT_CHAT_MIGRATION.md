@@ -2,6 +2,63 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-04-07 10h20
+
+### Estado de repositorio e runtime
+
+1. branch ativa confirmada: `dev`
+2. worktree desta frente continua com residuo local fora de escopo:
+   - `?? .sisyphus/`
+3. o slice mais recente entregou labels adaptativos no header da GUI sem tocar CLI
+4. arquivos tocados no slice funcional mais recente:
+   - `gui/gui_config.py`
+   - `gui/ssa/gui_table.py`
+   - `tests/test_gui_filter_logic.py`
+   - docs vivos desta frente
+5. a verdade do header agora e:
+   - a GUI continua nascendo de aliases canonicos
+   - o paint final do header reaplica label adaptativo por coluna
+   - cada coluna tem exatamente tres slots `short/medium/long`
+   - a escolha runtime tenta `long -> medium -> short`
+   - o calculo reserva espaco para `[f] ` e para margem lateral
+   - se nada couber, fica `short`
+6. o contrato de largura nao mudou:
+   - `DEFAULT_COLUMN_WIDTHS` intacto
+   - largura persistida continua vencendo largura automatica
+7. a CLI continua fora deste slice, mas a descricao correta agora e:
+   - CLI interativa principal usa `display_map`, `short_labels`, `fixed_widths`
+   - alternancia `short/full`
+   - caminho principal:
+     - `main.py -> interface/cli.py -> interface/table_printer.py`
+8. pendencia registrada:
+   - `core/handler_base.py:197` existe como renderer paralelo
+   - nao foi confirmado como caminho ativo do CLI principal
+9. `kluster` esta disponivel neste host em:
+   - `/Users/menon/.kluster/cli/bin/kluster`
+
+### Validacao relevante desta rodada
+
+1. `py_compile`, `ruff`, `ty` -> verdes
+2. `pytest` focado -> `12 passed`
+3. `kluster` local existe neste host:
+   - um review no lote de codigo devolveu apenas debts antigos fora do escopo
+   - a reexecucao no lote final com docs excedeu o timeout e deve ser tratada como bloqueio de ferramenta
+
+### Proximo passo recomendado
+
+1. manter qualquer refatoracao de `display_current_page` em slice separado
+2. nao reabrir CLI junto com GUI sem pedido explicito
+3. se houver follow-up de labels, limitar a:
+   - ajuste pontual da matriz `short/medium/long`
+   - teste de regressao correspondente
+4. nao mexer no renderer paralelo `handler_base` sem prova de callsite ativo
+5. seguir com `git status --short` no inicio e ignorar `.sisyphus/` por default
+6. antes de novo patch, ler:
+   - `AGENTS.md`
+   - `docs/NEXT_CHAT_MIGRATION.md`
+   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+   - `docs/RECOVERY_BACKLOG.md`
+
 ## CURRENT TRUTH 2026-04-07 00h30
 
 ### Estado de repositorio e runtime
@@ -35,8 +92,10 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - largura persistida vencendo a largura automatica
      - fallback local da tabela preso ao contrato canonico
      - arquivo local com ultima palavra, `.example` documentando o padrao e codigo definindo a base
-     - header da tabela usa alias fixo por coluna; nao existe tier dinamico curto/medio/longo hoje
-     - CLI continua fora desse contrato de labels/visibilidade da GUI
+     - header da GUI agora usa matriz explicita `short/medium/long` por coluna e escolhe a maior variante que cabe na largura real
+     - o calculo do header reserva espaco para o prefixo `[f] `
+     - a CLI continua fora do contrato de preferencias da GUI, mas segue usando `display_map`, `short_labels`, `fixed_widths` e alternancia `short/full`
+     - `core/handler_base.py:197` continua documentado apenas como renderer paralelo fora do caminho principal `main.py -> interface/cli.py -> interface/table_printer.py`
 9. PR ativo desta baseline:
    - `#46` `dev -> main`
    - `mergeStateStatus=UNSTABLE`

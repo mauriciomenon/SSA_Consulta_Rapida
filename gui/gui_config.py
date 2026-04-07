@@ -93,6 +93,144 @@ DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
     "semana_executada": "Sem. Exec.",
 }
 
+COLUMN_HEADER_LABEL_VARIANTS: Dict[str, Dict[str, str]] = {
+    "numero_ssa": {
+        "short": "SSA",
+        "medium": "Numero SSA",
+        "long": "Numero da SSA",
+    },
+    "setor_executor": {
+        "short": "Exec.",
+        "medium": "Set. Exec.",
+        "long": "Set. Exec.",
+    },
+    "situacao": {
+        "short": "Sit.",
+        "medium": "Situacao",
+        "long": "Situacao",
+    },
+    "descricao_ssa": {
+        "short": "Desc. SSA",
+        "medium": "Descricao SSA",
+        "long": "Descricao da SSA",
+    },
+    "data_cadastro": {
+        "short": "Cadastro",
+        "medium": "Data Cadastro",
+        "long": "Data de Cadastro",
+    },
+    "semana_cadastro": {
+        "short": "Sem. Cad.",
+        "medium": "Semana Cad.",
+        "long": "Semana de Cadastro",
+    },
+    "localizacao_codigo": {
+        "short": "Loc.",
+        "medium": "Localizacao",
+        "long": "Localizacao",
+    },
+    "grau_prioridade": {
+        "short": "Prio.",
+        "medium": "Prioridade",
+        "long": "Prioridade",
+    },
+    "grau_prioridade_emissao": {
+        "short": "Prio. Emis.",
+        "medium": "Prio. Emissao",
+        "long": "Prio. Emissao",
+    },
+    "grau_prioridade_planejamento": {
+        "short": "Prio. Planej.",
+        "medium": "Prio. Planej.",
+        "long": "Prio. Planej.",
+    },
+    "setor_emissor": {
+        "short": "Emis.",
+        "medium": "Set. Emis.",
+        "long": "Set. Emis.",
+    },
+    "solicitante": {
+        "short": "Solicit.",
+        "medium": "Solicitante",
+        "long": "Solicitante",
+    },
+    "derivada_de": {
+        "short": "Deriv.",
+        "medium": "Derivada de",
+        "long": "Derivada de",
+    },
+    "semana_programada": {
+        "short": "Sem. Prog.",
+        "medium": "Semana Prog.",
+        "long": "Semana Programada",
+    },
+    "descricao_execucao": {
+        "short": "Desc. Exec.",
+        "medium": "Descricao Execucao",
+        "long": "Descricao da Execucao",
+    },
+    "descricao_localizacao": {
+        "short": "Desc. Loc.",
+        "medium": "Desc. Localizacao",
+        "long": "Descricao da Localizacao",
+    },
+    "equipamento": {
+        "short": "Equip.",
+        "medium": "Equipamento",
+        "long": "Equipamento",
+    },
+    "origem": {
+        "short": "Origem",
+        "medium": "Origem",
+        "long": "Origem",
+    },
+    "servico_origem": {
+        "short": "Serv. Origem",
+        "medium": "Servico Origem",
+        "long": "Servico de Origem",
+    },
+    "execucao_simples": {
+        "short": "Exec. Simp.",
+        "medium": "Exec. Simples",
+        "long": "Execucao Simples",
+    },
+    "responsavel_programacao": {
+        "short": "Resp. Prog.",
+        "medium": "Resp. Program.",
+        "long": "Responsavel Programacao",
+    },
+    "responsavel_execucao": {
+        "short": "Resp. Exec.",
+        "medium": "Resp. Execucao",
+        "long": "Responsavel Execucao",
+    },
+    "arquivo_origem": {
+        "short": "Arq. Origem",
+        "medium": "Arquivo Origem",
+        "long": "Arquivo de Origem",
+    },
+    "data_arquivo_origem": {
+        "short": "Data Arq.",
+        "medium": "Data Arq. Origem",
+        "long": "Data do Arquivo de Origem",
+    },
+    "total_de_reprogramacoes": {
+        "short": "Tot. Reprog.",
+        "medium": "Total Reprog.",
+        "long": "Total de Reprogramacoes",
+    },
+    "execucao_parcial": {
+        "short": "Exec. Parc.",
+        "medium": "Exec. Parcial",
+        "long": "Execucao Parcial",
+    },
+    "semana_executada": {
+        "short": "Sem. Exec.",
+        "medium": "Semana Exec.",
+        "long": "Semana Executada",
+    },
+}
+
 DEFAULT_COLUMN_WIDTHS: Dict[str, int] = {
     "#": 24,
     "numero_ssa": 93,

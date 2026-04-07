@@ -32,9 +32,11 @@ Em `gui/gui_config.py` ficam os contratos base:
    - conjunto canonico definido pelo produto para colunas obrigatorias desta GUI
 2. `DEFAULT_COLUMN_DISPLAY_NAMES`
    - labels curtos e amigaveis por nome interno
-3. `DEFAULT_COLUMN_WIDTHS`
+3. `COLUMN_HEADER_LABEL_VARIANTS`
+   - matriz canonica `short/medium/long` para os headers adaptativos da GUI
+4. `DEFAULT_COLUMN_WIDTHS`
    - larguras default persistidas
-4. `DEFAULT_GUI_MAIN_PREFERENCES`
+5. `DEFAULT_GUI_MAIN_PREFERENCES`
    - composicao default de:
      - `display_columns`
      - `hidden_columns`
@@ -229,9 +231,10 @@ Esse nome e a chave unica usada em:
 
 ### Label
 
-1. nasce de `column_display_names`
-2. propaga para `display_mappings`
-3. e consumido pela GUI na construcao dos headers
+1. `column_display_names` continua sendo a fonte base de alias do runtime
+2. `display_mappings` continua espelhando esses aliases por compatibilidade
+3. `COLUMN_HEADER_LABEL_VARIANTS` define os tres niveis canonicos (`short`, `medium`, `long`) da GUI
+4. se o runtime carregar alias customizado diferente do short canonico, a GUI preserva esse alias sem expandi-lo
 
 ### Largura
 
@@ -243,14 +246,23 @@ Esse nome e a chave unica usada em:
 
 ### Header da tabela
 
-1. o header usa um alias fixo por coluna vindo de `column_display_names` / `display_mappings`
-2. nao existe hoje algoritmo dinamico de trocar entre label curta, media e longa conforme o espaco horizontal
-3. se uma coluna tiver filtro visual ativo, o header recebe o prefixo `[f] `
+1. o header da GUI nasce de aliases canonicos em `column_display_names` / `display_mappings`
+2. a GUI principal agora aplica uma segunda passada adaptativa no header usando `COLUMN_HEADER_LABEL_VARIANTS`
+3. cada coluna da GUI tem exatamente tres slots:
+   - `short`
+   - `medium`
+   - `long`
+4. a escolha runtime tenta `long -> medium -> short` com base na largura real da coluna ja aplicada
+5. o calculo reserva espaco para o prefixo `[f] ` e para margem lateral, evitando encavalamento visual
+6. se nenhuma variante couber, a GUI usa `short`
+7. se uma coluna tiver filtro visual ativo, o header recebe o prefixo `[f] `
+8. se o runtime estiver usando alias customizado diferente do short canonico, a GUI respeita esse alias e nao tenta expandi-lo
 
 Consequencia:
 
-1. mesmo com espaco sobrando, uma coluna pode continuar mostrando o alias curto
-2. qualquer troca futura para label curta/media/longa por largura precisa ser tratada como novo slice de UX, nao como comportamento atual
+1. colunas compactas continuam compactas quando `medium` e `long` repetem o mesmo rotulo
+2. colunas largas conseguem crescer sem alterar `DEFAULT_COLUMN_WIDTHS`
+3. o comportamento adaptativo depende da largura final da coluna, nao do schema sozinho
 
 ### Celulas da tabela
 
@@ -294,8 +306,11 @@ Consequencia:
 
 1. a GUI usa `gui_main_preferences.json`, aliases de exibicao e `SimpleWidthManager`
 2. a CLI nao usa esse contrato de labels/visibilidade da GUI
-3. a CLI continua com formatacao textual propria e nomes brutos de coluna
-4. qualquer tentativa de convergir GUI e CLI deve ser tratada como novo slice, nao como efeito colateral desta frente
+3. a CLI interativa principal continua com formatacao textual propria, `display_map`, `short_labels`, `fixed_widths` e alternancia `short/full`
+4. o caminho principal da CLI interativa continua:
+   - `main.py -> interface/cli.py -> interface/table_printer.py`
+5. `core/handler_base.py` existe como renderer paralelo, mas nao foi confirmado como callsite ativo do caminho principal da CLI interativa
+6. qualquer tentativa de convergir GUI e CLI deve ser tratada como novo slice, nao como efeito colateral desta frente
 
 ## O que este desenho evita
 
