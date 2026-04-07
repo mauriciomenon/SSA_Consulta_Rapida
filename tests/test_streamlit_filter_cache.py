@@ -40,7 +40,8 @@ from dev_env.streamlit_app import (
     apply_all_filters_cached,
     st,
 )
-from gui.simple_width_manager import SimpleWidthManager
+from gui.gui_config import DEFAULT_COLUMN_WIDTHS
+from gui.simple_width_manager import SimpleCacheManager, SimpleWidthManager
 
 
 def test_streamlit_filter_cache_compat_methods_work_in_local_fallback() -> None:
@@ -465,6 +466,35 @@ def test_simple_width_manager_prioritizes_descricao_columns() -> None:
     )
     assert buckets["descricao_ssa"] == "large"
     assert buckets["descricao_execucao"] == "large"
+
+
+def test_simple_width_manager_uses_canonical_baseline_for_fixed_columns() -> None:
+    manager = SimpleWidthManager()
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001"],
+            "situacao": ["ABERTO"],
+            "data_cadastro": ["2025-01-01"],
+        }
+    )
+    widths = manager.compute_optimal_widths(
+        df,
+        available_width=600,
+        column_order=list(df.columns),
+    )
+    assert int(widths["numero_ssa"]) == DEFAULT_COLUMN_WIDTHS["numero_ssa"]
+    assert int(widths["situacao"]) == DEFAULT_COLUMN_WIDTHS["situacao"]
+    assert int(widths["data_cadastro"]) == DEFAULT_COLUMN_WIDTHS["data_cadastro"]
+
+
+def test_simple_cache_manager_keeps_maximum_of_five_entries() -> None:
+    cache = SimpleCacheManager()
+    for idx in range(6):
+        cache.cache_formatted_df(f"k{idx}", pd.DataFrame({"idx": [idx]}))
+
+    assert len(cache._formatted_cache) == 5
+    assert "k0" not in cache._formatted_cache
+    assert "k5" in cache._formatted_cache
 
 
 def test_build_table_caption_non_compact() -> None:

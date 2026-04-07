@@ -2,17 +2,20 @@
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-04-06 23:00 -0300)
+## Sync status (2026-04-07 00:30 -0300)
 
 1. Baseline ativo confirmado: `4.36`.
 2. Branch operacional: `dev`.
 3. Release/tag publicada relevante: `v4.36`.
-4. `HEAD == origin/dev` confirmado em `01b4eb95`.
-5. Ultimo slice funcional relevante nesta frente:
-   - `6726e833` `STABILITY_PATCH: preserve gui preferences and config path`
-6. Commit remoto absorvido neste sync:
-   - `01b4eb95` `style: format code with isort and Ruff Formatter`
-   - impacto: somente `tests/test_gui_preferences_atomic_write.py`
+4. `HEAD == origin/dev` confirmado no fim do slice atual.
+5. Ultimos slices funcionais relevantes nesta frente:
+   - `3fa1b38d` `STABILITY_PATCH: version gui preferences template and width precedence`
+   - slice atual desta rodada: alinhamento do baseline automatico do width manager ao contrato canonico, sem reabrir `DEFAULT_COLUMN_WIDTHS`
+6. O contrato de preferencias GUI agora precisa ser lido assim:
+   - se faltar `config/gui_main_preferences.json` ou mudar `SSA_CONFIG_DIR`, o seed vem do template versionado
+   - largura persistida valida vence a largura automatica
+   - fallback local da tabela e baseline automatico partem de `gui/gui_config.py`
+   - arquivo local tem a ultima palavra; template versionado documenta o padrao; codigo define a base
 7. PR operacional atual:
    - `#46` `dev -> main`
    - `mergeStateStatus=UNSTABLE`

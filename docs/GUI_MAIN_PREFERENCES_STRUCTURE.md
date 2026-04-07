@@ -71,6 +71,25 @@ Na renderizacao da tabela, a ordem de precedencia de largura deve ser:
 
 Isso evita que o algoritmo automatico derrube uma largura explicitamente escolhida.
 
+## O que mudou em termos de comportamento
+
+1. se `config/gui_main_preferences.json` faltar ou o runtime estiver em outro `SSA_CONFIG_DIR`, o seed vem do template versionado, nao so de defaults em memoria
+2. se existir largura persistida valida para a coluna, ela ganha da largura calculada em runtime
+3. o fallback local de largura da tabela foi amarrado ao contrato canonico de `gui/gui_config.py`, sem numeros paralelos soltos em `gui/ssa/gui_table.py`
+4. o baseline automatico do `SimpleWidthManager` agora parte de `DEFAULT_COLUMN_WIDTHS`; o crescimento automatico so adiciona espaco por cima desse baseline, sem reabrir os numeros canonicos
+5. o contrato fica assim:
+   - arquivo local tem a ultima palavra
+   - template versionado documenta o padrao
+   - codigo define o contrato base
+
+## O que este desenho fez de forma diferente do plano estrutural maior
+
+1. este trabalho nao mudou `REQUIRED_DISPLAY_COLUMNS`
+2. este trabalho nao mudou `DEFAULT_COLUMN_WIDTHS`
+3. o slice 1 fechou primeiro a hierarquia de preferencias, o template versionado e a precedencia da largura salva
+4. o slice 2 atacou apenas o desalinhamento remanescente do width manager automatico, fazendo-o partir do baseline canonico em vez de manter numeros paralelos
+5. isso foi propositalmente menor do que a critica estrutural mais ampla feita aos commits do Copilot: o objetivo aqui foi corrigir a arquitetura minima sem reabrir a sua decisao de produto sobre ordem e tamanhos
+
 ## Schema logico do JSON
 
 ### `display_columns`
@@ -231,5 +250,5 @@ Este slice nao reescreve a logica completa do `SimpleWidthManager`.
 
 O tema que continua aberto para avaliacao separada e:
 
-1. alinhar o baseline de largura dinamica com os mesmos numeros canonicos de `DEFAULT_COLUMN_WIDTHS`
-2. decidir ate onde a tabela deve ser responsiva por calculo automatico versus estatica por preferencia persistida
+1. decidir ate onde colunas expansivas como `descricao_ssa`, `descricao_execucao` e `solicitante` devem crescer automaticamente por perfil de viewport
+2. decidir se o baseline canonico de `gui/gui_config.py` ainda precisa revisao numerica de produto

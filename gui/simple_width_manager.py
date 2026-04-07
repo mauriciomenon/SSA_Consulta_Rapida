@@ -7,6 +7,8 @@ import logging
 
 import pandas as pd
 
+from gui.gui_config import DEFAULT_COLUMN_WIDTHS
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,6 +37,8 @@ class SimpleWidthManager:
             "grau_prioridade_emissao": 4,
             "grau_prioridade_planejamento": 4,
         }
+        self.base_pixel_widths = dict(DEFAULT_COLUMN_WIDTHS)
+        self.base_pixel_widths.setdefault("#", 24)
 
         self.expandable_columns = ["descricao_ssa", "descricao_execucao", "solicitante"]
         self.max_pixel_widths = {
@@ -53,7 +57,7 @@ class SimpleWidthManager:
         ALGORITMO SIMPLES E FUNCIONAL - BASE DETERMINISTICA COM CRESCIMENTO
 
         Baseline de larguras fixas para colunas estaticas + crescimento proporcional
-        para descricoes (divisao 50/50 entre descricao_ssa e descricao_execucao).
+        para colunas expansivas definidas em self.expandable_columns.
         Nao aplica overrides externos para manter resultado deterministico.
 
         Args:
@@ -74,61 +78,17 @@ class SimpleWidthManager:
                 else sorted(df.columns.tolist())
             )
 
-        # LARGURAS FIXAS CONSTANTES - TAMANHO EXATO SEMPRE IGUAL
+        # Baseline canonico: parte sempre dos widths persistidos em gui_config.py.
+        # O crescimento automatico acontece apenas por cima desse baseline.
         fixed_widths = {}
         expandable_cols = []  # Colunas que podem crescer
 
-        for i, col in enumerate(columns):
-            if col == "#":
-                fixed_widths[col] = 24
-
-            elif col == "numero_ssa":
-                fixed_widths[col] = 85  # leve incremento adicional
-
-            elif col == "situacao":
-                fixed_widths[col] = 40  # +5 px leve
-
-            elif col == "setor_executor":
-                fixed_widths[col] = 52
-
-            elif col == "setor_emissor":
-                fixed_widths[col] = 52
-
-            elif col == "localizacao_codigo":
-                fixed_widths[col] = 76
-
-            elif col == "data_cadastro":
-                fixed_widths[col] = 95  # +10 px leve
-
-            elif col == "semana_cadastro":
-                fixed_widths[col] = 72
-
-            elif col == "semana_programada":
-                fixed_widths[col] = 68
-
-            elif col == "derivada_de":
-                fixed_widths[col] = 86  # evita truncar IDs numericos em "Derivada de"
-
-            elif col == "grau_prioridade_emissao":
-                fixed_widths[col] = 70  # +5 px leve
-
-            elif col == "grau_prioridade_planejamento":
-                fixed_widths[col] = 70  # +5 px leve
-
-            elif col == "solicitante":
-                fixed_widths[col] = 220  # mais folga para caber nomes completos
-
-            elif col == "descricao_ssa":
-                fixed_widths[col] = 470  # +20 px leve
+        for col in columns:
+            fixed_widths[col] = int(
+                self.base_pixel_widths.get(col, 24 if col == "#" else 120)
+            )
+            if col in self.expandable_columns:
                 expandable_cols.append(col)
-
-            elif col == "descricao_execucao":
-                fixed_widths[col] = 370  # +20 px leve
-                expandable_cols.append(col)
-
-            else:
-                # Outros campos: largura padrão
-                fixed_widths[col] = 120
 
         # CÁLCULO DE CRESCIMENTO PROPORCIONAL MELHORADO
         total_fixed = sum(fixed_widths.values())
@@ -333,10 +293,8 @@ class SimpleCacheManager:
 
     def cache_formatted_df(self, df_hash, formatted_df):
         """Armazena DataFrame formatado no cache."""
-        self._formatted_cache[df_hash] = formatted_df
-
-        # Limita tamanho do cache
-        if len(self._formatted_cache) > 5:
-            # Remove entrada mais antiga
+        if df_hash not in self._formatted_cache and len(self._formatted_cache) >= 5:
+            # Remove entrada mais antiga antes de inserir a nova.
             oldest_key = next(iter(self._formatted_cache))
             del self._formatted_cache[oldest_key]
+        self._formatted_cache[df_hash] = formatted_df
