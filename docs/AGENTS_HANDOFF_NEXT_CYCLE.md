@@ -13,10 +13,11 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - matriz canonica `short/medium/long` em `gui/gui_config.py`
      - selecao adaptativa no paint final do header em `gui/ssa/gui_table.py`
      - reserva de espaco para `[f] ` e margem lateral do header
-     - debounce leve de refresh apos resize manual
-     - alinhamento das celulas da tabela vindo de `gui_settings.table_cell_alignment`
-     - regressao em `tests/test_gui_filter_logic.py`
-     - doc tecnico e docs vivos alinhados
+      - debounce leve de refresh apos resize manual
+      - alinhamento das celulas da tabela vindo de `gui_settings.table_cell_alignment`
+      - menu `Opcoes -> Alinhamento da tabela` para trocar `left|center|right`
+      - regressao em `tests/test_gui_filter_logic.py`
+      - doc tecnico e docs vivos alinhados
   5. arquivos tocados no slice mais recente:
      - `gui/gui_config.py`
      - `gui/ssa/gui_table.py`

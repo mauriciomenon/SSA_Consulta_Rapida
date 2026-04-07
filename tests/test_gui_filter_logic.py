@@ -821,6 +821,63 @@ class TestGUIFilterLogic:
         assert item is not None
         assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignRight)
 
+    def test_setup_app_menus_exposes_table_cell_alignment_actions(self):
+        actions = getattr(self.window, "_table_cell_alignment_actions", {})
+
+        assert set(actions.keys()) == {"left", "center", "right"}
+        assert actions["center"].isCheckable() is True
+
+    def test_apply_table_cell_alignment_preference_updates_gui_prefs_and_rerenders(
+        self, monkeypatch
+    ):
+        persist_calls = {"count": 0}
+        render_calls: list[tuple[int, bool]] = []
+
+        def _fake_persist():
+            persist_calls["count"] += 1
+            return True
+
+        def _fake_render(page, *, update_details=True):
+            render_calls.append((page, update_details))
+
+        monkeypatch.setattr(self.window, "_persist_gui_preferences", _fake_persist)
+        monkeypatch.setattr(self.window, "display_current_page", _fake_render)
+
+        ok = self.window._apply_table_cell_alignment_preference("right")
+
+        assert ok is True
+        assert (
+            gui_ssa.GUI_MAIN_PREFERENCES["gui_settings"]["table_cell_alignment"]
+            == "right"
+        )
+        assert persist_calls["count"] == 1
+        assert render_calls == [(self.window.paginator.current_page, True)]
+        assert self.window._table_cell_alignment_actions["right"].isChecked() is True
+        assert "Direita" in str(self.window.status_label.text() or "")
+
+    def test_apply_table_cell_alignment_preference_rejects_invalid_value(
+        self, monkeypatch
+    ):
+        calls = {"persist": 0, "render": 0}
+
+        monkeypatch.setattr(
+            self.window,
+            "_persist_gui_preferences",
+            lambda: calls.__setitem__("persist", calls["persist"] + 1) or True,
+        )
+        monkeypatch.setattr(
+            self.window,
+            "display_current_page",
+            lambda *_args, **_kwargs: calls.__setitem__("render", calls["render"] + 1),
+        )
+
+        ok = self.window._apply_table_cell_alignment_preference("diagonal")
+
+        assert ok is False
+        assert calls["persist"] == 0
+        assert calls["render"] == 0
+        assert "invalido" in str(self.window.status_label.text() or "").casefold()
+
     def test_display_current_page_preserves_filter_prefix_with_reserved_space(
         self, monkeypatch
     ):

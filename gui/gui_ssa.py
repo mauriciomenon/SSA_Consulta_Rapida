@@ -102,6 +102,11 @@ logger.addHandler(logging.NullHandler())
 
 _COLUMN_FILTER_DIALOG_MIN_WIDTH = 420
 _COLUMN_FILTER_DIALOG_HINT = "Aceita termo, !termo para exclusao"
+_TABLE_CELL_ALIGNMENT_LABELS = {
+    "left": "Esquerda",
+    "center": "Centro",
+    "right": "Direita",
+}
 SAM_HOME_URL = "https://osprd.itaipu/SAM_SMA/"
 SAM_SSA_PUBLIC_VIEW_URL = (
     "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx"
@@ -1156,6 +1161,40 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _resolve_startup_theme(self):
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         return ssa_gui_theme.resolve_startup_theme(gui_settings)
+
+    def _apply_table_cell_alignment_preference(self, alignment_name: str):
+        normalized = str(alignment_name or "").strip().lower()
+        if normalized not in _TABLE_CELL_ALIGNMENT_LABELS:
+            logger.warning(
+                "Valor invalido para table_cell_alignment via menu: %r",
+                alignment_name,
+            )
+            self.status_label.setText("Status: Alinhamento de celulas invalido.")
+            return False
+
+        gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+        gui_settings["table_cell_alignment"] = normalized
+
+        for key, action in getattr(self, "_table_cell_alignment_actions", {}).items():
+            try:
+                action.setChecked(key == normalized)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao atualizar check do alinhamento %s: %s", key, exc
+                )
+
+        persisted = self._persist_gui_preferences()
+        self.display_current_page(self.paginator.current_page)
+
+        if persisted:
+            self.status_label.setText(
+                f"Status: Alinhamento das celulas definido para {_TABLE_CELL_ALIGNMENT_LABELS[normalized]}."
+            )
+        else:
+            self.status_label.setText(
+                "Status: Alinhamento aplicado, mas falhou a persistencia das preferencias."
+            )
+        return persisted
 
     def show_about_dialog(self):
         QMessageBox.information(self, "Sobre", build_about_message(self._app_version))
@@ -3999,6 +4038,27 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         hard_reset_filters_action = QAction("Limpar Filtros", self)
         hard_reset_filters_action.triggered.connect(self._hard_reset_filters_state)
         opcoes_menu.addAction(hard_reset_filters_action)
+
+        alignment_menu = opcoes_menu.addMenu("Alinhamento da tabela")
+        current_alignment = str(
+            GUI_MAIN_PREFERENCES.get("gui_settings", {}).get(
+                "table_cell_alignment", "center"
+            )
+        ).strip().lower()
+        self._table_cell_alignment_actions = {}
+        for alignment_name, label in _TABLE_CELL_ALIGNMENT_LABELS.items():
+            alignment_action = QAction(label, self)
+            cast(Any, alignment_action).setCheckable(True)
+            cast(Any, alignment_action).setChecked(
+                alignment_name == current_alignment
+            )
+            cast(Any, alignment_action).triggered.connect(
+                lambda _checked=False, name=alignment_name: self._apply_table_cell_alignment_preference(
+                    name
+                )
+            )
+            alignment_menu.addAction(alignment_action)
+            self._table_cell_alignment_actions[alignment_name] = alignment_action
 
         theme_action = QAction("Selecionar Tema", self)
         theme_action.triggered.connect(self.toggle_theme_menu)
