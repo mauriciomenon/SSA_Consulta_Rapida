@@ -3203,6 +3203,25 @@ class TestGUIFilterLogic:
         finally:
             gui_ssa.GUI_MAIN_PREFERENCES["column_widths"] = old_column_widths
 
+    def test_table_render_prefers_saved_gui_width_over_computed_width(
+        self, monkeypatch
+    ):
+        self.window._saved_gui_column_widths["descricao_ssa"] = 222
+
+        def _fake_compute(_df):
+            self.window._gui_column_pixel_widths = {"descricao_ssa": 444, "#": 24}
+
+        monkeypatch.setattr(self.window, "_compute_gui_column_widths", _fake_compute)
+        self.window._widths_columns_sig = None
+        if hasattr(self.window, "_last_viewport_w"):
+            delattr(self.window, "_last_viewport_w")
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        col_idx = self.window._current_display_columns.index("descricao_ssa")
+        assert self.window.table_widget.columnWidth(col_idx) == 222
+
     def test_build_derivadas_tree_html_uses_spaced_header_layout(self):
         with patch(
             "gui.ssa.gui_details._collect_derivadas_tree_data",

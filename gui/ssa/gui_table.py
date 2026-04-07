@@ -10,6 +10,7 @@ from contextlib import contextmanager
 
 import pandas as pd
 
+from gui.gui_config import DEFAULT_COLUMN_WIDTHS, GUI_MAIN_PREFERENCES
 from gui.qt_stubs import QHeaderView, Qt, QTableWidgetItem, QTimer
 from gui.ssa import gui_details as ssa_gui_details
 from utils.formatting import format_dataframe_for_display
@@ -68,27 +69,11 @@ def _get_header_visual_column_order(window) -> list[str]:
 
 
 def _fallback_column_width(col_name: str) -> int:
+    if col_name in DEFAULT_COLUMN_WIDTHS:
+        return int(DEFAULT_COLUMN_WIDTHS[col_name])
     if col_name == "#":
         return 24
-    if col_name == "numero_ssa":
-        return 110
-    if col_name == "localizacao_codigo":
-        return 86
-    if col_name == "situacao":
-        return 51
-    if col_name == "descricao_ssa":
-        return 296
-    if col_name == "data_cadastro":
-        return 100
-    if col_name == "setor_emissor":
-        return 58
-    if col_name == "derivada_de":
-        return 93
-    if col_name == "semana_programada":
-        return 72
-    if col_name == "descricao_execucao":
-        return 280
-    return 80
+    return 120
 
 
 def _build_page_render_signature(
@@ -565,6 +550,16 @@ def display_current_page(window, page_number, *, update_details=True):
     need_vw = (not hasattr(window, "_last_viewport_w")) or (
         abs(vw - window._last_viewport_w) > 12
     )
+    saved_widths = getattr(window, "_saved_gui_column_widths", {})
+    has_persisted_widths_for_all = isinstance(saved_widths, dict) and all(
+        (
+            isinstance(width_value := saved_widths.get(col_name), (int, float))
+            and int(width_value) > 0
+        )
+        for col_name in cols_sig
+    )
+    if need_vw and has_persisted_widths_for_all:
+        need_vw = False
     if bool(getattr(window, "_skip_width_recompute_once", False)):
         window._skip_width_recompute_once = False
         need_cols = False
@@ -581,11 +576,15 @@ def display_current_page(window, page_number, *, update_details=True):
         # Usa a coluna diretamente do DataFrame (que ja inclui '#')
         col_key = col_name
 
-        px = getattr(window, "_gui_column_pixel_widths", {}).get(col_key)
+        # O arquivo de preferencias da GUI tem a ultima palavra para larguras
+        # persistidas; o calculo automatico entra apenas como fallback.
+        px = window._saved_gui_column_widths.get(col_key)
 
-        # Se nao ha largura calculada, usa configuracao salva manualmente pelo usuario
         if px is None:
-            px = window._saved_gui_column_widths.get(col_key)
+            px = getattr(window, "_gui_column_pixel_widths", {}).get(col_key)
+
+        if px is None:
+            px = GUI_MAIN_PREFERENCES.get("column_widths", {}).get(col_key)
 
         # Fallbacks apenas se nenhuma das anteriores estiver disponivel
         if px is None:

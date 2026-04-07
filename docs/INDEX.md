@@ -40,6 +40,8 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - `docs/FORENSIC_UPDATE_CRITERIA_SSA_20260329.md`
 14. Handoff host-agnostic para continuidade no macOS:
    - `docs/MAC_CONTINUATION_HANDOFF_20260329.md`
+15. Estrutura canonica de preferencias da GUI:
+   - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
 
 ## Regras de leitura
 
@@ -91,6 +93,7 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 
 ## GUI e filtros
 
+- `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
 - `docs/GUI_PYQT6_REGRAS_GERAIS.md`
 - `docs/FILTER_TAB_OPTIMIZATIONS.md`
 - `docs/GUI_ASYNC_LOADING_GUARDRAILS.md`
