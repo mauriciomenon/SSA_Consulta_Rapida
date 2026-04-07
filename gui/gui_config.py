@@ -26,11 +26,21 @@ def _resolve_gui_main_preferences_path() -> str:
 
 
 CONFIG_PATH = _resolve_gui_main_preferences_path()
+GUI_MAIN_PREFERENCES_TEMPLATE_PATH = os.path.join(
+    project_root,
+    core_config_manager.CONFIG_DIR,
+    "gui_main_preferences.json.example",
+)
 
 
 def get_gui_main_preferences_path() -> str:
     """Return current GUI preferences path resolved from active config hierarchy."""
     return _resolve_gui_main_preferences_path()
+
+
+def get_gui_main_preferences_template_path() -> str:
+    """Return versioned template path used to seed local GUI preferences."""
+    return GUI_MAIN_PREFERENCES_TEMPLATE_PATH
 
 
 # Contract: these columns must always be available in GUI defaults and mappings.
@@ -363,6 +373,66 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
     return merged
 
 
+def _has_minimum_preferences_integrity(raw_config: Any) -> bool:
+    """Validate minimum expected schema before merge."""
+    if not isinstance(raw_config, dict):
+        return False
+    expected_types: Dict[str, type] = {
+        "display_columns": list,
+        "column_display_names": dict,
+        "display_mappings": dict,
+        "column_widths": dict,
+        "gui_settings": dict,
+    }
+    if not raw_config:
+        return False
+    for key, value in raw_config.items():
+        expected_type = expected_types.get(key)
+        if expected_type is None:
+            continue
+        if not isinstance(value, expected_type):
+            return False
+    return True
+
+
+def _load_gui_main_preferences_seed_payload() -> Dict[str, Any]:
+    """Load versioned GUI preference template, falling back to hard defaults."""
+    template_path = get_gui_main_preferences_template_path()
+    if not os.path.exists(template_path):
+        logger.warning(
+            "GUI preferences template not found at %s, using hard defaults.",
+            template_path,
+        )
+        return _hard_default_preferences_copy()
+
+    try:
+        with open(template_path, "r", encoding="utf-8") as handle:
+            loaded_template = json.load(handle)
+    except json.JSONDecodeError as exc:
+        logger.warning(
+            "Unable to parse GUI preferences template at %s: %s",
+            template_path,
+            exc,
+        )
+        return _hard_default_preferences_copy()
+    except OSError as exc:
+        logger.warning(
+            "Unable to read GUI preferences template at %s: %s",
+            template_path,
+            exc,
+        )
+        return _hard_default_preferences_copy()
+
+    if not _has_minimum_preferences_integrity(loaded_template):
+        logger.warning(
+            "GUI preferences template integrity check failed at %s; using hard defaults.",
+            template_path,
+        )
+        return _hard_default_preferences_copy()
+
+    return _merge_preferences(loaded_template)
+
+
 def _create_gui_main_preferences_file(config_path: str) -> None:
     """Create default GUI preferences file atomically."""
     config_dir = os.path.dirname(config_path)
@@ -370,7 +440,7 @@ def _create_gui_main_preferences_file(config_path: str) -> None:
         os.makedirs(config_dir, exist_ok=True)
     atomic_write_json_file(
         config_path,
-        _hard_default_preferences_copy(),
+        _load_gui_main_preferences_seed_payload(),
         indent=2,
         ensure_ascii=False,
     )
@@ -402,34 +472,12 @@ def reload_gui_main_preferences_in_place(
     return GUI_MAIN_PREFERENCES
 
 
-def _has_minimum_preferences_integrity(raw_config: Any) -> bool:
-    """Validate minimum expected schema before merge."""
-    if not isinstance(raw_config, dict):
-        return False
-    expected_types: Dict[str, type] = {
-        "display_columns": list,
-        "column_display_names": dict,
-        "display_mappings": dict,
-        "column_widths": dict,
-        "gui_settings": dict,
-    }
-    if not raw_config:
-        return False
-    for key, value in raw_config.items():
-        expected_type = expected_types.get(key)
-        if expected_type is None:
-            continue
-        if not isinstance(value, expected_type):
-            return False
-    return True
-
-
 def load_gui_main_preferences(
     config_path: str | None = None,
     *,
     auto_create: bool = False,
 ) -> Dict[str, Any]:
-    """Load GUI main preferences and defensively merge with full defaults."""
+    """Load valid GUI preferences or fall back to the versioned template/default."""
     if not config_path:
         config_path = get_gui_main_preferences_path()
     if not os.path.exists(config_path):
@@ -449,23 +497,23 @@ def load_gui_main_preferences(
                     config_path,
                     exc,
                 )
-        return _hard_default_preferences_copy()
+        return _load_gui_main_preferences_seed_payload()
 
     try:
         with open(config_path, "r", encoding="utf-8") as handle:
             loaded_config = json.load(handle)
     except json.JSONDecodeError as exc:
         logger.error("Unable to parse GUI preferences at %s: %s", config_path, exc)
-        return _hard_default_preferences_copy()
+        return _load_gui_main_preferences_seed_payload()
     except OSError as exc:
         logger.error("Unable to read GUI preferences at %s: %s", config_path, exc)
-        return _hard_default_preferences_copy()
+        return _load_gui_main_preferences_seed_payload()
 
     if not isinstance(loaded_config, dict):
         logger.warning(
             "Invalid GUI preference structure at %s, using defaults.", config_path
         )
-        return _hard_default_preferences_copy()
+        return _load_gui_main_preferences_seed_payload()
     if not _has_minimum_preferences_integrity(loaded_config):
         logger.warning(
             "GUI preferences integrity check failed at %s, using defaults.", config_path
@@ -483,7 +531,7 @@ def load_gui_main_preferences(
                     config_path,
                     exc,
                 )
-        return _hard_default_preferences_copy()
+        return _load_gui_main_preferences_seed_payload()
 
     return _merge_preferences(loaded_config)
 

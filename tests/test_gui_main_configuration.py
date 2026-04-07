@@ -262,6 +262,52 @@ class TestGUIMainConfiguration:
 
         assert config["column_widths"]["data_arquivo_origem"] == 100
 
+    def test_load_gui_main_preferences_auto_create_uses_versioned_template(
+        self, tmp_path, monkeypatch
+    ):
+        from gui import gui_config
+
+        cfg_dir = tmp_path / "cfg_runtime"
+        cfg_dir.mkdir()
+        template_path = tmp_path / "gui_main_preferences.json.example"
+        template_path.write_text(
+            json.dumps(
+                {
+                    "display_columns": ["numero_ssa", "situacao", "setor_executor"],
+                    "hidden_columns": ["descricao_localizacao"],
+                    "column_display_names": {
+                        "numero_ssa": "Numero SSA",
+                        "situacao": "Sit.",
+                        "setor_executor": "Exec.",
+                    },
+                    "display_mappings": {
+                        "numero_ssa": "Numero SSA",
+                        "situacao": "Sit.",
+                        "setor_executor": "Exec.",
+                    },
+                    "column_widths": {"numero_ssa": 111, "situacao": 55},
+                    "gui_settings": {"page_size": 99},
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+        monkeypatch.setattr(
+            gui_config,
+            "get_gui_main_preferences_template_path",
+            lambda: str(template_path),
+        )
+
+        config = gui_config.load_gui_main_preferences(auto_create=True)
+        created_path = cfg_dir / "gui_main_preferences.json"
+        created = json.loads(created_path.read_text(encoding="utf-8"))
+
+        assert created_path.exists()
+        assert created["column_widths"]["numero_ssa"] == 111
+        assert created["gui_settings"]["page_size"] == 99
+        assert config["column_widths"]["numero_ssa"] == 111
+        assert config["gui_settings"]["page_size"] == 99
+
     def test_gui_main_preferences_isolation_from_cli(self):
         """Verifica que as configuracoes sao independentes do CLI."""
         from core.config_manager import load_settings

@@ -2,57 +2,51 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-06 23h00
+## CURRENT TRUTH 2026-04-07 00h10
 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. `HEAD == origin/dev` confirmado em `01b4eb95`
-3. worktree em `dev` esta limpo apos `git pull --ff-only origin dev`
+2. `HEAD` local inclui o slice de hierarquia de preferencias GUI e template versionado
+3. worktree do slice foi validado localmente com `py_compile`, `ruff`, `ty` e `pytest` focado
 4. stash preservado fora desta baseline:
    - `stash@{0}` `On main: pre-dev-switch-display-mappings-20260406`
-5. o ultimo slice funcional publicado continua sendo:
-   - `6726e833` `STABILITY_PATCH: preserve gui preferences and config path`
-6. o commit remoto absorvido neste pull foi apenas:
-   - `01b4eb95` `style: format code with isort and Ruff Formatter`
-   - impacto: somente `tests/test_gui_preferences_atomic_write.py`
-7. o slice funcional anterior corrigiu 3 regressos de preferencias GUI:
-   - colunas explicitamente ocultadas deixaram de reaparecer por forcacao de `required`
-   - larguras explicitas deixaram de ser sobrescritas por heuristica numerica
-   - persistencia de preferencias/ordem de colunas passou a respeitar `SSA_CONFIG_DIR`
-8. arquivos tocados no ultimo slice funcional:
+5. este slice consolidou a hierarquia correta de preferencias GUI:
+   - template versionado em `config/gui_main_preferences.json.example`
+   - arquivo local efetivo continua `config/gui_main_preferences.json`
+   - largura persistida do arquivo agora prevalece sobre largura automatica da tabela
+6. arquivos tocados no slice funcional mais recente:
    - `gui/gui_config.py`
-   - `gui/gui_ssa.py`
+   - `gui/ssa/gui_table.py`
    - `tests/test_gui_main_configuration.py`
-   - `tests/test_gui_preferences_atomic_write.py`
-9. `kluster` esta disponivel neste host em:
+   - `tests/test_gui_filter_logic.py`
+   - `config/gui_main_preferences.json.example`
+   - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
+7. `kluster` esta disponivel neste host em:
    - `/Users/menon/.kluster/cli/bin/kluster`
-10. PR ativo desta baseline:
+8. doc tecnico novo desta frente:
+   - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
+9. PR ativo desta baseline:
    - `#46` `dev -> main`
    - `mergeStateStatus=UNSTABLE`
-11. checks remotos relevantes agora:
+10. checks remotos relevantes agora:
    - `DeepSource: Python` -> fail
    - `code/snyk (mauriciomenon)` -> fail por limite da ferramenta
    - demais checks principais -> pass
 
 ### Validacao relevante desta rodada
 
-1. `py_compile`, `ruff`, `ty` do ultimo slice funcional -> verdes
-2. `pytest` focado do ultimo slice funcional -> `5 passed`
-3. neste slice atual houve apenas `pull` + `DOC_SYNC`; nenhum patch de runtime foi aberto
+1. `py_compile`, `ruff`, `ty` -> verdes
+2. `pytest` focado -> `8 passed`
+3. `kluster` no escopo tocado -> sem blocker do slice; sobrou debt semantico antigo em nome de filtro `exclude_ste_sca`
 
 ### Proximo passo recomendado
 
-1. tratar em slice proprio a correcao estrutural de colunas/larguras com estes eixos separados:
-   - default de produto em `gui/gui_config.py`
-   - contrato minimo de `required`
-   - preferencias persistidas do usuario
-   - largura real de runtime em `gui/simple_width_manager.py` e `gui/ssa/gui_table.py`
-2. antes de editar runtime, usar como base os commits:
-   - `1348700d`
-   - `32c8bfd1`
-   - `6726e833`
-3. manter separado qualquer follow-up de `.gitignore`/`dev_env/config/display_mappings.json`
+1. analisar em slice separado, sem executar sem aprovacao:
+   - alinhamento mais profundo entre `gui/simple_width_manager.py` e `DEFAULT_COLUMN_WIDTHS`
+2. manter separado qualquer follow-up de `.gitignore`/`dev_env/config/display_mappings.json`
+3. backlog semantico aberto:
+   - renomear ou reclassificar o agrupamento `exclude_ste_sca` se o produto realmente agrupa `SES/SAD/STE/SCA`
 
 ## CURRENT TRUTH 2026-03-31 09h49
 
