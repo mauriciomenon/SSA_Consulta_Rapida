@@ -28,11 +28,8 @@ from PyQt6.QtWidgets import QLineEdit  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QLabel, QPushButton  # noqa: E402
 
 from gui import gui_ssa  # noqa: E402
-from gui.gui_config import (  # noqa: E402
-    COLUMN_HEADER_LABEL_VARIANTS,
-    DEFAULT_COLUMN_DISPLAY_NAMES,
-    DEFAULT_COLUMN_WIDTHS,
-)
+from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
+from gui.gui_config import DEFAULT_COLUMN_DISPLAY_NAMES, DEFAULT_COLUMN_WIDTHS
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
@@ -669,7 +666,9 @@ class TestGUIFilterLogic:
         for variants in COLUMN_HEADER_LABEL_VARIANTS.values():
             assert set(variants) == {"short", "medium", "long"}
 
-    def test_select_adaptive_header_label_prefers_longest_variant_that_fits(self, monkeypatch):
+    def test_select_adaptive_header_label_prefers_longest_variant_that_fits(
+        self, monkeypatch
+    ):
         monkeypatch.setattr(
             ssa_gui_table,
             "_measure_header_text_px",

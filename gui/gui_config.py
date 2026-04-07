@@ -507,12 +507,16 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
                 continue
 
             settings[key_clean] = copy.deepcopy(value)
-    table_cell_alignment = str(
-        settings.get(
-            "table_cell_alignment",
-            DEFAULT_GUI_SETTINGS["table_cell_alignment"],
+    table_cell_alignment = (
+        str(
+            settings.get(
+                "table_cell_alignment",
+                DEFAULT_GUI_SETTINGS["table_cell_alignment"],
+            )
         )
-    ).strip().lower()
+        .strip()
+        .lower()
+    )
     if table_cell_alignment not in _VALID_TABLE_CELL_ALIGNMENTS:
         logger.warning(
             "Ignoring invalid gui_settings value for key 'table_cell_alignment': %r",
