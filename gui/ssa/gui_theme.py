@@ -9,6 +9,7 @@ import os
 import sys
 
 from core.config_manager import atomic_write_json_file
+from gui.gui_config import get_gui_main_preferences_path
 from utils.robust_logging import get_robust_logger
 from utils.themes import get_palette, get_theme_roles, normalize_theme
 
@@ -56,11 +57,12 @@ def resolve_startup_theme(gui_settings: dict) -> str:
 def persist_gui_preferences(
     gui_prefs: dict, project_root: str, *, retries: int = 1
 ) -> bool:
+    _ = project_root
     attempts = max(0, int(retries or 0)) + 1
     for attempt in range(attempts):
         try:
             atomic_write_json_file(
-                os.path.join(project_root, "config", "gui_main_preferences.json"),
+                get_gui_main_preferences_path(),
                 gui_prefs,
                 indent=2,
                 ensure_ascii=False,

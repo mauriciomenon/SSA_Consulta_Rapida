@@ -919,6 +919,19 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters["descricao_ssa"] == "Teste A"
         assert "descricao_ssa" not in self.window._hidden_column_filter_lines
 
+    def test_on_columns_changed_persists_visible_columns_state(self, monkeypatch):
+        calls = {"persist": 0}
+
+        def _fake_persist():
+            calls["persist"] += 1
+
+        monkeypatch.setattr(self.window, "_persist_visible_columns_order", _fake_persist)
+
+        new_columns = [col for col in self.window.visible_columns if col != "descricao_ssa"]
+        self.window.on_columns_changed(new_columns)
+
+        assert calls["persist"] == 1
+
     def test_default_column_filter_rows_show_apply_clear_and_hide_buttons(self):
         self.window._active_column_filters = {
             col: "" for col in self.window._column_filter_default_columns()

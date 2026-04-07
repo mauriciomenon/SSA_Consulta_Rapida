@@ -3021,17 +3021,67 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 )
         # Reexibe a pãgina atual com as novas colunas
         self.display_current_page(self.paginator.current_page)
-        # Nota: Persistencia de preferencias removida para isolamento do CLI
-        # As configurações ficam no arquivo gui_main_preferences.json
+        try:
+            self._persist_visible_columns_order()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao persistir estado de colunas visiveis apos alteracao: %s", exc
+            )
 
     def _persist_visible_columns_order(self) -> None:
-        gui_prefs = GUI_MAIN_PREFERENCES.setdefault("display_columns", [])
-        if gui_prefs == self.visible_columns:
+        ordered_visible_columns = []
+        seen_visible = set()
+        for column_name in list(self.visible_columns):
+            if not isinstance(column_name, str):
+                continue
+            cleaned = column_name.strip()
+            if not cleaned or cleaned == "#" or cleaned in seen_visible:
+                continue
+            seen_visible.add(cleaned)
+            ordered_visible_columns.append(cleaned)
+
+        available_columns = []
+        selector = getattr(self, "column_selector", None)
+        if selector is not None:
+            available_columns.extend(getattr(selector, "available_columns", []) or [])
+        available_columns.extend(getattr(self, "default_columns", []) or [])
+        available_columns.extend(GUI_MAIN_PREFERENCES.get("display_columns", []) or [])
+        available_columns.extend(GUI_MAIN_PREFERENCES.get("hidden_columns", []) or [])
+        display_map = getattr(self, "display_map", None)
+        if isinstance(display_map, dict):
+            available_columns.extend(display_map.keys())
+
+        known_columns = []
+        seen_known = set()
+        for column_name in available_columns:
+            if not isinstance(column_name, str):
+                continue
+            cleaned = column_name.strip()
+            if not cleaned or cleaned == "#" or cleaned in seen_known:
+                continue
+            seen_known.add(cleaned)
+            known_columns.append(cleaned)
+
+        hidden_columns = [
+            column_name
+            for column_name in known_columns
+            if column_name not in seen_visible
+        ]
+
+        current_display = GUI_MAIN_PREFERENCES.setdefault("display_columns", [])
+        current_hidden = GUI_MAIN_PREFERENCES.setdefault("hidden_columns", [])
+        if (
+            current_display == ordered_visible_columns
+            and current_hidden == hidden_columns
+        ):
             return
+        GUI_MAIN_PREFERENCES["display_columns"] = list(ordered_visible_columns)
+        GUI_MAIN_PREFERENCES["hidden_columns"] = list(hidden_columns)
         if os.environ.get("PYTEST_CURRENT_TEST"):
             return
         snapshot = copy.deepcopy(GUI_MAIN_PREFERENCES)
-        snapshot["display_columns"] = list(self.visible_columns)
+        snapshot["display_columns"] = list(ordered_visible_columns)
+        snapshot["hidden_columns"] = list(hidden_columns)
         try:
             atomic_write_json_file(
                 get_gui_main_preferences_path(),

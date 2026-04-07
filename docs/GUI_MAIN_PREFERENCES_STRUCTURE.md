@@ -78,7 +78,8 @@ Isso evita que o algoritmo automatico derrube uma largura explicitamente escolhi
 2. se existir largura persistida valida para a coluna, ela ganha da largura calculada em runtime
 3. o fallback local de largura da tabela foi amarrado ao contrato canonico de `gui/gui_config.py`, sem numeros paralelos soltos em `gui/ssa/gui_table.py`
 4. o baseline automatico do `SimpleWidthManager` agora parte de `DEFAULT_COLUMN_WIDTHS`; o crescimento automatico so adiciona espaco por cima desse baseline, sem reabrir os numeros canonicos
-5. o contrato fica assim:
+5. reorder de colunas por drag e alteracao de colunas visiveis passam a persistir no mesmo arquivo de preferencias, junto com `hidden_columns`
+6. o contrato fica assim:
    - arquivo local tem a ultima palavra
    - o arquivo `.example` documenta o padrao e deve espelhar o codigo
    - codigo define o contrato base
@@ -224,6 +225,7 @@ Esse nome e a chave unica usada em:
 
 1. a ordem visual default nasce em `display_columns`
 2. o drag manual pode persistir nova ordem no arquivo local
+3. alteracoes de hide/show tambem passam a atualizar `display_columns` e `hidden_columns`
 
 ### Label
 
@@ -237,12 +239,71 @@ Esse nome e a chave unica usada em:
 2. pode ser recalculada automaticamente para colunas sem largura persistida aplicavel
 3. o runtime nunca deve passar por cima de largura persistida valida
 
+## Algoritmo real de exibicao de texto na GUI
+
+### Header da tabela
+
+1. o header usa um alias fixo por coluna vindo de `column_display_names` / `display_mappings`
+2. nao existe hoje algoritmo dinamico de trocar entre label curta, media e longa conforme o espaco horizontal
+3. se uma coluna tiver filtro visual ativo, o header recebe o prefixo `[f] `
+
+Consequencia:
+
+1. mesmo com espaco sobrando, uma coluna pode continuar mostrando o alias curto
+2. qualquer troca futura para label curta/media/longa por largura precisa ser tratada como novo slice de UX, nao como comportamento atual
+
+### Celulas da tabela
+
+1. o valor da celula e formatado por `utils/formatting.py`
+2. quebras de linha sao substituidas por espaco antes de criar o `QTableWidgetItem`
+3. nao existe truncamento manual com `...` nas celulas da tabela principal
+4. o corte visual atual vem da largura da coluna e do desenho do Qt em linha unica
+
+### Painel de detalhes
+
+1. o painel de detalhes e o lugar de leitura longa do conteudo
+2. ele complementa a tabela, que continua otimizada para leitura compacta
+
+### Onde ha truncamento explicito com `...`
+
+1. nomes de filtros persistentes
+2. nao nas celulas da tabela principal
+
+## Algoritmo real de largura na GUI
+
+### Ordem de precedencia
+
+1. largura persistida em `config/gui_main_preferences.json`
+2. largura automatica calculada em runtime
+3. largura carregada do merge de `GUI_MAIN_PREFERENCES`
+4. fallback canonico de `DEFAULT_COLUMN_WIDTHS`
+
+### Recalculo automatico
+
+1. so acontece quando muda o conjunto/ordem de colunas
+2. ou quando o viewport muda materialmente
+3. se todas as colunas atuais ja tiverem largura persistida valida, resize puro de viewport nao deve derrubar essas larguras
+
+### Crescimento automatico
+
+1. o baseline parte de `DEFAULT_COLUMN_WIDTHS`
+2. o espaco extra automatico e distribuido apenas para colunas expansivas
+3. hoje isso se aplica principalmente a `descricao_ssa`, `descricao_execucao` e `solicitante`
+
+## GUI x CLI
+
+1. a GUI usa `gui_main_preferences.json`, aliases de exibicao e `SimpleWidthManager`
+2. a CLI nao usa esse contrato de labels/visibilidade da GUI
+3. a CLI continua com formatacao textual propria e nomes brutos de coluna
+4. qualquer tentativa de convergir GUI e CLI deve ser tratada como novo slice, nao como efeito colateral desta frente
+
 ## O que este desenho evita
 
 1. helper paliativo escondido em runtime
 2. depender de JSON ignorado sem referencia versionada
 3. largura automatica derrotando escolha explicita do usuario
 4. perda de rastreabilidade sobre nome, ordem e tamanho
+5. assimetria entre reorder persistido e hide/show nao persistido
 
 ## Limite intencional deste slice
 

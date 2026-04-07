@@ -16,6 +16,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - arquivo local efetivo continua `config/gui_main_preferences.json`
    - largura persistida do arquivo agora prevalece sobre largura automatica da tabela
    - o baseline automatico do `SimpleWidthManager` agora parte de `DEFAULT_COLUMN_WIDTHS`, sem numeros paralelos para colunas fixas
+   - reorder e hide/show de colunas agora persistem no mesmo arquivo local
 6. arquivos tocados no slice funcional mais recente:
    - `gui/gui_config.py`
    - `gui/ssa/gui_table.py`
@@ -34,6 +35,8 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - largura persistida vencendo a largura automatica
      - fallback local da tabela preso ao contrato canonico
      - arquivo local com ultima palavra, `.example` documentando o padrao e codigo definindo a base
+     - header da tabela usa alias fixo por coluna; nao existe tier dinamico curto/medio/longo hoje
+     - CLI continua fora desse contrato de labels/visibilidade da GUI
 9. PR ativo desta baseline:
    - `#46` `dev -> main`
    - `mergeStateStatus=UNSTABLE`
