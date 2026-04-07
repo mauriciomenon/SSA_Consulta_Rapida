@@ -2,7 +2,7 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-07 00h10
+## CURRENT TRUTH 2026-04-07 00h30
 
 ### Estado de repositorio e runtime
 
@@ -15,17 +15,25 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - template versionado em `config/gui_main_preferences.json.example`
    - arquivo local efetivo continua `config/gui_main_preferences.json`
    - largura persistida do arquivo agora prevalece sobre largura automatica da tabela
+   - o baseline automatico do `SimpleWidthManager` agora parte de `DEFAULT_COLUMN_WIDTHS`, sem numeros paralelos para colunas fixas
 6. arquivos tocados no slice funcional mais recente:
    - `gui/gui_config.py`
    - `gui/ssa/gui_table.py`
+   - `gui/simple_width_manager.py`
    - `tests/test_gui_main_configuration.py`
    - `tests/test_gui_filter_logic.py`
+   - `tests/test_streamlit_filter_cache.py`
    - `config/gui_main_preferences.json.example`
    - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
 7. `kluster` esta disponivel neste host em:
    - `/Users/menon/.kluster/cli/bin/kluster`
 8. doc tecnico novo desta frente:
    - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
+   - o doc agora explicita, em texto direto:
+     - seed por template versionado quando faltar arquivo local ou mudar `SSA_CONFIG_DIR`
+     - largura persistida vencendo a largura automatica
+     - fallback local da tabela preso ao contrato canonico
+     - arquivo local com ultima palavra, template documentando o padrao e codigo definindo a base
 9. PR ativo desta baseline:
    - `#46` `dev -> main`
    - `mergeStateStatus=UNSTABLE`
@@ -37,13 +45,13 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 ### Validacao relevante desta rodada
 
 1. `py_compile`, `ruff`, `ty` -> verdes
-2. `pytest` focado -> `8 passed`
+2. `pytest` focado -> `11 passed`
 3. `kluster` no escopo tocado -> sem blocker do slice; sobrou debt semantico antigo em nome de filtro `exclude_ste_sca`
 
 ### Proximo passo recomendado
 
 1. analisar em slice separado, sem executar sem aprovacao:
-   - alinhamento mais profundo entre `gui/simple_width_manager.py` e `DEFAULT_COLUMN_WIDTHS`
+   - revisao numerica opcional de `DEFAULT_COLUMN_WIDTHS`, se o produto quiser reabrir tamanhos canonicos
 2. manter separado qualquer follow-up de `.gitignore`/`dev_env/config/display_mappings.json`
 3. backlog semantico aberto:
    - renomear ou reclassificar o agrupamento `exclude_ste_sca` se o produto realmente agrupa `SES/SAD/STE/SCA`

@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import QLineEdit  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QLabel, QPushButton  # noqa: E402
 
 from gui import gui_ssa  # noqa: E402
+from gui.gui_config import DEFAULT_COLUMN_WIDTHS  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
@@ -3150,6 +3151,23 @@ class TestGUIFilterLogic:
             column_order=["#", "numero_ssa"],
         )
         assert int(widths.get("#", 0)) == 24
+
+    def test_compute_optimal_widths_uses_canonical_defaults_for_fixed_columns(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202500001"],
+                "situacao": ["APV"],
+                "data_cadastro": ["2025-01-01"],
+            }
+        )
+        widths = self.window.width_manager.compute_optimal_widths(
+            df=df,
+            available_width=600,
+            column_order=["numero_ssa", "situacao", "data_cadastro"],
+        )
+        assert int(widths["numero_ssa"]) == DEFAULT_COLUMN_WIDTHS["numero_ssa"]
+        assert int(widths["situacao"]) == DEFAULT_COLUMN_WIDTHS["situacao"]
+        assert int(widths["data_cadastro"]) == DEFAULT_COLUMN_WIDTHS["data_cadastro"]
 
     def test_table_header_uses_merged_default_alias_for_extra_column(self, monkeypatch):
         reduced_map = {"numero_ssa": "Numero SSA", "situacao": "Situacao"}

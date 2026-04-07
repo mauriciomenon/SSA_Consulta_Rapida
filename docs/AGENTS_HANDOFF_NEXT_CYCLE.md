@@ -2,7 +2,7 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-07 00h10
+## CURRENT TRUTH 2026-04-07 00h30
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
@@ -13,17 +13,20 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - template versionado `config/gui_main_preferences.json.example`
      - bootstrap do arquivo local de preferencias a partir do template
      - precedencia de largura persistida sobre largura automatica
+     - baseline automatico do `SimpleWidthManager` amarrado a `DEFAULT_COLUMN_WIDTHS`
      - doc tecnico dedicado `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
   5. arquivos tocados no slice mais recente:
      - `gui/gui_config.py`
      - `gui/ssa/gui_table.py`
+     - `gui/simple_width_manager.py`
      - `tests/test_gui_main_configuration.py`
      - `tests/test_gui_filter_logic.py`
+     - `tests/test_streamlit_filter_cache.py`
      - `config/gui_main_preferences.json.example`
      - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
   6. validacao do ultimo slice funcional:
      - `py_compile`, `ruff`, `ty` verdes
-     - `pytest` focado -> `8 passed`
+     - `pytest` focado -> `11 passed`
   7. `kluster` esta disponivel neste host:
      - `/Users/menon/.kluster/cli/bin/kluster`
   8. PR ativo:
@@ -36,12 +39,17 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. nao confundir o stash criado no `main` com trabalho pendente do `dev`
   2. nao reaplicar `display_mappings.json` sem decidir primeiro se ele deve sair do versionamento
   3. o arquivo local `config/gui_main_preferences.json` continua sendo override de runtime, mas agora o repo tambem tem template versionado para auditoria
+  4. o comportamento agora precisa ser lido assim, sem ambiguidade:
+     - se faltar `config/gui_main_preferences.json` ou o runtime mudar `SSA_CONFIG_DIR`, o seed vem do template versionado
+     - se existir largura persistida valida, ela ganha da largura calculada em runtime
+     - o fallback local da tabela e o baseline automatico partem do contrato canonico em `gui/gui_config.py`
+     - arquivo local tem a ultima palavra; template versionado documenta o padrao; codigo define a base
 - Proximo foco recomendado:
   1. separar claramente no patch futuro:
      - ordem/labels/defaults de produto
      - preferencia persistida do usuario
      - width manager real da tabela
-  2. analisar em slice separado se `gui/simple_width_manager.py` deve passar a herdar baseline canonica de `DEFAULT_COLUMN_WIDTHS`
+  2. se o produto quiser, analisar em slice separado se os numeros de `DEFAULT_COLUMN_WIDTHS` precisam revisao controlada
   3. manter fora deste slice o debt semantico de nome do agrupamento `exclude_ste_sca`
 
 ## CURRENT TRUTH 2026-03-31 09h49
