@@ -28,7 +28,11 @@ from PyQt6.QtWidgets import QLineEdit  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QLabel, QPushButton  # noqa: E402
 
 from gui import gui_ssa  # noqa: E402
-from gui.gui_config import DEFAULT_COLUMN_WIDTHS  # noqa: E402
+from gui.gui_config import (  # noqa: E402
+    COLUMN_HEADER_LABEL_VARIANTS,
+    DEFAULT_COLUMN_DISPLAY_NAMES,
+    DEFAULT_COLUMN_WIDTHS,
+)
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
@@ -659,6 +663,172 @@ class TestGUIFilterLogic:
             self.window.table_widget.horizontalHeaderItem(header_index).text() or ""
         )
         assert not header_text.startswith("[f] ")
+
+    def test_column_header_label_variants_cover_display_names_with_three_slots(self):
+        assert set(COLUMN_HEADER_LABEL_VARIANTS) == set(DEFAULT_COLUMN_DISPLAY_NAMES)
+        for variants in COLUMN_HEADER_LABEL_VARIANTS.values():
+            assert set(variants) == {"short", "medium", "long"}
+
+    def test_select_adaptive_header_label_prefers_longest_variant_that_fits(self, monkeypatch):
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_measure_header_text_px",
+            lambda _window, text: len(str(text or "")) * 8,
+        )
+
+        long_label = ssa_gui_table._select_adaptive_header_label(
+            self.window,
+            "numero_ssa",
+            140,
+            False,
+        )
+        medium_label = ssa_gui_table._select_adaptive_header_label(
+            self.window,
+            "numero_ssa",
+            100,
+            False,
+        )
+        short_label = ssa_gui_table._select_adaptive_header_label(
+            self.window,
+            "numero_ssa",
+            50,
+            False,
+        )
+
+        assert long_label == "Numero da SSA"
+        assert medium_label == "Numero SSA"
+        assert short_label == "SSA"
+
+    def test_select_adaptive_header_label_keeps_shortest_fallback_below_minimum_width(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_measure_header_text_px",
+            lambda _window, text: len(str(text or "")) * 8,
+        )
+
+        label = ssa_gui_table._select_adaptive_header_label(
+            self.window,
+            "numero_ssa",
+            8,
+            False,
+        )
+
+        assert label == "SSA"
+
+    def test_select_adaptive_header_label_reserves_space_for_filter_prefix(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_measure_header_text_px",
+            lambda _window, text: len(str(text or "")) * 8,
+        )
+
+        no_filter = ssa_gui_table._select_adaptive_header_label(
+            self.window,
+            "numero_ssa",
+            100,
+            False,
+        )
+        with_filter = ssa_gui_table._select_adaptive_header_label(
+            self.window,
+            "numero_ssa",
+            100,
+            True,
+        )
+
+        assert no_filter == "Numero SSA"
+        assert with_filter == "SSA"
+
+    def test_select_adaptive_header_label_preserves_runtime_custom_alias(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_measure_header_text_px",
+            lambda _window, text: len(str(text or "")) * 8,
+        )
+        self.window.internal_to_display["numero_ssa"] = "Meu SSA"
+
+        label = ssa_gui_table._select_adaptive_header_label(
+            self.window,
+            "numero_ssa",
+            200,
+            False,
+        )
+
+        assert label == "Meu SSA"
+
+    def test_display_current_page_applies_adaptive_header_label_after_widths(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_measure_header_text_px",
+            lambda _window, text: len(str(text or "")) * 8,
+        )
+        self.window._saved_gui_column_widths["numero_ssa"] = 100
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header_index = self.window._current_display_columns.index("numero_ssa")
+        header_text = str(
+            self.window.table_widget.horizontalHeaderItem(header_index).text() or ""
+        )
+        assert header_text == "Numero SSA"
+
+    def test_display_current_page_preserves_filter_prefix_with_reserved_space(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_measure_header_text_px",
+            lambda _window, text: len(str(text or "")) * 8,
+        )
+        self.window._saved_gui_column_widths["numero_ssa"] = 100
+        monkeypatch.setattr(
+            self.window, "_get_visual_filter_columns", lambda: {"numero_ssa"}
+        )
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header_index = self.window._current_display_columns.index("numero_ssa")
+        header_text = str(
+            self.window.table_widget.horizontalHeaderItem(header_index).text() or ""
+        )
+        assert header_text == "[f] SSA"
+
+    def test_apply_adaptive_header_labels_expands_and_shrinks_with_runtime_width(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_measure_header_text_px",
+            lambda _window, text: len(str(text or "")) * 8,
+        )
+
+        self.window.visible_columns = ["descricao_ssa"]
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header_index = self.window._current_display_columns.index("descricao_ssa")
+        self.window.table_widget.setColumnWidth(header_index, 160)
+        ssa_gui_table._apply_adaptive_header_labels(self.window)
+        header_text = str(
+            self.window.table_widget.horizontalHeaderItem(header_index).text() or ""
+        )
+        assert header_text == "Descricao da SSA"
+
+        self.window.table_widget.setColumnWidth(header_index, 85)
+        ssa_gui_table._apply_adaptive_header_labels(self.window)
+        header_text = str(
+            self.window.table_widget.horizontalHeaderItem(header_index).text() or ""
+        )
+        assert header_text == "Desc. SSA"
 
     def test_clear_operations_preserve_group_structure(self):
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
@@ -2871,6 +3041,48 @@ class TestGUIFilterLogic:
 
         assert self.window._saved_gui_column_widths.get("descricao_ssa") == 222
         assert self.window._gui_column_pixel_widths.get("descricao_ssa") == 222
+
+    def test_header_resize_schedules_adaptive_header_refresh(self, monkeypatch):
+        self.window._current_display_columns = ["#", "descricao_ssa"]
+        self.window._saved_gui_column_widths = {}
+        self.window._gui_column_pixel_widths = {}
+
+        captured = {"called": False}
+
+        def _fake_schedule(window):
+            assert window is self.window
+            captured["called"] = True
+
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_schedule_adaptive_header_label_refresh",
+            _fake_schedule,
+        )
+
+        self.window._on_header_section_resized(1, 100, 222)
+
+        assert captured["called"] is True
+
+    def test_header_resize_reapplies_adaptive_label_after_debounce(self, monkeypatch):
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_measure_header_text_px",
+            lambda _window, text: len(str(text or "")) * 8,
+        )
+        self.window._saved_gui_column_widths["numero_ssa"] = 50
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        logical_index = self.window._current_display_columns.index("numero_ssa")
+        self.window.table_widget.setColumnWidth(logical_index, 140)
+        self.window._on_header_section_resized(logical_index, 50, 140)
+        time.sleep(0.22)
+        QApplication.processEvents()
+
+        header_text = str(
+            self.window.table_widget.horizontalHeaderItem(logical_index).text() or ""
+        )
+        assert header_text == "Numero da SSA"
 
     def test_header_context_menu_apply_stores_undo_snapshot(self, monkeypatch):
         class _FakeSignal:

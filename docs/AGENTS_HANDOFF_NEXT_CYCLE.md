@@ -2,34 +2,37 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-07 00h30
+## CURRENT TRUTH 2026-04-07 10h20
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. baseline mais recente desta frente consolidou hierarquia de preferencias GUI e corrigiu a semantica do `.example`
+  2. baseline mais recente desta frente entregou labels adaptativos no header da GUI sem tocar CLI nem `gui/gui_ssa.py`
   3. stash preservado fora de `dev`:
      - `stash@{0}` `On main: pre-dev-switch-display-mappings-20260406`
   4. este slice fez:
-     - arquivo versionado de referencia `config/gui_main_preferences.json.example`
-     - bootstrap do arquivo local de preferencias a partir dos defaults em memoria do codigo
-     - precedencia de largura persistida sobre largura automatica
-     - baseline automatico do `SimpleWidthManager` amarrado a `DEFAULT_COLUMN_WIDTHS`
-     - reorder e hide/show persistidos no mesmo arquivo de preferencias
-     - doc tecnico dedicado `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
+     - matriz canonica `short/medium/long` em `gui/gui_config.py`
+     - selecao adaptativa no paint final do header em `gui/ssa/gui_table.py`
+     - reserva de espaco para `[f] ` e margem lateral do header
+     - debounce leve de refresh apos resize manual
+     - regressao em `tests/test_gui_filter_logic.py`
+     - doc tecnico e docs vivos alinhados
   5. arquivos tocados no slice mais recente:
      - `gui/gui_config.py`
      - `gui/ssa/gui_table.py`
-     - `gui/simple_width_manager.py`
-     - `tests/test_gui_main_configuration.py`
      - `tests/test_gui_filter_logic.py`
-     - `tests/test_streamlit_filter_cache.py`
-     - `config/gui_main_preferences.json.example`
      - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
+     - `docs/NEXT_CHAT_MIGRATION.md`
+     - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+     - `docs/RECOVERY_BACKLOG.md`
+     - `docs/INDEX.md`
   6. validacao do ultimo slice funcional:
      - `py_compile`, `ruff`, `ty` verdes
-     - `pytest` focado -> `11 passed`
+     - `pytest` focado -> `12 passed`
+     - `bandit` indisponivel neste host (`No module named bandit`)
   7. `kluster` esta disponivel neste host:
      - `/Users/menon/.kluster/cli/bin/kluster`
+     - um review local no lote de codigo devolveu apenas debts antigos
+     - a reexecucao no lote final com docs excedeu o timeout e deve ser tratada como bloqueio de ferramenta
   8. PR ativo:
      - `#46` `dev -> main`
      - `mergeStateStatus=UNSTABLE`
@@ -45,8 +48,9 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - se existir largura persistida valida, ela ganha da largura calculada em runtime
      - o fallback local da tabela e o baseline automatico partem do contrato canonico em `gui/gui_config.py`
      - arquivo local tem a ultima palavra; o `.example` documenta o padrao; codigo define a base
-     - o header da tabela usa alias fixo por coluna e nao troca hoje entre label curta/media/longa conforme espaco
-     - a CLI continua fora do contrato de labels/visibilidade da GUI
+     - o header da GUI agora escolhe `long -> medium -> short` pela largura real da coluna, com reserva para `[f] `
+     - a CLI continua fora do contrato de preferencias da GUI, mas segue usando `display_map`, `short_labels`, `fixed_widths` e alternancia `short/full`
+     - `core/handler_base.py:197` continua documentado apenas como renderer paralelo fora do caminho principal `main.py -> interface/cli.py -> interface/table_printer.py`
 - Proximo foco recomendado:
   1. separar claramente no patch futuro:
      - ordem/labels/defaults de produto

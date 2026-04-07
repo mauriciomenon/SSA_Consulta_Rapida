@@ -10,13 +10,22 @@ from contextlib import contextmanager
 
 import pandas as pd
 
-from gui.gui_config import DEFAULT_COLUMN_WIDTHS, GUI_MAIN_PREFERENCES
+from gui.gui_config import (
+    COLUMN_HEADER_LABEL_VARIANTS,
+    DEFAULT_COLUMN_DISPLAY_NAMES,
+    DEFAULT_COLUMN_WIDTHS,
+    GUI_MAIN_PREFERENCES,
+)
 from gui.qt_stubs import QHeaderView, Qt, QTableWidgetItem, QTimer
 from gui.ssa import gui_details as ssa_gui_details
 from utils.formatting import format_dataframe_for_display
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
+
+_FILTER_HEADER_PREFIX = "[f] "
+_HEADER_SIDE_PADDING_TEXT = "  "
+_ADAPTIVE_HEADER_REFRESH_DELAY_MS = 150
 
 
 def _get_visual_filter_columns(window, *, context: str) -> set[str]:
@@ -42,8 +51,111 @@ def _build_display_headers(
     for col in columns:
         base = "#" if col == "#" else window.internal_to_display.get(col, col)
         has_filter = col != "#" and col in visual_filter_columns
-        headers.append(f"[f] {base}" if has_filter else base)
+        headers.append(f"{_FILTER_HEADER_PREFIX}{base}" if has_filter else base)
     return headers
+
+
+def _measure_header_text_px(window, text: str) -> int:
+    header = None
+    try:
+        header = window.table_widget.horizontalHeader()
+    except Exception as exc:
+        logger.debug("Falha ao obter header para medir texto: %s", exc)
+    if header is not None and hasattr(header, "fontMetrics"):
+        try:
+            font_metrics = header.fontMetrics()
+            if font_metrics is not None and hasattr(font_metrics, "horizontalAdvance"):
+                return max(0, int(font_metrics.horizontalAdvance(text)))
+        except Exception as exc:
+            logger.debug("Falha ao medir texto do header com fontMetrics: %s", exc)
+    return max(0, len(text)) * 8
+
+
+def _select_adaptive_header_label(
+    window, column_name: str, available_px: int, has_filter: bool
+) -> str:
+    """Return the best header label variant, keeping the shortest canonical fallback."""
+    if column_name == "#":
+        return "#"
+
+    base_label = str(window.internal_to_display.get(column_name, column_name))
+    default_label = DEFAULT_COLUMN_DISPLAY_NAMES.get(column_name)
+    if default_label is not None and base_label != default_label:
+        return base_label
+
+    variants = COLUMN_HEADER_LABEL_VARIANTS.get(column_name, {})
+    short_label = str(variants.get("short", base_label))
+    medium_label = str(variants.get("medium", short_label))
+    long_label = str(variants.get("long", medium_label))
+
+    prefix_px = (
+        _measure_header_text_px(window, _FILTER_HEADER_PREFIX) if has_filter else 0
+    )
+    padding_px = _measure_header_text_px(window, _HEADER_SIDE_PADDING_TEXT)
+    usable_px = max(0, int(available_px) - prefix_px - padding_px)
+
+    for label in (long_label, medium_label, short_label):
+        if _measure_header_text_px(window, label) <= usable_px:
+            return label
+    # Keep the shortest approved label instead of inventing a runtime ellipsis.
+    return short_label
+
+
+def _apply_adaptive_header_labels(window) -> None:
+    columns = list(getattr(window, "_current_display_columns", []) or [])
+    if not columns:
+        return
+
+    try:
+        header = window.table_widget.horizontalHeader()
+    except Exception as exc:
+        logger.debug("Falha ao obter header para recalcular labels adaptativos: %s", exc)
+        return
+    if header is None:
+        return
+
+    visual_filter_columns = _get_visual_filter_columns(
+        window, context="labels adaptativos"
+    )
+    for logical_index, column_name in enumerate(columns):
+        try:
+            available_px = int(window.table_widget.columnWidth(logical_index))
+            has_filter = column_name != "#" and column_name in visual_filter_columns
+            base_label = _select_adaptive_header_label(
+                window, column_name, available_px, has_filter
+            )
+            final_label = (
+                f"{_FILTER_HEADER_PREFIX}{base_label}" if has_filter else base_label
+            )
+            header_item = window.table_widget.horizontalHeaderItem(logical_index)
+            if header_item is None:
+                window.table_widget.setHorizontalHeaderItem(
+                    logical_index, QTableWidgetItem(final_label)
+                )
+                continue
+            if str(header_item.text() or "") != final_label:
+                header_item.setText(final_label)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao reaplicar label adaptativo da coluna %s (%s): %s",
+                logical_index,
+                column_name,
+                exc,
+            )
+
+
+def _schedule_adaptive_header_label_refresh(window) -> None:
+    """Debounce leve para evitar oscilacao visual durante drag do header."""
+    timer = getattr(window, "_adaptive_header_label_timer", None)
+    try:
+        if timer is None:
+            timer = QTimer(window)
+            timer.setSingleShot(True)
+            timer.timeout.connect(lambda: _apply_adaptive_header_labels(window))
+            setattr(window, "_adaptive_header_label_timer", timer)
+        timer.start(_ADAPTIVE_HEADER_REFRESH_DELAY_MS)
+    except Exception as exc:
+        logger.debug("Falha ao agendar refresh de labels adaptativos: %s", exc)
 
 
 def _get_header_visual_column_order(window) -> list[str]:
@@ -341,6 +453,7 @@ def display_current_page(window, page_number, *, update_details=True):
             logger.debug(
                 "Falha ao restaurar configuracao do header em tabela vazia: %s", exc
             )
+        _apply_adaptive_header_labels(window)
         if update_details:
             ssa_gui_details._update_details_from_series(window, None)
         return
@@ -650,6 +763,8 @@ def display_current_page(window, page_number, *, update_details=True):
             "Falha ao sincronizar ordem visual do header com colunas exibidas: %s", exc
         )
 
+    _apply_adaptive_header_labels(window)
+
     # Atualiza os detalhes da primeira linha sem forcar selecao automatica.
     _refresh_initial_details(window, update_details=update_details)
 
@@ -836,6 +951,7 @@ def _on_header_section_resized(
             window._saved_gui_column_widths[col_name] = new_px
             if hasattr(window, "_gui_column_pixel_widths"):
                 window._gui_column_pixel_widths[col_name] = new_px
+            _schedule_adaptive_header_label_refresh(window)
             _schedule_column_width_preferences_persist(window)
     except Exception as exc:  # noqa: BLE001
         # Evita quebrar a GUI por falhas de IO, mas preserva evidencia no log.

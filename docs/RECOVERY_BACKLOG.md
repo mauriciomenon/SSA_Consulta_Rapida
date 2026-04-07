@@ -5,6 +5,53 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-07 - adaptive GUI header labels
+
+Escopo fechado neste slice:
+1. adicionar matriz canonica de labels de header em `gui/gui_config.py`
+2. aplicar selecao adaptativa `long -> medium -> short` no header da GUI em `gui/ssa/gui_table.py`
+3. reservar espaco para o prefixo `[f] ` e para margem lateral do header
+4. reaplicar labels apos larguras finais da tabela e apos resize manual com debounce leve
+5. cobrir a regressao em `tests/test_gui_filter_logic.py`
+6. manter CLI, `gui/gui_ssa.py`, `DEFAULT_COLUMN_WIDTHS` e `REQUIRED_DISPLAY_COLUMNS` fora do escopo
+
+Arquivos tocados no slice:
+1. `gui/gui_config.py`
+2. `gui/ssa/gui_table.py`
+3. `tests/test_gui_filter_logic.py`
+4. docs vivos de continuidade
+
+O que mudou em termos de comportamento:
+1. o header da GUI deixa de usar apenas um alias fixo por coluna no paint final
+2. cada coluna da GUI passa a ter exatamente tres variantes:
+   - `short`
+   - `medium`
+   - `long`
+3. o runtime tenta `long -> medium -> short` usando a largura real da coluna ja aplicada
+4. quando ha filtro visual ativo, o prefixo `[f] ` entra no calculo antes da escolha do label
+5. colunas compactas continuam compactas quando `medium` e `long` repetem o mesmo rotulo
+6. best fit, auto fit, hide/show e reorder continuam reaproveitando o mesmo fluxo de render/resize
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/gui_config.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py` -> verde
+2. `uv run --python 3.13 ruff check gui/gui_config.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py` -> verde
+3. `uv run --python 3.13 ty check gui/gui_config.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py` -> verde
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "adaptive or display_headers or header_resize_updates_runtime_column_width_cache or best_fit_width or table_header_uses_merged_default_alias"` -> `12 passed, 214 deselected`
+
+Observacoes operacionais:
+1. este host tem o binario local de `kluster`
+2. um review no lote de codigo devolveu apenas debts antigos fora do escopo deste slice
+3. a reexecucao no lote final com docs excedeu o timeout e deve ser tratada como bloqueio de ferramenta, nao como review verde
+4. `bandit` nao estava disponivel neste host (`No module named bandit`)
+5. nenhum blocker funcional novo foi aberto por este slice nas validacoes locais
+
+Pendencia nao bloqueante registrada:
+1. `handler_base`: existe renderer paralelo em `core/handler_base.py:197`, mas sem callsite ativo confirmado do CLI principal por ele
+2. o caminho principal da CLI interativa continua:
+   - `main.py -> interface/cli.py -> interface/table_printer.py`
+3. qualquer convergencia GUI/CLI ou revisao do renderer paralelo deve entrar em slice proprio
+4. `display_current_page` continua concentrando responsabilidades e deve ser tratado em hardening separado, nao dentro deste patch minimo
+
 ## Update 2026-04-07 08:00 - GUI preferences hierarchy, reference file, and canonical width baseline
 
 Escopo fechado neste slice:
