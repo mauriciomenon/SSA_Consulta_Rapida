@@ -925,9 +925,13 @@ class TestGUIFilterLogic:
         def _fake_persist():
             calls["persist"] += 1
 
-        monkeypatch.setattr(self.window, "_persist_visible_columns_order", _fake_persist)
+        monkeypatch.setattr(
+            self.window, "_persist_visible_columns_order", _fake_persist
+        )
 
-        new_columns = [col for col in self.window.visible_columns if col != "descricao_ssa"]
+        new_columns = [
+            col for col in self.window.visible_columns if col != "descricao_ssa"
+        ]
         self.window.on_columns_changed(new_columns)
 
         assert calls["persist"] == 1
