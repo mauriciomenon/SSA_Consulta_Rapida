@@ -2,32 +2,47 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-06 00h31
+## CURRENT TRUTH 2026-04-06 23h00
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. `HEAD...origin/dev = 00` em `4b91720c`
+  2. `HEAD...origin/dev = 00` em `01b4eb95`
   3. stash preservado fora de `dev`:
      - `stash@{0}` `On main: pre-dev-switch-display-mappings-20260406`
-  4. ultimo slice fechado nesta rodada:
+  4. ultimo slice funcional fechado nesta baseline:
      - hardening de preferencias GUI para preservar ocultacao do usuario, widths explicitas e path correto de config
-  5. arquivos tocados:
+  5. commit funcional de referencia:
+     - `6726e833` `STABILITY_PATCH: preserve gui preferences and config path`
+  6. commit remoto absorvido agora por `pull --ff-only`:
+     - `01b4eb95` `style: format code with isort and Ruff Formatter`
+     - escopo: somente `tests/test_gui_preferences_atomic_write.py`
+  7. arquivos tocados no ultimo slice funcional:
      - `gui/gui_config.py`
      - `gui/gui_ssa.py`
      - `tests/test_gui_main_configuration.py`
      - `tests/test_gui_preferences_atomic_write.py`
-  6. validacao:
+  8. validacao do ultimo slice funcional:
      - `py_compile`, `ruff`, `ty` verdes
      - `pytest` focado -> `5 passed`
-  7. gate remoto indisponivel:
-     - `kluster` nao existe neste host (`command not found`)
+  9. `kluster` esta disponivel neste host:
+     - `/Users/menon/.kluster/cli/bin/kluster`
+  10. PR ativo:
+     - `#46` `dev -> main`
+     - `mergeStateStatus=UNSTABLE`
+  11. checks remotos relevantes:
+     - `DeepSource: Python` -> fail
+     - `code/snyk (mauriciomenon)` -> fail por limite
 - Regra operacional importante desta retomada:
   1. nao confundir o stash criado no `main` com trabalho pendente do `dev`
   2. nao reaplicar `display_mappings.json` sem decidir primeiro se ele deve sair do versionamento
-  3. o proximo slice funcional deve voltar para bug real de runtime/importacao, nao para layout GUI
+  3. o proximo slice funcional deve atacar a arquitetura correta de colunas/larguras, nao um ajuste paliativo em JSON local
 - Proximo foco recomendado:
-  1. continuar pela frente funcional escolhida pelo usuario
-  2. se a frente for importacao, reabrir diagnostico no contexto atual do `dev`
+  1. separar claramente no patch futuro:
+     - ordem/labels/defaults de produto
+     - `required` minimo
+     - preferencia persistida do usuario
+     - width manager real da tabela
+  2. usar como base comparativa os commits `1348700d`, `32c8bfd1` e `6726e833`
   3. se a frente for hygiene de repo, tratar `dev_env/config/display_mappings.json` em slice separado
 
 ## CURRENT TRUTH 2026-03-31 09h49

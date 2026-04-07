@@ -5,6 +5,40 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-06 23:00 - pull + DOC_SYNC da verdade do repo
+
+Escopo fechado neste slice:
+1. executar `git pull --ff-only origin dev`
+2. confirmar `HEAD == origin/dev` em `01b4eb95`
+3. sincronizar os docs vivos de controle com a verdade atual do host e do PR
+4. nao tocar runtime, GUI, importacao nem testes
+
+Evidencia desta rodada:
+1. branch ativa permaneceu `dev`
+2. commit remoto absorvido:
+   - `01b4eb95` `style: format code with isort and Ruff Formatter`
+   - impacto: somente `tests/test_gui_preferences_atomic_write.py`
+3. PR ativo:
+   - `#46` `dev -> main`
+   - `mergeStateStatus=UNSTABLE`
+4. checks remotos relevantes:
+   - `DeepSource: Python` -> fail
+   - `code/snyk (mauriciomenon)` -> fail por limite da ferramenta
+5. `kluster` disponivel no host:
+   - `/Users/menon/.kluster/cli/bin/kluster`
+
+Follow-up tecnico aberto, sem implementar neste slice:
+1. corrigir o desenho de colunas/larguras sem reabrir layout:
+   - `gui/gui_config.py` deve manter labels, ordem default e larguras default persistidas
+   - `REQUIRED_DISPLAY_COLUMNS` nao deve funcionar como forcacao de visibilidade
+   - preferencia do usuario nao deve ser sobrescrita por heuristica numerica
+   - largura real de runtime precisa alinhar com `gui/simple_width_manager.py` e `gui/ssa/gui_table.py`
+2. revisar historicamente os commits:
+   - `1348700d`
+   - `32c8bfd1`
+   - `6726e833`
+3. manter separado qualquer tratamento de `.gitignore` ou `dev_env/config/display_mappings.json`
+
 ## Update 2026-04-06 00:31 - GUI preference hardening
 
 Escopo fechado neste slice:
@@ -23,8 +57,7 @@ Validacao desta rodada:
 4. `uv run --python 3.13 pytest -q tests/test_gui_main_configuration.py tests/test_gui_preferences_atomic_write.py tests/test_gui_filter_logic.py -k "default_display_columns or widths_and_short_labels or gui_config_exposes_data_arquivo_origem_label_and_width or flush_column_width_preferences or persist_visible_columns_order or quick_setor_executor_combo_reflects_advanced_selection"` -> `5 passed`
 
 Observacoes operacionais:
-1. `kluster` segue indisponivel neste host atual (`command not found`)
-2. para entrar em `dev`, foi criado stash preservado no `main`:
+1. para entrar em `dev`, foi criado stash preservado no `main`:
    - `stash@{0}` `pre-dev-switch-display-mappings-20260406`
 
 ### P0 - manter o topo vivo correto

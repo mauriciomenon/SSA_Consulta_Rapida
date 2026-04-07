@@ -2,36 +2,56 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-06 00h31
+## CURRENT TRUTH 2026-04-06 23h00
 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. `HEAD == origin/dev` confirmado em `4b91720c`
-3. worktree em `dev` esta limpo
+2. `HEAD == origin/dev` confirmado em `01b4eb95`
+3. worktree em `dev` esta limpo apos `git pull --ff-only origin dev`
 4. stash preservado fora desta baseline:
    - `stash@{0}` `On main: pre-dev-switch-display-mappings-20260406`
-5. o slice desta rodada corrigiu 3 regressos de preferencias GUI:
+5. o ultimo slice funcional publicado continua sendo:
+   - `6726e833` `STABILITY_PATCH: preserve gui preferences and config path`
+6. o commit remoto absorvido neste pull foi apenas:
+   - `01b4eb95` `style: format code with isort and Ruff Formatter`
+   - impacto: somente `tests/test_gui_preferences_atomic_write.py`
+7. o slice funcional anterior corrigiu 3 regressos de preferencias GUI:
    - colunas explicitamente ocultadas deixaram de reaparecer por forcacao de `required`
    - larguras explicitas deixaram de ser sobrescritas por heuristica numerica
    - persistencia de preferencias/ordem de colunas passou a respeitar `SSA_CONFIG_DIR`
-6. arquivos tocados no slice:
+8. arquivos tocados no ultimo slice funcional:
    - `gui/gui_config.py`
    - `gui/gui_ssa.py`
    - `tests/test_gui_main_configuration.py`
    - `tests/test_gui_preferences_atomic_write.py`
-7. `kluster` segue indisponivel neste host atual (`command not found`)
+9. `kluster` esta disponivel neste host em:
+   - `/Users/menon/.kluster/cli/bin/kluster`
+10. PR ativo desta baseline:
+   - `#46` `dev -> main`
+   - `mergeStateStatus=UNSTABLE`
+11. checks remotos relevantes agora:
+   - `DeepSource: Python` -> fail
+   - `code/snyk (mauriciomenon)` -> fail por limite da ferramenta
+   - demais checks principais -> pass
 
 ### Validacao relevante desta rodada
 
-1. `py_compile`, `ruff`, `ty` -> verdes
-2. `pytest` focado -> `5 passed`
-3. nenhum patch de importacao foi aberto nesta rodada; o foco foi apenas higiene de preferencias GUI
+1. `py_compile`, `ruff`, `ty` do ultimo slice funcional -> verdes
+2. `pytest` focado do ultimo slice funcional -> `5 passed`
+3. neste slice atual houve apenas `pull` + `DOC_SYNC`; nenhum patch de runtime foi aberto
 
 ### Proximo passo recomendado
 
-1. voltar ao escopo funcional de importacao somente depois desta baseline de GUI ficar publicada
-2. priorizar reproducao de `svp-03` / SSA `202604849` ou o proximo bug funcional explicitamente escolhido
+1. tratar em slice proprio a correcao estrutural de colunas/larguras com estes eixos separados:
+   - default de produto em `gui/gui_config.py`
+   - contrato minimo de `required`
+   - preferencias persistidas do usuario
+   - largura real de runtime em `gui/simple_width_manager.py` e `gui/ssa/gui_table.py`
+2. antes de editar runtime, usar como base os commits:
+   - `1348700d`
+   - `32c8bfd1`
+   - `6726e833`
 3. manter separado qualquer follow-up de `.gitignore`/`dev_env/config/display_mappings.json`
 
 ## CURRENT TRUTH 2026-03-31 09h49
