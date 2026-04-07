@@ -1179,9 +1179,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             try:
                 action.setChecked(key == normalized)
             except Exception as exc:
-                logger.debug(
-                    "Falha ao atualizar check do alinhamento %s: %s", key, exc
-                )
+                logger.debug("Falha ao atualizar check do alinhamento %s: %s", key, exc)
 
         persisted = self._persist_gui_preferences()
         self.display_current_page(self.paginator.current_page)
@@ -4040,22 +4038,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         opcoes_menu.addAction(hard_reset_filters_action)
 
         alignment_menu = opcoes_menu.addMenu("Alinhamento da tabela")
-        current_alignment = str(
-            GUI_MAIN_PREFERENCES.get("gui_settings", {}).get(
-                "table_cell_alignment", "center"
+        current_alignment = (
+            str(
+                GUI_MAIN_PREFERENCES.get("gui_settings", {}).get(
+                    "table_cell_alignment", "center"
+                )
             )
-        ).strip().lower()
+            .strip()
+            .lower()
+        )
         self._table_cell_alignment_actions = {}
         for alignment_name, label in _TABLE_CELL_ALIGNMENT_LABELS.items():
             alignment_action = QAction(label, self)
             cast(Any, alignment_action).setCheckable(True)
-            cast(Any, alignment_action).setChecked(
-                alignment_name == current_alignment
-            )
+            cast(Any, alignment_action).setChecked(alignment_name == current_alignment)
             cast(Any, alignment_action).triggered.connect(
-                lambda _checked=False, name=alignment_name: self._apply_table_cell_alignment_preference(
-                    name
-                )
+                lambda _checked=False,
+                name=alignment_name: self._apply_table_cell_alignment_preference(name)
             )
             alignment_menu.addAction(alignment_action)
             self._table_cell_alignment_actions[alignment_name] = alignment_action
