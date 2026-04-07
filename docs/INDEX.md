@@ -2,12 +2,26 @@
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-03-30 12:20 -0300)
+## Sync status (2026-04-06 23:00 -0300)
 
 1. Baseline ativo confirmado: `4.36`.
 2. Branch operacional: `dev`.
 3. Release/tag publicada relevante: `v4.36`.
-4. Sprint GUI desta frente ja foi aterrado no runtime:
+4. `HEAD == origin/dev` confirmado em `01b4eb95`.
+5. Ultimo slice funcional relevante nesta frente:
+   - `6726e833` `STABILITY_PATCH: preserve gui preferences and config path`
+6. Commit remoto absorvido neste sync:
+   - `01b4eb95` `style: format code with isort and Ruff Formatter`
+   - impacto: somente `tests/test_gui_preferences_atomic_write.py`
+7. PR operacional atual:
+   - `#46` `dev -> main`
+   - `mergeStateStatus=UNSTABLE`
+8. Checks remotos relevantes no momento:
+   - `DeepSource: Python` -> fail
+   - `code/snyk (mauriciomenon)` -> fail por limite da ferramenta
+9. `kluster` esta disponivel neste host:
+   - `/Users/menon/.kluster/cli/bin/kluster`
+10. Sprint GUI desta frente ja foi aterrado no runtime:
    - `Abrir SAM`
    - status `filtrado/total`
    - `#` abrindo SAM externo
@@ -15,16 +29,16 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - copia por duplo clique do numero da SSA
    - derivadas em arvore textual e detalhe mais largo
    - `load_other_database()` fora da UI thread em runtime normal
-5. Relatorio consolidado do ciclo de build:
+11. Relatorio consolidado do ciclo de build:
    - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
-6. Runbook operacional 3x3:
+12. Runbook operacional 3x3:
    - `docs/BUILD_3X3_RUNBOOK.md`
-7. Contrato de upsert/update por SSA alinhado nos docs vivos:
+13. Contrato de upsert/update por SSA alinhado nos docs vivos:
    - `docs/ARCH_DB_UPSERT.md`
    - `docs/ARQUITETURA_IMPORTACAO.md`
    - `docs/TROUBLESHOOTING_IMPORTACAO.md`
    - `docs/FORENSIC_UPDATE_CRITERIA_SSA_20260329.md`
-8. Handoff host-agnostic para continuidade no macOS:
+14. Handoff host-agnostic para continuidade no macOS:
    - `docs/MAC_CONTINUATION_HANDOFF_20260329.md`
 
 ## Regras de leitura
@@ -126,4 +140,3 @@ de mesmo tema em `docs/`.
 - `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
 
 <!-- DOC_SYNC_MAC: 2026-03-30 contract-aligned -->
-
