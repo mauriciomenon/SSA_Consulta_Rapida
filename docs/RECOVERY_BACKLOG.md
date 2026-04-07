@@ -51,6 +51,8 @@ Pendencia nao bloqueante registrada:
    - `main.py -> interface/cli.py -> interface/table_printer.py`
 3. qualquer convergencia GUI/CLI ou revisao do renderer paralelo deve entrar em slice proprio
 4. `display_current_page` continua concentrando responsabilidades e deve ser tratado em hardening separado, nao dentro deste patch minimo
+5. `_merge_preferences` em `gui/gui_config.py` continua monolitica; debt antigo explicitado pelo kluster e mantido fora deste slice para evitar refatoracao transversal
+6. o fallback do header adaptativo para `short` quando nenhuma variante cabe e intencional neste slice; a escolha foi mantida por simplicidade e previsibilidade, sem ellipsis nova em runtime
 
 ## Update 2026-04-07 08:00 - GUI preferences hierarchy, reference file, and canonical width baseline
 

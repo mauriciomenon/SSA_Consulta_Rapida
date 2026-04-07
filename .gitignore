@@ -5,6 +5,7 @@
 /temp/*
 !/temp/.gitkeep
 /.beads/
+/.sisyphus/
 /config/streamlit_ui_state.json
 /.uv-matrix/
 
