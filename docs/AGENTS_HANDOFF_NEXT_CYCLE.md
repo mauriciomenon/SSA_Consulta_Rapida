@@ -14,6 +14,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - bootstrap do arquivo local de preferencias a partir dos defaults em memoria do codigo
      - precedencia de largura persistida sobre largura automatica
      - baseline automatico do `SimpleWidthManager` amarrado a `DEFAULT_COLUMN_WIDTHS`
+     - reorder e hide/show persistidos no mesmo arquivo de preferencias
      - doc tecnico dedicado `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
   5. arquivos tocados no slice mais recente:
      - `gui/gui_config.py`
@@ -44,6 +45,8 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - se existir largura persistida valida, ela ganha da largura calculada em runtime
      - o fallback local da tabela e o baseline automatico partem do contrato canonico em `gui/gui_config.py`
      - arquivo local tem a ultima palavra; o `.example` documenta o padrao; codigo define a base
+     - o header da tabela usa alias fixo por coluna e nao troca hoje entre label curta/media/longa conforme espaco
+     - a CLI continua fora do contrato de labels/visibilidade da GUI
 - Proximo foco recomendado:
   1. separar claramente no patch futuro:
      - ordem/labels/defaults de produto

@@ -36,6 +36,9 @@ O que mudou em termos de comportamento:
    - arquivo local tem a ultima palavra
    - arquivo `.example` documenta o padrao e deve espelhar o codigo
    - codigo define o contrato base
+6. reorder e hide/show de colunas passam a persistir juntos no arquivo local efetivo
+7. o header da tabela continua usando alias fixo por coluna; nao existe algoritmo dinamico de label curta/media/longa hoje
+8. a CLI continua fora do contrato de labels/visibilidade da GUI
 
 Validacao desta rodada:
 1. `uv run --python 3.13 python -m py_compile gui/gui_config.py gui/ssa/gui_table.py gui/simple_width_manager.py tests/test_gui_main_configuration.py tests/test_gui_filter_logic.py tests/test_streamlit_filter_cache.py` -> verde
@@ -50,6 +53,7 @@ Observacoes operacionais:
    - nao mexeu nos widths canonicos
    - primeiro fechou a hierarquia de preferencias
    - depois alinhou apenas o baseline automatico do width manager ao contrato canonico
+3. a persistencia de tema por caminho fixo permanece um ponto separado a ser corrigido para fechar totalmente a mesma hierarquia do resto das preferencias GUI
 
 Pendencia nao bloqueante registrada:
 1. revisar nome/semantica do agrupamento `exclude_ste_sca` para refletir corretamente o conjunto real de statuses excluidos (`SES`, `SAD`, `STE`, `SCA`)

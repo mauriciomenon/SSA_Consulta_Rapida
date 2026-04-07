@@ -41,7 +41,14 @@ def test_persist_visible_columns_order_uses_resolved_gui_config_path(
     monkeypatch.setattr(
         gui_ssa, "get_gui_main_preferences_path", lambda: str(expected_path)
     )
-    monkeypatch.setattr(gui_ssa, "GUI_MAIN_PREFERENCES", {"display_columns": ["a"]})
+    monkeypatch.setattr(
+        gui_ssa,
+        "GUI_MAIN_PREFERENCES",
+        {
+            "display_columns": ["numero_ssa", "situacao", "descricao_ssa"],
+            "hidden_columns": ["descricao_localizacao"],
+        },
+    )
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
 
     calls = []
@@ -51,7 +58,27 @@ def test_persist_visible_columns_order_uses_resolved_gui_config_path(
 
     monkeypatch.setattr(gui_ssa, "atomic_write_json_file", _fake_atomic)
 
-    fake_window = cast(Any, SimpleNamespace(visible_columns=["numero_ssa", "situacao"]))
+    fake_window = cast(
+        Any,
+        SimpleNamespace(
+            visible_columns=["numero_ssa", "situacao"],
+            default_columns=["numero_ssa", "situacao", "descricao_ssa"],
+            display_map={
+                "numero_ssa": "Numero SSA",
+                "situacao": "Sit.",
+                "descricao_ssa": "Descricao da SSA",
+                "descricao_localizacao": "Desc. Localizacao",
+            },
+            column_selector=SimpleNamespace(
+                available_columns=[
+                    "numero_ssa",
+                    "situacao",
+                    "descricao_ssa",
+                    "descricao_localizacao",
+                ]
+            ),
+        ),
+    )
 
     gui_ssa.SSAMainWindow._persist_visible_columns_order(fake_window)
 
@@ -59,5 +86,35 @@ def test_persist_visible_columns_order_uses_resolved_gui_config_path(
     path, data, indent, ensure_ascii = calls[0]
     assert path == str(expected_path)
     assert data["display_columns"] == ["numero_ssa", "situacao"]
+    assert data["hidden_columns"] == ["descricao_ssa", "descricao_localizacao"]
+    assert indent == 2
+    assert ensure_ascii is False
+
+
+def test_theme_persist_uses_resolved_gui_config_path(monkeypatch, tmp_path):
+    from gui.ssa import gui_theme
+
+    expected_path = tmp_path / "cfg_theme" / "gui_main_preferences.json"
+    monkeypatch.setattr(
+        gui_theme, "get_gui_main_preferences_path", lambda: str(expected_path)
+    )
+
+    calls = []
+
+    def _fake_atomic(path, data, *, indent=2, ensure_ascii=False):
+        calls.append((path, data, indent, ensure_ascii))
+
+    monkeypatch.setattr(gui_theme, "atomic_write_json_file", _fake_atomic)
+
+    ok = gui_theme.persist_gui_preferences(
+        {"gui_settings": {"theme": "gruvbox"}},
+        "/tmp/ignored-project-root",
+    )
+
+    assert ok is True
+    assert calls
+    path, data, indent, ensure_ascii = calls[0]
+    assert path == str(expected_path)
+    assert data["gui_settings"]["theme"] == "gruvbox"
     assert indent == 2
     assert ensure_ascii is False
