@@ -163,6 +163,20 @@ Exemplos:
 2. `debounce_delay`
 3. `theme`
 4. `enable_column_sorting`
+5. `table_cell_alignment`
+
+Valores aceitos para `table_cell_alignment`:
+
+1. `left`
+2. `center`
+3. `right`
+
+Regra atual:
+
+1. o runtime usa `center` por default
+2. valores invalidos voltam para `center`
+3. o slice atual altera apenas o alinhamento das celulas da tabela
+4. se houver expansao futura para uma opcao clicavel em menu ou toolbar, isso deve entrar em slice proprio em `gui/gui_ssa.py`, sem misturar com o contrato base de preferencias
 
 ### `required_display_columns`
 

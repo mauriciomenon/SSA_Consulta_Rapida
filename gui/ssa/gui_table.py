@@ -26,6 +26,11 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 _FILTER_HEADER_PREFIX = "[f] "
 _HEADER_SIDE_PADDING_TEXT = "  "
 _ADAPTIVE_HEADER_REFRESH_DELAY_MS = 150
+_TABLE_CELL_HORIZONTAL_ALIGNMENT_MAP = {
+    "left": Qt.AlignmentFlag.AlignLeft,
+    "center": Qt.AlignmentFlag.AlignHCenter,
+    "right": Qt.AlignmentFlag.AlignRight,
+}
 
 
 def _get_visual_filter_columns(window, *, context: str) -> set[str]:
@@ -72,7 +77,14 @@ def _measure_header_text_px(window, text: str) -> int:
 
 
 def _select_adaptive_header_label(
-    window, column_name: str, available_px: int, has_filter: bool
+    window,
+    column_name: str,
+    available_px: int,
+    has_filter: bool,
+    *,
+    prefix_px: int | None = None,
+    padding_px: int | None = None,
+    label_width_cache: dict[str, int] | None = None,
 ) -> str:
     """Return the best header label variant, keeping the shortest canonical fallback."""
     if column_name == "#":
@@ -88,14 +100,22 @@ def _select_adaptive_header_label(
     medium_label = str(variants.get("medium", short_label))
     long_label = str(variants.get("long", medium_label))
 
-    prefix_px = (
-        _measure_header_text_px(window, _FILTER_HEADER_PREFIX) if has_filter else 0
+    if label_width_cache is None:
+        label_width_cache = {}
+    effective_prefix_px = prefix_px if has_filter and prefix_px is not None else 0
+    if has_filter and prefix_px is None:
+        effective_prefix_px = _measure_header_text_px(window, _FILTER_HEADER_PREFIX)
+    effective_padding_px = (
+        padding_px
+        if padding_px is not None
+        else _measure_header_text_px(window, _HEADER_SIDE_PADDING_TEXT)
     )
-    padding_px = _measure_header_text_px(window, _HEADER_SIDE_PADDING_TEXT)
-    usable_px = max(0, int(available_px) - prefix_px - padding_px)
+    usable_px = max(0, int(available_px) - effective_prefix_px - effective_padding_px)
 
     for label in (long_label, medium_label, short_label):
-        if _measure_header_text_px(window, label) <= usable_px:
+        if label not in label_width_cache:
+            label_width_cache[label] = _measure_header_text_px(window, label)
+        if label_width_cache[label] <= usable_px:
             return label
     # Keep the shortest approved label instead of inventing a runtime ellipsis.
     return short_label
@@ -114,15 +134,54 @@ def _apply_adaptive_header_labels(window) -> None:
     if header is None:
         return
 
+    font_signature = None
+    if hasattr(header, "font"):
+        try:
+            font = header.font()
+            font_signature = (
+                str(font.family()),
+                int(font.pointSizeF() * 100),
+                int(font.weight()),
+                bool(font.italic()),
+            )
+        except Exception as exc:
+            logger.debug("Falha ao ler assinatura da fonte do header: %s", exc)
+
+    if getattr(window, "_adaptive_header_label_width_cache_font", None) != font_signature:
+        setattr(window, "_adaptive_header_label_width_cache", {})
+        setattr(window, "_adaptive_header_label_width_cache_font", font_signature)
+
     visual_filter_columns = _get_visual_filter_columns(
         window, context="labels adaptativos"
     )
+    previous_signatures = getattr(window, "_adaptive_header_label_signatures", {})
+    if not isinstance(previous_signatures, dict):
+        previous_signatures = {}
+    next_signatures = {}
+    prefix_px = _measure_header_text_px(window, _FILTER_HEADER_PREFIX)
+    padding_px = _measure_header_text_px(window, _HEADER_SIDE_PADDING_TEXT)
+    label_width_cache = getattr(window, "_adaptive_header_label_width_cache", {})
+    if not isinstance(label_width_cache, dict):
+        label_width_cache = {}
     for logical_index, column_name in enumerate(columns):
         try:
             available_px = int(window.table_widget.columnWidth(logical_index))
             has_filter = column_name != "#" and column_name in visual_filter_columns
+            runtime_label = "#" if column_name == "#" else str(
+                window.internal_to_display.get(column_name, column_name)
+            )
+            signature = (available_px, has_filter, runtime_label)
+            next_signatures[column_name] = signature
+            if previous_signatures.get(column_name) == signature:
+                continue
             base_label = _select_adaptive_header_label(
-                window, column_name, available_px, has_filter
+                window,
+                column_name,
+                available_px,
+                has_filter,
+                prefix_px=prefix_px,
+                padding_px=padding_px,
+                label_width_cache=label_width_cache,
             )
             final_label = (
                 f"{_FILTER_HEADER_PREFIX}{base_label}" if has_filter else base_label
@@ -142,6 +201,8 @@ def _apply_adaptive_header_labels(window) -> None:
                 column_name,
                 exc,
             )
+    setattr(window, "_adaptive_header_label_width_cache", label_width_cache)
+    setattr(window, "_adaptive_header_label_signatures", next_signatures)
 
 
 def _schedule_adaptive_header_label_refresh(window) -> None:
@@ -553,6 +614,15 @@ def display_current_page(window, page_number, *, update_details=True):
     display_headers = _build_display_headers(
         window, list(display_df.columns), visual_filter_columns
     )
+    gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
+    table_cell_alignment_name = str(
+        gui_settings.get("table_cell_alignment", "center")
+    ).strip().lower()
+    horizontal_alignment = _TABLE_CELL_HORIZONTAL_ALIGNMENT_MAP.get(
+        table_cell_alignment_name,
+        Qt.AlignmentFlag.AlignHCenter,
+    )
+    table_cell_alignment = Qt.AlignmentFlag.AlignVCenter | horizontal_alignment
 
     render_signature = _build_page_render_signature(window, display_df, display_headers)
     previous_signature = getattr(window, "_last_table_render_signature", None)
@@ -588,9 +658,7 @@ def display_current_page(window, page_number, *, update_details=True):
                                 item_text = " ".join(item_text.split())
 
                         item = QTableWidgetItem(item_text)
-                        item.setTextAlignment(
-                            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
-                        )
+                        item.setTextAlignment(table_cell_alignment)
                         # Armazena o indice da linha original nos dados filtrados para referencia
                         if col_name == "#":
                             item.setData(

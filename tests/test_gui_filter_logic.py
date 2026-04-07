@@ -780,6 +780,44 @@ class TestGUIFilterLogic:
         )
         assert header_text == "Numero SSA"
 
+    def test_display_current_page_centers_table_cells_by_default(self):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        logical_index = self.window._current_display_columns.index("numero_ssa")
+        item = self.window.table_widget.item(0, logical_index)
+
+        assert item is not None
+        assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignHCenter)
+
+    def test_display_current_page_accepts_left_table_cell_alignment(self):
+        gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})[
+            "table_cell_alignment"
+        ] = "left"
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        logical_index = self.window._current_display_columns.index("numero_ssa")
+        item = self.window.table_widget.item(0, logical_index)
+
+        assert item is not None
+        assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignLeft)
+
+    def test_display_current_page_accepts_right_table_cell_alignment(self):
+        gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})[
+            "table_cell_alignment"
+        ] = "right"
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        logical_index = self.window._current_display_columns.index("numero_ssa")
+        item = self.window.table_widget.item(0, logical_index)
+
+        assert item is not None
+        assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignRight)
+
     def test_display_current_page_preserves_filter_prefix_with_reserved_space(
         self, monkeypatch
     ):
