@@ -953,8 +953,16 @@ def _get_derivadas_relations_info(window, numero_ssa):
     if not children:
         children = _get_derivadas_for_ssa(window, num_norm)
     else:
-        children = [value for value in (_normalize_ssa_relation_value(raw) for raw in children) if value]
-    parents = [value for value in (_normalize_ssa_relation_value(raw) for raw in parents) if value]
+        children = [
+            value
+            for value in (_normalize_ssa_relation_value(raw) for raw in children)
+            if value
+        ]
+    parents = [
+        value
+        for value in (_normalize_ssa_relation_value(raw) for raw in parents)
+        if value
+    ]
     if descendants_count <= 0:
         descendants_count = len(children)
 
@@ -1009,8 +1017,16 @@ def _collect_derivadas_tree_data(window, numero_ssa):
     if not children:
         children = _get_derivadas_for_ssa(window, target)
     else:
-        children = [value for value in (_normalize_ssa_relation_value(raw) for raw in children) if value]
-    parents = [value for value in (_normalize_ssa_relation_value(raw) for raw in parents) if value]
+        children = [
+            value
+            for value in (_normalize_ssa_relation_value(raw) for raw in children)
+            if value
+        ]
+    parents = [
+        value
+        for value in (_normalize_ssa_relation_value(raw) for raw in parents)
+        if value
+    ]
     normalized_descendants = []
     for raw in descendants:
         if not isinstance(raw, dict):
