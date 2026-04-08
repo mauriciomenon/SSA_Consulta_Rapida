@@ -9,8 +9,8 @@ de derivadas consolidada na mesma janela.
 
 O dialogo usa uma unica tela de conteudo, sem `QTabWidget` de aba unica.
 
-A altura inicial do dialogo segue a altura atual da janela principal, com
-clamp pela tela ativa.
+A altura inicial do dialogo segue a altura atual da janela principal, limitada
+ao tamanho util da tela ativa.
 
 O layout principal usa um `QSplitter` vertical com tamanhos iniciais:
 
@@ -51,7 +51,7 @@ adotar estrategia dedicada para overflow do grafo.
 
 ## Tela ativa
 
-O dialogo aplica clamp pela tela ativa antes de abrir:
+Antes de abrir, o dialogo e limitado ao tamanho util da tela ativa:
 
 - respeita largura maxima disponivel
 - respeita altura maxima disponivel
@@ -62,9 +62,8 @@ multiplos monitores ou telas menores.
 
 ## Navegacao por links de derivadas
 
-Os links no bloco textual de derivadas tentam rerenderizar o proprio dialogo
-com a SSA clicada.
+No bloco textual de derivadas, so recebem link as SSAs que existem nos dados
+carregados no momento.
 
-Se a SSA de destino nao estiver presente nos dados carregados no momento, o
-dialogo nao falha em silencio: uma mensagem objetiva informa que a SSA
-relacionada nao foi encontrada nos dados carregados.
+Se a SSA relacionada nao estiver disponivel no dataset atual, ela aparece como
+texto normal, sem link.

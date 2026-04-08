@@ -992,6 +992,8 @@ def _build_derivadas_tree_html(
             str(status_hint or _get_situacao_for_ssa(window, safe)).strip().upper()
         )
         label = safe if not status_code else f"{safe} ({status_code})"
+        if _get_series_for_ssa(window, safe) is None:
+            return html_module.escape(label)
         return (
             f'<a href="ssa-panel:{safe}" style="color:{link_color}; '
             f'text-decoration:none; border-bottom: 1px solid {link_color};">'
@@ -1786,23 +1788,6 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         if graph_svg:
             _render_graph_pixmap(graph_svg)
 
-    def _show_missing_target_feedback(target_href: str) -> None:
-        safe_target = str(target_href or "").strip()
-        if safe_target:
-            message = (
-                f"SSA relacionada nao encontrada nos dados carregados: {safe_target}"
-            )
-        else:
-            message = "SSA relacionada nao encontrada nos dados carregados."
-        QMessageBox.information(dialog, "Derivadas", message)
-
-    def _navigate_dialog_target(target_href: str) -> None:
-        safe_target = str(target_href or "").strip().lstrip("/")
-        if not safe_target:
-            return
-        if not _render_target(safe_target):
-            _show_missing_target_feedback(safe_target)
-
     def _handle_dialog_anchor(url):
         try:
             href = url.toString()
@@ -1811,8 +1796,8 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         if not href:
             return
         if href.startswith("ssa-panel:"):
-            target_href = href[len("ssa-panel:") :]
-            _navigate_dialog_target(target_href)
+            target_href = href[len("ssa-panel:") :].strip().lstrip("/")
+            _render_target(target_href)
             return
         if href.startswith("copy-ssa:"):
             target_href = href[len("copy-ssa:") :].strip().lstrip("/")
@@ -1820,16 +1805,16 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
                 window._copy_ssa_to_clipboard(target_href)
             return
         if href.startswith("ssa-details:"):
-            target_href = href[len("ssa-details:") :]
-            _navigate_dialog_target(target_href)
+            target_href = href[len("ssa-details:") :].strip().lstrip("/")
+            _render_target(target_href)
             return
         if href.startswith("ssa_details://"):
-            target_href = href[len("ssa_details://") :]
-            _navigate_dialog_target(target_href)
+            target_href = href[len("ssa_details://") :].strip().lstrip("/")
+            _render_target(target_href)
             return
         if href.startswith("ssa:"):
-            target_href = href[len("ssa:") :]
-            _navigate_dialog_target(target_href)
+            target_href = href[len("ssa:") :].strip().lstrip("/")
+            _render_target(target_href)
             return
         if href.startswith("derivadas:tree") or href.startswith("derivadas://tree"):
             _render_target(current_target["ssa"])
