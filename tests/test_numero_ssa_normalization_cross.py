@@ -18,7 +18,7 @@ import pandas as pd
 import pytest
 
 from armazenamento import database
-from core.numero_ssa import normalize_strict
+from core.numero_ssa import normalize_relation_id, normalize_strict
 from utils.robust_importer import _clean_numero_ssa_series
 
 CASES = [
@@ -76,3 +76,14 @@ def test_cross_layer_too_short_value_is_rejected_with_log(caplog) -> None:
     assert bool(mask.iloc[0]) is False
     assert pd.isna(series.iloc[0])
     assert "menos de 5 digitos" in caplog.text
+
+
+def test_relation_normalization_rejects_text_and_decimal_artifacts() -> None:
+    assert normalize_relation_id("100") == "100"
+    assert normalize_relation_id("2025-12345") == "202512345"
+    assert normalize_relation_id("2025-22222") is None
+    assert normalize_relation_id("SSA-101") is None
+    assert normalize_relation_id("ABC123") is None
+    assert normalize_relation_id("ID 2026") is None
+    assert normalize_relation_id("ssa 77") is None
+    assert normalize_relation_id("121911787.0") is None

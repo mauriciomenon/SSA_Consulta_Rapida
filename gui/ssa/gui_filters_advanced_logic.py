@@ -4,12 +4,12 @@
 from __future__ import annotations
 
 import hashlib
-import re
 
 import pandas as pd
 from pandas.api import types as pd_types
 
 from shared.date_utils import parse_datetime_series_mixed
+from shared.numero_ssa import normalize_relation_id as normalize_numero_ssa_relation
 from utils.robust_logging import get_robust_logger
 
 from .gui_filters_advanced_state import (
@@ -63,29 +63,18 @@ def _cache_key(cache_token: int, df: pd.DataFrame, name: str) -> tuple:
     return (cache_token, id(df), df.shape, tuple(df.columns), name)
 
 
-def _normalize_derivada_relation_series(
-    raw_series: pd.Series, normalized_series: pd.Series
-) -> pd.Series:
-    invalid_tokens = {"", "nan", "none", "null", "nat", "<na>"}
-    raw_values = raw_series.astype("string").fillna("").str.strip()
-    normalized_values = normalized_series.astype("string").fillna("").str.strip()
-    resolved = []
-    for normalized_value, raw_value in zip(normalized_values, raw_values):
-        normalized_text = str(normalized_value or "").strip()
-        raw_text = str(raw_value or "").strip()
-        raw_lower = raw_text.casefold()
-        digits = "".join(re.findall(r"\d+", raw_text))
-        if normalized_text.casefold() not in invalid_tokens:
-            if any(ch.isalpha() for ch in normalized_text) and digits:
-                resolved.append(digits)
-            else:
-                resolved.append(normalized_text)
-            continue
-        if raw_lower in invalid_tokens:
-            resolved.append("")
-            continue
-        resolved.append(digits if digits else "")
-    return pd.Series(resolved, index=raw_series.index, dtype="object")
+def _normalize_derivada_relation_series(raw_series: pd.Series) -> pd.Series:
+    try:
+        series_obj = raw_series.astype("object")
+        codes, uniques = pd.factorize(series_obj, sort=False)
+        normalized_uniques = [normalize_numero_ssa_relation(value) or "" for value in uniques]
+        resolved = [""] * len(series_obj)
+        for index, code in enumerate(codes):
+            if code >= 0:
+                resolved[index] = normalized_uniques[code]
+        return pd.Series(resolved, index=series_obj.index, dtype="object")
+    except Exception:
+        return raw_series.map(lambda value: normalize_numero_ssa_relation(value) or "")
 
 
 def _maybe_reset_adv_caches(state: AdvancedFilterState, cache_token: int) -> None:
@@ -586,18 +575,12 @@ def _build_derivadas_tree_core(
         numero_series = norm_cache.get(num_key)
         derivada_series = norm_cache.get(deriv_key)
         if not isinstance(numero_series, pd.Series) or len(numero_series) != len(df):
-            numero_series = normalize_ssa_series(df[numero_col])
-            numero_series = _normalize_derivada_relation_series(
-                df[numero_col], numero_series
-            )
+            numero_series = _normalize_derivada_relation_series(df[numero_col])
             norm_cache[num_key] = numero_series
         if not isinstance(derivada_series, pd.Series) or len(derivada_series) != len(
             df
         ):
-            derivada_series = normalize_ssa_series(df[derivada_col])
-            derivada_series = _normalize_derivada_relation_series(
-                df[derivada_col], derivada_series
-            )
+            derivada_series = _normalize_derivada_relation_series(df[derivada_col])
             norm_cache[deriv_key] = derivada_series
         prune_adv_cache(norm_cache, MAX_ADV_CACHE_ENTRIES)
     except Exception:
@@ -679,10 +662,7 @@ def _apply_derivada_filter(
     deriv_key = _cache_key(cache_token, df, "derivada_de")
     series_derivada = norm_cache.get(deriv_key)
     if not isinstance(series_derivada, pd.Series) or len(series_derivada) != len(df):
-        series_derivada = normalize_ssa_series(df["derivada_de"])
-        series_derivada = _normalize_derivada_relation_series(
-            df["derivada_de"], series_derivada
-        )
+        series_derivada = _normalize_derivada_relation_series(df["derivada_de"])
         norm_cache[deriv_key] = series_derivada
         prune_adv_cache(norm_cache, MAX_ADV_CACHE_ENTRIES)
     has_derivada = series_derivada.ne("")
@@ -732,10 +712,7 @@ def _apply_derivada_filter(
                 if not isinstance(numero_norm, pd.Series) or len(numero_norm) != len(
                     df
                 ):
-                    numero_norm = normalize_ssa_series(df["numero_ssa"])
-                    numero_norm = _normalize_derivada_relation_series(
-                        df["numero_ssa"], numero_norm
-                    )
+                    numero_norm = _normalize_derivada_relation_series(df["numero_ssa"])
                     norm_cache[num_key] = numero_norm
                     prune_adv_cache(norm_cache, MAX_ADV_CACHE_ENTRIES)
                 mask &= numero_norm.isin(origin_norm)

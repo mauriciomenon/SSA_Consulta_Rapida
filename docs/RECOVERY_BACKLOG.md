@@ -5,6 +5,18 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-08 - relation id normalization scope
+
+Decision recorded for the derivadas hardening cycle:
+1. relation ids now use a stricter normalization path than the GUI compatibility fallback
+2. relation ids reject alphabetic text and canonical decimal artifacts like `121911787.0`
+3. relation ids still accept short numeric ids in this cycle to preserve current derivadas flows and tests
+4. year-prefix and canonical-length enforcement for relation ids is intentionally deferred to a later slice
+
+Next step when the project is ready:
+1. decide whether derivadas relations must require canonical year prefix and canonical length
+2. if approved, migrate short synthetic ids in tests and then harden relation normalization further
+
 ## Update 2026-04-07 - GUI table/render and window hardening to revisit
 
 Diagnostico apenas. Nenhuma correcao aplicada neste bloco neste ciclo.
