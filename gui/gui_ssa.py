@@ -1215,9 +1215,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             probes[id(widget)] = str(role)
             widget.installEventFilter(self)
         except Exception as exc:
-            logger.debug(
-                "Falha ao registrar widget para TSM debug (%s): %s", role, exc
-            )
+            logger.debug("Falha ao registrar widget para TSM debug (%s): %s", role, exc)
 
     def _setup_tsm_debug_probes(self) -> None:
         if not TSM_DEBUG_ENABLED:
@@ -1235,9 +1233,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     "adv_week_emissao_start",
                     "adv_week_execucao_start",
                 ):
-                    self._register_tsm_debug_widget(
-                        ctx.get(key), f"{prefix}.{key}"
-                    )
+                    self._register_tsm_debug_widget(ctx.get(key), f"{prefix}.{key}")
         except Exception as exc:
             logger.debug("Falha ao instalar probes de TSM debug: %s", exc)
 
@@ -4140,7 +4136,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         alignment_menu = opcoes_menu.addMenu("Alinhamento da tabela")
         current_alignment = str(
-            GUI_MAIN_PREFERENCES.get("gui_settings", {}).get(
+            GUI_MAIN_PREFERENCES.get("gui_settings", {})
+            .get(
                 "table_cell_alignment",
                 _DEFAULT_TABLE_CELL_ALIGNMENT,
             )
