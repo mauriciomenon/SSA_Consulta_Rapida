@@ -206,7 +206,11 @@ def _format_details_html(
     if label_font_size_pt is None:
         label_font_size_pt = font_size_pt
     if not font_family:
-        font_family = MONO_FONT_FAMILY
+        try:
+            ui_font_family = str(window.font().family() or "").strip()
+        except Exception:
+            ui_font_family = ""
+        font_family = ui_font_family or "sans-serif"
 
     search_terms = _collect_highlight_terms(window) if highlight_search_terms else []
 
@@ -248,7 +252,7 @@ def _format_details_html(
         '<table style="width: 100%; border-collapse: collapse; table-layout: fixed;">'
     )
     html_lines.append(
-        '<colgroup><col style="width: 27%;"/><col style="width: 73%;"/></colgroup>'
+        '<colgroup><col style="width: 23%;"/><col style="width: 77%;"/></colgroup>'
     )
 
     def field_sort_key(item):
@@ -544,6 +548,7 @@ def _update_details_from_series(window, series):
 
     try:
         font_size_pt = None
+        font_family = None
         if hasattr(window, "details_group"):
             try:
                 base_font = window.details_group.font()
@@ -552,14 +557,19 @@ def _update_details_from_series(window, series):
                     size = float(base_font.pointSize())
                 if size > 0:
                     font_size_pt = max(size - 1.0, 8.0)
+                family = str(base_font.family() or "").strip()
+                if family:
+                    font_family = family
             except Exception:
                 font_size_pt = None
+                font_family = None
         html_content = _format_details_html(
             window,
             series,
             highlight_search_terms=True,
             font_size_pt=font_size_pt,
             linkify=True,
+            font_family=font_family,
         )
         window.details_text.setHtml(html_content)
         window.details_text.setProperty("details_render_signature", render_signature)
@@ -1514,6 +1524,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             QDialog,
             QFileDialog,
             QGridLayout,
+            QHBoxLayout,
             QLabel,
             QMenu,
             QMessageBox,
@@ -1856,8 +1867,14 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     root_layout.addWidget(details_tab_splitter)
 
     close_button = QPushButton("Fechar")
+    close_button.setMinimumWidth(180)
+    close_button.setMaximumWidth(240)
     close_button.clicked.connect(dialog.accept)
-    root_layout.addWidget(close_button)
+    close_row = QHBoxLayout()
+    close_row.addStretch(1)
+    close_row.addWidget(close_button)
+    close_row.addStretch(1)
+    root_layout.addLayout(close_row)
     screen_geometry = _get_dialog_screen_geometry(window)
     if screen_geometry is not None:
         safe_width = max(640, screen_geometry.width() - 24)
@@ -1872,12 +1889,11 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             desired_height = min(max(window_height, 480), safe_height)
         dialog.setMinimumSize(
             min(DERIVADAS_DIALOG_MIN_WIDTH, safe_width),
-            min(desired_height, safe_height),
+            min(DERIVADAS_DIALOG_MIN_HEIGHT, safe_height),
         )
         dialog.setMaximumSize(safe_width, safe_height)
-        dialog.adjustSize()
-        current_size = dialog.size()
-        target_width = min(current_size.width(), safe_width)
+        current_size = dialog.sizeHint()
+        target_width = min(max(current_size.width(), DERIVADAS_DIALOG_MIN_WIDTH), safe_width)
         target_height = desired_height
         if (
             target_width != current_size.width()
