@@ -43,12 +43,14 @@ SSA_NORM_CACHE_MAX_ENTRIES = 64
 DERIVADAS_DIALOG_MIN_WIDTH = 960
 DERIVADAS_DIALOG_TREE_MIN_WIDTH = 180
 DERIVADAS_DIALOG_DETAILS_MIN_WIDTH = 520
-DERIVADAS_GRAPH_NODE_WIDTH = 112
-DERIVADAS_GRAPH_NODE_HEIGHT = 32
-DERIVADAS_GRAPH_X_GAP = 118
-DERIVADAS_GRAPH_Y_GAP = 62
+DERIVADAS_GRAPH_NODE_WIDTH = 100
+DERIVADAS_GRAPH_NODE_HEIGHT = 30
+DERIVADAS_GRAPH_X_GAP = 110
+DERIVADAS_GRAPH_Y_GAP = 60
 DERIVADAS_GRAPH_MARGIN = 8
 DERIVADAS_GRAPH_MAX_DESCENDANTS = 120
+DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT = 120
+DERIVADAS_SPLITTER_HANDLE_WIDTH = 10
 
 
 def _init_readonly_text_browser(
@@ -1508,7 +1510,6 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             QMessageBox,
             QPushButton,
             QSplitter,
-            QTabWidget,
             QTextBrowser,
             QToolButton,
             QVBoxLayout,
@@ -1532,33 +1533,32 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     dialog.setMinimumHeight(DERIVADAS_DIALOG_MIN_HEIGHT)
 
     root_layout = QVBoxLayout(dialog)
-    tabs = QTabWidget(dialog)
-    tab_details = QWidget(tabs)
-    tabs.addTab(tab_details, "Detalhes")
-
-    tab_details_layout = QVBoxLayout(tab_details)
     details_tab_splitter = QSplitter(Qt.Orientation.Vertical)
     details_tab_splitter.setChildrenCollapsible(False)
+    details_tab_splitter.setHandleWidth(DERIVADAS_SPLITTER_HANDLE_WIDTH)
     details_derivadas_splitter = QSplitter(Qt.Orientation.Horizontal)
     details_derivadas_splitter.setChildrenCollapsible(False)
+    details_derivadas_splitter.setHandleWidth(DERIVADAS_SPLITTER_HANDLE_WIDTH)
     details_browser = _init_readonly_text_browser(
         QTextBrowser(), min_width=DERIVADAS_DIALOG_DETAILS_MIN_WIDTH
     )
-    tree_tab_browser = _init_readonly_text_browser(QTextBrowser(), min_height=220)
+    tree_tab_browser = _init_readonly_text_browser(
+        QTextBrowser(), min_height=DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT
+    )
     tree_graph_label = None
     tree_graph_text_browser = None
     if qsvg_renderer_cls is not None:
-        tree_graph_label = QLabel(tab_details)
+        tree_graph_label = QLabel(dialog)
         tree_graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         tree_graph_label.setStyleSheet("border:none; background:transparent;")
-        tree_graph_label.setMinimumHeight(220)
+        tree_graph_label.setMinimumHeight(DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT)
         tree_graph_browser = tree_graph_label
     else:
         tree_graph_text_browser = _init_readonly_text_browser(
-            QTextBrowser(), min_height=220
+            QTextBrowser(), min_height=DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT
         )
         tree_graph_browser = tree_graph_text_browser
-    tree_graph_panel = QWidget(tab_details)
+    tree_graph_panel = QWidget(dialog)
     tree_graph_panel_layout = QGridLayout(tree_graph_panel)
     tree_graph_panel_layout.setContentsMargins(0, 0, 0, 0)
     tree_graph_panel_layout.setSpacing(0)
@@ -1842,10 +1842,9 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     details_tab_splitter.addWidget(details_derivadas_splitter)
     details_tab_splitter.setStretchFactor(0, 1)
     details_tab_splitter.setStretchFactor(1, 0)
-    details_tab_splitter.setSizes([540, 190])
+    details_tab_splitter.setSizes([560, 170])
 
-    tab_details_layout.addWidget(details_tab_splitter)
-    root_layout.addWidget(tabs)
+    root_layout.addWidget(details_tab_splitter)
 
     close_button = QPushButton("Fechar")
     close_button.clicked.connect(dialog.accept)
