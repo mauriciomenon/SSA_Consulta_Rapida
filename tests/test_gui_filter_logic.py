@@ -2975,6 +2975,25 @@ class TestGUIFilterLogic:
         assert self.window._normalize_ssa_value("121911787.0") == "121911787"
         assert self.window._normalize_ssa_value(121911787.0) == "121911787"
 
+    def test_get_derivadas_for_ssa_rejects_alphanumeric_and_decimal_relation_ids(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": [
+                    "SSA-101",
+                    "121911787.0",
+                    "102",
+                    "2025-12345",
+                    "2025-22222",
+                ],
+                "derivada_de": ["100", "100", "100", "100", "100"],
+            }
+        )
+        self.window.df_completo = df.copy()
+
+        derived = ssa_gui_details._get_derivadas_for_ssa(self.window, "100")
+
+        assert derived == ["102", "202512345"]
+
     def test_get_series_for_ssa_uses_index_label_and_returns_correct_row(self):
         df = pd.DataFrame(
             {
@@ -3871,8 +3890,8 @@ class TestGUIFilterLogic:
             df, "numero_ssa", "derivada_de"
         )
 
-        assert mae_filhas == {"100": ["101", "102"]}
-        assert filha_mae == {"101": "100", "102": "100"}
+        assert mae_filhas == {"100": ["102"]}
+        assert filha_mae == {"102": "100"}
 
     @pytest.mark.parametrize(
         ("numero_ssa_values", "derivada_de_values"),

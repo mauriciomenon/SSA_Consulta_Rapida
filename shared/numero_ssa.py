@@ -43,8 +43,10 @@ __all__ = [
     "VALID_LENGTHS",
     "strip_canonical_decimal_artifact",
     "normalize_strict",
+    "normalize_relation_id",
     "is_valid_numero_ssa",
     "bulk_normalize",
+    "bulk_normalize_relation",
 ]
 
 
@@ -124,9 +126,47 @@ def normalize_strict(value) -> str | None:
     return digits
 
 
+def normalize_relation_id(value) -> str | None:
+    """Return relation-safe numero_ssa or ``None`` if invalid.
+
+    This helper is intentionally stricter than the GUI compatibility fallback:
+      * rejects alphabetic text outright
+      * rejects canonical decimal artifacts like ``121911787.0``
+      * preserves short numeric relation ids used by current derivadas flows
+      * preserves the canonical 9-digit strict rule when a value expands to 9 digits
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    lowered = text.casefold()
+    if lowered in {"", "nan", "none", "null", "nat", "<na>"}:
+        return None
+    if _CANONICAL_DECIMAL_ARTIFACT.fullmatch(text):
+        return None
+    strict_value = normalize_strict(text)
+    if strict_value is not None:
+        return strict_value
+    if re.search(r"[A-Za-z]", text):
+        return None
+    if re.search(r"[^0-9\-\s]", text):
+        return None
+    digits = _digits(re.sub(r"[\s-]+", "", text))
+    if not digits:
+        return None
+    if len(digits) >= min(VALID_LENGTHS):
+        return None
+    return digits
+
+
 def is_valid_numero_ssa(value) -> bool:
     return normalize_strict(value) is not None
 
 
 def bulk_normalize(values: Iterable) -> list[str | None]:
     return [normalize_strict(v) for v in values]
+
+
+def bulk_normalize_relation(values: Iterable) -> list[str | None]:
+    return [normalize_relation_id(v) for v in values]

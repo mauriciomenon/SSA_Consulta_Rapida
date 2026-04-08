@@ -14,6 +14,7 @@ import pandas as pd
 from gui.helpers.formatting_helpers import highlight_text
 from gui.helpers.theme_helpers import pick_css_color
 from gui.qt_stubs import QTimer
+from shared.numero_ssa import normalize_relation_id as normalize_numero_ssa_relation
 from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 from shared.ssa_status import format_status_display, get_status_code
 from utils.formatting import format_cell
@@ -503,6 +504,24 @@ def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
             return pd.Series([""] * len(series), index=getattr(series, "index", None))
 
 
+def _normalize_ssa_relation_value(value) -> str:
+    return str(normalize_numero_ssa_relation(value) or "").strip()
+
+
+def _normalize_ssa_relation_series(series: pd.Series) -> pd.Series:
+    try:
+        series_obj = series.astype("object")
+        codes, uniques = pd.factorize(series_obj, sort=False)
+        normalized_uniques = [_normalize_ssa_relation_value(value) for value in uniques]
+        resolved = [""] * len(series_obj)
+        for index, code in enumerate(codes):
+            if code >= 0:
+                resolved[index] = normalized_uniques[code]
+        return pd.Series(resolved, index=series_obj.index, dtype="object")
+    except Exception:
+        return series.map(_normalize_ssa_relation_value)
+
+
 def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
     if df is None or column_name not in getattr(df, "columns", []):
         return pd.Series(dtype="object")
@@ -691,19 +710,21 @@ def _get_derivadas_for_ssa(window, numero_ssa):
         or "numero_ssa" not in window.df_completo.columns
     ):
         return []
-    num_norm = _normalize_ssa_value(window, numero_ssa)
+    num_norm = _normalize_ssa_relation_value(numero_ssa)
     if not num_norm:
         return []
     try:
-        series_norm = _get_cached_normalized_series(
-            window, window.df_completo, "derivada_de"
-        )
+        series_norm = _normalize_ssa_relation_series(window.df_completo["derivada_de"])
         mask = series_norm.eq(num_norm)
-        derived_raw = window.df_completo.loc[mask, "numero_ssa"].tolist()
+        derived_series = _normalize_ssa_relation_series(
+            window.df_completo.loc[mask, "numero_ssa"]
+        )
         derived = []
-        for value in derived_raw:
-            formatted = format_cell(value, "numero_ssa")
-            if formatted:
+        seen = set()
+        for value in derived_series.tolist():
+            formatted = str(value or "").strip()
+            if formatted and formatted not in seen:
+                seen.add(formatted)
                 derived.append(formatted)
         return derived
     except Exception as exc:
@@ -907,7 +928,7 @@ def _resolve_current_db_path():
 
 def _get_derivadas_relations_info(window, numero_ssa):
     empty = {"has_data": False, "parents": [], "children": [], "descendants_count": 0}
-    num_norm = _normalize_ssa_value(window, numero_ssa)
+    num_norm = _normalize_ssa_relation_value(numero_ssa)
     if not num_norm:
         return empty
 
@@ -931,6 +952,9 @@ def _get_derivadas_relations_info(window, numero_ssa):
 
     if not children:
         children = _get_derivadas_for_ssa(window, num_norm)
+    else:
+        children = [value for value in (_normalize_ssa_relation_value(raw) for raw in children) if value]
+    parents = [value for value in (_normalize_ssa_relation_value(raw) for raw in parents) if value]
     if descendants_count <= 0:
         descendants_count = len(children)
 
@@ -948,7 +972,7 @@ def _show_derivadas_tree_for_ssa(window, numero_ssa):
 
 
 def _collect_derivadas_tree_data(window, numero_ssa):
-    target = _normalize_ssa_value(window, numero_ssa)
+    target = _normalize_ssa_relation_value(numero_ssa)
     empty = {
         "target": "",
         "parents": [],
@@ -984,6 +1008,39 @@ def _collect_derivadas_tree_data(window, numero_ssa):
 
     if not children:
         children = _get_derivadas_for_ssa(window, target)
+    else:
+        children = [value for value in (_normalize_ssa_relation_value(raw) for raw in children) if value]
+    parents = [value for value in (_normalize_ssa_relation_value(raw) for raw in parents) if value]
+    normalized_descendants = []
+    for raw in descendants:
+        if not isinstance(raw, dict):
+            continue
+        raw_map = cast(dict[str, object], raw)
+        child = _normalize_ssa_relation_value(raw_map.get("ssa"))
+        parent = _normalize_ssa_relation_value(raw_map.get("parent"))
+        if not child:
+            continue
+        normalized_descendants.append(
+            {
+                **raw_map,
+                "ssa": child,
+                "parent": parent,
+            }
+        )
+    descendants = normalized_descendants
+    normalized_ancestors = []
+    for raw in ancestors:
+        if isinstance(raw, dict):
+            raw_map = cast(dict[str, object], raw)
+            ancestor_value = _normalize_ssa_relation_value(raw_map.get("ssa"))
+            if not ancestor_value:
+                continue
+            normalized_ancestors.append({**raw_map, "ssa": ancestor_value})
+            continue
+        ancestor_value = _normalize_ssa_relation_value(raw)
+        if ancestor_value:
+            normalized_ancestors.append(ancestor_value)
+    ancestors = normalized_ancestors
     direct_children_count = int(profile.get("direct_children_count") or len(children))
     descendants_count = int(
         profile.get("descendants_count") or len(descendants) or len(children)
@@ -1017,12 +1074,12 @@ def _build_derivadas_tree_html(
         if isinstance(tree_data_override, dict)
         else _collect_derivadas_tree_data(window, numero_ssa)
     )
-    target = data.get("target", "")
+    target = _normalize_ssa_relation_value(data.get("target", ""))
     if not target:
         return ""
 
     def _ssa_link(value, *, status_hint: str | None = None):
-        safe = _normalize_ssa_value(window, value)
+        safe = _normalize_ssa_relation_value(value)
         if not safe:
             return html_module.escape(str(value))
         status_code = (
@@ -1093,7 +1150,7 @@ def _build_derivadas_tree_html(
 
 
 def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
-    target = str(data.get("target", "") or "").strip()
+    target = _normalize_ssa_relation_value(data.get("target", ""))
     if not target:
         return ""
 
@@ -1111,7 +1168,7 @@ def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
     parents = data.get("parents", [])
     if isinstance(parents, list):
         for raw in parents:
-            parent = str(raw).strip()
+            parent = _normalize_ssa_relation_value(raw)
             if not parent:
                 continue
             lines.append(
@@ -1121,7 +1178,7 @@ def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
     children = data.get("children", [])
     if isinstance(children, list):
         for raw in children:
-            child = str(raw).strip()
+            child = _normalize_ssa_relation_value(raw)
             if not child:
                 continue
             lines.append(
@@ -1134,8 +1191,8 @@ def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
             if not isinstance(raw, dict):
                 continue
             raw_map = cast(dict[str, object], raw)
-            ssa = str(raw_map.get("ssa", "")).strip()
-            parent = str(raw_map.get("parent", "")).strip()
+            ssa = _normalize_ssa_relation_value(raw_map.get("ssa", ""))
+            parent = _normalize_ssa_relation_value(raw_map.get("parent", ""))
             if not ssa:
                 continue
             if parent:
@@ -1156,7 +1213,7 @@ def _build_derivadas_graph_html(
     link_color: str,
     font_family: str,
 ) -> str:
-    target = _normalize_ssa_value(window, data.get("target"))
+    target = _normalize_ssa_relation_value(data.get("target"))
     if not target:
         return ""
 
@@ -1166,7 +1223,7 @@ def _build_derivadas_graph_html(
         normalized: list[str] = []
         seen: set[str] = set()
         for raw in entries:
-            value = _normalize_ssa_value(window, raw)
+            value = _normalize_ssa_relation_value(raw)
             if not value or value in seen:
                 continue
             seen.add(value)
@@ -1182,8 +1239,8 @@ def _build_derivadas_graph_html(
             if not isinstance(raw, dict):
                 continue
             raw_map = cast(dict[str, object], raw)
-            child = _normalize_ssa_value(window, raw_map.get("ssa"))
-            parent = _normalize_ssa_value(window, raw_map.get("parent"))
+            child = _normalize_ssa_relation_value(raw_map.get("ssa"))
+            parent = _normalize_ssa_relation_value(raw_map.get("parent"))
             if not child:
                 continue
             descendants.append({"ssa": child, "parent": parent})
@@ -1601,7 +1658,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
 
 
 def _filter_by_derivadas(window, numero_ssa):
-    num_norm = _normalize_ssa_value(window, numero_ssa)
+    num_norm = _normalize_ssa_relation_value(numero_ssa)
     if not num_norm:
         return
     window._last_derivada_origem = num_norm
