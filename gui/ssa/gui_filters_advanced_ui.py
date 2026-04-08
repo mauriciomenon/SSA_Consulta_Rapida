@@ -60,6 +60,40 @@ SIMPLE_POPUP_RIGHT_GUTTER_PX = 10
 SIMPLE_POPUP_SCROLLBAR_GUARD_PX = 18
 
 
+def _get_widget_screen_geometry(widget):
+    candidate_widgets = []
+    if widget is not None:
+        candidate_widgets.append(widget)
+        try:
+            window = widget.window()
+        except Exception:
+            window = None
+        if window is not None and window is not widget:
+            candidate_widgets.append(window)
+    for candidate in candidate_widgets:
+        try:
+            handle = candidate.windowHandle()
+            if handle is not None:
+                screen = handle.screen()
+                if screen is not None:
+                    return screen.availableGeometry()
+        except Exception:
+            pass
+        try:
+            screen = QApplication.screenAt(candidate.mapToGlobal(candidate.rect().center()))
+            if screen is not None:
+                return screen.availableGeometry()
+        except Exception:
+            pass
+    try:
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            return screen.availableGeometry()
+    except Exception:
+        pass
+    return None
+
+
 def _flatten_field_box(box: QGroupBox) -> None:
     if box is None:
         return
@@ -607,7 +641,7 @@ def _attach_multiselect_menu(self, button, menu):
             pos = button.mapToGlobal(rect.bottomLeft())
             try:
                 menu_size = menu.sizeHint()
-                screen = QApplication.primaryScreen().geometry()
+                screen = _get_widget_screen_geometry(button)
                 if (
                     menu_size
                     and screen
@@ -941,9 +975,9 @@ def _compute_multiselect_popup_metrics(
             content_width += SIMPLE_POPUP_SCROLLBAR_GUARD_PX
     popup_max_width = 680
     try:
-        screen = QApplication.primaryScreen()
-        if screen is not None:
-            screen_w = int(screen.availableGeometry().width())
+        screen_geometry = _get_widget_screen_geometry(button)
+        if screen_geometry is not None:
+            screen_w = int(screen_geometry.width())
             if screen_w > 0:
                 popup_max_width = max(420, min(960, int(screen_w * 0.72)))
     except Exception:

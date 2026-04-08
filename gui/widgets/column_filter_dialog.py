@@ -1,6 +1,13 @@
 # Dialog for entering a single column filter term.
 
-from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QLineEdit, QVBoxLayout
+from PyQt6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QDialogButtonBox,
+    QLabel,
+    QLineEdit,
+    QVBoxLayout,
+)
 
 
 class ColumnFilterDialog(QDialog):
@@ -20,6 +27,78 @@ class ColumnFilterDialog(QDialog):
         self.setMinimumWidth(max(320, int(min_width)))
         self._input = QLineEdit()
         self._build_ui(column_name, initial_value, hint_text)
+
+    def _target_screen_geometry(self):
+        parent_widget = self.parentWidget()
+        candidate_widgets = []
+        if parent_widget is not None:
+            candidate_widgets.append(parent_widget)
+            try:
+                parent_window = parent_widget.window()
+            except Exception:
+                parent_window = None
+            if parent_window is not None and parent_window is not parent_widget:
+                candidate_widgets.append(parent_window)
+        for widget in candidate_widgets:
+            try:
+                window_handle = widget.windowHandle()
+                if window_handle is not None:
+                    screen = window_handle.screen()
+                    if screen is not None:
+                        return screen.availableGeometry()
+            except Exception:
+                pass
+            try:
+                screen = QApplication.screenAt(widget.frameGeometry().center())
+                if screen is not None:
+                    return screen.availableGeometry()
+            except Exception:
+                pass
+        try:
+            screen = self.screen()
+            if screen is not None:
+                return screen.availableGeometry()
+        except Exception:
+            pass
+        try:
+            screen = QApplication.primaryScreen()
+            if screen is not None:
+                return screen.availableGeometry()
+        except Exception:
+            pass
+        return None
+
+    def _position_on_parent_screen(self) -> None:
+        screen_geometry = self._target_screen_geometry()
+        if screen_geometry is None:
+            return
+        try:
+            self.adjustSize()
+        except Exception:
+            pass
+        try:
+            dialog_geometry = self.frameGeometry()
+        except Exception:
+            return
+        target_x = screen_geometry.left() + max(
+            0, (screen_geometry.width() - dialog_geometry.width()) // 2
+        )
+        target_y = screen_geometry.top() + max(
+            0, (screen_geometry.height() - dialog_geometry.height()) // 2
+        )
+        parent_widget = self.parentWidget()
+        if parent_widget is not None:
+            try:
+                parent_center = parent_widget.frameGeometry().center()
+                target_x = parent_center.x() - (dialog_geometry.width() // 2)
+                target_y = parent_center.y() - (dialog_geometry.height() // 2)
+            except Exception:
+                pass
+        max_x = screen_geometry.right() - dialog_geometry.width() + 1
+        max_y = screen_geometry.bottom() - dialog_geometry.height() + 1
+        target_x = max(screen_geometry.left(), min(target_x, max_x))
+        target_y = max(screen_geometry.top(), min(target_y, max_y))
+        self.move(target_x, target_y)
 
     def _build_ui(self, column_name: str, initial_value: str, hint_text: str) -> None:
         layout = QVBoxLayout(self)

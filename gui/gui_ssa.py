@@ -2994,6 +2994,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 min_width=_COLUMN_FILTER_DIALOG_MIN_WIDTH,
                 parent=self,
             )
+            try:
+                dialog._position_on_parent_screen()
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao posicionar dialogo de filtro por coluna na tela ativa: %s",
+                    exc,
+                )
             accepted = dialog.exec() == QDialog.DialogCode.Accepted
             if not accepted:
                 return None
