@@ -2817,50 +2817,31 @@ class TestGUIFilterLogic:
         assert any(
             len(sizes) == 2 and sizes[1] == 170 for sizes in captured["splitter_sizes"]
         )
-
-    def test_open_details_dialog_shows_feedback_for_missing_link_target(
-        self, monkeypatch
-    ):
-        self.window.df_exibido = self.base_df.copy()
-        original_get_series = ssa_gui_details._get_series_for_ssa
-        captured = {"messages": []}
-
-        def _fake_get_series(window, numero_ssa):
-            if str(numero_ssa) == "202500777":
-                return None
-            return original_get_series(window, numero_ssa)
-
-        def _fake_information(_parent, title, message):
-            captured["messages"].append((title, message))
-            return QtWidgets.QMessageBox.StandardButton.Ok
-
-        def _fake_exec(dialog):
-            browsers = dialog.findChildren(QtWidgets.QTextBrowser)
-            tree_browser = next(
-                browser for browser in browsers if "Derivadas:" in browser.toPlainText()
-            )
-            tree_browser.anchorClicked.emit(QUrl("ssa-panel:202500777"))
-            return 0
-
+    def test_build_derivadas_tree_html_omits_link_for_missing_target(self, monkeypatch):
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_collect_derivadas_tree_data",
+            lambda _window, _numero: {
+                "target": "202602147",
+                "parents": ["202500777"],
+                "children": [],
+                "descendants": [],
+                "ancestors": [],
+                "direct_children_count": 0,
+                "descendants_count": 0,
+            },
+        )
         monkeypatch.setattr(
             ssa_gui_details,
             "_get_series_for_ssa",
-            _fake_get_series,
+            lambda _window, numero: object() if str(numero) == "202602147" else None,
         )
-        monkeypatch.setattr(
-            QtWidgets.QMessageBox,
-            "information",
-            _fake_information,
-        )
-        monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
-        self.window._open_details_dialog_for_ssa("1")
 
-        assert captured["messages"] == [
-            (
-                "Derivadas",
-                "SSA relacionada nao encontrada nos dados carregados: 202500777",
-            )
-        ]
+        html = ssa_gui_details._build_derivadas_tree_html(self.window, "202602147")
+
+        assert '<a href="ssa-panel:202602147"' in html
+        assert '<a href="ssa-panel:202500777"' not in html
+        assert "202500777" in html
 
     def test_details_number_double_click_copies_current_ssa(self, monkeypatch):
         self.window._details_current_ssa = "202600023"
@@ -3808,18 +3789,24 @@ class TestGUIFilterLogic:
 
     def test_build_derivadas_tree_html_uses_spaced_header_layout(self):
         with patch(
-            "gui.ssa.gui_details._collect_derivadas_tree_data",
-            return_value={
-                "target": "202602147",
-                "parents": ["202500111"],
-                "children": [],
-                "descendants": [],
-                "ancestors": [],
-                "direct_children_count": 0,
-                "descendants_count": 0,
-            },
+            "gui.ssa.gui_details._get_series_for_ssa",
+            side_effect=lambda _window, numero: object()
+            if str(numero) in {"202602147", "202500111"}
+            else None,
         ):
-            html = ssa_gui_details._build_derivadas_tree_html(self.window, "202602147")
+            with patch(
+                "gui.ssa.gui_details._collect_derivadas_tree_data",
+                return_value={
+                    "target": "202602147",
+                    "parents": ["202500111"],
+                    "children": [],
+                    "descendants": [],
+                    "ancestors": [],
+                    "direct_children_count": 0,
+                    "descendants_count": 0,
+                },
+            ):
+                html = ssa_gui_details._build_derivadas_tree_html(self.window, "202602147")
 
         assert "Derivadas:" in html
         assert '<a href="ssa-panel:202602147"' in html
