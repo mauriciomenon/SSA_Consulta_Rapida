@@ -633,10 +633,24 @@ class TestGUIFilterLogic:
 
         assert "table-layout: fixed" in html
         assert "<colgroup>" in html
-        assert "width: 27%;" in html
-        assert "width: 73%;" in html
+        assert 'width: 23%;' in html
+        assert 'width: 77%;' in html
         assert "overflow-wrap: anywhere" in html
         assert "word-break: break-word" in html
+
+    def test_update_details_from_series_uses_details_group_font_family(self, monkeypatch):
+        captured = {}
+
+        def _fake_format(_window, _series, **kwargs):
+            captured["font_family"] = kwargs.get("font_family")
+            return "<html><body>ok</body></html>"
+
+        monkeypatch.setattr(ssa_gui_details, "_format_details_html", _fake_format)
+
+        series = pd.Series({"numero_ssa": "202600023", "situacao": "APG"})
+        ssa_gui_details._update_details_from_series(self.window, series)
+
+        assert captured["font_family"] == self.window.details_group.font().family()
 
     def test_advanced_panel_context_exposes_emissor_before_executor(self):
         _ = next(
@@ -2827,6 +2841,7 @@ class TestGUIFilterLogic:
 
         def _fake_exec(dialog):
             captured["size"] = dialog.size()
+            captured["minimum_size"] = dialog.minimumSize()
             splitters = dialog.findChildren(QtWidgets.QSplitter)
             captured["splitter_sizes"] = [splitter.sizes() for splitter in splitters]
             return 0
@@ -2835,6 +2850,7 @@ class TestGUIFilterLogic:
         self.window._open_details_dialog_for_ssa("1")
 
         assert captured["size"].height() == 880
+        assert captured["minimum_size"].height() == ssa_gui_details.DERIVADAS_DIALOG_MIN_HEIGHT
         assert any(
             len(sizes) == 2 and sizes[1] == 170 for sizes in captured["splitter_sizes"]
         )
