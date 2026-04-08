@@ -5,12 +5,45 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-07 - GUI table/render and window hardening to revisit
+
+Diagnostico apenas. Nenhuma correcao aplicada neste bloco neste ciclo.
+
+Itens registrados para slice futuro, sem refatoracao ampla:
+1. `gui/gui_ssa.py`: `run_vacuum_analyze()` usa `sqlite3.connect(..., timeout=30.0)`; o risco real e lock timeout curto para manutencao manual de `VACUUM/ANALYZE`, nao timeout total da operacao.
+2. `gui/gui_ssa.py`: `SSAMainWindow` permanece como God Object, concentrando UI, persistencia, manutencao de DB, integracao com SO e coordenacao de workers.
+3. `gui/gui_ssa.py`: ha logica de dominio e de operacao fora do papel estrito de camada de UI, incluindo manutencao de DB e regras de abertura/descoberta de recursos locais.
+4. `gui/gui_config.py`: o modulo mistura contrato estatico de configuracao, merge/schema validation e IO de arquivo, o que aumenta risco de drift e manutencao cara.
+5. `gui/gui_ssa.py`: timers antigos merecem cleanup explicito no fechamento da janela para reduzir risco de callback tardio em teardown.
+6. `gui/gui_ssa.py`: `DB_PATH` global mutavel continua sendo ponto de acoplamento e merece migracao futura para estado de instancia ou config manager.
+
+Direcao minima futura recomendada:
+1. tratar `VACUUM/ANALYZE` como hardening operacional isolado, com foco em lock timeout e mensagens de erro mais precisas
+2. mover responsabilidades operacionais de `SSAMainWindow` apenas por fatias pequenas, sem reabrir a GUI inteira
+3. separar contrato de config de merge/IO em slice proprio, sem mudar comportamento externo
+
+## Update 2026-04-07 - hardcoded runtime/config fallbacks to revisit
+
+Diagnostico apenas. Nenhuma correcao aplicada neste ciclo.
+
+Achados principais para slice futuro de hardening minimo:
+1. `gui/gui_ssa.py` ainda mantem fallback local para `DB_PATH` em `project_root/data/ssas.db`; isso pode divergir do runtime semeado por `main.py` via `SSA_DB_PATH`.
+2. `gui/gui_ssa.py` ainda mantem fallbacks locais para `config/settings.json` e `config/default_settings.json` quando a resolucao central falha; isso pode abrir/editar arquivo errado em runtime relocavel.
+3. `interface/cli_width_manager.py` ainda le `config/gui_main_preferences.json` por caminho local do repo em vez de usar a hierarquia central de config; a CLI pode divergir da GUI ativa em runtime.
+4. `config/gui_poc_preferences.json` continua com estrutura legada e aliases mistos; hoje e mais ruido de manutencao do que contrato vivo.
+5. testes como `tests/test_gui_configuration.py` e `tests/test_gui_config.py` continuam ancorados na GUI PoC e reforcam esse legado como se ainda fosse fonte de verdade.
+
+Escopo recomendado para o slice futuro:
+1. consolidar defaults/fallbacks no resolvedor central ja existente
+2. remover leituras diretas por `project_root/config/...` quando houver caminho canonico equivalente
+3. reclassificar `gui_poc_preferences.json` e testes correlatos como legado explicito, ou remover se o caminho nao for mais suportado
+
 ## Update 2026-04-07 - table cell alignment from GUI preferences
 
 Escopo fechado neste slice:
 1. adicionar `gui_settings.table_cell_alignment` ao contrato canonico da GUI
 2. aceitar apenas `left`, `center` e `right`
-3. usar `center` por default e como fallback de valor invalido
+3. usar `right` por default e como fallback de valor invalido
 4. aplicar o alinhamento configurado apenas nas celulas da tabela, sem tocar layout nem menus
 
 Observacoes de expansao futura:

@@ -61,6 +61,26 @@ def test_resolve_platform_open_command_prefers_absolute_windows_launcher(monkeyp
     assert resolved == r"C:\Windows\explorer.exe"
 
 
+def test_resolve_platform_open_command_prefers_absolute_linux_launcher(monkeypatch):
+    from gui import gui_ssa
+
+    monkeypatch.setattr(gui_ssa.sys, "platform", "linux")
+    monkeypatch.setattr(
+        gui_ssa.os.path,
+        "isfile",
+        lambda path: path == "/usr/bin/xdg-open",
+    )
+    monkeypatch.setattr(
+        gui_ssa.shutil,
+        "which",
+        lambda _name: pytest.fail("shutil.which should not be called"),
+    )
+
+    resolved = gui_ssa.SSAMainWindow._resolve_platform_open_command()
+
+    assert resolved == "/usr/bin/xdg-open"
+
+
 def test_open_docs_folder_missing_skips_modal_under_pytest(monkeypatch, tmp_path):
     from gui import gui_ssa
 

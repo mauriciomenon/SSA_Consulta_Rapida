@@ -51,7 +51,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - o fallback local da tabela e o baseline automatico partem do contrato canonico em `gui/gui_config.py`
      - arquivo local tem a ultima palavra; o `.example` documenta o padrao; codigo define a base
      - o header da GUI agora escolhe `long -> medium -> short` pela largura real da coluna, com reserva para `[f] `
-     - as celulas da tabela agora aceitam `left|center|right`, com default `center`
+     - as celulas da tabela agora aceitam `left|center|right`, com default `right`
      - a CLI continua fora do contrato de preferencias da GUI, mas segue usando `display_map`, `short_labels`, `fixed_widths` e alternancia `short/full`
      - `core/handler_base.py:197` continua documentado apenas como renderer paralelo fora do caminho principal `main.py -> interface/cli.py -> interface/table_printer.py`
 - Proximo foco recomendado:

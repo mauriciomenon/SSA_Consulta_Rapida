@@ -264,7 +264,7 @@ DEFAULT_GUI_SETTINGS: Dict[str, Any] = {
     "enable_column_sorting": True,
     "show_details_panel": True,
     "enable_double_click_details": True,
-    "table_cell_alignment": "center",
+    "table_cell_alignment": "right",
     "theme": "classico",
     "filter_cache_size": 50,
     "cache_enabled": True,

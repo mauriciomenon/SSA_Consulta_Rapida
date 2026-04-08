@@ -25,8 +25,8 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 6. o alinhamento das celulas da tabela agora deve ser lido assim:
    - sai de `gui_settings.table_cell_alignment`
    - aceita `left|center|right`
-   - default canonico `center`
-   - valor invalido volta para `center`
+   - default canonico `right`
+   - valor invalido volta para `right`
    - menu atual: `Opcoes -> Alinhamento da tabela`
 6. o contrato de largura nao mudou:
    - `DEFAULT_COLUMN_WIDTHS` intacto
