@@ -2760,7 +2760,9 @@ class TestGUIFilterLogic:
         assert captured["graph_label_count"] >= 1
         assert "Exportar" in captured["tool_buttons"]
         assert any("Derivadas:" in text for text in captured["browser_texts"])
-        assert not any("Relacoes de Derivadas" in text for text in captured["browser_texts"])
+        assert not any(
+            "Relacoes de Derivadas" in text for text in captured["browser_texts"]
+        )
 
     def test_details_number_double_click_copies_current_ssa(self, monkeypatch):
         self.window._details_current_ssa = "202600023"
