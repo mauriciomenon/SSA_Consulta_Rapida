@@ -67,7 +67,9 @@ def _normalize_derivada_relation_series(raw_series: pd.Series) -> pd.Series:
     try:
         series_obj = raw_series.astype("object")
         codes, uniques = pd.factorize(series_obj, sort=False)
-        normalized_uniques = [normalize_numero_ssa_relation(value) or "" for value in uniques]
+        normalized_uniques = [
+            normalize_numero_ssa_relation(value) or "" for value in uniques
+        ]
         resolved = [""] * len(series_obj)
         for index, code in enumerate(codes):
             if code >= 0:
