@@ -23,6 +23,7 @@ if project_root not in sys.path:
 
 from PyQt6.QtCore import QPoint, QRect, QSize, Qt, QUrl  # noqa: E402
 from PyQt6.QtGui import QCloseEvent, QFont, QResizeEvent  # noqa: E402
+from PyQt6.QtSvgWidgets import QSvgWidget  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtWidgets import QLineEdit  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QLabel, QPushButton  # noqa: E402
@@ -2737,6 +2738,7 @@ class TestGUIFilterLogic:
             captured["labels"] = [
                 [tab.tabText(i) for i in range(tab.count())] for tab in tabs
             ]
+            captured["svg_count"] = len(dialog.findChildren(QSvgWidget))
             return 0
 
         monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
@@ -2744,6 +2746,7 @@ class TestGUIFilterLogic:
         assert "labels" in captured
         assert ["Detalhes", "Arvore"] in captured["labels"]
         assert ["Grafo", "Arvore", "Mermaid"] in captured["labels"]
+        assert captured["svg_count"] >= 1
 
     def test_details_number_double_click_copies_current_ssa(self, monkeypatch):
         self.window._details_current_ssa = "202600023"
@@ -2975,7 +2978,7 @@ class TestGUIFilterLogic:
         assert self.window._normalize_ssa_value("121911787.0") == "121911787"
         assert self.window._normalize_ssa_value(121911787.0) == "121911787"
 
-    def test_get_derivadas_for_ssa_rejects_alphanumeric_and_decimal_relation_ids(self):
+    def test_get_derivadas_for_ssa_rejects_non_numeric_relation_ids(self):
         df = pd.DataFrame(
             {
                 "numero_ssa": [
@@ -2992,7 +2995,7 @@ class TestGUIFilterLogic:
 
         derived = ssa_gui_details._get_derivadas_for_ssa(self.window, "100")
 
-        assert derived == ["102", "202512345"]
+        assert derived == ["102"]
 
     def test_get_series_for_ssa_uses_index_label_and_returns_correct_row(self):
         df = pd.DataFrame(

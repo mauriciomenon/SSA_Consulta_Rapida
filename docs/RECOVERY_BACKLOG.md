@@ -8620,3 +8620,5 @@ Historical review-thread entries were removed here to avoid duplicate pending co
 5. quebrar essa regra volta a misturar verdade atual com arqueologia e piora manutencao, edicao e triagem.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+- 2026-04-08: derivadas relation ids now accept only pure numeric text in the current cycle. Short numeric synthetic ids remain temporarily accepted. Next hardening slice should require canonical year + length after migrating those fixtures.
+- 2026-04-08: Mermaid auto-render remains deferred. Graph should render via QtSvg/QSvgWidget without new heavy deps; Mermaid preview via QtWebEngine was rejected for now because PyQt6-WebEngine-Qt6 adds a large payload (about 112 MB on macOS arm64).

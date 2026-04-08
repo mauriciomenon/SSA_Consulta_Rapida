@@ -1445,6 +1445,16 @@ def _build_derivadas_graph_html(
     )
 
 
+def _extract_inline_svg_markup(graph_html: str) -> str:
+    if not graph_html:
+        return ""
+    start = graph_html.find("<svg")
+    end = graph_html.rfind("</svg>")
+    if start < 0 or end < 0 or end < start:
+        return ""
+    return graph_html[start : end + len("</svg>")]
+
+
 def _open_details_dialog_for_ssa(window, numero_ssa):
     target = _normalize_ssa_value(window, numero_ssa)
     if not target:
@@ -1454,7 +1464,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         return
 
     try:
-        from PyQt6.QtCore import Qt
+        from PyQt6.QtCore import QByteArray, Qt
         from PyQt6.QtGui import QPalette
         from PyQt6.QtWidgets import (
             QDialog,
@@ -1467,6 +1477,14 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         )
     except Exception:
         return
+    qsvg_widget_cls: type[object] | None
+    try:
+        from PyQt6.QtSvgWidgets import QSvgWidget as _QSvgWidget
+
+        qsvg_widget_cls = _QSvgWidget
+    except Exception as exc:
+        qsvg_widget_cls = None
+        logger.debug("QSvgWidget unavailable for derivadas graph rendering: %s", exc)
 
     dialog = QDialog(window)
     dialog.setWindowTitle(f"Detalhes da SSA #{target}")
@@ -1494,7 +1512,17 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         QTextBrowser(), min_width=DERIVADAS_DIALOG_DETAILS_MIN_WIDTH
     )
     tree_tab_top_tabs = QTabWidget(tab_tree)
-    tree_graph_browser = _init_readonly_text_browser(QTextBrowser(), min_height=220)
+    tree_graph_svg_widget = None
+    tree_graph_text_browser = None
+    if qsvg_widget_cls is not None:
+        tree_graph_svg_widget = qsvg_widget_cls(tree_tab_top_tabs)
+        tree_graph_svg_widget.setMinimumHeight(220)
+        tree_graph_browser = tree_graph_svg_widget
+    else:
+        tree_graph_text_browser = _init_readonly_text_browser(
+            QTextBrowser(), min_height=220
+        )
+        tree_graph_browser = tree_graph_text_browser
     tree_tab_browser = _init_readonly_text_browser(QTextBrowser(), min_height=220)
     tree_tab_mermaid_browser = _init_readonly_text_browser(
         QTextBrowser(), min_height=220
@@ -1585,10 +1613,28 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             link_color=link_color,
             font_family=dialog_font_family,
         )
-        if graph_html:
-            tree_graph_browser.setHtml(graph_html)
+        graph_svg = _extract_inline_svg_markup(graph_html)
+        if tree_graph_svg_widget is not None:
+            if graph_svg:
+                tree_graph_svg_widget.load(QByteArray(graph_svg.encode("utf-8")))
+                tree_graph_svg_widget.setToolTip("")
+            else:
+                tree_graph_svg_widget.load(
+                    QByteArray(
+                        (
+                            '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="120">'
+                            f'<text x="24" y="64" font-family="{html_module.escape(dialog_font_family)}" '
+                            'font-size="16">Grafo de derivadas indisponivel.</text>'
+                            "</svg>"
+                        ).encode("utf-8")
+                    )
+                )
+                tree_graph_svg_widget.setToolTip("Grafo de derivadas indisponivel.")
+        elif graph_html and tree_graph_text_browser is not None:
+            tree_graph_text_browser.setHtml(graph_html)
         else:
-            tree_graph_browser.setPlainText("Grafo de derivadas indisponivel.")
+            assert tree_graph_text_browser is not None
+            tree_graph_text_browser.setPlainText("Grafo de derivadas indisponivel.")
         if tree_html:
             tree_browser.setHtml(tree_html)
             tree_tab_browser.setHtml(tree_html)
@@ -1636,7 +1682,8 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     tree_browser.anchorClicked.connect(_handle_dialog_anchor)
     details_browser.anchorClicked.connect(_handle_dialog_anchor)
     tree_tab_browser.anchorClicked.connect(_handle_dialog_anchor)
-    tree_graph_browser.anchorClicked.connect(_handle_dialog_anchor)
+    if tree_graph_text_browser is not None:
+        tree_graph_text_browser.anchorClicked.connect(_handle_dialog_anchor)
     tree_tab_mermaid_browser.anchorClicked.connect(_handle_dialog_anchor)
     tree_tab_details_browser.anchorClicked.connect(_handle_dialog_anchor)
     if not _render_target(target):
