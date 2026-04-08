@@ -21,7 +21,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from PyQt6.QtCore import QPoint, QSize, Qt, QUrl  # noqa: E402
+from PyQt6.QtCore import QPoint, QRect, QSize, Qt, QUrl  # noqa: E402
 from PyQt6.QtGui import QCloseEvent, QFont, QResizeEvent  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtWidgets import QLineEdit  # noqa: E402
@@ -30,10 +30,11 @@ from PyQt6.QtWidgets import QApplication, QLabel, QPushButton  # noqa: E402
 from gui import gui_ssa  # noqa: E402
 from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
 from gui.gui_config import DEFAULT_COLUMN_DISPLAY_NAMES  # noqa: E402
-from gui.gui_config import DEFAULT_COLUMN_WIDTHS
+from gui.gui_config import DEFAULT_COLUMN_WIDTHS  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
+from gui.ssa import gui_filters_advanced_ui as advanced_ui  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.widgets.column_filter_dialog import ColumnFilterDialog  # noqa: E402
 from gui.widgets.filter_help_dialog import FilterHelpDialog  # noqa: E402
@@ -3394,6 +3395,97 @@ class TestGUIFilterLogic:
         assert "Termo para 'Solicitante'" in labels
         assert "Aceita termo, !termo para exclusao" in labels
         assert dialog.minimumWidth() >= 420
+
+    def test_column_filter_dialog_positions_inside_parent_screen(self, monkeypatch):
+        parent = QtWidgets.QWidget()
+        parent.setGeometry(1180, 120, 420, 280)
+        dialog = ColumnFilterDialog("Solicitante", parent=parent)
+
+        class _FakeScreen:
+            def availableGeometry(self):
+                return QRect(1000, 40, 900, 700)
+
+        monkeypatch.setattr(
+            dialog,
+            "_target_screen_geometry",
+            lambda: _FakeScreen().availableGeometry(),
+        )
+        captured = {}
+        monkeypatch.setattr(
+            dialog,
+            "move",
+            lambda x, y: captured.update({"x": int(x), "y": int(y)}),
+        )
+
+        dialog._position_on_parent_screen()
+
+        assert 1000 <= captured["x"] <= 1900
+        assert 40 <= captured["y"] <= 740
+
+    def test_multiselect_menu_uses_widget_screen_geometry(self, monkeypatch):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def emit(self):
+                for callback in list(self._callbacks):
+                    callback()
+
+        class _FakeRect:
+            def bottomLeft(self):
+                return QPoint(0, 20)
+
+            def topLeft(self):
+                return QPoint(0, 0)
+
+            def center(self):
+                return QPoint(40, 10)
+
+        class _FakeButton:
+            def __init__(self):
+                self.clicked = _FakeSignal()
+
+            def rect(self):
+                return _FakeRect()
+
+            def mapToGlobal(self, point):
+                return QPoint(1770 + point.x(), 730 + point.y())
+
+            def window(self):
+                return self
+
+            def windowHandle(self):
+                return None
+
+        class _FakeMenu:
+            def sizeHint(self):
+                return QSize(260, 220)
+
+            def exec(self, pos):
+                captured["pos"] = pos
+
+        class _FakeOwner:
+            def _run_menu_pre_show_hook(self, _button):
+                return None
+
+        captured = {}
+        monkeypatch.setattr(advanced_ui, "_is_widget_valid", lambda _widget: True)
+        monkeypatch.setattr(
+            advanced_ui,
+            "_get_widget_screen_geometry",
+            lambda _widget: QRect(1000, 40, 900, 700),
+        )
+
+        button = _FakeButton()
+        menu = _FakeMenu()
+        advanced_ui._attach_multiselect_menu(_FakeOwner(), button, menu)
+        button.clicked.emit()
+
+        assert captured["pos"].x() >= 1000
+        assert captured["pos"].y() >= 40
 
     def test_show_all_columns_by_affinity_reorders_same_select_all_set(
         self, monkeypatch
