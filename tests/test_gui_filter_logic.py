@@ -633,12 +633,14 @@ class TestGUIFilterLogic:
 
         assert "table-layout: fixed" in html
         assert "<colgroup>" in html
-        assert 'width: 23%;' in html
-        assert 'width: 77%;' in html
+        assert "width: 23%;" in html
+        assert "width: 77%;" in html
         assert "overflow-wrap: anywhere" in html
         assert "word-break: break-word" in html
 
-    def test_update_details_from_series_uses_details_group_font_family(self, monkeypatch):
+    def test_update_details_from_series_uses_details_group_font_family(
+        self, monkeypatch
+    ):
         captured = {}
 
         def _fake_format(_window, _series, **kwargs):
@@ -2850,7 +2852,10 @@ class TestGUIFilterLogic:
         self.window._open_details_dialog_for_ssa("1")
 
         assert captured["size"].height() == 880
-        assert captured["minimum_size"].height() == ssa_gui_details.DERIVADAS_DIALOG_MIN_HEIGHT
+        assert (
+            captured["minimum_size"].height()
+            == ssa_gui_details.DERIVADAS_DIALOG_MIN_HEIGHT
+        )
         assert any(
             len(sizes) == 2 and sizes[1] == 170 for sizes in captured["splitter_sizes"]
         )

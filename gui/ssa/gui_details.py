@@ -1893,7 +1893,9 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         )
         dialog.setMaximumSize(safe_width, safe_height)
         current_size = dialog.sizeHint()
-        target_width = min(max(current_size.width(), DERIVADAS_DIALOG_MIN_WIDTH), safe_width)
+        target_width = min(
+            max(current_size.width(), DERIVADAS_DIALOG_MIN_WIDTH), safe_width
+        )
         target_height = desired_height
         if (
             target_width != current_size.width()
