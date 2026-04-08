@@ -1468,10 +1468,15 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         from PyQt6.QtGui import QPalette
         from PyQt6.QtWidgets import (
             QDialog,
+            QFileDialog,
+            QGridLayout,
+            QMenu,
+            QMessageBox,
             QPushButton,
             QSplitter,
             QTabWidget,
             QTextBrowser,
+            QToolButton,
             QVBoxLayout,
             QWidget,
         )
@@ -1511,11 +1516,10 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     details_browser = _init_readonly_text_browser(
         QTextBrowser(), min_width=DERIVADAS_DIALOG_DETAILS_MIN_WIDTH
     )
-    tree_tab_top_tabs = QTabWidget(tab_tree)
     tree_graph_svg_widget = None
     tree_graph_text_browser = None
     if qsvg_widget_cls is not None:
-        tree_graph_svg_widget = qsvg_widget_cls(tree_tab_top_tabs)
+        tree_graph_svg_widget = qsvg_widget_cls(tab_tree)
         tree_graph_svg_widget.setMinimumHeight(220)
         tree_graph_browser = tree_graph_svg_widget
     else:
@@ -1523,16 +1527,22 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             QTextBrowser(), min_height=220
         )
         tree_graph_browser = tree_graph_text_browser
+    tree_graph_panel = QWidget(tab_tree)
+    tree_graph_panel_layout = QGridLayout(tree_graph_panel)
+    tree_graph_panel_layout.setContentsMargins(0, 0, 0, 0)
+    tree_graph_panel_layout.setSpacing(0)
+    tree_graph_panel_layout.addWidget(tree_graph_browser, 0, 0)
+    export_button = QToolButton(tree_graph_panel)
+    export_button.setText("Exportar")
+    export_button.setAutoRaise(True)
+    export_button.setToolTip("Exportar grafo em PNG, SVG ou Mermaid")
+    tree_graph_panel_layout.addWidget(
+        export_button,
+        0,
+        0,
+        alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
+    )
     tree_tab_browser = _init_readonly_text_browser(QTextBrowser(), min_height=220)
-    tree_tab_mermaid_browser = _init_readonly_text_browser(
-        QTextBrowser(), min_height=220
-    )
-    tree_tab_details_browser = _init_readonly_text_browser(
-        QTextBrowser(), min_height=220
-    )
-    tree_tab_top_tabs.addTab(tree_graph_browser, "Grafo")
-    tree_tab_top_tabs.addTab(tree_tab_browser, "Arvore")
-    tree_tab_top_tabs.addTab(tree_tab_mermaid_browser, "Mermaid")
 
     try:
         link_color = window.palette().color(QPalette.ColorRole.Highlight).name()
@@ -1546,6 +1556,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         )
 
     current_target = {"ssa": target}
+    export_state = {"svg": "", "mermaid": "", "target": target}
     dialog_font_pt = DERIVADAS_DIALOG_DETAILS_FONT_PT
     dialog_label_font_pt = DERIVADAS_DIALOG_LABEL_FONT_PT
     dialog_tree_font_pt = DERIVADAS_DIALOG_TREE_FONT_PT
@@ -1575,6 +1586,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         if series_target is None:
             return False
         current_target["ssa"] = normalized
+        export_state["target"] = normalized
         tree_data = _collect_derivadas_tree_data(window, normalized)
         derivadas_rel = {
             "has_data": bool(
@@ -1614,6 +1626,8 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             font_family=dialog_font_family,
         )
         graph_svg = _extract_inline_svg_markup(graph_html)
+        export_state["svg"] = graph_svg
+        export_state["mermaid"] = mermaid_text
         if tree_graph_svg_widget is not None:
             if graph_svg:
                 tree_graph_svg_widget.load(QByteArray(graph_svg.encode("utf-8")))
@@ -1641,12 +1655,101 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         else:
             tree_browser.setPlainText("Arvore de derivadas indisponivel para esta SSA.")
             tree_tab_browser.setPlainText("Arvore de derivadas indisponivel.")
-        if mermaid_text:
-            tree_tab_mermaid_browser.setPlainText(mermaid_text)
-        else:
-            tree_tab_mermaid_browser.setPlainText("Mermaid indisponivel.")
-        tree_tab_details_browser.setHtml(html_details)
         return True
+
+    def _export_target_basename() -> str:
+        safe_target = str(export_state["target"]).strip() or "desconhecida"
+        return f"derivadas_{safe_target}"
+
+    def _export_graph_png() -> None:
+        default_name = f"{_export_target_basename()}.png"
+        path, _ = QFileDialog.getSaveFileName(
+            dialog,
+            "Exportar grafo em PNG",
+            default_name,
+            "PNG (*.png)",
+        )
+        if not path:
+            return
+        pixmap = tree_graph_browser.grab()
+        if pixmap.isNull():
+            QMessageBox.warning(
+                dialog,
+                "Exportacao",
+                "Grafo indisponivel para exportacao em PNG.",
+            )
+            return
+        if not pixmap.save(path, "PNG"):
+            QMessageBox.warning(
+                dialog,
+                "Exportacao",
+                "Falha ao salvar o arquivo PNG.",
+            )
+
+    def _export_graph_svg() -> None:
+        graph_svg = str(export_state["svg"] or "")
+        if not graph_svg:
+            QMessageBox.warning(
+                dialog,
+                "Exportacao",
+                "Grafo indisponivel para exportacao em SVG.",
+            )
+            return
+        default_name = f"{_export_target_basename()}.svg"
+        path, _ = QFileDialog.getSaveFileName(
+            dialog,
+            "Exportar grafo em SVG",
+            default_name,
+            "SVG (*.svg)",
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(graph_svg)
+        except OSError as exc:
+            logger.warning("Falha ao exportar grafo SVG: %s", exc)
+            QMessageBox.warning(
+                dialog,
+                "Exportacao",
+                "Falha ao salvar o arquivo SVG.",
+            )
+
+    def _export_graph_mermaid() -> None:
+        mermaid_text = str(export_state["mermaid"] or "")
+        if not mermaid_text:
+            QMessageBox.warning(
+                dialog,
+                "Exportacao",
+                "Mermaid indisponivel para exportacao.",
+            )
+            return
+        default_name = f"{_export_target_basename()}.mmd"
+        path, _ = QFileDialog.getSaveFileName(
+            dialog,
+            "Exportar Mermaid",
+            default_name,
+            "Mermaid (*.mmd);;Texto (*.txt)",
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(mermaid_text)
+        except OSError as exc:
+            logger.warning("Falha ao exportar Mermaid: %s", exc)
+            QMessageBox.warning(
+                dialog,
+                "Exportacao",
+                "Falha ao salvar o arquivo Mermaid.",
+            )
+
+    def _show_graph_export_menu(global_pos) -> None:
+        menu = QMenu(dialog)
+        menu.addAction("Exportar PNG", _export_graph_png)
+        menu.addAction("Exportar SVG", _export_graph_svg)
+        menu.addAction("Exportar Mermaid", _export_graph_mermaid)
+        menu.exec(global_pos)
 
     def _handle_dialog_anchor(url):
         try:
@@ -1684,8 +1787,15 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     tree_tab_browser.anchorClicked.connect(_handle_dialog_anchor)
     if tree_graph_text_browser is not None:
         tree_graph_text_browser.anchorClicked.connect(_handle_dialog_anchor)
-    tree_tab_mermaid_browser.anchorClicked.connect(_handle_dialog_anchor)
-    tree_tab_details_browser.anchorClicked.connect(_handle_dialog_anchor)
+    tree_graph_browser.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    tree_graph_browser.customContextMenuRequested.connect(
+        lambda pos: _show_graph_export_menu(tree_graph_browser.mapToGlobal(pos))
+    )
+    export_button.clicked.connect(
+        lambda: _show_graph_export_menu(
+            export_button.mapToGlobal(export_button.rect().bottomRight())
+        )
+    )
     if not _render_target(target):
         return
 
@@ -1704,8 +1814,8 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_RIGHT / total_ratio),
     )
     content_splitter.setSizes([left_width, right_width])
-    tree_tab_splitter.addWidget(tree_tab_top_tabs)
-    tree_tab_splitter.addWidget(tree_tab_details_browser)
+    tree_tab_splitter.addWidget(tree_graph_panel)
+    tree_tab_splitter.addWidget(tree_tab_browser)
     tree_tab_splitter.setStretchFactor(0, 1)
     tree_tab_splitter.setStretchFactor(1, 1)
     tree_tab_splitter.setSizes([350, 350])

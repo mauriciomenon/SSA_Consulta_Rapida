@@ -2739,14 +2739,24 @@ class TestGUIFilterLogic:
                 [tab.tabText(i) for i in range(tab.count())] for tab in tabs
             ]
             captured["svg_count"] = len(dialog.findChildren(QSvgWidget))
+            captured["tool_buttons"] = [
+                button.text() for button in dialog.findChildren(QtWidgets.QToolButton)
+            ]
+            captured["browser_texts"] = [
+                browser.toPlainText()
+                for browser in dialog.findChildren(QtWidgets.QTextBrowser)
+            ]
             return 0
 
         monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
         self.window._open_details_dialog_for_ssa("1")
         assert "labels" in captured
-        assert ["Detalhes", "Arvore"] in captured["labels"]
-        assert ["Grafo", "Arvore", "Mermaid"] in captured["labels"]
+        assert captured["labels"] == [["Detalhes", "Arvore"]]
         assert captured["svg_count"] >= 1
+        assert "Exportar" in captured["tool_buttons"]
+        assert any(
+            "Arvore de derivadas:" in text for text in captured["browser_texts"]
+        )
 
     def test_details_number_double_click_copies_current_ssa(self, monkeypatch):
         self.window._details_current_ssa = "202600023"
