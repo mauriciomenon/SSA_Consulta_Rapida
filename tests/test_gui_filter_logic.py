@@ -2755,9 +2755,12 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
         self.window._open_details_dialog_for_ssa("1")
         assert captured["tab_count"] == 0
-        assert any(len(sizes) == 2 and sizes[1] == 170 for sizes in captured["splitter_sizes"])
         assert any(
-            len(sizes) == 2 and sizes[0] < sizes[1] for sizes in captured["splitter_sizes"]
+            len(sizes) == 2 and sizes[1] == 170 for sizes in captured["splitter_sizes"]
+        )
+        assert any(
+            len(sizes) == 2 and sizes[0] < sizes[1]
+            for sizes in captured["splitter_sizes"]
         )
         assert all(width == 10 for width in captured["splitter_handles"])
         assert captured["graph_label_count"] >= 1
