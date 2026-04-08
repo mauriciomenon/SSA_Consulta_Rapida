@@ -1364,11 +1364,7 @@ def _build_derivadas_graph_html(
         theme_roles.get("panel_bg"),
         fallback="#1f1f1f",
     )
-    node_target_fill = pick_css_color(
-        theme_roles.get("accent"),
-        theme_roles.get("highlight"),
-        fallback="#2f6dd5",
-    )
+    node_target_fill = "#69b7ff"
     node_stroke = pick_css_color(
         link_color,
         theme_roles.get("border"),
@@ -1466,6 +1462,30 @@ def _extract_inline_svg_markup(graph_html: str) -> str:
     if start < 0 or end < 0 or end < start:
         return ""
     return graph_html[start : end + len("</svg>")]
+
+
+def _get_dialog_screen_geometry(widget):
+    window_handle = widget.windowHandle()
+    if window_handle is not None:
+        screen = window_handle.screen()
+        if screen is not None:
+            return screen.availableGeometry()
+
+    from PyQt6.QtWidgets import QApplication
+
+    center = widget.frameGeometry().center()
+    screen = QApplication.screenAt(center)
+    if screen is not None:
+        return screen.availableGeometry()
+
+    screen = widget.screen()
+    if screen is not None:
+        return screen.availableGeometry()
+
+    screen = QApplication.primaryScreen()
+    if screen is not None:
+        return screen.availableGeometry()
+    return None
 
 
 def _open_details_dialog_for_ssa(window, numero_ssa):
@@ -1822,7 +1842,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     details_tab_splitter.addWidget(details_derivadas_splitter)
     details_tab_splitter.setStretchFactor(0, 1)
     details_tab_splitter.setStretchFactor(1, 0)
-    details_tab_splitter.setSizes([500, 230])
+    details_tab_splitter.setSizes([540, 190])
 
     tab_details_layout.addWidget(details_tab_splitter)
     root_layout.addWidget(tabs)
@@ -1830,6 +1850,21 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     close_button = QPushButton("Fechar")
     close_button.clicked.connect(dialog.accept)
     root_layout.addWidget(close_button)
+    screen_geometry = _get_dialog_screen_geometry(window)
+    if screen_geometry is not None:
+        safe_width = max(640, screen_geometry.width() - 24)
+        safe_height = max(480, screen_geometry.height() - 24)
+        dialog.setMinimumSize(
+            min(DERIVADAS_DIALOG_MIN_WIDTH, safe_width),
+            min(DERIVADAS_DIALOG_MIN_HEIGHT, safe_height),
+        )
+        dialog.setMaximumSize(safe_width, safe_height)
+        dialog.adjustSize()
+        current_size = dialog.size()
+        target_width = min(current_size.width(), safe_width)
+        target_height = min(current_size.height(), safe_height)
+        if target_width != current_size.width() or target_height != current_size.height():
+            dialog.resize(target_width, target_height)
     if tree_graph_label is not None:
         QTimer.singleShot(0, _refresh_graph_after_resize)
     dialog.exec()

@@ -2764,6 +2764,29 @@ class TestGUIFilterLogic:
             "Relacoes de Derivadas" in text for text in captured["browser_texts"]
         )
 
+    def test_open_details_dialog_clamps_to_active_screen(self, monkeypatch):
+        self.window.df_exibido = self.base_df.copy()
+        captured = {}
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_dialog_screen_geometry",
+            lambda _widget: QRect(0, 0, 900, 700),
+        )
+
+        def _fake_exec(dialog):
+            captured["max_size"] = dialog.maximumSize()
+            captured["size"] = dialog.size()
+            return 0
+
+        monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
+        self.window._open_details_dialog_for_ssa("1")
+
+        assert captured["max_size"].width() <= 876
+        assert captured["max_size"].height() <= 676
+        assert captured["size"].width() <= 876
+        assert captured["size"].height() <= 676
+
     def test_details_number_double_click_copies_current_ssa(self, monkeypatch):
         self.window._details_current_ssa = "202600023"
         self.window.details_text.setHtml(
