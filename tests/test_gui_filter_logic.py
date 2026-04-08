@@ -2732,12 +2732,11 @@ class TestGUIFilterLogic:
         captured = {}
 
         def _fake_exec(dialog):
-            tabs = dialog.findChildren(QtWidgets.QTabWidget)
-            if not tabs:
-                captured["labels"] = []
-                return 0
-            captured["labels"] = [
-                [tab.tabText(i) for i in range(tab.count())] for tab in tabs
+            captured["tab_count"] = len(dialog.findChildren(QtWidgets.QTabWidget))
+            splitters = dialog.findChildren(QtWidgets.QSplitter)
+            captured["splitter_sizes"] = [splitter.sizes() for splitter in splitters]
+            captured["splitter_handles"] = [
+                splitter.handleWidth() for splitter in splitters
             ]
             captured["graph_label_count"] = sum(
                 1
@@ -2755,8 +2754,12 @@ class TestGUIFilterLogic:
 
         monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
         self.window._open_details_dialog_for_ssa("1")
-        assert "labels" in captured
-        assert captured["labels"] == [["Detalhes"]]
+        assert captured["tab_count"] == 0
+        assert any(len(sizes) == 2 and sizes[1] == 170 for sizes in captured["splitter_sizes"])
+        assert any(
+            len(sizes) == 2 and sizes[0] < sizes[1] for sizes in captured["splitter_sizes"]
+        )
+        assert all(width == 10 for width in captured["splitter_handles"])
         assert captured["graph_label_count"] >= 1
         assert "Exportar" in captured["tool_buttons"]
         assert any("Derivadas:" in text for text in captured["browser_texts"])
