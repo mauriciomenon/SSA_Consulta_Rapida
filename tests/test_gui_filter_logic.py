@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import QApplication, QLabel, QPushButton  # noqa: E402
 
 from gui import gui_ssa  # noqa: E402
 from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
-from gui.gui_config import DEFAULT_COLUMN_DISPLAY_NAMES, DEFAULT_COLUMN_WIDTHS
+from gui.gui_config import DEFAULT_COLUMN_DISPLAY_NAMES, DEFAULT_COLUMN_WIDTHS  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
@@ -779,7 +779,7 @@ class TestGUIFilterLogic:
         )
         assert header_text == "Numero SSA"
 
-    def test_display_current_page_centers_table_cells_by_default(self):
+    def test_display_current_page_right_aligns_table_cells_by_default(self):
         gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {}).pop(
             "table_cell_alignment", None
         )
@@ -791,7 +791,7 @@ class TestGUIFilterLogic:
         item = self.window.table_widget.item(0, logical_index)
 
         assert item is not None
-        assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignHCenter)
+        assert int(item.textAlignment()) & int(Qt.AlignmentFlag.AlignRight)
 
     def test_display_current_page_accepts_left_table_cell_alignment(self):
         gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})[
@@ -1009,15 +1009,25 @@ class TestGUIFilterLogic:
     def test_widths_and_short_labels_follow_latest_quick_adjustments(self):
         column_names = gui_ssa.GUI_MAIN_PREFERENCES["column_display_names"]
         column_widths = gui_ssa.GUI_MAIN_PREFERENCES["column_widths"]
+        default_widths = DEFAULT_COLUMN_WIDTHS
 
         assert column_names["execucao_parcial"] == "Exec. Parcial"
-        assert column_widths["data_cadastro"] == 84
-        assert column_widths["grau_prioridade_emissao"] == 120
-        assert column_widths["grau_prioridade_planejamento"] == 120
-        assert column_widths["execucao_parcial"] == 128
-        assert column_widths["total_de_reprogramacoes"] == 128
-        assert column_widths["semana_executada"] == 96
-        assert column_widths["responsavel_execucao"] == 150
+        assert default_widths["data_cadastro"] == 84
+        assert default_widths["grau_prioridade_emissao"] == 120
+        assert default_widths["grau_prioridade_planejamento"] == 120
+        assert default_widths["execucao_parcial"] == 128
+        assert default_widths["total_de_reprogramacoes"] == 128
+        assert default_widths["semana_executada"] == 96
+        assert default_widths["responsavel_execucao"] == 150
+        assert column_widths["data_cadastro"] >= default_widths["data_cadastro"]
+        assert (
+            column_widths["grau_prioridade_emissao"]
+            >= default_widths["grau_prioridade_emissao"]
+        )
+        assert (
+            column_widths["grau_prioridade_planejamento"]
+            >= default_widths["grau_prioridade_planejamento"]
+        )
 
     def test_column_filter_default_order_places_emissor_before_executor(self):
         columns = list(self.window._column_filter_default_columns())

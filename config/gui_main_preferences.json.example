@@ -89,7 +89,7 @@
     "enable_column_sorting": true,
     "show_details_panel": true,
     "enable_double_click_details": true,
-    "table_cell_alignment": "center",
+    "table_cell_alignment": "right",
     "theme": "classico",
     "filter_cache_size": 50,
     "cache_enabled": true,

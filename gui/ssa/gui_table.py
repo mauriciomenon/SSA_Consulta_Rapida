@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import sys
 from contextlib import contextmanager
+from importlib import import_module
+from typing import Any
 
 import pandas as pd
 
@@ -14,6 +16,7 @@ from gui.gui_config import (
     COLUMN_HEADER_LABEL_VARIANTS,
     DEFAULT_COLUMN_DISPLAY_NAMES,
     DEFAULT_COLUMN_WIDTHS,
+    DEFAULT_GUI_SETTINGS,
     GUI_MAIN_PREFERENCES,
 )
 from gui.qt_stubs import QHeaderView, Qt, QTableWidgetItem, QTimer
@@ -21,16 +24,34 @@ from gui.ssa import gui_details as ssa_gui_details
 from utils.formatting import format_dataframe_for_display
 from utils.robust_logging import get_robust_logger
 
+QBrush: Any = None
+QColor: Any = None
+try:
+    qt_gui = import_module("PyQt6.QtGui")
+    QBrush = getattr(qt_gui, "QBrush", None)
+    QColor = getattr(qt_gui, "QColor", None)
+except Exception:
+    pass
+
 logger = get_robust_logger().get_logger(__name__, "gui")
 
 _FILTER_HEADER_PREFIX = "[f] "
 _HEADER_SIDE_PADDING_TEXT = "  "
 _ADAPTIVE_HEADER_REFRESH_DELAY_MS = 150
+_DEFAULT_TABLE_CELL_ALIGNMENT = str(DEFAULT_GUI_SETTINGS["table_cell_alignment"])
 _TABLE_CELL_HORIZONTAL_ALIGNMENT_MAP = {
     "left": Qt.AlignmentFlag.AlignLeft,
     "center": Qt.AlignmentFlag.AlignHCenter,
     "right": Qt.AlignmentFlag.AlignRight,
 }
+_HASH_LINK_TOOLTIP = "Abrir SSA no SAM"
+if QBrush is not None and QColor is not None:
+    try:
+        _HASH_LINK_FOREGROUND = QBrush(QColor("#4a90e2"))
+    except Exception:
+        _HASH_LINK_FOREGROUND = None
+else:
+    _HASH_LINK_FOREGROUND = None
 
 
 def _get_visual_filter_columns(window, *, context: str) -> set[str]:
@@ -256,42 +277,47 @@ def _fallback_column_width(col_name: str) -> int:
     return 120
 
 
+def _build_render_marker_sample(display_df: pd.DataFrame) -> tuple[tuple[str, ...], ...]:
+    if display_df.empty:
+        return tuple()
+
+    try:
+        marker_columns = list(display_df.columns)
+        row_indexes = sorted({0, len(display_df) // 2, len(display_df) - 1})
+        marker_df = display_df.iloc[row_indexes][marker_columns].fillna("")
+        return tuple(
+            tuple(str(value) for value in row_values)
+            for row_values in marker_df.itertuples(index=False, name=None)
+        )
+    except Exception as exc:
+        logger.debug("Falha ao construir amostra de marcadores da renderizacao: %s", exc)
+        return tuple()
+
+
 def _build_page_render_signature(
-    window, display_df: pd.DataFrame, display_headers: list[str]
+    window,
+    display_df: pd.DataFrame,
+    display_headers: list[str],
+    *,
+    marker_sample: tuple[tuple[str, ...], ...] | None = None,
 ) -> tuple:
     try:
         viewport_width = int(window.table_widget.viewport().width())
     except Exception:
         viewport_width = -1
 
-    row_markers: tuple[tuple[str, ...], ...] = tuple()
-    try:
-        marker_columns = [
-            col
-            for col in ("numero_ssa", "derivada_de", "situacao")
-            if col in display_df.columns
-        ]
-        if not marker_columns:
-            marker_columns = list(display_df.columns[: min(3, len(display_df.columns))])
-        if marker_columns:
-            marker_df = display_df[marker_columns].fillna("")
-            row_markers = tuple(
-                tuple(str(value) for value in row_values)
-                for row_values in marker_df.itertuples(index=False, name=None)
-            )
-    except Exception as exc:
-        logger.debug("Falha ao construir marcadores da assinatura de render: %s", exc)
+    if marker_sample is None:
+        marker_sample = _build_render_marker_sample(display_df)
 
     return (
         getattr(window, "_data_uuid", None),
-        id(getattr(window, "df_exibido", None)),
         int(getattr(window.paginator, "current_page", 1)),
         int(getattr(window.paginator, "page_size", 0)),
         viewport_width,
         tuple(display_df.columns),
         tuple(display_headers),
         int(len(display_df)),
-        row_markers,
+        marker_sample,
     )
 
 
@@ -455,6 +481,7 @@ def display_current_page(window, page_number, *, update_details=True):
         window.table_widget.setRowCount(0)
         # Determina colunas validas a partir de df_exibido (mesmo vazio, mantem schema)
         valid_cols = []
+        base_cols = []
         try:
             base_cols = list(getattr(window, "df_exibido", pd.DataFrame()).columns)
             if base_cols:
@@ -546,6 +573,7 @@ def display_current_page(window, page_number, *, update_details=True):
     # Sem reordenacao para garantir correspondencia com as larguras calculadas
 
     display_df = window.df_para_tabela[cols_to_show].copy()
+    raw_marker_sample = _build_render_marker_sample(display_df)
     # Mantem colunas atuais para mapear indice->nome ao salvar larguras
     window._current_display_columns = ["#"] + list(display_df.columns)
 
@@ -568,7 +596,6 @@ def display_current_page(window, page_number, *, update_details=True):
     display_df_hash = None
     try:
         data_uuid = getattr(window, "_data_uuid", None)
-        df_exibido_id = id(getattr(window, "df_exibido", None))
         if data_uuid is not None:
             page = int(window.paginator.current_page)
             page_size = int(window.paginator.page_size)
@@ -587,11 +614,11 @@ def display_current_page(window, page_number, *, update_details=True):
                 )
             display_df_hash = (
                 data_uuid,
-                df_exibido_id,
                 page,
                 page_size,
                 len(display_df),
                 tuple(display_df.columns),
+                raw_marker_sample,
                 width_signature,
             )
     except Exception as exc:
@@ -621,17 +648,30 @@ def display_current_page(window, page_number, *, update_details=True):
     display_headers = _build_display_headers(
         window, list(display_df.columns), visual_filter_columns
     )
+    render_marker_sample = _build_render_marker_sample(display_df)
     gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
     table_cell_alignment_name = (
-        str(gui_settings.get("table_cell_alignment", "center")).strip().lower()
+        str(
+            gui_settings.get(
+                "table_cell_alignment",
+                _DEFAULT_TABLE_CELL_ALIGNMENT,
+            )
+        )
+        .strip()
+        .lower()
     )
     horizontal_alignment = _TABLE_CELL_HORIZONTAL_ALIGNMENT_MAP.get(
         table_cell_alignment_name,
-        Qt.AlignmentFlag.AlignHCenter,
+        _TABLE_CELL_HORIZONTAL_ALIGNMENT_MAP[_DEFAULT_TABLE_CELL_ALIGNMENT],
     )
     table_cell_alignment = Qt.AlignmentFlag.AlignVCenter | horizontal_alignment
 
-    render_signature = _build_page_render_signature(window, display_df, display_headers)
+    render_signature = _build_page_render_signature(
+        window,
+        display_df,
+        display_headers,
+        marker_sample=render_marker_sample,
+    )
     previous_signature = getattr(window, "_last_table_render_signature", None)
     reuse_render = (
         previous_signature == render_signature
@@ -649,11 +689,13 @@ def display_current_page(window, page_number, *, update_details=True):
             # Preenche os dados usando batch operations para melhor performance
             columns_list = list(display_df.columns)
             cell_render_failures = 0
-            for row_idx in range(len(display_df)):
-                row_data = display_df.iloc[row_idx]
-                for col_idx, col_name in enumerate(columns_list):
+            for row_idx, row_values in enumerate(
+                display_df.itertuples(index=False, name=None)
+            ):
+                for col_idx, (col_name, value) in enumerate(
+                    zip(columns_list, row_values, strict=False)
+                ):
                     try:
-                        value = row_data.iloc[col_idx]
                         item_text = "" if pd.isna(value) else str(value)
                         # Keep table cells single-line to avoid visual clipping on fixed row height.
                         if item_text:
@@ -684,16 +726,15 @@ def display_current_page(window, page_number, *, update_details=True):
                                     exc,
                                 )
                             try:
-                                from PyQt6.QtGui import QBrush, QColor
-
-                                item.setForeground(QBrush(QColor("#4a90e2")))
+                                if _HASH_LINK_FOREGROUND is not None:
+                                    item.setForeground(_HASH_LINK_FOREGROUND)
                             except Exception as exc:
                                 logger.debug(
                                     "Falha ao aplicar cor de link na coluna #: %s", exc
                                 )
                             try:
                                 if hasattr(item, "setToolTip"):
-                                    item.setToolTip("Abrir SSA no SAM")
+                                    item.setToolTip(_HASH_LINK_TOOLTIP)
                             except Exception as exc:
                                 logger.debug(
                                     "Falha ao aplicar tooltip na coluna #: %s", exc

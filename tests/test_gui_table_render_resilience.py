@@ -19,8 +19,13 @@ from PyQt6.QtWidgets import QApplication  # noqa: E402
 from gui import gui_ssa  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
+from gui.ssa import gui_table  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from utils.formatting import format_dataframe_for_display  # noqa: E402
+
+
+def _expected_visible_columns(window, dataframe: pd.DataFrame) -> list[str]:
+    return [column for column in window.visible_columns if column in dataframe.columns]
 
 
 class TestGUITableRenderResilience:
@@ -146,7 +151,7 @@ class TestGUITableRenderResilience:
             QApplication.processEvents()
 
         expected_page = format_dataframe_for_display(
-            paged_df.iloc[2:4][self.window.visible_columns].copy()
+            paged_df.iloc[2:4][_expected_visible_columns(self.window, paged_df)].copy()
         )
         assert update_details.call_count == 2
         assert self.window.table_widget.rowCount() == 2
@@ -210,7 +215,7 @@ class TestGUITableRenderResilience:
         QApplication.processEvents()
 
         expected_page = format_dataframe_for_display(
-            paged_df.iloc[2:4][self.window.visible_columns].copy()
+            paged_df.iloc[2:4][_expected_visible_columns(self.window, paged_df)].copy()
         )
         numero_ssa_col = self.window._current_display_columns.index("numero_ssa")
         assert (
@@ -238,7 +243,7 @@ class TestGUITableRenderResilience:
         QApplication.processEvents()
 
         expected_page = format_dataframe_for_display(
-            replacement_df[self.window.visible_columns].copy()
+            replacement_df[_expected_visible_columns(self.window, replacement_df)].copy()
         )
         numero_ssa_col = self.window._current_display_columns.index("numero_ssa")
         assert (
@@ -267,6 +272,47 @@ class TestGUITableRenderResilience:
             if record.levelno >= logging.WARNING and str(record.name).startswith("gui")
         ]
         assert gui_warnings == []
+
+    def test_display_current_page_reuses_formatted_cache_for_equivalent_dataframe_copy(self):
+        self.window._data_uuid = "stable-data"
+        self.window._ensure_data_revision = lambda: None
+
+        with patch.object(
+            gui_table,
+            "format_dataframe_for_display",
+            wraps=gui_table.format_dataframe_for_display,
+        ) as formatter:
+            self.window.display_current_page(1)
+            QApplication.processEvents()
+            assert formatter.call_count == 1
+
+            self._set_window_dataframe(self.base_df.copy(), page_size=10)
+            self.window._data_uuid = "stable-data"
+            self.window._ensure_data_revision = lambda: None
+            self.window.display_current_page(1)
+            QApplication.processEvents()
+
+        assert formatter.call_count == 1
+
+    def test_display_current_page_rebuilds_when_mid_row_changes_with_stable_revision(self):
+        self.window._data_uuid = "stable-data"
+        self.window._ensure_data_revision = lambda: None
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        mutated_df = self.base_df.copy()
+        mutated_df.loc[1, "descricao_ssa"] = "Teste B alterado"
+        self._set_window_dataframe(mutated_df, page_size=10)
+        self.window._data_uuid = "stable-data"
+        self.window._ensure_data_revision = lambda: None
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        descricao_idx = self.window._current_display_columns.index("descricao_ssa")
+        assert (
+            self.window.table_widget.item(1, descricao_idx).text()
+            == "Teste B alterado"
+        )
 
     def test_display_current_page_keeps_hash_column_when_tooltip_fails(self):
         from gui.ssa import gui_table

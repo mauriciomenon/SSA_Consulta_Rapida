@@ -173,8 +173,8 @@ Valores aceitos para `table_cell_alignment`:
 
 Regra atual:
 
-1. o runtime usa `center` por default
-2. valores invalidos voltam para `center`
+1. o runtime usa `right` por default
+2. valores invalidos voltam para `right`
 3. o slice atual altera apenas o alinhamento das celulas da tabela
 4. o valor tambem pode ser alterado pelo menu `Opcoes -> Alinhamento da tabela`
 5. se houver expansao futura para dialogo, toolbar ou outra superficie maior, isso deve entrar em slice proprio em `gui/gui_ssa.py`, sem misturar com o contrato base de preferencias

@@ -19,6 +19,7 @@ Para executar: python gui_ssa.py
 import copy
 import json
 import logging
+import ntpath
 import os
 import re
 import shutil
@@ -54,6 +55,7 @@ if project_root not in sys.path:
 from core.config_manager import COLUMN_AFFINITY_SCORES  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS  # noqa: E402
+from gui.gui_config import DEFAULT_GUI_SETTINGS  # noqa: E402
 from gui.gui_config import get_gui_main_preferences_path  # noqa: E402
 from gui.gui_config import load_gui_main_preferences  # noqa: F401 - re-export for compatibility
 from gui.gui_config import GUI_MAIN_PREFERENCES, REQUIRED_DISPLAY_COLUMNS
@@ -107,6 +109,7 @@ _TABLE_CELL_ALIGNMENT_LABELS = {
     "center": "Centro",
     "right": "Direita",
 }
+_DEFAULT_TABLE_CELL_ALIGNMENT = str(DEFAULT_GUI_SETTINGS["table_cell_alignment"])
 SAM_HOME_URL = "https://osprd.itaipu/SAM_SMA/"
 SAM_SSA_PUBLIC_VIEW_URL = (
     "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx"
@@ -921,6 +924,12 @@ def _is_widget_valid(widget) -> bool:
 
 # --- Constantes ---
 DB_PATH = os.environ.get("SSA_DB_PATH") or os.path.join(project_root, "data", "ssas.db")
+TSM_DEBUG_ENABLED = str(os.environ.get("SSA_TSM_DEBUG", "")).strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 # Constantes de UI
 DETAILS_DIALOG_FONT_SIZE = 10  # pt
@@ -947,6 +956,15 @@ MONO_FONT_FAMILY = (
     # Last-resort fallbacks
     "'Courier New', Courier"
 )
+
+_TSM_DEBUG_EVENT_NAMES = {
+    QEvent.Type.FocusIn: "focus_in",
+    QEvent.Type.FocusOut: "focus_out",
+    QEvent.Type.InputMethod: "input_method",
+    QEvent.Type.InputMethodQuery: "input_method_query",
+    QEvent.Type.Show: "show",
+    QEvent.Type.Hide: "hide",
+}
 
 DIVISAO_SETORES = {
     "SMME": ["MEL1", "MEL2", "MEL3", "MEL4"],
@@ -1161,6 +1179,67 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _resolve_startup_theme(self):
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         return ssa_gui_theme.resolve_startup_theme(gui_settings)
+
+    def _log_tsm_debug(self, event_name: str, *, widget_role: str, obj) -> None:
+        if not TSM_DEBUG_ENABLED:
+            return
+        try:
+            tab_index = (
+                int(self.main_tabs.currentIndex())
+                if hasattr(self, "main_tabs") and self.main_tabs is not None
+                else -1
+            )
+        except Exception:
+            tab_index = -1
+        try:
+            object_name = str(getattr(obj, "objectName", lambda: "")() or "")
+        except Exception:
+            object_name = ""
+        logger.warning(
+            "[TSM_DEBUG] event=%s role=%s class=%s object_name=%s tab=%s",
+            event_name,
+            widget_role,
+            type(obj).__name__,
+            object_name,
+            tab_index,
+        )
+
+    def _register_tsm_debug_widget(self, widget, role: str) -> None:
+        if not TSM_DEBUG_ENABLED or widget is None:
+            return
+        try:
+            probes = getattr(self, "_tsm_debug_widget_roles", None)
+            if not isinstance(probes, dict):
+                probes = {}
+                self._tsm_debug_widget_roles = probes
+            probes[id(widget)] = str(role)
+            widget.installEventFilter(self)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao registrar widget para TSM debug (%s): %s", role, exc
+            )
+
+    def _setup_tsm_debug_probes(self) -> None:
+        if not TSM_DEBUG_ENABLED:
+            return
+        try:
+            self._register_tsm_debug_widget(getattr(self, "main_tabs", None), "tabs")
+            contexts = list(getattr(self, "_tab_contexts", []) or [])
+            for idx, ctx in enumerate(contexts):
+                if not isinstance(ctx, dict):
+                    continue
+                prefix = f"tab{idx}"
+                for key in (
+                    "search_input",
+                    "quick_setor_executor_combo",
+                    "adv_week_emissao_start",
+                    "adv_week_execucao_start",
+                ):
+                    self._register_tsm_debug_widget(
+                        ctx.get(key), f"{prefix}.{key}"
+                    )
+        except Exception as exc:
+            logger.debug("Falha ao instalar probes de TSM debug: %s", exc)
 
     def _apply_table_cell_alignment_preference(self, alignment_name: str):
         normalized = str(alignment_name or "").strip().lower()
@@ -1497,6 +1576,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         main_layout.addWidget(cast(Any, self.main_tabs))
         self.main_tabs.currentChanged.connect(self._on_tab_changed)
         self._bind_tab_context(ctx_main)
+        self._setup_tsm_debug_probes()
         try:
             QTimer.singleShot(0, self._sync_bottom_panel_heights)
         except Exception as exc:
@@ -2227,6 +2307,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         if index < 0 or index >= len(self._tab_contexts):
             return
         ctx = self._tab_contexts[index]
+        if TSM_DEBUG_ENABLED:
+            logger.warning(
+                "[TSM_DEBUG] tab_changed index=%s kind=%s",
+                index,
+                str(ctx.get("tab_kind") or ""),
+            )
         self._bind_tab_context(ctx)
         try:
             self._refresh_quick_setor_executor_options()
@@ -2899,6 +2985,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         if not QT_AVAILABLE or ColumnFilterDialog is None:
             return None
         try:
+            if TSM_DEBUG_ENABLED:
+                logger.warning(
+                    "[TSM_DEBUG] open_column_filter_dialog column=%s has_initial=%s",
+                    full_name,
+                    bool(str(initial_value or "").strip()),
+                )
             dialog = ColumnFilterDialog(
                 full_name,
                 str(initial_value or ""),
@@ -2982,6 +3074,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def eventFilter(self, obj, event):
         try:
+            if TSM_DEBUG_ENABLED:
+                probes = getattr(self, "_tsm_debug_widget_roles", None)
+                if isinstance(probes, dict):
+                    role = probes.get(id(obj))
+                    event_name = _TSM_DEBUG_EVENT_NAMES.get(event.type())
+                    if role and event_name:
+                        self._log_tsm_debug(event_name, widget_role=role, obj=obj)
             header = self.table_widget.horizontalHeader()
             if obj is header:
                 et = event.type()
@@ -3028,6 +3127,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     # --- Helpers: painel e aplicaçção dos filtros por coluna ---
     def toggle_theme_menu(self):
+        if TSM_DEBUG_ENABLED:
+            logger.warning("[TSM_DEBUG] open_theme_dialog")
         return ssa_gui_theme.toggle_theme_menu(
             self,
             gui_prefs=GUI_MAIN_PREFERENCES,
@@ -4038,11 +4139,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         opcoes_menu.addAction(hard_reset_filters_action)
 
         alignment_menu = opcoes_menu.addMenu("Alinhamento da tabela")
-        current_alignment = (
-            str(
-                GUI_MAIN_PREFERENCES.get("gui_settings", {}).get(
-                    "table_cell_alignment", "center"
-                )
+        current_alignment = str(
+            GUI_MAIN_PREFERENCES.get("gui_settings", {}).get(
+                "table_cell_alignment",
+                _DEFAULT_TABLE_CELL_ALIGNMENT,
             )
             .strip()
             .lower()
@@ -4248,24 +4348,27 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     @staticmethod
     def _resolve_platform_open_command() -> str:
         preferred_paths: list[str] = []
+        path_module = os.path
         if sys.platform.startswith("win"):
             windir = os.environ.get("WINDIR", r"C:\Windows")
             preferred_paths.append(os.path.join(windir, "explorer.exe"))
             cmd = "explorer"
+            path_module = ntpath
         elif sys.platform == "darwin":
             preferred_paths.append("/usr/bin/open")
             cmd = "open"
         else:
+            preferred_paths.extend(("/usr/bin/xdg-open", "/bin/xdg-open"))
             cmd = "xdg-open"
         for preferred in preferred_paths:
-            preferred_abs = os.path.abspath(preferred)
-            if os.path.isabs(preferred_abs) and os.path.isfile(preferred_abs):
+            preferred_abs = path_module.abspath(preferred)
+            if path_module.isabs(preferred_abs) and os.path.isfile(preferred_abs):
                 return preferred_abs
         resolved = shutil.which(cmd)
         if not resolved:
             raise RuntimeError(f"Comando indisponivel para abrir recurso: {cmd}")
-        resolved_abs = os.path.abspath(resolved)
-        if not os.path.isabs(resolved_abs):
+        resolved_abs = path_module.abspath(resolved)
+        if not path_module.isabs(resolved_abs):
             raise RuntimeError(f"Comando de abertura invalido: {resolved}")
         return resolved_abs
 

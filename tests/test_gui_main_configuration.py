@@ -280,7 +280,7 @@ class TestGUIMainConfiguration:
 
         assert config["gui_settings"]["table_cell_alignment"] == "right"
 
-    def test_load_gui_main_preferences_invalid_table_cell_alignment_falls_back_to_center(
+    def test_load_gui_main_preferences_invalid_table_cell_alignment_falls_back_to_right(
         self,
     ):
         partial_config = {
@@ -298,7 +298,7 @@ class TestGUIMainConfiguration:
             with patch("gui.gui_config.os.path.exists", return_value=True):
                 config = load_gui_main_preferences()
 
-        assert config["gui_settings"]["table_cell_alignment"] == "center"
+        assert config["gui_settings"]["table_cell_alignment"] == "right"
 
     def test_load_gui_main_preferences_auto_create_uses_code_defaults(
         self, tmp_path, monkeypatch
@@ -419,7 +419,7 @@ class TestGUIMainConfiguration:
         assert "table_cell_alignment" in settings
         assert isinstance(settings["page_size"], int)
         assert settings["page_size"] > 0
-        assert settings["table_cell_alignment"] == "center"
+        assert settings["table_cell_alignment"] == "right"
 
     def test_display_columns_validation(self):
         """Testa lista de colunas de exibicao."""
