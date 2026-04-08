@@ -244,7 +244,12 @@ def _format_details_html(
             f'font-size: {font_size_pt}pt; color: {text_color};">'
         )
     ]
-    html_lines.append('<table style="width: 100%; border-collapse: collapse;">')
+    html_lines.append(
+        '<table style="width: 100%; border-collapse: collapse; table-layout: fixed;">'
+    )
+    html_lines.append(
+        '<colgroup><col style="width: 27%;"/><col style="width: 73%;"/></colgroup>'
+    )
 
     def field_sort_key(item):
         col, _ = item
@@ -288,10 +293,11 @@ def _format_details_html(
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
-            f'font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;">'
+            f'font-weight: bold; font-size: {label_font_size_pt}pt; vertical-align: top;">'
             f"{display_name_html}:</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
+            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
+            f'overflow-wrap: anywhere; word-break: break-word;">'
             f"{formatted_value}</td>"
             f"</tr>"
         )
@@ -323,10 +329,11 @@ def _format_details_html(
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
-            f'font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;">'
+            f'font-weight: bold; font-size: {label_font_size_pt}pt; vertical-align: top;">'
             f"{html_module.escape(label)}:</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
+            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
+            f'overflow-wrap: anywhere; word-break: break-word;">'
             f"{derived_text}</td>"
             f"</tr>"
         )
