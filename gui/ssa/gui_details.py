@@ -43,11 +43,11 @@ SSA_NORM_CACHE_MAX_ENTRIES = 64
 DERIVADAS_DIALOG_MIN_WIDTH = 960
 DERIVADAS_DIALOG_TREE_MIN_WIDTH = 180
 DERIVADAS_DIALOG_DETAILS_MIN_WIDTH = 520
-DERIVADAS_GRAPH_NODE_WIDTH = 92
-DERIVADAS_GRAPH_NODE_HEIGHT = 28
-DERIVADAS_GRAPH_X_GAP = 104
-DERIVADAS_GRAPH_Y_GAP = 58
-DERIVADAS_GRAPH_MARGIN = 8
+DERIVADAS_GRAPH_NODE_WIDTH = 84
+DERIVADAS_GRAPH_NODE_HEIGHT = 24
+DERIVADAS_GRAPH_X_GAP = 88
+DERIVADAS_GRAPH_Y_GAP = 46
+DERIVADAS_GRAPH_MARGIN = 6
 DERIVADAS_GRAPH_MAX_DESCENDANTS = 120
 
 
@@ -1122,9 +1122,8 @@ def _build_derivadas_tree_html(
         guide = ""
         for _ in range(depth):
             guide += (
-                '<span style="display:inline-block; width:12px; height:1.45em; '
-                "border-left:2px dotted currentColor; opacity:0.42; "
-                'margin-right:6px; vertical-align:middle;"></span>'
+                '<span style="display:inline-block; width:18px; '
+                'text-align:center; opacity:0.55;">&#8942;</span>'
             )
         content = f"{guide}<span>{rendered}</span>"
         if current:
@@ -1133,7 +1132,7 @@ def _build_derivadas_tree_html(
                 f"{content}"
                 "</span>"
             )
-        lines.append(f'<div style="margin:0 0 6px 0;">{content}</div>')
+        lines.append(f'<div style="margin:0 0 6px 0; white-space:nowrap;">{content}</div>')
 
     lines = []
     if tree_font_pt is None:
@@ -1207,13 +1206,10 @@ def _build_derivadas_tree_html(
             _append_line(lines, len(lineage) + 1, rendered)
             _append_descendants(lines, child_value, len(lineage) + 2)
     else:
-        lines.append(
-            (
-                '<span style="display:inline-block; width:12px; height:1.45em; '
-                "border-left:2px dotted currentColor; opacity:0.42; "
-                'margin-right:6px; vertical-align:middle;"></span>' * (len(lineage) + 1)
-            )
-            + '<span style="opacity:0.82;">Sem Derivadas</span><br/>'
+        _append_line(
+            lines,
+            len(lineage) + 1,
+            '<span style="opacity:0.82;">Sem Derivadas</span>',
         )
 
     descendants_count = int(data.get("descendants_count", 0) or 0)
@@ -1434,8 +1430,8 @@ def _build_derivadas_graph_html(
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_width}" '
         f'height="{svg_height}" viewBox="0 0 {svg_width} {svg_height}">',
         "<defs>",
-        '<marker id="arrow" markerWidth="5" markerHeight="5" refX="4.5" refY="2.0" orient="auto">',
-        f'<polygon points="0 0, 5 2.0, 0 4.0" fill="{node_stroke}" />',
+        '<marker id="arrow" markerWidth="4" markerHeight="4" refX="3.5" refY="1.7" orient="auto">',
+        f'<polygon points="0 0, 4 1.7, 0 3.4" fill="{node_stroke}" />',
         "</marker>",
         "</defs>",
     ]
@@ -1462,7 +1458,7 @@ def _build_derivadas_graph_html(
         )
         svg_lines.append(
             f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
-            f'stroke="{node_stroke}" stroke-width="1.1" marker-end="url(#arrow)"{dash_attr} />'
+            f'stroke="{node_stroke}" stroke-width="0.9" marker-end="url(#arrow)"{dash_attr} />'
         )
 
     for node, (x, y) in positions.items():
@@ -1472,11 +1468,11 @@ def _build_derivadas_graph_html(
         safe_node = html_module.escape(node)
         svg_lines.append(
             f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{node_w}" height="{node_h}" '
-            f'rx="6" ry="6" fill="{fill}" stroke="{node_stroke}" stroke-width="0.9" />'
+            f'rx="5" ry="5" fill="{fill}" stroke="{node_stroke}" stroke-width="0.8" />'
         )
         svg_lines.append(
             f'<text x="{(x + offset_x):.1f}" y="{(y + offset_y + 5):.1f}" text-anchor="middle" '
-            f'font-family="{html_module.escape(font_family)}" font-size="9" fill="{text_color}">{safe_node}</text>'
+            f'font-family="{html_module.escape(font_family)}" font-size="8" fill="{text_color}">{safe_node}</text>'
         )
     svg_lines.append("</svg>")
 
@@ -1535,6 +1531,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             QDialog,
             QFileDialog,
             QGridLayout,
+            QLabel,
             QMenu,
             QMessageBox,
             QPushButton,
@@ -1547,14 +1544,15 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         )
     except Exception:
         return
-    qsvg_widget_cls: type[object] | None
+    qsvg_renderer_cls: type[object] | None
     try:
-        from PyQt6.QtSvgWidgets import QSvgWidget as _QSvgWidget
+        from PyQt6.QtGui import QPainter, QPixmap
+        from PyQt6.QtSvg import QSvgRenderer as _QSvgRenderer
 
-        qsvg_widget_cls = _QSvgWidget
+        qsvg_renderer_cls = _QSvgRenderer
     except Exception as exc:
-        qsvg_widget_cls = None
-        logger.debug("QSvgWidget unavailable for derivadas graph rendering: %s", exc)
+        qsvg_renderer_cls = None
+        logger.debug("QSvgRenderer unavailable for derivadas graph rendering: %s", exc)
 
     dialog = QDialog(window)
     dialog.setWindowTitle(f"Detalhes da SSA #{target}")
@@ -1581,12 +1579,14 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     details_browser = _init_readonly_text_browser(
         QTextBrowser(), min_width=DERIVADAS_DIALOG_DETAILS_MIN_WIDTH
     )
-    tree_graph_svg_widget = None
+    tree_graph_label = None
     tree_graph_text_browser = None
-    if qsvg_widget_cls is not None:
-        tree_graph_svg_widget = qsvg_widget_cls(tab_tree)
-        tree_graph_svg_widget.setMinimumHeight(220)
-        tree_graph_browser = tree_graph_svg_widget
+    if qsvg_renderer_cls is not None:
+        tree_graph_label = QLabel(tab_tree)
+        tree_graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tree_graph_label.setStyleSheet("border:none; background:transparent;")
+        tree_graph_label.setMinimumHeight(220)
+        tree_graph_browser = tree_graph_label
     else:
         tree_graph_text_browser = _init_readonly_text_browser(
             QTextBrowser(), min_height=220
@@ -1596,7 +1596,9 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     tree_graph_panel_layout = QGridLayout(tree_graph_panel)
     tree_graph_panel_layout.setContentsMargins(0, 0, 0, 0)
     tree_graph_panel_layout.setSpacing(0)
-    tree_graph_panel_layout.addWidget(tree_graph_browser, 0, 0)
+    tree_graph_panel_layout.addWidget(
+        tree_graph_browser, 0, 0, alignment=Qt.AlignmentFlag.AlignCenter
+    )
     export_button = QToolButton(tree_graph_panel)
     export_button.setText("Exportar")
     export_button.setAutoRaise(True)
@@ -1642,6 +1644,28 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         logger.debug(
             "Falha ao obter fonte base da UI para dialogo de detalhes: %s", exc
         )
+
+    def _render_graph_pixmap(graph_svg: str) -> bool:
+        if tree_graph_label is None or qsvg_renderer_cls is None or not graph_svg:
+            return False
+        renderer = qsvg_renderer_cls(QByteArray(graph_svg.encode("utf-8")))
+        default_size = renderer.defaultSize()
+        natural_w = max(1, int(default_size.width()))
+        natural_h = max(1, int(default_size.height()))
+        available_w = max(120, tree_graph_panel.width() - 24)
+        available_h = max(120, tree_graph_panel.height() - 24)
+        scale = min(1.0, available_w / natural_w, available_h / natural_h)
+        render_w = max(1, int(natural_w * scale))
+        render_h = max(1, int(natural_h * scale))
+        pixmap = QPixmap(render_w, render_h)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.end()
+        tree_graph_label.setPixmap(pixmap)
+        tree_graph_label.setFixedSize(pixmap.size())
+        tree_graph_label.setToolTip("")
+        return True
 
     def _render_target(ssa_target):
         normalized = _normalize_ssa_value(window, ssa_target)
@@ -1693,22 +1717,13 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         graph_svg = _extract_inline_svg_markup(graph_html)
         export_state["svg"] = graph_svg
         export_state["mermaid"] = mermaid_text
-        if tree_graph_svg_widget is not None:
-            if graph_svg:
-                tree_graph_svg_widget.load(QByteArray(graph_svg.encode("utf-8")))
-                tree_graph_svg_widget.setToolTip("")
+        if tree_graph_label is not None:
+            if graph_svg and _render_graph_pixmap(graph_svg):
+                pass
             else:
-                tree_graph_svg_widget.load(
-                    QByteArray(
-                        (
-                            '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="120">'
-                            f'<text x="24" y="64" font-family="{html_module.escape(dialog_font_family)}" '
-                            'font-size="16">Grafo de derivadas indisponivel.</text>'
-                            "</svg>"
-                        ).encode("utf-8")
-                    )
-                )
-                tree_graph_svg_widget.setToolTip("Grafo de derivadas indisponivel.")
+                tree_graph_label.setText("Grafo de derivadas indisponivel.")
+                tree_graph_label.setPixmap(QPixmap())
+                tree_graph_label.setToolTip("Grafo de derivadas indisponivel.")
         elif graph_html and tree_graph_text_browser is not None:
             tree_graph_text_browser.setHtml(graph_html)
         else:
@@ -1816,6 +1831,11 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         menu.addAction("Exportar Mermaid", _export_graph_mermaid)
         menu.exec(global_pos)
 
+    def _refresh_graph_after_resize() -> None:
+        graph_svg = str(export_state["svg"] or "")
+        if graph_svg:
+            _render_graph_pixmap(graph_svg)
+
     def _handle_dialog_anchor(url):
         try:
             href = url.toString()
@@ -1892,6 +1912,8 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     close_button = QPushButton("Fechar")
     close_button.clicked.connect(dialog.accept)
     root_layout.addWidget(close_button)
+    if tree_graph_label is not None:
+        QTimer.singleShot(0, _refresh_graph_after_resize)
     dialog.exec()
 
 

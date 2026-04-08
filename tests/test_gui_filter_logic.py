@@ -23,7 +23,6 @@ if project_root not in sys.path:
 
 from PyQt6.QtCore import QPoint, QRect, QSize, Qt, QUrl  # noqa: E402
 from PyQt6.QtGui import QCloseEvent, QFont, QResizeEvent  # noqa: E402
-from PyQt6.QtSvgWidgets import QSvgWidget  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtWidgets import QLineEdit  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QLabel, QPushButton  # noqa: E402
@@ -2738,7 +2737,11 @@ class TestGUIFilterLogic:
             captured["labels"] = [
                 [tab.tabText(i) for i in range(tab.count())] for tab in tabs
             ]
-            captured["svg_count"] = len(dialog.findChildren(QSvgWidget))
+            captured["graph_label_count"] = sum(
+                1
+                for label in dialog.findChildren(QLabel)
+                if label.pixmap() is not None and not label.pixmap().isNull()
+            )
             captured["tool_buttons"] = [
                 button.text() for button in dialog.findChildren(QtWidgets.QToolButton)
             ]
@@ -2752,7 +2755,7 @@ class TestGUIFilterLogic:
         self.window._open_details_dialog_for_ssa("1")
         assert "labels" in captured
         assert captured["labels"] == [["Detalhes", "Arvore"]]
-        assert captured["svg_count"] >= 1
+        assert captured["graph_label_count"] >= 1
         assert "Exportar" in captured["tool_buttons"]
         assert any("Derivadas:" in text for text in captured["browser_texts"])
 
@@ -3721,6 +3724,7 @@ class TestGUIFilterLogic:
         assert "num0" not in html
         assert "&gt;" not in html
         assert "dist=" not in html
+        assert "&#8942;" in html
         assert "Sem Derivadas" in html
 
     def test_exclude_toggle_syncs_checkbox_state_across_tabs(self):
