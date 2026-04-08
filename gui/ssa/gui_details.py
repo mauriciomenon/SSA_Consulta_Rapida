@@ -1200,14 +1200,16 @@ def _build_derivadas_tree_html(
             _append_line(lines, len(lineage) + 1, rendered)
             _append_descendants(lines, child_value, len(lineage) + 2)
     else:
-        lines.append(f'{"&nbsp;" * ((len(lineage) + 1) * 4)}- sem derivacoes<br/>')
+        lines.append(f"{'&nbsp;' * ((len(lineage) + 1) * 4)}- sem derivacoes<br/>")
 
     descendants_count = int(data.get("descendants_count", 0) or 0)
     direct_children_count = int(data.get("direct_children_count", 0) or 0)
-    hidden_descendants = max(0, descendants_count - direct_children_count - len(descendants_entries))
+    hidden_descendants = max(
+        0, descendants_count - direct_children_count - len(descendants_entries)
+    )
     if hidden_descendants > 0:
         lines.append(
-            f'{"&nbsp;" * ((len(lineage) + 1) * 4)}... (+{hidden_descendants})<br/>'
+            f"{'&nbsp;' * ((len(lineage) + 1) * 4)}... (+{hidden_descendants})<br/>"
         )
 
     lines.append("</div>")
