@@ -2754,7 +2754,7 @@ class TestGUIFilterLogic:
         assert captured["labels"] == [["Detalhes", "Arvore"]]
         assert captured["svg_count"] >= 1
         assert "Exportar" in captured["tool_buttons"]
-        assert any("Arvore de derivadas:" in text for text in captured["browser_texts"])
+        assert any("Fluxo de derivacao" in text for text in captured["browser_texts"])
 
     def test_details_number_double_click_copies_current_ssa(self, monkeypatch):
         self.window._details_current_ssa = "202600023"
@@ -3715,15 +3715,12 @@ class TestGUIFilterLogic:
         ):
             html = ssa_gui_details._build_derivadas_tree_html(self.window, "202602147")
 
-        assert "Arvore de derivadas:" in html
-        assert "SSA atual" in html
+        assert "Fluxo de derivacao" in html
         assert '<a href="ssa-panel:202602147"' in html
-        assert "SSA originaria" in html
-        assert "SSA originaria:" not in html
         assert "202500111" in html
         assert "num0" not in html
-        assert "SSAs derivadas diretas (0)" in html
-        assert "SSAs derivadas de derivadas (0)" in html
+        assert "&gt;" in html
+        assert "sem derivacoes" in html
 
     def test_exclude_toggle_syncs_checkbox_state_across_tabs(self):
         """Toggle programático deve manter estado interno e checkboxes em sincronia."""
