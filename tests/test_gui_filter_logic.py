@@ -617,6 +617,27 @@ class TestGUIFilterLogic:
         localizacao_pos = html.index("Localizacao:")
         assert localizacao_pos > descricao_pos
 
+    def test_details_html_uses_fixed_table_layout(self):
+        series = pd.Series(
+            {
+                "numero_ssa": "202600023",
+                "situacao": "APG",
+                "descricao_ssa": (
+                    "Texto longo para validar quebra controlada e coluna fixa sem "
+                    "mudar a divisao entre rotulo e valor"
+                ),
+            }
+        )
+
+        html = ssa_gui_details._format_details_html(self.window, series)
+
+        assert "table-layout: fixed" in html
+        assert "<colgroup>" in html
+        assert 'width: 27%;' in html
+        assert 'width: 73%;' in html
+        assert "overflow-wrap: anywhere" in html
+        assert "word-break: break-word" in html
+
     def test_advanced_panel_context_exposes_emissor_before_executor(self):
         _ = next(
             ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "filters"
