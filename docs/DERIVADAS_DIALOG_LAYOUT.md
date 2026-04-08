@@ -9,6 +9,9 @@ de derivadas consolidada na mesma janela.
 
 O dialogo usa uma unica tela de conteudo, sem `QTabWidget` de aba unica.
 
+A altura inicial do dialogo segue a altura atual da janela principal, com
+clamp pela tela ativa.
+
 O layout principal usa um `QSplitter` vertical com tamanhos iniciais:
 
 - area superior `Detalhes`: `560`
@@ -56,3 +59,12 @@ O dialogo aplica clamp pela tela ativa antes de abrir:
 
 Isso evita que a janela ultrapasse a geometria util da tela em setups com
 multiplos monitores ou telas menores.
+
+## Navegacao por links de derivadas
+
+Os links no bloco textual de derivadas tentam rerenderizar o proprio dialogo
+com a SSA clicada.
+
+Se a SSA de destino nao estiver presente nos dados carregados no momento, o
+dialogo nao falha em silencio: uma mensagem objetiva informa que a SSA
+relacionada nao foi encontrada nos dados carregados.

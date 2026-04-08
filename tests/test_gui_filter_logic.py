@@ -2793,6 +2793,71 @@ class TestGUIFilterLogic:
         assert captured["size"].width() <= 876
         assert captured["size"].height() <= 676
 
+    def test_open_details_dialog_uses_main_window_height(self, monkeypatch):
+        self.window.df_exibido = self.base_df.copy()
+        self.window.resize(1280, 880)
+        captured = {}
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_dialog_screen_geometry",
+            lambda _widget: QRect(0, 0, 1600, 1200),
+        )
+
+        def _fake_exec(dialog):
+            captured["size"] = dialog.size()
+            splitters = dialog.findChildren(QtWidgets.QSplitter)
+            captured["splitter_sizes"] = [splitter.sizes() for splitter in splitters]
+            return 0
+
+        monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
+        self.window._open_details_dialog_for_ssa("1")
+
+        assert captured["size"].height() == 880
+        assert any(len(sizes) == 2 and sizes[1] == 170 for sizes in captured["splitter_sizes"])
+
+    def test_open_details_dialog_shows_feedback_for_missing_link_target(self, monkeypatch):
+        self.window.df_exibido = self.base_df.copy()
+        original_get_series = ssa_gui_details._get_series_for_ssa
+        captured = {"messages": []}
+
+        def _fake_get_series(window, numero_ssa):
+            if str(numero_ssa) == "202500777":
+                return None
+            return original_get_series(window, numero_ssa)
+
+        def _fake_information(_parent, title, message):
+            captured["messages"].append((title, message))
+            return QtWidgets.QMessageBox.StandardButton.Ok
+
+        def _fake_exec(dialog):
+            browsers = dialog.findChildren(QtWidgets.QTextBrowser)
+            tree_browser = next(
+                browser for browser in browsers if "Derivadas:" in browser.toPlainText()
+            )
+            tree_browser.anchorClicked.emit(QUrl("ssa-panel:202500777"))
+            return 0
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_series_for_ssa",
+            _fake_get_series,
+        )
+        monkeypatch.setattr(
+            QtWidgets.QMessageBox,
+            "information",
+            _fake_information,
+        )
+        monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
+        self.window._open_details_dialog_for_ssa("1")
+
+        assert captured["messages"] == [
+            (
+                "Derivadas",
+                "SSA relacionada nao encontrada nos dados carregados: 202500777",
+            )
+        ]
+
     def test_details_number_double_click_copies_current_ssa(self, monkeypatch):
         self.window._details_current_ssa = "202600023"
         self.window.details_text.setHtml(
