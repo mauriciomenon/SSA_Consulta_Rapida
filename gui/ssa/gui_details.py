@@ -296,7 +296,7 @@ def _format_details_html(
             f'font-weight: bold; font-size: {label_font_size_pt}pt; vertical-align: top;">'
             f"{display_name_html}:</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
+            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
             f'overflow-wrap: anywhere; word-break: break-word;">'
             f"{formatted_value}</td>"
             f"</tr>"
@@ -332,7 +332,7 @@ def _format_details_html(
             f'font-weight: bold; font-size: {label_font_size_pt}pt; vertical-align: top;">'
             f"{html_module.escape(label)}:</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
+            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
             f'overflow-wrap: anywhere; word-break: break-word;">'
             f"{derived_text}</td>"
             f"</tr>"
