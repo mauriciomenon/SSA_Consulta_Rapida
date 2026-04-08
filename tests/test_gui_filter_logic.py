@@ -3720,6 +3720,7 @@ class TestGUIFilterLogic:
         assert "202500111" in html
         assert "num0" not in html
         assert "&gt;" not in html
+        assert "dist=" not in html
         assert "Sem Derivadas" in html
 
     def test_exclude_toggle_syncs_checkbox_state_across_tabs(self):
