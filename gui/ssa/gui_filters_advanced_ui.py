@@ -80,7 +80,9 @@ def _get_widget_screen_geometry(widget):
         except Exception:
             pass
         try:
-            screen = QApplication.screenAt(candidate.mapToGlobal(candidate.rect().center()))
+            screen = QApplication.screenAt(
+                candidate.mapToGlobal(candidate.rect().center())
+            )
             if screen is not None:
                 return screen.availableGeometry()
         except Exception:
