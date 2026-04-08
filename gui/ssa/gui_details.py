@@ -43,11 +43,11 @@ SSA_NORM_CACHE_MAX_ENTRIES = 64
 DERIVADAS_DIALOG_MIN_WIDTH = 960
 DERIVADAS_DIALOG_TREE_MIN_WIDTH = 180
 DERIVADAS_DIALOG_DETAILS_MIN_WIDTH = 520
-DERIVADAS_GRAPH_NODE_WIDTH = 150
-DERIVADAS_GRAPH_NODE_HEIGHT = 46
-DERIVADAS_GRAPH_X_GAP = 172
-DERIVADAS_GRAPH_Y_GAP = 100
-DERIVADAS_GRAPH_MARGIN = 28
+DERIVADAS_GRAPH_NODE_WIDTH = 124
+DERIVADAS_GRAPH_NODE_HEIGHT = 38
+DERIVADAS_GRAPH_X_GAP = 146
+DERIVADAS_GRAPH_Y_GAP = 82
+DERIVADAS_GRAPH_MARGIN = 18
 DERIVADAS_GRAPH_MAX_DESCENDANTS = 120
 
 
@@ -1122,8 +1122,7 @@ def _build_derivadas_tree_html(
 
     def _append_line(lines, depth: int, rendered: str, *, current: bool = False):
         indent = "&nbsp;" * (depth * 4)
-        prefix = "&gt;" if current else "-"
-        content = f"{indent}{prefix} {rendered}"
+        content = f"{indent}{rendered}"
         if current:
             content = f"<b>{content}</b>"
         lines.append(f"{content}<br/>")
@@ -1181,9 +1180,9 @@ def _build_derivadas_tree_html(
             _append_descendants(lines, child_value, depth + 1)
 
     lines.append(
-        f'<div style="font-family:{font_family}; font-size:{tree_font_pt:.2f}pt; line-height:1.45;">'
+        f'<div style="font-family:{font_family}; font-size:{tree_font_pt:.2f}pt; line-height:1.75;">'
     )
-    lines.append("<b>Fluxo de derivacao</b><br/><br/>")
+    lines.append("<b>Derivadas:</b><br/><br/>")
     for raw in lineage:
         rendered = _render_entry(raw)
         if rendered:
@@ -1200,7 +1199,9 @@ def _build_derivadas_tree_html(
             _append_line(lines, len(lineage) + 1, rendered)
             _append_descendants(lines, child_value, len(lineage) + 2)
     else:
-        lines.append(f"{'&nbsp;' * ((len(lineage) + 1) * 4)}- sem derivacoes<br/>")
+        lines.append(
+            f'{"&nbsp;" * ((len(lineage) + 1) * 4)}<span style="opacity:0.88;">Sem Derivadas</span><br/>'
+        )
 
     descendants_count = int(data.get("descendants_count", 0) or 0)
     direct_children_count = int(data.get("direct_children_count", 0) or 0)
@@ -1420,8 +1421,8 @@ def _build_derivadas_graph_html(
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_width}" '
         f'height="{svg_height}" viewBox="0 0 {svg_width} {svg_height}">',
         "<defs>",
-        '<marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto">',
-        f'<polygon points="0 0, 9 3.5, 0 7" fill="{node_stroke}" />',
+        '<marker id="arrow" markerWidth="7" markerHeight="7" refX="6.2" refY="2.8" orient="auto">',
+        f'<polygon points="0 0, 7 2.8, 0 5.6" fill="{node_stroke}" />',
         "</marker>",
         "</defs>",
     ]
@@ -1448,7 +1449,7 @@ def _build_derivadas_graph_html(
         )
         svg_lines.append(
             f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
-            f'stroke="{node_stroke}" stroke-width="2.0" marker-end="url(#arrow)"{dash_attr} />'
+            f'stroke="{node_stroke}" stroke-width="1.6" marker-end="url(#arrow)"{dash_attr} />'
         )
 
     for node, (x, y) in positions.items():
@@ -1458,11 +1459,11 @@ def _build_derivadas_graph_html(
         safe_node = html_module.escape(node)
         svg_lines.append(
             f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{node_w}" height="{node_h}" '
-            f'rx="14" ry="14" fill="{fill}" stroke="{node_stroke}" stroke-width="1.5" />'
+            f'rx="10" ry="10" fill="{fill}" stroke="{node_stroke}" stroke-width="1.2" />'
         )
         svg_lines.append(
             f'<text x="{(x + offset_x):.1f}" y="{(y + offset_y + 5):.1f}" text-anchor="middle" '
-            f'font-family="{html_module.escape(font_family)}" font-size="13" fill="{text_color}">{safe_node}</text>'
+            f'font-family="{html_module.escape(font_family)}" font-size="11" fill="{text_color}">{safe_node}</text>'
         )
     svg_lines.append("</svg>")
 
@@ -1869,7 +1870,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     tree_tab_splitter.addWidget(tree_tab_browser)
     tree_tab_splitter.setStretchFactor(0, 1)
     tree_tab_splitter.setStretchFactor(1, 1)
-    tree_tab_splitter.setSizes([410, 320])
+    tree_tab_splitter.setSizes([340, 390])
 
     tab_details_layout.addWidget(content_splitter)
     tab_tree_layout.addWidget(tree_tab_splitter)
