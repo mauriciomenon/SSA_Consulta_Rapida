@@ -2817,6 +2817,7 @@ class TestGUIFilterLogic:
         assert any(
             len(sizes) == 2 and sizes[1] == 170 for sizes in captured["splitter_sizes"]
         )
+
     def test_build_derivadas_tree_html_omits_link_for_missing_target(self, monkeypatch):
         monkeypatch.setattr(
             ssa_gui_details,
@@ -3806,7 +3807,9 @@ class TestGUIFilterLogic:
                     "descendants_count": 0,
                 },
             ):
-                html = ssa_gui_details._build_derivadas_tree_html(self.window, "202602147")
+                html = ssa_gui_details._build_derivadas_tree_html(
+                    self.window, "202602147"
+                )
 
         assert "Derivadas:" in html
         assert '<a href="ssa-panel:202602147"' in html
