@@ -1786,6 +1786,21 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         if graph_svg:
             _render_graph_pixmap(graph_svg)
 
+    def _show_missing_target_feedback(target_href: str) -> None:
+        safe_target = str(target_href or "").strip()
+        if safe_target:
+            message = f"SSA relacionada nao encontrada nos dados carregados: {safe_target}"
+        else:
+            message = "SSA relacionada nao encontrada nos dados carregados."
+        QMessageBox.information(dialog, "Derivadas", message)
+
+    def _navigate_dialog_target(target_href: str) -> None:
+        safe_target = str(target_href or "").strip().lstrip("/")
+        if not safe_target:
+            return
+        if not _render_target(safe_target):
+            _show_missing_target_feedback(safe_target)
+
     def _handle_dialog_anchor(url):
         try:
             href = url.toString()
@@ -1794,8 +1809,8 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         if not href:
             return
         if href.startswith("ssa-panel:"):
-            target_href = href[len("ssa-panel:") :].strip().lstrip("/")
-            _render_target(target_href)
+            target_href = href[len("ssa-panel:") :]
+            _navigate_dialog_target(target_href)
             return
         if href.startswith("copy-ssa:"):
             target_href = href[len("copy-ssa:") :].strip().lstrip("/")
@@ -1803,16 +1818,16 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
                 window._copy_ssa_to_clipboard(target_href)
             return
         if href.startswith("ssa-details:"):
-            target_href = href[len("ssa-details:") :].strip().lstrip("/")
-            _render_target(target_href)
+            target_href = href[len("ssa-details:") :]
+            _navigate_dialog_target(target_href)
             return
         if href.startswith("ssa_details://"):
-            target_href = href[len("ssa_details://") :].strip().lstrip("/")
-            _render_target(target_href)
+            target_href = href[len("ssa_details://") :]
+            _navigate_dialog_target(target_href)
             return
         if href.startswith("ssa:"):
-            target_href = href[len("ssa:") :].strip().lstrip("/")
-            _render_target(target_href)
+            target_href = href[len("ssa:") :]
+            _navigate_dialog_target(target_href)
             return
         if href.startswith("derivadas:tree") or href.startswith("derivadas://tree"):
             _render_target(current_target["ssa"])
@@ -1853,20 +1868,29 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     if screen_geometry is not None:
         safe_width = max(640, screen_geometry.width() - 24)
         safe_height = max(480, screen_geometry.height() - 24)
+        window_height = 0
+        try:
+            window_height = int(window.height())
+        except Exception as exc:
+            logger.debug("Falha ao ler altura da janela principal: %s", exc)
+        desired_height = safe_height
+        if window_height > 0:
+            desired_height = min(max(window_height, 480), safe_height)
         dialog.setMinimumSize(
             min(DERIVADAS_DIALOG_MIN_WIDTH, safe_width),
-            min(DERIVADAS_DIALOG_MIN_HEIGHT, safe_height),
+            min(desired_height, safe_height),
         )
         dialog.setMaximumSize(safe_width, safe_height)
         dialog.adjustSize()
         current_size = dialog.size()
         target_width = min(current_size.width(), safe_width)
-        target_height = min(current_size.height(), safe_height)
+        target_height = desired_height
         if (
             target_width != current_size.width()
             or target_height != current_size.height()
         ):
             dialog.resize(target_width, target_height)
+        details_tab_splitter.setSizes([max(0, target_height - 170), 170])
     if tree_graph_label is not None:
         QTimer.singleShot(0, _refresh_graph_after_resize)
     dialog.exec()
