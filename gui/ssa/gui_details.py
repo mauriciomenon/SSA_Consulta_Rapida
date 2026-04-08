@@ -33,8 +33,8 @@ HIGHLIGHT_FONT_WEIGHT = "bold"
 MONO_FONT_FAMILY = "monospace"
 HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
 DERIVADAS_DETAILS_TOP_N = 5
-DERIVADAS_DIALOG_RATIO_LEFT = 28
-DERIVADAS_DIALOG_RATIO_RIGHT = 72
+DERIVADAS_DIALOG_RATIO_LEFT = 18
+DERIVADAS_DIALOG_RATIO_RIGHT = 82
 DERIVADAS_DIALOG_MIN_HEIGHT = 730
 DERIVADAS_DIALOG_DETAILS_FONT_PT = 12.0
 DERIVADAS_DIALOG_TREE_FONT_PT = 12.0
@@ -43,11 +43,11 @@ SSA_NORM_CACHE_MAX_ENTRIES = 64
 DERIVADAS_DIALOG_MIN_WIDTH = 960
 DERIVADAS_DIALOG_TREE_MIN_WIDTH = 180
 DERIVADAS_DIALOG_DETAILS_MIN_WIDTH = 520
-DERIVADAS_GRAPH_NODE_WIDTH = 108
-DERIVADAS_GRAPH_NODE_HEIGHT = 34
-DERIVADAS_GRAPH_X_GAP = 128
-DERIVADAS_GRAPH_Y_GAP = 72
-DERIVADAS_GRAPH_MARGIN = 12
+DERIVADAS_GRAPH_NODE_WIDTH = 92
+DERIVADAS_GRAPH_NODE_HEIGHT = 28
+DERIVADAS_GRAPH_X_GAP = 104
+DERIVADAS_GRAPH_Y_GAP = 58
+DERIVADAS_GRAPH_MARGIN = 8
 DERIVADAS_GRAPH_MAX_DESCENDANTS = 120
 
 
@@ -1085,6 +1085,7 @@ def _build_derivadas_tree_html(
         link_color = (
             roles.get("accent") or roles.get("panel_text") or roles.get("label_color")
         )
+    safe_link_color = str(link_color or "")
     data = (
         tree_data_override
         if isinstance(tree_data_override, dict)
@@ -1121,14 +1122,18 @@ def _build_derivadas_tree_html(
         guide = ""
         for _ in range(depth):
             guide += (
-                '<span style="display:inline-block; width:14px; height:1.2em; '
-                "border-left:1px dotted currentColor; opacity:0.55; "
-                'margin-right:8px; vertical-align:middle;"></span>'
+                '<span style="display:inline-block; width:12px; height:1.45em; '
+                'border-left:2px dotted currentColor; opacity:0.42; '
+                'margin-right:6px; vertical-align:middle;"></span>'
             )
         content = f"{guide}<span>{rendered}</span>"
         if current:
-            content = f'<span style="font-weight:700; color:inherit;">{content}</span>'
-        lines.append(f"{content}<br/>")
+            content = (
+                f'<span style="font-weight:700; color:{html_module.escape(safe_link_color)};">'
+                f"{content}"
+                "</span>"
+            )
+        lines.append(f'<div style="margin:0 0 6px 0;">{content}</div>')
 
     lines = []
     if tree_font_pt is None:
@@ -1183,7 +1188,7 @@ def _build_derivadas_tree_html(
             _append_descendants(lines, child_value, depth + 1)
 
     lines.append(
-        f'<div style="font-family:{font_family}; font-size:{tree_font_pt:.2f}pt; line-height:1.95;">'
+        f'<div style="font-family:{font_family}; font-size:{tree_font_pt:.2f}pt; line-height:1.85;">'
     )
     lines.append("<b>Derivadas:</b><br/><br/>")
     for raw in lineage:
@@ -1204,11 +1209,12 @@ def _build_derivadas_tree_html(
     else:
         lines.append(
             (
-                '<span style="display:inline-block; width:14px; height:1.2em; '
-                "border-left:1px dotted currentColor; opacity:0.55; "
-                'margin-right:8px; vertical-align:middle;"></span>' * (len(lineage) + 1)
+                '<span style="display:inline-block; width:12px; height:1.45em; '
+                'border-left:2px dotted currentColor; opacity:0.42; '
+                'margin-right:6px; vertical-align:middle;"></span>'
+                * (len(lineage) + 1)
             )
-            + '<span style="opacity:0.88;">Sem Derivadas</span><br/>'
+            + '<span style="opacity:0.82;">Sem Derivadas</span><br/>'
         )
 
     descendants_count = int(data.get("descendants_count", 0) or 0)
@@ -1429,8 +1435,8 @@ def _build_derivadas_graph_html(
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_width}" '
         f'height="{svg_height}" viewBox="0 0 {svg_width} {svg_height}">',
         "<defs>",
-        '<marker id="arrow" markerWidth="6" markerHeight="6" refX="5.3" refY="2.3" orient="auto">',
-        f'<polygon points="0 0, 6 2.3, 0 4.6" fill="{node_stroke}" />',
+        '<marker id="arrow" markerWidth="5" markerHeight="5" refX="4.5" refY="2.0" orient="auto">',
+        f'<polygon points="0 0, 5 2.0, 0 4.0" fill="{node_stroke}" />',
         "</marker>",
         "</defs>",
     ]
@@ -1457,7 +1463,7 @@ def _build_derivadas_graph_html(
         )
         svg_lines.append(
             f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
-            f'stroke="{node_stroke}" stroke-width="1.3" marker-end="url(#arrow)"{dash_attr} />'
+            f'stroke="{node_stroke}" stroke-width="1.1" marker-end="url(#arrow)"{dash_attr} />'
         )
 
     for node, (x, y) in positions.items():
@@ -1467,11 +1473,11 @@ def _build_derivadas_graph_html(
         safe_node = html_module.escape(node)
         svg_lines.append(
             f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{node_w}" height="{node_h}" '
-            f'rx="8" ry="8" fill="{fill}" stroke="{node_stroke}" stroke-width="1.0" />'
+            f'rx="6" ry="6" fill="{fill}" stroke="{node_stroke}" stroke-width="0.9" />'
         )
         svg_lines.append(
             f'<text x="{(x + offset_x):.1f}" y="{(y + offset_y + 5):.1f}" text-anchor="middle" '
-            f'font-family="{html_module.escape(font_family)}" font-size="10" fill="{text_color}">{safe_node}</text>'
+            f'font-family="{html_module.escape(font_family)}" font-size="9" fill="{text_color}">{safe_node}</text>'
         )
     svg_lines.append("</svg>")
 
@@ -1878,7 +1884,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     tree_tab_splitter.addWidget(tree_tab_browser)
     tree_tab_splitter.setStretchFactor(0, 1)
     tree_tab_splitter.setStretchFactor(1, 1)
-    tree_tab_splitter.setSizes([300, 430])
+    tree_tab_splitter.setSizes([250, 480])
 
     tab_details_layout.addWidget(content_splitter)
     tab_tree_layout.addWidget(tree_tab_splitter)
