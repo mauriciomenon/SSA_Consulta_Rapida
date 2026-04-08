@@ -2754,9 +2754,7 @@ class TestGUIFilterLogic:
         assert captured["labels"] == [["Detalhes", "Arvore"]]
         assert captured["svg_count"] >= 1
         assert "Exportar" in captured["tool_buttons"]
-        assert any(
-            "Arvore de derivadas:" in text for text in captured["browser_texts"]
-        )
+        assert any("Arvore de derivadas:" in text for text in captured["browser_texts"])
 
     def test_details_number_double_click_copies_current_ssa(self, monkeypatch):
         self.window._details_current_ssa = "202600023"
