@@ -1789,7 +1789,9 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     def _show_missing_target_feedback(target_href: str) -> None:
         safe_target = str(target_href or "").strip()
         if safe_target:
-            message = f"SSA relacionada nao encontrada nos dados carregados: {safe_target}"
+            message = (
+                f"SSA relacionada nao encontrada nos dados carregados: {safe_target}"
+            )
         else:
             message = "SSA relacionada nao encontrada nos dados carregados."
         QMessageBox.information(dialog, "Derivadas", message)

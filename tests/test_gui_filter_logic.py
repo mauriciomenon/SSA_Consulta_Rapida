@@ -2814,9 +2814,13 @@ class TestGUIFilterLogic:
         self.window._open_details_dialog_for_ssa("1")
 
         assert captured["size"].height() == 880
-        assert any(len(sizes) == 2 and sizes[1] == 170 for sizes in captured["splitter_sizes"])
+        assert any(
+            len(sizes) == 2 and sizes[1] == 170 for sizes in captured["splitter_sizes"]
+        )
 
-    def test_open_details_dialog_shows_feedback_for_missing_link_target(self, monkeypatch):
+    def test_open_details_dialog_shows_feedback_for_missing_link_target(
+        self, monkeypatch
+    ):
         self.window.df_exibido = self.base_df.copy()
         original_get_series = ssa_gui_details._get_series_for_ssa
         captured = {"messages": []}
