@@ -1863,7 +1863,10 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         current_size = dialog.size()
         target_width = min(current_size.width(), safe_width)
         target_height = min(current_size.height(), safe_height)
-        if target_width != current_size.width() or target_height != current_size.height():
+        if (
+            target_width != current_size.width()
+            or target_height != current_size.height()
+        ):
             dialog.resize(target_width, target_height)
     if tree_graph_label is not None:
         QTimer.singleShot(0, _refresh_graph_after_resize)
