@@ -1123,7 +1123,7 @@ def _build_derivadas_tree_html(
         for _ in range(depth):
             guide += (
                 '<span style="display:inline-block; width:12px; height:1.45em; '
-                'border-left:2px dotted currentColor; opacity:0.42; '
+                "border-left:2px dotted currentColor; opacity:0.42; "
                 'margin-right:6px; vertical-align:middle;"></span>'
             )
         content = f"{guide}<span>{rendered}</span>"
@@ -1210,9 +1210,8 @@ def _build_derivadas_tree_html(
         lines.append(
             (
                 '<span style="display:inline-block; width:12px; height:1.45em; '
-                'border-left:2px dotted currentColor; opacity:0.42; '
-                'margin-right:6px; vertical-align:middle;"></span>'
-                * (len(lineage) + 1)
+                "border-left:2px dotted currentColor; opacity:0.42; "
+                'margin-right:6px; vertical-align:middle;"></span>' * (len(lineage) + 1)
             )
             + '<span style="opacity:0.82;">Sem Derivadas</span><br/>'
         )
