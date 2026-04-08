@@ -129,11 +129,14 @@ def normalize_strict(value) -> str | None:
 def normalize_relation_id(value) -> str | None:
     """Return relation-safe numero_ssa or ``None`` if invalid.
 
-    This helper is intentionally stricter than the GUI compatibility fallback:
-      * rejects alphabetic text outright
+    This helper is intentionally stricter than the shared canonical key rule:
+      * accepts only pure numeric text
       * rejects canonical decimal artifacts like ``121911787.0``
+      * rejects letters, spaces, dashes and any other separator
       * preserves short numeric relation ids used by current derivadas flows
-      * preserves the canonical 9-digit strict rule when a value expands to 9 digits
+
+    A later hardening cycle may require canonical year + length validation here
+    too, after synthetic short ids are migrated out of derivadas tests/fixtures.
     """
     if value is None:
         return None
@@ -145,19 +148,9 @@ def normalize_relation_id(value) -> str | None:
         return None
     if _CANONICAL_DECIMAL_ARTIFACT.fullmatch(text):
         return None
-    strict_value = normalize_strict(text)
-    if strict_value is not None:
-        return strict_value
-    if re.search(r"[A-Za-z]", text):
+    if not text.isdigit():
         return None
-    if re.search(r"[^0-9\-\s]", text):
-        return None
-    digits = _digits(re.sub(r"[\s-]+", "", text))
-    if not digits:
-        return None
-    if len(digits) >= min(VALID_LENGTHS):
-        return None
-    return digits
+    return text
 
 
 def is_valid_numero_ssa(value) -> bool:

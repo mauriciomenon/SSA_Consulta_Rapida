@@ -80,7 +80,7 @@ def test_cross_layer_too_short_value_is_rejected_with_log(caplog) -> None:
 
 def test_relation_normalization_rejects_text_and_decimal_artifacts() -> None:
     assert normalize_relation_id("100") == "100"
-    assert normalize_relation_id("2025-12345") == "202512345"
+    assert normalize_relation_id("2025-12345") is None
     assert normalize_relation_id("2025-22222") is None
     assert normalize_relation_id("SSA-101") is None
     assert normalize_relation_id("ABC123") is None
