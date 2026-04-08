@@ -35,7 +35,7 @@ HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
 DERIVADAS_DETAILS_TOP_N = 5
 DERIVADAS_DIALOG_RATIO_LEFT = 28
 DERIVADAS_DIALOG_RATIO_RIGHT = 72
-DERIVADAS_DIALOG_MIN_HEIGHT = 650
+DERIVADAS_DIALOG_MIN_HEIGHT = 730
 DERIVADAS_DIALOG_DETAILS_FONT_PT = 12.0
 DERIVADAS_DIALOG_TREE_FONT_PT = 12.0
 DERIVADAS_DIALOG_LABEL_FONT_PT = 11.0
@@ -43,11 +43,11 @@ SSA_NORM_CACHE_MAX_ENTRIES = 64
 DERIVADAS_DIALOG_MIN_WIDTH = 960
 DERIVADAS_DIALOG_TREE_MIN_WIDTH = 180
 DERIVADAS_DIALOG_DETAILS_MIN_WIDTH = 520
-DERIVADAS_GRAPH_NODE_WIDTH = 178
-DERIVADAS_GRAPH_NODE_HEIGHT = 56
-DERIVADAS_GRAPH_X_GAP = 220
-DERIVADAS_GRAPH_Y_GAP = 130
-DERIVADAS_GRAPH_MARGIN = 48
+DERIVADAS_GRAPH_NODE_WIDTH = 150
+DERIVADAS_GRAPH_NODE_HEIGHT = 46
+DERIVADAS_GRAPH_X_GAP = 172
+DERIVADAS_GRAPH_Y_GAP = 100
+DERIVADAS_GRAPH_MARGIN = 28
 DERIVADAS_GRAPH_MAX_DESCENDANTS = 120
 
 
@@ -1108,58 +1108,107 @@ def _build_derivadas_tree_html(
             f"{html_module.escape(label)}</a>"
         )
 
-    def _append_branch(lines, title: str, entries, *, count: int | None = None):
-        title_text = title if count is None else f"{title} ({count})"
-        lines.append(f"<b>{html_module.escape(title_text)}</b><br/>")
-        if not entries:
-            lines.append("&nbsp;&nbsp;- nenhuma<br/><br/>")
-            return
-        for entry in entries:
-            prefix = "-"
-            if isinstance(entry, dict):
-                ssa = str(entry.get("ssa", "")).strip()
-                if not ssa:
-                    continue
-                status_hint = str(entry.get("situacao", "")).strip().upper()
-                rendered = _ssa_link(ssa, status_hint=status_hint)
-                if "min_distance" in entry and entry.get("min_distance") is not None:
-                    rendered = f"{rendered} (dist={entry.get('min_distance')})"
-            else:
-                rendered = _ssa_link(entry)
-            lines.append(f"&nbsp;&nbsp;{prefix} {rendered}<br/>")
-        lines.append("<br/>")
+    def _render_entry(entry):
+        if isinstance(entry, dict):
+            ssa = str(entry.get("ssa", "")).strip()
+            if not ssa:
+                return ""
+            status_hint = str(entry.get("situacao", "")).strip().upper()
+            rendered = _ssa_link(ssa, status_hint=status_hint)
+            if "min_distance" in entry and entry.get("min_distance") is not None:
+                rendered = f"{rendered} (dist={entry.get('min_distance')})"
+            return rendered
+        return _ssa_link(entry)
+
+    def _append_line(lines, depth: int, rendered: str, *, current: bool = False):
+        indent = "&nbsp;" * (depth * 4)
+        prefix = "&gt;" if current else "-"
+        content = f"{indent}{prefix} {rendered}"
+        if current:
+            content = f"<b>{content}</b>"
+        lines.append(f"{content}<br/>")
 
     lines = []
     if tree_font_pt is None:
         tree_font_pt = DERIVADAS_DIALOG_TREE_FONT_PT
     if not font_family:
         font_family = MONO_FONT_FAMILY
+
+    ancestors_entries = list(data.get("ancestors", []) or [])
+    if not ancestors_entries:
+        ancestors_entries = list(data.get("parents", []) or [])
+    lineage: list[object] = []
+    lineage_seen: set[str] = set()
+    for raw in ancestors_entries:
+        rendered = _render_entry(raw)
+        normalized = _normalize_ssa_relation_value(
+            raw.get("ssa") if isinstance(raw, dict) else raw
+        )
+        if not rendered or not normalized or normalized in lineage_seen:
+            continue
+        lineage_seen.add(normalized)
+        lineage.append(raw)
+
+    descendants_entries = list(data.get("descendants", []) or [])
+    child_map: dict[str, list[object]] = {}
+    for raw in descendants_entries:
+        if not isinstance(raw, dict):
+            continue
+        raw_map = cast(dict[str, object], raw)
+        child_value = _normalize_ssa_relation_value(raw_map.get("ssa"))
+        parent_value = _normalize_ssa_relation_value(raw_map.get("parent"))
+        if not child_value or not parent_value:
+            continue
+        child_map.setdefault(parent_value, []).append(raw)
+    for child_values in child_map.values():
+        child_values.sort(
+            key=lambda entry: _normalize_ssa_relation_value(
+                cast(dict[str, object], entry).get("ssa")
+            )
+            or ""
+        )
+
+    direct_children = list(data.get("children", []) or [])
+
+    def _append_descendants(lines, parent_ssa: str, depth: int) -> None:
+        for raw in child_map.get(parent_ssa, []):
+            raw_map = cast(dict[str, object], raw)
+            child_value = _normalize_ssa_relation_value(raw_map.get("ssa"))
+            rendered = _render_entry(raw)
+            if not child_value or not rendered:
+                continue
+            _append_line(lines, depth, rendered)
+            _append_descendants(lines, child_value, depth + 1)
+
     lines.append(
         f'<div style="font-family:{font_family}; font-size:{tree_font_pt:.2f}pt; line-height:1.45;">'
     )
-    lines.append("<b>Arvore de derivadas:</b><br/><br/>")
-    _append_branch(lines, "SSA atual", [target])
-    _append_branch(lines, "SSA originaria", data.get("parents", []))
-    _append_branch(
-        lines,
-        "SSAs derivadas diretas",
-        data.get("children", []),
-        count=int(data.get("direct_children_count", 0)),
-    )
-    descendants = data.get("descendants", [])
-    visible_descendants = descendants[:50]
-    _append_branch(
-        lines,
-        "SSAs derivadas de derivadas",
-        visible_descendants,
-        count=int(data.get("descendants_count", 0)),
-    )
-    extra_descendants = len(descendants) - len(visible_descendants)
-    if extra_descendants > 0:
-        lines.append(f"&nbsp;&nbsp;... (+{extra_descendants})<br/><br/>")
-    ancestors = data.get("ancestors", [])
-    if ancestors:
-        _append_branch(lines, "Ancestrais", ancestors[:50], count=len(ancestors))
+    lines.append("<b>Fluxo de derivacao</b><br/><br/>")
+    for raw in lineage:
+        rendered = _render_entry(raw)
+        if rendered:
+            _append_line(lines, 0, rendered)
+    _append_line(lines, len(lineage), _ssa_link(target), current=True)
+    if direct_children:
+        for raw in direct_children:
+            rendered = _render_entry(raw)
+            child_value = _normalize_ssa_relation_value(
+                raw.get("ssa") if isinstance(raw, dict) else raw
+            )
+            if not rendered or not child_value:
+                continue
+            _append_line(lines, len(lineage) + 1, rendered)
+            _append_descendants(lines, child_value, len(lineage) + 2)
+    else:
+        lines.append(f'{"&nbsp;" * ((len(lineage) + 1) * 4)}- sem derivacoes<br/>')
+
+    descendants_count = int(data.get("descendants_count", 0) or 0)
+    direct_children_count = int(data.get("direct_children_count", 0) or 0)
+    hidden_descendants = max(0, descendants_count - direct_children_count - len(descendants_entries))
+    if hidden_descendants > 0:
+        lines.append(
+            f'{"&nbsp;" * ((len(lineage) + 1) * 4)}... (+{hidden_descendants})<br/>'
+        )
 
     lines.append("</div>")
     return "".join(lines)
@@ -1818,7 +1867,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     tree_tab_splitter.addWidget(tree_tab_browser)
     tree_tab_splitter.setStretchFactor(0, 1)
     tree_tab_splitter.setStretchFactor(1, 1)
-    tree_tab_splitter.setSizes([350, 350])
+    tree_tab_splitter.setSizes([410, 320])
 
     tab_details_layout.addWidget(content_splitter)
     tab_tree_layout.addWidget(tree_tab_splitter)
