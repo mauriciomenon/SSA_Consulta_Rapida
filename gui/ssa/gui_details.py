@@ -43,11 +43,11 @@ SSA_NORM_CACHE_MAX_ENTRIES = 64
 DERIVADAS_DIALOG_MIN_WIDTH = 960
 DERIVADAS_DIALOG_TREE_MIN_WIDTH = 180
 DERIVADAS_DIALOG_DETAILS_MIN_WIDTH = 520
-DERIVADAS_GRAPH_NODE_WIDTH = 84
-DERIVADAS_GRAPH_NODE_HEIGHT = 24
-DERIVADAS_GRAPH_X_GAP = 88
-DERIVADAS_GRAPH_Y_GAP = 46
-DERIVADAS_GRAPH_MARGIN = 6
+DERIVADAS_GRAPH_NODE_WIDTH = 112
+DERIVADAS_GRAPH_NODE_HEIGHT = 32
+DERIVADAS_GRAPH_X_GAP = 118
+DERIVADAS_GRAPH_Y_GAP = 62
+DERIVADAS_GRAPH_MARGIN = 8
 DERIVADAS_GRAPH_MAX_DESCENDANTS = 120
 
 
@@ -326,119 +326,6 @@ def _format_details_html(
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
             f"{derived_text}</td>"
-            f"</tr>"
-        )
-
-    derivadas_rel = (
-        derivadas_rel_override
-        if isinstance(derivadas_rel_override, dict)
-        else _get_derivadas_relations_info(window, series.get("numero_ssa"))
-    )
-    if derivadas_rel.get("has_data"):
-        parent_list = derivadas_rel.get("parents", [])
-        children_list = derivadas_rel.get("children", [])
-        descendants_count = int(derivadas_rel.get("descendants_count", 0))
-
-        def _ssa_display(value):
-            normalized = _normalize_ssa_value(window, value)
-            if normalized:
-                return normalized
-            return str(value).strip()
-
-        html_lines.append(
-            f"<tr>"
-            f'<td colspan="2" style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
-            f'font-weight: bold; font-size: {label_font_size_pt}pt;">Relacoes de Derivadas</td>'
-            f"</tr>"
-        )
-
-        mae_direta_text = "-"
-        if parent_list:
-            if linkify:
-                first_parent = html_module.escape(_ssa_display(parent_list[0]))
-                href_parent = _normalize_ssa_value(window, parent_list[0])
-                mae_direta_text = (
-                    f'<a href="ssa-details:{href_parent}" style="color:{link_color}; '
-                    f'text-decoration:none; border-bottom: 1px solid {link_color};">'
-                    f"{first_parent}</a>"
-                )
-            else:
-                mae_direta_text = html_module.escape(_ssa_display(parent_list[0]))
-            if len(parent_list) > 1:
-                mae_direta_text = f"{mae_direta_text} (+{len(parent_list) - 1})"
-        html_lines.append(
-            f"<tr>"
-            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
-            f'font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;">Mae direta:</td>'
-            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
-            f"{mae_direta_text}</td>"
-            f"</tr>"
-        )
-
-        top_children = children_list[:DERIVADAS_DETAILS_TOP_N]
-        if top_children:
-            if linkify:
-                child_items = []
-                for child in top_children:
-                    href_child = _normalize_ssa_value(window, child)
-                    display_child = html_module.escape(_ssa_display(child))
-                    child_items.append(
-                        f'<a href="ssa:{href_child}" style="color:{link_color}; '
-                        f'text-decoration:none; border-bottom: 1px solid {link_color};">'
-                        f"{display_child}</a>"
-                    )
-                filhas_text = ", ".join(child_items)
-            else:
-                filhas_text = ", ".join(
-                    html_module.escape(_ssa_display(child)) for child in top_children
-                )
-            if len(children_list) > DERIVADAS_DETAILS_TOP_N:
-                filhas_text = f"{filhas_text} ... (+{len(children_list) - DERIVADAS_DETAILS_TOP_N})"
-        else:
-            filhas_text = "-"
-        html_lines.append(
-            f"<tr>"
-            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
-            f'font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;">'
-            f"Filhas diretas ({len(children_list)}):</td>"
-            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
-            f"{filhas_text}</td>"
-            f"</tr>"
-        )
-
-        html_lines.append(
-            f"<tr>"
-            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
-            f'font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;">'
-            f"Descendentes ({descendants_count}):</td>"
-            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
-            f"{descendants_count}</td>"
-            f"</tr>"
-        )
-
-        if linkify:
-            open_tree_text = (
-                f'<a href="derivadas:tree" style="color:{link_color}; '
-                f'text-decoration:none; border-bottom: 1px solid {link_color};">'
-                "Abrir arvore completa</a>"
-            )
-        else:
-            open_tree_text = "Abrir arvore completa"
-        html_lines.append(
-            f"<tr>"
-            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
-            f'font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;">Acoes:</td>'
-            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
-            f"{open_tree_text}</td>"
             f"</tr>"
         )
 
@@ -1142,24 +1029,44 @@ def _build_derivadas_tree_html(
     if not font_family:
         font_family = MONO_FONT_FAMILY
 
-    ancestors_entries = list(data.get("ancestors", []) or [])
+    raw_ancestors_entries = data.get("ancestors", [])
+    ancestors_entries = (
+        list(cast(list[object], raw_ancestors_entries))
+        if isinstance(raw_ancestors_entries, list)
+        else []
+    )
     if not ancestors_entries:
-        ancestors_entries = list(data.get("parents", []) or [])
+        raw_parent_entries = data.get("parents", [])
+        ancestors_entries = (
+            list(cast(list[object], raw_parent_entries))
+            if isinstance(raw_parent_entries, list)
+            else []
+        )
     lineage: list[object] = []
     lineage_seen: set[str] = set()
     for raw in ancestors_entries:
         rendered = _render_entry(raw)
         normalized = _normalize_ssa_relation_value(
-            raw.get("ssa") if isinstance(raw, dict) else raw
+            cast(dict[str, object], raw).get("ssa") if isinstance(raw, dict) else raw
         )
         if not rendered or not normalized or normalized in lineage_seen:
             continue
         lineage_seen.add(normalized)
         lineage.append(raw)
 
-    descendants_entries = list(data.get("descendants", []) or [])
+    raw_descendants_entries = data.get("descendants", [])
+    descendants_entries = (
+        list(cast(list[object], raw_descendants_entries))
+        if isinstance(raw_descendants_entries, list)
+        else []
+    )
     child_map: dict[str, list[object]] = {}
-    for raw in descendants_entries:
+    descendants_entries_list = (
+        list(cast(list[object], descendants_entries))
+        if isinstance(descendants_entries, list)
+        else []
+    )
+    for raw in descendants_entries_list:
         if not isinstance(raw, dict):
             continue
         raw_map = cast(dict[str, object], raw)
@@ -1354,44 +1261,84 @@ def _build_derivadas_graph_html(
         else:
             _add_edge(target, descendant, dashed=True)
 
-    levels: dict[str, int] = {target: 0}
-    for parent in parents:
-        levels[parent] = -1
-    changed = True
-    while changed:
-        changed = False
-        for source, target_node in edges:
-            if source not in levels:
-                continue
-            candidate = levels[source] + 1
-            previous = levels.get(target_node)
-            if previous is None or candidate < previous:
-                levels[target_node] = candidate
-                changed = True
-    for node in nodes:
-        levels.setdefault(node, 1)
-
-    level_nodes: dict[int, list[str]] = {}
-    for node in nodes:
-        level_nodes.setdefault(levels[node], []).append(node)
-    for level in list(level_nodes):
-        level_nodes[level] = sorted(level_nodes[level])
-
     positions: dict[str, tuple[float, float]] = {}
-    min_level = min(level_nodes.keys())
     node_w = DERIVADAS_GRAPH_NODE_WIDTH
     node_h = DERIVADAS_GRAPH_NODE_HEIGHT
     x_gap = DERIVADAS_GRAPH_X_GAP
     y_gap = DERIVADAS_GRAPH_Y_GAP
     margin = DERIVADAS_GRAPH_MARGIN
+    raw_ancestors_entries = data.get("ancestors", [])
+    ancestors_entries = (
+        list(cast(list[object], raw_ancestors_entries))
+        if isinstance(raw_ancestors_entries, list)
+        else []
+    )
+    if not ancestors_entries:
+        raw_parent_entries = data.get("parents", [])
+        ancestors_entries = (
+            list(cast(list[object], raw_parent_entries))
+            if isinstance(raw_parent_entries, list)
+            else []
+        )
+    lineage: list[str] = []
+    lineage_seen: set[str] = set()
+    for raw in ancestors_entries:
+        normalized = _normalize_ssa_relation_value(
+            cast(dict[str, object], raw).get("ssa") if isinstance(raw, dict) else raw
+        )
+        if not normalized or normalized in lineage_seen:
+            continue
+        lineage_seen.add(normalized)
+        lineage.append(normalized)
 
-    for level in sorted(level_nodes.keys()):
-        nodes_on_level = level_nodes[level]
-        centered_start = -((len(nodes_on_level) - 1) * x_gap) / 2.0
-        y = margin + (level - min_level) * y_gap
-        for index, node in enumerate(nodes_on_level):
-            x = centered_start + index * x_gap
-            positions[node] = (x, y)
+    child_map: dict[str, list[str]] = {}
+    descendants_entries_list = (
+        list(cast(list[object], descendants_entries))
+        if isinstance(descendants_entries, list)
+        else []
+    )
+    for raw in descendants_entries_list:
+        if not isinstance(raw, dict):
+            continue
+        raw_map = cast(dict[str, object], raw)
+        child_value = _normalize_ssa_relation_value(raw_map.get("ssa"))
+        parent_value = _normalize_ssa_relation_value(raw_map.get("parent"))
+        if not child_value or not parent_value:
+            continue
+        child_map.setdefault(parent_value, []).append(child_value)
+    for child_values in child_map.values():
+        child_values.sort()
+
+    ordered_nodes: list[tuple[str, int]] = []
+    for depth, node in enumerate(lineage):
+        ordered_nodes.append((node, depth))
+    current_depth = len(lineage)
+    ordered_nodes.append((target, current_depth))
+
+    seen_children: set[str] = set()
+
+    def _append_descendant_nodes(parent_ssa: str, depth: int) -> None:
+        for child_ssa in child_map.get(parent_ssa, []):
+            if child_ssa in seen_children:
+                continue
+            seen_children.add(child_ssa)
+            ordered_nodes.append((child_ssa, depth))
+            _append_descendant_nodes(child_ssa, depth + 1)
+
+    for raw in children:
+        child_ssa = _normalize_ssa_relation_value(
+            raw.get("ssa") if isinstance(raw, dict) else raw
+        )
+        if not child_ssa or child_ssa in seen_children:
+            continue
+        seen_children.add(child_ssa)
+        ordered_nodes.append((child_ssa, current_depth + 1))
+        _append_descendant_nodes(child_ssa, current_depth + 2)
+
+    for index, (node, depth) in enumerate(ordered_nodes):
+        x = margin + depth * x_gap
+        y = margin + index * y_gap
+        positions[node] = (x, y)
 
     if not positions:
         return ""
@@ -1428,6 +1375,12 @@ def _build_derivadas_graph_html(
         fallback="#4a90e2",
     )
 
+    def _node_font_size(value: str) -> float:
+        usable_w = max(18.0, float(node_w) - 18.0)
+        by_width = usable_w / max(1.0, len(value) * 0.56)
+        by_height = max(10.0, float(node_h) * 0.56)
+        return max(11.0, min(by_width, by_height, 15.5))
+
     svg_lines = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_width}" '
         f'height="{svg_height}" viewBox="0 0 {svg_width} {svg_height}">',
@@ -1445,22 +1398,19 @@ def _build_derivadas_graph_html(
             continue
         sx, sy = source_pos
         tx, ty = target_pos
-        if levels.get(target_node, 0) >= levels.get(source, 0):
-            y1 = sy + node_h / 2.0
-            y2 = ty - node_h / 2.0
-        else:
-            y1 = sy - node_h / 2.0
-            y2 = ty + node_h / 2.0
-        x1 = sx + offset_x
-        x2 = tx + offset_x
-        y1 += offset_y
-        y2 += offset_y
+        x1 = sx + node_w / 2.0 + offset_x
+        x2 = tx - node_w / 2.0 + offset_x
+        y1 = sy + offset_y
+        y2 = ty + offset_y
+        mid_x = x1 + max(12.0, (x2 - x1) / 2.0)
         dash_attr = (
             ' stroke-dasharray="7 6"' if (source, target_node) in dashed_edges else ""
         )
         svg_lines.append(
-            f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
-            f'stroke="{node_stroke}" stroke-width="0.9" marker-end="url(#arrow)"{dash_attr} />'
+            f'<path d="M{x1:.1f},{y1:.1f} L{mid_x:.1f},{y1:.1f} '
+            f'L{mid_x:.1f},{y2:.1f} L{x2:.1f},{y2:.1f}" '
+            f'fill="none" stroke="{node_stroke}" stroke-width="0.9" '
+            f'marker-end="url(#arrow)"{dash_attr} />'
         )
 
     for node, (x, y) in positions.items():
@@ -1474,7 +1424,7 @@ def _build_derivadas_graph_html(
         )
         svg_lines.append(
             f'<text x="{(x + offset_x):.1f}" y="{(y + offset_y + 5):.1f}" text-anchor="middle" '
-            f'font-family="{html_module.escape(font_family)}" font-size="8" fill="{text_color}">{safe_node}</text>'
+            f'font-family="{html_module.escape(font_family)}" font-size="{_node_font_size(node):.1f}" fill="{text_color}">{safe_node}</text>'
         )
     svg_lines.append("</svg>")
 
@@ -1564,27 +1514,21 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     root_layout = QVBoxLayout(dialog)
     tabs = QTabWidget(dialog)
     tab_details = QWidget(tabs)
-    tab_tree = QWidget(tabs)
     tabs.addTab(tab_details, "Detalhes")
-    tabs.addTab(tab_tree, "Arvore")
 
     tab_details_layout = QVBoxLayout(tab_details)
-    tab_tree_layout = QVBoxLayout(tab_tree)
-    content_splitter = QSplitter(Qt.Orientation.Horizontal)
-    content_splitter.setChildrenCollapsible(False)
-    tree_tab_splitter = QSplitter(Qt.Orientation.Vertical)
-    tree_tab_splitter.setChildrenCollapsible(False)
-
-    tree_browser = _init_readonly_text_browser(
-        QTextBrowser(), min_width=DERIVADAS_DIALOG_TREE_MIN_WIDTH
-    )
+    details_tab_splitter = QSplitter(Qt.Orientation.Vertical)
+    details_tab_splitter.setChildrenCollapsible(False)
+    details_derivadas_splitter = QSplitter(Qt.Orientation.Horizontal)
+    details_derivadas_splitter.setChildrenCollapsible(False)
     details_browser = _init_readonly_text_browser(
         QTextBrowser(), min_width=DERIVADAS_DIALOG_DETAILS_MIN_WIDTH
     )
+    tree_tab_browser = _init_readonly_text_browser(QTextBrowser(), min_height=220)
     tree_graph_label = None
     tree_graph_text_browser = None
     if qsvg_renderer_cls is not None:
-        tree_graph_label = QLabel(tab_tree)
+        tree_graph_label = QLabel(tab_details)
         tree_graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         tree_graph_label.setStyleSheet("border:none; background:transparent;")
         tree_graph_label.setMinimumHeight(220)
@@ -1594,7 +1538,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             QTextBrowser(), min_height=220
         )
         tree_graph_browser = tree_graph_text_browser
-    tree_graph_panel = QWidget(tab_tree)
+    tree_graph_panel = QWidget(tab_details)
     tree_graph_panel_layout = QGridLayout(tree_graph_panel)
     tree_graph_panel_layout.setContentsMargins(0, 0, 0, 0)
     tree_graph_panel_layout.setSpacing(0)
@@ -1611,8 +1555,6 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         0,
         alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
     )
-    tree_tab_browser = _init_readonly_text_browser(QTextBrowser(), min_height=220)
-
     try:
         link_color = window.palette().color(QPalette.ColorRole.Highlight).name()
     except Exception:
@@ -1679,17 +1621,6 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         current_target["ssa"] = normalized
         export_state["target"] = normalized
         tree_data = _collect_derivadas_tree_data(window, normalized)
-        derivadas_rel = {
-            "has_data": bool(
-                tree_data.get("parents")
-                or tree_data.get("children")
-                or int(tree_data.get("descendants_count", 0)) > 0
-            ),
-            "parents": tree_data.get("parents", []),
-            "children": tree_data.get("children", []),
-            "descendants_count": int(tree_data.get("descendants_count", 0)),
-        }
-
         html_details = _format_details_html(
             window,
             series_target,
@@ -1698,7 +1629,6 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             linkify=True,
             label_font_size_pt=dialog_label_font_pt,
             font_family=dialog_font_family,
-            derivadas_rel_override=derivadas_rel,
         )
         details_browser.setHtml(html_details)
         tree_html = _build_derivadas_tree_html(
@@ -1732,10 +1662,8 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             assert tree_graph_text_browser is not None
             tree_graph_text_browser.setPlainText("Grafo de derivadas indisponivel.")
         if tree_html:
-            tree_browser.setHtml(tree_html)
             tree_tab_browser.setHtml(tree_html)
         else:
-            tree_browser.setPlainText("Arvore de derivadas indisponivel para esta SSA.")
             tree_tab_browser.setPlainText("Arvore de derivadas indisponivel.")
         return True
 
@@ -1869,7 +1797,6 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         if href.startswith("derivadas:tree") or href.startswith("derivadas://tree"):
             _render_target(current_target["ssa"])
 
-    tree_browser.anchorClicked.connect(_handle_dialog_anchor)
     details_browser.anchorClicked.connect(_handle_dialog_anchor)
     tree_tab_browser.anchorClicked.connect(_handle_dialog_anchor)
     if tree_graph_text_browser is not None:
@@ -1886,29 +1813,18 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     if not _render_target(target):
         return
 
-    # Keep a stable 20/80 split: derivadas panel (left) / SSA details (right).
-    content_splitter.addWidget(tree_browser)
-    content_splitter.addWidget(details_browser)
-    content_splitter.setStretchFactor(0, DERIVADAS_DIALOG_RATIO_LEFT)
-    content_splitter.setStretchFactor(1, DERIVADAS_DIALOG_RATIO_RIGHT)
-    total_ratio = DERIVADAS_DIALOG_RATIO_LEFT + DERIVADAS_DIALOG_RATIO_RIGHT
-    left_width = max(
-        DERIVADAS_DIALOG_TREE_MIN_WIDTH,
-        int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_LEFT / total_ratio),
-    )
-    right_width = max(
-        DERIVADAS_DIALOG_DETAILS_MIN_WIDTH,
-        int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_RIGHT / total_ratio),
-    )
-    content_splitter.setSizes([left_width, right_width])
-    tree_tab_splitter.addWidget(tree_graph_panel)
-    tree_tab_splitter.addWidget(tree_tab_browser)
-    tree_tab_splitter.setStretchFactor(0, 1)
-    tree_tab_splitter.setStretchFactor(1, 1)
-    tree_tab_splitter.setSizes([250, 480])
+    details_tab_splitter.addWidget(details_browser)
+    details_derivadas_splitter.addWidget(tree_tab_browser)
+    details_derivadas_splitter.addWidget(tree_graph_panel)
+    details_derivadas_splitter.setStretchFactor(0, 1)
+    details_derivadas_splitter.setStretchFactor(1, 1)
+    details_derivadas_splitter.setSizes([430, 560])
+    details_tab_splitter.addWidget(details_derivadas_splitter)
+    details_tab_splitter.setStretchFactor(0, 1)
+    details_tab_splitter.setStretchFactor(1, 0)
+    details_tab_splitter.setSizes([500, 230])
 
-    tab_details_layout.addWidget(content_splitter)
-    tab_tree_layout.addWidget(tree_tab_splitter)
+    tab_details_layout.addWidget(details_tab_splitter)
     root_layout.addWidget(tabs)
 
     close_button = QPushButton("Fechar")

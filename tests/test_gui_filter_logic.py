@@ -2577,7 +2577,7 @@ class TestGUIFilterLogic:
         assert details_text.openExternalLinks() is False
         assert details_text.openLinks() is False
 
-    def test_details_html_renders_derivadas_relations_block(self):
+    def test_details_html_omits_derivadas_relations_block(self):
         series = self.base_df.iloc[0].copy()
         with patch(
             "gui.ssa.gui_details._get_derivadas_relations_info",
@@ -2592,13 +2592,13 @@ class TestGUIFilterLogic:
                 series, highlight_search_terms=False, linkify=True
             )
 
-        assert "Relacoes de Derivadas" in html
-        assert "Mae direta" in html
-        assert "Filhas diretas (3)" in html
-        assert "Descendentes (5)" in html
-        assert "Abrir arvore completa" in html
-        assert "derivadas:tree" in html
-        assert "ssa-details:9000" in html
+        assert "Relacoes de Derivadas" not in html
+        assert "Mae direta" not in html
+        assert "Filhas diretas" not in html
+        assert "Descendentes (" not in html
+        assert "Abrir arvore completa" not in html
+        assert "derivadas:tree" not in html
+        assert "ssa-details:9000" not in html
 
     def test_details_html_expands_situacao_and_links_numero_ssa_for_copy(self):
         series = self.base_df.iloc[0].copy()
@@ -2612,7 +2612,9 @@ class TestGUIFilterLogic:
         assert "APG - Aguardando Programacao" in html
         assert "copy-ssa:202600023" in html
 
-    def test_details_html_uses_derivadas_override_without_query(self, monkeypatch):
+    def test_details_html_ignores_derivadas_override_without_rendering_block(
+        self, monkeypatch
+    ):
         series = self.base_df.iloc[0].copy()
         monkeypatch.setattr(
             ssa_gui_details,
@@ -2633,8 +2635,8 @@ class TestGUIFilterLogic:
                 "descendants_count": 1,
             },
         )
-        assert "Relacoes de Derivadas" in html
-        assert "Filhas diretas (1)" in html
+        assert "Relacoes de Derivadas" not in html
+        assert "Filhas diretas" not in html
 
     def test_derivadas_tree_html_includes_status_codes(self, monkeypatch):
         monkeypatch.setattr(
@@ -2754,10 +2756,11 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
         self.window._open_details_dialog_for_ssa("1")
         assert "labels" in captured
-        assert captured["labels"] == [["Detalhes", "Arvore"]]
+        assert captured["labels"] == [["Detalhes"]]
         assert captured["graph_label_count"] >= 1
         assert "Exportar" in captured["tool_buttons"]
         assert any("Derivadas:" in text for text in captured["browser_texts"])
+        assert not any("Relacoes de Derivadas" in text for text in captured["browser_texts"])
 
     def test_details_number_double_click_copies_current_ssa(self, monkeypatch):
         self.window._details_current_ssa = "202600023"
