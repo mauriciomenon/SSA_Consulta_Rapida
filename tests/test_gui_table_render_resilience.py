@@ -19,8 +19,8 @@ from PyQt6.QtWidgets import QApplication  # noqa: E402
 from gui import gui_ssa  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
-from gui.ssa import gui_table  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
+from gui.ssa import gui_table  # noqa: E402
 from utils.formatting import format_dataframe_for_display  # noqa: E402
 
 
@@ -243,7 +243,9 @@ class TestGUITableRenderResilience:
         QApplication.processEvents()
 
         expected_page = format_dataframe_for_display(
-            replacement_df[_expected_visible_columns(self.window, replacement_df)].copy()
+            replacement_df[
+                _expected_visible_columns(self.window, replacement_df)
+            ].copy()
         )
         numero_ssa_col = self.window._current_display_columns.index("numero_ssa")
         assert (
@@ -273,7 +275,9 @@ class TestGUITableRenderResilience:
         ]
         assert gui_warnings == []
 
-    def test_display_current_page_reuses_formatted_cache_for_equivalent_dataframe_copy(self):
+    def test_display_current_page_reuses_formatted_cache_for_equivalent_dataframe_copy(
+        self,
+    ):
         self.window._data_uuid = "stable-data"
         self.window._ensure_data_revision = lambda: None
 
@@ -294,7 +298,9 @@ class TestGUITableRenderResilience:
 
         assert formatter.call_count == 1
 
-    def test_display_current_page_rebuilds_when_mid_row_changes_with_stable_revision(self):
+    def test_display_current_page_rebuilds_when_mid_row_changes_with_stable_revision(
+        self,
+    ):
         self.window._data_uuid = "stable-data"
         self.window._ensure_data_revision = lambda: None
         self.window.display_current_page(1)
@@ -310,8 +316,7 @@ class TestGUITableRenderResilience:
 
         descricao_idx = self.window._current_display_columns.index("descricao_ssa")
         assert (
-            self.window.table_widget.item(1, descricao_idx).text()
-            == "Teste B alterado"
+            self.window.table_widget.item(1, descricao_idx).text() == "Teste B alterado"
         )
 
     def test_display_current_page_keeps_hash_column_when_tooltip_fails(self):

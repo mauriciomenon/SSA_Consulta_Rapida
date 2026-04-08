@@ -277,7 +277,9 @@ def _fallback_column_width(col_name: str) -> int:
     return 120
 
 
-def _build_render_marker_sample(display_df: pd.DataFrame) -> tuple[tuple[str, ...], ...]:
+def _build_render_marker_sample(
+    display_df: pd.DataFrame,
+) -> tuple[tuple[str, ...], ...]:
     if display_df.empty:
         return tuple()
 
@@ -290,7 +292,9 @@ def _build_render_marker_sample(display_df: pd.DataFrame) -> tuple[tuple[str, ..
             for row_values in marker_df.itertuples(index=False, name=None)
         )
     except Exception as exc:
-        logger.debug("Falha ao construir amostra de marcadores da renderizacao: %s", exc)
+        logger.debug(
+            "Falha ao construir amostra de marcadores da renderizacao: %s", exc
+        )
         return tuple()
 
 

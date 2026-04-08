@@ -29,7 +29,8 @@ from PyQt6.QtWidgets import QApplication, QLabel, QPushButton  # noqa: E402
 
 from gui import gui_ssa  # noqa: E402
 from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
-from gui.gui_config import DEFAULT_COLUMN_DISPLAY_NAMES, DEFAULT_COLUMN_WIDTHS  # noqa: E402
+from gui.gui_config import DEFAULT_COLUMN_DISPLAY_NAMES  # noqa: E402
+from gui.gui_config import DEFAULT_COLUMN_WIDTHS
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
