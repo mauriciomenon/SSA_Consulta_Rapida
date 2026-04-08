@@ -1132,7 +1132,9 @@ def _build_derivadas_tree_html(
                 f"{content}"
                 "</span>"
             )
-        lines.append(f'<div style="margin:0 0 6px 0; white-space:nowrap;">{content}</div>')
+        lines.append(
+            f'<div style="margin:0 0 6px 0; white-space:nowrap;">{content}</div>'
+        )
 
     lines = []
     if tree_font_pt is None:
