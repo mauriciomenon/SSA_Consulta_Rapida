@@ -396,7 +396,14 @@ HARD_DEFAULT_GUI_MAIN_PREFERENCES: Dict[str, Any] = copy.deepcopy(
 
 
 def _hard_default_preferences_copy() -> Dict[str, Any]:
-    return copy.deepcopy(HARD_DEFAULT_GUI_MAIN_PREFERENCES)
+    defaults = copy.deepcopy(HARD_DEFAULT_GUI_MAIN_PREFERENCES)
+    defaults["column_widths"] = _resolve_platform_column_widths(
+        defaults.get("column_widths_by_platform"),
+        None,
+    )
+    defaults["display_mappings"] = copy.deepcopy(defaults["column_display_names"])
+    defaults["required_display_columns"] = list(REQUIRED_DISPLAY_COLUMNS)
+    return defaults
 
 
 # Columns kept in DB for compatibility only; do not offer in interactive GUI selectors.

@@ -442,6 +442,25 @@ class TestGUIMainConfiguration:
             == DEFAULT_GUI_MAIN_PREFERENCES["gui_settings"]["page_size"]
         )
 
+    def test_load_gui_main_preferences_auto_create_writes_platform_widths(
+        self, tmp_path
+    ):
+        from gui import gui_config
+
+        config_path = tmp_path / "gui_main_preferences.json"
+
+        with patch("gui.gui_config.sys.platform", "darwin"):
+            config = gui_config.load_gui_main_preferences(
+                config_path=str(config_path), auto_create=True
+            )
+
+        created = json.loads(config_path.read_text(encoding="utf-8"))
+
+        assert created["column_widths"]["descricao_ssa"] == 340
+        assert created["column_widths"]["semana_cadastro"] == 60
+        assert created["column_widths"]["semana_executada"] == 60
+        assert config["column_widths"]["descricao_ssa"] == 340
+
     def test_gui_main_preferences_reference_file_matches_code_defaults(self):
         from gui.gui_config import (
             DEFAULT_GUI_MAIN_PREFERENCES,
