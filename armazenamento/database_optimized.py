@@ -611,7 +611,9 @@ def insert_dataframe_optimized(
                                 numero_ssa = update_row.get("numero_ssa")
                                 if numero_ssa is None:
                                     continue
-                                merged_row = existing_rows_by_ssa[str(numero_ssa)].copy()
+                                merged_row = existing_rows_by_ssa[
+                                    str(numero_ssa)
+                                ].copy()
                                 merged_row.update(update_row)
                                 merged_rows.append(merged_row)
 

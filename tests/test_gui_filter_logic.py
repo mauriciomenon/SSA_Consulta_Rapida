@@ -2921,7 +2921,9 @@ class TestGUIFilterLogic:
         assert '<a href="ssa-panel:202500777"' not in html
         assert "202500777" in html
 
-    def test_format_details_html_omits_link_for_missing_derived_target(self, monkeypatch):
+    def test_format_details_html_omits_link_for_missing_derived_target(
+        self, monkeypatch
+    ):
         monkeypatch.setattr(
             ssa_gui_details,
             "_get_derivadas_for_ssa",
