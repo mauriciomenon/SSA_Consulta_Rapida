@@ -1203,6 +1203,27 @@ def on_load_finished(
     window.progress_bar.setVisible(False)
     window.load_button.setEnabled(True)
     window.search_button.setEnabled(True)
+    status_label = getattr(window, "status_label", None)
+    current_status_text = ""
+    if status_label is not None:
+        try:
+            getter = getattr(status_label, "text", None)
+            current_status_text = getter() if callable(getter) else str(getter or "")
+        except Exception as exc:
+            logger.debug("Falha ao ler status atual no fim da carga: %s", exc)
+            current_status_text = ""
+    if current_status_text == "Status: Carregando dados...":
+        try:
+            current_df = getattr(window, "df_exibido", None)
+            current_count = int(len(current_df.index)) if current_df is not None else 0
+        except Exception as exc:
+            logger.debug("Falha ao calcular total de SSAs no fim da carga: %s", exc)
+            current_count = 0
+        _set_status_label_text(
+            window,
+            f"Status: {current_count} SSAs carregadas. Pronto para filtrar.",
+            context="on_load_finished.loading_status_fallback",
+        )
     try:
         cleanup_data_loader_worker(
             window,
@@ -1464,17 +1485,38 @@ def rescan_data(
         _release_worker_ref()
         progress_dialog.set_finished(True)
         _release_dialog_ref()
-        if (
-            reload_on_success
-            and outcome == RescanOutcome.UPDATED
+        should_offer_reload = (
+            outcome == RescanOutcome.UPDATED
+            and normalized_kind != "consolidate"
             and hasattr(window, "load_data")
-        ):
-            try:
-                window.load_data()
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao recarregar dados apos operacao concluida: %s", exc
-                )
+            and (reload_on_success or force_import)
+        )
+        if should_offer_reload:
+            should_load_now = False
+            if qmessagebox is not None and hasattr(qmessagebox, "question"):
+                try:
+                    question_result = qmessagebox.question(
+                        window,
+                        "Banco atualizado",
+                        "O banco foi atualizado. Deseja carregar os dados agora?",
+                        qmessagebox.StandardButton.Yes | qmessagebox.StandardButton.No,
+                        qmessagebox.StandardButton.Yes,
+                    )
+                    should_load_now = (
+                        question_result == qmessagebox.StandardButton.Yes
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Falha ao solicitar confirmacao para recarregar dados: %s",
+                        exc,
+                    )
+            if should_load_now:
+                try:
+                    window.load_data()
+                except Exception as exc:
+                    logger.warning(
+                        "Falha ao recarregar dados apos operacao concluida: %s", exc
+                    )
         _set_status_label_text(
             window,
             (
