@@ -3373,6 +3373,90 @@ class TestGUIFilterLogic:
         assert self.window.search_input.text() == f"={target_ssa}"
         assert getattr(self.window, "_pending_jump_to_ssa", None) is None
 
+    def test_filter_by_derivadas_updates_filtered_dataset_and_details(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202500100", "202500101", "202500102", "202500200"],
+                "situacao": ["APV", "STE", "AMP", "APV"],
+                "derivada_de": ["", "202500100", "202500100", ""],
+                "localizacao_codigo": ["L0", "L1", "L2", "L3"],
+                "descricao_localizacao": ["DL0", "DL1", "DL2", "DL3"],
+                "equipamento": ["E0", "E1", "E2", "E3"],
+                "semana_cadastro": [202501] * 4,
+                "semana_programada": [202503] * 4,
+                "data_cadastro": ["2025-01-01"] * 4,
+                "descricao_ssa": ["Origem", "Filha A", "Filha B", "Outra"],
+                "setor_executor": ["IEE3", "MEL4", "XYZ", "ABC"],
+                "setor_emissor": ["ABC", "MEL4", "XYZ", "AAA"],
+                "descricao_execucao": ["Exec O", "Exec A", "Exec B", "Exec X"],
+                "solicitante": ["User0", "User1", "User2", "User3"],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        self.window._filter_by_derivadas("202500100")
+        QApplication.processEvents()
+
+        assert self.window._last_derivada_origem == "202500100"
+        assert self.window._active_column_filters["derivada_de"] == "202500100"
+        assert self.window.df_exibido["numero_ssa"].tolist() == [
+            "202500102",
+            "202500101",
+        ]
+        assert str(self.window._details_current_ssa) == "202500102"
+        details_html = str(self.window.details_text.toHtml() or "")
+        assert "Filha B" in details_html
+        assert "Origem" not in details_html
+
+    def test_clear_derivadas_filter_restores_origin_details_via_jump(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202500100", "202500101", "202500102", "202500200"],
+                "situacao": ["APV", "STE", "AMP", "APV"],
+                "derivada_de": ["", "202500100", "202500100", ""],
+                "localizacao_codigo": ["L0", "L1", "L2", "L3"],
+                "descricao_localizacao": ["DL0", "DL1", "DL2", "DL3"],
+                "equipamento": ["E0", "E1", "E2", "E3"],
+                "semana_cadastro": [202501] * 4,
+                "semana_programada": [202503] * 4,
+                "data_cadastro": ["2025-01-01"] * 4,
+                "descricao_ssa": ["Origem", "Filha A", "Filha B", "Outra"],
+                "setor_executor": ["IEE3", "MEL4", "XYZ", "ABC"],
+                "setor_emissor": ["ABC", "MEL4", "XYZ", "AAA"],
+                "descricao_execucao": ["Exec O", "Exec A", "Exec B", "Exec X"],
+                "solicitante": ["User0", "User1", "User2", "User3"],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        self.window._filter_by_derivadas("202500100")
+        QApplication.processEvents()
+
+        with patch.object(
+            ssa_gui_details,
+            "_jump_to_ssa",
+            wraps=ssa_gui_details._jump_to_ssa,
+        ) as jump_to_ssa_mock:
+            self.window._clear_derivadas_filter()
+            QApplication.processEvents()
+
+        jump_to_ssa_mock.assert_called_once_with(self.window, "202500100")
+        assert "derivada_de" not in self.window._active_column_filters
+        assert self.window._last_derivada_origem is None
+        assert str(self.window._details_current_ssa) == "202500100"
+        details_html = str(self.window.details_text.toHtml() or "")
+        assert "Origem" in details_html
+        assert "Filha B" not in details_html
+
     def test_header_resize_updates_runtime_column_width_cache(self):
         self.window._current_display_columns = ["#", "descricao_ssa"]
         self.window._saved_gui_column_widths = {}
