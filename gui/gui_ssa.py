@@ -1645,6 +1645,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         search_input.setPlaceholderText("Termos separados por virgula; ! exclui termo")
         search_input.setToolTip(
             "Todos os termos digitados devem ser satisfeitos na mesma linha.\n\n"
+            "A busca geral pesquisa nas colunas relevantes da GUI; datas puras ficam nos filtros especificos.\n\n"
             "Modos por termo: \n"
             "- contem (padrao): foo\n- comeca com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex: ~foo.*bar\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
         )

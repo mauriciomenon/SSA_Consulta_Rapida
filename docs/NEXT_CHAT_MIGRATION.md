@@ -1138,6 +1138,9 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   3. botao `Ocultar` permitia filtro ativo invisivel.
   4. o sintoma de `clear nao funciona` era efeito combinado de cache parcial + filtro invisivel, nao ausencia de reset base.
 - Causa raiz consolidada:
+  0. ownership errado do contrato:
+     - a GUI dependia implicitamente do default de `filter_dataframe(..., search_columns=None)`.
+     - a lista de colunas da busca geral ficou escondida no core, em vez de existir como contrato explicito da GUI.
   1. `core/app_logic.py`
      - `priority_columns` nao incluia:
        - `solicitante`
@@ -1183,6 +1186,10 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   5. segunda varredura:
      - `restore_last_filter_state` foi ajustado para nao reidratar filtro ativo invisivel via `hidden_column_filter_lines`.
      - a validacao ampliada tambem capturou um desalinhamento de altura no quick combo de `setor_executor`, ligado ao bloco estrutural de `c56d0e8e`.
+  6. consolidacao posterior:
+     - a GUI passou a ser dona explicita do contrato de colunas da busca geral.
+     - o doc vivo da regra agora e `docs/GUI_GENERAL_SEARCH_COLUMN_CONTRACT.md`.
+     - fuzzy search segue deferido para release futuro.
      - `gui/gui_ssa.py` passou a centralizar a aplicacao segura de alturas no toolbar e no sync inferior para evitar divergencia entre botoes, combo rapido e paineis.
 - Validacao executada:
   1. `uv run --python 3.13 python -m py_compile` no escopo alterado -> pass.

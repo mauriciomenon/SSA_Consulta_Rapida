@@ -26,12 +26,16 @@ class FilterWorker(QThread):
         self,
         df_completo,
         search_chunks,
+        search_columns: list[str] | None = None,
         default_mode: str = "contains",
         cache_context: str | None = None,
     ):
         super().__init__()
         self.df_completo = df_completo
         self.search_chunks = search_chunks or []
+        self.search_columns = (
+            list(search_columns) if search_columns is not None else None
+        )
         self.default_mode = default_mode
         self.cache_context = cache_context or ""
         self._cancel_requested = False
@@ -151,7 +155,16 @@ class FilterWorker(QThread):
                         )
                         if self._is_cancelled():
                             return
-                        frames.append(filter_dataframe(self.df_completo, parsed))
+                        if self.search_columns is None:
+                            frames.append(filter_dataframe(self.df_completo, parsed))
+                        else:
+                            frames.append(
+                                filter_dataframe(
+                                    self.df_completo,
+                                    parsed,
+                                    search_columns=self.search_columns,
+                                )
+                            )
                     else:
                         frames.append(self.df_completo.copy())
                     if self._is_cancelled():
