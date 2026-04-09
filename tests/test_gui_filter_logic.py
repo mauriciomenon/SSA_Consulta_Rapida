@@ -3795,6 +3795,51 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         assert self.window.df_exibido["numero_ssa"].tolist() == [5, 4, 3, 2, 1]
 
+    def test_header_real_click_sorts_visual_column_after_reorder(self):
+        click_df = self.base_df.copy()
+        click_df["numero_ssa"] = [30, 10, 20, 50, 40]
+        click_df["situacao"] = ["C", "A", "B", "E", "D"]
+        self.window.df_completo = click_df.copy()
+        self.window.df_exibido = click_df.copy()
+        self.window._df_last_search_filtered = click_df.copy()
+        self.window.paginator.set_dataframe(click_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header = self.window.table_widget.horizontalHeader()
+        initial_situacao_index = self.window._current_display_columns.index("situacao")
+        header.moveSection(header.visualIndex(initial_situacao_index), 1)
+        QApplication.processEvents()
+
+        situacao_index = self.window._current_display_columns.index("situacao")
+        click_pos = QPoint(
+            header.sectionViewportPosition(situacao_index)
+            + max(5, header.sectionSize(situacao_index) // 2),
+            max(5, header.height() // 2),
+        )
+
+        cast(Any, QTest).mouseClick(
+            header.viewport(),
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            click_pos,
+        )
+        QApplication.processEvents()
+
+        assert self.window.sort_column == "situacao"
+        assert self.window.df_exibido["situacao"].tolist() == ["A", "B", "C", "D", "E"]
+
+        cast(Any, QTest).mouseClick(
+            header.viewport(),
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            click_pos,
+        )
+        QApplication.processEvents()
+
+        assert self.window.sort_column == "situacao"
+        assert self.window.df_exibido["situacao"].tolist() == ["E", "D", "C", "B", "A"]
+
     def test_best_fit_width_guard_ignores_single_extreme_outlier(self):
         expanded_df = pd.concat(
             [self.base_df.copy() for _ in range(20)], ignore_index=True
