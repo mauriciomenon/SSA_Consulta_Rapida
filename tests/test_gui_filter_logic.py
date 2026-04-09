@@ -2924,15 +2924,21 @@ class TestGUIFilterLogic:
     def test_format_details_html_omits_link_for_missing_derived_target(
         self, monkeypatch
     ):
+        seen_targets = []
         monkeypatch.setattr(
             ssa_gui_details,
             "_get_derivadas_for_ssa",
-            lambda _window, _numero: ["202602147", "202500777"],
+            lambda _window, _numero: ["202602147", "202602147", "202500777"],
         )
+
+        def _fake_get_series(_window, numero):
+            seen_targets.append(str(numero))
+            return object() if str(numero) == "202602147" else None
+
         monkeypatch.setattr(
             ssa_gui_details,
             "_get_series_for_ssa",
-            lambda _window, numero: object() if str(numero) == "202602147" else None,
+            _fake_get_series,
         )
 
         series = pd.Series({"numero_ssa": "202600023", "situacao": "APL"})
@@ -2947,6 +2953,8 @@ class TestGUIFilterLogic:
         assert '<a href="ssa:202602147"' in html
         assert '<a href="ssa:202500777"' not in html
         assert "202500777" in html
+        assert seen_targets.count("202602147") == 1
+        assert seen_targets.count("202500777") == 1
 
     def test_details_number_double_click_copies_current_ssa(self, monkeypatch):
         self.window._details_current_ssa = "202600023"
