@@ -276,6 +276,7 @@ def test_insert_dataframe_optimized_aborts_when_update_lookup_is_incomplete(
     tmp_path, monkeypatch
 ) -> None:
     db_path = str(tmp_path / "incomplete_update_lookup.db")
+    statements: list[str] = []
 
     conn = sqlite3.connect(db_path)
     try:
@@ -312,6 +313,15 @@ def test_insert_dataframe_optimized_aborts_when_update_lookup_is_incomplete(
     finally:
         conn.close()
 
+    @contextmanager
+    def _tracking_connection(path: str):
+        tracked_conn = sqlite3.connect(path)
+        tracked_conn.set_trace_callback(statements.append)
+        try:
+            yield tracked_conn
+        finally:
+            tracked_conn.close()
+
     original_iter_lookup = database_optimized_module._iter_lookup_chunks_by_ssa
 
     def _drop_second_lookup(
@@ -337,6 +347,9 @@ def test_insert_dataframe_optimized_aborts_when_update_lookup_is_incomplete(
         database_optimized_module,
         "_iter_lookup_chunks_by_ssa",
         _drop_second_lookup,
+    )
+    monkeypatch.setattr(
+        database_optimized_module, "get_db_connection", _tracking_connection
     )
 
     incoming = pd.DataFrame(
@@ -366,3 +379,8 @@ def test_insert_dataframe_optimized_aborts_when_update_lookup_is_incomplete(
         conn.close()
 
     assert row == ("ADM", "descricao-antiga", "origem-antiga.csv")
+    assert not any(
+        stmt.upper().startswith('DELETE FROM "SSA_TABLE"')
+        or stmt.upper().startswith("DELETE FROM SSA_TABLE")
+        for stmt in statements
+    )

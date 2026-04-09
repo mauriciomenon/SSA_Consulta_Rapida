@@ -314,11 +314,17 @@ def _format_details_html(
         derived_list = []
     if derived_list:
         if linkify:
+            available_targets: set[str] = set()
+            for item in derived_list:
+                href = _normalize_ssa_value(window, item)
+                if href and href not in available_targets:
+                    if _get_series_for_ssa(window, href) is not None:
+                        available_targets.add(href)
             items = []
             for item in derived_list:
                 href = _normalize_ssa_value(window, item)
                 display = html_module.escape(item)
-                if href and _get_series_for_ssa(window, href) is not None:
+                if href and href in available_targets:
                     items.append(
                         f'<a href="ssa:{href}" style="color:{link_color}; '
                         f'text-decoration:none; border-bottom: 1px solid {link_color};">'
