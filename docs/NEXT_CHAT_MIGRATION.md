@@ -84,7 +84,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `stash@{0}` `On main: pre-dev-switch-display-mappings-20260406`
 5. este slice consolidou a hierarquia correta de preferencias GUI:
    - arquivo versionado de referencia em `config/gui_main_preferences.json.example`
-   - arquivo local efetivo continua `config/gui_main_preferences.json`
+   - arquivo efetivo de runtime continua `config/gui_main_preferences.json`
    - largura persistida do arquivo agora prevalece sobre largura automatica da tabela
    - o baseline automatico do `SimpleWidthManager` agora parte de `DEFAULT_COLUMN_WIDTHS`, sem numeros paralelos para colunas fixas
    - reorder e hide/show de colunas agora persistem no mesmo arquivo local
@@ -102,10 +102,10 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 8. doc tecnico novo desta frente:
    - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
    - o doc agora explicita, em texto direto:
-     - runtime cai para defaults em memoria quando faltar arquivo local ou mudar `SSA_CONFIG_DIR`
+     - runtime cai para defaults em memoria quando faltar arquivo efetivo ou mudar `SSA_CONFIG_DIR`
      - largura persistida vencendo a largura automatica
      - fallback local da tabela preso ao contrato canonico
-     - arquivo local com ultima palavra, `.example` documentando o padrao e codigo definindo a base
+     - `config/gui_main_preferences.json` como arquivo efetivo tracked, `.example` documentando o padrao e codigo definindo a base
      - header da GUI agora usa matriz explicita `short/medium/long` por coluna e escolhe a maior variante que cabe na largura real
      - o calculo do header reserva espaco para o prefixo `[f] `
      - a CLI continua fora do contrato de preferencias da GUI, mas segue usando `display_map`, `short_labels`, `fixed_widths` e alternancia `short/full`

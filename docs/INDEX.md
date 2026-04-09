@@ -15,7 +15,7 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - se faltar `config/gui_main_preferences.json` ou mudar `SSA_CONFIG_DIR`, o runtime usa os defaults em memoria do codigo
    - largura persistida valida vence a largura automatica
    - fallback local da tabela e baseline automatico partem de `gui/gui_config.py`
-   - arquivo local tem a ultima palavra; o `.example` documenta o padrao; codigo define a base
+   - `config/gui_main_preferences.json` e o arquivo efetivo tracked de runtime; o `.example` documenta o padrao; codigo define a base
    - reorder e hide/show de colunas persistem no mesmo arquivo local
    - o header da GUI agora usa matriz explicita `short/medium/long` por coluna e escolhe a maior variante que cabe na largura real, com reserva para `[f] `
    - a CLI continua fora do contrato de preferencias da GUI, mas segue usando `display_map`, `short_labels`, `fixed_widths` e alternancia `short/full`

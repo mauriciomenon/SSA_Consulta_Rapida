@@ -44,14 +44,15 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
 - Regra operacional importante desta retomada:
   1. nao confundir o stash criado no `main` com trabalho pendente do `dev`
   2. nao reaplicar `display_mappings.json` sem decidir primeiro se ele deve sair do versionamento
-  3. o arquivo local `config/gui_main_preferences.json` continua sendo override de runtime, e o repo agora tem um `.example` apenas como referencia de auditoria
+  3. `config/gui_main_preferences.json` continua sendo o arquivo efetivo de runtime, e o repo tambem tem `config/gui_main_preferences.json.example` como referencia canonica de auditoria
   4. o comportamento agora precisa ser lido assim, sem ambiguidade:
      - se faltar `config/gui_main_preferences.json` ou o runtime mudar `SSA_CONFIG_DIR`, o runtime usa os defaults em memoria do codigo
      - se existir largura persistida valida, ela ganha da largura calculada em runtime
      - o fallback local da tabela e o baseline automatico partem do contrato canonico em `gui/gui_config.py`
      - o baseline canonico de widths agora nasce de `DEFAULT_COLUMN_WIDTHS_BY_PLATFORM`
      - `DEFAULT_COLUMN_WIDTHS` no runtime ja e o mapa resolvido para a plataforma atual
-     - arquivo local tem a ultima palavra; o `.example` documenta o padrao; codigo define a base
+     - `config/gui_main_preferences.json` e o arquivo efetivo tracked com ultima palavra em runtime; o `.example` documenta o padrao; codigo define a base
+     - a fase antiga de local-only/skip-worktree para esse arquivo e apenas historica
      - o header da GUI agora escolhe `long -> medium -> short` pela largura real da coluna, com reserva para `[f] `
      - as celulas da tabela agora aceitam `left|center|right`, com default `right`
      - a CLI continua fora do contrato de preferencias da GUI, mas segue usando `display_map`, `short_labels`, `fixed_widths` e alternancia `short/full`
