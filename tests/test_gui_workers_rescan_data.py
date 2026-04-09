@@ -36,6 +36,21 @@ class _Window:
         self.load_calls += 1
 
 
+class _QuestionBox:
+    class StandardButton:
+        Yes = 1
+        No = 2
+        Cancel = 4
+
+    def __init__(self, answer):
+        self.answer = answer
+        self.calls = []
+
+    def question(self, *args):
+        self.calls.append(args)
+        return self.answer
+
+
 class _DialogCancelAndFinish:
     def __init__(self, window):
         self.window = window
@@ -421,18 +436,21 @@ def test_rescan_data_explicit_success_without_updates_does_not_reload(tmp_path):
     )
 
 
-def test_rescan_data_explicit_success_with_updates_reloads(tmp_path):
+def test_rescan_data_explicit_success_with_updates_offers_reload_and_loads_on_yes(
+    tmp_path,
+):
     project_root = _build_main_py(tmp_path)
     window = _Window()
     global_workers: list = []
     global_meta: dict = {}
+    qmessagebox = _QuestionBox(_QuestionBox.StandardButton.Yes)
 
     ssa_gui_workers.rescan_data(
         window,
         project_root=project_root,
         rescan_worker_cls=_BaseWorker,
         rescan_dialog_cls=_DialogNoop,
-        qmessagebox=None,
+        qmessagebox=qmessagebox,
         global_workers=global_workers,
         global_meta=global_meta,
         max_global_workers=8,
@@ -451,7 +469,78 @@ def test_rescan_data_explicit_success_with_updates_reloads(tmp_path):
     worker.finished_success.emit()
 
     assert window.load_calls == 1
+    assert len(qmessagebox.calls) == 1
     assert window.status_label.text == "Status: Importacao externa concluida."
+
+
+def test_rescan_data_explicit_success_with_updates_skips_load_on_no(tmp_path):
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+    qmessagebox = _QuestionBox(_QuestionBox.StandardButton.No)
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_BaseWorker,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=qmessagebox,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="explicit",
+        explicit_files=("docs_entrada/a.xlsx",),
+        operation_label="Importacao externa",
+        reload_on_success=True,
+    )
+
+    worker = window._active_rescan_worker
+    assert worker is not None
+    worker.last_outcome = "updated"
+    worker.finished_success.emit()
+
+    assert window.load_calls == 0
+    assert len(qmessagebox.calls) == 1
+    assert window.status_label.text == "Status: Importacao externa concluida."
+
+
+def test_rescan_data_full_success_with_updates_offers_reload_even_without_flag(tmp_path):
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+    qmessagebox = _QuestionBox(_QuestionBox.StandardButton.No)
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_BaseWorker,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=qmessagebox,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="full",
+    )
+
+    worker = window._active_rescan_worker
+    assert worker is not None
+    worker.last_outcome = "updated"
+    worker.finished_success.emit()
+
+    assert window.load_calls == 0
+    assert len(qmessagebox.calls) == 1
+    assert (
+        window.status_label.text
+        == "Status: Reescaneamento concluido. Clique em 'Recarregar Dados' para atualizar."
+    )
 
 
 def test_rescan_data_consolidate_success_uses_consolidate_context(

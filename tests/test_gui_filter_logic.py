@@ -5653,6 +5653,48 @@ class TestGUIFilterLogic:
         assert self.window.load_button.isEnabled() is True
         assert self.window.search_button.isEnabled() is True
 
+    def test_on_load_finished_replaces_transient_loading_status_with_terminal_text(self):
+        class _FakeSignal:
+            def disconnect(self, _callback=None):
+                return None
+
+        class _FakeLoaderWorker:
+            def __init__(self):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self._running = True
+                self.quit_called = False
+                self.wait_called_ms = None
+                self.deleted = False
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                self._running = False
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return True
+
+            def deleteLater(self):
+                self.deleted = True
+
+        worker = _FakeLoaderWorker()
+        self.window.data_loader_thread = worker
+        self.window._active_data_load_request_id = 14
+        self.window.df_exibido = self.base_df.copy()
+        self.window.status_label.setText("Status: Carregando dados...")
+
+        self.window.on_load_finished(worker=worker, request_id=14)
+
+        assert (
+            self.window.status_label.text()
+            == "Status: 5 SSAs carregadas. Pronto para filtrar."
+        )
+
     def test_on_filter_finished_skips_width_adjustments_when_table_widget_invalid(
         self, monkeypatch
     ):
