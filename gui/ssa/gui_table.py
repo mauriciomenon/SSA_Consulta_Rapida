@@ -878,6 +878,13 @@ def display_current_page(window, page_number, *, update_details=True):
                             )
                 finally:
                     setattr(window, "_header_order_sync_suspended", False)
+            final_visual_order = _get_header_visual_column_order(window)
+            if desired_visual_order and final_visual_order != desired_visual_order:
+                logger.warning(
+                    "Header visual order remained out of sync after render sync: desired=%s actual=%s",
+                    desired_visual_order,
+                    final_visual_order,
+                )
     except Exception as exc:
         logger.debug(
             "Falha ao sincronizar ordem visual do header com colunas exibidas: %s", exc
