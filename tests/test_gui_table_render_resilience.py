@@ -225,6 +225,56 @@ class TestGUITableRenderResilience:
         assert self.window._details_current_ssa == initial_ssa
         assert str(self.window.details_text.toHtml() or "") == initial_html
 
+    def test_on_columns_changed_preserves_existing_details(self):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        initial_html = str(self.window.details_text.toHtml() or "")
+        initial_ssa = self.window._details_current_ssa
+
+        reordered_columns = ["situacao"] + [
+            col for col in self.window.visible_columns if col != "situacao"
+        ]
+
+        with patch.object(
+            ssa_gui_details,
+            "_update_details_from_series",
+            wraps=ssa_gui_details._update_details_from_series,
+        ) as update_details:
+            self.window.on_columns_changed(reordered_columns)
+            QApplication.processEvents()
+
+        assert self.window.visible_columns[0] == "situacao"
+        assert update_details.call_count == 0
+        assert self.window._details_current_ssa == initial_ssa
+        assert str(self.window.details_text.toHtml() or "") == initial_html
+
+    def test_header_reorder_preserves_existing_details(self):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        initial_html = str(self.window.details_text.toHtml() or "")
+        initial_ssa = self.window._details_current_ssa
+
+        if "solicitante" not in self.window.visible_columns:
+            self.window.visible_columns.append("solicitante")
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header = self.window.table_widget.horizontalHeader()
+        situacao_logical_index = self.window._current_display_columns.index("situacao")
+
+        with patch.object(
+            ssa_gui_details,
+            "_update_details_from_series",
+            wraps=ssa_gui_details._update_details_from_series,
+        ) as update_details:
+            header.moveSection(header.visualIndex(situacao_logical_index), 1)
+            QApplication.processEvents()
+
+        assert self.window.visible_columns[0] == "situacao"
+        assert update_details.call_count == 0
+        assert self.window._details_current_ssa == initial_ssa
+        assert str(self.window.details_text.toHtml() or "") == initial_html
+
     def test_display_current_page_dataset_swap_updates_visible_table_and_details(self):
         self.window.display_current_page(1)
         QApplication.processEvents()
