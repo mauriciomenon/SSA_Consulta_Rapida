@@ -3425,6 +3425,81 @@ class TestGUIFilterLogic:
         )
         assert header_text == "Numero da SSA"
 
+    def test_header_resize_prefers_visual_column_mapping_during_eager_reorder(
+        self, monkeypatch
+    ):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header = self.window.table_widget.horizontalHeader()
+        situacao_logical_index = self.window._current_display_columns.index("situacao")
+        header.moveSection(header.visualIndex(situacao_logical_index), 1)
+        QApplication.processEvents()
+
+        self.window._current_display_columns = ["#", "situacao", "numero_ssa"]
+        self.window._saved_gui_column_widths = {}
+        self.window._gui_column_pixel_widths = {}
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_schedule_adaptive_header_label_refresh",
+            lambda _window: None,
+        )
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_schedule_column_width_preferences_persist",
+            lambda _window: None,
+        )
+
+        self.window._on_header_section_resized(situacao_logical_index, 100, 222)
+
+        assert self.window._saved_gui_column_widths.get("situacao") == 222
+        assert self.window._gui_column_pixel_widths.get("situacao") == 222
+        assert "numero_ssa" not in self.window._saved_gui_column_widths
+
+    def test_header_resize_reload_uses_correct_column_after_persisted_reorder(
+        self, monkeypatch
+    ):
+        persisted_display = ["situacao"] + [
+            col for col in self.window.visible_columns if col != "situacao"
+        ]
+        persisted_hidden = [
+            col
+            for col in self._gui_main_preferences_snapshot.get("hidden_columns", [])
+            if col not in persisted_display
+        ]
+        gui_ssa.GUI_MAIN_PREFERENCES["display_columns"] = list(persisted_display)
+        gui_ssa.GUI_MAIN_PREFERENCES["hidden_columns"] = list(persisted_hidden)
+
+        reloaded_window = SSAMainWindow()
+        reloaded_window.show()
+        try:
+            reloaded_window.display_current_page(1)
+            QApplication.processEvents()
+            reloaded_window._saved_gui_column_widths = {}
+            reloaded_window._gui_column_pixel_widths = {}
+            monkeypatch.setattr(
+                ssa_gui_table,
+                "_schedule_adaptive_header_label_refresh",
+                lambda _window: None,
+            )
+            monkeypatch.setattr(
+                ssa_gui_table,
+                "_schedule_column_width_preferences_persist",
+                lambda _window: None,
+            )
+
+            situacao_logical_index = reloaded_window._current_display_columns.index(
+                "situacao"
+            )
+            reloaded_window._on_header_section_resized(
+                situacao_logical_index, 100, 240
+            )
+
+            assert reloaded_window._saved_gui_column_widths.get("situacao") == 240
+            assert reloaded_window._gui_column_pixel_widths.get("situacao") == 240
+        finally:
+            reloaded_window.close()
+
     def test_header_context_menu_apply_stores_undo_snapshot(self, monkeypatch):
         class _FakeSignal:
             def __init__(self):

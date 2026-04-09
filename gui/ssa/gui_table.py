@@ -1069,10 +1069,15 @@ def _on_header_section_resized(
 ):
     """Salva a largura ajustada pelo usuario na configuracao persistente."""
     try:
-        cols = getattr(window, "_current_display_columns", None)
-        if not cols or logical_index < 0 or logical_index >= len(cols):
-            return
-        col_name = cols[logical_index]
+        col_name = None
+        resolver = getattr(window, "_resolve_header_column_name", None)
+        if callable(resolver):
+            col_name = resolver(logical_index)
+        if not col_name:
+            cols = getattr(window, "_current_display_columns", None)
+            if not cols or logical_index < 0 or logical_index >= len(cols):
+                return
+            col_name = cols[logical_index]
         new_px = max(30, min(int(new_size), 1200))
         if col_name:
             window._saved_gui_column_widths[col_name] = new_px
