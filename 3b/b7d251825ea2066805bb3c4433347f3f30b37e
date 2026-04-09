@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "3bb7d251825ea2066805bb3c4433347f3f30b37e",
+  "prompts": {
+    "7744a5c68420740f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ca6ba-2ac8-7351-93b0-4264ce5447bf",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "Maurício Menon <54405514+mauriciomenon@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

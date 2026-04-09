@@ -1,0 +1,27 @@
+docs/NEXT_CHAT_MIGRATION.md
+  f8ec1aa0540152ea 6
+docs/RECOVERY_BACKLOG.md
+  f8ec1aa0540152ea 7-8,11
+docs/AGENTS_HANDOFF_NEXT_CYCLE.md
+  f8ec1aa0540152ea 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "ccf7b585c7c05a8e8d7eae5de8fcd6aaf087f634",
+  "prompts": {
+    "f8ec1aa0540152ea": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cb5ba-4441-7062-8207-9865a7a0a0f2",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "Maurício Menon <54405514+mauriciomenon@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 506,
+      "total_deletions": 27,
+      "accepted_lines": 348,
+      "overriden_lines": 5
+    }
+  }
+}

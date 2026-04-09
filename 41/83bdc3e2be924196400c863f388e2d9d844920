@@ -1,0 +1,25 @@
+gui/ssa/gui_theme.py
+  7744a5c68420740f 434-436,440-442,453-454,467-505,563-571,710-730
+gui/gui_ssa.py
+  7744a5c68420740f 1668-1683
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "4183bdc3e2be924196400c863f388e2d9d844920",
+  "prompts": {
+    "7744a5c68420740f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ca6ba-2ac8-7351-93b0-4264ce5447bf",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "Maurício Menon <54405514+mauriciomenon@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 165,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,47 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "852d96be495e4cb9a37dcf3eb5247cab0a3f2942",
+  "prompts": {
+    "2bf4e98d23a1bb2a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_354ad94faffeZpOgOtQzNE1Auc",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Maurício Menon <54405514+mauriciomenon@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1565,
+      "overriden_lines": 0
+    },
+    "586df48d04c89866": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_377a702cbffe3RGC1hg4YRn59w",
+        "model": "alibaba/qwen3.5-397b-a17b"
+      },
+      "human_author": "Maurício Menon <54405514+mauriciomenon@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 272,
+      "overriden_lines": 0
+    },
+    "7744a5c68420740f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ca6ba-2ac8-7351-93b0-4264ce5447bf",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "Maurício Menon <54405514+mauriciomenon@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

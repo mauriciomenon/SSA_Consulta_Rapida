@@ -1,0 +1,25 @@
+dev_env/streamlit_app.py
+  7744a5c68420740f 222,232,246,256-257,269,279-280,434-436,443-445,594-596,811-1069,1074-1077,1088,1107-1108,1112,1122,1217-1266,1268-1272,1274-1292,1507,1515-1520,1540-1552,1571-1573,1589-1601,1609-1614,1616-1636,1638-1641,1643-1653,1706-1710,1712,1714-1715,1717-1720,1731-1736,1738-1746,1748-1751,1753-1799,1829-1843,1886-1901,1911-1926,1935-1970,1978-1979,1986-1992,1994-2000,2128,2222-2228,2322
+tests/test_streamlit_filter_cache.py
+  7744a5c68420740f 11,13,160-231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "57dd7be529756881fb624eeccd4a034e844c3ba9",
+  "prompts": {
+    "7744a5c68420740f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ca6ba-2ac8-7351-93b0-4264ce5447bf",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "Maurício Menon <54405514+mauriciomenon@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 745,
+      "total_deletions": 119,
+      "accepted_lines": 705,
+      "overriden_lines": 0
+    }
+  }
+}
