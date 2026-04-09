@@ -66,7 +66,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - ler antes `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
   3. manter fora deste slice o debt semantico de nome do agrupamento `exclude_ste_sca`
 
-## CURRENT TRUTH 2026-03-31 09h49
+## HISTORICAL SNAPSHOT 2026-03-31 09h49
 
 - Leitura rapida:
   1. branch alvo: `dev`
