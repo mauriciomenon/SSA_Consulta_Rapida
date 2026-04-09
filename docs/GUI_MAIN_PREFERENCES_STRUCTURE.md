@@ -35,13 +35,20 @@ Em `gui/gui_config.py` ficam os contratos base:
 3. `COLUMN_HEADER_LABEL_VARIANTS`
    - matriz canonica `short/medium/long` para os headers adaptativos da GUI
 4. `DEFAULT_COLUMN_WIDTHS`
-   - larguras default persistidas
-5. `DEFAULT_GUI_MAIN_PREFERENCES`
+   - mapa efetivo de runtime para a plataforma atual
+   - resolvido a partir de `DEFAULT_COLUMN_WIDTHS_BY_PLATFORM`
+5. `DEFAULT_COLUMN_WIDTHS_BY_PLATFORM`
+   - mapas canonicos por SO:
+     - `darwin`
+     - `win32`
+     - `linux`
+6. `DEFAULT_GUI_MAIN_PREFERENCES`
    - composicao default de:
      - `display_columns`
      - `hidden_columns`
      - `column_display_names`
      - `column_widths`
+     - `column_widths_by_platform`
      - `gui_settings`
 
 ### 2. Arquivo versionado de referencia
@@ -63,6 +70,8 @@ Regras:
 2. nao deve ser usado como unica fonte de release
 3. quando existir e estiver valido, prevalece sobre o default em codigo
 4. quando estiver ausente, a GUI usa os defaults em memoria do codigo
+5. quando trouxer `column_widths_by_platform`, o runtime escolhe primeiro o bloco da plataforma atual
+6. quando nao trouxer `column_widths_by_platform`, o runtime cai em `column_widths` por compatibilidade
 
 ### 4. Runtime da tabela
 
@@ -74,12 +83,45 @@ Na renderizacao da tabela, a ordem de precedencia de largura deve ser:
 
 Isso evita que o algoritmo automatico derrube uma largura explicitamente escolhida.
 
+## Widths por plataforma
+
+O contrato de larguras agora tem dois niveis:
+
+1. `column_widths_by_platform`
+   - fonte preferencial quando existir
+   - permite baseline diferente para:
+     - `darwin`
+     - `win32`
+     - `linux`
+2. `column_widths`
+   - fallback de compatibilidade para configs antigos
+   - continua sendo o mapa persistido efetivo que a GUI usa em runtime apos resolver a plataforma
+
+Onde a deteccao do SO acontece:
+
+1. `gui/gui_config.py::_normalize_platform_key(...)`
+   - usa `sys.platform` quando nao recebe override
+   - normaliza para `darwin`, `win32` ou `linux`
+2. `gui/gui_config.py::_resolve_platform_column_widths(...)`
+   - recebe os mapas por plataforma
+   - escolhe o bloco da plataforma atual
+3. `gui/gui_config.py::_merge_preferences(...)`
+   - fecha `merged["column_widths"]` para o runtime
+
+Leitura complementar obrigatoria:
+
+1. `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
+   - detalha o algoritmo
+   - mostra o Mermaid
+   - lista os mapas atuais por plataforma
+
 ## O que mudou em termos de comportamento
 
 1. se `config/gui_main_preferences.json` faltar ou o runtime estiver em outro `SSA_CONFIG_DIR`, o runtime cai para os defaults em memoria do codigo
 2. se existir largura persistida valida para a coluna, ela ganha da largura calculada em runtime
 3. o fallback local de largura da tabela foi amarrado ao contrato canonico de `gui/gui_config.py`, sem numeros paralelos soltos em `gui/ssa/gui_table.py`
 4. o baseline automatico do `SimpleWidthManager` agora parte de `DEFAULT_COLUMN_WIDTHS`; o crescimento automatico so adiciona espaco por cima desse baseline, sem reabrir os numeros canonicos
+   - esse `DEFAULT_COLUMN_WIDTHS` ja e o mapa resolvido para a plataforma atual
 5. reorder de colunas por drag e alteracao de colunas visiveis passam a persistir no mesmo arquivo de preferencias, junto com `hidden_columns`
 6. o contrato fica assim:
    - arquivo local tem a ultima palavra
@@ -90,6 +132,7 @@ Isso evita que o algoritmo automatico derrube uma largura explicitamente escolhi
 
 1. este trabalho nao mudou `REQUIRED_DISPLAY_COLUMNS`
 2. este trabalho nao mudou `DEFAULT_COLUMN_WIDTHS`
+   - mas o contrato atual passa a resolver esse mapa por plataforma antes do runtime
 3. o slice 1 fechou primeiro a hierarquia de preferencias e a precedencia da largura salva
 4. o slice 2 atacou apenas o desalinhamento remanescente do width manager automatico, fazendo-o partir do baseline canonico em vez de manter numeros paralelos
 5. este ajuste corretivo remove a semantica errada que fazia o runtime usar o `.example` como seed
@@ -146,7 +189,7 @@ Mapa `nome_interno -> largura em pixels`.
 Uso:
 
 1. representa a largura persistida da GUI
-2. e a ultima palavra para colunas conhecidas quando o arquivo local estiver presente
+2. quando o arquivo local estiver presente, e o mapa efetivo de runtime depois de resolver a plataforma e aplicar fallbacks
 
 Regra:
 
@@ -195,20 +238,24 @@ Uso:
 1. a GUI le `config/gui_main_preferences.json` pelo caminho resolvido
 2. valida integridade minima
 3. faz merge defensivo com os defaults
-4. carrega o resultado em `GUI_MAIN_PREFERENCES`
+4. detecta a plataforma atual
+5. resolve `column_widths_by_platform[plataforma]` quando existir
+6. carrega o resultado final em `GUI_MAIN_PREFERENCES`
 
 ### Caso 2: arquivo local nao existe
 
 1. a GUI resolve o caminho local efetivo
 2. usa os defaults em memoria do codigo
-3. se `auto_create=True`, cria o arquivo local a partir desses defaults
+3. detecta a plataforma atual e resolve o bloco correto de widths
+4. se `auto_create=True`, cria o arquivo local a partir desses defaults
 
 ### Caso 3: arquivo local esta invalido
 
 1. loga erro objetivo
 2. nao tenta remendo chave-a-chave nem recuperacao silenciosa
 3. cai nos defaults em memoria do codigo
-4. se `auto_create=True`, o arquivo local pode ser recriado a partir desses defaults
+4. detecta a plataforma atual e resolve o bloco correto de widths
+5. se `auto_create=True`, o arquivo local pode ser recriado a partir desses defaults
 
 ## Caminho resolvido por ambiente
 
@@ -256,6 +303,7 @@ Esse nome e a chave unica usada em:
 1. nasce em `column_widths`
 2. pode ser recalculada automaticamente para colunas sem largura persistida aplicavel
 3. o runtime nunca deve passar por cima de largura persistida valida
+4. quando existir `column_widths_by_platform`, o baseline do runtime nasce do bloco da plataforma atual antes de fechar `column_widths`
 
 ## Algoritmo real de exibicao de texto na GUI
 
@@ -277,6 +325,7 @@ Consequencia:
 
 1. colunas compactas continuam compactas quando `medium` e `long` repetem o mesmo rotulo
 2. colunas largas conseguem crescer sem alterar `DEFAULT_COLUMN_WIDTHS`
+   - ou `DEFAULT_COLUMN_WIDTHS_BY_PLATFORM` no nivel canonico
 3. o comportamento adaptativo depende da largura final da coluna, nao do schema sozinho
 
 ### Celulas da tabela
@@ -304,6 +353,7 @@ Consequencia:
 2. largura automatica calculada em runtime
 3. largura carregada do merge de `GUI_MAIN_PREFERENCES`
 4. fallback canonico de `DEFAULT_COLUMN_WIDTHS`
+   - resolvido por plataforma antes do runtime
 
 ### Recalculo automatico
 
@@ -314,6 +364,7 @@ Consequencia:
 ### Crescimento automatico
 
 1. o baseline parte de `DEFAULT_COLUMN_WIDTHS`
+   - isto e, do mapa ja resolvido para a plataforma atual
 2. o espaco extra automatico e distribuido apenas para colunas expansivas
 3. hoje isso se aplica principalmente a `descricao_ssa`, `descricao_execucao` e `solicitante`
 

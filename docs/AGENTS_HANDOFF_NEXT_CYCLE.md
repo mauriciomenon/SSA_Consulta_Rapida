@@ -49,17 +49,21 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - se faltar `config/gui_main_preferences.json` ou o runtime mudar `SSA_CONFIG_DIR`, o runtime usa os defaults em memoria do codigo
      - se existir largura persistida valida, ela ganha da largura calculada em runtime
      - o fallback local da tabela e o baseline automatico partem do contrato canonico em `gui/gui_config.py`
+     - o baseline canonico de widths agora nasce de `DEFAULT_COLUMN_WIDTHS_BY_PLATFORM`
+     - `DEFAULT_COLUMN_WIDTHS` no runtime ja e o mapa resolvido para a plataforma atual
      - arquivo local tem a ultima palavra; o `.example` documenta o padrao; codigo define a base
      - o header da GUI agora escolhe `long -> medium -> short` pela largura real da coluna, com reserva para `[f] `
      - as celulas da tabela agora aceitam `left|center|right`, com default `right`
      - a CLI continua fora do contrato de preferencias da GUI, mas segue usando `display_map`, `short_labels`, `fixed_widths` e alternancia `short/full`
      - `core/handler_base.py:197` continua documentado apenas como renderer paralelo fora do caminho principal `main.py -> interface/cli.py -> interface/table_printer.py`
+     - referencia detalhada do algoritmo: `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
 - Proximo foco recomendado:
   1. separar claramente no patch futuro:
      - ordem/labels/defaults de produto
      - preferencia persistida do usuario
      - width manager real da tabela
   2. se o produto quiser, analisar em slice separado se os numeros de `DEFAULT_COLUMN_WIDTHS` precisam revisao controlada
+     - ler antes `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
   3. manter fora deste slice o debt semantico de nome do agrupamento `exclude_ste_sca`
 
 ## CURRENT TRUTH 2026-03-31 09h49
