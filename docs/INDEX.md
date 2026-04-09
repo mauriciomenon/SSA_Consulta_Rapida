@@ -49,6 +49,8 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - `docs/MAC_CONTINUATION_HANDOFF_20260329.md`
 15. Estrutura canonica de preferencias da GUI:
    - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
+16. Widths por sistema operacional da GUI:
+   - `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
 
 ## Regras de leitura
 
@@ -101,6 +103,7 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 ## GUI e filtros
 
 - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
+- `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
 - `docs/GUI_PYQT6_REGRAS_GERAIS.md`
 - `docs/FILTER_TAB_OPTIMIZATIONS.md`
 - `docs/GUI_ASYNC_LOADING_GUARDRAILS.md`

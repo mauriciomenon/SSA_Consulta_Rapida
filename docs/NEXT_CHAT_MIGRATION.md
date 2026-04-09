@@ -28,9 +28,13 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - default canonico `right`
    - valor invalido volta para `right`
    - menu atual: `Opcoes -> Alinhamento da tabela`
-6. o contrato de largura nao mudou:
-   - `DEFAULT_COLUMN_WIDTHS` intacto
+6. o contrato de largura agora deve ser lido assim:
+   - o runtime resolve `DEFAULT_COLUMN_WIDTHS` para a plataforma atual
+   - o baseline canonico de origem passa por `DEFAULT_COLUMN_WIDTHS_BY_PLATFORM`
    - largura persistida continua vencendo largura automatica
+   - `column_widths_by_platform` e a fonte preferencial quando existir
+   - `column_widths` simples segue como fallback de compatibilidade
+   - referencia detalhada: `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
 7. a CLI continua fora deste slice, mas a descricao correta agora e:
    - CLI interativa principal usa `display_map`, `short_labels`, `fixed_widths`
    - alternancia `short/full`
@@ -123,7 +127,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 ### Proximo passo recomendado
 
 1. analisar em slice separado, sem executar sem aprovacao:
-   - revisao numerica opcional de `DEFAULT_COLUMN_WIDTHS`, se o produto quiser reabrir tamanhos canonicos
+   - revisao numerica opcional dos mapas em `DEFAULT_COLUMN_WIDTHS_BY_PLATFORM`, se o produto quiser reabrir tamanhos canonicos
 2. manter separado qualquer follow-up de `.gitignore`/`dev_env/config/display_mappings.json`
 3. backlog semantico aberto:
    - renomear ou reclassificar o agrupamento `exclude_ste_sca` se o produto realmente agrupa `SES/SAD/STE/SCA`
