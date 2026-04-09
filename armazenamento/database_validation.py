@@ -104,7 +104,9 @@ def _validate_numero_ssa(df: pd.DataFrame, report: dict[str, Any]) -> None:
     if invalid_count == 0:
         return
     report["warnings"].append(f"{invalid_count} números SSA inválidos encontrados")
-    _append_unique_invalid_rows(report, df[invalid_ssa_mask].index.tolist())
+    invalid_indices = df[invalid_ssa_mask].index.tolist()
+    report["invalid_by_column"]["numero_ssa"] = invalid_indices
+    _append_unique_invalid_rows(report, invalid_indices)
     report["violations"].append(
         {
             "rule": "invalid_numero_ssa",
