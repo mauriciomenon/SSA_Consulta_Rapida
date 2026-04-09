@@ -633,8 +633,8 @@ class TestGUIFilterLogic:
 
         assert "table-layout: fixed" in html
         assert "<colgroup>" in html
-        assert "width: 23%;" in html
-        assert "width: 77%;" in html
+        assert 'width: 18%;' in html
+        assert 'width: 82%;' in html
         assert "overflow-wrap: anywhere" in html
         assert "word-break: break-word" in html
 
@@ -2608,6 +2608,16 @@ class TestGUIFilterLogic:
         )
 
         assert "Grau de Prioridade<br/>(Emissao):" in html
+
+    def test_details_html_breaks_data_arquivo_origem_label_in_two_lines(self):
+        series = self.base_df.iloc[0].copy()
+        series["data_arquivo_origem"] = "2026-03-02"
+
+        html = self.window._format_details_html(
+            series, highlight_search_terms=False, linkify=False
+        )
+
+        assert "Data do Arquivo<br/>de Origem:" in html
 
     def test_details_text_disables_automatic_link_navigation(self):
         details_text = self.window.details_text

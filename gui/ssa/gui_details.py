@@ -252,7 +252,7 @@ def _format_details_html(
         '<table style="width: 100%; border-collapse: collapse; table-layout: fixed;">'
     )
     html_lines.append(
-        '<colgroup><col style="width: 23%;"/><col style="width: 77%;"/></colgroup>'
+        '<colgroup><col style="width: 18%;"/><col style="width: 82%;"/></colgroup>'
     )
 
     def field_sort_key(item):
@@ -292,6 +292,8 @@ def _format_details_html(
         display_name_html = html_module.escape(display_name)
         if display_name == "Grau de Prioridade (Emissao)":
             display_name_html = "Grau de Prioridade<br/>(Emissao)"
+        elif display_name == "Data do Arquivo de Origem":
+            display_name_html = "Data do Arquivo<br/>de Origem"
 
         html_lines.append(
             f"<tr>"
