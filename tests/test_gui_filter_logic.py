@@ -633,8 +633,8 @@ class TestGUIFilterLogic:
 
         assert "table-layout: fixed" in html
         assert "<colgroup>" in html
-        assert 'width: 18%;' in html
-        assert 'width: 82%;' in html
+        assert "width: 18%;" in html
+        assert "width: 82%;" in html
         assert "overflow-wrap: anywhere" in html
         assert "word-break: break-word" in html
 
