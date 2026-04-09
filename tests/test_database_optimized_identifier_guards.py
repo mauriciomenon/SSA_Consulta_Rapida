@@ -348,7 +348,9 @@ def test_insert_dataframe_optimized_aborts_when_update_lookup_is_incomplete(
         }
     )
 
-    assert insert_dataframe_optimized(incoming, db_path, table_name="ssa_table") is False
+    assert (
+        insert_dataframe_optimized(incoming, db_path, table_name="ssa_table") is False
+    )
 
     conn = sqlite3.connect(db_path)
     try:
