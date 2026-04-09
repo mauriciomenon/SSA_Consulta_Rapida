@@ -7,6 +7,7 @@ import time
 import pytest
 
 from armazenamento.derivadas_queries import (
+    _open_derivadas_connection,
     get_ancestors,
     get_children,
     get_descendants,
@@ -194,3 +195,9 @@ def test_queries_on_fresh_db_do_not_create_derivadas_tables(temp_db):
             ).fetchall()
         }
     assert after == set()
+
+
+def test_open_derivadas_connection_hides_connection_when_schema_not_ready(temp_db):
+    with _open_derivadas_connection(temp_db) as (conn, schema_ready):
+        assert schema_ready is False
+        assert conn is None
