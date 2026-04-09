@@ -310,7 +310,9 @@ def _resolve_platform_column_widths(
 ) -> Dict[str, int]:
     platform_key = _normalize_platform_key(platform_name)
     source_platforms = (
-        platform_widths if isinstance(platform_widths, dict) else DEFAULT_COLUMN_WIDTHS_BY_PLATFORM
+        platform_widths
+        if isinstance(platform_widths, dict)
+        else DEFAULT_COLUMN_WIDTHS_BY_PLATFORM
     )
     base_widths = copy.deepcopy(
         source_platforms.get(platform_key, DEFAULT_COLUMN_WIDTHS_BY_PLATFORM["linux"])

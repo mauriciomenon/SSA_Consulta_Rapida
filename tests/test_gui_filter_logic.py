@@ -1068,16 +1068,19 @@ class TestGUIFilterLogic:
 
         assert column_names["execucao_parcial"] == "Exec. Parcial"
         assert default_widths["data_cadastro"] == 84
-        assert default_widths["grau_prioridade_emissao"] == expected[
-            "grau_prioridade_emissao"
-        ]
-        assert default_widths["grau_prioridade_planejamento"] == expected[
-            "grau_prioridade_planejamento"
-        ]
+        assert (
+            default_widths["grau_prioridade_emissao"]
+            == expected["grau_prioridade_emissao"]
+        )
+        assert (
+            default_widths["grau_prioridade_planejamento"]
+            == expected["grau_prioridade_planejamento"]
+        )
         assert default_widths["execucao_parcial"] == expected["execucao_parcial"]
-        assert default_widths["total_de_reprogramacoes"] == expected[
-            "total_de_reprogramacoes"
-        ]
+        assert (
+            default_widths["total_de_reprogramacoes"]
+            == expected["total_de_reprogramacoes"]
+        )
         assert default_widths["semana_executada"] == expected["semana_executada"]
         assert default_widths["responsavel_execucao"] == 150
         assert column_widths["data_cadastro"] >= default_widths["data_cadastro"]
