@@ -259,17 +259,6 @@ def _append_dataframe_rows(
         try:
             cursor.executemany(insert_sql, rows)
         except Exception as exc:
-            in_transaction = getattr(conn, "in_transaction", False)
-            if bool(in_transaction):
-                try:
-                    rollback_fn = getattr(conn, "rollback", None)
-                    if callable(rollback_fn):
-                        rollback_fn()
-                except Exception as rollback_exc:
-                    logger.error(
-                        "Falha ao executar rollback em _append_dataframe_rows: %s",
-                        rollback_exc,
-                    )
             logger.error(
                 "Falha no append em lote para '%s' (offset=%s, size=%s): %s",
                 table_name,
@@ -448,7 +437,7 @@ def _should_update_existing(
         # Neste caminho (update) sempre bloqueia.
         if has_file_context and new_file_dt is None:
             return False
-        if existing_file_dt is not None:
+        if existing_file_dt is not None and new_file_dt is not None:
             if new_file_dt < existing_file_dt:
                 return False
             if new_file_dt > existing_file_dt:

@@ -38,14 +38,14 @@ class _TrackingConn:
         self.rollback_calls += 1
 
 
-def test_append_dataframe_rows_rolls_back_when_chunk_insert_fails() -> None:
+def test_append_dataframe_rows_does_not_rollback_when_chunk_insert_fails() -> None:
     conn = _TrackingConn(in_transaction=True)
     frame = pd.DataFrame([{"numero_ssa": "202600001", "situacao": "ADM"}])
 
     with pytest.raises(RuntimeError, match="forced executemany failure"):
         upsert_logic._append_dataframe_rows(conn, "ssa_table", frame)
 
-    assert conn.rollback_calls == 1
+    assert conn.rollback_calls == 0
 
 
 def test_append_dataframe_rows_does_not_rollback_without_active_transaction() -> None:
