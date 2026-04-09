@@ -2553,6 +2553,8 @@ def filter_dataframe(
             "responsavel_execucao",
             "setor_executor",
             "setor_emissor",
+            "localizacao_codigo",
+            "descricao_localizacao",
             "descricao_ssa",
             "descricao_execucao",
             "descricao_servico",
