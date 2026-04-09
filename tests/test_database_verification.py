@@ -263,6 +263,7 @@ class TestDataValidation:
         assert report["is_valid"] is True
         assert "inválidos" in str(report["warnings"])
         assert 0 in report["invalid_rows"]
+        assert report["invalid_by_column"]["numero_ssa"] == [0]
 
     def test_validate_invalid_rows_has_no_duplicate_indexes(self):
         """Garante que invalid_rows nao repete indice para numero_ssa ausente."""
