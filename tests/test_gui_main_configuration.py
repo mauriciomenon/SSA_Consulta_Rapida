@@ -276,6 +276,34 @@ class TestGUIMainConfiguration:
         assert "execucao_parcial" in config["hidden_columns"]
         assert "responsavel_execucao" in config["hidden_columns"]
 
+    def test_load_gui_main_preferences_removes_hidden_overlap_from_display_columns(
+        self,
+    ):
+        partial_config = {
+            "display_columns": ["situacao", "numero_ssa", "descricao_ssa"],
+            "hidden_columns": ["numero_ssa", "descricao_ssa", "equipamento"],
+            "column_display_names": {},
+            "column_widths": {},
+            "gui_settings": {},
+        }
+
+        from gui.gui_config import load_gui_main_preferences
+
+        with patch(
+            "gui.gui_config.open", mock_open(read_data=json.dumps(partial_config))
+        ):
+            with patch("gui.gui_config.os.path.exists", return_value=True):
+                config = load_gui_main_preferences()
+
+        assert config["display_columns"][:3] == [
+            "situacao",
+            "numero_ssa",
+            "descricao_ssa",
+        ]
+        assert "numero_ssa" not in config["hidden_columns"]
+        assert "descricao_ssa" not in config["hidden_columns"]
+        assert "equipamento" in config["hidden_columns"]
+
     def test_load_gui_main_preferences_preserves_explicit_data_arquivo_width(self):
         partial_config = {
             "display_columns": ["numero_ssa", "situacao", "data_arquivo_origem"],

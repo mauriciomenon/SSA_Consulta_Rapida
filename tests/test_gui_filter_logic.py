@@ -1001,22 +1001,22 @@ class TestGUIFilterLogic:
 
     def test_default_display_columns_follow_requested_canonical_order(self):
         expected = [
+            "situacao",
             "numero_ssa",
             "localizacao_codigo",
-            "situacao",
             "setor_emissor",
             "setor_executor",
             "derivada_de",
             "data_cadastro",
             "semana_cadastro",
             "descricao_ssa",
-            "grau_prioridade_emissao",
             "solicitante",
-            "grau_prioridade_planejamento",
             "semana_programada",
+            "descricao_execucao",
+            "grau_prioridade_emissao",
+            "grau_prioridade_planejamento",
             "total_de_reprogramacoes",
             "execucao_parcial",
-            "descricao_execucao",
             "semana_executada",
             "responsavel_execucao",
         ]
@@ -3839,6 +3839,64 @@ class TestGUIFilterLogic:
 
         assert self.window.sort_column == "situacao"
         assert self.window.df_exibido["situacao"].tolist() == ["E", "D", "C", "B", "A"]
+
+    def test_persisted_reordered_columns_reload_keeps_real_header_sort(self):
+        persisted_display = ["situacao"] + [
+            col for col in self.window.visible_columns if col != "situacao"
+        ]
+        persisted_hidden = [
+            col
+            for col in self._gui_main_preferences_snapshot.get("hidden_columns", [])
+            if col not in persisted_display
+        ]
+        gui_ssa.GUI_MAIN_PREFERENCES["display_columns"] = list(persisted_display)
+        gui_ssa.GUI_MAIN_PREFERENCES["hidden_columns"] = list(persisted_hidden)
+
+        reloaded_window = SSAMainWindow()
+        reloaded_window.show()
+        try:
+            click_df = self.base_df.copy()
+            click_df["numero_ssa"] = [30000, 10000, 20000, 50000, 40000]
+            click_df["situacao"] = ["C", "A", "B", "E", "D"]
+            reloaded_window.df_completo = click_df.copy()
+            reloaded_window.df_exibido = click_df.copy()
+            reloaded_window._df_last_search_filtered = click_df.copy()
+            reloaded_window.paginator.set_dataframe(click_df.copy())
+            reloaded_window.display_current_page(1)
+            QApplication.processEvents()
+
+            assert reloaded_window.visible_columns[:3] == [
+                "situacao",
+                "numero_ssa",
+                "localizacao_codigo",
+            ]
+
+            header = reloaded_window.table_widget.horizontalHeader()
+            situacao_index = reloaded_window._current_display_columns.index("situacao")
+            click_pos = QPoint(
+                header.sectionViewportPosition(situacao_index)
+                + max(5, header.sectionSize(situacao_index) // 2),
+                max(5, header.height() // 2),
+            )
+
+            cast(Any, QTest).mouseClick(
+                header.viewport(),
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                click_pos,
+            )
+            QApplication.processEvents()
+
+            assert reloaded_window.sort_column == "situacao"
+            assert reloaded_window.df_exibido["situacao"].tolist() == [
+                "A",
+                "B",
+                "C",
+                "D",
+                "E",
+            ]
+        finally:
+            reloaded_window.close()
 
     def test_best_fit_width_guard_ignores_single_extreme_outlier(self):
         expanded_df = pd.concat(
