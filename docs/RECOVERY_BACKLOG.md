@@ -5,6 +5,29 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-09 - GUI state contract hardening residual
+
+Frente funcional aterrada nesta rodada:
+1. a GUI passou a ser dona explicita do contrato de colunas da busca geral
+2. reorder passou a preservar detalhes
+3. sort passou a preservar detalhes
+4. resize passou a persistir largura na coluna correta mesmo com reorder
+5. reorder em schema parcial passou a preservar colunas visiveis ausentes
+6. derivadas ficaram travadas em contrato de navegacao por regressao
+7. post-mortem tecnico consolidado em:
+   - `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
+
+Debt estrutural remanescente, sem correcao neste slice:
+1. `display_current_page(...)` continua concentrando responsabilidades demais:
+   - paginacao
+   - schema visivel
+   - render da tabela
+   - sync do header
+   - larguras
+   - detalhes
+2. o risco agudo dos call sites principais caiu, mas o concentrador estrutural continua
+3. qualquer ataque a esse ponto deve entrar em slice proprio, pequeno, com contrato de nao-regressao explicito
+
 ## Update 2026-04-08 - relation id normalization scope
 
 Decision recorded for the derivadas hardening cycle:

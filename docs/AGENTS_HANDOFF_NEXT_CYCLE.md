@@ -2,39 +2,37 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-07 10h20
+## CURRENT TRUTH 2026-04-09 20h13
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. baseline mais recente desta frente entregou labels adaptativos no header da GUI sem tocar CLI nem `gui/gui_ssa.py`
-  3. stash preservado fora de `dev`:
+  2. stash preservado fora de `dev`:
      - `stash@{0}` `On main: pre-dev-switch-display-mappings-20260406`
-  4. este slice fez:
-     - matriz canonica `short/medium/long` em `gui/gui_config.py`
-     - selecao adaptativa no paint final do header em `gui/ssa/gui_table.py`
-     - reserva de espaco para `[f] ` e margem lateral do header
-      - debounce leve de refresh apos resize manual
-      - alinhamento das celulas da tabela vindo de `gui_settings.table_cell_alignment`
-      - menu `Opcoes -> Alinhamento da tabela` para trocar `left|center|right`
-      - regressao em `tests/test_gui_filter_logic.py`
-      - doc tecnico e docs vivos alinhados
-  5. arquivos tocados no slice mais recente:
-     - `gui/gui_config.py`
-     - `gui/ssa/gui_table.py`
-     - `tests/test_gui_filter_logic.py`
-     - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
-     - `docs/NEXT_CHAT_MIGRATION.md`
-     - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
-     - `docs/RECOVERY_BACKLOG.md`
-     - `docs/INDEX.md`
-  6. validacao do ultimo slice funcional:
-     - `py_compile`, `ruff`, `ty` verdes
-     - `pytest` focado -> `12 passed`
+  3. esta frente consolidou o contrato do bloco GUI/tabela/detalhes sem refatoracao ampla:
+     - busca geral da GUI agora e dona explicita das colunas de busca
+     - reorder preserva detalhes
+     - sort preserva detalhes
+     - resize persiste largura na coluna correta
+     - reorder em schema parcial preserva colunas visiveis ausentes
+     - derivadas ficaram travadas em contrato de navegacao e retorno a origem
+  4. docs de referencia desta frente:
+     - `docs/GUI_GENERAL_SEARCH_COLUMN_CONTRACT.md`
+     - `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
+  5. commits chave desta frente:
+     - `bf57520d` `STABILITY_PATCH: make GUI own general search columns`
+     - `38cb9cc5` `STABILITY_PATCH: harden header column resolution and reorder sync`
+     - `048700c4` `STABILITY_PATCH: preserve hidden-visible column state on partial reorder`
+     - `5e581d6e` `STABILITY_PATCH: align header resize persistence with visual mapping`
+     - `c45d9e42` `STABILITY_PATCH: keep details panel stable during column reorder`
+     - `3bc0d36f` `STABILITY_PATCH: preserve details during header sorting`
+     - `21135ccf` `STABILITY_PATCH: lock derivadas detail navigation contract`
+  6. validacao relevante desta frente:
+     - `py_compile`, `ruff`, `ty` verdes nos slices tocados
+     - `pytest` focados relevantes verdes
      - `bandit` indisponivel neste host (`No module named bandit`)
   7. `kluster` esta disponivel neste host:
      - `/Users/menon/.kluster/cli/bin/kluster`
-     - um review local no lote de codigo devolveu apenas debts antigos
-     - a reexecucao no lote final com docs excedeu o timeout e deve ser tratada como bloqueio de ferramenta
+     - timeout eventual de review deve ser tratado como bloqueio de ferramenta, nao como gate verde
   8. PR ativo:
      - `#46` `dev -> main`
      - `mergeStateStatus=UNSTABLE`
@@ -55,6 +53,10 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - a fase antiga de local-only/skip-worktree para esse arquivo e apenas historica
      - o header da GUI agora escolhe `long -> medium -> short` pela largura real da coluna, com reserva para `[f] `
      - as celulas da tabela agora aceitam `left|center|right`, com default `right`
+     - reorder e sort de coluna nao podem atualizar o painel de detalhes
+     - resize usa o mesmo contrato de resolucao de coluna do header
+     - reorder em schema parcial nao pode expulsar colunas visiveis ausentes do estado persistido
+     - o contrato de derivadas deve ser lido pelo post-mortem e pelos testes de regressao, nao por inferencia
      - a CLI continua fora do contrato de preferencias da GUI, mas segue usando `display_map`, `short_labels`, `fixed_widths` e alternancia `short/full`
      - `core/handler_base.py:197` continua documentado apenas como renderer paralelo fora do caminho principal `main.py -> interface/cli.py -> interface/table_printer.py`
      - referencia detalhada do algoritmo: `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
@@ -63,9 +65,11 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - ordem/labels/defaults de produto
      - preferencia persistida do usuario
      - width manager real da tabela
-  2. se o produto quiser, analisar em slice separado se os numeros de `DEFAULT_COLUMN_WIDTHS` precisam revisao controlada
+  2. manter qualquer refatoracao de `display_current_page(...)` em slice separado
+  3. tratar qualquer novo call site visual com `display_current_page(...)` como risco de contrato cruzado
+  4. se o produto quiser, analisar em slice separado se os numeros de `DEFAULT_COLUMN_WIDTHS` precisam revisao controlada
      - ler antes `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
-  3. manter fora deste slice o debt semantico de nome do agrupamento `exclude_ste_sca`
+  5. manter fora deste slice o debt semantico de nome do agrupamento `exclude_ste_sca`
 
 ## HISTORICAL SNAPSHOT 2026-03-31 09h49
 

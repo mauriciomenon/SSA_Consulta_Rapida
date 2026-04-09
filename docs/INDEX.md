@@ -102,6 +102,7 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 
 ## GUI e filtros
 
+- `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
 - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
 - `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
 - `docs/GUI_PYQT6_REGRAS_GERAIS.md`

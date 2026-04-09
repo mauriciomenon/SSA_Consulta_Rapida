@@ -2,6 +2,39 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
+## **UPDATE 2026-04-09 - GUI STATE CONTRACT HARDENING**
+
+**Data de Registro**: Abril 2026
+**Tipo**: Stabilization patch train and doc sync
+**Status**: Aterrado em `dev`
+
+### **Principais entregas**
+- A GUI passou a ser dona explicita do contrato de colunas da busca geral.
+- Header da tabela endurecido sem refatoracao ampla:
+  - reorder de coluna preserva detalhes
+  - sort de coluna preserva detalhes
+  - resize persiste largura na coluna correta mesmo com reorder
+  - reorder em schema parcial preserva colunas visiveis ausentes do schema atual
+- Contrato de navegacao de derivadas travado em regressao:
+  - aplicar filtro por derivadas atualiza lista e detalhes da derivada exibida
+  - limpar filtro retorna para a SSA origem via `_jump_to_ssa(...)`
+- `config/gui_main_preferences.json` tracked foi normalizado e a documentacao do contrato foi alinhada ao runtime real.
+- Post-mortem tecnico consolidado em:
+  - `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
+
+### **Commits chave**
+- `bf57520d` `STABILITY_PATCH: make GUI own general search columns`
+- `38cb9cc5` `STABILITY_PATCH: harden header column resolution and reorder sync`
+- `048700c4` `STABILITY_PATCH: preserve hidden-visible column state on partial reorder`
+- `5e581d6e` `STABILITY_PATCH: align header resize persistence with visual mapping`
+- `c45d9e42` `STABILITY_PATCH: keep details panel stable during column reorder`
+- `3bc0d36f` `STABILITY_PATCH: preserve details during header sorting`
+- `21135ccf` `STABILITY_PATCH: lock derivadas detail navigation contract`
+
+### **Risco estrutural remanescente**
+- `display_current_page(...)` continua concentrando responsabilidades demais.
+- O risco agudo dos call sites principais caiu, mas qualquer refatoracao nessa area segue devendo slice proprio e pequeno.
+
 ## **RELEASE v4.37 - CURRENT LOCAL BASELINE**
 
 **Data de Lancamento**: Marco 2026
@@ -600,4 +633,3 @@ Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao de
 **Status**: Desenvolvimento ativo com releases regulares a cada 2-3 meses.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-
