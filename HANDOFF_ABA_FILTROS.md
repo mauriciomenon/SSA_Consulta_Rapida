@@ -8,7 +8,7 @@
   - `docs/NEXT_CHAT_MIGRATION.md`
   - `docs/RECOVERY_BACKLOG.md`
 - Branch ativa atual: `dev`.
-- Release local atual: `4.36`.
+- Release local atual: `4.37`.
 - Runtime padrao atual: `uv run --python 3.13 ...` (fallback 3.12 -> 3.11 -> 3.10).
 
 ---

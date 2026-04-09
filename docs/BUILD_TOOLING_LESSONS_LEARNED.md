@@ -1,6 +1,6 @@
 # Build Tooling Lessons Learned (PyInstaller/Nuitka/PyOxidizer)
 
-## Current Truth (v4.36)
+## Current Truth (4.37 local / v4.36 published)
 
 - Sync: `2026-03-27 04:10 -0300`
 - Objetivo: registrar erros reais, causa-raiz, fix aplicado e comandos de validacao.

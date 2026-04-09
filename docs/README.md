@@ -2,7 +2,7 @@
 
 ## Baseline ativo
 
-- Versao de referencia: `4.36`.
+- Versao de referencia: `4.37`.
 - Esta pagina e a entrada curta da pasta `docs/`.
 - Navegacao oficial: `docs/INDEX.md`.
 - Current truth sincronizado com commits anteriores desta frente:

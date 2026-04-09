@@ -70,7 +70,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
 
 - Leitura rapida:
   1. branch alvo: `dev`
-  2. metadata local ativa: `4.36`
+  2. metadata local ativa: `4.37`
   3. ultima tag publicada em `dev`: `v4.36`
   4. ultimos slices relevantes ja aterrados:
      - `7913c712` `DOC_SYNC: align live continuity docs`

@@ -1,11 +1,11 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-## CURRENT TRUTH (v4.36)
+## CURRENT TRUTH (4.37 local / v4.36 published)
 
 - Sync deste guia: `2026-03-28 11:35 -0300`.
-- Versao de referencia local: `4.36` (arquivo `VERSION`).
+- Versao de referencia local: `4.37` (arquivo `VERSION`).
 - Ultima tag publicada em `dev`: `v4.36`.
-- Este guia esta alinhado ao estado pos-tag de `4.36`.
+- Este guia esta alinhado ao baseline local `4.37`; a ultima tag publicada ainda e `v4.36`.
 - Fluxo canonico de build: `launchers/build_multiplatform.py`.
 - Saida canonica de artefatos: `launchers/dist/<plataforma>/`.
 - Empacotamento: `scripts/create_distribution.py`.
@@ -33,7 +33,7 @@ Resultado de tentativa de pacote (scripts/create_distribution.py):
 
 Evidencia local desta rodada:
 - logs consolidados: `/tmp/ssa_pack_audit_20260310_1030/summary.log`
-- artefato alvo desta rodada: `dist_packages/SSA_Consulta_Rapida_v4.36_pyinstaller.zip`
+- artefato alvo desta rodada: `dist_packages/SSA_Consulta_Rapida_v4.37_pyinstaller.zip`
 
 ## Visao Geral
 
@@ -180,7 +180,7 @@ No caminho canonico de empacotamento, diretorios de dados locais sensiveis nao e
 - `reports`
 - `exportacao`
 
-Politica operacional (v4.36+):
+Politica operacional (v4.37+):
 - build canonico nao embeda `data/` por padrao.
 - se for necessario incluir dados locais para laboratorio, usar fluxo explicito e controlado:
   - `uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data`
@@ -198,7 +198,7 @@ Politica operacional (v4.36+):
 Texto sugerido:
 
 ```text
-SSA Consulta Rapida v4.36
+SSA Consulta Rapida v4.37
 
 INSTALACAO
 1. Baixe o arquivo ZIP.

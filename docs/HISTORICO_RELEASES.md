@@ -2,15 +2,15 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
-## **RELEASE v4.36 - CURRENT RELEASE**
+## **RELEASE v4.37 - CURRENT LOCAL BASELINE**
 
 **Data de Lancamento**: Marco 2026
 **Tipo**: Stabilization baseline and release alignment
 **Status**: Estavel
 
 ### **Principais entregas**
-- Baseline operacional promovido para `4.36`.
-- Tag/release GitHub publicada como `v4.36`.
+- Baseline operacional promovido para `4.37`.
+- Ultima tag/release GitHub publicada permanece `v4.36`. A promocao local atual e `4.37`.
 - Docs vivos de controle consolidados em torno de `AGENTS.md`, `docs/README.md`,
   `docs/NEXT_CHAT_MIGRATION.md`, `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` e
   `docs/RECOVERY_BACKLOG.md`.
@@ -24,7 +24,7 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - cobertura de regressao adicionada para evitar `STE -> ADM` por ordem de arquivo
 
 ### **Documentacao da versao**
-- `README.md` (baseline `4.36`)
+- `README.md` (baseline `4.37`)
 - `docs/README.md`
 - `docs/NEXT_CHAT_MIGRATION.md`
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
@@ -584,7 +584,8 @@ custom_formatting = True
 ## **SUPORTE E MANUTENCAO**
 
 ### **Politica de Suporte**
-- **v4.36**: Baseline estavel ativo
+- **v4.37**: Baseline estavel local ativo
+- **v4.36**: Ultima tag publicada
 - **v4.31**: Suporte de compatibilidade em migracao
 - **Versoes anteriores**: Tratadas como historico
 
@@ -594,7 +595,7 @@ custom_formatting = True
 - **Scripts**: Scripts de manutencao e diagnostico
 
 ### **Atualizacao Recomendada**
-Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao mais recente estavel (v4.36).
+Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao de referencia mais recente no baseline atual (`4.37`).
 
 **Status**: Desenvolvimento ativo com releases regulares a cada 2-3 meses.
 
