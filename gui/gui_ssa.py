@@ -3185,7 +3185,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     "Falha ao sincronizar colunas selecionadas no selector: %s", exc
                 )
         # Reexibe a pãgina atual com as novas colunas
-        self.display_current_page(self.paginator.current_page)
+        self.display_current_page(self.paginator.current_page, update_details=False)
         try:
             self._persist_visible_columns_order()
         except Exception as exc:
@@ -3281,7 +3281,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return
         if current_columns[0] == "#" and header.visualIndex(0) != 0:
             self._skip_width_recompute_once = True
-            self.display_current_page(self.paginator.current_page)
+            self.display_current_page(
+                self.paginator.current_page, update_details=False
+            )
             return
         ordered_columns = ssa_gui_table._get_header_visual_column_order(self)
         if not ordered_columns:
@@ -3313,7 +3315,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao persistir nova ordem de colunas apos drag: %s", exc)
         self._skip_width_recompute_once = True
-        self.display_current_page(self.paginator.current_page)
+        self.display_current_page(self.paginator.current_page, update_details=False)
         self._restore_column_widths(preserved_widths)
 
     @staticmethod
