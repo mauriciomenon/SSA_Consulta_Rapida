@@ -3287,13 +3287,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         if not ordered_columns:
             return
         ordered_visible_columns = [col for col in ordered_columns if col != "#"]
-        if not ordered_visible_columns or ordered_visible_columns == list(
-            self.visible_columns
-        ):
+        if not ordered_visible_columns:
+            return
+        current_visible_columns = list(getattr(self, "visible_columns", []) or [])
+        missing_visible_columns = [
+            column_name
+            for column_name in current_visible_columns
+            if column_name not in ordered_visible_columns
+        ]
+        merged_visible_columns = ordered_visible_columns + missing_visible_columns
+        if not merged_visible_columns or merged_visible_columns == current_visible_columns:
             return
         preserved_widths = self._capture_current_column_widths()
         self._current_display_columns = list(ordered_columns)
-        self.visible_columns = ordered_visible_columns
+        self.visible_columns = merged_visible_columns
         if hasattr(self, "column_selector") and self.column_selector is not None:
             try:
                 self.column_selector.set_selected_columns(self.visible_columns)

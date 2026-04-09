@@ -3945,6 +3945,38 @@ class TestGUIFilterLogic:
         assert captured["snapshot"] == ["#", "situacao", "numero_ssa"]
         assert captured["visible_columns"] == ["situacao", "numero_ssa"]
 
+    def test_header_section_moved_keeps_schema_absent_visible_columns(self, monkeypatch):
+        self.window._current_display_columns = ["#", "numero_ssa", "situacao"]
+        self.window.visible_columns = ["numero_ssa", "situacao", "solicitante"]
+        monkeypatch.setattr(self.window, "_capture_current_column_widths", lambda: {})
+        monkeypatch.setattr(
+            self.window, "_restore_column_widths", lambda _widths: None
+        )
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_get_header_visual_column_order",
+            lambda _window: ["#", "situacao", "numero_ssa"],
+        )
+
+        captured = {}
+
+        def _fake_display_current_page(page_number, *, update_details=True):
+            captured["page_number"] = page_number
+            captured["snapshot"] = list(self.window._current_display_columns)
+            captured["visible_columns"] = list(self.window.visible_columns)
+
+        monkeypatch.setattr(self.window, "display_current_page", _fake_display_current_page)
+
+        self.window._on_header_section_moved(2, 2, 1)
+
+        assert captured["page_number"] == self.window.paginator.current_page
+        assert captured["snapshot"] == ["#", "situacao", "numero_ssa"]
+        assert captured["visible_columns"] == [
+            "situacao",
+            "numero_ssa",
+            "solicitante",
+        ]
+
     def test_best_fit_width_guard_ignores_single_extreme_outlier(self):
         expanded_df = pd.concat(
             [self.base_df.copy() for _ in range(20)], ignore_index=True
