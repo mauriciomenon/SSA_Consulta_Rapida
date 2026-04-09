@@ -253,6 +253,7 @@ class TestGUIFilterLogic:
         assert (
             "Todos os termos digitados devem ser satisfeitos na mesma linha." in tooltip
         )
+        assert "colunas relevantes da GUI" in tooltip
         assert "condicao E" not in tooltip.casefold()
         assert "Busca superior: todos os termos digitados sao obrigatorios." in str(
             search_help.text() or ""
@@ -5761,6 +5762,62 @@ class TestGUIFilterLogic:
         assert status == (
             "Status: 0 de 5 SSAs. Aviso: nenhum resultado para o filtro atual."
         )
+
+    def test_build_gui_general_search_columns_excludes_dates_but_keeps_weeks(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202500001"],
+                "semana_cadastro": [202501],
+                "semana_programada": [202502],
+                "grau_prioridade_emissao": [3],
+                "coluna_textual_nova": pd.Series(["texto livre"], dtype="string"),
+                "data_cadastro": ["2025-01-01"],
+                "data_planilha": ["2025-01-02"],
+                "sn_instalado": ["ABC123"],
+            }
+        )
+
+        columns = filter_mixin.build_gui_general_search_columns(df)
+
+        assert "semana_cadastro" in columns
+        assert "semana_programada" in columns
+        assert "grau_prioridade_emissao" in columns
+        assert "coluna_textual_nova" in columns
+        assert "data_cadastro" not in columns
+        assert "data_planilha" not in columns
+        assert "sn_instalado" not in columns
+
+    def test_initiate_filtering_uses_gui_general_search_columns_for_week_and_priority(
+        self,
+    ):
+        filtered_df = pd.DataFrame(
+            {
+                "numero_ssa": ["202500001", "202500002"],
+                "situacao": ["APV", "APV"],
+                "derivada_de": ["", ""],
+                "localizacao_codigo": ["LOC1", "LOC2"],
+                "descricao_localizacao": ["Desc1", "Desc2"],
+                "equipamento": ["EQ1", "EQ2"],
+                "semana_cadastro": [202501, 202501],
+                "semana_programada": [202512, 202510],
+                "data_cadastro": ["2025-01-01", "2025-01-02"],
+                "descricao_ssa": ["Teste A", "Teste B"],
+                "setor_executor": ["IEE3", "OURO"],
+                "setor_emissor": ["ABC", "ABC"],
+                "descricao_execucao": ["Exec A", "Exec B"],
+                "solicitante": ["User1", "User2"],
+                "grau_prioridade_emissao": [3, 1],
+            }
+        )
+        self.window.df_completo = filtered_df.copy()
+        self.window.df_exibido = filtered_df.copy()
+        self.window._df_last_search_filtered = filtered_df.copy()
+        self.window.paginator.set_dataframe(filtered_df.copy())
+
+        self.window.search_input.setText("3, 202512")
+        self.window.initiate_filtering()
+
+        assert list(self.window.df_exibido["numero_ssa"]) == ["202500001"]
 
     def test_load_data_replaces_previous_loader_worker_and_tracks_request(self):
         class _FakeSignal:

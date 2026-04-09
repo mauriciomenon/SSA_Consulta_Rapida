@@ -8,6 +8,8 @@
 - Current truth sincronizado com commits anteriores desta frente:
   - a auditoria tecnica grande do repo foi publicada em `docs_saida/ULTRA_AUDITORIA_TECNICA_REPO_20260330.md`
   - `filter_dataframe()` voltou a aceitar `search_columns` numericas/datetime sem falso vazio
+  - a busca geral da GUI agora tem contrato proprio de colunas em `docs/GUI_GENERAL_SEARCH_COLUMN_CONTRACT.md`
+  - a decisao de colunas da busca geral deixou de ficar escondida no default do core para o fluxo da GUI
   - `setor_executor` passou a compartilhar estado aplicado entre filtro rapido e filtro avancado
   - `solicitante` no painel avancado agora reconhece alias `responsavel_solicitante`
   - o prefixo de area/setor de responsaveis ficou estavel contra subconjuntos filtrados
@@ -44,6 +46,7 @@
 ### GUI e comportamento de filtros
 
 - `docs/GUI_PYQT6_REGRAS_GERAIS.md`
+- `docs/GUI_GENERAL_SEARCH_COLUMN_CONTRACT.md`
 - `docs/FILTER_TAB_OPTIMIZATIONS.md`
 - `docs/GUI_ASYNC_LOADING_GUARDRAILS.md`
 - `docs/WORKERS_API_DOCUMENTATION.md`
@@ -91,4 +94,3 @@
 - Compatibilidade sem uv: `requirements*.txt`
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

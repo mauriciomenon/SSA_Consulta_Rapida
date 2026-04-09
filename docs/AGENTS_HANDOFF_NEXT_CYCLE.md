@@ -767,6 +767,9 @@ Este handoff deve carregar apenas o topo vivo, para evitar divergencia e duplica
      - `?? docs_entrada/*.xlsx`
   3. esses residuos nao devem ser revertidos nem incluidos por inferencia.
 - Diagnostico tecnico final:
+  0. ownership errado do contrato:
+     - a GUI dependia do default de `filter_dataframe(..., search_columns=None)`.
+     - a lista de colunas da busca geral ficou escondida no core.
   1. busca geral:
      - `core/app_logic.py` tinha `priority_columns` incompleto.
      - faltavam `solicitante`, `responsavel_solicitante`, `responsavel_programacao` e `responsavel_execucao`.
@@ -803,6 +806,10 @@ Este handoff deve carregar apenas o topo vivo, para evitar divergencia e duplica
      - a suite ampliada encontrou tambem um desalinhamento do quick combo de `setor_executor`, ligado a mudanca estrutural de `c56d0e8e`.
      - `gui/gui_ssa.py` passou a centralizar a aplicacao segura de alturas no toolbar e no sync inferior.
      - esse ponto entrou no refinamento final antes de commit/push.
+  6. estado atual da frente:
+     - o contrato de colunas da busca geral da GUI deve ser lido em `docs/GUI_GENERAL_SEARCH_COLUMN_CONTRACT.md`.
+     - o core ainda preserva `search_columns=None` como fallback generico.
+     - fuzzy search continua deferido para release futuro.
 - Validacao final:
   1. `py_compile` no escopo alterado -> pass.
   2. `ruff check` no escopo alterado -> pass.

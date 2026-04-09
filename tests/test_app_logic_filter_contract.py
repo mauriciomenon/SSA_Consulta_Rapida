@@ -11,6 +11,7 @@ import pytest
 from armazenamento import database
 from core import app_logic
 from core.app_logic import filter_dataframe, get_filtered_data, parse_search_terms
+from gui.mixins import filter_gui_ssa_mixin as filter_mixin
 from interface.table_printer import pretty_print_df
 
 
@@ -320,6 +321,80 @@ def test_filter_dataframe_default_search_columns_allow_same_row_match_with_local
     )
 
     out = filter_dataframe(df, ["SVP", "R001"])
+
+    assert list(out["numero_ssa"]) == ["202500001"]
+
+
+def test_build_gui_general_search_columns_include_priority_week_and_related_fields() -> (
+    None
+):
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001"],
+            "situacao": ["APV"],
+            "derivada_de": ["202400001"],
+            "localizacao_codigo": ["A006R001"],
+            "descricao_localizacao": ["UTR [SVP-06]"],
+            "grau_prioridade_emissao": [3],
+            "grau_prioridade_planejamento": [2],
+            "semana_cadastro": [202501],
+            "semana_programada": [202503],
+            "semana_executada": [202505],
+            "numero_ssa_relacionada_1": ["202500999"],
+            "relacao": ["DERIVADA"],
+            "data_cadastro": ["2025-01-01"],
+            "data_planilha": ["2025-01-02"],
+            "tempo_total": ["05:00"],
+        }
+    )
+
+    columns = filter_mixin.build_gui_general_search_columns(df)
+
+    assert "grau_prioridade_emissao" in columns
+    assert "grau_prioridade_planejamento" in columns
+    assert "semana_cadastro" in columns
+    assert "semana_programada" in columns
+    assert "semana_executada" in columns
+    assert "numero_ssa_relacionada_1" in columns
+    assert "relacao" in columns
+    assert "data_cadastro" not in columns
+    assert "data_planilha" not in columns
+    assert "tempo_total" not in columns
+
+
+def test_build_gui_general_search_columns_auto_include_new_text_columns_only() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001"],
+            "descricao_ssa": ["Painel principal"],
+            "coluna_textual_nova": pd.Series(["Observacao nova"], dtype="string"),
+            "data_extra": ["2025-01-01"],
+            "sn_extra": ["ABC123"],
+        }
+    )
+
+    columns = filter_mixin.build_gui_general_search_columns(df)
+
+    assert "coluna_textual_nova" in columns
+    assert "data_extra" not in columns
+    assert "sn_extra" not in columns
+
+
+def test_filter_dataframe_with_gui_general_search_columns_matches_week_and_priority() -> (
+    None
+):
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002"],
+            "descricao_ssa": ["Painel A", "Painel B"],
+            "grau_prioridade_emissao": [3, 1],
+            "semana_programada": [202512, 202510],
+            "data_cadastro": ["2025-01-01", "2025-01-02"],
+        }
+    )
+
+    search_columns = filter_mixin.build_gui_general_search_columns(df)
+    out = filter_dataframe(df, ["3", "202512"], search_columns=search_columns)
 
     assert list(out["numero_ssa"]) == ["202500001"]
 

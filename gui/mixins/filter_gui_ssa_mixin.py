@@ -82,6 +82,115 @@ _EXCLUDED_TERMINAL_STATUSES = frozenset({"SCA", "SES", "STE"})
 _EXCLUDED_TERMINAL_SUMMARY = "situacao!=SCA/SES/STE"
 _CLEAR_FILTER_HARD_RESET_CLICK_TARGET = 3
 _CLEAR_FILTER_HARD_RESET_WINDOW_SEC = 3.0
+_GUI_GENERAL_SEARCH_PRIORITY_COLUMNS = (
+    "numero_ssa",
+    "situacao",
+    "derivada_de",
+    "localizacao_codigo",
+    "descricao_localizacao",
+    "equipamento",
+    "descricao_ssa",
+    "descricao_execucao",
+    "setor_emissor",
+    "setor_executor",
+    "solicitante",
+    "responsavel_solicitante",
+    "responsavel_programacao",
+    "responsavel_execucao",
+    "responsavel_emissor",
+    "servico_origem",
+    "sistema_origem",
+    "arquivo_origem",
+    "justificativa",
+    "anomalia",
+    "situacao_espera",
+    "situacao_reprogramacao",
+    "situacao_de_desvio",
+    "atividade_especial",
+    "destino",
+    "origem",
+    "numero_ssa_relacionada_1",
+    "numero_ssa_relacionada_2",
+    "numero_ssa_relacionada_3",
+    "setor_emissor_relacionado_1",
+    "setor_emissor_relacionado_2",
+    "setor_executor_relacionado_1",
+    "setor_executor_relacionado_2",
+    "situacao_relacionada_1",
+    "situacao_relacionada_2",
+    "relacao",
+    "grau_prioridade",
+    "grau_prioridade_emissao",
+    "grau_prioridade_planejamento",
+    "prioridade_emissao",
+    "prioridade_planejamento",
+    "semana_cadastro",
+    "semana_programada",
+    "semana_executada",
+)
+_GUI_GENERAL_SEARCH_EXCLUDED_COLUMNS = frozenset(
+    {
+        "id",
+        "data_cadastro",
+        "data_planilha",
+        "execucao_simples",
+        "prazo_limite",
+        "prazo_limite_str",
+        "status_execucao_prazo",
+        "tempo_disponivel",
+        "data_limite",
+        "tempo_excedido",
+        "desde",
+        "tempo_total",
+        "desde_1",
+        "total_tempo_tpe_planejado",
+        "total_tempo_tex_planejado",
+        "total_tempo_tpo_planejado",
+        "total_horas_programadas",
+        "total_tempo_tpe_executada",
+        "num_reprogramacoes",
+        "execucao_parcial",
+        "registros_espera",
+        "num_reprobaciones",
+        "numero_desvios",
+        "ate",
+        "total_tempo_tex_executada",
+        "parciais",
+        "situacao_da_parcial",
+        "ate_1",
+        "ate_2",
+        "desde_2",
+        "total_tempo_tpo_executada",
+        "equipamento_retirado",
+        "sn_retirado",
+        "equipamento_instalado",
+        "sn_instalado",
+        "sn_extra",
+        "desativacao_da_localizacao",
+        "instalacao_estimada",
+        "executado",
+        "concluido",
+        "data_inicio_programada",
+        "data_programacao",
+        "data_inicio_reprogramada",
+        "data_reprogramacao",
+        "total_de_reprogramacoes",
+        "data_arquivo_origem",
+        "data_cadastro_str",
+    }
+)
+_GUI_GENERAL_SEARCH_AUTO_EXCLUDE_PREFIXES = (
+    "_",
+    "data_",
+    "tempo_",
+    "total_",
+    "sn_",
+)
+_GUI_GENERAL_SEARCH_AUTO_EXCLUDE_SUFFIXES = (
+    "_ts",
+    "_timestamp",
+    "_str",
+)
 _ADVANCED_FILTER_VISUAL_COLUMN_MAP = {
     "setor_executor": ("setor_executor",),
     "setor_executor_exclude_values": ("setor_executor",),
@@ -127,6 +236,68 @@ _ADVANCED_FILTER_VISUAL_COLUMN_MAP = {
 
 SummaryAction = dict[str, Any]
 SummaryEntry = dict[str, Any]
+
+
+def _is_gui_general_search_auto_excluded(column_name: str) -> bool:
+    normalized_name = str(column_name or "").strip()
+    if not normalized_name:
+        return True
+    if normalized_name in _GUI_GENERAL_SEARCH_EXCLUDED_COLUMNS:
+        return True
+    if normalized_name.startswith("semana_") or normalized_name.startswith(
+        "grau_prioridade"
+    ):
+        return False
+    if normalized_name.startswith("prioridade_"):
+        return False
+    for prefix in _GUI_GENERAL_SEARCH_AUTO_EXCLUDE_PREFIXES:
+        if normalized_name.startswith(prefix):
+            return True
+    for suffix in _GUI_GENERAL_SEARCH_AUTO_EXCLUDE_SUFFIXES:
+        if normalized_name.endswith(suffix):
+            return True
+    return False
+
+
+def _is_gui_general_search_auto_includable(series: pd.Series) -> bool:
+    return bool(
+        pd.api.types.is_string_dtype(series)
+        or pd.api.types.is_object_dtype(series)
+        or pd.api.types.is_categorical_dtype(series)
+    )
+
+
+def build_gui_general_search_columns(df: pd.DataFrame | None) -> list[str]:
+    """
+    Build the GUI-owned general search contract from the current DataFrame.
+
+    The GUI keeps an explicit ordered base list for core business columns and
+    then appends additional textual columns that are eligible by rule. Date/time,
+    totals, timers, serials, cache fields, and other technical columns stay out
+    of the free-text search by default.
+    """
+    if not isinstance(df, pd.DataFrame) or df.empty and len(df.columns) == 0:
+        return []
+
+    selected_columns: list[str] = []
+    seen_columns: set[str] = set()
+
+    for column_name in _GUI_GENERAL_SEARCH_PRIORITY_COLUMNS:
+        if column_name in df.columns and column_name not in seen_columns:
+            selected_columns.append(column_name)
+            seen_columns.add(column_name)
+
+    for column_name in df.columns:
+        if column_name in seen_columns:
+            continue
+        if _is_gui_general_search_auto_excluded(column_name):
+            continue
+        series = df[column_name]
+        if _is_gui_general_search_auto_includable(series):
+            selected_columns.append(column_name)
+            seen_columns.add(column_name)
+
+    return selected_columns
 
 
 def _append_unique_text(target: list[str], value: str) -> None:
@@ -631,6 +802,7 @@ class FilterGUISSAMixin:
                 "default_filter_mode", "contains"
             )
         default_mode = self._cached_default_mode
+        general_search_columns = build_gui_general_search_columns(self.df_completo)
 
         # Modo síncrono (sem QThread) opcional para testes
         if getattr(self, "_sync_filtering", False):
@@ -639,7 +811,13 @@ class FilterGUISSAMixin:
                     frames = []
                     for terms in chunk_terms_lists:
                         parsed = parse_search_terms(terms, default_mode=default_mode)
-                        frames.append(filter_dataframe(self.df_completo, parsed))
+                        frames.append(
+                            filter_dataframe(
+                                self.df_completo,
+                                parsed,
+                                search_columns=general_search_columns,
+                            )
+                        )
                     df_filtrado = (
                         pd.concat(frames, axis=0, ignore_index=False)
                         .drop_duplicates()
@@ -688,7 +866,13 @@ class FilterGUISSAMixin:
                     frames = []
                     for terms in chunk_terms_lists:
                         parsed = parse_search_terms(terms, default_mode=default_mode)
-                        frames.append(filter_dataframe(self.df_completo, parsed))
+                        frames.append(
+                            filter_dataframe(
+                                self.df_completo,
+                                parsed,
+                                search_columns=general_search_columns,
+                            )
+                        )
                     df_filtrado = (
                         pd.concat(frames, axis=0, ignore_index=False)
                         .drop_duplicates()
@@ -712,6 +896,7 @@ class FilterGUISSAMixin:
         worker = FilterWorker(
             self.df_completo,
             chunk_terms_lists,
+            search_columns=general_search_columns,
             default_mode=default_mode,
             cache_context=filter_cache_context,
         )
