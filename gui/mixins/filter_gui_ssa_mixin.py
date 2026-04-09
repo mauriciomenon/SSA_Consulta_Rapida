@@ -795,12 +795,23 @@ class FilterGUISSAMixin:
                 filtered_total_current = len(df_filtrado)
         except Exception:
             filtered_total_current = None
+        zero_results_suffix = ""
+        if filtered_total_current == 0:
+            try:
+                if self._has_any_active_filters():
+                    zero_results_suffix = "Aviso: nenhum resultado para o filtro atual."
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao avaliar filtros ativos para aviso de zero resultado: %s",
+                    exc,
+                )
         self._set_filtered_count_status(
             search_text,
             filtered_total=filtered_total_current,
             original_total=len(self.df_completo)
             if hasattr(self, "df_completo") and self.df_completo is not None
             else None,
+            suffix=zero_results_suffix,
         )
         filtered_status_label = getattr(self, "filtered_status_label", None)
         status_text = ""

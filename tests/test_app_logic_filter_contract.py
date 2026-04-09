@@ -282,6 +282,48 @@ def test_filter_dataframe_default_search_columns_allow_terms_in_different_column
     assert list(out["numero_ssa"]) == ["202500001"]
 
 
+def test_filter_dataframe_default_search_columns_include_localizacao_fields() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002"],
+            "descricao_ssa": ["Painel principal", "Motor auxiliar"],
+            "localizacao_codigo": ["A006R001", "B010R002"],
+            "descricao_localizacao": ["UTR [SVP-06]", "Area geral"],
+        }
+    )
+
+    out_codigo = filter_dataframe(df, ["r001"])
+    out_descricao = filter_dataframe(df, ["svp-06"])
+
+    assert list(out_codigo["numero_ssa"]) == ["202500001"]
+    assert list(out_descricao["numero_ssa"]) == ["202500001"]
+
+
+def test_filter_dataframe_default_search_columns_allow_same_row_match_with_localizacao() -> (
+    None
+):
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003"],
+            "descricao_ssa": [
+                "Comissionamento painel SVP-15",
+                "Manutencao geral",
+                "Revisao eletrica SVP-15",
+            ],
+            "localizacao_codigo": ["B015R001", "X001", "C100"],
+            "descricao_localizacao": [
+                "UTR 615",
+                "Sala auxiliar",
+                "Painel local",
+            ],
+        }
+    )
+
+    out = filter_dataframe(df, ["SVP", "R001"])
+
+    assert list(out["numero_ssa"]) == ["202500001"]
+
+
 def test_parse_search_terms_keeps_literals_and_does_not_parse_logical_keywords() -> (
     None
 ):

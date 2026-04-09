@@ -3758,6 +3758,42 @@ class TestGUIFilterLogic:
 
         assert self.window.table_widget.columnWidth(descricao_index) == 333
 
+    def test_header_real_click_sorts_numero_ssa_asc_then_desc(self):
+        click_df = self.base_df.copy()
+        click_df["numero_ssa"] = [3, 1, 2, 5, 4]
+        self.window.df_completo = click_df.copy()
+        self.window.df_exibido = click_df.copy()
+        self.window._df_last_search_filtered = click_df.copy()
+        self.window.paginator.set_dataframe(click_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        logical_index = self.window._current_display_columns.index("numero_ssa")
+        header = self.window.table_widget.horizontalHeader()
+        click_pos = QPoint(
+            header.sectionViewportPosition(logical_index)
+            + max(5, header.sectionSize(logical_index) // 2),
+            max(5, header.height() // 2),
+        )
+
+        cast(Any, QTest).mouseClick(
+            header.viewport(),
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            click_pos,
+        )
+        QApplication.processEvents()
+        assert self.window.df_exibido["numero_ssa"].tolist() == [1, 2, 3, 4, 5]
+
+        cast(Any, QTest).mouseClick(
+            header.viewport(),
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            click_pos,
+        )
+        QApplication.processEvents()
+        assert self.window.df_exibido["numero_ssa"].tolist() == [5, 4, 3, 2, 1]
+
     def test_best_fit_width_guard_ignores_single_extreme_outlier(self):
         expanded_df = pd.concat(
             [self.base_df.copy() for _ in range(20)], ignore_index=True
@@ -5709,6 +5745,22 @@ class TestGUIFilterLogic:
 
         status = self.window.filtered_status_label.text()
         assert status == "Status: 5 de 5 SSAs"
+
+    def test_on_filter_finished_zero_results_uses_filtered_status_box_notice(self):
+        self.window.search_input.setText("SVP, R001")
+        self.window._active_filter_request_id = 88
+        self.window._active_filter_search_request_id = 88
+        self.window._active_filter_search_display = "SVP, R001"
+        self.window._pending_search_display = "SVP, R001"
+        self.window.df_exibido = self.base_df.iloc[0:0].copy()
+        self.window._df_last_search_filtered = self.base_df.iloc[0:0].copy()
+        with patch.object(self.window, "_refresh_after_filter_change", lambda: None):
+            self.window.on_filter_finished(self.base_df.iloc[0:0].copy(), request_id=88)
+
+        status = str(self.window.filtered_status_label.text() or "")
+        assert status == (
+            "Status: 0 de 5 SSAs. Aviso: nenhum resultado para o filtro atual."
+        )
 
     def test_load_data_replaces_previous_loader_worker_and_tracks_request(self):
         class _FakeSignal:
