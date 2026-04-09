@@ -337,7 +337,7 @@ def repair_database_if_needed(
 
             initialize_database(db_path, schema_file)
             repaired = True
-        elif integrity_report["table_exists"] and missing_required_columns:
+        elif integrity_report["table_exists"]:
             from .database import ensure_column_exists  # lazy
 
             required_column_types = {
@@ -367,19 +367,21 @@ def repair_database_if_needed(
                     "Colunas obrigatorias adicionadas no reparo: %s", repaired_columns
                 )
                 repaired = True
-        elif integrity_report["table_exists"] and (
-            "arquivo_origem" in missing_optional_columns
-            or "data_planilha" in missing_optional_columns
-        ):
-            from .database import ensure_column_exists  # lazy
 
+            repaired_optional_columns: list[str] = []
             if "arquivo_origem" in missing_optional_columns and ensure_column_exists(
                 db_path, integrity_report["table_name"], "arquivo_origem", "TEXT"
             ):
-                repaired = True
+                repaired_optional_columns.append("arquivo_origem")
             if "data_planilha" in missing_optional_columns and ensure_column_exists(
                 db_path, integrity_report["table_name"], "data_planilha", "TEXT"
             ):
+                repaired_optional_columns.append("data_planilha")
+            if repaired_optional_columns:
+                logger.info(
+                    "Colunas opcionais adicionadas no reparo: %s",
+                    repaired_optional_columns,
+                )
                 repaired = True
         if repaired:
             final_check = verify_database_integrity(db_path, table_name)
