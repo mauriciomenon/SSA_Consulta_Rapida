@@ -295,6 +295,31 @@ class TestDataValidation:
         assert len(report["warnings"]) > 0
         assert "datas inválidas" in str(report["warnings"])
 
+    def test_validate_date_column_failure_preserves_exception_cause(self, monkeypatch):
+        """Falha interna no parsing deve preservar a causa no warning da coluna."""
+        df = pd.DataFrame(
+            {
+                "numero_ssa": [202312345],
+                "situacao": ["Pendente"],
+                "data_cadastro": ["2023-12-01 10:00:00"],
+                "descricao_ssa": ["Teste 1"],
+            }
+        )
+
+        def _explode(*_args, **_kwargs):
+            raise RuntimeError("forced parse crash")
+
+        monkeypatch.setattr(database_validation, "parse_any_date", _explode)
+
+        report = validate_dataframe_before_insert(df)
+
+        assert report["is_valid"] is True
+        assert any(
+            "Falha ao validar datas em 'data_cadastro' (RuntimeError): forced parse crash"
+            in warning
+            for warning in report["warnings"]
+        )
+
     def test_validate_duplicate_ssa_exact_rows(self):
         """Duplicidade literal deve ser classificada separadamente."""
         df = pd.DataFrame(
