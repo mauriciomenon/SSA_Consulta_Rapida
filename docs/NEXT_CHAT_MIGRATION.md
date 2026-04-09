@@ -144,7 +144,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `02ec4a30` `DOC_SYNC: add ultra technical audit report`
    - `b7af8aef` `STABILITY_PATCH: support non-text search columns`
    - `d6fbb4fe` `STABILITY_PATCH: unify advanced filter state`
-5. metadata/tag ativa documentada: `4.36` / `v4.36`
+5. metadata/tag ativa documentada: `4.37` / `v4.36`
 6. worktree esta limpo e alinhado com remoto: `HEAD...origin/dev = 00`
 7. recuperacao forense apos falha externa de PowerShell confirmou que nao havia shell ativo nem operacao critica de runtime aberta nesta frente
 8. o ultimo pedido explicito recuperado no historico foi sync dos MDs vivos; isso ja foi aterrado em `7913c712`
@@ -210,7 +210,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 
 - Leitura rapida:
   1. branch ativa: `dev`
-  2. metadata local ativa: `4.36`
+  2. metadata local ativa: `4.37`
   3. ultima tag publicada em `dev`: `v4.36`
   4. os slices recentes de `numero_ssa`, importacao explicita, prova de update/query e bloqueio de downgrade por arquivo antigo ja foram aterrados e pushados
 - PASSO 0 OBRIGATORIO NO PROXIMO CHAT:

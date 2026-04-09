@@ -1,6 +1,6 @@
 # Guia Completo (Historico/Laboratorio) - Build com PyOxidizer
 
-## CURRENT TRUTH (v4.36)
+## CURRENT TRUTH (4.37 local / v4.36 published)
 
 - Sync deste guia: `2026-03-11 22:25 -0300`.
 - PyOxidizer segue como trilha avancada (nao default), mas com fluxo operacional funcional para:

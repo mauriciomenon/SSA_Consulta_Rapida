@@ -1,6 +1,6 @@
 # Guia Completo (Historico/Referencia) - Build com PyInstaller
 
-## CURRENT TRUTH (v4.36)
+## CURRENT TRUTH (4.37 local / v4.36 published)
 
 - Sync deste guia: `2026-03-11 14:25 -0300`.
 - Caminho operacional principal:

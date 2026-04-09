@@ -1,7 +1,7 @@
 # Architecture Overview (legacy pointer)
 
 Documento legado mantido para compatibilidade de referencias antigas.
-Fonte ativa de arquitetura no baseline atual `v4.36`:
+Fonte ativa de arquitetura no baseline atual `v4.37`:
 
 1. `docs/ARQUITETURA_IMPORTACAO.md`
 2. `docs/INDEX.md`
