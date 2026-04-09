@@ -482,6 +482,16 @@ def _import_single_file(
                 )
                 return False, 0
 
+            critical_missing_rules = {
+                "missing_column_numero_ssa",
+                "missing_column_data_cadastro",
+            }
+            has_critical_missing_columns = any(
+                violation.get("rule") in critical_missing_rules
+                and violation.get("severity") == "error"
+                for violation in validation_report.get("violations", [])
+            )
+
             # Se ha problemas criticos, pode escolher entre falhar ou continuar
             if not validation_report["is_valid"]:
                 critical_issues = validation_report["issues"]
@@ -493,6 +503,11 @@ def _import_single_file(
                     os.path.basename(file_path),
                     critical_summary or "sem detalhe",
                 )
+                if has_critical_missing_columns:
+                    raise ExtractionError(
+                        critical_summary or "Colunas obrigatorias ausentes no DataFrame",
+                        error_code="MISSING_REQUIRED_COLUMNS",
+                    )
                 logger.warning(
                     "Validacao critica em '%s': seguindo com insercao por politica atual.",
                     os.path.basename(file_path),
