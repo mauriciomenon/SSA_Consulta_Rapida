@@ -162,8 +162,16 @@ def _validate_date_columns(df: pd.DataFrame, report: dict[str, Any]) -> None:
                     }
                 )
                 _append_unique_invalid_rows(report, df.index[invalid_mask].tolist())
-        except Exception:  # pragma: no cover
-            report["warnings"].append(f"Falha ao validar datas em '{col}'")
+        except Exception as e:  # pragma: no cover
+            report["warnings"].append(
+                f"Falha ao validar datas em '{col}' ({type(e).__name__}): {e}"
+            )
+            logger.warning(
+                "Falha ao validar coluna de data '%s' (%s): %s",
+                col,
+                type(e).__name__,
+                e,
+            )
 
 
 def _validate_duplicate_ssa(df: pd.DataFrame, report: dict[str, Any]) -> None:
