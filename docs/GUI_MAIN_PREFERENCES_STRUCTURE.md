@@ -1,12 +1,12 @@
 # GUI Main Preferences Structure
 
-Este documento descreve a estrutura canonica de preferencias da GUI principal e a hierarquia de decisao entre codigo, arquivo local, referencia versionada e runtime.
+Este documento descreve a estrutura canonica de preferencias da GUI principal e a hierarquia de decisao entre codigo, arquivo efetivo versionado, referencia canonica e runtime.
 
 ## Objetivo
 
 1. manter nomes, ordem e larguras de colunas amarrados de forma simples
-2. garantir que o arquivo de preferencias local tenha a ultima palavra quando existir
-3. evitar dependencia de JSON local ignorado como unica fonte humana-legivel do contrato
+2. garantir que o arquivo efetivo de preferencias tenha a ultima palavra quando existir
+3. evitar dependencia de um JSON fora do contrato versionado como unica fonte humana-legivel do contrato
 4. preservar fallback seguro quando o arquivo local estiver ausente ou invalido, sempre a partir do codigo
 
 ## Arquivos envolvidos
@@ -15,9 +15,8 @@ Este documento descreve a estrutura canonica de preferencias da GUI principal e 
    - `gui/gui_config.py`
 2. arquivo versionado de referencia:
    - `config/gui_main_preferences.json.example`
-3. arquivo local efetivo da GUI:
+3. arquivo efetivo da GUI em runtime:
    - `config/gui_main_preferences.json`
-   - ignorado pelo Git por politica operacional
 4. runtime da tabela:
    - `gui/ssa/gui_table.py`
    - `gui/simple_width_manager.py`
@@ -58,20 +57,21 @@ Em `gui/gui_config.py` ficam os contratos base:
 1. documentar o padrao completo de forma legivel
 2. servir como referencia para o usuario editar manualmente se quiser
 3. permanecer igual ao que esta definido no codigo, ate mudanca explicita de produto
-4. permitir auditoria de contrato sem depender do arquivo ignorado do usuario
+4. permitir auditoria de contrato sem depender apenas do arquivo efetivo de runtime
 
-### 3. Arquivo local efetivo
+### 3. Arquivo efetivo de runtime
 
 `config/gui_main_preferences.json` e o arquivo que a GUI usa em runtime.
 
 Regras:
 
-1. pode divergir localmente por gosto do usuario
-2. nao deve ser usado como unica fonte de release
+1. e um arquivo tracked e faz parte do contrato ativo do repo
+2. pode ser sobrescrito por um caminho alternativo se o runtime mudar `SSA_CONFIG_DIR`
 3. quando existir e estiver valido, prevalece sobre o default em codigo
 4. quando estiver ausente, a GUI usa os defaults em memoria do codigo
 5. quando trouxer `column_widths_by_platform`, o runtime escolhe primeiro o bloco da plataforma atual
 6. quando nao trouxer `column_widths_by_platform`, o runtime cai em `column_widths` por compatibilidade
+7. a fase antiga em que esse arquivo era tratado como local-only/skip-worktree e apenas historica, nao contrato atual
 
 ### 4. Runtime da tabela
 
@@ -233,7 +233,7 @@ Uso:
 
 ## Fluxo de carga
 
-### Caso 1: arquivo local existe e esta valido
+### Caso 1: arquivo efetivo existe e esta valido
 
 1. a GUI le `config/gui_main_preferences.json` pelo caminho resolvido
 2. valida integridade minima
@@ -242,14 +242,14 @@ Uso:
 5. resolve `column_widths_by_platform[plataforma]` quando existir
 6. carrega o resultado final em `GUI_MAIN_PREFERENCES`
 
-### Caso 2: arquivo local nao existe
+### Caso 2: arquivo efetivo nao existe
 
-1. a GUI resolve o caminho local efetivo
+1. a GUI resolve o caminho efetivo
 2. usa os defaults em memoria do codigo
 3. detecta a plataforma atual e resolve o bloco correto de widths
 4. se `auto_create=True`, cria o arquivo local a partir desses defaults
 
-### Caso 3: arquivo local esta invalido
+### Caso 3: arquivo efetivo esta invalido
 
 1. loga erro objetivo
 2. nao tenta remendo chave-a-chave nem recuperacao silenciosa
@@ -259,7 +259,7 @@ Uso:
 
 ## Caminho resolvido por ambiente
 
-O arquivo local efetivo respeita `SSA_CONFIG_DIR`.
+O arquivo efetivo respeita `SSA_CONFIG_DIR`.
 
 Isso permite:
 
