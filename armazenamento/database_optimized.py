@@ -230,7 +230,7 @@ def _iter_lookup_chunks_by_ssa(
             f"WHERE numero_ssa IN ({placeholders})"
         )
         try:
-            chunk_df = pd.read_sql_query(query, conn, params=tuple(chunk_ssas))
+            chunk_df = pd.read_sql_query(query, conn, params=list(chunk_ssas))
         except (
             sqlite3.OperationalError,
             pd.errors.DatabaseError,
@@ -592,6 +592,16 @@ def insert_dataframe_optimized(
                             normalized_update_df = update_df.astype("object").where(
                                 pd.notna(update_df), None
                             )
+                            missing_existing_ssas = [
+                                numero
+                                for numero in ssa_list
+                                if numero not in existing_rows_by_ssa
+                            ]
+                            if missing_existing_ssas:
+                                raise RuntimeError(
+                                    "Lookup incompleto no caminho delete+insert para SSAs: "
+                                    f"{missing_existing_ssas[:5]}"
+                                )
                             merged_rows: list[dict[str, object | None]] = []
                             update_columns_all = list(normalized_update_df.columns)
                             for row_values in normalized_update_df.itertuples(
@@ -601,9 +611,7 @@ def insert_dataframe_optimized(
                                 numero_ssa = update_row.get("numero_ssa")
                                 if numero_ssa is None:
                                     continue
-                                merged_row = existing_rows_by_ssa.get(
-                                    str(numero_ssa), {}
-                                ).copy()
+                                merged_row = existing_rows_by_ssa[str(numero_ssa)].copy()
                                 merged_row.update(update_row)
                                 merged_rows.append(merged_row)
 

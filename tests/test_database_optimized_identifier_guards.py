@@ -270,3 +270,97 @@ def test_insert_dataframe_optimized_releases_savepoint_after_rollback(
         conn.close()
 
     assert row == ("ADM",)
+
+
+def test_insert_dataframe_optimized_aborts_when_update_lookup_is_incomplete(
+    tmp_path, monkeypatch
+) -> None:
+    db_path = str(tmp_path / "incomplete_update_lookup.db")
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE ssa_table (
+                numero_ssa TEXT PRIMARY KEY,
+                data_cadastro TEXT,
+                situacao TEXT,
+                descricao_ssa TEXT,
+                arquivo_origem TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO ssa_table (
+                numero_ssa,
+                data_cadastro,
+                situacao,
+                descricao_ssa,
+                arquivo_origem
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                "202600777",
+                "2026-01-01 00:00:00",
+                "ADM",
+                "descricao-antiga",
+                "origem-antiga.csv",
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    original_iter_lookup = database_optimized_module._iter_lookup_chunks_by_ssa
+
+    def _drop_second_lookup(
+        conn,
+        *,
+        target_table_sql,
+        normalized_ssas,
+        select_expr,
+        initial_chunk_size=500,
+    ):
+        if select_expr == "*":
+            yield pd.DataFrame(columns=["numero_ssa", "data_cadastro", "situacao"])
+            return
+        yield from original_iter_lookup(
+            conn,
+            target_table_sql=target_table_sql,
+            normalized_ssas=normalized_ssas,
+            select_expr=select_expr,
+            initial_chunk_size=initial_chunk_size,
+        )
+
+    monkeypatch.setattr(
+        database_optimized_module,
+        "_iter_lookup_chunks_by_ssa",
+        _drop_second_lookup,
+    )
+
+    incoming = pd.DataFrame(
+        {
+            "numero_ssa": ["202600777"],
+            "data_cadastro": [pd.Timestamp("2026-01-02")],
+            "situacao": ["STE"],
+            "descricao_ssa": ["descricao-nova"],
+        }
+    )
+
+    assert insert_dataframe_optimized(incoming, db_path, table_name="ssa_table") is False
+
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT situacao, descricao_ssa, arquivo_origem
+            FROM ssa_table
+            WHERE numero_ssa = ?
+            """,
+            ("202600777",),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row == ("ADM", "descricao-antiga", "origem-antiga.csv")
