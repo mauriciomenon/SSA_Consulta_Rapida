@@ -6,6 +6,7 @@ import copy
 import json
 import os
 import re
+import sys
 from typing import Any, Dict, Iterable, List
 
 from core import config_manager as core_config_manager
@@ -231,29 +232,97 @@ COLUMN_HEADER_LABEL_VARIANTS: Dict[str, Dict[str, str]] = {
     },
 }
 
-DEFAULT_COLUMN_WIDTHS: Dict[str, int] = {
+DEFAULT_COLUMN_WIDTHS_WINDOWS: Dict[str, int] = {
     "#": 24,
     "numero_ssa": 93,
     "localizacao_codigo": 86,
     "setor_executor": 65,
     "situacao": 51,
-    "descricao_ssa": 296,
+    "descricao_ssa": 298,
     "data_cadastro": 84,
     "setor_emissor": 58,
     "derivada_de": 93,
-    "semana_programada": 86,
-    "descricao_execucao": 280,
-    "semana_cadastro": 72,
+    "semana_programada": 88,
+    "descricao_execucao": 282,
+    "semana_cadastro": 74,
     "grau_prioridade": 95,
-    "grau_prioridade_emissao": 120,
-    "grau_prioridade_planejamento": 120,
-    "solicitante": 121,
+    "grau_prioridade_emissao": 122,
+    "grau_prioridade_planejamento": 122,
+    "solicitante": 123,
     "data_arquivo_origem": 188,
-    "total_de_reprogramacoes": 128,
-    "execucao_parcial": 128,
+    "total_de_reprogramacoes": 130,
+    "execucao_parcial": 130,
     "semana_executada": 96,
     "responsavel_execucao": 150,
 }
+
+DEFAULT_COLUMN_WIDTHS_DARWIN: Dict[str, int] = {
+    **DEFAULT_COLUMN_WIDTHS_WINDOWS,
+    "descricao_ssa": 340,
+    "semana_programada": 72,
+    "descricao_execucao": 330,
+    "semana_cadastro": 60,
+    "grau_prioridade_emissao": 96,
+    "grau_prioridade_planejamento": 98,
+    "solicitante": 150,
+    "total_de_reprogramacoes": 82,
+    "execucao_parcial": 78,
+    "semana_executada": 60,
+}
+
+DEFAULT_COLUMN_WIDTHS_LINUX: Dict[str, int] = copy.deepcopy(
+    DEFAULT_COLUMN_WIDTHS_WINDOWS
+)
+
+DEFAULT_COLUMN_WIDTHS_BY_PLATFORM: Dict[str, Dict[str, int]] = {
+    "darwin": copy.deepcopy(DEFAULT_COLUMN_WIDTHS_DARWIN),
+    "win32": copy.deepcopy(DEFAULT_COLUMN_WIDTHS_WINDOWS),
+    "linux": copy.deepcopy(DEFAULT_COLUMN_WIDTHS_LINUX),
+}
+
+
+def _normalize_platform_key(platform_name: str | None = None) -> str:
+    current = str(platform_name or sys.platform).strip().lower()
+    if current.startswith("win"):
+        return "win32"
+    if current == "darwin":
+        return "darwin"
+    return "linux"
+
+
+def _sanitize_width_map(raw_widths: Any) -> Dict[str, int]:
+    sanitized: Dict[str, int] = {}
+    if not isinstance(raw_widths, dict):
+        return sanitized
+    for key, value in raw_widths.items():
+        if not isinstance(key, str):
+            continue
+        if isinstance(value, (int, float)) and value > 0:
+            sanitized[key.strip()] = min(int(value), 1200)
+    return sanitized
+
+
+def _resolve_platform_column_widths(
+    platform_widths: Dict[str, Dict[str, int]] | None = None,
+    fallback_widths: Dict[str, int] | None = None,
+    *,
+    platform_name: str | None = None,
+) -> Dict[str, int]:
+    platform_key = _normalize_platform_key(platform_name)
+    source_platforms = (
+        platform_widths if isinstance(platform_widths, dict) else DEFAULT_COLUMN_WIDTHS_BY_PLATFORM
+    )
+    base_widths = copy.deepcopy(
+        source_platforms.get(platform_key, DEFAULT_COLUMN_WIDTHS_BY_PLATFORM["linux"])
+    )
+    if fallback_widths:
+        for key, value in fallback_widths.items():
+            if isinstance(key, str) and isinstance(value, int):
+                base_widths[key] = value
+    return base_widths
+
+
+DEFAULT_COLUMN_WIDTHS: Dict[str, int] = _resolve_platform_column_widths()
 
 DEFAULT_GUI_SETTINGS: Dict[str, Any] = {
     "page_size": 50,
@@ -303,7 +372,8 @@ DEFAULT_GUI_MAIN_PREFERENCES: Dict[str, Any] = {
         "responsavel_programacao",
     ],
     "column_display_names": copy.deepcopy(DEFAULT_COLUMN_DISPLAY_NAMES),
-    "column_widths": copy.deepcopy(DEFAULT_COLUMN_WIDTHS),
+    "column_widths": copy.deepcopy(DEFAULT_COLUMN_WIDTHS_WINDOWS),
+    "column_widths_by_platform": copy.deepcopy(DEFAULT_COLUMN_WIDTHS_BY_PLATFORM),
     "gui_settings": copy.deepcopy(DEFAULT_GUI_SETTINGS),
     "version": "1.0.0",
     "created_for": "GUI Main (main.py --gui)",
@@ -344,6 +414,7 @@ _MERGE_KEYS = {
     "hidden_columns",
     "column_display_names",
     "column_widths",
+    "column_widths_by_platform",
     "gui_settings",
 }
 _LEGACY_INVALID_COLUMN_KEYS = {
@@ -450,14 +521,23 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
     merged["column_display_names"] = names
     merged["display_mappings"] = copy.deepcopy(names)
 
-    widths = copy.deepcopy(DEFAULT_COLUMN_WIDTHS)
-    loaded_widths = loaded_config.get("column_widths")
-    if isinstance(loaded_widths, dict):
-        for key, value in loaded_widths.items():
-            if not isinstance(key, str):
+    platform_widths = copy.deepcopy(DEFAULT_COLUMN_WIDTHS_BY_PLATFORM)
+    loaded_platform_widths = loaded_config.get("column_widths_by_platform")
+    if isinstance(loaded_platform_widths, dict):
+        for platform_key, raw_widths in loaded_platform_widths.items():
+            if not isinstance(platform_key, str):
                 continue
-            if isinstance(value, (int, float)) and value > 0:
-                widths[key.strip()] = min(int(value), 1200)
+            normalized_key = _normalize_platform_key(platform_key)
+            if normalized_key not in platform_widths:
+                continue
+            platform_widths[normalized_key].update(_sanitize_width_map(raw_widths))
+    merged["column_widths_by_platform"] = platform_widths
+
+    loaded_widths = _sanitize_width_map(loaded_config.get("column_widths"))
+    widths = _resolve_platform_column_widths(
+        platform_widths,
+        None if loaded_platform_widths else loaded_widths,
+    )
     widths.setdefault("#", DEFAULT_COLUMN_WIDTHS["#"])
     for column in display_columns:
         if column not in widths:
@@ -540,6 +620,7 @@ def _has_minimum_preferences_integrity(raw_config: Any) -> bool:
         "column_display_names": dict,
         "display_mappings": dict,
         "column_widths": dict,
+        "column_widths_by_platform": dict,
         "gui_settings": dict,
     }
     if not raw_config:
@@ -617,17 +698,17 @@ def load_gui_main_preferences(
                     config_path,
                     exc,
                 )
-        return _hard_default_preferences_copy()
+        return _merge_preferences({})
 
     try:
         with open(config_path, "r", encoding="utf-8") as handle:
             loaded_config = json.load(handle)
     except json.JSONDecodeError as exc:
         logger.error("Unable to parse GUI preferences at %s: %s", config_path, exc)
-        return _hard_default_preferences_copy()
+        return _merge_preferences({})
     except OSError as exc:
         logger.error("Unable to read GUI preferences at %s: %s", config_path, exc)
-        return _hard_default_preferences_copy()
+        return _merge_preferences({})
 
     if not isinstance(loaded_config, dict):
         logger.warning(
