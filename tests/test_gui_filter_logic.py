@@ -2921,6 +2921,31 @@ class TestGUIFilterLogic:
         assert '<a href="ssa-panel:202500777"' not in html
         assert "202500777" in html
 
+    def test_format_details_html_omits_link_for_missing_derived_target(self, monkeypatch):
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_derivadas_for_ssa",
+            lambda _window, _numero: ["202602147", "202500777"],
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_series_for_ssa",
+            lambda _window, numero: object() if str(numero) == "202602147" else None,
+        )
+
+        series = pd.Series({"numero_ssa": "202600023", "situacao": "APL"})
+
+        html = ssa_gui_details._format_details_html(
+            self.window,
+            series,
+            highlight_search_terms=False,
+            linkify=True,
+        )
+
+        assert '<a href="ssa:202602147"' in html
+        assert '<a href="ssa:202500777"' not in html
+        assert "202500777" in html
+
     def test_details_number_double_click_copies_current_ssa(self, monkeypatch):
         self.window._details_current_ssa = "202600023"
         self.window.details_text.setHtml(

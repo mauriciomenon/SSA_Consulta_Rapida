@@ -318,11 +318,14 @@ def _format_details_html(
             for item in derived_list:
                 href = _normalize_ssa_value(window, item)
                 display = html_module.escape(item)
-                items.append(
-                    f'<a href="ssa:{href}" style="color:{link_color}; '
-                    f'text-decoration:none; border-bottom: 1px solid {link_color};">'
-                    f"{display}</a>"
-                )
+                if href and _get_series_for_ssa(window, href) is not None:
+                    items.append(
+                        f'<a href="ssa:{href}" style="color:{link_color}; '
+                        f'text-decoration:none; border-bottom: 1px solid {link_color};">'
+                        f"{display}</a>"
+                    )
+                else:
+                    items.append(display)
             derived_text = ", ".join(items)
         else:
             derived_text = ", ".join(derived_list)
