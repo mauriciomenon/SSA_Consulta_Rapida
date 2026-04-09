@@ -5,6 +5,7 @@ Testes para as novas funcionalidades de verificação e integridade do banco de 
 """
 
 import os
+from pathlib import Path
 import sqlite3
 
 import pandas as pd
@@ -474,6 +475,31 @@ class TestDatabaseRepair:
         assert os.path.exists(db_path)
 
         # Confirma integridade do banco criado
+        report = verify_database_integrity(db_path, table_name="ssas")
+        assert report["is_valid"] is True
+        assert report["table_exists"] is True
+
+    def test_repair_empty_file_database_recreates_schema(self, tmp_path):
+        """Arquivo SQLite vazio deve seguir o caminho de recriacao, nao de restore."""
+        db_path = os.path.join(tmp_path, "empty_repair.db")
+        schema_path = os.path.join(tmp_path, "schema.sql")
+
+        with open(schema_path, "w") as f:
+            f.write("""
+            CREATE TABLE IF NOT EXISTS ssas (
+                numero_ssa INTEGER,
+                situacao TEXT,
+                data_cadastro TEXT,
+                descricao_ssa TEXT
+            );
+            """)
+
+        Path(db_path).touch()
+        assert os.path.getsize(db_path) == 0
+
+        result = repair_database_if_needed(db_path, schema_path, table_name="ssas")
+
+        assert result is True
         report = verify_database_integrity(db_path, table_name="ssas")
         assert report["is_valid"] is True
         assert report["table_exists"] is True

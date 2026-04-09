@@ -232,10 +232,10 @@ def repair_database_if_needed(
                 "Banco integro com colunas opcionais pendentes de reparo: %s",
                 missing_optional_columns,
             )
-        expected_creation = integrity_report.get(
-            "needs_creation", False
-        ) and not integrity_report.get("database_exists", False)
-        if expected_creation:
+        expected_creation = integrity_report.get("needs_creation", False)
+        if expected_creation and integrity_report.get("database_exists", False):
+            logger.info("Banco invalido em estado recriavel; schema sera recriado.")
+        elif expected_creation:
             logger.info("Banco ausente em bootstrap; criacao inicial sera executada.")
         elif integrity_report["issues"]:
             logger.warning(
@@ -246,8 +246,8 @@ def repair_database_if_needed(
                 "Nenhum problema critico detectado; aplicando apenas reparos opcionais."
             )
         repaired = False
-        if not integrity_report["database_exists"]:
-            logger.info("Criando novo banco de dados...")
+        if expected_creation:
+            logger.info("Recriando schema do banco de dados...")
             from .database import initialize_database  # lazy
 
             initialize_database(db_path, schema_file)
