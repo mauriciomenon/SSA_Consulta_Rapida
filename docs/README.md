@@ -10,10 +10,22 @@
   - `filter_dataframe()` voltou a aceitar `search_columns` numericas/datetime sem falso vazio
   - a busca geral da GUI agora tem contrato proprio de colunas em `docs/GUI_GENERAL_SEARCH_COLUMN_CONTRACT.md`
   - a decisao de colunas da busca geral deixou de ficar escondida no default do core para o fluxo da GUI
+  - a frente de blindagem de contratos de estado da GUI foi consolidada em `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
+  - reorder e sort de coluna agora preservam o painel `Detalhes da SSA Selecionada`
+  - resize do header agora persiste largura pela coluna correta mesmo com reorder
+  - reorder em schema parcial deixou de truncar colunas visiveis ausentes do schema atual
+  - o contrato de derivadas ficou travado por regressao de navegacao e retorno a origem
   - `setor_executor` passou a compartilhar estado aplicado entre filtro rapido e filtro avancado
   - `solicitante` no painel avancado agora reconhece alias `responsavel_solicitante`
   - o prefixo de area/setor de responsaveis ficou estavel contra subconjuntos filtrados
-  - referencias de implementacao: `02ec4a30`, `b7af8aef`, `d6fbb4fe`
+  - referencias de implementacao desta frente:
+    - `bf57520d`
+    - `38cb9cc5`
+    - `048700c4`
+    - `5e581d6e`
+    - `c45d9e42`
+    - `3bc0d36f`
+    - `21135ccf`
   - recuperacao forense da sessao em `2026-03-31` confirmou que o ultimo commit realmente aterrado foi `7913c712` (`DOC_SYNC: align live continuity docs`)
   - nesta retomada nao havia shell/agent ativo nem patch de runtime pendente; `HEAD...origin/dev = 00`
   - existe residuo antigo `.git\REBASE_HEAD` datado de `2025-11-26`, sem `rebase-apply`/`rebase-merge`; tratar como hygiene de Git fora de escopo, nao como operacao viva desta frente
@@ -47,6 +59,7 @@
 
 - `docs/GUI_PYQT6_REGRAS_GERAIS.md`
 - `docs/GUI_GENERAL_SEARCH_COLUMN_CONTRACT.md`
+- `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
 - `docs/FILTER_TAB_OPTIMIZATIONS.md`
 - `docs/GUI_ASYNC_LOADING_GUARDRAILS.md`
 - `docs/WORKERS_API_DOCUMENTATION.md`

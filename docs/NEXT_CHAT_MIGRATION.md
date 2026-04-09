@@ -2,76 +2,58 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-07 10h20
+## CURRENT TRUTH 2026-04-09 20h13
 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. worktree desta frente continua com residuo local fora de escopo:
-   - `?? .sisyphus/`
-3. o slice mais recente entregou labels adaptativos no header da GUI sem tocar CLI
-4. arquivos tocados no slice funcional mais recente:
-   - `gui/gui_config.py`
-   - `gui/ssa/gui_table.py`
-   - `tests/test_gui_filter_logic.py`
-   - docs vivos desta frente
-5. a verdade do header agora e:
-   - a GUI continua nascendo de aliases canonicos
-   - o paint final do header reaplica label adaptativo por coluna
-   - cada coluna tem exatamente tres slots `short/medium/long`
-   - a escolha runtime tenta `long -> medium -> short`
-   - o calculo reserva espaco para `[f] ` e para margem lateral
-   - se nada couber, fica `short`
-6. o alinhamento das celulas da tabela agora deve ser lido assim:
-   - sai de `gui_settings.table_cell_alignment`
-   - aceita `left|center|right`
-   - default canonico `right`
-   - valor invalido volta para `right`
-   - menu atual: `Opcoes -> Alinhamento da tabela`
-6. o contrato de largura agora deve ser lido assim:
-   - o runtime resolve `DEFAULT_COLUMN_WIDTHS` para a plataforma atual
-   - o baseline canonico de origem passa por `DEFAULT_COLUMN_WIDTHS_BY_PLATFORM`
-   - largura persistida continua vencendo largura automatica
-   - `column_widths_by_platform` e a fonte preferencial quando existir
-   - `column_widths` simples segue como fallback de compatibilidade
-   - referencia detalhada: `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
-7. a CLI continua fora deste slice, mas a descricao correta agora e:
-   - CLI interativa principal usa `display_map`, `short_labels`, `fixed_widths`
-   - alternancia `short/full`
-   - caminho principal:
-     - `main.py -> interface/cli.py -> interface/table_printer.py`
-8. pendencia registrada:
-   - `core/handler_base.py:197` existe como renderer paralelo
-   - nao foi confirmado como caminho ativo do CLI principal
+2. worktree desta frente deve ser lido como quase limpo:
+   - so backups locais fora de escopo permanecem recorrentes
+3. a busca geral da GUI agora e dona explicita do proprio contrato de colunas
+4. o contrato de busca geral esta documentado em:
+   - `docs/GUI_GENERAL_SEARCH_COLUMN_CONTRACT.md`
+5. o contrato de estado do bloco GUI/tabela/detalhes agora deve ser lido assim:
+   - reorder de coluna nao atualiza detalhes
+   - sort de coluna nao atualiza detalhes
+   - resize persiste largura pela coluna correta mesmo com reorder
+   - reorder em schema parcial nao pode truncar colunas visiveis ausentes
+   - filtro por derivadas atualiza lista e detalhes da derivada exibida
+   - limpar derivadas retorna para a SSA origem via `_jump_to_ssa(...)`
+6. o post-mortem tecnico desta frente esta em:
+   - `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
+7. o contrato de preferencias GUI continua sendo:
+   - `config/gui_main_preferences.json` e o arquivo efetivo tracked de runtime
+   - `.example` documenta o padrao
+   - largura persistida valida vence largura automatica
+   - `column_widths_by_platform` segue como fonte preferencial quando existir
+8. a CLI continua fora desta frente; o caminho principal permanece:
+   - `main.py -> interface/cli.py -> interface/table_printer.py`
 9. `kluster` esta disponivel neste host em:
    - `/Users/menon/.kluster/cli/bin/kluster`
 
 ### Validacao relevante desta rodada
 
-1. `py_compile`, `ruff`, `ty` -> verdes
-2. `pytest` focado -> `12 passed`
-3. `kluster` local existe neste host:
-   - um review no lote de codigo devolveu apenas debts antigos fora do escopo
-   - a reexecucao no lote final com docs excedeu o timeout e deve ser tratada como bloqueio de ferramenta
+1. `py_compile`, `ruff`, `ty` -> verdes nos slices funcionais recentes
+2. regresses chave aterradas:
+   - `tests/test_gui_filter_logic.py`
+   - `tests/test_gui_table_render_resilience.py`
+   - `tests/test_gui_main_configuration.py`
+3. `pytest` focados relevantes desta frente ficaram verdes
+4. `kluster` local existe neste host, mas timeout de review continua devendo ser tratado como bloqueio de ferramenta, nao como gate verde
 
 ### Proximo passo recomendado
 
-1. manter qualquer refatoracao de `display_current_page` em slice separado
+1. manter qualquer refatoracao de `display_current_page(...)` em slice separado
 2. nao reabrir CLI junto com GUI sem pedido explicito
-3. se houver follow-up de labels, limitar a:
-   - ajuste pontual da matriz `short/medium/long`
-   - teste de regressao correspondente
-4. se houver follow-up de alinhamento, manter separado:
-   - o contrato e o render ja existem
-   - a opcao clicavel atual ficou em `gui/gui_ssa.py`
-   - qualquer expansao para dialogo/toolbar ainda deve entrar em slice proprio
-5. nao mexer no renderer paralelo `handler_base` sem prova de callsite ativo
-6. seguir com `git status --short` no inicio e ignorar `.sisyphus/` por default
-7. antes de novo patch, ler:
+3. tratar qualquer novo call site visual que use `display_current_page(...)` como risco de contrato cruzado
+4. nao mexer no renderer paralelo `handler_base` sem prova de callsite ativo
+5. seguir com `git status --short` no inicio
+6. antes de novo patch, ler:
    - `AGENTS.md`
    - `docs/NEXT_CHAT_MIGRATION.md`
    - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
    - `docs/RECOVERY_BACKLOG.md`
+   - `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
 
 ## HISTORICAL SNAPSHOT 2026-04-07 00h30
 
