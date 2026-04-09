@@ -262,6 +262,57 @@ class TestGUIMainConfiguration:
 
         assert config["column_widths"]["data_arquivo_origem"] == 100
 
+    def test_load_gui_main_preferences_uses_platform_specific_widths(self):
+        partial_config = {
+            "display_columns": ["numero_ssa", "situacao"],
+            "column_display_names": {},
+            "column_widths": {"descricao_ssa": 999},
+            "column_widths_by_platform": {
+                "darwin": {"descricao_ssa": 340},
+                "win32": {"descricao_ssa": 298},
+                "linux": {"descricao_ssa": 298},
+            },
+            "gui_settings": {},
+        }
+
+        from gui.gui_config import load_gui_main_preferences
+
+        with patch(
+            "gui.gui_config.open", mock_open(read_data=json.dumps(partial_config))
+        ):
+            with patch("gui.gui_config.os.path.exists", return_value=True):
+                with patch("gui.gui_config.sys.platform", "darwin"):
+                    darwin_config = load_gui_main_preferences()
+                with patch("gui.gui_config.sys.platform", "win32"):
+                    win_config = load_gui_main_preferences()
+                with patch("gui.gui_config.sys.platform", "linux"):
+                    linux_config = load_gui_main_preferences()
+
+        assert darwin_config["column_widths"]["descricao_ssa"] == 340
+        assert win_config["column_widths"]["descricao_ssa"] == 298
+        assert linux_config["column_widths"]["descricao_ssa"] == 298
+
+    def test_load_gui_main_preferences_falls_back_to_generic_widths_without_platform_map(
+        self,
+    ):
+        partial_config = {
+            "display_columns": ["numero_ssa", "situacao"],
+            "column_display_names": {},
+            "column_widths": {"descricao_ssa": 333},
+            "gui_settings": {},
+        }
+
+        from gui.gui_config import load_gui_main_preferences
+
+        with patch(
+            "gui.gui_config.open", mock_open(read_data=json.dumps(partial_config))
+        ):
+            with patch("gui.gui_config.os.path.exists", return_value=True):
+                with patch("gui.gui_config.sys.platform", "darwin"):
+                    config = load_gui_main_preferences()
+
+        assert config["column_widths"]["descricao_ssa"] == 333
+
     def test_load_gui_main_preferences_preserves_valid_table_cell_alignment(self):
         partial_config = {
             "display_columns": ["numero_ssa", "situacao"],
