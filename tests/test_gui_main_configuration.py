@@ -157,6 +157,38 @@ class TestGUIMainConfiguration:
                 assert "display_columns" in config
                 assert config["version"] == "1.0.0"
 
+    def test_load_gui_main_preferences_invalid_structure_uses_platform_defaults(self):
+        from gui.gui_config import load_gui_main_preferences
+
+        with patch("gui.gui_config.open", mock_open(read_data='["bad"]')):
+            with patch("gui.gui_config.os.path.exists", return_value=True):
+                with patch("gui.gui_config.sys.platform", "darwin"):
+                    config = load_gui_main_preferences()
+
+        assert config["column_widths"]["descricao_ssa"] == 340
+        assert config["column_widths"]["semana_cadastro"] == 60
+
+    def test_load_gui_main_preferences_invalid_integrity_uses_platform_defaults(self):
+        invalid_config = {
+            "display_columns": ["numero_ssa", "situacao"],
+            "column_display_names": {},
+            "column_widths": {},
+            "column_widths_by_platform": [],
+            "gui_settings": {},
+        }
+
+        from gui.gui_config import load_gui_main_preferences
+
+        with patch(
+            "gui.gui_config.open", mock_open(read_data=json.dumps(invalid_config))
+        ):
+            with patch("gui.gui_config.os.path.exists", return_value=True):
+                with patch("gui.gui_config.sys.platform", "darwin"):
+                    config = load_gui_main_preferences()
+
+        assert config["column_widths"]["descricao_ssa"] == 340
+        assert config["column_widths"]["semana_cadastro"] == 60
+
     def test_partial_config_is_merged_with_contract(self):
         """JSON parcial deve preservar contrato minimo de colunas e mapeamentos."""
         partial_config = {
