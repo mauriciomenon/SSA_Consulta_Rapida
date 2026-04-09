@@ -275,6 +275,31 @@ class TestGUITableRenderResilience:
         assert self.window._details_current_ssa == initial_ssa
         assert str(self.window.details_text.toHtml() or "") == initial_html
 
+    def test_sort_preserves_existing_details(self):
+        sortable_df = self.base_df.copy()
+        sortable_df.loc[:, "numero_ssa"] = [3, 1, 2]
+        sortable_df.loc[:, "descricao_ssa"] = ["Teste C", "Teste A", "Teste B"]
+        self._set_window_dataframe(sortable_df, page_size=10)
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        initial_html = str(self.window.details_text.toHtml() or "")
+        initial_ssa = self.window._details_current_ssa
+        logical_index = self.window._current_display_columns.index("numero_ssa")
+
+        with patch.object(
+            ssa_gui_details,
+            "_update_details_from_series",
+            wraps=ssa_gui_details._update_details_from_series,
+        ) as update_details:
+            self.window.on_header_clicked(logical_index)
+            QApplication.processEvents()
+
+        assert self.window.df_exibido["numero_ssa"].tolist() == [1, 2, 3]
+        assert update_details.call_count == 0
+        assert self.window._details_current_ssa == initial_ssa
+        assert str(self.window.details_text.toHtml() or "") == initial_html
+
     def test_display_current_page_dataset_swap_updates_visible_table_and_details(self):
         self.window.display_current_page(1)
         QApplication.processEvents()

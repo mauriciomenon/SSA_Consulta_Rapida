@@ -2986,7 +2986,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     getattr(self.paginator, "total_pages", 1),
                 ),
             )
-            self.display_current_page(current_page)
+            self.display_current_page(current_page, update_details=False)
             self._restore_column_widths(preserved_widths)
 
             # Indicador visual na UI
