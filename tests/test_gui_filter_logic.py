@@ -3898,6 +3898,53 @@ class TestGUIFilterLogic:
         finally:
             reloaded_window.close()
 
+    def test_resolve_header_column_name_prefers_visual_mapping_during_eager_reorder(self):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header = self.window.table_widget.horizontalHeader()
+        situacao_logical_index = self.window._current_display_columns.index("situacao")
+        header.moveSection(header.visualIndex(situacao_logical_index), 1)
+        QApplication.processEvents()
+
+        self.window._current_display_columns = (
+            ssa_gui_table._get_header_visual_column_order(self.window)
+        )
+
+        resolved = self.window._resolve_header_column_name(situacao_logical_index)
+
+        assert resolved == "situacao"
+
+    def test_header_section_moved_updates_runtime_column_snapshot_before_rerender(
+        self, monkeypatch
+    ):
+        self.window._current_display_columns = ["#", "numero_ssa", "situacao"]
+        self.window.visible_columns = ["numero_ssa", "situacao"]
+        monkeypatch.setattr(self.window, "_capture_current_column_widths", lambda: {})
+        monkeypatch.setattr(
+            self.window, "_restore_column_widths", lambda _widths: None
+        )
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_get_header_visual_column_order",
+            lambda _window: ["#", "situacao", "numero_ssa"],
+        )
+
+        captured = {}
+
+        def _fake_display_current_page(page_number, *, update_details=True):
+            captured["page_number"] = page_number
+            captured["snapshot"] = list(self.window._current_display_columns)
+            captured["visible_columns"] = list(self.window.visible_columns)
+
+        monkeypatch.setattr(self.window, "display_current_page", _fake_display_current_page)
+
+        self.window._on_header_section_moved(2, 2, 1)
+
+        assert captured["page_number"] == self.window.paginator.current_page
+        assert captured["snapshot"] == ["#", "situacao", "numero_ssa"]
+        assert captured["visible_columns"] == ["situacao", "numero_ssa"]
+
     def test_best_fit_width_guard_ignores_single_extreme_outlier(self):
         expanded_df = pd.concat(
             [self.base_df.copy() for _ in range(20)], ignore_index=True

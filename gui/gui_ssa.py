@@ -2893,18 +2893,47 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             "keys_df": keys_df,
         }
 
+    def _resolve_header_column_name(self, logical_index: int) -> str | None:
+        if logical_index < 0 or self.table_widget.columnCount() == 0:
+            return None
+        current_columns = list(getattr(self, "_current_display_columns", []) or [])
+        if not current_columns or logical_index >= len(current_columns):
+            return None
+
+        header = self.table_widget.horizontalHeader()
+        if header is not None:
+            try:
+                visual_index = int(header.visualIndex(logical_index))
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao consultar visualIndex para logical_index=%s: %s",
+                    logical_index,
+                    exc,
+                )
+                visual_index = logical_index
+
+            try:
+                visual_order = ssa_gui_table._get_header_visual_column_order(self)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao resolver ordem visual atual do header: %s", exc
+                )
+                visual_order = current_columns
+
+            if 0 <= visual_index < len(visual_order):
+                resolved = str(visual_order[visual_index] or "").strip()
+                if resolved and resolved != "#":
+                    return resolved
+
+        resolved = str(current_columns[logical_index] or "").strip()
+        if not resolved or resolved == "#":
+            return None
+        return resolved
+
     def on_header_clicked(self, logical_index: int):
         try:
-            if logical_index < 0 or self.table_widget.columnCount() == 0:
-                return
-            # Usa o mapa de colunas exibidas atualmente, que inclui '#'
-            if not hasattr(self, "_current_display_columns"):
-                return
-            if logical_index >= len(self._current_display_columns):
-                return
-            col_name = self._current_display_columns[logical_index]
-            # Ignora a coluna de ándice
-            if col_name == "#":
+            col_name = self._resolve_header_column_name(logical_index)
+            if not col_name:
                 return
             preserved_widths = self._capture_current_column_widths()
             self._skip_width_recompute_once = True
@@ -3014,14 +3043,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         try:
             header = self.table_widget.horizontalHeader()
             logical_index = header.logicalIndexAt(pos)
-            if logical_index < 0 or self.table_widget.columnCount() == 0:
-                return
-            if not hasattr(self, "_current_display_columns"):
-                return
-            if logical_index >= len(self._current_display_columns):
-                return
-            col_name = self._current_display_columns[logical_index]
-            if col_name == "#":
+            col_name = self._resolve_header_column_name(logical_index)
+            if not col_name:
                 return
 
             menu = QMenu(self)
@@ -3269,6 +3292,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         ):
             return
         preserved_widths = self._capture_current_column_widths()
+        self._current_display_columns = list(ordered_columns)
         self.visible_columns = ordered_visible_columns
         if hasattr(self, "column_selector") and self.column_selector is not None:
             try:
