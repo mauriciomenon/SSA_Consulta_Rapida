@@ -233,3 +233,58 @@ def test_import_single_file_drops_invalid_numero_ssa_rows_before_insert(
     assert count == 1
     assert captured["rows"] == 1
     assert captured["ssas"] == ["202512346"]
+
+
+def test_import_single_file_blocks_insert_when_missing_critical_column(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        lambda *args, **kwargs: pd.DataFrame(
+            {
+                "numero_ssa": ["202500100"],
+                "situacao": ["APV"],
+                "descricao_ssa": ["Sem data de cadastro"],
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        app_logic.database,
+        "validate_dataframe_before_insert",
+        lambda *args, **kwargs: {
+            "is_valid": False,
+            "violations": [
+                {
+                    "rule": "missing_column_data_cadastro",
+                    "column": "data_cadastro",
+                    "severity": "error",
+                    "count": 1,
+                    "sample_ssa": ["202500100"],
+                }
+            ],
+            "invalid_by_column": {},
+            "issues": ["Coluna obrigatoria 'data_cadastro' ausente no DataFrame"],
+        },
+    )
+    monkeypatch.setattr(
+        app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None
+    )
+
+    def _fail_insert(*args, **kwargs):
+        raise AssertionError("insert nao deveria ser chamado")
+
+    monkeypatch.setattr(
+        app_logic.database, "insert_dataframe_with_smart_upsert", _fail_insert
+    )
+
+    file_path = str(tmp_path / "input.xlsx")
+    with pytest.raises(
+        app_logic.ExtractionError, match="Coluna obrigatoria 'data_cadastro' ausente"
+    ) as exc_info:
+        app_logic._import_single_file(
+            file_path, str(tmp_path / "db.sqlite"), "ssa_table"
+        )
+
+    assert getattr(exc_info.value, "error_code", None) == "MISSING_REQUIRED_COLUMNS"
