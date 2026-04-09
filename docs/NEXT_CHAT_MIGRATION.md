@@ -73,7 +73,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
    - `docs/RECOVERY_BACKLOG.md`
 
-## CURRENT TRUTH 2026-04-07 00h30
+## HISTORICAL SNAPSHOT 2026-04-07 00h30
 
 ### Estado de repositorio e runtime
 
@@ -132,7 +132,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 3. backlog semantico aberto:
    - renomear ou reclassificar o agrupamento `exclude_ste_sca` se o produto realmente agrupa `SES/SAD/STE/SCA`
 
-## CURRENT TRUTH 2026-03-31 09h49
+## HISTORICAL SNAPSHOT 2026-03-31 09h49
 
 ### Estado de repositorio e runtime
 
@@ -206,7 +206,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 3. baseline amplo ainda referenciado dos docs vivos:
    - `uv run --python 3.13 python -m pytest -q tests` -> `993 passed, 4 skipped, 11 subtests passed`
 
-## CURRENT TRUTH 2026-03-27 20h35
+## HISTORICAL SNAPSHOT 2026-03-27 20h35
 
 - Leitura rapida:
   1. branch ativa: `dev`
