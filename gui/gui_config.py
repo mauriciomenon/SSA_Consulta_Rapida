@@ -716,7 +716,7 @@ def load_gui_main_preferences(
         logger.warning(
             "Invalid GUI preference structure at %s, using defaults.", config_path
         )
-        return _hard_default_preferences_copy()
+        return _merge_preferences({})
     if not _has_minimum_preferences_integrity(loaded_config):
         logger.warning(
             "GUI preferences integrity check failed at %s, using defaults.", config_path
@@ -734,7 +734,7 @@ def load_gui_main_preferences(
                     config_path,
                     exc,
                 )
-        return _hard_default_preferences_copy()
+        return _merge_preferences({})
 
     return _merge_preferences(loaded_config)
 
