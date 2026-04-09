@@ -587,6 +587,44 @@ class TestDatabaseRepair:
         assert "situacao" in columns
         assert "data_cadastro" in columns
 
+    def test_repair_adds_required_and_optional_columns_in_single_pass(self, tmp_path):
+        """Reparo unico deve resolver faltas obrigatorias e opcionais no mesmo ciclo."""
+        db_path = os.path.join(tmp_path, "repair_missing_required_and_optional.db")
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE ssa_table (
+                    numero_ssa INTEGER,
+                    descricao_ssa TEXT
+                )
+                """
+            )
+            conn.commit()
+
+        schema_path = os.path.join(tmp_path, "schema.sql")
+        with open(schema_path, "w") as f:
+            f.write(
+                """
+                CREATE TABLE IF NOT EXISTS ssa_table (
+                    numero_ssa INTEGER,
+                    situacao TEXT,
+                    data_cadastro TEXT,
+                    descricao_ssa TEXT
+                );
+                """
+            )
+
+        result = repair_database_if_needed(db_path, schema_path, table_name="ssa_table")
+
+        assert result is True
+        columns = query_db(db_path, "ssa_table").columns.tolist()
+        assert "situacao" in columns
+        assert "data_cadastro" in columns
+        assert "arquivo_origem" in columns
+        assert "data_planilha" in columns
+        report = verify_database_integrity(db_path, table_name="ssa_table")
+        assert report["missing_optional_columns"] == []
+
     def test_repair_nonexistent_database_avoids_false_warning(self, tmp_path, caplog):
         """Banco ausente em bootstrap nao deve logar warning generico de problema."""
         db_path = os.path.join(tmp_path, "new_bootstrap.db")
