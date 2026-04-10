@@ -5,6 +5,21 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-10 - build copy hardening and wrapper timeout follow-up
+
+Escopo fechado nesta rodada:
+1. estabilizar `scripts/copy_data_to_builds.py` com fixes minimos de target/runtime, staging de config e mensagens operacionais
+2. subir o default versionado dos wrappers Python de pytest para `60s`
+3. validar alvo seguro de `--test` nos wrappers legados
+4. registrar em `AGENTS.md` a politica de timeout maior para `kluster`, `snyk` e `semgrep`, com margem de espera em background
+5. manter fora do escopo refatoracao transversal e reorganizacao ampla dos wrappers
+
+Pendencias nao bloqueantes registradas:
+1. `scripts/run_pytest_with_timeout.py` e `scripts/run_pytest_with_timeout_v2.py` continuam com logica de timeout/cleanup duplicada; isso deve virar helper comum em slice proprio
+2. `scripts/run_pytest_stream_and_log.py` e `scripts/run_pytest_stream_and_log_v2.py` continuam com carga repetida de settings/CLI; consolidacao fica para slice proprio
+3. `scripts/copy_data_to_builds.py` continua concentrando validacao, descoberta de fontes, stage de config e copia multi-target; quebrar em helpers fica para hardening separado
+4. a politica de fallback de `_resolve_runtime_dirs` e de copia no diretorio base precisa decisao de produto explicita antes de nova mudanca estrutural
+
 ## Update 2026-04-09 - GUI state contract hardening residual
 
 Frente funcional aterrada nesta rodada:
