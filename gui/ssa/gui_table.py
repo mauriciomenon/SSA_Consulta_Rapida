@@ -482,6 +482,11 @@ def display_current_page(window, page_number, *, update_details=True):
 
     if window.df_para_tabela.empty:
         # Mesmo sem linhas, mantenha as colunas visiveis e larguras aplicadas
+        try:
+            if hasattr(window.table_widget, "clearSelection"):
+                window.table_widget.clearSelection()
+        except Exception as exc:
+            logger.debug("Falha ao limpar selecao em tabela vazia: %s", exc)
         window.table_widget.setRowCount(0)
         # Determina colunas validas a partir de df_exibido (mesmo vazio, mantem schema)
         valid_cols = []
@@ -685,6 +690,13 @@ def display_current_page(window, page_number, *, update_details=True):
 
     if not reuse_render:
         with _freeze_table_batch_state(window, header):
+            try:
+                if hasattr(window.table_widget, "clearSelection"):
+                    window.table_widget.clearSelection()
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao limpar selecao antes de reconstruir a tabela: %s", exc
+                )
             # Configura a tabela
             window.table_widget.setRowCount(len(display_df))
             window.table_widget.setColumnCount(len(display_df.columns))
