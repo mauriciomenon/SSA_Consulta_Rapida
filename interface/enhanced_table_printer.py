@@ -139,12 +139,6 @@ class EnhancedTablePrinter:
                 "page_size": 0,
             }
 
-        # Ordenacao padrao: nao-STE primeiro; depois numero SSA desc
-        try:
-            df = self._apply_default_order(df)
-        except Exception:
-            pass
-
         # Obtem dimensoes do terminal
         terminal_height, terminal_width = self.get_terminal_size()
         available_width = max(terminal_width - 5, 40)  # Margem de seguranca
