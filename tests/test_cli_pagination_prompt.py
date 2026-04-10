@@ -192,3 +192,33 @@ def test_truncate_header_never_exceeds_very_narrow_width():
     assert printer._truncate_header("Descricao", 1) == "."
     assert printer._truncate_header("Descricao", 2) == ".."
     assert printer._truncate_header("Descricao", 3) == "..."
+
+
+def test_enhanced_printer_preserves_input_order(monkeypatch):
+    printer = EnhancedTablePrinter()
+    monkeypatch.setattr(printer, "get_terminal_size", lambda: (12, 120))
+
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500003", "202500002"],
+            "situacao": ["STE", "ADM", "APG"],
+            "descricao_ssa": ["primeira", "segunda", "terceira"],
+        }
+    )
+    settings = {"user_preferences": {}, "display_settings": {}}
+
+    buffer = io.StringIO()
+    monkeypatch.setattr("builtins.input", lambda _prompt="": "q")
+
+    with redirect_stdout(buffer):
+        printer.print_dataframe_enhanced(df, {}, settings)
+
+    output = buffer.getvalue()
+    pos_primeira = output.find("202500001")
+    pos_segunda = output.find("202500003")
+    pos_terceira = output.find("202500002")
+
+    assert pos_primeira != -1
+    assert pos_segunda != -1
+    assert pos_terceira != -1
+    assert pos_primeira < pos_segunda < pos_terceira
