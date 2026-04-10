@@ -1,0 +1,29 @@
+requirements_build.txt
+  e142bee770b0eadb 7
+launchers/platforms/debian_amd64/requirements.txt
+  e142bee770b0eadb 12
+launchers/platforms/macos_arm64/requirements.txt
+  e142bee770b0eadb 12
+launchers/platforms/windows_amd64/requirements.txt
+  e142bee770b0eadb 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "96b489cf8d9ee07896400ba140650c0a73a100ca",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 279,
+      "overriden_lines": 0
+    }
+  }
+}
