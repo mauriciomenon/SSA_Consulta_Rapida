@@ -20,6 +20,13 @@ def get_stream_logger(name: str):
     return get_robust_logger().get_logger(name, "cli")
 
 
+def ensure_local_ai_dir(cwd: str | None = None) -> str:
+    base_dir = cwd or os.getcwd()
+    log_dir = os.path.join(base_dir, "local_ai_private")
+    os.makedirs(log_dir, exist_ok=True)
+    return log_dir
+
+
 def ensure_log_path(logpath: str) -> None:
     d = os.path.dirname(logpath)
     if d and not os.path.exists(d):
@@ -117,7 +124,10 @@ def resolve_safe_logpath(logdir: str, user_log: str | None) -> str:
     except PathSafetyError as exc:
         raise ValueError(str(exc)) from exc
     resolved = str(resolved_path)
-    common = os.path.commonpath([base_dir, resolved])
+    try:
+        common = os.path.commonpath([base_dir, resolved])
+    except ValueError as exc:
+        raise ValueError(f"--log must stay under {base_dir}") from exc
     if common != base_dir:
         raise ValueError(f"--log must stay under {base_dir}")
     return resolved
@@ -187,7 +197,8 @@ def _terminate_process(
                 process.kill()
         else:
             try:
-                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                process_group_id = os.getpgid(process.pid)
+                os.killpg(process_group_id, signal.SIGTERM)
             except (ProcessLookupError, PermissionError, OSError) as exc:
                 logger.warning("SIGTERM process group failed: %s", exc)
                 process.kill()
@@ -230,6 +241,71 @@ def _wait_for_termination(process: subprocess.Popen[str], *, logger) -> None:
             logger.warning("second wait for process termination failed: %s", wait_exc)
 
 
+def run_logged_pytest(
+    *,
+    cmd: list[str],
+    timeout_s: int,
+    logpath: str,
+    header: str,
+    kill_tree_default: bool,
+    pwsh_picker: Callable[[], str | None] | None = None,
+) -> int:
+    logger = get_robust_logger().get_logger(__name__, "cli")
+    process = None
+    with open(logpath, "w", encoding="utf-8", errors="replace") as logf:
+        logf.write(header)
+        logf.flush()
+        try:
+            popen_kwargs = {}
+            if os.name != "nt":
+                popen_kwargs["start_new_session"] = True
+            process = subprocess.Popen(
+                cmd,
+                stdout=logf,
+                stderr=subprocess.STDOUT,
+                **popen_kwargs,
+            )
+            try:
+                process.wait(timeout=timeout_s)
+            except subprocess.TimeoutExpired:
+                _terminate_process(
+                    process,
+                    kill_tree_default=kill_tree_default,
+                    pwsh_picker=pwsh_picker,
+                    logger=logger,
+                )
+                _wait_for_termination(process, logger=logger)
+                timeout_footer = (
+                    f"\n=== TIMEOUT: pytest exceeded {timeout_s}s and was terminated ===\n"
+                )
+                logf.write(timeout_footer)
+                logf.flush()
+                print(f"TIMEOUT: pytest exceeded {timeout_s}s; log: {logpath}")
+                return 124
+
+            exit_code = process.returncode
+            footer = f"\n=== Process exited with code {exit_code} ===\n"
+            logf.write(footer)
+            logf.flush()
+            print(f"pytest finished with exit code {exit_code}; log: {logpath}")
+            return exit_code
+        except BaseException as exc:
+            try:
+                logf.write(f"\n=== ERROR: {exc} ===\n")
+                logf.flush()
+            except Exception:
+                logger.exception("failed to write wrapper error to log")
+            if process is not None and process.poll() is None:
+                _terminate_process(
+                    process,
+                    kill_tree_default=kill_tree_default,
+                    pwsh_picker=pwsh_picker,
+                    logger=logger,
+                )
+                _wait_for_termination(process, logger=logger)
+            raise
+
+
 def run_streaming_pytest(
     *,
     cmd: list[str],
@@ -246,7 +322,7 @@ def run_streaming_pytest(
         f"Command: {' '.join(cmd)}\nTimeout: {timeout_s}s\n\n"
     )
 
-    start = time.time()
+    start = time.monotonic()
     if os.name == "nt":
         process = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
@@ -349,7 +425,7 @@ def run_streaming_pytest(
         try:
             sentinel_seen = False
             while True:
-                if time.time() - start > timeout_s:
+                if time.monotonic() - start > timeout_s:
                     _terminate_process(
                         process,
                         kill_tree_default=kill_tree_default,
