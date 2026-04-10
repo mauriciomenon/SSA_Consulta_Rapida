@@ -1,0 +1,23 @@
+tests/test_socket_reuse.py
+  e142bee770b0eadb 18-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "c74d585d671d30719300cf3bdacf24e113e0e23c",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 1,
+      "accepted_lines": 281,
+      "overriden_lines": 0
+    }
+  }
+}
