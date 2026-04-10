@@ -176,6 +176,32 @@ Cada slice deve declarar:
 - Incluir novos testes quando houver omissao clara.
 - Para aplicacao node: usar exclusivamente `pnpm` e `node`.
 
+## Politica De Timeout De Reviews
+
+- Busca ampla continua com `timeout 60s` por padrao.
+- Para ferramentas de review e scanner com latencia externa, usar orcamento maior:
+  - `kluster`: ate `90s` de execucao aberta e mais `30s` de espera/poll em background antes de considerar retry ou bloqueio.
+  - `snyk`: ate `90s` de execucao aberta e mais `30s` de espera/poll em background antes de considerar retry ou bloqueio.
+  - `semgrep`: ate `90s` de execucao aberta e mais `30s` de espera/poll em background antes de considerar retry ou bloqueio.
+- Durante a espera em background, o agente deve comecar outra atividade util do mesmo slice sempre que houver trabalho nao sobreposto.
+- Timeout de review nunca autoriza marcar verificacao como limpa; se a ferramenta nao concluiu, declarar bloqueio e escopo exato.
+
+## Checklist De Ciclo Maior
+
+- Em todo ciclo maior, manter checklist visivel nas atualizacoes ao usuario com estes estados:
+  1. diagnostico atual
+  2. slice em execucao
+  3. validacao local
+  4. review externo (`kluster`/`snyk`/`semgrep`)
+  5. commit
+  6. push
+  7. backlog/deferidos
+- Ao trocar de slice, informar explicitamente:
+  - o que fechou no slice anterior;
+  - o que continua aberto no ciclo maior;
+  - o proximo passo imediato.
+- Se houver multiplos commits dentro do mesmo ciclo maior, resumir sempre o placar atual do trabalho antes de seguir.
+
 ## Tooling Rules Especificas
 
 - Qwen e ferramenta de apoio para tarefas repetitivas operacionais por slice.
@@ -339,4 +365,3 @@ origem da regra, arquivo onde ela fica, testes de regressao;
 - Timeout de ferramenta de review nao autoriza esconder o risco nem prosseguir como se a verificacao estivesse limpa; o bloqueio deve ser declarado com escopo exato.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-
