@@ -53,6 +53,14 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def __init__(self, text: str, *_args, **_kwargs) -> None:
             self._text = text
             self.triggered = _FakeSignal()
+            self._checkable = False
+            self._checked = False
+
+        def setCheckable(self, value: bool) -> None:
+            self._checkable = bool(value)
+
+        def setChecked(self, value: bool) -> None:
+            self._checked = bool(value)
 
     class _Window:
         def __init__(self) -> None:
@@ -119,6 +127,9 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
             return None
 
         def run_vacuum_analyze(self) -> None:
+            return None
+
+        def _apply_table_cell_alignment_preference(self, _name: str) -> None:
             return None
 
     window = _Window()
