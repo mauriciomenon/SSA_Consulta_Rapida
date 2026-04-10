@@ -107,9 +107,10 @@ def resolve_target_build_dirs(base_dir: Path, build_system: str) -> list[Path]:
                 targets.append(candidate)
         if targets:
             return targets
-        fallback_targets = [base_dir / "builds" / "pyoxidizer"]
-        fallback_targets.extend(base_dir / rel for rel in PYOXIDIZER_PLATFORM_DIRS)
-        return fallback_targets
+        legacy_dir = base_dir / "builds" / "pyoxidizer"
+        if legacy_dir.exists():
+            return [legacy_dir]
+        return [base_dir / rel for rel in PYOXIDIZER_PLATFORM_DIRS]
 
     legacy_dir = base_dir / "builds" / build_system
     return [legacy_dir]
