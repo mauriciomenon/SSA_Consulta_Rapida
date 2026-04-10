@@ -224,6 +224,30 @@ class TestGUITableRenderResilience:
         details_html = str(self.window.details_text.toHtml() or "")
         assert "Teste A" in details_html
 
+    def test_manual_row_selection_updates_details_to_selected_row(self):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        self.window.table_widget.selectRow(1)
+        QApplication.processEvents()
+
+        assert [idx.row() for idx in self.window.table_widget.selectionModel().selectedRows()] == [1]
+        assert self.window._details_current_ssa == 2
+        assert "Teste B" in str(self.window.details_text.toHtml() or "")
+
+    def test_manual_selection_clear_clears_details(self):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        self.window.table_widget.selectRow(1)
+        QApplication.processEvents()
+
+        self.window.table_widget.clearSelection()
+        QApplication.processEvents()
+
+        assert self.window.table_widget.selectionModel().selectedRows() == []
+        assert self.window._details_current_ssa is None
+        assert self.window.details_text.toPlainText().strip() == ""
+
     def test_display_current_page_can_skip_initial_details_update(self):
         with patch.object(
             ssa_gui_details,
@@ -263,6 +287,28 @@ class TestGUITableRenderResilience:
         )
         assert self.window._details_current_ssa == initial_ssa
         assert str(self.window.details_text.toHtml() or "") == initial_html
+
+    def test_page_change_with_existing_selection_keeps_new_page_details(self):
+        paged_df = self._build_preserve_details_df()
+        self._set_window_dataframe(paged_df, page_size=2)
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        self.window.table_widget.selectRow(1)
+        QApplication.processEvents()
+
+        assert self.window._details_current_ssa == 202500002
+        assert "Teste B" in str(self.window.details_text.toHtml() or "")
+
+        self.window.display_current_page(2)
+        QApplication.processEvents()
+        QApplication.processEvents()
+
+        assert self.window.table_widget.selectionModel().selectedRows() == []
+        assert self.window._details_current_ssa == 202500003
+        details_html = str(self.window.details_text.toHtml() or "")
+        assert "Teste C" in details_html
+        assert "Teste B" not in details_html
 
     def test_on_columns_changed_preserves_existing_details(self):
         self.window.display_current_page(1)
@@ -422,11 +468,68 @@ class TestGUITableRenderResilience:
         assert self.window._details_current_ssa == initial_ssa
         assert "Teste D" in str(self.window.details_text.toHtml() or "")
 
-        self.window.main_tabs.setCurrentIndex(0)
+    def test_jump_to_ssa_overrides_previous_selection_without_intermediate_reset(
+        self, monkeypatch
+    ):
+        rows = 220
+        jump_df = pd.DataFrame(
+            {
+                "numero_ssa": list(range(202500001, 202500001 + rows)),
+                "situacao": ["APV"] * rows,
+                "derivada_de": [""] * rows,
+                "localizacao_codigo": [f"L{i}" for i in range(rows)],
+                "descricao_localizacao": [f"DL{i}" for i in range(rows)],
+                "equipamento": [f"E{i}" for i in range(rows)],
+                "semana_cadastro": [202501] * rows,
+                "semana_programada": [202503] * rows,
+                "data_cadastro": ["2025-01-01"] * rows,
+                "descricao_ssa": [f"Teste {i}" for i in range(rows)],
+                "setor_executor": ["IEE3"] * rows,
+                "setor_emissor": ["ABC"] * rows,
+                "descricao_execucao": [f"Exec {i}" for i in range(rows)],
+                "solicitante": [f"User{i}" for i in range(rows)],
+            }
+        )
+        target_pos = 157
+        target_ssa = str(jump_df.iloc[target_pos]["numero_ssa"])
+        target_desc = str(jump_df.iloc[target_pos]["descricao_ssa"])
+        page_first_desc = str(jump_df.iloc[100]["descricao_ssa"])
+
+        self.window.df_completo = jump_df.copy()
+        self.window.df_exibido = jump_df.copy()
+        self.window._df_last_search_filtered = jump_df.copy()
+        self.window.paginator.page_size = 100
+        self.window.paginator.set_dataframe(jump_df.copy())
+
+        self.window.display_current_page(1)
         QApplication.processEvents()
+        self.window.table_widget.selectRow(0)
         QApplication.processEvents()
-        assert self.window._details_current_ssa == initial_ssa
-        assert "Teste D" in str(self.window.details_text.toHtml() or "")
+
+        scheduled = {}
+
+        def fake_single_shot(delay, callback):
+            scheduled["delay"] = delay
+            scheduled["callback"] = callback
+
+        monkeypatch.setattr(ssa_gui_details.QTimer, "singleShot", fake_single_shot)
+
+        self.window._jump_to_ssa(target_ssa)
+
+        details_html = str(self.window.details_text.toHtml() or "")
+        assert str(self.window._details_current_ssa) == target_ssa
+        assert target_desc in details_html
+        assert page_first_desc not in details_html
+        assert self.window.table_widget.selectionModel().selectedRows() == []
+        assert scheduled["delay"] == 0
+
+        scheduled["callback"]()
+        QApplication.processEvents()
+
+        selected_rows = self.window.table_widget.selectionModel().selectedRows()
+        assert [idx.row() for idx in selected_rows] == [57]
+        assert str(self.window._details_current_ssa) == target_ssa
+        assert target_desc in str(self.window.details_text.toHtml() or "")
 
     def test_display_current_page_dataset_swap_updates_visible_table_and_details(self):
         self.window.display_current_page(1)
