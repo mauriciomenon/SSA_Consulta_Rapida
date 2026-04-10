@@ -8,6 +8,7 @@ Responsavel por criar tabelas, inserir DataFrames e consultar dados.
 
 import logging
 import os
+import re
 import sqlite3
 import time
 from contextlib import contextmanager
@@ -41,6 +42,9 @@ MAX_TEXT_LEN = 1000
 # Flag global para controlar modo otimizado (substituiu monkey-patching)
 _use_optimized_mode = False
 _resolved_table_cache: dict[tuple[str, str], str] = {}
+_VALID_COLUMN_DEFINITIONS = frozenset(
+    {"TEXT", "INTEGER", "REAL", "NUMERIC", "BLOB"}
+)
 
 
 def set_optimized_mode(enabled: bool) -> None:
@@ -393,6 +397,13 @@ def _quote_identifier(name: str) -> str:
     return f'"{safe_name}"'
 
 
+def _normalize_column_definition(column_definition: str) -> str:
+    safe_definition = re.sub(r"\s+", " ", str(column_definition or "").strip()).upper()
+    if safe_definition not in _VALID_COLUMN_DEFINITIONS:
+        raise ValueError(f"Invalid SQL column definition: {column_definition!r}")
+    return safe_definition
+
+
 def _get_connection_db_path(conn: sqlite3.Connection) -> str:
     row = conn.execute("PRAGMA database_list").fetchone()
     if row and len(row) >= 3 and row[2]:
@@ -679,6 +690,7 @@ def ensure_column_exists(
             physical_table = _resolve_target_table(conn, table_name)
             quoted_table = _quote_identifier(physical_table)
             quoted_column = _quote_identifier(column_name)
+            safe_column_definition = _normalize_column_definition(column_definition)
             table_exists_row = conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
                 (physical_table,),
@@ -697,7 +709,7 @@ def ensure_column_exists(
             if column_name in existing_columns:
                 return False
             conn.execute(
-                f"ALTER TABLE {quoted_table} ADD COLUMN {quoted_column} {column_definition}"
+                f"ALTER TABLE {quoted_table} ADD COLUMN {quoted_column} {safe_column_definition}"
             )
             conn.commit()
             _clear_resolved_table_cache(db_path)
@@ -705,7 +717,7 @@ def ensure_column_exists(
                 "Coluna '%s' adicionada a tabela '%s' com definicao %s",
                 column_name,
                 physical_table,
-                column_definition,
+                safe_column_definition,
             )
             return True
     except Exception as exc:
