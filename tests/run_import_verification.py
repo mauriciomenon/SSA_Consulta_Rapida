@@ -3,6 +3,7 @@
 """
 Teste abrangente da importação de arquivos e verificação da integridade dos dados.
 """
+# ruff: noqa: E402
 
 import logging
 import os

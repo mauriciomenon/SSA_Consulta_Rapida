@@ -1,4 +1,5 @@
 # tests/test_caching.py
+# ruff: noqa: E402
 import json
 import os
 import sys
