@@ -1,0 +1,23 @@
+tests/conftest.py
+  e142bee770b0eadb 6,37,41-43,48,57-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "e6794a1a495b28cb25c85cccd5c6829c551f6eb1",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 68,
+      "total_deletions": 0,
+      "accepted_lines": 343,
+      "overriden_lines": 0
+    }
+  }
+}
