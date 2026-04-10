@@ -1,0 +1,27 @@
+tests/test_gui_menu_import_external.py
+  e142bee770b0eadb 56-57,59-63,132
+tests/test_rescan_worker_cleanup.py
+  e142bee770b0eadb 24-25,48,51-52,61-62,71-72
+tests/test_rescan_progress_dialog.py
+  e142bee770b0eadb 78,80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "f00eb338525deb899b12f7f998cf5ad990e12fcd",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 22,
+      "total_deletions": 7,
+      "accepted_lines": 26,
+      "overriden_lines": 0
+    }
+  }
+}
