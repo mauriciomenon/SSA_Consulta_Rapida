@@ -1,0 +1,27 @@
+armazenamento/database.py
+  e142bee770b0eadb 9-15,43-47,393-404,681,687-697,709-722
+tests/test_database_verification.py
+  e142bee770b0eadb 25,42-59,240-258
+utils/db_maintenance.py
+  e142bee770b0eadb 21,75-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "d553d2704bf53d6b2a6d81a30e5a64a0fe025ea5",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 96,
+      "total_deletions": 39,
+      "accepted_lines": 371,
+      "overriden_lines": 0
+    }
+  }
+}
