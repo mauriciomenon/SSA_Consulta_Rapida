@@ -14,6 +14,7 @@ from typing import Any
 
 from pytest_stream_common import ensure_log_path, get_stream_logger
 from pytest_stream_common import resolve_safe_logpath as _resolve_safe_logpath
+from pytest_stream_common import resolve_safe_test_target as _resolve_safe_test_target
 from pytest_stream_common import run_streaming_pytest
 
 # Ensure scripts directory is importable for helper modules
@@ -92,9 +93,14 @@ def main():
     except ValueError as exc:
         logger.error("invalid stream log path: %s", exc)
         return 2
+    try:
+        test_target = _resolve_safe_test_target(args.test, os.getcwd())
+    except ValueError as exc:
+        logger.error("invalid pytest target: %s", exc)
+        return 2
     ensure_log_path(logpath)
 
-    cmd = [sys.executable, "-m", "pytest", args.test]
+    cmd = [sys.executable, "-m", "pytest", test_target]
     header = (
         f"=== pytest streaming run at {datetime.now(timezone.utc).isoformat()} ===\n"
         f"Command: {' '.join(cmd)}\nTimeout: {args.timeout}s\n\n"
@@ -137,7 +143,7 @@ def main():
         timeout_s=args.timeout,
         logpath=logpath,
         fallback_to_tee=fallback_to_tee,
-        test_arg=args.test,
+        test_arg=test_target,
         kill_tree_default=kill_tree_default,
         pwsh_picker=_pick_pwsh,
     )

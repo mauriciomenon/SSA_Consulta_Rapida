@@ -17,6 +17,9 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
+from pytest_stream_common import resolve_safe_logpath
+from pytest_stream_common import resolve_safe_test_target
+
 # Ensure scripts directory is importable for helper modules
 _SCRIPT_DIR = os.path.dirname(__file__)
 if _SCRIPT_DIR not in sys.path:
@@ -65,9 +68,18 @@ def main():
     args, extra = parser.parse_known_args()
 
     logdir = ensure_local_ai_dir()
-    logpath = args.log or os.path.join(logdir, "pytest_terminal_integration.log")
+    try:
+        logpath = resolve_safe_logpath(logdir, args.log)
+    except ValueError as exc:
+        print(f"invalid log path: {exc}", file=sys.stderr)
+        return 2
+    try:
+        test_target = resolve_safe_test_target(args.test, os.getcwd())
+    except ValueError as exc:
+        print(f"invalid pytest target: {exc}", file=sys.stderr)
+        return 2
 
-    cmd = [sys.executable, "-m", "pytest", args.test]
+    cmd = [sys.executable, "-m", "pytest", test_target]
     if extra:
         cmd.extend(extra)
 

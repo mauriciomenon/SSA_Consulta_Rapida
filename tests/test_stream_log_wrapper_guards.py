@@ -53,6 +53,34 @@ def test_resolve_safe_logpath_rejects_absolute_outside(tmp_path: Path, modules) 
             mod._resolve_safe_logpath(str(tmp_path), str(outside))
 
 
+def test_resolve_safe_test_target_accepts_pytest_nodeid(modules) -> None:
+    _, _, common = modules
+    root = Path(__file__).resolve().parents[1]
+
+    resolved = common.resolve_safe_test_target(
+        "tests/test_stream_log_wrapper_guards.py::test_resolve_safe_logpath_default_inside_logdir",
+        str(root),
+    )
+
+    assert resolved.startswith(str(root / "tests" / "test_stream_log_wrapper_guards.py"))
+    assert "::test_resolve_safe_logpath_default_inside_logdir" in resolved
+
+
+def test_resolve_safe_test_target_rejects_flag_input(modules) -> None:
+    _, _, common = modules
+
+    with pytest.raises(ValueError, match="not a flag"):
+        common.resolve_safe_test_target("-k smoke")
+
+
+def test_resolve_safe_test_target_rejects_traversal(modules) -> None:
+    _, _, common = modules
+    root = Path(__file__).resolve().parents[1]
+
+    with pytest.raises(ValueError):
+        common.resolve_safe_test_target("../outside.py", str(root))
+
+
 def test_flush_every_lines_clamp_and_default(
     monkeypatch: pytest.MonkeyPatch, modules
 ) -> None:

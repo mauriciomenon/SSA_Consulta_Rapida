@@ -8,6 +8,7 @@ import subprocess
 import threading
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Callable
 
 from utils.robust_logging import get_robust_logger
@@ -101,8 +102,6 @@ def reader_join_timeout_seconds() -> float:
 
 
 def resolve_safe_logpath(logdir: str, user_log: str | None) -> str:
-    from pathlib import Path
-
     from utils.path_safety import PathSafetyError, ensure_path_is_allowed
 
     base_dir = os.path.abspath(logdir)
@@ -121,6 +120,33 @@ def resolve_safe_logpath(logdir: str, user_log: str | None) -> str:
     common = os.path.commonpath([base_dir, resolved])
     if common != base_dir:
         raise ValueError(f"--log must stay under {base_dir}")
+    return resolved
+
+
+def resolve_safe_test_target(raw_test: str, cwd: str | None = None) -> str:
+    from utils.path_safety import PathSafetyError, ensure_path_is_allowed
+
+    if not raw_test or not raw_test.strip():
+        raise ValueError("--test must not be empty")
+    if raw_test.startswith("-"):
+        raise ValueError("--test must be a pytest path or nodeid, not a flag")
+
+    base_dir = Path(cwd or os.getcwd()).resolve()
+    path_part, separator, node_part = raw_test.partition("::")
+    try:
+        resolved_path = ensure_path_is_allowed(
+            path_part,
+            purpose="pytest_test_target",
+            base=base_dir,
+            expect_directory=None,
+            extra_allowed_roots=[base_dir],
+        )
+    except PathSafetyError as exc:
+        raise ValueError(str(exc)) from exc
+
+    resolved = os.fspath(resolved_path)
+    if separator:
+        return f"{resolved}{separator}{node_part}"
     return resolved
 
 
