@@ -1,0 +1,29 @@
+tests/test_stream_log_wrapper_guards.py
+  e142bee770b0eadb 56-83
+scripts/run_pytest_with_timeout_v2.py
+  e142bee770b0eadb 16-25,68-84
+scripts/run_pytest_stream_and_log_v2.py
+  e142bee770b0eadb 17,96-100,103,146
+scripts/pytest_stream_common.py
+  e142bee770b0eadb 11,126-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "dfbbeab940a8ba2a2d56149bfe674aa1faed93cc",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 91,
+      "total_deletions": 19,
+      "accepted_lines": 366,
+      "overriden_lines": 0
+    }
+  }
+}
