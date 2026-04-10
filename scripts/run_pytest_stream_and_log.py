@@ -3,7 +3,7 @@
 Run pytest streaming output to terminal while writing to a log file, with external timeout.
 
 Usage:
-  python scripts/run_pytest_stream_and_log.py --test tests/test_terminal_integration.py --timeout 10
+  python scripts/run_pytest_stream_and_log.py --test tests/test_terminal_integration.py --timeout 60
 
 This shows output live (for interactive debugging) and also saves it to
 `local_ai_private/pytest_terminal_integration_stream.log`.
@@ -21,6 +21,7 @@ import sys
 
 from pytest_stream_common import ensure_log_path, get_stream_logger
 from pytest_stream_common import resolve_safe_logpath as _resolve_safe_logpath
+from pytest_stream_common import resolve_safe_test_target as _resolve_safe_test_target
 from pytest_stream_common import run_streaming_pytest
 
 logger = get_stream_logger(__name__)
@@ -49,7 +50,7 @@ def main():
         ws_settings = {}
 
     if args.timeout is None:
-        args.timeout = int(ws_settings.get("pytestWrapper", {}).get("timeout", 10))
+        args.timeout = int(ws_settings.get("pytestWrapper", {}).get("timeout", 60))
 
     fallback_to_tee = bool(
         ws_settings.get("pytestWrapper", {}).get("fallbackToTee", False)
@@ -66,14 +67,19 @@ def main():
         logger.error("invalid stream log path: %s", exc)
         return 2
     ensure_log_path(logpath)
+    try:
+        test_target = _resolve_safe_test_target(args.test, os.getcwd())
+    except ValueError as exc:
+        logger.error("invalid --test target: %s", exc)
+        return 2
 
-    cmd = [sys.executable, "-m", "pytest", args.test]
+    cmd = [sys.executable, "-m", "pytest", test_target]
     return run_streaming_pytest(
         cmd=cmd,
         timeout_s=args.timeout,
         logpath=logpath,
         fallback_to_tee=fallback_to_tee,
-        test_arg=args.test,
+        test_arg=test_target,
         kill_tree_default=kill_tree_default,
     )
 

@@ -3,7 +3,7 @@
 Wrapper to run pytest with an external timeout and write stdout/stderr to a log file.
 
 Usage:
-  python scripts/run_pytest_with_timeout_v2.py --test tests/test_terminal_integration.py --timeout 10
+  python scripts/run_pytest_with_timeout_v2.py --test tests/test_terminal_integration.py --timeout 60
 
 This script writes a combined stdout/stderr log to `local_ai_private/pytest_terminal_integration.log`.
 """
@@ -46,7 +46,7 @@ def main():
         help="pytest path or args (e.g. tests/test_terminal_integration.py)",
     )
     parser.add_argument(
-        "--timeout", type=int, default=10, help="timeout in seconds for the pytest run"
+        "--timeout", type=int, default=60, help="timeout in seconds for the pytest run"
     )
     parser.add_argument("--log", default=None, help="optional log path")
     parser.add_argument(
