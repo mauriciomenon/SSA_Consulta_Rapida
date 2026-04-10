@@ -15,7 +15,12 @@ LoopbackAddr = Tuple[str, int]
 def loopback_addr() -> LoopbackAddr:
     """Allocate an ephemeral loopback port for deterministic tests."""
     with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
-        sock.bind(("127.0.0.1", 0))
+        try:
+            sock.bind(("127.0.0.1", 0))
+        except OSError as exc:  # pragma: no cover - host-specific permission gate
+            pytest.skip(
+                f"Host atual nao permite bind em loopback para este teste: {exc}"
+            )
         host, port = sock.getsockname()
     return host, port
 
