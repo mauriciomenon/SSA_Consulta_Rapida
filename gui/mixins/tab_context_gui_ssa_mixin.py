@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Protocol
 
+from gui.ssa import gui_details as ssa_gui_details
+
 logger = logging.getLogger(__name__)
 
 
@@ -206,6 +208,17 @@ class TabContextGUISSAMixin:
             logger.debug("Falha ao atualizar tags de filtros no bind de aba: %s", exc)
 
     def _sync_bind_theme_and_render(self: _TabContextHostProtocol, ctx: dict) -> None:
+        current_details_ssa = getattr(self, "_details_current_ssa", None)
+        current_details_series = None
+        if current_details_ssa:
+            try:
+                current_details_series = ssa_gui_details._get_series_for_ssa(
+                    self, current_details_ssa
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao resolver detalhes atuais antes do bind de aba: %s", exc
+                )
         try:
             current_theme = self._current_theme
             if current_theme and ctx.get("_theme_name") != current_theme:
@@ -223,7 +236,13 @@ class TabContextGUISSAMixin:
                 tuple(self.visible_columns),
             )
             if ctx.get("_last_render_key") != render_key:
-                self.display_current_page(current_page)
+                if current_details_series is not None:
+                    self.display_current_page(current_page, update_details=False)
+                    ssa_gui_details._update_details_from_series(
+                        self, current_details_series
+                    )
+                else:
+                    self.display_current_page(current_page)
                 ctx["_last_render_key"] = render_key
         except Exception as exc:
             logger.warning("Falha ao renderizar pagina no bind de aba: %s", exc)

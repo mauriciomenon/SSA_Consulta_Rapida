@@ -1249,6 +1249,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
         gui_settings["table_cell_alignment"] = normalized
+        current_details_ssa = getattr(self, "_details_current_ssa", None)
+        current_details_series = None
+        if current_details_ssa:
+            try:
+                current_details_series = ssa_gui_details._get_series_for_ssa(
+                    self, current_details_ssa
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao resolver detalhes atuais antes de reaplicar alinhamento da tabela: %s",
+                    exc,
+                )
 
         for key, action in getattr(self, "_table_cell_alignment_actions", {}).items():
             try:
@@ -1257,7 +1269,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 logger.debug("Falha ao atualizar check do alinhamento %s: %s", key, exc)
 
         persisted = self._persist_gui_preferences()
-        self.display_current_page(self.paginator.current_page)
+        self.display_current_page(self.paginator.current_page, update_details=False)
+        if current_details_series is not None:
+            try:
+                ssa_gui_details._update_details_from_series(
+                    self, current_details_series
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao restaurar detalhes atuais apos mudar alinhamento da tabela: %s",
+                    exc,
+                )
 
         if persisted:
             self.status_label.setText(
