@@ -1,0 +1,35 @@
+tests/test_handler_base_create_result.py
+  e142bee770b0eadb 3-4,23
+tests/test_terminal_integration.py
+  e142bee770b0eadb 20-33
+armazenamento/database_upsert_logic.py
+  e142bee770b0eadb 408-411,418-421
+core/handler_base.py
+  e142bee770b0eadb 191-192
+dev_env/streamlit_app.py
+  e142bee770b0eadb 1024-1032,1048-1051,1062-1063
+tests/test_filter_cache_locking.py
+  e142bee770b0eadb 1-2,54
+tests/test_streamlit_filter_cache.py
+  e142bee770b0eadb 3-4,626,640
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "b1edf506f0cbc856db3efc3ca182bd5789a987d8",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 49,
+      "total_deletions": 31,
+      "accepted_lines": 324,
+      "overriden_lines": 0
+    }
+  }
+}
