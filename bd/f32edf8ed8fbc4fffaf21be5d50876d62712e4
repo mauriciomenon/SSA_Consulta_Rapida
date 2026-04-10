@@ -1,0 +1,27 @@
+dev_env/streamlit_app.py
+  e142bee770b0eadb 271-273
+gui/cache/filter_cache.py
+  e142bee770b0eadb 72-74
+scripts_manutencao/verificacao_completa.py
+  e142bee770b0eadb 96,99-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "bdf32edf8ed8fbc4fffaf21be5d50876d62712e4",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 14,
+      "total_deletions": 6,
+      "accepted_lines": 289,
+      "overriden_lines": 0
+    }
+  }
+}
