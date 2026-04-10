@@ -9,7 +9,7 @@ tabulate>=0.9.0
 # Build (sem compressao UPX)
 pyinstaller>=6.14.2
 pillow>=12.1.1
-cairosvg>=2.7.1
+cairosvg>=2.9.0
 
 # Para compressao UPX opcional use tambem: requirements_windows_build.txt
 
