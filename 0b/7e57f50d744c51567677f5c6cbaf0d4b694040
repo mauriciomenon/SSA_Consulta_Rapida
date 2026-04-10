@@ -1,0 +1,23 @@
+tests/test_rescan_worker_cleanup.py
+  e142bee770b0eadb 25-26,53-55,65-66,76-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "0b7e57f50d744c51567677f5c6cbaf0d4b694040",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 281,
+      "total_deletions": 4,
+      "accepted_lines": 285,
+      "overriden_lines": 0
+    }
+  }
+}
