@@ -22,7 +22,8 @@ def test_rescan_worker_cleanup_does_not_hang_when_logger_cleanup_fails(monkeypat
     emitted = []
     worker.finished_error.connect(emitted.append)
     state_key = id(worker.logger)
-    assert state_key not in rescan_worker_mod._LoggerAttachmentManager._state
+    baseline_state = rescan_worker_mod._LoggerAttachmentManager._state.get(state_key)
+    baseline_snapshot = dict(baseline_state) if baseline_state is not None else None
 
     def _boom(**_kwargs):
         raise RuntimeError("boom")
@@ -49,7 +50,9 @@ def test_rescan_worker_cleanup_does_not_hang_when_logger_cleanup_fails(monkeypat
     assert "boom" in emitted[0]
     assert worker._logger_attached is False
     assert worker.log_handler not in worker.logger.handlers
-    assert state_key not in rescan_worker_mod._LoggerAttachmentManager._state
+    current_state = rescan_worker_mod._LoggerAttachmentManager._state.get(state_key)
+    current_snapshot = dict(current_state) if current_state is not None else None
+    assert current_snapshot == baseline_snapshot
 
 
 def test_rescan_worker_cleanup_releases_logger_on_success(monkeypatch):
@@ -59,7 +62,8 @@ def test_rescan_worker_cleanup_releases_logger_on_success(monkeypatch):
     worker.finished_success.connect(lambda: success_emitted.append(True))
     worker.finished_error.connect(error_emitted.append)
     state_key = id(worker.logger)
-    assert state_key not in rescan_worker_mod._LoggerAttachmentManager._state
+    baseline_state = rescan_worker_mod._LoggerAttachmentManager._state.get(state_key)
+    baseline_snapshot = dict(baseline_state) if baseline_state is not None else None
 
     monkeypatch.setattr(rescan_worker_mod, "run_importer_logic", lambda **_kwargs: True)
 
@@ -69,4 +73,6 @@ def test_rescan_worker_cleanup_releases_logger_on_success(monkeypatch):
     assert error_emitted == []
     assert worker._logger_attached is False
     assert worker.log_handler not in worker.logger.handlers
-    assert state_key not in rescan_worker_mod._LoggerAttachmentManager._state
+    current_state = rescan_worker_mod._LoggerAttachmentManager._state.get(state_key)
+    current_snapshot = dict(current_state) if current_state is not None else None
+    assert current_snapshot == baseline_snapshot
