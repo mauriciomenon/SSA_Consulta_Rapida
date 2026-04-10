@@ -17,9 +17,17 @@ import pandas as pd
 
 # Importacoes refatoradas serao carregadas de forma lazy dentro dos wrappers para evitar ciclos.
 from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES
+from . import numero_ssa_utils as _numero_ssa_utils
+from .identifier_utils import is_valid_identifier
+from .numero_ssa_utils import normalize_numero_ssa as _normalize_numero_ssa_display
+from .numero_ssa_utils import (
+    normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe,
+)
+from .numero_ssa_utils import (
+    normalize_numero_ssa_dataframe_storage as _normalize_numero_ssa_dataframe_storage,
+)
 
 logger = logging.getLogger(__name__)
-from .identifier_utils import is_valid_identifier  # noqa: E402
 
 # Constantes (evitam "magic numbers" em validacoes)
 MIN_FREE_SPACE_GB_WARN = 0.1  # 100MB
@@ -811,16 +819,6 @@ def insert_dataframe_with_smart_upsert(
         except Exception as e:  # pragma: no cover
             logger.error(f"Falha na insercao: {e}")
             return False
-
-
-from . import numero_ssa_utils as _numero_ssa_utils  # noqa: E402
-from .numero_ssa_utils import normalize_numero_ssa as _normalize_numero_ssa_display  # noqa: E402
-from .numero_ssa_utils import (
-    normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe,
-)  # noqa: E402
-from .numero_ssa_utils import (
-    normalize_numero_ssa_dataframe_storage as _normalize_numero_ssa_dataframe_storage,
-)  # noqa: E402
 
 _normalize_numero_ssa_value = _numero_ssa_utils.normalize_numero_ssa_int_legacy_bridge
 

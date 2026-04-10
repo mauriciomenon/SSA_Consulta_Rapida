@@ -15,6 +15,7 @@
 #
 # Run: python -m gui.gui_ssa_dev
 """
+# ruff: noqa: E402
 
 from __future__ import annotations
 
