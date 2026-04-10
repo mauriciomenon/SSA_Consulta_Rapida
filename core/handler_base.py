@@ -188,7 +188,8 @@ class HandlerBase(ABC):
         format_type = context.output_format.lower()
 
         if format_type == "json":
-            return data.to_json(orient="records", indent=2)
+            json_text = data.to_json(orient="records", indent=2)
+            return json_text or ""
         elif format_type == "csv":
             return data.to_csv(index=False)
         else:  # table (default)

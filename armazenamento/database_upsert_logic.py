@@ -405,14 +405,20 @@ def _should_update_existing(
             for raw_value in (planilha_dt_value, origin_dt_value):
                 parsed = parse_any_date(raw_value)
                 if parsed is not None:
-                    return pd.Timestamp(parsed)
+                    timestamp = pd.Timestamp(parsed)
+                    if pd.isna(timestamp):
+                        return None
+                    return cast(pd.Timestamp, timestamp)
             raw = str(origin_name_value or "").strip()
             if not raw:
                 return None
             parsed = parse_datetime_from_filename(raw)
             if parsed is None:
                 return None
-            return pd.Timestamp(parsed)
+            timestamp = pd.Timestamp(parsed)
+            if pd.isna(timestamp):
+                return None
+            return cast(pd.Timestamp, timestamp)
 
         existing_situacao = _status_code(existing_row.get("situacao"))
         if existing_situacao in terminal_states:

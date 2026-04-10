@@ -19,6 +19,7 @@ Notas:
 """
 
 import json
+import importlib
 import os
 import shutil
 import subprocess
@@ -27,7 +28,7 @@ from typing import List
 import pytest
 
 try:
-    import json5  # type: ignore[import-not-found]
+    json5 = importlib.import_module("json5")
 except Exception:  # noqa: BLE001
     json5 = None
 

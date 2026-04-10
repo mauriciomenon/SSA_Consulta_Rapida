@@ -1021,9 +1021,13 @@ def _format_date_input(raw_value: Any) -> str:
     return str(parsed.date())
 
 
-def _date_to_yearweek(value: pd.Timestamp) -> int | None:
+def _date_to_yearweek(value: datetime | pd.Timestamp) -> int | None:
     try:
-        iso_value = value.isocalendar()
+        timestamp = pd.Timestamp(value)
+        if pd.isna(timestamp):
+            return None
+        safe_timestamp = cast(pd.Timestamp, timestamp)
+        iso_value = safe_timestamp.isocalendar()
     except Exception:
         return None
     year_part = getattr(iso_value, "year", None)
@@ -1043,7 +1047,7 @@ def _date_to_yearweek(value: pd.Timestamp) -> int | None:
 
 def _compute_sidebar_weekly_kpis(
     df: pd.DataFrame,
-    reference_dt: Optional[datetime] = None,
+    reference_dt: Optional[datetime | pd.Timestamp] = None,
 ) -> dict[str, int]:
     empty = {
         "executadas_semana_atual": 0,
@@ -1055,8 +1059,8 @@ def _compute_sidebar_weekly_kpis(
         return empty
 
     now_dt = reference_dt or datetime.now()
-    current_week = _date_to_yearweek(pd.Timestamp(now_dt))
-    previous_week = _date_to_yearweek(pd.Timestamp(now_dt - timedelta(days=7)))
+    current_week = _date_to_yearweek(now_dt)
+    previous_week = _date_to_yearweek(now_dt - timedelta(days=7))
     if current_week is None or previous_week is None:
         return empty
 
