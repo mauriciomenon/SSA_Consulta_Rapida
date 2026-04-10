@@ -2510,6 +2510,107 @@ class TestGUIFilterLogic:
 
         assert "para 'Teste A'" in self.window.status_label.text()
 
+    def test_on_filter_finished_preserves_manual_details_when_ssa_remains_visible(self):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        self.window.table_widget.selectRow(3)
+        QApplication.processEvents()
+
+        assert self.window._details_current_ssa == 4
+
+        self.window._active_filter_request_id = 41
+        self.window._active_filter_search_request_id = 41
+        self.window._active_filter_search_display = "APV/AMP"
+        filtered = self.base_df[
+            self.base_df["situacao"].isin(["APV", "AMP"])
+        ].copy()
+
+        self.window.on_filter_finished(filtered, request_id=41)
+        QApplication.processEvents()
+
+        assert self.window.df_exibido["numero_ssa"].tolist() == [5, 4, 1]
+        assert self.window._details_current_ssa == 4
+        assert "Teste D" in str(self.window.details_text.toHtml() or "")
+        assert self.window.table_widget.selectionModel().selectedRows() == []
+
+    def test_on_filter_finished_updates_details_when_manual_selection_leaves_result(
+        self,
+    ):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        self.window.table_widget.selectRow(3)
+        QApplication.processEvents()
+
+        assert self.window._details_current_ssa == 4
+
+        self.window._active_filter_request_id = 42
+        self.window._active_filter_search_request_id = 42
+        self.window._active_filter_search_display = "Teste A"
+        filtered = self.base_df[self.base_df["descricao_ssa"].eq("Teste A")].copy()
+
+        self.window.on_filter_finished(filtered, request_id=42)
+        QApplication.processEvents()
+
+        assert self.window.df_exibido["numero_ssa"].tolist() == [1]
+        assert self.window._details_current_ssa == 1
+        details_html = str(self.window.details_text.toHtml() or "")
+        assert "Teste A" in details_html
+        assert "Teste D" not in details_html
+        assert self.window.table_widget.selectionModel().selectedRows() == []
+
+    def test_on_filter_finished_pending_jump_overrides_previous_manual_selection(
+        self, monkeypatch
+    ):
+        rows = 220
+        df = self._build_heavy_filters_df(rows)
+        target_pos = 157
+        target_ssa = str(df.iloc[target_pos]["numero_ssa"])
+        target_desc = str(df.iloc[target_pos]["descricao_ssa"])
+
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.iloc[:50].copy().reset_index(drop=True)
+        self.window._df_last_search_filtered = self.window.df_exibido.copy()
+        self.window.paginator.page_size = 50
+        self.window.paginator.set_dataframe(self.window.df_exibido.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        self.window.table_widget.selectRow(0)
+        QApplication.processEvents()
+
+        scheduled = {}
+
+        def fake_single_shot(delay, callback):
+            scheduled["delay"] = delay
+            scheduled["callback"] = callback
+
+        monkeypatch.setattr(ssa_gui_details.QTimer, "singleShot", fake_single_shot)
+
+        self.window._active_filter_request_id = 55
+        self.window._active_filter_search_request_id = 55
+        self.window._active_filter_search_display = f"={target_ssa}"
+        self.window._pending_jump_to_ssa = {
+            "numero_ssa": target_ssa,
+            "request_id": 55,
+        }
+
+        self.window.on_filter_finished(df.copy(), request_id=55)
+        QApplication.processEvents()
+
+        assert getattr(self.window, "_pending_jump_to_ssa", None) is None
+        assert str(self.window._details_current_ssa) == target_ssa
+        assert target_desc in str(self.window.details_text.toHtml() or "")
+        assert self.window.table_widget.selectionModel().selectedRows() == []
+        assert scheduled["delay"] == 0
+
+        scheduled["callback"]()
+        QApplication.processEvents()
+
+        selected_rows = self.window.table_widget.selectionModel().selectedRows()
+        assert len(selected_rows) == 1
+        selected_series = self.window._get_series_from_row(selected_rows[0].row())
+        assert str(selected_series.get("numero_ssa")) == target_ssa
+        assert str(self.window._details_current_ssa) == target_ssa
+
     def test_apply_search_display_skips_update_when_any_live_widget_has_focus(self):
         class _BrokenWidget:
             def hasFocus(self):
