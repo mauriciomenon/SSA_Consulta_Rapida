@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 import pandas as pd
 
 from dev_env.streamlit_app import (
@@ -621,7 +623,7 @@ def test_compute_sidebar_weekly_kpis_uses_exec_and_emission_fields() -> None:
             ],
         }
     )
-    metrics = _compute_sidebar_weekly_kpis(df, reference_dt=pd.Timestamp("2026-03-01"))
+    metrics = _compute_sidebar_weekly_kpis(df, reference_dt=datetime(2026, 3, 1))
     assert metrics["executadas_semana_atual"] == 2
     assert metrics["executadas_semana_anterior"] == 1
     assert metrics["emitidas_semana_atual"] == 2
@@ -635,7 +637,7 @@ def test_compute_sidebar_weekly_kpis_falls_back_to_semana_executada() -> None:
             "data_emissao": ["2026-03-01", "2026-02-25", "2026-02-17", ""],
         }
     )
-    metrics = _compute_sidebar_weekly_kpis(df, reference_dt=pd.Timestamp("2026-03-01"))
+    metrics = _compute_sidebar_weekly_kpis(df, reference_dt=datetime(2026, 3, 1))
     assert metrics["executadas_semana_atual"] == 2
     assert metrics["executadas_semana_anterior"] == 1
     assert metrics["emitidas_semana_atual"] == 2

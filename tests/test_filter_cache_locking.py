@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import pandas as pd
 
 from gui.cache.filter_cache import FilterCache
@@ -49,7 +51,7 @@ def test_filter_cache_uses_lock_for_all_mutations_and_reads():
 def test_filter_cache_put_ignores_non_dataframe_result():
     cache = FilterCache(max_size=2)
 
-    cache.put("df1", [["x"]], "contains", None)  # type: ignore[arg-type]
+    cache.put("df1", [["x"]], "contains", cast(Any, None))
 
     stats = cache.get_stats()
     assert stats["size"] == 0

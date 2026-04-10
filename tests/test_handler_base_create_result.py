@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 import pandas as pd
 
 from core.handler_base import HandlerBase, HandlerContext
@@ -18,7 +20,7 @@ def test_create_result_ignores_non_dataframe_data() -> None:
     context = HandlerContext(output_format="table")
 
     result = handler.create_result(
-        data="legacy-non-dataframe",
+        data=cast(Any, "legacy-non-dataframe"),
         context=context,
         success=True,
     )
