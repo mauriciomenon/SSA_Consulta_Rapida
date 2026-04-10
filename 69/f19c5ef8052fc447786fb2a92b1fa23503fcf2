@@ -1,0 +1,25 @@
+core/app_logic.py
+  e142bee770b0eadb 2664-2677,2689-2690
+tests/test_default_filter_mode.py
+  e142bee770b0eadb 1-4,68-72,76-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "69f19c5ef8052fc447786fb2a92b1fa23503fcf2",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 37,
+      "total_deletions": 14,
+      "accepted_lines": 41,
+      "overriden_lines": 0
+    }
+  }
+}
