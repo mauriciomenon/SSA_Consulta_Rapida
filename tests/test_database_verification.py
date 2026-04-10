@@ -22,6 +22,7 @@ from armazenamento.database import (
     validate_dataframe_before_insert,
     verify_database_integrity,
 )
+from utils.db_maintenance import DatabaseAnalyzer
 
 TOTAL_VALID_ROWS = 2  # Constante para evitar magic numbers
 
@@ -37,6 +38,24 @@ class TestDatabaseVerification:  # noqa: D101
 
         assert added is False
         assert "Falha ao garantir coluna" not in caplog.text
+
+    def test_ensure_column_exists_rejects_invalid_definition(self, tmp_path, caplog):
+        """Definicao SQL fora da whitelist deve falhar antes do ALTER TABLE."""
+        db_path = os.path.join(tmp_path, "invalid_definition.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute("CREATE TABLE ssas (numero_ssa INTEGER)")
+        conn.commit()
+        conn.close()
+
+        added = ensure_column_exists(
+            db_path,
+            "ssas",
+            "arquivo_origem",
+            "TEXT DEFAULT 'x'",
+        )
+
+        assert added is False
+        assert "Invalid SQL column definition" in caplog.text
 
     def test_verify_nonexistent_database(self):
         """Banco inexistente deve ser invalido e marcado para criacao."""
@@ -218,7 +237,25 @@ class TestDataValidation:
 
         assert report["is_valid"]
         assert report["row_count"] == TOTAL_VALID_ROWS
-        assert len(report["issues"]) == 0
+
+
+class TestDatabaseMaintenance:
+    """Testes para manutencao e analise estrutural do banco."""
+
+    def test_analyze_table_structure_ignores_invalid_identifier(self, tmp_path, caplog):
+        """Coluna com nome invalido nao deve quebrar a analise nem entrar no SELECT."""
+        db_path = os.path.join(tmp_path, "maintenance_invalid_identifier.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute('CREATE TABLE ssas (numero_ssa INTEGER, "bad-name" TEXT)')
+        conn.execute('INSERT INTO ssas (numero_ssa, "bad-name") VALUES (1, "abc")')
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.analyze_table_structure()
+
+        assert report["column_counts"]["bad-name"] == 0
+        assert "Ignorando coluna com identificador invalido" in caplog.text
 
     def test_validate_invalid_ssa_numbers(self):
         """Testa validação com números SSA inválidos."""

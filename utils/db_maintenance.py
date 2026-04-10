@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
+from armazenamento.identifier_utils import is_valid_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,13 @@ class DatabaseAnalyzer:
                 column_counts = {}
                 for col_info in columns_info:
                     col_name = col_info[1]
+                    if not is_valid_identifier(col_name):
+                        logger.warning(
+                            "Ignorando coluna com identificador invalido na analise: %s",
+                            col_name,
+                        )
+                        column_counts[col_name] = 0
+                        continue
                     try:
                         cursor.execute(
                             f'SELECT COUNT(*) FROM ssas WHERE "{col_name}" IS NOT NULL AND "{col_name}" != ""'
