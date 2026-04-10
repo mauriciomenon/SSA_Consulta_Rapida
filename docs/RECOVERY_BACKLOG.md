@@ -14,7 +14,9 @@ Frente funcional aterrada nesta rodada:
 4. resize passou a persistir largura na coluna correta mesmo com reorder
 5. reorder em schema parcial passou a preservar colunas visiveis ausentes
 6. derivadas ficaram travadas em contrato de navegacao por regressao
-7. post-mortem tecnico consolidado em:
+7. selecao stale deixou de sobreviver ao rebuild da pagina
+8. contrato entre filtro assincrono, selecao manual e detalhes ficou travado por regressao
+9. post-mortem tecnico consolidado em:
    - `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
 
 Debt estrutural remanescente, sem correcao neste slice:
@@ -27,6 +29,9 @@ Debt estrutural remanescente, sem correcao neste slice:
    - detalhes
 2. o risco agudo dos call sites principais caiu, mas o concentrador estrutural continua
 3. qualquer ataque a esse ponto deve entrar em slice proprio, pequeno, com contrato de nao-regressao explicito
+4. criterio objetivo para reabrir esta area:
+   - repro novo observavel em tela
+   - ou slice proprio de refatoracao pequena e isolada
 
 ## Update 2026-04-08 - relation id normalization scope
 

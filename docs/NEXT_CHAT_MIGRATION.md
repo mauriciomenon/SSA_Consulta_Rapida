@@ -2,7 +2,7 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-09 20h13
+## CURRENT TRUTH 2026-04-09 22h26
 
 ### Estado de repositorio e runtime
 
@@ -19,6 +19,9 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - reorder em schema parcial nao pode truncar colunas visiveis ausentes
    - filtro por derivadas atualiza lista e detalhes da derivada exibida
    - limpar derivadas retorna para a SSA origem via `_jump_to_ssa(...)`
+   - selecao stale nao sobrevive ao rebuild da pagina
+   - filtro assincrono preserva detalhes da SSA atual se ela continua visivel
+   - filtro assincrono migra detalhes para o novo resultado quando a SSA atual sai do conjunto
 6. o post-mortem tecnico desta frente esta em:
    - `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
 7. o contrato de preferencias GUI continua sendo:
@@ -48,7 +51,10 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 3. tratar qualquer novo call site visual que use `display_current_page(...)` como risco de contrato cruzado
 4. nao mexer no renderer paralelo `handler_base` sem prova de callsite ativo
 5. seguir com `git status --short` no inicio
-6. antes de novo patch, ler:
+6. so reabrir o bloco GUI/tabela/detalhes se houver:
+   - repro novo em tela
+   - ou slice proprio de refatoracao pequena com contrato explicito
+7. antes de novo patch, ler:
    - `AGENTS.md`
    - `docs/NEXT_CHAT_MIGRATION.md`
    - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
