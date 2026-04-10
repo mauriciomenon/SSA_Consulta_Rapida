@@ -1,0 +1,27 @@
+scripts/run_pytest_with_timeout_v2.py
+  e142bee770b0eadb 11-12,17,20,32-38,112-116,121-135
+scripts/pytest_stream_common.py
+  e142bee770b0eadb 23-29,127-130,200-201,244-306,325,428
+scripts/run_pytest_with_timeout.py
+  e142bee770b0eadb 11-12,16,18,46-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "128a0ca172e5e396bd5f460870ac1dbc8bca034b",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 130,
+      "total_deletions": 302,
+      "accepted_lines": 405,
+      "overriden_lines": 0
+    }
+  }
+}
