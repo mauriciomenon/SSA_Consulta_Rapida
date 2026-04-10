@@ -93,12 +93,16 @@ except Exception as e:
 # 4. Verificar se o programa principal roda
 print("\n4. Status do sistema...")
 try:
-    import os
+    import subprocess
     import sys
 
-    redirect = "> nul 2>&1" if sys.platform == "win32" else "> /dev/null 2>&1"
-    result = os.system(f"python main.py --version {redirect}")
-    if result == 0:
+    result = subprocess.run(
+        [sys.executable, "main.py", "--version"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    if result.returncode == 0:
         print("   OK Programa principal executável")
     else:
         print("   WARN  Programa principal pode ter problemas")
