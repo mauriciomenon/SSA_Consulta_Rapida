@@ -10,19 +10,12 @@ This script writes a combined stdout/stderr log to `local_ai_private/pytest_term
 
 import argparse
 import os
-import shutil
-import signal
-import subprocess
 import sys
 from datetime import datetime, timezone
 
+from pytest_stream_common import ensure_local_ai_dir
 from pytest_stream_common import resolve_safe_test_target
-
-
-def ensure_local_ai_dir():
-    d = os.path.join(os.getcwd(), "local_ai_private")
-    os.makedirs(d, exist_ok=True)
-    return d
+from pytest_stream_common import run_logged_pytest
 
 
 def main():
@@ -54,135 +47,13 @@ def main():
         f"=== pytest wrapper run at {datetime.now(timezone.utc).isoformat()} ===\n"
         f"Command: {' '.join(cmd)}\nTimeout: {args.timeout}s\n\n"
     )
-
-    with open(logpath, "w", encoding="utf-8", errors="replace") as logf:
-        logf.write(header)
-        logf.flush()
-        proc = None
-        try:
-            popen_kwargs = {}
-            if os.name != "nt":
-                # Isolate child process group so killpg does not target this wrapper process.
-                popen_kwargs["start_new_session"] = True
-            proc = subprocess.Popen(
-                cmd,
-                stdout=logf,
-                stderr=subprocess.STDOUT,
-                **popen_kwargs,
-            )
-            try:
-                proc.wait(timeout=args.timeout)
-                logf.write(f"\n=== Process exited with code {proc.returncode} ===\n")
-                print(
-                    f"pytest finished with exit code {proc.returncode}; log: {logpath}"
-                )
-                return proc.returncode
-            except subprocess.TimeoutExpired:
-                # Timeout: attempt to kill process tree
-                try:
-                    if os.name == "nt":
-                        res = subprocess.run(
-                            ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                        )
-                        if res.returncode != 0:
-                            # fallback to PowerShell Stop-Process if taskkill is not available/succeeds
-                            pwsh = shutil.which("pwsh") or shutil.which("powershell")
-                            if pwsh:
-                                try:
-                                    subprocess.run(
-                                        [
-                                            pwsh,
-                                            "-NoProfile",
-                                            "-NonInteractive",
-                                            "-Command",
-                                            f"Stop-Process -Id {proc.pid} -Force -ErrorAction SilentlyContinue",
-                                        ],
-                                        stdout=subprocess.DEVNULL,
-                                        stderr=subprocess.DEVNULL,
-                                    )
-                                except Exception:
-                                    try:
-                                        proc.kill()
-                                    except Exception:
-                                        pass
-                            else:
-                                try:
-                                    proc.kill()
-                                except Exception:
-                                    pass
-                    else:
-                        try:
-                            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-                        except Exception:
-                            proc.kill()
-                except Exception:
-                    try:
-                        proc.kill()
-                    except Exception:
-                        pass
-
-                try:
-                    proc.wait(timeout=5)
-                except Exception:
-                    try:
-                        if os.name != "nt":
-                            try:
-                                pgid = os.getpgid(proc.pid)
-                            except ProcessLookupError:
-                                pgid = None
-                            if pgid is not None:
-                                try:
-                                    os.killpg(pgid, signal.SIGKILL)
-                                except ProcessLookupError:
-                                    pass
-                                except Exception:
-                                    proc.kill()
-                            else:
-                                proc.kill()
-                        else:
-                            proc.kill()
-                    except Exception:
-                        pass
-                    try:
-                        proc.wait(timeout=5)
-                    except Exception:
-                        pass
-
-                logf.write(
-                    f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n"
-                )
-                print(f"TIMEOUT: pytest exceeded {args.timeout}s; log: {logpath}")
-                return 124
-        except BaseException as e:
-            try:
-                logf.write(f"\n=== ERROR: {e} ===\n")
-                logf.flush()
-            except Exception:
-                print(
-                    f"[ERR] failed to write wrapper error to log: {e}", file=sys.stderr
-                )
-            if proc is not None and proc.poll() is None:
-                try:
-                    if os.name == "nt":
-                        subprocess.run(
-                            ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                        )
-                    else:
-                        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-                except Exception:
-                    try:
-                        proc.kill()
-                    except Exception:
-                        pass
-                try:
-                    proc.wait(timeout=5)
-                except Exception:
-                    pass
-            raise
+    return run_logged_pytest(
+        cmd=cmd,
+        timeout_s=args.timeout,
+        logpath=logpath,
+        header=header,
+        kill_tree_default=True,
+    )
 
 
 if __name__ == "__main__":
