@@ -1,0 +1,23 @@
+tests/test_cli_pagination_prompt.py
+  e142bee770b0eadb 195-224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "105d167b96f729dadb2cdb12acd43adabe7ad0c4",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 30,
+      "total_deletions": 6,
+      "accepted_lines": 305,
+      "overriden_lines": 0
+    }
+  }
+}
