@@ -2661,6 +2661,20 @@ def filter_dataframe(
 
         pattern, use_regex = pattern_cache.get(cache_key, (value, False))
 
+        def _fieldwise_regex(pattern_text: str) -> pd.Series:
+            per_column_masks = [
+                base_lower_df[column_name].str.contains(
+                    pattern_text, case=False, na=False, regex=True
+                )
+                for column_name in base_lower_df.columns
+            ]
+            if not per_column_masks:
+                return pd.Series(False, index=df.index)
+            field_mask = per_column_masks[0]
+            for column_mask in per_column_masks[1:]:
+                field_mask = field_mask | column_mask
+            return field_mask
+
         def _contains(pattern: str, *, regex: bool) -> pd.Series:
             if regex:
                 return row_search_text.str.contains(
@@ -2672,6 +2686,8 @@ def filter_dataframe(
 
         if mode == "regex":
             try:
+                if "^" in pattern or "$" in pattern:
+                    return _fieldwise_regex(pattern)
                 return row_search_text.str.contains(
                     pattern, case=False, na=False, regex=True
                 )
