@@ -1,5 +1,6 @@
 import pandas as pd
 
+from core.app_logic import filter_dataframe
 from interface.cli import _apply_default_filters
 
 
@@ -74,6 +75,12 @@ def test_default_mode_regex():
     }
     out = _apply_default_filters(df, settings)
     assert 'prefixX' in out['col1'].tolist()
+
+
+def test_explicit_regex_with_field_anchors_matches_single_column():
+    df = make_df()
+    out = filter_dataframe(df, ['~^pre.*X$'])
+    assert out['col1'].tolist() == ['prefixX']
 
 
 def test_marker_overrides_default_mode_negative_suffix():
