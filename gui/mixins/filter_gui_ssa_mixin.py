@@ -61,6 +61,7 @@ except ImportError:
 from core.app_logic import filter_dataframe, parse_search_terms
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS
+from gui.ssa import gui_details as ssa_gui_details
 
 # Imports de gui helpers
 from gui.helpers.formatting_helpers import (
@@ -3379,6 +3380,7 @@ class FilterGUISSAMixin:
     def _refresh_after_filter_change(self):
         """Reaplica filtros de coluna, atualiza tabela e indicadores."""
         refresh_started = perf_counter()
+        current_details_ssa = getattr(self, "_details_current_ssa", None)
         timings: dict[str, float] = {
             "advanced": 0.0,
             "column": 0.0,
@@ -3470,7 +3472,55 @@ class FilterGUISSAMixin:
             current = max(
                 1, min(self.paginator.current_page, self.paginator.total_pages)
             )
-            _measure_timing("render", lambda: self.display_current_page(current))
+            preserve_current_details = False
+            current_details_series = None
+            if current_details_ssa and not self.df_exibido.empty:
+                try:
+                    current_slice = self.paginator.get_current_slice()
+                    if (
+                        current_slice is not None
+                        and not current_slice.empty
+                        and "numero_ssa" in current_slice.columns
+                    ):
+                        current_norm = ssa_gui_details._normalize_ssa_relation_value(
+                            current_details_ssa
+                        )
+                        if current_norm:
+                            slice_norm = self._normalize_ssa_series(
+                                current_slice["numero_ssa"]
+                            )
+                            preserve_current_details = bool(
+                                slice_norm.eq(current_norm).any()
+                            )
+                    if preserve_current_details:
+                        current_details_series = ssa_gui_details._get_series_for_ssa(
+                            self, current_details_ssa
+                        )
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao avaliar preservacao de detalhes no refresh de filtros: %s",
+                        exc,
+                    )
+                    preserve_current_details = False
+                    current_details_series = None
+
+            if preserve_current_details and current_details_series is not None:
+                _measure_timing(
+                    "render",
+                    lambda: self.display_current_page(
+                        current, update_details=False
+                    ),
+                )
+                try:
+                    ssa_gui_details._update_details_from_series(
+                        self, current_details_series
+                    )
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao restaurar detalhes apos refresh de filtros: %s", exc
+                    )
+            else:
+                _measure_timing("render", lambda: self.display_current_page(current))
         except Exception as exc:
             logger.debug(
                 "Falha ao renderizar pagina atual diretamente no refresh; usando fallback: %s",

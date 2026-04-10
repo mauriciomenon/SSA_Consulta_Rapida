@@ -67,6 +67,45 @@ class TestGUITableRenderResilience:
         self.window.paginator.page_size = page_size
         self.window.paginator.set_dataframe(dataframe.copy())
 
+    def _build_preserve_details_df(self) -> pd.DataFrame:
+        extra_rows = self.base_df.iloc[:2].copy().reset_index(drop=True)
+        preserve_df = pd.concat([self.base_df.copy(), extra_rows], ignore_index=True)
+        preserve_df.loc[:, "numero_ssa"] = [
+            202500001,
+            202500002,
+            202500003,
+            202500004,
+            202500005,
+        ]
+        preserve_df.loc[:, "situacao"] = ["APV", "STE", "AMP", "APV", "APV"]
+        preserve_df.loc[:, "descricao_ssa"] = [
+            "Teste A",
+            "Teste B",
+            "Teste C",
+            "Teste D",
+            "Teste E",
+        ]
+        preserve_df.loc[:, "localizacao_codigo"] = ["L1", "L2", "L3", "L4", "L5"]
+        preserve_df.loc[:, "descricao_localizacao"] = ["D1", "D2", "D3", "D4", "D5"]
+        preserve_df.loc[:, "equipamento"] = ["E1", "E2", "E3", "E4", "E5"]
+        preserve_df.loc[:, "setor_executor"] = ["IEE3", "MEL4", "XYZ", "ABC", "DEF"]
+        preserve_df.loc[:, "setor_emissor"] = ["AAA", "BBB", "CCC", "DDD", "EEE"]
+        preserve_df.loc[:, "descricao_execucao"] = [
+            "Exec A",
+            "Exec B",
+            "Exec C",
+            "Exec D",
+            "Exec E",
+        ]
+        preserve_df.loc[:, "solicitante"] = [
+            "User1",
+            "User2",
+            "User3",
+            "User4",
+            "User5",
+        ]
+        return preserve_df
+
     def teardown_method(self):
         self._load_patch.stop()
         self.window.close()
@@ -299,6 +338,95 @@ class TestGUITableRenderResilience:
         assert update_details.call_count == 0
         assert self.window._details_current_ssa == initial_ssa
         assert str(self.window.details_text.toHtml() or "") == initial_html
+
+    def test_filter_refresh_preserves_current_details_when_ssa_remains_visible(self):
+        preserve_df = self._build_preserve_details_df()
+        self._set_window_dataframe(preserve_df, page_size=10)
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        self.window._jump_to_ssa("202500004")
+        QApplication.processEvents()
+        QApplication.processEvents()
+        initial_ssa = self.window._details_current_ssa
+
+        self.window._active_column_filters = {"situacao": "APV"}
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        assert self.window.df_exibido["numero_ssa"].tolist() == [
+            202500005,
+            202500004,
+            202500001,
+        ]
+        assert self.window._details_current_ssa == initial_ssa
+        assert "Teste D" in str(self.window.details_text.toHtml() or "")
+
+    def test_filter_refresh_updates_details_when_current_ssa_leaves_result(self):
+        preserve_df = self._build_preserve_details_df()
+        self._set_window_dataframe(preserve_df, page_size=10)
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        self.window._jump_to_ssa("202500004")
+        QApplication.processEvents()
+        QApplication.processEvents()
+
+        self.window._active_column_filters = {"descricao_ssa": "Teste C"}
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        assert self.window.df_exibido["numero_ssa"].tolist() == [202500003]
+        assert self.window._details_current_ssa == 202500003
+        assert "Teste C" in str(self.window.details_text.toHtml() or "")
+
+    def test_table_cell_alignment_change_preserves_existing_details(self):
+        preserve_df = self._build_preserve_details_df()
+        self._set_window_dataframe(preserve_df, page_size=10)
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        self.window._jump_to_ssa("202500004")
+        QApplication.processEvents()
+        QApplication.processEvents()
+        initial_ssa = self.window._details_current_ssa
+        initial_html = str(self.window.details_text.toHtml() or "")
+
+        with patch.object(
+            ssa_gui_details,
+            "_update_details_from_series",
+            wraps=ssa_gui_details._update_details_from_series,
+        ) as update_details:
+            ok = self.window._apply_table_cell_alignment_preference("left")
+            QApplication.processEvents()
+
+        assert ok is True
+        assert update_details.call_count == 1
+        assert self.window._details_current_ssa == initial_ssa
+        assert str(self.window.details_text.toHtml() or "") == initial_html
+
+    def test_tab_switch_preserves_existing_details(self):
+        preserve_df = self._build_preserve_details_df()
+        self._set_window_dataframe(preserve_df, page_size=10)
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        self.window._jump_to_ssa("202500004")
+        QApplication.processEvents()
+        QApplication.processEvents()
+        initial_ssa = self.window._details_current_ssa
+
+        self.window.main_tabs.setCurrentIndex(1)
+        QApplication.processEvents()
+        QApplication.processEvents()
+        assert self.window._details_current_ssa == initial_ssa
+        assert "Teste D" in str(self.window.details_text.toHtml() or "")
+
+        self.window.main_tabs.setCurrentIndex(0)
+        QApplication.processEvents()
+        QApplication.processEvents()
+        assert self.window._details_current_ssa == initial_ssa
+        assert "Teste D" in str(self.window.details_text.toHtml() or "")
 
     def test_display_current_page_dataset_swap_updates_visible_table_and_details(self):
         self.window.display_current_page(1)

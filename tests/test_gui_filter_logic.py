@@ -891,7 +891,7 @@ class TestGUIFilterLogic:
             == "right"
         )
         assert persist_calls["count"] == 1
-        assert render_calls == [(self.window.paginator.current_page, True)]
+        assert render_calls == [(self.window.paginator.current_page, False)]
         assert self.window._table_cell_alignment_actions["right"].isChecked() is True
         assert "Direita" in str(self.window.status_label.text() or "")
 
