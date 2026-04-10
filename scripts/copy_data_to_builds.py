@@ -16,6 +16,7 @@ Uso:
 import argparse
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 PYINSTALLER_CANONICAL_DIRS = (
@@ -63,13 +64,16 @@ def _looks_like_runtime_dir(candidate: Path) -> bool:
 
 def _resolve_runtime_dirs(build_dir: Path) -> list[Path]:
     """Resolve diretorios que devem receber config/data/docs no build."""
-    runtime_dirs: list[Path] = [build_dir]
+    runtime_dirs: list[Path] = []
     try:
         for child in build_dir.iterdir():
             if _looks_like_runtime_dir(child):
                 runtime_dirs.append(child)
     except OSError:
-        return runtime_dirs
+        return []
+
+    if not runtime_dirs:
+        runtime_dirs = [build_dir]
 
     dedup: list[Path] = []
     for item in runtime_dirs:
@@ -101,12 +105,13 @@ def resolve_target_build_dirs(base_dir: Path, build_system: str) -> list[Path]:
         return [base_dir / rel for rel in NUITKA_PLATFORM_DIRS]
 
     if build_system == "pyoxidizer":
+        platform_targets: list[Path] = []
         for rel_path in PYOXIDIZER_PLATFORM_DIRS:
             candidate = base_dir / rel_path
             if candidate.exists():
-                targets.append(candidate)
-        if targets:
-            return targets
+                platform_targets.append(candidate)
+        if platform_targets:
+            return platform_targets
         legacy_dir = base_dir / "builds" / "pyoxidizer"
         if legacy_dir.exists():
             return [legacy_dir]
@@ -130,6 +135,10 @@ def copy_data_to_build(
 
     success = True
     runtime_dirs = _resolve_runtime_dirs(build_dir)
+    if not runtime_dirs:
+        if verbose:
+            print(f"WARN  Nenhum runtime acessivel para copia: {build_dir}")
+        return False
 
     # Diretorio base do projeto (independente do cwd)
     base_dir = Path(__file__).resolve().parents[1]
@@ -158,68 +167,98 @@ def copy_data_to_build(
 
     # 2. Coletar excels uma vez
     docs_entrada = docs_dir
-    excel_files: list[Path] = []
+    excel_files: list[tuple[Path, float, float]] = []
     if docs_entrada.exists():
         excel_files = sorted(
-            docs_entrada.glob("*.xlsx"), key=lambda p: p.stat().st_mtime, reverse=True
+            (
+                (
+                    path,
+                    stat_result.st_size / 1024,
+                    stat_result.st_mtime,
+                )
+                for path in docs_entrada.glob("*.xlsx")
+                for stat_result in [path.stat()]
+            ),
+            key=lambda item: item[2],
+            reverse=True,
         )
     elif verbose:
         print("WARN  Diretorio docs_entrada nao encontrado")
 
-    for runtime_dir in runtime_dirs:
-        target_data_dir = runtime_dir / "data"
-        target_docs_entrada_dir = runtime_dir / "docs_entrada"
-        target_docs_saida_dir = runtime_dir / "docs_saida"
-        target_config_dir = runtime_dir / "config"
-        target_data_dir.mkdir(exist_ok=True)
-        target_docs_entrada_dir.mkdir(exist_ok=True)
-        target_docs_saida_dir.mkdir(exist_ok=True)
+    config_available = config_dir.exists()
+    if not config_available and verbose:
+        print(f"WARN  Diretorio config nao encontrado: {config_dir}")
 
-        if config_dir.exists():
+    if verbose and (db_ok or excel_files):
+        print(
+            "WARN  Revise se DB e planilhas contem dados sensiveis antes de distribuir o build"
+        )
+
+    staged_config_dir: Path | None = None
+    with tempfile.TemporaryDirectory(prefix="ssa_copy_config_") as stage_dir_str:
+        if config_available and len(runtime_dirs) > 1:
+            staged_config_dir = Path(stage_dir_str) / "config"
             try:
-                shutil.copytree(config_dir, target_config_dir, dirs_exist_ok=True)
-                if verbose:
-                    print(f"CFG Config copiado: {config_dir} -> {target_config_dir}")
+                shutil.copytree(config_dir, staged_config_dir, dirs_exist_ok=True)
             except Exception as e:
-                print(f"   ERR Erro ao copiar config para {runtime_dir}: {e}")
+                print(f"   ERR Erro ao preparar stage de config: {e}")
                 success = False
-        elif verbose:
-            print(f"WARN  Diretorio config nao encontrado: {config_dir}")
+                staged_config_dir = None
 
-        if db_ok:
-            target_db = target_data_dir / "ssas.db"
-            if verbose:
-                print(f"PKG Copiando DB: {source_db} -> {target_db}")
-            try:
-                shutil.copy2(source_db, target_db)
+        for runtime_dir in runtime_dirs:
+            target_data_dir = runtime_dir / "data"
+            target_docs_entrada_dir = runtime_dir / "docs_entrada"
+            target_docs_saida_dir = runtime_dir / "docs_saida"
+            target_config_dir = runtime_dir / "config"
+            target_data_dir.mkdir(exist_ok=True)
+            target_docs_entrada_dir.mkdir(exist_ok=True)
+            target_docs_saida_dir.mkdir(exist_ok=True)
+
+            if config_available:
+                copy_source_dir = staged_config_dir or config_dir
+                try:
+                    shutil.copytree(copy_source_dir, target_config_dir, dirs_exist_ok=True)
+                    if verbose:
+                        print(
+                            f"CFG Config copiado: {copy_source_dir} -> {target_config_dir}"
+                        )
+                except Exception as e:
+                    print(f"   ERR Erro ao copiar config para {runtime_dir}: {e}")
+                    success = False
+
+            if db_ok:
+                target_db = target_data_dir / "ssas.db"
                 if verbose:
-                    print(f"    DB copiado ({db_size_mb:.1f} MB)")
-            except Exception as e:
-                print(f"   ERR Erro ao copiar DB para {runtime_dir}: {e}")
-                success = False
+                    print(f"PKG Copiando DB: {source_db} -> {target_db}")
+                try:
+                    shutil.copy2(source_db, target_db)
+                    if verbose:
+                        print(f"    DB copiado ({db_size_mb:.1f} MB)")
+                except Exception as e:
+                    print(f"   ERR Erro ao copiar DB para {runtime_dir}: {e}")
+                    success = False
 
-        copied_count = 0
-        if verbose and excel_files:
-            print(
-                f"INFO Copiando Excel samples para {runtime_dir} (maximo {max_excel_files}):"
-            )
-
-        for excel_file in excel_files[:max_excel_files]:
-            target_excel = target_docs_entrada_dir / excel_file.name
-            try:
-                shutil.copy2(excel_file, target_excel)
-                size_kb = target_excel.stat().st_size / 1024
-                if verbose:
-                    print(f"    {excel_file.name} ({size_kb:.0f} KB)")
-                copied_count += 1
-            except Exception as e:
+            copied_count = 0
+            if verbose and excel_files:
                 print(
-                    f"   ERR Erro ao copiar {excel_file.name} para {runtime_dir}: {e}"
+                    f"INFO Copiando Excel samples para {runtime_dir} (maximo {max_excel_files}):"
                 )
-                success = False
 
-        if verbose and copied_count > 0:
-            print(f"   Total: {copied_count} arquivo(s) Excel copiado(s)")
+            for excel_file, excel_size_kb, _excel_mtime in excel_files[:max_excel_files]:
+                target_excel = target_docs_entrada_dir / excel_file.name
+                try:
+                    shutil.copy2(excel_file, target_excel)
+                    if verbose:
+                        print(f"    {excel_file.name} ({excel_size_kb:.0f} KB)")
+                    copied_count += 1
+                except Exception as e:
+                    print(
+                        f"   ERR Erro ao copiar {excel_file.name} para {runtime_dir}: {e}"
+                    )
+                    success = False
+
+            if verbose and copied_count > 0:
+                print(f"   Total: {copied_count} arquivo(s) Excel copiado(s)")
 
     return success
 
@@ -324,7 +363,11 @@ def main():
         existing_dirs = [path for path in target_dirs if path.exists()]
         if not existing_dirs:
             if verbose:
-                print(f"WARN Build directory not found: {target_dirs[0]}")
+                expected_targets = ", ".join(str(path) for path in target_dirs)
+                print(
+                    "WARN Nenhum diretorio de build encontrado entre os candidatos: "
+                    f"{expected_targets}"
+                )
             return 1
         for build_dir in existing_dirs:
             if verbose:

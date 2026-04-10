@@ -3,7 +3,7 @@
 Wrapper to run pytest with an external timeout and write stdout/stderr to a log file.
 
 Usage:
-  python scripts/run_pytest_with_timeout.py --test tests/test_terminal_integration.py --timeout 10
+  python scripts/run_pytest_with_timeout.py --test tests/test_terminal_integration.py --timeout 60
 
 This script writes a combined stdout/stderr log to `local_ai_private/pytest_terminal_integration.log`.
 """
@@ -15,6 +15,8 @@ import signal
 import subprocess
 import sys
 from datetime import datetime, timezone
+
+from pytest_stream_common import resolve_safe_test_target
 
 
 def ensure_local_ai_dir():
@@ -31,15 +33,20 @@ def main():
         help="pytest path or args (e.g. tests/test_terminal_integration.py)",
     )
     parser.add_argument(
-        "--timeout", type=int, default=10, help="timeout in seconds for the pytest run"
+        "--timeout", type=int, default=60, help="timeout in seconds for the pytest run"
     )
     parser.add_argument("--log", default=None, help="optional log path")
     args, extra = parser.parse_known_args()
 
     logdir = ensure_local_ai_dir()
     logpath = args.log or os.path.join(logdir, "pytest_terminal_integration.log")
+    try:
+        test_target = resolve_safe_test_target(args.test, os.getcwd())
+    except ValueError as exc:
+        print(f"[ERR] invalid --test target: {exc}", file=sys.stderr)
+        return 2
 
-    cmd = [sys.executable, "-m", "pytest", args.test]
+    cmd = [sys.executable, "-m", "pytest", test_target]
     if extra:
         cmd.extend(extra)
 
@@ -122,8 +129,17 @@ def main():
                     try:
                         if os.name != "nt":
                             try:
-                                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-                            except Exception:
+                                pgid = os.getpgid(proc.pid)
+                            except ProcessLookupError:
+                                pgid = None
+                            if pgid is not None:
+                                try:
+                                    os.killpg(pgid, signal.SIGKILL)
+                                except ProcessLookupError:
+                                    pass
+                                except Exception:
+                                    proc.kill()
+                            else:
                                 proc.kill()
                         else:
                             proc.kill()

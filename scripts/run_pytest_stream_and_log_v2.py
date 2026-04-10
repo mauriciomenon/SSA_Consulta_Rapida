@@ -77,7 +77,7 @@ def main():
         ws_settings = {}
 
     if args.timeout is None:
-        args.timeout = int(ws_settings.get("pytestWrapper", {}).get("timeout", 10))
+        args.timeout = int(ws_settings.get("pytestWrapper", {}).get("timeout", 60))
 
     fallback_to_tee = bool(
         ws_settings.get("pytestWrapper", {}).get("fallbackToTee", False)
