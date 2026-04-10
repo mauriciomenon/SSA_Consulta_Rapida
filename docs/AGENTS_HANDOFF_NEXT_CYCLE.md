@@ -2,7 +2,7 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-09 20h13
+## CURRENT TRUTH 2026-04-09 22h26
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
@@ -15,6 +15,8 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - resize persiste largura na coluna correta
      - reorder em schema parcial preserva colunas visiveis ausentes
      - derivadas ficaram travadas em contrato de navegacao e retorno a origem
+     - selecao stale nao sobrevive ao rebuild de pagina
+     - filtro assincrono preserva ou migra detalhes conforme permanencia da SSA atual
   4. docs de referencia desta frente:
      - `docs/GUI_GENERAL_SEARCH_COLUMN_CONTRACT.md`
      - `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
@@ -26,6 +28,8 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `c45d9e42` `STABILITY_PATCH: keep details panel stable during column reorder`
      - `3bc0d36f` `STABILITY_PATCH: preserve details during header sorting`
      - `21135ccf` `STABILITY_PATCH: lock derivadas detail navigation contract`
+     - `43c1443b` `STABILITY_PATCH: clear stale selection on page rebuild`
+     - `ce7501d2` `STABILITY_PATCH: lock async filter selection detail contract`
   6. validacao relevante desta frente:
      - `py_compile`, `ruff`, `ty` verdes nos slices tocados
      - `pytest` focados relevantes verdes
@@ -57,6 +61,8 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - resize usa o mesmo contrato de resolucao de coluna do header
      - reorder em schema parcial nao pode expulsar colunas visiveis ausentes do estado persistido
      - o contrato de derivadas deve ser lido pelo post-mortem e pelos testes de regressao, nao por inferencia
+     - `selectionChanged` so pode governar detalhes a partir da selecao atual valida; selecao stale precisa morrer no rebuild
+     - filtro assincrono com selecao manual previa preserva detalhes se a SSA continua visivel e migra detalhes quando ela sai do resultado
      - a CLI continua fora do contrato de preferencias da GUI, mas segue usando `display_map`, `short_labels`, `fixed_widths` e alternancia `short/full`
      - `core/handler_base.py:197` continua documentado apenas como renderer paralelo fora do caminho principal `main.py -> interface/cli.py -> interface/table_printer.py`
      - referencia detalhada do algoritmo: `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
@@ -70,6 +76,9 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   4. se o produto quiser, analisar em slice separado se os numeros de `DEFAULT_COLUMN_WIDTHS` precisam revisao controlada
      - ler antes `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
   5. manter fora deste slice o debt semantico de nome do agrupamento `exclude_ste_sca`
+  6. so reabrir esta area por:
+     - repro novo em tela
+     - ou slice proprio de refatoracao pequena com contrato de nao-regressao
 
 ## HISTORICAL SNAPSHOT 2026-03-31 09h49
 
