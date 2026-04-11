@@ -1,0 +1,41 @@
+scripts/pytest_stream_common.py
+  e142bee770b0eadb 242,248,253,275,283-287,289,304-309,319-322,324,341,347,351-353,368,391,418,456-457,569-570,573-575,622,642-643,691
+launchers/test_complete.py
+  e142bee770b0eadb 5,25,27-30
+docs/RECOVERY_BACKLOG.md
+  e142bee770b0eadb 8716-8731
+AGENTS.md
+  e142bee770b0eadb 183-187
+gui/workers/filter_worker.py
+  e142bee770b0eadb 69,81-82,84,105-114,116-117,119-120,127-130,178
+scripts/validate_streamlit_improvements.py
+  e142bee770b0eadb 40-43,311
+scripts/run_pytest_stream_and_log_v2.py
+  e142bee770b0eadb 86,147
+scripts/run_pytest_with_timeout.py
+  e142bee770b0eadb 1-4,7-10,21-22,46
+scripts/run_pytest_stream_and_log.py
+  e142bee770b0eadb 1-4,7-21,26-51,54-65,83,85-88
+scripts/run_pytest_with_timeout_v2.py
+  e142bee770b0eadb 1-4,7-10,27-33,49-58,60-61,87-111,117-120,129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "f8346d8d6dc25e9be1fa6f52d713bff2b8794ba6",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 8966,
+      "total_deletions": 181,
+      "accepted_lines": 9236,
+      "overriden_lines": 0
+    }
+  }
+}
