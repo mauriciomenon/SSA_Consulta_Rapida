@@ -5,6 +5,20 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-11 - streaming queue pressure residual
+
+Escopo fechado nesta rodada:
+1. remover dependencia de sentinela na fila de `run_streaming_pytest(...)` e concluir o fluxo por `reader_done + process_done + queue.empty()`
+2. reduzir churn no caminho de fila cheia com politica simples de eviccao de uma linha e insercao do item atual
+3. extrair writer/flush de stream para helper dedicado sem alterar o contrato externo
+4. adicionar teste focado de pressao de fila para garantir termino do streaming sob carga alta
+
+Residual mantido fora do escopo:
+1. `run_streaming_pytest(...)` ainda concentra lifecycle de processo, thread e polling da fila em um bloco grande; nova reducao estrutural fica para slice proprio
+2. `build_timeout_wrapper_cmd(...)` ainda aceita `extra_args` sem allowlist explicita; endurecimento de flags do pytest fica para slice proprio para nao mudar CLI sem decisao clara
+3. compatibilidade nominal entre helper `queue_poll_timeout_seconds()` e env `PYTEST_STREAM_QUEUE_POLL_TIMEOUT_MS` permanece intencional para nao quebrar configuracao existente
+4. diagnostico de MCP/config do kluster deve seguir em frente separada do runtime de streaming
+
 ## Update 2026-04-11 - residual wrapper CLI dedup documented
 
 Escopo fechado nesta rodada:

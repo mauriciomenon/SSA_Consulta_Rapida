@@ -343,6 +343,47 @@ def run_logged_pytest(
             raise
 
 
+class _StreamLogWriter:
+    def __init__(self, logf, *, flush_every: int) -> None:
+        self._logf = logf
+        self._flush_every = flush_every
+        self._pending_flush_lines = 0
+        self._last_flush = time.monotonic()
+
+    def flush_if_needed(self, force: bool = False) -> None:
+        now = time.monotonic()
+        if (
+            force
+            or self._pending_flush_lines >= self._flush_every
+            or (
+                self._pending_flush_lines > 0
+                and (now - self._last_flush) >= 1.0
+            )
+        ):
+            self._logf.flush()
+            self._pending_flush_lines = 0
+            self._last_flush = now
+
+    def write_line(self, line: str) -> None:
+        print(line, end="")
+        self._logf.write(line)
+        self._pending_flush_lines += 1
+        self.flush_if_needed()
+
+    def write_block(self, text: str, *, force_flush: bool = False) -> None:
+        self._logf.write(text)
+        self._pending_flush_lines += 1
+        self.flush_if_needed(force=force_flush)
+
+    def drain_queue(self, line_queue: "queue.Queue[str]") -> None:
+        while True:
+            try:
+                queued_line = line_queue.get_nowait()
+            except queue.Empty:
+                return
+            self.write_line(queued_line)
+
+
 def run_streaming_pytest(
     *,
     cmd: list[str],
@@ -373,162 +414,121 @@ def run_streaming_pytest(
             start_new_session=True,
         )
 
-    line_queue: "queue.Queue[str | None]" = queue.Queue(maxsize=queue_maxsize())
+    line_queue: "queue.Queue[str]" = queue.Queue(maxsize=queue_maxsize())
     dropped_lines = 0
-    dropped_lock = threading.Lock()
     last_warned = 0
     reader_done = threading.Event()
     dropped_warn_every = dropped_warn_every_lines()
     queue_poll_timeout = queue_poll_timeout_seconds()
     reader_join_timeout = reader_join_timeout_seconds()
 
-    def _best_effort_queue_put(value: str | None) -> None:
+    def _record_dropped_line() -> None:
         nonlocal dropped_lines, last_warned
+        dropped_lines += 1
+        warn_count = dropped_lines
+        should_warn = warn_count == 1 or (
+            warn_count % dropped_warn_every == 0 and warn_count != last_warned
+        )
+        if should_warn:
+            last_warned = warn_count
+        if should_warn:
+            robust_logger.warning(
+                "output queue full; dropped %s line(s)", warn_count
+            )
+
+    def _best_effort_queue_put(value: str) -> None:
         try:
             line_queue.put_nowait(value)
             return
         except queue.Full:
             pass
-        evicted_item: str | None | object = ""
+        evicted_item: str | object = ""
         try:
             evicted_item = line_queue.get_nowait()
         except queue.Empty:
             pass
-        if evicted_item is None:
-            # Preserve the sentinel so the consumer can always terminate.
-            try:
-                line_queue.put_nowait(None)
-            except queue.Full:
-                pass
-            with dropped_lock:
-                if value is None:
-                    return
-                dropped_lines += 1
-                warn_count = dropped_lines
-                should_warn = warn_count == 1 or (
-                    warn_count % dropped_warn_every == 0 and warn_count != last_warned
-                )
-                if should_warn:
-                    last_warned = warn_count
-            if should_warn:
-                robust_logger.warning(
-                    "output queue full; dropped %s line(s)", warn_count
-                )
-            return
         if evicted_item != "":
-            with dropped_lock:
-                if value is not None:
-                    dropped_lines += 1
-        try:
-            line_queue.put_nowait(value)
-            return
-        except queue.Full:
-            with dropped_lock:
-                if value is None:
-                    return
-                dropped_lines += 1
-                warn_count = dropped_lines
-                should_warn = warn_count == 1 or (
-                    warn_count % dropped_warn_every == 0 and warn_count != last_warned
-                )
-                if should_warn:
-                    last_warned = warn_count
-            if should_warn:
-                robust_logger.warning(
-                    "output queue full; dropped %s line(s)", warn_count
-                )
+            _record_dropped_line()
+        line_queue.put(value, timeout=queue_poll_timeout)
 
     def _reader_worker() -> None:
         try:
-            if process.stdout is None:
-                return
-            while True:
-                try:
-                    raw_line = process.stdout.readline()
-                except BaseException as exc:
-                    _best_effort_queue_put(f"[WARN] reader thread error: {exc}\n")
-                    break
-                if raw_line == "":
-                    break
-                _best_effort_queue_put(raw_line)
+            stdout = process.stdout
+            if stdout is not None:
+                while True:
+                    try:
+                        raw_line = stdout.readline()
+                    except BaseException as exc:
+                        _best_effort_queue_put(f"[WARN] reader thread error: {exc}\n")
+                        break
+                    if raw_line == "":
+                        break
+                    _best_effort_queue_put(raw_line)
         finally:
             reader_done.set()
-            _best_effort_queue_put(None)
 
     reader_thread = threading.Thread(target=_reader_worker, daemon=True)
     reader_thread.start()
 
     with open(logpath, "w", encoding="utf-8", errors="replace") as logf:
-        flush_every = flush_every_lines()
-        pending_flush_lines = 0
-        last_flush = time.monotonic()
+        writer = _StreamLogWriter(logf, flush_every=flush_every_lines())
 
-        def _flush_if_needed(force: bool = False) -> None:
-            nonlocal pending_flush_lines, last_flush
-            now = time.monotonic()
-            if (
-                force
-                or pending_flush_lines >= flush_every
-                or (pending_flush_lines > 0 and (now - last_flush) >= 1.0)
-            ):
-                logf.flush()
-                pending_flush_lines = 0
-                last_flush = now
+        def _handle_timeout() -> int:
+            _terminate_process(
+                process,
+                kill_tree_default=kill_tree_default,
+                pwsh_picker=pwsh_picker,
+                logger=robust_logger,
+            )
+            _wait_for_termination(process, logger=robust_logger)
+            reader_thread.join(timeout=reader_join_timeout)
+            writer.drain_queue(line_queue)
+            msg = f"\n=== TIMEOUT: pytest exceeded {timeout_s}s and was terminated ===\n"
+            print(msg)
+            writer.write_block(msg, force_flush=True)
+            if fallback_to_tee:
+                logpath_ps = logpath.replace("/", "\\")
+                print(
+                    "Fallback: to stream+log use (PowerShell):\n"
+                    f'python -m pytest "{test_arg}" 2>&1 | Tee-Object -FilePath '
+                    f'"{logpath_ps}"'
+                )
+            return 124
 
-        logf.write(header)
-        pending_flush_lines += 1
-        _flush_if_needed(force=True)
+        def _next_queue_timeout() -> float:
+            remaining = timeout_s - (time.monotonic() - start)
+            if remaining <= 0:
+                return 0.001
+            return min(queue_poll_timeout, remaining)
 
-        try:
-            sentinel_seen = False
+        def _stream_until_exit() -> None:
             while True:
                 if time.monotonic() - start > timeout_s:
-                    _terminate_process(
-                        process,
-                        kill_tree_default=kill_tree_default,
-                        pwsh_picker=pwsh_picker,
-                        logger=robust_logger,
-                    )
-                    _wait_for_termination(process, logger=robust_logger)
-                    msg = f"\n=== TIMEOUT: pytest exceeded {timeout_s}s and was terminated ===\n"
-                    print(msg)
-                    logf.write(msg)
-                    pending_flush_lines += 1
-                    _flush_if_needed(force=True)
-                    if fallback_to_tee:
-                        logpath_ps = logpath.replace("/", "\\")
-                        print(
-                            "Fallback: to stream+log use (PowerShell):\n"
-                            f'python -m pytest "{test_arg}" 2>&1 | Tee-Object -FilePath '
-                            f'"{logpath_ps}"'
-                        )
-                    reader_thread.join(timeout=reader_join_timeout)
-                    return 124
+                    raise TimeoutError
 
                 try:
-                    queued_line = line_queue.get(timeout=queue_poll_timeout)
+                    queued_line = line_queue.get(timeout=_next_queue_timeout())
                 except queue.Empty:
                     queued_line = ""
 
-                if queued_line is None:
-                    sentinel_seen = True
-                elif queued_line:
-                    print(queued_line, end="")
-                    logf.write(queued_line)
-                    pending_flush_lines += 1
-                    _flush_if_needed()
+                if queued_line:
+                    writer.write_line(queued_line)
 
                 process_done = process.poll() is not None
-                if process_done and sentinel_seen:
-                    break
                 if process_done and reader_done.is_set() and line_queue.empty():
-                    break
+                    return
+
+        writer.write_block(header, force_flush=True)
+
+        try:
+            try:
+                _stream_until_exit()
+            except TimeoutError:
+                return _handle_timeout()
 
             ret = process.wait()
             footer = f"\n=== Process exited with code {ret} ===\n"
-            logf.write(footer)
-            pending_flush_lines += 1
-            _flush_if_needed(force=True)
+            writer.write_block(footer, force_flush=True)
             print(footer)
             reader_thread.join(timeout=reader_join_timeout)
             return ret
@@ -537,11 +537,10 @@ def run_streaming_pytest(
             robust_logger.exception(
                 "unexpected failure while streaming pytest output: %s", exc
             )
-            logf.write(
-                f"[ERR] unexpected failure while streaming pytest output: {exc}\n"
+            writer.write_block(
+                f"[ERR] unexpected failure while streaming pytest output: {exc}\n",
+                force_flush=True,
             )
-            pending_flush_lines += 1
-            _flush_if_needed(force=True)
             _terminate_process(
                 process,
                 kill_tree_default=kill_tree_default,
