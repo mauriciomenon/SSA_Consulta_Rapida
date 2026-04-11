@@ -1,0 +1,33 @@
+docs/RECOVERY_BACKLOG.md
+  e142bee770b0eadb 8-20
+armazenamento/derivadas_sync.py
+  e142bee770b0eadb 152-154,263,957
+scripts_manutencao/verificar_integridade.py
+  e142bee770b0eadb 10-22,34-37,46,55
+armazenamento/database.py
+  e142bee770b0eadb 456-467,471,647-654,708-712,715
+armazenamento/database_upsert_logic.py
+  e142bee770b0eadb 702,783,1159-1161
+scripts/preflight_snyk.py
+  e142bee770b0eadb 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "22a9287edf27f9bd2eedf53d492508ad75668067",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 140,
+      "total_deletions": 45,
+      "accepted_lines": 9146,
+      "overriden_lines": 0
+    }
+  }
+}
