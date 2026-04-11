@@ -5,6 +5,7 @@ import io
 import importlib.util
 from pathlib import Path
 import sys
+from typing import Any
 
 import pytest
 
@@ -173,13 +174,62 @@ def test_reader_join_timeout_seconds_clamp_and_default(
 ) -> None:
     _, _, common = modules
     monkeypatch.delenv("PYTEST_STREAM_READER_JOIN_TIMEOUT_MS", raising=False)
-    assert common.reader_join_timeout_seconds() == 1.0
+    assert common.reader_join_timeout_seconds() == 0.5
     monkeypatch.setenv("PYTEST_STREAM_READER_JOIN_TIMEOUT_MS", "1")
     assert common.reader_join_timeout_seconds() == 0.1
     monkeypatch.setenv("PYTEST_STREAM_READER_JOIN_TIMEOUT_MS", "50000")
     assert common.reader_join_timeout_seconds() == 5.0
     monkeypatch.setenv("PYTEST_STREAM_READER_JOIN_TIMEOUT_MS", "bad")
-    assert common.reader_join_timeout_seconds() == 1.0
+    assert common.reader_join_timeout_seconds() == 0.5
+
+
+def test_process_exit_footer_uses_shared_format(modules) -> None:
+    _, _, common = modules
+    assert common._process_exit_footer(7) == "\n=== Process exited with code 7 ===\n"
+
+
+def test_run_streaming_pytest_marks_reader_failure_as_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, modules
+) -> None:
+    _, _, common = modules
+    logpath = tmp_path / "stream_reader_error.log"
+
+    class _BrokenStdout:
+        def readline(self) -> str:
+            raise RuntimeError("boom")
+
+    class _FakeProcess:
+        def __init__(self) -> None:
+            self.stdout = _BrokenStdout()
+            self.pid = 321
+            self.returncode = 0
+
+        def poll(self) -> int:
+            return 0
+
+        def wait(self, timeout: float | None = None) -> int:
+            return 0
+
+    def _fake_popen(*args: Any, **kwargs: Any) -> _FakeProcess:
+        return _FakeProcess()
+
+    monkeypatch.setattr(common.subprocess, "Popen", _fake_popen)
+    monkeypatch.setattr(common, "queue_poll_timeout_seconds", lambda: 0.02)
+    monkeypatch.setattr(common, "reader_join_timeout_seconds", lambda: 0.1)
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        ret = common.run_streaming_pytest(
+            cmd=[sys.executable, "-c", "print('unused')"],
+            timeout_s=1,
+            logpath=str(logpath),
+            fallback_to_tee=False,
+            test_arg="reader-error",
+            kill_tree_default=True,
+        )
+
+    assert ret == 0
+    text = logpath.read_text(encoding="utf-8", errors="replace")
+    assert "[ERR] reader thread error: boom" in text
 
 
 def test_run_streaming_pytest_finishes_under_queue_pressure(

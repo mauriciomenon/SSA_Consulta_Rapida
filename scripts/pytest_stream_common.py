@@ -113,11 +113,11 @@ def queue_poll_timeout_seconds() -> float:
 def reader_join_timeout_seconds() -> float:
     raw = os.environ.get("PYTEST_STREAM_READER_JOIN_TIMEOUT_MS")
     if not raw:
-        return 1.0
+        return 0.5
     try:
         value_ms = int(raw)
     except ValueError:
-        return 1.0
+        return 0.5
     if value_ms < 100:
         value_ms = 100
     if value_ms > 5000:
@@ -262,7 +262,12 @@ def _terminate_process(
                                 "-NoProfile",
                                 "-NonInteractive",
                                 "-Command",
-                                f"Stop-Process -Id {process.pid} -Force -ErrorAction SilentlyContinue",
+                                "Stop-Process",
+                                "-Id",
+                                str(process.pid),
+                                "-Force",
+                                "-ErrorAction",
+                                "SilentlyContinue",
                             ],
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
@@ -274,8 +279,8 @@ def _terminate_process(
         else:
             try:
                 # On Unix we intentionally terminate the whole process group for
-                # robustness. The kill_tree_default flag currently governs only
-                # the Windows path above.
+                # robustness. The kill_tree_default flag is ignored here and
+                # remains effective only on the Windows path above.
                 process_group_id = os.getpgid(process.pid)
                 os.killpg(process_group_id, signal.SIGTERM)
             except (ProcessLookupError, PermissionError, OSError) as exc:
@@ -320,6 +325,26 @@ def _wait_for_termination(process: subprocess.Popen[str], *, logger) -> None:
             logger.warning("second wait for process termination failed: %s", wait_exc)
 
 
+def _terminate_and_wait(
+    process: subprocess.Popen[str],
+    *,
+    kill_tree_default: bool,
+    pwsh_picker: Callable[[], str | None] | None = None,
+    logger,
+) -> None:
+    _terminate_process(
+        process,
+        kill_tree_default=kill_tree_default,
+        pwsh_picker=pwsh_picker,
+        logger=logger,
+    )
+    _wait_for_termination(process, logger=logger)
+
+
+def _process_exit_footer(exit_code: int) -> str:
+    return f"\n=== Process exited with code {exit_code} ===\n"
+
+
 def run_logged_pytest(
     *,
     cmd: list[str],
@@ -347,13 +372,12 @@ def run_logged_pytest(
             try:
                 process.wait(timeout=timeout_s)
             except subprocess.TimeoutExpired:
-                _terminate_process(
+                _terminate_and_wait(
                     process,
                     kill_tree_default=kill_tree_default,
                     pwsh_picker=pwsh_picker,
                     logger=logger,
                 )
-                _wait_for_termination(process, logger=logger)
                 timeout_footer = (
                     f"\n=== TIMEOUT: pytest exceeded {timeout_s}s and was terminated ===\n"
                 )
@@ -363,7 +387,7 @@ def run_logged_pytest(
                 return 124
 
             exit_code = process.returncode
-            footer = f"\n=== Process exited with code {exit_code} ===\n"
+            footer = _process_exit_footer(exit_code)
             logf.write(footer)
             logf.flush()
             print(f"pytest finished with exit code {exit_code}; log: {logpath}")
@@ -375,19 +399,19 @@ def run_logged_pytest(
             except Exception:
                 logger.exception("failed to write wrapper error to log")
             if process is not None and process.poll() is None:
-                _terminate_process(
+                _terminate_and_wait(
                     process,
                     kill_tree_default=kill_tree_default,
                     pwsh_picker=pwsh_picker,
                     logger=logger,
                 )
-                _wait_for_termination(process, logger=logger)
             raise
 
 
 class _StreamLogWriter:
     def __init__(self, logf, *, flush_every: int) -> None:
         self._logf = logf
+        self._stdout = sys.stdout
         self._flush_every = flush_every
         self._pending_flush_lines = 0
         self._last_flush = time.monotonic()
@@ -402,12 +426,13 @@ class _StreamLogWriter:
                 and (now - self._last_flush) >= 1.0
             )
         ):
+            self._stdout.flush()
             self._logf.flush()
             self._pending_flush_lines = 0
             self._last_flush = now
 
     def write_line(self, line: str) -> None:
-        print(line, end="")
+        self._stdout.write(line)
         self._logf.write(line)
         self._pending_flush_lines += 1
         self.flush_if_needed()
@@ -424,6 +449,99 @@ class _StreamLogWriter:
             except queue.Empty:
                 return
             self.write_line(queued_line)
+
+
+class _StreamingQueuePump:
+    def __init__(
+        self,
+        process: subprocess.Popen[str],
+        *,
+        robust_logger,
+        queue_poll_timeout: float,
+        reader_join_timeout: float,
+        dropped_warn_every: int,
+    ) -> None:
+        self._process = process
+        self._logger = robust_logger
+        self._queue_poll_timeout = queue_poll_timeout
+        self._reader_join_timeout = reader_join_timeout
+        self._line_queue: "queue.Queue[str]" = queue.Queue(maxsize=queue_maxsize())
+        self._reader_done = threading.Event()
+        self._dropped_lines = 0
+        self._last_warned = 0
+        self._dropped_warn_every = dropped_warn_every
+        self._reader_thread = threading.Thread(target=self._reader_worker, daemon=True)
+
+    @property
+    def line_queue(self) -> "queue.Queue[str]":
+        return self._line_queue
+
+    @property
+    def reader_done(self) -> threading.Event:
+        return self._reader_done
+
+    @property
+    def queue_poll_timeout(self) -> float:
+        return self._queue_poll_timeout
+
+    def start(self) -> None:
+        self._reader_thread.start()
+
+    def join_and_drain(self, writer: _StreamLogWriter) -> None:
+        deadline = time.monotonic() + self._reader_join_timeout
+        while self._reader_thread.is_alive():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            self._reader_thread.join(timeout=min(self._queue_poll_timeout, remaining))
+            writer.drain_queue(self._line_queue)
+        writer.drain_queue(self._line_queue)
+
+    def record_dropped_line(self) -> None:
+        self._dropped_lines += 1
+        warn_count = self._dropped_lines
+        should_warn = warn_count == 1 or (
+            warn_count % self._dropped_warn_every == 0
+            and warn_count != self._last_warned
+        )
+        if should_warn:
+            self._last_warned = warn_count
+            self._logger.warning("output queue full; dropped %s line(s)", warn_count)
+
+    def best_effort_queue_put(self, value: str) -> None:
+        try:
+            self._line_queue.put_nowait(value)
+            return
+        except queue.Full:
+            pass
+        try:
+            self._line_queue.get_nowait()
+        except queue.Empty:
+            self.record_dropped_line()
+            return
+        self.record_dropped_line()
+        try:
+            self._line_queue.put_nowait(value)
+        except queue.Full:
+            self.record_dropped_line()
+
+    def _reader_worker(self) -> None:
+        try:
+            stdout = self._process.stdout
+            if stdout is not None:
+                while True:
+                    try:
+                        raw_line = stdout.readline()
+                    except BaseException as exc:
+                        self.best_effort_queue_put(
+                            f"[ERR] reader thread error: {exc}\n"
+                        )
+                        break
+                    if raw_line == "":
+                        break
+                    self.best_effort_queue_put(raw_line)
+        finally:
+            self._reader_done.set()
 
 
 def run_streaming_pytest(
@@ -461,90 +579,31 @@ def run_streaming_pytest(
             start_new_session=True,
         )
 
-    line_queue: "queue.Queue[str]" = queue.Queue(maxsize=queue_maxsize())
-    dropped_lines = 0
-    last_warned = 0
-    reader_done = threading.Event()
     dropped_warn_every = dropped_warn_every_lines()
     queue_poll_timeout = queue_poll_timeout_seconds()
     reader_join_timeout = reader_join_timeout_seconds()
-
-    def _record_dropped_line() -> None:
-        nonlocal dropped_lines, last_warned
-        dropped_lines += 1
-        warn_count = dropped_lines
-        should_warn = warn_count == 1 or (
-            warn_count % dropped_warn_every == 0 and warn_count != last_warned
-        )
-        if should_warn:
-            last_warned = warn_count
-        if should_warn:
-            robust_logger.warning(
-                "output queue full; dropped %s line(s)", warn_count
-            )
-
-    def _best_effort_queue_put(value: str) -> None:
-        try:
-            line_queue.put_nowait(value)
-            return
-        except queue.Full:
-            pass
-        evicted_item: str | object = ""
-        try:
-            evicted_item = line_queue.get_nowait()
-        except queue.Empty:
-            try:
-                line_queue.put_nowait(value)
-            except queue.Full:
-                _record_dropped_line()
-            return
-        if evicted_item != "":
-            _record_dropped_line()
-        try:
-            line_queue.put_nowait(value)
-        except queue.Full:
-            _record_dropped_line()
-
-    def _reader_worker() -> None:
-        try:
-            stdout = process.stdout
-            if stdout is not None:
-                while True:
-                    try:
-                        raw_line = stdout.readline()
-                    except BaseException as exc:
-                        _best_effort_queue_put(f"[WARN] reader thread error: {exc}\n")
-                        break
-                    if raw_line == "":
-                        break
-                    _best_effort_queue_put(raw_line)
-        finally:
-            reader_done.set()
-
-    reader_thread = threading.Thread(target=_reader_worker, daemon=True)
-    reader_thread.start()
+    pump = _StreamingQueuePump(
+        process,
+        robust_logger=robust_logger,
+        queue_poll_timeout=queue_poll_timeout,
+        reader_join_timeout=reader_join_timeout,
+        dropped_warn_every=dropped_warn_every,
+    )
+    pump.start()
 
     with open(logpath, "w", encoding="utf-8", errors="replace") as logf:
         writer = _StreamLogWriter(logf, flush_every=flush_every_lines())
 
         def _join_reader_and_drain() -> None:
-            deadline = time.monotonic() + reader_join_timeout
-            while reader_thread.is_alive():
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    break
-                reader_thread.join(timeout=min(queue_poll_timeout, remaining))
-                writer.drain_queue(line_queue)
-            writer.drain_queue(line_queue)
+            pump.join_and_drain(writer)
 
         def _handle_timeout() -> int:
-            _terminate_process(
+            _terminate_and_wait(
                 process,
                 kill_tree_default=kill_tree_default,
                 pwsh_picker=pwsh_picker,
                 logger=robust_logger,
             )
-            _wait_for_termination(process, logger=robust_logger)
             _join_reader_and_drain()
             msg = f"\n=== TIMEOUT: pytest exceeded {timeout_s}s and was terminated ===\n"
             print(msg)
@@ -562,7 +621,7 @@ def run_streaming_pytest(
             remaining = timeout_s - (time.monotonic() - start)
             if remaining <= 0:
                 return 0.001
-            return min(queue_poll_timeout, remaining)
+            return min(pump.queue_poll_timeout, remaining)
 
         def _stream_until_exit() -> None:
             while True:
@@ -570,7 +629,7 @@ def run_streaming_pytest(
                     raise TimeoutError
 
                 try:
-                    queued_line = line_queue.get(timeout=_next_queue_timeout())
+                    queued_line = pump.line_queue.get(timeout=_next_queue_timeout())
                 except queue.Empty:
                     queued_line = ""
 
@@ -578,7 +637,11 @@ def run_streaming_pytest(
                     writer.write_line(queued_line)
 
                 process_done = process.poll() is not None
-                if process_done and reader_done.is_set() and line_queue.empty():
+                if (
+                    process_done
+                    and pump.reader_done.is_set()
+                    and pump.line_queue.empty()
+                ):
                     return
 
         writer.write_block(header, force_flush=True)
@@ -590,7 +653,7 @@ def run_streaming_pytest(
                 return _handle_timeout()
 
             ret = process.wait()
-            footer = f"\n=== Process exited with code {ret} ===\n"
+            footer = _process_exit_footer(ret)
             writer.write_block(footer, force_flush=True)
             print(footer)
             _join_reader_and_drain()
@@ -604,13 +667,12 @@ def run_streaming_pytest(
                 f"[ERR] unexpected failure while streaming pytest output: {exc}\n",
                 force_flush=True,
             )
-            _terminate_process(
+            _terminate_and_wait(
                 process,
                 kill_tree_default=kill_tree_default,
                 pwsh_picker=pwsh_picker,
                 logger=robust_logger,
             )
-            _wait_for_termination(process, logger=robust_logger)
             try:
                 _join_reader_and_drain()
             except Exception:
