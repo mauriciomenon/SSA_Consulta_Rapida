@@ -367,3 +367,26 @@ origem da regra, arquivo onde ela fica, testes de regressao;
 - Timeout de ferramenta de review nao autoriza esconder o risco nem prosseguir como se a verificacao estivesse limpa; o bloqueio deve ser declarado com escopo exato.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+
+## Ferramentas Locais Disponiveis
+
+Lista abaixo reproduz exatamente os comandos fornecidos pelo usuario.
+
+- `uv tool`: `semgrep`, `bandit`, `ruff`, `pylama`, `pylint`, `mypy`, `pytype`, `pydocstyle`, `vulture`, `xenon`, `ggshield`, `sourcery-cli`, `pip-audit`, `detect-secrets`, `safety`, `checkov`
+- `brew`: `gitleaks`, `trufflehog`, `trivy`, `grype`, `sonar-scanner`, `kube-bench`, `kics`, `talisman`, `cppcheck`, `flawfinder`, `cbmc`, `shellcheck`, `bashate`, `golangci-lint`, `gosec`, `govulncheck`, `staticcheck`, `snyk-cli`, `lacework-cli`
+- `cargo`: `cargo-audit`, `cargo-deny`
+- `pnpm -g`: `eslint`, `@biomejs/biome`, `oxlint`, `jscpd`, `@socketsecurity/cli`
+
+### Binarios E Mapeamentos
+
+- `sourcery-cli` costuma expor o binario `sourcery`
+- `@biomejs/biome` expõe o binario `biome`
+- `@socketsecurity/cli` expõe o binario `socket`
+- `snyk-cli` expõe o binario `snyk`
+- `lacework-cli` expõe o binario `lacework`
+
+### Receitas Locais Uteis
+
+- `pip-audit` com `uv.lock` sem depender de venv temporaria do host:
+  - `uv export --locked --format requirements.txt --no-emit-project --output-file /tmp/ssa_uv_export_requirements_no_project.txt`
+  - `pip-audit -r /tmp/ssa_uv_export_requirements_no_project.txt --require-hashes --disable-pip --progress-spinner off -f json`
