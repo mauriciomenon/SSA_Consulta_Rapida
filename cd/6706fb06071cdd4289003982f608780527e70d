@@ -1,0 +1,29 @@
+scripts/run_pytest_with_timeout.py
+  e142bee770b0eadb 15-18,23-25,29,31-35,40
+docs/RECOVERY_BACKLOG.md
+  e142bee770b0eadb 8-21
+scripts/pytest_stream_common.py
+  e142bee770b0eadb 8,18,38-52,180-197,392,394,397-418
+scripts/run_pytest_with_timeout_v2.py
+  e142bee770b0eadb 16-19,37-40,44-48,71-75,80-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "cd6706fb06071cdd4289003982f608780527e70d",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 114,
+      "total_deletions": 52,
+      "accepted_lines": 389,
+      "overriden_lines": 0
+    }
+  }
+}
