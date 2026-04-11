@@ -5,6 +5,19 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-11 - Snyk local CLI health isolated
+
+Escopo fechado nesta rodada:
+1. o bloqueio atual de Snyk foi separado entre falha de fornecedor e falha local do CLI
+2. o erro local confirmado nesta maquina e `SNYK-OS-PYTHON-0014`
+3. a causa raiz local confirmada e instalacao degradada do CLI com arquivo ausente em `pysrc/constants.py`
+4. foi adicionado preflight local no repo para falhar cedo quando o CLI Python do Snyk estiver quebrado
+
+Residual mantido fora do escopo:
+1. reinstalacao do Snyk na maquina do operador
+2. ajuste de PATH/Homebrew/npm global
+3. qualquer mudanca de vendor/account relacionada a `SNYK-0099`
+
 ## Update 2026-04-11 - kill_tree_default Unix semantics confirmed
 
 Decisao explicitamente confirmada nesta rodada:
