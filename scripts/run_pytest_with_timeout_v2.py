@@ -11,12 +11,14 @@ This script writes a combined stdout/stderr log to `local_ai_private/pytest_term
 import argparse
 import os
 import sys
-from datetime import datetime, timezone
 from typing import Any
 
+from pytest_stream_common import add_timeout_wrapper_common_args
+from pytest_stream_common import build_timeout_wrapper_cmd
+from pytest_stream_common import build_timeout_wrapper_header
+from pytest_stream_common import DEFAULT_TIMEOUT_WRAPPER_LOG_FILENAME
 from pytest_stream_common import ensure_local_ai_dir
 from pytest_stream_common import resolve_safe_logpath
-from pytest_stream_common import resolve_safe_test_target
 from pytest_stream_common import run_logged_pytest
 
 # Ensure scripts directory is importable for helper modules
@@ -32,20 +34,15 @@ except Exception:
 def pick_discovered_pwsh() -> str | None:
     if pwsh_discovery is None:
         return None
-    return pwsh_discovery.pick_pwsh(os.getcwd())
+    pick_pwsh = getattr(pwsh_discovery, "pick_pwsh", None)
+    if pick_pwsh is None:
+        return None
+    return pick_pwsh(os.getcwd())
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--test",
-        required=True,
-        help="pytest path or args (e.g. tests/test_terminal_integration.py)",
-    )
-    parser.add_argument(
-        "--timeout", type=int, default=60, help="timeout in seconds for the pytest run"
-    )
-    parser.add_argument("--log", default=None, help="optional log path")
+    add_timeout_wrapper_common_args(parser)
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -71,19 +68,22 @@ def main():
         print(f"invalid log path: {exc}", file=sys.stderr)
         return 2
     try:
-        test_target = resolve_safe_test_target(args.test, os.getcwd())
+        cmd = build_timeout_wrapper_cmd(
+            raw_test=args.test,
+            extra_args=extra,
+            cwd=os.getcwd(),
+        )
     except ValueError as exc:
         print(f"invalid pytest target: {exc}", file=sys.stderr)
         return 2
 
-    cmd = [sys.executable, "-m", "pytest", test_target]
-    if extra:
-        cmd.extend(extra)
+    if not args.log:
+        logpath = resolve_safe_logpath(
+            logdir,
+            os.path.join(logdir, DEFAULT_TIMEOUT_WRAPPER_LOG_FILENAME),
+        )
 
-    header = (
-        f"=== pytest wrapper run at {datetime.now(timezone.utc).isoformat()} ===\n"
-        f"Command: {' '.join(cmd)}\nTimeout: {args.timeout}s\n\n"
-    )
+    header = build_timeout_wrapper_header(cmd, args.timeout)
     # If requested, list discovered pwsh candidates and exit
     if getattr(args, "list_candidates", False):
         try:
