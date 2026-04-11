@@ -5,6 +5,20 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-11 - residual wrapper CLI dedup documented
+
+Escopo fechado nesta rodada:
+1. centralizar args comuns `--test/--timeout/--log` dos wrappers de timeout em `scripts/pytest_stream_common.py`
+2. centralizar montagem de comando pytest e header de execucao no modulo comum
+3. manter v1 e v2 separados, sem fundi-los em um entry point unico
+4. registrar explicitamente o residual estrutural que ficou fora deste slice
+
+Residual mantido fora do escopo:
+1. consolidacao total de `scripts/run_pytest_with_timeout.py` e `scripts/run_pytest_with_timeout_v2.py` em um unico CLI
+2. refactor profundo de `run_streaming_pytest(...)`
+3. endurecimento de pipe/thread em streaming para casos de grandchild herdando stdout
+4. revisao de semantica/unidade entre `queue_poll_timeout_seconds` e env `_MS`
+
 ## Update 2026-04-10 - build copy hardening and wrapper timeout follow-up
 
 Escopo fechado nesta rodada:

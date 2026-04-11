@@ -5,6 +5,7 @@ import queue
 import shutil
 import signal
 import subprocess
+import sys
 import threading
 import time
 from datetime import datetime, timezone
@@ -14,6 +15,7 @@ from typing import Callable
 from utils.robust_logging import get_robust_logger
 
 DEFAULT_LOG_FILENAME = "pytest_terminal_integration_stream.log"
+DEFAULT_TIMEOUT_WRAPPER_LOG_FILENAME = "pytest_terminal_integration.log"
 
 
 def get_stream_logger(name: str):
@@ -31,6 +33,21 @@ def ensure_log_path(logpath: str) -> None:
     d = os.path.dirname(logpath)
     if d and not os.path.exists(d):
         os.makedirs(d, exist_ok=True)
+
+
+def add_timeout_wrapper_common_args(parser) -> None:
+    parser.add_argument(
+        "--test",
+        required=True,
+        help="pytest path or args (e.g. tests/test_terminal_integration.py)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=60,
+        help="timeout in seconds for the pytest run",
+    )
+    parser.add_argument("--log", default=None, help="optional log path")
 
 
 def queue_maxsize() -> int:
@@ -158,6 +175,26 @@ def resolve_safe_test_target(raw_test: str, cwd: str | None = None) -> str:
     if separator:
         return f"{resolved}{separator}{node_part}"
     return resolved
+
+
+def build_timeout_wrapper_cmd(
+    *,
+    raw_test: str,
+    extra_args: list[str],
+    cwd: str | None = None,
+) -> list[str]:
+    test_target = resolve_safe_test_target(raw_test, cwd)
+    cmd = [sys.executable, "-m", "pytest", test_target]
+    if extra_args:
+        cmd.extend(extra_args)
+    return cmd
+
+
+def build_timeout_wrapper_header(cmd: list[str], timeout_s: int) -> str:
+    return (
+        f"=== pytest wrapper run at {datetime.now(timezone.utc).isoformat()} ===\n"
+        f"Command: {' '.join(cmd)}\nTimeout: {timeout_s}s\n\n"
+    )
 
 
 def _terminate_process(
@@ -352,13 +389,33 @@ def run_streaming_pytest(
             return
         except queue.Full:
             pass
-        evicted = False
+        evicted_item: str | None | object = ""
         try:
-            line_queue.get_nowait()
-            evicted = True
+            evicted_item = line_queue.get_nowait()
         except queue.Empty:
             pass
-        if evicted:
+        if evicted_item is None:
+            # Preserve the sentinel so the consumer can always terminate.
+            try:
+                line_queue.put_nowait(None)
+            except queue.Full:
+                pass
+            with dropped_lock:
+                if value is None:
+                    return
+                dropped_lines += 1
+                warn_count = dropped_lines
+                should_warn = warn_count == 1 or (
+                    warn_count % dropped_warn_every == 0 and warn_count != last_warned
+                )
+                if should_warn:
+                    last_warned = warn_count
+            if should_warn:
+                robust_logger.warning(
+                    "output queue full; dropped %s line(s)", warn_count
+                )
+            return
+        if evicted_item != "":
             with dropped_lock:
                 if value is not None:
                     dropped_lines += 1
