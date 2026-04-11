@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import importlib.util
 from pathlib import Path
+import sys
 
 import pytest
 
@@ -135,3 +138,36 @@ def test_reader_join_timeout_seconds_clamp_and_default(
     assert common.reader_join_timeout_seconds() == 5.0
     monkeypatch.setenv("PYTEST_STREAM_READER_JOIN_TIMEOUT_MS", "bad")
     assert common.reader_join_timeout_seconds() == 1.0
+
+
+def test_run_streaming_pytest_finishes_under_queue_pressure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, modules
+) -> None:
+    _, _, common = modules
+    logpath = tmp_path / "stream_pressure.log"
+
+    monkeypatch.setattr(common, "queue_maxsize", lambda: 1)
+    monkeypatch.setattr(common, "flush_every_lines", lambda: 1)
+    monkeypatch.setattr(common, "queue_poll_timeout_seconds", lambda: 0.02)
+    monkeypatch.setattr(common, "reader_join_timeout_seconds", lambda: 0.5)
+
+    cmd = [
+        sys.executable,
+        "-c",
+        "for i in range(20000): print('line-%d' % i)",
+    ]
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        ret = common.run_streaming_pytest(
+            cmd=cmd,
+            timeout_s=10,
+            logpath=str(logpath),
+            fallback_to_tee=False,
+            test_arg="pressure",
+            kill_tree_default=True,
+        )
+
+    assert ret == 0
+    text = logpath.read_text(encoding="utf-8", errors="replace")
+    assert "pytest streaming run" in text
+    assert "Process exited with code 0" in text
