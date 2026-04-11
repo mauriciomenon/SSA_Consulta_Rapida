@@ -37,7 +37,10 @@ class SimpleFilterCache:
             "emissores": sorted(emissores) if emissores else [],
         }
         params_str = str(sorted(params.items()))
-        return hashlib.md5(params_str.encode("utf-8")).hexdigest()
+        return hashlib.blake2b(
+            params_str.encode("utf-8"),
+            digest_size=16,
+        ).hexdigest()
 
     def get(self, df_shape, search_terms, situacoes, executores, emissores):
         key = self._generate_key(
@@ -305,7 +308,7 @@ def main():
         print("   • Interface responsiva e otimizada")
         print()
         print("INFO Funcionalidades técnicas:")
-        print("   • Cache LRU com TTL configurável")
+        print("   • Cache LRU com limite configuravel")
         print("   • Métricas em tempo real")
         print("   • Auto-limpeza de cache após importação")
         print("   • Configuração de altura de tabela")

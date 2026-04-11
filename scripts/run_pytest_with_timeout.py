@@ -43,7 +43,7 @@ def main():
         timeout_s=args.timeout,
         logpath=logpath,
         header=header,
-        kill_tree_default=True,
+        kill_process_tree=True,
     )
 
 

@@ -126,7 +126,7 @@ def main():
         timeout_s=args.timeout,
         logpath=logpath,
         header=header,
-        kill_tree_default=True,
+        kill_process_tree=True,
         pwsh_picker=pick_discovered_pwsh if pwsh_discovery is not None else None,
     )
 

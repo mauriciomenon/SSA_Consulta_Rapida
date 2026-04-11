@@ -8713,3 +8713,19 @@ Historical review-thread entries were removed here to avoid duplicate pending co
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
 - 2026-04-08: derivadas relation ids now accept only pure numeric text in the current cycle. Short numeric synthetic ids remain temporarily accepted. Next hardening slice should require canonical year + length after migrating those fixtures.
 - 2026-04-08: Mermaid auto-render remains deferred. Graph should render via QtSvg/QSvgWidget without new heavy deps; Mermaid preview via QtWebEngine was rejected for now because PyQt6-WebEngine-Qt6 adds a large payload (about 112 MB on macOS arm64).
+
+## Update 2026-04-11 - filter worker and streaming residual after security/perf hardening
+
+Escopo fechado nesta rodada:
+1. trocar hashes fracos restantes por `blake2b` em workers e scripts auxiliares
+2. remover `shell=True` do launcher de teste completo
+3. reduzir polling agressivo do streaming de pytest e evitar custo inutil de contagem repetida de newline
+4. respeitar `kill_tree_default` no caminho Unix e adicionar timeout curto em subprocessos de cleanup do streaming
+5. ampliar a politica documentada de timeout para review/scanners e exigir nova tentativa calibrada quando o problema parecer janela curta
+
+Residual mantido fora do escopo:
+1. `gui/workers/filter_worker.py` ainda calcula fingerprint amostral do DataFrame no `__init__`; qualquer tentativa de lazy hash ou cache em dois niveis precisa slice proprio para nao reabrir contrato do cache
+2. `gui/workers/filter_worker.py` ainda concatena frames e faz `drop_duplicates().reset_index(...)`; troca por estrategia baseada em indices precisa prova funcional e benchmark antes de mudar o comportamento
+3. `_build_df_hash(...)` continua concentrando amostragem e hashing no mesmo metodo; extracao estrutural foi deferida para evitar refatoracao transversal
+4. `scripts/pytest_stream_common.py` ainda mistura orquestracao de subprocesso com concerns de terminal/CLI; reducao adicional deve ocorrer em slice separado
+5. review do kluster sobre limite do cache em `FilterWorker` foi classificado como falso positivo nesta rodada porque `gui/cache/filter_cache.py` ja implementa LRU com eviction interno
