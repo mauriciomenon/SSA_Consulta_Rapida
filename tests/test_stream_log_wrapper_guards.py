@@ -84,6 +84,48 @@ def test_resolve_safe_test_target_rejects_traversal(modules) -> None:
         common.resolve_safe_test_target("../outside.py", str(root))
 
 
+def test_build_timeout_wrapper_cmd_accepts_safe_extra_args(modules) -> None:
+    _, _, common = modules
+    root = Path(__file__).resolve().parents[1]
+
+    cmd = common.build_timeout_wrapper_cmd(
+        raw_test="tests/test_stream_log_wrapper_guards.py",
+        extra_args=["-q", "--maxfail=1", "-k", "queue"],
+        cwd=str(root),
+    )
+
+    assert cmd[:3] == [sys.executable, "-m", "pytest"]
+    assert str(root / "tests" / "test_stream_log_wrapper_guards.py") in cmd
+    assert "-q" in cmd
+    assert "--maxfail=1" in cmd
+    assert "-k" in cmd
+    assert "queue" in cmd
+
+
+def test_build_timeout_wrapper_cmd_rejects_unsupported_extra_arg(modules) -> None:
+    _, _, common = modules
+    root = Path(__file__).resolve().parents[1]
+
+    with pytest.raises(ValueError, match="unsupported pytest extra arg"):
+        common.build_timeout_wrapper_cmd(
+            raw_test="tests/test_stream_log_wrapper_guards.py",
+            extra_args=["--rootdir=tmp"],
+            cwd=str(root),
+        )
+
+
+def test_build_timeout_wrapper_cmd_rejects_missing_extra_arg_value(modules) -> None:
+    _, _, common = modules
+    root = Path(__file__).resolve().parents[1]
+
+    with pytest.raises(ValueError, match="requires a value"):
+        common.build_timeout_wrapper_cmd(
+            raw_test="tests/test_stream_log_wrapper_guards.py",
+            extra_args=["-k"],
+            cwd=str(root),
+        )
+
+
 def test_flush_every_lines_clamp_and_default(
     monkeypatch: pytest.MonkeyPatch, modules
 ) -> None:
