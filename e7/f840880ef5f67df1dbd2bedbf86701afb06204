@@ -1,0 +1,27 @@
+docs/RECOVERY_BACKLOG.md
+  e142bee770b0eadb 8-21
+scripts/pytest_stream_common.py
+  e142bee770b0eadb 346-386,417,425,427-439,445,451-452,456-466,474,476-496,498-504,507,510,514-515,519-527,531,540-542
+tests/test_stream_log_wrapper_guards.py
+  e142bee770b0eadb 3-4,7,141-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "e7f840880ef5f67df1dbd2bedbf86701afb06204",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 167,
+      "total_deletions": 118,
+      "accepted_lines": 442,
+      "overriden_lines": 0
+    }
+  }
+}
