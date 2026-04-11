@@ -2,6 +2,7 @@
 """Teste completo dos executaveis gerados pelo build multiplataforma."""
 
 import json
+import shlex
 import subprocess
 import sys
 import time
@@ -21,8 +22,12 @@ def log(msg, level="INFO"):
 def run_command(cmd, timeout=30):
     """Executa comando com timeout"""
     try:
+        run_args = shlex.split(cmd) if isinstance(cmd, str) else cmd
         result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, timeout=timeout
+            run_args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
         )
         return result.returncode == 0, result.stdout, result.stderr
     except subprocess.TimeoutExpired:

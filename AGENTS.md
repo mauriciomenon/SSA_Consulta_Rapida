@@ -180,9 +180,11 @@ Cada slice deve declarar:
 
 - Busca ampla continua com `timeout 60s` por padrao.
 - Para ferramentas de review e scanner com latencia externa, usar orcamento maior:
-  - `kluster`: ate `90s` de execucao aberta e mais `30s` de espera/poll em background antes de considerar retry ou bloqueio.
-  - `snyk`: ate `90s` de execucao aberta e mais `30s` de espera/poll em background antes de considerar retry ou bloqueio.
-  - `semgrep`: ate `90s` de execucao aberta e mais `30s` de espera/poll em background antes de considerar retry ou bloqueio.
+  - `kluster`: ate `180s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
+  - `snyk`: ate `180s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
+  - `semgrep`: ate `180s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
+  - `bandit`: ate `180s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
+  - quando o problema parecer timeout e nao falha deterministica, insistir com pelo menos uma nova rodada calibrada antes de concluir bloqueio.
 - Durante a espera em background, o agente deve comecar outra atividade util do mesmo slice sempre que houver trabalho nao sobreposto.
 - Timeout de review nunca autoriza marcar verificacao como limpa; se a ferramenta nao concluiu, declarar bloqueio e escopo exato.
 

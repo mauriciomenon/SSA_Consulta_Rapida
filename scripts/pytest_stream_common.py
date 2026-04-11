@@ -239,17 +239,18 @@ def build_timeout_wrapper_header(cmd: list[str], timeout_s: int) -> str:
 def _terminate_process(
     process: subprocess.Popen[str],
     *,
-    kill_tree_default: bool,
+    kill_process_tree: bool,
     pwsh_picker: Callable[[], str | None] | None,
     logger,
 ) -> None:
     try:
         if os.name == "nt":
-            if kill_tree_default:
+            if kill_process_tree:
                 res = subprocess.run(
                     ["taskkill", "/PID", str(process.pid), "/T", "/F"],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
+                    timeout=2,
                 )
                 if res.returncode != 0:
                     pwsh = pwsh_picker() if pwsh_picker else None
@@ -271,6 +272,7 @@ def _terminate_process(
                             ],
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
+                            timeout=2,
                         )
                     else:
                         process.kill()
@@ -278,13 +280,13 @@ def _terminate_process(
                 process.kill()
         else:
             try:
-                # On Unix we intentionally terminate the whole process group for
-                # robustness. The kill_tree_default flag is ignored here and
-                # remains effective only on the Windows path above.
-                process_group_id = os.getpgid(process.pid)
-                os.killpg(process_group_id, signal.SIGTERM)
+                if kill_process_tree:
+                    process_group_id = os.getpgid(process.pid)
+                    os.killpg(process_group_id, signal.SIGTERM)
+                else:
+                    os.kill(process.pid, signal.SIGTERM)
             except (ProcessLookupError, PermissionError, OSError) as exc:
-                logger.warning("SIGTERM process group failed: %s", exc)
+                logger.warning("SIGTERM process termination failed: %s", exc)
                 process.kill()
     except (
         ProcessLookupError,
@@ -299,7 +301,12 @@ def _terminate_process(
             logger.warning("final process kill failed: %s", kill_exc)
 
 
-def _wait_for_termination(process: subprocess.Popen[str], *, logger) -> None:
+def _wait_for_termination(
+    process: subprocess.Popen[str],
+    *,
+    kill_process_tree: bool,
+    logger,
+) -> None:
     try:
         process.wait(timeout=5)
     except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError) as exc:
@@ -309,9 +316,12 @@ def _wait_for_termination(process: subprocess.Popen[str], *, logger) -> None:
                 process.kill()
             else:
                 try:
-                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                    if kill_process_tree:
+                        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                    else:
+                        os.kill(process.pid, signal.SIGKILL)
                 except (ProcessLookupError, PermissionError, OSError) as killpg_exc:
-                    logger.warning("SIGKILL process group failed: %s", killpg_exc)
+                    logger.warning("SIGKILL process termination failed: %s", killpg_exc)
                     process.kill()
         except (ProcessLookupError, PermissionError, OSError) as kill_exc:
             logger.warning("forced process kill failed: %s", kill_exc)
@@ -328,17 +338,21 @@ def _wait_for_termination(process: subprocess.Popen[str], *, logger) -> None:
 def _terminate_and_wait(
     process: subprocess.Popen[str],
     *,
-    kill_tree_default: bool,
+    kill_process_tree: bool,
     pwsh_picker: Callable[[], str | None] | None = None,
     logger,
 ) -> None:
     _terminate_process(
         process,
-        kill_tree_default=kill_tree_default,
+        kill_process_tree=kill_process_tree,
         pwsh_picker=pwsh_picker,
         logger=logger,
     )
-    _wait_for_termination(process, logger=logger)
+    _wait_for_termination(
+        process,
+        kill_process_tree=kill_process_tree,
+        logger=logger,
+    )
 
 
 def _process_exit_footer(exit_code: int) -> str:
@@ -351,7 +365,7 @@ def run_logged_pytest(
     timeout_s: int,
     logpath: str,
     header: str,
-    kill_tree_default: bool,
+    kill_process_tree: bool,
     pwsh_picker: Callable[[], str | None] | None = None,
 ) -> int:
     logger = get_robust_logger().get_logger(__name__, "cli")
@@ -374,7 +388,7 @@ def run_logged_pytest(
             except subprocess.TimeoutExpired:
                 _terminate_and_wait(
                     process,
-                    kill_tree_default=kill_tree_default,
+                    kill_process_tree=kill_process_tree,
                     pwsh_picker=pwsh_picker,
                     logger=logger,
                 )
@@ -401,7 +415,7 @@ def run_logged_pytest(
             if process is not None and process.poll() is None:
                 _terminate_and_wait(
                     process,
-                    kill_tree_default=kill_tree_default,
+                    kill_process_tree=kill_process_tree,
                     pwsh_picker=pwsh_picker,
                     logger=logger,
                 )
@@ -439,7 +453,8 @@ class _StreamLogWriter:
 
     def write_block(self, text: str, *, force_flush: bool = False) -> None:
         self._logf.write(text)
-        self._pending_flush_lines += max(1, text.count("\n"))
+        newline_count = text.count("\n")
+        self._pending_flush_lines += newline_count if newline_count else 1
         self.flush_if_needed(force=force_flush)
 
     def drain_queue(self, line_queue: "queue.Queue[str]") -> None:
@@ -551,9 +566,13 @@ def run_streaming_pytest(
     logpath: str,
     fallback_to_tee: bool,
     test_arg: str,
-    kill_tree_default: bool,
+    kill_process_tree: bool | None = None,
+    kill_tree_default: bool | None = None,
     pwsh_picker: Callable[[], str | None] | None = None,
 ) -> int:
+    if kill_process_tree is None:
+        kill_process_tree = bool(kill_tree_default)
+
     robust_logger = get_robust_logger().get_logger(__name__, "cli")
     header = (
         f"=== pytest streaming run at {datetime.now(timezone.utc).isoformat()} ===\n"
@@ -600,7 +619,7 @@ def run_streaming_pytest(
         def _handle_timeout() -> int:
             _terminate_and_wait(
                 process,
-                kill_tree_default=kill_tree_default,
+                kill_process_tree=kill_process_tree,
                 pwsh_picker=pwsh_picker,
                 logger=robust_logger,
             )
@@ -620,8 +639,8 @@ def run_streaming_pytest(
         def _next_queue_timeout() -> float:
             remaining = timeout_s - (time.monotonic() - start)
             if remaining <= 0:
-                return 0.001
-            return min(pump.queue_poll_timeout, remaining)
+                return min(pump.queue_poll_timeout, 0.05)
+            return max(0.05, min(pump.queue_poll_timeout, remaining))
 
         def _stream_until_exit() -> None:
             while True:
@@ -669,7 +688,7 @@ def run_streaming_pytest(
             )
             _terminate_and_wait(
                 process,
-                kill_tree_default=kill_tree_default,
+                kill_process_tree=kill_process_tree,
                 pwsh_picker=pwsh_picker,
                 logger=robust_logger,
             )

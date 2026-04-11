@@ -83,7 +83,7 @@ def main():
         ws_settings.get("pytestWrapper", {}).get("fallbackToTee", False)
         or args.fallback_tee
     )
-    kill_tree_default = bool(
+    kill_process_tree = bool(
         ws_settings.get("pytestWrapper", {}).get("killProcessTree", True)
     )
 
@@ -144,7 +144,7 @@ def main():
         logpath=logpath,
         fallback_to_tee=fallback_to_tee,
         test_arg=test_target,
-        kill_tree_default=kill_tree_default,
+        kill_process_tree=kill_process_tree,
         pwsh_picker=_pick_pwsh,
     )
 

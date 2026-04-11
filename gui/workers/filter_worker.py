@@ -66,7 +66,7 @@ class FilterWorker(QThread):
         """Cria hash estável do DataFrame para chave de cache de filtros."""
         try:
             if df_completo is None:
-                return hashlib.md5(b"none").hexdigest()[:16]
+                return hashlib.blake2b(b"none", digest_size=8).hexdigest()
 
             row_count = len(df_completo)
             if row_count <= 24:
@@ -78,9 +78,10 @@ class FilterWorker(QThread):
                 head_df = df_completo.head(head_count)
                 tail_df = df_completo.tail(tail_count)
                 mid_start = head_count
-                mid_end = max(mid_start, row_count - tail_count - 1)
+                tail_start = max(mid_start, row_count - tail_count)
+                mid_end = tail_start - 1
                 mid_indices = []
-                span = (mid_end - mid_start) + 1
+                span = max(0, (mid_end - mid_start) + 1)
                 if span > 0:
                     if span <= mid_count:
                         mid_indices = list(range(mid_start, mid_start + span))
@@ -101,24 +102,32 @@ class FilterWorker(QThread):
                     ignore_index=True,
                 )
 
-            sample_records = tuple(
-                tuple(str(value) for value in row_values)
-                for row_values in sample_df.itertuples(index=False, name=None)
+            sample_hashes = pd.util.hash_pandas_object(
+                sample_df,
+                index=False,
+            ).to_numpy(dtype="uint64", copy=False)
+            hasher = hashlib.blake2b(digest_size=8)
+            hasher.update(repr(tuple(df_completo.shape)).encode("utf-8"))
+            hasher.update(
+                repr(tuple(str(column) for column in df_completo.columns)).encode(
+                    "utf-8"
+                )
             )
-            payload = (
-                tuple(df_completo.shape),
-                tuple(str(column) for column in df_completo.columns),
-                tuple(str(dtype) for dtype in df_completo.dtypes),
-                sample_records,
+            hasher.update(
+                repr(tuple(str(dtype) for dtype in df_completo.dtypes)).encode("utf-8")
             )
-            return hashlib.md5(repr(payload).encode("utf-8")).hexdigest()[:16]
+            hasher.update(sample_hashes.tobytes())
+            return hasher.hexdigest()
         except Exception as exc:
             logger.debug(
                 "Fallback to shape-only DataFrame hash due to fingerprint error: %s",
                 exc,
             )
             fallback = str(getattr(df_completo, "shape", "unknown"))
-            return hashlib.md5(fallback.encode("utf-8")).hexdigest()[:16]
+            return hashlib.blake2b(
+                fallback.encode("utf-8"),
+                digest_size=8,
+            ).hexdigest()
 
     def run(self):
         try:
@@ -166,7 +175,7 @@ class FilterWorker(QThread):
                                 )
                             )
                     else:
-                        frames.append(self.df_completo.copy())
+                        frames.append(self.df_completo)
                     if self._is_cancelled():
                         return
                 if frames:
