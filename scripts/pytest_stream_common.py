@@ -128,26 +128,23 @@ def reader_join_timeout_seconds() -> float:
 def resolve_safe_logpath(logdir: str, user_log: str | None) -> str:
     from utils.path_safety import PathSafetyError, ensure_path_is_allowed
 
-    base_dir = os.path.abspath(logdir)
+    base_dir = Path(logdir).resolve()
     if not user_log:
-        return os.path.join(base_dir, DEFAULT_LOG_FILENAME)
+        return os.fspath(base_dir / DEFAULT_LOG_FILENAME)
     try:
         resolved_path = ensure_path_is_allowed(
             user_log,
             purpose="stream_log_path",
-            base=Path(base_dir),
+            base=base_dir,
             expect_directory=False,
         )
     except PathSafetyError as exc:
         raise ValueError(str(exc)) from exc
-    resolved = str(resolved_path)
     try:
-        common = os.path.commonpath([base_dir, resolved])
-    except ValueError as exc:
-        raise ValueError(f"--log must stay under {base_dir}") from exc
-    if common != base_dir:
+        resolved_path.resolve().relative_to(base_dir)
+    except ValueError:
         raise ValueError(f"--log must stay under {base_dir}")
-    return resolved
+    return os.fspath(resolved_path)
 
 
 def resolve_safe_test_target(raw_test: str, cwd: str | None = None) -> str:
@@ -177,6 +174,48 @@ def resolve_safe_test_target(raw_test: str, cwd: str | None = None) -> str:
     return resolved
 
 
+def validate_safe_pytest_extra_args(extra_args: list[str]) -> list[str]:
+    allowed_exact = {
+        "-q",
+        "-qq",
+        "-v",
+        "-vv",
+        "-vvv",
+        "-s",
+        "-x",
+        "--lf",
+        "--ff",
+        "--disable-warnings",
+    }
+    allowed_with_value = {"-k", "-m", "--maxfail", "--tb", "--capture"}
+    allowed_prefixes = ("--maxfail=", "--tb=", "--capture=")
+
+    validated: list[str] = []
+    index = 0
+    while index < len(extra_args):
+        arg = extra_args[index]
+        if arg in allowed_exact:
+            validated.append(arg)
+            index += 1
+            continue
+        if arg.startswith(allowed_prefixes):
+            validated.append(arg)
+            index += 1
+            continue
+        if arg in allowed_with_value:
+            next_index = index + 1
+            if next_index >= len(extra_args):
+                raise ValueError(f"pytest extra arg {arg!r} requires a value")
+            value = extra_args[next_index]
+            if not value or value.startswith("-"):
+                raise ValueError(f"pytest extra arg {arg!r} requires a value")
+            validated.extend([arg, value])
+            index += 2
+            continue
+        raise ValueError(f"unsupported pytest extra arg: {arg!r}")
+    return validated
+
+
 def build_timeout_wrapper_cmd(
     *,
     raw_test: str,
@@ -186,7 +225,7 @@ def build_timeout_wrapper_cmd(
     test_target = resolve_safe_test_target(raw_test, cwd)
     cmd = [sys.executable, "-m", "pytest", test_target]
     if extra_args:
-        cmd.extend(extra_args)
+        cmd.extend(validate_safe_pytest_extra_args(extra_args))
     return cmd
 
 
@@ -234,6 +273,9 @@ def _terminate_process(
                 process.kill()
         else:
             try:
+                # On Unix we intentionally terminate the whole process group for
+                # robustness. The kill_tree_default flag currently governs only
+                # the Windows path above.
                 process_group_id = os.getpgid(process.pid)
                 os.killpg(process_group_id, signal.SIGTERM)
             except (ProcessLookupError, PermissionError, OSError) as exc:
@@ -372,7 +414,7 @@ class _StreamLogWriter:
 
     def write_block(self, text: str, *, force_flush: bool = False) -> None:
         self._logf.write(text)
-        self._pending_flush_lines += 1
+        self._pending_flush_lines += max(1, text.count("\n"))
         self.flush_if_needed(force=force_flush)
 
     def drain_queue(self, line_queue: "queue.Queue[str]") -> None:
@@ -403,7 +445,11 @@ def run_streaming_pytest(
     start = time.monotonic()
     if os.name == "nt":
         process = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
         )
     else:
         process = subprocess.Popen(
@@ -411,6 +457,7 @@ def run_streaming_pytest(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            errors="replace",
             start_new_session=True,
         )
 
@@ -446,10 +493,17 @@ def run_streaming_pytest(
         try:
             evicted_item = line_queue.get_nowait()
         except queue.Empty:
-            pass
+            try:
+                line_queue.put_nowait(value)
+            except queue.Full:
+                _record_dropped_line()
+            return
         if evicted_item != "":
             _record_dropped_line()
-        line_queue.put(value, timeout=queue_poll_timeout)
+        try:
+            line_queue.put_nowait(value)
+        except queue.Full:
+            _record_dropped_line()
 
     def _reader_worker() -> None:
         try:
@@ -473,6 +527,16 @@ def run_streaming_pytest(
     with open(logpath, "w", encoding="utf-8", errors="replace") as logf:
         writer = _StreamLogWriter(logf, flush_every=flush_every_lines())
 
+        def _join_reader_and_drain() -> None:
+            deadline = time.monotonic() + reader_join_timeout
+            while reader_thread.is_alive():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                reader_thread.join(timeout=min(queue_poll_timeout, remaining))
+                writer.drain_queue(line_queue)
+            writer.drain_queue(line_queue)
+
         def _handle_timeout() -> int:
             _terminate_process(
                 process,
@@ -481,8 +545,7 @@ def run_streaming_pytest(
                 logger=robust_logger,
             )
             _wait_for_termination(process, logger=robust_logger)
-            reader_thread.join(timeout=reader_join_timeout)
-            writer.drain_queue(line_queue)
+            _join_reader_and_drain()
             msg = f"\n=== TIMEOUT: pytest exceeded {timeout_s}s and was terminated ===\n"
             print(msg)
             writer.write_block(msg, force_flush=True)
@@ -530,7 +593,7 @@ def run_streaming_pytest(
             footer = f"\n=== Process exited with code {ret} ===\n"
             writer.write_block(footer, force_flush=True)
             print(footer)
-            reader_thread.join(timeout=reader_join_timeout)
+            _join_reader_and_drain()
             return ret
 
         except BaseException as exc:
@@ -549,7 +612,7 @@ def run_streaming_pytest(
             )
             _wait_for_termination(process, logger=robust_logger)
             try:
-                reader_thread.join(timeout=reader_join_timeout)
+                _join_reader_and_drain()
             except Exception:
                 pass
             raise

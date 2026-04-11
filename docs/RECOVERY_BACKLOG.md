@@ -5,6 +5,26 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-11 - kill_tree_default Unix semantics confirmed
+
+Decisao explicitamente confirmada nesta rodada:
+1. manter no Unix o encerramento do grupo inteiro por robustez operacional
+2. manter `kill_tree_default` como controle efetivo do caminho Windows nesta implementacao
+3. documentar a semantica atual em codigo e backlog, sem alterar runtime
+
+## Update 2026-04-11 - wrapper extra args and kluster MCP follow-up
+
+Escopo fechado nesta rodada:
+1. MCP do kluster em `~/.codex/config.toml` ajustado de `codex_vscode` para `codex`
+2. hardcode de `KLUSTER_API_KEY` removido da config do Codex; a chave passou a vir do ambiente do shell
+3. `build_timeout_wrapper_cmd(...)` passou a validar `extra_args` por allowlist minima e explicita
+4. testes focados foram adicionados para aceitar combinacoes seguras e rejeitar flags fora do contrato
+
+Residual mantido fora do escopo:
+1. `~/.codex/config.toml` ainda contem segredo hardcoded de outro MCP (`cubic`), fora do ajuste do kluster; tratar em rodada separada para nao quebrar integracao nao relacionada
+2. o caminho de fila cheia em `_best_effort_queue_put(...)` ainda tem custo alto sob saturacao extrema; qualquer troca por buffer circular ou batching deve entrar em slice proprio
+3. `run_streaming_pytest(...)` segue estruturalmente concentrada, mesmo apos as extracoes minimas desta rodada
+
 ## Update 2026-04-11 - streaming queue pressure residual
 
 Escopo fechado nesta rodada:
