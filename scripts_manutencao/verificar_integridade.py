@@ -7,6 +7,19 @@ import sqlite3
 import sys
 
 TABLE_NAME = "ssa_table"
+COUNT_TOTAL_SQL = "SELECT COUNT(*) FROM ssa_table"
+COUNT_DISTINCT_SQL = "SELECT COUNT(DISTINCT numero_ssa) FROM ssa_table"
+COUNT_NULL_NUMERO_SQL = "SELECT COUNT(*) FROM ssa_table WHERE numero_ssa IS NULL"
+COUNT_EMPTY_DESC_SQL = (
+    "SELECT COUNT(*) FROM ssa_table WHERE descricao_ssa IS NULL OR descricao_ssa = ''"
+)
+SAMPLE_ROWS_SQL = (
+    "SELECT numero_ssa, situacao, descricao_ssa FROM ssa_table LIMIT 5"
+)
+STATUS_TOP_SQL = (
+    "SELECT situacao, COUNT(*) FROM ssa_table "
+    "GROUP BY situacao ORDER BY COUNT(*) DESC LIMIT 10"
+)
 
 
 def verificar_integridade():
@@ -18,16 +31,10 @@ def verificar_integridade():
         cursor = conn.cursor()
 
         # Verificações básicas
-        total = cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}").fetchone()[0]
-        unicos = cursor.execute(
-            f"SELECT COUNT(DISTINCT numero_ssa) FROM {TABLE_NAME}"
-        ).fetchone()[0]
-        nulls_ssa = cursor.execute(
-            f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE numero_ssa IS NULL"
-        ).fetchone()[0]
-        vazios_desc = cursor.execute(
-            f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE descricao_ssa IS NULL OR descricao_ssa = ''"
-        ).fetchone()[0]
+        total = cursor.execute(COUNT_TOTAL_SQL).fetchone()[0]
+        unicos = cursor.execute(COUNT_DISTINCT_SQL).fetchone()[0]
+        nulls_ssa = cursor.execute(COUNT_NULL_NUMERO_SQL).fetchone()[0]
+        vazios_desc = cursor.execute(COUNT_EMPTY_DESC_SQL).fetchone()[0]
 
         print(f"INFO Total de registros: {total}")
         print(f" Registros únicos por numero_ssa: {unicos}")
@@ -36,9 +43,7 @@ def verificar_integridade():
 
         # Amostra de dados
         print("\nINFO AMOSTRA DOS DADOS:")
-        amostras = cursor.execute(
-            f"SELECT numero_ssa, situacao, descricao_ssa FROM {TABLE_NAME} LIMIT 5"
-        ).fetchall()
+        amostras = cursor.execute(SAMPLE_ROWS_SQL).fetchall()
         for ssa, situacao, desc in amostras:
             desc_preview = (
                 (desc[:50] + "...") if desc and len(desc) > 50 else (desc or "N/A")
@@ -47,9 +52,7 @@ def verificar_integridade():
 
         # Verificar situações
         print("\nSTAT SITUAÇÕES ENCONTRADAS:")
-        situacoes = cursor.execute(
-            f"SELECT situacao, COUNT(*) FROM {TABLE_NAME} GROUP BY situacao ORDER BY COUNT(*) DESC LIMIT 10"
-        ).fetchall()
+        situacoes = cursor.execute(STATUS_TOP_SQL).fetchall()
         for sit, count in situacoes:
             print(f"  {sit}: {count} registros")
 

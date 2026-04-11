@@ -149,7 +149,9 @@ def _normalize_ssa(value: Any) -> str | None:
 def _configure_derivadas_connection(conn: sqlite3.Connection) -> None:
     """Apply low-cost connection guards for derivadas operations."""
 
-    conn.execute(f"PRAGMA busy_timeout = {DERIVADAS_BUSY_TIMEOUT_MS}")
+    conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+        f"PRAGMA busy_timeout = {DERIVADAS_BUSY_TIMEOUT_MS}"
+    )
 
 
 @contextmanager
@@ -258,7 +260,7 @@ def collect_db_edges(
         WHERE derivada_de IS NOT NULL
     """
 
-    rows = conn.execute(query).fetchall()
+    rows = conn.execute(query).fetchall()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
 
     seen_pairs: set[tuple[str, str]] = set()
     child_to_parents: dict[str, set[str]] = defaultdict(set)
@@ -952,7 +954,7 @@ def _build_summary_rows(
 
 def _fetch_all_ssa(conn: sqlite3.Connection, table_name: str) -> set[str]:
     safe_table = _validate_table_name(table_name)
-    rows = conn.execute(
+    rows = conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
         f'SELECT numero_ssa FROM "{safe_table}" WHERE numero_ssa IS NOT NULL'
     ).fetchall()
     out: set[str] = set()

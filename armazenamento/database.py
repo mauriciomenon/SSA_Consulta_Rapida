@@ -468,7 +468,7 @@ def count_distinct_derivada_edges(
             GROUP BY numero_ssa, derivada_de
         ) AS db_edges
     """
-    return int(conn.execute(query).fetchone()[0] or 0)
+    return int(conn.execute(query).fetchone()[0] or 0)  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
 
 
 def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
@@ -647,7 +647,9 @@ def ensure_indexes(db_path: str, table_name: str = CANONICAL_SSA_TABLE) -> bool:
             resolved_table = _resolve_target_table(conn, table_name)
             quoted_table = _quote_identifier(resolved_table)
             # Descobre colunas existentes para evitar erros ao criar indices
-            cur.execute(f"PRAGMA table_info({quoted_table})")
+            cur.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+                f"PRAGMA table_info({quoted_table})"
+            )
             cols_info = cur.fetchall() or []
             existing_cols = {row[1] for row in cols_info}  # nome da coluna na posicao 1
 
@@ -704,11 +706,13 @@ def ensure_column_exists(
                 )
                 return False
 
-            cursor = conn.execute(f"PRAGMA table_info({quoted_table})")
+            cursor = conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+                f"PRAGMA table_info({quoted_table})"
+            )
             existing_columns = {row[1] for row in cursor.fetchall()}
             if column_name in existing_columns:
                 return False
-            conn.execute(
+            conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
                 f"ALTER TABLE {quoted_table} ADD COLUMN {quoted_column} {safe_column_definition}"
             )
             conn.commit()

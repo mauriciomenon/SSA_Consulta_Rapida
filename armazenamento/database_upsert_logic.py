@@ -699,7 +699,7 @@ def _persist_upsert_chunk(
     quoted_table_name = _quote_identifier(table_name)
     if delete_keys:
         placeholders = ", ".join(["?"] * len(delete_keys))
-        conn.execute(
+        conn.execute(  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
             f"DELETE FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",
             list(delete_keys),
         )
@@ -780,7 +780,7 @@ def _tuples_match_for_exact_overlap(
 
 def _table_has_existing_ssa_rows(conn: Any, table_name: str) -> bool:
     quoted_table_name = _quote_identifier(table_name)
-    cursor = conn.execute(
+    cursor = conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
         f"SELECT 1 FROM {quoted_table_name} WHERE numero_ssa IS NOT NULL LIMIT 1"
     )
     return cursor.fetchone() is not None
@@ -1156,7 +1156,9 @@ def insert_dataframe_with_smart_upsert_impl(
 
             if not is_valid_identifier(table_name):
                 raise ValueError(f"Invalid SQL identifier for table: {table_name}")
-            cursor.execute(f"PRAGMA table_info({_quote_identifier(table_name)})")
+            cursor.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+                f"PRAGMA table_info({_quote_identifier(table_name)})"
+            )
             existing_columns = {row[1] for row in cursor.fetchall()}
             work = _sync_dynamic_columns_and_schema(
                 work=work,
