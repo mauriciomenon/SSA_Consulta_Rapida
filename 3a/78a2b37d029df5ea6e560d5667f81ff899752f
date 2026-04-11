@@ -1,0 +1,23 @@
+AGENTS.md
+  e142bee770b0eadb 370-392
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "3a78a2b37d029df5ea6e560d5667f81ff899752f",
+  "prompts": {
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.2-codex"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 23,
+      "total_deletions": 0,
+      "accepted_lines": 9042,
+      "overriden_lines": 0
+    }
+  }
+}
