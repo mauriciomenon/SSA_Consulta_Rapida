@@ -6,6 +6,9 @@
 - Esta pagina e a entrada curta da pasta `docs/`.
 - Navegacao oficial: `docs/INDEX.md`.
 - Current truth sincronizado com commits anteriores desta frente:
+  - `tests/test_gui_filter_logic.py` deixou de depender de globais compartilhados entre testes para aposentadoria/limpeza de workers
+  - o harness agora tira snapshot e restaura o estado global de lifecycle em `setup_method`/`teardown_method`
+  - a pendencia correspondente saiu do backlog ativo como item de correcao
   - a auditoria tecnica grande do repo foi publicada em `docs_saida/ULTRA_AUDITORIA_TECNICA_REPO_20260330.md`
   - `filter_dataframe()` voltou a aceitar `search_columns` numericas/datetime sem falso vazio
   - a busca geral da GUI agora tem contrato proprio de colunas em `docs/GUI_GENERAL_SEARCH_COLUMN_CONTRACT.md`

@@ -2,7 +2,7 @@
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-04-07 00:30 -0300)
+## Sync status (2026-04-11 23:00 -0300)
 
 1. Baseline ativo confirmado: `4.37`.
 2. Branch operacional: `dev`.
@@ -10,7 +10,7 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 4. `HEAD == origin/dev` confirmado no fim do slice atual.
 5. Ultimos slices funcionais relevantes nesta frente:
    - `3fa1b38d` `STABILITY_PATCH: version gui preferences reference file and width precedence`
-   - slice atual desta rodada: alinhamento do baseline automatico do width manager ao contrato canonico, sem reabrir `DEFAULT_COLUMN_WIDTHS`
+   - slice atual desta rodada: isolamento e restauracao do estado global de lifecycle em `tests/test_gui_filter_logic.py`
 6. O contrato de preferencias GUI agora precisa ser lido assim:
    - se faltar `config/gui_main_preferences.json` ou mudar `SSA_CONFIG_DIR`, o runtime usa os defaults em memoria do codigo
    - largura persistida valida vence a largura automatica
@@ -51,6 +51,9 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - `docs/GUI_MAIN_PREFERENCES_STRUCTURE.md`
 16. Widths por sistema operacional da GUI:
    - `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
+17. Estado atual do harness de testes GUI:
+   - `tests/test_gui_filter_logic.py` agora limpa e restaura globais de workers aposentados por teste
+   - a correcao fecha a pendencia media confirmada de vazamento de lifecycle entre casos
 
 ## Regras de leitura
 

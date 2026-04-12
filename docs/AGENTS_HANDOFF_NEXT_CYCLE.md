@@ -2,15 +2,15 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-11 10hxx
+## CURRENT TRUTH 2026-04-11 23h00
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. este slice fechou higiene de workspace sem tocar no runtime
-  3. backups timestampados em `config/` agora sao ignorados explicitamente
-  4. `.pre-commit-config.yaml` e `.secrets.baseline` sao artefatos intencionais de tooling/review e podem ser versionados
-  5. `gui/gui_ssa.py`, `scripts/install_hooks.sh` e `tests/test_gui_filter_logic.py` continuam fora do escopo desta rodada
-  6. backlog e handoff foram atualizados com a decisao de manter os diffs de runtime para o proximo slice
+  2. este slice fechou o vazamento de lifecycle global no harness de `tests/test_gui_filter_logic.py`
+  3. `setup_method` agora reseta e `teardown_method` agora restaura os globais de workers aposentados usados nos testes
+  4. o patch ficou limitado ao harness de teste e aos docs vivos; nenhum runtime GUI foi alterado
+  5. `gui/gui_ssa.py` e `scripts/install_hooks.sh` continuam fora do escopo desta rodada
+  6. backlog e handoff foram atualizados para registrar o item como fechado
 
 ## HISTORICAL SNAPSHOT 2026-04-09 22h26
 
