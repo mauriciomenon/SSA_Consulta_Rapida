@@ -38,8 +38,9 @@ install_named_hook(){
   echo "[install-hooks] Instalado hook $hook_name"
 }
 
-install_named_hook "pre-commit" || install_failures+=("pre-commit")
-install_named_hook "pre-push" || install_failures+=("pre-push")
+for hook_name in pre-commit pre-push; do
+  install_named_hook "$hook_name" || install_failures+=("$hook_name")
+done
 
 bootstrap_pre_commit(){
   local config_file="$REPO_ROOT/.pre-commit-config.yaml"
