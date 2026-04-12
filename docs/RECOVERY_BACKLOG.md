@@ -5,15 +5,29 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-11 - gui and docs follow-up validation
+
+Escopo fechado nesta rodada:
+1. `docs/RECOVERY_BACKLOG.md` e `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` foram refinados para remover redacao ambigua e registrar o residual documental real
+2. `.gitignore` foi validado com o contrato atual de preservar `/temp/.gitkeep` sem reabrir reorganizacao ampla de regras
+3. `gui/gui_ssa.py` foi validado no estado atual; o apontamento novo do `kluster` sobre duplicacao no retain global de rescan nao reproduz, porque a guarda contra duplicidade ja existe nos dois ramos
+
+Residual registrado para proxima rodada:
+1. `SSAMainWindow` segue concentrando responsabilidades demais para um patch minimo de estabilizacao
+2. a manutencao de workers aposentados ainda tem duplicacao entre caminhos de data loader e rescan
+3. `_on_derivada_all_ste_toggled` continua como handler noop e precisa decisao funcional propria antes de mudar nome ou conexao
+4. backlog historico grande em `docs/RECOVERY_BACKLOG.md`; qualquer paginacao, arquivo novo ou `docs/archive/` fica para uma reorganizacao documental propria
+
 ## Update 2026-04-11 - kluster residuals for gui filter test monolith
 
 Escopo fechado nesta rodada:
-1. o fix do lifecycle global em `tests/test_gui_filter_logic.py` foi mantido minimo e nao abriu refactor estrutural do arquivo inteiro
-2. os achados de qualidade do `kluster` foram triados como preexistentes e fora do slice funcional aprovado
+1. o fix dos globais de workers aposentados em `tests/test_gui_filter_logic.py` ficou restrito ao harness de teste
+2. os apontamentos do `kluster` sobre tamanho do arquivo e repeticao de mocks foram registrados como follow-up, sem reabrir o patch funcional
 
-Residual mantido fora do escopo:
+Residual registrado para proxima rodada:
 1. dividir `tests/test_gui_filter_logic.py` em arquivos menores por dominio, conforme achado medio do `kluster`
 2. extrair mocks repetidos de workers e sinais para fixtures ou helpers locais reutilizaveis, conforme achado baixo do `kluster`
+3. backlog historico grande em `docs/RECOVERY_BACKLOG.md`; qualquer paginacao, arquivo novo ou `docs/archive/` fica para uma reorganizacao documental propria
 
 ## Update 2026-04-11 - gui filter lifecycle test globals closed
 

@@ -6,11 +6,11 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. este slice fechou o vazamento de lifecycle global no harness de `tests/test_gui_filter_logic.py`
-  3. `setup_method` agora reseta e `teardown_method` agora restaura os globais de workers aposentados usados nos testes
-  4. o patch ficou limitado ao harness de teste e aos docs vivos; nenhum runtime GUI foi alterado
-  5. `gui/gui_ssa.py` e `scripts/install_hooks.sh` continuam fora do escopo desta rodada
-  6. backlog e handoff foram atualizados para registrar o item como fechado
+  2. este slice fechou o vazamento dos globais de workers aposentados no harness de `tests/test_gui_filter_logic.py`
+  3. `setup_method` agora tira snapshot e reseta, e `teardown_method` restaura os globais usados nos testes
+  4. follow-up minimo validou `gui/gui_ssa.py` para reaproveitar o cache de sort de `num_reprogramacoes` e mostrar o path real no dialogo de reset
+  5. follow-up minimo validou `.gitignore` para preservar `/temp/.gitkeep` sem reabrir limpeza ampla de regras
+  6. backlog e handoff foram atualizados para registrar o item fechado e o residual documental ainda pendente
 
 ## HISTORICAL SNAPSHOT 2026-04-09 22h26
 
