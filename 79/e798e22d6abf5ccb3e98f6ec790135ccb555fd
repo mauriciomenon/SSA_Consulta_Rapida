@@ -1,0 +1,50 @@
+docs/RECOVERY_BACKLOG.md
+  08b6c458a48c0203 8-19,8742,8744,8751
+scripts/install_hooks.sh
+  08b6c458a48c0203 44-72
+.gitignore
+  08b6c458a48c0203 127-130,491-493
+gui/gui_ssa.py
+  08b6c458a48c0203 2847-2938,3081-3090
+docs/AGENTS_HANDOFF_NEXT_CYCLE.md
+  08b6c458a48c0203 5-15
+tests/test_gui_filter_logic.py
+  08b6c458a48c0203 4103-4168,5127-5154
+.secrets.baseline
+  08b6c458a48c0203 1-167
+.pre-commit-config.yaml
+  08b6c458a48c0203 1-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "79e798e22d6abf5ccb3e98f6ec790135ccb555fd",
+  "prompts": {
+    "08b6c458a48c0203": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d7e86-a94c-7130-a459-e34f0812e1c0",
+        "model": "gpt-5.4-mini"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 465,
+      "total_deletions": 19,
+      "accepted_lines": 465,
+      "overriden_lines": 0
+    },
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.2-codex"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 9016,
+      "overriden_lines": 0
+    }
+  }
+}
