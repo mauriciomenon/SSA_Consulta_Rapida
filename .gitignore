@@ -356,8 +356,7 @@ docs_saida/all.*
 exportacao/
 
 # Temporary work files and control files
-temp/
-temp/**
+# repo-root temp/ is handled above to preserve /temp/.gitkeep
 data/ssas.db-shm
 data/ssas.db-wal
 # Local AI / TODO removed artifacts (keep only locally, never commit)

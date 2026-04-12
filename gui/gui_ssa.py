@@ -2808,7 +2808,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         if "num_reprogramacoes" not in source_df.columns:
             return source_df
 
-        sort_keys = self._build_num_reprogramacoes_sort_keys(source_df)
+        sort_keys = self._get_num_reprogramacoes_sort_keys()
         sort_direction = bool(ascending)
         ordered_index = sort_keys.sort_values(
             by=["__reprog_is_nan", "__reprog_num", "__reprog_txt"],
@@ -4636,7 +4636,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             answer = qmessagebox.question(
                 self,
                 "Confirmar restauracao",
-                "Restaurar opcoes padrao agora? Isso sobrescreve settings.json.",
+                (
+                    "Restaurar opcoes padrao agora? "
+                    f"Isso sobrescreve {settings_path}."
+                ),
                 qmessagebox.StandardButton.Yes | qmessagebox.StandardButton.No,
                 qmessagebox.StandardButton.No,
             )
