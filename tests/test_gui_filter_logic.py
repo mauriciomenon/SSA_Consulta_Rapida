@@ -2567,9 +2567,7 @@ class TestGUIFilterLogic:
         self.window._active_filter_request_id = 41
         self.window._active_filter_search_request_id = 41
         self.window._active_filter_search_display = "APV/AMP"
-        filtered = self.base_df[
-            self.base_df["situacao"].isin(["APV", "AMP"])
-        ].copy()
+        filtered = self.base_df[self.base_df["situacao"].isin(["APV", "AMP"])].copy()
 
         self.window.on_filter_finished(filtered, request_id=41)
         QApplication.processEvents()
@@ -3722,9 +3720,7 @@ class TestGUIFilterLogic:
             situacao_logical_index = reloaded_window._current_display_columns.index(
                 "situacao"
             )
-            reloaded_window._on_header_section_resized(
-                situacao_logical_index, 100, 240
-            )
+            reloaded_window._on_header_section_resized(situacao_logical_index, 100, 240)
 
             assert reloaded_window._saved_gui_column_widths.get("situacao") == 240
             assert reloaded_window._gui_column_pixel_widths.get("situacao") == 240
@@ -4270,7 +4266,9 @@ class TestGUIFilterLogic:
         finally:
             reloaded_window.close()
 
-    def test_resolve_header_column_name_prefers_visual_mapping_during_eager_reorder(self):
+    def test_resolve_header_column_name_prefers_visual_mapping_during_eager_reorder(
+        self,
+    ):
         self.window.display_current_page(1)
         QApplication.processEvents()
 
@@ -4293,9 +4291,7 @@ class TestGUIFilterLogic:
         self.window._current_display_columns = ["#", "numero_ssa", "situacao"]
         self.window.visible_columns = ["numero_ssa", "situacao"]
         monkeypatch.setattr(self.window, "_capture_current_column_widths", lambda: {})
-        monkeypatch.setattr(
-            self.window, "_restore_column_widths", lambda _widths: None
-        )
+        monkeypatch.setattr(self.window, "_restore_column_widths", lambda _widths: None)
         monkeypatch.setattr(
             ssa_gui_table,
             "_get_header_visual_column_order",
@@ -4309,7 +4305,9 @@ class TestGUIFilterLogic:
             captured["snapshot"] = list(self.window._current_display_columns)
             captured["visible_columns"] = list(self.window.visible_columns)
 
-        monkeypatch.setattr(self.window, "display_current_page", _fake_display_current_page)
+        monkeypatch.setattr(
+            self.window, "display_current_page", _fake_display_current_page
+        )
 
         self.window._on_header_section_moved(2, 2, 1)
 
@@ -4317,13 +4315,13 @@ class TestGUIFilterLogic:
         assert captured["snapshot"] == ["#", "situacao", "numero_ssa"]
         assert captured["visible_columns"] == ["situacao", "numero_ssa"]
 
-    def test_header_section_moved_keeps_schema_absent_visible_columns(self, monkeypatch):
+    def test_header_section_moved_keeps_schema_absent_visible_columns(
+        self, monkeypatch
+    ):
         self.window._current_display_columns = ["#", "numero_ssa", "situacao"]
         self.window.visible_columns = ["numero_ssa", "situacao", "solicitante"]
         monkeypatch.setattr(self.window, "_capture_current_column_widths", lambda: {})
-        monkeypatch.setattr(
-            self.window, "_restore_column_widths", lambda _widths: None
-        )
+        monkeypatch.setattr(self.window, "_restore_column_widths", lambda _widths: None)
         monkeypatch.setattr(
             ssa_gui_table,
             "_get_header_visual_column_order",
@@ -4337,7 +4335,9 @@ class TestGUIFilterLogic:
             captured["snapshot"] = list(self.window._current_display_columns)
             captured["visible_columns"] = list(self.window.visible_columns)
 
-        monkeypatch.setattr(self.window, "display_current_page", _fake_display_current_page)
+        monkeypatch.setattr(
+            self.window, "display_current_page", _fake_display_current_page
+        )
 
         self.window._on_header_section_moved(2, 2, 1)
 
@@ -6274,7 +6274,9 @@ class TestGUIFilterLogic:
         assert self.window.load_button.isEnabled() is True
         assert self.window.search_button.isEnabled() is True
 
-    def test_on_load_finished_replaces_transient_loading_status_with_terminal_text(self):
+    def test_on_load_finished_replaces_transient_loading_status_with_terminal_text(
+        self,
+    ):
         class _FakeSignal:
             def disconnect(self, _callback=None):
                 return None

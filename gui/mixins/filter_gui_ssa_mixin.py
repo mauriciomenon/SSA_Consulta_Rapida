@@ -61,13 +61,13 @@ except ImportError:
 from core.app_logic import filter_dataframe, parse_search_terms
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS
-from gui.ssa import gui_details as ssa_gui_details
 
 # Imports de gui helpers
 from gui.helpers.formatting_helpers import (
     format_search_display,
     normalize_chunk_for_parse,
 )
+from gui.ssa import gui_details as ssa_gui_details
 from shared.date_utils import parse_datetime_series_mixed
 from utils.robust_logging import get_robust_logger
 
@@ -3507,9 +3507,7 @@ class FilterGUISSAMixin:
             if preserve_current_details and current_details_series is not None:
                 _measure_timing(
                     "render",
-                    lambda: self.display_current_page(
-                        current, update_details=False
-                    ),
+                    lambda: self.display_current_page(current, update_details=False),
                 )
                 try:
                     ssa_gui_details._update_details_from_series(

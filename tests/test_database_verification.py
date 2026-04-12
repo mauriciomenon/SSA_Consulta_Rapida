@@ -5,8 +5,8 @@ Testes para as novas funcionalidades de verificação e integridade do banco de 
 """
 
 import os
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
 import pandas as pd
 import pytest

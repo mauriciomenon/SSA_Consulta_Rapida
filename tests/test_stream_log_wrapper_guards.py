@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import contextlib
-import io
 import importlib.util
-from pathlib import Path
+import io
 import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -66,7 +66,9 @@ def test_resolve_safe_test_target_accepts_pytest_nodeid(modules) -> None:
         str(root),
     )
 
-    assert resolved.startswith(str(root / "tests" / "test_stream_log_wrapper_guards.py"))
+    assert resolved.startswith(
+        str(root / "tests" / "test_stream_log_wrapper_guards.py")
+    )
     assert "::test_resolve_safe_logpath_default_inside_logdir" in resolved
 
 

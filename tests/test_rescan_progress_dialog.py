@@ -75,7 +75,9 @@ def test_rescan_progress_dialog_set_finished_failure_without_message_shows_defau
 
     dlg = RescanProgressDialog()
     dlg.set_finished(False, "")
-    assert _spin_until(lambda: "Operacao falhou (Reescaneamento)" in dlg.status_label.text())
+    assert _spin_until(
+        lambda: "Operacao falhou (Reescaneamento)" in dlg.status_label.text()
+    )
 
     assert "Operacao falhou (Reescaneamento)" in dlg.status_label.text()
     assert "Erro nao detalhado" in dlg.status_label.text()

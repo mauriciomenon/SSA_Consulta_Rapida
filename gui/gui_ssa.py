@@ -2874,9 +2874,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         starts_alnum = first_char.str.isalnum().fillna(False)
         alpha_mask = (~empty_mask) & (~is_numeric) & starts_alpha
         symbol_mask = (~empty_mask) & (~is_numeric) & (~starts_alpha) & (~starts_alnum)
-        other_text_mask = (
-            (~empty_mask) & (~is_numeric) & (~alpha_mask) & (~symbol_mask)
-        )
+        other_text_mask = (~empty_mask) & (~is_numeric) & (~alpha_mask) & (~symbol_mask)
 
         symbol_rank = 0 if ascending else 3
         numeric_rank = 1 if ascending else 2
@@ -3029,9 +3027,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             try:
                 visual_order = ssa_gui_table._get_header_visual_column_order(self)
             except Exception as exc:
-                logger.debug(
-                    "Falha ao resolver ordem visual atual do header: %s", exc
-                )
+                logger.debug("Falha ao resolver ordem visual atual do header: %s", exc)
                 visual_order = current_columns
 
             if 0 <= visual_index < len(visual_order):
@@ -3400,9 +3396,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return
         if current_columns[0] == "#" and header.visualIndex(0) != 0:
             self._skip_width_recompute_once = True
-            self.display_current_page(
-                self.paginator.current_page, update_details=False
-            )
+            self.display_current_page(self.paginator.current_page, update_details=False)
             return
         ordered_columns = ssa_gui_table._get_header_visual_column_order(self)
         if not ordered_columns:
@@ -3417,7 +3411,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             if column_name not in ordered_visible_columns
         ]
         merged_visible_columns = ordered_visible_columns + missing_visible_columns
-        if not merged_visible_columns or merged_visible_columns == current_visible_columns:
+        if (
+            not merged_visible_columns
+            or merged_visible_columns == current_visible_columns
+        ):
             return
         preserved_widths = self._capture_current_column_widths()
         self._current_display_columns = list(ordered_columns)
@@ -4636,10 +4633,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             answer = qmessagebox.question(
                 self,
                 "Confirmar restauracao",
-                (
-                    "Restaurar opcoes padrao agora? "
-                    f"Isso sobrescreve {settings_path}."
-                ),
+                (f"Restaurar opcoes padrao agora? Isso sobrescreve {settings_path}."),
                 qmessagebox.StandardButton.Yes | qmessagebox.StandardButton.No,
                 qmessagebox.StandardButton.No,
             )

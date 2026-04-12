@@ -505,7 +505,8 @@ def _import_single_file(
                 )
                 if has_critical_missing_columns:
                     raise ExtractionError(
-                        critical_summary or "Colunas obrigatorias ausentes no DataFrame",
+                        critical_summary
+                        or "Colunas obrigatorias ausentes no DataFrame",
                         error_code="MISSING_REQUIRED_COLUMNS",
                     )
                 logger.warning(

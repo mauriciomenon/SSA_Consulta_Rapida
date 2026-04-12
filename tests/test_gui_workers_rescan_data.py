@@ -508,7 +508,9 @@ def test_rescan_data_explicit_success_with_updates_skips_load_on_no(tmp_path):
     assert window.status_label.text == "Status: Importacao externa concluida."
 
 
-def test_rescan_data_full_success_with_updates_offers_reload_even_without_flag(tmp_path):
+def test_rescan_data_full_success_with_updates_offers_reload_even_without_flag(
+    tmp_path,
+):
     project_root = _build_main_py(tmp_path)
     window = _Window()
     global_workers: list = []

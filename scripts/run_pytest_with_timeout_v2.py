@@ -13,13 +13,15 @@ import os
 import sys
 from typing import Any
 
-from pytest_stream_common import add_timeout_wrapper_common_args
-from pytest_stream_common import build_timeout_wrapper_cmd
-from pytest_stream_common import build_timeout_wrapper_header
-from pytest_stream_common import DEFAULT_TIMEOUT_WRAPPER_LOG_FILENAME
-from pytest_stream_common import ensure_local_ai_dir
-from pytest_stream_common import resolve_safe_logpath
-from pytest_stream_common import run_logged_pytest
+from pytest_stream_common import (
+    DEFAULT_TIMEOUT_WRAPPER_LOG_FILENAME,
+    add_timeout_wrapper_common_args,
+    build_timeout_wrapper_cmd,
+    build_timeout_wrapper_header,
+    ensure_local_ai_dir,
+    resolve_safe_logpath,
+    run_logged_pytest,
+)
 
 # Ensure scripts directory is importable for helper modules
 _SCRIPT_DIR = os.path.dirname(__file__)
@@ -31,6 +33,8 @@ try:
     pwsh_discovery: Any | None = _pwsh_discovery
 except Exception:
     pwsh_discovery = None
+
+
 def pick_discovered_pwsh() -> str | None:
     if pwsh_discovery is None:
         return None

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
+
 from armazenamento.identifier_utils import is_valid_identifier
 
 logger = logging.getLogger(__name__)

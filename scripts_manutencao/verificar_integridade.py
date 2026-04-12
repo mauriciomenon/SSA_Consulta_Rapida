@@ -13,9 +13,7 @@ COUNT_NULL_NUMERO_SQL = "SELECT COUNT(*) FROM ssa_table WHERE numero_ssa IS NULL
 COUNT_EMPTY_DESC_SQL = (
     "SELECT COUNT(*) FROM ssa_table WHERE descricao_ssa IS NULL OR descricao_ssa = ''"
 )
-SAMPLE_ROWS_SQL = (
-    "SELECT numero_ssa, situacao, descricao_ssa FROM ssa_table LIMIT 5"
-)
+SAMPLE_ROWS_SQL = "SELECT numero_ssa, situacao, descricao_ssa FROM ssa_table LIMIT 5"
 STATUS_TOP_SQL = (
     "SELECT situacao, COUNT(*) FROM ssa_table "
     "GROUP BY situacao ORDER BY COUNT(*) DESC LIMIT 10"

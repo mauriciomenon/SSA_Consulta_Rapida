@@ -69,9 +69,7 @@ class FilterCache:
         # Cria hash combinado
         context_str = cache_context or ""
         combined = f"{df_hash}|{chunks_str}|{default_mode}|{context_str}"
-        return hashlib.blake2b(
-            combined.encode("utf-8"), digest_size=16
-        ).hexdigest()
+        return hashlib.blake2b(combined.encode("utf-8"), digest_size=16).hexdigest()
 
     def get(
         self,

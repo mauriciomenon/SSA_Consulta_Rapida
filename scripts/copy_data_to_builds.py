@@ -217,7 +217,9 @@ def copy_data_to_build(
             if config_available:
                 copy_source_dir = staged_config_dir or config_dir
                 try:
-                    shutil.copytree(copy_source_dir, target_config_dir, dirs_exist_ok=True)
+                    shutil.copytree(
+                        copy_source_dir, target_config_dir, dirs_exist_ok=True
+                    )
                     if verbose:
                         print(
                             f"CFG Config copiado: {copy_source_dir} -> {target_config_dir}"
@@ -244,7 +246,9 @@ def copy_data_to_build(
                     f"INFO Copiando Excel samples para {runtime_dir} (maximo {max_excel_files}):"
                 )
 
-            for excel_file, excel_size_kb, _excel_mtime in excel_files[:max_excel_files]:
+            for excel_file, excel_size_kb, _excel_mtime in excel_files[
+                :max_excel_files
+            ]:
                 target_excel = target_docs_entrada_dir / excel_file.name
                 try:
                     shutil.copy2(excel_file, target_excel)
