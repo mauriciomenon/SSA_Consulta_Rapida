@@ -1,0 +1,42 @@
+gui/gui_ssa.py
+  08b6c458a48c0203 2811,4639-4642
+.gitignore
+  08b6c458a48c0203 358-361
+docs/AGENTS_HANDOFF_NEXT_CYCLE.md
+  08b6c458a48c0203 9-13
+docs/RECOVERY_BACKLOG.md
+  08b6c458a48c0203 8-20,24-25,27,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "6664ac4afe3e3432f4c3d265f5ab359c0da7a4ed",
+  "prompts": {
+    "08b6c458a48c0203": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d7e86-a94c-7130-a459-e34f0812e1c0",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 48,
+      "total_deletions": 18,
+      "accepted_lines": 92,
+      "overriden_lines": 0
+    },
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.2-codex"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 9019,
+      "overriden_lines": 0
+    }
+  }
+}
