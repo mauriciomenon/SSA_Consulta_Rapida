@@ -220,9 +220,15 @@ def test_import_single_file_drops_invalid_numero_ssa_rows_before_insert(
         captured["ssas"] = dataframe["numero_ssa"].astype(str).tolist()
         return True
 
-    monkeypatch.setattr(app_logic.database, "validate_dataframe_before_insert", _fake_validate)
-    monkeypatch.setattr(app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None)
-    monkeypatch.setattr(app_logic.database, "insert_dataframe_with_smart_upsert", _fake_insert)
+    monkeypatch.setattr(
+        app_logic.database, "validate_dataframe_before_insert", _fake_validate
+    )
+    monkeypatch.setattr(
+        app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        app_logic.database, "insert_dataframe_with_smart_upsert", _fake_insert
+    )
 
     file_path = str(tmp_path / "input.xlsx")
     ok, count = app_logic._import_single_file(

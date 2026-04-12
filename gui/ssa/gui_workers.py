@@ -1502,9 +1502,7 @@ def rescan_data(
                         qmessagebox.StandardButton.Yes | qmessagebox.StandardButton.No,
                         qmessagebox.StandardButton.Yes,
                     )
-                    should_load_now = (
-                        question_result == qmessagebox.StandardButton.Yes
-                    )
+                    should_load_now = question_result == qmessagebox.StandardButton.Yes
                 except Exception as exc:
                     logger.warning(
                         "Falha ao solicitar confirmacao para recarregar dados: %s",

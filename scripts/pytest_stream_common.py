@@ -392,9 +392,7 @@ def run_logged_pytest(
                     pwsh_picker=pwsh_picker,
                     logger=logger,
                 )
-                timeout_footer = (
-                    f"\n=== TIMEOUT: pytest exceeded {timeout_s}s and was terminated ===\n"
-                )
+                timeout_footer = f"\n=== TIMEOUT: pytest exceeded {timeout_s}s and was terminated ===\n"
                 logf.write(timeout_footer)
                 logf.flush()
                 print(f"TIMEOUT: pytest exceeded {timeout_s}s; log: {logpath}")
@@ -435,10 +433,7 @@ class _StreamLogWriter:
         if (
             force
             or self._pending_flush_lines >= self._flush_every
-            or (
-                self._pending_flush_lines > 0
-                and (now - self._last_flush) >= 1.0
-            )
+            or (self._pending_flush_lines > 0 and (now - self._last_flush) >= 1.0)
         ):
             self._stdout.flush()
             self._logf.flush()
@@ -624,7 +619,9 @@ def run_streaming_pytest(
                 logger=robust_logger,
             )
             _join_reader_and_drain()
-            msg = f"\n=== TIMEOUT: pytest exceeded {timeout_s}s and was terminated ===\n"
+            msg = (
+                f"\n=== TIMEOUT: pytest exceeded {timeout_s}s and was terminated ===\n"
+            )
             print(msg)
             writer.write_block(msg, force_flush=True)
             if fallback_to_tee:

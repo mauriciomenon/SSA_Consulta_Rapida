@@ -260,7 +260,9 @@ def collect_db_edges(
         WHERE derivada_de IS NOT NULL
     """
 
-    rows = conn.execute(query).fetchall()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+    rows = conn.execute(
+        query
+    ).fetchall()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
 
     seen_pairs: set[tuple[str, str]] = set()
     child_to_parents: dict[str, set[str]] = defaultdict(set)

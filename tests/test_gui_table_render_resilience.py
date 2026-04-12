@@ -231,7 +231,10 @@ class TestGUITableRenderResilience:
         self.window.table_widget.selectRow(1)
         QApplication.processEvents()
 
-        assert [idx.row() for idx in self.window.table_widget.selectionModel().selectedRows()] == [1]
+        assert [
+            idx.row()
+            for idx in self.window.table_widget.selectionModel().selectedRows()
+        ] == [1]
         assert self.window._details_current_ssa == 2
         assert "Teste B" in str(self.window.details_text.toHtml() or "")
 

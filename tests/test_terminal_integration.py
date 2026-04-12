@@ -18,8 +18,8 @@ Notas:
 - Timeouts são controláveis por constantes no arquivo.
 """
 
-import json
 import importlib
+import json
 import os
 import shutil
 import subprocess

@@ -11,7 +11,15 @@ from pathlib import Path
 def _find_expected_constants_file(snyk_path: str) -> Path | None:
     resolved = Path(snyk_path).resolve()
     for parent in resolved.parents:
-        candidate = parent / "libexec" / "lib" / "node_modules" / "snyk" / "pysrc" / "constants.py"
+        candidate = (
+            parent
+            / "libexec"
+            / "lib"
+            / "node_modules"
+            / "snyk"
+            / "pysrc"
+            / "constants.py"
+        )
         if candidate.exists():
             return candidate
     for parent in resolved.parents:

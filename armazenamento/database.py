@@ -18,6 +18,7 @@ import pandas as pd
 
 # Importacoes refatoradas serao carregadas de forma lazy dentro dos wrappers para evitar ciclos.
 from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES
+
 from . import numero_ssa_utils as _numero_ssa_utils
 from .identifier_utils import is_valid_identifier
 from .numero_ssa_utils import normalize_numero_ssa as _normalize_numero_ssa_display
@@ -42,9 +43,7 @@ MAX_TEXT_LEN = 1000
 # Flag global para controlar modo otimizado (substituiu monkey-patching)
 _use_optimized_mode = False
 _resolved_table_cache: dict[tuple[str, str], str] = {}
-_VALID_COLUMN_DEFINITIONS = frozenset(
-    {"TEXT", "INTEGER", "REAL", "NUMERIC", "BLOB"}
-)
+_VALID_COLUMN_DEFINITIONS = frozenset({"TEXT", "INTEGER", "REAL", "NUMERIC", "BLOB"})
 
 
 def set_optimized_mode(enabled: bool) -> None:
@@ -468,7 +467,9 @@ def count_distinct_derivada_edges(
             GROUP BY numero_ssa, derivada_de
         ) AS db_edges
     """
-    return int(conn.execute(query).fetchone()[0] or 0)  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+    return int(
+        conn.execute(query).fetchone()[0] or 0
+    )  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
 
 
 def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
@@ -835,6 +836,7 @@ def insert_dataframe_with_smart_upsert(
         except Exception as e:  # pragma: no cover
             logger.error(f"Falha na insercao: {e}")
             return False
+
 
 _normalize_numero_ssa_value = _numero_ssa_utils.normalize_numero_ssa_int_legacy_bridge
 

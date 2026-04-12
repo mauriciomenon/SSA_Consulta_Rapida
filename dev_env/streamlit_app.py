@@ -268,9 +268,7 @@ class StreamlitFilterCache:
         }
 
         params_str = str(sorted(params.items()))
-        return hashlib.blake2b(
-            params_str.encode("utf-8"), digest_size=16
-        ).hexdigest()
+        return hashlib.blake2b(params_str.encode("utf-8"), digest_size=16).hexdigest()
 
     def get(
         self,

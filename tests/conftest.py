@@ -103,7 +103,9 @@ def isolate_gui_preferences_path(monkeypatch: pytest.MonkeyPatch) -> Iterator[No
         monkeypatch.setattr(
             gui_ssa, "get_gui_main_preferences_path", lambda: gui_prefs_path
         )
-        monkeypatch.setattr(gui_ssa, "atomic_write_json_file", _redirect_gui_prefs_write)
+        monkeypatch.setattr(
+            gui_ssa, "atomic_write_json_file", _redirect_gui_prefs_write
+        )
 
     with suppress(Exception):
         from gui.ssa import gui_theme
