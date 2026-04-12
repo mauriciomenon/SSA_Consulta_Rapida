@@ -41,6 +41,35 @@ install_named_hook(){
 install_named_hook "pre-commit" || install_failures+=("pre-commit")
 install_named_hook "pre-push" || install_failures+=("pre-push")
 
+bootstrap_pre_commit(){
+  local config_file="$REPO_ROOT/.pre-commit-config.yaml"
+  if [[ ! -f "$config_file" ]]; then
+    echo "[install-hooks] pre-commit config nao encontrada; bootstrap opcional ignorado."
+    return 0
+  fi
+
+  if ! command -v pre-commit >/dev/null 2>&1; then
+    echo "[install-hooks] AVISO: pre-commit nao esta no PATH; bootstrap opcional ignorado." >&2
+    return 0
+  fi
+
+  echo "[install-hooks] Validando .pre-commit-config.yaml"
+  if ! pre-commit validate-config; then
+    echo "[install-hooks] ERRO: pre-commit validate-config falhou." >&2
+    return 1
+  fi
+
+  echo "[install-hooks] Instalando ambientes do pre-commit"
+  if ! pre-commit install-hooks; then
+    echo "[install-hooks] ERRO: pre-commit install-hooks falhou." >&2
+    return 1
+  fi
+
+  echo "[install-hooks] Bootstrap opcional do pre-commit concluido."
+}
+
+bootstrap_pre_commit || install_failures+=("pre-commit-bootstrap")
+
 if [[ ${#missing_hooks[@]} -gt 0 ]]; then
   echo "[install-hooks] ERRO: hooks obrigatorios ausentes: ${missing_hooks[*]}" >&2
 fi
