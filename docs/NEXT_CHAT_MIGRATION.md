@@ -2,7 +2,7 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-09 22h26
+## CURRENT TRUTH 2026-04-11 23h00
 
 ### Estado de repositorio e runtime
 
@@ -33,6 +33,8 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `main.py -> interface/cli.py -> interface/table_printer.py`
 9. `kluster` esta disponivel neste host em:
    - `/Users/menon/.kluster/cli/bin/kluster`
+10. `tests/test_gui_filter_logic.py` agora isola e restaura o estado global de lifecycle de workers aposentados por teste
+11. o achado medio confirmado sobre dependencia explicita de globais nesse arquivo foi fechado com patch minimo de harness, sem tocar runtime da GUI
 
 ### Validacao relevante desta rodada
 
@@ -43,6 +45,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `tests/test_gui_main_configuration.py`
 3. `pytest` focados relevantes desta frente ficaram verdes
 4. `kluster` local existe neste host, mas timeout de review continua devendo ser tratado como bloqueio de ferramenta, nao como gate verde
+5. o review focado do arquivo de teste apos o patch de lifecycle voltou limpo
 
 ### Proximo passo recomendado
 
@@ -51,10 +54,11 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 3. tratar qualquer novo call site visual que use `display_current_page(...)` como risco de contrato cruzado
 4. nao mexer no renderer paralelo `handler_base` sem prova de callsite ativo
 5. seguir com `git status --short` no inicio
-6. so reabrir o bloco GUI/tabela/detalhes se houver:
+6. considerar fechado o residual de lifecycle global em `tests/test_gui_filter_logic.py`; nao reabrir sem novo repro
+7. so reabrir o bloco GUI/tabela/detalhes se houver:
    - repro novo em tela
    - ou slice proprio de refatoracao pequena com contrato explicito
-7. antes de novo patch, ler:
+8. antes de novo patch, ler:
    - `AGENTS.md`
    - `docs/NEXT_CHAT_MIGRATION.md`
    - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`

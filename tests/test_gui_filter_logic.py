@@ -6,7 +6,7 @@ import sqlite3
 import sys
 import time
 from collections import Counter
-from typing import Any, cast
+from typing import Any, Literal, TypedDict, cast
 from unittest.mock import patch
 
 import pandas as pd
@@ -42,6 +42,17 @@ from gui.widgets.filter_help_dialog import FilterHelpDialog  # noqa: E402
 ORIGINAL_LOAD_DATA = SSAMainWindow.load_data
 
 
+class _RetiredWorkerGlobalsSnapshot(TypedDict):
+    data_loader_workers: list[Any]
+    data_loader_meta: dict[Any, Any]
+    rescan_workers: list[Any]
+    rescan_meta: dict[Any, Any]
+    filter_workers: list[Any]
+    max_data_loader_workers: Literal[64]
+    max_rescan_workers: Literal[8]
+    max_filter_workers: Literal[64]
+
+
 class TestGUIFilterLogic:
     """Valida filtros com perfis OR e exclusões complementares."""
 
@@ -54,6 +65,21 @@ class TestGUIFilterLogic:
         self._gui_main_preferences_snapshot = copy.deepcopy(
             gui_ssa.GUI_MAIN_PREFERENCES
         )
+        self._retired_worker_globals_snapshot: _RetiredWorkerGlobalsSnapshot = {
+            "data_loader_workers": list(gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS),
+            "data_loader_meta": dict(gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META),
+            "rescan_workers": list(gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS),
+            "rescan_meta": dict(gui_ssa.GLOBAL_RETIRED_RESCAN_META),
+            "filter_workers": list(filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS),
+            "max_data_loader_workers": gui_ssa.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            "max_rescan_workers": gui_ssa.MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
+            "max_filter_workers": filter_mixin.MAX_GLOBAL_RETIRED_FILTER_WORKERS,
+        }
+        gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.clear()
+        gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META.clear()
+        gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.clear()
+        gui_ssa.GLOBAL_RETIRED_RESCAN_META.clear()
+        filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS.clear()
         self._load_patch = patch.object(SSAMainWindow, "load_data", lambda self: None)
         self._load_patch.start()
         self.window = SSAMainWindow()
@@ -98,18 +124,38 @@ class TestGUIFilterLogic:
         self.window.paginator.set_dataframe(self.base_df.copy())
 
     def teardown_method(self):
-        self._load_patch.stop()
-        self.window.close()
-        gui_ssa.GUI_MAIN_PREFERENCES.clear()
-        gui_ssa.GUI_MAIN_PREFERENCES.update(self._gui_main_preferences_snapshot)
         try:
-            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.clear()
-        except Exception:
-            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = []
-        try:
-            filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS.clear()
-        except Exception:
-            filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS[:] = []
+            self._load_patch.stop()
+            self.window.close()
+        finally:
+            gui_ssa.GUI_MAIN_PREFERENCES.clear()
+            gui_ssa.GUI_MAIN_PREFERENCES.update(self._gui_main_preferences_snapshot)
+            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = (
+                self._retired_worker_globals_snapshot["data_loader_workers"]
+            )
+            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META.clear()
+            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META.update(
+                self._retired_worker_globals_snapshot["data_loader_meta"]
+            )
+            gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS[:] = (
+                self._retired_worker_globals_snapshot["rescan_workers"]
+            )
+            gui_ssa.GLOBAL_RETIRED_RESCAN_META.clear()
+            gui_ssa.GLOBAL_RETIRED_RESCAN_META.update(
+                self._retired_worker_globals_snapshot["rescan_meta"]
+            )
+            filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS[:] = (
+                self._retired_worker_globals_snapshot["filter_workers"]
+            )
+            gui_ssa.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS = (
+                self._retired_worker_globals_snapshot["max_data_loader_workers"]
+            )
+            gui_ssa.MAX_GLOBAL_RETIRED_RESCAN_WORKERS = (
+                self._retired_worker_globals_snapshot["max_rescan_workers"]
+            )
+            filter_mixin.MAX_GLOBAL_RETIRED_FILTER_WORKERS = (
+                self._retired_worker_globals_snapshot["max_filter_workers"]
+            )
 
     def _extract_visible_ssa(self):
         return list(self.window.df_exibido["numero_ssa"])

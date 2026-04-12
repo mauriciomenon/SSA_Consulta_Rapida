@@ -2,7 +2,7 @@
 
 Release/tag publicada mais recente na branch `dev`: `v4.36`.
 
-## Current Truth (2026-03-31 09:16 -0300)
+## Current Truth (2026-04-11 23:00 -0300)
 
 - Estado operacional:
   - metadata local ativa: `4.37`
@@ -10,6 +10,7 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
   - branch `dev` recebeu os slices recentes de auditoria tecnica, hotfix de busca em colunas nao textuais e sincronizacao de filtros avancados
   - `4.37` segue ativo em metadata local, runtime e docs ativos; a ultima tag publicada permanece `v4.36`
   - docs centrais de import/upsert seguem alinhados com o contrato runtime atual
+  - o harness de `tests/test_gui_filter_logic.py` agora isola e restaura o lifecycle global de workers aposentados por teste, sem vazar estado entre casos
   - a continuidade imediata de GUI/filtros agora esta concentrada em `svp-03`, historico `undo/redo`, ajustes pontuais de labels/ordem e drag de cabecalho
 - Contrato de update por SSA (resumo):
   - `STE` e `SCA` no banco sao imutaveis para update
@@ -140,7 +141,7 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
 - Diagnostico de importacao/rescan atualizado:
   - `full rescan` hoje nao e recursivo sobre qualquer subpasta arbitraria da raiz
   - `.xls` legado continua contabilizado como ignorado, nao como candidato principal de importacao
-  - regressao ampla de importacao, rescan, GUI lateral e contratos de nullable ficou verde; o arquivo inteiro `tests/test_gui_filter_logic.py` segue com limitacao de harness neste terminal
+  - regressao ampla de importacao, rescan, GUI lateral e contratos de nullable ficou verde; a limitacao antiga de harness em `tests/test_gui_filter_logic.py` foi fechada com reset/restore explicito do estado global de lifecycle
 - README revisado com secoes obrigatorias (`Instalacao`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
@@ -979,4 +980,3 @@ Regra (_resumida_):
 
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

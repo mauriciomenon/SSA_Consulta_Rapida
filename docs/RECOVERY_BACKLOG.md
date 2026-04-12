@@ -5,6 +5,41 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-11 - kluster residuals for gui filter test monolith
+
+Escopo fechado nesta rodada:
+1. o fix do lifecycle global em `tests/test_gui_filter_logic.py` foi mantido minimo e nao abriu refactor estrutural do arquivo inteiro
+2. os achados de qualidade do `kluster` foram triados como preexistentes e fora do slice funcional aprovado
+
+Residual mantido fora do escopo:
+1. dividir `tests/test_gui_filter_logic.py` em arquivos menores por dominio, conforme achado medio do `kluster`
+2. extrair mocks repetidos de workers e sinais para fixtures ou helpers locais reutilizaveis, conforme achado baixo do `kluster`
+
+## Update 2026-04-11 - gui filter lifecycle test globals closed
+
+Escopo fechado nesta rodada:
+1. `tests/test_gui_filter_logic.py` passou a isolar o estado global de workers aposentados em cada teste
+2. `setup_method` agora tira snapshot e reseta listas/metas/caps globais relevantes antes da execucao
+3. `teardown_method` agora restaura o snapshot completo, evitando vazamento de lifecycle entre casos
+
+Residual mantido fora do escopo:
+1. qualquer mudanca de runtime da GUI ou de policy de aposentadoria real de workers
+2. refactor amplo do harness inteiro de GUI
+3. novos ajustes de performance fora do custo direto do isolamento de estado do teste
+
+## Update 2026-04-11 - gui sort cache and temp ignore conflict
+
+Escopo fechado nesta rodada:
+1. conflito entre `/temp/*` com excecao de `.gitkeep` e o ignore amplo posterior de `temp` foi removido sem reabrir a limpeza ampla do `.gitignore`
+2. o sort de `num_reprogramacoes` passou a reutilizar o cache ja existente, evitando rebuild completo das chaves a cada clique
+3. o dialogo de reset passou a exibir o path real resolvido para o arquivo de configuracao que sera sobrescrito
+
+Residual mantido fora do escopo:
+1. deduplicacao ampla de regras de build, venv, cache e logs no `.gitignore`
+2. revisao dos globs amplos de `docs/*` no `.gitignore`, que precisa decisao de produto para nao esconder documentacao valida
+3. reducao adicional do custo de recompute de larguras durante resize da GUI, que segue como melhoria de performance separada
+4. nenhuma acao adicional neste item; a dependencia de estado global no lifecycle de workers do harness de `tests/test_gui_filter_logic.py` foi fechada no update acima
+
 ## Update 2026-04-11 - workspace hygiene pre-release
 
 Escopo fechado nesta rodada:
