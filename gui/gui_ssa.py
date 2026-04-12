@@ -2844,6 +2844,98 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             index=source_df.index,
         )
 
+    def _should_use_mixed_text_sort(self, column_name: str) -> bool:
+        source_df = self.df_exibido
+        if not isinstance(source_df, pd.DataFrame):
+            return False
+        if column_name not in source_df.columns:
+            return False
+        series = source_df[column_name]
+        dtype = getattr(series, "dtype", None)
+        return bool(
+            pd.api.types.is_object_dtype(dtype) or pd.api.types.is_string_dtype(dtype)
+        )
+
+    def _build_mixed_text_sort_keys(
+        self, source_series: pd.Series, ascending: bool
+    ) -> pd.DataFrame:
+        raw_text = source_series.astype("string").fillna("").str.strip()
+        empty_mask = source_series.isna() | raw_text.eq("")
+        normalized_numeric_text = raw_text.str.replace(",", ".", regex=False)
+        is_numeric = normalized_numeric_text.str.fullmatch(
+            r"[+-]?\d+(?:\.\d+)?"
+        ).fillna(False)
+        numeric_values = pd.to_numeric(
+            normalized_numeric_text.where(is_numeric), errors="coerce"
+        ).astype("Float64")
+
+        first_char = raw_text.str.slice(0, 1)
+        starts_alpha = first_char.str.isalpha().fillna(False)
+        starts_alnum = first_char.str.isalnum().fillna(False)
+        alpha_mask = (~empty_mask) & (~is_numeric) & starts_alpha
+        symbol_mask = (~empty_mask) & (~is_numeric) & (~starts_alpha) & (~starts_alnum)
+        other_text_mask = (
+            (~empty_mask) & (~is_numeric) & (~alpha_mask) & (~symbol_mask)
+        )
+
+        symbol_rank = 0 if ascending else 3
+        numeric_rank = 1 if ascending else 2
+        alpha_rank = 2 if ascending else 1
+        other_rank = 3 if ascending else 0
+        bucket_order = pd.Series(other_rank, index=raw_text.index, dtype="Int64")
+        bucket_order.loc[symbol_mask] = symbol_rank
+        bucket_order.loc[is_numeric] = numeric_rank
+        bucket_order.loc[alpha_mask] = alpha_rank
+        bucket_order.loc[empty_mask] = 9
+
+        normalized_text = raw_text.str.casefold()
+        return pd.DataFrame(
+            {
+                "__mixed_is_empty": empty_mask,
+                "__mixed_bucket_order": bucket_order,
+                "__mixed_symbol_txt": normalized_text.where(symbol_mask),
+                "__mixed_num": numeric_values,
+                "__mixed_alpha_txt": normalized_text.where(alpha_mask),
+                "__mixed_other_txt": normalized_text.where(other_text_mask),
+            },
+            index=source_series.index,
+        )
+
+    def _sort_mixed_text_column_robust(
+        self, column_name: str, ascending: bool
+    ) -> pd.DataFrame:
+        source_df = self.df_exibido
+        if source_df is None or source_df.empty:
+            return source_df
+        if column_name not in source_df.columns:
+            return source_df
+
+        sort_keys = self._build_mixed_text_sort_keys(
+            source_df[column_name], ascending=ascending
+        )
+        sort_direction = bool(ascending)
+        ordered_index = sort_keys.sort_values(
+            by=[
+                "__mixed_is_empty",
+                "__mixed_bucket_order",
+                "__mixed_symbol_txt",
+                "__mixed_num",
+                "__mixed_alpha_txt",
+                "__mixed_other_txt",
+            ],
+            ascending=[
+                True,
+                True,
+                sort_direction,
+                sort_direction,
+                sort_direction,
+                sort_direction,
+            ],
+            na_position="last",
+            kind="mergesort",
+        ).index
+        return source_df.loc[ordered_index]
+
     def _get_num_reprogramacoes_sort_keys(self) -> pd.DataFrame:
         source_df = self.df_exibido
         if not isinstance(source_df, pd.DataFrame):
@@ -2986,11 +3078,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                         self._prime_num_reprogramacoes_sort_cache()
                     self._last_num_reprog_sorted_keys = None
                 else:
-                    self.df_exibido = self.df_exibido.sort_values(
-                        by=self.sort_column,
-                        ascending=self.sort_ascending,
-                        na_position="last",
-                    )
+                    if self._should_use_mixed_text_sort(self.sort_column):
+                        self.df_exibido = self._sort_mixed_text_column_robust(
+                            self.sort_column, self.sort_ascending
+                        )
+                    else:
+                        self.df_exibido = self.df_exibido.sort_values(
+                            by=self.sort_column,
+                            ascending=self.sort_ascending,
+                            na_position="last",
+                        )
                 self._bump_data_revision("sort_column")
             except Exception as exc:
                 logger.warning(

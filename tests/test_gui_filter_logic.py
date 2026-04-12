@@ -4100,6 +4100,72 @@ class TestGUIFilterLogic:
         assert self.window.sort_column == "situacao"
         assert self.window.df_exibido["situacao"].tolist() == ["E", "D", "C", "B", "A"]
 
+    def test_header_real_click_resets_sort_direction_when_switching_columns(self):
+        click_df = self.base_df.copy()
+        click_df["numero_ssa"] = [5, 1, 4, 2, 3]
+        click_df["situacao"] = ["C", "A", "B", "E", "D"]
+        self.window.df_completo = click_df.copy()
+        self.window.df_exibido = click_df.copy()
+        self.window._df_last_search_filtered = click_df.copy()
+        self.window.paginator.set_dataframe(click_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        initial_display_columns = list(self.window._current_display_columns)
+        header = self.window.table_widget.horizontalHeader()
+        numero_index = self.window._current_display_columns.index("numero_ssa")
+        situacao_index = self.window._current_display_columns.index("situacao")
+        numero_click_pos = QPoint(
+            header.sectionViewportPosition(numero_index)
+            + max(5, header.sectionSize(numero_index) // 2),
+            max(5, header.height() // 2),
+        )
+        situacao_click_pos = QPoint(
+            header.sectionViewportPosition(situacao_index)
+            + max(5, header.sectionSize(situacao_index) // 2),
+            max(5, header.height() // 2),
+        )
+
+        cast(Any, QTest).mouseClick(
+            header.viewport(),
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            numero_click_pos,
+        )
+        QApplication.processEvents()
+        assert self.window.sort_column == "numero_ssa"
+        assert self.window.sort_ascending is True
+        assert self.window.df_exibido["numero_ssa"].tolist() == [1, 2, 3, 4, 5]
+        assert header.sortIndicatorSection() == numero_index
+        assert header.sortIndicatorOrder() == Qt.SortOrder.AscendingOrder
+
+        cast(Any, QTest).mouseClick(
+            header.viewport(),
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            numero_click_pos,
+        )
+        QApplication.processEvents()
+        assert self.window.sort_column == "numero_ssa"
+        assert self.window.sort_ascending is False
+        assert self.window.df_exibido["numero_ssa"].tolist() == [5, 4, 3, 2, 1]
+        assert header.sortIndicatorSection() == numero_index
+        assert header.sortIndicatorOrder() == Qt.SortOrder.DescendingOrder
+
+        cast(Any, QTest).mouseClick(
+            header.viewport(),
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            situacao_click_pos,
+        )
+        QApplication.processEvents()
+        assert self.window.sort_column == "situacao"
+        assert self.window.sort_ascending is True
+        assert self.window.df_exibido["situacao"].tolist() == ["A", "B", "C", "D", "E"]
+        assert header.sortIndicatorSection() == situacao_index
+        assert header.sortIndicatorOrder() == Qt.SortOrder.AscendingOrder
+        assert list(self.window._current_display_columns) == initial_display_columns
+
     def test_persisted_reordered_columns_reload_keeps_real_header_sort(self):
         persisted_display = ["situacao"] + [
             col for col in self.window.visible_columns if col != "situacao"
@@ -5056,6 +5122,36 @@ class TestGUIFilterLogic:
         self.window.on_header_clicked(logical_index)
         desc_vals = self.window.df_exibido["num_reprogramacoes"].tolist()
         assert desc_vals[:3] == [2, "Reprogramacao #1", 0]
+        assert desc_vals[-2:] == ["", None]
+
+    def test_on_header_clicked_sorts_generic_mixed_text_column(self):
+        extra_rows = pd.concat([self.base_df.iloc[[0]].copy() for _ in range(3)])
+        extra_rows = extra_rows.reset_index(drop=True)
+        extra_rows["numero_ssa"] = [6, 7, 8]
+        mixed_df = pd.concat(
+            [self.base_df.copy(), extra_rows],
+            ignore_index=True,
+        )
+        mixed_df["situacao"] = pd.Series(
+            ["B", "#", "10", "2", "@", "A", "", None], dtype="object"
+        )
+        self.window.df_completo = mixed_df.copy()
+        self.window.df_exibido = mixed_df.copy()
+        self.window._df_last_search_filtered = mixed_df.copy()
+        self.window.paginator.set_dataframe(mixed_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        logical_index = self.window._current_display_columns.index("situacao")
+
+        self.window.on_header_clicked(logical_index)
+        asc_vals = self.window.df_exibido["situacao"].tolist()
+        assert asc_vals[:6] == ["#", "@", "2", "10", "A", "B"]
+        assert asc_vals[-2:] == ["", None]
+
+        self.window.on_header_clicked(logical_index)
+        desc_vals = self.window.df_exibido["situacao"].tolist()
+        assert desc_vals[:6] == ["B", "A", "10", "2", "@", "#"]
         assert desc_vals[-2:] == ["", None]
 
     def test_on_header_clicked_reuses_num_reprogramacoes_sort_cache(self):
