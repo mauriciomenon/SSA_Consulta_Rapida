@@ -1,0 +1,27 @@
+armazenamento/database.py
+  afaf0c95db689e82 121,217-219,885
+armazenamento/database_integrity.py
+  afaf0c95db689e82 288
+armazenamento/database_optimized.py
+  afaf0c95db689e82 635,652
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "c212243b5b84ff04f826674105f5030231decf68",
+  "prompts": {
+    "afaf0c95db689e82": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "32f3e2e4-7509-4afc-94a1-1be459e76ec3",
+        "model": "copilot/gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 6,
+      "accepted_lines": 22,
+      "overriden_lines": 0
+    }
+  }
+}
