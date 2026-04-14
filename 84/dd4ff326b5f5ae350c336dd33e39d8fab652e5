@@ -1,0 +1,43 @@
+CHANGELOG.md
+  afaf0c95db689e82 5-13
+gui/ssa/filter_status_manager.py
+  afaf0c95db689e82 1-94
+gui/gui_config.py
+  afaf0c95db689e82 239,243-245,247,249-250,253,255
+tests/fixtures/gui_filter_realistic_50.json
+  afaf0c95db689e82 1-802
+tests/test_gui_filter_logic.py
+  afaf0c95db689e82 4,164-174,1401,1403,1416-1417,1437-1443,1447-1458,1460,1464-1468,1470-1471,1474-1476,1478-1521,1524-1530,1540,6435,6447-6449
+docs/AGENTS_HANDOFF_NEXT_CYCLE.md
+  afaf0c95db689e82 7-22
+docs/RECOVERY_BACKLOG.md
+  afaf0c95db689e82 8-23
+gui/ssa/gui_workers.py
+  afaf0c95db689e82 1036-1059,1063
+gui/ssa/gui_filters_advanced_ui.py
+  afaf0c95db689e82 2936-2947
+gui/mixins/filter_gui_ssa_mixin.py
+  afaf0c95db689e82 71,995,1000,1325,1959,1963,1982-2043,2263,2475,3077,3610
+config/gui_main_preferences.json.example
+  afaf0c95db689e82 64,68-70,72,74-75,78,80,88,92-94,111,119,121-122,125,127,134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "84dd4ff326b5f5ae350c336dd33e39d8fab652e5",
+  "prompts": {
+    "afaf0c95db689e82": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "32f3e2e4-7509-4afc-94a1-1be459e76ec3",
+        "model": "copilot/gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 1447,
+      "total_deletions": 371,
+      "accepted_lines": 1207,
+      "overriden_lines": 0
+    }
+  }
+}
