@@ -390,5 +390,3 @@ Lista abaixo reproduz exatamente os comandos fornecidos pelo usuario.
 - `pip-audit` com `uv.lock` sem depender de venv temporaria do host:
   - `uv export --locked --format requirements.txt --no-emit-project --output-file /tmp/ssa_uv_export_requirements_no_project.txt`
   - `pip-audit -r /tmp/ssa_uv_export_requirements_no_project.txt --require-hashes --disable-pip --progress-spinner off -f json`
-
-@RTK.md
