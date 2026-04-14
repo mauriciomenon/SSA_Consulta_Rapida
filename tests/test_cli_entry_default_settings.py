@@ -5,9 +5,7 @@ import interface.cli as cli
 import launchers.cli_entry as cli_entry
 
 
-def test_cli_entry_initializes_default_settings_before_cli_loop(
-    monkeypatch, tmp_path
-):
+def test_cli_entry_initializes_default_settings_before_cli_loop(monkeypatch, tmp_path):
     calls = []
 
     def fake_ensure_default_settings(*, fail_fast: bool = True):

@@ -3415,9 +3415,7 @@ class FilterGUISSAMixin:
             pending_search_display = str(
                 getattr(self, "_pending_search_display", "") or ""
             ).strip()
-            has_general_search = bool(
-                active_search_display or pending_search_display
-            )
+            has_general_search = bool(active_search_display or pending_search_display)
 
         base = (
             self._df_last_search_filtered
