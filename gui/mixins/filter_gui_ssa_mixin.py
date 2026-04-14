@@ -3400,9 +3400,28 @@ class FilterGUISSAMixin:
             timings[name] = (perf_counter() - started) * 1000.0
             return result
 
+        has_general_search = False
+        try:
+            for widget in self._iter_search_inputs():
+                if widget.text().strip():
+                    has_general_search = True
+                    break
+        except Exception:
+            has_general_search = False
+        if not has_general_search:
+            active_search_display = str(
+                getattr(self, "_active_filter_search_display", "") or ""
+            ).strip()
+            pending_search_display = str(
+                getattr(self, "_pending_search_display", "") or ""
+            ).strip()
+            has_general_search = bool(
+                active_search_display or pending_search_display
+            )
+
         base = (
             self._df_last_search_filtered
-            if not self._df_last_search_filtered.empty
+            if has_general_search or not self._df_last_search_filtered.empty
             else self.df_completo
         )
         filtered = base
@@ -4238,7 +4257,7 @@ class FilterGUISSAMixin:
                 elif default_mode == "regex":
                     res = _safe_regex_contains(s, t)
                 else:  # contains
-                    res = s.str.contains(t, case=False, na=False)
+                    res = s.str.contains(t, case=False, na=False, regex=False)
             return ~res if neg else res
 
         # OR entre inclusões no MESMO CAMPO; exclusões (com !) removem

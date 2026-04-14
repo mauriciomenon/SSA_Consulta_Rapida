@@ -221,12 +221,12 @@ class TestGUIMainConfiguration:
             "column_display_names": {"numero_ssa": "No SSA"},
             "column_widths": {
                 "data_cadastro": 95,
-                "grau_prioridade_emissao": 75,
-                "grau_prioridade_planejamento": 83,
-                "total_de_reprogramacoes": 120,
-                "execucao_parcial": 120,
-                "semana_executada": 120,
-                "responsavel_execucao": 120,
+                "grau_prioridade_emissao": 122,
+                "grau_prioridade_planejamento": 122,
+                "total_de_reprogramacoes": 130,
+                "execucao_parcial": 130,
+                "semana_executada": 96,
+                "responsavel_execucao": 150,
             },
             "gui_settings": {"page_size": 25},
         }
@@ -240,13 +240,30 @@ class TestGUIMainConfiguration:
                 config = load_gui_main_preferences()
 
         assert config["column_widths"]["data_cadastro"] == 95
-        assert config["column_widths"]["grau_prioridade_emissao"] == 75
-        assert config["column_widths"]["grau_prioridade_planejamento"] == 83
-        assert config["column_widths"]["total_de_reprogramacoes"] == 120
-        assert config["column_widths"]["execucao_parcial"] == 120
-        assert config["column_widths"]["semana_executada"] == 120
-        assert config["column_widths"]["responsavel_execucao"] == 120
-        assert DEFAULT_COLUMN_WIDTHS["responsavel_execucao"] != 120
+        assert (
+            config["column_widths"]["grau_prioridade_emissao"]
+            == DEFAULT_COLUMN_WIDTHS["grau_prioridade_emissao"]
+        )
+        assert (
+            config["column_widths"]["grau_prioridade_planejamento"]
+            == DEFAULT_COLUMN_WIDTHS["grau_prioridade_planejamento"]
+        )
+        assert (
+            config["column_widths"]["total_de_reprogramacoes"]
+            == DEFAULT_COLUMN_WIDTHS["total_de_reprogramacoes"]
+        )
+        assert (
+            config["column_widths"]["execucao_parcial"]
+            == DEFAULT_COLUMN_WIDTHS["execucao_parcial"]
+        )
+        assert (
+            config["column_widths"]["semana_executada"]
+            == DEFAULT_COLUMN_WIDTHS["semana_executada"]
+        )
+        assert (
+            config["column_widths"]["responsavel_execucao"]
+            == DEFAULT_COLUMN_WIDTHS["responsavel_execucao"]
+        )
 
     def test_load_gui_main_preferences_preserves_explicit_hidden_required_columns(self):
         partial_config = {
@@ -329,7 +346,7 @@ class TestGUIMainConfiguration:
             "column_widths": {"descricao_ssa": 999},
             "column_widths_by_platform": {
                 "darwin": {"descricao_ssa": 340},
-                "win32": {"descricao_ssa": 298},
+                "win32": {"descricao_ssa": 340},
                 "linux": {"descricao_ssa": 298},
             },
             "gui_settings": {},
@@ -349,7 +366,7 @@ class TestGUIMainConfiguration:
                     linux_config = load_gui_main_preferences()
 
         assert darwin_config["column_widths"]["descricao_ssa"] == 340
-        assert win_config["column_widths"]["descricao_ssa"] == 298
+        assert win_config["column_widths"]["descricao_ssa"] == 340
         assert linux_config["column_widths"]["descricao_ssa"] == 298
 
     def test_load_gui_main_preferences_falls_back_to_generic_widths_without_platform_map(

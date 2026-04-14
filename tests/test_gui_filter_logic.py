@@ -365,15 +365,11 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         controls = self._get_column_filter_controls()
-        setor_key = next(
-            (
-                key
-                for key in controls.keys()
-                if str(key or "").strip().casefold().startswith("setor executor")
-            ),
-            None,
-        )
-        assert setor_key is not None
+        if hasattr(self.window, "_expand_column_alias_for_filter"):
+            setor_key = self.window._expand_column_alias_for_filter("setor_executor")
+        else:
+            setor_key = self.window._resolve_column_display_name("setor_executor")
+        assert setor_key in controls
         setor_input, _, _, _ = controls[setor_key]
         assert str(setor_input.text() or "").strip() == "MEL4"
 
@@ -1104,6 +1100,14 @@ class TestGUIFilterLogic:
                 "total_de_reprogramacoes": 82,
                 "semana_executada": 60,
             }
+        elif sys.platform == "win32":
+            expected = {
+                "grau_prioridade_emissao": 96,
+                "grau_prioridade_planejamento": 98,
+                "execucao_parcial": 78,
+                "total_de_reprogramacoes": 82,
+                "semana_executada": 60,
+            }
         else:
             expected = {
                 "grau_prioridade_emissao": 122,
@@ -1113,7 +1117,7 @@ class TestGUIFilterLogic:
                 "semana_executada": 96,
             }
 
-        assert column_names["execucao_parcial"] == "Exec. Parcial"
+        assert column_names["execucao_parcial"] == "Exec. Parc."
         assert default_widths["data_cadastro"] == 84
         assert (
             default_widths["grau_prioridade_emissao"]
@@ -1164,7 +1168,11 @@ class TestGUIFilterLogic:
 
         assert self.window._active_column_filters.get("setor_emissor", None) == ""
         controls = self._get_column_filter_controls()
-        assert any("emissor" in label.casefold() for label in controls)
+        if hasattr(self.window, "_expand_column_alias_for_filter"):
+            emissor_label = self.window._expand_column_alias_for_filter("setor_emissor")
+        else:
+            emissor_label = self.window._resolve_column_display_name("setor_emissor")
+        assert emissor_label in controls
 
     def test_gui_config_exposes_data_arquivo_origem_label_and_width(self):
         assert (
@@ -1440,6 +1448,23 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         assert Counter(self._extract_visible_ssa()) == Counter([1])
         assert self.window.search_input.text() == "Teste A, !User2"
+
+    def test_general_search_zero_results_keeps_empty_display(self):
+        self.window.df_completo = self.base_df.copy()
+        self.window.df_exibido = self.base_df.copy()
+        self.window._df_last_search_filtered = self.base_df.copy()
+        self.window.paginator.set_dataframe(self.base_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        self.window.search_input.setText("Termo inexistente")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        assert self.window.df_exibido.empty
+        assert self._extract_visible_ssa() == []
+        assert "0 de 5 SSAs" in self.window.filtered_status_label.text()
+        assert self.window.search_input.text() == "Termo inexistente"
 
     def test_column_widths_stability_during_cycles(self):
         self.window.df_completo = self.base_df.copy()

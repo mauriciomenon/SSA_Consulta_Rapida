@@ -40,11 +40,17 @@ class SimpleWidthManager:
         self.base_pixel_widths = dict(DEFAULT_COLUMN_WIDTHS)
         self.base_pixel_widths.setdefault("#", 24)
 
-        self.expandable_columns = ["descricao_ssa", "descricao_execucao", "solicitante"]
+        self.expandable_columns = [
+            "descricao_ssa",
+            "descricao_execucao",
+            "solicitante",
+            "responsavel_execucao",
+        ]
         self.max_pixel_widths = {
             "descricao_ssa": 620,
             "descricao_execucao": 560,
             "solicitante": 320,
+            "responsavel_execucao": 280,
         }
 
     def compute_optimal_widths(

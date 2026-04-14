@@ -6,8 +6,8 @@ Registrar de forma objetiva como a GUI resolve larguras de coluna por sistema op
 
 Hoje a decisao e esta:
 1. `darwin` usa o mapa novo ajustado para macOS.
-2. `win32` usa o mapa anterior.
-3. `linux` tem bloco proprio e hoje replica o mapa de Windows.
+2. `win32` usa o mapa novo ajustado para Windows.
+3. `linux` tem bloco proprio e preserva o baseline antigo.
 4. `column_widths` simples continua existindo como fallback de compatibilidade.
 
 ## Onde o SO e detectado
@@ -125,16 +125,16 @@ flowchart TD
 10. `execucao_parcial`: `78`
 
 ### win32
-1. `descricao_ssa`: `298`
-2. `solicitante`: `123`
-3. `descricao_execucao`: `282`
-4. `grau_prioridade_emissao`: `122`
-5. `grau_prioridade_planejamento`: `122`
-6. `semana_programada`: `88`
+1. `descricao_ssa`: `340`
+2. `solicitante`: `150`
+3. `descricao_execucao`: `330`
+4. `grau_prioridade_emissao`: `96`
+5. `grau_prioridade_planejamento`: `98`
+6. `semana_programada`: `72`
 7. `semana_cadastro`: `74`
-8. `semana_executada`: `96`
-9. `total_de_reprogramacoes`: `130`
-10. `execucao_parcial`: `130`
+8. `semana_executada`: `60`
+9. `total_de_reprogramacoes`: `82`
+10. `execucao_parcial`: `78`
 
 ### linux
 1. `descricao_ssa`: `298`
@@ -160,10 +160,11 @@ Motivo de manter a deteccao no `gui_config.py`:
 1. e ali que o loader da GUI ja faz merge de defaults e config carregado
 2. a decisao de widths e parte do contrato de configuracao da GUI
 3. manter a resolucao perto do merge evita espalhar fallback pela aplicacao
+4. o merge tambem consegue migrar widths legados gerenciados sem reescrever o arquivo efetivo do usuario
 
 ## Ponto de extensao futura
 
-Para diferenciar Linux no futuro, basta alterar:
+Para ajustar Linux no futuro, basta alterar:
 - `DEFAULT_COLUMN_WIDTHS_LINUX`
 - ou o bloco `column_widths_by_platform["linux"]` no arquivo de configuracao
 
