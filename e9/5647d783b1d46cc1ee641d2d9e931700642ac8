@@ -1,0 +1,73 @@
+config/gui_main_preferences.json.example
+  afaf0c95db689e82 33,42,56-57,66,70-71,74-76,78-80,113,117-118,121-123,125-127,175,184,198-199
+gui/ssa/gui_table.py
+  afaf0c95db689e82 318,609,628
+tests/test_cli_entry_default_settings.py
+  afaf0c95db689e82 1-36
+docs/GUI_MAIN_PREFERENCES_STRUCTURE.md
+  afaf0c95db689e82 74
+launchers/cli_entry.py
+  afaf0c95db689e82 181,184
+tests/test_gui_table_render_resilience.py
+  afaf0c95db689e82 631-682
+gui/mixins/filter_gui_ssa_mixin.py
+  afaf0c95db689e82 3403-3421,3424,4260
+docs/COLUMN_WIDTHS_BY_PLATFORM.md
+  afaf0c95db689e82 9-10,128-133,135-137,163,167
+tests/test_filter_regex_invalid_fallback.py
+  afaf0c95db689e82 32-40
+tests/test_gui_main_configuration.py
+  afaf0c95db689e82 224-229,243-266,349,369
+tests/test_gui_filter_logic.py
+  afaf0c95db689e82 368-372,1103-1110,1120,1171-1175,1452-1468
+gui/simple_width_manager.py
+  afaf0c95db689e82 43-48,53
+gui/gui_config.py
+  afaf0c95db689e82 69,78,92-93,241,245-246,249-251,253-255,273-295,455-475,497-567,610-612,648-650,658,661-664
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "e95647d783b1d46cc1ee641d2d9e931700642ac8",
+  "prompts": {
+    "08b6c458a48c0203": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d7e86-a94c-7130-a459-e34f0812e1c0",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 61,
+      "overriden_lines": 0
+    },
+    "afaf0c95db689e82": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "32f3e2e4-7509-4afc-94a1-1be459e76ec3",
+        "model": "copilot/auto"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 424,
+      "total_deletions": 134,
+      "accepted_lines": 388,
+      "overriden_lines": 0
+    },
+    "e142bee770b0eadb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdaac-28f4-77a2-9a8a-f641ce3bffe6",
+        "model": "gpt-5.2-codex"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 9019,
+      "overriden_lines": 0
+    }
+  }
+}
