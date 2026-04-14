@@ -4,6 +4,22 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
 
 ## CURRENT TRUTH 2026-04-11 23h00
 
+## CURRENT TRUTH 2026-04-14 10h15
+
+- Leitura rapida:
+  1. branch alvo confirmada: `dev`
+  2. este slice consolida dois temas sem mistura funcional:
+    - separacao de caixas de status na GUI (`filtered_status_label` para contagem, `status_label` para aviso/busca)
+    - sincronizacao das larguras Windows entre codigo e preferencia versionada
+  3. o contrato de status agora e:
+    - contagem sempre em `Status: X de Y SSAs`
+    - aviso de busca sem resultado em `status_label`
+  4. fixture realista de 50 linhas foi adicionada para cobertura de busca geral com dados sanitizados
+  5. alteracoes colaterais de fallback/plataforma permanecem fora deste slice
+  6. PR ativo lido: `#47` `dev -> main` (`Merge dev into main for stabilization and gui follow-up`)
+
+## CURRENT TRUTH 2026-04-11 23h00
+
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
   2. este slice fechou o vazamento dos globais de workers aposentados no harness de `tests/test_gui_filter_logic.py`

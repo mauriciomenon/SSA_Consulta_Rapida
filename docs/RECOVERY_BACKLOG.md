@@ -5,6 +5,22 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-14 - gui status split and windows widths sync
+
+Escopo fechado nesta rodada:
+1. separacao explicita entre caixa de contagem e caixa de aviso na GUI:
+   - `filtered_status_label` fica apenas com `Status: X de Y SSAs`
+   - `status_label` concentra texto de busca e aviso de zero resultado
+2. sincronizacao da fonte de verdade das larguras Windows entre:
+   - `gui/gui_config.py`
+   - `config/gui_main_preferences.json.example`
+3. testes GUI alinhados ao novo contrato de status e a fixture realista de 50 linhas
+
+Residual mantido fora do escopo:
+1. qualquer refactor transversal de fallback/plataforma fora do ajuste de largura pedido
+2. consolidacao estrutural ampla de `tests/test_gui_filter_logic.py` em multiplos arquivos
+3. mudancas em arquivos nao relacionados ao slice (`core/config_manager.py`, `config/display_mappings.json`)
+
 ## Update 2026-04-11 - gui and docs follow-up validation
 
 Escopo fechado nesta rodada:

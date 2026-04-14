@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased] - 2026-04-14
+
+### Changed
+- GUI status contract split:
+  - `filtered_status_label` now shows only `Status: X de Y SSAs`.
+  - `status_label` now shows search and zero-result notices.
+- Windows column widths synchronized across runtime defaults and versioned GUI preferences.
+- GUI filter tests updated to use a realistic 50-row sanitized fixture and assert the split status behavior.
+
 ## [v4.29] - 2026-03-02
 
 ### Changed

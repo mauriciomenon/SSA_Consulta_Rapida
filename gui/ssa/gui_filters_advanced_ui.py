@@ -2933,8 +2933,18 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
                     )
                 elif notice == "derivada_empty":
                     notice_suffix = "Aviso: nenhuma derivada encontrada para o filtro."
-                self._set_filtered_count_status(
-                    str(getattr(self, "_pending_search_display", "") or ""),
+                self.update_filter_status_display(
+                    filtered_total=(
+                        len(self.df_exibido)
+                        if hasattr(self, "df_exibido") and self.df_exibido is not None
+                        else None
+                    ),
+                    original_total=(
+                        len(self.df_completo)
+                        if hasattr(self, "df_completo") and self.df_completo is not None
+                        else None
+                    ),
+                    search_text=None,
                     suffix=notice_suffix,
                 )
         except Exception as exc:
