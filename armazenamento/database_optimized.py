@@ -632,7 +632,7 @@ def insert_dataframe_optimized(
                                     delete_query = (
                                         f"DELETE FROM {target_table_sql} "
                                         f"WHERE numero_ssa IN ({ssa_placeholders})"
-                                    )
+                                    )  # nosec B608
                                     conn.execute(delete_query, chunk_ssas)
 
                                 for col in insert_columns:
@@ -649,7 +649,7 @@ def insert_dataframe_optimized(
                                 insert_sql = (
                                     f"INSERT INTO {target_table_sql} ({quoted_columns}) "
                                     f"VALUES ({value_placeholders})"
-                                )
+                                )  # nosec B608
                                 insert_chunk_size = sqlite_safe_chunksize(
                                     len(insert_columns)
                                 )
