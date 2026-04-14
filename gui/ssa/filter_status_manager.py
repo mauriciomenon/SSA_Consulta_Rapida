@@ -79,10 +79,14 @@ class FilterStatusManager:
 
         if shares_single_status_label:
             merged_content = (
-                f"{count_content}. {notice_content}" if notice_content else count_content
+                f"{count_content}. {notice_content}"
+                if notice_content
+                else count_content
             )
             merged_status_text = cls.format_status(merged_content)
-            target_label = status_label if status_label is not None else filtered_status_label
+            target_label = (
+                status_label if status_label is not None else filtered_status_label
+            )
             if target_label is not None:
                 target_label.setText(merged_status_text)
             return merged_status_text, merged_status_text

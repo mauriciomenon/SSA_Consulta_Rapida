@@ -1473,7 +1473,9 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         visible_ssa = [str(value) for value in self._extract_visible_ssa()]
         assert Counter(visible_ssa) == Counter([target_ssa])
-        assert self.window.search_input.text() == f"{target_ssa}, !{exclude_solicitante}"
+        assert (
+            self.window.search_input.text() == f"{target_ssa}, !{exclude_solicitante}"
+        )
 
     def test_general_search_button_click_filters_real_table_content(self):
         realistic_df = self._build_realistic_base_df_50()
@@ -1506,7 +1508,9 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         main_ctx["search_input"].setText(f"{target_ssa}, !{exclude_solicitante}")
-        cast(Any, QTest).mouseClick(main_ctx["search_button"], Qt.MouseButton.LeftButton)
+        cast(Any, QTest).mouseClick(
+            main_ctx["search_button"], Qt.MouseButton.LeftButton
+        )
         QApplication.processEvents()
 
         visible_ssa = [str(value) for value in self._extract_visible_ssa()]
