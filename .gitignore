@@ -249,6 +249,12 @@ docs/~$*.xlsx
 data/ssas.db
 data/ssas.db-journal
 data/ssas.db.*
+# Artefatos locais de Node (desversionados)
+node_modules/
+package.json
+bun.lock
+# Preferencia local da GUI principal (subir manualmente apenas quando combinado)
+config/gui_main_preferences.json
 # Preferencias locais da GUI
 data/historico_backups/
 data/historico_backups/**
