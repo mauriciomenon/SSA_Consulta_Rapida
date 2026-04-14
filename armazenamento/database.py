@@ -880,7 +880,9 @@ def repair_database_if_needed(
     db_path: str,
     schema_file: str = "schema.sql",
     table_name: str = CANONICAL_SSA_TABLE,
-) -> bool:  # compat wrapper  # pylint: disable=redefined-outer-name  # skipcq: PYL-W0621
+) -> (
+    bool
+):  # compat wrapper  # pylint: disable=redefined-outer-name  # skipcq: PYL-W0621
     from . import database_integrity as _int
 
     return _int.repair_database_if_needed(db_path, schema_file, table_name)
