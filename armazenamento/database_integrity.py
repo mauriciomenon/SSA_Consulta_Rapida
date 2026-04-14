@@ -286,7 +286,7 @@ def repair_database_if_needed(
                         quoted_source_table = _quote_identifier(source_table)
                         df_backup = pd.read_sql_query(
                             f"SELECT * FROM {quoted_source_table}",
-                            conn,  # nosec B608
+                            conn,  # nosec B608  # skipcq: BAN-B608
                         )
                     except Exception as e:  # pragma: no cover
                         logger.error(

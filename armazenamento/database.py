@@ -118,7 +118,7 @@ def get_db_connection(db_path: str):
 
 def initialize_database(
     db_path: str | sqlite3.Connection, schema_file: str = "schema.sql"
-):  # pylint: disable=redefined-outer-name
+):  # pylint: disable=redefined-outer-name  # skipcq: PYL-W0621
     """
     Inicializa o banco de dados aplicando o schema SQL informado.
 
@@ -214,7 +214,7 @@ def query_db(
             effective_query = query
             if not effective_query:
                 resolved_table = _resolve_target_table(conn, table_name)
-                effective_query = f"SELECT * FROM {_quote_identifier(resolved_table)}"  # nosec B608
+                effective_query = f"SELECT * FROM {_quote_identifier(resolved_table)}"  # nosec B608  # skipcq: BAN-B608
 
             logger.debug(
                 "Executando consulta: %s com params: %s", effective_query, params
@@ -880,7 +880,7 @@ def repair_database_if_needed(
     db_path: str,
     schema_file: str = "schema.sql",
     table_name: str = CANONICAL_SSA_TABLE,
-) -> bool:  # compat wrapper  # pylint: disable=redefined-outer-name
+) -> bool:  # compat wrapper  # pylint: disable=redefined-outer-name  # skipcq: PYL-W0621
     from . import database_integrity as _int
 
     return _int.repair_database_if_needed(db_path, schema_file, table_name)
