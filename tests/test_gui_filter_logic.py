@@ -1,6 +1,7 @@
 """Testes específicos para filtros combinados (AND/OU) da GUI principal."""
 
 import copy
+import json
 import os
 import sqlite3
 import sys
@@ -159,6 +160,17 @@ class TestGUIFilterLogic:
 
     def _extract_visible_ssa(self):
         return list(self.window.df_exibido["numero_ssa"])
+
+    def _build_realistic_base_df_50(self) -> pd.DataFrame:
+        snapshot_path = os.path.join(
+            project_root,
+            "tests",
+            "fixtures",
+            "gui_filter_realistic_50.json",
+        )
+        with open(snapshot_path, encoding="utf-8") as handle:
+            snapshot_rows = json.load(handle)
+        return pd.DataFrame(snapshot_rows)
 
     def _build_heavy_filters_df(self, rows: int = 1200) -> pd.DataFrame:
         return pd.DataFrame(
@@ -1386,11 +1398,9 @@ class TestGUIFilterLogic:
         assert status == "Status: 1 de 5 SSAs"
 
     def test_set_filtered_count_status_accepts_suffix(self):
-        self.window._set_filtered_count_status(
-            "", filtered_total=2, original_total=5, suffix="Aviso: teste."
-        )
+        self.window._set_filtered_count_status(filtered_total=2, original_total=5)
         status = self.window.filtered_status_label.text()
-        assert status == "Status: 2 de 5 SSAs. Aviso: teste."
+        assert status == "Status: 2 de 5 SSAs"
 
     def test_apply_advanced_filters_notice_uses_count_status_helper(self, monkeypatch):
         self.window._pending_search_display = "Busca X"
@@ -1403,11 +1413,8 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(self.window, "_refresh_after_filter_change", _fake_refresh)
         self.window._apply_advanced_filters_from_ui(store_only=False)
         status = self.window.filtered_status_label.text()
-        assert (
-            status
-            == "Status: 5 de 5 SSAs. Aviso: nenhuma derivada encontrada para o filtro."
-        )
-        assert "Aviso: nenhuma derivada encontrada para o filtro." in status
+        assert status == "Status: 5 de 5 SSAs"
+        assert "Aviso" not in status
 
     def test_update_filters_summary_styles_active_state(self):
         self.window._active_column_filters = {"setor_executor": "IEE3"}
@@ -1427,33 +1434,100 @@ class TestGUIFilterLogic:
         assert missing == ["coluna_sem_alias"]
 
     def test_general_search_and_or_display(self):
-        self.window.df_completo = self.base_df.copy()
-        self.window.df_exibido = self.base_df.copy()
-        self.window._df_last_search_filtered = self.base_df.copy()
-        self.window.paginator.set_dataframe(self.base_df.copy())
+        realistic_df = self._build_realistic_base_df_50()
+        assert len(realistic_df) == 50
+
+        self.window.df_completo = realistic_df.copy()
+        self.window.df_exibido = realistic_df.copy()
+        self.window._df_last_search_filtered = realistic_df.copy()
+        self.window.paginator.set_dataframe(realistic_df.copy())
         self.window.display_current_page(1)
         QApplication.processEvents()
 
-        self.window.search_input.setText("Teste")
+        target_row = realistic_df.iloc[0]
+        target_ssa = str(target_row["numero_ssa"])
+        target_desc = str(target_row["descricao_ssa"])
+        target_solicitante = str(target_row["solicitante"])
+        exclude_solicitante = next(
+            (
+                str(name)
+                for name in realistic_df["solicitante"].tolist()
+                if str(name) != target_solicitante
+            ),
+            "SOLICITANTE_NAO_EXISTENTE",
+        )
+
+        self.window.search_input.setText(target_ssa)
         self.window.initiate_filtering()
         QApplication.processEvents()
 
-        # Busca geral com AND logic: termo unico retorna todos que contem 'Teste'
-        assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
-        assert self.window.search_input.text() == "Teste"
+        # Busca geral com termo unico deve localizar exatamente a SSA alvo
+        visible_ssa = [str(value) for value in self._extract_visible_ssa()]
+        assert Counter(visible_ssa) == Counter([target_ssa])
+        assert self.window.df_exibido["descricao_ssa"].tolist() == [target_desc]
+        assert self.window.search_input.text() == target_ssa
 
-        # Combinação com termo negativo utilizando AND
-        self.window.search_input.setText("Teste A, !User2")
+        # Combinacao com termo negativo deve manter resultado quando exclui solicitante diferente
+        self.window.search_input.setText(f"{target_ssa}, !{exclude_solicitante}")
         self.window.initiate_filtering()
         QApplication.processEvents()
-        assert Counter(self._extract_visible_ssa()) == Counter([1])
-        assert self.window.search_input.text() == "Teste A, !User2"
+        visible_ssa = [str(value) for value in self._extract_visible_ssa()]
+        assert Counter(visible_ssa) == Counter([target_ssa])
+        assert self.window.search_input.text() == f"{target_ssa}, !{exclude_solicitante}"
+
+    def test_general_search_button_click_filters_real_table_content(self):
+        realistic_df = self._build_realistic_base_df_50()
+        assert len(realistic_df) == 50
+
+        self.window.df_completo = realistic_df.copy()
+        self.window.df_exibido = realistic_df.copy()
+        self.window._df_last_search_filtered = realistic_df.copy()
+        self.window.paginator.set_dataframe(realistic_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        target_row = realistic_df.iloc[0]
+        target_ssa = str(target_row["numero_ssa"])
+        target_desc = str(target_row["descricao_ssa"])
+        target_solicitante = str(target_row["solicitante"])
+        exclude_solicitante = next(
+            (
+                str(name)
+                for name in realistic_df["solicitante"].tolist()
+                if str(name) != target_solicitante
+            ),
+            "SOLICITANTE_NAO_EXISTENTE",
+        )
+
+        main_ctx = next(
+            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "main"
+        )
+        self.window.main_tabs.setCurrentIndex(0)
+        QApplication.processEvents()
+
+        main_ctx["search_input"].setText(f"{target_ssa}, !{exclude_solicitante}")
+        cast(Any, QTest).mouseClick(main_ctx["search_button"], Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+
+        visible_ssa = [str(value) for value in self._extract_visible_ssa()]
+        assert Counter(visible_ssa) == Counter([target_ssa])
+        assert self.window.df_exibido["descricao_ssa"].tolist() == [target_desc]
+        assert self.window.table_widget.rowCount() == 1
+
+        descricao_idx = self.window._current_display_columns.index("descricao_ssa")
+        descricao_item = self.window.table_widget.item(0, descricao_idx)
+
+        assert descricao_item is not None
+        assert descricao_item.text() == target_desc
 
     def test_general_search_zero_results_keeps_empty_display(self):
-        self.window.df_completo = self.base_df.copy()
-        self.window.df_exibido = self.base_df.copy()
-        self.window._df_last_search_filtered = self.base_df.copy()
-        self.window.paginator.set_dataframe(self.base_df.copy())
+        realistic_df = self._build_realistic_base_df_50()
+        assert len(realistic_df) == 50
+
+        self.window.df_completo = realistic_df.copy()
+        self.window.df_exibido = realistic_df.copy()
+        self.window._df_last_search_filtered = realistic_df.copy()
+        self.window.paginator.set_dataframe(realistic_df.copy())
         self.window.display_current_page(1)
         QApplication.processEvents()
 
@@ -1463,7 +1537,7 @@ class TestGUIFilterLogic:
 
         assert self.window.df_exibido.empty
         assert self._extract_visible_ssa() == []
-        assert "0 de 5 SSAs" in self.window.filtered_status_label.text()
+        assert "0 de 50 SSAs" in self.window.filtered_status_label.text()
         assert self.window.search_input.text() == "Termo inexistente"
 
     def test_column_widths_stability_during_cycles(self):
@@ -6358,7 +6432,7 @@ class TestGUIFilterLogic:
         status = self.window.filtered_status_label.text()
         assert status == "Status: 5 de 5 SSAs"
 
-    def test_on_filter_finished_zero_results_uses_filtered_status_box_notice(self):
+    def test_on_filter_finished_zero_results_separates_count_from_notice(self):
         self.window.search_input.setText("SVP, R001")
         self.window._active_filter_request_id = 88
         self.window._active_filter_search_request_id = 88
@@ -6370,8 +6444,9 @@ class TestGUIFilterLogic:
             self.window.on_filter_finished(self.base_df.iloc[0:0].copy(), request_id=88)
 
         status = str(self.window.filtered_status_label.text() or "")
-        assert status == (
-            "Status: 0 de 5 SSAs. Aviso: nenhum resultado para o filtro atual."
+        assert status == "Status: 0 de 5 SSAs"
+        assert self.window.status_label.text() == (
+            "Status: Busca para 'SVP, R001'. Aviso: nenhum resultado para o filtro atual."
         )
 
     def test_build_gui_general_search_columns_excludes_dates_but_keeps_weeks(self):

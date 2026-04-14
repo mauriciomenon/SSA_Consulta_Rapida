@@ -1033,25 +1033,34 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     profile_hint = (
         f" (perfil: {current_filter_profile})" if current_filter_profile else ""
     )
-    if hasattr(window, "_set_filtered_count_status"):
-        try:
-            suffix = f"{profile_hint}." if profile_hint else ""
-            window._set_filtered_count_status("", suffix=suffix)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao atualizar status padrao de contagem no load_data_worker: %s",
-                exc,
-            )
-            _set_status_label_text(
-                window,
-                f"Status: {len(window.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar.",
-                context="on_data_loaded.fallback_set_filtered_count_status",
-            )
-    else:
+    try:
+        window.update_filter_status_display(
+            filtered_total=(
+                len(window.df_exibido)
+                if hasattr(window, "df_exibido") and window.df_exibido is not None
+                else None
+            ),
+            original_total=(
+                len(window.df_completo)
+                if hasattr(window, "df_completo") and window.df_completo is not None
+                else None
+            ),
+            search_text=None,
+            suffix=(
+                f"Pronto para filtrar{profile_hint}."
+                if profile_hint
+                else "Pronto para filtrar."
+            ),
+        )
+    except Exception as exc:
+        logger.debug(
+            "Falha ao atualizar status padrao de contagem no load_data_worker: %s",
+            exc,
+        )
         _set_status_label_text(
             window,
             f"Status: {len(window.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar.",
-            context="on_data_loaded.default_status",
+            context="on_data_loaded.fallback_update_filter_status_display",
         )
 
 

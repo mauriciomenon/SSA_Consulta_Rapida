@@ -68,6 +68,7 @@ from gui.helpers.formatting_helpers import (
     normalize_chunk_for_parse,
 )
 from gui.ssa import gui_details as ssa_gui_details
+from gui.ssa.filter_status_manager import FilterStatusManager, FilterStatusPayload
 from shared.date_utils import parse_datetime_series_mixed
 from utils.robust_logging import get_robust_logger
 
@@ -991,20 +992,14 @@ class FilterGUISSAMixin:
                     "Falha ao avaliar filtros ativos para aviso de zero resultado: %s",
                     exc,
                 )
-        self._set_filtered_count_status(
-            search_text,
+        self._update_filter_status_display(
             filtered_total=filtered_total_current,
             original_total=len(self.df_completo)
             if hasattr(self, "df_completo") and self.df_completo is not None
             else None,
+            search_text=search_text,
             suffix=zero_results_suffix,
         )
-        filtered_status_label = getattr(self, "filtered_status_label", None)
-        status_text = ""
-        if filtered_status_label is not None:
-            status_text = str(filtered_status_label.text() or "").strip()
-        if search_text and status_text:
-            self.status_label.setText(f"{status_text} para '{search_text}'")
         self._sync_clear_filter_button_state()
         self._apply_search_display()
         table_widget = getattr(self, "table_widget", None)
@@ -1327,7 +1322,7 @@ class FilterGUISSAMixin:
         # Esse botao limpa apenas a busca geral; limpeza global usa "_clear_all_filters_global".
         self._df_last_search_filtered = self.df_completo.copy()
         self._refresh_after_filter_change()
-        self._set_filtered_count_status("")
+        self._set_filtered_count_status()
         self._sync_clear_filter_button_state()
         # Atualizar resumo de filtros
         try:
@@ -1961,13 +1956,11 @@ class FilterGUISSAMixin:
             )
             input_widget.setStyleSheet(style)
 
-    def _set_filtered_count_status(
+    def _resolve_status_totals(
         self,
-        search_text: str = "",
         filtered_total: int | None = None,
         original_total: int | None = None,
-        suffix: str = "",
-    ):
+    ) -> tuple[int, int]:
         total_original = (
             int(original_total)
             if original_total is not None
@@ -1986,14 +1979,68 @@ class FilterGUISSAMixin:
                 else 0
             )
         )
-        suffix_text = str(suffix or "").strip()
-        target_label = getattr(self, "filtered_status_label", None)
-        if target_label is None:
-            target_label = self.status_label
-        status_text = f"Status: {total_filtrado} de {total_original} SSAs"
-        if suffix_text:
-            status_text = f"{status_text}. {suffix_text}"
-        target_label.setText(status_text)
+        return total_filtrado, total_original
+
+    def update_filter_status_display(
+        self,
+        filtered_total: int | None = None,
+        original_total: int | None = None,
+        search_text: str | None = None,
+        suffix: str = "",
+    ) -> tuple[str, str]:
+        return self._update_filter_status_display(
+            filtered_total=filtered_total,
+            original_total=original_total,
+            search_text=search_text,
+            suffix=suffix,
+        )
+
+    def _update_filter_status_display(
+        self,
+        filtered_total: int | None = None,
+        original_total: int | None = None,
+        search_text: str | None = None,
+        suffix: str = "",
+    ) -> tuple[str, str]:
+        total_filtrado, total_original = self._resolve_status_totals(
+            filtered_total=filtered_total,
+            original_total=original_total,
+        )
+        resolved_search_text = self._resolve_status_search_text(search_text)
+        payload = FilterStatusPayload(
+            filtered_total=total_filtrado,
+            original_total=total_original,
+            search_text=resolved_search_text,
+            suffix=suffix,
+        )
+        return FilterStatusManager.apply(
+            payload=payload,
+            filtered_status_label=getattr(self, "filtered_status_label", None),
+            status_label=getattr(self, "status_label", None),
+        )
+
+    def _resolve_status_search_text(self, search_text: str | None = None) -> str:
+        if search_text is not None:
+            return str(search_text or "").strip()
+        active_search_display = str(
+            getattr(self, "_active_filter_search_display", "") or ""
+        ).strip()
+        if active_search_display:
+            return active_search_display
+        return str(getattr(self, "_pending_search_display", "") or "").strip()
+
+    def _set_filtered_count_status(
+        self,
+        filtered_total: int | None = None,
+        original_total: int | None = None,
+    ) -> str:
+        count_status_text, _ = self._update_filter_status_display(
+            filtered_total=filtered_total,
+            original_total=original_total,
+            search_text=None,
+            suffix="",
+        )
+        return count_status_text
 
     def _refresh_column_filter_widgets(self):
         labels = getattr(self, "_column_filter_labels", {}) or {}
@@ -2213,7 +2260,7 @@ class FilterGUISSAMixin:
         self._update_col_filter_indicator()
 
         # Atualizar interface
-        self._set_filtered_count_status("")
+        self._set_filtered_count_status()
         self._sync_clear_filter_button_state()
 
         # Atualizar resumo de filtros
@@ -2425,7 +2472,7 @@ class FilterGUISSAMixin:
             logger.debug(
                 "Falha ao sincronizar combo rapido em hard_reset_filters_state: %s", exc
             )
-        self._set_filtered_count_status("")
+        self._set_filtered_count_status()
         try:
             self.status_label.setText("Status: Filtros resetados completamente.")
         except Exception as exc:
@@ -3027,7 +3074,7 @@ class FilterGUISSAMixin:
         else:
             self._update_filters_summary()
         if status_reset_needed and not self._has_any_active_filters():
-            self._set_filtered_count_status("")
+            self._set_filtered_count_status()
         self._sync_clear_filter_button_state()
         if sync_quick_combo:
             self._sync_quick_setor_executor_combo_from_filters()
@@ -3560,9 +3607,7 @@ class FilterGUISSAMixin:
         try:
             _measure_timing(
                 "status",
-                lambda: self._set_filtered_count_status(
-                    str(getattr(self, "_pending_search_display", "") or "")
-                ),
+                lambda: self._set_filtered_count_status(),
             )
         except Exception as exc:
             logger.debug(
