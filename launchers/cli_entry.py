@@ -178,8 +178,10 @@ def main():
             sys.exit(1)
 
     try:
+        from core.config_manager import ensure_default_settings
         from interface.cli import start_cli_loop
 
+        ensure_default_settings(fail_fast=False)
         db_path = os.environ.get("SSA_DB_PATH") or os.path.join(
             app_dir, "data", "ssas.db"
         )

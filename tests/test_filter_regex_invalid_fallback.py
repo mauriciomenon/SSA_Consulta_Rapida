@@ -29,3 +29,12 @@ def test_build_column_mask_invalid_default_regex_falls_back_to_literal():
     mask = win._build_column_mask(series, "abc[")
 
     assert mask.tolist() == [True, False]
+
+
+def test_build_column_mask_default_contains_treats_regex_metacharacters_as_literal():
+    win = _DummyFilterWindow("contains")
+    series = pd.Series(["a.b", "acb", "safe"], dtype="object")
+
+    mask = win._build_column_mask(series, "a.b")
+
+    assert mask.tolist() == [True, False, False]

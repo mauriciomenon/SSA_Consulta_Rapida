@@ -66,7 +66,7 @@ REQUIRED_DISPLAY_COLUMNS: List[str] = [
 
 DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
     "numero_ssa": "Numero SSA",
-    "setor_executor": "Exec.",
+    "setor_executor": "Set. Exec.",
     "situacao": "Sit.",
     "descricao_ssa": "Descricao da SSA",
     "data_cadastro": "Cadastro",
@@ -75,7 +75,7 @@ DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
     "grau_prioridade": "Prio.",
     "grau_prioridade_emissao": "Prio. Emissao",
     "grau_prioridade_planejamento": "Prio. Planej.",
-    "setor_emissor": "Emis.",
+    "setor_emissor": "Set. Emis.",
     "solicitante": "Solicitante",
     "derivada_de": "Derivada de",
     "semana_programada": "Sem. Prog.",
@@ -89,8 +89,8 @@ DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
     "responsavel_execucao": "Resp. Exec.",
     "arquivo_origem": "Arquivo Origem",
     "data_arquivo_origem": "Data do Arquivo de Origem",
-    "total_de_reprogramacoes": "Total Reprog.",
-    "execucao_parcial": "Exec. Parcial",
+    "total_de_reprogramacoes": "Tot. Reprog.",
+    "execucao_parcial": "Exec. Parc.",
     "semana_executada": "Sem. Exec.",
 }
 
@@ -238,21 +238,21 @@ DEFAULT_COLUMN_WIDTHS_WINDOWS: Dict[str, int] = {
     "localizacao_codigo": 86,
     "setor_executor": 65,
     "situacao": 51,
-    "descricao_ssa": 298,
+    "descricao_ssa": 340,
     "data_cadastro": 84,
     "setor_emissor": 58,
     "derivada_de": 93,
-    "semana_programada": 88,
-    "descricao_execucao": 282,
+    "semana_programada": 72,
+    "descricao_execucao": 330,
     "semana_cadastro": 74,
     "grau_prioridade": 95,
-    "grau_prioridade_emissao": 122,
-    "grau_prioridade_planejamento": 122,
-    "solicitante": 123,
+    "grau_prioridade_emissao": 96,
+    "grau_prioridade_planejamento": 98,
+    "solicitante": 150,
     "data_arquivo_origem": 188,
-    "total_de_reprogramacoes": 130,
-    "execucao_parcial": 130,
-    "semana_executada": 96,
+    "total_de_reprogramacoes": 82,
+    "execucao_parcial": 78,
+    "semana_executada": 60,
     "responsavel_execucao": 150,
 }
 
@@ -270,9 +270,29 @@ DEFAULT_COLUMN_WIDTHS_DARWIN: Dict[str, int] = {
     "semana_executada": 60,
 }
 
-DEFAULT_COLUMN_WIDTHS_LINUX: Dict[str, int] = copy.deepcopy(
-    DEFAULT_COLUMN_WIDTHS_WINDOWS
-)
+DEFAULT_COLUMN_WIDTHS_LINUX: Dict[str, int] = {
+    "#": 24,
+    "numero_ssa": 93,
+    "localizacao_codigo": 86,
+    "setor_executor": 65,
+    "situacao": 51,
+    "descricao_ssa": 298,
+    "data_cadastro": 84,
+    "setor_emissor": 58,
+    "derivada_de": 93,
+    "semana_programada": 88,
+    "descricao_execucao": 282,
+    "semana_cadastro": 74,
+    "grau_prioridade": 95,
+    "grau_prioridade_emissao": 122,
+    "grau_prioridade_planejamento": 122,
+    "solicitante": 123,
+    "data_arquivo_origem": 188,
+    "total_de_reprogramacoes": 130,
+    "execucao_parcial": 130,
+    "semana_executada": 96,
+    "responsavel_execucao": 150,
+}
 
 DEFAULT_COLUMN_WIDTHS_BY_PLATFORM: Dict[str, Dict[str, int]] = {
     "darwin": copy.deepcopy(DEFAULT_COLUMN_WIDTHS_DARWIN),
@@ -432,6 +452,27 @@ _LEGACY_INVALID_COLUMN_KEYS = {
     "No SSA",
     "Data Cadastro",
 }
+_MANAGED_LEGACY_COLUMN_LABELS = {
+    "setor_executor": "Exec.",
+    "setor_emissor": "Emis.",
+    "semana_programada": "Sem. Prog.",
+    "responsavel_execucao": "Resp. Exec.",
+    "total_de_reprogramacoes": "Total Reprog.",
+    "execucao_parcial": "Exec. Parcial",
+    "semana_executada": "Sem. Exec.",
+}
+_MANAGED_LEGACY_WIDTH_KEYS = {
+    "descricao_ssa",
+    "semana_programada",
+    "descricao_execucao",
+    "grau_prioridade_emissao",
+    "grau_prioridade_planejamento",
+    "solicitante",
+    "total_de_reprogramacoes",
+    "execucao_parcial",
+    "semana_executada",
+    "responsavel_execucao",
+}
 _VALID_TABLE_CELL_ALIGNMENTS = {"left", "center", "right"}
 
 
@@ -451,6 +492,77 @@ def _unique_str_list(values: Iterable[Any]) -> List[str]:
 
 def _build_fallback_label(column_name: str) -> str:
     return column_name.replace("_", " ").strip().title()
+
+
+def _migrate_managed_legacy_column_labels(
+    loaded_names: Dict[str, Any] | None,
+) -> Dict[str, str]:
+    migrated: Dict[str, str] = {}
+    if not isinstance(loaded_names, dict):
+        return migrated
+    for key, value in loaded_names.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        key_clean = key.strip()
+        value_clean = value.strip()
+        if not key_clean or not value_clean:
+            continue
+        if key_clean in _MANAGED_LEGACY_COLUMN_LABELS:
+            legacy_value = _MANAGED_LEGACY_COLUMN_LABELS[key_clean]
+            if value_clean == legacy_value:
+                migrated[key_clean] = DEFAULT_COLUMN_DISPLAY_NAMES[key_clean]
+                continue
+        migrated[key_clean] = value_clean
+    return migrated
+
+
+def _migrate_managed_legacy_widths(
+    loaded_widths: Dict[str, Any] | None,
+    target_widths: Dict[str, int],
+) -> Dict[str, int]:
+    migrated = _sanitize_width_map(loaded_widths)
+    previous_defaults = HARD_DEFAULT_GUI_MAIN_PREFERENCES["column_widths"]
+    previous_platform_defaults = HARD_DEFAULT_GUI_MAIN_PREFERENCES[
+        "column_widths_by_platform"
+    ]
+    for key in _MANAGED_LEGACY_WIDTH_KEYS:
+        if key not in migrated:
+            continue
+        previous_default_candidates = {
+            previous_defaults.get(key),
+            *(
+                width_map.get(key)
+                for width_map in previous_platform_defaults.values()
+                if isinstance(width_map, dict)
+            ),
+        }
+        previous_default_candidates.discard(None)
+        if not previous_default_candidates:
+            continue
+        if migrated[key] in previous_default_candidates:
+            migrated[key] = target_widths[key]
+    return migrated
+
+
+def _migrate_managed_legacy_platform_widths(
+    loaded_platform_widths: Dict[str, Any] | None,
+) -> Dict[str, Dict[str, int]]:
+    migrated: Dict[str, Dict[str, int]] = {}
+    if not isinstance(loaded_platform_widths, dict):
+        return migrated
+    for platform_name, width_map in loaded_platform_widths.items():
+        if not isinstance(platform_name, str):
+            continue
+        platform_key = _normalize_platform_key(platform_name)
+        target_widths = DEFAULT_COLUMN_WIDTHS_BY_PLATFORM.get(
+            platform_key,
+            DEFAULT_COLUMN_WIDTHS_BY_PLATFORM["linux"],
+        )
+        migrated[platform_key] = _migrate_managed_legacy_widths(
+            width_map,
+            target_widths,
+        )
+    return migrated
 
 
 def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -495,7 +607,9 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
     allowed_name_keys.update(display_columns)
     allowed_name_keys.update(hidden_columns)
     allowed_name_keys.update(REQUIRED_DISPLAY_COLUMNS)
-    loaded_names = loaded_config.get("column_display_names")
+    loaded_names = _migrate_managed_legacy_column_labels(
+        loaded_config.get("column_display_names")
+    )
     if isinstance(loaded_names, dict):
         for key, value in loaded_names.items():
             if not isinstance(key, str) or not isinstance(value, str):
@@ -531,7 +645,9 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
     merged["display_mappings"] = copy.deepcopy(names)
 
     platform_widths = copy.deepcopy(DEFAULT_COLUMN_WIDTHS_BY_PLATFORM)
-    loaded_platform_widths = loaded_config.get("column_widths_by_platform")
+    loaded_platform_widths = _migrate_managed_legacy_platform_widths(
+        loaded_config.get("column_widths_by_platform")
+    )
     if isinstance(loaded_platform_widths, dict):
         for platform_key, raw_widths in loaded_platform_widths.items():
             if not isinstance(platform_key, str):
@@ -539,10 +655,13 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
             normalized_key = _normalize_platform_key(platform_key)
             if normalized_key not in platform_widths:
                 continue
-            platform_widths[normalized_key].update(_sanitize_width_map(raw_widths))
+            platform_widths[normalized_key].update(raw_widths)
     merged["column_widths_by_platform"] = platform_widths
 
-    loaded_widths = _sanitize_width_map(loaded_config.get("column_widths"))
+    loaded_widths = _migrate_managed_legacy_widths(
+        loaded_config.get("column_widths"),
+        _resolve_platform_column_widths(platform_widths),
+    )
     widths = _resolve_platform_column_widths(
         platform_widths,
         None if loaded_platform_widths else loaded_widths,

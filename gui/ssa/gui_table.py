@@ -315,6 +315,7 @@ def _build_page_render_signature(
 
     return (
         getattr(window, "_data_uuid", None),
+        int(getattr(window, "_data_revision", 0) or 0),
         int(getattr(window.paginator, "current_page", 1)),
         int(getattr(window.paginator, "page_size", 0)),
         viewport_width,
@@ -605,6 +606,7 @@ def display_current_page(window, page_number, *, update_details=True):
     display_df_hash = None
     try:
         data_uuid = getattr(window, "_data_uuid", None)
+        data_revision = int(getattr(window, "_data_revision", 0) or 0)
         if data_uuid is not None:
             page = int(window.paginator.current_page)
             page_size = int(window.paginator.page_size)
@@ -623,6 +625,7 @@ def display_current_page(window, page_number, *, update_details=True):
                 )
             display_df_hash = (
                 data_uuid,
+                data_revision,
                 page,
                 page_size,
                 len(display_df),

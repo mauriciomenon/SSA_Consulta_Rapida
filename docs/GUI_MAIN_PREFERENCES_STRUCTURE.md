@@ -71,6 +71,7 @@ Regras:
 4. quando estiver ausente, a GUI usa os defaults em memoria do codigo
 5. quando trouxer `column_widths_by_platform`, o runtime escolhe primeiro o bloco da plataforma atual
 6. quando nao trouxer `column_widths_by_platform`, o runtime cai em `column_widths` por compatibilidade
+7. labels legados gerenciados e widths legados gerenciados sao migrados no merge quando ainda refletem o baseline canonico antigo
 7. a fase antiga em que esse arquivo era tratado como local-only/skip-worktree e apenas historica, nao contrato atual
 
 ### 4. Runtime da tabela

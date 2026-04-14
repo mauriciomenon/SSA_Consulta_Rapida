@@ -628,6 +628,58 @@ class TestGUITableRenderResilience:
             self.window.table_widget.item(1, descricao_idx).text() == "Teste B alterado"
         )
 
+    def test_display_current_page_rebuilds_when_data_revision_changes_with_stable_markers(
+        self,
+    ):
+        reorder_df = self._build_preserve_details_df().copy().reset_index(drop=True)
+        reorder_df.loc[:, "numero_ssa"] = [1, 4, 3, 2, 5]
+        reorder_df.loc[:, "descricao_ssa"] = [
+            "Teste A",
+            "Teste D",
+            "Teste C",
+            "Teste B",
+            "Teste E",
+        ]
+        self._set_window_dataframe(reorder_df, page_size=10)
+        self.window._data_uuid = "stable-data"
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        descricao_idx = self.window._current_display_columns.index("descricao_ssa")
+        initial_revision = int(getattr(self.window, "_data_revision", 0) or 0)
+        initial_descriptions = [
+            self.window.table_widget.item(row_idx, descricao_idx).text()
+            for row_idx in range(len(reorder_df))
+        ]
+        assert initial_descriptions == [
+            "Teste A",
+            "Teste D",
+            "Teste C",
+            "Teste B",
+            "Teste E",
+        ]
+
+        sorted_df = reorder_df.sort_values("numero_ssa").reset_index(drop=True)
+        self._set_window_dataframe(sorted_df, page_size=10)
+        self.window._data_uuid = "stable-data"
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        assert int(getattr(self.window, "_data_revision", 0) or 0) > initial_revision
+        sorted_descriptions = [
+            self.window.table_widget.item(row_idx, descricao_idx).text()
+            for row_idx in range(len(sorted_df))
+        ]
+        assert sorted_descriptions == [
+            "Teste A",
+            "Teste B",
+            "Teste C",
+            "Teste D",
+            "Teste E",
+        ]
+
     def test_display_current_page_keeps_hash_column_when_tooltip_fails(self):
         from gui.ssa import gui_table
 
