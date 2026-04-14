@@ -214,9 +214,7 @@ def query_db(
             effective_query = query
             if not effective_query:
                 resolved_table = _resolve_target_table(conn, table_name)
-                effective_query = (
-                    f"SELECT * FROM {_quote_identifier(resolved_table)}"  # nosec B608
-                )
+                effective_query = f"SELECT * FROM {_quote_identifier(resolved_table)}"  # nosec B608
 
             logger.debug(
                 "Executando consulta: %s com params: %s", effective_query, params
