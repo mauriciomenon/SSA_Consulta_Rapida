@@ -3,7 +3,7 @@
 ## HISTORICAL SNAPSHOT
 
 Este laudo reflete uma analise pontual de 2025.
-Para fluxo ativo de build no baseline atual `v4.36`, usar:
+Para fluxo ativo de build no baseline atual `v4.37`, usar:
 - `docs/BUILD_SYSTEM.md`
 - `docs/BUILD_MULTIPLATFORM.md`
 
@@ -2080,4 +2080,3 @@ Total de palavras: ~15,000
 Tempo de leitura estimado: 60-75 minutos
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

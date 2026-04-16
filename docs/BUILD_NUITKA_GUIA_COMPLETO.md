@@ -1,20 +1,21 @@
 # Guia Completo (Historico/Laboratorio) - Build com Nuitka
 
-## CURRENT TRUTH (4.37 local / v4.36 published)
+## CURRENT TRUTH (baseline v4.37)
 
-- Sync deste guia: `2026-03-11 22:25 -0300`.
+- Sync deste guia: `2026-04-15 15:45 -0300`.
 - Fluxo canonico Nuitka (sempre via uv wrappers):
   - Windows: `dev_env/build/build_nuitka.bat --silent`
   - Debian/WSL: `bash dev_env/build/build_nuitka_debian.sh --silent`
 - Artefatos finais:
-  - Windows GUI: `builds/nuitka/windows_amd64/gui_entry.dist/SSA_GUI_v4.33_windows_amd64.exe`
-  - Windows CLI: `builds/nuitka/windows_amd64/cli_entry.dist/SSA_CLI_v4.33_windows_amd64.exe`
+  - Windows GUI: `builds/nuitka/windows_amd64/gui_entry.dist/*`
+  - Windows CLI: `builds/nuitka/windows_amd64/cli_entry.dist/*`
   - Debian (quando toolchain do host estiver completo): `builds/nuitka/debian_amd64/*`
 - Pre-requisito Debian:
   - instalar `patchelf` no WSL com `sudo apt-get update && sudo apt-get install -y patchelf`
   - sem `patchelf`, o script falha no preflight por design.
 - Pipeline oficial de release continua PyInstaller para pacote default.
 - Nuitka permanece trilha opcional de hardening/performance.
+- Nomes/versionamento exato de executavel dentro de `builds/nuitka/*` devem ser lidos do output do ciclo corrente, nao deste guia historico.
 
 ## HISTORICAL SNAPSHOT NOTICE
 
@@ -1373,4 +1374,3 @@ python -m nuitka --clean-cache
 **Status**: Completo e testado
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

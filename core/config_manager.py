@@ -1,8 +1,8 @@
 # core/config_manager.py 20250725 163000 (v2.1 - Melhorias de Erro, Logging)
 """
-Gerenciador de configurações da aplicação.
+Gerenciador de configuracoes da aplicacao.
 
-Responsável por carregar, salvar e garantir a existência do arquivo settings.json.
+Responsavel por carregar, salvar e garantir a existencia do arquivo settings.json.
 """
 
 import json
@@ -109,7 +109,7 @@ def _atomic_copy_file(src: str, dst: str) -> None:
                 )
 
 
-# Caminhos padrão
+# Caminhos padrao
 CONFIG_DIR = "config"
 DEFAULT_SETTINGS_FILE = os.path.join(CONFIG_DIR, "default_settings.json")
 USER_SETTINGS_FILE = os.path.join(CONFIG_DIR, "settings.json")
@@ -367,11 +367,11 @@ def load_display_mappings_integrity() -> Dict[str, str]:
             return data
         else:
             logger.warning(
-                f"display_mappings.json inválido em '{path}'. Será restaurado para o padrão."
+                f"display_mappings.json invalido em '{path}'. Sera restaurado para o padrao."
             )
     except (OSError, json.JSONDecodeError, ValueError, TypeError):
         logger.warning(
-            f"display_mappings.json ausente ou ilegível em '{path}'. Será restaurado para o padrão."
+            f"display_mappings.json ausente ou ilegivel em '{path}'. Sera restaurado para o padrao."
         )
     # Restore
     try:
@@ -380,7 +380,7 @@ def load_display_mappings_integrity() -> Dict[str, str]:
             path, DEFAULT_DISPLAY_MAPPINGS, indent=2, ensure_ascii=False
         )
         logger.warning(
-            f"display_mappings.json foi recriado em '{path}' com valores padrão."
+            f"display_mappings.json foi recriado em '{path}' com valores padrao."
         )
     except Exception as e:
         logger.error(f"Falha ao restaurar display_mappings.json: {e}")
@@ -492,9 +492,9 @@ def save_settings(settings: Dict[str, Any]):
         _atomic_write_json_file(
             user_settings_file, settings, indent=4, ensure_ascii=False
         )
-        logger.info(f"Configurações salvas em '{user_settings_file}'.")
+        logger.info(f"Configuracoes salvas em '{user_settings_file}'.")
     except IOError as e:
-        logger.error(f"Erro ao salvar configurações em '{user_settings_file}': {e}")
+        logger.error(f"Erro ao salvar configuracoes em '{user_settings_file}': {e}")
         raise
 
 
@@ -620,14 +620,14 @@ def handle_config_command():
     new_mode = input("   > Novo valor (Enter para manter): ").strip().lower()
     if new_mode:
         if new_mode not in allowed:
-            print("Valor inválido. Nenhuma alteração aplicada ao modo padrão.")
+            print("Valor invalido. Nenhuma alteracao aplicada ao modo padrao.")
         else:
             user_prefs["filter_mode_default"] = new_mode
             settings["user_preferences"] = user_prefs
-            print(f"Modo padrão atualizado para: {new_mode}")
+            print(f"Modo padrao atualizado para: {new_mode}")
 
-    print("\n2) Substituir filtros padrão (opcional):")
-    print("   - Digite termos separados por vírgula para substituir a lista inteira;")
+    print("\n2) Substituir filtros padrao (opcional):")
+    print("   - Digite termos separados por virgula para substituir a lista inteira;")
     print("   - Deixe em branco para manter a lista atual.")
     print(f"   - Atual: {settings.get('default_filters', [])}")
     new_filters_raw = input(
@@ -636,12 +636,12 @@ def handle_config_command():
     if new_filters_raw:
         new_filters = [t.strip() for t in new_filters_raw.split(",") if t.strip()]
         settings["default_filters"] = new_filters
-        print(f"Filtros padrão atualizados: {new_filters}")
+        print(f"Filtros padrao atualizados: {new_filters}")
 
     try:
         save_settings(settings)
         print(
-            "Configurações salvas. Elas serão aplicadas imediatamente na CLI e no próximo filtro da GUI."
+            "Configuracoes salvas. Elas serao aplicadas imediatamente na CLI e no proximo filtro da GUI."
         )
     except Exception as e:
-        print(f"Falha ao salvar configurações: {e}")
+        print(f"Falha ao salvar configuracoes: {e}")

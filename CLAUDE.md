@@ -7,10 +7,10 @@
 
 **Important**: Even in command chains with `&&`, use `rtk`:
 ```bash
-# ❌ Wrong
+# Wrong
 git add . && git commit -m "msg" && git push
 
-# ✅ Correct
+# Correct
 rtk git add . && rtk git commit -m "msg" && rtk git push
 ```
 
