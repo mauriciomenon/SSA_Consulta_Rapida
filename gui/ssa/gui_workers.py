@@ -1494,43 +1494,30 @@ def rescan_data(
         _release_worker_ref()
         progress_dialog.set_finished(True)
         _release_dialog_ref()
-        should_offer_reload = (
+        should_reload_data = (
             outcome == RescanOutcome.UPDATED
             and normalized_kind != "consolidate"
             and hasattr(window, "load_data")
-            and (reload_on_success or force_import)
         )
-        if should_offer_reload:
-            should_load_now = False
-            if qmessagebox is not None and hasattr(qmessagebox, "question"):
-                try:
-                    question_result = qmessagebox.question(
-                        window,
-                        "Banco atualizado",
-                        "O banco foi atualizado. Deseja carregar os dados agora?",
-                        qmessagebox.StandardButton.Yes | qmessagebox.StandardButton.No,
-                        qmessagebox.StandardButton.Yes,
-                    )
-                    should_load_now = question_result == qmessagebox.StandardButton.Yes
-                except Exception as exc:
-                    logger.warning(
-                        "Falha ao solicitar confirmacao para recarregar dados: %s",
-                        exc,
-                    )
-            if should_load_now:
-                try:
-                    window.load_data()
-                except Exception as exc:
-                    logger.warning(
-                        "Falha ao recarregar dados apos operacao concluida: %s", exc
-                    )
+        reload_started = False
+        if should_reload_data:
+            try:
+                window.load_data()
+                reload_started = True
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao recarregar dados apos operacao concluida: %s", exc
+                )
+        success_text = (
+            _consolidation_status_text(outcome)
+            if normalized_kind == "consolidate"
+            else _success_status_text(is_explicit_import, outcome)
+        )
+        if reload_started:
+            return
         _set_status_label_text(
             window,
-            (
-                _consolidation_status_text(outcome)
-                if normalized_kind == "consolidate"
-                else _success_status_text(is_explicit_import, outcome)
-            ),
+            success_text,
             context=(
                 "consolidate.success.done"
                 if normalized_kind == "consolidate"

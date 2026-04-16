@@ -119,7 +119,7 @@ def test_run_importer_triggers_derivadas_sync_for_special_sheets(
         data_dir=str(data_dir),
         db_name="test.db",
         table_name="ssa_table",
-        force_import=True,
+        force_import=False,
     )
 
     assert updated is True
@@ -355,6 +355,64 @@ def test_run_importer_runs_db_only_derivadas_sync_for_regular_import(
     assert sync_calls[0]["actor"] == "importer-derivadas-sync"
     assert "sheet_files" not in sync_calls[0]
     assert cached_files == [str(regular)]
+
+
+def test_run_importer_runs_special_derivadas_sync_for_explicit_file_import(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    regular = docs_dir / "Consulta SSA - 13-02-2026_0121PM.xlsx"
+    special = docs_dir / "SSAs Derivadas e Relacionadas_13-02-2026_0137PM.xlsx"
+    regular.write_bytes(b"x")
+    special.write_bytes(b"x")
+    data_dir = tmp_path / "data"
+
+    from utils import path_safety
+
+    monkeypatch.setattr(
+        path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path]
+    )
+    _patch_integrity_ok(monkeypatch)
+
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
+    monkeypatch.setattr(app_logic, "_import_single_file", lambda *a, **k: (True, 2))
+
+    sync_calls: list[dict] = []
+    monkeypatch.setattr(
+        app_logic,
+        "sync_derivadas",
+        lambda **kwargs: sync_calls.append(kwargs)
+        or {
+            "sheet_files": list(kwargs.get("sheet_files") or []),
+            "db_stats": {"accepted_edges": 2},
+            "sheet_stats": {"accepted_edges": 1, "special_layout_detected": 1},
+            "merge_stats": {"merged_edges": 2},
+            "sheet_file_reports": [
+                {
+                    "sheet_file": str(special),
+                    "has_parse_evidence": True,
+                    "stats": {"accepted_edges": 1, "special_layout_detected": 1},
+                }
+            ],
+        },
+    )
+
+    updated = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+        explicit_files=[str(regular), str(special)],
+    )
+
+    assert updated is True
+    assert len(sync_calls) == 1
+    assert sync_calls[0]["actor"] == "importer-derivadas-sync"
+    assert sorted(sync_calls[0]["sheet_files"]) == [str(special)]
 
 
 def test_run_importer_accepts_db_materialization_when_special_sheet_has_no_edges(

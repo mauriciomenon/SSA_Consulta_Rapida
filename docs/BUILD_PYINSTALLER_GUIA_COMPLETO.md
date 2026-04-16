@@ -1,8 +1,8 @@
 # Guia Completo (Historico/Referencia) - Build com PyInstaller
 
-## CURRENT TRUTH (4.37 local / v4.36 published)
+## CURRENT TRUTH (baseline v4.37)
 
-- Sync deste guia: `2026-03-11 14:25 -0300`.
+- Sync deste guia: `2026-04-15 15:45 -0300`.
 - Caminho operacional principal:
   - build: `uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
   - artefatos: `launchers/dist/windows_amd64/`
@@ -1257,4 +1257,3 @@ VSVersionInfo(
 **Status**: Completo e testado
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

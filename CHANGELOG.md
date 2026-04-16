@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased] - 2026-04-14
+## [Unreleased] - 2026-04-15
 
 ### Changed
 - GUI status contract split:
@@ -10,6 +10,11 @@ All notable changes to this project are documented in this file.
   - `status_label` now shows search and zero-result notices.
 - Windows column widths synchronized across runtime defaults and versioned GUI preferences.
 - GUI filter tests updated to use a realistic 50-row sanitized fixture and assert the split status behavior.
+- Derivadas sync agora roda por padrao ao final de qualquer adicao valida de SSAs:
+  - importacao diff
+  - reescaneamento completo
+  - importacao explicita por arquivo
+- GUI agora recarrega os dados automaticamente apos alteracao valida do banco em importacao ou reescaneamento.
 
 ## [v4.29] - 2026-03-02
 
@@ -42,7 +47,7 @@ All notable changes to this project are documented in this file.
   - `py_compile`, `ruff`, `ty`
   - `pytest -q tests/test_open_docs_folder_nonblocking.py tests/test_cli_enhancement_manager_lock_usage.py tests/test_cli_enhancement_manager_atomic_save.py`
 
-## [Unreleased] - 2025-11-10
+## [Historical Unreleased] - 2025-11-10
 
 ### Fixed
 - **Missing imports in mixins**: Fixed NameError when accessing format_search_display and GUI_MAIN_PREFERENCES in gui/mixins/filter_gui_ssa_mixin.py
@@ -131,4 +136,3 @@ For the full technical changelog and implementation details, see `docs_saida/CHA
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

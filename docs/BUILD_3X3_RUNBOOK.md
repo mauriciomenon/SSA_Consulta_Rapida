@@ -162,16 +162,12 @@ uv run --python 3.13 scripts/cleanup_build_artifacts.py --scope full
    - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
    - `docs/RECOVERY_BACKLOG.md`
 
-## Nota operacional desta conversa
+## Nota operacional do baseline atual
 
-1. `iscc` confirmado no host atual (`C:\\Users\\mauri\\scoop\\shims\\iscc.exe`).
-2. Instalador `pyinstaller` compilado com sucesso via `scripts/create_distribution.py`.
-3. `patchelf` instalado no WSL Debian 13 com `apt-get`.
-4. Script `build_nuitka_debian.sh` ajustado:
-   - GUI com plugin PyQt6
-   - CLI sem plugin PyQt6
-   - handler de erro com identificacao de step + tail de log em modo silencioso
-5. Build `nuitka` Debian segue pesado no host e requer rodada dedicada para fechamento final de tempo/retorno.
+1. Confirmar prerequisitos de empacotamento no host antes de iniciar o ciclo.
+2. Validar instalador `pyinstaller` e artefatos em `dist_packages/` no proprio host de release.
+3. No Debian/WSL, garantir `patchelf` presente antes do preflight do Nuitka.
+4. Tratar performance do build Nuitka Debian como rodada dedicada quando o host estiver sob carga.
+5. Nao versionar caminhos locais de host neste runbook.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-
