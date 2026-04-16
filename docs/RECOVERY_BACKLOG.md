@@ -71,6 +71,14 @@ Verificacao visual extra que permanece obrigatoria no ciclo maior:
    - hoje uma linha pode passar no canto da caixa e sugerir relacao errada entre nos vizinhos
    - o caso observado pelo usuario foi no agrupamento em torno de `202603583`, `202603588`, `202500777` e `202500888`
    - o follow-up precisa deixar inequivo quem se conecta a quem quando houver derivadas e outras relacoes no mesmo grafo
+ 5. acompanhar o ajuste de espacamento horizontal entre caixas no grafo:
+   - pedido aprovado para crescer entre 50% e 100% em relacao ao baseline anterior
+   - o primeiro incremento aplicado ficou em aproximadamente 55% para reduzir ambiguidade sem abrir um redesenho maior
+   - reavaliar em runtime real se ainda vale aproximar de 100% em cenarios mais densos
+ 6. investigar indicativo de abertura lenta e consumo de memoria no Windows:
+   - sintoma reportado: app chegou perto de 4 GB de RAM durante abertura/carregamento do DB e travou
+   - por ora e apenas indicativo observacional, sem repro controlado local
+   - proxima triagem deve levantar startup, leitura inicial do DB, pagina inicial da tabela e possiveis caches/indices grandes em runtime Windows
 
 ## Update 2026-04-16 00:20 - consolidated pending list after gui details slice
 

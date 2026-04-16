@@ -3078,10 +3078,19 @@ class TestGUIFilterLogic:
                 html,
             )
         ]
+        right_node_left_edges = []
+        for label in ("202603588", "202500777", "202500888"):
+            match = re.search(
+                rf'<rect x="([0-9]+(?:\.[0-9]+)?)" y="([0-9]+(?:\.[0-9]+)?)" '
+                rf'width="100" height="30"[^>]*/><text[^>]*>{label}</text>',
+                html,
+            )
+            assert match is not None
+            right_node_left_edges.append(float(match.group(1)))
 
         assert len(lane_xs) >= 3
         assert len(set(lane_xs)) >= 3
-        assert all(x < 228.0 for x in lane_xs[:3])
+        assert all(x < min(right_node_left_edges) for x in lane_xs[:3])
 
     def test_normalize_ssa_series_reuses_unique_normalizations(self, monkeypatch):
         calls = []
