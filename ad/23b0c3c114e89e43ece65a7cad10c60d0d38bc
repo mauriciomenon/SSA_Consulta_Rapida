@@ -1,0 +1,27 @@
+tests/test_gui_filter_logic.py
+  4f637c3e200a2c99 3081-3089,3093
+gui/ssa/gui_details.py
+  4f637c3e200a2c99 48
+docs/RECOVERY_BACKLOG.md
+  4f637c3e200a2c99 74-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "ad23b0c3c114e89e43ece65a7cad10c60d0d38bc",
+  "prompts": {
+    "4f637c3e200a2c99": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d9394-1044-73e1-9aab-e12e63b73313",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 27,
+      "total_deletions": 2,
+      "accepted_lines": 14274,
+      "overriden_lines": 0
+    }
+  }
+}
