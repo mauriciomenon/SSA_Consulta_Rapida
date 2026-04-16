@@ -2,12 +2,14 @@
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
-## Sync status (2026-04-11 23:00 -0300)
+## Sync status (2026-04-15 21:50 -0300)
 
 1. Baseline ativo confirmado: `4.37`.
 2. Branch operacional: `dev`.
 3. Release/tag publicada relevante: `v4.36`.
-4. `HEAD == origin/dev` confirmado no fim do slice atual.
+4. Estado atual do branch:
+   - `HEAD` local esta 1 commit a frente de `origin/dev`
+   - PR remoto ainda aponta para `fb068228`
 5. Ultimos slices funcionais relevantes nesta frente:
    - `3fa1b38d` `STABILITY_PATCH: version gui preferences reference file and width precedence`
    - slice atual desta rodada: isolamento e restauracao do estado global de lifecycle em `tests/test_gui_filter_logic.py`
@@ -21,11 +23,13 @@ Este arquivo define a navegacao oficial da documentacao ativa.
    - a CLI continua fora do contrato de preferencias da GUI, mas segue usando `display_map`, `short_labels`, `fixed_widths` e alternancia `short/full`
    - `core/handler_base.py:197` permanece apenas como renderer paralelo documentado, fora do caminho principal `main.py -> interface/cli.py -> interface/table_printer.py`
 7. PR operacional atual:
-   - `#46` `dev -> main`
+   - `#47` `dev -> main`
    - `mergeStateStatus=UNSTABLE`
 8. Checks remotos relevantes no momento:
-   - `DeepSource: Python` -> fail
-   - `code/snyk (mauriciomenon)` -> fail por limite da ferramenta
+   - `DeepSource: Python` -> status externo ruidoso; tratar como warning operacional
+   - `code/snyk (mauriciomenon)` -> fail por limite/conta; tratar como warning operacional
+   - `security/snyk (mauriciomenon)` -> fail por limite/conta; tratar como warning operacional
+   - `dev` e `main` sem branch protection obrigando esses checks neste host
 9. `kluster` esta disponivel neste host:
    - `/Users/menon/.kluster/cli/bin/kluster`
 10. Sprint GUI desta frente ja foi aterrado no runtime:
