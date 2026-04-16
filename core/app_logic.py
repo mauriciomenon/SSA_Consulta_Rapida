@@ -766,7 +766,7 @@ def _needs_db_only_derivadas_sync(
             "Preflight DB-only de derivadas falhou com sqlite error: %s", exc
         )
         return False
-    except Exception as exc:
+    except (OSError, RuntimeError, TimeoutError, TypeError, ValueError) as exc:
         logger.warning("Preflight DB-only de derivadas falhou: %s", exc)
         return False
 
@@ -1767,7 +1767,14 @@ def _run_optional_derivadas_sync(
                     "error": error_message,
                 },
             )
-    except Exception as exc:
+    except (
+        OSError,
+        RuntimeError,
+        TimeoutError,
+        TypeError,
+        ValueError,
+        sqlite3.Error,
+    ) as exc:
         derivadas_sync_blocking_error = True
         logger.error(
             "Falha ao sincronizar derivadas a partir de planilhas especiais: %s",
