@@ -3196,6 +3196,39 @@ class TestGUIFilterLogic:
         assert '<a href="ssa-panel:202500777"' not in html
         assert "202500777" in html
 
+    def test_collect_derivadas_tree_data_uses_direct_parent_fallback_without_db(
+        self, monkeypatch
+    ):
+        base_df = pd.DataFrame(
+            [
+                {"numero_ssa": "202603570", "situacao": "ADI"},
+                {
+                    "numero_ssa": "202603583",
+                    "situacao": "STE",
+                    "derivada_de": "202603570",
+                    "numero_ssa_relacionada_1": "202500777",
+                    "situacao_relacionada_1": "APL",
+                },
+                {
+                    "numero_ssa": "202603588",
+                    "situacao": "APL",
+                    "derivada_de": "202603583",
+                },
+                {"numero_ssa": "202500777", "situacao": "APL"},
+            ]
+        )
+        self.window.df_completo = base_df.copy()
+        self.window.df_exibido = base_df.copy()
+        monkeypatch.setattr(ssa_gui_details, "_resolve_current_db_path", lambda: None)
+
+        tree_data = ssa_gui_details._collect_derivadas_tree_data(
+            self.window, "202603583"
+        )
+
+        assert tree_data["parents"] == ["202603570"]
+        assert tree_data["children"] == ["202603588"]
+        assert tree_data["related"][0]["ssa"] == "202500777"
+
     def test_format_details_html_omits_link_for_missing_derived_target(
         self, monkeypatch
     ):
