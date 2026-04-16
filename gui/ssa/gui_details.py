@@ -808,7 +808,8 @@ def _get_related_ssas_for_series(
 ) -> list[dict[str, str]]:
     if series is None:
         return []
-    relation_label = str(series.get("relacao", "") or "").strip()
+    relation_value = series.get("relacao", "")
+    relation_label = "" if pd.isna(relation_value) else str(relation_value).strip()
     related_specs = (
         ("numero_ssa_relacionada_1", "situacao_relacionada_1"),
         ("numero_ssa_relacionada_2", "situacao_relacionada_2"),
@@ -823,7 +824,9 @@ def _get_related_ssas_for_series(
         seen.add(normalized)
         status_hint = ""
         if situacao_col:
-            status_hint = str(series.get(situacao_col, "") or "").strip().upper()
+            status_value = series.get(situacao_col, "")
+            if not pd.isna(status_value):
+                status_hint = str(status_value).strip().upper()
         resolved_series = None
         if isinstance(ssa_index, Mapping):
             resolved_series = ssa_index.get(normalized)
