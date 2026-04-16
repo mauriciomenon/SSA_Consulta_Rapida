@@ -1,0 +1,33 @@
+gui/mixins/tab_context_gui_ssa_mixin.py
+  4f637c3e200a2c99 95-99
+gui/ssa/gui_table.py
+  4f637c3e200a2c99 289-296
+gui/ssa/gui_theme.py
+  4f637c3e200a2c99 673-675
+tests/test_gui_filter_logic.py
+  4f637c3e200a2c99 1570-1585,2407-2439
+gui/ssa/gui_details.py
+  4f637c3e200a2c99 545-555,571-575
+gui/gui_ssa.py
+  4f637c3e200a2c99 2361-2364
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "a14b33bdb9a1d9c477982401f5b57438f38d4fd1",
+  "prompts": {
+    "4f637c3e200a2c99": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d9394-1044-73e1-9aab-e12e63b73313",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 86,
+      "total_deletions": 19,
+      "accepted_lines": 14342,
+      "overriden_lines": 0
+    }
+  }
+}
