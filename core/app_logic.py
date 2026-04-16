@@ -1510,11 +1510,14 @@ def _process_file_with_resilience(
             file_metrics["status"] = "success" if success else "no_rows"
             file_reports.append(file_metrics)
         if success:
+            normalized_record_count = int(record_count)
             successfully_processed_files.append(file_path)
-            successful_regular_files_with_records.append((file_path, int(record_count)))
+            successful_regular_files_with_records.append(
+                (file_path, normalized_record_count)
+            )
             emit_progress(
                 "file_success",
-                {"filename": base_name, "records": record_count},
+                {"filename": base_name, "records": normalized_record_count},
             )
         return "ok"
     except DatabaseConnectionError as exc:
@@ -1609,7 +1612,7 @@ def _process_file_with_resilience(
         )
         emit_progress("file_error", {"filename": base_name, "error": str(exc)})
         return "ok"
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         logger.error(
             "Erro inesperado ao processar '%s': %s. Continuando...", file_path, exc
         )

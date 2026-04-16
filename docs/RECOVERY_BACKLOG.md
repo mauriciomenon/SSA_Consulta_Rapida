@@ -8893,6 +8893,7 @@ Historical review-thread entries were removed here to avoid duplicate pending co
     - Acao opcional futura: adicionar log explicito quando houver planilha de derivadas em import incremental e sync for pulado por politica.
 
 - Pendencias nao bloqueantes (deferidas):
+  - `core/app_logic.py`: catches amplos remanescentes em `_import_single_file`, `_build_progress_emitter` e `run_importer_logic` continuam intencionais no ciclo atual; somente `_process_file_with_resilience` foi estreitado para falhas internas de consolidacao.
   - `core/app_logic.py`: substituir classificacao por substring de erro por codigo/sinal estruturado em `ExtractionError`.
   - `armazenamento/database_upsert_logic.py` vs `armazenamento/database_optimized.py`: centralizar normalizacao/validacao canonica de SSA para evitar drift.
   - `core/app_logic.py`: adicionar teste unitario cobrindo cache de falha deterministica e skip em execucao seguinte sem mudanca de hash/mtime.
