@@ -80,8 +80,10 @@ class ColumnManagerDialog(QDialog):
                 QAbstractItemView.DragDropMode.InternalMove
             )
             self.list_widget.setDefaultDropAction(Qt.DropAction.MoveAction)
-        except Exception:
-            pass
+        except (AttributeError, RuntimeError, TypeError) as exc:
+            logging.getLogger(__name__).debug(
+                "Falha ao configurar QListWidget do gerenciador de colunas: %s", exc
+            )
         layout.addWidget(self.list_widget, 1)
 
         self._populate_list(selected_columns)

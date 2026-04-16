@@ -38,6 +38,7 @@ from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from gui.ssa import gui_filters_advanced_ui as advanced_ui  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.widgets.column_filter_dialog import ColumnFilterDialog  # noqa: E402
+from gui.widgets.column_manager_dialog import ColumnManagerDialog  # noqa: E402
 from gui.widgets.filter_help_dialog import FilterHelpDialog  # noqa: E402
 
 ORIGINAL_LOAD_DATA = SSAMainWindow.load_data
@@ -4155,6 +4156,29 @@ class TestGUIFilterLogic:
 
         assert 1000 <= captured["x"] <= 1900
         assert 40 <= captured["y"] <= 740
+
+    def test_column_manager_dialog_survives_list_widget_setup_failure(self, monkeypatch):
+        original_set_alternating = QtWidgets.QListWidget.setAlternatingRowColors
+
+        def _explode(_self, _value):
+            raise RuntimeError("forced list config failure")
+
+        monkeypatch.setattr(
+            QtWidgets.QListWidget, "setAlternatingRowColors", _explode
+        )
+        dialog = ColumnManagerDialog(
+            {"numero_ssa": "Numero SSA"},
+            ["numero_ssa"],
+            default_columns=["numero_ssa"],
+        )
+
+        assert dialog.list_widget.count() == 1
+
+        monkeypatch.setattr(
+            QtWidgets.QListWidget,
+            "setAlternatingRowColors",
+            original_set_alternating,
+        )
 
     def test_multiselect_menu_uses_widget_screen_geometry(self, monkeypatch):
         class _FakeSignal:
