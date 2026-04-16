@@ -185,9 +185,45 @@ def _get_situacao_for_ssa(window, numero_ssa) -> str:
         return ""
     try:
         value = series.get("situacao")
-    except Exception:
+    except Exception as exc:
+        logger.debug(
+            "Falha ao obter campo situacao para SSA %s: %s", numero_ssa, exc
+        )
         value = ""
     return get_status_code(value)
+
+
+def _build_ssa_href(numero_ssa: str, *, panel_mode: bool) -> str:
+    normalized = _normalize_ssa_relation_value(numero_ssa)
+    if not normalized:
+        return ""
+    return f"ssa-panel:{normalized}" if panel_mode else f"ssa:{normalized}"
+
+
+def _render_ssa_navigation_link(
+    numero_ssa: str,
+    *,
+    link_color: str,
+    panel_mode: bool,
+    exists: bool,
+    status_hint: str = "",
+) -> str:
+    normalized = _normalize_ssa_relation_value(numero_ssa)
+    if not normalized:
+        return html_module.escape(str(numero_ssa or ""))
+    label = normalized
+    status_code = str(status_hint or "").strip().upper()
+    if status_code:
+        label = f"{normalized} ({status_code})"
+    escaped_label = html_module.escape(label)
+    href = _build_ssa_href(normalized, panel_mode=panel_mode)
+    if not exists or not href:
+        return escaped_label
+    return (
+        f'<a href="{href}" style="color:{link_color}; '
+        f'text-decoration:none; border-bottom: 1px solid {link_color};">'
+        f"{escaped_label}</a>"
+    )
 
 
 def _format_details_html(
@@ -198,7 +234,7 @@ def _format_details_html(
     linkify=False,
     label_font_size_pt=None,
     font_family=None,
-    derivadas_rel_override=None,
+    ssa_index: Mapping[str, pd.Series] | None = None,
 ):
     """Formata dados da SSA como HTML com highlight opcional."""
     if font_size_pt is None:
@@ -208,7 +244,8 @@ def _format_details_html(
     if not font_family:
         try:
             ui_font_family = str(window.font().family() or "").strip()
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao ler familia de fonte da UI para detalhes: %s", exc)
             ui_font_family = ""
         font_family = ui_font_family or "sans-serif"
 
@@ -230,7 +267,8 @@ def _format_details_html(
             text_color,
             fallback="#4a90e2",
         )
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao resolver cores de tema para detalhes HTML: %s", exc)
         text_color = pick_css_color(
             theme_roles.get("panel_text"),
             theme_roles.get("label_color"),
@@ -308,30 +346,30 @@ def _format_details_html(
             f"</tr>"
         )
 
+    if ssa_index is None:
+        ssa_index = _get_window_ssa_series_index(window)
+
     try:
         derived_list = _get_derivadas_for_ssa(window, series.get("numero_ssa"))
-    except Exception:
+    except Exception as exc:
+        logger.debug(
+            "Falha ao coletar lista de derivadas para detalhes HTML: %s", exc
+        )
         derived_list = []
     if derived_list:
         if linkify:
-            available_targets: set[str] = set()
-            for item in derived_list:
-                href = _normalize_ssa_value(window, item)
-                if href and href not in available_targets:
-                    if _get_series_for_ssa(window, href) is not None:
-                        available_targets.add(href)
             items = []
             for item in derived_list:
                 href = _normalize_ssa_value(window, item)
-                display = html_module.escape(item)
-                if href and href in available_targets:
-                    items.append(
-                        f'<a href="ssa:{href}" style="color:{link_color}; '
-                        f'text-decoration:none; border-bottom: 1px solid {link_color};">'
-                        f"{display}</a>"
+                exists = bool(href and href in ssa_index)
+                items.append(
+                    _render_ssa_navigation_link(
+                        href or item,
+                        link_color=link_color,
+                        panel_mode=False,
+                        exists=exists,
                     )
-                else:
-                    items.append(display)
+                )
             derived_text = ", ".join(items)
         else:
             derived_text = ", ".join(derived_list)
@@ -353,15 +391,48 @@ def _format_details_html(
             f"</tr>"
         )
 
+    related_items = _get_related_ssas_for_series(window, series, ssa_index=ssa_index)
+    if related_items:
+        rendered_items = []
+        seen_related = set()
+        for item in related_items:
+            related_ssa = str(item.get("ssa", "") or "").strip()
+            if not related_ssa or related_ssa in seen_related:
+                continue
+            seen_related.add(related_ssa)
+            rendered_items.append(
+                _render_ssa_navigation_link(
+                    related_ssa,
+                    link_color=link_color,
+                    panel_mode=False,
+                    exists=bool(item.get("exists", False)) if linkify else False,
+                    status_hint="",
+                )
+                if linkify
+                else html_module.escape(related_ssa)
+            )
+        if rendered_items:
+            label = f"SSAs relacionadas ({len(rendered_items)})"
+            related_text = ", ".join(rendered_items)
+            html_lines.append(
+                f"<tr>"
+                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
+                f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+                f'font-weight: bold; font-size: {label_font_size_pt}pt; vertical-align: top;">'
+                f"{html_module.escape(label)}:</td>"
+                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
+                f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+                f'overflow-wrap: anywhere; word-break: break-word;">'
+                f"{related_text}</td>"
+                f"</tr>"
+            )
+
     html_lines.append("</table></body></html>")
     return "\n".join(html_lines)
 
 
 def _normalize_ssa_value(window, value):
-    try:
-        raw = value
-    except Exception:
-        raw = ""
+    raw = value
     if raw is None:
         return ""
     # Handle float artifacts from DataFrame/object conversion (e.g. 121911787.0).
@@ -411,7 +482,8 @@ def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
         logger.debug("Falha ao normalizar SSA series; fallback apply: %s", exc)
         try:
             return series.map(lambda value: _normalize_ssa_value(window, value))
-        except Exception:
+        except Exception as fallback_exc:
+            logger.debug("Falha no fallback de normalizacao SSA series: %s", fallback_exc)
             return pd.Series([""] * len(series), index=getattr(series, "index", None))
 
 
@@ -456,13 +528,75 @@ def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
     return normalized
 
 
+def _get_df_ssa_series_index(window, df) -> dict[str, pd.Series]:
+    if df is None or df.empty or "numero_ssa" not in getattr(df, "columns", []):
+        return {}
+    try:
+        attrs = getattr(df, "attrs", None)
+        if isinstance(attrs, dict):
+            cached = attrs.get("_ssa_series_index")
+            if isinstance(cached, dict) and cached:
+                return cached
+    except Exception as exc:
+        logger.debug("Falha ao ler attrs do DataFrame para indice SSA: %s", exc)
+
+    lookup: dict[str, pd.Series] = {}
+    normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
+    try:
+        for idx_label, normalized in zip(df.index, normalized_series.tolist()):
+            normalized_text = str(normalized or "").strip()
+            if not normalized_text or normalized_text in lookup:
+                continue
+            matched = df.loc[idx_label]
+            if isinstance(matched, pd.DataFrame):
+                matched = matched.iloc[0]
+            lookup[normalized_text] = matched
+    except Exception as exc:
+        logger.debug("Falha ao montar indice SSA por DataFrame: %s", exc)
+        return {}
+    try:
+        attrs = getattr(df, "attrs", None)
+        if isinstance(attrs, dict):
+            attrs["_ssa_series_index"] = lookup
+    except Exception as exc:
+        logger.debug("Falha ao persistir indice SSA em attrs do DataFrame: %s", exc)
+    return lookup
+
+
+def _get_window_ssa_series_index(window) -> dict[str, pd.Series]:
+    current_sources = (
+        getattr(window, "df_exibido", None),
+        getattr(window, "df_completo", None),
+    )
+    cached_sources = getattr(window, "_details_ssa_index_sources", None)
+    cached_lookup = getattr(window, "_details_ssa_series_index", None)
+    if (
+        isinstance(cached_sources, tuple)
+        and len(cached_sources) == 2
+        and cached_sources[0] is current_sources[0]
+        and cached_sources[1] is current_sources[1]
+        and isinstance(cached_lookup, dict)
+    ):
+        return cached_lookup
+
+    merged: dict[str, pd.Series] = {}
+    for df in current_sources:
+        for numero_ssa, series in _get_df_ssa_series_index(window, df).items():
+            if numero_ssa not in merged:
+                merged[numero_ssa] = series
+    window._details_ssa_index_sources = current_sources
+    window._details_ssa_series_index = merged
+    return merged
+
+
 def _get_details_db_signature():
     db_path = _resolve_current_db_path()
     if not db_path:
         return None
     try:
         return os.path.getmtime(db_path)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao ler mtime do banco de detalhes %s: %s", db_path, exc)
         return None
 
 
@@ -471,21 +605,28 @@ def _get_details_render_signature(window, series):
         return None
     try:
         selected_ssa = series.get("numero_ssa")
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao ler numero_ssa da serie para assinatura: %s", exc)
         selected_ssa = None
     try:
         search_terms = tuple(_collect_highlight_terms(window))
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao coletar termos para assinatura de detalhes: %s", exc)
         search_terms = ()
     try:
         series_signature = tuple(
             (str(column), "" if pd.isna(value) else str(value))
             for column, value in series.items()
         )
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao montar assinatura estruturada de detalhes: %s", exc)
         try:
             series_signature = str(series)
-        except Exception:
+        except Exception as fallback_exc:
+            logger.debug(
+                "Falha no fallback textual da assinatura de detalhes: %s",
+                fallback_exc,
+            )
             series_signature = ""
     return (selected_ssa, search_terms, _get_details_db_signature(), series_signature)
 
@@ -508,7 +649,8 @@ def update_details_from_selection(window):
     selected_ssa = None
     try:
         selected_ssa = series.get("numero_ssa")
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao ler numero_ssa da linha selecionada: %s", exc)
         selected_ssa = None
     render_signature = _get_details_render_signature(window, series)
     current_signature = window.details_text.property("details_render_signature")
@@ -560,6 +702,7 @@ def _update_details_from_series(window, series):
     try:
         font_size_pt = None
         font_family = None
+        ssa_index = _get_window_ssa_series_index(window)
         if hasattr(window, "details_group"):
             try:
                 base_font = window.details_group.font()
@@ -581,6 +724,7 @@ def _update_details_from_series(window, series):
             font_size_pt=font_size_pt,
             linkify=True,
             font_family=font_family,
+            ssa_index=ssa_index,
         )
         window.details_text.setHtml(html_content)
         window.details_text.setProperty("details_render_signature", render_signature)
@@ -649,6 +793,52 @@ def _get_derivadas_for_ssa(window, numero_ssa):
         return []
 
 
+def _get_related_ssas_for_series(
+    window, series, *, ssa_index: Mapping[str, pd.Series] | None = None
+) -> list[dict[str, str]]:
+    if series is None:
+        return []
+    relation_label = str(series.get("relacao", "") or "").strip()
+    related_specs = (
+        ("numero_ssa_relacionada_1", "situacao_relacionada_1"),
+        ("numero_ssa_relacionada_2", "situacao_relacionada_2"),
+        ("numero_ssa_relacionada_3", None),
+    )
+    related_items: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for numero_col, situacao_col in related_specs:
+        normalized = _normalize_ssa_relation_value(series.get(numero_col, ""))
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        status_hint = ""
+        if situacao_col:
+            status_hint = str(series.get(situacao_col, "") or "").strip().upper()
+        resolved_series = None
+        if isinstance(ssa_index, Mapping):
+            resolved_series = ssa_index.get(normalized)
+        if resolved_series is None:
+            resolved_series = _get_series_for_ssa(window, normalized)
+        if not status_hint and resolved_series is not None:
+            try:
+                status_hint = get_status_code(resolved_series.get("situacao"))
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao obter situacao da SSA relacionada %s: %s",
+                    normalized,
+                    exc,
+                )
+        related_items.append(
+            {
+                "ssa": normalized,
+                "situacao": status_hint,
+                "relacao": relation_label,
+                "exists": "1" if resolved_series is not None else "",
+            }
+        )
+    return related_items
+
+
 def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
     num_norm = _normalize_ssa_value(window, numero_ssa)
     if not num_norm:
@@ -706,6 +896,9 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
                     positions = mask.to_numpy().nonzero()[0]
                     if len(positions) > 0:
                         pos = int(positions[0])
+        if pos is None and not _allow_refilter:
+            _update_details_from_series(window, _get_series_for_ssa(window, num_norm))
+            return
         if pos is None:
             return
         page_size = int(getattr(window.paginator, "page_size", 50))
@@ -776,15 +969,7 @@ def _get_series_for_ssa(window, numero_ssa):
         if df is None or df.empty or "numero_ssa" not in df.columns:
             return None
         try:
-            series_norm = _get_cached_normalized_series(window, df, "numero_ssa")
-            mask = series_norm.eq(target)
-            if not mask.any():
-                return None
-            idx_label = mask[mask].index[0]
-            matched = df.loc[idx_label]
-            if isinstance(matched, pd.DataFrame):
-                return matched.iloc[0]
-            return matched
+            return _get_df_ssa_series_index(window, df).get(target)
         except Exception as exc:
             logger.debug("Falha ao localizar SSA %s em dataframe: %s", target, exc)
             return None
@@ -829,7 +1014,7 @@ def _on_details_anchor_clicked(window, url):
         return
     target = target.strip().lstrip("/")
     if target:
-        _jump_to_ssa(window, target)
+        _jump_to_ssa(window, target, _allow_refilter=False)
 
 
 def _resolve_current_db_path():
@@ -904,6 +1089,7 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         "children": [],
         "descendants": [],
         "ancestors": [],
+        "related": [],
         "direct_children_count": 0,
         "descendants_count": 0,
     }
@@ -978,12 +1164,15 @@ def _collect_derivadas_tree_data(window, numero_ssa):
     descendants_count = int(
         profile.get("descendants_count") or len(descendants) or len(children)
     )
+    series_target = _get_series_for_ssa(window, target)
+    related = _get_related_ssas_for_series(window, series_target)
     return {
         "target": target,
         "parents": parents,
         "children": children,
         "descendants": descendants,
         "ancestors": ancestors,
+        "related": related,
         "direct_children_count": direct_children_count,
         "descendants_count": descendants_count,
     }
@@ -996,6 +1185,7 @@ def _build_derivadas_tree_html(
     tree_font_pt=None,
     font_family=None,
     tree_data_override=None,
+    ssa_index: Mapping[str, pd.Series] | None = None,
 ):
     if not link_color:
         roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
@@ -1012,20 +1202,28 @@ def _build_derivadas_tree_html(
     if not target:
         return ""
 
+    if ssa_index is None:
+        ssa_index = _get_window_ssa_series_index(window)
+
     def _ssa_link(value, *, status_hint: str | None = None):
         safe = _normalize_ssa_relation_value(value)
         if not safe:
             return html_module.escape(str(value))
-        status_code = (
-            str(status_hint or _get_situacao_for_ssa(window, safe)).strip().upper()
-        )
-        label = safe if not status_code else f"{safe} ({status_code})"
-        if _get_series_for_ssa(window, safe) is None:
-            return html_module.escape(label)
-        return (
-            f'<a href="ssa-panel:{safe}" style="color:{link_color}; '
-            f'text-decoration:none; border-bottom: 1px solid {link_color};">'
-            f"{html_module.escape(label)}</a>"
+        resolved_series = ssa_index.get(safe)
+        if resolved_series is None:
+            resolved_series = _get_series_for_ssa(window, safe)
+        status_code = str(status_hint or "").strip().upper()
+        if not status_code and resolved_series is not None:
+            try:
+                status_code = get_status_code(resolved_series.get("situacao"))
+            except Exception as exc:
+                logger.debug("Falha ao obter situacao da SSA %s na arvore: %s", safe, exc)
+        return _render_ssa_navigation_link(
+            safe,
+            link_color=safe_link_color,
+            panel_mode=True,
+            exists=resolved_series is not None,
+            status_hint=status_code,
         )
 
     def _render_entry(entry):
@@ -1130,7 +1328,7 @@ def _build_derivadas_tree_html(
     lines.append(
         f'<div style="font-family:{font_family}; font-size:{tree_font_pt:.2f}pt; line-height:1.85;">'
     )
-    lines.append("<b>Derivadas:</b><br/><br/>")
+    lines.append("<b>Derivadas:</b><br/>")
     for raw in lineage:
         rendered = _render_entry(raw)
         if rendered:
@@ -1162,6 +1360,13 @@ def _build_derivadas_tree_html(
         lines.append(
             f"{'&nbsp;' * ((len(lineage) + 1) * 4)}... (+{hidden_descendants})<br/>"
         )
+    related_entries = data.get("related", [])
+    if isinstance(related_entries, list) and related_entries:
+        lines.append("<br/><b>Relacionadas:</b><br/>")
+        for raw in related_entries:
+            rendered = _render_entry(raw)
+            if rendered:
+                _append_line(lines, 1, rendered)
 
     lines.append("</div>")
     return "".join(lines)
@@ -1221,6 +1426,18 @@ def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
                 lines.append(
                     f'  {_node_id(target)} -.-> {_node_id(ssa)}["{_label(ssa)}"]'
                 )
+    related = data.get("related", [])
+    if isinstance(related, list):
+        for raw in related:
+            if not isinstance(raw, dict):
+                continue
+            raw_map = cast(dict[str, object], raw)
+            related_ssa = _normalize_ssa_relation_value(raw_map.get("ssa", ""))
+            if not related_ssa:
+                continue
+            lines.append(
+                f'  {_node_id(target)} -.-> {_node_id(related_ssa)}["{_label(related_ssa)}"]'
+            )
     return "\n".join(lines)
 
 
@@ -1292,6 +1509,15 @@ def _build_derivadas_graph_html(
             _add_edge(parent, descendant)
         else:
             _add_edge(target, descendant, dashed=True)
+    related_entries = data.get("related", [])
+    if isinstance(related_entries, list):
+        for raw in related_entries:
+            if not isinstance(raw, dict):
+                continue
+            raw_map = cast(dict[str, object], raw)
+            related_ssa = _normalize_ssa_relation_value(raw_map.get("ssa"))
+            if related_ssa:
+                _add_edge(target, related_ssa, dashed=True)
 
     positions: dict[str, tuple[float, float]] = {}
     node_w = DERIVADAS_GRAPH_NODE_WIDTH
@@ -1366,6 +1592,18 @@ def _build_derivadas_graph_html(
         seen_children.add(child_ssa)
         ordered_nodes.append((child_ssa, current_depth + 1))
         _append_descendant_nodes(child_ssa, current_depth + 2)
+
+    if isinstance(related_entries, list):
+        related_seen: set[str] = set()
+        for raw in related_entries:
+            if not isinstance(raw, dict):
+                continue
+            raw_map = cast(dict[str, object], raw)
+            related_ssa = _normalize_ssa_relation_value(raw_map.get("ssa"))
+            if not related_ssa or related_ssa in related_seen:
+                continue
+            related_seen.add(related_ssa)
+            ordered_nodes.append((related_ssa, current_depth + 1))
 
     for index, (node, depth) in enumerate(ordered_nodes):
         x = margin + depth * x_gap
@@ -1669,6 +1907,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         series_target = _get_series_for_ssa(window, normalized)
         if series_target is None:
             return False
+        ssa_index = _get_window_ssa_series_index(window)
         current_target["ssa"] = normalized
         export_state["target"] = normalized
         tree_data = _collect_derivadas_tree_data(window, normalized)
@@ -1680,6 +1919,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             linkify=True,
             label_font_size_pt=dialog_label_font_pt,
             font_family=dialog_font_family,
+            ssa_index=ssa_index,
         )
         details_browser.setHtml(html_details)
         tree_html = _build_derivadas_tree_html(
@@ -1689,6 +1929,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             tree_font_pt=dialog_tree_font_pt,
             font_family=dialog_font_family,
             tree_data_override=tree_data,
+            ssa_index=ssa_index,
         )
         mermaid_text = _build_derivadas_mermaid_text(tree_data)
         graph_html = _build_derivadas_graph_html(
@@ -1946,5 +2187,5 @@ def _clear_derivadas_filter(window):
         )
     window._refresh_after_filter_change()
     if window._last_derivada_origem:
-        _jump_to_ssa(window, window._last_derivada_origem)
+        _jump_to_ssa(window, window._last_derivada_origem, _allow_refilter=False)
         window._last_derivada_origem = None
