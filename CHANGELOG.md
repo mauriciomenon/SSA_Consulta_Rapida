@@ -5,6 +5,10 @@ All notable changes to this project are documented in this file.
 ## [Unreleased] - 2026-04-15
 
 ### Changed
+- Local top on `dev` after baseline `4.37`:
+  - SSA detail popup keeps lower derivadas/relacionadas area with more usable height.
+  - fallback graph without DB now includes the direct parent, avoiding incomplete local hierarchy rendering.
+  - local detail navigation keeps `ssa:` clicks in the details context without rewriting global search text.
 - GUI status contract split:
   - `filtered_status_label` now shows only `Status: X de Y SSAs`.
   - `status_label` now shows search and zero-result notices.
@@ -15,6 +19,53 @@ All notable changes to this project are documented in this file.
   - reescaneamento completo
   - importacao explicita por arquivo
 - GUI agora recarrega os dados automaticamente apos alteracao valida do banco em importacao ou reescaneamento.
+
+### Validation
+- Runtime visual checks executed with programmatic PyQt rendering:
+  - popup details
+  - derivadas/relacionadas graph
+  - lower details panel
+- Focused local validation recently green on affected slices:
+  - `py_compile`
+  - `ruff`
+  - `ty`
+  - focused `pytest` on GUI detail navigation, popup graph, and import-trigger contracts
+
+## [v4.37] - 2026-04-01
+
+### Changed
+- Promoted local active baseline to `4.37` while preserving `v4.36` as the latest published GitHub tag.
+- Hardened GUI state contracts around:
+  - general search ownership
+  - header reorder/sort/resize persistence
+  - details preservation across refreshes
+  - derivadas navigation and details rendering
+- Consolidated derivadas/details popup with graph export, tree view, platform width handling, and active-screen clamping.
+- Extended import/storage hardening:
+  - anti-downgrade protection for `situacao` on same-date updates
+  - explicit single-file import path
+  - DB repair/recreate flows for invalid or incomplete databases
+- Aligned active docs to a single current-truth model across continuity and handoff files.
+
+### Notes
+- `4.37` is the active local baseline in runtime and docs.
+- `v4.36` remains the latest published GitHub tag at this time.
+
+## [v4.36] - 2026-04-01
+
+### Changed
+- Centralized `numero_ssa` storage normalization and aligned simple insert/storage sanitization.
+- Stabilized simplified filter contracts and derivadas alias preflight.
+- Closed a focused `pytest`/`ty`/`bandit` min-fix slice to support the tag transition.
+- Prepared the 4.36 handoff/documentation transition.
+
+## [v4.35] - 2026-03-24
+
+### Changed
+- Closed nullable/filter/display regressions tied to full rescan and DB readback.
+- Hardened async jump-to-SSA and details rendering behavior in the GUI.
+- Normalized related SSA identifiers during import and preserved canonical text storage.
+- Reduced local noise from `docs_entrada` and cleaned explicit DB option packaging for local operation.
 
 ## [v4.29] - 2026-03-02
 

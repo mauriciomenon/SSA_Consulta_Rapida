@@ -37,13 +37,18 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 
 ## **RELEASE v4.37 - CURRENT LOCAL BASELINE**
 
-**Data de Lancamento**: Marco 2026
+**Data de Lancamento**: Abril 2026
 **Tipo**: Stabilization baseline and release alignment
 **Status**: Estavel
 
 ### **Principais entregas**
 - Baseline operacional promovido para `4.37`.
 - Ultima tag/release GitHub publicada permanece `v4.36`. A promocao local atual e `4.37`.
+- Trem de estabilizacao que sustentou a promocao:
+  - GUI passou a ser dona explicita do contrato da busca geral.
+  - reorder/sort/resize do header preservam detalhes e mapeamento visual.
+  - popup de derivadas consolidado com arvore textual, grafo SVG e exportacao.
+  - importacao e update por SSA endurecidos contra downgrade de `situacao` e DB invalido.
 - Docs vivos de controle consolidados em torno de `AGENTS.md`, `docs/README.md`,
   `docs/NEXT_CHAT_MIGRATION.md`, `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` e
   `docs/RECOVERY_BACKLOG.md`.
@@ -62,6 +67,79 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 - `docs/NEXT_CHAT_MIGRATION.md`
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - `docs/RECOVERY_BACKLOG.md`
+
+### **Delta local apos a promocao da baseline**
+- `404a710e` `fix(gui): Sync prefs reference and external check docs`
+  - alinhou o arquivo de referencia de preferencias GUI com o runtime real por plataforma
+  - deixou explicito que `DeepSource` e `Snyk` sao ruido externo do PR, nao blocker local de codigo
+- `4202fd37` `fix(import): auto-sync derivadas after valid db changes`
+  - sincronizacao de derivadas passou a disparar apos alteracao valida de banco
+  - GUI passou a recarregar dados automaticamente apos importacao/rescan validos
+- `50b7796c` `fix(gui): Keep SSA detail navigation local`
+  - clique em `ssa:` no painel inferior nao reescreve mais o filtro global
+  - relacionadas passam a aparecer no texto e no grafo
+- `a19c9abe` `fix(gui): raise details relations panel`
+  - bloco inferior do popup ganhou altura util real
+- `4074ebdd` `fix(gui): restore parent in fallback graph`
+  - popup sem DB agora inclui parent imediato no fallback local do grafo
+  - verificacao visual real confirmou o caso controlado sem no solto no viewport renderizado
+
+### **Validacao relevante do topo local**
+- runtime visual com render programatico PyQt:
+  - painel inferior
+  - popup de detalhes
+  - grafo de derivadas/relacionadas
+- validacoes tecnicas focadas recentes:
+  - `py_compile`, `ruff`, `ty` verdes
+  - `pytest` focado verde para:
+    - navegacao local de detalhes
+    - popup de derivadas/relacionadas
+    - auto-sync pos-import
+    - fallback local de parent no grafo
+
+---
+
+## **RELEASE v4.36 - TAGGED TRANSITION SNAPSHOT**
+
+**Data de Lancamento**: Abril 2026
+**Tipo**: Tagged transition before local 4.37 baseline
+**Status**: Ultima tag publicada
+
+### **Principais entregas**
+- `numero_ssa` write-path estabilizado com normalizacao centralizada no storage.
+- insert simplificado alinhado com sanitizacao de banco.
+- contrato de filtros simplificados endurecido com preflight de aliases de derivadas.
+- slice minimo de `pytest` / `ty` / `bandit` fechado para sustentacao da tag.
+
+### **Commits chave**
+- `5aeadd9e` `STABILITY_PATCH: centralize numero_ssa storage normalization`
+- `40cc4662` `DOC_SYNC: record numero_ssa write-path stabilization status`
+- `0d823b25` `STABILITY_PATCH: align simple insert with storage sanitization`
+- `f4af8d20` `STABILITY_PATCH: stabilize simplified filter contract and derivadas alias preflight`
+- `bdf612d0` `STABILITY_PATCH: close pytest ty bandit minfix slice`
+- `dd2d45b1` `DOC_SYNC: prepare 4.36 transition handoff`
+
+---
+
+## **RELEASE v4.35 - PRE-BASELINE HARDENING SNAPSHOT**
+
+**Data de Lancamento**: Marco 2026
+**Tipo**: Pre-baseline hardening train
+**Status**: Snapshot historico
+
+### **Principais entregas**
+- Fechamento das regressos de nullable/filter/display ligadas ao full rescan.
+- Navegacao async para SSA endurecida contra stale selection, rerender redundante e selecao fria.
+- `numero_ssa` e SSA relacionadas preservados como texto canonico na importacao e GUI.
+- Higiene operacional local melhorada para `docs_entrada` e opcoes explicitas de DB.
+
+### **Commits chave**
+- `f03b9721` `HOTFIX_BLOCKER: stabilize async jump to SSA`
+- `113b12a1` `STABILITY_PATCH: normalize related SSA identifiers in import`
+- `d5a9e137` `HOTFIX_BLOCKER: fix nullable display and filter contract`
+- `bd14e3d7` `STABILITY_PATCH: close full regression gaps`
+- `53def322` `STABILITY_PATCH: package explicit db options and clean local tracking`
+- `b4b995a8` `STABILITY_PATCH: ignore local docs_entrada excel noise`
 
 ---
 
