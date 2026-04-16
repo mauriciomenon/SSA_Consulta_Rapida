@@ -1567,6 +1567,22 @@ class TestGUIFilterLogic:
         visible_ssa = [str(value) for value in self._extract_visible_ssa()]
         assert Counter(visible_ssa) == Counter([target_ssa])
 
+    def test_build_render_marker_sample_ignores_heavy_attrs_payload(self):
+        sample_df = pd.DataFrame(
+            {
+                "numero_ssa": ["202500001", "202500002", "202500003"],
+                "situacao": ["APV", "STE", "SES"],
+            }
+        )
+        sample_df.attrs["_ssa_series_index"] = {
+            f"ssa_{idx}": {"idx": idx} for idx in range(5000)
+        }
+
+        markers = ssa_gui_table._build_render_marker_sample(sample_df)
+
+        assert markers[0][0] == "202500001"
+        assert markers[-1][1] == "SES"
+
     def test_column_widths_stability_during_cycles(self):
         self.window.df_completo = self.base_df.copy()
         self.window.df_exibido = self.base_df.copy()
@@ -2387,6 +2403,40 @@ class TestGUIFilterLogic:
         assert refresh_mock.call_count == 0
         assert self.window._responsavel_filters_materialized is False
         assert self.window._responsavel_options_dirty is True
+
+    def test_switch_to_filters_tab_coalesces_advanced_refresh_triggers(self):
+        self.window._adv_options_dirty = True
+        self.window._adv_values_cache = None
+        self.window._pending_theme_refresh_column_filters = (
+            getattr(self.window, "_current_theme", "gruvbox") or "gruvbox"
+        )
+        filter_tab_idx = next(
+            idx
+            for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        main_tab_idx = next(
+            idx
+            for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "main"
+        )
+        self.window._tab_contexts[filter_tab_idx]["_theme_name"] = None
+        self.window.main_tabs.setCurrentIndex(main_tab_idx)
+        QApplication.processEvents()
+
+        with patch.object(
+            self.window,
+            "_refresh_advanced_filter_options",
+            wraps=self.window._refresh_advanced_filter_options,
+        ) as refresh_mock:
+            self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+            deadline = time.time() + 2.0
+            while time.time() < deadline and refresh_mock.call_count < 1:
+                QApplication.processEvents()
+                time.sleep(0.01)
+
+        assert refresh_mock.call_count == 1
+        assert self.window._adv_options_dirty is False
 
     def test_switch_to_filters_tab_does_not_reapply_same_theme(self):
         filter_tab_idx = next(

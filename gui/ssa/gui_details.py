@@ -542,14 +542,17 @@ def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
 def _get_df_ssa_series_index(window, df) -> dict[str, pd.Series]:
     if df is None or df.empty or "numero_ssa" not in getattr(df, "columns", []):
         return {}
-    try:
-        attrs = getattr(df, "attrs", None)
-        if isinstance(attrs, dict):
-            cached = attrs.get("_ssa_series_index")
-            if isinstance(cached, dict) and cached:
-                return cached
-    except Exception as exc:
-        logger.debug("Falha ao ler attrs do DataFrame para indice SSA: %s", exc)
+    cache_owner = getattr(window, "cache_manager", None)
+    if cache_owner is None:
+        cache_owner = window
+    cache = getattr(cache_owner, "_details_df_ssa_index_cache", None)
+    if not isinstance(cache, dict):
+        cache = {}
+        setattr(cache_owner, "_details_df_ssa_index_cache", cache)
+    cache_key = id(df)
+    cached = cache.get(cache_key)
+    if isinstance(cached, dict) and cached:
+        return cached
 
     lookup: dict[str, pd.Series] = {}
     normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
@@ -565,12 +568,11 @@ def _get_df_ssa_series_index(window, df) -> dict[str, pd.Series]:
     except Exception as exc:
         logger.debug("Falha ao montar indice SSA por DataFrame: %s", exc)
         return {}
-    try:
-        attrs = getattr(df, "attrs", None)
-        if isinstance(attrs, dict):
-            attrs["_ssa_series_index"] = lookup
-    except Exception as exc:
-        logger.debug("Falha ao persistir indice SSA em attrs do DataFrame: %s", exc)
+    if len(cache) >= 8:
+        overflow = len(cache) - 8 + 1
+        for stale_key in list(cache.keys())[:overflow]:
+            cache.pop(stale_key, None)
+    cache[cache_key] = lookup
     return lookup
 
 
