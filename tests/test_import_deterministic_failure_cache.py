@@ -188,3 +188,37 @@ def test_run_importer_does_not_mark_cancelled_as_deterministic_failure(
     assert updated is False
     assert deterministic_calls == [[]]
     assert cache_after_calls["n"] == 0
+
+
+def test_discover_derivadas_sheet_files_returns_empty_on_listing_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        app_logic.caching,
+        "get_all_xlsx_files",
+        lambda *_a, **_k: (_ for _ in ()).throw(OSError("forced list failure")),
+    )
+
+    out = app_logic._discover_derivadas_sheet_files("/tmp/docs")
+
+    assert out == []
+
+
+def test_update_cache_for_deterministic_failures_tolerates_cache_merge_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[list[str], str, str]] = []
+
+    def _explode(file_paths, cache_file, docs_dir):
+        calls.append((list(file_paths), cache_file, docs_dir))
+        raise RuntimeError("forced cache failure")
+
+    monkeypatch.setattr(app_logic.caching, "update_cache_for_files", _explode)
+
+    app_logic._update_cache_for_deterministic_failures(
+        ["a.xlsx", "a.xlsx", "", "b.xlsx"],
+        "/tmp/cache.json",
+        "/tmp/docs",
+    )
+
+    assert calls == [(["a.xlsx", "b.xlsx"], "/tmp/cache.json", "/tmp/docs")]

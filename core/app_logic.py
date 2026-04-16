@@ -650,7 +650,7 @@ def _discover_derivadas_sheet_files(
             processadas_subdir=processadas_subdir,
             ignore_subdirs=ignore_subdirs,
         )
-    except Exception as exc:
+    except (OSError, RuntimeError, TimeoutError, ValueError, TypeError) as exc:
         logger.warning(
             "Falha ao listar planilhas especiais de derivadas em '%s': %s",
             docs_dir,
@@ -941,7 +941,7 @@ def _update_cache_for_deterministic_failures(
             "Cache atualizado para %s arquivo(s) com falha deterministica (aguardando mudanca de hash).",
             len(deduped),
         )
-    except Exception as exc:
+    except (OSError, RuntimeError, TimeoutError, ValueError, TypeError) as exc:
         logger.warning(
             "Falha ao atualizar cache para arquivos com erro deterministico: %s", exc
         )
