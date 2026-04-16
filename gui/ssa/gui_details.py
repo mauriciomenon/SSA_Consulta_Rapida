@@ -839,6 +839,12 @@ def _get_related_ssas_for_series(
     return related_items
 
 
+def _get_direct_parent_for_series(series: pd.Series | None) -> str:
+    if series is None:
+        return ""
+    return _normalize_ssa_relation_value(series.get("derivada_de"))
+
+
 def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
     num_norm = _normalize_ssa_value(window, numero_ssa)
     if not num_norm:
@@ -1065,6 +1071,10 @@ def _get_derivadas_relations_info(window, numero_ssa):
         for value in (_normalize_ssa_relation_value(raw) for raw in parents)
         if value
     ]
+    if not parents:
+        direct_parent = _get_direct_parent_for_series(_get_series_for_ssa(window, num_norm))
+        if direct_parent:
+            parents = [direct_parent]
     if descendants_count <= 0:
         descendants_count = len(children)
 
@@ -1130,6 +1140,11 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         for value in (_normalize_ssa_relation_value(raw) for raw in parents)
         if value
     ]
+    series_target = _get_series_for_ssa(window, target)
+    if not parents:
+        direct_parent = _get_direct_parent_for_series(series_target)
+        if direct_parent:
+            parents = [direct_parent]
     normalized_descendants = []
     for raw in descendants:
         if not isinstance(raw, dict):
@@ -1164,7 +1179,6 @@ def _collect_derivadas_tree_data(window, numero_ssa):
     descendants_count = int(
         profile.get("descendants_count") or len(descendants) or len(children)
     )
-    series_target = _get_series_for_ssa(window, target)
     related = _get_related_ssas_for_series(window, series_target)
     return {
         "target": target,
