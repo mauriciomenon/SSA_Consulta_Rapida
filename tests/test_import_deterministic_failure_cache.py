@@ -222,3 +222,32 @@ def test_update_cache_for_deterministic_failures_tolerates_cache_merge_error(
     )
 
     assert calls == [(["a.xlsx", "b.xlsx"], "/tmp/cache.json", "/tmp/docs")]
+
+
+def test_get_files_to_process_raises_cache_error_on_cache_runtime_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(app_logic.os.path, "exists", lambda _path: True)
+    monkeypatch.setattr(
+        app_logic.caching,
+        "get_files_to_process",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("cache broken")),
+    )
+
+    with pytest.raises(app_logic.CacheError, match="Falha na verificacao de arquivos"):
+        app_logic._get_files_to_process("/tmp/docs", "/tmp/cache.json", False)
+
+
+def test_update_cache_after_import_raises_cache_error_on_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        app_logic.caching,
+        "update_cache_for_files",
+        lambda *args, **kwargs: (_ for _ in ()).throw(TimeoutError("cache timeout")),
+    )
+
+    with pytest.raises(app_logic.CacheError, match="Falha ao atualizar o cache"):
+        app_logic._update_cache_after_import(
+            ["/tmp/a.xlsx"], "/tmp/cache.json", "/tmp/docs"
+        )
