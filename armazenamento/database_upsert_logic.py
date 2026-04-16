@@ -176,8 +176,8 @@ def _coerce_sqlite_scalar(value: Any) -> Any:
     try:
         if pd.isna(value):
             return None
-    except Exception:  # pragma: no cover
-        pass
+    except (TypeError, ValueError, AttributeError):  # pragma: no cover
+        return value
     return value
 
 
@@ -569,8 +569,8 @@ def _is_empty_upsert_value(val: Any) -> bool:
     try:
         if pd.isna(val):
             return True
-    except Exception:  # pragma: no cover
-        pass
+    except (TypeError, ValueError, AttributeError):  # pragma: no cover
+        return isinstance(val, str) and val.strip().casefold() in _TEXTUAL_NULL_SENTINELS
     if isinstance(val, str) and val.strip().casefold() in _TEXTUAL_NULL_SENTINELS:
         return True
     return False
@@ -581,8 +581,21 @@ def _parse_upsert_dt(value: Any):
         if _is_empty_upsert_value(value):
             return None
         return pd.to_datetime(value, errors="coerce")
-    except Exception:
+    except (TypeError, ValueError, AttributeError):
         return None
+
+
+def _safe_parse_any_date(value: Any, column_name: str) -> Any:
+    try:
+        return parse_any_date(value)
+    except (TypeError, ValueError, AttributeError) as exc:
+        logger.debug(
+            "Falha ao normalizar valor de data em %s; preservando valor original %r: %s",
+            column_name,
+            value,
+            exc,
+        )
+        return value
 
 
 def _merge_complement_row(
@@ -1074,10 +1087,7 @@ def prepare_dataframe_for_upsert(frame: pd.DataFrame) -> pd.DataFrame:
     ]
     for c in date_columns:
         if c in work_local.columns:
-            try:
-                work_local[c] = work_local[c].map(parse_any_date)
-            except Exception:  # pragma: no cover
-                pass
+            work_local[c] = work_local[c].map(lambda value, col=c: _safe_parse_any_date(value, col))
     return work_local
 
 

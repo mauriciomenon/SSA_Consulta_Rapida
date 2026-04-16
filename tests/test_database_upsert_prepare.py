@@ -3,6 +3,8 @@ from __future__ import annotations
 import pandas as pd
 
 from armazenamento.database_upsert_logic import (
+    _coerce_sqlite_scalar,
+    _is_empty_upsert_value,
     prepare_dataframe_for_upsert,
     sanitize_textual_null_sentinels,
 )
@@ -170,3 +172,49 @@ def test_sanitize_textual_null_sentinels_handles_dash_and_empty() -> None:
     assert out.loc[1, "setor_executor"] == "texto"
     assert pd.isna(out.loc[2, "setor_executor"])
     assert out.loc[3, "setor_executor"] == "na"
+
+
+class _BrokenIsNaObject:
+    def __bool__(self):
+        raise TypeError("bool nao suportado")
+
+
+def test_coerce_sqlite_scalar_preserves_value_when_pd_isna_is_not_supported() -> None:
+    value = _BrokenIsNaObject()
+
+    out = _coerce_sqlite_scalar(value)
+
+    assert out is value
+
+
+def test_is_empty_upsert_value_still_handles_textual_null_when_pd_isna_is_not_supported() -> (
+    None
+):
+    assert _is_empty_upsert_value(" null ") is True
+
+
+def test_prepare_dataframe_for_upsert_preserves_bad_date_value_without_breaking_column(
+    monkeypatch,
+) -> None:
+    original = pd.DataFrame(
+        {
+            "numero_ssa": ["202500901", "202500902"],
+            "data_cadastro": ["01/01/2025", "BAD-VALUE"],
+        }
+    )
+
+    from armazenamento import database_upsert_logic as upsert_logic
+
+    original_parse = upsert_logic.parse_any_date
+
+    def _fake_parse(value):
+        if value == "BAD-VALUE":
+            raise ValueError("forced bad date")
+        return original_parse(value)
+
+    monkeypatch.setattr(upsert_logic, "parse_any_date", _fake_parse)
+
+    out = prepare_dataframe_for_upsert(original)
+
+    assert out.loc[0, "data_cadastro"] == "2025-01-01 00:00:00"
+    assert out.loc[1, "data_cadastro"] == "BAD-VALUE"

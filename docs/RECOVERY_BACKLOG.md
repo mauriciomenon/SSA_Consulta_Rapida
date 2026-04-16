@@ -67,6 +67,10 @@ Verificacao visual extra que permanece obrigatoria no ciclo maior:
 1. confirmar em runtime real que as linhas do grafo ficam exibidas por completo no popup e no painel local
 2. confirmar que nao ha SSA renderizada sem aresta correspondente quando a relacao existe
 3. repetir a prova com base mais densa antes de fechar a frente de relacoes/grafo
+4. revisar o roteamento visual das arestas junto as bordas das caixas:
+   - hoje uma linha pode passar no canto da caixa e sugerir relacao errada entre nos vizinhos
+   - o caso observado pelo usuario foi no agrupamento em torno de `202603583`, `202603588`, `202500777` e `202500888`
+   - o follow-up precisa deixar inequivo quem se conecta a quem quando houver derivadas e outras relacoes no mesmo grafo
 
 ## Update 2026-04-16 00:20 - consolidated pending list after gui details slice
 
