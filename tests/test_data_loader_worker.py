@@ -79,10 +79,49 @@ def test_run_builds_safe_paginated_query_and_emits_data():
     assert emitted and not emitted[0].empty
     assert emitted[0]["numero_ssa"].tolist() == ["1"]
     assert emitted[0].attrs.get("ssa_preprocessed_for_gui") is True
-    assert isinstance(emitted[0].attrs.get("ssa_sanitized_df"), pd.DataFrame)
+    assert "ssa_sanitized_df" not in emitted[0].attrs
     assert isinstance(emitted[0].attrs.get("ssa_non_null_cols"), list)
+    assert 'ORDER BY "numero_ssa" DESC' in captured["query"]
+    assert "LIMIT 10 OFFSET 5" in captured["query"]
+
+
+def test_run_adds_deterministic_order_for_paginated_query_without_order_by():
+    captured = {}
+    emitted = []
+
+    def fake_query(db_path, table_name, query, **kwargs):
+        captured["query"] = query
+        return pd.DataFrame({"numero_ssa": ["1"]})
+
+    worker = DataLoaderWorker(":memory:", "ssa_table", limit=10, offset=5)
+    worker.data_loaded.connect(lambda df: emitted.append(df))
+
+    with patch("gui.workers.data_loader_worker.query_db", side_effect=fake_query):
+        worker.run()
+
+    assert emitted and not emitted[0].empty
     assert "ORDER BY numero_ssa DESC" in captured["query"]
     assert "LIMIT 10 OFFSET 5" in captured["query"]
+
+
+def test_prepare_dataframe_for_ui_preserves_custom_order_by_contract():
+    worker = DataLoaderWorker(":memory:", "ssa_table", order_by="situacao ASC")
+    source_df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500003.0", "202500001.0", "202500002.0"],
+            "derivada_de": [None, None, None],
+            "situacao": ["SCA", "STE", "SCA"],
+        }
+    )
+
+    prepared_df = worker._prepare_dataframe_for_ui(source_df)
+
+    assert prepared_df["situacao"].tolist() == ["SCA", "STE", "SCA"]
+    assert prepared_df["numero_ssa"].tolist() == [
+        "202500003",
+        "202500001",
+        "202500002",
+    ]
 
 
 def test_prepare_dataframe_for_ui_sanitizes_and_attaches_attrs():
@@ -96,14 +135,13 @@ def test_prepare_dataframe_for_ui_sanitizes_and_attaches_attrs():
     )
 
     prepared_df = worker._prepare_dataframe_for_ui(source_df)
-    sanitized_df = prepared_df.attrs.get("ssa_sanitized_df")
 
     assert prepared_df.attrs.get("ssa_preprocessed_for_gui") is True
-    assert isinstance(sanitized_df, pd.DataFrame)
-    assert sanitized_df.loc[0, "numero_ssa"] == "202500002"
-    assert sanitized_df.loc[1, "numero_ssa"] == "202500003"
-    assert sanitized_df.loc[0, "derivada_de"] == "202400001"
-    assert sanitized_df.loc[2, "derivada_de"] == ""
+    assert "ssa_sanitized_df" not in prepared_df.attrs
+    assert "202500002" in prepared_df["numero_ssa"].tolist()
+    assert "202500003" in prepared_df["numero_ssa"].tolist()
+    assert "202400001" in prepared_df["derivada_de"].tolist()
+    assert "" in prepared_df["derivada_de"].tolist()
     assert isinstance(prepared_df.attrs.get("ssa_non_null_cols"), list)
     assert set(prepared_df["situacao"].tolist()) == {"STE", "SCA"}
 

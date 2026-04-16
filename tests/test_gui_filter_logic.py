@@ -6063,8 +6063,7 @@ class TestGUIFilterLogic:
     def test_on_data_loaded_uses_preprocessed_attrs_from_worker(self):
         self.window._active_data_load_request_id = 22
         sorted_df = self.base_df.copy().iloc[::-1].copy()
-        sanitized_df = self.base_df.copy()
-        sanitized_df["numero_ssa"] = [
+        sorted_df["numero_ssa"] = [
             "202500005",
             "202500004",
             "202500003",
@@ -6072,7 +6071,6 @@ class TestGUIFilterLogic:
             "202500001",
         ]
         sorted_df.attrs["ssa_preprocessed_for_gui"] = True
-        sorted_df.attrs["ssa_sanitized_df"] = sanitized_df
         sorted_df.attrs["ssa_non_null_cols"] = [
             "numero_ssa",
             "situacao",
@@ -6081,7 +6079,7 @@ class TestGUIFilterLogic:
 
         self.window.on_data_loaded(sorted_df, request_id=22)
 
-        assert self.window.df_completo.equals(sanitized_df)
+        assert self.window.df_completo.equals(sorted_df)
         assert self.window.df_exibido.iloc[0]["numero_ssa"] == "202500005"
         assert self.window.df_exibido.iloc[-1]["numero_ssa"] == "202500001"
         assert {"numero_ssa", "situacao", "descricao_ssa"}.issubset(
@@ -6910,10 +6908,61 @@ class TestGUIFilterLogic:
         assert previous_worker.quit_called is True
         assert previous_worker.wait_called_ms is None
         assert previous_worker in self.window._retired_data_loader_workers
-
         previous_worker.finish_now()
         assert previous_worker not in self.window._retired_data_loader_workers
         assert previous_worker.deleted is True
+
+    def test_retain_data_loader_worker_fallback_disconnect_attempts_shutdown(self):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+        class _BrokenFinishedSignal:
+            def connect(self, _callback):
+                raise RuntimeError("signal down")
+
+            def disconnect(self, _callback=None):
+                return None
+
+        class _Worker:
+            def __init__(self):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _BrokenFinishedSignal()
+                self.destroyed = _FakeSignal()
+                self._running = True
+                self.quit_called = False
+                self.wait_called_ms = None
+                self.deleted = False
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                self._running = False
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return True
+
+            def deleteLater(self):
+                self.deleted = True
+
+        worker = _Worker()
+
+        self.window._retain_data_loader_worker_until_finished(worker)
+
+        assert worker.quit_called is True
+        assert worker.wait_called_ms == gui_ssa.RETIRED_WORKER_FORCE_WAIT_MS
+        assert worker.deleted is True
+        assert worker not in getattr(self.window, "_retired_data_loader_workers", [])
 
     def test_repeated_load_data_handoffs_release_retired_workers(self):
         class _FakeSignal:

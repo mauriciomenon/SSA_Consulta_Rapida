@@ -266,7 +266,25 @@ def retain_data_loader_worker_until_finished(
     if not _connect_signal(
         finished_signal, _release_worker_ref, label="data_loader.finished.cleanup"
     ):
-        _release_worker_ref()
+        try:
+            if hasattr(worker, "isRunning") and worker.isRunning():
+                if hasattr(worker, "quit"):
+                    worker.quit()
+                if hasattr(worker, "wait"):
+                    worker.wait(retired_force_wait_ms)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao encerrar worker de carga apos erro de conexao de sinal: %s",
+                exc,
+            )
+        try:
+            if hasattr(worker, "deleteLater"):
+                worker.deleteLater()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao agendar deleteLater de worker apos erro de conexao de sinal: %s",
+                exc,
+            )
     destroyed_signal = getattr(worker, "destroyed", None)
     if destroyed_signal is not None:
         _connect_signal(
@@ -888,9 +906,8 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         return
     attrs = getattr(df, "attrs", {})
     preprocessed_for_gui = bool(attrs.get("ssa_preprocessed_for_gui"))
-    sanitized_df_from_worker = attrs.get("ssa_sanitized_df")
-    if preprocessed_for_gui and isinstance(sanitized_df_from_worker, pd.DataFrame):
-        df_copy = sanitized_df_from_worker
+    if preprocessed_for_gui:
+        df_copy = df.copy(deep=False)
     else:
         df_copy = df.copy()
         for ssa_col in ("numero_ssa", "derivada_de"):

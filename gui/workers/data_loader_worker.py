@@ -41,7 +41,6 @@ class DataLoaderWorker(QThread):
         "grau_prioridade_planejamento",
         "derivada_de",
     }
-
     def __init__(self, db_path, table_name, limit=None, offset=0, order_by=None):
         super().__init__()
         self.db_path = db_path
@@ -123,7 +122,7 @@ class DataLoaderWorker(QThread):
                 raise ValueError(f"Coluna ORDER BY não permitida: {col}")
             if direction not in {"ASC", "DESC"}:
                 raise ValueError(f"Direção ORDER BY inválida: {direction}")
-            normalized_parts.append(f"{col} {direction}")
+            normalized_parts.append(f"{self._quote_identifier(col)} {direction}")
         return ", ".join(normalized_parts)
 
     def _sanitize_ssa_like_value(self, value) -> str:
@@ -205,17 +204,20 @@ class DataLoaderWorker(QThread):
             return non_null_cols
 
     def _prepare_dataframe_for_ui(self, df: pd.DataFrame) -> pd.DataFrame:
-        sanitized_df = df.copy()
+        sanitized_df = df
         for ssa_col in ("numero_ssa", "derivada_de"):
             if ssa_col in sanitized_df.columns:
                 sanitized_df[ssa_col] = sanitized_df[ssa_col].map(
                     self._sanitize_ssa_like_value
                 )
-        pre_sorted_df = self._build_initial_sorted_dataframe(sanitized_df)
+        pre_sorted_df = (
+            sanitized_df
+            if self.order_by
+            else self._build_initial_sorted_dataframe(sanitized_df)
+        )
         non_null_cols = self._build_non_null_columns(sanitized_df)
         try:
             pre_sorted_df.attrs["ssa_preprocessed_for_gui"] = True
-            pre_sorted_df.attrs["ssa_sanitized_df"] = sanitized_df
             pre_sorted_df.attrs["ssa_non_null_cols"] = non_null_cols
         except (AttributeError, TypeError, ValueError) as exc:
             logger.debug(
@@ -235,6 +237,8 @@ class DataLoaderWorker(QThread):
             order_clause = self._normalize_order_by(self.order_by)
             if order_clause:
                 query += f" ORDER BY {order_clause}"
+            elif self.limit is not None or int(self.offset or 0) > 0:
+                query += " ORDER BY numero_ssa DESC"
 
             if self.limit is not None:
                 limit_int = int(self.limit)
