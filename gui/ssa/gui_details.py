@@ -1671,6 +1671,18 @@ def _build_derivadas_graph_html(
         "</defs>",
     ]
 
+    lane_counters: dict[tuple[str, int], int] = {}
+
+    def _compute_lane_x(source: str, x1: float, x2: float) -> float:
+        direction = 1 if x2 >= x1 else -1
+        lane_key = (source, direction)
+        lane_index = lane_counters.get(lane_key, 0)
+        lane_counters[lane_key] = lane_index + 1
+        span = x2 - x1 if direction > 0 else x1 - x2
+        max_offset = max(2.0, span - 2.0)
+        lane_offset = min(max(2.0, float(lane_index + 1) * 3.0), max_offset)
+        return x1 + lane_offset if direction > 0 else x1 - lane_offset
+
     for source, target_node in edges:
         source_pos = positions.get(source)
         target_pos = positions.get(target_node)
@@ -1682,7 +1694,7 @@ def _build_derivadas_graph_html(
         x2 = tx - node_w / 2.0 + offset_x
         y1 = sy + offset_y
         y2 = ty + offset_y
-        mid_x = x1 + max(12.0, (x2 - x1) / 2.0)
+        mid_x = _compute_lane_x(source, x1, x2)
         dash_attr = (
             ' stroke-dasharray="7 6"' if (source, target_node) in dashed_edges else ""
         )
