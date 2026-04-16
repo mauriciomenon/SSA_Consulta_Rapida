@@ -217,7 +217,7 @@ def _cached_pretty_print_df(
     helper_printer = EnhancedTablePrinter()
     try:
         page_size = max(1, helper_printer.get_terminal_size()[0] - 8)
-    except Exception:
+    except (AttributeError, OSError, TypeError, ValueError):
         page_size = 20
 
     total_rows = len(df)
@@ -533,7 +533,7 @@ def _is_cli_non_interactive() -> bool:
         return True
     try:
         return not bool(sys.stdin is not None and sys.stdin.isatty())
-    except Exception:
+    except (AttributeError, OSError, TypeError, ValueError):
         return True
 
 
