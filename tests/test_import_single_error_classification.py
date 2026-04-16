@@ -91,6 +91,64 @@ def test_import_single_file_keeps_unexpected_error_context(
         )
 
 
+def test_process_file_with_resilience_keeps_batch_running_on_internal_result_cast_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        app_logic,
+        "_import_single_file",
+        lambda *args, **kwargs: (True, object()),
+    )
+
+    successful_files: list[str] = []
+    successful_with_records: list[tuple[str, int]] = []
+    critical_errors: list[tuple[str, str, str]] = []
+    deterministic_failed: list[str] = []
+    file_reports: list[dict[str, object]] = []
+    progress_events: list[tuple[str, dict[str, object]]] = []
+
+    action = app_logic._process_file_with_resilience(
+        file_path=str(tmp_path / "input.xlsx"),
+        base_name="input.xlsx",
+        working_db_path=str(tmp_path / "db.sqlite"),
+        table_name="ssa_table",
+        should_cancel=None,
+        candidate_db_path=None,
+        successfully_processed_files=successful_files,
+        successful_regular_files_with_records=successful_with_records,
+        critical_errors=critical_errors,
+        deterministic_failed_files=deterministic_failed,
+        file_reports=file_reports,
+        emit_progress=lambda event_type, data: progress_events.append(
+            (event_type, data)
+        ),
+    )
+
+    assert action == "ok"
+    assert successful_files == []
+    assert successful_with_records == []
+    assert deterministic_failed == []
+    assert critical_errors == [
+        ("unexpected", str(tmp_path / "input.xlsx"), "int() argument must be a string, a bytes-like object or a real number, not 'object'")
+    ]
+    assert file_reports == [
+        {
+            "file": "input.xlsx",
+            "status": "unexpected_error",
+            "error": "int() argument must be a string, a bytes-like object or a real number, not 'object'",
+        }
+    ]
+    assert progress_events == [
+        (
+            "file_error",
+            {
+                "filename": "input.xlsx",
+                "error": "int() argument must be a string, a bytes-like object or a real number, not 'object'",
+            },
+        )
+    ]
+
+
 def test_import_single_file_raises_when_extractor_returns_none(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
