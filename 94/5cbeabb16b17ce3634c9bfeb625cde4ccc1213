@@ -1,0 +1,33 @@
+docs/INDEX.md
+  4f637c3e200a2c99 5,10-12,26,29-32
+docs/AGENTS_HANDOFF_NEXT_CYCLE.md
+  4f637c3e200a2c99 5,7-20,34
+config/gui_main_preferences.json.example
+  4f637c3e200a2c99 94,115-117,134
+docs/RECOVERY_BACKLOG.md
+  4f637c3e200a2c99 8-36
+docs/NEXT_CHAT_MIGRATION.md
+  4f637c3e200a2c99 5-30
+.deepsource.toml
+  4f637c3e200a2c99 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "945cbeabb16b17ce3634c9bfeb625cde4ccc1213",
+  "prompts": {
+    "4f637c3e200a2c99": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d9394-1044-73e1-9aab-e12e63b73313",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 86,
+      "total_deletions": 15,
+      "accepted_lines": 86,
+      "overriden_lines": 0
+    }
+  }
+}
