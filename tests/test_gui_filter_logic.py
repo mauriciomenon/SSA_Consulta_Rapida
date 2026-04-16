@@ -1546,6 +1546,27 @@ class TestGUIFilterLogic:
         assert "0 de 50 SSAs" in self.window.filtered_status_label.text()
         assert self.window.search_input.text() == "Termo inexistente"
 
+    def test_general_search_ignores_complex_df_attrs_from_ssa_index_cache(self):
+        realistic_df = self._build_realistic_base_df_50()
+        target_ssa = str(realistic_df.iloc[0]["numero_ssa"])
+        realistic_df.attrs["_ssa_series_index"] = {
+            str(row["numero_ssa"]): row.copy() for _, row in realistic_df.iterrows()
+        }
+
+        self.window.df_completo = realistic_df.copy()
+        self.window.df_exibido = realistic_df.copy()
+        self.window._df_last_search_filtered = realistic_df.copy()
+        self.window.paginator.set_dataframe(realistic_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        self.window.search_input.setText(target_ssa)
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        visible_ssa = [str(value) for value in self._extract_visible_ssa()]
+        assert Counter(visible_ssa) == Counter([target_ssa])
+
     def test_column_widths_stability_during_cycles(self):
         self.window.df_completo = self.base_df.copy()
         self.window.df_exibido = self.base_df.copy()
