@@ -1005,13 +1005,13 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
             try:
                 non_null_mask = df_copy.notna().any(axis=0)
                 non_null_cols = set(non_null_mask[non_null_mask].index.tolist())
-            except Exception:
+            except (TypeError, ValueError, AttributeError, KeyError):
                 non_null_cols = set()
                 for col_name in df_copy.columns:
                     try:
                         if df_copy[col_name].notna().any():
                             non_null_cols.add(col_name)
-                    except Exception:
+                    except (TypeError, ValueError, AttributeError, KeyError):
                         continue
         window._non_null_cols_cache = non_null_cols
         window._non_null_cols_revision = int(getattr(window, "_data_revision", 0) or 0)
@@ -1339,8 +1339,10 @@ def rescan_data(
         cancel_btn = prompt.addButton(qmessagebox.StandardButton.Cancel)
         try:
             prompt.setDefaultButton(diff_btn)
-        except Exception:
-            pass
+        except (RuntimeError, TypeError, AttributeError) as exc:
+            logger.debug(
+                "Falha ao definir botao padrao no prompt de reescaneamento: %s", exc
+            )
         prompt.exec()
         clicked = prompt.clickedButton()
         if clicked is None or clicked == cancel_btn:
