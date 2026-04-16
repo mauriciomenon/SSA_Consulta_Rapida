@@ -1075,6 +1075,10 @@ class FilterGUISSAMixin:
             and request_id is not None
             and pending_jump.get("request_id") == request_id
         ):
+            if self._recover_pending_jump_after_filter_error(
+                pending_jump, error_msg, request_id
+            ):
+                return
             self._pending_jump_to_ssa = None
         # Avoid modal dialogs during automated tests (can deadlock the pytest runner).
         if os.environ.get("PYTEST_CURRENT_TEST"):
@@ -1082,6 +1086,64 @@ class FilterGUISSAMixin:
         else:
             QMessageBox.critical(_qt_parent(self), "Erro de Filtro", error_msg)
         self.status_label.setText("Status: Erro ao aplicar filtro.")
+
+    def _recover_pending_jump_after_filter_error(
+        self, pending_jump: dict[str, Any], error_msg: str, request_id: int | None
+    ) -> bool:
+        numero_ssa = str(pending_jump.get("numero_ssa") or "").strip()
+        if not numero_ssa:
+            return False
+        try:
+            current_search = str(self.search_input.text() or "").strip()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao ler busca atual durante recuperacao de salto pendente: %s",
+                exc,
+            )
+            return False
+        if current_search != f"={numero_ssa}":
+            return False
+        try:
+            filter_source = self._get_filter_source_dataframe()
+            default_mode = getattr(self, "_cached_default_mode", None)
+            if not default_mode:
+                from gui.gui_config import GUI_MAIN_PREFERENCES
+
+                gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
+                default_mode = gui_settings.get("default_filter_mode", "contains")
+                self._cached_default_mode = default_mode
+            parsed = parse_search_terms([f"={numero_ssa}"], default_mode=default_mode)
+            general_search_columns = build_gui_general_search_columns(filter_source)
+            df_filtrado = filter_dataframe(
+                filter_source,
+                parsed,
+                search_columns=general_search_columns,
+            )
+        except Exception as exc:
+            logger.debug(
+                "Falha no fallback sincrono do salto pendente para SSA %s apos erro '%s': %s",
+                numero_ssa,
+                error_msg,
+                exc,
+            )
+            return False
+        logger.warning(
+            "Filtro assincrono falhou durante salto pendente para SSA %s; aplicando fallback sincrono. erro=%s",
+            numero_ssa,
+            error_msg,
+        )
+        self._pending_search_display = f"={numero_ssa}"
+        self._active_filter_search_display = f"={numero_ssa}"
+        self._active_filter_search_request_id = request_id
+        try:
+            self.search_input.setText(f"={numero_ssa}")
+        except Exception as exc:
+            logger.debug(
+                "Falha ao restaurar texto de busca durante fallback do salto pendente: %s",
+                exc,
+            )
+        self.on_filter_finished(df_filtrado, request_id=request_id)
+        return True
 
     def _consume_pending_jump_to_ssa(self, request_id: int | None) -> None:
         pending_jump = getattr(self, "_pending_jump_to_ssa", None)

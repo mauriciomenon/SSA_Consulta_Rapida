@@ -2969,6 +2969,28 @@ class TestGUIFilterLogic:
         assert 'href="ssa:202500777"' in html
         assert 'href="ssa:202500888"' in html
 
+    def test_details_html_tolerates_pd_na_in_related_relation_fields(self):
+        series = self.base_df.iloc[0].copy()
+        series["numero_ssa"] = "202600023"
+        series["numero_ssa_relacionada_1"] = "202500777"
+        series["situacao_relacionada_1"] = pd.NA
+        series["relacao"] = pd.NA
+
+        with patch(
+            "gui.ssa.gui_details._get_series_for_ssa",
+            side_effect=lambda _window, numero: object()
+            if str(numero) == "202500777"
+            else None,
+        ):
+            html = self.window._format_details_html(
+                series,
+                highlight_search_terms=False,
+                linkify=True,
+            )
+
+        assert "SSAs relacionadas (1)" in html
+        assert 'href="ssa:202500777"' in html
+
     def test_details_html_expands_situacao_and_links_numero_ssa_for_copy(self):
         series = self.base_df.iloc[0].copy()
         series["numero_ssa"] = "202600023"
@@ -3777,6 +3799,48 @@ class TestGUIFilterLogic:
 
         assert resolved is True
         assert str(getattr(self.window, "_details_current_ssa", "")) == target_ssa
+        assert self.window.search_input.text() == f"={target_ssa}"
+        assert getattr(self.window, "_pending_jump_to_ssa", None) is None
+
+    def test_on_filter_error_recovers_pending_jump_with_exact_ssa_fallback(self):
+        rows = 220
+        df = self._build_heavy_filters_df(rows)
+        target_pos = 157
+        target_ssa = str(df.iloc[target_pos]["numero_ssa"])
+
+        self.window._sync_filtering = False
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.iloc[:50].copy().reset_index(drop=True)
+        self.window._df_last_search_filtered = self.window.df_exibido.copy()
+        self.window.paginator.page_size = 50
+        self.window.paginator.set_dataframe(self.window.df_exibido.copy())
+        self.window.search_input.setText(f"={target_ssa}")
+        self.window._active_filter_request_id = 1
+        self.window._pending_jump_to_ssa = {
+            "numero_ssa": target_ssa,
+            "request_id": 1,
+        }
+
+        self.window.on_filter_error("Erro ao filtrar dados: boom", request_id=1)
+
+        deadline = time.time() + 5.0
+        resolved = False
+        while time.time() < deadline:
+            QApplication.processEvents()
+            selected_rows = self.window.table_widget.selectionModel().selectedRows()
+            if selected_rows:
+                row = selected_rows[0].row()
+                row_series = self.window._get_series_from_row(row)
+                row_ssa = str(row_series.get("numero_ssa"))
+                if (
+                    str(getattr(self.window, "_details_current_ssa", "")) == target_ssa
+                    and row_ssa == target_ssa
+                ):
+                    resolved = True
+                    break
+            time.sleep(0.01)
+
+        assert resolved is True
         assert self.window.search_input.text() == f"={target_ssa}"
         assert getattr(self.window, "_pending_jump_to_ssa", None) is None
 
