@@ -2368,6 +2368,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 finally:
                     self._pending_theme_refresh_column_filters = None
             try:
+                if bool(getattr(self, "_adv_options_dirty", False)):
+                    self._schedule_adv_options_refresh()
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao agendar refresh de filtros avancados na troca de aba: %s",
+                    exc,
+                )
+            try:
                 self._reorganize_advanced_filters_grid(
                     getattr(self, "adv_filters_group").width()
                 )

@@ -712,7 +712,6 @@ def _update_details_from_series(window, series):
     try:
         font_size_pt = None
         font_family = None
-        ssa_index = _get_window_ssa_series_index(window)
         if hasattr(window, "details_group"):
             try:
                 base_font = window.details_group.font()
@@ -734,7 +733,10 @@ def _update_details_from_series(window, series):
             font_size_pt=font_size_pt,
             linkify=True,
             font_family=font_family,
-            ssa_index=ssa_index,
+            # Evita construir o indice SSA global no primeiro paint do painel.
+            # Para o painel lateral, os poucos lookups adicionais sao mais baratos
+            # que materializar o indice completo no startup.
+            ssa_index={},
         )
         window.details_text.setHtml(html_content)
         window.details_text.setProperty("details_render_signature", render_signature)
