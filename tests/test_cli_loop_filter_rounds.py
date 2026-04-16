@@ -462,6 +462,40 @@ def test_cached_pretty_print_df_cache_key_includes_rendered_rows(
     assert render_count["count"] == 2
 
 
+def test_cached_pretty_print_df_falls_back_to_default_page_size_on_terminal_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = {"user_preferences": {}, "display_settings": {}}
+    df = pd.DataFrame({"numero_ssa": ["202500001"]})
+
+    monkeypatch.setattr(
+        cli.enhancement_manager, "is_enhanced_printer_enabled", lambda: False
+    )
+    monkeypatch.setattr(
+        cli.EnhancedTablePrinter,
+        "get_terminal_size",
+        lambda _self: (_ for _ in ()).throw(ValueError("terminal invalido")),
+    )
+    monkeypatch.setattr(cli, "pretty_print_df", lambda *_args, **_kwargs: None)
+
+    result = cli._cached_pretty_print_df(df, {}, settings, {}, [])
+
+    assert result["page_size"] == 20
+
+
+def test_is_cli_non_interactive_returns_true_when_stdin_isatty_breaks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _BrokenStdin:
+        def isatty(self):
+            raise ValueError("isatty indisponivel")
+
+    monkeypatch.delenv("SSA_NON_INTERACTIVE", raising=False)
+    monkeypatch.setattr(cli.sys, "stdin", _BrokenStdin())
+
+    assert cli._is_cli_non_interactive() is True
+
+
 def test_build_cli_plain_help_text_reflects_current_search_contract() -> None:
     help_text = cli._build_cli_plain_help_text()
 
