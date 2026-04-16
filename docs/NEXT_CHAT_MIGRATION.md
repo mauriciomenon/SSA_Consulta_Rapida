@@ -2,7 +2,32 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-11 23h00
+## CURRENT TRUTH 2026-04-15 21h50
+
+### Estado de repositorio e runtime
+
+1. branch ativa confirmada: `dev`
+2. worktree estava limpo antes do slice atual
+3. `HEAD` local esta 1 commit a frente de `origin/dev`
+4. PR remoto ativo:
+   - `#47` `dev -> main`
+   - head remoto ainda em `fb068228`
+5. a falha local real desta rodada ficou isolada em contrato de config GUI:
+   - `config/gui_main_preferences.json.example` estava divergente de `gui/gui_config.py`
+   - manter como canonico neste momento:
+     - Windows: `derivada_de=112`, `semana_programada=92`, `setor_emissor=72`
+     - macOS: `semana_programada=72`
+     - Linux: `setor_executor=65`
+6. `DeepSource` e `Snyk` continuam vindo como status externos de app/conta:
+   - tratar como warning operacional no fluxo deste repo
+   - nao ha branch protection local obrigando esses checks neste host
+7. `node_modules`, `package.json` e `bun.lock` nao existem rastreados no `HEAD` atual
+8. o proximo agente deve continuar lendo o contrato de preferencias GUI assim:
+   - `gui/gui_config.py` define a base em memoria
+   - `config/gui_main_preferences.json.example` deve espelhar essa base para auditoria
+   - `config/gui_main_preferences.json` continua sendo o arquivo efetivo de runtime
+
+## HISTORICAL SNAPSHOT 2026-04-11 23h00
 
 ### Estado de repositorio e runtime
 

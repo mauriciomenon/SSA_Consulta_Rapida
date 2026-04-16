@@ -2,9 +2,22 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-11 23h00
+## CURRENT TRUTH 2026-04-15 21h50
 
-## CURRENT TRUTH 2026-04-14 10h15
+- Leitura rapida:
+  1. branch alvo confirmada: `dev`
+  2. worktree local estava limpo antes deste slice
+  3. `HEAD` local esta 1 commit a frente de `origin/dev`; PR remoto `#47` ainda aponta para `fb068228`
+  4. a falha local real detectada nesta rodada era o contrato quebrado entre `gui/gui_config.py` e `config/gui_main_preferences.json.example`
+  5. valores canonicos a preservar no momento:
+     - Windows: `derivada_de=112`, `semana_programada=92`, `setor_emissor=72`
+     - macOS: `semana_programada=72`
+     - Linux: `setor_executor=65`
+  6. `DeepSource` e `Snyk` seguem como status externos; neste repo devem ser tratados como warnings operacionais, nao como bloqueio tecnico local
+  7. `dev` e `main` sem branch protection obrigando esses checks neste host
+  8. Node/Bun/`node_modules` nao existem mais rastreados no `HEAD` atual; a introducao ocorreu em `8e0e90f1` e a remocao em `1d055cae`
+
+## HISTORICAL SNAPSHOT 2026-04-14 10h15
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
@@ -18,7 +31,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   5. alteracoes colaterais de fallback/plataforma permanecem fora deste slice
   6. PR ativo lido: `#47` `dev -> main` (`Merge dev into main for stabilization and gui follow-up`)
 
-## CURRENT TRUTH 2026-04-11 23h00
+## HISTORICAL SNAPSHOT 2026-04-11 23h00
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`

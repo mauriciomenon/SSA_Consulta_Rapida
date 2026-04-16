@@ -5,6 +5,35 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-15 21:50 - config gui contract and external check severity
+
+Escopo desta rodada:
+1. revalidar o estado real do repo, do PR `#47` e dos checks externos
+2. corrigir o contrato quebrado entre `gui/gui_config.py` e `config/gui_main_preferences.json.example`
+3. registrar explicitamente que `DeepSource` e `Snyk` devem ser tratados como warnings operacionais externos neste repo
+
+Evidencia desta rodada:
+1. worktree local iniciou limpo em `dev`
+2. `HEAD` local esta 1 commit a frente de `origin/dev`; PR remoto ainda aponta para `fb068228`
+3. unica falha local real encontrada em `pytest`:
+   - `tests/test_gui_main_configuration.py::TestGUIMainConfiguration::test_gui_main_preferences_reference_file_matches_code_defaults`
+4. divergencias confirmadas antes do ajuste:
+   - `darwin.semana_programada`: `92 -> 72`
+   - `win32.derivada_de`: `93 -> 112`
+   - `win32.semana_programada`: `72 -> 92`
+   - `win32.setor_emissor`: `58 -> 72`
+   - `linux.setor_executor`: `80 -> 65`
+5. checks externos observados no PR:
+   - `DeepSource: Python`
+   - `code/snyk (mauriciomenon)`
+   - `security/snyk (mauriciomenon)`
+6. `dev` e `main` sem branch protection obrigando esses checks neste host
+7. `node_modules`, `package.json` e `bun.lock` nao existem mais rastreados no `HEAD` atual
+
+Follow-up deliberadamente fora deste slice:
+1. separar, em fluxo de release futuro, os artefatos `docs_entrada/**` em PR proprio para reduzir o diff `dev -> main`
+2. atacar `except Exception` e `pass` silenciosos em slices dedicados por modulo, com repro e contrato local
+
 ## Update 2026-04-14 - gui status split and windows widths sync
 
 Escopo fechado nesta rodada:
