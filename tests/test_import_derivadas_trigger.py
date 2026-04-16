@@ -415,6 +415,63 @@ def test_run_importer_runs_special_derivadas_sync_for_explicit_file_import(
     assert sorted(sync_calls[0]["sheet_files"]) == [str(special)]
 
 
+def test_needs_db_only_derivadas_sync_returns_false_on_runtime_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(
+        app_logic.database,
+        "get_db_connection",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("db down")),
+    )
+
+    assert app_logic._needs_db_only_derivadas_sync("/tmp/ssa.db", "ssa_table") is False
+
+
+def test_run_optional_derivadas_sync_marks_blocking_error_on_runtime_error() -> None:
+    import core.app_logic as app_logic
+
+    critical_errors: list[tuple[str, str, str]] = []
+    progress_events: list[tuple[str, dict[str, object]]] = []
+
+    def _emit_progress(event_type: str, data: dict[str, object]) -> None:
+        progress_events.append((event_type, data))
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(
+            app_logic,
+            "_run_derivadas_sync_phase",
+            lambda **kwargs: (_ for _ in ()).throw(RuntimeError("sync down")),
+        )
+
+        sync_materialized, blocking_error = app_logic._run_optional_derivadas_sync(
+            auto_derivadas_sync_enabled=True,
+            successfully_processed_files=["/tmp/regular.xlsx"],
+            derivadas_sheet_files=[],
+            db_only_derivadas_sync=False,
+            should_cancel=None,
+            working_db_path="/tmp/ssa.db",
+            table_name="ssa_table",
+            docs_dir="/tmp/docs",
+            critical_errors=critical_errors,
+            emit_progress=_emit_progress,
+        )
+
+    assert sync_materialized is False
+    assert blocking_error is True
+    assert critical_errors == [("derivadas_sync", "/tmp/docs", "sync down")]
+    assert progress_events == [
+        (
+            "file_error",
+            {
+                "filename": "SSAs Derivadas e Relacionadas",
+                "error": "sync down",
+            },
+        )
+    ]
+
+
 def test_run_importer_accepts_db_materialization_when_special_sheet_has_no_edges(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
