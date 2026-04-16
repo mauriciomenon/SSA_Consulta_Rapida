@@ -1,0 +1,29 @@
+gui/ssa/gui_workers.py
+  4f637c3e200a2c99 1008,1014,1342-1345
+gui/workers/data_loader_worker.py
+  4f637c3e200a2c99 119,122,124,241,246
+tests/test_workers_advanced.py
+  4f637c3e200a2c99 2,4-6,10-12,26,28,47,54,82,102,115,120,123,132,150,154,157,160,164,167,170,173,176-177,180,184,194,237,242,245,267,286,301,320,337,342,347,359,372,386,389,391,419,435,440,449,468,471,478,485,496,503,521,545,571,584,587,621,636,647,671,676,679,701,707,771
+tests/test_data_loader_worker.py
+  4f637c3e200a2c99 25,103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "2de09ff1fa015805b469cde98cf655f67343adf2",
+  "prompts": {
+    "4f637c3e200a2c99": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d9394-1044-73e1-9aab-e12e63b73313",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 83,
+      "total_deletions": 81,
+      "accepted_lines": 14339,
+      "overriden_lines": 0
+    }
+  }
+}
