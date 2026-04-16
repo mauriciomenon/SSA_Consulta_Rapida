@@ -33,8 +33,8 @@ HIGHLIGHT_FONT_WEIGHT = "bold"
 MONO_FONT_FAMILY = "monospace"
 HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
 DERIVADAS_DETAILS_TOP_N = 5
-DERIVADAS_DIALOG_RATIO_LEFT = 18
-DERIVADAS_DIALOG_RATIO_RIGHT = 82
+DERIVADAS_DIALOG_RATIO_LEFT = 16
+DERIVADAS_DIALOG_RATIO_RIGHT = 84
 DERIVADAS_DIALOG_MIN_HEIGHT = 730
 DERIVADAS_DIALOG_DETAILS_FONT_PT = 12.0
 DERIVADAS_DIALOG_TREE_FONT_PT = 12.0
@@ -2134,9 +2134,11 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     details_tab_splitter.addWidget(details_browser)
     details_derivadas_splitter.addWidget(tree_tab_browser)
     details_derivadas_splitter.addWidget(tree_graph_panel)
-    details_derivadas_splitter.setStretchFactor(0, 1)
-    details_derivadas_splitter.setStretchFactor(1, 1)
-    details_derivadas_splitter.setSizes([430, 560])
+    details_derivadas_splitter.setStretchFactor(0, DERIVADAS_DIALOG_RATIO_LEFT)
+    details_derivadas_splitter.setStretchFactor(1, DERIVADAS_DIALOG_RATIO_RIGHT)
+    details_derivadas_splitter.setSizes(
+        [DERIVADAS_DIALOG_RATIO_LEFT * 10, DERIVADAS_DIALOG_RATIO_RIGHT * 10]
+    )
     details_tab_splitter.addWidget(details_derivadas_splitter)
     details_tab_splitter.setStretchFactor(0, 1)
     details_tab_splitter.setStretchFactor(1, 1)

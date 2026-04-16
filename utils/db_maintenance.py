@@ -19,10 +19,9 @@ from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 
-from armazenamento.identifier_utils import is_valid_identifier
+from armazenamento.identifier_utils import is_valid_identifier, quote_identifier
 
 logger = logging.getLogger(__name__)
-
 
 class DatabaseMaintenanceError(Exception):
     """Erro durante operações de manutenção do banco de dados."""
@@ -81,8 +80,10 @@ class DatabaseAnalyzer:
                         column_counts[col_name] = 0
                         continue
                     try:
+                        quoted_col_name = quote_identifier(col_name)
                         cursor.execute(
-                            f'SELECT COUNT(*) FROM ssas WHERE "{col_name}" IS NOT NULL AND "{col_name}" != ""'
+                            f"SELECT COUNT(*) FROM ssas WHERE {quoted_col_name} IS NOT NULL "
+                            f"AND {quoted_col_name} != ''"
                         )
                         count = cursor.fetchone()[0]
                         column_counts[col_name] = count

@@ -5,6 +5,8 @@ VERIFICAÇÃO URGENTE DO BANCO DE DADOS
 
 import sqlite3
 
+from armazenamento.identifier_utils import quote_identifier
+
 
 def verificar_urgente():
     print(" VERIFICAÇÃO URGENTE DO BANCO")
@@ -56,8 +58,10 @@ def verificar_urgente():
             # Verifica se a coluna existe
             existe = any(col[1] == campo for col in colunas)
             if existe:
+                quoted_campo = quote_identifier(campo)
                 sample = conn.execute(
-                    f"SELECT {campo} FROM ssas WHERE {campo} IS NOT NULL AND {campo} != '' LIMIT 1"
+                    f"SELECT {quoted_campo} FROM ssas "
+                    f"WHERE {quoted_campo} IS NOT NULL AND {quoted_campo} != '' LIMIT 1"
                 ).fetchone()
                 print(
                     f"  {campo}: {'OK EXISTE' if sample else 'ERR VAZIO'} - Sample: {sample[0] if sample else 'N/A'}"

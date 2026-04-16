@@ -5,15 +5,9 @@ import sqlite3
 
 import pandas as pd
 
-from .identifier_utils import is_valid_identifier
+from .identifier_utils import is_valid_identifier, quote_identifier
 
 logger = logging.getLogger(__name__)
-
-
-def _quote_identifier(identifier: str) -> str:
-    """Quote validated SQL identifier."""
-    return f'"{identifier}"'
-
 
 def ensure_columns_exist(
     conn: sqlite3.Connection, table_name: str, df: pd.DataFrame
@@ -43,7 +37,8 @@ def ensure_columns_exist(
         return
 
     # Get existing columns
-    cursor.execute(f"PRAGMA table_info({_quote_identifier(table_name)})")
+    quoted_table_name = quote_identifier(table_name)
+    cursor.execute(f"PRAGMA table_info({quoted_table_name})")
     existing_cols = {row[1] for row in cursor.fetchall()}
 
     # Find missing columns
@@ -73,9 +68,9 @@ def ensure_columns_exist(
             sql_type = "TEXT"
 
         try:
+            quoted_col = quote_identifier(col)
             cursor.execute(
-                f"ALTER TABLE {_quote_identifier(table_name)} "
-                f"ADD COLUMN {_quote_identifier(col)} {sql_type}"
+                f"ALTER TABLE {quoted_table_name} ADD COLUMN {quoted_col} {sql_type}"
             )
             logger.info(f"[OK] Coluna adicionada: {col} ({sql_type})")
         except sqlite3.OperationalError as e:

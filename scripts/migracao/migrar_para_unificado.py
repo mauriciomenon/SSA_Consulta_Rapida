@@ -29,6 +29,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List
 
+from armazenamento.identifier_utils import quote_identifier
+
 SCHEMA_PATH = Path("config/schema_unified.sql")
 TARGET_TABLE = "ssa_table"
 
@@ -49,7 +51,6 @@ def infer_type(column_name: str) -> str:
     if any(h in low for h in INT_HINTS):
         return "INTEGER"
     return "TEXT"
-
 
 def parse_target_columns() -> List[str]:
     if not SCHEMA_PATH.exists():
@@ -99,7 +100,8 @@ def migrate(db_path: Path) -> None:
     target_cols = parse_target_columns()
     con = sqlite3.connect(db_path)
     cur = con.cursor()
-    cur.execute(f"PRAGMA table_info({TARGET_TABLE})")
+    quoted_target_table = quote_identifier(TARGET_TABLE)
+    cur.execute(f"PRAGMA table_info({quoted_target_table})")
     existing = [row[1] for row in cur.fetchall()]
     missing = [c for c in target_cols if c not in existing]
     print(
@@ -112,7 +114,8 @@ def migrate(db_path: Path) -> None:
     print(f"Backup criado: {backup_path}")
     for col in missing:
         col_type = infer_type(col)
-        sql = f"ALTER TABLE {TARGET_TABLE} ADD COLUMN {col} {col_type}"  # colunas novas NULL por padrão
+        quoted_col = quote_identifier(col)
+        sql = f"ALTER TABLE {quoted_target_table} ADD COLUMN {quoted_col} {col_type}"
         print("> ", sql)
         cur.execute(sql)
     con.commit()
