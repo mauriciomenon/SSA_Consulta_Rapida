@@ -691,6 +691,23 @@ class FilterGUISSAMixin:
         self._clear_all_filters_global()
         self._maybe_offer_hard_reset_after_repeated_clear_click()
 
+    def _get_filter_source_dataframe(self) -> pd.DataFrame:
+        """Retorna fonte de busca sem attrs complexos que quebram operacoes internas do pandas."""
+        source = self.df_completo
+        try:
+            safe_source = source.copy(deep=False)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao criar copia rasa da fonte de busca; usando df_completo original: %s",
+                exc,
+            )
+            return source
+        try:
+            safe_source.attrs = {}
+        except Exception as exc:
+            logger.debug("Falha ao limpar attrs da fonte de busca: %s", exc)
+        return safe_source
+
     def _reset_repeated_clear_click_tracking(self) -> None:
         self._clear_filter_click_count = 0
         self._clear_filter_last_click_ts = 0.0
@@ -804,7 +821,8 @@ class FilterGUISSAMixin:
                 "default_filter_mode", "contains"
             )
         default_mode = self._cached_default_mode
-        general_search_columns = build_gui_general_search_columns(self.df_completo)
+        filter_source = self._get_filter_source_dataframe()
+        general_search_columns = build_gui_general_search_columns(filter_source)
 
         # Modo síncrono (sem QThread) opcional para testes
         if getattr(self, "_sync_filtering", False):
@@ -814,8 +832,8 @@ class FilterGUISSAMixin:
                     for terms in chunk_terms_lists:
                         parsed = parse_search_terms(terms, default_mode=default_mode)
                         frames.append(
-                            filter_dataframe(
-                                self.df_completo,
+                                filter_dataframe(
+                                filter_source,
                                 parsed,
                                 search_columns=general_search_columns,
                             )
@@ -825,10 +843,10 @@ class FilterGUISSAMixin:
                         .drop_duplicates()
                         .reset_index(drop=True)
                         if frames
-                        else self.df_completo.copy()
+                        else filter_source.copy()
                     )
                 else:
-                    df_filtrado = self.df_completo.copy()
+                    df_filtrado = filter_source.copy()
                 self.on_filter_finished(df_filtrado, request_id=request_id)
                 # Em modo síncrono, garanta larguras válidas imediatamente após aplicar o filtro
                 try:
@@ -869,8 +887,8 @@ class FilterGUISSAMixin:
                     for terms in chunk_terms_lists:
                         parsed = parse_search_terms(terms, default_mode=default_mode)
                         frames.append(
-                            filter_dataframe(
-                                self.df_completo,
+                                filter_dataframe(
+                                filter_source,
                                 parsed,
                                 search_columns=general_search_columns,
                             )
@@ -880,10 +898,10 @@ class FilterGUISSAMixin:
                         .drop_duplicates()
                         .reset_index(drop=True)
                         if frames
-                        else self.df_completo.copy()
+                        else filter_source.copy()
                     )
                 else:
-                    df_filtrado = self.df_completo.copy()
+                    df_filtrado = filter_source.copy()
                 self.on_filter_finished(df_filtrado, request_id=request_id)
             except Exception as e:  # noqa: BLE001
                 self.on_filter_error(
@@ -896,7 +914,7 @@ class FilterGUISSAMixin:
         # Inicia a thread de filtragem (modo padrao assincrono)
         filter_cache_context = self._build_filter_cache_context()
         worker = FilterWorker(
-            self.df_completo,
+            filter_source,
             chunk_terms_lists,
             search_columns=general_search_columns,
             default_mode=default_mode,

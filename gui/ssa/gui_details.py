@@ -360,9 +360,19 @@ def _format_details_html(
     if derived_list:
         if linkify:
             items = []
+            derived_exists_cache: dict[str, bool] = {}
             for item in derived_list:
                 href = _normalize_ssa_value(window, item)
-                exists = bool(href and href in ssa_index)
+                exists = False
+                if href:
+                    cached_exists = derived_exists_cache.get(href)
+                    if cached_exists is None:
+                        resolved_series = ssa_index.get(href)
+                        if resolved_series is None:
+                            resolved_series = _get_series_for_ssa(window, href)
+                        cached_exists = resolved_series is not None
+                        derived_exists_cache[href] = cached_exists
+                    exists = cached_exists
                 items.append(
                     _render_ssa_navigation_link(
                         href or item,
@@ -1227,6 +1237,8 @@ def _build_derivadas_tree_html(
         if resolved_series is None:
             resolved_series = _get_series_for_ssa(window, safe)
         status_code = str(status_hint or "").strip().upper()
+        if not status_code:
+            status_code = str(_get_situacao_for_ssa(window, safe) or "").strip().upper()
         if not status_code and resolved_series is not None:
             try:
                 status_code = get_status_code(resolved_series.get("situacao"))
