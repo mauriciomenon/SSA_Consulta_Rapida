@@ -51,6 +51,7 @@ DERIVADAS_GRAPH_MARGIN = 8
 DERIVADAS_GRAPH_MAX_DESCENDANTS = 120
 DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT = 120
 DERIVADAS_SPLITTER_HANDLE_WIDTH = 10
+DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT = 260
 
 
 def _init_readonly_text_browser(
@@ -655,10 +656,9 @@ def update_details_from_selection(window):
     render_signature = _get_details_render_signature(window, series)
     current_signature = window.details_text.property("details_render_signature")
     skip_ssa = window.table_widget.property("details_skip_selection_once_for_ssa")
-    if skip_ssa is not None and selected_ssa != skip_ssa:
+    if skip_ssa is not None:
         window.table_widget.setProperty("details_skip_selection_once_for_ssa", None)
     if selected_ssa is not None and selected_ssa == skip_ssa:
-        window.table_widget.setProperty("details_skip_selection_once_for_ssa", None)
         try:
             if (
                 not window.details_text.document().isEmpty()
@@ -2113,8 +2113,8 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     details_derivadas_splitter.setSizes([430, 560])
     details_tab_splitter.addWidget(details_derivadas_splitter)
     details_tab_splitter.setStretchFactor(0, 1)
-    details_tab_splitter.setStretchFactor(1, 0)
-    details_tab_splitter.setSizes([560, 170])
+    details_tab_splitter.setStretchFactor(1, 1)
+    details_tab_splitter.setSizes([470, DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT])
 
     root_layout.addWidget(details_tab_splitter)
 
@@ -2154,7 +2154,16 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             or target_height != current_size.height()
         ):
             dialog.resize(target_width, target_height)
-        details_tab_splitter.setSizes([max(0, target_height - 170), 170])
+        bottom_height = min(
+            max(
+                DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT,
+                int(target_height * 0.32),
+            ),
+            max(0, target_height - 240),
+        )
+        details_tab_splitter.setSizes(
+            [max(0, target_height - bottom_height), bottom_height]
+        )
     if tree_graph_label is not None:
         QTimer.singleShot(0, _refresh_graph_after_resize)
     dialog.exec()

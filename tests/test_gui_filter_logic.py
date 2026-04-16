@@ -1216,16 +1216,16 @@ class TestGUIFilterLogic:
             def data(self):
                 return self.data_value
 
-        class _FakeMenu:
-            created_actions: list[_FakeAction] = []
+        created_actions: list[_FakeAction] = []
 
+        class _FakeMenu:
             def __init__(self, _parent=None):
                 self.actions: list[_FakeAction] = []
 
             def addAction(self, text: str):
                 action = _FakeAction(text)
                 self.actions.append(action)
-                _FakeMenu.created_actions.append(action)
+                created_actions.append(action)
                 return action
 
             def exec(self, _pos):
@@ -1249,7 +1249,7 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(QtWidgets, "QMenu", _FakeMenu)
 
         self.window._open_add_column_filter_menu()
-        menu_columns = {action.data() for action in _FakeMenu.created_actions}
+        menu_columns = {action.data() for action in created_actions}
 
         assert "situacao" in menu_columns
         assert "numero_ssa" in menu_columns
@@ -3099,10 +3099,12 @@ class TestGUIFilterLogic:
         self.window._open_details_dialog_for_ssa("1")
         assert captured["tab_count"] == 0
         assert any(
-            len(sizes) == 2 and sizes[1] == 170 for sizes in captured["splitter_sizes"]
+            len(sizes) == 2
+            and sizes[1] >= ssa_gui_details.DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT
+            for sizes in captured["splitter_sizes"]
         )
         assert any(
-            len(sizes) == 2 and sizes[0] < sizes[1]
+            len(sizes) == 2 and sizes[0] > sizes[1]
             for sizes in captured["splitter_sizes"]
         )
         assert all(width == 10 for width in captured["splitter_handles"])
@@ -3163,7 +3165,9 @@ class TestGUIFilterLogic:
             == ssa_gui_details.DERIVADAS_DIALOG_MIN_HEIGHT
         )
         assert any(
-            len(sizes) == 2 and sizes[1] == 170 for sizes in captured["splitter_sizes"]
+            len(sizes) == 2
+            and sizes[1] >= ssa_gui_details.DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT
+            for sizes in captured["splitter_sizes"]
         )
 
     def test_build_derivadas_tree_html_omits_link_for_missing_target(self, monkeypatch):
