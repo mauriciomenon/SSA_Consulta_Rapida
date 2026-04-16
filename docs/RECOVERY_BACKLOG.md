@@ -5,6 +5,40 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-16 00:20 - consolidated pending list after gui details slice
+
+Lista unica das pendencias antigas + atuais que continuam abertas apos o slice de detalhes/relacoes:
+1. docs de release/historico seguem incompletos entre o ultimo estado historico coerente e `v4.37`:
+   - `CHANGELOG.md`
+   - `docs/CHANGELOG_IMPLEMENTACOES.md`
+   - `docs/HISTORICO_RELEASES.md`
+   - reflexos em `README.md`, `docs/NEXT_CHAT_MIGRATION.md` e `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+2. threads do PR `#47` ainda precisam fechamento operacional real:
+   - muitas threads ja respondidas seguem `unresolved`
+   - ainda existe pelo menos uma thread antiga sem resposta/finalizacao clara
+   - o placar precisa ser rechecado ao fim de cada push, nao so por comentario
+3. hardening de error handling continua aberto por modulo:
+   - `core/app_logic.py`
+   - `armazenamento/database_upsert_logic.py`
+   - `interface/cli.py`
+   - widgets/GUI com `except Exception`, `pass` ou fallback silencioso ainda herdados
+4. sincronismo dos 3 inputs de filtro ainda precisa verificacao visual completa em runtime real, mesmo com a regressao principal de navegacao local corrigida
+5. a janela de detalhes da SSA ainda precisa validacao visual real em 3 tamanhos:
+   - caixa inferior esquerda
+   - popup de detalhes
+   - grafo/relacoes com base grande
+6. a exibicao grafica de SSAs relacionadas foi aterrada no renderer local, mas precisa prova visual com dados reais e conferencia das linhas pontilhadas em base de operacao
+7. checks externos continuam como ruido operacional:
+   - `DeepSource`
+   - `code/snyk`
+   - `security/snyk`
+   eles nao estao resolvidos no vendor/app e seguem exigindo acompanhamento fora do codigo do repo
+8. `kluster` segue instavel por timeout real de `120s`; o contrato operacional pedido e insistir com orcamento efetivo maior antes de declarar bloqueio final
+9. follow-up estrutural adiado de forma intencional neste slice:
+   - reduzir concentracao de responsabilidade em `gui/ssa/gui_details.py`
+   - quebrar `tests/test_gui_filter_logic.py` por dominio
+   - consolidar caches/indices de GUI sem reabrir refatoracao ampla
+
 ## Update 2026-04-15 21:50 - config gui contract and external check severity
 
 Escopo desta rodada:

@@ -2921,6 +2921,31 @@ class TestGUIFilterLogic:
         assert "derivadas:tree" not in html
         assert "ssa-details:9000" not in html
 
+    def test_details_html_renders_related_ssa_links(self):
+        series = self.base_df.iloc[0].copy()
+        series["numero_ssa"] = "202600023"
+        series["numero_ssa_relacionada_1"] = "202500777"
+        series["numero_ssa_relacionada_2"] = "202500888"
+        series["situacao_relacionada_1"] = "STE"
+        series["situacao_relacionada_2"] = "APG"
+        series["relacao"] = "RELACIONADA"
+
+        with patch(
+            "gui.ssa.gui_details._get_series_for_ssa",
+            side_effect=lambda _window, numero: object()
+            if str(numero) in {"202500777", "202500888"}
+            else None,
+        ):
+            html = self.window._format_details_html(
+                series,
+                highlight_search_terms=False,
+                linkify=True,
+            )
+
+        assert "SSAs relacionadas (2)" in html
+        assert 'href="ssa:202500777"' in html
+        assert 'href="ssa:202500888"' in html
+
     def test_details_html_expands_situacao_and_links_numero_ssa_for_copy(self):
         series = self.base_df.iloc[0].copy()
         series["numero_ssa"] = "202600023"
@@ -2949,12 +2974,6 @@ class TestGUIFilterLogic:
             series,
             highlight_search_terms=False,
             linkify=True,
-            derivadas_rel_override={
-                "has_data": True,
-                "parents": ["999"],
-                "children": ["1001"],
-                "descendants_count": 1,
-            },
         )
         assert "Relacoes de Derivadas" not in html
         assert "Filhas diretas" not in html
@@ -3014,6 +3033,7 @@ class TestGUIFilterLogic:
             "parents": ["202516514"],
             "children": ["202600029", "202600030"],
             "descendants": [{"ssa": "202600031", "parent": "202600029"}],
+            "related": [{"ssa": "202500777", "situacao": "STE", "relacao": "REL"}],
             "descendants_count": 3,
         }
         html = ssa_gui_details._build_derivadas_graph_html(
@@ -3024,6 +3044,8 @@ class TestGUIFilterLogic:
         )
         assert "<svg" in html
         assert "202600023" in html
+        assert "202500777" in html
+        assert "stroke-dasharray" in html
         assert "marker-end" in html
         assert "Grafo de derivadas" in html
 
@@ -3431,6 +3453,42 @@ class TestGUIFilterLogic:
         assert open_mock.call_args.args[0] is self.window
         assert open_mock.call_args.args[1] == "202500777"
 
+    def test_details_anchor_ssa_updates_details_without_refilter(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202500100", "202500101", "202500102"],
+                "situacao": ["APV", "STE", "AMP"],
+                "derivada_de": ["", "202500100", ""],
+                "localizacao_codigo": ["L0", "L1", "L2"],
+                "descricao_localizacao": ["DL0", "DL1", "DL2"],
+                "equipamento": ["E0", "E1", "E2"],
+                "semana_cadastro": [202501] * 3,
+                "semana_programada": [202503] * 3,
+                "data_cadastro": ["2025-01-01"] * 3,
+                "descricao_ssa": ["Origem", "Filha", "Relacionada"],
+                "setor_executor": ["IEE3", "MEL4", "XYZ"],
+                "setor_emissor": ["ABC", "MEL4", "XYZ"],
+                "descricao_execucao": ["Exec O", "Exec A", "Exec R"],
+                "solicitante": ["User0", "User1", "User2"],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.iloc[:1].copy()
+        self.window._df_last_search_filtered = self.window.df_exibido.copy()
+        self.window.paginator.set_dataframe(self.window.df_exibido.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        self.window.search_input.setText("Origem")
+        ssa_gui_details._update_details_from_series(self.window, df.iloc[0])
+
+        self.window._on_details_anchor_clicked(QUrl("ssa:202500102"))
+
+        details_html = str(self.window.details_text.toHtml() or "")
+        assert self.window.search_input.text() == "Origem"
+        assert str(self.window._details_current_ssa) == "202500102"
+        assert "Relacionada" in details_html
+        assert "Origem" not in details_html
+
     def test_normalize_ssa_value_handles_decimal_float_artifact(self):
         assert self.window._normalize_ssa_value("121911787.0") == "121911787"
         assert self.window._normalize_ssa_value(121911787.0) == "121911787"
@@ -3697,10 +3755,13 @@ class TestGUIFilterLogic:
             self.window._clear_derivadas_filter()
             QApplication.processEvents()
 
-        jump_to_ssa_mock.assert_called_once_with(self.window, "202500100")
+        jump_to_ssa_mock.assert_called_once_with(
+            self.window, "202500100", _allow_refilter=False
+        )
         assert "derivada_de" not in self.window._active_column_filters
         assert self.window._last_derivada_origem is None
         assert str(self.window._details_current_ssa) == "202500100"
+        assert self.window.search_input.text() == ""
         details_html = str(self.window.details_text.toHtml() or "")
         assert "Origem" in details_html
         assert "Filha B" not in details_html
