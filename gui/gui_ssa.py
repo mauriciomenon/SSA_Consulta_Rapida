@@ -2358,7 +2358,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             pending_theme = getattr(self, "_pending_theme_refresh_column_filters", None)
             if pending_theme:
                 try:
-                    if hasattr(self, "_refresh_advanced_filter_options"):
+                    self._adv_options_dirty = True
+                    if hasattr(self, "_schedule_adv_options_refresh"):
+                        self._schedule_adv_options_refresh()
+                    elif hasattr(self, "_refresh_advanced_filter_options"):
                         self._refresh_advanced_filter_options()
                 except Exception as exc:
                     logger.debug(

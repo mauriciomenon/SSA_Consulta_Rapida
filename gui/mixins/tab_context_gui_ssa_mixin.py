@@ -92,8 +92,11 @@ class TabContextGUISSAMixin:
             if tab_kind == "filters" and self.adv_filters_group is not None:
                 if self._adv_options_dirty or not self._adv_values_cache:
                     try:
-                        self._refresh_advanced_filter_options()
-                        setattr(self, "_adv_options_dirty", False)
+                        if hasattr(self, "_schedule_adv_options_refresh"):
+                            self._schedule_adv_options_refresh()
+                        else:
+                            self._refresh_advanced_filter_options()
+                            setattr(self, "_adv_options_dirty", False)
                     except Exception as exc:
                         logger.warning(
                             "Falha ao atualizar opcoes avancadas no bind da aba filtros: %s",

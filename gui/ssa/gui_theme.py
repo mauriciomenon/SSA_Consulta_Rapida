@@ -670,7 +670,9 @@ def _refresh_filter_widgets_for_theme(window, normalized: str) -> None:
         if getattr(window, "_current_tab_kind", None) == "filters":
             window._pending_theme_refresh_column_filters = normalized
             try:
-                if hasattr(window, "_refresh_advanced_filter_options"):
+                if hasattr(window, "_schedule_adv_options_refresh"):
+                    window._schedule_adv_options_refresh()
+                elif hasattr(window, "_refresh_advanced_filter_options"):
                     window._refresh_advanced_filter_options()
             except Exception as exc:
                 logger.debug(
