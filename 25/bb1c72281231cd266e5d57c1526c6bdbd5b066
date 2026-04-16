@@ -1,0 +1,27 @@
+CHANGELOG.md
+  4f637c3e200a2c99 8-11,23-68
+docs/HISTORICO_RELEASES.md
+  4f637c3e200a2c99 40,47-51,71-142
+docs/CHANGELOG_IMPLEMENTACOES.md
+  4f637c3e200a2c99 3-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "25bb1c72281231cd266e5d57c1526c6bdbd5b066",
+  "prompts": {
+    "4f637c3e200a2c99": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d9394-1044-73e1-9aab-e12e63b73313",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 214,
+      "total_deletions": 2,
+      "accepted_lines": 14360,
+      "overriden_lines": 0
+    }
+  }
+}
