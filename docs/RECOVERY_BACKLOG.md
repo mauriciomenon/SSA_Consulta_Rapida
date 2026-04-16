@@ -5,6 +5,69 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-16 09:05 - prioritized hardening front for broad except and silent pass
+
+Escopo desta rodada de diagnostico:
+1. transformar o problema generico de `except Exception` e `pass` em fila objetiva por risco real
+2. separar hotspots estruturais de baixo risco dos pontos que realmente podem esconder falha operacional
+3. manter este update documental sem tocar runtime nesta etapa
+4. preservar no cronograma vivo a verificacao visual pedida para linhas completas no grafo e relacoes sem nos "voando"
+
+Levantamento consolidado desta rodada:
+1. contagem por modulo principal:
+   - `core/app_logic.py`: `except Exception=16`, `pass=8`
+   - `armazenamento/database_upsert_logic.py`: `except Exception=13`, `pass=3`
+   - `interface/cli.py`: `except Exception=11`, `pass=0`
+   - `gui/**` agregado: `except Exception=734`, `pass=124`
+2. leitura local mostrou que nem todo `pass` em GUI representa bug real:
+   - varios blocos em `gui/gui_ssa.py` ficam dentro de stubs headless para CI e nao devem entrar como alvo inicial
+   - varios `except` em `gui/ssa/gui_workers.py` ja possuem log e saida coerente, entao sao menos urgentes do que os silencios reais
+
+Fila priorizada para os proximos slices de hardening:
+1. `armazenamento/database_upsert_logic.py`:
+   - primeiro alvo real
+   - ha `except Exception: pass` em caminhos de coercao/normalizacao e datas (`_coerce_sqlite_scalar`, `_is_empty_upsert_value`, parse de datas, map de colunas)
+   - risco: esconder dado invalido, mascarar drift de tipo e dificultar repro de problema de import/upsert
+2. `interface/cli.py`:
+   - segundo alvo real
+   - os blocos sao menos numerosos, mas afetam observabilidade do modo nao interativo, printer fallback e status de ajuda/terminal
+   - risco: degradar CLI para fallback silencioso demais e reduzir clareza de erro para o operador
+3. `gui/widgets/column_filter_dialog.py` e `gui/widgets/column_manager_dialog.py`:
+   - terceiro alvo
+   - concentram varios `except Exception: pass` pequenos em geometrias, fontes e posicionamento
+   - risco: baixo para dados, mas alto para depuracao de bugs de popup/posicionamento entre plataformas
+4. `core/app_logic.py`:
+   - manter como frente dedicada separada, nao entrar no mesmo patch dos itens acima
+   - os blocos ficam em orquestracao central de import, cache, banco e consolidacao
+   - risco: alto demais para misturar com micro-hardening sem repro e contrato por bloco funcional
+5. `gui/gui_ssa.py`:
+   - nao atacar por contagem bruta
+   - a maior parte do volume atual vem de stubs headless e compatibilidades de GUI; precisa triagem fina antes de qualquer patch
+
+Slice minimo recomendado a seguir:
+1. atacar apenas `armazenamento/database_upsert_logic.py`
+2. trocar silencios reais por comportamento explicito minimo:
+   - retorno neutro bem definido quando o erro e esperado por tipo de dado
+   - log objetivo quando o erro for inesperado
+   - sem refatoracao ampla e sem mudar contrato de import
+3. validar com:
+   - `uv run --python 3.13 python -m py_compile`
+   - `uv run --python 3.13 ruff check`
+   - `uv run --python 3.13 ty check`
+   - `uv run --python 3.13 pytest -q` focado em import/upsert
+
+Itens explicitamente fora deste slice futuro:
+1. reestruturar `core/app_logic.py`
+2. limpar toda a GUI por contagem
+3. mexer em layout/posicionamento alem do estritamente necessario para um bug reproduzido
+4. reabrir politica de derivadas/import nesta frente
+5. tocar `docs_entrada/**`
+
+Verificacao visual extra que permanece obrigatoria no ciclo maior:
+1. confirmar em runtime real que as linhas do grafo ficam exibidas por completo no popup e no painel local
+2. confirmar que nao ha SSA renderizada sem aresta correspondente quando a relacao existe
+3. repetir a prova com base mais densa antes de fechar a frente de relacoes/grafo
+
 ## Update 2026-04-16 00:20 - consolidated pending list after gui details slice
 
 Lista unica das pendencias antigas + atuais que continuam abertas apos o slice de detalhes/relacoes:
