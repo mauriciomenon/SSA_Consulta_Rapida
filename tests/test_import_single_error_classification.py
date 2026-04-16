@@ -91,6 +91,34 @@ def test_import_single_file_keeps_unexpected_error_context(
         )
 
 
+def test_import_single_file_does_not_mask_internal_key_error_as_extraction(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        lambda *args, **kwargs: _valid_df(),
+    )
+    monkeypatch.setattr(
+        app_logic.database,
+        "validate_dataframe_before_insert",
+        lambda *args, **kwargs: {
+            "violations": [],
+            "invalid_by_column": {},
+            "issues": [],
+        },
+    )
+    monkeypatch.setattr(
+        app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None
+    )
+
+    file_path = str(tmp_path / "input.xlsx")
+    with pytest.raises(KeyError, match="is_valid"):
+        app_logic._import_single_file(
+            file_path, str(tmp_path / "db.sqlite"), "ssa_table"
+        )
+
+
 def test_process_file_with_resilience_keeps_batch_running_on_internal_result_cast_error(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
