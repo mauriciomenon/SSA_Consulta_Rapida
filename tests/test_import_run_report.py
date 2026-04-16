@@ -1391,6 +1391,61 @@ def test_load_import_discovery_settings_invalid_upsert_policy_falls_back(
     assert settings["upsert_short_circuit_policy"] == "consulta_only"
 
 
+def test_load_import_discovery_settings_falls_back_on_non_mapping_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from core import config_manager
+
+    monkeypatch.setattr(config_manager, "load_settings", lambda: [])
+
+    settings = app_logic._load_import_discovery_settings()
+
+    assert settings["processadas_subdir"] == "processadas"
+    assert settings["upsert_short_circuit_policy"] == "consulta_only"
+
+
+def test_move_file_after_import_returns_original_on_move_oserror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    source = docs_dir / "arquivo.xlsx"
+    source.write_text("ok", encoding="utf-8")
+
+    def _raise_move(src: str, dst: str) -> str:
+        raise OSError("move blocked")
+
+    monkeypatch.setattr(app_logic.shutil, "move", _raise_move)
+
+    final_path = app_logic._move_file_after_import(
+        file_path=str(source),
+        docs_dir=str(docs_dir),
+        processadas_subdir="processadas",
+        nosurvivor_subdir="nosurvivor",
+        route_to_nosurvivor=False,
+    )
+
+    assert final_path == str(source)
+    assert source.exists()
+
+
+def test_write_import_run_report_returns_none_on_open_value_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "run_id": "test_run",
+        "started_at": "2026-04-16T00:00:00",
+        "finished_at": "2026-04-16T00:00:01",
+    }
+
+    def _raise_open(*args, **kwargs):
+        raise ValueError("invalid path")
+
+    monkeypatch.setattr(app_logic, "open", _raise_open, raising=False)
+
+    assert app_logic._write_import_run_report(payload) is None
+
+
 def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

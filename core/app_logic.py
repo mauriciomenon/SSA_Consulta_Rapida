@@ -342,7 +342,7 @@ def _get_files_to_process(
         )
         return files_to_process
 
-    except Exception as exc:
+    except (OSError, RuntimeError, TimeoutError, ValueError, TypeError) as exc:
         logger.error("Erro ao determinar arquivos para processamento: %s", exc)
         raise CacheError(f"Falha na verificacao de arquivos: {exc}") from exc
 
@@ -919,7 +919,7 @@ def _update_cache_after_import(
         # Atualiza o cache apenas para os arquivos processados com sucesso
         caching.update_cache_for_files(processed_files, cache_file, docs_dir=docs_dir)
         logger.info("Cache atualizado com sucesso.")
-    except Exception as exc:
+    except (OSError, RuntimeError, TimeoutError, ValueError, TypeError) as exc:
         logger.error("Erro ao atualizar o cache: %s", exc)
         raise CacheError("Falha ao atualizar o cache apos importacao.") from exc
 
@@ -1047,7 +1047,7 @@ def _load_import_discovery_settings() -> Dict[str, Any]:
             "route_zero_survivor_to_nosurvivor": route_zero_survivor_to_nosurvivor,
             "upsert_short_circuit_policy": upsert_short_circuit_policy,
         }
-    except Exception as exc:
+    except (AttributeError, KeyError, OSError, TypeError, ValueError) as exc:
         logger.warning(
             "Falha ao carregar import_settings; usando defaults de discovery: %s",
             exc,
@@ -1103,7 +1103,7 @@ def _move_file_after_import(
         return str(source)
     try:
         shutil.move(str(source), str(destination))
-    except Exception as exc:
+    except (OSError, RuntimeError, shutil.Error, ValueError) as exc:
         logger.warning(
             "Falha ao mover arquivo pos-importacao '%s' para '%s': %s",
             file_path,
@@ -1334,7 +1334,7 @@ def _write_import_run_report(payload: Dict[str, Any]) -> Optional[str]:
         with open(report_path, "w", encoding="utf-8") as fp:
             json.dump(payload, fp, ensure_ascii=False, indent=2, default=str)
         return report_path
-    except Exception as exc:
+    except (OSError, TypeError, ValueError) as exc:
         logger.warning("Falha ao gravar relatorio JSON de importacao: %s", exc)
         return None
 
