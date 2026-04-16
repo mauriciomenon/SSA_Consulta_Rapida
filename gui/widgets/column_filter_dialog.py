@@ -1,5 +1,7 @@
 # Dialog for entering a single column filter term.
 
+import logging
+
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
@@ -8,6 +10,8 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QVBoxLayout,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ColumnFilterDialog(QDialog):
@@ -35,7 +39,8 @@ class ColumnFilterDialog(QDialog):
             candidate_widgets.append(parent_widget)
             try:
                 parent_window = parent_widget.window()
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError) as exc:
+                logger.debug("Falha ao obter janela pai do dialogo de filtro: %s", exc)
                 parent_window = None
             if parent_window is not None and parent_window is not parent_widget:
                 candidate_widgets.append(parent_window)
@@ -46,26 +51,26 @@ class ColumnFilterDialog(QDialog):
                     screen = window_handle.screen()
                     if screen is not None:
                         return screen.availableGeometry()
-            except Exception:
-                pass
+            except (AttributeError, RuntimeError, TypeError) as exc:
+                logger.debug("Falha ao obter screen via windowHandle no filtro: %s", exc)
             try:
                 screen = QApplication.screenAt(widget.frameGeometry().center())
                 if screen is not None:
                     return screen.availableGeometry()
-            except Exception:
-                pass
+            except (AttributeError, RuntimeError, TypeError) as exc:
+                logger.debug("Falha ao obter screen via screenAt no filtro: %s", exc)
         try:
             screen = self.screen()
             if screen is not None:
                 return screen.availableGeometry()
-        except Exception:
-            pass
+        except (AttributeError, RuntimeError, TypeError) as exc:
+            logger.debug("Falha ao obter screen atual do filtro: %s", exc)
         try:
             screen = QApplication.primaryScreen()
             if screen is not None:
                 return screen.availableGeometry()
-        except Exception:
-            pass
+        except (AttributeError, RuntimeError, TypeError) as exc:
+            logger.debug("Falha ao obter screen primario do filtro: %s", exc)
         return None
 
     def _position_on_parent_screen(self) -> None:
@@ -74,11 +79,12 @@ class ColumnFilterDialog(QDialog):
             return
         try:
             self.adjustSize()
-        except Exception:
-            pass
+        except (AttributeError, RuntimeError, TypeError) as exc:
+            logger.debug("Falha ao ajustar tamanho do dialogo de filtro: %s", exc)
         try:
             dialog_geometry = self.frameGeometry()
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError) as exc:
+            logger.debug("Falha ao obter geometria do dialogo de filtro: %s", exc)
             return
         target_x = screen_geometry.left() + max(
             0, (screen_geometry.width() - dialog_geometry.width()) // 2
@@ -92,8 +98,8 @@ class ColumnFilterDialog(QDialog):
                 parent_center = parent_widget.frameGeometry().center()
                 target_x = parent_center.x() - (dialog_geometry.width() // 2)
                 target_y = parent_center.y() - (dialog_geometry.height() // 2)
-            except Exception:
-                pass
+            except (AttributeError, RuntimeError, TypeError) as exc:
+                logger.debug("Falha ao centralizar filtro relativo ao pai: %s", exc)
         max_x = screen_geometry.right() - dialog_geometry.width() + 1
         max_y = screen_geometry.bottom() - dialog_geometry.height() + 1
         target_x = max(screen_geometry.left(), min(target_x, max_x))
@@ -117,8 +123,8 @@ class ColumnFilterDialog(QDialog):
                 if point_size > 0:
                     hint_font.setPointSize(max(8, point_size - 1))
                 hint_label.setFont(hint_font)
-            except Exception:
-                pass
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("Falha ao ajustar fonte de hint do filtro: %s", exc)
             hint_label.setWordWrap(True)
             layout.addWidget(hint_label)
 
