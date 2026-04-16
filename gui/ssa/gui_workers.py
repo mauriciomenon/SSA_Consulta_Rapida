@@ -1043,7 +1043,9 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         window.clear_filter_button.setEnabled(True)
     window._refresh_after_filter_change()
     try:
-        window._refresh_advanced_filter_options()
+        if getattr(window, "_current_tab_kind", None) == "filters":
+            window._refresh_advanced_filter_options()
+            window._adv_options_dirty = False
     except Exception as e:
         logger.warning("Falha ao atualizar opcoes de filtros avancados: %s", e)
     current_filter_profile = getattr(window, "current_filter_profile", None)

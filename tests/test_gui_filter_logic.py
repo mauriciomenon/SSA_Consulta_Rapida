@@ -2991,6 +2991,29 @@ class TestGUIFilterLogic:
         assert "SSAs relacionadas (1)" in html
         assert 'href="ssa:202500777"' in html
 
+    def test_update_details_from_series_avoids_eager_global_ssa_index_build(self):
+        series = self.base_df.iloc[0].copy()
+        series["numero_ssa"] = "202600023"
+        series["numero_ssa_relacionada_1"] = "202500777"
+        series["situacao_relacionada_1"] = "STE"
+        series["numero_ssa_relacionada_2"] = "202500888"
+        series["situacao_relacionada_2"] = "SES"
+
+        with patch(
+            "gui.ssa.gui_details._get_window_ssa_series_index",
+            side_effect=AssertionError("nao deveria montar indice global"),
+        ), patch(
+            "gui.ssa.gui_details._get_series_for_ssa",
+            side_effect=lambda _window, numero: object()
+            if str(numero) in {"202500777", "202500888"}
+            else None,
+        ):
+            ssa_gui_details._update_details_from_series(self.window, series)
+
+        html = self.window.details_text.toHtml()
+        assert "202500777" in html
+        assert "202500888" in html
+
     def test_details_html_expands_situacao_and_links_numero_ssa_for_copy(self):
         series = self.base_df.iloc[0].copy()
         series["numero_ssa"] = "202600023"
@@ -6170,6 +6193,40 @@ class TestGUIFilterLogic:
         assert {"numero_ssa", "situacao", "descricao_ssa"}.issubset(
             self.window._non_null_cols_cache
         )
+
+    def test_on_data_loaded_defers_advanced_refresh_until_filters_tab(self):
+        self.window._active_data_load_request_id = 23
+        self.window._adv_options_dirty = False
+        self.window._adv_values_cache = None
+        main_tab_idx = next(
+            idx
+            for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "main"
+        )
+        filter_tab_idx = next(
+            idx
+            for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(main_tab_idx)
+        QApplication.processEvents()
+
+        with patch.object(
+            self.window,
+            "_refresh_advanced_filter_options",
+            wraps=self.window._refresh_advanced_filter_options,
+        ) as refresh_mock:
+            self.window.on_data_loaded(self.base_df.copy(), request_id=23)
+            QApplication.processEvents()
+
+            assert refresh_mock.call_count == 0
+            assert self.window._adv_options_dirty is True
+
+            self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+            QApplication.processEvents()
+
+        assert refresh_mock.call_count >= 1
+        assert self.window._adv_options_dirty is False
 
     def test_on_data_loaded_primes_num_reprogramacoes_sort_cache(self):
         self.window._active_data_load_request_id = 31
