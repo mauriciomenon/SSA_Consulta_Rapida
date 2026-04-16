@@ -91,6 +91,42 @@ def test_import_single_file_keeps_unexpected_error_context(
         )
 
 
+@pytest.mark.parametrize(
+    ("exc_factory", "expected_pattern"),
+    [
+        (lambda: RuntimeError("boom"), "RuntimeError ao importar"),
+        (lambda: TypeError("bad type"), "TypeError ao importar"),
+        (lambda: ValueError("bad value"), "ValueError ao importar"),
+    ],
+)
+def test_import_single_file_wraps_supported_runtime_shape_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    exc_factory,
+    expected_pattern: str,
+) -> None:
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        lambda *args, **kwargs: _valid_df(),
+    )
+
+    def _raise_expected_validation(*args, **kwargs):
+        raise exc_factory()
+
+    monkeypatch.setattr(
+        app_logic.database,
+        "validate_dataframe_before_insert",
+        _raise_expected_validation,
+    )
+
+    file_path = str(tmp_path / "input.xlsx")
+    with pytest.raises(app_logic.ExtractionError, match=expected_pattern):
+        app_logic._import_single_file(
+            file_path, str(tmp_path / "db.sqlite"), "ssa_table"
+        )
+
+
 def test_import_single_file_does_not_mask_internal_key_error_as_extraction(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -175,6 +211,21 @@ def test_process_file_with_resilience_keeps_batch_running_on_internal_result_cas
             },
         )
     ]
+
+
+def test_build_progress_emitter_disables_callback_after_first_failure() -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    def _broken_callback(event_type: str, data: dict[str, object]) -> None:
+        calls.append((event_type, data))
+        raise RuntimeError("progress down")
+
+    emitter = app_logic._build_progress_emitter(_broken_callback)
+
+    emitter("first", {"step": 1})
+    emitter("second", {"step": 2})
+
+    assert calls == [("first", {"step": 1})]
 
 
 def test_import_single_file_raises_when_extractor_returns_none(
