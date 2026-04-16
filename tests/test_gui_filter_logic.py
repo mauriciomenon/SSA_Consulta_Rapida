@@ -3,6 +3,7 @@
 import copy
 import json
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -3049,6 +3050,38 @@ class TestGUIFilterLogic:
         assert "stroke-dasharray" in html
         assert "marker-end" in html
         assert "Grafo de derivadas" in html
+
+    def test_build_derivadas_graph_html_separates_sibling_edge_lanes(self):
+        data: dict[str, object] = {
+            "target": "202603583",
+            "parents": ["202603570"],
+            "children": ["202603588"],
+            "descendants": [],
+            "related": [
+                {"ssa": "202500777", "situacao": "APL", "relacao": "REL"},
+                {"ssa": "202500888", "situacao": "APL", "relacao": "REL"},
+            ],
+            "descendants_count": 1,
+        }
+
+        html = ssa_gui_details._build_derivadas_graph_html(
+            self.window,
+            data,
+            link_color="#4a90e2",
+            font_family="monospace",
+        )
+
+        lane_xs = [
+            float(match.group(1))
+            for match in re.finditer(
+                r'L([0-9]+(?:\.[0-9]+)?),[0-9]+(?:\.[0-9]+)? L\1,[0-9]+(?:\.[0-9]+)?',
+                html,
+            )
+        ]
+
+        assert len(lane_xs) >= 3
+        assert len(set(lane_xs)) >= 3
+        assert all(x < 228.0 for x in lane_xs[:3])
 
     def test_normalize_ssa_series_reuses_unique_normalizations(self, monkeypatch):
         calls = []
