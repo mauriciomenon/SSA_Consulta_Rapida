@@ -614,7 +614,7 @@ def _import_single_file(
         raise
     except ImporterError:
         raise
-    except Exception as e:
+    except (RuntimeError, TypeError, ValueError) as e:
         error_type = type(e).__name__
         logger.exception(
             "Erro inesperado (%s) ao importar '%s': %s",
