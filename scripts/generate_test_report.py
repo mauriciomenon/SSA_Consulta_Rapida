@@ -10,8 +10,9 @@ import json
 import os
 import subprocess
 import sys
-import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+
+from defusedxml import ElementTree as ET
 
 REPORTS_DIR = "reports"
 JUNIT_XML = os.path.join(REPORTS_DIR, "tests_junit.xml")
