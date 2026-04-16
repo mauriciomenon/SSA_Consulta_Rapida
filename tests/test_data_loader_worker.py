@@ -22,7 +22,7 @@ def qapp():
 def test_normalize_order_by_accepts_whitelisted_columns():
     worker = DataLoaderWorker(":memory:", "ssa_table")
     clause = worker._normalize_order_by("numero_ssa DESC, situacao asc")
-    assert clause == "numero_ssa DESC, situacao ASC"
+    assert clause == '"numero_ssa" DESC, "situacao" ASC'
 
 
 def test_normalize_order_by_rejects_non_whitelisted_column():
@@ -100,7 +100,7 @@ def test_run_adds_deterministic_order_for_paginated_query_without_order_by():
         worker.run()
 
     assert emitted and not emitted[0].empty
-    assert "ORDER BY numero_ssa DESC" in captured["query"]
+    assert 'ORDER BY "numero_ssa" DESC' in captured["query"]
     assert "LIMIT 10 OFFSET 5" in captured["query"]
 
 

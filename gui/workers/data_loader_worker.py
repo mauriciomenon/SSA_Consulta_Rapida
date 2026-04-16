@@ -116,12 +116,12 @@ class DataLoaderWorker(QThread):
             elif len(tokens) == 2:
                 col, direction = tokens[0], tokens[1].upper()
             else:
-                raise ValueError(f"ORDER BY inválido: {part}")
+                raise ValueError(f"ORDER BY invalido: {part}")
             col = self._sanitize_identifier(col).lower()
             if col not in self._ALLOWED_ORDER_COLUMNS:
-                raise ValueError(f"Coluna ORDER BY não permitida: {col}")
+                raise ValueError(f"Coluna ORDER BY nao permitida: {col}")
             if direction not in {"ASC", "DESC"}:
-                raise ValueError(f"Direção ORDER BY inválida: {direction}")
+                raise ValueError(f"Direcao ORDER BY invalida: {direction}")
             normalized_parts.append(f"{self._quote_identifier(col)} {direction}")
         return ", ".join(normalized_parts)
 
@@ -238,12 +238,12 @@ class DataLoaderWorker(QThread):
             if order_clause:
                 query += f" ORDER BY {order_clause}"
             elif self.limit is not None or int(self.offset or 0) > 0:
-                query += " ORDER BY numero_ssa DESC"
+                query += f' ORDER BY {self._quote_identifier("numero_ssa")} DESC'
 
             if self.limit is not None:
                 limit_int = int(self.limit)
                 if limit_int < 0:
-                    raise ValueError("LIMIT não pode ser negativo")
+                    raise ValueError("LIMIT nao pode ser negativo")
                 query += f" LIMIT {limit_int}"
 
             offset_int = int(self.offset or 0)

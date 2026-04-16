@@ -1,15 +1,15 @@
 """
-Testes Avançados para Workers Assíncronos
+Testes Avancados para Workers Assincronos
 
-Este módulo contém testes de unidade, integração e regressão para os workers:
-- DataLoaderWorker: Carregamento assíncrono de dados do SQLite
-- FilterWorker: Filtragem assíncrona com cache LRU
+Este modulo contem testes de unidade, integracao e regressao para os workers:
+- DataLoaderWorker: Carregamento assincrono de dados do SQLite
+- FilterWorker: Filtragem assincrona com cache LRU
 - RescanWorker: Reescaneamento de dados
 
 Arquitetura de Testes:
-- Testes Unitários: Testam métodos isolados
-- Testes de Integração: Testam workers com signals
-- Testes de Regressão: Testam cenários críticos identificados em produção
+- Testes Unitarios: Testam metodos isolados
+- Testes de Integracao: Testam workers com signals
+- Testes de Regressao: Testam cenarios criticos identificados em producao
 """
 
 import os
@@ -23,9 +23,9 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-# Skip se PyQt6 não disponível
+# Skip se PyQt6 nao disponivel
 pytest.importorskip(
-    "PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste"
+    "PyQt6", reason="Dependencia PyQt6 indisponivel no ambiente de teste"
 )
 from PyQt6.QtCore import QThread
 from PyQt6.QtWidgets import QApplication
@@ -44,14 +44,14 @@ from gui.workers.filter_worker import FilterWorker  # noqa: E402
 
 @pytest.fixture(scope="module", autouse=True)
 def qapp():
-    """Fixture para garantir QApplication disponível."""
+    """Fixture para garantir QApplication disponivel."""
     app = QApplication.instance() or QApplication([])
     yield app
 
 
 @pytest.fixture
 def temp_db(tmp_path):
-    """Cria banco de dados SQLite temporário com tabela ssa_table."""
+    """Cria banco de dados SQLite temporario com tabela ssa_table."""
     db_path = tmp_path / "test.db"
     with closing(sqlite3.connect(db_path)) as conn:
         conn.execute("""
@@ -79,7 +79,7 @@ def temp_db(tmp_path):
                     "2024-01-01",
                     "SETOR-A" if i % 3 == 0 else "SETOR-B",
                     "EXEC-01" if i % 4 == 0 else "EXEC-02",
-                    f"Descrição da SSA {i}",
+                    f"Descricao da SSA {i}",
                     f"LOC-{i:03d}",
                     f"User-{i}",
                     None if i % 5 != 0 else f"SSA-{i - 5:04d}",
@@ -99,7 +99,7 @@ def sample_dataframe():
             "setor_emissor": [
                 "SETOR-A" if i % 3 == 0 else "SETOR-B" for i in range(50)
             ],
-            "descricao_ssa": [f"Descrição {i}" for i in range(50)],
+            "descricao_ssa": [f"Descricao {i}" for i in range(50)],
             "solicitante": [f"User-{i}" for i in range(50)],
         }
     )
@@ -112,15 +112,15 @@ def empty_dataframe():
 
 
 # =============================================================================
-# Testes Unitários - DataLoaderWorker
+# Testes Unitarios - DataLoaderWorker
 # =============================================================================
 
 
 class TestDataLoaderWorkerUnit:
-    """Testes unitários para DataLoaderWorker."""
+    """Testes unitarios para DataLoaderWorker."""
 
     def test_sanitize_identifier_valid(self):
-        """Testa sanitização de identificadores válidos."""
+        """Testa sanitizacao de identificadores validos."""
         worker = DataLoaderWorker(":memory:", "test")
 
         assert worker._sanitize_identifier("valid_name") == "valid_name"
@@ -129,7 +129,7 @@ class TestDataLoaderWorkerUnit:
         assert worker._sanitize_identifier("  spaces  ") == "spaces"
 
     def test_sanitize_identifier_invalid(self):
-        """Testa sanitização de identificadores inválidos (SQL injection)."""
+        """Testa sanitizacao de identificadores invalidos (SQL injection)."""
         worker = DataLoaderWorker(":memory:", "test")
 
         assert worker._sanitize_identifier("drop table") == ""
@@ -147,41 +147,41 @@ class TestDataLoaderWorkerUnit:
         assert worker._quote_identifier("") == '""'
 
     def test_normalize_order_by_single_column(self):
-        """Testa normalização de ORDER BY com uma coluna."""
+        """Testa normalizacao de ORDER BY com uma coluna."""
         worker = DataLoaderWorker(":memory:", "test")
 
         result = worker._normalize_order_by("numero_ssa")
-        assert result == "numero_ssa ASC"
+        assert result == '"numero_ssa" ASC'
 
         result = worker._normalize_order_by("numero_ssa DESC")
-        assert result == "numero_ssa DESC"
+        assert result == '"numero_ssa" DESC'
 
     def test_normalize_order_by_multiple_columns(self):
-        """Testa normalização de ORDER BY com múltiplas colunas."""
+        """Testa normalizacao de ORDER BY com multiplas colunas."""
         worker = DataLoaderWorker(":memory:", "test")
 
         result = worker._normalize_order_by("numero_ssa DESC, situacao ASC")
-        assert result == "numero_ssa DESC, situacao ASC"
+        assert result == '"numero_ssa" DESC, "situacao" ASC'
 
         result = worker._normalize_order_by("data_cadastro, setor_executor desc")
-        assert result == "data_cadastro ASC, setor_executor DESC"
+        assert result == '"data_cadastro" ASC, "setor_executor" DESC'
 
     def test_normalize_order_by_invalid_columns(self):
-        """Testa rejeição de colunas não permitidas (proteção SQL injection)."""
+        """Testa rejeicao de colunas nao permitidas (protecao SQL injection)."""
         worker = DataLoaderWorker(":memory:", "test")
 
-        with pytest.raises(ValueError, match="Coluna ORDER BY não permitida"):
+        with pytest.raises(ValueError, match="Coluna ORDER BY nao permitida"):
             worker._normalize_order_by("drop_table DESC")
 
-        # SQL injection com múltiplos tokens é detectado como ORDER BY inválido
-        with pytest.raises(ValueError, match="ORDER BY inválido"):
+        # SQL injection com multiplos tokens e detectado como ORDER BY invalido
+        with pytest.raises(ValueError, match="ORDER BY invalido"):
             worker._normalize_order_by("numero_ssa; DELETE FROM ssa_table")
 
-        with pytest.raises(ValueError, match="Direção ORDER BY inválida"):
+        with pytest.raises(ValueError, match="Direcao ORDER BY invalida"):
             worker._normalize_order_by("numero_ssa INVALID")
 
     def test_resolve_target_table_explicit(self, tmp_path):
-        """Testa resolução de tabela quando tabela solicitada existe."""
+        """Testa resolucao de tabela quando tabela solicitada existe."""
         db_path = tmp_path / "test.db"
         with closing(sqlite3.connect(db_path)) as conn:
             conn.execute("CREATE TABLE custom_table (id TEXT)")
@@ -191,7 +191,7 @@ class TestDataLoaderWorkerUnit:
         assert worker._resolve_target_table() == "custom_table"
 
     def test_resolve_target_table_fallback(self, tmp_path):
-        """Testa fallback para ssa_table quando tabela solicitada não existe."""
+        """Testa fallback para ssa_table quando tabela solicitada nao existe."""
         db_path = tmp_path / "test.db"
         with closing(sqlite3.connect(db_path)) as conn:
             conn.execute("CREATE TABLE ssa_table (id TEXT)")
@@ -234,15 +234,15 @@ class TestDataLoaderWorkerUnit:
 
 
 # =============================================================================
-# Testes de Integração - DataLoaderWorker
+# Testes de Integracao - DataLoaderWorker
 # =============================================================================
 
 
 class TestDataLoaderWorkerIntegration:
-    """Testes de integração para DataLoaderWorker com signals."""
+    """Testes de integracao para DataLoaderWorker com signals."""
 
     def test_worker_emits_data_loaded(self, temp_db, qapp):
-        """Testa emissão de signal data_loaded com dados reais."""
+        """Testa emissao de signal data_loaded com dados reais."""
         emitted_data = []
         emitted_errors = []
 
@@ -264,7 +264,7 @@ class TestDataLoaderWorkerIntegration:
         assert "numero_ssa" in emitted_data[0].columns
 
     def test_worker_emits_error_on_db_failure(self, qapp):
-        """Testa emissão de signal error_occurred em falha de DB."""
+        """Testa emissao de signal error_occurred em falha de DB."""
         emitted_errors = []
         emitted_data = []
 
@@ -283,7 +283,7 @@ class TestDataLoaderWorkerIntegration:
         assert "Falha ao carregar" in emitted_errors[0]
 
     def test_worker_respects_limit_and_offset(self, temp_db, qapp):
-        """Testa que worker respeita parâmetros de paginação."""
+        """Testa que worker respeita parametros de paginacao."""
         captured_query = {}
 
         def mock_query(db_path, table_name, query, **kwargs):
@@ -298,7 +298,7 @@ class TestDataLoaderWorkerIntegration:
         assert "OFFSET 20" in captured_query["sql"]
 
     def test_worker_cancellation_before_start(self, qapp):
-        """Testa cancelamento antes do início da execução."""
+        """Testa cancelamento antes do inicio da execucao."""
         emitted_data = []
         emitted_errors = []
 
@@ -317,7 +317,7 @@ class TestDataLoaderWorkerIntegration:
         assert len(emitted_errors) == 0
 
     def test_worker_cancellation_during_execution(self, qapp):
-        """Testa cancelamento durante execução."""
+        """Testa cancelamento durante execucao."""
         emitted_data = []
 
         worker = DataLoaderWorker(":memory:", "ssa_table")
@@ -334,17 +334,17 @@ class TestDataLoaderWorkerIntegration:
         ):
             worker.run()
 
-        # Não deve emitir dados se cancelado
+        # Nao deve emitir dados se cancelado
         assert len(emitted_data) == 0
 
 
 # =============================================================================
-# Testes Unitários - FilterWorker
+# Testes Unitarios - FilterWorker
 # =============================================================================
 
 
 class TestFilterWorkerUnit:
-    """Testes unitários para FilterWorker."""
+    """Testes unitarios para FilterWorker."""
 
     def test_build_df_hash_empty_dataframe(self):
         """Testa hash de DataFrame vazio."""
@@ -356,7 +356,7 @@ class TestFilterWorkerUnit:
         assert hash_val != ""
 
     def test_build_df_hash_none(self):
-        """Testa hash quando DataFrame é None."""
+        """Testa hash quando DataFrame e None."""
         hash_val = FilterWorker._build_df_hash(cast(Any, None))
 
         assert isinstance(hash_val, str)
@@ -369,7 +369,7 @@ class TestFilterWorkerUnit:
         hash1 = FilterWorker._build_df_hash(df)
         hash2 = FilterWorker._build_df_hash(df.copy())
 
-        # Mesmo conteúdo = mesmo hash
+        # Mesmo conteudo = mesmo hash
         assert hash1 == hash2
         assert len(hash1) == 16
 
@@ -383,12 +383,12 @@ class TestFilterWorkerUnit:
         hash1 = FilterWorker._build_df_hash(df)
         hash2 = FilterWorker._build_df_hash(df.copy())
 
-        # Mesmo conteúdo = mesmo hash (mesmo com amostragem)
+        # Mesmo conteudo = mesmo hash (mesmo com amostragem)
         assert hash1 == hash2
 
-        # Alterar uma linha na amostra do meio (índice 35 está na amostra)
+        # Alterar uma linha na amostra do meio (indice 35 esta na amostra)
         # Amostragem: head(8) + mid(8) + tail(8)
-        # Para 100 linhas: mid começa em 8, step ~12, índices: 8, 20, 32, 44, 56, 68, 80, 92
+        # Para 100 linhas: mid comeca em 8, step ~12, indices: 8, 20, 32, 44, 56, 68, 80, 92
         df2 = df.copy()
         df2.loc[32, "col1"] = "altered_value"
         hash3 = FilterWorker._build_df_hash(df2)
@@ -416,7 +416,7 @@ class TestFilterWorkerUnit:
         assert hash1 != hash2
 
     def test_cache_is_class_level(self):
-        """Testa que cache é compartilhado entre instâncias."""
+        """Testa que cache e compartilhado entre instancias."""
         cache1 = FilterWorker._cache
         cache2 = FilterWorker._cache
 
@@ -432,12 +432,12 @@ class TestFilterWorkerUnit:
 
 
 # =============================================================================
-# Testes de Integração - FilterWorker
+# Testes de Integracao - FilterWorker
 # =============================================================================
 
 
 class TestFilterWorkerIntegration:
-    """Testes de integração para FilterWorker com signals e cache."""
+    """Testes de integracao para FilterWorker com signals e cache."""
 
     def setup_method(self):
         """Limpa cache antes de cada teste."""
@@ -446,7 +446,7 @@ class TestFilterWorkerIntegration:
             cache.clear()
 
     def test_worker_emits_filter_finished(self, sample_dataframe, qapp):
-        """Testa emissão de signal filter_finished com dados filtrados."""
+        """Testa emissao de signal filter_finished com dados filtrados."""
         emitted = []
         errors = []
 
@@ -465,24 +465,24 @@ class TestFilterWorkerIntegration:
 
         assert len(emitted) == 1
         assert len(errors) == 0
-        assert len(emitted[0]) == 25  # Metade é APV
+        assert len(emitted[0]) == 25  # Metade e APV
 
     def test_worker_uses_cache_for_same_query(self, sample_dataframe, qapp):
-        """Testa que worker usa cache para queries idênticas."""
+        """Testa que worker usa cache para queries identicas."""
         call_count = [0]
 
         def mock_filter(df, parsed):
             call_count[0] += 1
             return df.head(5)
 
-        # Primeira execução
+        # Primeira execucao
         worker1 = FilterWorker(sample_dataframe, [["test"]])
         with patch(
             "gui.workers.filter_worker.filter_dataframe", side_effect=mock_filter
         ):
             worker1.run()
 
-        # Segunda execução com mesmos parâmetros
+        # Segunda execucao com mesmos parametros
         worker2 = FilterWorker(sample_dataframe, [["test"]])
         with patch(
             "gui.workers.filter_worker.filter_dataframe", side_effect=mock_filter
@@ -493,14 +493,14 @@ class TestFilterWorkerIntegration:
         assert call_count[0] == 1
 
     def test_worker_different_cache_context_misses_cache(self, sample_dataframe, qapp):
-        """Testa que contextos diferentes não compartilham cache."""
+        """Testa que contextos diferentes nao compartilham cache."""
         call_count = [0]
 
         def mock_filter(df, parsed):
             call_count[0] += 1
             return df.head(5)
 
-        # Mesmos parâmetros, contextos diferentes
+        # Mesmos parametros, contextos diferentes
         worker1 = FilterWorker(
             sample_dataframe, [["test"]], cache_context='{"adv":"A"}'
         )
@@ -518,7 +518,7 @@ class TestFilterWorkerIntegration:
         assert call_count[0] == 2
 
     def test_worker_emits_empty_for_none_dataframe(self, qapp):
-        """Testa comportamento quando df_completo é None."""
+        """Testa comportamento quando df_completo e None."""
         emitted = []
         errors = []
 
@@ -542,7 +542,7 @@ class TestFilterWorkerIntegration:
         worker.run()
 
         assert len(emitted) == 1
-        # Deve retornar cópia completa quando chunk está vazio
+        # Deve retornar copia completa quando chunk esta vazio
         assert len(emitted[0]) == len(sample_dataframe)
 
     def test_worker_cancellation_before_processing(self, sample_dataframe, qapp):
@@ -568,7 +568,7 @@ class TestFilterWorkerIntegration:
         def mock_filter_with_cancel(df, parsed):
             call_count[0] += 1
             if call_count[0] == 1:
-                worker.cancel()  # Cancelar após primeiro chunk
+                worker.cancel()  # Cancelar apos primeiro chunk
             return df.head(1)
 
         worker = FilterWorker(sample_dataframe, [["chunk1"], ["chunk2"]])
@@ -581,10 +581,10 @@ class TestFilterWorkerIntegration:
             worker.run()
 
         assert call_count[0] == 1
-        assert len(emitted) == 0  # Não deve emitir se cancelado
+        assert len(emitted) == 0  # Nao deve emitir se cancelado
 
     def test_worker_emits_error_on_exception(self, sample_dataframe, qapp):
-        """Testa emissão de erro em exceção."""
+        """Testa emissao de erro em excecao."""
         emitted = []
         errors = []
 
@@ -618,7 +618,7 @@ class TestWorkerPerformance:
             {"col1": [f"val_{i}" for i in range(10000)], "col2": range(10000)}
         )
 
-        # Primeira execução (sem cache)
+        # Primeira execucao (sem cache)
         worker1 = FilterWorker(df, [["val_5000"]])
         start1 = time.time()
 
@@ -633,7 +633,7 @@ class TestWorkerPerformance:
 
         time_no_cache = time.time() - start1
 
-        # Segunda execução (com cache)
+        # Segunda execucao (com cache)
         worker2 = FilterWorker(df, [["val_5000"]])
         start2 = time.time()
 
@@ -644,7 +644,7 @@ class TestWorkerPerformance:
 
         time_with_cache = time.time() - start2
 
-        # Com cache deve ser muito mais rápido
+        # Com cache deve ser muito mais rapido
         assert time_with_cache < time_no_cache * 0.1
 
     def test_build_df_hash_performance(self):
@@ -668,15 +668,15 @@ class TestWorkerPerformance:
 
 
 # =============================================================================
-# Testes de Regressão
+# Testes de Regressao
 # =============================================================================
 
 
 class TestWorkerRegression:
-    """Testes de regressão para bugs identificados em produção."""
+    """Testes de regressao para bugs identificados em producao."""
 
     def test_data_loader_sql_injection_protection(self):
-        """Testa proteção contra SQL injection em ORDER BY."""
+        """Testa protecao contra SQL injection em ORDER BY."""
         worker = DataLoaderWorker(":memory:", "ssa_table")
 
         # Tentativas de SQL injection devem ser rejeitadas
@@ -698,13 +698,13 @@ class TestWorkerRegression:
             {
                 "texto": [
                     "normal",
-                    "com acentuação: ção",
+                    "com acentuacao: cao",
                     "emojis: ",
                     "html: <script>alert(1)</script>",
                     "sql: '; DROP TABLE --",
                     "novas\nlinhas",
                     "tabs\taqui",
-                    "unicode: ™©®",
+                    "unicode: TMR",
                 ]
             }
         )
@@ -768,7 +768,7 @@ class TestWorkerRegression:
 
 @pytest.fixture
 def mock_qt_thread():
-    """Fixture para mock de QThread quando necessário."""
+    """Fixture para mock de QThread quando necessario."""
     with patch.object(QThread, "start") as mock_start:
         with patch.object(QThread, "wait") as mock_wait:
             yield {"start": mock_start, "wait": mock_wait}
