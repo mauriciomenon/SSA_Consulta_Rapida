@@ -2986,7 +2986,7 @@ def import_files_to_database(
         if raise_on_error:
             raise
         return False
-    except Exception as e:
+    except (ImporterError, OSError, ValueError, sqlite3.Error, pd.errors.DatabaseError) as e:
         logger.error(f"Erro na importacao de arquivos: {e}")
         if raise_on_error:
             raise
@@ -3028,7 +3028,7 @@ def import_explicit_files_to_database(
         if raise_on_error:
             raise
         return False
-    except Exception as e:
+    except (ImporterError, OSError, ValueError, sqlite3.Error, pd.errors.DatabaseError) as e:
         logger.error(f"Erro na importacao explicita de arquivos: {e}")
         if raise_on_error:
             raise
@@ -3081,6 +3081,6 @@ def get_filtered_data(
 
         return df
 
-    except Exception as e:
+    except (ValueError, sqlite3.Error, pd.errors.DatabaseError) as e:
         logger.error(f"Erro ao obter dados filtrados: {e}")
         return pd.DataFrame()  # Retorna DataFrame vazio em caso de erro

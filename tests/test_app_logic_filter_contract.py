@@ -220,6 +220,23 @@ def test_get_filtered_data_reads_canonical_table_without_legacy_view(
     assert out.iloc[0]["descricao_ssa"] == "SSA canonica"
 
 
+def test_get_filtered_data_returns_empty_on_database_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "ssa_error.sqlite"
+    db_path.write_text("", encoding="utf-8")
+    _allow_tmp_path(monkeypatch, tmp_path)
+
+    def _explode(*_args, **_kwargs):
+        raise sqlite3.OperationalError("forced db failure")
+
+    monkeypatch.setattr(database, "query_db", _explode)
+
+    out = get_filtered_data(str(db_path))
+
+    assert out.empty
+
+
 def test_filter_dataframe_default_search_columns_match_solicitante_and_setor_executor() -> (
     None
 ):
@@ -569,6 +586,34 @@ def test_get_filtered_data_reflects_updated_state_after_explicit_import(
     assert list(searched["numero_ssa"]) == ["202500001"]
 
 
+def test_import_explicit_files_to_database_returns_false_on_importer_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    db_path = tmp_path / "data" / "test.db"
+    db_path.parent.mkdir()
+    file_path = docs_dir / "entrada.xlsx"
+    file_path.write_text("x", encoding="utf-8")
+
+    _allow_tmp_path(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        app_logic,
+        "run_importer_logic",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            app_logic.ImporterError("forced importer failure")
+        ),
+    )
+
+    ok = app_logic.import_explicit_files_to_database(
+        [str(file_path)],
+        docs_dir=str(docs_dir),
+        db_path=str(db_path),
+    )
+
+    assert ok is False
+
+
 def test_explicit_import_persists_data_planilha_iso_from_filename(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -638,6 +683,21 @@ def test_get_filtered_data_reflects_updated_state_after_diff_reimport(
     assert list(updated["setor_executor"]) == ["BBB2"]
     assert list(updated["arquivo_origem"]) == ["tracked.xlsx"]
     assert list(searched["numero_ssa"]) == ["202500001"]
+
+
+def test_import_files_to_database_returns_false_on_oserror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    db_path = tmp_path / "data" / "test.db"
+
+    _allow_tmp_path(monkeypatch, tmp_path)
+    monkeypatch.setattr(app_logic.os, "makedirs", lambda *_a, **_k: (_ for _ in ()).throw(OSError("forced mkdir failure")))
+
+    ok = app_logic.import_files_to_database(str(docs_dir), str(db_path))
+
+    assert ok is False
 
 
 def test_cli_render_reflects_updated_state_after_real_excel_import(
