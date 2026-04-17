@@ -2349,8 +2349,8 @@ class FilterGUISSAMixin:
                 exc,
             )
 
-        # Resetar para dataset completo
-        self.df_exibido = self.df_completo.copy()
+        # Resetar para dataset completo sem duplicar o DataFrame base
+        self.df_exibido = self.df_completo
         try:
             if hasattr(self, "_bump_data_revision"):
                 self._bump_data_revision("clear_all_filters")
@@ -2553,7 +2553,7 @@ class FilterGUISSAMixin:
                 exc,
             )
 
-        self.df_exibido = self.df_completo.copy()
+        self.df_exibido = self.df_completo
         try:
             if hasattr(self, "_bump_data_revision"):
                 self._bump_data_revision("hard_reset_filters")
