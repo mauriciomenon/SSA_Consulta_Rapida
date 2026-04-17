@@ -1639,6 +1639,35 @@ class TestGUIFilterLogic:
         assert isinstance(cached, dict)
         assert "base_lower_df" not in cached
 
+    def test_build_gui_general_search_columns_skips_all_null_columns_from_attrs(self):
+        df = self._build_heavy_filters_df(rows=8)
+        for column_name in (
+            "numero_ssa_relacionada_1",
+            "numero_ssa_relacionada_2",
+            "numero_ssa_relacionada_3",
+            "setor_emissor_relacionado_1",
+            "setor_executor_relacionado_1",
+            "situacao_relacionada_1",
+            "relacao",
+        ):
+            df[column_name] = pd.NA
+        df.attrs["ssa_non_null_cols"] = [
+            "numero_ssa",
+            "situacao",
+            "descricao_ssa",
+            "setor_executor",
+            "setor_emissor",
+            "descricao_execucao",
+        ]
+
+        columns = filter_mixin.build_gui_general_search_columns(df)
+
+        assert "numero_ssa" in columns
+        assert "descricao_ssa" in columns
+        assert "numero_ssa_relacionada_1" not in columns
+        assert "setor_emissor_relacionado_1" not in columns
+        assert "relacao" not in columns
+
     def test_build_render_marker_sample_ignores_heavy_attrs_payload(self):
         sample_df = pd.DataFrame(
             {
@@ -6538,6 +6567,21 @@ class TestGUIFilterLogic:
         assert {"numero_ssa", "situacao", "descricao_ssa"}.issubset(
             self.window._non_null_cols_cache
         )
+
+    def test_on_data_loaded_propagates_non_null_attrs_for_fallback_path(self):
+        self.window._active_data_load_request_id = 24
+        df = self.base_df.copy()
+        df["numero_ssa_relacionada_1"] = pd.NA
+        df["relacao"] = pd.NA
+
+        self.window.on_data_loaded(df, request_id=24)
+
+        non_null_attr = self.window.df_completo.attrs.get("ssa_non_null_cols")
+        assert isinstance(non_null_attr, list)
+        assert "numero_ssa" in non_null_attr
+        assert "descricao_ssa" in non_null_attr
+        assert "numero_ssa_relacionada_1" not in non_null_attr
+        assert "relacao" not in non_null_attr
 
     def test_on_data_loaded_defers_advanced_refresh_until_filters_tab(self):
         self.window._active_data_load_request_id = 23
