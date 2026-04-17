@@ -282,16 +282,30 @@ def build_gui_general_search_columns(df: pd.DataFrame | None) -> list[str]:
     if not isinstance(df, pd.DataFrame) or df.empty and len(df.columns) == 0:
         return []
 
+    non_null_columns: set[str] | None = None
+    try:
+        non_null_attr = df.attrs.get("ssa_non_null_cols")
+        if isinstance(non_null_attr, (list, tuple, set, frozenset)):
+            non_null_columns = {str(col) for col in non_null_attr if str(col)}
+    except Exception as exc:
+        logger.debug(
+            "Falha ao ler attrs de colunas nao nulas para busca geral: %s", exc
+        )
+
     selected_columns: list[str] = []
     seen_columns: set[str] = set()
 
     for column_name in _GUI_GENERAL_SEARCH_PRIORITY_COLUMNS:
+        if non_null_columns is not None and column_name not in non_null_columns:
+            continue
         if column_name in df.columns and column_name not in seen_columns:
             selected_columns.append(column_name)
             seen_columns.add(column_name)
 
     for column_name in df.columns:
         if column_name in seen_columns:
+            continue
+        if non_null_columns is not None and column_name not in non_null_columns:
             continue
         if _is_gui_general_search_auto_excluded(column_name):
             continue

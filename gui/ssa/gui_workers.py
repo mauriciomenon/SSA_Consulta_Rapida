@@ -1015,6 +1015,13 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
                         continue
         window._non_null_cols_cache = non_null_cols
         window._non_null_cols_revision = int(getattr(window, "_data_revision", 0) or 0)
+        try:
+            df_copy.attrs["ssa_non_null_cols"] = sorted(non_null_cols)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao propagar attrs de colunas nao nulas para df_completo: %s",
+                exc,
+            )
     except Exception as exc:
         logger.debug("Falha ao calcular cache de colunas nao nulas apos carga: %s", exc)
     try:
