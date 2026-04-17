@@ -478,10 +478,32 @@ def test_filter_dataframe_rebuilds_search_cache_for_refined_subset() -> None:
 
     assert list(refined["numero_ssa"]) == ["202500001"]
     assert cached_search_data["token"][2] == len(first.index)
-    assert len(cached_search_data["base_lower_df"]) == len(first.index)
+    assert "base_lower_df" not in cached_search_data
     assert len(cached_search_data["row_search_text"]) == len(first.index)
     assert "_filter_search_cache" not in refined.attrs
     assert "_filter_search_token" not in refined.attrs
+
+
+def test_filter_dataframe_small_anchored_regex_builds_fieldwise_cache_lazily() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003"],
+            "descricao_ssa": ["SVP-04 MEL4", "SVP-08 MEL3", "MEL4 geral"],
+            "setor_executor": ["MEL4", "MEL3", "IEE3"],
+        }
+    )
+
+    plain = filter_dataframe(df, ["svp"], ["descricao_ssa", "setor_executor"])
+    cached_before = df.attrs["_filter_search_cache"]
+    had_base_lower_before = "base_lower_df" in cached_before
+
+    anchored = filter_dataframe(df, ["~^mel4"], ["descricao_ssa", "setor_executor"])
+    cached_after = df.attrs["_filter_search_cache"]
+
+    assert list(plain["numero_ssa"]) == ["202500001", "202500002"]
+    assert had_base_lower_before is False
+    assert list(anchored["numero_ssa"]) == ["202500001", "202500003"]
+    assert len(cached_after["base_lower_df"]) == len(df.index)
 
 
 def test_filter_dataframe_invalidates_cache_after_in_place_value_change() -> None:
