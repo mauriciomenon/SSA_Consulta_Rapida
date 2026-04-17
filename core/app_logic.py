@@ -64,6 +64,7 @@ _DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE: Dict[str, str] = {
 FILTER_FIELD_SEPARATOR = "\x1f"
 FILTER_SEARCH_TOKEN_ATTR = "_filter_search_token"
 FILTER_SEARCH_CACHE_ATTR = "_filter_search_cache"
+FILTER_SEARCH_FIELDWISE_CACHE_MAX_ROWS = 5000
 
 
 class FilterSearchCacheManager:
@@ -134,14 +135,16 @@ class FilterSearchCacheManager:
     def store_cached_search_data(
         df: pd.DataFrame,
         search_cache_token: tuple[str, tuple[str, ...], int, str | None],
-        base_lower_df: pd.DataFrame,
+        base_lower_df: pd.DataFrame | None,
         row_search_text: pd.Series,
     ) -> None:
-        df.attrs[FILTER_SEARCH_CACHE_ATTR] = {
+        payload: dict[str, Any] = {
             "token": search_cache_token,
-            "base_lower_df": base_lower_df,
             "row_search_text": row_search_text,
         }
+        if isinstance(base_lower_df, pd.DataFrame):
+            payload["base_lower_df"] = base_lower_df
+        df.attrs[FILTER_SEARCH_CACHE_ATTR] = payload
 
     @staticmethod
     def clear_result_attrs(result_df: pd.DataFrame) -> pd.DataFrame:
@@ -2790,48 +2793,6 @@ def filter_dataframe(
         logger.warning("Nenhuma coluna de busca valida encontrada")
         return df
 
-    search_cache_token = FilterSearchCacheManager.build_token(df, available_search_cols)
-    cached_search_data = FilterSearchCacheManager.get_cached_search_data(
-        df, search_cache_token
-    )
-
-    if cached_search_data is not None:
-        base_lower_df = cached_search_data["base_lower_df"]
-        row_search_text = cached_search_data["row_search_text"]
-    else:
-        base_str_df = df[available_search_cols].astype("string").fillna("")
-        if base_str_df.shape[1] == 0:
-            # Sem colunas de texto, nao ha onde buscar: retorna DataFrame vazio
-            return FilterSearchCacheManager.clear_result_attrs(df.iloc[0:0])
-        base_lower_df = base_str_df.apply(
-            lambda col: col.str.casefold().str.replace(
-                FILTER_FIELD_SEPARATOR, " ", regex=False
-            )
-        )
-        if base_lower_df.shape[1] == 1:
-            row_search_text = base_lower_df.iloc[:, 0]
-        else:
-            row_search_text = base_lower_df.iloc[:, 0]
-            for column_name in base_lower_df.columns[1:]:
-                row_search_text = row_search_text.str.cat(
-                    base_lower_df[column_name],
-                    sep=FILTER_FIELD_SEPARATOR,
-                    na_rep="",
-                )
-        FilterSearchCacheManager.store_cached_search_data(
-            df, search_cache_token, base_lower_df, row_search_text
-        )
-
-    if base_lower_df.shape[1] == 0:
-        # Sem colunas de texto, nao ha onde buscar: retorna DataFrame vazio
-        return FilterSearchCacheManager.clear_result_attrs(df.iloc[0:0])
-
-    logger.debug(
-        "Buscando em %s colunas: %s",
-        len(base_lower_df.columns),
-        list(base_lower_df.columns),
-    )
-
     # Permite tanto termos brutos (str) quanto parseados (dict)
     terms: List[Dict[str, Any]]
     if isinstance(normalized_search_terms[0], dict):
@@ -2867,6 +2828,74 @@ def filter_dataframe(
             else:
                 pattern_cache[cache_key] = (value, False)
 
+    search_cache_token = FilterSearchCacheManager.build_token(df, available_search_cols)
+    cached_search_data = FilterSearchCacheManager.get_cached_search_data(
+        df, search_cache_token
+    )
+    base_lower_df: pd.DataFrame | None = None
+    row_search_text: pd.Series | None = None
+
+    if cached_search_data is not None:
+        cached_base = cached_search_data.get("base_lower_df")
+        cached_rows = cached_search_data.get("row_search_text")
+        if isinstance(cached_base, pd.DataFrame) and len(cached_base.index) == len(df.index):
+            base_lower_df = cached_base
+        if isinstance(cached_rows, pd.Series) and len(cached_rows.index) == len(df.index):
+            row_search_text = cached_rows
+
+    if row_search_text is None:
+        if len(df.index) <= FILTER_SEARCH_FIELDWISE_CACHE_MAX_ROWS:
+            base_str_df = df[available_search_cols].astype("string").fillna("")
+            if base_str_df.shape[1] == 0:
+                return FilterSearchCacheManager.clear_result_attrs(df.iloc[0:0])
+            base_lower_df = base_str_df.apply(
+                lambda col: col.str.casefold().str.replace(
+                    FILTER_FIELD_SEPARATOR, " ", regex=False
+                )
+            )
+            if base_lower_df.shape[1] == 1:
+                row_search_text = base_lower_df.iloc[:, 0]
+            else:
+                row_search_text = base_lower_df.iloc[:, 0]
+                for column_name in base_lower_df.columns[1:]:
+                    row_search_text = row_search_text.str.cat(
+                        base_lower_df[column_name],
+                        sep=FILTER_FIELD_SEPARATOR,
+                        na_rep="",
+                    )
+        else:
+            row_search_text = (
+                df[available_search_cols[0]]
+                .astype("string")
+                .fillna("")
+                .str.casefold()
+                .str.replace(FILTER_FIELD_SEPARATOR, " ", regex=False)
+            )
+            for column_name in available_search_cols[1:]:
+                normalized_column = (
+                    df[column_name]
+                    .astype("string")
+                    .fillna("")
+                    .str.casefold()
+                    .str.replace(FILTER_FIELD_SEPARATOR, " ", regex=False)
+                )
+                row_search_text = row_search_text.str.cat(
+                    normalized_column,
+                    sep=FILTER_FIELD_SEPARATOR,
+                    na_rep="",
+                )
+        FilterSearchCacheManager.store_cached_search_data(
+            df, search_cache_token, base_lower_df, row_search_text
+        )
+
+    assert row_search_text is not None
+
+    logger.debug(
+        "Buscando em %s colunas: %s",
+        len(available_search_cols),
+        list(available_search_cols),
+    )
+
     def _mask_for_term(term: Dict[str, Any]) -> pd.Series:
         mode = term.get("mode", "contains")
         value = term.get("value", "") or ""
@@ -2875,6 +2904,16 @@ def filter_dataframe(
         pattern, use_regex = pattern_cache.get(cache_key, (value, False))
 
         def _fieldwise_regex(pattern_text: str) -> pd.Series:
+            nonlocal base_lower_df
+            if base_lower_df is None:
+                base_str_df = df[available_search_cols].astype("string").fillna("")
+                if base_str_df.shape[1] == 0:
+                    return pd.Series(False, index=df.index)
+                base_lower_df = base_str_df.apply(
+                    lambda col: col.str.casefold().str.replace(
+                        FILTER_FIELD_SEPARATOR, " ", regex=False
+                    )
+                )
             per_column_masks = [
                 base_lower_df[column_name].str.contains(
                     pattern_text, case=False, na=False, regex=True

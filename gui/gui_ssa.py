@@ -3963,7 +3963,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         if clicked_column_name == "numero_ssa":
             self._copy_ssa_to_clipboard(numero_ssa)
             return
-        self._open_details_dialog_for_ssa(numero_ssa)
+        self._open_details_dialog_for_ssa(numero_ssa, series=series)
 
     def _save_page_size_pref(self, new_size: int):
         """Persiste o tamanho da pãgina no settings."""
@@ -4007,8 +4007,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _on_details_anchor_clicked(self, url):
         return ssa_gui_details._on_details_anchor_clicked(self, url)
 
-    def _open_details_dialog_for_ssa(self, numero_ssa):
-        return ssa_gui_details._open_details_dialog_for_ssa(self, numero_ssa)
+    def _open_details_dialog_for_ssa(self, numero_ssa, series=None):
+        return ssa_gui_details._open_details_dialog_for_ssa(
+            self, numero_ssa, series=series
+        )
 
     def _filter_by_derivadas(self, numero_ssa):
         return ssa_gui_details._filter_by_derivadas(self, numero_ssa)

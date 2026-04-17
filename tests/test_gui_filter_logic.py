@@ -1606,6 +1606,39 @@ class TestGUIFilterLogic:
 
         assert store_calls["count"] == 1
 
+    def test_filter_dataframe_large_search_cache_skips_base_lower_df_payload(self):
+        heavy_df = self._build_heavy_filters_df(rows=6000)
+
+        filtered = app_logic.filter_dataframe(
+            heavy_df,
+            ["Descricao 5"],
+            search_columns=["descricao_ssa", "setor_executor"],
+        )
+
+        cached = heavy_df.attrs.get(app_logic.FILTER_SEARCH_CACHE_ATTR)
+
+        assert not filtered.empty
+        assert isinstance(cached, dict)
+        assert "base_lower_df" not in cached
+        assert len(cached["row_search_text"]) == len(heavy_df.index)
+
+    def test_filter_dataframe_large_anchored_regex_works_without_cached_base_lower_df(
+        self,
+    ):
+        heavy_df = self._build_heavy_filters_df(rows=6000)
+
+        filtered = app_logic.filter_dataframe(
+            heavy_df,
+            ["~^descricao 5"],
+            search_columns=["descricao_ssa"],
+        )
+
+        cached = heavy_df.attrs.get(app_logic.FILTER_SEARCH_CACHE_ATTR)
+
+        assert not filtered.empty
+        assert isinstance(cached, dict)
+        assert "base_lower_df" not in cached
+
     def test_build_render_marker_sample_ignores_heavy_attrs_payload(self):
         sample_df = pd.DataFrame(
             {
@@ -3444,6 +3477,58 @@ class TestGUIFilterLogic:
         ):
             self.window._open_details_dialog_for_ssa("1")
 
+    def test_open_details_dialog_reuses_provided_series_on_initial_render(
+        self, monkeypatch
+    ):
+        self.window.df_exibido = self.base_df.copy()
+        self.window.df_para_tabela = self.base_df.head(1).copy()
+        series = self.window.df_exibido.iloc[0]
+        seen = {"first_target_ok": False}
+
+        monkeypatch.setattr(QtWidgets.QDialog, "exec", lambda _dialog: 0, raising=False)
+
+        original_get_series = ssa_gui_details._get_series_for_ssa
+
+        def _guard_get_series(window, numero_ssa):
+            if str(numero_ssa) == "1" and not seen["first_target_ok"]:
+                raise AssertionError("nao deveria reconsultar a SSA inicial")
+            return original_get_series(window, numero_ssa)
+
+        def _guard_format(window, rendered_series, **kwargs):
+            seen["first_target_ok"] = rendered_series is series
+            return "<html><body>ok</body></html>"
+
+        monkeypatch.setattr(ssa_gui_details, "_format_details_html", _guard_format)
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_collect_derivadas_tree_data",
+            lambda *_args, **_kwargs: {
+                "target": "1",
+                "parents": [],
+                "children": [],
+                "descendants": [],
+                "ancestors": [],
+                "related": [],
+                "direct_children_count": 0,
+                "descendants_count": 0,
+            },
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_build_derivadas_tree_html",
+            lambda *_args, **_kwargs: "<html><body>tree</body></html>",
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_build_derivadas_graph_html",
+            lambda *_args, **_kwargs: "",
+        )
+        monkeypatch.setattr(ssa_gui_details, "_get_series_for_ssa", _guard_get_series)
+
+        self.window._open_details_dialog_for_ssa("1", series=series)
+
+        assert seen["first_target_ok"] is True
+
     def test_build_derivadas_tree_html_omits_link_for_missing_target(self, monkeypatch):
         monkeypatch.setattr(
             ssa_gui_details,
@@ -3661,7 +3746,7 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(
             self.window,
             "_open_details_dialog_for_ssa",
-            lambda numero_ssa: opened.append(str(numero_ssa)),
+            lambda numero_ssa, series=None: opened.append((str(numero_ssa), series)),
         )
 
         self.window.on_table_double_click(model_index)
@@ -3684,13 +3769,15 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(
             self.window,
             "_open_details_dialog_for_ssa",
-            lambda numero_ssa: opened.append(str(numero_ssa)),
+            lambda numero_ssa, series=None: opened.append((str(numero_ssa), series)),
         )
 
         self.window.on_table_double_click(model_index)
 
         assert copied == []
-        assert opened == ["1"]
+        assert len(opened) == 1
+        assert opened[0][0] == "1"
+        assert opened[0][1].equals(self.window.df_exibido.iloc[0])
 
     def test_clicking_hash_column_with_pd_na_does_not_raise(self, monkeypatch):
         self.window.df_completo = self.window.df_completo.copy()
@@ -5906,6 +5993,14 @@ class TestGUIFilterLogic:
 
         assert "para 'Busca nova'" in self.window.status_label.text()
 
+    def test_on_filter_finished_reuses_filtered_dataframe_reference(self):
+        self.window._active_filter_request_id = 22
+        filtered = self.base_df.iloc[:1].copy()
+
+        self.window.on_filter_finished(filtered, request_id=22)
+
+        assert self.window._df_last_search_filtered is filtered
+
     def test_clear_filter_invalidates_pending_async_result(self):
         self.window._filter_request_seq = 20
         self.window._active_filter_request_id = 20
@@ -5926,6 +6021,13 @@ class TestGUIFilterLogic:
 
         self.window.on_filter_finished(stale_df, request_id=20)
         assert self.window._df_last_search_filtered.equals(self.base_df)
+
+    def test_clear_filter_reuses_df_completo_as_search_baseline(self):
+        self.window.search_input.setText("Teste A")
+
+        self.window.clear_filter()
+
+        assert self.window._df_last_search_filtered is self.window.df_completo
 
     def test_clear_filter_resets_async_search_display_state(self):
         self.window._sync_filtering = False
