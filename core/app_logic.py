@@ -65,6 +65,7 @@ FILTER_FIELD_SEPARATOR = "\x1f"
 FILTER_SEARCH_TOKEN_ATTR = "_filter_search_token"
 FILTER_SEARCH_CACHE_ATTR = "_filter_search_cache"
 FILTER_SEARCH_FIELDWISE_CACHE_MAX_ROWS = 5000
+FILTER_ROW_SEARCH_BATCH_SIZE = 8
 
 
 class FilterSearchCacheManager:
@@ -2844,48 +2845,45 @@ def filter_dataframe(
             row_search_text = cached_rows
 
     if row_search_text is None:
-        if len(df.index) <= FILTER_SEARCH_FIELDWISE_CACHE_MAX_ROWS:
-            base_str_df = df[available_search_cols].astype("string").fillna("")
-            if base_str_df.shape[1] == 0:
-                return FilterSearchCacheManager.clear_result_attrs(df.iloc[0:0])
-            base_lower_df = base_str_df.apply(
-                lambda col: col.str.casefold().str.replace(
-                    FILTER_FIELD_SEPARATOR, " ", regex=False
-                )
-            )
-            if base_lower_df.shape[1] == 1:
-                row_search_text = base_lower_df.iloc[:, 0]
-            else:
-                row_search_text = base_lower_df.iloc[:, 0]
-                for column_name in base_lower_df.columns[1:]:
-                    row_search_text = row_search_text.str.cat(
-                        base_lower_df[column_name],
+        search_df = df.loc[:, available_search_cols].copy(deep=False)
+        search_df.attrs = {}
+        base_str_df = search_df.astype("string").fillna("")
+        if base_str_df.shape[1] == 0:
+            return FilterSearchCacheManager.clear_result_attrs(df.iloc[0:0])
+        normalized_columns = [
+            base_str_df[column_name]
+            .str.casefold()
+            .str.replace(FILTER_FIELD_SEPARATOR, " ", regex=False)
+            for column_name in base_str_df.columns
+        ]
+        if len(normalized_columns) == 1:
+            row_search_text = normalized_columns[0]
+        else:
+            batch_segments: list[pd.Series] = []
+            for batch_start in range(
+                0, len(normalized_columns), FILTER_ROW_SEARCH_BATCH_SIZE
+            ):
+                batch_end = batch_start + FILTER_ROW_SEARCH_BATCH_SIZE
+                batch_segment = normalized_columns[batch_start]
+                for normalized_column in normalized_columns[batch_start + 1 : batch_end]:
+                    batch_segment = batch_segment.str.cat(
+                        normalized_column,
                         sep=FILTER_FIELD_SEPARATOR,
                         na_rep="",
                     )
-        else:
-            row_search_text = (
-                df[available_search_cols[0]]
-                .astype("string")
-                .fillna("")
-                .str.casefold()
-                .str.replace(FILTER_FIELD_SEPARATOR, " ", regex=False)
-            )
-            for column_name in available_search_cols[1:]:
-                normalized_column = (
-                    df[column_name]
-                    .astype("string")
-                    .fillna("")
-                    .str.casefold()
-                    .str.replace(FILTER_FIELD_SEPARATOR, " ", regex=False)
-                )
+                batch_segments.append(batch_segment)
+            row_search_text = batch_segments[0]
+            for batch_segment in batch_segments[1:]:
                 row_search_text = row_search_text.str.cat(
-                    normalized_column,
+                    batch_segment,
                     sep=FILTER_FIELD_SEPARATOR,
                     na_rep="",
                 )
         FilterSearchCacheManager.store_cached_search_data(
             df, search_cache_token, base_lower_df, row_search_text
+        )
+        cached_search_data = FilterSearchCacheManager.get_cached_search_data(
+            df, search_cache_token
         )
 
     assert row_search_text is not None
@@ -2904,9 +2902,11 @@ def filter_dataframe(
         pattern, use_regex = pattern_cache.get(cache_key, (value, False))
 
         def _fieldwise_regex(pattern_text: str) -> pd.Series:
-            nonlocal base_lower_df
+            nonlocal base_lower_df, cached_search_data
             if base_lower_df is None:
-                base_str_df = df[available_search_cols].astype("string").fillna("")
+                search_df = df.loc[:, available_search_cols].copy(deep=False)
+                search_df.attrs = {}
+                base_str_df = search_df.astype("string").fillna("")
                 if base_str_df.shape[1] == 0:
                     return pd.Series(False, index=df.index)
                 base_lower_df = base_str_df.apply(
@@ -2914,6 +2914,11 @@ def filter_dataframe(
                         FILTER_FIELD_SEPARATOR, " ", regex=False
                     )
                 )
+                if (
+                    len(df.index) <= FILTER_SEARCH_FIELDWISE_CACHE_MAX_ROWS
+                    and isinstance(cached_search_data, dict)
+                ):
+                    cached_search_data["base_lower_df"] = base_lower_df
             per_column_masks = [
                 base_lower_df[column_name].str.contains(
                     pattern_text, case=False, na=False, regex=True
