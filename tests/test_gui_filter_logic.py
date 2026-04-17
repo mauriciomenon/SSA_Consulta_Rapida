@@ -2438,6 +2438,37 @@ class TestGUIFilterLogic:
         assert refresh_mock.call_count == 1
         assert self.window._adv_options_dirty is False
 
+    def test_bind_filters_tab_skips_series_lookup_when_render_key_is_unchanged(self):
+        filter_tab_idx = next(
+            idx
+            for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        ctx = self.window._tab_contexts[filter_tab_idx]
+        current_page = max(1, self.window.paginator.current_page)
+        ctx["_last_render_key"] = (
+            id(self.window.df_exibido),
+            current_page,
+            tuple(self.window.visible_columns),
+        )
+        self.window._details_current_ssa = str(
+            self.window.df_exibido.iloc[0]["numero_ssa"]
+        )
+
+        with patch(
+            "gui.ssa.gui_details._get_series_for_ssa",
+            side_effect=AssertionError(
+                "_get_series_for_ssa nao deveria rodar sem rerender"
+            ),
+        ):
+            self.window._bind_tab_context(ctx)
+
+        assert ctx["_last_render_key"] == (
+            id(self.window.df_exibido),
+            current_page,
+            tuple(self.window.visible_columns),
+        )
+
     def test_switch_to_filters_tab_does_not_reapply_same_theme(self):
         filter_tab_idx = next(
             idx
