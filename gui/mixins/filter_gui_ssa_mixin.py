@@ -3832,10 +3832,6 @@ class FilterGUISSAMixin:
                     "values": list(group.get("values", ())),
                 }
             )
-        try:
-            df_last = self._df_last_search_filtered.copy()
-        except Exception:
-            df_last = pd.DataFrame()
         return {
             "search_text": search_text,
             "pending_search_display": getattr(self, "_pending_search_display", None),
@@ -3848,7 +3844,6 @@ class FilterGUISSAMixin:
             "advanced_filters_active": bool(
                 getattr(self, "_advanced_filters_active", False)
             ),
-            "df_last_search_filtered": df_last,
             "current_filter_profile": getattr(self, "current_filter_profile", None),
             "profile_base_filters": copy.deepcopy(
                 getattr(self, "_profile_base_filters", {}) or {}
@@ -3878,13 +3873,14 @@ class FilterGUISSAMixin:
         self._restoring_filter_state = True
         try:
             self._last_filter_state = None
+            restored_search_text = str(state.get("search_text", "") or "")
             try:
-                self._set_search_text_across_tabs(state.get("search_text", "") or "")
+                self._set_search_text_across_tabs(restored_search_text)
             except Exception as exc:
                 logger.warning("Falha ao restaurar texto de busca entre abas: %s", exc)
                 try:
                     self.search_input.blockSignals(True)
-                    self.search_input.setText(state.get("search_text", "") or "")
+                    self.search_input.setText(restored_search_text)
                 finally:
                     try:
                         self.search_input.blockSignals(False)
@@ -3946,11 +3942,9 @@ class FilterGUISSAMixin:
                         )
             self._advanced_filters = state.get("advanced_filters") or {}
             self._advanced_filters_active = bool(state.get("advanced_filters_active"))
-            df_last = state.get("df_last_search_filtered")
-            if isinstance(df_last, pd.DataFrame):
-                self._df_last_search_filtered = df_last
-            else:
-                self._df_last_search_filtered = pd.DataFrame()
+            self._df_last_search_filtered = (
+                pd.DataFrame() if restored_search_text.strip() else self.df_completo
+            )
             self.current_filter_profile = state.get("current_filter_profile")
             self._profile_base_filters = state.get("profile_base_filters") or {}
             self._hidden_column_filter_lines = (
@@ -3967,16 +3961,10 @@ class FilterGUISSAMixin:
                     "Falha ao sincronizar UI de filtros avancados no restore: %s", exc
                 )
             self._build_column_filters_panel()
-            self._refresh_after_filter_change()
             try:
                 self.update_filter_tags()
             except Exception as exc:
                 logger.debug("Falha ao atualizar tags de filtros no restore: %s", exc)
-            try:
-                self._update_filters_summary()
-            except Exception as exc:
-                logger.debug("Falha ao atualizar resumo de filtros no restore: %s", exc)
-            self._sync_clear_filter_button_state()
             selector = getattr(self, "profile_selector", None)
             if selector is not None:
                 idx = (
@@ -3990,6 +3978,17 @@ class FilterGUISSAMixin:
                         selector.setCurrentIndex(idx)
                     finally:
                         self._profile_lock = False
+            if restored_search_text.strip():
+                self.initiate_filtering()
+            else:
+                self._refresh_after_filter_change()
+                try:
+                    self._update_filters_summary()
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao atualizar resumo de filtros no restore: %s", exc
+                    )
+                self._sync_clear_filter_button_state()
         finally:
             self._restoring_filter_state = False
             self._update_undo_button_state()
