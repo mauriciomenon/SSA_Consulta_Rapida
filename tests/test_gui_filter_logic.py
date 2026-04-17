@@ -3134,6 +3134,39 @@ class TestGUIFilterLogic:
         assert "202500777" in html
         assert "202500888" in html
 
+    def test_update_details_from_series_resolves_related_ssas_without_full_index_build(
+        self,
+    ):
+        series = self.base_df.iloc[0].copy()
+        series["numero_ssa"] = "202600023"
+        series["numero_ssa_relacionada_1"] = "202500777"
+        series["situacao_relacionada_1"] = "STE"
+        series["numero_ssa_relacionada_2"] = "202500888"
+        series["situacao_relacionada_2"] = "SES"
+        series_map = series.to_dict()
+
+        self.window.df_exibido = pd.DataFrame([series]).copy()
+        self.window.df_completo = pd.DataFrame(
+            [
+                series_map,
+                {**series_map, "numero_ssa": "202500777", "situacao": "STE"},
+                {**series_map, "numero_ssa": "202500888", "situacao": "SES"},
+            ]
+        ).copy()
+
+        with patch(
+            "gui.ssa.gui_details._get_df_ssa_series_index",
+            side_effect=AssertionError("nao deveria montar indice completo"),
+        ), patch(
+            "gui.ssa.gui_details._get_window_ssa_series_index",
+            side_effect=AssertionError("nao deveria montar indice global"),
+        ):
+            ssa_gui_details._update_details_from_series(self.window, series)
+
+        html = self.window.details_text.toHtml()
+        assert "202500777" in html
+        assert "202500888" in html
+
     def test_details_html_expands_situacao_and_links_numero_ssa_for_copy(self):
         series = self.base_df.iloc[0].copy()
         series["numero_ssa"] = "202600023"
@@ -3398,6 +3431,18 @@ class TestGUIFilterLogic:
             and sizes[1] >= ssa_gui_details.DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT
             for sizes in captured["splitter_sizes"]
         )
+
+    def test_open_details_dialog_avoids_global_ssa_index_build(self, monkeypatch):
+        self.window.df_exibido = self.base_df.copy()
+        self.window.df_para_tabela = self.base_df.head(1).copy()
+
+        monkeypatch.setattr(QtWidgets.QDialog, "exec", lambda _dialog: 0, raising=False)
+
+        with patch(
+            "gui.ssa.gui_details._get_window_ssa_series_index",
+            side_effect=AssertionError("nao deveria montar indice global"),
+        ):
+            self.window._open_details_dialog_for_ssa("1")
 
     def test_build_derivadas_tree_html_omits_link_for_missing_target(self, monkeypatch):
         monkeypatch.setattr(
@@ -3790,6 +3835,30 @@ class TestGUIFilterLogic:
         self.window.df_completo = df.copy()
 
         series = ssa_gui_details._get_series_for_ssa(self.window, "200")
+
+        assert series is not None
+        assert str(series.get("numero_ssa")) == "200"
+        assert str(series.get("descricao_ssa")) == "B"
+
+    def test_get_series_for_ssa_falls_back_to_df_completo_without_building_index(self):
+        self.window.df_exibido = pd.DataFrame(
+            {
+                "numero_ssa": ["100"],
+                "descricao_ssa": ["A"],
+            }
+        )
+        self.window.df_completo = pd.DataFrame(
+            {
+                "numero_ssa": ["100", "200", "300"],
+                "descricao_ssa": ["A", "B", "C"],
+            }
+        )
+
+        with patch(
+            "gui.ssa.gui_details._get_df_ssa_series_index",
+            side_effect=AssertionError("nao deveria montar indice completo"),
+        ):
+            series = ssa_gui_details._get_series_for_ssa(self.window, "200")
 
         assert series is not None
         assert str(series.get("numero_ssa")) == "200"

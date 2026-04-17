@@ -992,7 +992,19 @@ def _get_series_for_ssa(window, numero_ssa):
         if df is None or df.empty or "numero_ssa" not in df.columns:
             return None
         try:
-            return _get_df_ssa_series_index(window, df).get(target)
+            normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
+            if normalized_series.empty:
+                return None
+            matches = normalized_series.eq(target)
+            if not bool(matches.any()):
+                return None
+            positions = matches.to_numpy().nonzero()[0]
+            if len(positions) == 0:
+                return None
+            matched = df.iloc[int(positions[0])]
+            if isinstance(matched, pd.DataFrame):
+                matched = matched.iloc[0]
+            return matched
         except Exception as exc:
             logger.debug("Falha ao localizar SSA %s em dataframe: %s", target, exc)
             return None
@@ -1952,7 +1964,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         series_target = _get_series_for_ssa(window, normalized)
         if series_target is None:
             return False
-        ssa_index = _get_window_ssa_series_index(window)
+        ssa_index = _get_df_ssa_series_index(window, getattr(window, "df_para_tabela", None))
         current_target["ssa"] = normalized
         export_state["target"] = normalized
         tree_data = _collect_derivadas_tree_data(window, normalized)
