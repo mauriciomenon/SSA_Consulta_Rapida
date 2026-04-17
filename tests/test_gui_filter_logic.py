@@ -23,6 +23,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+from core import app_logic  # noqa: E402
 from PyQt6.QtCore import QPoint, QRect, QSize, Qt, QUrl  # noqa: E402
 from PyQt6.QtGui import QCloseEvent, QFont, QResizeEvent  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
@@ -1566,6 +1567,44 @@ class TestGUIFilterLogic:
 
         visible_ssa = [str(value) for value in self._extract_visible_ssa()]
         assert Counter(visible_ssa) == Counter([target_ssa])
+
+    def test_general_search_reuses_filter_dataframe_cache_on_same_dataframe(
+        self, monkeypatch
+    ):
+        realistic_df = self._build_realistic_base_df_50()
+        self.window._sync_filtering = True
+        self.window.df_completo = realistic_df.copy()
+        self.window.df_exibido = realistic_df.copy()
+        self.window._df_last_search_filtered = realistic_df.copy()
+        self.window.paginator.set_dataframe(realistic_df.copy())
+
+        store_calls = {"count": 0}
+        original_store = app_logic.FilterSearchCacheManager.store_cached_search_data
+
+        def _tracked_store(
+            frame: pd.DataFrame,
+            search_cache_token,
+            base_lower_df: pd.DataFrame,
+            row_search_text: pd.Series,
+        ) -> None:
+            store_calls["count"] += 1
+            original_store(frame, search_cache_token, base_lower_df, row_search_text)
+
+        monkeypatch.setattr(
+            app_logic.FilterSearchCacheManager,
+            "store_cached_search_data",
+            staticmethod(_tracked_store),
+        )
+
+        self.window.search_input.setText("Teste")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        self.window.search_input.setText("Exec")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        assert store_calls["count"] == 1
 
     def test_build_render_marker_sample_ignores_heavy_attrs_payload(self):
         sample_df = pd.DataFrame(

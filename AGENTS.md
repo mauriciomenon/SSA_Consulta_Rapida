@@ -392,3 +392,33 @@ Lista abaixo reproduz exatamente os comandos fornecidos pelo usuario.
   - `pip-audit -r /tmp/ssa_uv_export_requirements_no_project.txt --require-hashes --disable-pip --progress-spinner off -f json`
 
 @RTK.md
+
+## Politicas Aprovadas Em Runtime E Performance GUI
+
+- Toda referencia a commit deve incluir `hash completo + data/hora + titulo`.
+- Quando houver relacao tecnica com historico, incluir tambem arquivo, funcao e link clicavel quando possivel.
+- Todo diagnostico de performance GUI deve incluir obrigatoriamente:
+  - smoke real
+  - tempo do fluxo alvo
+  - RSS antes/depois
+  - caminho de execucao
+  - quebra por subblocos reais quando houver hotspot
+- Nenhum slice de GUI pode ser fechado so com teste verde.
+- Sempre usar `update_plan` quando houver plano.
+- Usar subagentes quando houver subtarefas independentes reais e sem risco de conflito.
+- Em investigacao de lentidao GUI, o padrao obrigatorio e quebrar o fluxo real em subblocos de runtime antes de propor patch.
+- O fluxo de teste GUI deve incluir, quando aplicavel:
+  - abertura real da janela
+  - cliques reais
+  - troca de abas
+  - aplicacao de filtros
+  - validacao de detalhes
+  - verificacao visual basica de posicionamento e texto
+- Se a medicao ou o smoke nao foram feitos, isso deve ser declarado como bloqueio.
+- Proibido criar funcao, helper, mixin, wrapper, alias ou camada nova apenas para remendar comportamento existente, salvo aprovacao explicita do usuario.
+- Nova funcao so entra se for:
+  - nova funcionalidade
+  - substituicao clara de funcionalidade anterior
+  - extracao estrutural explicitamente aprovada
+- Em codigo ja localizado, a preferencia padrao e corrigir o fluxo existente, nao adicionar nova camada.
+- Se o raciocinio de "patch minimo" comecar a degenerar em costura local em cima de costura local, o agente deve parar, declarar isso explicitamente e pedir nova aprovacao antes de editar.
