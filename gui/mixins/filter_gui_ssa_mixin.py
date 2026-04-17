@@ -1000,7 +1000,7 @@ class FilterGUISSAMixin:
             )
             return
         # Atualiza baseline do resultado da busca global
-        self._df_last_search_filtered = df_filtrado.copy()
+        self._df_last_search_filtered = df_filtrado
         # OTIMIZACAO: Sinaliza que larguras precisam ser recalculadas para novo dataset
         self._widths_computed_for_df_hash = None
         self._refresh_after_filter_change()
@@ -1430,7 +1430,7 @@ class FilterGUISSAMixin:
         self._active_filter_search_request_id = None
         # Nao limpa filtros avancados nem filtros de coluna aqui.
         # Esse botao limpa apenas a busca geral; limpeza global usa "_clear_all_filters_global".
-        self._df_last_search_filtered = self.df_completo.copy()
+        self._df_last_search_filtered = self.df_completo
         self._refresh_after_filter_change()
         self._set_filtered_count_status()
         self._sync_clear_filter_button_state()
@@ -3052,7 +3052,7 @@ class FilterGUISSAMixin:
         self._pending_search_display = None
         self._active_filter_search_display = ""
         self._active_filter_search_request_id = None
-        self._df_last_search_filtered = self.df_completo.copy()
+        self._df_last_search_filtered = self.df_completo
 
     def _sync_exclude_ste_checkbox_state(self, checked: bool) -> None:
         checked_bool = bool(checked)

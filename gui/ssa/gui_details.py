@@ -1815,11 +1815,21 @@ def _get_dialog_screen_geometry(widget):
     return None
 
 
-def _open_details_dialog_for_ssa(window, numero_ssa):
+def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
     target = _normalize_ssa_value(window, numero_ssa)
     if not target:
         return
-    series = _get_series_for_ssa(window, target)
+    if series is not None:
+        try:
+            series_target = (
+                _normalize_ssa_value(window, series.get("numero_ssa")) == target
+            )
+        except Exception:
+            series_target = False
+        if not series_target:
+            series = None
+    if series is None:
+        series = _get_series_for_ssa(window, target)
     if series is None:
         return
 
@@ -1957,11 +1967,23 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         tree_graph_label.setToolTip("")
         return True
 
-    def _render_target(ssa_target):
+    def _render_target(ssa_target, resolved_series=None):
         normalized = _normalize_ssa_value(window, ssa_target)
         if not normalized:
             return False
-        series_target = _get_series_for_ssa(window, normalized)
+        if resolved_series is not None:
+            try:
+                matches_target = (
+                    _normalize_ssa_value(window, resolved_series.get("numero_ssa"))
+                    == normalized
+                )
+            except Exception:
+                matches_target = False
+            if not matches_target:
+                resolved_series = None
+        series_target = resolved_series
+        if series_target is None:
+            series_target = _get_series_for_ssa(window, normalized)
         if series_target is None:
             return False
         ssa_index = _get_df_ssa_series_index(window, getattr(window, "df_para_tabela", None))
@@ -2159,7 +2181,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
             export_button.mapToGlobal(export_button.rect().bottomRight())
         )
     )
-    if not _render_target(target):
+    if not _render_target(target, resolved_series=series):
         return
 
     details_tab_splitter.addWidget(details_browser)
