@@ -286,14 +286,7 @@ def _build_render_marker_sample(
     try:
         marker_columns = list(display_df.columns)
         row_indexes = sorted({0, len(display_df) // 2, len(display_df) - 1})
-        marker_df = display_df.iloc[row_indexes][marker_columns].copy(deep=False)
-        try:
-            marker_df.attrs = {}
-        except Exception as exc:
-            logger.debug(
-                "Falha ao limpar attrs do sample de renderizacao da tabela: %s", exc
-            )
-        marker_df = marker_df.fillna("")
+        marker_df = display_df.iloc[row_indexes][marker_columns].fillna("")
         return tuple(
             tuple(str(value) for value in row_values)
             for row_values in marker_df.itertuples(index=False, name=None)
