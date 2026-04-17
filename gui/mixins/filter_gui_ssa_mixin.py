@@ -58,6 +58,7 @@ except ImportError:
     FilterHelpDialog = cast(Any, None)
 
 # Imports do core
+from core.app_logic import FILTER_SEARCH_CACHE_ATTR, FILTER_SEARCH_TOKEN_ATTR
 from core.app_logic import filter_dataframe, parse_search_terms
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS
@@ -692,8 +693,32 @@ class FilterGUISSAMixin:
         self._maybe_offer_hard_reset_after_repeated_clear_click()
 
     def _get_filter_source_dataframe(self) -> pd.DataFrame:
-        """Retorna fonte de busca sem attrs complexos que quebram operacoes internas do pandas."""
+        """Retorna a fonte de busca preservando cache seguro entre requests."""
         source = self.df_completo
+        try:
+            source_attrs = getattr(source, "attrs", {})
+        except Exception as exc:
+            logger.debug(
+                "Falha ao ler attrs da fonte de busca; usando df_completo original: %s",
+                exc,
+            )
+            return source
+
+        if not isinstance(source_attrs, dict) or not source_attrs:
+            return source
+
+        safe_attr_keys = {
+            FILTER_SEARCH_TOKEN_ATTR,
+            FILTER_SEARCH_CACHE_ATTR,
+            "ssa_preprocessed_for_gui",
+            "ssa_non_null_cols",
+        }
+        unexpected_attr_keys = [
+            key for key in source_attrs.keys() if key not in safe_attr_keys
+        ]
+        if not unexpected_attr_keys:
+            return source
+
         try:
             safe_source = source.copy(deep=False)
         except Exception as exc:
@@ -702,10 +727,15 @@ class FilterGUISSAMixin:
                 exc,
             )
             return source
+
         try:
-            safe_source.attrs = {}
+            safe_source.attrs = {
+                key: source_attrs[key] for key in safe_attr_keys if key in source_attrs
+            }
         except Exception as exc:
-            logger.debug("Falha ao limpar attrs da fonte de busca: %s", exc)
+            logger.debug(
+                "Falha ao preservar attrs seguros da fonte de busca: %s", exc
+            )
         return safe_source
 
     def _reset_repeated_clear_click_tracking(self) -> None:
