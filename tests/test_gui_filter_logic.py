@@ -2029,6 +2029,39 @@ class TestGUIFilterLogic:
         assert self.window._advanced_filters_active is True
         assert all(button.isEnabled() is False for button in undo_buttons)
 
+    def test_restore_last_filter_state_recomputes_general_search_without_snapshot_df(
+        self,
+    ):
+        realistic_df = self._build_realistic_base_df_50()
+        self.window._sync_filtering = True
+        self.window.df_completo = realistic_df.copy()
+        self.window.df_exibido = realistic_df.copy()
+        self.window._df_last_search_filtered = realistic_df.copy()
+        self.window.paginator.set_dataframe(realistic_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        self.window.search_input.setText("Exec 1")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+        filtered_before = self.window.df_exibido.copy()
+
+        self.window._active_column_filters["setor_executor"] = "SETOR_00"
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        assert self.window._last_filter_state is not None
+        assert "df_last_search_filtered" not in self.window._last_filter_state
+
+        self.window._restore_last_filter_state()
+        QApplication.processEvents()
+
+        assert self.window.search_input.text().strip() == "Exec 1"
+        assert self.window._active_column_filters["setor_executor"] == ""
+        assert Counter(self.window.df_exibido["numero_ssa"]) == Counter(
+            filtered_before["numero_ssa"]
+        )
+
     def test_column_filter_buttons_flow(self):
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
         QApplication.processEvents()
@@ -2232,6 +2265,7 @@ class TestGUIFilterLogic:
         assert "coluna_temporaria_teste" not in (
             snapshot.get("active_column_filters") or {}
         )
+        assert "df_last_search_filtered" not in snapshot
 
     def test_deactivate_column_filter_stores_undo_snapshot(self):
         self.window._active_column_filters["descricao_ssa"] = "Teste A"
