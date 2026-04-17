@@ -5239,6 +5239,16 @@ class TestGUIFilterLogic:
         assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
         assert self.window.clear_filter_button.isEnabled() is False
 
+    def test_clear_all_filters_global_reuses_df_completo_reference(self):
+        self.window.search_input.setText("Teste A")
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+
+        assert self.window.df_exibido is self.window.df_completo
+
     def test_clear_all_filters_global_restores_default_column_filter_keys(self):
         self.window._active_column_filters = {
             "situacao": "STE",
@@ -5337,6 +5347,16 @@ class TestGUIFilterLogic:
             selector = ctx.get("profile_selector")
             if selector is not None:
                 assert selector.currentIndex() == 0
+
+    def test_hard_reset_filters_state_reuses_df_completo_reference(self):
+        self.window.search_input.setText("Teste A")
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        self.window._hard_reset_filters_state()
+        QApplication.processEvents()
+
+        assert self.window.df_exibido is self.window.df_completo
 
     def test_build_derivadas_tree_normalizes_and_ignores_invalid_values(self):
         df = pd.DataFrame(
@@ -6519,18 +6539,28 @@ class TestGUIFilterLogic:
         assert refresh_mock.call_count >= 1
         assert self.window._adv_options_dirty is False
 
-    def test_on_data_loaded_primes_num_reprogramacoes_sort_cache(self):
+    def test_on_data_loaded_resets_num_reprogramacoes_sort_cache(self):
         self.window._active_data_load_request_id = 31
         df = self.base_df.copy()
         df["num_reprogramacoes"] = [2, "Reprogramacao #1", 0, "", None]
+        self.window._num_reprog_sort_cache = {
+            "source_id": 999,
+            "source_len": 123,
+            "keys_df": pd.DataFrame(
+                {
+                    "__reprog_is_nan": [False],
+                    "__reprog_num": [1],
+                    "__reprog_txt": ["stale"],
+                }
+            ),
+        }
 
         self.window.on_data_loaded(df, request_id=31)
 
         cache = self.window._num_reprog_sort_cache
-        assert isinstance(cache.get("source_id"), int)
-        assert isinstance(cache["keys_df"], pd.DataFrame)
-        assert int(cache["source_len"]) == len(cache["keys_df"].index)
-        assert "__reprog_num" in cache["keys_df"].columns
+        assert cache["source_id"] is None
+        assert int(cache["source_len"]) == 0
+        assert cache["keys_df"] is None
 
     def test_on_load_error_ignores_stale_request(self):
         self.window._active_data_load_request_id = 10

@@ -991,10 +991,10 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     window._df_last_search_filtered = df_copy
     window._widths_computed_for_df_hash = None
     try:
-        if hasattr(window, "_prime_num_reprogramacoes_sort_cache"):
-            window._prime_num_reprogramacoes_sort_cache()
+        if hasattr(window, "_reset_num_reprogramacoes_sort_cache"):
+            window._reset_num_reprogramacoes_sort_cache()
     except Exception as exc:
-        logger.debug("Falha ao preaquecer cache de sort de num_reprogramacoes: %s", exc)
+        logger.debug("Falha ao resetar cache de sort de num_reprogramacoes: %s", exc)
     try:
         non_null_cols_attr = (
             attrs.get("ssa_non_null_cols") if preprocessed_for_gui else None
