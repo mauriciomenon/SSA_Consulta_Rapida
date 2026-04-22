@@ -48,15 +48,11 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - busca e filtros melhoraram de forma material, mas ainda nao estao encerrados
      - o risco maior agora esta em ownership duplicado de dataframe, residuos de verificacao e hotspots algoritmicos restantes, nao em layout
   11. pendencias reais abertas nesta retomada:
-     - `BUG_REAL` de infraestrutura de teste:
+     - o backlog antigo ainda citava:
        - `tests/test_quality_gates_smoke.py:34`
-       - `check_docs` ainda varre `.opencode/node_modules`
-     - teste de performance fragil:
        - `tests/test_workers_advanced.py:648`
-       - threshold de cache do `FilterWorker` esta mais duro que o tempo real medido
-     - debt estrutural promissor da mesma familia de algoritmo caro:
-       - `gui/workers/filter_worker.py:182`
-       - `gui/ssa/gui_workers.py:910`
+     - revalidacao posterior mostrou esses 2 itens como fechados
+     - o proximo residual tecnico real deve ser reidentificado por novo diagnostico puro
   12. slices funcionais desta retomada ja aterrados em `dev`:
      - `d8451041` `test(gui): Lock load ordering behavior`
      - `e594d5bc` `perf(gui): Reuse sorted search result in refresh`
@@ -241,10 +237,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
        - `gui/workers/filter_worker.py:182`
        - o custo de `drop_duplicates()` no merge por sobreposicao forte ja foi reduzido
        - a proxima rodada deve medir apenas o residual realmente aberto, sem reabrir o merge ja fechado
-     - e so depois revisar frentes separadas de teste:
-       - `tests/test_quality_gates_smoke.py:34`
-       - `tests/test_workers_advanced.py:648`
-     - manter `tests/test_quality_gates_smoke.py:34` e `tests/test_workers_advanced.py:648` como frentes separadas e pequenas
+     - se reaparecer residual de teste, tratar em frente separada e pequena
 
 ## HISTORICAL SNAPSHOT 2026-04-14 10h15
 
@@ -336,13 +329,10 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - referencia detalhada do algoritmo: `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
 - Proximo foco recomendado:
   1. manter este sync documental como `DOC_SYNC` isolado, sem tocar runtime
-  2. no primeiro slice funcional seguinte, atacar o ruido real de infraestrutura em `tests/test_quality_gates_smoke.py`
-  3. no segundo slice funcional, ajustar o threshold fragil de `tests/test_workers_advanced.py` para medir regressao real sem afrouxar alem do necessario
-  4. revisar em slice proprio o funil de excecoes por arquivo em `core/app_logic.py`, sem espalhar `try/except` fragmentado
-  5. so depois reavaliar os candidatos estruturais:
-     - `gui/workers/filter_worker.py:182`
-     - `gui/ssa/gui_workers.py:910`
-  6. manter qualquer refatoracao de `display_current_page(...)` em slice separado
+  2. nao reabrir `tests/test_quality_gates_smoke.py` nem `tests/test_workers_advanced.py` sem novo repro
+  3. nao reabrir `core/app_logic.py:1615`; essa frente ja foi fechada
+  4. fazer novo diagnostico puro para identificar o residual tecnico real ainda aberto
+  5. manter qualquer refatoracao de `display_current_page(...)` em slice separado
   7. nao reabrir layout, ordem visual ou defaults de produto sem pedido explicito
 
 ## HISTORICAL SNAPSHOT 2026-03-31 09h49

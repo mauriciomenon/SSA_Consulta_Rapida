@@ -149,8 +149,8 @@ Prova real curta:
 
 Leitura tecnica apos o slice:
 1. o branch fallback de `gui/ssa/gui_workers.py:910` deixou de ser a proxima frente principal
-2. o proximo alvo coerente volta a ser o residual multi-chunk de `gui/workers/filter_worker.py:182`
-3. `tests/test_quality_gates_smoke.py:34` e `tests/test_workers_advanced.py:648` seguem separados como frentes pequenas de teste
+2. o proximo alvo coerente voltou a ser o residual multi-chunk de `gui/workers/filter_worker.py:182`
+3. as referencias antigas a `tests/test_quality_gates_smoke.py:34` e `tests/test_workers_advanced.py:648` como pendencias abertas ficaram desatualizadas e devem ser lidas como historico
 
 ## Update 2026-04-22 09:33 - single-frame filter paths now reuse result references
 
@@ -656,26 +656,17 @@ Commits de referencia desta frente:
 9. `ffecabff` `fix(gui): Preserve live details across tab bind`
 
 Residual real que continua aberto:
-1. `BUG_REAL` de infraestrutura de teste em `tests/test_quality_gates_smoke.py:34`:
-   - `check_docs` ainda varre `.opencode/node_modules`
-   - isso polui o gate e pode gerar custo e ruido desnecessarios
-2. teste de performance fragil em `tests/test_workers_advanced.py:648`:
-   - o threshold de cache do `FilterWorker` esta duro demais para o tempo real medido
-   - precisa passar a medir regressao real, nao micro-variacao de ambiente
-3. front de error handling ainda aberta em `core/app_logic.py:1615`:
-   - o problema real nao e a linha isolada, e sim o funil funcional nao cobrir toda a familia relevante de runtime exceptions por arquivo
-   - qualquer ajuste aqui deve ser por bloco funcional, sem espalhar `try/except`
-4. debt estrutural ainda promissor na mesma familia de algoritmo caro:
-   - `gui/workers/filter_worker.py:182`
-   - `gui/ssa/gui_workers.py:910`
-   - reavaliar so apos fechar os dois itens de teste acima
+1. este bloco ficou desatualizado:
+   - `tests/test_quality_gates_smoke.py:34` e `tests/test_workers_advanced.py:648` ja foram revalidados como fechados
+   - `core/app_logic.py:1615` tambem ja foi fechado em slice proprio
+2. a leitura correta agora e:
+   - o proximo residual tecnico real deve ser reidentificado por novo diagnostico puro
+   - sem assumir antecipadamente que o hotspot continua em `gui/workers/filter_worker.py:182` ou `gui/ssa/gui_workers.py:910`
 
 Ordem recomendada para os proximos slices:
 1. `DOC_SYNC` desta rodada
-2. fix minimo em `tests/test_quality_gates_smoke.py`
-3. fix minimo em `tests/test_workers_advanced.py`
-4. revisao focada do funil em `core/app_logic.py`
-5. reavaliacao dos candidatos estruturais apenas com evidencia nova
+2. novo diagnostico puro para identificar o residual real ainda aberto
+3. aprovar um slice minimo so depois da nova evidencia
 
 Fora de escopo desta atualizacao:
 1. qualquer alteracao de runtime

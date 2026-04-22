@@ -45,14 +45,12 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `ffecabff` `fix(gui): Preserve live details across tab bind`
 9. o bug de perder a SSA selecionada na troca de aba esta fechado
 10. busca/filtros melhoraram bem, mas a frente ainda nao esta encerrada
-11. residuos reais que ficaram da verificacao pesada:
-   - `tests/test_quality_gates_smoke.py:34`
-     - `check_docs` ainda varre `.opencode/node_modules`
-   - `tests/test_workers_advanced.py:648`
-     - threshold de cache do `FilterWorker` esta fragil para o tempo real medido
-   - `gui/workers/filter_worker.py:182`
-   - `gui/ssa/gui_workers.py:910`
-     - candidatos estruturais restantes da mesma familia de algoritmo caro
+11. residuos reais que continuam abertos nesta retomada:
+   - o backlog antigo ainda citava:
+     - `tests/test_quality_gates_smoke.py:34`
+     - `tests/test_workers_advanced.py:648`
+   - revalidacao posterior mostrou esses 2 itens como fechados
+   - o proximo residual tecnico real precisa ser reidentificado por novo diagnostico puro, sem assumir hotspot antigo sem evidencia
 12. commits aterrados nesta retomada:
    - `d8451041` `test(gui): Lock load ordering behavior`
    - `e594d5bc` `perf(gui): Reuse sorted search result in refresh`
@@ -242,7 +240,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - fechar este `DOC_SYNC`
    - voltar para diagnostico puro do proximo hotspot estrutural
    - aprovar um novo slice minimo antes de tocar runtime
-   - manter `tests/test_quality_gates_smoke.py`, `tests/test_workers_advanced.py` e `core/app_logic.py` como frente separada, sem misturar tudo
+   - manter qualquer novo residual de teste em frente separada, sem misturar tudo
 7. considerar fechado o bug da troca de aba; nao reabrir essa area sem novo repro
 8. buscar regressao real em RAM e tempo de carga antes de qualquer micro-otimizacao nova
 9. antes de qualquer novo patch, declarar:
