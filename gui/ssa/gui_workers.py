@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import inspect
 import os
-import re
 import threading
 import time
 import uuid
@@ -15,6 +14,7 @@ from time import perf_counter
 
 import pandas as pd
 
+from gui.workers.data_loader_worker import DataLoaderWorker
 from gui.workers.rescan_worker import RescanOutcome
 from utils.robust_logging import get_robust_logger
 
@@ -33,39 +33,6 @@ except Exception as exc:
         "Falha ao importar Qt.ConnectionType para conexao enfileirada: %s", exc
     )
     _QT_QUEUED = None
-
-
-def _sanitize_ssa_like_value(value) -> str:
-    if value is None:
-        return ""
-    try:
-        if isinstance(value, float):
-            if pd.isna(value):
-                return ""
-            if value.is_integer():
-                return str(int(value))
-            return str(value).strip()
-    except (TypeError, ValueError):
-        pass
-    except Exception as exc:
-        logger.debug(
-            "Falha inesperada ao sanitizar valor SSA-like '%r': %s", value, exc
-        )
-    try:
-        text = str(value).strip()
-    except Exception as exc:
-        logger.debug(
-            "Falha ao converter valor SSA-like para texto '%r': %s", value, exc
-        )
-        return ""
-    if not text:
-        return ""
-    if text.lower() in {"nan", "none", "nat", "<na>"}:
-        return ""
-    if re.fullmatch(r"\d+\.0+", text):
-        return text.split(".", 1)[0]
-    return text
-
 
 def _set_status_label_text(window, text: str, *, context: str) -> bool:
     status_label = getattr(window, "status_label", None)
@@ -913,7 +880,9 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         for ssa_col in ("numero_ssa", "derivada_de"):
             if ssa_col in df_copy.columns:
                 try:
-                    df_copy[ssa_col] = df_copy[ssa_col].map(_sanitize_ssa_like_value)
+                    df_copy[ssa_col] = df_copy[ssa_col].map(
+                        DataLoaderWorker._sanitize_ssa_like_value
+                    )
                 except Exception as exc:
                     logger.debug(
                         "Falha ao sanitizar coluna %s na carga de dados: %s",
@@ -962,29 +931,7 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     else:
         base = df_copy
         try:
-            if "situacao" in base.columns:
-                is_ste = base["situacao"].astype(str).str.upper().eq("STE")
-            else:
-                is_ste = pd.Series([False] * len(base), index=base.index)
-            if "numero_ssa" in base.columns:
-                ssa_text = base["numero_ssa"].astype(str)
-                ssa_digits = ssa_text.str.replace(r"\D+", "", regex=True)
-                ssa_int = (
-                    pd.to_numeric(ssa_digits, errors="coerce")
-                    .fillna(-1)
-                    .astype("int64")
-                )
-            else:
-                ssa_int = pd.Series([-1] * len(base), index=base.index)
-            base = (
-                base.assign(__is_ste=is_ste, __ssa=ssa_int)
-                .sort_values(
-                    by=["__is_ste", "__ssa"],
-                    ascending=[True, False],
-                    na_position="last",
-                )
-                .drop(columns=["__is_ste", "__ssa"])
-            )
+            base = DataLoaderWorker._build_initial_sorted_dataframe(base)
         except Exception as e:
             logger.warning("Falha na ordenacao inicial dos dados: %s", e)
     window.df_exibido = base

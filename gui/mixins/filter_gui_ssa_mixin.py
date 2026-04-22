@@ -3617,7 +3617,12 @@ class FilterGUISSAMixin:
             has_column_filters = False
         has_advanced_filters = bool(getattr(self, "_advanced_filters_active", False))
         has_excluded_terminal_status = bool(getattr(self, "_exclude_ste_sca", False))
-        if hasattr(self, "_apply_advanced_filters"):
+        has_post_search_filters = (
+            has_column_filters
+            or has_advanced_filters
+            or has_excluded_terminal_status
+        )
+        if has_post_search_filters and hasattr(self, "_apply_advanced_filters"):
             try:
                 filtered = _measure_timing(
                     "advanced", lambda: self._apply_advanced_filters(filtered)
@@ -3626,11 +3631,13 @@ class FilterGUISSAMixin:
                 logger.warning(
                     "Falha ao aplicar filtros avancados no refresh de filtros: %s", exc
                 )
-        filtered = _measure_timing(
-            "column", lambda: self._apply_column_filters(filtered)
-        )
+        if has_post_search_filters:
+            filtered = _measure_timing(
+                "column", lambda: self._apply_column_filters(filtered)
+            )
         if (
-            has_excluded_terminal_status
+            has_post_search_filters
+            and has_excluded_terminal_status
             and not filtered.empty
             and "situacao" in filtered.columns
         ):

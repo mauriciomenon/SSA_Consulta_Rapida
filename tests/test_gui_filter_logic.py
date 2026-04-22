@@ -1400,6 +1400,75 @@ class TestGUIFilterLogic:
         status = self.window.filtered_status_label.text()
         assert status == "Status: 1 de 5 SSAs"
 
+    def test_refresh_after_filter_change_skips_extra_filter_steps_without_active_filters(
+        self, monkeypatch
+    ):
+        advanced_calls = {"count": 0}
+        column_calls = {"count": 0}
+
+        def _fail_advanced(df):
+            advanced_calls["count"] += 1
+            raise AssertionError("advanced filters should be skipped")
+
+        def _fail_column(df):
+            column_calls["count"] += 1
+            raise AssertionError("column filters should be skipped")
+
+        self.window.df_completo = self.base_df.copy()
+        self.window._df_last_search_filtered = self.window.df_completo
+        self.window.df_exibido = self.base_df.iloc[0:0].copy()
+        self.window.search_input.setText("")
+        self.window._advanced_filters = {}
+        self.window._advanced_filters_active = False
+        self.window._exclude_ste_sca = False
+        for key in list(self.window._active_column_filters.keys()):
+            self.window._active_column_filters[key] = ""
+
+        monkeypatch.setattr(self.window, "_apply_advanced_filters", _fail_advanced)
+        monkeypatch.setattr(self.window, "_apply_column_filters", _fail_column)
+
+        self.window._refresh_after_filter_change()
+
+        assert advanced_calls["count"] == 0
+        assert column_calls["count"] == 0
+        assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
+
+    def test_refresh_after_filter_change_skips_extra_filter_steps_for_simple_search_result(
+        self, monkeypatch
+    ):
+        advanced_calls = {"count": 0}
+        column_calls = {"count": 0}
+        filtered = self.base_df.iloc[[4, 3, 0]].copy()
+        filtered.attrs["ssa_sorted_for_display"] = True
+
+        def _fail_advanced(df):
+            advanced_calls["count"] += 1
+            raise AssertionError("advanced filters should be skipped")
+
+        def _fail_column(df):
+            column_calls["count"] += 1
+            raise AssertionError("column filters should be skipped")
+
+        self.window._df_last_search_filtered = filtered
+        self.window.df_exibido = self.base_df.iloc[0:0].copy()
+        self.window.search_input.setText("MEL3")
+        self.window._active_filter_search_display = "MEL3"
+        self.window._pending_search_display = ""
+        self.window._advanced_filters = {}
+        self.window._advanced_filters_active = False
+        self.window._exclude_ste_sca = False
+        for key in list(self.window._active_column_filters.keys()):
+            self.window._active_column_filters[key] = ""
+
+        monkeypatch.setattr(self.window, "_apply_advanced_filters", _fail_advanced)
+        monkeypatch.setattr(self.window, "_apply_column_filters", _fail_column)
+
+        self.window._refresh_after_filter_change()
+
+        assert advanced_calls["count"] == 0
+        assert column_calls["count"] == 0
+        assert self.window.df_exibido is filtered
+
     def test_set_filtered_count_status_accepts_suffix(self):
         self.window._set_filtered_count_status(filtered_total=2, original_total=5)
         status = self.window.filtered_status_label.text()
