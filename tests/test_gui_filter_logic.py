@@ -6582,7 +6582,7 @@ class TestGUIFilterLogic:
 
         assert self.window._df_last_search_filtered is self.window.df_completo
 
-    def test_on_data_loaded_reapplies_visible_sort_after_preprocessed_worker_order(self):
+    def test_on_data_loaded_preserves_preprocessed_worker_order_without_filters(self):
         self.window._active_data_load_request_id = 25
         sorted_df = self.base_df.iloc[[1, 4, 2, 0, 3]].copy()
         sorted_df["numero_ssa"] = [
@@ -6611,11 +6611,12 @@ class TestGUIFilterLogic:
         ]
         assert self.window.df_exibido["numero_ssa"].tolist() == [
             "202500005",
-            "202500004",
             "202500003",
-            "202500002",
+            "202500004",
             "202500001",
+            "202500002",
         ]
+        assert self.window.df_exibido is self.window.df_completo
 
     def test_on_data_loaded_propagates_non_null_attrs_for_fallback_path(self):
         self.window._active_data_load_request_id = 24
