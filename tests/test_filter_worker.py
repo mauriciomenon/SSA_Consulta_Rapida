@@ -126,6 +126,28 @@ class TestFilterWorker:
         assert emitted == []
         assert errors == []
 
+    def test_run_single_chunk_skips_concat_path(self):
+        df = pd.DataFrame({"texto": ["alfa", "beta", "gama"]})
+        worker = FilterWorker(df, [["alfa"]])
+        emitted = []
+        errors = []
+
+        worker.filter_finished.connect(lambda frame: emitted.append(frame.copy()))
+        worker.error_occurred.connect(errors.append)
+
+        with patch(
+            "gui.workers.filter_worker.filter_dataframe",
+            return_value=df.iloc[:1].copy(),
+        ) as filter_mock:
+            with patch("gui.workers.filter_worker.pd.concat") as concat_mock:
+                worker.run()
+
+        assert errors == []
+        assert len(emitted) == 1
+        assert emitted[0]["texto"].tolist() == ["alfa"]
+        assert filter_mock.call_count == 1
+        concat_mock.assert_not_called()
+
     def test_run_emits_empty_result_when_df_is_none(self):
         worker = FilterWorker(None, [["alfa"]])
         emitted = []

@@ -907,7 +907,7 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     attrs = getattr(df, "attrs", {})
     preprocessed_for_gui = bool(attrs.get("ssa_preprocessed_for_gui"))
     if preprocessed_for_gui:
-        df_copy = df.copy(deep=False)
+        df_copy = df
     else:
         df_copy = df.copy()
         for ssa_col in ("numero_ssa", "derivada_de"):
@@ -988,7 +988,7 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         except Exception as e:
             logger.warning("Falha na ordenacao inicial dos dados: %s", e)
     window.df_exibido = base
-    window._df_last_search_filtered = df_copy
+    window._df_last_search_filtered = window.df_completo
     window._widths_computed_for_df_hash = None
     try:
         if hasattr(window, "_reset_num_reprogramacoes_sort_cache"):

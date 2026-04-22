@@ -179,15 +179,18 @@ class FilterWorker(QThread):
                     if self._is_cancelled():
                         return
                 if frames:
-                    df_filtrado = (
-                        pd.concat(frames, axis=0, ignore_index=False)
-                        .drop_duplicates()
-                        .reset_index(drop=True)
-                    )
+                    if len(frames) == 1:
+                        df_filtrado = frames[0].reset_index(drop=True)
+                    else:
+                        df_filtrado = (
+                            pd.concat(frames, axis=0, ignore_index=False)
+                            .drop_duplicates()
+                            .reset_index(drop=True)
+                        )
                 else:
-                    df_filtrado = self.df_completo.copy()
+                    df_filtrado = self.df_completo.copy(deep=False)
             else:
-                df_filtrado = self.df_completo.copy()
+                df_filtrado = self.df_completo.copy(deep=False)
 
             if self._is_cancelled():
                 return

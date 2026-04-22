@@ -6568,6 +6568,20 @@ class TestGUIFilterLogic:
             self.window._non_null_cols_cache
         )
 
+    def test_on_data_loaded_reuses_df_completo_as_search_baseline(self):
+        self.window._active_data_load_request_id = 26
+        sorted_df = self.base_df.copy().iloc[::-1].copy()
+        sorted_df.attrs["ssa_preprocessed_for_gui"] = True
+        sorted_df.attrs["ssa_non_null_cols"] = [
+            "numero_ssa",
+            "situacao",
+            "descricao_ssa",
+        ]
+
+        self.window.on_data_loaded(sorted_df, request_id=26)
+
+        assert self.window._df_last_search_filtered is self.window.df_completo
+
     def test_on_data_loaded_reapplies_visible_sort_after_preprocessed_worker_order(self):
         self.window._active_data_load_request_id = 25
         sorted_df = self.base_df.iloc[[1, 4, 2, 0, 3]].copy()

@@ -96,9 +96,10 @@ class FilterCache:
                 logger.debug(f"Cache miss for filter key: {key[:8]}...")
                 return None
 
-        # Return copy outside the lock to keep critical section small.
+        # Return a shallow copy outside the lock to keep the critical section
+        # small without duplicating the full backing arrays on every cache hit.
         if isinstance(result, pd.DataFrame):
-            return result.copy()  # Retorna copia para evitar modificacoes
+            return result.copy(deep=False)
         logger.debug("Cache hit sem DataFrame valido para key: %s", key[:8])
         return None
 
@@ -138,7 +139,8 @@ class FilterCache:
         key = self._generate_key(
             df_hash, search_chunks, default_mode, cache_context=cache_context
         )
-        result_copy = result.copy()
+        # Keep cache isolation without cloning the full data payload again.
+        result_copy = result.copy(deep=False)
 
         with self._lock:
             # Remove entrada existente se houver

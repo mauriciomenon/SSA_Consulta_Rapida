@@ -84,3 +84,25 @@ def test_filter_cache_keeps_small_entries_when_limit_allows(monkeypatch):
     assert cached is not None
     assert stats["skipped_large_entries"] == 0
     assert stats["hits"] >= 1
+
+
+def test_filter_cache_shallow_copies_keep_cache_values_isolated():
+    cache = FilterCache(max_size=2)
+    source_df = pd.DataFrame({"a": [1, 2], "b": ["x", "y"]})
+
+    cache.put("df_small", [["x"]], "contains", source_df)
+    source_df.loc[0, "a"] = 999
+    source_df.loc[0, "b"] = "changed"
+
+    cached_first = cache.get("df_small", [["x"]], "contains")
+
+    assert cached_first is not None
+    assert cached_first["a"].tolist() == [1, 2]
+    assert cached_first["b"].tolist() == ["x", "y"]
+
+    cached_first.loc[1, "a"] = 777
+    cached_second = cache.get("df_small", [["x"]], "contains")
+
+    assert cached_second is not None
+    assert cached_second["a"].tolist() == [1, 2]
+    assert cached_second["b"].tolist() == ["x", "y"]
