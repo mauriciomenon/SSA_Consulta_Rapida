@@ -2,14 +2,14 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-22 00h15
+## CURRENT TRUTH 2026-04-22 07h27
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. `HEAD` local e `origin/dev` estao alinhados em `908e8561940e947d8254931ed841913a788ea891`
+  2. `HEAD` local e `origin/dev` estao alinhados em `a094fcce08be8fc71b69212705a4ca2df58efb52`
   3. ultimo commit atual:
-     - `2026-04-22 00:09:11 -0300`
-     - `perf(gui): Reuse quick executor combo options`
+     - `2026-04-22 07:27:37 -0300`
+     - `perf(gui): Cache normalized column filter series`
   4. worktree local atual:
      - repo limpo para codigo/docs
      - unico residuo local conhecido fora de escopo:
@@ -70,6 +70,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `581b88bf` `perf(gui): Reuse subset on safe search refinement`
      - `991fa874` `perf(gui): Narrow column filter working set`
      - `908e8561` `perf(gui): Reuse quick executor combo options`
+     - `a094fcce` `perf(gui): Cache normalized column filter series`
   13. ganhos funcionais acumulados do bloco `D` e follow-ups imediatos:
      - a carga inicial sem filtros agora preserva o dataframe preprocessado do worker como estado visual canonico
      - o refresh simples deixa de reaplicar filtros avancados e filtros por coluna quando nao existe filtro extra ativo
@@ -101,27 +102,36 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
        - baseline diagnosticada: `138.72ms`
        - apos `991fa874`: `113.78ms`
        - apos `908e8561`: `74.19ms`
-       - `_apply_column_filters`: `94.57ms -> 66.74ms -> 70.61ms`
+       - apos `a094fcce`, primeira passagem: `62.61ms`
+       - repeticao na mesma revisao/dataframe: `10.13ms`
+       - `_apply_column_filters`: `94.57ms -> 66.74ms -> 70.61ms -> 9.32ms` no caso repetido
        - `_sync_quick_setor_executor_combo_from_filters`: `40.92ms -> 41.51ms -> 0.03ms`
+       - cache local de series normalizadas ativo com `3` entradas no caso repetido
      - prints atualizados em:
        - `artifacts/gui_load_after_real_db.png`
        - `artifacts/gui_filter_MEL3.png`
        - `artifacts/gui_filter_MEL3_page2.png`
      - nota: esta ultima prova foi executada em `offscreen`; o RSS lido via `ru_maxrss` e high-water mark de processo, nao baseline canonica de memoria residente
-  16. checks remotos relevantes apos os pushes desta frente:
+  16. validacao local aterrada no `P3C`:
+     - `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+     - `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+     - `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+     - `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k '_apply_column_filters or column_filter or data_programacao or general_search or initiate_filtering or on_filter_finished or clear_filter'`
+     - review `kluster` sem blocker novo do slice; restaram apenas debts estruturais antigos e amplos do mixin
+  17. checks remotos relevantes apos os pushes desta frente:
      - `pass`: `CodeFactor`, `CodeRabbit`, `DeepScan`, `GitGuardian`, `Socket Security: Project Report`, `submit-pypi`, `precheck-default-setup`
-     - `pending`: `analyze (python)`, `secret-scan`, `semgrep-cloud-platform/scan`, `Socket Security: Pull Request Alerts`
+     - `pending`: `GitGuardian Security Checks`, `precheck-default-setup`, `submit-pypi`, `security/snyk (mauriciomenon)`
      - `fail` externo/vendor: `DeepSource: Error`
-     - `fail` externo por limite: `code/snyk (mauriciomenon)`, `security/snyk (mauriciomenon)`
-  17. docs vivos estavam atrasados antes deste sync:
+     - `fail` externo por limite: `code/snyk (mauriciomenon)`
+  18. docs vivos estavam atrasados antes deste sync:
      - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
      - `docs/NEXT_CHAT_MIGRATION.md`
      - `docs/RECOVERY_BACKLOG.md`
      - eles agora devem contar a historia da branch a partir deste topo, nao do snapshot de `2026-04-15`
-  18. regra de retomada obrigatoria daqui em diante:
+  19. regra de retomada obrigatoria daqui em diante:
      - primeiro fechar este `DOC_SYNC`
-     - depois voltar para diagnostico puro do proximo hotspot remanescente em `_apply_column_filters`
-     - manter a proxima frente focada em reduzir recast/string work remanescente sem reabrir layout e sem criar helper novo sem aprovacao
+     - depois voltar para diagnostico puro do hotspot de data em `_get_column_filter_date_display_series()`
+     - manter a proxima frente focada em reduzir custo de `display_dates` sem reabrir parser, layout ou helper novo sem aprovacao
 
 ## HISTORICAL SNAPSHOT 2026-04-14 10h15
 

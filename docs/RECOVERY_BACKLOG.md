@@ -5,6 +5,52 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-22 07:27 - column filter normalized series cache landed
+
+Escopo desta atualizacao:
+1. registrar o slice minimo `P3C` no refresh quente pos-busca
+2. consolidar a medicao de primeira passagem e repeticao na mesma revisao/dataframe
+3. atualizar o proximo hotspot remanescente para o caminho de data
+
+Commit aterrado nesta frente:
+1. `a094fcce` `perf(gui): Cache normalized column filter series`
+
+O que este slice fechou de fato:
+1. `_apply_column_filters()` agora reaproveita a serie normalizada `astype("string").fillna("")`
+2. o cache local e invalidado por `data_revision` e segregado por `id(df)` e coluna
+3. o parser e a semantica de matching permaneceram intactos
+4. o caminho de `display_dates` permaneceu fora do escopo deste patch
+
+Validacao desta frente:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k '_apply_column_filters or column_filter or data_programacao or general_search or initiate_filtering or on_filter_finished or clear_filter'`
+5. review `kluster` sem blocker novo do slice; os apontamentos restantes eram debts estruturais antigos do mixin
+
+Medicao comparativa do refresh cheio com `80448` linhas e 3 filtros por coluna:
+1. baseline diagnosticada:
+   - refresh: `138.72ms`
+   - `_apply_column_filters`: `94.57ms`
+2. apos `991fa874`:
+   - refresh: `113.78ms`
+   - `_apply_column_filters`: `66.74ms`
+3. apos `908e8561`:
+   - refresh: `74.19ms`
+   - `_apply_column_filters`: `70.61ms`
+4. apos `a094fcce`, primeira passagem:
+   - refresh: `62.61ms`
+   - `_apply_column_filters`: `17.26ms`
+5. apos `a094fcce`, repeticao na mesma revisao/dataframe:
+   - refresh: `10.13ms`
+   - `_apply_column_filters`: `9.32ms`
+   - cache local: `3` entradas
+
+Leitura tecnica apos `P3C`:
+1. o custo remanescente de cast/string prep caiu de forma material no caminho repetido
+2. o proximo hotspot com melhor relacao risco/ganho agora e o caminho de data em `_get_column_filter_date_display_series()`
+3. o proximo slice deve continuar pequeno, sem reabrir parser, layout ou helper novo
+
 ## Update 2026-04-22 00:15 - hot refresh path cut by incremental column filtering and combo reuse
 
 Escopo desta atualizacao:
