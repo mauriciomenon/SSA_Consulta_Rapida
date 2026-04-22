@@ -2,20 +2,114 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-15 21h50
+## CURRENT TRUTH 2026-04-21 22h20
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. worktree local estava limpo antes deste slice
-  3. `HEAD` local esta 1 commit a frente de `origin/dev`; PR remoto `#47` ainda aponta para `fb068228`
-  4. a falha local real detectada nesta rodada era o contrato quebrado entre `gui/gui_config.py` e `config/gui_main_preferences.json.example`
-  5. valores canonicos a preservar no momento:
-     - Windows: `derivada_de=112`, `semana_programada=92`, `setor_emissor=72`
-     - macOS: `semana_programada=72`
-     - Linux: `setor_executor=65`
-  6. `DeepSource` e `Snyk` seguem como status externos; neste repo devem ser tratados como warnings operacionais, nao como bloqueio tecnico local
-  7. `dev` e `main` sem branch protection obrigando esses checks neste host
-  8. Node/Bun/`node_modules` nao existem mais rastreados no `HEAD` atual; a introducao ocorreu em `8e0e90f1` e a remocao em `1d055cae`
+  2. `HEAD` local e `origin/dev` estao alinhados em `5ca3020cb62191ed7855856d0b85f5a19a9156f2`
+  3. ultimo commit atual:
+     - `2026-04-21 22:17:43 -0300`
+     - `perf(gui): Skip redundant refresh steps`
+  4. worktree local atual:
+     - docs modificados:
+       - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+       - `docs/NEXT_CHAT_MIGRATION.md`
+       - `docs/RECOVERY_BACKLOG.md`
+     - unico residuo local conhecido fora de escopo:
+       - `AGENTS.md.backup_20260416_223903`
+  5. PR ativo:
+     - `#47` `dev -> main`
+     - titulo: `Merge dev into main for stabilization and gui follow-up`
+     - estado: `OPEN`
+     - `mergeStateStatus=UNSTABLE`
+  6. a frente principal recente seguiu sendo estabilizacao e performance da GUI, com foco em:
+     - carga inicial
+     - busca geral
+     - filtros
+     - undo
+     - detalhes laterais
+     - dialogo completo de detalhes
+     - troca de aba sem destruir estado
+  7. o ciclo de `2026-04-16/17` corrigiu gargalos reais de RAM e de custo de carga:
+     - cortes de alocacao desnecessaria em busca, reset e undo
+     - eliminacao de rebuilds pesados de indices globais no fluxo de detalhes
+     - reducao de cache frio e de lookups redundantes
+     - preservacao do estado vivo de detalhes ao trocar de aba
+  8. commits-chave desta frente:
+     - `3f49caef` `perf(gui): Elide stale details lookup on tab bind`
+     - `51a0a69a` `perf(gui): Preserve search cache across requests`
+     - `12fbc46c` `fix(gui): Stop global SSA index builds in details flows`
+     - `b93b367d` `perf(gui): Reduce search cache memory and details lookup`
+     - `edaa90e7` `perf(gui): Reuse full dataset on reset and lazy reprog cache`
+     - `73881633` `perf(gui): Remove heavy undo snapshot dataframe retention`
+     - `a160a589` `perf(gui): Skip null-only columns in general search`
+     - `e3b5561d` `perf(search): Cut cold row cache build cost`
+     - `ffecabff` `fix(gui): Preserve live details across tab bind`
+  9. item fechado nesta frente:
+     - o bug de trocar de aba e perder a SSA selecionada foi fechado
+  10. estado atual da frente:
+     - busca e filtros melhoraram de forma material, mas ainda nao estao encerrados
+     - o risco maior agora esta em ownership duplicado de dataframe, residuos de verificacao e hotspots algoritmicos restantes, nao em layout
+  11. pendencias reais abertas nesta retomada:
+     - `BUG_REAL` de infraestrutura de teste:
+       - `tests/test_quality_gates_smoke.py:34`
+       - `check_docs` ainda varre `.opencode/node_modules`
+     - teste de performance fragil:
+       - `tests/test_workers_advanced.py:648`
+       - threshold de cache do `FilterWorker` esta mais duro que o tempo real medido
+     - cobertura incompleta da familia de excecoes por arquivo:
+       - `core/app_logic.py:1615`
+       - o problema real e o funil funcional ainda nao cobrir toda a familia de runtime exceptions relevante
+     - debt estrutural promissor da mesma familia de algoritmo caro:
+       - `gui/workers/filter_worker.py:182`
+       - `gui/ssa/gui_workers.py:910`
+  12. slices funcionais desta retomada ja aterrados em `dev`:
+     - `d8451041` `test(gui): Lock load ordering behavior`
+     - `e594d5bc` `perf(gui): Reuse sorted search result in refresh`
+     - `dcb6a830` `perf(gui): Trim cache and load copies`
+     - `e1fc2106` `perf(gui): Keep preprocessed load order`
+     - `5ca3020c` `perf(gui): Skip redundant refresh steps`
+  13. ganhos funcionais acumulados do bloco `D`:
+     - a carga inicial sem filtros agora preserva o dataframe preprocessado do worker como estado visual canonico
+     - o refresh simples deixa de reaplicar filtros avancados e filtros por coluna quando nao existe filtro extra ativo
+     - o load path passou a ter um unico dono para sanitizacao e ordenacao inicial
+     - a busca geral simples reaproveita o resultado ordenado em vez de rematerializar o dataframe exibido
+     - o caso real `MEL3` segue com `df_exibido is _df_last_search_filtered == True`
+     - o caso de carga sem filtros segue com `df_exibido is df_completo == True`
+  14. validacao local aterrada nesta frente:
+     - `uv run --python 3.13 python -m py_compile gui/cache/filter_cache.py gui/workers/filter_worker.py gui/workers/data_loader_worker.py gui/mixins/filter_gui_ssa_mixin.py gui/ssa/gui_workers.py tests/test_filter_cache_locking.py tests/test_filter_worker.py tests/test_data_loader_worker.py tests/test_gui_filter_logic.py`
+     - `uv run --python 3.13 ruff check ...` no mesmo escopo tocado
+     - `uv run --python 3.13 ty check ...` no mesmo escopo tocado
+     - `uv run --python 3.13 pytest -q tests/test_filter_cache_locking.py tests/test_filter_worker.py`
+     - `uv run --python 3.13 pytest -q tests/test_workers_advanced.py -k 'filter_worker_cache_performance or worker_uses_cache_for_same_query or worker_different_cache_context_misses_cache'`
+     - `uv run --python 3.13 pytest -q tests/test_data_loader_worker.py`
+     - `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k 'refresh_after_filter_change or on_filter_finished or on_data_loaded or clear_all_filters_global_reuses_df_completo_reference or hard_reset_filters_state_reuses_df_completo_reference'`
+     - review `kluster` local limpo no escopo tocado
+  15. prova real curta mais recente com GUI e `data/ssas.db`:
+     - carga: `80448` linhas, `84` colunas, `4.5386s`
+     - filtro frio `MEL3`: `1.9114s`
+     - filtro quente `MEL3`: `0.5139s`
+     - pagina `2`: `0.3271s`
+     - `df_exibido is df_completo == True` na carga
+     - `df_exibido is _df_last_search_filtered == True` no filtro simples
+     - prints atualizados em:
+       - `artifacts/gui_load_after_real_db.png`
+       - `artifacts/gui_filter_MEL3.png`
+       - `artifacts/gui_filter_MEL3_page2.png`
+     - nota: esta ultima prova foi executada em `offscreen`; os valores absolutos de RSS ficaram inflados e nao devem substituir a baseline interativa anterior para comparacao fina de memoria
+  16. checks remotos relevantes apos os pushes desta frente:
+     - `pass`: `CodeQL`, `CodeFactor`, `DeepScan`, `GitGuardian`, `semgrep`, `secret-scan`, `submit-pypi`, `precheck-default-setup`, `analyze (python)`
+     - `fail` externo/vendor: `DeepSource: Error`
+     - `fail` externo por limite: `code/snyk (mauriciomenon)`, `security/snyk (mauriciomenon)`
+  17. docs vivos estavam atrasados antes deste sync:
+     - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+     - `docs/NEXT_CHAT_MIGRATION.md`
+     - `docs/RECOVERY_BACKLOG.md`
+     - eles agora devem contar a historia da branch a partir deste topo, nao do snapshot de `2026-04-15`
+  18. regra de retomada obrigatoria daqui em diante:
+     - primeiro fechar este `DOC_SYNC`
+     - depois voltar para diagnostico puro do proximo hotspot estrutural antes de qualquer novo patch
+     - manter a proxima frente focada em remover ownership/recarregamento inutil remanescente, sem reabrir layout e sem criar helper novo sem aprovacao
 
 ## HISTORICAL SNAPSHOT 2026-04-14 10h15
 
@@ -106,18 +200,15 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `core/handler_base.py:197` continua documentado apenas como renderer paralelo fora do caminho principal `main.py -> interface/cli.py -> interface/table_printer.py`
      - referencia detalhada do algoritmo: `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
 - Proximo foco recomendado:
-  1. separar claramente no patch futuro:
-     - ordem/labels/defaults de produto
-     - preferencia persistida do usuario
-     - width manager real da tabela
-  2. manter qualquer refatoracao de `display_current_page(...)` em slice separado
-  3. tratar qualquer novo call site visual com `display_current_page(...)` como risco de contrato cruzado
-  4. se o produto quiser, analisar em slice separado se os numeros de `DEFAULT_COLUMN_WIDTHS` precisam revisao controlada
-     - ler antes `docs/COLUMN_WIDTHS_BY_PLATFORM.md`
-  5. manter fora deste slice o debt semantico de nome do agrupamento `exclude_ste_sca`
-  6. so reabrir esta area por:
-     - repro novo em tela
-     - ou slice proprio de refatoracao pequena com contrato de nao-regressao
+  1. manter este sync documental como `DOC_SYNC` isolado, sem tocar runtime
+  2. no primeiro slice funcional seguinte, atacar o ruido real de infraestrutura em `tests/test_quality_gates_smoke.py`
+  3. no segundo slice funcional, ajustar o threshold fragil de `tests/test_workers_advanced.py` para medir regressao real sem afrouxar alem do necessario
+  4. revisar em slice proprio o funil de excecoes por arquivo em `core/app_logic.py`, sem espalhar `try/except` fragmentado
+  5. so depois reavaliar os candidatos estruturais:
+     - `gui/workers/filter_worker.py:182`
+     - `gui/ssa/gui_workers.py:910`
+  6. manter qualquer refatoracao de `display_current_page(...)` em slice separado
+  7. nao reabrir layout, ordem visual ou defaults de produto sem pedido explicito
 
 ## HISTORICAL SNAPSHOT 2026-03-31 09h49
 
