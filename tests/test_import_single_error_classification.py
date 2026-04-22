@@ -127,7 +127,7 @@ def test_import_single_file_wraps_supported_runtime_shape_errors(
         )
 
 
-def test_import_single_file_does_not_mask_internal_key_error_as_extraction(
+def test_import_single_file_tolerates_missing_is_valid_in_validation_report(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(
@@ -147,12 +147,19 @@ def test_import_single_file_does_not_mask_internal_key_error_as_extraction(
     monkeypatch.setattr(
         app_logic.database, "ensure_column_exists", lambda *args, **kwargs: None
     )
+    monkeypatch.setattr(
+        app_logic.database,
+        "insert_dataframe_with_smart_upsert",
+        lambda *args, **kwargs: True,
+    )
 
     file_path = str(tmp_path / "input.xlsx")
-    with pytest.raises(KeyError, match="is_valid"):
-        app_logic._import_single_file(
-            file_path, str(tmp_path / "db.sqlite"), "ssa_table"
-        )
+    ok, count = app_logic._import_single_file(
+        file_path, str(tmp_path / "db.sqlite"), "ssa_table"
+    )
+
+    assert ok is True
+    assert count == 1
 
 
 def test_process_file_with_resilience_keeps_batch_running_on_internal_result_cast_error(
@@ -208,6 +215,73 @@ def test_process_file_with_resilience_keeps_batch_running_on_internal_result_cas
             {
                 "filename": "input.xlsx",
                 "error": "int() argument must be a string, a bytes-like object or a real number, not 'object'",
+            },
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    ("raised_exc", "expected_error"),
+    [
+        (KeyError("missing"), "'missing'"),
+        (AttributeError("broken"), "broken"),
+    ],
+)
+def test_process_file_with_resilience_keeps_batch_running_on_internal_runtime_attr_or_key_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    raised_exc: Exception,
+    expected_error: str,
+) -> None:
+    def _raise_internal(*args, **kwargs):
+        raise raised_exc
+
+    monkeypatch.setattr(app_logic, "_import_single_file", _raise_internal)
+
+    successful_files: list[str] = []
+    successful_with_records: list[tuple[str, int]] = []
+    critical_errors: list[tuple[str, str, str]] = []
+    deterministic_failed: list[str] = []
+    file_reports: list[dict[str, object]] = []
+    progress_events: list[tuple[str, dict[str, object]]] = []
+
+    action = app_logic._process_file_with_resilience(
+        file_path=str(tmp_path / "input.xlsx"),
+        base_name="input.xlsx",
+        working_db_path=str(tmp_path / "db.sqlite"),
+        table_name="ssa_table",
+        should_cancel=None,
+        candidate_db_path=None,
+        successfully_processed_files=successful_files,
+        successful_regular_files_with_records=successful_with_records,
+        critical_errors=critical_errors,
+        deterministic_failed_files=deterministic_failed,
+        file_reports=file_reports,
+        emit_progress=lambda event_type, data: progress_events.append(
+            (event_type, data)
+        ),
+    )
+
+    assert action == "ok"
+    assert successful_files == []
+    assert successful_with_records == []
+    assert deterministic_failed == []
+    assert critical_errors == [
+        ("unexpected", str(tmp_path / "input.xlsx"), expected_error)
+    ]
+    assert file_reports == [
+        {
+            "file": "input.xlsx",
+            "status": "unexpected_error",
+            "error": expected_error,
+        }
+    ]
+    assert progress_events == [
+        (
+            "file_error",
+            {
+                "filename": "input.xlsx",
+                "error": expected_error,
             },
         )
     ]
