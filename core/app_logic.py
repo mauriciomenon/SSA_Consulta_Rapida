@@ -510,7 +510,7 @@ def _import_single_file(
             )
 
             # Se ha problemas criticos, pode escolher entre falhar ou continuar
-            if not validation_report["is_valid"]:
+            if not validation_report.get("is_valid", False):
                 critical_issues = validation_report["issues"]
                 critical_summary = "; ".join(
                     str(issue) for issue in critical_issues[:5]
@@ -1629,7 +1629,7 @@ def _process_file_with_resilience(
         )
         emit_progress("file_error", {"filename": base_name, "error": str(exc)})
         return "ok"
-    except (TypeError, ValueError) as exc:
+    except (AttributeError, KeyError, TypeError, ValueError) as exc:
         logger.error(
             "Erro inesperado ao processar '%s': %s. Continuando...", file_path, exc
         )
