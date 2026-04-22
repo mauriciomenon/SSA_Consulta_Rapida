@@ -2,15 +2,15 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-22 00h15
+## CURRENT TRUTH 2026-04-22 07h27
 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. `HEAD` local e `origin/dev` estao alinhados em `908e8561940e947d8254931ed841913a788ea891`
+2. `HEAD` local e `origin/dev` estao alinhados em `a094fcce08be8fc71b69212705a4ca2df58efb52`
 3. ultimo commit atual:
-   - `2026-04-22 00:09:11 -0300`
-   - `perf(gui): Reuse quick executor combo options`
+   - `2026-04-22 07:27:37 -0300`
+   - `perf(gui): Cache normalized column filter series`
 4. workspace local atual:
    - repo limpo para codigo/docs
    - residuo fora de escopo:
@@ -65,6 +65,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `581b88bf` `perf(gui): Reuse subset on safe search refinement`
    - `991fa874` `perf(gui): Narrow column filter working set`
    - `908e8561` `perf(gui): Reuse quick executor combo options`
+   - `a094fcce` `perf(gui): Cache normalized column filter series`
 13. efeito funcional consolidado:
    - a carga sem filtros preserva o dataframe preprocessado do worker como estado visual inicial
    - o refresh simples agora pula filtros avancados/coluna quando nao existe filtro extra ativo
@@ -94,6 +95,9 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - baseline diagnosticada: `138.72ms`
      - apos `991fa874`: `113.78ms`
      - apos `908e8561`: `74.19ms`
+     - apos `a094fcce`, primeira passagem: `62.61ms`
+     - repeticao na mesma revisao/dataframe: `10.13ms`
+     - cache local de series normalizadas: `3` entradas no caso repetido
    - prints atualizados:
      - `artifacts/gui_load_after_real_db.png`
      - `artifacts/gui_filter_MEL3.png`
@@ -107,8 +111,9 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 17. leitura tecnica atual:
    - a frente `D` removeu recarregamentos e donos concorrentes importantes no load/filter path
    - os follow-ups imediatos recuperaram memoria residente do cache de busca e ganho quente no refinamento seguro da GUI
-   - os dois slices seguintes derrubaram o refresh quente de `138.72ms` para `74.19ms`
-   - o proximo hotspot remanescente ficou concentrado em `_apply_column_filters`, e deve vir em slice novo e com diagnostico puro primeiro
+   - os tres slices seguintes derrubaram o refresh quente de `138.72ms` para `62.61ms` na primeira passagem e `10.13ms` na repeticao com a mesma revisao/dataframe
+   - o hotspot remanescente mais promissor agora migrou para o caminho de data em `_get_column_filter_date_display_series()`
+   - o proximo slice deve ser precedido por diagnostico puro desse caminho de `display_dates`, sem reabrir parser nem layout
    - nao ha motivo para reabrir layout, detalhes de aba ou helper novo nesta retomada
 
 ## HISTORICAL SNAPSHOT 2026-04-11 23h00
