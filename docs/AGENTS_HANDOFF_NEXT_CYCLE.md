@@ -2,19 +2,16 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-21 22h20
+## CURRENT TRUTH 2026-04-21 23h40
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. `HEAD` local e `origin/dev` estao alinhados em `5ca3020cb62191ed7855856d0b85f5a19a9156f2`
+  2. `HEAD` local e `origin/dev` estao alinhados em `581b88bfd28095572c69b5db9181ebc7dec28375`
   3. ultimo commit atual:
-     - `2026-04-21 22:17:43 -0300`
-     - `perf(gui): Skip redundant refresh steps`
+     - `2026-04-21 23:40:27 -0300`
+     - `perf(gui): Reuse subset on safe search refinement`
   4. worktree local atual:
-     - docs modificados:
-       - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
-       - `docs/NEXT_CHAT_MIGRATION.md`
-       - `docs/RECOVERY_BACKLOG.md`
+     - repo limpo para codigo/docs
      - unico residuo local conhecido fora de escopo:
        - `AGENTS.md.backup_20260416_223903`
   5. PR ativo:
@@ -69,11 +66,15 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `dcb6a830` `perf(gui): Trim cache and load copies`
      - `e1fc2106` `perf(gui): Keep preprocessed load order`
      - `5ca3020c` `perf(gui): Skip redundant refresh steps`
-  13. ganhos funcionais acumulados do bloco `D`:
+     - `17c9a806` `perf(search): Cap large row cache retention`
+     - `581b88bf` `perf(gui): Reuse subset on safe search refinement`
+  13. ganhos funcionais acumulados do bloco `D` e follow-ups imediatos:
      - a carga inicial sem filtros agora preserva o dataframe preprocessado do worker como estado visual canonico
      - o refresh simples deixa de reaplicar filtros avancados e filtros por coluna quando nao existe filtro extra ativo
      - o load path passou a ter um unico dono para sanitizacao e ordenacao inicial
      - a busca geral simples reaproveita o resultado ordenado em vez de rematerializar o dataframe exibido
+     - o cache grande de `row_search_text` deixou de ficar residente no dataframe cheio quando o payload passa do limite definido
+     - a GUI voltou a reaproveitar o subset anterior em refinamento seguro (`MEL -> MEL3`) sem reter o cache gigante no `df_completo`
      - o caso real `MEL3` segue com `df_exibido is _df_last_search_filtered == True`
      - o caso de carga sem filtros segue com `df_exibido is df_completo == True`
   14. validacao local aterrada nesta frente:
@@ -86,19 +87,20 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k 'refresh_after_filter_change or on_filter_finished or on_data_loaded or clear_all_filters_global_reuses_df_completo_reference or hard_reset_filters_state_reuses_df_completo_reference'`
      - review `kluster` local limpo no escopo tocado
   15. prova real curta mais recente com GUI e `data/ssas.db`:
-     - carga: `80448` linhas, `84` colunas, `4.5386s`
-     - filtro frio `MEL3`: `1.9114s`
-     - filtro quente `MEL3`: `0.5139s`
-     - pagina `2`: `0.3271s`
-     - `df_exibido is df_completo == True` na carga
-     - `df_exibido is _df_last_search_filtered == True` no filtro simples
+     - carga: `80448` linhas, `84` colunas, `3.8360s`
+     - busca fria `MEL`: `1.5125s` com `22606` linhas
+     - refinamento `MEL -> MEL3`: `0.8553s` com `4680` linhas
+     - repeticao quente `MEL3`: `0.6602s`
+     - pagina `2`: `0.3444s`
+     - `df_exibido is _df_last_search_filtered == True` no resultado final
      - prints atualizados em:
        - `artifacts/gui_load_after_real_db.png`
        - `artifacts/gui_filter_MEL3.png`
        - `artifacts/gui_filter_MEL3_page2.png`
-     - nota: esta ultima prova foi executada em `offscreen`; os valores absolutos de RSS ficaram inflados e nao devem substituir a baseline interativa anterior para comparacao fina de memoria
+     - nota: esta ultima prova foi executada em `offscreen`; o RSS lido via `ru_maxrss` e high-water mark de processo, nao baseline canonica de memoria residente
   16. checks remotos relevantes apos os pushes desta frente:
-     - `pass`: `CodeQL`, `CodeFactor`, `DeepScan`, `GitGuardian`, `semgrep`, `secret-scan`, `submit-pypi`, `precheck-default-setup`, `analyze (python)`
+     - `pass`: `CodeFactor`, `CodeRabbit`, `DeepScan`, `GitGuardian`, `Socket Security: Project Report`, `submit-pypi`, `precheck-default-setup`, `secret-scan`
+     - `pending`: `analyze (python)`, `semgrep-cloud-platform/scan`
      - `fail` externo/vendor: `DeepSource: Error`
      - `fail` externo por limite: `code/snyk (mauriciomenon)`, `security/snyk (mauriciomenon)`
   17. docs vivos estavam atrasados antes deste sync:
@@ -108,8 +110,8 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - eles agora devem contar a historia da branch a partir deste topo, nao do snapshot de `2026-04-15`
   18. regra de retomada obrigatoria daqui em diante:
      - primeiro fechar este `DOC_SYNC`
-     - depois voltar para diagnostico puro do proximo hotspot estrutural antes de qualquer novo patch
-     - manter a proxima frente focada em remover ownership/recarregamento inutil remanescente, sem reabrir layout e sem criar helper novo sem aprovacao
+     - depois voltar para diagnostico puro do proximo hotspot do refresh pos-busca antes de qualquer novo patch
+     - manter a proxima frente focada em remover reprocessamento quente remanescente, sem reabrir layout e sem criar helper novo sem aprovacao
 
 ## HISTORICAL SNAPSHOT 2026-04-14 10h15
 
