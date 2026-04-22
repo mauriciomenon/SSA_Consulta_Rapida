@@ -6721,6 +6721,59 @@ class TestGUIFilterLogic:
         assert len(calls) == 1
         assert self.window._df_last_search_filtered is filtered
 
+    def test_initiate_filtering_sync_multi_chunk_deduplicates_overlaps_by_index(
+        self, monkeypatch
+    ):
+        self.window._sync_filtering = True
+        self.window.search_input.setText("Teste A")
+
+        monkeypatch.setattr(
+            self.window,
+            "_split_search_expression",
+            lambda _text: ["chunk-a", "chunk-b"],
+        )
+
+        def _fake_filter(_df, parsed, **_kwargs):
+            values = tuple(token.get("value") for token in parsed)
+            if values == ("chunk-a",):
+                return self.base_df.iloc[[0, 1]].copy()
+            return self.base_df.iloc[[1, 2]].copy()
+
+        monkeypatch.setattr(filter_mixin, "filter_dataframe", _fake_filter)
+
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        assert self.window._df_last_search_filtered["numero_ssa"].tolist() == [3, 2, 1]
+
+    def test_initiate_filtering_fallback_multi_chunk_keeps_equal_rows_distinct(
+        self, monkeypatch
+    ):
+        self.window._sync_filtering = False
+        self.window.search_input.setText("Teste A")
+        repeated_df = self.base_df.iloc[[0, 0]].copy()
+        repeated_df.index = [0, 1]
+
+        monkeypatch.setattr(
+            self.window,
+            "_split_search_expression",
+            lambda _text: ["chunk-a", "chunk-b"],
+        )
+
+        def _fake_filter(_df, parsed, **_kwargs):
+            values = tuple(token.get("value") for token in parsed)
+            if values == ("chunk-a",):
+                return repeated_df.iloc[[0]].copy()
+            return repeated_df.iloc[[1]].copy()
+
+        monkeypatch.setattr(filter_mixin, "filter_dataframe", _fake_filter)
+
+        with patch("gui.mixins.filter_gui_ssa_mixin.FilterWorker", None):
+            self.window.initiate_filtering()
+            QApplication.processEvents()
+
+        assert self.window._df_last_search_filtered["numero_ssa"].tolist() == [1, 1]
+
     def test_initiate_filtering_cancels_previous_async_worker(self):
         self.window._sync_filtering = False
         self.window.search_input.setText("Teste")

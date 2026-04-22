@@ -953,11 +953,12 @@ class FilterGUISSAMixin:
                         if len(frames) == 1:
                             df_filtrado = frames[0]
                         else:
-                            df_filtrado = (
-                                pd.concat(frames, axis=0, ignore_index=False)
-                                .drop_duplicates()
-                                .reset_index(drop=True)
+                            merged_frames = pd.concat(
+                                frames, axis=0, ignore_index=False
                             )
+                            df_filtrado = merged_frames.loc[
+                                ~merged_frames.index.duplicated(keep="first")
+                            ].reset_index(drop=True)
                     else:
                         df_filtrado = filter_source.copy(deep=False)
                 else:
@@ -1012,11 +1013,12 @@ class FilterGUISSAMixin:
                         if len(frames) == 1:
                             df_filtrado = frames[0]
                         else:
-                            df_filtrado = (
-                                pd.concat(frames, axis=0, ignore_index=False)
-                                .drop_duplicates()
-                                .reset_index(drop=True)
+                            merged_frames = pd.concat(
+                                frames, axis=0, ignore_index=False
                             )
+                            df_filtrado = merged_frames.loc[
+                                ~merged_frames.index.duplicated(keep="first")
+                            ].reset_index(drop=True)
                     else:
                         df_filtrado = filter_source.copy(deep=False)
                 else:

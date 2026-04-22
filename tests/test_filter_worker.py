@@ -192,6 +192,57 @@ class TestFilterWorker:
         assert calls == [("alfa",), ("beta",)]
         assert emitted[0]["texto"].tolist() == ["alfa", "beta"]
 
+    def test_run_multi_chunk_deduplicates_overlaps_by_original_index(self):
+        df = pd.DataFrame({"texto": ["alfa", "beta", "gama"]})
+        worker = FilterWorker(df, [["chunk-a"], ["chunk-b"]])
+        emitted = []
+        errors = []
+
+        worker.filter_finished.connect(lambda frame: emitted.append(frame))
+        worker.error_occurred.connect(errors.append)
+
+        def _fake_filter(_dataframe, parsed, **_kwargs):
+            values = tuple(token.get("value") for token in parsed)
+            if values == ("chunk-a",):
+                return df.iloc[[0, 1]].copy()
+            return df.iloc[[1, 2]].copy()
+
+        with patch(
+            "gui.workers.filter_worker.filter_dataframe",
+            side_effect=_fake_filter,
+        ):
+            worker.run()
+
+        assert errors == []
+        assert len(emitted) == 1
+        assert emitted[0]["texto"].tolist() == ["alfa", "beta", "gama"]
+        assert emitted[0].index.tolist() == [0, 1, 2]
+
+    def test_run_multi_chunk_keeps_equal_rows_with_distinct_indexes(self):
+        df = pd.DataFrame({"texto": ["igual", "igual", "fim"]})
+        worker = FilterWorker(df, [["chunk-a"], ["chunk-b"]])
+        emitted = []
+        errors = []
+
+        worker.filter_finished.connect(lambda frame: emitted.append(frame))
+        worker.error_occurred.connect(errors.append)
+
+        def _fake_filter(_dataframe, parsed, **_kwargs):
+            values = tuple(token.get("value") for token in parsed)
+            if values == ("chunk-a",):
+                return df.iloc[[0]].copy()
+            return df.iloc[[1]].copy()
+
+        with patch(
+            "gui.workers.filter_worker.filter_dataframe",
+            side_effect=_fake_filter,
+        ):
+            worker.run()
+
+        assert errors == []
+        assert len(emitted) == 1
+        assert emitted[0]["texto"].tolist() == ["igual", "igual"]
+
     def test_run_emits_empty_result_when_df_is_none(self):
         worker = FilterWorker(None, [["alfa"]])
         emitted = []
