@@ -1675,6 +1675,180 @@ class TestGUIFilterLogic:
 
         assert store_calls["count"] == 1
 
+    def test_initiate_filtering_refines_previous_search_subset_when_safe(
+        self, monkeypatch
+    ):
+        self.window._sync_filtering = True
+        self.window.df_completo = self.base_df.copy()
+        self.window.df_exibido = self.base_df.copy()
+        previous_subset = app_logic.filter_dataframe(
+            self.base_df.copy(),
+            ["MEL"],
+            search_columns=filter_mixin.build_gui_general_search_columns(self.base_df),
+        )
+        self.window._df_last_search_filtered = previous_subset
+        self.window._active_filter_search_display = "MEL"
+        self.window.paginator.set_dataframe(self.base_df.copy())
+
+        captured_sources: list[pd.DataFrame] = []
+        original_filter_dataframe = filter_mixin.filter_dataframe
+
+        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+            captured_sources.append(frame)
+            return original_filter_dataframe(frame, *args, **kwargs)
+
+        monkeypatch.setattr(
+            filter_mixin,
+            "filter_dataframe",
+            _tracked_filter_dataframe,
+        )
+
+        self.window.search_input.setText("MEL3")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        assert captured_sources
+        assert captured_sources[0] is previous_subset
+
+    def test_initiate_filtering_broadening_search_uses_df_completo(
+        self, monkeypatch
+    ):
+        self.window._sync_filtering = True
+        self.window.df_completo = self.base_df.copy()
+        self.window.df_exibido = self.base_df.copy()
+        self.window._df_last_search_filtered = app_logic.filter_dataframe(
+            self.base_df.copy(),
+            ["MEL3"],
+            search_columns=filter_mixin.build_gui_general_search_columns(self.base_df),
+        )
+        self.window._active_filter_search_display = "MEL3"
+        self.window.paginator.set_dataframe(self.base_df.copy())
+
+        captured_sources: list[pd.DataFrame] = []
+        original_filter_dataframe = filter_mixin.filter_dataframe
+
+        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+            captured_sources.append(frame)
+            return original_filter_dataframe(frame, *args, **kwargs)
+
+        monkeypatch.setattr(
+            filter_mixin,
+            "filter_dataframe",
+            _tracked_filter_dataframe,
+        )
+
+        self.window.search_input.setText("MEL")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        assert captured_sources
+        assert captured_sources[0] is self.window.df_completo
+
+    def test_initiate_filtering_refinement_with_advanced_filters_uses_df_completo(
+        self, monkeypatch
+    ):
+        self.window._sync_filtering = True
+        self.window.df_completo = self.base_df.copy()
+        self.window.df_exibido = self.base_df.copy()
+        self.window._df_last_search_filtered = app_logic.filter_dataframe(
+            self.base_df.copy(),
+            ["MEL"],
+            search_columns=filter_mixin.build_gui_general_search_columns(self.base_df),
+        )
+        self.window._active_filter_search_display = "MEL"
+        self.window._advanced_filters_active = True
+        self.window.paginator.set_dataframe(self.base_df.copy())
+
+        captured_sources: list[pd.DataFrame] = []
+        original_filter_dataframe = filter_mixin.filter_dataframe
+
+        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+            captured_sources.append(frame)
+            return original_filter_dataframe(frame, *args, **kwargs)
+
+        monkeypatch.setattr(
+            filter_mixin,
+            "filter_dataframe",
+            _tracked_filter_dataframe,
+        )
+
+        self.window.search_input.setText("MEL3")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        assert captured_sources
+        assert captured_sources[0] is self.window.df_completo
+
+    def test_initiate_filtering_refinement_with_column_filter_uses_df_completo(
+        self, monkeypatch
+    ):
+        self.window._sync_filtering = True
+        self.window.df_completo = self.base_df.copy()
+        self.window.df_exibido = self.base_df.copy()
+        self.window._df_last_search_filtered = app_logic.filter_dataframe(
+            self.base_df.copy(),
+            ["MEL"],
+            search_columns=filter_mixin.build_gui_general_search_columns(self.base_df),
+        )
+        self.window._active_filter_search_display = "MEL"
+        self.window._active_column_filters["situacao"] = "APV"
+        self.window.paginator.set_dataframe(self.base_df.copy())
+
+        captured_sources: list[pd.DataFrame] = []
+        original_filter_dataframe = filter_mixin.filter_dataframe
+
+        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+            captured_sources.append(frame)
+            return original_filter_dataframe(frame, *args, **kwargs)
+
+        monkeypatch.setattr(
+            filter_mixin,
+            "filter_dataframe",
+            _tracked_filter_dataframe,
+        )
+
+        self.window.search_input.setText("MEL3")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        assert captured_sources
+        assert captured_sources[0] is self.window.df_completo
+
+    def test_initiate_filtering_refinement_with_excluded_terminal_uses_df_completo(
+        self, monkeypatch
+    ):
+        self.window._sync_filtering = True
+        self.window.df_completo = self.base_df.copy()
+        self.window.df_exibido = self.base_df.copy()
+        self.window._df_last_search_filtered = app_logic.filter_dataframe(
+            self.base_df.copy(),
+            ["MEL"],
+            search_columns=filter_mixin.build_gui_general_search_columns(self.base_df),
+        )
+        self.window._active_filter_search_display = "MEL"
+        self.window._exclude_ste_sca = True
+        self.window.paginator.set_dataframe(self.base_df.copy())
+
+        captured_sources: list[pd.DataFrame] = []
+        original_filter_dataframe = filter_mixin.filter_dataframe
+
+        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+            captured_sources.append(frame)
+            return original_filter_dataframe(frame, *args, **kwargs)
+
+        monkeypatch.setattr(
+            filter_mixin,
+            "filter_dataframe",
+            _tracked_filter_dataframe,
+        )
+
+        self.window.search_input.setText("MEL3")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        assert captured_sources
+        assert captured_sources[0] is self.window.df_completo
+
     def test_filter_dataframe_large_search_cache_skips_base_lower_df_payload(self):
         heavy_df = self._build_heavy_filters_df(rows=6000)
 
@@ -6052,6 +6226,27 @@ class TestGUIFilterLogic:
         self.window._active_column_filters = {"setor_executor": "<NA>"}
         filtered_na_literal = self.window._apply_column_filters(nullable_df)
         assert filtered_na_literal.empty
+
+    def test_column_filter_date_display_guard_handles_missing_display_series(
+        self, monkeypatch
+    ):
+        dated_df = self.base_df.assign(
+            data_programacao=pd.Series(
+                ["01/01/2025", "02/01/2025", "03/01/2025", "04/01/2025", "05/01/2025"],
+                dtype="string",
+            )
+        ).copy()
+        self.window._active_column_filters = {"data_programacao": "01/01/2025"}
+
+        monkeypatch.setattr(
+            self.window,
+            "_get_column_filter_date_display_series",
+            lambda *_args, **_kwargs: None,
+        )
+
+        filtered = self.window._apply_column_filters(dated_df)
+
+        assert filtered["numero_ssa"].tolist() == [1]
 
     def test_advanced_filter_include_ignores_nullable_text_instead_of_na_literal(self):
         nullable_df = self.base_df.assign(

@@ -706,9 +706,11 @@ class FilterGUISSAMixin:
         self._clear_all_filters_global()
         self._maybe_offer_hard_reset_after_repeated_clear_click()
 
-    def _get_filter_source_dataframe(self) -> pd.DataFrame:
+    def _get_filter_source_dataframe(
+        self, source: pd.DataFrame | None = None
+    ) -> pd.DataFrame:
         """Retorna a fonte de busca preservando cache seguro entre requests."""
-        source = self.df_completo
+        source = self.df_completo if source is None else source
         try:
             source_attrs = getattr(source, "attrs", {})
         except Exception as exc:
@@ -847,6 +849,63 @@ class FilterGUISSAMixin:
             display_text = self._format_search_display(chunk_terms_lists)
         else:
             display_text = search_text if search_text else ""
+        filter_source_candidate = self.df_completo
+        try:
+            last_search_filtered = getattr(self, "_df_last_search_filtered", None)
+            column_filters = getattr(self, "_active_column_filters", {}) or {}
+            has_column_filters = any(
+                str(filter_value).strip() for filter_value in column_filters.values()
+            )
+            previous_search_display = str(
+                getattr(self, "_active_filter_search_display", "") or ""
+            ).strip()
+            previous_terms = (
+                self._normalize_chunk_for_parse(previous_search_display)
+                if previous_search_display
+                else []
+            )
+            current_terms = chunk_terms_lists[0] if chunk_terms_lists else []
+            has_active_worker = getattr(self, "filter_thread", None) is not None
+            if (
+                isinstance(last_search_filtered, pd.DataFrame)
+                and list(last_search_filtered.columns)
+                and previous_terms
+                and current_terms
+                and not getattr(self, "_advanced_filters_active", False)
+                and not has_column_filters
+                and not getattr(self, "_exclude_ste_sca", False)
+                and not has_active_worker
+            ):
+                remaining_current_terms = [
+                    str(term).strip().casefold()
+                    for term in current_terms
+                    if str(term).strip()
+                ]
+                refinement_ok = True
+                for previous_term in previous_terms:
+                    normalized_previous = str(previous_term).strip()
+                    if not normalized_previous:
+                        continue
+                    previous_key = normalized_previous.casefold()
+                    exact_only = normalized_previous[:1] in {"!", "=", "~"}
+                    matched_index = None
+                    for index, current_key in enumerate(remaining_current_terms):
+                        if current_key == previous_key or (
+                            not exact_only and current_key.startswith(previous_key)
+                        ):
+                            matched_index = index
+                            break
+                    if matched_index is None:
+                        refinement_ok = False
+                        break
+                    remaining_current_terms.pop(matched_index)
+                if refinement_ok:
+                    filter_source_candidate = last_search_filtered
+        except Exception as exc:
+            logger.debug(
+                "Falha ao avaliar refinamento seguro da busca; usando df_completo: %s",
+                exc,
+            )
         self._pending_search_display = display_text
         self._active_filter_search_display = display_text
         self._active_filter_search_request_id = request_id
@@ -865,7 +924,7 @@ class FilterGUISSAMixin:
                 "default_filter_mode", "contains"
             )
         default_mode = self._cached_default_mode
-        filter_source = self._get_filter_source_dataframe()
+        filter_source = self._get_filter_source_dataframe(filter_source_candidate)
         general_search_columns = build_gui_general_search_columns(filter_source)
 
         # Modo síncrono (sem QThread) opcional para testes
@@ -3455,38 +3514,29 @@ class FilterGUISSAMixin:
                 continue
             col_series = working_df[col].astype("string").fillna("")
             col_mask = self._build_column_mask(col_series, raw_str)
+            display_dates = None
             if self._should_match_date_display_filter(col, raw_str):
                 display_dates = self._get_column_filter_date_display_series(
                     working_df, col
                 )
-                if display_dates is not None and not display_dates.empty:
-                    tokens = [
-                        token.strip() for token in raw_str.split(",") if token.strip()
-                    ]
-                    include_tokens = [
-                        token for token in tokens if not token.startswith("!")
-                    ]
-                    exclude_tokens = [
-                        token for token in tokens if token.startswith("!")
-                    ]
+            if isinstance(display_dates, pd.Series) and not display_dates.empty:
+                tokens = [token.strip() for token in raw_str.split(",") if token.strip()]
+                include_tokens = [
+                    token for token in tokens if not token.startswith("!")
+                ]
+                exclude_tokens = [token for token in tokens if token.startswith("!")]
 
-                    if include_tokens:
-                        include_expr = ", ".join(include_tokens)
-                        include_mask = self._build_column_mask(
-                            col_series, include_expr
-                        ) | self._build_column_mask(display_dates, include_expr)
-                    else:
-                        include_mask = pd.Series(True, index=working_df.index)
+                if include_tokens:
+                    include_expr = ", ".join(include_tokens)
+                    col_mask = col_mask | self._build_column_mask(
+                        display_dates, include_expr
+                    )
 
-                    if exclude_tokens:
-                        exclude_expr = ", ".join(exclude_tokens)
-                        exclude_mask = self._build_column_mask(
-                            col_series, exclude_expr
-                        ) & self._build_column_mask(display_dates, exclude_expr)
-                    else:
-                        exclude_mask = pd.Series(True, index=working_df.index)
-
-                    col_mask = include_mask & exclude_mask
+                if exclude_tokens:
+                    exclude_expr = ", ".join(exclude_tokens)
+                    col_mask = col_mask & self._build_column_mask(
+                        display_dates, exclude_expr
+                    )
 
             mask &= col_mask
 
