@@ -2,14 +2,14 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-22 09h54
+## CURRENT TRUTH 2026-04-22 10h02
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. `HEAD` local e `origin/dev` estao alinhados em `c707c8f99eb9d4a30ccdbe6ff3d13ca0087538aa`
+  2. `HEAD` local e `origin/dev` estao alinhados em `7f7baf65cd520b390c9a37a0eef05f270e17fe11`
   3. ultimo commit atual:
-     - `2026-04-22 09:54:13 -0300`
-     - `perf(gui): Deduplicate repeated search chunks`
+     - `2026-04-22 10:02:06 -0300`
+     - `perf(gui): Deduplicate merged chunks by source index`
   4. worktree local atual:
      - repo limpo no runtime/docs desta frente
      - residuos locais fora de escopo no momento:
@@ -94,6 +94,9 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `c707c8f99eb9d4a30ccdbe6ff3d13ca0087538aa`
        - `2026-04-22 09:54:13 -0300`
        - `perf(gui): Deduplicate repeated search chunks`
+     - `7f7baf65cd520b390c9a37a0eef05f270e17fe11`
+       - `2026-04-22 10:02:06 -0300`
+       - `perf(gui): Deduplicate merged chunks by source index`
   13. ganhos funcionais acumulados do bloco `D` e follow-ups imediatos:
      - a carga inicial sem filtros agora preserva o dataframe preprocessado do worker como estado visual canonico
      - o refresh simples deixa de reaplicar filtros avancados e filtros por coluna quando nao existe filtro extra ativo
@@ -186,12 +189,40 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
        - `FILTER_MS=1019.53`
        - `FILTER_ROWS=4680`
        - `df_exibido is _df_last_search_filtered == True`
-  21. docs vivos estavam atrasados antes deste sync:
+  21. update de merge multi-chunk por indice:
+     - a deduplicacao final deixou de comparar linha inteira
+     - o merge agora preserva a primeira ocorrencia de cada indice original do `df_completo`
+     - isso vale para:
+       - `FilterWorker`
+       - modo sincrono
+       - fallback sem worker
+     - contrato preservado:
+       - chunk unico reaproveita o proprio frame
+       - chunk vazio reaproveita a base
+       - sobreposicao entre chunks diferentes continua sem repeticao
+       - linhas iguais com indices diferentes continuam existindo
+     - validacao aterrada:
+       - `uv run --python 3.13 python -m py_compile gui/workers/filter_worker.py gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_worker.py tests/test_gui_filter_logic.py`
+       - `uv run --python 3.13 ruff check ...`
+       - `uv run --python 3.13 ty check ...`
+       - `uv run --python 3.13 pytest -q tests/test_filter_worker.py tests/test_workers_advanced.py`
+       - `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k 'general_search or initiate_filtering or on_filter_finished or clear_filter'`
+     - resultados:
+       - `51 passed`
+       - `46 passed, 1 skipped`
+     - prova real curta:
+       - chunks artificiais `MEL3 + MEL`
+       - `FILTER_MS=1674.28`
+       - `FILTER_ROWS=22606`
+       - `df_exibido is _df_last_search_filtered == True`
+     - leitura:
+       - o custo isolado do dedup de merge caiu de `~105.89ms` para um caminho equivalente de `~9.60ms` no diagnostico real
+  22. docs vivos estavam atrasados antes deste sync:
      - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
      - `docs/NEXT_CHAT_MIGRATION.md`
      - `docs/RECOVERY_BACKLOG.md`
      - eles agora devem contar a historia da branch a partir deste topo, nao do snapshot de `2026-04-15`
-  22. update de import/politica ja aterrada:
+  23. update de import/politica ja aterrada:
      - `core/app_logic.py:1615` deixou de ser pendencia aberta nesta frente
      - `_process_file_with_resilience(...)` agora contem `KeyError` e `AttributeError` por arquivo sem derrubar o lote inteiro
      - `_import_single_file(...)` passou a tolerar ausencia de `validation_report["is_valid"]` via `get("is_valid", False)`
@@ -201,14 +232,15 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
        - `uv run --python 3.13 ty check core/app_logic.py tests/test_import_single_error_classification.py`
        - `uv run --python 3.13 pytest -q tests/test_import_single_error_classification.py`
        - resultado: `15 passed`
-  23. regra de retomada obrigatoria daqui em diante:
+  24. regra de retomada obrigatoria daqui em diante:
      - a frente quente da GUI deve permanecer fechada salvo novo repro material
      - `core/app_logic.py:1615` agora esta fechado
      - o residual de `gui/workers/filter_worker.py:182` no caminho de frame unico foi fechado em `0c57e699a3867cd88a8faf926ad9d3f1a11f7023`
      - a duplicacao de fallback em `gui/ssa/gui_workers.py:910` foi reduzida em `fe608884496868c08f61557e9b844076ee80acb5`
      - a proxima frente principal deve voltar para diagnostico puro de multi-chunk em:
        - `gui/workers/filter_worker.py:182`
-       - com foco no custo residual de `drop_duplicates()` e na sobreposicao entre chunks diferentes
+       - o custo de `drop_duplicates()` no merge por sobreposicao forte ja foi reduzido
+       - a proxima rodada deve medir apenas o residual realmente aberto, sem reabrir o merge ja fechado
      - e so depois revisar frentes separadas de teste:
        - `tests/test_quality_gates_smoke.py:34`
        - `tests/test_workers_advanced.py:648`
