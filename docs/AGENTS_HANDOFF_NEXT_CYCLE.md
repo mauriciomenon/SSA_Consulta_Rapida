@@ -2,18 +2,19 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-22 10h02
+## CURRENT TRUTH 2026-04-22 10h07
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. `HEAD` local e `origin/dev` estao alinhados em `7f7baf65cd520b390c9a37a0eef05f270e17fe11`
+  2. `HEAD` local e `origin/dev` estao alinhados em `485ebce1c8fb39528d03a807d6be292ae64bac0f`
   3. ultimo commit atual:
-     - `2026-04-22 10:02:06 -0300`
-     - `perf(gui): Deduplicate merged chunks by source index`
+     - `2026-04-22 10:07:32 -0300`
+     - `docs(handoff): Retire stale residual entries`
   4. worktree local atual:
      - repo limpo no runtime/docs desta frente
      - residuos locais fora de escopo no momento:
        - `AGENTS.md.backup_20260416_223903`
+     - laboratorio `B` em worktree destacado foi testado, descartado e removido sem portar patch para `dev`
   5. PR ativo:
      - `#47` `dev -> main`
      - titulo: `Merge dev into main for stabilization and gui follow-up`
@@ -52,6 +53,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
        - `tests/test_quality_gates_smoke.py:34`
        - `tests/test_workers_advanced.py:648`
      - revalidacao posterior mostrou esses 2 itens como fechados
+     - o laboratorio `B` para cache grande no full dataframe foi descartado por custo de RAM em ambiente alvo de `4 GB`
      - o proximo residual tecnico real deve ser reidentificado por novo diagnostico puro
   12. slices funcionais desta retomada ja aterrados em `dev`:
      - `d8451041` `test(gui): Lock load ordering behavior`
