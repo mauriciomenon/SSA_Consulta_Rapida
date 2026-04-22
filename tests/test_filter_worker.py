@@ -165,6 +165,33 @@ class TestFilterWorker:
         assert len(emitted) == 1
         assert emitted[0] is df
 
+    def test_run_duplicate_chunks_filter_once_per_unique_chunk(self):
+        df = pd.DataFrame({"texto": ["alfa", "beta", "gama"]})
+        worker = FilterWorker(df, [["alfa"], ["alfa"], ["beta"]])
+        emitted = []
+        errors = []
+        calls = []
+
+        worker.filter_finished.connect(lambda frame: emitted.append(frame))
+        worker.error_occurred.connect(errors.append)
+
+        def _fake_filter(_dataframe, parsed, **_kwargs):
+            calls.append(tuple(token.get("value") for token in parsed))
+            if any("alfa" in str(token) for token in parsed):
+                return df.iloc[[0]].copy()
+            return df.iloc[[1]].copy()
+
+        with patch(
+            "gui.workers.filter_worker.filter_dataframe",
+            side_effect=_fake_filter,
+        ):
+            worker.run()
+
+        assert errors == []
+        assert len(emitted) == 1
+        assert calls == [("alfa",), ("beta",)]
+        assert emitted[0]["texto"].tolist() == ["alfa", "beta"]
+
     def test_run_emits_empty_result_when_df_is_none(self):
         worker = FilterWorker(None, [["alfa"]])
         emitted = []

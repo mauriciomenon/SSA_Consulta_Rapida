@@ -32,7 +32,15 @@ class FilterWorker(QThread):
     ):
         super().__init__()
         self.df_completo = df_completo
-        self.search_chunks = search_chunks or []
+        unique_search_chunks = []
+        seen_search_chunks = set()
+        for chunk in search_chunks or []:
+            chunk_key = tuple(str(term) for term in chunk)
+            if chunk_key in seen_search_chunks:
+                continue
+            seen_search_chunks.add(chunk_key)
+            unique_search_chunks.append(list(chunk))
+        self.search_chunks = unique_search_chunks
         self.search_columns = (
             list(search_columns) if search_columns is not None else None
         )

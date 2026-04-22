@@ -842,6 +842,14 @@ class FilterGUISSAMixin:
         )
         # remove empty chunk lists
         chunk_terms_lists = [terms for terms in chunk_terms_lists if terms]
+        unique_chunk_terms_lists = []
+        seen_chunk_terms = set()
+        for terms in chunk_terms_lists:
+            chunk_key = tuple(str(term) for term in terms)
+            if chunk_key in seen_chunk_terms:
+                continue
+            seen_chunk_terms.add(chunk_key)
+            unique_chunk_terms_lists.append(list(terms))
 
         self._sync_clear_filter_button_state()
 
@@ -930,9 +938,9 @@ class FilterGUISSAMixin:
         # Modo síncrono (sem QThread) opcional para testes
         if getattr(self, "_sync_filtering", False):
             try:
-                if chunk_terms_lists:
+                if unique_chunk_terms_lists:
                     frames = []
-                    for terms in chunk_terms_lists:
+                    for terms in unique_chunk_terms_lists:
                         parsed = parse_search_terms(terms, default_mode=default_mode)
                         frames.append(
                             filter_dataframe(
@@ -989,9 +997,9 @@ class FilterGUISSAMixin:
                 "FilterWorker indisponivel; aplicando filtro em modo sincrono"
             )
             try:
-                if chunk_terms_lists:
+                if unique_chunk_terms_lists:
                     frames = []
-                    for terms in chunk_terms_lists:
+                    for terms in unique_chunk_terms_lists:
                         parsed = parse_search_terms(terms, default_mode=default_mode)
                         frames.append(
                             filter_dataframe(
@@ -1026,7 +1034,7 @@ class FilterGUISSAMixin:
         filter_cache_context = self._build_filter_cache_context()
         worker = FilterWorker(
             filter_source,
-            chunk_terms_lists,
+            unique_chunk_terms_lists,
             search_columns=general_search_columns,
             default_mode=default_mode,
             cache_context=filter_cache_context,

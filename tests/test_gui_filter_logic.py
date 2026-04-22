@@ -6680,6 +6680,47 @@ class TestGUIFilterLogic:
 
         assert self.window._df_last_search_filtered is filtered
 
+    def test_initiate_filtering_sync_deduplicates_identical_chunks(
+        self, monkeypatch
+    ):
+        self.window._sync_filtering = True
+        self.window.search_input.setText("Teste A, Teste A")
+        filtered = self.base_df.iloc[:1].copy()
+        calls = []
+
+        def _fake_filter(*args, **kwargs):
+            calls.append(kwargs.get("search_columns"))
+            return filtered
+
+        monkeypatch.setattr(filter_mixin, "filter_dataframe", _fake_filter)
+
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        assert len(calls) == 1
+        assert self.window._df_last_search_filtered is filtered
+
+    def test_initiate_filtering_fallback_deduplicates_identical_chunks(
+        self, monkeypatch
+    ):
+        self.window._sync_filtering = False
+        self.window.search_input.setText("Teste A, Teste A")
+        filtered = self.base_df.iloc[:1].copy()
+        calls = []
+
+        def _fake_filter(*args, **kwargs):
+            calls.append(kwargs.get("search_columns"))
+            return filtered
+
+        monkeypatch.setattr(filter_mixin, "filter_dataframe", _fake_filter)
+
+        with patch("gui.mixins.filter_gui_ssa_mixin.FilterWorker", None):
+            self.window.initiate_filtering()
+            QApplication.processEvents()
+
+        assert len(calls) == 1
+        assert self.window._df_last_search_filtered is filtered
+
     def test_initiate_filtering_cancels_previous_async_worker(self):
         self.window._sync_filtering = False
         self.window.search_input.setText("Teste")
