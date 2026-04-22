@@ -2,17 +2,18 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-22 07h27
+## CURRENT TRUTH 2026-04-22 07h45
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. `HEAD` local e `origin/dev` estao alinhados em `a094fcce08be8fc71b69212705a4ca2df58efb52`
+  2. `HEAD` local e `origin/dev` estao alinhados em `541a8f0a9d651a03108d281b1df5f822897e6854`
   3. ultimo commit atual:
-     - `2026-04-22 07:27:37 -0300`
-     - `perf(gui): Cache normalized column filter series`
+     - `2026-04-22 07:45:33 -0300`
+     - `perf(gui): Invalidate date display cache by revision`
   4. worktree local atual:
-     - repo limpo para codigo/docs
-     - unico residuo local conhecido fora de escopo:
+     - repo limpo no runtime/docs desta frente
+     - residuos locais fora de escopo no momento:
+       - `AGENTS.md` modificado por atualizacao de politica local
        - `AGENTS.md.backup_20260416_223903`
   5. PR ativo:
      - `#47` `dev -> main`
@@ -71,6 +72,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `991fa874` `perf(gui): Narrow column filter working set`
      - `908e8561` `perf(gui): Reuse quick executor combo options`
      - `a094fcce` `perf(gui): Cache normalized column filter series`
+     - `541a8f0a` `perf(gui): Invalidate date display cache by revision`
   13. ganhos funcionais acumulados do bloco `D` e follow-ups imediatos:
      - a carga inicial sem filtros agora preserva o dataframe preprocessado do worker como estado visual canonico
      - o refresh simples deixa de reaplicar filtros avancados e filtros por coluna quando nao existe filtro extra ativo
@@ -118,20 +120,36 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
      - `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k '_apply_column_filters or column_filter or data_programacao or general_search or initiate_filtering or on_filter_finished or clear_filter'`
      - review `kluster` sem blocker novo do slice; restaram apenas debts estruturais antigos e amplos do mixin
-  17. checks remotos relevantes apos os pushes desta frente:
+  17. validacao local aterrada no `P4A`:
+     - `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+     - `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+     - `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+     - `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k 'data_cadastro or data_programacao or _apply_column_filters or column_filter_date_display_guard'`
+     - review `kluster` sem blocker novo do slice; restaram debts estruturais antigos do mixin e um apontamento amplo fora do escopo do caminho de data
+  18. prova real curta do `P4A`:
+     - `_get_column_filter_date_display_series()` em `12000` linhas:
+       - primeira chamada: `4.44ms`
+       - hit quente na mesma revisao/dataframe: `0.01ms`
+       - recalc apos bump de revisao no mesmo dataframe: `2.79ms`
+     - confirmacao funcional:
+       - `SAME_FIRST_SECOND=True`
+       - `SAME_SECOND_THIRD=False`
+       - valor recalculado apos revisao: `05/03/2025`
+     - leitura: o stale risk do cache por `id(df)` puro foi fechado sem reabrir parser
+  19. checks remotos relevantes apos os pushes desta frente:
      - `pass`: `CodeFactor`, `CodeRabbit`, `DeepScan`, `GitGuardian`, `Socket Security: Project Report`, `submit-pypi`, `precheck-default-setup`
-     - `pending`: `GitGuardian Security Checks`, `precheck-default-setup`, `submit-pypi`, `security/snyk (mauriciomenon)`
+     - `pending`: `semgrep-cloud-platform/scan`
      - `fail` externo/vendor: `DeepSource: Error`
-     - `fail` externo por limite: `code/snyk (mauriciomenon)`
-  18. docs vivos estavam atrasados antes deste sync:
+     - `fail` externo por limite: `code/snyk (mauriciomenon)`, `security/snyk (mauriciomenon)`
+  20. docs vivos estavam atrasados antes deste sync:
      - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
      - `docs/NEXT_CHAT_MIGRATION.md`
      - `docs/RECOVERY_BACKLOG.md`
      - eles agora devem contar a historia da branch a partir deste topo, nao do snapshot de `2026-04-15`
-  19. regra de retomada obrigatoria daqui em diante:
+  21. regra de retomada obrigatoria daqui em diante:
      - primeiro fechar este `DOC_SYNC`
-     - depois voltar para diagnostico puro do hotspot de data em `_get_column_filter_date_display_series()`
-     - manter a proxima frente focada em reduzir custo de `display_dates` sem reabrir parser, layout ou helper novo sem aprovacao
+     - depois fechar diagnostico puro final do custo residual do caminho de data
+     - se o sinal residual for pequeno, mover a frente principal para `core/app_logic.py:1615`
 
 ## HISTORICAL SNAPSHOT 2026-04-14 10h15
 

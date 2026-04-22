@@ -5,6 +5,43 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-22 07:45 - date display cache now invalidates by revision
+
+Escopo desta atualizacao:
+1. registrar o slice minimo `P4A` no caminho de data do filtro por coluna
+2. fechar o stale risk do cache antigo baseado apenas em `id(df)`
+3. consolidar a medicao curta do caminho de `display_dates`
+
+Commit aterrado nesta frente:
+1. `541a8f0a` `perf(gui): Invalidate date display cache by revision`
+
+O que este slice fechou de fato:
+1. `_get_column_filter_date_display_series()` passou a invalidar por `data_revision + id(df)`
+2. o parser `parse_datetime_series_mixed(...)` permaneceu intacto
+3. o comportamento funcional do filtro por data foi preservado
+4. o cache antigo por `id(df)` puro deixou de servir valor stale quando o mesmo dataframe muda de conteudo
+
+Validacao desta frente:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k 'data_cadastro or data_programacao or _apply_column_filters or column_filter_date_display_guard'`
+5. review `kluster` sem blocker novo do slice; apontamentos restantes ficaram em debts estruturais amplos do mixin e um alerta fora do escopo deste caminho de data
+
+Medicao curta do caminho de `display_dates` em `12000` linhas:
+1. primeira chamada: `4.44ms`
+2. hit quente na mesma revisao/dataframe: `0.01ms`
+3. recalc apos bump de revisao no mesmo dataframe: `2.79ms`
+4. confirmacao funcional:
+   - `SAME_FIRST_SECOND=True`
+   - `SAME_SECOND_THIRD=False`
+   - valor recalculado apos revisao: `05/03/2025`
+
+Leitura tecnica apos `P4A`:
+1. o stale risk do cache de data foi fechado com patch pequeno
+2. o proximo passo correto e medir se ainda sobra custo material nesse caminho antes de abrir outro patch
+3. se o sinal residual for baixo, a frente principal deve sair da GUI quente e voltar para `core/app_logic.py:1615`
+
 ## Update 2026-04-22 07:27 - column filter normalized series cache landed
 
 Escopo desta atualizacao:
