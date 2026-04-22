@@ -2,18 +2,19 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-22 07h27
+## CURRENT TRUTH 2026-04-22 07h45
 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. `HEAD` local e `origin/dev` estao alinhados em `a094fcce08be8fc71b69212705a4ca2df58efb52`
+2. `HEAD` local e `origin/dev` estao alinhados em `541a8f0a9d651a03108d281b1df5f822897e6854`
 3. ultimo commit atual:
-   - `2026-04-22 07:27:37 -0300`
-   - `perf(gui): Cache normalized column filter series`
+   - `2026-04-22 07:45:33 -0300`
+   - `perf(gui): Invalidate date display cache by revision`
 4. workspace local atual:
-   - repo limpo para codigo/docs
-   - residuo fora de escopo:
+   - repo limpo no escopo desta frente
+   - residuos fora de escopo:
+     - `AGENTS.md` modificado por atualizacao local de politica
      - `AGENTS.md.backup_20260416_223903`
 5. PR remoto ativo:
    - `#47` `dev -> main`
@@ -66,6 +67,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `991fa874` `perf(gui): Narrow column filter working set`
    - `908e8561` `perf(gui): Reuse quick executor combo options`
    - `a094fcce` `perf(gui): Cache normalized column filter series`
+   - `541a8f0a` `perf(gui): Invalidate date display cache by revision`
 13. efeito funcional consolidado:
    - a carga sem filtros preserva o dataframe preprocessado do worker como estado visual inicial
    - o refresh simples agora pula filtros avancados/coluna quando nao existe filtro extra ativo
@@ -98,6 +100,11 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - apos `a094fcce`, primeira passagem: `62.61ms`
      - repeticao na mesma revisao/dataframe: `10.13ms`
      - cache local de series normalizadas: `3` entradas no caso repetido
+   - caminho de data apos `541a8f0a`:
+     - primeira chamada: `4.44ms`
+     - hit quente: `0.01ms`
+     - recalc apos revisao no mesmo dataframe: `2.79ms`
+     - invalidacao correta sem stale cache
    - prints atualizados:
      - `artifacts/gui_load_after_real_db.png`
      - `artifacts/gui_filter_MEL3.png`
@@ -112,8 +119,9 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - a frente `D` removeu recarregamentos e donos concorrentes importantes no load/filter path
    - os follow-ups imediatos recuperaram memoria residente do cache de busca e ganho quente no refinamento seguro da GUI
    - os tres slices seguintes derrubaram o refresh quente de `138.72ms` para `62.61ms` na primeira passagem e `10.13ms` na repeticao com a mesma revisao/dataframe
-   - o hotspot remanescente mais promissor agora migrou para o caminho de data em `_get_column_filter_date_display_series()`
-   - o proximo slice deve ser precedido por diagnostico puro desse caminho de `display_dates`, sem reabrir parser nem layout
+   - o stale risk do cache de data por `id(df)` puro foi fechado em `541a8f0a`
+   - o proximo passo recomendado e diagnostico final do custo residual de `display_dates`
+   - se o sinal residual for pequeno, a frente principal deve migrar para `core/app_logic.py:1615`
    - nao ha motivo para reabrir layout, detalhes de aba ou helper novo nesta retomada
 
 ## HISTORICAL SNAPSHOT 2026-04-11 23h00
