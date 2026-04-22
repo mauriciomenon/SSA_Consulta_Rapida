@@ -29,7 +29,13 @@ def test_quality_gates_failures(tmp_path):
     (bad_cfg_dir / "invalid.json").write_text("{ invalid json")  # sintaxe quebrada
 
     # Executa scripts individualmente para garantir falha
-    check_docs_cmd = [sys.executable, str(SCRIPTS_DIR / "check_docs.py"), "--paths", str(bad_doc)]
+    check_docs_cmd = [
+        sys.executable,
+        str(SCRIPTS_DIR / "check_docs.py"),
+        "--paths",
+        str(bad_doc),
+        "--fail-on-issues",
+    ]
     validate_cfg_cmd = [sys.executable, str(SCRIPTS_DIR / "validate_configs.py"), str(bad_cfg_dir)]
 
     r1 = subprocess.run(check_docs_cmd, capture_output=True, text=True)
@@ -59,3 +65,25 @@ def test_quality_gates_failures(tmp_path):
     # Deve conter chaves dos gates
     for gate in ("check_docs", "validate_configs"):
         assert gate in parsed, f"Gate {gate} ausente no summary"
+
+
+@pytest.mark.integration
+def test_check_docs_ignores_opencode_node_modules(tmp_path):
+    docs_root = tmp_path / "docs_ok"
+    docs_root.mkdir()
+    (docs_root / "GOOD.md").write_text(
+        "# Guia\n\nConteudo valido.\n\nLinha extra.\n\nOutra linha.\n",
+        encoding="utf-8",
+    )
+
+    ignored_bad_doc = tmp_path / ".opencode" / "node_modules" / "pkg" / "BAD.md"
+    ignored_bad_doc.parent.mkdir(parents=True)
+    ignored_bad_doc.write_text("\n", encoding="utf-8")
+
+    cmd = [sys.executable, str(SCRIPTS_DIR / "check_docs.py"), "--paths", str(tmp_path)]
+    proc = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
+
+    assert proc.returncode == 0, (
+        "check_docs nao deveria falhar por markdown dentro de .opencode/node_modules.\n"
+        f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+    )
