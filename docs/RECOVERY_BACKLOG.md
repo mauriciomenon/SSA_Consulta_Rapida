@@ -5,6 +5,52 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-22 09:33 - single-frame filter paths now reuse result references
+
+Escopo desta atualizacao:
+1. registrar o slice minimo no caminho de frame unico do filtro
+2. cortar o `reset_index(drop=True)` desnecessario no worker assincrono
+3. alinhar o mesmo comportamento no modo sincrono e no fallback sem worker
+
+Commit aterrado nesta frente:
+1. `0c57e699a3867cd88a8faf926ad9d3f1a11f7023`
+   - `2026-04-22 09:33:13 -0300`
+   - `perf(gui): Reuse single-frame filter results`
+
+O que este slice fechou de fato:
+1. `FilterWorker.run()` deixou de rematerializar o resultado quando existe apenas `1` frame no caminho filtrado
+2. o mesmo ajuste entrou no modo sincrono e no fallback sem worker em `initiate_filtering()`
+3. o caso de chunk vazio agora reutiliza o dataframe cheio existente em vez de forcar copia so para resetar indice
+4. o caminho multi-chunk com `concat().drop_duplicates().reset_index()` permaneceu intacto
+
+Validacao desta frente:
+1. `uv run --python 3.13 python -m py_compile gui/workers/filter_worker.py gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_worker.py tests/test_gui_filter_logic.py`
+2. `uv run --python 3.13 ruff check gui/workers/filter_worker.py gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_worker.py tests/test_gui_filter_logic.py`
+3. `uv run --python 3.13 ty check gui/workers/filter_worker.py gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_worker.py tests/test_gui_filter_logic.py`
+4. `uv run --python 3.13 pytest -q tests/test_filter_worker.py tests/test_workers_advanced.py`
+5. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k 'general_search or initiate_filtering or on_filter_finished or clear_filter'`
+6. resultados:
+   - `48 passed`
+   - `42 passed, 1 skipped`
+7. review `kluster`: limpo, sem issues nem `agent_todo_list`
+
+Prova real curta:
+1. `QT_QPA_PLATFORM=offscreen uv run --python 3.13 python ...`
+2. carga real:
+   - `3404.74ms`
+   - `80448` linhas
+   - `84` colunas
+3. filtro real `MEL3`:
+   - `1147.20ms`
+   - `4680` linhas
+4. identidade final preservada:
+   - `df_exibido is _df_last_search_filtered == True`
+
+Leitura tecnica apos o slice:
+1. o residual mais barato e claro do caminho de frame unico ficou fechado
+2. `gui/workers/filter_worker.py:182` ainda merece reavaliacao futura so no caminho multi-chunk, se houver sinal material
+3. a proxima frente principal deve voltar para `gui/ssa/gui_workers.py:910`
+
 ## Update 2026-04-22 08:57 - import batch resilience now contains runtime file faults
 
 Escopo desta atualizacao:
