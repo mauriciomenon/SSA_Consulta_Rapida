@@ -5,6 +5,42 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-22 13:14 - memory footprint survey after B discard
+
+Escopo desta atualizacao:
+1. registrar o levantamento de footprint alto apos o descarte do laboratorio `B`
+2. deixar claro que o proximo alvo nao deve nascer de achismo
+3. priorizar load path e ownership de `DataFrame` antes de novo experimento de cache amplo
+
+Levantamento numerico desta rodada:
+1. `query_db()` em `armazenamento/database.py`
+   - `80448 x 84`
+   - `717.60 ms`
+   - RSS `90.50 MB -> 402.30 MB`
+2. `_prepare_dataframe_for_ui()` em `gui/workers/data_loader_worker.py`
+   - `303.14 ms`
+   - RSS `402.30 MB -> 470.09 MB`
+   - retorna novo objeto
+3. `filter_dataframe()` no full dataframe
+   - frio `419.17 ms`
+   - quente `416.42 ms`
+   - cache cheio so com `token`
+4. refinamento em subset
+   - `39.75 ms`
+   - subset com `row_search_text` e `token`
+5. fallback raro de `on_data_loaded()` sem preprocessamento
+   - `255.61 ms`
+   - `+108 MB` no harness
+   - `df_completo is df_exibido == False`
+
+Leitura tecnica:
+1. o maior sinal atual voltou para leitura/materializacao e ownership do load path
+2. o full search ainda custa, mas o subset path continua saudavel
+3. o fallback raro sem preprocessamento segue caro e com ownership duplicado
+4. a proxima frente coerente deve ser:
+   - medir/cortar materializacao no load path principal
+   - depois reavaliar a busca ampla no full dataframe
+
 ## Update 2026-04-22 10:07 - laboratory B discarded and removed
 
 Escopo desta atualizacao:

@@ -2,14 +2,14 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-22 10h07
+## CURRENT TRUTH 2026-04-22 13h14
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. `HEAD` local e `origin/dev` estao alinhados em `485ebce1c8fb39528d03a807d6be292ae64bac0f`
+  2. `HEAD` local e `origin/dev` estao alinhados em `b5e3335b7565f104c23054777499ff350cce2b94`
   3. ultimo commit atual:
-     - `2026-04-22 10:07:32 -0300`
-     - `docs(handoff): Retire stale residual entries`
+     - `2026-04-22 13:14:32 -0300`
+     - `docs(handoff): Sync post-lab current truth`
   4. worktree local atual:
      - repo limpo no runtime/docs desta frente
      - residuos locais fora de escopo no momento:
@@ -55,6 +55,27 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - revalidacao posterior mostrou esses 2 itens como fechados
      - o laboratorio `B` para cache grande no full dataframe foi descartado por custo de RAM em ambiente alvo de `4 GB`
      - o proximo residual tecnico real deve ser reidentificado por novo diagnostico puro
+  11.1. levantamento de footprint alto executado nesta rodada, sem editar runtime:
+     - `query_db()` em `armazenamento/database.py` materializa `80448 x 84` e sobe o RSS de `90.50 MB` para `402.30 MB` em `717.60 ms`
+     - `_prepare_dataframe_for_ui()` em `gui/workers/data_loader_worker.py` adiciona `67.79 MB` e retorna novo objeto (`same_object=False`) em `303.14 ms`
+     - `filter_dataframe()` no full dataframe continua caro porque recompõe a busca ampla no full df:
+       - frio `419.17 ms`
+       - quente `416.42 ms`
+       - cache cheio fica so com `token`
+     - o refinamento em subset segue bom:
+       - `39.75 ms`
+       - cache do subset contem `row_search_text` e `token`
+     - o fallback raro de `on_data_loaded()` sem preprocessamento ainda explode ownership:
+       - `255.61 ms`
+       - `+108 MB` de RSS no harness
+       - `df_completo is df_exibido == False`
+  11.2. ranking tecnico atual de hotspots de memoria:
+     1. leitura/materializacao cheia em `query_db()`
+     2. preprocessamento inicial em `_prepare_dataframe_for_ui()`
+     3. rebuild da busca ampla no full dataframe em `filter_dataframe()`
+     4. fallback raro de `on_data_loaded()` sem attrs de preprocessamento
+  11.3. proxima frente recomendada:
+     - diagnostico/slice minimo focado em reduzir ownership e materializacao no load path principal, antes de voltar a mexer em busca ampla
   12. slices funcionais desta retomada ja aterrados em `dev`:
      - `d8451041` `test(gui): Lock load ordering behavior`
      - `e594d5bc` `perf(gui): Reuse sorted search result in refresh`
