@@ -124,6 +124,32 @@ def test_prepare_dataframe_for_ui_preserves_custom_order_by_contract():
     ]
 
 
+def test_prepare_dataframe_for_ui_default_order_keeps_non_ste_first_then_desc_ssa():
+    worker = DataLoaderWorker(":memory:", "ssa_table")
+    source_df = pd.DataFrame(
+        {
+            "numero_ssa": [
+                "202500001.0",
+                "202500005.0",
+                "202500004.0",
+                "202500003.0",
+            ],
+            "derivada_de": [None, None, None, None],
+            "situacao": ["STE", "APV", "STE", "AMP"],
+        }
+    )
+
+    prepared_df = worker._prepare_dataframe_for_ui(source_df)
+
+    assert prepared_df["numero_ssa"].tolist() == [
+        "202500005",
+        "202500003",
+        "202500004",
+        "202500001",
+    ]
+    assert prepared_df["situacao"].tolist() == ["APV", "AMP", "STE", "STE"]
+
+
 def test_prepare_dataframe_for_ui_sanitizes_and_attaches_attrs():
     worker = DataLoaderWorker(":memory:", "ssa_table")
     source_df = pd.DataFrame(
