@@ -876,21 +876,25 @@ class FilterGUISSAMixin:
                     for terms in chunk_terms_lists:
                         parsed = parse_search_terms(terms, default_mode=default_mode)
                         frames.append(
-                                filter_dataframe(
+                            filter_dataframe(
                                 filter_source,
                                 parsed,
                                 search_columns=general_search_columns,
                             )
                         )
-                    df_filtrado = (
-                        pd.concat(frames, axis=0, ignore_index=False)
-                        .drop_duplicates()
-                        .reset_index(drop=True)
-                        if frames
-                        else filter_source.copy()
-                    )
+                    if frames:
+                        if len(frames) == 1:
+                            df_filtrado = frames[0].reset_index(drop=True)
+                        else:
+                            df_filtrado = (
+                                pd.concat(frames, axis=0, ignore_index=False)
+                                .drop_duplicates()
+                                .reset_index(drop=True)
+                            )
+                    else:
+                        df_filtrado = filter_source.copy(deep=False)
                 else:
-                    df_filtrado = filter_source.copy()
+                    df_filtrado = filter_source.copy(deep=False)
                 self.on_filter_finished(df_filtrado, request_id=request_id)
                 # Em modo síncrono, garanta larguras válidas imediatamente após aplicar o filtro
                 try:
@@ -931,21 +935,25 @@ class FilterGUISSAMixin:
                     for terms in chunk_terms_lists:
                         parsed = parse_search_terms(terms, default_mode=default_mode)
                         frames.append(
-                                filter_dataframe(
+                            filter_dataframe(
                                 filter_source,
                                 parsed,
                                 search_columns=general_search_columns,
                             )
                         )
-                    df_filtrado = (
-                        pd.concat(frames, axis=0, ignore_index=False)
-                        .drop_duplicates()
-                        .reset_index(drop=True)
-                        if frames
-                        else filter_source.copy()
-                    )
+                    if frames:
+                        if len(frames) == 1:
+                            df_filtrado = frames[0].reset_index(drop=True)
+                        else:
+                            df_filtrado = (
+                                pd.concat(frames, axis=0, ignore_index=False)
+                                .drop_duplicates()
+                                .reset_index(drop=True)
+                            )
+                    else:
+                        df_filtrado = filter_source.copy(deep=False)
                 else:
-                    df_filtrado = filter_source.copy()
+                    df_filtrado = filter_source.copy(deep=False)
                 self.on_filter_finished(df_filtrado, request_id=request_id)
             except Exception as e:  # noqa: BLE001
                 self.on_filter_error(
@@ -1013,6 +1021,14 @@ class FilterGUISSAMixin:
                 active_id,
             )
             return
+        try:
+            if not df_filtrado.empty and "numero_ssa" in df_filtrado.columns:
+                df_filtrado.sort_values("numero_ssa", ascending=False, inplace=True)
+                df_filtrado.attrs["ssa_sorted_for_display"] = True
+        except Exception as exc:
+            logger.warning(
+                "Falha ao ordenar numero_ssa no fim do filtro geral: %s", exc
+            )
         # Atualiza baseline do resultado da busca global
         self._df_last_search_filtered = df_filtrado
         # OTIMIZACAO: Sinaliza que larguras precisam ser recalculadas para novo dataset
@@ -3594,6 +3610,13 @@ class FilterGUISSAMixin:
             else self.df_completo
         )
         filtered = base
+        try:
+            column_filters = getattr(self, "_active_column_filters", {}) or {}
+            has_column_filters = any(str(value).strip() for value in column_filters.values())
+        except Exception:
+            has_column_filters = False
+        has_advanced_filters = bool(getattr(self, "_advanced_filters_active", False))
+        has_excluded_terminal_status = bool(getattr(self, "_exclude_ste_sca", False))
         if hasattr(self, "_apply_advanced_filters"):
             try:
                 filtered = _measure_timing(
@@ -3607,7 +3630,7 @@ class FilterGUISSAMixin:
             "column", lambda: self._apply_column_filters(filtered)
         )
         if (
-            getattr(self, "_exclude_ste_sca", False)
+            has_excluded_terminal_status
             and not filtered.empty
             and "situacao" in filtered.columns
         ):
@@ -3629,7 +3652,19 @@ class FilterGUISSAMixin:
                     exc,
                 )
         # CORRECAO 2026-01-08: Ordenar por numero_ssa decrescente apos filtro
-        if not filtered.empty and "numero_ssa" in filtered.columns:
+        can_reuse_general_search_sorted_result = (
+            has_general_search
+            and not has_column_filters
+            and not has_advanced_filters
+            and not has_excluded_terminal_status
+            and filtered is self._df_last_search_filtered
+            and bool(getattr(filtered, "attrs", {}).get("ssa_sorted_for_display"))
+        )
+        if (
+            not can_reuse_general_search_sorted_result
+            and not filtered.empty
+            and "numero_ssa" in filtered.columns
+        ):
             try:
                 filtered = _measure_timing(
                     "sort", lambda: filtered.sort_values("numero_ssa", ascending=False)
