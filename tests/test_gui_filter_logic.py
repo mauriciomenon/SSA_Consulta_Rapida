@@ -6568,6 +6568,41 @@ class TestGUIFilterLogic:
             self.window._non_null_cols_cache
         )
 
+    def test_on_data_loaded_reapplies_visible_sort_after_preprocessed_worker_order(self):
+        self.window._active_data_load_request_id = 25
+        sorted_df = self.base_df.iloc[[1, 4, 2, 0, 3]].copy()
+        sorted_df["numero_ssa"] = [
+            "202500005",
+            "202500003",
+            "202500004",
+            "202500001",
+            "202500002",
+        ]
+        sorted_df["situacao"] = ["APV", "AMP", "STE", "STE", "APV"]
+        sorted_df.attrs["ssa_preprocessed_for_gui"] = True
+        sorted_df.attrs["ssa_non_null_cols"] = [
+            "numero_ssa",
+            "situacao",
+            "descricao_ssa",
+        ]
+
+        self.window.on_data_loaded(sorted_df, request_id=25)
+
+        assert self.window.df_completo["numero_ssa"].tolist() == [
+            "202500005",
+            "202500003",
+            "202500004",
+            "202500001",
+            "202500002",
+        ]
+        assert self.window.df_exibido["numero_ssa"].tolist() == [
+            "202500005",
+            "202500004",
+            "202500003",
+            "202500002",
+            "202500001",
+        ]
+
     def test_on_data_loaded_propagates_non_null_attrs_for_fallback_path(self):
         self.window._active_data_load_request_id = 24
         df = self.base_df.copy()
