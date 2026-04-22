@@ -7055,6 +7055,36 @@ class TestGUIFilterLogic:
         assert self.window.df_completo.loc[1, "numero_ssa"] == "202500778"
         assert self.window.df_completo.loc[0, "derivada_de"] == "202500001"
 
+    def test_on_data_loaded_fallback_keeps_df_completo_order_and_sorts_df_exibido(self):
+        self.window._active_data_load_request_id = 27
+        df = self.base_df.iloc[[0, 1, 2, 3, 4]].copy()
+        df["numero_ssa"] = [
+            "202500004.0",
+            "202500005.0",
+            "202500003.0",
+            "202500001.0",
+            "202500002.0",
+        ]
+        df["situacao"] = ["STE", "APV", "AMP", "STE", "APV"]
+
+        self.window.on_data_loaded(df, request_id=27)
+
+        assert self.window.df_completo["numero_ssa"].tolist() == [
+            "202500004",
+            "202500005",
+            "202500003",
+            "202500001",
+            "202500002",
+        ]
+        assert self.window.df_exibido["numero_ssa"].tolist() == [
+            "202500005",
+            "202500004",
+            "202500003",
+            "202500002",
+            "202500001",
+        ]
+        assert self.window.df_exibido is not self.window.df_completo
+
     def test_on_data_loaded_uses_preprocessed_attrs_from_worker(self):
         self.window._active_data_load_request_id = 22
         sorted_df = self.base_df.copy().iloc[::-1].copy()

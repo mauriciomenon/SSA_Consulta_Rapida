@@ -929,11 +929,7 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     if preprocessed_for_gui:
         base = df
     else:
-        base = df_copy
-        try:
-            base = DataLoaderWorker._build_initial_sorted_dataframe(base)
-        except Exception as e:
-            logger.warning("Falha na ordenacao inicial dos dados: %s", e)
+        base = DataLoaderWorker._build_initial_sorted_dataframe(df_copy)
     window.df_exibido = base
     window._df_last_search_filtered = window.df_completo
     window._widths_computed_for_df_hash = None
@@ -949,17 +945,7 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         if isinstance(non_null_cols_attr, list):
             non_null_cols = {str(col) for col in non_null_cols_attr if str(col)}
         else:
-            try:
-                non_null_mask = df_copy.notna().any(axis=0)
-                non_null_cols = set(non_null_mask[non_null_mask].index.tolist())
-            except (TypeError, ValueError, AttributeError, KeyError):
-                non_null_cols = set()
-                for col_name in df_copy.columns:
-                    try:
-                        if df_copy[col_name].notna().any():
-                            non_null_cols.add(col_name)
-                    except (TypeError, ValueError, AttributeError, KeyError):
-                        continue
+            non_null_cols = set(DataLoaderWorker._build_non_null_columns(df_copy))
         window._non_null_cols_cache = non_null_cols
         window._non_null_cols_revision = int(getattr(window, "_data_revision", 0) or 0)
         try:
