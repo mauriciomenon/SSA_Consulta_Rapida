@@ -565,6 +565,36 @@ def test_filter_dataframe_reuses_cached_search_data_on_same_dataframe(
     assert store_calls["count"] == 1
 
 
+def test_filter_dataframe_large_row_search_payload_is_not_persisted() -> None:
+    rows = 16000
+    df = pd.DataFrame(
+        {
+            "numero_ssa": [f"{202500000 + i:09d}" for i in range(rows)],
+            "descricao_ssa": [
+                f"DESCRICAO MUITO LONGA {i:05d} " + ("A" * 180) for i in range(rows)
+            ],
+            "descricao_execucao": [
+                f"EXECUCAO MUITO LONGA {i:05d} " + ("B" * 180) for i in range(rows)
+            ],
+            "arquivo_origem": [f"arquivo_{i:05d}.xlsx" for i in range(rows)],
+            "descricao_localizacao": [
+                f"LOC {i:05d} " + ("C" * 80) for i in range(rows)
+            ],
+            "setor_executor": ["MEL3" if i % 7 == 0 else "IEE3" for i in range(rows)],
+            "setor_emissor": ["MEL3" if i % 11 == 0 else "IEE4" for i in range(rows)],
+        }
+    )
+
+    out = filter_dataframe(df, ["MEL3"], list(df.columns))
+    cached_search_data = df.attrs["_filter_search_cache"]
+
+    assert not out.empty
+    assert "row_search_text" not in cached_search_data
+    assert list(out["numero_ssa"][:3]) == ["202500000", "202500007", "202500011"]
+    assert "_filter_search_cache" not in out.attrs
+    assert "_filter_search_token" not in out.attrs
+
+
 def test_get_filtered_data_reflects_updated_state_after_explicit_import(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -66,6 +66,7 @@ FILTER_SEARCH_TOKEN_ATTR = "_filter_search_token"
 FILTER_SEARCH_CACHE_ATTR = "_filter_search_cache"
 FILTER_SEARCH_FIELDWISE_CACHE_MAX_ROWS = 5000
 FILTER_ROW_SEARCH_BATCH_SIZE = 8
+FILTER_SEARCH_ROW_TEXT_CACHE_MAX_BYTES = 8 * 1024 * 1024
 
 
 class FilterSearchCacheManager:
@@ -141,8 +142,20 @@ class FilterSearchCacheManager:
     ) -> None:
         payload: dict[str, Any] = {
             "token": search_cache_token,
-            "row_search_text": row_search_text,
         }
+        try:
+            row_search_text_bytes = int(row_search_text.memory_usage(deep=True))
+        except Exception as exc:
+            logger.debug(
+                "Falha ao medir payload de row_search_text para cache de busca: %s",
+                exc,
+            )
+            row_search_text_bytes = 0
+        if (
+            row_search_text_bytes <= 0
+            or row_search_text_bytes <= FILTER_SEARCH_ROW_TEXT_CACHE_MAX_BYTES
+        ):
+            payload["row_search_text"] = row_search_text
         if isinstance(base_lower_df, pd.DataFrame):
             payload["base_lower_df"] = base_lower_df
         df.attrs[FILTER_SEARCH_CACHE_ATTR] = payload
