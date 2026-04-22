@@ -100,8 +100,26 @@ def test_run_adds_deterministic_order_for_paginated_query_without_order_by():
         worker.run()
 
     assert emitted and not emitted[0].empty
-    assert 'ORDER BY "numero_ssa" DESC' in captured["query"]
+    assert f'ORDER BY {worker._build_default_ui_order_clause()}' in captured["query"]
     assert "LIMIT 10 OFFSET 5" in captured["query"]
+
+
+def test_run_uses_business_default_order_for_full_load_without_order_by():
+    captured = {}
+    emitted = []
+
+    def fake_query(db_path, table_name, query, **kwargs):
+        captured["query"] = query
+        return pd.DataFrame({"numero_ssa": ["202500005"], "situacao": ["APV"]})
+
+    worker = DataLoaderWorker(":memory:", "ssa_table")
+    worker.data_loaded.connect(lambda df: emitted.append(df))
+
+    with patch("gui.workers.data_loader_worker.query_db", side_effect=fake_query):
+        worker.run()
+
+    assert emitted and not emitted[0].empty
+    assert f'ORDER BY {worker._build_default_ui_order_clause()}' in captured["query"]
 
 
 def test_prepare_dataframe_for_ui_preserves_custom_order_by_contract():
@@ -170,6 +188,26 @@ def test_prepare_dataframe_for_ui_sanitizes_and_attaches_attrs():
     assert "" in prepared_df["derivada_de"].tolist()
     assert isinstance(prepared_df.attrs.get("ssa_non_null_cols"), list)
     assert set(prepared_df["situacao"].tolist()) == {"STE", "SCA"}
+
+
+def test_prepare_dataframe_for_ui_fallback_sort_matches_sqlite_integer_cast_prefix():
+    worker = DataLoaderWorker(":memory:", "ssa_table")
+    source_df = pd.DataFrame(
+        {
+            "numero_ssa": ["2025-001", "SSA-202500001", "202500001.0", ""],
+            "derivada_de": [None, None, None, None],
+            "situacao": ["APV", "APV", "APV", "APV"],
+        }
+    )
+
+    prepared_df = worker._prepare_dataframe_for_ui(source_df)
+
+    assert prepared_df["numero_ssa"].tolist() == [
+        "202500001",
+        "2025-001",
+        "202500001",
+        "",
+    ]
 
 
 def test_run_emits_error_for_invalid_order_by():
