@@ -2,15 +2,15 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-22 09h00
+## CURRENT TRUTH 2026-04-22 09h33
 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. `HEAD` local e `origin/dev` estao alinhados em `3652dc90e5198238e78af3d50fc189b6a8b83db5`
+2. `HEAD` local e `origin/dev` estao alinhados em `0c57e699a3867cd88a8faf926ad9d3f1a11f7023`
 3. ultimo commit atual:
-   - `2026-04-22 09:00:27 -0300`
-   - `docs(policy): Sync AGENTS operating rules`
+   - `2026-04-22 09:33:13 -0300`
+   - `perf(gui): Reuse single-frame filter results`
 4. workspace local atual:
    - repo limpo no escopo desta frente
    - residuos fora de escopo:
@@ -75,6 +75,12 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `3652dc90e5198238e78af3d50fc189b6a8b83db5`
      - `2026-04-22 09:00:27 -0300`
      - `docs(policy): Sync AGENTS operating rules`
+   - `083078de05c25e942c995fcb8290cc47d3c5267d`
+     - `2026-04-22 09:27:09 -0300`
+     - `docs(handoff): Sync import continuity`
+   - `0c57e699a3867cd88a8faf926ad9d3f1a11f7023`
+     - `2026-04-22 09:33:13 -0300`
+     - `perf(gui): Reuse single-frame filter results`
 13. efeito funcional consolidado:
    - a carga sem filtros preserva o dataframe preprocessado do worker como estado visual inicial
    - o refresh simples agora pula filtros avancados/coluna quando nao existe filtro extra ativo
@@ -118,8 +124,8 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `artifacts/gui_filter_MEL3_page2.png`
    - nota: esta ultima rodada foi em `offscreen`; usar a baseline interativa anterior para comparacao fina de RSS
 16. checks remotos do PR `#47` apos esta frente:
-   - `pass`: `CodeFactor`, `CodeRabbit`, `DeepScan`, `GitGuardian`, `Socket Security: Project Report`, `submit-pypi`, `precheck-default-setup`
-   - `pending`: `analyze (python)`, `secret-scan`, `semgrep-cloud-platform/scan`, `Socket Security: Pull Request Alerts`
+   - `pass`: `CodeFactor`, `CodeQL`, `CodeRabbit`, `DeepScan`, `GitGuardian`, `Socket Security: Project Report`, `analyze (python)`, `secret-scan`, `submit-pypi`, `precheck-default-setup`
+   - `pending`: `semgrep-cloud-platform/scan`
    - `fail` externo/vendor: `DeepSource: Error`
    - `fail` externo por limite: `code/snyk (mauriciomenon)`, `security/snyk (mauriciomenon)`
 17. leitura tecnica atual:
@@ -130,9 +136,10 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - o funil funcional de excecoes por arquivo foi fechado em `a96b8c703249b53832bb335e9b212f81f27d847f`
    - `_process_file_with_resilience(...)` agora contem `KeyError` e `AttributeError` por arquivo
    - `_import_single_file(...)` agora tolera `validation_report` sem `is_valid`
+   - o residual de frame unico em `gui/workers/filter_worker.py:182` foi reduzido em `0c57e699a3867cd88a8faf926ad9d3f1a11f7023`
    - a frente principal deve migrar para diagnostico puro de:
-     - `gui/workers/filter_worker.py:182`
      - `gui/ssa/gui_workers.py:910`
+     - e depois reavaliar multi-chunk em `gui/workers/filter_worker.py:182`
    - nao ha motivo para reabrir layout, detalhes de aba ou helper novo nesta retomada
 
 ## HISTORICAL SNAPSHOT 2026-04-11 23h00

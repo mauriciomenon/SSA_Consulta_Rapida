@@ -2,14 +2,14 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-22 09h00
+## CURRENT TRUTH 2026-04-22 09h33
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. `HEAD` local e `origin/dev` estao alinhados em `3652dc90e5198238e78af3d50fc189b6a8b83db5`
+  2. `HEAD` local e `origin/dev` estao alinhados em `0c57e699a3867cd88a8faf926ad9d3f1a11f7023`
   3. ultimo commit atual:
-     - `2026-04-22 09:00:27 -0300`
-     - `docs(policy): Sync AGENTS operating rules`
+     - `2026-04-22 09:33:13 -0300`
+     - `perf(gui): Reuse single-frame filter results`
   4. worktree local atual:
      - repo limpo no runtime/docs desta frente
      - residuos locais fora de escopo no momento:
@@ -79,6 +79,12 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `3652dc90e5198238e78af3d50fc189b6a8b83db5`
        - `2026-04-22 09:00:27 -0300`
        - `docs(policy): Sync AGENTS operating rules`
+     - `083078de05c25e942c995fcb8290cc47d3c5267d`
+       - `2026-04-22 09:27:09 -0300`
+       - `docs(handoff): Sync import continuity`
+     - `0c57e699a3867cd88a8faf926ad9d3f1a11f7023`
+       - `2026-04-22 09:33:13 -0300`
+       - `perf(gui): Reuse single-frame filter results`
   13. ganhos funcionais acumulados do bloco `D` e follow-ups imediatos:
      - a carga inicial sem filtros agora preserva o dataframe preprocessado do worker como estado visual canonico
      - o refresh simples deixa de reaplicar filtros avancados e filtros por coluna quando nao existe filtro extra ativo
@@ -143,7 +149,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
        - valor recalculado apos revisao: `05/03/2025`
      - leitura: o stale risk do cache por `id(df)` puro foi fechado sem reabrir parser
   19. checks remotos relevantes apos os pushes desta frente:
-     - `pass`: `CodeFactor`, `CodeRabbit`, `DeepScan`, `GitGuardian`, `Socket Security: Project Report`, `submit-pypi`, `precheck-default-setup`
+     - `pass`: `CodeFactor`, `CodeQL`, `CodeRabbit`, `DeepScan`, `GitGuardian`, `Socket Security: Project Report`, `analyze (python)`, `secret-scan`, `submit-pypi`, `precheck-default-setup`
      - `pending`: `semgrep-cloud-platform/scan`
      - `fail` externo/vendor: `DeepSource: Error`
      - `fail` externo por limite: `code/snyk (mauriciomenon)`, `security/snyk (mauriciomenon)`
@@ -165,9 +171,10 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   22. regra de retomada obrigatoria daqui em diante:
      - a frente quente da GUI deve permanecer fechada salvo novo repro material
      - `core/app_logic.py:1615` agora esta fechado
+     - o residual de `gui/workers/filter_worker.py:182` no caminho de frame unico foi fechado em `0c57e699a3867cd88a8faf926ad9d3f1a11f7023`
      - a proxima frente principal deve voltar para diagnostico puro de:
-       - `gui/workers/filter_worker.py:182`
        - `gui/ssa/gui_workers.py:910`
+       - e so depois reavaliar multi-chunk em `gui/workers/filter_worker.py:182`, se ainda houver sinal material
      - manter `tests/test_quality_gates_smoke.py:34` e `tests/test_workers_advanced.py:648` como frentes separadas e pequenas
 
 ## HISTORICAL SNAPSHOT 2026-04-14 10h15
