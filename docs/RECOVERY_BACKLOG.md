@@ -5,6 +5,58 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-22 09:54 - duplicate chunks no longer recalculate within one request
+
+Escopo desta atualizacao:
+1. registrar o slice minimo no caminho multi-chunk da busca geral
+2. cortar o recalculo de chunks identicos dentro da mesma requisicao
+3. manter intacta a semantica de uniao com deduplicacao final
+
+Commit aterrado nesta frente:
+1. `c707c8f99eb9d4a30ccdbe6ff3d13ca0087538aa`
+   - `2026-04-22 09:54:13 -0300`
+   - `perf(gui): Deduplicate repeated search chunks`
+
+O que este slice fechou de fato:
+1. `FilterWorker` passou a deduplicar chunks identicos antes de executar o filtro
+2. o mesmo ajuste entrou no modo sincrono e no fallback sem worker em `initiate_filtering()`
+3. a semantica final foi preservada:
+   - chunk unico continua reusando o proprio frame
+   - chunk vazio continua reusando a base
+   - multi-chunk continua com uniao e `drop_duplicates()` no merge final
+4. o slice nao mexeu em parser, layout nem em `core/app_logic.py`
+
+Validacao desta frente:
+1. `uv run --python 3.13 python -m py_compile gui/workers/filter_worker.py gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_worker.py tests/test_gui_filter_logic.py`
+2. `uv run --python 3.13 ruff check gui/workers/filter_worker.py gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_worker.py tests/test_gui_filter_logic.py`
+3. `uv run --python 3.13 ty check gui/workers/filter_worker.py gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_worker.py tests/test_gui_filter_logic.py`
+4. `uv run --python 3.13 pytest -q tests/test_filter_worker.py tests/test_workers_advanced.py`
+5. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k 'general_search or initiate_filtering or on_filter_finished or clear_filter'`
+6. resultados:
+   - `49 passed`
+   - `44 passed, 1 skipped`
+7. review `kluster`: limpo, sem issues nem `agent_todo_list`
+
+Prova real curta:
+1. `QT_QPA_PLATFORM=offscreen uv run --python 3.13 python ...`
+2. carga real:
+   - `80448` linhas
+   - `84` colunas
+3. busca multi-chunk repetida:
+   - `MEL3, MEL3, MEL`
+   - `FILTER_MS=1019.53`
+   - `FILTER_ROWS=4680`
+4. identidade final preservada:
+   - `df_exibido is _df_last_search_filtered == True`
+
+Leitura tecnica apos o slice:
+1. o desperdicio maior do multi-chunk nao era mais `reset_index(...)`
+2. o slice fechou o recalculo de chunk repetido dentro da mesma requisicao
+3. o residual aberto agora fica mais claramente em:
+   - `drop_duplicates()` no merge final
+   - sobreposicao entre chunks diferentes
+4. a proxima frente coerente deve voltar para diagnostico puro desse merge multi-chunk
+
 ## Update 2026-04-22 09:39 - load fallback now reuses canonical helper logic
 
 Escopo desta atualizacao:

@@ -2,15 +2,15 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-22 09h39
+## CURRENT TRUTH 2026-04-22 09h54
 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. `HEAD` local e `origin/dev` estao alinhados em `fe608884496868c08f61557e9b844076ee80acb5`
+2. `HEAD` local e `origin/dev` estao alinhados em `c707c8f99eb9d4a30ccdbe6ff3d13ca0087538aa`
 3. ultimo commit atual:
-   - `2026-04-22 09:39:02 -0300`
-   - `ref(gui): Trim load fallback duplication`
+   - `2026-04-22 09:54:13 -0300`
+   - `perf(gui): Deduplicate repeated search chunks`
 4. workspace local atual:
    - repo limpo no escopo desta frente
    - residuos fora de escopo:
@@ -87,6 +87,9 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `fe608884496868c08f61557e9b844076ee80acb5`
      - `2026-04-22 09:39:02 -0300`
      - `ref(gui): Trim load fallback duplication`
+   - `c707c8f99eb9d4a30ccdbe6ff3d13ca0087538aa`
+     - `2026-04-22 09:54:13 -0300`
+     - `perf(gui): Deduplicate repeated search chunks`
 13. efeito funcional consolidado:
    - a carga sem filtros preserva o dataframe preprocessado do worker como estado visual inicial
    - o refresh simples agora pula filtros avancados/coluna quando nao existe filtro extra ativo
@@ -134,7 +137,22 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `pending`: `semgrep-cloud-platform/scan`
    - `fail` externo/vendor: `DeepSource: Error`
    - `fail` externo por limite: `code/snyk (mauriciomenon)`, `security/snyk (mauriciomenon)`
-17. leitura tecnica atual:
+17. update multi-chunk mais recente:
+   - chunks identicos passaram a ser deduplicados dentro da mesma requisicao
+   - o ajuste entrou no worker assincrono e nos caminhos sync/fallback
+   - a semantica final foi preservada:
+     - chunk unico reaproveita o frame filtrado
+     - chunk vazio reaproveita a base
+     - multi-chunk continua com `drop_duplicates()` no merge final
+   - validacao aterrada:
+     - `49 passed`
+     - `44 passed, 1 skipped`
+   - prova real curta:
+     - busca `MEL3, MEL3, MEL`
+     - `FILTER_MS=1019.53`
+     - `FILTER_ROWS=4680`
+     - `df_exibido is _df_last_search_filtered == True`
+18. leitura tecnica atual:
    - a frente `D` removeu recarregamentos e donos concorrentes importantes no load/filter path
    - os follow-ups imediatos recuperaram memoria residente do cache de busca e ganho quente no refinamento seguro da GUI
    - os tres slices seguintes derrubaram o refresh quente de `138.72ms` para `62.61ms` na primeira passagem e `10.13ms` na repeticao com a mesma revisao/dataframe
@@ -146,6 +164,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - a duplicacao do fallback de `on_data_loaded(...)` foi reduzida em `fe608884496868c08f61557e9b844076ee80acb5`
    - a frente principal deve migrar para diagnostico puro de multi-chunk em:
      - `gui/workers/filter_worker.py:182`
+     - com foco em `drop_duplicates()` e sobreposicao entre chunks diferentes
    - os residuos de teste devem continuar em frentes separadas e pequenas
    - nao ha motivo para reabrir layout, detalhes de aba ou helper novo nesta retomada
 
