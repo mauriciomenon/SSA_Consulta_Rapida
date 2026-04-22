@@ -2,18 +2,17 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-22 07h45
+## CURRENT TRUTH 2026-04-22 09h00
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. `HEAD` local e `origin/dev` estao alinhados em `541a8f0a9d651a03108d281b1df5f822897e6854`
+  2. `HEAD` local e `origin/dev` estao alinhados em `3652dc90e5198238e78af3d50fc189b6a8b83db5`
   3. ultimo commit atual:
-     - `2026-04-22 07:45:33 -0300`
-     - `perf(gui): Invalidate date display cache by revision`
+     - `2026-04-22 09:00:27 -0300`
+     - `docs(policy): Sync AGENTS operating rules`
   4. worktree local atual:
      - repo limpo no runtime/docs desta frente
      - residuos locais fora de escopo no momento:
-       - `AGENTS.md` modificado por atualizacao de politica local
        - `AGENTS.md.backup_20260416_223903`
   5. PR ativo:
      - `#47` `dev -> main`
@@ -55,9 +54,6 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - teste de performance fragil:
        - `tests/test_workers_advanced.py:648`
        - threshold de cache do `FilterWorker` esta mais duro que o tempo real medido
-     - cobertura incompleta da familia de excecoes por arquivo:
-       - `core/app_logic.py:1615`
-       - o problema real e o funil funcional ainda nao cobrir toda a familia de runtime exceptions relevante
      - debt estrutural promissor da mesma familia de algoritmo caro:
        - `gui/workers/filter_worker.py:182`
        - `gui/ssa/gui_workers.py:910`
@@ -71,8 +67,18 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `581b88bf` `perf(gui): Reuse subset on safe search refinement`
      - `991fa874` `perf(gui): Narrow column filter working set`
      - `908e8561` `perf(gui): Reuse quick executor combo options`
-     - `a094fcce` `perf(gui): Cache normalized column filter series`
-     - `541a8f0a` `perf(gui): Invalidate date display cache by revision`
+     - `a094fcce08be8fc71b69212705a4ca2df58efb52`
+       - `2026-04-22 07:27:37 -0300`
+       - `perf(gui): Cache normalized column filter series`
+     - `541a8f0a9d651a03108d281b1df5f822897e6854`
+       - `2026-04-22 07:45:33 -0300`
+       - `perf(gui): Invalidate date display cache by revision`
+     - `a96b8c703249b53832bb335e9b212f81f27d847f`
+       - `2026-04-22 08:57:32 -0300`
+       - `fix(import): Keep file runtime faults inside batch`
+     - `3652dc90e5198238e78af3d50fc189b6a8b83db5`
+       - `2026-04-22 09:00:27 -0300`
+       - `docs(policy): Sync AGENTS operating rules`
   13. ganhos funcionais acumulados do bloco `D` e follow-ups imediatos:
      - a carga inicial sem filtros agora preserva o dataframe preprocessado do worker como estado visual canonico
      - o refresh simples deixa de reaplicar filtros avancados e filtros por coluna quando nao existe filtro extra ativo
@@ -146,10 +152,23 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `docs/NEXT_CHAT_MIGRATION.md`
      - `docs/RECOVERY_BACKLOG.md`
      - eles agora devem contar a historia da branch a partir deste topo, nao do snapshot de `2026-04-15`
-  21. regra de retomada obrigatoria daqui em diante:
-     - primeiro fechar este `DOC_SYNC`
-     - depois fechar diagnostico puro final do custo residual do caminho de data
-     - se o sinal residual for pequeno, mover a frente principal para `core/app_logic.py:1615`
+  21. update de import/politica ja aterrada:
+     - `core/app_logic.py:1615` deixou de ser pendencia aberta nesta frente
+     - `_process_file_with_resilience(...)` agora contem `KeyError` e `AttributeError` por arquivo sem derrubar o lote inteiro
+     - `_import_single_file(...)` passou a tolerar ausencia de `validation_report["is_valid"]` via `get("is_valid", False)`
+     - validacao focada aterrada:
+       - `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_import_single_error_classification.py`
+       - `uv run --python 3.13 ruff check core/app_logic.py tests/test_import_single_error_classification.py`
+       - `uv run --python 3.13 ty check core/app_logic.py tests/test_import_single_error_classification.py`
+       - `uv run --python 3.13 pytest -q tests/test_import_single_error_classification.py`
+       - resultado: `15 passed`
+  22. regra de retomada obrigatoria daqui em diante:
+     - a frente quente da GUI deve permanecer fechada salvo novo repro material
+     - `core/app_logic.py:1615` agora esta fechado
+     - a proxima frente principal deve voltar para diagnostico puro de:
+       - `gui/workers/filter_worker.py:182`
+       - `gui/ssa/gui_workers.py:910`
+     - manter `tests/test_quality_gates_smoke.py:34` e `tests/test_workers_advanced.py:648` como frentes separadas e pequenas
 
 ## HISTORICAL SNAPSHOT 2026-04-14 10h15
 

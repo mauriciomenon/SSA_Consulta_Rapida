@@ -5,6 +5,44 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-22 08:57 - import batch resilience now contains runtime file faults
+
+Escopo desta atualizacao:
+1. registrar o slice minimo no funil funcional de excecoes por arquivo
+2. fechar a escalacao indevida de falhas internas isoladas para `ImporterError` fatal do lote
+3. registrar o ajuste adjacente apontado pelo kluster em `validation_report["is_valid"]`
+
+Commit aterrado nesta frente:
+1. `a96b8c703249b53832bb335e9b212f81f27d847f`
+   - `2026-04-22 08:57:32 -0300`
+   - `fix(import): Keep file runtime faults inside batch`
+
+O que este slice fechou de fato:
+1. `_process_file_with_resilience(...)` passou a conter `KeyError` e `AttributeError` como `unexpected_error` por arquivo
+2. o processamento do lote continua vivo para os demais arquivos
+3. `_import_single_file(...)` deixou de depender de `validation_report["is_valid"]` e passou a usar `validation_report.get("is_valid", False)`
+4. o comportamento de `DatabaseError` e `ExtractionError` permaneceu inalterado
+
+Validacao desta frente:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_import_single_error_classification.py`
+2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_import_single_error_classification.py`
+3. `uv run --python 3.13 ty check core/app_logic.py tests/test_import_single_error_classification.py`
+4. `uv run --python 3.13 pytest -q tests/test_import_single_error_classification.py`
+5. resultado: `15 passed`
+6. review `kluster`:
+   - primeira passada com `6` apontamentos
+   - `1` item diretamente adjacente ao slice em `validation_report["is_valid"]`
+   - ajuste aplicado no mesmo slice
+   - revalidacao ficou com `1` item `low` antigo e fora de escopo em `filter_dataframe` modo `exact`
+
+Leitura tecnica apos o slice:
+1. a lacuna real do funil por arquivo ficou fechada
+2. o problema estava no nivel de resiliencia por arquivo, nao no run global
+3. `core/app_logic.py:1615` deixa de ser frente aberta imediata
+4. as proximas frentes devem voltar para:
+   - `gui/workers/filter_worker.py:182`
+   - `gui/ssa/gui_workers.py:910`
+
 ## Update 2026-04-22 07:45 - date display cache now invalidates by revision
 
 Escopo desta atualizacao:

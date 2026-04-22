@@ -2,19 +2,18 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-22 07h45
+## CURRENT TRUTH 2026-04-22 09h00
 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. `HEAD` local e `origin/dev` estao alinhados em `541a8f0a9d651a03108d281b1df5f822897e6854`
+2. `HEAD` local e `origin/dev` estao alinhados em `3652dc90e5198238e78af3d50fc189b6a8b83db5`
 3. ultimo commit atual:
-   - `2026-04-22 07:45:33 -0300`
-   - `perf(gui): Invalidate date display cache by revision`
+   - `2026-04-22 09:00:27 -0300`
+   - `docs(policy): Sync AGENTS operating rules`
 4. workspace local atual:
    - repo limpo no escopo desta frente
    - residuos fora de escopo:
-     - `AGENTS.md` modificado por atualizacao local de politica
      - `AGENTS.md.backup_20260416_223903`
 5. PR remoto ativo:
    - `#47` `dev -> main`
@@ -51,8 +50,6 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `check_docs` ainda varre `.opencode/node_modules`
    - `tests/test_workers_advanced.py:648`
      - threshold de cache do `FilterWorker` esta fragil para o tempo real medido
-   - `core/app_logic.py:1615`
-     - cobertura da familia de excecoes por arquivo ainda incompleta no funil funcional
    - `gui/workers/filter_worker.py:182`
    - `gui/ssa/gui_workers.py:910`
      - candidatos estruturais restantes da mesma familia de algoritmo caro
@@ -66,8 +63,18 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `581b88bf` `perf(gui): Reuse subset on safe search refinement`
    - `991fa874` `perf(gui): Narrow column filter working set`
    - `908e8561` `perf(gui): Reuse quick executor combo options`
-   - `a094fcce` `perf(gui): Cache normalized column filter series`
-   - `541a8f0a` `perf(gui): Invalidate date display cache by revision`
+   - `a094fcce08be8fc71b69212705a4ca2df58efb52`
+     - `2026-04-22 07:27:37 -0300`
+     - `perf(gui): Cache normalized column filter series`
+   - `541a8f0a9d651a03108d281b1df5f822897e6854`
+     - `2026-04-22 07:45:33 -0300`
+     - `perf(gui): Invalidate date display cache by revision`
+   - `a96b8c703249b53832bb335e9b212f81f27d847f`
+     - `2026-04-22 08:57:32 -0300`
+     - `fix(import): Keep file runtime faults inside batch`
+   - `3652dc90e5198238e78af3d50fc189b6a8b83db5`
+     - `2026-04-22 09:00:27 -0300`
+     - `docs(policy): Sync AGENTS operating rules`
 13. efeito funcional consolidado:
    - a carga sem filtros preserva o dataframe preprocessado do worker como estado visual inicial
    - o refresh simples agora pula filtros avancados/coluna quando nao existe filtro extra ativo
@@ -120,8 +127,12 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - os follow-ups imediatos recuperaram memoria residente do cache de busca e ganho quente no refinamento seguro da GUI
    - os tres slices seguintes derrubaram o refresh quente de `138.72ms` para `62.61ms` na primeira passagem e `10.13ms` na repeticao com a mesma revisao/dataframe
    - o stale risk do cache de data por `id(df)` puro foi fechado em `541a8f0a`
-   - o proximo passo recomendado e diagnostico final do custo residual de `display_dates`
-   - se o sinal residual for pequeno, a frente principal deve migrar para `core/app_logic.py:1615`
+   - o funil funcional de excecoes por arquivo foi fechado em `a96b8c703249b53832bb335e9b212f81f27d847f`
+   - `_process_file_with_resilience(...)` agora contem `KeyError` e `AttributeError` por arquivo
+   - `_import_single_file(...)` agora tolera `validation_report` sem `is_valid`
+   - a frente principal deve migrar para diagnostico puro de:
+     - `gui/workers/filter_worker.py:182`
+     - `gui/ssa/gui_workers.py:910`
    - nao ha motivo para reabrir layout, detalhes de aba ou helper novo nesta retomada
 
 ## HISTORICAL SNAPSHOT 2026-04-11 23h00
