@@ -2,15 +2,15 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-22 09h33
+## CURRENT TRUTH 2026-04-22 09h39
 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. `HEAD` local e `origin/dev` estao alinhados em `0c57e699a3867cd88a8faf926ad9d3f1a11f7023`
+2. `HEAD` local e `origin/dev` estao alinhados em `fe608884496868c08f61557e9b844076ee80acb5`
 3. ultimo commit atual:
-   - `2026-04-22 09:33:13 -0300`
-   - `perf(gui): Reuse single-frame filter results`
+   - `2026-04-22 09:39:02 -0300`
+   - `ref(gui): Trim load fallback duplication`
 4. workspace local atual:
    - repo limpo no escopo desta frente
    - residuos fora de escopo:
@@ -81,6 +81,12 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `0c57e699a3867cd88a8faf926ad9d3f1a11f7023`
      - `2026-04-22 09:33:13 -0300`
      - `perf(gui): Reuse single-frame filter results`
+   - `94c40bb8391e88a6ffd1c0bf41abf841fee84e1e`
+     - `2026-04-22 09:35:36 -0300`
+     - `docs(handoff): Sync single-frame filter continuity`
+   - `fe608884496868c08f61557e9b844076ee80acb5`
+     - `2026-04-22 09:39:02 -0300`
+     - `ref(gui): Trim load fallback duplication`
 13. efeito funcional consolidado:
    - a carga sem filtros preserva o dataframe preprocessado do worker como estado visual inicial
    - o refresh simples agora pula filtros avancados/coluna quando nao existe filtro extra ativo
@@ -137,9 +143,10 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `_process_file_with_resilience(...)` agora contem `KeyError` e `AttributeError` por arquivo
    - `_import_single_file(...)` agora tolera `validation_report` sem `is_valid`
    - o residual de frame unico em `gui/workers/filter_worker.py:182` foi reduzido em `0c57e699a3867cd88a8faf926ad9d3f1a11f7023`
-   - a frente principal deve migrar para diagnostico puro de:
-     - `gui/ssa/gui_workers.py:910`
-     - e depois reavaliar multi-chunk em `gui/workers/filter_worker.py:182`
+   - a duplicacao do fallback de `on_data_loaded(...)` foi reduzida em `fe608884496868c08f61557e9b844076ee80acb5`
+   - a frente principal deve migrar para diagnostico puro de multi-chunk em:
+     - `gui/workers/filter_worker.py:182`
+   - os residuos de teste devem continuar em frentes separadas e pequenas
    - nao ha motivo para reabrir layout, detalhes de aba ou helper novo nesta retomada
 
 ## HISTORICAL SNAPSHOT 2026-04-11 23h00
