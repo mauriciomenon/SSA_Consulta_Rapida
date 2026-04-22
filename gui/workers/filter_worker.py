@@ -180,7 +180,7 @@ class FilterWorker(QThread):
                         return
                 if frames:
                     if len(frames) == 1:
-                        df_filtrado = frames[0].reset_index(drop=True)
+                        df_filtrado = frames[0]
                     else:
                         df_filtrado = (
                             pd.concat(frames, axis=0, ignore_index=False)

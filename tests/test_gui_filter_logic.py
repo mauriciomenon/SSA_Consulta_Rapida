@@ -6643,6 +6643,43 @@ class TestGUIFilterLogic:
         assert self.window.load_button.isEnabled() is True
         assert self.window.search_button.isEnabled() is True
 
+    def test_initiate_filtering_sync_single_chunk_reuses_filtered_reference(
+        self, monkeypatch
+    ):
+        self.window._sync_filtering = True
+        self.window.search_input.setText("Teste A")
+        filtered = self.base_df.iloc[:1].copy()
+
+        monkeypatch.setattr(
+            filter_mixin,
+            "filter_dataframe",
+            lambda *args, **kwargs: filtered,
+        )
+
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        assert self.window._df_last_search_filtered is filtered
+
+    def test_initiate_filtering_fallback_reuses_filtered_reference(
+        self, monkeypatch
+    ):
+        self.window._sync_filtering = False
+        self.window.search_input.setText("Teste A")
+        filtered = self.base_df.iloc[:1].copy()
+
+        monkeypatch.setattr(
+            filter_mixin,
+            "filter_dataframe",
+            lambda *args, **kwargs: filtered,
+        )
+
+        with patch("gui.mixins.filter_gui_ssa_mixin.FilterWorker", None):
+            self.window.initiate_filtering()
+            QApplication.processEvents()
+
+        assert self.window._df_last_search_filtered is filtered
+
     def test_initiate_filtering_cancels_previous_async_worker(self):
         self.window._sync_filtering = False
         self.window.search_input.setText("Teste")
