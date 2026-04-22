@@ -1,13 +1,11 @@
 # SSA Consulta Rapida AGENTS Guide
 
-
 ## Baseline V1.1 Frozen
 
 - Canonical frozen snapshot: `docs/POLICY_BASELINE_V1_1_FROZEN.md`
 - Previous snapshot retained: `docs/POLICY_BASELINE_V1_FROZEN.md`
 - Change rule: do not edit frozen baseline files; create a new version file when policy evolves.
 - Update only with explicit user command and DOC_SYNC commit.
-
 
 ## Current Truth
 
@@ -19,6 +17,13 @@
 
 - Estabilizar codigo.
 - Evitar refatoracoes amplas.
+- Garantir que cada mudanca seja pequena, reversivel e validada.
+- Manter comunicacao clara e documentada.
+- Priorizar risco real e usabilidade.
+- Evitar ciclos longos e iteracoes viciadas.
+- Garantir que cada passo seja aprovado e compreendido antes de seguir.
+- Correcao minima mais eficiente pode envolver reescrita de funcao, mudanca de algoritmo e ate mesmo extracao de funcao, desde que seja o patch mais curto e com menor impacto comprovado.
+
 
 ## Regras De Conduta (Criticas)
 
@@ -79,6 +84,13 @@ Cada slice deve declarar:
 - Nao muda: lista explicita do que nao sera alterado.
 - Testes: comandos e resultado esperado.
 - Evidencia: commit e resposta no PR.
+- Cada decisão de mudança deve ser documentada com evidências técnicas, impacto esperado e plano de rollback, mesmo que o rollback seja apenas a reversão do commit.
+- Em caso de patch de performance, o agente deve incluir obrigatoriamente no report do slice:
+  - tempo do fluxo alvo antes/depois
+  - RSS antes/depois
+  - caminho de execucao e quebra por subblocos quando houver hotspot
+  - justificativa clara de que a solucao proposta é o patch mais curto e com menor impacto comprovado para resolver o problema identificado.
+  - Apos qualquer patch funcional, o agente deve responder com report obrigatorio do slice antes de seguir.
 
 ## Categorias De Mudanca (Obrigatorio Em Todo Commit)
 
@@ -124,6 +136,7 @@ Cada slice deve declarar:
 - Otimizar carregamento e desempenho da GUI com mudancas minimas e sem excesso defensivo.
 - Sugerir mudancas de layout minimas apenas com ganho claro e aprovacao explicita.
 - Verificar status e condicoes de loops.
+- Nao abrir novo slice funcional com arquivos locais modificados de slice anterior sem commit ou deferimento explicito.
 
 ## Error Handling E Performance
 
@@ -133,15 +146,8 @@ Cada slice deve declarar:
 - Cada tratamento deve ter saida clara: log objetivo e retorno/acao coerente.
 - Em qualquer fix, validar que a solucao nao cria custo alto desnecessario.
 - Quando houver tradeoff real, parar e pedir permissao com 2 opcoes objetivas.
-- Busca ampla (`rg`, `find` etc.) com timeout 60s por padrao; para mudar timeout, perguntar.
-
-## Politica De Derivadas E Import
-
-- Startup: sem import automatico.
-- Import incremental: nao roda sync automatico de derivadas.
-- Sync derivadas: apenas full rescan ou botao manual dedicado.
-- Se sync de derivadas for pulado por politica, log explicito obrigatorio.
-- Full rescan deve recriar banco do zero por regra.
+- Busca ampla (`rg`, `find` etc.) com timeout 120s por padrao; para mudar timeout, perguntar.
+- Levantamento tecnico obrigatorio deve conter ownership de memoria, copias materiais, caches e contrato funcional antes de patch de performance.
 
 ## Politica De Docs De Migracao
 
@@ -149,9 +155,13 @@ Cada slice deve declarar:
 - Blocos antigos devem ser marcados como `HISTORICAL SNAPSHOT`.
 - Release baseline atual deve aparecer no topo dos docs ativos.
 - Nao manter blocos conflitantes com status de fonte de verdade.
+- Nao misturar DOC_SYNC com STABILITY_PATCH no mesmo commit.
+- Toda alteracao local validada e ainda nao commitada deve ser registrada imediatamente nos docs vivos.
+- 
 
 ## Politica Para Ferramentas Auxiliares
 
+- Cada mudança deve ser validada com testes focados e ferramentas de análise antes de ser considerada completa, e cada teste deve ser projetado para pegar regressões reais, não apenas verificar que o código não quebre.
 - Se ferramenta auxiliar entrar em loop, contradizer pedido, ou sugerir acao fora de escopo:
   - informar o usuario imediatamente;
   - oferecer opcoes objetivas:
@@ -174,16 +184,17 @@ Cada slice deve declarar:
 - Rodar sempre: `python -m py_compile`, `ruff check`, `ty check`, `pytest` focado (incluindo derivadas: unit + integracao + CLI quando tocar no fluxo).
 - Evitar testes viciados; preferir testes que peguem regressao real (concorrencia/cancel/IO/locks).
 - Incluir novos testes quando houver omissao clara.
-- Para aplicacao node: usar exclusivamente `pnpm` e `node`.
+- Para aplicacao node: usar exclusivamente `pnpm` e quando inevitavel `bun` e `node`.
+- 
 
 ## Politica De Timeout De Reviews
 
-- Busca ampla continua com `timeout 60s` por padrao.
+- Busca ampla continua com `timeout 120s` por padrao.
 - Para ferramentas de review e scanner com latencia externa, usar orcamento maior:
   - `kluster`: ate `180s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
   - `snyk`: ate `180s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
-  - `semgrep`: ate `180s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
-  - `bandit`: ate `180s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
+  - `semgrep`: ate `240s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
+  - `bandit`: ate `240s` de execucao aberta e mais `60s` de espera/poll em background antes de considerar retry ou bloqueio.
   - quando o problema parecer timeout e nao falha deterministica, insistir com pelo menos uma nova rodada calibrada antes de concluir bloqueio.
 - Durante a espera em background, o agente deve comecar outra atividade util do mesmo slice sempre que houver trabalho nao sobreposto.
 - Timeout de review nunca autoriza marcar verificacao como limpa; se a ferramenta nao concluiu, declarar bloqueio e escopo exato.
@@ -209,6 +220,72 @@ Cada slice deve declarar:
 - Qwen e ferramenta de apoio para tarefas repetitivas operacionais por slice.
 - Decisao tecnica final, review do patch e validacao final permanecem no agente principal.
 - Regras Kluster sao obrigatorias e NAO devem ser alteradas por este documento.
+
+
+## Politicas Aprovadas Em Runtime E Performance GUI
+
+- Toda referencia a commit deve incluir `hash completo + data/hora + titulo`.
+- Quando houver relacao tecnica com historico, incluir tambem arquivo, funcao e link clicavel quando possivel.
+- Todo diagnostico de performance GUI deve incluir obrigatoriamente:
+  - smoke real
+  - tempo do fluxo alvo
+  - RSS antes/depois
+  - caminho de execucao
+  - quebra por subblocos reais quando houver hotspot
+- Nenhum slice de GUI pode ser fechado so com teste verde.
+- Sempre usar `update_plan` quando houver plano.
+- Usar subagentes quando houver subtarefas independentes reais e sem risco de conflito.
+- Em investigacao de lentidao GUI, o padrao obrigatorio e quebrar o fluxo real em subblocos de runtime antes de propor patch.
+- O fluxo de teste GUI deve incluir, quando aplicavel:
+  - abertura real da janela
+  - cliques reais
+  - troca de abas
+  - aplicacao de filtros
+  - validacao de detalhes
+  - verificacao visual basica de posicionamento e texto
+- Se a medicao ou o smoke nao foram feitos, isso deve ser declarado como bloqueio.
+- Proibido criar funcao, helper, mixin, wrapper, alias ou camada nova apenas para remendar comportamento existente, salvo aprovacao explicita do usuario.
+- Nova funcao so entra se for:
+  - nova funcionalidade
+  - substituicao clara de funcionalidade anterior
+  - extracao estrutural explicitamente aprovada
+- Em codigo ja localizado, a preferencia padrao e corrigir o fluxo existente, nao adicionar nova camada.
+- Se o raciocinio de "patch minimo" comecar a degenerar em costura local em cima de costura local, o agente deve parar, declarar isso explicitamente e pedir nova aprovacao antes de editar.
+
+## Definition Of Done
+
+1. Objetivo principal e criterios de aceite atendidos.
+2. Sem regressao confirmada em fluxos sensiveis tocados.
+3. Validacoes tecnicas do slice verdes.
+4. PR sem bloqueadores tecnicos pendentes.
+5. Backlog atualizado com pendencias nao bloqueantes.
+
+## Landing The Plane (Session Completion)
+
+1. Registrar pendencias de follow-up.
+2. Executar quality gates do escopo alterado.
+3. Atualizar status de itens/PR.
+4. Fazer push e confirmar branch sincronizado com remoto.
+5. Limpar residuos locais apenas com seguranca.
+6. Entregar handoff curto com escopo entregue, riscos e pendencias.
+
+## Registro De Evidencias E Contexto
+
+- Regras operacionais, contrato de slice e politicas ficam versionadas neste `AGENTS.md`.
+- Evidencia de execucao por slice deve ficar em commit atomico + resposta em PR.
+- Historico detalhado de decisoes e iteracoes tambem permanece na conversa (chat log).
+
+## Regras novas devido a erros acumulados
+- Proibido introduzir alias, sinonimo, normalizacao semantica ou mapeamento de termo de negocio na busca superior sem aprovacao explicita do usuario e sem listar:
+origem da regra, arquivo onde ela fica, testes de regressao;
+- Proibido corrigir repro real com termo especifico do negocio por meio de tabela ad hoc de aliases se a causa estrutural nao estiver provada.
+- Qualquer alteracao em parser, normalizacao, alias ou sinonimos da busca deve vir acompanhada de diff previsto lista completa dos termos afetados,
+- justificativa de produto e teste de contrato positivo e negativo
+- Se existir infraestrutura antiga de alias, fallback, simplificacao ou regra herdada, ela deve ser exposta ao usuario antes de ser reutilizada em fix novo.
+- Teste de estabilidade que verifica "nao trava" nao substitui teste de contrato funcional do resultado esperado.
+- Textos de ajuda, tooltip e placeholder sao parte do contrato. Se o comportamento mudar, eles devem ser revisados no mesmo slice.
+- Timeout de ferramenta de review nao autoriza esconder o risco nem prosseguir como se a verificacao estivesse limpa; o bloqueio deve ser declarado com escopo exato.
+
 
 ## Kluster Rules (Auto-generated)
 <kluster.ai mandaroty rules>
@@ -332,53 +409,18 @@ Generate short report capturing the COMPLETE verification journey from ALL klust
 
 </kluster.ai mandaroty rules>
 
-## Definition Of Done
-
-1. Objetivo principal e criterios de aceite atendidos.
-2. Sem regressao confirmada em fluxos sensiveis tocados.
-3. Validacoes tecnicas do slice verdes.
-4. PR sem bloqueadores tecnicos pendentes.
-5. Backlog atualizado com pendencias nao bloqueantes.
-
-## Landing The Plane (Session Completion)
-
-1. Registrar pendencias de follow-up.
-2. Executar quality gates do escopo alterado.
-3. Atualizar status de itens/PR.
-4. Fazer push e confirmar branch sincronizado com remoto.
-5. Limpar residuos locais apenas com seguranca.
-6. Entregar handoff curto com escopo entregue, riscos e pendencias.
-
-## Registro De Evidencias E Contexto
-
-- Regras operacionais, contrato de slice e politicas ficam versionadas neste `AGENTS.md`.
-- Evidencia de execucao por slice deve ficar em commit atomico + resposta em PR.
-- Historico detalhado de decisoes e iteracoes tambem permanece na conversa (chat log).
-
-## Regras novas devido a erros acumulados
-- Proibido introduzir alias, sinonimo, normalizacao semantica ou mapeamento de termo de negocio na busca superior sem aprovacao explicita do usuario e sem listar:
-origem da regra, arquivo onde ela fica, testes de regressao;
-- Proibido corrigir repro real com termo especifico do negocio por meio de tabela ad hoc de aliases se a causa estrutural nao estiver provada.
-- Qualquer alteracao em parser, normalizacao, alias ou sinonimos da busca deve vir acompanhada de diff previsto lista completa dos termos afetados,
-- justificativa de produto e teste de contrato positivo e negativo
-- Se existir infraestrutura antiga de alias, fallback, simplificacao ou regra herdada, ela deve ser exposta ao usuario antes de ser reutilizada em fix novo.
-- Teste de estabilidade que verifica "nao trava" nao substitui teste de contrato funcional do resultado esperado.
-- Textos de ajuda, tooltip e placeholder sao parte do contrato. Se o comportamento mudar, eles devem ser revisados no mesmo slice.
-- Timeout de ferramenta de review nao autoriza esconder o risco nem prosseguir como se a verificacao estivesse limpa; o bloqueio deve ser declarado com escopo exato.
-
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
 
 ## Ferramentas Locais Disponiveis
 
-Lista abaixo reproduz exatamente os comandos fornecidos pelo usuario.
-
 - `uv tool`: `semgrep`, `bandit`, `ruff`, `pylama`, `pylint`, `mypy`, `pytype`, `pydocstyle`, `vulture`, `xenon`, `ggshield`, `sourcery-cli`, `pip-audit`, `detect-secrets`, `safety`, `checkov`
-- `brew`: `gitleaks`, `trufflehog`, `trivy`, `grype`, `sonar-scanner`, `kube-bench`, `kics`, `talisman`, `cppcheck`, `flawfinder`, `cbmc`, `shellcheck`, `bashate`, `golangci-lint`, `gosec`, `govulncheck`, `staticcheck`, `snyk-cli`, `lacework-cli`
+- `brew`: `gitleaks`, `trufflehog`, `trivy`, `grype`, `sonar-scanner`, `kube-bench`, `kics`, `talisman`, `cppcheck`, `flawfinder`, `cbmc`, `shellcheck`, `bashate`, `golangci-lint`, `gosec`, `govulncheck`, `staticcheck`, `snyk-cli`,`vulture`, `lacework-cli`, 
 - `cargo`: `cargo-audit`, `cargo-deny`
 - `pnpm -g`: `eslint`, `@biomejs/biome`, `oxlint`, `jscpd`, `@socketsecurity/cli`
 
 ### Binarios E Mapeamentos
 
+- Ferramentas extras podem ser indicadas para instalacao pelo agente, e instaladas apos aprovacao do usuario.
 - `sourcery-cli` costuma expor o binario `sourcery`
 - `@biomejs/biome` expõe o binario `biome`
 - `@socketsecurity/cli` expõe o binario `socket`
@@ -391,34 +433,11 @@ Lista abaixo reproduz exatamente os comandos fornecidos pelo usuario.
   - `uv export --locked --format requirements.txt --no-emit-project --output-file /tmp/ssa_uv_export_requirements_no_project.txt`
   - `pip-audit -r /tmp/ssa_uv_export_requirements_no_project.txt --require-hashes --disable-pip --progress-spinner off -f json`
 
-@RTK.md
 
-## Politicas Aprovadas Em Runtime E Performance GUI
+## Politica De Derivadas E Import
 
-- Toda referencia a commit deve incluir `hash completo + data/hora + titulo`.
-- Quando houver relacao tecnica com historico, incluir tambem arquivo, funcao e link clicavel quando possivel.
-- Todo diagnostico de performance GUI deve incluir obrigatoriamente:
-  - smoke real
-  - tempo do fluxo alvo
-  - RSS antes/depois
-  - caminho de execucao
-  - quebra por subblocos reais quando houver hotspot
-- Nenhum slice de GUI pode ser fechado so com teste verde.
-- Sempre usar `update_plan` quando houver plano.
-- Usar subagentes quando houver subtarefas independentes reais e sem risco de conflito.
-- Em investigacao de lentidao GUI, o padrao obrigatorio e quebrar o fluxo real em subblocos de runtime antes de propor patch.
-- O fluxo de teste GUI deve incluir, quando aplicavel:
-  - abertura real da janela
-  - cliques reais
-  - troca de abas
-  - aplicacao de filtros
-  - validacao de detalhes
-  - verificacao visual basica de posicionamento e texto
-- Se a medicao ou o smoke nao foram feitos, isso deve ser declarado como bloqueio.
-- Proibido criar funcao, helper, mixin, wrapper, alias ou camada nova apenas para remendar comportamento existente, salvo aprovacao explicita do usuario.
-- Nova funcao so entra se for:
-  - nova funcionalidade
-  - substituicao clara de funcionalidade anterior
-  - extracao estrutural explicitamente aprovada
-- Em codigo ja localizado, a preferencia padrao e corrigir o fluxo existente, nao adicionar nova camada.
-- Se o raciocinio de "patch minimo" comecar a degenerar em costura local em cima de costura local, o agente deve parar, declarar isso explicitamente e pedir nova aprovacao antes de editar.
+- Startup: sem import automatico.
+- Import incremental: nao roda sync automatico de derivadas.
+- Sync derivadas: apenas full rescan ou botao manual dedicado.
+- Se sync de derivadas for pulado por politica, log explicito obrigatorio.
+- Full rescan deve recriar banco do zero por regra.
