@@ -7,7 +7,7 @@ import re
 import sqlite3
 import sys
 import time
-from collections import Counter
+from collections import Counter, OrderedDict
 from typing import Any, Literal, TypedDict, cast
 from unittest.mock import patch
 
@@ -6247,6 +6247,41 @@ class TestGUIFilterLogic:
         filtered = self.window._apply_column_filters(dated_df)
 
         assert filtered["numero_ssa"].tolist() == [1]
+
+    def test_apply_column_filters_reduces_working_dataframe_between_columns(
+        self, monkeypatch
+    ):
+        tracked_lengths: list[tuple[str, int, str]] = []
+        original_build_column_mask = self.window._build_column_mask
+
+        def _tracked_build_column_mask(series: pd.Series, raw: str):
+            tracked_lengths.append((str(series.name), len(series), str(raw)))
+            return original_build_column_mask(series, raw)
+
+        monkeypatch.setattr(
+            self.window,
+            "_build_column_mask",
+            _tracked_build_column_mask,
+        )
+
+        self.window._active_column_filters = OrderedDict(
+            [
+                ("setor_executor", "MEL4"),
+                ("descricao_ssa", "Teste C"),
+            ]
+        )
+
+        filtered = self.window._apply_column_filters(self.base_df.copy())
+
+        assert filtered["numero_ssa"].tolist() == [3]
+        executor_calls = [
+            length for name, length, raw in tracked_lengths if name == "setor_executor"
+        ]
+        descricao_calls = [
+            length for name, length, raw in tracked_lengths if name == "descricao_ssa"
+        ]
+        assert executor_calls == [len(self.base_df)]
+        assert descricao_calls == [1]
 
     def test_advanced_filter_include_ignores_nullable_text_instead_of_na_literal(self):
         nullable_df = self.base_df.assign(
