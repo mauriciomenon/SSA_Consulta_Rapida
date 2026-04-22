@@ -5,6 +5,214 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-21 22:20 - gui D slices completed and post-push PR state
+
+Escopo desta atualizacao:
+1. registrar o fechamento da frente `D` de carga/filtro com commits atomicos ja publicados em `dev`
+2. consolidar o que realmente mudou no caminho quente sem inflar escopo
+3. registrar a validacao local e a prova real curta mais recente
+4. capturar o estado atual dos checks do PR `#47` apos os pushes
+
+Commits aterrados nesta frente:
+1. `d8451041` `test(gui): Lock load ordering behavior`
+2. `e594d5bc` `perf(gui): Reuse sorted search result in refresh`
+3. `dcb6a830` `perf(gui): Trim cache and load copies`
+4. `e1fc2106` `perf(gui): Keep preprocessed load order`
+5. `5ca3020c` `perf(gui): Skip redundant refresh steps`
+
+O que a frente `D` fechou de fato:
+1. a ordem preprocessada do worker passou a ser respeitada como estado visual canonico na carga sem filtros
+2. o refresh simples passou a pular filtros avancados e filtros por coluna quando nao ha filtro extra ativo
+3. a logica de sanitizacao/ordenacao inicial deixou de ficar duplicada entre worker e GUI
+4. a busca geral simples passou a reaproveitar o resultado filtrado/ordenado sem recriar `df_exibido`
+5. os contratos operacionais relevantes ficaram assim:
+   - carga sem filtros: `df_exibido is df_completo == True`
+   - busca geral simples: `df_exibido is _df_last_search_filtered == True`
+
+Validacao desta frente:
+1. `uv run --python 3.13 python -m py_compile` no escopo tocado
+2. `uv run --python 3.13 ruff check` no escopo tocado
+3. `uv run --python 3.13 ty check` no escopo tocado
+4. `uv run --python 3.13 pytest -q tests/test_filter_cache_locking.py tests/test_filter_worker.py`
+5. `uv run --python 3.13 pytest -q tests/test_workers_advanced.py -k 'filter_worker_cache_performance or worker_uses_cache_for_same_query or worker_different_cache_context_misses_cache'`
+6. `uv run --python 3.13 pytest -q tests/test_data_loader_worker.py`
+7. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k 'refresh_after_filter_change or on_filter_finished or on_data_loaded or clear_all_filters_global_reuses_df_completo_reference or hard_reset_filters_state_reuses_df_completo_reference'`
+8. review `kluster` local limpo no escopo tocado
+
+Prova real curta mais recente com GUI e `data/ssas.db`:
+1. carga:
+   - `80448` linhas
+   - `84` colunas
+   - `4.5386s`
+2. filtro `MEL3`:
+   - `4680` linhas
+   - frio: `1.9114s`
+   - quente: `0.5139s`
+3. pagina `2`: `0.3271s`
+4. identidades confirmadas:
+   - `df_exibido is df_completo == True`
+   - `df_exibido is _df_last_search_filtered == True`
+5. prints atualizados:
+   - `artifacts/gui_load_after_real_db.png`
+   - `artifacts/gui_filter_MEL3.png`
+   - `artifacts/gui_filter_MEL3_page2.png`
+6. nota de leitura:
+   - esta ultima prova foi executada em `offscreen`, entao os valores absolutos de RSS ficaram mais altos e nao devem virar baseline canonica de memoria
+
+Estado de PR/checks apos os pushes desta frente:
+1. `dev` e `origin/dev` alinhados em `5ca3020c`
+2. `#47` continua `OPEN` com `mergeStateStatus=UNSTABLE`
+3. checks em `pass`:
+   - `CodeQL`
+   - `CodeFactor`
+   - `DeepScan`
+   - `GitGuardian Security Checks`
+   - `secret-scan`
+   - `semgrep-cloud-platform/scan`
+   - `submit-pypi`
+   - `precheck-default-setup`
+   - `analyze (python)`
+4. checks externos ainda falhando:
+   - `DeepSource: Error`
+   - `code/snyk (mauriciomenon)` por limite
+   - `security/snyk (mauriciomenon)` por limite
+
+Leitura tecnica apos o fechamento do `D`:
+1. houve melhora estrutural real em ownership e recarregamento inutil no load/filter path
+2. o acumulado ficou melhor do que cada micro-medicao isolada sugere
+3. a proxima rodada deve ser mais dura no diagnostico do hotspot seguinte, mas sem reabrir refatoracao ampla
+4. o caminho correto agora e:
+   - fechar `DOC_SYNC`
+   - voltar para diagnostico puro do proximo hotspot
+   - aprovar novo slice minimo antes de qualquer edicao de runtime
+
+## Update 2026-04-21 11:40 - local runtime patch regularization and measured gui reality
+
+Escopo desta atualizacao:
+1. registrar o patch local de runtime que foi aplicado e validado antes do fechamento correto de rastreabilidade
+2. registrar os comandos de validacao realmente executados
+3. registrar as metricas reais antes/depois medidas em GUI com base real
+4. deixar explicito que nenhum novo patch estrutural deve acontecer antes de travar o contrato de ordenacao inicial da carga
+
+Arquivos tocados no patch local atual:
+1. `gui/cache/filter_cache.py`
+2. `gui/workers/filter_worker.py`
+3. `gui/mixins/filter_gui_ssa_mixin.py`
+4. `gui/ssa/gui_workers.py`
+
+Alteracoes exatas do patch local atual:
+1. `FilterCache.get()` passou a devolver `copy(deep=False)` em vez de `copy()`
+2. `FilterCache.put()` passou a armazenar `copy(deep=False)` em vez de `copy()`
+3. `FilterWorker.run()` deixou de fazer `concat/drop_duplicates/reset_index` quando existe apenas um bloco de busca
+4. `FilterWorker.run()` passou a usar `copy(deep=False)` nos caminhos sem termos
+5. `FilterGUISSAMixin.initiate_filtering()` recebeu o mesmo tratamento nos caminhos sync/fallback
+6. `on_data_loaded()` deixou de criar copia rasa extra quando `ssa_preprocessed_for_gui=True`
+7. `_df_last_search_filtered` passou a apontar para `window.df_completo` no load path
+
+Validacao local ja executada:
+1. `uv run --python 3.13 python -m py_compile gui/cache/filter_cache.py gui/workers/filter_worker.py gui/mixins/filter_gui_ssa_mixin.py gui/ssa/gui_workers.py`
+2. `uv run --python 3.13 ruff check gui/cache/filter_cache.py gui/workers/filter_worker.py gui/mixins/filter_gui_ssa_mixin.py gui/ssa/gui_workers.py`
+3. `uv run --python 3.13 ty check gui/cache/filter_cache.py gui/workers/filter_worker.py gui/mixins/filter_gui_ssa_mixin.py gui/ssa/gui_workers.py`
+4. `uv run --python 3.13 pytest -q tests/test_filter_cache_locking.py tests/test_filter_worker.py`
+5. `uv run --python 3.13 pytest -q tests/test_workers_advanced.py -k 'filter_worker_cache_performance or worker_uses_cache_for_same_query or worker_different_cache_context_misses_cache'`
+6. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k 'on_data_loaded_resets_num_reprogramacoes_sort_cache or general_search_reuses_filter_dataframe_cache_on_same_dataframe or get_canonical_available_columns_keeps_active_filter_even_outside_non_null_cache'`
+7. review `kluster` local limpo no escopo tocado
+
+Metricas reais coletadas com GUI e `data/ssas.db`:
+1. antes do patch local:
+   - carga: `2.519s`
+   - RSS apos carga: `531.44 MB`
+   - filtro frio `MEL3`: `1.206s`
+   - pico no filtro: `836.8 MB`
+   - RSS apos filtro: `695.03 MB`
+   - filtro quente: `0.3785s`
+2. depois do patch local:
+   - carga: `2.027s`
+   - RSS apos carga: `531.41 MB`
+   - filtro frio `MEL3`: `0.964s`
+   - pico no filtro: `695.62 MB`
+   - RSS apos filtro: `695.62 MB`
+   - filtro quente: `0.199s`
+   - paginacao `1 -> 2`: `0.31s`
+
+Leitura tecnica consolidada:
+1. o patch local melhorou tempo de carga e reduziu o pico do primeiro filtro, mas nao fechou o problema estrutural de ownership duplicado
+2. o hotspot principal atual continua no load path:
+   - `gui/workers/data_loader_worker.py`
+   - `gui/ssa/gui_workers.py`
+   - `gui/mixins/filter_gui_ssa_mixin.py`
+3. existe conflito real entre:
+   - ordenacao inicial do worker por `__is_ste` + `__ssa`
+   - ordenacao final do refresh por `numero_ssa` desc
+4. o cache residente `row_search_text` em `core/app_logic.py` pesa, mas ainda nao deve ser o primeiro alvo estrutural
+
+Status real desta frente:
+1. patch local funcional validado, ainda nao commitado
+2. docs vivos agora precisam refletir esse estado, nao mais "worktree limpo"
+3. proximo passo obrigatorio: travar em teste o contrato de ordenacao inicial da carga antes de novo patch estrutural
+
+Ordem correta dos proximos slices:
+1. regularizar rastreabilidade deste patch local
+2. travar o contrato de ordenacao inicial da carga em teste
+3. so depois decidir se o load path pode evitar a segunda materializacao full-size
+4. so depois reavaliar `row_search_text` e demais caches residentes
+
+## Update 2026-04-21 10:30 - gui performance truth sync after ffecabff
+
+Escopo desta atualizacao documental:
+1. sincronizar o backlog vivo com o estado real apos os commits de `2026-04-16/17`
+2. registrar explicitamente a frente forte de performance/RAM da GUI e o bug fechado de troca de aba
+3. listar os residuos reais que sobraram da verificacao pesada sem misturar com refatoracao ampla
+4. preparar migracao fiel para uma nova janela de conversa
+
+Frente forte fechada ate aqui:
+1. carga inicial, busca geral, reset, undo e detalhes perderam rebuilds e alocacoes desnecessarias relevantes
+2. o fluxo de detalhes deixou de disparar construcao global de indice SSA no caminho quente
+3. o cache de busca passou a ser reaproveitado entre requests em vez de recomputado de forma cara
+4. o reset passou a reutilizar o dataset completo e a reprog cache ficou lazy
+5. o undo deixou de reter snapshot pesado de dataframe
+6. a busca geral passou a pular colunas so com nulos e a reduzir custo do cache frio de linhas
+7. a troca de aba deixou de destruir o estado vivo da SSA selecionada e dos detalhes exibidos
+
+Commits de referencia desta frente:
+1. `3f49caef` `perf(gui): Elide stale details lookup on tab bind`
+2. `51a0a69a` `perf(gui): Preserve search cache across requests`
+3. `12fbc46c` `fix(gui): Stop global SSA index builds in details flows`
+4. `b93b367d` `perf(gui): Reduce search cache memory and details lookup`
+5. `edaa90e7` `perf(gui): Reuse full dataset on reset and lazy reprog cache`
+6. `73881633` `perf(gui): Remove heavy undo snapshot dataframe retention`
+7. `a160a589` `perf(gui): Skip null-only columns in general search`
+8. `e3b5561d` `perf(search): Cut cold row cache build cost`
+9. `ffecabff` `fix(gui): Preserve live details across tab bind`
+
+Residual real que continua aberto:
+1. `BUG_REAL` de infraestrutura de teste em `tests/test_quality_gates_smoke.py:34`:
+   - `check_docs` ainda varre `.opencode/node_modules`
+   - isso polui o gate e pode gerar custo e ruido desnecessarios
+2. teste de performance fragil em `tests/test_workers_advanced.py:648`:
+   - o threshold de cache do `FilterWorker` esta duro demais para o tempo real medido
+   - precisa passar a medir regressao real, nao micro-variacao de ambiente
+3. front de error handling ainda aberta em `core/app_logic.py:1615`:
+   - o problema real nao e a linha isolada, e sim o funil funcional nao cobrir toda a familia relevante de runtime exceptions por arquivo
+   - qualquer ajuste aqui deve ser por bloco funcional, sem espalhar `try/except`
+4. debt estrutural ainda promissor na mesma familia de algoritmo caro:
+   - `gui/workers/filter_worker.py:182`
+   - `gui/ssa/gui_workers.py:910`
+   - reavaliar so apos fechar os dois itens de teste acima
+
+Ordem recomendada para os proximos slices:
+1. `DOC_SYNC` desta rodada
+2. fix minimo em `tests/test_quality_gates_smoke.py`
+3. fix minimo em `tests/test_workers_advanced.py`
+4. revisao focada do funil em `core/app_logic.py`
+5. reavaliacao dos candidatos estruturais apenas com evidencia nova
+
+Fora de escopo desta atualizacao:
+1. qualquer alteracao de runtime
+2. qualquer mudanca de layout/posicionamento
+3. qualquer refatoracao ampla de GUI, workers ou parser
+4. qualquer tentativa de arrumar todos os debts de uma vez
+
 ## Update 2026-04-16 09:05 - prioritized hardening front for broad except and silent pass
 
 Escopo desta rodada de diagnostico:

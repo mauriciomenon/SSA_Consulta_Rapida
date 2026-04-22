@@ -2,30 +2,102 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-15 21h50
+## CURRENT TRUTH 2026-04-21 22h20
 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. worktree estava limpo antes do slice atual
-3. `HEAD` local esta 1 commit a frente de `origin/dev`
-4. PR remoto ativo:
+2. `HEAD` local e `origin/dev` estao alinhados em `5ca3020cb62191ed7855856d0b85f5a19a9156f2`
+3. ultimo commit atual:
+   - `2026-04-21 22:17:43 -0300`
+   - `perf(gui): Skip redundant refresh steps`
+4. workspace local atual:
+   - docs modificados:
+     - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+     - `docs/NEXT_CHAT_MIGRATION.md`
+     - `docs/RECOVERY_BACKLOG.md`
+   - residuo fora de escopo:
+     - `AGENTS.md.backup_20260416_223903`
+5. PR remoto ativo:
    - `#47` `dev -> main`
-   - head remoto ainda em `fb068228`
-5. a falha local real desta rodada ficou isolada em contrato de config GUI:
-   - `config/gui_main_preferences.json.example` estava divergente de `gui/gui_config.py`
-   - manter como canonico neste momento:
-     - Windows: `derivada_de=112`, `semana_programada=92`, `setor_emissor=72`
-     - macOS: `semana_programada=72`
-     - Linux: `setor_executor=65`
-6. `DeepSource` e `Snyk` continuam vindo como status externos de app/conta:
-   - tratar como warning operacional no fluxo deste repo
-   - nao ha branch protection local obrigando esses checks neste host
-7. `node_modules`, `package.json` e `bun.lock` nao existem rastreados no `HEAD` atual
-8. o proximo agente deve continuar lendo o contrato de preferencias GUI assim:
-   - `gui/gui_config.py` define a base em memoria
-   - `config/gui_main_preferences.json.example` deve espelhar essa base para auditoria
-   - `config/gui_main_preferences.json` continua sendo o arquivo efetivo de runtime
+   - titulo: `Merge dev into main for stabilization and gui follow-up`
+   - estado: `OPEN`
+   - `mergeStateStatus=UNSTABLE`
+6. a frente principal mais recente foi desempenho e estabilidade da GUI:
+   - carga inicial
+   - busca geral
+   - filtros
+   - undo
+   - detalhes laterais
+   - dialogo de detalhes
+   - troca de aba preservando estado
+7. o ciclo de `2026-04-16/17` fechou gargalos serios de desempenho e RAM:
+   - cortes de alocacao desnecessaria no carregamento e nos fluxos de busca/reset/undo
+   - eliminacao de carregamentos de recursos excessivos no caminho de detalhes
+   - menos rebuild global e menos cache frio caro
+   - preservacao do estado vivo de detalhes ao trocar de aba
+8. commits de referencia imediata:
+   - `3f49caef` `perf(gui): Elide stale details lookup on tab bind`
+   - `51a0a69a` `perf(gui): Preserve search cache across requests`
+   - `12fbc46c` `fix(gui): Stop global SSA index builds in details flows`
+   - `b93b367d` `perf(gui): Reduce search cache memory and details lookup`
+   - `edaa90e7` `perf(gui): Reuse full dataset on reset and lazy reprog cache`
+   - `73881633` `perf(gui): Remove heavy undo snapshot dataframe retention`
+   - `a160a589` `perf(gui): Skip null-only columns in general search`
+   - `e3b5561d` `perf(search): Cut cold row cache build cost`
+   - `ffecabff` `fix(gui): Preserve live details across tab bind`
+9. o bug de perder a SSA selecionada na troca de aba esta fechado
+10. busca/filtros melhoraram bem, mas a frente ainda nao esta encerrada
+11. residuos reais que ficaram da verificacao pesada:
+   - `tests/test_quality_gates_smoke.py:34`
+     - `check_docs` ainda varre `.opencode/node_modules`
+   - `tests/test_workers_advanced.py:648`
+     - threshold de cache do `FilterWorker` esta fragil para o tempo real medido
+   - `core/app_logic.py:1615`
+     - cobertura da familia de excecoes por arquivo ainda incompleta no funil funcional
+   - `gui/workers/filter_worker.py:182`
+   - `gui/ssa/gui_workers.py:910`
+     - candidatos estruturais restantes da mesma familia de algoritmo caro
+12. commits aterrados nesta retomada:
+   - `d8451041` `test(gui): Lock load ordering behavior`
+   - `e594d5bc` `perf(gui): Reuse sorted search result in refresh`
+   - `dcb6a830` `perf(gui): Trim cache and load copies`
+   - `e1fc2106` `perf(gui): Keep preprocessed load order`
+   - `5ca3020c` `perf(gui): Skip redundant refresh steps`
+13. efeito funcional consolidado:
+   - a carga sem filtros preserva o dataframe preprocessado do worker como estado visual inicial
+   - o refresh simples agora pula filtros avancados/coluna quando nao existe filtro extra ativo
+   - o caminho de sanitizacao/ordenacao inicial ficou centralizado no `DataLoaderWorker`
+   - a busca geral simples reaproveita o dataframe filtrado ordenado em vez de recriar `df_exibido`
+14. validacao aterrada nesta frente:
+   - `py_compile`, `ruff`, `ty` verdes no escopo tocado
+   - `pytest` focados verdes:
+     - `tests/test_filter_cache_locking.py`
+     - `tests/test_filter_worker.py`
+     - `tests/test_workers_advanced.py` no bloco de cache do `FilterWorker`
+     - `tests/test_data_loader_worker.py`
+     - selecoes relevantes de `tests/test_gui_filter_logic.py`
+   - review `kluster` local limpo no escopo tocado
+15. prova real curta mais recente com GUI e `data/ssas.db`:
+   - carga: `80448` linhas, `84` colunas, `4.5386s`
+   - filtro frio `MEL3`: `1.9114s`
+   - filtro quente `MEL3`: `0.5139s`
+   - pagina `2`: `0.3271s`
+   - `df_exibido is df_completo == True` na carga
+   - `df_exibido is _df_last_search_filtered == True` no filtro simples
+   - prints atualizados:
+     - `artifacts/gui_load_after_real_db.png`
+     - `artifacts/gui_filter_MEL3.png`
+     - `artifacts/gui_filter_MEL3_page2.png`
+   - nota: esta ultima rodada foi em `offscreen`; usar a baseline interativa anterior para comparacao fina de RSS
+16. checks remotos do PR `#47` apos esta frente:
+   - `pass`: `CodeQL`, `CodeFactor`, `DeepScan`, `GitGuardian`, `semgrep`, `secret-scan`, `submit-pypi`, `precheck-default-setup`, `analyze (python)`
+   - `fail` externo/vendor: `DeepSource: Error`
+   - `fail` externo por limite: `code/snyk (mauriciomenon)`, `security/snyk (mauriciomenon)`
+17. leitura tecnica atual:
+   - a frente `D` removeu recarregamentos e donos concorrentes importantes no load/filter path
+   - ainda sobra diagnostico estrutural para o proximo hotspot de memoria/custo, mas ele deve vir em slice novo e com diagnostico puro primeiro
+   - nao ha motivo para reabrir layout, detalhes de aba ou helper novo nesta retomada
 
 ## HISTORICAL SNAPSHOT 2026-04-11 23h00
 
@@ -74,21 +146,26 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 
 ### Proximo passo recomendado
 
-1. manter qualquer refatoracao de `display_current_page(...)` em slice separado
-2. nao reabrir CLI junto com GUI sem pedido explicito
-3. tratar qualquer novo call site visual que use `display_current_page(...)` como risco de contrato cruzado
-4. nao mexer no renderer paralelo `handler_base` sem prova de callsite ativo
-5. seguir com `git status --short` no inicio
-6. considerar fechado o residual de lifecycle global em `tests/test_gui_filter_logic.py`; nao reabrir sem novo repro
-7. so reabrir o bloco GUI/tabela/detalhes se houver:
-   - repro novo em tela
-   - ou slice proprio de refatoracao pequena com contrato explicito
-8. antes de novo patch, ler:
+1. ao abrir a nova janela, ler nesta ordem:
    - `AGENTS.md`
    - `docs/NEXT_CHAT_MIGRATION.md`
    - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
    - `docs/RECOVERY_BACKLOG.md`
-   - `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
+2. tratar este topo como a fonte viva do estado atual; os blocos abaixo sao historico
+3. manter qualquer refatoracao de `display_current_page(...)` em slice separado
+4. nao reabrir CLI junto com GUI sem pedido explicito
+5. nao mexer em layout/posicionamento sem pedido explicito
+6. ordem obrigatoria de retomada tecnica agora:
+   - fechar este `DOC_SYNC`
+   - voltar para diagnostico puro do proximo hotspot estrutural
+   - aprovar um novo slice minimo antes de tocar runtime
+   - manter `tests/test_quality_gates_smoke.py`, `tests/test_workers_advanced.py` e `core/app_logic.py` como frente separada, sem misturar tudo
+7. considerar fechado o bug da troca de aba; nao reabrir essa area sem novo repro
+8. buscar regressao real em RAM e tempo de carga antes de qualquer micro-otimizacao nova
+9. antes de qualquer novo patch, declarar:
+   - objetivo do slice
+   - arquivos permitidos
+   - arquivos proibidos
 
 ## HISTORICAL SNAPSHOT 2026-04-07 00h30
 
