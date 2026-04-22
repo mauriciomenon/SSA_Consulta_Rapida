@@ -2,20 +2,17 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-21 22h20
+## CURRENT TRUTH 2026-04-21 23h40
 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. `HEAD` local e `origin/dev` estao alinhados em `5ca3020cb62191ed7855856d0b85f5a19a9156f2`
+2. `HEAD` local e `origin/dev` estao alinhados em `581b88bfd28095572c69b5db9181ebc7dec28375`
 3. ultimo commit atual:
-   - `2026-04-21 22:17:43 -0300`
-   - `perf(gui): Skip redundant refresh steps`
+   - `2026-04-21 23:40:27 -0300`
+   - `perf(gui): Reuse subset on safe search refinement`
 4. workspace local atual:
-   - docs modificados:
-     - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
-     - `docs/NEXT_CHAT_MIGRATION.md`
-     - `docs/RECOVERY_BACKLOG.md`
+   - repo limpo para codigo/docs
    - residuo fora de escopo:
      - `AGENTS.md.backup_20260416_223903`
 5. PR remoto ativo:
@@ -64,11 +61,15 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `dcb6a830` `perf(gui): Trim cache and load copies`
    - `e1fc2106` `perf(gui): Keep preprocessed load order`
    - `5ca3020c` `perf(gui): Skip redundant refresh steps`
+   - `17c9a806` `perf(search): Cap large row cache retention`
+   - `581b88bf` `perf(gui): Reuse subset on safe search refinement`
 13. efeito funcional consolidado:
    - a carga sem filtros preserva o dataframe preprocessado do worker como estado visual inicial
    - o refresh simples agora pula filtros avancados/coluna quando nao existe filtro extra ativo
    - o caminho de sanitizacao/ordenacao inicial ficou centralizado no `DataLoaderWorker`
    - a busca geral simples reaproveita o dataframe filtrado ordenado em vez de recriar `df_exibido`
+   - o cache grande de `row_search_text` deixou de permanecer no dataframe cheio quando o payload fica caro
+   - a GUI agora refina de forma segura sobre `_df_last_search_filtered` quando o novo texto estende monotonicamente a busca anterior
 14. validacao aterrada nesta frente:
    - `py_compile`, `ruff`, `ty` verdes no escopo tocado
    - `pytest` focados verdes:
@@ -79,24 +80,26 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - selecoes relevantes de `tests/test_gui_filter_logic.py`
    - review `kluster` local limpo no escopo tocado
 15. prova real curta mais recente com GUI e `data/ssas.db`:
-   - carga: `80448` linhas, `84` colunas, `4.5386s`
-   - filtro frio `MEL3`: `1.9114s`
-   - filtro quente `MEL3`: `0.5139s`
-   - pagina `2`: `0.3271s`
-   - `df_exibido is df_completo == True` na carga
-   - `df_exibido is _df_last_search_filtered == True` no filtro simples
+   - carga: `80448` linhas, `84` colunas, `3.8360s`
+   - busca fria `MEL`: `1.5125s` com `22606` linhas
+   - refinamento `MEL -> MEL3`: `0.8553s` com `4680` linhas
+   - repeticao quente `MEL3`: `0.6602s`
+   - pagina `2`: `0.3444s`
+   - `df_exibido is _df_last_search_filtered == True` no resultado final
    - prints atualizados:
      - `artifacts/gui_load_after_real_db.png`
      - `artifacts/gui_filter_MEL3.png`
      - `artifacts/gui_filter_MEL3_page2.png`
    - nota: esta ultima rodada foi em `offscreen`; usar a baseline interativa anterior para comparacao fina de RSS
 16. checks remotos do PR `#47` apos esta frente:
-   - `pass`: `CodeQL`, `CodeFactor`, `DeepScan`, `GitGuardian`, `semgrep`, `secret-scan`, `submit-pypi`, `precheck-default-setup`, `analyze (python)`
+   - `pass`: `CodeFactor`, `CodeRabbit`, `DeepScan`, `GitGuardian`, `Socket Security: Project Report`, `submit-pypi`, `precheck-default-setup`, `secret-scan`
+   - `pending`: `analyze (python)`, `semgrep-cloud-platform/scan`
    - `fail` externo/vendor: `DeepSource: Error`
    - `fail` externo por limite: `code/snyk (mauriciomenon)`, `security/snyk (mauriciomenon)`
 17. leitura tecnica atual:
    - a frente `D` removeu recarregamentos e donos concorrentes importantes no load/filter path
-   - ainda sobra diagnostico estrutural para o proximo hotspot de memoria/custo, mas ele deve vir em slice novo e com diagnostico puro primeiro
+   - os follow-ups imediatos recuperaram memoria residente do cache de busca e ganho quente no refinamento seguro da GUI
+   - ainda sobra diagnostico estrutural para o proximo hotspot do refresh pos-busca, mas ele deve vir em slice novo e com diagnostico puro primeiro
    - nao ha motivo para reabrir layout, detalhes de aba ou helper novo nesta retomada
 
 ## HISTORICAL SNAPSHOT 2026-04-11 23h00

@@ -5,6 +5,90 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-21 23:40 - search retention capped and safe gui refinement landed
+
+Escopo desta atualizacao:
+1. registrar os 2 follow-ups pos-`D` que aterraram na frente de busca
+2. consolidar o que foi ganho em memoria residente e em refinamento quente sem reabrir layout
+3. registrar a prova real mais recente e o estado atual do PR `#47`
+
+Commits aterrados nesta frente:
+1. `17c9a806` `perf(search): Cap large row cache retention`
+2. `581b88bf` `perf(gui): Reuse subset on safe search refinement`
+
+O que estes 2 slices fecharam de fato:
+1. `row_search_text` continua sendo usado na execucao corrente da busca, mas deixa de ficar residente no `df_completo` quando o payload fica caro demais
+2. o cache pequeno/medio continua vivo em subsets menores, preservando ganho quente util
+3. a GUI passou a refinar sobre `_df_last_search_filtered` so em casos seguros:
+   - busca geral anterior ativa
+   - sem filtros avancados
+   - sem filtros de coluna
+   - sem exclusao terminal
+   - novo texto como extensao monotona da busca anterior
+4. restore/broadening continuam recomputando de `df_completo`
+5. o guard do caminho de filtro por data foi endurecido para nao resetar `col_mask` nem depender implicitamente de `display_dates`
+
+Validacao desta frente:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_filter_contract.py tests/test_gui_filter_logic.py`
+2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_filter_contract.py tests/test_gui_filter_logic.py`
+3. `uv run --python 3.13 ty check core/app_logic.py tests/test_app_logic_filter_contract.py tests/test_gui_filter_logic.py`
+4. `uv run --python 3.13 pytest -q tests/test_app_logic_filter_contract.py`
+5. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k 'general_search or filter_dataframe or on_filter_finished'`
+6. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+7. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+8. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+9. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k 'general_search or initiate_filtering or on_filter_finished or clear_filter'`
+10. review `kluster` local no escopo tocado; os `high` novos do bloco de data/mascara foram corrigidos, e o que sobrou no fim foi debito estrutural antigo fora do escopo minimo
+
+Prova real mais recente com GUI e `data/ssas.db`:
+1. carga:
+   - `80448` linhas
+   - `84` colunas
+   - `3.8360s`
+2. busca/refinamento:
+   - `MEL` frio: `1.5125s` com `22606` linhas
+   - refinamento `MEL -> MEL3`: `0.8553s` com `4680` linhas
+   - repeticao quente `MEL3`: `0.6602s`
+3. pagina `2`: `0.3444s`
+4. identidades confirmadas:
+   - `df_exibido is _df_last_search_filtered == True` no resultado final
+5. prints atualizados:
+   - `artifacts/gui_load_after_real_db.png`
+   - `artifacts/gui_filter_MEL3.png`
+   - `artifacts/gui_filter_MEL3_page2.png`
+6. nota de leitura:
+   - o RSS desta rodada foi lido via `ru_maxrss`, entao representa pico de processo em `offscreen`, nao baseline instantanea canonica
+
+Estado de PR/checks apos `581b88bf`:
+1. `dev` e `origin/dev` alinhados em `581b88bf`
+2. `#47` continua `OPEN` com `mergeStateStatus=UNSTABLE`
+3. checks em `pass`:
+   - `CodeFactor`
+   - `CodeRabbit`
+   - `DeepScan`
+   - `GitGuardian Security Checks`
+   - `Socket Security: Project Report`
+   - `submit-pypi`
+   - `precheck-default-setup`
+   - `secret-scan`
+4. checks em `pending`:
+   - `analyze (python)`
+   - `semgrep-cloud-platform/scan`
+5. checks externos ainda falhando:
+   - `DeepSource: Error`
+   - `code/snyk (mauriciomenon)` por limite
+   - `security/snyk (mauriciomenon)` por limite
+
+Leitura tecnica apos esses follow-ups:
+1. a linha correta desta frente ficou clara:
+   - remover payload residente caro no dataframe cheio
+   - recuperar tempo quente reutilizando subsets pequenos e semanticamente seguros
+2. o proximo alvo nao deve voltar para `row_search_text` grande no `df_completo`
+3. o proximo diagnostico deve olhar o refresh pos-busca:
+   - `_apply_column_filters`
+   - `_update_filters_summary`
+   - outros reprocessamentos quentes remanescentes no mixin
+
 ## Update 2026-04-21 22:20 - gui D slices completed and post-push PR state
 
 Escopo desta atualizacao:
