@@ -3652,6 +3652,14 @@ class FilterGUISSAMixin:
                     exc,
                 )
         # CORRECAO 2026-01-08: Ordenar por numero_ssa decrescente apos filtro
+        can_reuse_preprocessed_load_result = (
+            not has_general_search
+            and not has_column_filters
+            and not has_advanced_filters
+            and not has_excluded_terminal_status
+            and filtered is self.df_completo
+            and bool(getattr(filtered, "attrs", {}).get("ssa_preprocessed_for_gui"))
+        )
         can_reuse_general_search_sorted_result = (
             has_general_search
             and not has_column_filters
@@ -3661,7 +3669,8 @@ class FilterGUISSAMixin:
             and bool(getattr(filtered, "attrs", {}).get("ssa_sorted_for_display"))
         )
         if (
-            not can_reuse_general_search_sorted_result
+            not can_reuse_preprocessed_load_result
+            and not can_reuse_general_search_sorted_result
             and not filtered.empty
             and "numero_ssa" in filtered.columns
         ):
