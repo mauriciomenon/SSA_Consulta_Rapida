@@ -5,6 +5,26 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-22 10:07 - laboratory B discarded and removed
+
+Escopo desta atualizacao:
+1. registrar o encerramento do laboratorio `B` fora da linha principal
+2. deixar explicito que nenhum patch do experimento voltou para `dev`
+3. evitar que o proximo ciclo leia esse laboratorio como pendencia ainda aberta
+
+Estado final do laboratorio:
+1. worktree destacado foi criado apenas para experimento local de cache grande no full dataframe
+2. thresholds e cenarios hostis foram medidos no laboratorio
+3. o experimento foi descartado por custo de RAM no alvo de `4 GB`
+4. o worktree foi removido
+5. `dev` permaneceu intacta
+
+Leitura tecnica:
+1. houve ganho quente forte no full dataframe
+2. o custo residente adicional ficou alto demais para o alvo operacional
+3. nenhuma mudanca do laboratorio deve ser portada para `dev`
+4. o proximo residual real precisa ser reidentificado por novo diagnostico puro em `dev`
+
 ## Update 2026-04-22 10:02 - merged chunk overlaps now deduplicate by source index
 
 Escopo desta atualizacao:
