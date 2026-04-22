@@ -43,16 +43,21 @@ PLACEHOLDER_PATTERNS = [
     r"^TBD$",
     r"^EM\s+BRANCO$",
     r"^PREENCHER$",
-    r"^lorem ipsum",
+    r"^lorem ipsum.*$",
     r"^conteudo pendente$",
     r"^conteúdo pendente$",
 ]
+COMPILED_PLACEHOLDER_PATTERNS = [
+    re.compile(pattern, re.IGNORECASE) for pattern in PLACEHOLDER_PATTERNS
+]
 IGNORE_DIRS = {
     ".git",
+    ".opencode",
     "__pycache__",
     "build",
     "dist",
     "data",
+    "node_modules",
     "venv",
     ".venv",
     ".tox",
@@ -104,6 +109,8 @@ class ScanStats:
 
 
 def list_markdown_files(base: Path) -> Iterable[Path]:
+    if base.name in IGNORE_DIRS:
+        return
     for root, dirs, files in os.walk(base):
         root_path = Path(root)
         # Filtra dirs ignorados in-place (evita caminhada profunda neles)
@@ -122,22 +129,29 @@ def read_file_lines(path: Path) -> List[str]:
 
 def has_placeholder(lines: Sequence[str]) -> Optional[str]:
     lowered = [line.strip().lower() for line in lines if line.strip()]
-    for pattern in PLACEHOLDER_PATTERNS:
-        regex = re.compile(pattern, re.IGNORECASE)
+    for pattern, regex in zip(
+        PLACEHOLDER_PATTERNS, COMPILED_PLACEHOLDER_PATTERNS, strict=False
+    ):
         for original in lowered:
-            if regex.search(original):
+            if regex.fullmatch(original):
                 return pattern
     return None
 
 
 def evaluate_file(path: Path, min_lines: int, min_nonempty: int) -> Optional[DocIssue]:
     lines = read_file_lines(path)
-    rel = path.relative_to(REPO_ROOT)
-    rel_str = rel.as_posix()
-    if rel_str in ALLOW_EMPTY_FILES:
-        # Explicitamente ignorado
-        if not lines or all(not ln.strip() for ln in lines):
-            return None
+    rel_str: str | None = None
+    try:
+        rel_path = path.resolve().relative_to(REPO_ROOT.resolve())
+        rel_str = rel_path.as_posix()
+    except ValueError:
+        rel_path = None
+    allow_empty_file = bool(
+        rel_str in ALLOW_EMPTY_FILES
+        or (rel_path == Path(path.name) and path.name in ALLOW_EMPTY_FILES)
+    )
+    if allow_empty_file:
+        return None
     if not lines:
         return DocIssue(str(path), "empty", "arquivo sem linhas", 0, 0)
     total = len(lines)
@@ -283,12 +297,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             else:
                 print("Nenhuma issue encontrada.")
 
-        # Estratégia para compatibilizar testes:
-        # * Caminho feliz (smoke) chama sem --paths e sem --fail-on-issues => nunca falha.
-        # * Teste de falha invoca com --paths (arquivo ruim) e espera returncode!=0.
-        # Portanto: se o usuário passou --paths explicitamente e houver issues -> return 1.
-        # Mantemos também semântica original de --fail-on-issues.
-        if issues and (ns.fail_on_issues or ns.paths):
+        if issues and ns.fail_on_issues:
             return 1
         return 0
     except Exception as e:  # noqa: BLE001
