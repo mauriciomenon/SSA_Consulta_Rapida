@@ -2,15 +2,15 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-21 23h40
+## CURRENT TRUTH 2026-04-22 00h15
 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. `HEAD` local e `origin/dev` estao alinhados em `581b88bfd28095572c69b5db9181ebc7dec28375`
+2. `HEAD` local e `origin/dev` estao alinhados em `908e8561940e947d8254931ed841913a788ea891`
 3. ultimo commit atual:
-   - `2026-04-21 23:40:27 -0300`
-   - `perf(gui): Reuse subset on safe search refinement`
+   - `2026-04-22 00:09:11 -0300`
+   - `perf(gui): Reuse quick executor combo options`
 4. workspace local atual:
    - repo limpo para codigo/docs
    - residuo fora de escopo:
@@ -63,6 +63,8 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `5ca3020c` `perf(gui): Skip redundant refresh steps`
    - `17c9a806` `perf(search): Cap large row cache retention`
    - `581b88bf` `perf(gui): Reuse subset on safe search refinement`
+   - `991fa874` `perf(gui): Narrow column filter working set`
+   - `908e8561` `perf(gui): Reuse quick executor combo options`
 13. efeito funcional consolidado:
    - a carga sem filtros preserva o dataframe preprocessado do worker como estado visual inicial
    - o refresh simples agora pula filtros avancados/coluna quando nao existe filtro extra ativo
@@ -70,6 +72,8 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - a busca geral simples reaproveita o dataframe filtrado ordenado em vez de recriar `df_exibido`
    - o cache grande de `row_search_text` deixou de permanecer no dataframe cheio quando o payload fica caro
    - a GUI agora refina de forma segura sobre `_df_last_search_filtered` quando o novo texto estende monotonicamente a busca anterior
+   - os filtros por coluna agora reduzem o `working_df` por etapa no refresh, evitando reprocessamento amplo desnecessario
+   - o combo rapido de setor executor passou a reutilizar as opcoes atuais em vez de repopular tudo a cada refresh
 14. validacao aterrada nesta frente:
    - `py_compile`, `ruff`, `ty` verdes no escopo tocado
    - `pytest` focados verdes:
@@ -86,20 +90,25 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - repeticao quente `MEL3`: `0.6602s`
    - pagina `2`: `0.3444s`
    - `df_exibido is _df_last_search_filtered == True` no resultado final
+   - refresh cheio com `80448` linhas e 3 filtros por coluna:
+     - baseline diagnosticada: `138.72ms`
+     - apos `991fa874`: `113.78ms`
+     - apos `908e8561`: `74.19ms`
    - prints atualizados:
      - `artifacts/gui_load_after_real_db.png`
      - `artifacts/gui_filter_MEL3.png`
      - `artifacts/gui_filter_MEL3_page2.png`
    - nota: esta ultima rodada foi em `offscreen`; usar a baseline interativa anterior para comparacao fina de RSS
 16. checks remotos do PR `#47` apos esta frente:
-   - `pass`: `CodeFactor`, `CodeRabbit`, `DeepScan`, `GitGuardian`, `Socket Security: Project Report`, `submit-pypi`, `precheck-default-setup`, `secret-scan`
-   - `pending`: `analyze (python)`, `semgrep-cloud-platform/scan`
+   - `pass`: `CodeFactor`, `CodeRabbit`, `DeepScan`, `GitGuardian`, `Socket Security: Project Report`, `submit-pypi`, `precheck-default-setup`
+   - `pending`: `analyze (python)`, `secret-scan`, `semgrep-cloud-platform/scan`, `Socket Security: Pull Request Alerts`
    - `fail` externo/vendor: `DeepSource: Error`
    - `fail` externo por limite: `code/snyk (mauriciomenon)`, `security/snyk (mauriciomenon)`
 17. leitura tecnica atual:
    - a frente `D` removeu recarregamentos e donos concorrentes importantes no load/filter path
    - os follow-ups imediatos recuperaram memoria residente do cache de busca e ganho quente no refinamento seguro da GUI
-   - ainda sobra diagnostico estrutural para o proximo hotspot do refresh pos-busca, mas ele deve vir em slice novo e com diagnostico puro primeiro
+   - os dois slices seguintes derrubaram o refresh quente de `138.72ms` para `74.19ms`
+   - o proximo hotspot remanescente ficou concentrado em `_apply_column_filters`, e deve vir em slice novo e com diagnostico puro primeiro
    - nao ha motivo para reabrir layout, detalhes de aba ou helper novo nesta retomada
 
 ## HISTORICAL SNAPSHOT 2026-04-11 23h00

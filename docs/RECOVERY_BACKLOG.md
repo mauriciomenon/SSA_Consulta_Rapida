@@ -5,6 +5,78 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-22 00:15 - hot refresh path cut by incremental column filtering and combo reuse
+
+Escopo desta atualizacao:
+1. registrar os 2 slices focados no refresh quente pos-busca
+2. consolidar a medicao comparativa antes/depois no caso cheio
+3. registrar o novo hotspot remanescente com mais precisao
+
+Commits aterrados nesta frente:
+1. `991fa874` `perf(gui): Narrow column filter working set`
+2. `908e8561` `perf(gui): Reuse quick executor combo options`
+
+O que estes 2 slices fecharam de fato:
+1. `_apply_column_filters()` deixou de recalcular todas as mascaras sempre sobre o dataframe cheio
+2. o funil agora reduz o `working_df` a cada coluna, entao filtros posteriores processam menos linhas
+3. `_sync_quick_setor_executor_combo_from_filters()` deixou de repopular o combo rapido quando as opcoes atuais ja cobrem o valor selecionado
+4. o fallback de repopulacao foi preservado para combo vazio ou valor ausente
+
+Validacao desta frente:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k '_apply_column_filters or column_filter or general_search or initiate_filtering or on_filter_finished or clear_filter'`
+5. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py`
+6. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py`
+7. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py`
+8. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k 'quick_setor_executor or general_search or initiate_filtering or on_filter_finished or clear_filter'`
+9. review `kluster` local sem blocker novo nos 2 slices; o que sobrou no fim foi debt estrutural antigo fora do escopo minimo
+
+Medicao comparativa do refresh cheio com `80448` linhas e 3 filtros por coluna:
+1. baseline diagnosticada:
+   - refresh: `138.72ms`
+   - `_apply_column_filters`: `94.57ms`
+   - `_sync_quick_setor_executor_combo_from_filters`: `40.92ms`
+2. apos `991fa874`:
+   - refresh: `113.78ms`
+   - `_apply_column_filters`: `66.74ms`
+   - `_sync_quick_setor_executor_combo_from_filters`: `41.51ms`
+3. apos `908e8561`:
+   - refresh: `74.19ms`
+   - `_apply_column_filters`: `70.61ms`
+   - `_sync_quick_setor_executor_combo_from_filters`: `0.03ms`
+4. leitura do acumulado:
+   - refresh quente caiu de `138.72ms` para `74.19ms`
+   - o combo rapido saiu praticamente do caminho quente
+   - o hotspot remanescente agora voltou a ficar concentrado em `_apply_column_filters`
+
+Estado de PR/checks apos `908e8561`:
+1. `dev` e `origin/dev` alinhados em `908e8561`
+2. `#47` continua `OPEN` com `mergeStateStatus=UNSTABLE`
+3. checks em `pass`:
+   - `CodeFactor`
+   - `CodeRabbit`
+   - `DeepScan`
+   - `GitGuardian Security Checks`
+   - `Socket Security: Project Report`
+   - `submit-pypi`
+   - `precheck-default-setup`
+4. checks em `pending`:
+   - `analyze (python)`
+   - `secret-scan`
+   - `semgrep-cloud-platform/scan`
+   - `Socket Security: Pull Request Alerts`
+5. checks externos ainda falhando:
+   - `DeepSource: Error`
+   - `code/snyk (mauriciomenon)` por limite
+   - `security/snyk (mauriciomenon)` por limite
+
+Leitura tecnica apos `P3A/P3B`:
+1. o refresh quente melhorou de forma material e mensuravel
+2. a suspeita anterior sobre `_update_filters_summary` nao se sustentou; ela ficou pequena no caso real medido
+3. o proximo slice deve mirar apenas o hotspot remanescente de `_apply_column_filters`, sem misturar com layout, combo rapido ou refatoracao ampla
+
 ## Update 2026-04-21 23:40 - search retention capped and safe gui refinement landed
 
 Escopo desta atualizacao:
