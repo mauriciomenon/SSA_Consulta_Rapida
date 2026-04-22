@@ -6302,6 +6302,67 @@ class TestGUIFilterLogic:
 
         assert filtered["numero_ssa"].tolist() == [1]
 
+    def test_column_filter_date_display_series_reuses_cache_on_same_revision(self):
+        dated_df = self.base_df.assign(
+            data_programacao=pd.Series(
+                [
+                    "2025-01-01 08:00:00",
+                    "2025-01-02 09:00:00",
+                    "2025-01-03 10:00:00",
+                    "2025-01-04 11:00:00",
+                    "",
+                ],
+                dtype="string",
+            )
+        ).copy()
+        self.window._data_revision = 71
+
+        first_series = self.window._get_column_filter_date_display_series(
+            dated_df, "data_programacao"
+        )
+        second_series = self.window._get_column_filter_date_display_series(
+            dated_df, "data_programacao"
+        )
+
+        assert first_series is second_series
+        assert getattr(self.window, "_column_filter_date_cache_scope", None) == (
+            71,
+            id(dated_df),
+        )
+
+    def test_column_filter_date_display_series_invalidates_cache_on_revision_change(
+        self,
+    ):
+        dated_df = self.base_df.assign(
+            data_programacao=pd.Series(
+                [
+                    "2025-01-01 08:00:00",
+                    "2025-01-02 09:00:00",
+                    "2025-01-03 10:00:00",
+                    "2025-01-04 11:00:00",
+                    "",
+                ],
+                dtype="string",
+            )
+        ).copy()
+        self.window._data_revision = 81
+
+        first_series = self.window._get_column_filter_date_display_series(
+            dated_df, "data_programacao"
+        )
+        dated_df.loc[0, "data_programacao"] = "2025-03-05 10:00:00"
+        self.window._data_revision = 82
+        second_series = self.window._get_column_filter_date_display_series(
+            dated_df, "data_programacao"
+        )
+
+        assert first_series is not second_series
+        assert second_series.iloc[0] == "05/03/2025"
+        assert getattr(self.window, "_column_filter_date_cache_scope", None) == (
+            82,
+            id(dated_df),
+        )
+
     def test_apply_column_filters_reduces_working_dataframe_between_columns(
         self, monkeypatch
     ):

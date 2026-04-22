@@ -3569,9 +3569,11 @@ class FilterGUISSAMixin:
     ) -> pd.Series | None:
         if df is None or col not in df.columns:
             return None
-        cache_df_id = getattr(self, "_column_filter_date_cache_df_id", None)
-        if cache_df_id != id(df):
-            self._column_filter_date_cache_df_id = id(df)
+        current_revision = getattr(self, "_data_revision", 0)
+        cache_scope = getattr(self, "_column_filter_date_cache_scope", None)
+        next_scope = (current_revision, id(df))
+        if cache_scope != next_scope:
+            self._column_filter_date_cache_scope = next_scope
             self._column_filter_date_cache = {}
         cache = getattr(self, "_column_filter_date_cache", None)
         if not isinstance(cache, dict):
