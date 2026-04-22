@@ -1342,13 +1342,14 @@ class FilterGUISSAMixin:
     def _is_filter_worker_running(self, worker) -> bool:
         if worker is None:
             return False
+        is_running = False
         try:
             if hasattr(worker, "isRunning"):
-                return bool(worker.isRunning())
+                is_running = bool(worker.isRunning())
         except Exception as exc:
             logger.debug("Falha ao verificar estado do worker de filtro: %s", exc)
             return False
-        return False
+        return is_running
 
     def _prune_retired_filter_workers(self) -> None:
         retired_local = list(getattr(self, "_retired_filter_workers", []) or [])
@@ -3505,8 +3506,9 @@ class FilterGUISSAMixin:
         if df is None or df.empty or not self._active_column_filters:
             return df
         working_df = df
-        mask = pd.Series(True, index=working_df.index)
         for col, raw in self._active_column_filters.items():
+            if working_df.empty:
+                return working_df
             if col not in working_df.columns:
                 continue
             raw_str = str(raw).strip()
@@ -3537,12 +3539,9 @@ class FilterGUISSAMixin:
                     col_mask = col_mask & self._build_column_mask(
                         display_dates, exclude_expr
                     )
-
-            mask &= col_mask
-
-        if mask.all():
-            return working_df
-        return working_df[mask]
+            if not col_mask.all():
+                working_df = working_df[col_mask]
+        return working_df
 
     def _should_match_date_display_filter(self, col: str, raw_filter: str) -> bool:
         col_lower = str(col or "").casefold()
