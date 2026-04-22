@@ -5,6 +5,55 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-22 10:02 - merged chunk overlaps now deduplicate by source index
+
+Escopo desta atualizacao:
+1. registrar o slice minimo no merge multi-chunk com sobreposicao entre termos diferentes
+2. trocar a deduplicacao final por linha inteira por deduplicacao por indice original
+3. preservar o contrato dos caminhos single-frame e chunk vazio
+
+Commit aterrado nesta frente:
+1. `7f7baf65cd520b390c9a37a0eef05f270e17fe11`
+   - `2026-04-22 10:02:06 -0300`
+   - `perf(gui): Deduplicate merged chunks by source index`
+
+O que este slice fechou de fato:
+1. o merge multi-chunk agora colapsa sobreposicoes pela primeira ocorrencia de cada indice original do `df_completo`
+2. o ajuste entrou no worker assincrono e nos caminhos sync/fallback
+3. a semantica final foi preservada:
+   - chunk unico reaproveita o proprio frame
+   - chunk vazio reaproveita a base
+   - sobreposicao entre chunks diferentes continua sem repeticao
+   - linhas iguais com indices diferentes continuam existindo, por representarem registros distintos
+4. o slice nao mexeu em parser, layout nem em `core/app_logic.py`
+
+Validacao desta frente:
+1. `uv run --python 3.13 python -m py_compile gui/workers/filter_worker.py gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_worker.py tests/test_gui_filter_logic.py`
+2. `uv run --python 3.13 ruff check gui/workers/filter_worker.py gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_worker.py tests/test_gui_filter_logic.py`
+3. `uv run --python 3.13 ty check gui/workers/filter_worker.py gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_worker.py tests/test_gui_filter_logic.py`
+4. `uv run --python 3.13 pytest -q tests/test_filter_worker.py tests/test_workers_advanced.py`
+5. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k 'general_search or initiate_filtering or on_filter_finished or clear_filter'`
+6. resultados:
+   - `51 passed`
+   - `46 passed, 1 skipped`
+7. review `kluster`: limpo, sem issues nem `agent_todo_list`
+
+Prova real curta:
+1. `QT_QPA_PLATFORM=offscreen uv run --python 3.13 python ...`
+2. caso multi-chunk com sobreposicao:
+   - chunks artificiais `MEL3 + MEL`
+   - `FILTER_MS=1674.28`
+   - `FILTER_ROWS=22606`
+3. identidade final preservada:
+   - `df_exibido is _df_last_search_filtered == True`
+
+Leitura tecnica apos o slice:
+1. o hotspot de `drop_duplicates()` no merge por sobreposicao forte deixou de ser a proxima frente principal
+2. o ganho medido no diagnostico anterior foi relevante:
+   - `drop_duplicates()` por linha inteira: `~105.89ms`
+   - dedup equivalente por indice: `~9.60ms`
+3. a proxima rodada deve medir so o residual realmente aberto, sem reabrir esse merge
+
 ## Update 2026-04-22 09:54 - duplicate chunks no longer recalculate within one request
 
 Escopo desta atualizacao:

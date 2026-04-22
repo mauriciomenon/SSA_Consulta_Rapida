@@ -2,15 +2,15 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-22 09h54
+## CURRENT TRUTH 2026-04-22 10h02
 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. `HEAD` local e `origin/dev` estao alinhados em `c707c8f99eb9d4a30ccdbe6ff3d13ca0087538aa`
+2. `HEAD` local e `origin/dev` estao alinhados em `7f7baf65cd520b390c9a37a0eef05f270e17fe11`
 3. ultimo commit atual:
-   - `2026-04-22 09:54:13 -0300`
-   - `perf(gui): Deduplicate repeated search chunks`
+   - `2026-04-22 10:02:06 -0300`
+   - `perf(gui): Deduplicate merged chunks by source index`
 4. workspace local atual:
    - repo limpo no escopo desta frente
    - residuos fora de escopo:
@@ -90,6 +90,9 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `c707c8f99eb9d4a30ccdbe6ff3d13ca0087538aa`
      - `2026-04-22 09:54:13 -0300`
      - `perf(gui): Deduplicate repeated search chunks`
+   - `7f7baf65cd520b390c9a37a0eef05f270e17fe11`
+     - `2026-04-22 10:02:06 -0300`
+     - `perf(gui): Deduplicate merged chunks by source index`
 13. efeito funcional consolidado:
    - a carga sem filtros preserva o dataframe preprocessado do worker como estado visual inicial
    - o refresh simples agora pula filtros avancados/coluna quando nao existe filtro extra ativo
@@ -152,7 +155,19 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - `FILTER_MS=1019.53`
      - `FILTER_ROWS=4680`
      - `df_exibido is _df_last_search_filtered == True`
-18. leitura tecnica atual:
+18. update de merge multi-chunk por indice:
+   - a deduplicacao final do merge deixou de comparar linha inteira
+   - o merge agora colapsa sobreposicoes pelo indice original do `df_completo`
+   - isso preserva linhas iguais com indices diferentes
+   - validacao aterrada:
+     - `51 passed`
+     - `46 passed, 1 skipped`
+   - prova real curta:
+     - chunks artificiais `MEL3 + MEL`
+     - `FILTER_MS=1674.28`
+     - `FILTER_ROWS=22606`
+     - `df_exibido is _df_last_search_filtered == True`
+19. leitura tecnica atual:
    - a frente `D` removeu recarregamentos e donos concorrentes importantes no load/filter path
    - os follow-ups imediatos recuperaram memoria residente do cache de busca e ganho quente no refinamento seguro da GUI
    - os tres slices seguintes derrubaram o refresh quente de `138.72ms` para `62.61ms` na primeira passagem e `10.13ms` na repeticao com a mesma revisao/dataframe
@@ -162,9 +177,8 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - `_import_single_file(...)` agora tolera `validation_report` sem `is_valid`
    - o residual de frame unico em `gui/workers/filter_worker.py:182` foi reduzido em `0c57e699a3867cd88a8faf926ad9d3f1a11f7023`
    - a duplicacao do fallback de `on_data_loaded(...)` foi reduzida em `fe608884496868c08f61557e9b844076ee80acb5`
-   - a frente principal deve migrar para diagnostico puro de multi-chunk em:
-     - `gui/workers/filter_worker.py:182`
-     - com foco em `drop_duplicates()` e sobreposicao entre chunks diferentes
+   - a frente principal nao precisa mais reabrir o merge multi-chunk ja fechado
+   - o proximo diagnostico deve mirar so o residual realmente aberto, sem voltar para `drop_duplicates()` como hotspot principal
    - os residuos de teste devem continuar em frentes separadas e pequenas
    - nao ha motivo para reabrir layout, detalhes de aba ou helper novo nesta retomada
 
