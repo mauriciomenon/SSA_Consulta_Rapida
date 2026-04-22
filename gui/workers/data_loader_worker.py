@@ -125,7 +125,8 @@ class DataLoaderWorker(QThread):
             normalized_parts.append(f"{self._quote_identifier(col)} {direction}")
         return ", ".join(normalized_parts)
 
-    def _sanitize_ssa_like_value(self, value) -> str:
+    @staticmethod
+    def _sanitize_ssa_like_value(value) -> str:
         if value is None:
             return ""
         try:
@@ -146,7 +147,8 @@ class DataLoaderWorker(QThread):
             return text.split(".", 1)[0]
         return text
 
-    def _build_initial_sorted_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+    @staticmethod
+    def _build_initial_sorted_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         base = df
         try:
             if "situacao" in base.columns:
