@@ -6337,6 +6337,68 @@ class TestGUIFilterLogic:
         assert executor_calls == [len(self.base_df)]
         assert descricao_calls == [1]
 
+    def test_apply_column_filters_reuses_normalized_series_on_same_revision(self):
+        repeated_df = self.base_df.copy()
+        self.window._data_revision = 33
+        self.window._column_filter_series_cache_revision = None
+        self.window._column_filter_series_cache = {}
+        self.window._active_column_filters = {"setor_executor": "MEL4"}
+
+        first_filtered = self.window._apply_column_filters(repeated_df)
+        first_key = (id(repeated_df), "setor_executor")
+        first_series = self.window._column_filter_series_cache[first_key]
+
+        second_filtered = self.window._apply_column_filters(repeated_df)
+        second_series = self.window._column_filter_series_cache[first_key]
+
+        assert first_filtered["numero_ssa"].tolist() == [3]
+        assert second_filtered["numero_ssa"].tolist() == [3]
+        assert first_series is second_series
+
+    def test_apply_column_filters_invalidates_normalized_series_cache_on_revision_change(
+        self,
+    ):
+        repeated_df = self.base_df.copy()
+        self.window._data_revision = 40
+        self.window._column_filter_series_cache_revision = None
+        self.window._column_filter_series_cache = {}
+        self.window._active_column_filters = {"setor_executor": "MEL4"}
+
+        self.window._apply_column_filters(repeated_df)
+        first_key = (id(repeated_df), "setor_executor")
+        first_series = self.window._column_filter_series_cache[first_key]
+
+        self.window._data_revision = 41
+        self.window._apply_column_filters(repeated_df)
+        second_key = (id(repeated_df), "setor_executor")
+        second_series = self.window._column_filter_series_cache[second_key]
+
+        assert first_series is not second_series
+        assert self.window._column_filter_series_cache_revision == 41
+
+    def test_apply_column_filters_scopes_normalized_series_cache_by_dataframe_identity(
+        self,
+    ):
+        first_df = self.base_df.copy()
+        second_df = self.base_df.copy()
+        self.window._data_revision = 52
+        self.window._column_filter_series_cache_revision = None
+        self.window._column_filter_series_cache = {}
+        self.window._active_column_filters = {"setor_executor": "MEL4"}
+
+        self.window._apply_column_filters(first_df)
+        self.window._apply_column_filters(second_df)
+
+        first_key = (id(first_df), "setor_executor")
+        second_key = (id(second_df), "setor_executor")
+
+        assert first_key in self.window._column_filter_series_cache
+        assert second_key in self.window._column_filter_series_cache
+        assert (
+            self.window._column_filter_series_cache[first_key]
+            is not self.window._column_filter_series_cache[second_key]
+        )
+
     def test_advanced_filter_include_ignores_nullable_text_instead_of_na_literal(self):
         nullable_df = self.base_df.assign(
             setor_executor=pd.Series([pd.NA, "MEL4", "IEE3", ""], dtype="string"),
