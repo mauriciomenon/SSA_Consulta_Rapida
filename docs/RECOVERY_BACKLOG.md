@@ -5,6 +5,52 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-22 09:39 - load fallback now reuses canonical helper logic
+
+Escopo desta atualizacao:
+1. registrar o slice pequeno no fallback nao preprocessado de `on_data_loaded(...)`
+2. remover duplicacao local de calculo de colunas nao nulas
+3. reaproveitar a logica canonica do `DataLoaderWorker` sem tocar o caminho preprocessado principal
+
+Commit aterrado nesta frente:
+1. `fe608884496868c08f61557e9b844076ee80acb5`
+   - `2026-04-22 09:39:02 -0300`
+   - `ref(gui): Trim load fallback duplication`
+
+O que este slice fechou de fato:
+1. `_build_non_null_columns(...)` em `DataLoaderWorker` passou a ser reutilizavel como `staticmethod`
+2. `on_data_loaded(...)` passou a reaproveitar esse helper no branch fallback
+3. o `try/except` redundante em volta de `_build_initial_sorted_dataframe(...)` saiu do fallback local
+4. o contrato funcional permaneceu igual:
+   - `df_completo` fica sanitizado na ordem de entrada no fallback
+   - `df_exibido` continua no contrato visual final da GUI
+   - o caminho com `ssa_preprocessed_for_gui=True` segue intacto
+
+Validacao desta frente:
+1. `uv run --python 3.13 python -m py_compile gui/workers/data_loader_worker.py gui/ssa/gui_workers.py tests/test_gui_filter_logic.py`
+2. `uv run --python 3.13 ruff check gui/workers/data_loader_worker.py gui/ssa/gui_workers.py tests/test_gui_filter_logic.py`
+3. `uv run --python 3.13 ty check gui/workers/data_loader_worker.py gui/ssa/gui_workers.py tests/test_gui_filter_logic.py`
+4. `uv run --python 3.13 pytest -q tests/test_data_loader_worker.py`
+5. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k 'on_data_loaded or clear_all_filters_global_reuses_df_completo_reference or hard_reset_filters_state_reuses_df_completo_reference'`
+6. resultados:
+   - `15 passed`
+   - `14 passed, 300 deselected`
+7. review `kluster`: limpo, sem issues nem `agent_todo_list`
+
+Prova real curta:
+1. `QT_QPA_PLATFORM=offscreen uv run --python 3.13 python ...`
+2. carga real:
+   - `3536.19ms`
+   - `80448` linhas
+   - `84` colunas
+3. contrato principal preservado:
+   - `df_exibido is df_completo == True` no caminho preprocessado
+
+Leitura tecnica apos o slice:
+1. o branch fallback de `gui/ssa/gui_workers.py:910` deixou de ser a proxima frente principal
+2. o proximo alvo coerente volta a ser o residual multi-chunk de `gui/workers/filter_worker.py:182`
+3. `tests/test_quality_gates_smoke.py:34` e `tests/test_workers_advanced.py:648` seguem separados como frentes pequenas de teste
+
 ## Update 2026-04-22 09:33 - single-frame filter paths now reuse result references
 
 Escopo desta atualizacao:
