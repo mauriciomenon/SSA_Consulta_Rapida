@@ -2,14 +2,14 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-04-21 23h40
+## CURRENT TRUTH 2026-04-22 00h15
 
 - Leitura rapida:
   1. branch alvo confirmada: `dev`
-  2. `HEAD` local e `origin/dev` estao alinhados em `581b88bfd28095572c69b5db9181ebc7dec28375`
+  2. `HEAD` local e `origin/dev` estao alinhados em `908e8561940e947d8254931ed841913a788ea891`
   3. ultimo commit atual:
-     - `2026-04-21 23:40:27 -0300`
-     - `perf(gui): Reuse subset on safe search refinement`
+     - `2026-04-22 00:09:11 -0300`
+     - `perf(gui): Reuse quick executor combo options`
   4. worktree local atual:
      - repo limpo para codigo/docs
      - unico residuo local conhecido fora de escopo:
@@ -68,6 +68,8 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - `5ca3020c` `perf(gui): Skip redundant refresh steps`
      - `17c9a806` `perf(search): Cap large row cache retention`
      - `581b88bf` `perf(gui): Reuse subset on safe search refinement`
+     - `991fa874` `perf(gui): Narrow column filter working set`
+     - `908e8561` `perf(gui): Reuse quick executor combo options`
   13. ganhos funcionais acumulados do bloco `D` e follow-ups imediatos:
      - a carga inicial sem filtros agora preserva o dataframe preprocessado do worker como estado visual canonico
      - o refresh simples deixa de reaplicar filtros avancados e filtros por coluna quando nao existe filtro extra ativo
@@ -75,6 +77,8 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - a busca geral simples reaproveita o resultado ordenado em vez de rematerializar o dataframe exibido
      - o cache grande de `row_search_text` deixou de ficar residente no dataframe cheio quando o payload passa do limite definido
      - a GUI voltou a reaproveitar o subset anterior em refinamento seguro (`MEL -> MEL3`) sem reter o cache gigante no `df_completo`
+     - o refresh por coluna passou a estreitar o `working_df` incrementalmente, sem recalcular todas as mascaras sempre sobre o dataset cheio
+     - o combo rapido de setor executor deixou de ser repopulado em todo refresh quando as opcoes ja cobrem o valor atual
      - o caso real `MEL3` segue com `df_exibido is _df_last_search_filtered == True`
      - o caso de carga sem filtros segue com `df_exibido is df_completo == True`
   14. validacao local aterrada nesta frente:
@@ -93,14 +97,20 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - repeticao quente `MEL3`: `0.6602s`
      - pagina `2`: `0.3444s`
      - `df_exibido is _df_last_search_filtered == True` no resultado final
+     - refresh cheio com `80448` linhas e 3 filtros por coluna:
+       - baseline diagnosticada: `138.72ms`
+       - apos `991fa874`: `113.78ms`
+       - apos `908e8561`: `74.19ms`
+       - `_apply_column_filters`: `94.57ms -> 66.74ms -> 70.61ms`
+       - `_sync_quick_setor_executor_combo_from_filters`: `40.92ms -> 41.51ms -> 0.03ms`
      - prints atualizados em:
        - `artifacts/gui_load_after_real_db.png`
        - `artifacts/gui_filter_MEL3.png`
        - `artifacts/gui_filter_MEL3_page2.png`
      - nota: esta ultima prova foi executada em `offscreen`; o RSS lido via `ru_maxrss` e high-water mark de processo, nao baseline canonica de memoria residente
   16. checks remotos relevantes apos os pushes desta frente:
-     - `pass`: `CodeFactor`, `CodeRabbit`, `DeepScan`, `GitGuardian`, `Socket Security: Project Report`, `submit-pypi`, `precheck-default-setup`, `secret-scan`
-     - `pending`: `analyze (python)`, `semgrep-cloud-platform/scan`
+     - `pass`: `CodeFactor`, `CodeRabbit`, `DeepScan`, `GitGuardian`, `Socket Security: Project Report`, `submit-pypi`, `precheck-default-setup`
+     - `pending`: `analyze (python)`, `secret-scan`, `semgrep-cloud-platform/scan`, `Socket Security: Pull Request Alerts`
      - `fail` externo/vendor: `DeepSource: Error`
      - `fail` externo por limite: `code/snyk (mauriciomenon)`, `security/snyk (mauriciomenon)`
   17. docs vivos estavam atrasados antes deste sync:
@@ -110,8 +120,8 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - eles agora devem contar a historia da branch a partir deste topo, nao do snapshot de `2026-04-15`
   18. regra de retomada obrigatoria daqui em diante:
      - primeiro fechar este `DOC_SYNC`
-     - depois voltar para diagnostico puro do proximo hotspot do refresh pos-busca antes de qualquer novo patch
-     - manter a proxima frente focada em remover reprocessamento quente remanescente, sem reabrir layout e sem criar helper novo sem aprovacao
+     - depois voltar para diagnostico puro do proximo hotspot remanescente em `_apply_column_filters`
+     - manter a proxima frente focada em reduzir recast/string work remanescente sem reabrir layout e sem criar helper novo sem aprovacao
 
 ## HISTORICAL SNAPSHOT 2026-04-14 10h15
 
