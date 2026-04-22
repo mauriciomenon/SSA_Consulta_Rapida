@@ -3505,6 +3505,15 @@ class FilterGUISSAMixin:
         """Aplica todos os filtros por coluna com as mesmas regras de busca (prefixo ^, sufixo $, =exato, ~regex, !neg)."""
         if df is None or df.empty or not self._active_column_filters:
             return df
+        current_revision = getattr(self, "_data_revision", 0)
+        cache_revision = getattr(self, "_column_filter_series_cache_revision", None)
+        if cache_revision != current_revision:
+            self._column_filter_series_cache_revision = current_revision
+            self._column_filter_series_cache = {}
+        series_cache = getattr(self, "_column_filter_series_cache", None)
+        if not isinstance(series_cache, dict):
+            series_cache = {}
+            self._column_filter_series_cache = series_cache
         working_df = df
         for col, raw in self._active_column_filters.items():
             if working_df.empty:
@@ -3514,7 +3523,13 @@ class FilterGUISSAMixin:
             raw_str = str(raw).strip()
             if not raw_str:
                 continue
-            col_series = working_df[col].astype("string").fillna("")
+            cache_key = (id(working_df), str(col))
+            cached_series = series_cache.get(cache_key)
+            if isinstance(cached_series, pd.Series):
+                col_series = cached_series
+            else:
+                col_series = working_df[col].astype("string").fillna("")
+                series_cache[cache_key] = col_series
             col_mask = self._build_column_mask(col_series, raw_str)
             display_dates = None
             if self._should_match_date_display_filter(col, raw_str):
