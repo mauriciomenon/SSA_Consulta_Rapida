@@ -417,6 +417,60 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters.get("setor_executor") == "IEE3"
         assert str(combo.currentData() or "") == "IEE3"
 
+    def test_sync_quick_setor_executor_combo_reuses_existing_options(self, monkeypatch):
+        self.window._refresh_quick_setor_executor_options()
+        combo = getattr(self.window, "quick_setor_executor_combo", None)
+        assert combo is not None
+        assert combo.findData("IEE3") >= 0
+
+        called = {"count": 0}
+
+        def _unexpected_populate(*_args, **_kwargs):
+            called["count"] += 1
+            raise AssertionError("combo should reuse existing options")
+
+        monkeypatch.setattr(
+            self.window,
+            "_populate_quick_setor_executor_combo",
+            _unexpected_populate,
+        )
+
+        self.window._active_column_filters["setor_executor"] = "IEE3"
+        self.window._sync_quick_setor_executor_combo_from_filters()
+        QApplication.processEvents()
+
+        assert called["count"] == 0
+        assert str(combo.currentData() or "") == "IEE3"
+        assert str(combo.currentText() or "") == "IEE3"
+
+    def test_sync_quick_setor_executor_combo_repopulates_when_value_missing(
+        self, monkeypatch
+    ):
+        self.window._refresh_quick_setor_executor_options()
+        combo = getattr(self.window, "quick_setor_executor_combo", None)
+        assert combo is not None
+
+        populate_calls: list[str] = []
+        original_populate = self.window._populate_quick_setor_executor_combo
+
+        def _tracked_populate(target_combo, selected_value: str = ""):
+            populate_calls.append(str(selected_value))
+            return original_populate(target_combo, selected_value=selected_value)
+
+        monkeypatch.setattr(
+            self.window,
+            "_populate_quick_setor_executor_combo",
+            _tracked_populate,
+        )
+
+        self.window._active_column_filters["setor_executor"] = "SETOR_INEXISTENTE"
+        self.window._sync_quick_setor_executor_combo_from_filters()
+        QApplication.processEvents()
+
+        assert populate_calls
+        assert set(populate_calls) == {"SETOR_INEXISTENTE"}
+        assert str(combo.currentData() or "") == ""
+
     def test_quick_setor_executor_combo_journey_updates_cache_context_and_clear_global(
         self,
     ):

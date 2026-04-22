@@ -3678,6 +3678,36 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             combo = ctx.get("quick_setor_executor_combo")
             if combo is None:
                 continue
+            try:
+                has_existing_options = combo.count() > 0
+            except Exception:
+                has_existing_options = False
+            if has_existing_options:
+                try:
+                    idx = combo.findData(selected_value)
+                except Exception:
+                    idx = -1
+                if idx >= 0:
+                    self._quick_setor_executor_syncing = True
+                    try:
+                        combo.blockSignals(True)
+                        combo.setCurrentIndex(idx)
+                        self._update_quick_setor_executor_combo_display(combo)
+                    except Exception as exc:
+                        logger.debug(
+                            "Falha ao sincronizar selecao do combo rapido de setor executor: %s",
+                            exc,
+                        )
+                    finally:
+                        try:
+                            combo.blockSignals(False)
+                        except Exception as exc:
+                            logger.debug(
+                                "Falha ao reativar sinais na sincronizacao do combo rapido de setor executor: %s",
+                                exc,
+                            )
+                        self._quick_setor_executor_syncing = False
+                    continue
             self._populate_quick_setor_executor_combo(
                 combo, selected_value=selected_value
             )
