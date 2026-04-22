@@ -2,15 +2,15 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-04-22 10h07
+## CURRENT TRUTH 2026-04-22 13h14
 
 ### Estado de repositorio e runtime
 
 1. branch ativa confirmada: `dev`
-2. `HEAD` local e `origin/dev` estao alinhados em `485ebce1c8fb39528d03a807d6be292ae64bac0f`
+2. `HEAD` local e `origin/dev` estao alinhados em `b5e3335b7565f104c23054777499ff350cce2b94`
 3. ultimo commit atual:
-   - `2026-04-22 10:07:32 -0300`
-   - `docs(handoff): Retire stale residual entries`
+   - `2026-04-22 13:14:32 -0300`
+   - `docs(handoff): Sync post-lab current truth`
 4. workspace local atual:
    - repo limpo no escopo desta frente
    - residuos fora de escopo:
@@ -53,7 +53,34 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
    - revalidacao posterior mostrou esses 2 itens como fechados
    - o laboratorio `B` para cache grande no full dataframe foi descartado por custo de RAM no alvo de `4 GB`
    - o proximo residual tecnico real precisa ser reidentificado por novo diagnostico puro, sem assumir hotspot antigo sem evidencia
-12. commits aterrados nesta retomada:
+12. levantamento de footprint desta rodada, sem editar runtime:
+   - `query_db()`:
+     - `80448 x 84`
+     - `717.60 ms`
+     - RSS `90.50 MB -> 402.30 MB`
+   - `_prepare_dataframe_for_ui()`:
+     - `303.14 ms`
+     - RSS `402.30 MB -> 470.09 MB`
+     - retorna novo objeto (`same_object=False`)
+   - `filter_dataframe()` no full dataframe:
+     - frio `419.17 ms`
+     - quente `416.42 ms`
+     - cache cheio ainda so com `token`
+   - refinamento em subset:
+     - `39.75 ms`
+     - subset com `row_search_text` e `token`
+   - fallback raro `on_data_loaded()` sem preprocessamento:
+     - `255.61 ms`
+     - `+108 MB` de RSS
+     - `df_completo is df_exibido == False`
+13. ranking tecnico atual:
+   - leitura cheia via `query_db()`
+   - preprocessamento inicial do `DataLoaderWorker`
+   - rebuild da busca ampla no full dataframe
+   - fallback raro de `on_data_loaded()` sem attrs
+14. proxima frente recomendada:
+   - medir e cortar ownership/materializacao no load path principal antes de reabrir qualquer experimento de cache amplo
+15. commits aterrados nesta retomada:
    - `d8451041` `test(gui): Lock load ordering behavior`
    - `e594d5bc` `perf(gui): Reuse sorted search result in refresh`
    - `dcb6a830` `perf(gui): Trim cache and load copies`
