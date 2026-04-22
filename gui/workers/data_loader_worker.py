@@ -181,7 +181,8 @@ class DataLoaderWorker(QThread):
             )
         return base
 
-    def _build_non_null_columns(self, df: pd.DataFrame) -> list[str]:
+    @staticmethod
+    def _build_non_null_columns(df: pd.DataFrame) -> list[str]:
         try:
             non_null_mask = df.notna().any(axis=0)
             return [str(col) for col in non_null_mask[non_null_mask].index.tolist()]
