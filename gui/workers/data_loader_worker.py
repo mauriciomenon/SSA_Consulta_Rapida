@@ -163,7 +163,10 @@ class DataLoaderWorker(QThread):
 
     @staticmethod
     def _sanitize_ssa_like_value(value) -> str:
-        canonical_value = strip_canonical_decimal_artifact(value)
+        try:
+            canonical_value = strip_canonical_decimal_artifact(value)
+        except Exception:
+            return ""
         normalized_value = normalize_strict(canonical_value)
         if normalized_value is not None:
             return normalized_value

@@ -121,9 +121,7 @@ class TestGUIStability(unittest.TestCase):
         self.window.search_input.setText("svp")
 
         # Simula pressionar Enter
-        cast(Any, QTest).keyPress(
-            cast(Any, self.window.search_input), Qt.Key.Key_Return
-        )
+        cast(Any, QTest).keyPress(self.window.search_input, Qt.Key.Key_Return)
 
         # Permite processamento
         QApplication.processEvents()
