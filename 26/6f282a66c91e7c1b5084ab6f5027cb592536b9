@@ -1,0 +1,23 @@
+launchers/convert_icon.py
+  41bd7cec02910368 9,28-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "266f282a66c91e7c1b5084ab6f5027cb592536b9",
+  "prompts": {
+    "41bd7cec02910368": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dbaf0-1318-7781-b6a3-80fc2fb6c8f6",
+        "model": "gpt-5.3-codex-spark"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 0,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  }
+}
