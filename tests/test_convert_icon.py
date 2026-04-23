@@ -72,6 +72,15 @@ def test_convert_svg_to_ico_uses_sizes_on_single_base_image(monkeypatch):
     assert raster_calls == [64, 32, 16]
 
 
+def test_app_icon_ico_contains_expected_sizes_via_pillow() -> None:
+    from PIL import Image
+
+    with Image.open("resources/app_icon.ico") as image:
+        ico_sizes = image.info.get("sizes", set())
+        assert len(ico_sizes) == 6
+        assert { (16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)} <= set(ico_sizes)
+
+
 def test_convert_svg_to_ico_uses_rsvg_when_cairosvg_unavailable(monkeypatch):
     save_calls: list[dict] = []
     command_calls: list[list[str]] = []
