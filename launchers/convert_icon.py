@@ -26,6 +26,8 @@ def _get_project_root() -> Path:
 def _import_optional_module(module_name: str) -> Any | None:
     try:
         return importlib.import_module(module_name)
+    except OSError:
+        return None
     except ImportError:
         return None
 
