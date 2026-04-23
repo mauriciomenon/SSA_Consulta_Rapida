@@ -10,16 +10,22 @@ import hashlib
 import json
 import logging
 import os
+import importlib
 import platform
 import plistlib
 import shlex
 import shutil
 import subprocess
 import sys
-from utils.robust_logging import get_robust_logger
 from datetime import datetime
 from pathlib import Path
-logger = get_robust_logger().get_logger(__name__, "maintenance")
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+robust_logging = importlib.import_module("utils.robust_logging")
+logger = robust_logging.get_robust_logger().get_logger(__name__, "maintenance")
 
 
 class MultiPlatformBuilder:
