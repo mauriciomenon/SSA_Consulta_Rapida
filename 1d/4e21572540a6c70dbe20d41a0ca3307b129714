@@ -1,0 +1,23 @@
+tests/test_convert_icon.py
+  41bd7cec02910368 75-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "1d4e21572540a6c70dbe20d41a0ca3307b129714",
+  "prompts": {
+    "41bd7cec02910368": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dbaf0-1318-7781-b6a3-80fc2fb6c8f6",
+        "model": "gpt-5.3-codex-spark"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 0,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}
