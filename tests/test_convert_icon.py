@@ -70,3 +70,49 @@ def test_convert_svg_to_ico_uses_sizes_on_single_base_image(monkeypatch):
     assert kwargs["sizes"] == [(64, 64), (32, 32), (16, 16)]
     assert "append_images" in kwargs
     assert raster_calls == [64, 32, 16]
+
+
+def test_convert_svg_to_ico_uses_rsvg_when_cairosvg_unavailable(monkeypatch):
+    save_calls: list[dict] = []
+    command_calls: list[list[str]] = []
+
+    class _FakeImage:
+        def __init__(self, width: int = 1024, height: int = 1024):
+            self.width = width
+            self.height = height
+
+        def save(self, path, **kwargs):
+            save_calls.append({"path": str(path), "kwargs": kwargs})
+
+    class _FakeCommandResult:
+        returncode = 0
+        stdout = b"png-bytes"
+        stderr = b""
+
+    def _fake_open(_data):
+        return _FakeImage(1024, 1024)
+
+    def _fake_import(module_name):
+        if module_name == "PIL.Image":
+            return SimpleNamespace(open=_fake_open, Resampling=SimpleNamespace(LANCZOS=0))
+        return None
+
+    def _fake_run_command(command):
+        command_calls.append(command)
+        return _FakeCommandResult()
+
+    monkeypatch.setattr(convert_icon, "cairosvg", None)
+    monkeypatch.setattr(convert_icon, "_import_optional_module", _fake_import)
+    monkeypatch.setattr(convert_icon, "_run_command", _fake_run_command)
+    monkeypatch.setattr(convert_icon, "RSVG_CONVERT", "rsvg-convert")
+
+    convert_icon.convert_svg_to_ico("icon.svg", "/tmp/icon.ico", sizes=[16])
+
+    assert command_calls, "rsvg-convert nao foi chamado"
+    assert command_calls[0][0] == "rsvg-convert"
+    assert command_calls[0][1:4] == [
+        "--format=png",
+        "--width=16",
+        "--height=16",
+    ]
+    assert save_calls
