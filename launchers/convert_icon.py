@@ -6,6 +6,7 @@ Usado no build dos executaveis multi-plataforma
 
 import importlib
 import io
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,16 @@ def _get_project_root() -> Path:
 
 
 def _import_optional_module(module_name: str) -> Any | None:
+    if module_name == "cairosvg" and sys.platform == "darwin":
+        library_search_paths = ["/opt/homebrew/lib", "/usr/local/lib", "/usr/lib"]
+        candidates = [
+            p for p in library_search_paths if os.path.isdir(p) and "libcairo.2.dylib" in os.listdir(p)
+        ]
+        if candidates:
+            for var in ("DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH"):
+                current = [path for path in os.environ.get(var, "").split(":") if path]
+                merged = current + [path for path in candidates if path not in current]
+                os.environ[var] = ":".join(merged)
     try:
         return importlib.import_module(module_name)
     except OSError:
