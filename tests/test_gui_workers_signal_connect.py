@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from gui.ssa import gui_workers
+from gui.workers.data_loader_worker import DataLoaderWorker
 
 
 class _SignalPositionalQueuedOnly:
@@ -72,7 +73,7 @@ def test_sanitize_ssa_like_value_handles_broken_str() -> None:
         def __str__(self) -> str:
             raise RuntimeError("broken str")
 
-    assert gui_workers._sanitize_ssa_like_value(_BrokenStr()) == ""
+    assert DataLoaderWorker._sanitize_ssa_like_value(_BrokenStr()) == ""
 
 
 def test_load_data_missing_db_without_status_label_under_pytest(
