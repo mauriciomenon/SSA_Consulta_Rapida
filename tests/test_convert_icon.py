@@ -1,8 +1,29 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 from launchers import convert_icon
+from struct import unpack
+
+
+def test_app_icon_ico_contains_multiple_sizes() -> None:
+    header = Path("resources/app_icon.ico").read_bytes()
+    reserved, icon_type, count = unpack("<HHH", header[:6])
+    assert reserved == 0
+    assert icon_type == 1
+    assert count >= 2
+
+    entries = []
+    offset = 6
+    for _ in range(count):
+        chunk = header[offset : offset + 16]
+        width = chunk[0] or 256
+        height = chunk[1] or 256
+        entries.append((width, height))
+        offset += 16
+
+    assert entries == [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
 
 
 def test_convert_svg_to_ico_uses_sizes_on_single_base_image(monkeypatch):

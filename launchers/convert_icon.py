@@ -44,6 +44,8 @@ def convert_svg_to_ico(
     svg_path, ico_path, sizes=None
 ):  # noqa: ANN001,ANN201
     """Converte SVG para ICO com multiplos tamanhos (Windows)"""
+    svg_path = str(svg_path)
+    ico_path = str(ico_path)
 
     if sizes is None:
         sizes = [16, 32, 48, 64, 128, 256]
@@ -72,6 +74,7 @@ def convert_svg_to_ico(
 def convert_svg_to_icns(svg_path, icns_path, sizes=None):  # noqa: ANN001,ANN201
     """Converte SVG para ICNS (macOS)"""
     icns_file_path = Path(icns_path)
+    svg_path = str(svg_path)
 
     if cairosvg is None:
         raise ImportError("cairosvg nao encontrado")
@@ -147,6 +150,8 @@ def convert_svg_to_icns(svg_path, icns_path, sizes=None):  # noqa: ANN001,ANN201
 
 def convert_svg_to_png(svg_path, png_path, size=256):
     """Converte SVG para PNG (Linux)"""
+    svg_path = str(svg_path)
+    png_path = str(png_path)
 
     if cairosvg is None:
         raise ImportError("cairosvg nao encontrado")
