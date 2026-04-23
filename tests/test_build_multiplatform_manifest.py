@@ -99,6 +99,9 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     assert "--add-data" in windows_cmd
     add_data_value = windows_cmd[windows_cmd.index("--add-data") + 1]
     assert add_data_value.endswith(";config")
+    assert "--icon" in windows_cmd
+    icon_value = windows_cmd[windows_cmd.index("--icon") + 1]
+    assert icon_value.endswith("resources/app_icon.ico")
 
     captured_cmds.clear()
     config["cli_config"]["icon"] = "resources/app_icon.icns"
