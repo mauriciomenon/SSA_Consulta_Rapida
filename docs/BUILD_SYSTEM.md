@@ -52,7 +52,7 @@ dist/
 ### 2. ATIVAR E COMPILAR:
 ```bash
 source build_env/bin/activate
-uv run --python 3.13 build/build_all.py
+uv run --python 3.13 launchers/build_multiplatform.py
 ```
 
 ### 3. TESTAR:
@@ -81,4 +81,3 @@ uv run --python 3.13 build/build_all.py
 **PRONTO PARA TESTAR!**
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-
