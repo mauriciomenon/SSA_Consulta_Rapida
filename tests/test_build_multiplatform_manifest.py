@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import plistlib
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 from launchers.build_multiplatform import MultiPlatformBuilder
@@ -269,3 +272,23 @@ def test_cleanup_online_unnecessary_files_uses_scope_prefix_for_dist(monkeypatch
     assert "launchers/dist_simple/gui/SSA_GUI.exe" in removed
     assert "build/artifact.pyc" in removed
     assert "builds/old.pyo" in removed
+
+
+def test_build_multiplatform_script_runs_without_explicit_pythonpath():
+    """Valida comando de entrada sem dependencia de PYTHONPATH manual."""
+    script_path = Path(__file__).resolve().parents[1] / "launchers" / "build_multiplatform.py"
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = ""
+
+    result = subprocess.run(
+        [sys.executable, str(script_path), "--list-platforms"],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root),
+        env=env,
+        timeout=30,
+    )
+
+    assert result.returncode == 0
+    assert "Plataformas suportadas:" in result.stdout
