@@ -1,0 +1,29 @@
+launchers/platforms/windows_amd64/requirements.txt
+  41bd7cec02910368 11
+launchers/platforms/macos_arm64/requirements.txt
+  41bd7cec02910368 11
+requirements_build.txt
+  41bd7cec02910368 6
+launchers/platforms/debian_amd64/requirements.txt
+  41bd7cec02910368 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "551c47c0eddf861801b40f3a0ed65d4353ce23b0",
+  "prompts": {
+    "41bd7cec02910368": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dbaf0-1318-7781-b6a3-80fc2fb6c8f6",
+        "model": "gpt-5.3-codex-spark"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}
