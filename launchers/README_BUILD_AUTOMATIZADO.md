@@ -30,7 +30,7 @@ Este documento descreve como estruturar uma pipeline de build/test/validacao min
 | `scripts/validate_configs.py` | Pendente | Validar estrutura basica JSON |
 | `scripts/check_docs.py` | Pendente | Garantir ausencia de docs vazios |
 | `tests/test_smoke_cli.py` | Pendente | Verificar CLI basica |
-| `build/build_all.py` | Presente | Auxiliar build (ajustar logs) |
+| `launchers/build_all.py` | Presente | Compatibilidade legada para fluxo completo de build |
 | `launchers/cleanup_emergency.py` | Feito | Limpeza emergencial (manual) |
 
 ## 4. Criterios de Falha (Gate)
@@ -55,7 +55,7 @@ uv run --python 3.13 scripts/validate_configs.py
 uv run --python 3.13 scripts/check_docs.py
 pytest -k smoke
 pytest -k core
-uv run --python 3.13 build/build_all.py  # se aplicavel
+uv run --python 3.13 launchers/build_all.py  # se aplicavel
 ```
 
 ## 7. Metricas a Registrar
@@ -87,4 +87,3 @@ Atualizado em: 2025-09-12
 
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-
