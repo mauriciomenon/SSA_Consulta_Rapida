@@ -439,6 +439,7 @@ eslint.config.mjs
 gui/**/*.backup_*
 *.py.backup_*
 *.py.bak_*
+AGENTS.md.backup_*
 *.py.planv*
 *_bkp_*.py
 
