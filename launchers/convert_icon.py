@@ -7,6 +7,8 @@ Usado no build dos executaveis multi-plataforma
 import importlib
 import io
 import os
+import subprocess
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -51,6 +53,47 @@ def _require_pillow_image() -> Any:
 
 
 cairosvg = _import_optional_module("cairosvg")
+RSVG_CONVERT = shutil.which("rsvg-convert")
+
+
+def _run_command(command: list[str]) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(
+        command,
+        check=False,
+        capture_output=True,
+        text=False,
+    )
+
+
+def _render_svg_to_png(svg_path: str, size: int) -> bytes:
+    if cairosvg is not None:
+        try:
+            return cairosvg.svg2png(url=svg_path, output_width=size, output_height=size)
+        except OSError:
+            logger.warning(
+                "Falha no cairosvg para svg %s e tamanho %s; tentando rsvg-convert",
+                svg_path,
+                size,
+            )
+
+    if RSVG_CONVERT is None:
+        raise ImportError("cairosvg nao encontrado")
+
+    result = _run_command(
+        [
+            RSVG_CONVERT,
+            "--format=png",
+            f"--width={size}",
+            f"--height={size}",
+            svg_path,
+        ]
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.decode() if result.stderr else ""
+        raise RuntimeError(f"Falha no rsvg-convert: {stderr}")
+    if not result.stdout:
+        raise RuntimeError("Falha no rsvg-convert: sem dados de saida")
+    return result.stdout
 
 
 def convert_svg_to_ico(
@@ -63,15 +106,13 @@ def convert_svg_to_ico(
     if sizes is None:
         sizes = [16, 32, 48, 64, 128, 256]
 
-    if cairosvg is None:
-        raise ImportError("cairosvg nao encontrado")
     image_module = _require_pillow_image()
 
     # Converter SVG para cada resolucao para manter nitidez em todos os tamanhos.
     target_sizes = sorted(set(sizes), reverse=True)
     images = []
     for size in target_sizes:
-        png_data = cairosvg.svg2png(url=svg_path, output_width=size, output_height=size)
+        png_data = _render_svg_to_png(svg_path, size)
         images.append(image_module.open(io.BytesIO(png_data)))
 
     images[0].save(
@@ -89,8 +130,6 @@ def convert_svg_to_icns(svg_path, icns_path, sizes=None):  # noqa: ANN001,ANN201
     icns_file_path = Path(icns_path)
     svg_path = str(svg_path)
 
-    if cairosvg is None:
-        raise ImportError("cairosvg nao encontrado")
     image_module = _require_pillow_image()
 
     if sizes is None:
@@ -121,9 +160,7 @@ def convert_svg_to_icns(svg_path, icns_path, sizes=None):  # noqa: ANN001,ANN201
             ]
 
             max_size = max((size for size, _ in iconset_sizes), default=1024)
-            base_data = cairosvg.svg2png(
-                url=svg_path, output_width=max_size, output_height=max_size
-            )
+            base_data = _render_svg_to_png(svg_path, max_size)
             base_image = image_module.open(io.BytesIO(base_data))
 
             for size, filename in iconset_sizes:
@@ -153,7 +190,7 @@ def convert_svg_to_icns(svg_path, icns_path, sizes=None):  # noqa: ANN001,ANN201
     except Exception as e:
         logger.error("Fallback para conversao PIL: %s", e)
         # Fallback: converter para PNG de alta resolucao
-        png_data = cairosvg.svg2png(url=svg_path, output_width=1024, output_height=1024)
+        png_data = _render_svg_to_png(svg_path, 1024)
         img = image_module.open(io.BytesIO(png_data))
         fallback_png = icns_file_path.with_suffix(".png")
         img.save(fallback_png, format="PNG")
@@ -166,11 +203,8 @@ def convert_svg_to_png(svg_path, png_path, size=256):
     svg_path = str(svg_path)
     png_path = str(png_path)
 
-    if cairosvg is None:
-        raise ImportError("cairosvg nao encontrado")
-
     # Converter SVG para PNG
-    png_data = cairosvg.svg2png(url=svg_path, output_width=size, output_height=size)
+    png_data = _render_svg_to_png(svg_path, size)
 
     with open(png_path, "wb") as f:
         f.write(png_data)
