@@ -3,7 +3,7 @@
 
 pyinstaller>=6.15.0
 nuitka>=2.8.4
-pillow>=12.1.1
+pillow>=12.2.0
 cairosvg>=2.9.0
 
 # Especificos por plataforma
