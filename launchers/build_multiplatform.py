@@ -6,44 +6,20 @@ Inclui limpeza automatica, commit e push apos build bem-sucedido.
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import os
 import platform
 import plistlib
+import shlex
 import shutil
 import subprocess
 import sys
+from utils.robust_logging import get_robust_logger
 from datetime import datetime
 from pathlib import Path
-
-
-# Configuracao de logging robusto
-def setup_logging():
-    """Configura logging com criacao automatica de diretorios"""
-    log_dir = Path(__file__).parent / "logs"
-    log_dir.mkdir(exist_ok=True)
-
-    log_file = log_dir / "build.log"
-
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
-
-    try:
-        handlers.append(logging.FileHandler(str(log_file)))
-    except Exception as e:
-        print(f"Aviso: Nao foi possivel criar log file: {e}")
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=handlers,
-        force=True,  # Força reconfiguração se já existe
-    )
-
-    return logging.getLogger(__name__)
-
-
-logger = setup_logging()
+logger = get_robust_logger().get_logger(__name__, "maintenance")
 
 
 class MultiPlatformBuilder:
@@ -80,6 +56,74 @@ class MultiPlatformBuilder:
         logger.info(f"Iniciando build para SSA Consulta Rapida v{self.version}")
         logger.info(f"Runtime Python padrao (uv): {self.runtime_python}")
 
+    @staticmethod
+    def _run_command(cmd, *, timeout, cwd=None, capture_output=True, text=True):
+        """Executa comando com timeout padrao e retorno padronizado."""
+        command = [str(item) for item in cmd]
+        command_for_log = " ".join(shlex.quote(item) for item in command)
+        logger.debug("Executando comando: %s", command_for_log)
+        try:
+            return subprocess.run(
+                command,
+                check=False,
+                capture_output=capture_output,
+                text=text,
+                cwd=str(cwd) if cwd else None,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            return subprocess.CompletedProcess(
+                command,
+                returncode=124,
+                stdout="" if capture_output else None,
+                stderr=(
+                    f"Timeout apos {timeout}s: {command_for_log}: {exc}"
+                    if capture_output
+                    else None
+                ),
+            )
+        except OSError as exc:
+            return subprocess.CompletedProcess(
+                command,
+                returncode=1,
+                stdout="" if capture_output else None,
+                stderr=str(exc) if capture_output else None,
+            )
+
+    @staticmethod
+    def _command_failed(result: subprocess.CompletedProcess, command_name: str) -> bool:
+        if result.returncode == 0:
+            return False
+
+        stderr = str(result.stderr).strip() if result.stderr is not None else ""
+        stdout = str(result.stdout).strip() if result.stdout is not None else ""
+        logger.error(
+            "%s falhou (%s): %s",
+            command_name,
+            result.returncode,
+            stderr or stdout,
+        )
+        return True
+
+    def _load_requirements_signature(self, requirements_file: Path) -> str:
+        """Retorna hash deterministico do conteudo de requirements."""
+        digest = hashlib.sha256()
+        try:
+            with requirements_file.open("r", encoding="utf-8") as file_handle:
+                for raw_line in file_handle:
+                    line = raw_line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    digest.update((line + "\n").encode("utf-8"))
+            return digest.hexdigest()
+        except OSError as exc:
+            logger.warning(
+                "Nao foi possivel calcular signature de requirements em %s: %s",
+                requirements_file,
+                exc,
+            )
+            return ""
+
     def _load_version(self):
         """Carrega versao do arquivo config/version.json"""
         try:
@@ -106,28 +150,84 @@ class MultiPlatformBuilder:
             logger.error(f"Plataforma nao suportada: {system} {machine}")
             return None
 
-    def setup_virtual_environment(self, platform_name):
+    def _python_executable(self, platform_name: str) -> Path:
+        """Retorna caminho esperado do python dentro do venv."""
+        venv_dir = self.platforms_dir / platform_name / "venv"
+        if platform_name.startswith("windows"):
+            return venv_dir / "Scripts" / "python.exe"
+        return venv_dir / "bin" / "python"
+
+    def _is_python_executable_ok(self, python_exe: Path) -> bool:
+        """Verifica se o python do venv responde normalmente."""
+        result = self._run_command(
+            [python_exe, "-c", "import sys"], timeout=15, capture_output=True, text=True
+        )
+        return result.returncode == 0
+
+    def _is_venv_compatible(self, platform_name: str, requirements_file: Path) -> bool:
+        """Valida se o venv existente pode ser reutilizado."""
+        venv_dir = self.platforms_dir / platform_name / "venv"
+        python_exe = self._python_executable(platform_name)
+        if not (venv_dir.exists() and python_exe.exists()):
+            return False
+        if not self._is_python_executable_ok(python_exe):
+            return False
+
+        if not requirements_file.exists():
+            return True
+
+        marker_path = venv_dir / ".requirements_signature"
+        if not marker_path.exists():
+            logger.info("Recriando venv: marcador de requirements ausente")
+            return False
+
+        current_signature = self._load_requirements_signature(requirements_file)
+        if not current_signature:
+            return False
+
+        try:
+            return marker_path.read_text(encoding="utf-8").strip() == current_signature
+        except OSError as exc:
+            logger.info(
+                "Recriando venv por falha ao ler marcador em %s: %s",
+                marker_path,
+                exc,
+            )
+            return False
+
+    def _save_requirements_signature(self, venv_dir: Path, requirements_file: Path) -> None:
+        """Salva assinatura de requirements no venv para reutilizacao."""
+        signature = self._load_requirements_signature(requirements_file)
+        if not signature:
+            return
+        marker_path = venv_dir / ".requirements_signature"
+        try:
+            marker_path.write_text(f"{signature}\n", encoding="utf-8")
+        except OSError as exc:
+            logger.warning(
+                "Nao foi possivel gravar marcador de requirements em %s: %s",
+                marker_path,
+                exc,
+            )
+
+    def setup_virtual_environment(self, platform_name, skip_if_exists=False):
         """Setup do ambiente virtual usando uv."""
         venv_dir = self.platforms_dir / platform_name / "venv"
         requirements_file = self.platforms_dir / platform_name / "requirements.txt"
 
         # Determinar executaveis
-        if platform_name.startswith("windows"):
-            python_exe = venv_dir / "Scripts" / "python.exe"
-        else:
-            python_exe = venv_dir / "bin" / "python"
+        python_exe = self._python_executable(platform_name)
 
         # Verificar se venv ja existe e esta funcional
-        if venv_dir.exists() and python_exe.exists():
+        if self._is_venv_compatible(platform_name, requirements_file):
             logger.info(f"Ambiente virtual existente encontrado: {venv_dir}")
-            try:
-                cmd = [self.uv_cmd, "pip", "list", "--python", str(python_exe)]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-                if result.returncode == 0 and len(result.stdout.split("\n")) > 5:
-                    logger.info("Ambiente virtual ja configurado e funcional")
-                    return python_exe
-            except Exception:
-                logger.info("Ambiente virtual precisa ser recriado")
+            if skip_if_exists:
+                logger.info("Reaproveitando venv existente por --skip-venv")
+            return python_exe
+
+        if skip_if_exists:
+            logger.error("Venv nao pode ser reaproveitado; passe sem --skip-venv para recriar")
+            return False
 
         # Remover venv antigo se existir
         if venv_dir.exists():
@@ -143,7 +243,7 @@ class MultiPlatformBuilder:
             self.runtime_python,
             str(venv_dir),
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = self._run_command(cmd, timeout=600, capture_output=True, text=True)
         if result.returncode != 0:
             logger.error("Erro criando venv via uv: %s", result.stderr.strip())
             return False
@@ -160,10 +260,11 @@ class MultiPlatformBuilder:
                 "-r",
                 str(requirements_file),
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = self._run_command(cmd, timeout=1200, capture_output=True, text=True)
             if result.returncode != 0:
                 logger.error("Erro instalando dependencias: %s", result.stderr.strip())
                 return False
+            self._save_requirements_signature(venv_dir, requirements_file)
 
         logger.info(f"Ambiente virtual configurado: {venv_dir}")
         return python_exe
@@ -194,6 +295,17 @@ class MultiPlatformBuilder:
             logger.warning("Icone SVG nao encontrado")
             return False
 
+        target_icons = [
+            resources_dir / "app_icon.ico",
+            resources_dir / "app_icon.icns",
+            resources_dir / "app_icon.png",
+        ]
+        if all(target.exists() for target in target_icons):
+            source_mtime = svg_icon.stat().st_mtime
+            if all(target.stat().st_mtime >= source_mtime for target in target_icons):
+                logger.info("Icones atualizados; pulando convert_icon.py")
+                return True
+
         try:
             # Executar script de conversao
             convert_script = self.launchers_dir / "convert_icon.py"
@@ -205,8 +317,12 @@ class MultiPlatformBuilder:
                 str(python_exe),
                 str(convert_script),
             ]
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, cwd=str(self.base_dir)
+            result = self._run_command(
+                cmd,
+                timeout=300,
+                capture_output=True,
+                text=True,
+                cwd=str(self.base_dir),
             )
 
             if result.returncode == 0:
@@ -228,15 +344,15 @@ class MultiPlatformBuilder:
         app_config = config[f"{app_type}_config"]
         pyinstaller_args = config["pyinstaller_args"]
 
-        # Aviso amigável sobre compressão UPX opcional (não bloqueante)
+        # Aviso amigavel sobre compressao UPX opcional (nao bloqueante)
         if platform_name.startswith("windows"):
-            # Heurística: se config pyinstaller_args contiver algo indicando compressão futura
+            # Heuristica: se config pyinstaller_args contiver algo indicando compressao futura
             # (ex.: flag custom que adicionaremos no futuro) ou simplesmente sempre avisar se upx ausente
             try:
                 __import__("upx4py")  # noqa: F401
             except Exception:
                 logger.warning(
-                    "UPX não detectado (pacote 'upx4py' ausente). Build seguirá sem compressão. "
+                    "UPX nao detectado (pacote 'upx4py' ausente). Build seguira sem compressao. "
                     "Para habilitar instale: uv pip install --python %s -r launchers/platforms/windows_amd64/requirements_windows_build.txt",
                     str(python_exe),
                 )
@@ -251,7 +367,7 @@ class MultiPlatformBuilder:
             "-m",
             "PyInstaller",
             "-y",
-        ]  # -y força sobrescrita
+            ]  # -y forca sobrescrita
 
         # Opcoes de empacotamento
         if pyinstaller_args.get("onefile", False):
@@ -317,8 +433,12 @@ class MultiPlatformBuilder:
         # Executar build
         logger.info(f"Executando: {' '.join(cmd)}")
 
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, cwd=str(self.base_dir)
+        result = self._run_command(
+            cmd,
+            timeout=1800,
+            capture_output=True,
+            text=True,
+            cwd=str(self.base_dir),
         )
 
         if result.returncode == 0:
@@ -449,8 +569,9 @@ class MultiPlatformBuilder:
             str(dmg_path),
         ]
         logger.info("Gerando DMG macOS: %s", dmg_path)
-        result = subprocess.run(
+        result = self._run_command(
             cmd,
+            timeout=900,
             capture_output=True,
             text=True,
             cwd=str(self.base_dir),
@@ -480,9 +601,14 @@ class MultiPlatformBuilder:
             for exe_file in dist_dir.glob("*"):
                 if exe_file.is_file() and not exe_file.suffix == ".app":
                     logger.info(f"Comprimindo {exe_file.name}")
-                    subprocess.run(
-                        [upx_cmd, "--best", str(exe_file)], capture_output=True
+                    result = self._run_command(
+                        [upx_cmd, "--best", str(exe_file)],
+                        timeout=120,
+                        capture_output=True,
+                        text=True,
                     )
+                    if result.returncode != 0:
+                        logger.warning("UPX falhou em %s: %s", exe_file, result.stderr)
         except Exception as e:
             logger.warning(f"Erro na compressao: {e}")
 
@@ -532,18 +658,30 @@ class MultiPlatformBuilder:
     @staticmethod
     def _compute_directory_size_bytes(directory: Path) -> int:
         total = 0
-        for path in directory.rglob("*"):
-            if path.is_symlink():
+        stack = [directory]
+
+        while stack:
+            current = stack.pop()
+            try:
+                entry_iter = os.scandir(current)
+            except OSError:
                 continue
-            if path.is_file():
+
+            for entry in entry_iter:
+                if entry.is_symlink():
+                    continue
                 try:
-                    total += path.stat().st_size
+                    if entry.is_dir(follow_symlinks=False):
+                        stack.append(Path(entry.path))
+                    elif entry.is_file(follow_symlinks=False):
+                        total += entry.stat(follow_symlinks=False).st_size
                 except OSError:
                     # Ignore transient or permission failures while scanning artifact trees.
                     continue
+
         return total
 
-    def build_platform(self, platform_name, apps=None):
+    def build_platform(self, platform_name, apps=None, skip_venv=False):
         """Constroi executaveis para uma plataforma especifica"""
         if platform_name not in self.PLATFORMS:
             logger.error(f"Plataforma nao suportada: {platform_name}")
@@ -552,7 +690,7 @@ class MultiPlatformBuilder:
         logger.info(f"Iniciando build para {platform_name}")
 
         # Configurar ambiente
-        python_exe = self.setup_virtual_environment(platform_name)
+        python_exe = self.setup_virtual_environment(platform_name, skip_if_exists=skip_venv)
         if not python_exe:
             return False
 
@@ -585,29 +723,57 @@ class MultiPlatformBuilder:
 
         cleanup_count = 0
 
-        # 1. Remover arquivos de cache Python
-        cache_patterns = [
-            "**/__pycache__",
-            "**/*.pyc",
-            "**/*.pyo",
-            "**/.pytest_cache",
-            "**/build",
-            "**/dist",
-            "**/*.egg-info",
+        def remove_path(target_path: Path) -> bool:
+            if not target_path.exists():
+                return False
+            if target_path.is_dir():
+                shutil.rmtree(target_path)
+            else:
+                target_path.unlink()
+            return True
+
+        # 1. Limpeza de diretorios de build/distribuicao
+        build_cleanup_dirs = [
+            self.base_dir / "build",
+            self.base_dir / "builds",
+            self.base_dir / "dist_packages",
+            self.launchers_dir / "dist_simple",
+            self.base_dir / "dist",
         ]
 
-        for pattern in cache_patterns:
-            for path in self.base_dir.glob(pattern):
-                if path.exists():
-                    if path.is_dir():
-                        shutil.rmtree(path)
-                        logger.debug(f"Removido diretorio: {path}")
-                    else:
-                        path.unlink()
-                        logger.debug(f"Removido arquivo: {path}")
+        for candidate in build_cleanup_dirs:
+            if remove_path(candidate):
+                logger.debug("Removido diretorio de build: %s", candidate)
+                cleanup_count += 1
+
+        # 2. Remover arquivos de cache Python
+        cache_roots = [
+            self.launchers_dir,
+            self.base_dir / "builds",
+            self.base_dir / "build",
+        ]
+        cache_dirs = ["__pycache__", ".pytest_cache"]
+        cache_file_patterns = ["*.pyc", "*.pyo"]
+        for root in cache_roots:
+            if not root.exists():
+                continue
+            for cache_dir in cache_dirs:
+                cache_path = root / cache_dir
+                if cache_path.exists():
+                    if remove_path(cache_path):
+                        logger.debug("Cache removido: %s", cache_path)
+                        cleanup_count += 1
+            for pattern in cache_file_patterns:
+                for path in root.glob(pattern):
+                    if remove_path(path):
+                        logger.debug("Arquivo cache removido: %s", path)
+                        cleanup_count += 1
+            for path in root.glob("*.egg-info"):
+                if remove_path(path):
+                    logger.debug("Arquivo cache removido: %s", path)
                     cleanup_count += 1
 
-        # 2. Remover logs antigos (manter apenas os 5 mais recentes)
+        # 3. Remover logs antigos (manter apenas os 5 mais recentes)
         logs_dir = self.launchers_dir / "logs"
         if logs_dir.exists():
             log_files = sorted(
@@ -618,37 +784,30 @@ class MultiPlatformBuilder:
                 logger.debug(f"Log antigo removido: {log_file}")
                 cleanup_count += 1
 
-        # 3. Remover arquivos temporarios do PyInstaller
-        for temp_pattern in ["build", "*.spec"]:
-            for temp_path in self.base_dir.glob(temp_pattern):
-                if temp_path.exists():
-                    if temp_path.is_dir():
-                        shutil.rmtree(temp_path)
-                    else:
-                        temp_path.unlink()
-                    cleanup_count += 1
-
-        # 4. Limpar arquivos temporarios do sistema
-        temp_patterns = [
-            "**/.DS_Store",  # macOS
-            "**/Thumbs.db",  # Windows
-            "**/*.tmp",
-            "**/*.temp",
+        # 4. Remover arquivos temporarios do sistema
+        temp_roots = [
+            self.launchers_dir,
+            self.base_dir / "build",
+            self.base_dir / "builds",
+            self.base_dir / "dist",
+            self.base_dir / "dist_packages",
+            self.base_dir / "logs",
         ]
-
+        temp_patterns = [
+            ".DS_Store",
+            "Thumbs.db",
+            "*.tmp",
+            "*.temp",
+        ]
         for pattern in temp_patterns:
-            for temp_file in self.base_dir.glob(pattern):
-                if temp_file.exists():
-                    temp_file.unlink()
-                    logger.debug(f"Arquivo temporario removido: {temp_file}")
-                    cleanup_count += 1
-
-        # 5. Limpar dist_simple (builds de desenvolvimento)
-        dist_simple = self.launchers_dir / "dist_simple"
-        if dist_simple.exists():
-            shutil.rmtree(dist_simple)
-            logger.info("Diretorio dist_simple removido")
-            cleanup_count += 1
+            for root in temp_roots:
+                if not root.exists():
+                    continue
+                for temp_file in root.glob(pattern):
+                    if temp_file.is_file() and temp_file.exists():
+                        if remove_path(temp_file):
+                            logger.debug("Arquivo temporario removido: %s", temp_file)
+                            cleanup_count += 1
 
         logger.info(f"Limpeza concluida: {cleanup_count} itens removidos")
         return cleanup_count > 0
@@ -659,8 +818,9 @@ class MultiPlatformBuilder:
 
         try:
             # Verificar se estamos em um repositorio git
-            result = subprocess.run(
+            result = self._run_command(
                 ["git", "status"],
+                timeout=20,
                 capture_output=True,
                 text=True,
                 cwd=str(self.base_dir),
@@ -670,8 +830,9 @@ class MultiPlatformBuilder:
                 return False
 
             # Verificar se ha alteracoes para commit
-            result = subprocess.run(
+            result = self._run_command(
                 ["git", "status", "--porcelain"],
+                timeout=20,
                 capture_output=True,
                 text=True,
                 cwd=str(self.base_dir),
@@ -695,8 +856,9 @@ class MultiPlatformBuilder:
             ]
 
             for file_pattern in files_to_add:
-                subprocess.run(
+                self._run_command(
                     ["git", "add", file_pattern],
+                    timeout=30,
                     capture_output=True,
                     text=True,
                     cwd=str(self.base_dir),
@@ -710,8 +872,9 @@ class MultiPlatformBuilder:
                 commit_message = f"Build automatico v{self.version} - {timestamp}"
 
             # Commit
-            result = subprocess.run(
+            result = self._run_command(
                 ["git", "commit", "-m", commit_message],
+                timeout=60,
                 capture_output=True,
                 text=True,
                 cwd=str(self.base_dir),
@@ -723,8 +886,12 @@ class MultiPlatformBuilder:
                 logger.warning(f"Nada para commitar ou erro: {result.stderr}")
 
             # Push
-            result = subprocess.run(
-                ["git", "push"], capture_output=True, text=True, cwd=str(self.base_dir)
+            result = self._run_command(
+                ["git", "push"],
+                timeout=120,
+                capture_output=True,
+                text=True,
+                cwd=str(self.base_dir),
             )
 
             if result.returncode == 0:
@@ -741,57 +908,161 @@ class MultiPlatformBuilder:
     def cleanup_online_unnecessary_files(self):
         """Remove arquivos desnecessarios que podem estar online"""
         logger.info("Verificando arquivos desnecessarios online...")
+        tracked_result = self._run_command(
+            ["git", "ls-files"],
+            timeout=30,
+            capture_output=True,
+            text=True,
+            cwd=str(self.base_dir),
+        )
+        if tracked_result.returncode != 0:
+            logger.warning("Nao foi possivel carregar lista de arquivos rastreados")
+            return False
 
-        # Arquivos que devem ser removidos do controle de versao se existirem
-        unnecessary_files = [
-            # Executaveis
-            "launchers/dist/**/*",
-            "launchers/dist_simple/**/*",
-            # Logs
-            "launchers/logs/*.log",
-            "logs/*.log",
-            # Cache e temporarios
-            "data/file_cache.json",
-            "**/__pycache__/**/*",
-            "**/*.pyc",
-            "**/*.pyo",
-            "**/build/**/*",
-            "**/dist/**/*",
-            "**/*.egg-info/**/*",
-            # Arquivos de sistema
-            "**/.DS_Store",
-            "**/Thumbs.db",
-            "**/*.tmp",
-            "**/*.temp",
-            # Backups de banco
-            "data/*.backup_*",
-            "data/historico_backups/**/*",
+        tracked_files = {
+            line.strip()
+            for line in tracked_result.stdout.splitlines()
+            if line.strip()
+        }
+        tracked_scope_map = {
+            "launchers/dist": set(),
+            "launchers/dist_simple": set(),
+        }
+
+        for tracked_path in tracked_files:
+            normalized = tracked_path.replace("\\", "/")
+            for scope_prefix in tracked_scope_map:
+                prefix = f"{scope_prefix}/"
+                if not normalized.startswith(prefix):
+                    continue
+                tracked_scope_map[scope_prefix].add(normalized)
+
+        unnecessary_scopes = [
+            self.launchers_dir / "dist",
+            self.launchers_dir / "dist_simple",
+            self.launchers_dir / "logs",
+            self.base_dir / "build",
+            self.base_dir / "builds",
+            self.base_dir / "dist_packages",
+            self.base_dir / "logs",
+            self.base_dir / "dist",
         ]
 
-        files_removed = []
-        for pattern in unnecessary_files:
-            for file_path in self.base_dir.glob(pattern):
-                if file_path.exists() and file_path.is_file():
-                    try:
-                        # Verificar se o arquivo esta sendo rastreado pelo git
-                        result = subprocess.run(
-                            ["git", "ls-files", str(file_path)],
-                            capture_output=True,
-                            text=True,
-                            cwd=str(self.base_dir),
-                        )
+        unnecessary_patterns = [
+            # Arquivos de controle
+            "file_cache.json",
+            "*.backup_*",
+            # Cache e temporarios
+            "*.pyc",
+            "*.pyo",
+            "Thumbs.db",
+            ".DS_Store",
+            "*.tmp",
+            "*.temp",
+        ]
 
-                        if result.stdout.strip():  # Arquivo esta sendo rastreado
-                            subprocess.run(
-                                ["git", "rm", "--cached", str(file_path)],
-                                capture_output=True,
-                                text=True,
-                                cwd=str(self.base_dir),
-                            )
-                            files_removed.append(str(file_path))
-                            logger.debug(f"Removido do git: {file_path}")
-                    except Exception as e:
-                        logger.debug(f"Erro removendo {file_path}: {e}")
+        def collect_scope_top_level(scope_dir: Path) -> list[str]:
+            scope_prefix = str(scope_dir.relative_to(self.base_dir)).replace("\\", "/")
+            return sorted(tracked_scope_map.get(scope_prefix, set()))
+
+        def is_tracked(file_path: Path) -> bool:
+            try:
+                rel_path = str(file_path.relative_to(self.base_dir)).replace("\\", "/")
+            except ValueError:
+                return False
+            return rel_path in tracked_files
+
+        files_to_remove: list[str] = []
+
+        def collect_for_cleanup(file_path: Path) -> None:
+            if file_path.exists() and file_path.is_file() and is_tracked(file_path):
+                files_to_remove.append(
+                    str(file_path.relative_to(self.base_dir)).replace("\\", "/")
+                )
+
+        for scope_dir in unnecessary_scopes:
+            if not scope_dir.exists():
+                continue
+
+            if scope_dir in {
+                self.launchers_dir / "dist",
+                self.launchers_dir / "dist_simple",
+            }:
+                for relative in collect_scope_top_level(scope_dir):
+                    files_to_remove.append(relative)
+                continue
+
+            for pattern in unnecessary_patterns:
+                for file_path in scope_dir.glob(pattern):
+                    collect_for_cleanup(file_path)
+
+            for dir_path in [scope_dir / "historico_backups"]:
+                if not dir_path.exists() or not dir_path.is_dir():
+                    continue
+                directory_stack = [dir_path]
+                while directory_stack:
+                    current_directory = directory_stack.pop()
+                    try:
+                        dir_entries = os.scandir(current_directory)
+                    except OSError:
+                        continue
+                    for entry in dir_entries:
+                        if entry.is_symlink():
+                            continue
+                        entry_path = Path(entry.path)
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                directory_stack.append(entry_path)
+                            elif entry.is_file(follow_symlinks=False):
+                                collect_for_cleanup(entry_path)
+                        except OSError:
+                            continue
+
+        # Escopo restrito para dados: arquivos explicitos para evitar varredura ampla
+        data_dir = self.base_dir / "data"
+        if data_dir.exists():
+            collect_for_cleanup(data_dir / "file_cache.json")
+            for file_path in data_dir.glob("*.backup_*"):
+                collect_for_cleanup(file_path)
+            historico_backups = data_dir / "historico_backups"
+            if historico_backups.is_dir():
+                directory_stack = [historico_backups]
+                while directory_stack:
+                    current_directory = directory_stack.pop()
+                    try:
+                        dir_entries = os.scandir(current_directory)
+                    except OSError:
+                        continue
+                    for entry in dir_entries:
+                        if entry.is_symlink():
+                            continue
+                        entry_path = Path(entry.path)
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                directory_stack.append(entry_path)
+                            elif entry.is_file(follow_symlinks=False):
+                                collect_for_cleanup(entry_path)
+                        except OSError:
+                            continue
+
+        files_removed = []
+        if files_to_remove:
+            for index in range(0, len(files_to_remove), 500):
+                batch = files_to_remove[index : index + 500]
+                rm_result = self._run_command(
+                    ["git", "rm", "--cached", "--"] + batch,
+                    timeout=30,
+                    capture_output=True,
+                    text=True,
+                    cwd=str(self.base_dir),
+                )
+                if rm_result.returncode == 0:
+                    files_removed.extend(batch)
+                else:
+                    logger.warning(
+                        "Falha parcial ao remover arquivos do cache git: %s",
+                        rm_result.stderr.strip() or rm_result.stdout.strip(),
+                    )
 
         if files_removed:
             logger.info(
@@ -821,8 +1092,8 @@ class MultiPlatformBuilder:
             if self.dist_dir.exists():
                 shutil.rmtree(self.dist_dir)
 
-            for platform in self.PLATFORMS:
-                platform_dir = self.platforms_dir / platform
+            for platform_id in self.PLATFORMS:
+                platform_dir = self.platforms_dir / platform_id
                 venv_dir = platform_dir / "venv"
                 temp_dir = platform_dir / "temp"
 
@@ -882,7 +1153,7 @@ def main():
     parser.add_argument(
         "--skip-venv",
         action="store_true",
-        help="Pular setup do ambiente virtual se já existir",
+        help="Pular setup do ambiente virtual se ja existir",
     )
 
     parser.add_argument(
@@ -989,7 +1260,7 @@ def main():
     # Executar builds
     success = True
     for plat in platforms_to_build:
-        if not builder.build_platform(plat, args.apps):
+        if not builder.build_platform(plat, args.apps, skip_venv=args.skip_venv):
             success = False
 
     if success:
@@ -1000,10 +1271,6 @@ def main():
         if args.auto_cleanup:
             logger.info("Executando limpeza automatica...")
             builder.cleanup_build_artifacts()
-
-        if args.cleanup_online:
-            logger.info("Limpando arquivos desnecessarios online...")
-            builder.cleanup_online_unnecessary_files()
 
         if args.auto_git:
             logger.info("Executando operacoes git automaticas...")

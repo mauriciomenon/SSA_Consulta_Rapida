@@ -49,7 +49,7 @@ def main():
             # Apenas limpeza
             print("CLEAN Executando limpeza completa...")
             cmd = [sys.executable, str(build_script), "--cleanup-online"]
-            result = subprocess.run(cmd, cwd=str(base_dir))
+            result = subprocess.run(cmd, cwd=str(base_dir), check=False, timeout=300)
             return result.returncode
 
         # Build completo
@@ -60,7 +60,6 @@ def main():
         # Adicionar flags automaticas
         if not args.no_cleanup:
             cmd.append("--auto-cleanup")
-            cmd.append("--cleanup-online")
 
         if not args.no_git:
             cmd.append("--auto-git")
@@ -68,7 +67,7 @@ def main():
                 cmd.extend(["--git-message", args.git_message])
 
         print(f"Executando: {' '.join(cmd)}")
-        result = subprocess.run(cmd, cwd=str(base_dir))
+        result = subprocess.run(cmd, cwd=str(base_dir), check=False, timeout=1800)
 
         if result.returncode == 0:
             print("OK Build completo concluido com sucesso!")
