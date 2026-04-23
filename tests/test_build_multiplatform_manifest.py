@@ -205,3 +205,67 @@ def test_post_process_macos_dmg_cli_only_skips_when_gui_not_requested(
         apps=["cli"],
     )
     assert ok is True
+
+
+def test_cleanup_online_unnecessary_files_uses_scope_prefix_for_dist(monkeypatch, tmp_path):
+    builder = MultiPlatformBuilder()
+    builder.base_dir = tmp_path
+    builder.launchers_dir = tmp_path / "launchers"
+    builder.platforms_dir = builder.launchers_dir / "platforms"
+    builder.dist_dir = builder.launchers_dir / "dist"
+
+    dist_dir = builder.launchers_dir / "dist"
+    dist_simple_dir = builder.launchers_dir / "dist_simple"
+    build_dir = tmp_path / "build"
+    builds_dir = tmp_path / "builds"
+    dist_dir.mkdir(parents=True)
+    dist_simple_dir.mkdir(parents=True)
+    build_dir.mkdir()
+    builds_dir.mkdir()
+
+    (dist_dir / "cli").mkdir()
+    (dist_dir / "cli" / "SSA_CLI.exe").write_bytes(b"x")
+    (dist_dir_simple := dist_simple_dir / "gui").mkdir()
+    (dist_dir_simple / "SSA_GUI.exe").write_bytes(b"y")
+
+    (build_dir / "artifact.pyc").write_text("stub", encoding="utf-8")
+    (builds_dir / "old.pyo").write_text("stub", encoding="utf-8")
+
+    git_rm_batches: list[list[str]] = []
+
+    class _FakeResult:
+        def __init__(self, returncode=0, stdout="", stderr=""):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def fake_run(cmd, **_kwargs):
+        if cmd == ["git", "ls-files"]:
+            tracked = [
+                "launchers/dist/cli/SSA_CLI.exe",
+                "launchers/dist_simple/gui/SSA_GUI.exe",
+                "build/artifact.pyc",
+                "builds/old.pyo",
+                "other/ignored.txt",
+            ]
+            return _FakeResult(stdout="\n".join(tracked) + "\n")
+
+        if cmd[:2] == ["git", "rm"]:
+            git_rm_batches.append(cmd)
+            return _FakeResult()
+
+        return _FakeResult(returncode=1)
+
+    monkeypatch.setattr(builder, "_run_command", fake_run)
+
+    ok = builder.cleanup_online_unnecessary_files()
+    assert ok is True
+
+    removed: list[str] = []
+    for batch in git_rm_batches:
+        removed.extend(batch[4:])
+
+    assert "launchers/dist/cli/SSA_CLI.exe" in removed
+    assert "launchers/dist_simple/gui/SSA_GUI.exe" in removed
+    assert "build/artifact.pyc" in removed
+    assert "builds/old.pyo" in removed
