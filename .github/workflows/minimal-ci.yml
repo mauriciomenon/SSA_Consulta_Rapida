@@ -78,18 +78,18 @@ jobs:
         run: |
           set -euo pipefail
           uv run --python 3.13 python - <<'PY'
-from pathlib import Path
-import py_compile
+          from pathlib import Path
+          import py_compile
 
-files_path = Path(".changed_python_files")
-files = [line.strip() for line in files_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+          files_path = Path(".changed_python_files")
+          files = [line.strip() for line in files_path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
-if not files:
-    print("No changed Python files to compile.")
-else:
-    for file_path in files:
-        py_compile.compile(file_path, doraise=True)
-PY
+          if not files:
+              print("No changed Python files to compile.")
+          else:
+              for file_path in files:
+                  py_compile.compile(file_path, doraise=True)
+          PY
 
       - name: Ruff (changed files)
         run: |
@@ -111,7 +111,7 @@ PY
             uv run --python 3.13 ty check "${files[@]}"
           fi
 
-      - name: Focused pytest suite
+      - name: Pytest suite
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
