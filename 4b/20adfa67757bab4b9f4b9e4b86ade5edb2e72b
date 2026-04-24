@@ -1,0 +1,43 @@
+dev_env/build/build_nuitka_clean.bat
+  41bd7cec02910368 6-12,64-69,71-81
+docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md
+  41bd7cec02910368 32
+tests/test_import_consolidation.py
+  41bd7cec02910368 6,43-115
+tests/test_import_staging.py
+  41bd7cec02910368 5,54-142
+dev_env/build/build_pyinstaller.bat
+  41bd7cec02910368 6-12,57-62,64-74
+.deepsource.toml
+  41bd7cec02910368 13
+RTK.md
+  41bd7cec02910368 31
+.github/workflows/codeql.yml
+  41bd7cec02910368 43-51,54-55,91
+dev_env/build/build_nuitka_debian.sh
+  41bd7cec02910368 5-15,48-49,99-104,111-116
+core/import_consolidation.py
+  41bd7cec02910368 23-27,31,33-40,181,183-184,190-199,203-204
+core/import_staging.py
+  41bd7cec02910368 157-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "4b20adfa67757bab4b9f4b9e4b86ade5edb2e72b",
+  "prompts": {
+    "41bd7cec02910368": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dbaf0-1318-7781-b6a3-80fc2fb6c8f6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 288,
+      "total_deletions": 47,
+      "accepted_lines": 288,
+      "overriden_lines": 0
+    }
+  }
+}
