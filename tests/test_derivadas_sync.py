@@ -469,6 +469,57 @@ def test_sync_parses_special_visual_derivadas_sheet_layout(temp_db, tmp_path: Pa
     assert rows == [("202500001", "202500002"), ("202500001", "202500003")]
 
 
+def test_sync_parses_special_visual_derivadas_sheet_shifted_columns(
+    temp_db,
+    tmp_path: Path,
+):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+        ],
+    )
+
+    sheet_file = tmp_path / "SSAs Derivadas e Relacionadas_shifted.xlsx"
+    visual_rows = [
+        [None] * 16,
+        [None] * 16,
+        [None] * 16,
+        [None] * 16,
+    ]
+    visual_rows[0][3] = "SSAs Derivadas e Relacionadas"
+    visual_rows[1][0] = "Numero da SSA"
+    visual_rows[1][6] = "Numero da SSA"
+    visual_rows[1][10] = "Relacao"
+    visual_rows[1][11] = "Numero da SSA"
+    visual_rows[2][0] = "202500001"
+    visual_rows[3][6] = "202500002"
+    visual_rows[3][10] = "Derivada da"
+    visual_rows[3][11] = "202500001"
+    pd.DataFrame(visual_rows).to_excel(sheet_file, index=False, header=False)
+
+    report = sync_derivadas(
+        temp_db,
+        include_db_source=False,
+        sheet_file=str(sheet_file),
+    )
+
+    assert report["sheet_stats"]["special_layout_detected"] == 1
+    assert report["sheet_stats"]["accepted_edges"] == 1
+
+    with sqlite3.connect(temp_db) as conn:
+        rows = conn.execute(
+            """
+            SELECT parent_ssa, child_ssa
+            FROM ssa_derivada_matrix
+            WHERE active = 1
+            """
+        ).fetchall()
+
+    assert rows == [("202500001", "202500002")]
+
+
 def test_full_rebuild_hard_removes_stale_matrix_rows(temp_db):
     _insert_ssa_rows(
         temp_db,

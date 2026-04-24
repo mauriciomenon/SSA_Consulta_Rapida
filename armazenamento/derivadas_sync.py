@@ -80,9 +80,6 @@ SHEET_LABEL_ALIASES: tuple[str, ...] = (
     "relation_raw_label",
 )
 SPECIAL_SHEET_HEADER_ROW_INDEX = 1
-SPECIAL_SHEET_CHILD_COL_INDEX = 5
-SPECIAL_SHEET_RELATION_COL_INDEX = 9
-SPECIAL_SHEET_PARENT_COL_INDEX = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -585,26 +582,38 @@ def _collect_special_visual_sheet_edges(
             continue
         if frame.shape[0] <= SPECIAL_SHEET_HEADER_ROW_INDEX:
             continue
-        if frame.shape[1] <= SPECIAL_SHEET_PARENT_COL_INDEX:
-            continue
-
         header_row = frame.iloc[SPECIAL_SHEET_HEADER_ROW_INDEX]
-        child_header = _normalize_sheet_column_name(
-            header_row.iloc[SPECIAL_SHEET_CHILD_COL_INDEX]
-        )
-        relation_header = _normalize_sheet_column_name(
-            header_row.iloc[SPECIAL_SHEET_RELATION_COL_INDEX]
-        )
-        parent_header = _normalize_sheet_column_name(
-            header_row.iloc[SPECIAL_SHEET_PARENT_COL_INDEX]
-        )
+        normalized_headers = [
+            _normalize_sheet_column_name(header_row.iloc[index])
+            for index in range(frame.shape[1])
+        ]
+        column_groups: list[tuple[int, int, int]] = []
+        relation_indexes = [
+            index for index, header in enumerate(normalized_headers) if header == "relacao"
+        ]
+        for relation_index in relation_indexes:
+            child_index = next(
+                (
+                    index
+                    for index in range(relation_index - 1, -1, -1)
+                    if normalized_headers[index] == "numerodassa"
+                ),
+                None,
+            )
+            parent_index = next(
+                (
+                    index
+                    for index in range(relation_index + 1, frame.shape[1])
+                    if normalized_headers[index] == "numerodassa"
+                ),
+                None,
+            )
+            if child_index is None or parent_index is None:
+                stats["missing_columns"] += 1
+                continue
+            column_groups.append((child_index, relation_index, parent_index))
 
-        # Detect expected visual matrix markers before parsing.
-        if (
-            child_header != "numerodassa"
-            or parent_header != "numerodassa"
-            or relation_header != "relacao"
-        ):
+        if not column_groups:
             continue
 
         stats["special_layout_detected"] += 1
@@ -612,49 +621,50 @@ def _collect_special_visual_sheet_edges(
         stats["input_rows"] += int(len(data_rows))
 
         for _, row in data_rows.iterrows():
-            child_raw = row.iloc[SPECIAL_SHEET_CHILD_COL_INDEX]
-            relation_raw = row.iloc[SPECIAL_SHEET_RELATION_COL_INDEX]
-            parent_raw = row.iloc[SPECIAL_SHEET_PARENT_COL_INDEX]
+            for child_col, relation_col, parent_col in column_groups:
+                child_raw = row.iloc[child_col]
+                relation_raw = row.iloc[relation_col]
+                parent_raw = row.iloc[parent_col]
 
-            child_norm = _normalize_ssa(child_raw)
-            parent_norm = _normalize_ssa(parent_raw)
-            relation_norm = _clean_relation_label(relation_raw)
-            # Visual sheets include many context/info rows with no edge payload.
-            # Do not classify those as invalid parent/child to keep signal useful.
-            if not parent_norm and not child_norm and relation_norm is None:
-                stats["informational_rows_skipped"] += 1
-                continue
-            # Root/context rows often carry only child SSA with empty relation/parent.
-            # Treat these as informational instead of invalid parent.
-            if not parent_norm and relation_norm is None:
-                stats["informational_rows_skipped"] += 1
-                continue
-            if not parent_norm:
-                stats["invalid_parent"] += 1
-                continue
-            if not child_norm:
-                stats["invalid_child"] += 1
-                continue
-            if parent_norm == child_norm:
-                stats["self_loop"] += 1
-                continue
+                child_norm = _normalize_ssa(child_raw)
+                parent_norm = _normalize_ssa(parent_raw)
+                relation_norm = _clean_relation_label(relation_raw)
+                # Visual sheets include many context/info rows with no edge payload.
+                # Do not classify those as invalid parent/child to keep signal useful.
+                if not parent_norm and not child_norm and relation_norm is None:
+                    stats["informational_rows_skipped"] += 1
+                    continue
+                # Root/context rows often carry only child SSA with empty relation/parent.
+                # Treat these as informational instead of invalid parent.
+                if not parent_norm and relation_norm is None:
+                    stats["informational_rows_skipped"] += 1
+                    continue
+                if not parent_norm:
+                    stats["invalid_parent"] += 1
+                    continue
+                if not child_norm:
+                    stats["invalid_child"] += 1
+                    continue
+                if parent_norm == child_norm:
+                    stats["self_loop"] += 1
+                    continue
 
-            key = (parent_norm, child_norm)
-            if key in seen_pairs:
-                stats["duplicated"] += 1
-                continue
-            seen_pairs.add(key)
-            child_to_parents[child_norm].add(parent_norm)
-            edges.append(
-                SourceEdge(
-                    parent_ssa=parent_norm,
-                    child_ssa=child_norm,
-                    source_name=SOURCE_SHEET_DERIVADAS,
-                    source_flag=SOURCE_FLAG_SHEET,
-                    relation_type=RELATION_TYPE_SHEET,
-                    relation_raw_label=relation_norm,
+                key = (parent_norm, child_norm)
+                if key in seen_pairs:
+                    stats["duplicated"] += 1
+                    continue
+                seen_pairs.add(key)
+                child_to_parents[child_norm].add(parent_norm)
+                edges.append(
+                    SourceEdge(
+                        parent_ssa=parent_norm,
+                        child_ssa=child_norm,
+                        source_name=SOURCE_SHEET_DERIVADAS,
+                        source_flag=SOURCE_FLAG_SHEET,
+                        relation_type=RELATION_TYPE_SHEET,
+                        relation_raw_label=relation_norm,
+                    )
                 )
-            )
 
     stats["accepted_edges"] = len(edges)
     multiparent = {
