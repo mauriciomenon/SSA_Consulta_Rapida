@@ -154,8 +154,13 @@ def stage_external_import_files(
                 try:
                     os.remove(destination)
                     reserved_paths.discard(os.path.abspath(destination))
-                except OSError:
-                    pass
+                except OSError as exc:
+                    failed += 1
+                    if callable(error_callback):
+                        error_callback(
+                            "[ERRO] Falha ao remover arquivo staged apos "
+                            f"cancelamento '{destination}': {exc}"
+                        )
                 break
             copied += 1
             staged_files.append(destination)

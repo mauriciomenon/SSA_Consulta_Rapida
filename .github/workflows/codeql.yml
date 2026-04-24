@@ -40,10 +40,19 @@ jobs:
               echo "reason=default_setup_active" >> "${GITHUB_OUTPUT}"
               exit 0
             fi
+            if [ "${STATE}" = "not-configured" ] || [ "${STATE}" = "not_configured" ] || [ "${STATE}" = "disabled" ]; then
+              echo "run_advanced=true" >> "${GITHUB_OUTPUT}"
+              echo "reason=advanced_allowed" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+
+            echo "run_advanced=false" >> "${GITHUB_OUTPUT}"
+            echo "reason=default_setup_state_unknown" >> "${GITHUB_OUTPUT}"
+            exit 0
           fi
 
-          echo "run_advanced=true" >> "${GITHUB_OUTPUT}"
-          echo "reason=advanced_allowed" >> "${GITHUB_OUTPUT}"
+          echo "run_advanced=false" >> "${GITHUB_OUTPUT}"
+          echo "reason=default_setup_unverified_http_${HTTP_CODE}" >> "${GITHUB_OUTPUT}"
 
   analyze:
     needs: precheck-default-setup
@@ -79,5 +88,5 @@ jobs:
       - name: Skip advanced scan due to default setup
         run: |
           set -euo pipefail
-          echo "CodeQL advanced workflow skipped because default setup is active."
+          echo "CodeQL advanced workflow skipped because default setup is active or verification could not be completed."
           echo "Reason: ${{ needs.precheck-default-setup.outputs.reason }}"

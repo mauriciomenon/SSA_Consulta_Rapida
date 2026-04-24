@@ -2,9 +2,17 @@
 set -euo pipefail
 
 SILENT=0
-if [[ "${1:-}" == "--silent" ]]; then
-  SILENT=1
-fi
+WITH_LOCAL_DATA=0
+for arg in "$@"; do
+  case "${arg}" in
+    --silent)
+      SILENT=1
+      ;;
+    --with-local-data)
+      WITH_LOCAL_DATA=1
+      ;;
+  esac
+done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -37,8 +45,8 @@ trap on_error ERR
 if ! command -v patchelf >/dev/null 2>&1; then
   if sudo -n true >/dev/null 2>&1; then
     if [[ "${SILENT}" == "1" ]]; then
-      sudo -n apt-get update >>"${LOG_FILE}" 2>&1
-      sudo -n apt-get install -y patchelf >>"${LOG_FILE}" 2>&1
+      sudo -n apt-get update 2>&1 | tee -a "${LOG_FILE}" >/dev/null
+      sudo -n apt-get install -y patchelf 2>&1 | tee -a "${LOG_FILE}" >/dev/null
     else
       echo "Instalando patchelf..."
       sudo -n apt-get update
@@ -88,16 +96,24 @@ if [[ "${SILENT}" == "1" ]]; then
   "${GUI_CMD[@]}" --output-filename="SSA_GUI_v${APP_VERSION}_debian_amd64" --linux-icon=resources/app_icon.png launchers/gui_entry.py >"${LOG_FILE}" 2>&1
   LAST_STEP="nuitka_cli"
   "${CLI_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_debian_amd64" launchers/cli_entry.py >>"${LOG_FILE}" 2>&1
-  LAST_STEP="copy_data_to_builds"
-  uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" --build-system nuitka --allow-local-data >>"${LOG_FILE}" 2>&1
+  if [[ "${WITH_LOCAL_DATA}" == "1" ]]; then
+    LAST_STEP="copy_data_to_builds"
+    uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" --build-system nuitka --allow-local-data >>"${LOG_FILE}" 2>&1
+  else
+    echo "[build_nuitka_debian] pulando copia de dados locais. Use --with-local-data para habilitar." >>"${LOG_FILE}"
+  fi
 else
   echo "Iniciando build Nuitka debian_amd64..."
   LAST_STEP="nuitka_gui"
   "${GUI_CMD[@]}" --output-filename="SSA_GUI_v${APP_VERSION}_debian_amd64" --linux-icon=resources/app_icon.png launchers/gui_entry.py
   LAST_STEP="nuitka_cli"
   "${CLI_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_debian_amd64" launchers/cli_entry.py
-  LAST_STEP="copy_data_to_builds"
-  uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" --build-system nuitka --allow-local-data
+  if [[ "${WITH_LOCAL_DATA}" == "1" ]]; then
+    LAST_STEP="copy_data_to_builds"
+    uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" --build-system nuitka --allow-local-data
+  else
+    echo "INFO Pulando copia de dados locais. Use --with-local-data para habilitar."
+  fi
 fi
 
 echo "Build Nuitka Debian concluido com sucesso."
