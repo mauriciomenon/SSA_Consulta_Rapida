@@ -105,6 +105,56 @@ def test_stage_external_import_files_rejects_unsupported_and_invalid_paths(
     assert any("caracteres invalidos" in message for message in messages)
 
 
+def test_stage_external_import_files_reports_missing_source_as_failed(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "docs_entrada").mkdir()
+    missing_file = tmp_path / "fontes" / "ausente.xlsx"
+    errors: list[str] = []
+
+    staged_files, summary = stage_external_import_files(
+        project_root=str(tmp_path),
+        source_files=(str(missing_file),),
+        error_callback=errors.append,
+    )
+
+    assert staged_files == []
+    assert summary["copied"] == 0
+    assert summary["failed"] == 1
+    assert summary["unsupported"] == 0
+    assert summary["staged"] == 0
+    assert any("Arquivo inexistente" in error for error in errors)
+
+
+def test_stage_external_import_files_removes_copied_file_when_cancelled(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    source_dir = tmp_path / "fontes"
+    source_dir.mkdir()
+    source = source_dir / "cancel.xlsx"
+    source.write_text("payload", encoding="utf-8")
+    cancel_calls = {"count": 0}
+
+    def should_cancel() -> bool:
+        cancel_calls["count"] += 1
+        return cancel_calls["count"] >= 3
+
+    staged_files, summary = stage_external_import_files(
+        project_root=str(tmp_path),
+        source_files=(str(source),),
+        should_cancel=should_cancel,
+    )
+
+    assert staged_files == []
+    assert summary["copied"] == 0
+    assert summary["failed"] == 0
+    assert summary["unsupported"] == 0
+    assert summary["staged"] == 0
+    assert not (docs_dir / "cancel.xlsx").exists()
+
+
 def test_stage_external_import_files_reports_cleanup_failure_after_cancel(
     tmp_path: Path,
     monkeypatch,
