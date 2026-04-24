@@ -7,6 +7,7 @@ import time
 import pytest
 
 from armazenamento.derivadas_queries import (
+    _collect_paths,
     _open_derivadas_connection,
     get_ancestors,
     get_children,
@@ -115,6 +116,25 @@ def test_paths_emit_warning_when_truncated_by_cap(temp_db, caplog):
         down_paths = get_paths_down(temp_db, "202500001", depth=10, max_nodes=1)
 
     assert down_paths == [["202500001"]]
+    assert "Path traversal truncated" in caplog.text
+
+
+def test_collect_paths_hard_caps_dense_graph(caplog):
+    adjacency = {
+        "202500001": [f"2025001{i:02d}" for i in range(20)],
+    }
+    for child in adjacency["202500001"]:
+        adjacency[child] = [f"2025002{i:02d}" for i in range(20)]
+
+    with caplog.at_level(logging.WARNING, logger="armazenamento.derivadas_queries"):
+        paths = _collect_paths(
+            adjacency,
+            "202500001",
+            depth=5,
+            max_nodes=3,
+        )
+
+    assert len(paths) <= 3
     assert "Path traversal truncated" in caplog.text
 
 

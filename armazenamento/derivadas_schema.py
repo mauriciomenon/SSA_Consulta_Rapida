@@ -392,9 +392,23 @@ def _ensure_derivadas_columns(
                       AND trim(relation_label) <> ''
                     """
                 )
-    except Exception:
-        conn.execute("ROLLBACK TO derivadas_ensure_columns")
-        conn.execute("RELEASE derivadas_ensure_columns")
+    except Exception as original_exc:
+        try:
+            conn.execute("ROLLBACK TO derivadas_ensure_columns")
+        except sqlite3.Error as rollback_exc:
+            logger.warning(
+                "Derivadas schema migration rollback failed after %s: %s",
+                type(original_exc).__name__,
+                rollback_exc,
+            )
+        try:
+            conn.execute("RELEASE derivadas_ensure_columns")
+        except sqlite3.Error as release_exc:
+            logger.warning(
+                "Derivadas schema migration release failed after %s: %s",
+                type(original_exc).__name__,
+                release_exc,
+            )
         raise
     conn.execute("RELEASE derivadas_ensure_columns")
 
@@ -537,10 +551,9 @@ def has_derivadas_schema(
     invalid_names = sorted(name for name in names if not is_valid_identifier(name))
     if invalid_names:
         raise ValueError(f"Invalid table identifier(s): {invalid_names}")
+    placeholders = ",".join("?" for _ in names)
     cur = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ({})".format(
-            ",".join("?" for _ in names)
-        ),
+        f"SELECT name FROM sqlite_master WHERE type='table' AND name IN ({placeholders})",  # nosec B608  # skipcq: BAN-B608
         tuple(sorted(names)),
     )
     existing = {row[0] for row in cur.fetchall()}
