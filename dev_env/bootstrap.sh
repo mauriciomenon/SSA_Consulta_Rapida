@@ -38,7 +38,9 @@ ensure_build_deps() {
     mac)
       if have_cmd brew; then
         echo "[info] Instalando ferramentas via Homebrew (pyenv, pyenv-virtualenv, direnv)"
-        brew install pyenv pyenv-virtualenv direnv || true
+        if ! brew install pyenv pyenv-virtualenv direnv; then
+          echo "[aviso] Homebrew nao instalou todas as ferramentas; continuarei com fallbacks disponiveis"
+        fi
       else
         echo "[aviso] Homebrew nao encontrado. Instale Homebrew ou pyenv manualmente: https://github.com/pyenv/pyenv"
       fi
@@ -77,8 +79,11 @@ ensure_pyenv() {
     echo "[aviso] pyenv encontrado sem pyenv-virtualenv; instalando plugin fixado"
   else
     ensure_pyenv_clone_deps || return 1
-    if [[ -x "$PYENV_ROOT/bin/pyenv" || -d "$PYENV_ROOT/.git" ]]; then
+    if [[ -x "$PYENV_ROOT/bin/pyenv" ]]; then
       echo "[info] Reutilizando instalacao existente de pyenv em $PYENV_ROOT"
+    elif [[ -d "$PYENV_ROOT/.git" ]]; then
+      echo "[erro] PYENV_ROOT tem repositorio git mas nao possui binario pyenv valido: $PYENV_ROOT"
+      return 1
     elif [[ -d "$PYENV_ROOT" ]] && [[ -z "$(find "$PYENV_ROOT" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
       echo "[info] Instalando pyenv de refs fixadas"
       rmdir "$PYENV_ROOT"
@@ -110,7 +115,9 @@ ensure_direnv() {
       debian)
         if have_cmd apt; then
           echo "[info] Instalando direnv via apt (sudo pode ser solicitado)"
-          sudo apt install -y direnv || true
+          if ! sudo apt install -y direnv; then
+            echo "[aviso] apt nao instalou direnv; continuarei sem ativacao automatica"
+          fi
         fi
         ;;
       mac)
