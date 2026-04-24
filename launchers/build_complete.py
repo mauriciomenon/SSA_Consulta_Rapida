@@ -5,9 +5,27 @@ Script de conveniencia para build completo com limpeza e git operations.
 """
 
 import argparse
-import subprocess
+import importlib
 import sys
+import shlex
 from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+
+def _execute_builder_script(args):
+    """Execucao direta do script de build sem subprocess para eliminar argumentos da shell."""
+    previous_argv = list(sys.argv)
+    base_dir = Path(__file__).parent.parent
+    sys.argv = [str(base_dir / "launchers" / "build_multiplatform.py"), *args]
+    build_multiplatform = importlib.import_module("launchers.build_multiplatform")
+
+    try:
+        return build_multiplatform.main()
+    finally:
+        sys.argv = previous_argv
 
 
 def main():
@@ -41,40 +59,37 @@ def main():
 
     args = parser.parse_args()
 
-    base_dir = Path(__file__).parent.parent
-    build_script = base_dir / "launchers" / "build_multiplatform.py"
-
     try:
+        script_args = []
         if args.cleanup_only:
             # Apenas limpeza
             print("CLEAN Executando limpeza completa...")
-            cmd = [sys.executable, str(build_script), "--cleanup-online"]
-            result = subprocess.run(cmd, cwd=str(base_dir), check=False, timeout=300)
-            return result.returncode
+            script_args.append("--cleanup-online")
+            result_code = _execute_builder_script(script_args)
+            return result_code
 
         # Build completo
         print("START Iniciando build completo...")
-
-        cmd = [sys.executable, str(build_script), "--apps"] + args.apps
+        script_args = ["--apps", *args.apps]
 
         # Adicionar flags automaticas
         if not args.no_cleanup:
-            cmd.append("--auto-cleanup")
+            script_args.append("--auto-cleanup")
 
         if not args.no_git:
-            cmd.append("--auto-git")
+            script_args.append("--auto-git")
             if args.git_message:
-                cmd.extend(["--git-message", args.git_message])
+                script_args.extend(["--git-message", args.git_message])
 
-        print(f"Executando: {' '.join(cmd)}")
-        result = subprocess.run(cmd, cwd=str(base_dir), check=False, timeout=1800)
+        print(f"Executando: {' '.join(shlex.quote(part) for part in script_args)}")
+        result_code = _execute_builder_script(script_args)
 
-        if result.returncode == 0:
+        if result_code == 0:
             print("OK Build completo concluido com sucesso!")
         else:
             print("ERR Build falhou")
 
-        return result.returncode
+        return result_code
 
     except KeyboardInterrupt:
         print("\nWARN  Build interrompido pelo usuario")
