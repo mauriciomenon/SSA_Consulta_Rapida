@@ -187,16 +187,18 @@ class HandlerBase(ABC):
         Returns:
             String formatada
         """
-        if data.empty:
-            return "Nenhum resultado encontrado."
-
         format_type = context.output_format.lower()
+
+        if data.empty and format_type == "json":
+            return "[]"
 
         if format_type == "json":
             json_text = data.to_json(orient="records", indent=2)
             return json_text or ""
         elif format_type == "csv":
             return data.to_csv(index=False)
+        elif data.empty:
+            return "Nenhum resultado encontrado."
         else:  # table (default)
             return self._format_table(data, context)
 

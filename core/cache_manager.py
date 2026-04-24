@@ -5,6 +5,7 @@ Elimina os 4 sistemas de cache independentes.
 
 import hashlib
 import json
+import pickle
 import sys
 import threading
 from datetime import datetime, timedelta
@@ -61,11 +62,24 @@ class CacheManager:
 
         # Hash full content to avoid stale cache hits on middle-row changes.
         if not df.empty:
-            row_hashes = pd.util.hash_pandas_object(df, index=True)
-            df_info["content_hash"] = hashlib.md5(
-                row_hashes.to_numpy(dtype="uint64").tobytes(),
-                usedforsecurity=False,
-            ).hexdigest()
+            try:
+                row_hashes = pd.util.hash_pandas_object(df, index=True)
+            except TypeError:
+                # Pickle is only used to serialize local cache-key input, never load it.
+                content_payload = {
+                    "index": list(df.index),
+                    "columns": list(df.columns),
+                    "data": df.to_numpy(dtype=object, copy=False).tolist(),
+                }
+                df_info["content_hash"] = hashlib.md5(
+                    pickle.dumps(content_payload, protocol=pickle.HIGHEST_PROTOCOL),
+                    usedforsecurity=False,
+                ).hexdigest()
+            else:
+                df_info["content_hash"] = hashlib.md5(
+                    row_hashes.to_numpy(dtype="uint64").tobytes(),
+                    usedforsecurity=False,
+                ).hexdigest()
 
         # MD5 is used only for deterministic cache keys, never for security.
         info_str = json.dumps(df_info, sort_keys=True, default=str)
