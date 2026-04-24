@@ -89,7 +89,7 @@ def _validate_canonical_storage_ids(work_local: pd.DataFrame) -> None:
             )
 
 
-def _infer_sql_type(series: pd.Series | None) -> str:
+def infer_sql_type(series: pd.Series | None) -> str:
     """Infer a SQLite column type from a pandas Series."""
     if series is None:
         return "TEXT"
@@ -102,8 +102,12 @@ def _infer_sql_type(series: pd.Series | None) -> str:
     try:
         if pd.api.types.is_integer_dtype(non_null):
             return "INTEGER"
+        if pd.api.types.is_bool_dtype(non_null):
+            return "INTEGER"
         if pd.api.types.is_float_dtype(non_null):
             return "REAL"
+        if pd.api.types.is_datetime64_any_dtype(non_null):
+            return "TEXT"
     except Exception:  # pragma: no cover
         return "TEXT"
     return "TEXT"
@@ -244,7 +248,7 @@ def _append_dataframe_rows(
     quoted_columns = ", ".join(_quote_identifier(col) for col in columns)
     placeholders = ", ".join(["?"] * len(columns))
     insert_sql = (
-        f"INSERT INTO {quoted_table} ({quoted_columns}) VALUES ({placeholders})"
+        f"INSERT INTO {quoted_table} ({quoted_columns}) VALUES ({placeholders})"  # nosec B608
     )
     cursor = conn.cursor()
     total_inserted = 0
@@ -352,7 +356,7 @@ def _sync_dynamic_columns_and_schema(
 
     missing_columns = [col for col in final_work.columns if col not in existing_columns]
     for col in missing_columns:
-        sql_type = _infer_sql_type(
+        sql_type = infer_sql_type(
             final_work[col] if col in final_work.columns else None
         )
         logger.info(
@@ -408,7 +412,7 @@ def _should_update_existing(
                     timestamp = pd.Timestamp(parsed)
                     if pd.isna(timestamp):
                         return None
-                    return cast(pd.Timestamp, timestamp)
+                    return timestamp
             raw = str(origin_name_value or "").strip()
             if not raw:
                 return None
@@ -418,7 +422,7 @@ def _should_update_existing(
             timestamp = pd.Timestamp(parsed)
             if pd.isna(timestamp):
                 return None
-            return cast(pd.Timestamp, timestamp)
+            return timestamp
 
         existing_situacao = _status_code(existing_row.get("situacao"))
         if existing_situacao in terminal_states:
@@ -713,7 +717,7 @@ def _persist_upsert_chunk(
     if delete_keys:
         placeholders = ", ".join(["?"] * len(delete_keys))
         conn.execute(  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
-            f"DELETE FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",
+            f"DELETE FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",  # nosec B608
             list(delete_keys),
         )
     if rows_to_persist:
@@ -794,7 +798,7 @@ def _tuples_match_for_exact_overlap(
 def _table_has_existing_ssa_rows(conn: Any, table_name: str) -> bool:
     quoted_table_name = _quote_identifier(table_name)
     cursor = conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
-        f"SELECT 1 FROM {quoted_table_name} WHERE numero_ssa IS NOT NULL LIMIT 1"
+        f"SELECT 1 FROM {quoted_table_name} WHERE numero_ssa IS NOT NULL LIMIT 1"  # nosec B608
     )
     return cursor.fetchone() is not None
 
@@ -852,7 +856,7 @@ def _load_existing_chunk_caches(
         query_ids = chunk_num_ssa[start : start + _SQLITE_IN_MAX_VARS]
         placeholders = ", ".join(["?"] * len(query_ids))
         part = pd.read_sql_query(
-            f"SELECT * FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",
+            f"SELECT * FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",  # nosec B608
             conn,
             params=query_ids,
         )
