@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, cast
 
 import pandas as pd
+import pytest
 
-from core.handler_base import HandlerBase, HandlerContext
+from core.handler_base import (
+    ExportHandlerBase,
+    FilterHandlerBase,
+    HandlerBase,
+    HandlerContext,
+)
 
 
 class _DummyHandler(HandlerBase):
@@ -15,7 +22,46 @@ class _DummyHandler(HandlerBase):
         return self.create_result(data=None, context=context)
 
 
-def test_create_result_ignores_non_dataframe_data() -> None:
+class _FailingFilterHandler(FilterHandlerBase):
+    def __init__(self) -> None:
+        super().__init__(name="failing")
+
+    def apply_filters(self, data: pd.DataFrame, context: HandlerContext) -> pd.DataFrame:
+        return data
+
+    def _load_base_data(self, context: HandlerContext) -> pd.DataFrame:
+        raise RuntimeError("load failed")
+
+
+class _RecordingExportHandler(ExportHandlerBase):
+    def __init__(self) -> None:
+        super().__init__(name="export")
+        self.output_path: Path | None = None
+
+    def export_data(
+        self, data: pd.DataFrame, output_path: Path, context: HandlerContext
+    ) -> bool:
+        self.output_path = output_path
+        return True
+
+    def _load_export_data(self, context: HandlerContext) -> pd.DataFrame:
+        return pd.DataFrame({"numero_ssa": ["202600001"]})
+
+
+class _FailingExportHandler(ExportHandlerBase):
+    def __init__(self) -> None:
+        super().__init__(name="export_fail")
+
+    def export_data(
+        self, data: pd.DataFrame, output_path: Path, context: HandlerContext
+    ) -> bool:
+        raise RuntimeError("export failed")
+
+    def _load_export_data(self, context: HandlerContext) -> pd.DataFrame:
+        return pd.DataFrame({"numero_ssa": ["202600001"]})
+
+
+def test_create_result_keeps_stats_for_non_dataframe_data() -> None:
     handler = _DummyHandler()
     context = HandlerContext(output_format="table")
 
@@ -27,7 +73,22 @@ def test_create_result_ignores_non_dataframe_data() -> None:
 
     assert result.success is True
     assert result.output_text == ""
-    assert result.stats == {}
+    assert result.stats["processed_rows"] == 0
+
+
+def test_create_result_formats_empty_dataframe_feedback() -> None:
+    handler = _DummyHandler()
+    context = HandlerContext(output_format="table")
+
+    result = handler.create_result(
+        data=pd.DataFrame(),
+        context=context,
+        success=True,
+    )
+
+    assert result.success is True
+    assert result.output_text == "Nenhum resultado encontrado."
+    assert result.stats["processed_rows"] == 0
 
 
 def test_create_result_keeps_dataframe_behavior() -> None:
@@ -41,3 +102,42 @@ def test_create_result_keeps_dataframe_behavior() -> None:
     assert result.output_text != ""
     assert isinstance(result.stats, dict)
     assert "processed_rows" in result.stats
+
+
+def test_filter_handler_logs_exception_context(caplog: pytest.LogCaptureFixture) -> None:
+    handler = _FailingFilterHandler()
+    context = HandlerContext(output_format="table")
+
+    with caplog.at_level("ERROR", logger="core.handler_base"):
+        result = handler.execute(context)
+
+    assert result.success is False
+    assert context.error_count == 1
+    assert "Filter handler 'failing' failed" in caplog.text
+
+
+def test_export_handler_validates_output_path(tmp_path: Path) -> None:
+    handler = _RecordingExportHandler()
+    context = HandlerContext(output_path=str(tmp_path / "out.csv"))
+
+    result = handler.execute(context)
+
+    assert result.success is True
+    assert isinstance(result.data, pd.DataFrame)
+    assert result.stats["processed_rows"] == 1
+    assert handler.output_path == tmp_path / "out.csv"
+
+
+def test_export_handler_failure_increments_context_stats(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    handler = _FailingExportHandler()
+    context = HandlerContext(output_path=str(tmp_path / "out.csv"))
+
+    with caplog.at_level("ERROR", logger="core.handler_base"):
+        result = handler.execute(context)
+
+    assert result.success is False
+    assert context.error_count == 1
+    assert result.stats["error_count"] == 1
+    assert "Export handler 'export_fail' failed" in caplog.text
