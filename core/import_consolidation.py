@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable
 
-from utils.path_safety import ensure_path_is_allowed
+from utils.path_safety import ensure_path_is_allowed, reserve_unique_path
 
 ProgressCallback = Callable[[int, str], None]
 LineCallback = Callable[[str], None]
@@ -18,32 +18,6 @@ _MUTATION_FIELDS = (
     "rows_ready_for_insert",
 )
 _SUCCESS_STATUSES = {"", "success", "no_rows"}
-
-
-def build_unique_destination_path(
-    destination_path: str | os.PathLike[str],
-    *,
-    reserve: bool = False,
-) -> str:
-    destination = str(destination_path)
-    base, ext = os.path.splitext(destination)
-    max_attempts = 10000
-    idx = 0
-    while idx <= max_attempts:
-        candidate = destination if idx == 0 else f"{base}__{idx}{ext}"
-        if reserve:
-            try:
-                Path(candidate).touch(exist_ok=False)
-            except FileExistsError:
-                idx += 1
-                continue
-            return candidate
-        if not os.path.exists(candidate):
-            return candidate
-        idx += 1
-    raise RuntimeError(
-        f"Nao foi possivel gerar nome unico apos {max_attempts} tentativas: {destination}"
-    )
 
 
 def resolve_latest_project_import_report(
@@ -180,7 +154,7 @@ def consolidate_input_files(
         target_dir = nosurvivor_dir if is_zero_survivor else processadas_dir
         destination = ""
         try:
-            destination = build_unique_destination_path(target_dir / base_name, reserve=True)
+            destination = reserve_unique_path(target_dir / base_name, touch=True)
             os.replace(source_path, destination)
             moved += 1
             if target_dir == nosurvivor_dir:

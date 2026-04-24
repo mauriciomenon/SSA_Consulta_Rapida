@@ -3,8 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from core import import_consolidation
 from core.import_consolidation import consolidate_input_files
+from utils.path_safety import reserve_unique_path
 
 
 def test_consolidate_input_files_moves_success_and_zero_survivor(
@@ -113,3 +116,14 @@ def test_consolidate_input_files_reports_replace_failure_and_removes_reservation
     assert (docs_dir / "ok.xlsx").exists()
     assert not (docs_dir / "processadas" / "ok.xlsx").exists()
     assert any("blocked:" in error for error in errors)
+
+
+def test_reserve_unique_path_on_disk_reports_exhausted_attempts(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "entrada.xlsx"
+    target.write_text("old", encoding="utf-8")
+    (tmp_path / "entrada__1.xlsx").write_text("old", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="Limpe duplicatas"):
+        reserve_unique_path(target, touch=True, max_attempts=1)
