@@ -13,7 +13,7 @@ Hoje a decisao e esta:
 ## Onde o SO e detectado
 
 A deteccao do sistema operacional acontece em:
-- [gui_config.py](/Users/menon/git/SSA_Consulta_Rapida/gui/gui_config.py:284)
+- `gui/gui_config.py:284`
 
 Funcao:
 - `_normalize_platform_key(platform_name: str | None = None) -> str`
@@ -34,7 +34,7 @@ Trecho de decisao:
 ## Onde isso dispara a escolha dos widths
 
 A resolucao do mapa efetivo acontece em:
-- [gui_config.py](/Users/menon/git/SSA_Consulta_Rapida/gui/gui_config.py:305)
+- `gui/gui_config.py:305`
 
 Funcao:
 - `_resolve_platform_column_widths(...)`
@@ -46,8 +46,8 @@ Essa funcao:
 4. opcionalmente sobrepoe `fallback_widths`
 
 Depois, no merge do config carregado, a escolha do mapa runtime acontece em:
-- [gui_config.py](/Users/menon/git/SSA_Consulta_Rapida/gui/gui_config.py:524)
-- [gui_config.py](/Users/menon/git/SSA_Consulta_Rapida/gui/gui_config.py:545)
+- `gui/gui_config.py:524`
+- `gui/gui_config.py:545`
 
 Fluxo:
 1. copia `DEFAULT_COLUMN_WIDTHS_BY_PLATFORM`
