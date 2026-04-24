@@ -1137,7 +1137,28 @@ def _get_cached_derivadas_family_edges(window) -> list[tuple[str, str]]:
         if not isinstance(family_cache, dict):
             family_cache = {}
             setattr(cache_owner, "_details_derivadas_family_edges_cache", family_cache)
-        cache_key = (id(source_df), len(source_df))
+        data_revision = getattr(window, "_data_revision", None)
+        data_uuid = getattr(window, "_data_uuid", None)
+        row_count = len(source_df)
+        sample_count = min(16, row_count)
+        sample_positions = (
+            sorted(
+                {
+                    int(index * (row_count - 1) / max(1, sample_count - 1))
+                    for index in range(sample_count)
+                }
+            )
+            if row_count > 0
+            else []
+        )
+        sample_token = tuple(
+            (
+                str(source_df.iloc[position]["numero_ssa"]),
+                str(source_df.iloc[position]["derivada_de"]),
+            )
+            for position in sample_positions
+        )
+        cache_key = (id(source_df), row_count, data_revision, data_uuid, sample_token)
         cached_edges = family_cache.get(cache_key)
         if isinstance(cached_edges, list):
             return cast(list[tuple[str, str]], cached_edges)
@@ -1319,10 +1340,12 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         try:
             from armazenamento.derivadas_queries import build_family_payload_from_edges
 
+            local_edges = _get_cached_derivadas_family_edges(window)
             local_payload = build_family_payload_from_edges(
                 target,
-                _get_cached_derivadas_family_edges(window),
+                local_edges,
                 max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
+                allow_relation_ids=normalize_numero_ssa_strict(target) is None,
             )
             if not parents:
                 parents = list(local_payload.get("parents", []) or [])
@@ -1993,8 +2016,11 @@ def _build_derivadas_graph_html(
         dash_attr = (
             ' stroke-dasharray="7 6"' if (source, target_node) in dashed_edges else ""
         )
+        safe_source = html_module.escape(source, quote=True)
+        safe_target_node = html_module.escape(target_node, quote=True)
         svg_lines.append(
-            f'<path d="M{x1:.1f},{y1:.1f} L{mid_x:.1f},{y1:.1f} '
+            f'<path data-from="{safe_source}" data-to="{safe_target_node}" '
+            f'd="M{x1:.1f},{y1:.1f} L{mid_x:.1f},{y1:.1f} '
             f'L{mid_x:.1f},{y2:.1f} L{x2:.1f},{y2:.1f}" '
             f'fill="none" stroke="{node_stroke}" stroke-width="0.9" '
             f'marker-end="url(#arrow)"{dash_attr} />'
