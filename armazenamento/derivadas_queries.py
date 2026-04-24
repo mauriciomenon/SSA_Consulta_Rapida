@@ -551,8 +551,17 @@ def _collect_family_subgraph(
     distance_by_node = {
         row[0]: int(row[1]) for row in family_node_rows[:safe_max_nodes]
     }
+    ancestor_distance_by_node = {row[0]: int(row[1]) for row in ancestor_rows}
+    if ancestor_distance_by_node:
+        distance_by_node.setdefault(target_ssa, max(ancestor_distance_by_node.values()))
+    ordered_ancestors = sorted(
+        ancestor_distance_by_node,
+        key=lambda node: (-ancestor_distance_by_node[node], node),
+    )
     node_candidates = list(
-        dict.fromkeys([*family_roots, target_ssa, *sorted(distance_by_node)])
+        dict.fromkeys(
+            [*parents, target_ssa, *ordered_ancestors, *sorted(distance_by_node)]
+        )
     )
     if len(node_candidates) > safe_max_nodes:
         family_truncated = True

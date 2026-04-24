@@ -199,6 +199,31 @@ def test_snapshot_for_child_includes_parent_and_sibling_family(temp_db):
     ]
 
 
+def test_snapshot_family_cap_preserves_parent_target_edge(temp_db):
+    root = "202500000"
+    parent = "202500999"
+    target = "202501000"
+    rows = [(root, None), (parent, root), (target, parent)]
+    rows.extend((f"202500{i:03d}", root) for i in range(1, 20))
+    with sqlite3.connect(temp_db) as conn:
+        conn.executemany(
+            "INSERT INTO ssa_table (numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
+            [
+                (numero_ssa, derivada_de, f"SSA {numero_ssa}")
+                for numero_ssa, derivada_de in rows
+            ],
+        )
+        conn.commit()
+    sync_derivadas(temp_db)
+
+    snapshot = get_ssa_hierarchy_snapshot(temp_db, target, max_distance=None, max_nodes=3)
+
+    assert snapshot["family_truncated"] is True
+    assert {"ssa": target, "parent": parent, "min_distance": 2} in snapshot[
+        "family_descendants"
+    ]
+
+
 def test_build_family_payload_from_edges_includes_parent_and_siblings():
     payload = build_family_payload_from_edges(
         "202500003",
