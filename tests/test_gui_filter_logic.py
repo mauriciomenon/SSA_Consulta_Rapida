@@ -3625,6 +3625,66 @@ class TestGUIFilterLogic:
         assert "202516514 (STE)" in html
         assert "202600029 (SPG)" in html
 
+    def test_collect_derivadas_tree_data_child_includes_parent_and_siblings(
+        self, monkeypatch
+    ):
+        family_df = pd.DataFrame(
+            {
+                "numero_ssa": ["202600100", "202600101", "202600102", "202600103"],
+                "derivada_de": ["", "202600100", "202600100", "202600102"],
+                "situacao": ["STE", "APG", "SPG", "STE"],
+                "descricao_ssa": ["mae", "filha alvo", "irma", "sobrinha"],
+            }
+        )
+        self.window.df_completo = family_df
+        monkeypatch.setattr(ssa_gui_details, "_resolve_current_db_path", lambda: None)
+
+        data = ssa_gui_details._collect_derivadas_tree_data(self.window, "202600101")
+
+        assert data["parents"] == ["202600100"]
+        assert data["family_roots"] == ["202600100"]
+        assert data["render_family"] is True
+        assert any(
+            row.get("ssa") == "202600101" and row.get("parent") == "202600100"
+            for row in data["descendants"]
+        )
+        assert any(
+            row.get("ssa") == "202600102" and row.get("parent") == "202600100"
+            for row in data["descendants"]
+        )
+        assert any(
+            row.get("ssa") == "202600103" and row.get("parent") == "202600102"
+            for row in data["descendants"]
+        )
+
+    def test_derivadas_tree_html_renders_parent_sibling_family(self):
+        data: dict[str, object] = {
+            "target": "202600101",
+            "parents": ["202600100"],
+            "family_roots": ["202600100"],
+            "children": [],
+            "descendants": [
+                {"ssa": "202600101", "parent": "202600100"},
+                {"ssa": "202600102", "parent": "202600100"},
+                {"ssa": "202600103", "parent": "202600102"},
+            ],
+            "ancestors": [{"ssa": "202600100", "min_distance": 1}],
+            "direct_children_count": 0,
+            "descendants_count": 3,
+            "render_family": True,
+        }
+
+        html = ssa_gui_details._build_derivadas_tree_html(
+            self.window,
+            "202600101",
+            tree_data_override=data,
+        )
+
+        assert "202600100" in html
+        assert "202600101" in html
+        assert "202600102" in html
+        assert "202600103" in html
+
     def test_build_derivadas_mermaid_text_generates_edges(self):
         data: dict[str, object] = {
             "target": "202600023",
@@ -3633,7 +3693,7 @@ class TestGUIFilterLogic:
             "descendants": [{"ssa": "202600031", "parent": "202600029"}],
         }
         mermaid = ssa_gui_details._build_derivadas_mermaid_text(data)
-        assert mermaid.startswith("flowchart TD")
+        assert mermaid.startswith("flowchart LR")
         assert 'N202516514["202516514"] --> N202600023' in mermaid
         assert 'N202600023 --> N202600029["202600029"]' in mermaid
         assert 'N202600029 --> N202600031["202600031"]' in mermaid
@@ -3703,6 +3763,34 @@ class TestGUIFilterLogic:
         assert len(lane_xs) >= 3
         assert len(set(lane_xs)) >= 3
         assert all(x < min(right_node_left_edges) for x in lane_xs[:3])
+
+    def test_build_derivadas_graph_html_renders_parent_sibling_family(self):
+        data: dict[str, object] = {
+            "target": "202600101",
+            "parents": ["202600100"],
+            "family_roots": ["202600100"],
+            "children": [],
+            "descendants": [
+                {"ssa": "202600101", "parent": "202600100"},
+                {"ssa": "202600102", "parent": "202600100"},
+                {"ssa": "202600103", "parent": "202600102"},
+            ],
+            "ancestors": [{"ssa": "202600100", "min_distance": 1}],
+            "descendants_count": 3,
+            "render_family": True,
+        }
+
+        html = ssa_gui_details._build_derivadas_graph_html(
+            self.window,
+            data,
+            link_color="#4a90e2",
+            font_family="monospace",
+        )
+
+        assert "202600100" in html
+        assert "202600101" in html
+        assert "202600102" in html
+        assert "202600103" in html
 
     def test_normalize_ssa_series_reuses_unique_normalizations(self, monkeypatch):
         calls = []
@@ -7324,7 +7412,7 @@ class TestGUIFilterLogic:
 
         cache = self.window._num_reprog_sort_cache
         assert cache["source_id"] is None
-        assert int(cache["source_len"]) == 0
+        assert cache["source_len"] == 0
         assert cache["keys_df"] is None
 
     def test_on_load_error_ignores_stale_request(self):

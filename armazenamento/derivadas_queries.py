@@ -21,6 +21,7 @@ ALLOWED_TOP_METRICS = {
 }
 DERIVADAS_QUERY_BUSY_TIMEOUT_MS = 3000
 DERIVADAS_MAX_DISTANCE_LIMIT = 64
+DERIVADAS_FAMILY_NODE_LIMIT = 400
 logger = logging.getLogger(__name__)
 
 
@@ -415,6 +416,172 @@ def get_paths_up(
         return _collect_paths(adjacency, child, depth=depth, max_nodes=max_nodes)
 
 
+def build_family_payload_from_edges(
+    ssa: Any,
+    edges: list[tuple[Any, Any]],
+    *,
+    max_nodes: int = DERIVADAS_FAMILY_NODE_LIMIT,
+) -> dict[str, Any]:
+    target_ssa = _normalize_or_none(ssa)
+    if not target_ssa:
+        return {
+            "parents": [],
+            "children": [],
+            "family_roots": [],
+            "family_descendants": [],
+            "family_truncated": False,
+        }
+    safe_max_nodes = max(1, min(int(max_nodes), DERIVADAS_FAMILY_NODE_LIMIT))
+    children_by_parent: dict[str, set[str]] = defaultdict(set)
+    parents_by_child: dict[str, set[str]] = defaultdict(set)
+    for parent_raw, child_raw in edges:
+        parent = _normalize_or_none(parent_raw)
+        child = _normalize_or_none(child_raw)
+        if not parent or not child or parent == child:
+            continue
+        children_by_parent[parent].add(child)
+        parents_by_child[child].add(parent)
+
+    parents = sorted(parents_by_child.get(target_ssa, set()))
+    children = sorted(children_by_parent.get(target_ssa, set()))
+    family_roots: list[str] = []
+    seen_ancestors: set[str] = set()
+    stack = [(parent, 1) for parent in reversed(parents)]
+    while stack:
+        node, distance = stack.pop()
+        if node in seen_ancestors:
+            continue
+        seen_ancestors.add(node)
+        node_parents = sorted(parents_by_child.get(node, set()))
+        if not node_parents:
+            family_roots.append(node)
+            continue
+        for parent in reversed(node_parents):
+            stack.append((parent, distance + 1))
+    if not family_roots:
+        family_roots = list(dict.fromkeys(parents or [target_ssa]))
+
+    family_descendants: list[dict[str, Any]] = []
+    seen_edges: set[tuple[str, str]] = set()
+    seen_nodes: set[str] = set(family_roots)
+    stack = [(root, 0) for root in reversed(family_roots)]
+    family_truncated = False
+    while stack and len(family_descendants) < safe_max_nodes:
+        parent, depth = stack.pop()
+        ordered_children = sorted(children_by_parent.get(parent, set()), reverse=True)
+        for child_index, child in enumerate(ordered_children):
+            if len(family_descendants) >= safe_max_nodes:
+                family_truncated = True
+                if child_index < len(ordered_children):
+                    break
+            edge = (parent, child)
+            if edge in seen_edges:
+                continue
+            seen_edges.add(edge)
+            family_descendants.append(
+                {"ssa": child, "parent": parent, "min_distance": depth + 1}
+            )
+            if child not in seen_nodes:
+                seen_nodes.add(child)
+                stack.append((child, depth + 1))
+    if stack:
+        family_truncated = True
+
+    return {
+        "parents": parents,
+        "children": children,
+        "family_roots": family_roots,
+        "family_descendants": family_descendants,
+        "family_truncated": family_truncated,
+    }
+
+
+def _collect_family_subgraph(
+    conn: sqlite3.Connection,
+    *,
+    target_ssa: str,
+    parents: list[str],
+    ancestor_rows: list[tuple[Any, ...]],
+    safe_max_distance: int | None,
+    safe_max_nodes: int,
+) -> tuple[list[str], list[dict[str, Any]], bool]:
+    family_roots: list[str] = []
+    if ancestor_rows:
+        ancestor_values = sorted({row[0] for row in ancestor_rows})
+        ancestor_placeholders = ",".join("?" for _ in ancestor_values)
+        ancestor_edge_rows = conn.execute(
+            f"""
+            SELECT parent_ssa, child_ssa
+            FROM ssa_derivada_matrix
+            WHERE active = 1
+              AND child_ssa IN ({ancestor_placeholders})
+            """,  # nosec B608  # skipcq: BAN-B608
+            tuple(ancestor_values),
+        ).fetchall()
+        ancestors_with_parent = {
+            child for parent, child in ancestor_edge_rows if parent in ancestor_values
+        }
+        family_roots = [
+            value for value in ancestor_values if value not in ancestors_with_parent
+        ]
+    if not family_roots:
+        family_roots = list(dict.fromkeys(parents or [target_ssa]))
+
+    family_descendants: list[dict[str, Any]] = []
+    family_truncated = False
+    if not family_roots:
+        return family_roots, family_descendants, family_truncated
+
+    root_placeholders = ",".join("?" for _ in family_roots)
+    family_depth_limit = safe_max_distance or DERIVADAS_MAX_DISTANCE_LIMIT
+    family_limit = safe_max_nodes + 1
+    family_node_rows = conn.execute(
+        f"""
+        SELECT descendant_ssa, MIN(min_distance) AS depth
+        FROM ssa_derivada_closure
+        WHERE ancestor_ssa IN ({root_placeholders})
+          AND min_distance <= ?
+        GROUP BY descendant_ssa
+        ORDER BY depth, descendant_ssa
+        LIMIT ?
+        """,  # nosec B608  # skipcq: BAN-B608
+        (*family_roots, family_depth_limit, family_limit),
+    ).fetchall()
+    family_truncated = len(family_node_rows) > safe_max_nodes
+    distance_by_node = {
+        row[0]: int(row[1]) for row in family_node_rows[:safe_max_nodes]
+    }
+    node_candidates = list(
+        dict.fromkeys([*family_roots, target_ssa, *sorted(distance_by_node)])
+    )
+    if len(node_candidates) > safe_max_nodes:
+        family_truncated = True
+    family_nodes = node_candidates[:safe_max_nodes]
+    node_placeholders = ",".join("?" for _ in family_nodes)
+    edge_rows = conn.execute(
+        f"""
+        SELECT DISTINCT parent_ssa, child_ssa
+        FROM ssa_derivada_matrix
+        WHERE active = 1
+          AND parent_ssa IN ({node_placeholders})
+          AND child_ssa IN ({node_placeholders})
+        ORDER BY parent_ssa, child_ssa
+        LIMIT ?
+        """,  # nosec B608  # skipcq: BAN-B608
+        (*family_nodes, *family_nodes, family_limit),
+    ).fetchall()
+    family_truncated = family_truncated or len(edge_rows) > safe_max_nodes
+    for row in edge_rows[:safe_max_nodes]:
+        family_descendants.append(
+            {
+                "ssa": row[1],
+                "parent": row[0],
+                "min_distance": int(distance_by_node.get(row[1], 1)),
+            }
+        )
+    return family_roots, family_descendants, family_truncated
+
+
 def get_top_by_metric(
     db_path: str, metric: str, *, limit: int = 20
 ) -> list[dict[str, Any]]:
@@ -464,6 +631,7 @@ def get_ssa_hierarchy_snapshot(
     ssa: Any,
     *,
     max_distance: int | None = 5,
+    max_nodes: int = DERIVADAS_FAMILY_NODE_LIMIT,
 ) -> dict[str, Any]:
     """Return GUI-friendly hierarchy payload in a single call.
 
@@ -486,8 +654,12 @@ def get_ssa_hierarchy_snapshot(
             "hierarchy_profile": {},
             "ancestors": [],
             "descendants": [],
+            "family_roots": [],
+            "family_descendants": [],
+            "family_truncated": False,
         }
     safe_max_distance = _normalize_max_distance(max_distance)
+    safe_max_nodes = max(1, min(int(max_nodes), DERIVADAS_FAMILY_NODE_LIMIT))
 
     with _open_derivadas_connection(db_path) as (conn, schema_ready):
         if not schema_ready:
@@ -502,6 +674,9 @@ def get_ssa_hierarchy_snapshot(
                 "hierarchy_profile": {},
                 "ancestors": [],
                 "descendants": [],
+                "family_roots": [],
+                "family_descendants": [],
+                "family_truncated": False,
             }
         conn = cast(sqlite3.Connection, conn)
         conn.execute("BEGIN")
@@ -636,6 +811,15 @@ def get_ssa_hierarchy_snapshot(
             for row in descendant_rows
         ]
 
+        family_roots, family_descendants, family_truncated = _collect_family_subgraph(
+            conn,
+            target_ssa=target_ssa,
+            parents=parents,
+            ancestor_rows=ancestor_rows,
+            safe_max_distance=safe_max_distance,
+            safe_max_nodes=safe_max_nodes,
+        )
+
         return {
             "ssa": target_ssa,
             "parent": parents[0] if len(parents) == 1 else None,
@@ -647,4 +831,7 @@ def get_ssa_hierarchy_snapshot(
             "hierarchy_profile": hierarchy_profile,
             "ancestors": ancestors,
             "descendants": descendants,
+            "family_roots": family_roots,
+            "family_descendants": family_descendants,
+            "family_truncated": family_truncated,
         }
