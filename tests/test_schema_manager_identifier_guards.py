@@ -33,3 +33,26 @@ def test_ensure_columns_exist_adds_valid_missing_column() -> None:
 
         cols = _table_columns(conn, "ssa_table")
         assert "nova_coluna" in cols
+
+
+def test_ensure_columns_exist_maps_bool_column_to_integer() -> None:
+    with sqlite3.connect(":memory:") as conn:
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        df = pd.DataFrame({"flag_ativo": [True, False]})
+
+        ensure_columns_exist(conn, "ssa_table", df)
+
+        row = conn.execute('PRAGMA table_info("ssa_table")').fetchall()[-1]
+        assert row[1] == "flag_ativo"
+        assert row[2] == "INTEGER"
+
+
+def test_ensure_columns_exist_rolls_back_partial_schema_additions() -> None:
+    with sqlite3.connect(":memory:") as conn:
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        df = pd.DataFrame({"nova_coluna": [1], 'bad"name': ["x"]})
+
+        with pytest.raises(ValueError, match="Invalid SQL identifier for column"):
+            ensure_columns_exist(conn, "ssa_table", df)
+
+        assert "nova_coluna" not in _table_columns(conn, "ssa_table")

@@ -1,13 +1,15 @@
 """Schema manager for dynamic column addition."""
 
-import logging
 import sqlite3
 
 import pandas as pd
 
+from utils.robust_logging import get_robust_logger
+
+from .database_upsert_logic import infer_sql_type
 from .identifier_utils import is_valid_identifier, quote_identifier
 
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "core")
 
 def ensure_columns_exist(
     conn: sqlite3.Connection, table_name: str, df: pd.DataFrame
@@ -48,34 +50,32 @@ def ensure_columns_exist(
     if not missing_cols:
         return
 
-    # Add missing columns
-    for col in missing_cols:
-        if not is_valid_identifier(col):
-            raise ValueError(f"Invalid SQL identifier for column: {col}")
+    savepoint_name = "schema_manager_ensure_columns"
+    savepoint_active = False
+    try:
+        conn.execute(f"SAVEPOINT {savepoint_name}")
+        savepoint_active = True
+        # Add missing columns
+        for col in missing_cols:
+            if not is_valid_identifier(col):
+                raise ValueError(f"Invalid SQL identifier for column: {col}")
 
-        # Infer type from DataFrame
-        dtype = df[col].dtype
+            sql_type = infer_sql_type(df[col])
 
-        if pd.api.types.is_integer_dtype(dtype):
-            sql_type = "INTEGER"
-        elif pd.api.types.is_float_dtype(dtype):
-            sql_type = "REAL"
-        elif pd.api.types.is_bool_dtype(dtype):
-            sql_type = "INTEGER"
-        elif pd.api.types.is_datetime64_any_dtype(dtype):
-            sql_type = "TEXT"
-        else:
-            sql_type = "TEXT"
-
-        try:
             quoted_col = quote_identifier(col)
-            cursor.execute(
-                f"ALTER TABLE {quoted_table_name} ADD COLUMN {quoted_col} {sql_type}"
-            )
-            logger.info(f"[OK] Coluna adicionada: {col} ({sql_type})")
-        except sqlite3.OperationalError as e:
-            if "duplicate column name" not in str(e).lower():
-                logger.error(f"[ERRO] Falha ao adicionar coluna {col}: {e}")
-                raise
-
-    conn.commit()
+            try:
+                cursor.execute(
+                    f"ALTER TABLE {quoted_table_name} ADD COLUMN {quoted_col} {sql_type}"
+                )
+                logger.info(f"[OK] Coluna adicionada: {col} ({sql_type})")
+            except sqlite3.OperationalError as e:
+                if "duplicate column name" not in str(e).lower():
+                    logger.error(f"[ERRO] Falha ao adicionar coluna {col}: {e}")
+                    raise
+        conn.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+        savepoint_active = False
+    except (sqlite3.Error, ValueError):
+        if savepoint_active:
+            conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+            conn.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+        raise

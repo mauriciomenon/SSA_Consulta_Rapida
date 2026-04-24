@@ -1,11 +1,12 @@
-"""Validação de DataFrames extraída de `database.py`."""
+"""Validacao de DataFrames extraida de `database.py`."""
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import pandas as pd
+
+from utils.robust_logging import get_robust_logger
 
 from shared.date_utils import parse_any_date
 from shared.db_names import CANONICAL_SSA_TABLE
@@ -16,7 +17,7 @@ from shared.import_contract import (
 
 from .numero_ssa_utils import normalize_numero_ssa_storage
 
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "core")
 
 MAX_TEXT_LEN = 1000
 
@@ -103,7 +104,7 @@ def _validate_numero_ssa(df: pd.DataFrame, report: dict[str, Any]) -> None:
     invalid_count = int(invalid_ssa_mask.sum())
     if invalid_count == 0:
         return
-    report["warnings"].append(f"{invalid_count} números SSA inválidos encontrados")
+    report["warnings"].append(f"{invalid_count} numeros SSA invalidos encontrados")
     invalid_indices = df[invalid_ssa_mask].index.tolist()
     report["invalid_by_column"]["numero_ssa"] = invalid_indices
     _append_unique_invalid_rows(report, invalid_indices)
@@ -145,14 +146,12 @@ def _validate_date_columns(df: pd.DataFrame, report: dict[str, Any]) -> None:
         try:
             series = df[col]
             parsed_text = series.map(parse_any_date)
-            parsed = pd.to_datetime(
-                parsed_text, errors="coerce", format="%Y-%m-%d %H:%M:%S"
-            )
+            parsed = pd.to_datetime(parsed_text, errors="coerce")
             invalid_mask = parsed.isna() & series.notna() & (series != "")
             invalid_dates = invalid_mask.sum()
             if invalid_dates:
                 report["warnings"].append(
-                    f"Coluna '{col}' tem {invalid_dates} datas inválidas"
+                    f"Coluna '{col}' tem {invalid_dates} datas invalidas"
                 )
                 report["violations"].append(
                     {
@@ -287,7 +286,7 @@ def validate_dataframe_before_insert(
         _validate_text_columns(df, report)
         report["is_valid"] = not report["issues"]
         logger.info(
-            "Validação concluída: %s linhas, %s problemas críticos, %s avisos",
+            "Validacao concluida: %s linhas, %s problemas criticos, %s avisos",
             report["row_count"],
             len(report["issues"]),
             len(report["warnings"]),

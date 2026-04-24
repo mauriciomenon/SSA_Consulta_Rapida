@@ -282,7 +282,7 @@ class TestDatabaseMaintenance:
         # Ainda deve ser considerado válido (só avisos)
         assert report["is_valid"]
         assert len(report["warnings"]) > 0
-        assert "inválidos" in str(report["warnings"])
+        assert "invalidos" in str(report["warnings"])
         assert len(report["invalid_rows"]) > 0
 
     def test_validate_rejects_numero_ssa_with_letters_under_storage_rules(self):
@@ -298,7 +298,7 @@ class TestDatabaseMaintenance:
         report = validate_dataframe_before_insert(df)
 
         assert report["is_valid"] is True
-        assert "inválidos" in str(report["warnings"])
+        assert "invalidos" in str(report["warnings"])
         assert 0 in report["invalid_rows"]
         assert report["invalid_by_column"]["numero_ssa"] == [0]
 
@@ -318,12 +318,12 @@ class TestDatabaseMaintenance:
         assert len(report["invalid_rows"]) == len(set(report["invalid_rows"]))
 
     def test_validate_invalid_dates(self):
-        """Testa validação com datas inválidas."""
+        """Testa validacao com datas invalidas."""
         df = pd.DataFrame(
             {
                 "numero_ssa": [202312345, 202398765],
                 "situacao": ["Pendente", "Executada"],
-                "data_cadastro": ["invalid-date", "2023-99-99"],  # Datas inválidas
+                "data_cadastro": ["invalid-date", "2023-99-99"],
                 "descricao_ssa": ["Teste 1", "Teste 2"],
             }
         )
@@ -332,7 +332,28 @@ class TestDatabaseMaintenance:
 
         assert report["is_valid"]  # Avisos, não erros críticos
         assert len(report["warnings"]) > 0
-        assert "datas inválidas" in str(report["warnings"])
+        assert "datas invalidas" in str(report["warnings"])
+
+    def test_validate_date_column_accepts_central_parser_result(self, monkeypatch):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": [202312345],
+                "situacao": ["Pendente"],
+                "data_cadastro": ["01/12/2023 10:00"],
+                "descricao_ssa": ["Teste 1"],
+            }
+        )
+
+        monkeypatch.setattr(
+            database_validation,
+            "parse_any_date",
+            lambda _value: "2023-12-01 10:00:00",
+        )
+
+        report = validate_dataframe_before_insert(df)
+
+        assert report["is_valid"] is True
+        assert not any("datas" in warning for warning in report["warnings"])
 
     def test_validate_date_column_failure_preserves_exception_cause(self, monkeypatch):
         """Falha interna no parsing deve preservar a causa no warning da coluna."""
