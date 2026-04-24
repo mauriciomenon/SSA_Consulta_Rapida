@@ -1,0 +1,27 @@
+dev_env/build/pyoxidizer.bzl
+  41bd7cec02910368 1-2,5-6,19,25-30,41-43,46,50,55-83,92
+dev_env/build/build_nuitka_debian.sh
+  41bd7cec02910368 47-61,70-74,76-79,81-88
+dev_env/bootstrap.sh
+  41bd7cec02910368 41-43,82,84-86,118-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "407826d8211b27a1023ffd9dbcd1acb83be8c0da",
+  "prompts": {
+    "41bd7cec02910368": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dbaf0-1318-7781-b6a3-80fc2fb6c8f6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 89,
+      "total_deletions": 68,
+      "accepted_lines": 89,
+      "overriden_lines": 0
+    }
+  }
+}
