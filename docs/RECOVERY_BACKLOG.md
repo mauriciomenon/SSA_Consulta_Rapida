@@ -5,6 +5,42 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-24 10:28 - pre-release review deferments
+
+Escopo desta atualizacao:
+1. registrar itens apontados por review externo que nao devem virar refatoracao transversal neste ciclo
+2. manter a entrega atual focada em correcoes pequenas, reversiveis e validadas localmente
+3. documentar bloqueio de ferramenta sem marcar review como limpo
+
+Itens deferidos:
+1. `core/handler_base.py`
+   - categoria: `NAO_BLOQUEANTE_DEFERIDO`
+   - origem: Kluster, slice HandlerBase
+   - motivo: sugestao de extrair formatacao para classe/estrategia dedicada
+   - decisao: nao aplicar neste ciclo porque cria camada nova e amplia escopo alem do patch de estabilidade
+   - criterio para retomar: abrir slice proprio com contrato de compatibilidade dos handlers e medicao de custo de output
+2. `core/handler_base.py`
+   - categoria: `NAO_BLOQUEANTE_DEFERIDO`
+   - origem: Kluster, slice HandlerBase
+   - motivo: trocar `HandlerContext(**kwargs)` por configuracao tipada
+   - decisao: nao aplicar neste ciclo porque altera contrato de handlers e pode quebrar chamadores
+   - criterio para retomar: mapear todos os parametros dinamicos usados por filtros/exportadores antes de alterar assinatura
+3. `armazenamento/derivadas_queries.py`
+   - categoria: `NAO_BLOQUEANTE_DEFERIDO`
+   - origem: Kluster, slice snapshot de derivadas
+   - motivo: review externo ficou bloqueado por timeout em duas tentativas de 120s
+   - decisao: patch local foi mantido por ser uma linha, isolado e validado por `py_compile`, `ruff`, `ty` e `pytest tests/test_derivadas_queries.py -q`
+   - criterio para retomar: repetir review externo apos push/novo ambiente ou revisar manualmente o arquivo em slice especifico
+
+Status:
+1. nenhum item acima e bloqueador funcional conhecido
+2. nenhum item acima autoriza marcar o review externo como limpo
+3. se algum bot remoto reabrir esses pontos apos push, responder com esta classificacao e/ou abrir novo slice
+
+Rollback:
+1. reverter os commits atomicos do respectivo slice, sem rollback amplo de branch
+2. se o item for retomado, implementar com plano aprovado e testes focados antes de novo push
+
 ## Update 2026-04-22 13:14 - memory footprint survey after B discard
 
 Escopo desta atualizacao:
