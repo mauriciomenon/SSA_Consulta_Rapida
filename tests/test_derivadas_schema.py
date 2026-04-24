@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import sqlite3
+from typing import cast
 
 import pytest
 
+import armazenamento.derivadas_schema as derivadas_schema_module
 from armazenamento.derivadas_schema import (
+    _ensure_derivadas_columns,
     ensure_derivadas_schema,
     ensure_derivadas_schema_on_connection,
     has_derivadas_schema,
@@ -101,6 +104,27 @@ def test_ensure_schema_preserves_outer_transaction(temp_db):
     with sqlite3.connect(temp_db) as conn:
         rows = conn.execute("SELECT name FROM t ORDER BY id").fetchall()
     assert rows == [("before",)]
+
+
+def test_ensure_derivadas_columns_preserves_original_exception(monkeypatch):
+    class BrokenSavepointConnection:
+        def execute(self, statement: str):
+            if statement.startswith("SAVEPOINT"):
+                return None
+            if statement.startswith("ROLLBACK") or statement.startswith("RELEASE"):
+                raise sqlite3.OperationalError("savepoint is gone")
+            return None
+
+    def _raise_original(*_args, **_kwargs):
+        raise RuntimeError("original failure")
+
+    monkeypatch.setattr(derivadas_schema_module, "_existing_columns", _raise_original)
+
+    with pytest.raises(RuntimeError, match="original failure"):
+        _ensure_derivadas_columns(
+            cast(sqlite3.Connection, BrokenSavepointConnection()),
+            include_legacy_backfill=False,
+        )
 
 
 def test_ensure_schema_adds_not_null_columns_with_safe_defaults(temp_db):

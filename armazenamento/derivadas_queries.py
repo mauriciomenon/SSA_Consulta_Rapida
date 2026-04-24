@@ -317,6 +317,7 @@ def _collect_paths(
     # - number of paths returned (controls output size)
     max_states = safe_max_nodes
     max_paths = safe_max_nodes
+    max_stack = safe_max_nodes
 
     stack: list[tuple[str, list[str], set[str]]] = [
         (start_ssa, [start_ssa], {start_ssa})
@@ -354,6 +355,9 @@ def _collect_paths(
             stack.append((nxt, next_path, seen | {nxt}))
             states_seen += 1
             produced_any = True
+            if len(stack) >= max_stack:
+                truncated = True
+                break
 
         if not produced_any and len(paths) < max_paths:
             # No expansion possible due to caps; keep a partial path so callers have deterministic output.
