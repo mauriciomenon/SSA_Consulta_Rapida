@@ -44,13 +44,21 @@ trap on_error ERR
 
 if ! command -v patchelf >/dev/null 2>&1; then
   if sudo -n true >/dev/null 2>&1; then
-    if [[ "${SILENT}" == "1" ]]; then
-      sudo -n apt-get update 2>&1 | tee -a "${LOG_FILE}" >/dev/null
-      sudo -n apt-get install -y patchelf 2>&1 | tee -a "${LOG_FILE}" >/dev/null
-    else
-      echo "Instalando patchelf..."
-      sudo -n apt-get update
-      sudo -n apt-get install -y patchelf
+    mkdir -p "${TMPDIR:-/tmp}/ssa_build_locks"
+    APT_LOCK_FILE="${TMPDIR:-/tmp}/ssa_build_locks/patchelf_install.lock"
+    exec 9>"${APT_LOCK_FILE}"
+    if command -v flock >/dev/null 2>&1; then
+      flock 9
+    fi
+    if ! command -v patchelf >/dev/null 2>&1; then
+      if [[ "${SILENT}" == "1" ]]; then
+        sudo -n apt-get update 2>&1 | tee -a "${LOG_FILE}" >/dev/null
+        sudo -n apt-get install -y patchelf 2>&1 | tee -a "${LOG_FILE}" >/dev/null
+      else
+        echo "Instalando patchelf..."
+        sudo -n apt-get update
+        sudo -n apt-get install -y patchelf
+      fi
     fi
   else
     echo "Erro: patchelf ausente e sudo sem permissao nao interativa."
@@ -59,13 +67,25 @@ if ! command -v patchelf >/dev/null 2>&1; then
   fi
 fi
 
-APP_VERSION="$(
-  uv run --python 3.13 python -c "import json, pathlib; print(json.loads(pathlib.Path('config/version.json').read_text(encoding='utf-8')).get('version_short','0.0'))"
-)"
-
-if [[ -z "${APP_VERSION}" ]]; then
-  APP_VERSION="0.0"
+VERSION_FILE="${REPO_ROOT}/config/version.json"
+if [[ ! -f "${VERSION_FILE}" ]]; then
+  echo "Erro: version.json nao encontrado: ${VERSION_FILE}"
+  exit 1
 fi
+APP_VERSION="$(
+  uv run --python 3.13 python - "${VERSION_FILE}" <<'PY_VERSION'
+import json
+import pathlib
+import sys
+
+version_file = pathlib.Path(sys.argv[1])
+payload = json.loads(version_file.read_text(encoding="utf-8"))
+version = str(payload.get("version_short") or "").strip()
+if not version:
+    raise SystemExit("version_short ausente em config/version.json")
+print(version)
+PY_VERSION
+)"
 
 GUI_DIST="${REPO_ROOT}/builds/nuitka/debian_amd64/gui_entry.dist"
 CLI_DIST="${REPO_ROOT}/builds/nuitka/debian_amd64/cli_entry.dist"
