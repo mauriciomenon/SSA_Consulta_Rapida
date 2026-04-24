@@ -6,6 +6,7 @@ from contextlib import contextmanager
 import pandas as pd
 
 import armazenamento.database_optimized as database_optimized_module
+import shared.date_utils as date_utils_module
 from armazenamento.database_optimized import (
     _has_referencing_foreign_keys,
     _quote_identifier,
@@ -60,6 +61,62 @@ def test_insert_dataframe_optimized_rejects_invalid_table_identifier(tmp_path) -
         insert_dataframe_optimized(df, db_path, table_name="ssa_table;drop_table")
         is False
     )
+
+
+def test_insert_dataframe_optimized_coerces_non_datetime_parse_result(
+    tmp_path, monkeypatch
+) -> None:
+    db_path = str(tmp_path / "coerce_non_datetime_parse_result.db")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE ssa_table (
+                numero_ssa TEXT PRIMARY KEY,
+                data_cadastro TEXT,
+                situacao TEXT,
+                descricao_ssa TEXT
+            )
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    def _return_object_series(series):
+        return pd.Series(["not-a-date"] * len(series), index=series.index)
+
+    monkeypatch.setattr(
+        date_utils_module,
+        "parse_datetime_series_mixed",
+        _return_object_series,
+    )
+
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202600901"],
+            "data_cadastro": ["not-a-date"],
+            "situacao": ["STE"],
+            "descricao_ssa": ["date parse fallback"],
+        }
+    )
+
+    assert insert_dataframe_optimized(df, db_path, table_name="ssa_table") is True
+
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT data_cadastro, situacao, descricao_ssa
+            FROM ssa_table
+            WHERE numero_ssa = ?
+            """,
+            ("202600901",),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row == (None, "STE", "date parse fallback")
 
 
 def test_quote_identifier_rejects_invalid_column_identifier() -> None:

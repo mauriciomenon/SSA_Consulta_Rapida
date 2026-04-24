@@ -25,7 +25,10 @@ from typing import Iterator
 
 import pandas as pd
 
-from shared.date_utils import parse_datetime_series_mixed
+from shared.date_utils import (
+    format_datetime_series_for_storage,
+    parse_datetime_series_mixed,
+)
 from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES
 from utils.robust_logging import get_robust_logger
 
@@ -226,7 +229,7 @@ def _iter_lookup_chunks_by_ssa(
             chunk_ssas = chunk_ssas[:max_lookup_params]
         placeholders = ",".join(["?"] * len(chunk_ssas))
         query = (
-            f"SELECT {select_expr} FROM {target_table_sql} "
+            f"SELECT {select_expr} FROM {target_table_sql} "  # nosec B608  # skipcq: BAN-B608
             f"WHERE numero_ssa IN ({placeholders})"
         )
         try:
@@ -399,12 +402,7 @@ def insert_dataframe_optimized(
         ]
         for col in date_columns:
             if col in work.columns:
-                work[col] = parse_datetime_series_mixed(work[col])
-                work[col] = (
-                    work[col]
-                    .dt.strftime("%Y-%m-%d %H:%M:%S")
-                    .where(work[col].notna(), None)
-                )
+                work[col] = format_datetime_series_for_storage(work[col])
 
         with get_db_connection(db_path) as conn:
             target_table = _resolve_physical_table(conn, table_name)
@@ -630,9 +628,9 @@ def insert_dataframe_optimized(
                                         continue
                                     ssa_placeholders = ",".join(["?"] * len(chunk_ssas))
                                     delete_query = (
-                                        f"DELETE FROM {target_table_sql} "
+                                        f"DELETE FROM {target_table_sql} "  # nosec B608  # skipcq: BAN-B608
                                         f"WHERE numero_ssa IN ({ssa_placeholders})"
-                                    )  # nosec B608  # skipcq: BAN-B608
+                                    )
                                     conn.execute(delete_query, chunk_ssas)
 
                                 for col in insert_columns:
@@ -647,9 +645,9 @@ def insert_dataframe_optimized(
                                     ["?"] * len(insert_columns)
                                 )
                                 insert_sql = (
-                                    f"INSERT INTO {target_table_sql} ({quoted_columns}) "
+                                    f"INSERT INTO {target_table_sql} ({quoted_columns}) "  # nosec B608  # skipcq: BAN-B608
                                     f"VALUES ({value_placeholders})"
-                                )  # nosec B608  # skipcq: BAN-B608
+                                )
                                 insert_chunk_size = sqlite_safe_chunksize(
                                     len(insert_columns)
                                 )
