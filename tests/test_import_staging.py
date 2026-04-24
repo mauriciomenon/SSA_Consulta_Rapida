@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from core import import_staging
 from core.import_staging import stage_external_import_files
 
@@ -153,6 +155,54 @@ def test_stage_external_import_files_removes_copied_file_when_cancelled(
     assert summary["unsupported"] == 0
     assert summary["staged"] == 0
     assert not (docs_dir / "cancel.xlsx").exists()
+
+
+def test_stage_external_import_files_reports_copy_os_errors(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    source_dir = tmp_path / "fontes"
+    source_dir.mkdir()
+    source = source_dir / "falha.xlsx"
+    source.write_text("payload", encoding="utf-8")
+    errors: list[str] = []
+
+    def fail_copy(_source: str, _destination: str) -> None:
+        raise PermissionError("blocked copy")
+
+    monkeypatch.setattr(import_staging.shutil, "copy2", fail_copy)
+
+    staged_files, summary = stage_external_import_files(
+        project_root=str(tmp_path),
+        source_files=(str(source),),
+        error_callback=errors.append,
+    )
+
+    assert staged_files == []
+    assert summary["copied"] == 0
+    assert summary["failed"] == 1
+    assert summary["unsupported"] == 0
+    assert summary["staged"] == 0
+    assert any("blocked copy" in error for error in errors)
+
+
+def test_reserve_unique_path_in_set_reports_exhausted_attempts(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "entrada.xlsx"
+    target.write_text("old", encoding="utf-8")
+    (tmp_path / "entrada__1.xlsx").write_text("old", encoding="utf-8")
+    reserved_paths = {
+        str(target.resolve()),
+        str((tmp_path / "entrada__1.xlsx").resolve()),
+    }
+
+    with pytest.raises(RuntimeError, match="Limpe duplicatas"):
+        import_staging.reserve_unique_path(
+            target, reserved_paths=reserved_paths, max_attempts=1
+        )
 
 
 def test_stage_external_import_files_reports_cleanup_failure_after_cancel(

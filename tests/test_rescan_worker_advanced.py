@@ -20,7 +20,7 @@ pytest.importorskip(
 )
 from PyQt6.QtWidgets import QApplication
 
-from core.import_staging import build_unique_destination_path  # noqa: E402
+from utils.path_safety import reserve_unique_path  # noqa: E402
 from core.import_staging import stage_external_import_files
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -640,7 +640,7 @@ class TestRescanWorkerIntegration:
         target.write_text("old", encoding="utf-8")
         reserved = {str(target.resolve())}
 
-        candidate = build_unique_destination_path(target, reserved_paths=reserved)
+        candidate = reserve_unique_path(target, reserved_paths=reserved)
 
         assert candidate.endswith("entrada__1.xlsx")
         assert os.path.abspath(candidate) in reserved

@@ -5,47 +5,10 @@ import shutil
 from pathlib import Path
 from typing import Callable, Sequence
 
-from utils.path_safety import ensure_path_is_allowed
+from utils.path_safety import ensure_path_is_allowed, reserve_unique_path
 
 CancelCallback = Callable[[], bool]
 LineCallback = Callable[[str], None]
-
-
-def build_unique_destination_path(
-    destination_path: str | os.PathLike[str],
-    *,
-    reserved_paths: set[str] | None = None,
-    starting_index: int = 1,
-) -> str:
-    destination = str(destination_path)
-    normalized_destination = os.path.abspath(destination)
-    if reserved_paths is not None:
-        if normalized_destination not in reserved_paths and not os.path.exists(
-            destination
-        ):
-            reserved_paths.add(normalized_destination)
-            return destination
-    elif not os.path.exists(destination):
-        return destination
-
-    base, ext = os.path.splitext(destination)
-    idx = max(int(starting_index), 1)
-    max_attempts = 10000
-    while idx <= max_attempts:
-        candidate = f"{base}__{idx}{ext}"
-        normalized_candidate = os.path.abspath(candidate)
-        if reserved_paths is not None:
-            if normalized_candidate not in reserved_paths and not os.path.exists(
-                candidate
-            ):
-                reserved_paths.add(normalized_candidate)
-                return candidate
-        elif not os.path.exists(candidate):
-            return candidate
-        idx += 1
-    raise RuntimeError(
-        f"Nao foi possivel gerar nome unico apos {max_attempts} tentativas: {destination}"
-    )
 
 
 def validate_external_source_path(raw_source: str | os.PathLike[str]) -> str:
@@ -58,8 +21,18 @@ def validate_external_source_path(raw_source: str | os.PathLike[str]) -> str:
     if os.path.basename(normalized).startswith("-"):
         raise ValueError("Caminho externo inicia com '-' e nao e permitido.")
     source_path = Path(normalized)
-    if not source_path.is_file():
-        raise FileNotFoundError(f"Arquivo inexistente: {normalized}")
+    try:
+        safe_source_path = ensure_path_is_allowed(
+            source_path,
+            purpose="external_import_source",
+            must_exist=True,
+            expect_directory=False,
+        )
+    except ValueError as exc:
+        if not source_path.exists():
+            raise FileNotFoundError(f"Arquivo inexistente: {normalized}") from exc
+        raise
+    source_path = safe_source_path
     if source_path.suffix.casefold() not in {".xlsx", ".xls"}:
         raise ValueError(f"Arquivo nao suportado pelo pipeline: {source_path.name}")
     return str(source_path)
@@ -134,7 +107,7 @@ def stage_external_import_files(
             reserved_paths.add(destination_abs)
             continue
 
-        destination = build_unique_destination_path(
+        destination = reserve_unique_path(
             base_destination,
             reserved_paths=reserved_paths,
             starting_index=next_suffix_by_base.get(destination_abs, 1),
@@ -164,7 +137,7 @@ def stage_external_import_files(
                 break
             copied += 1
             staged_files.append(destination)
-        except Exception as exc:
+        except (OSError, shutil.Error) as exc:
             failed += 1
             if callable(error_callback):
                 error_callback(

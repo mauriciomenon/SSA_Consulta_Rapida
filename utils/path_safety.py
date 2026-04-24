@@ -23,13 +23,15 @@ class PathSafetyError(ValueError):
 
 def _unique(paths: Iterable[Path]) -> List[Path]:
     seen: list[Path] = []
+    seen_keys: set[Path] = set()
     for p in paths:
         try:
             resolved = p.resolve()
         except Exception:
             resolved = p
-        if resolved not in seen:
+        if resolved not in seen_keys:
             seen.append(resolved)
+            seen_keys.add(resolved)
     return seen
 
 
@@ -122,3 +124,62 @@ def ensure_path_is_allowed(
         )
 
     return candidate
+
+
+def reserve_unique_path(
+    destination_path: str | os.PathLike[str],
+    *,
+    reserved_paths: set[str] | None = None,
+    touch: bool = False,
+    starting_index: int = 1,
+    max_attempts: int = 10000,
+) -> str:
+    if reserved_paths is None and not touch:
+        raise ValueError("reserve_unique_path requires reserved_paths or touch=True")
+
+    destination = str(destination_path)
+    base, ext = os.path.splitext(destination)
+    attempt_limit = max(int(max_attempts), 1)
+
+    normalized_destination = os.path.abspath(destination)
+    if reserved_paths is not None:
+        if normalized_destination not in reserved_paths and not os.path.exists(
+            destination
+        ):
+            reserved_paths.add(normalized_destination)
+            return destination
+    elif touch:
+        try:
+            Path(destination).touch(exist_ok=False)
+        except FileExistsError:
+            pass
+        else:
+            return destination
+
+    idx = max(int(starting_index), 1)
+    attempts = 0
+    while attempts < attempt_limit:
+        candidate = f"{base}__{idx}{ext}"
+        normalized_candidate = os.path.abspath(candidate)
+        if reserved_paths is not None:
+            if normalized_candidate not in reserved_paths and not os.path.exists(
+                candidate
+            ):
+                reserved_paths.add(normalized_candidate)
+                return candidate
+        elif touch:
+            try:
+                Path(candidate).touch(exist_ok=False)
+            except FileExistsError:
+                idx += 1
+                attempts += 1
+                continue
+            return candidate
+        idx += 1
+        attempts += 1
+
+    raise RuntimeError(
+        "Nao foi possivel gerar nome unico apos "
+        f"{attempt_limit} tentativas: {destination}. "
+        "Limpe duplicatas no destino ou escolha outro nome."
+    )
