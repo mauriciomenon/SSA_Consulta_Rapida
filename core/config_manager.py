@@ -24,6 +24,10 @@ def _atomic_write_json_file(
     target_dir = os.path.dirname(path) or "."
     base_name = os.path.basename(path) or "config.json"
     os.makedirs(target_dir, exist_ok=True)
+    try:
+        target_mode = os.stat(path).st_mode & 0o777
+    except FileNotFoundError:
+        target_mode = 0o644
 
     fd = None
     tmp_path = None
@@ -39,13 +43,14 @@ def _atomic_write_json_file(
                 logger.debug(
                     "fsync failed for config temp file (%s): %s", tmp_path, exc
                 )
+        os.chmod(tmp_path, target_mode)
         os.replace(tmp_path, path)
         tmp_path = None
     finally:
         if fd is not None:
             try:
                 os.close(fd)
-            except Exception as exc:
+            except OSError as exc:
                 logger.warning(
                     "Falha ao fechar file descriptor temporario de config '%s': %s",
                     path,
@@ -56,7 +61,7 @@ def _atomic_write_json_file(
                 os.remove(tmp_path)
             except FileNotFoundError:
                 pass
-            except Exception as exc:
+            except OSError as exc:
                 logger.warning(
                     "Falha ao remover arquivo temporario de config '%s': %s",
                     tmp_path,
@@ -88,6 +93,7 @@ def _atomic_copy_file(src: str, dst: str) -> None:
         ) as tmp_file:
             tmp_path = tmp_file.name
         shutil.copyfile(src, tmp_path)
+        shutil.copymode(src, tmp_path)
         try:
             with open(tmp_path, "rb") as f:
                 os.fsync(f.fileno())
@@ -101,7 +107,7 @@ def _atomic_copy_file(src: str, dst: str) -> None:
                 os.remove(tmp_path)
             except FileNotFoundError:
                 pass
-            except Exception as exc:
+            except OSError as exc:
                 logger.warning(
                     "Falha ao remover arquivo temporario de copia '%s': %s",
                     tmp_path,
@@ -462,6 +468,14 @@ def load_settings() -> Dict[str, Any]:
         logger.info(
             f"Arquivo de configuração do usuário '{settings_path}' não encontrado. Carregando padrões."
         )
+        if not os.path.exists(default_settings_file):
+            message = (
+                "Arquivos de configuracao ausentes: "
+                f"user='{user_settings_file}', default='{default_settings_file}'. "
+                "Execute ensure_default_settings antes de carregar configuracoes."
+            )
+            logger.critical(message)
+            raise FileNotFoundError(message)
         settings_path = default_settings_file
 
     try:
@@ -538,7 +552,7 @@ def ensure_default_settings(*, fail_fast: bool = True) -> list[str]:
             else:
                 # Cria um arquivo padrão mínimo quando o exemplo não existir
                 try:
-                    os.makedirs(cfg_dir, exist_ok=True)
+                    os.makedirs(os.path.dirname(target_file) or cfg_dir, exist_ok=True)
                     if target_file.endswith("default_settings.json"):
                         default_content = {
                             "display_settings": {
