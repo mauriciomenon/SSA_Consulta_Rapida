@@ -117,7 +117,7 @@ def stage_external_import_files(
             if callable(output_callback):
                 output_callback(f"[IGNORADO] {exc}")
             continue
-        except Exception as exc:
+        except (OSError, shutil.Error) as exc:
             failed += 1
             if callable(error_callback):
                 error_callback(
