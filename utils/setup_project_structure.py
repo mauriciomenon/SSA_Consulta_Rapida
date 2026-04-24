@@ -171,6 +171,7 @@ def setup_dirs(
             if ensure_permissions:
                 # Best effort: rwx for user
                 try:
+                    # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
                     os.chmod(full, 0o700)
                 except Exception as e:  # pragma: no cover
                     logger.debug("Falha ao ajustar permissões %s: %s", full, e)
