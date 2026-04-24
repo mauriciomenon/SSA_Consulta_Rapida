@@ -251,11 +251,11 @@ def collect_db_edges(
     """Collect normalized parent->child edges from `numero_ssa -> derivada_de`."""
 
     safe_table = _validate_table_name(table_name)
-    query = f"""
-        SELECT numero_ssa, derivada_de
-        FROM "{safe_table}"
-        WHERE derivada_de IS NOT NULL
-    """
+    query = (
+        "SELECT numero_ssa, derivada_de "
+        f'FROM "{safe_table}" '  # nosec B608
+        "WHERE derivada_de IS NOT NULL"
+    )
 
     rows = conn.execute(
         query
@@ -966,8 +966,8 @@ def _build_summary_rows(
 
 def _fetch_all_ssa(conn: sqlite3.Connection, table_name: str) -> set[str]:
     safe_table = _validate_table_name(table_name)
-    rows = conn.execute(  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
-        f'SELECT numero_ssa FROM "{safe_table}" WHERE numero_ssa IS NOT NULL'
+    rows = conn.execute(
+        f'SELECT numero_ssa FROM "{safe_table}" WHERE numero_ssa IS NOT NULL'  # nosec B608  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
     ).fetchall()
     out: set[str] = set()
     for row in rows:
