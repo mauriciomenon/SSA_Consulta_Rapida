@@ -1,0 +1,29 @@
+core/cache_manager.py
+  41bd7cec02910368 8,65-82
+core/handler_base.py
+  41bd7cec02910368 192-194,200-201
+tests/test_cache_manager.py
+  41bd7cec02910368 28-39
+tests/test_handler_base_create_result.py
+  41bd7cec02910368 94-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "a82e5f97dabaa98f8727819a69b90c371ba0e304",
+  "prompts": {
+    "41bd7cec02910368": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dbaf0-1318-7781-b6a3-80fc2fb6c8f6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 64,
+      "total_deletions": 8,
+      "accepted_lines": 64,
+      "overriden_lines": 0
+    }
+  }
+}
