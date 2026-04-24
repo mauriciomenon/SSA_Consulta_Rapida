@@ -25,6 +25,18 @@ def test_dataframe_hash_detects_middle_row_changes() -> None:
     assert cache.get_dataframe_hash(left) != cache.get_dataframe_hash(right)
 
 
+def test_dataframe_hash_handles_unhashable_object_cells() -> None:
+    cache = CacheManager()
+    left = pd.DataFrame(
+        {"a": [[1, 2], {"nested": ["x"]}, {3, 4}], "b": ["same", "same", "same"]}
+    )
+    right = pd.DataFrame(
+        {"a": [[1, 2], {"nested": ["y"]}, {3, 4}], "b": ["same", "same", "same"]}
+    )
+
+    assert cache.get_dataframe_hash(left) != cache.get_dataframe_hash(right)
+
+
 def test_cleanup_old_entries_uses_timedelta_arithmetic() -> None:
     cache = CacheManager()
     cache.cache_config("old", {"value": 1})

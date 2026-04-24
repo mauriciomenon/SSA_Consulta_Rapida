@@ -91,6 +91,34 @@ def test_create_result_formats_empty_dataframe_feedback() -> None:
     assert result.stats["processed_rows"] == 0
 
 
+def test_create_result_keeps_empty_json_machine_readable() -> None:
+    handler = _DummyHandler()
+    context = HandlerContext(output_format="json")
+
+    result = handler.create_result(
+        data=pd.DataFrame(columns=["numero_ssa"]),
+        context=context,
+        success=True,
+    )
+
+    assert result.success is True
+    assert result.output_text == "[]"
+
+
+def test_create_result_keeps_empty_csv_machine_readable() -> None:
+    handler = _DummyHandler()
+    context = HandlerContext(output_format="csv")
+
+    result = handler.create_result(
+        data=pd.DataFrame(columns=["numero_ssa"]),
+        context=context,
+        success=True,
+    )
+
+    assert result.success is True
+    assert result.output_text == "numero_ssa\n"
+
+
 def test_create_result_keeps_dataframe_behavior() -> None:
     handler = _DummyHandler()
     context = HandlerContext(output_format="table")
