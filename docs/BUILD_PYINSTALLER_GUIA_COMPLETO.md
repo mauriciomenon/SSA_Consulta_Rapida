@@ -1251,7 +1251,7 @@ VSVersionInfo(
 
 ---
 
-**Ultima atualizacao**: 2025-11-14
+**Ultima atualizacao historica original**: 2025-11-14
 **Versao do guia**: 1.0
 **Autor**: Claude Code
 **Status**: Completo e testado
