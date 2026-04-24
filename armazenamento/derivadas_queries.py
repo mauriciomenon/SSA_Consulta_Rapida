@@ -500,6 +500,7 @@ def get_ssa_hierarchy_snapshot(
                 "descendants": [],
             }
         assert conn is not None
+        conn.execute("BEGIN")
         parents_rows = conn.execute(
             """
             SELECT parent_ssa
