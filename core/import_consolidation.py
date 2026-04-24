@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 from pathlib import Path
 from typing import Any, Callable
 
@@ -21,15 +20,24 @@ _MUTATION_FIELDS = (
 _SUCCESS_STATUSES = {"", "success", "no_rows"}
 
 
-def build_unique_destination_path(destination_path: str | os.PathLike[str]) -> str:
+def build_unique_destination_path(
+    destination_path: str | os.PathLike[str],
+    *,
+    reserve: bool = False,
+) -> str:
     destination = str(destination_path)
-    if not os.path.exists(destination):
-        return destination
     base, ext = os.path.splitext(destination)
-    idx = 1
     max_attempts = 10000
+    idx = 0
     while idx <= max_attempts:
-        candidate = f"{base}__{idx}{ext}"
+        candidate = destination if idx == 0 else f"{base}__{idx}{ext}"
+        if reserve:
+            try:
+                Path(candidate).touch(exist_ok=False)
+            except FileExistsError:
+                idx += 1
+                continue
+            return candidate
         if not os.path.exists(candidate):
             return candidate
         idx += 1
@@ -170,19 +178,30 @@ def consolidate_input_files(
             pending += 1
             continue
         target_dir = nosurvivor_dir if is_zero_survivor else processadas_dir
-        destination = build_unique_destination_path(target_dir / base_name)
+        destination = ""
         try:
-            shutil.move(str(source_path), destination)
+            destination = build_unique_destination_path(target_dir / base_name, reserve=True)
+            os.replace(source_path, destination)
             moved += 1
             if target_dir == nosurvivor_dir:
                 moved_nosurvivor += 1
             if callable(output_callback):
                 output_callback(f"[OK] Consolidado: {base_name}")
-        except Exception as exc:
+        except OSError as exc:
+            move_error: BaseException = exc
+            if destination and os.path.exists(destination):
+                try:
+                    os.remove(destination)
+                except OSError as cleanup_exc:
+                    move_error = RuntimeError(
+                        "Falha ao mover arquivo e limpar reserva "
+                        f"'{destination}': {exc}; cleanup={cleanup_exc}"
+                    )
             failed += 1
             if callable(error_callback):
                 error_callback(
-                    f"[ERRO] Falha ao mover arquivo na consolidacao '{source_path}': {exc}"
+                    "[ERRO] Falha ao mover arquivo na consolidacao "
+                    f"'{source_path}': {move_error}"
                 )
 
     if callable(output_callback):
