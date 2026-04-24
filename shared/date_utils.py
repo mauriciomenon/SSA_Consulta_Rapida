@@ -10,13 +10,19 @@ Goals:
 
 from __future__ import annotations
 
+import math
 import re
 from datetime import datetime, timedelta
 from typing import Iterable
 
 import pandas as pd
 
-__all__ = ["parse_any_date", "bulk_parse_dates", "parse_datetime_series_mixed"]
+__all__ = [
+    "parse_any_date",
+    "bulk_parse_dates",
+    "parse_datetime_series_mixed",
+    "format_datetime_series_for_storage",
+]
 
 EXCEL_EPOCH = "1899-12-30"
 
@@ -27,13 +33,8 @@ def parse_any_date(value) -> str | None:
     if value is None:
         return None
     # Fast path for pandas NaT-like
-    try:
-        import math
-
-        if isinstance(value, float) and math.isnan(value):  # noqa: PLR2004
-            return None
-    except Exception:  # pragma: no cover
-        pass
+    if isinstance(value, float) and math.isnan(value):  # noqa: PLR2004
+        return None
     # Numeric (Excel serial) detection
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         # Excel serial: pandas 3.0+ had intermittent issues with unit="d" metadata on some builds.
@@ -85,3 +86,12 @@ def parse_datetime_series_mixed(series: pd.Series) -> pd.Series:
         ts_iso = pd.to_datetime(series.where(iso_mask), errors="coerce", dayfirst=False)
         return ts_local.where(~iso_mask, ts_iso)
     return ts_local
+
+
+def format_datetime_series_for_storage(series: pd.Series) -> pd.Series:
+    """Return storage-formatted datetime strings or None values."""
+    parsed = pd.to_datetime(parse_datetime_series_mixed(series), errors="coerce")
+    if not isinstance(parsed, pd.Series):
+        parsed = pd.Series(parsed, index=getattr(series, "index", None))
+    formatted = parsed.dt.strftime("%Y-%m-%d %H:%M:%S").astype("object")
+    return formatted.where(parsed.notna(), None)
