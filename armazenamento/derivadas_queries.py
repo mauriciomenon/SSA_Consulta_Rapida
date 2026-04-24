@@ -10,7 +10,7 @@ from typing import Any, Iterator, cast
 
 from armazenamento.database import get_db_connection
 from armazenamento.derivadas_schema import scan_derivadas_read_schema_readiness
-from shared.numero_ssa import normalize_strict
+from shared.numero_ssa import normalize_relation_id, normalize_strict
 
 ALLOWED_TOP_METRICS = {
     "direct_children": "direct_children_count",
@@ -421,8 +421,10 @@ def build_family_payload_from_edges(
     edges: list[tuple[Any, Any]],
     *,
     max_nodes: int = DERIVADAS_FAMILY_NODE_LIMIT,
+    allow_relation_ids: bool = False,
 ) -> dict[str, Any]:
-    target_ssa = _normalize_or_none(ssa)
+    normalizer = normalize_relation_id if allow_relation_ids else _normalize_or_none
+    target_ssa = normalizer(ssa)
     if not target_ssa:
         return {
             "parents": [],
@@ -435,8 +437,8 @@ def build_family_payload_from_edges(
     children_by_parent: dict[str, set[str]] = defaultdict(set)
     parents_by_child: dict[str, set[str]] = defaultdict(set)
     for parent_raw, child_raw in edges:
-        parent = _normalize_or_none(parent_raw)
-        child = _normalize_or_none(child_raw)
+        parent = normalizer(parent_raw)
+        child = normalizer(child_raw)
         if not parent or not child or parent == child:
             continue
         children_by_parent[parent].add(child)

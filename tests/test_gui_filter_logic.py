@@ -3657,6 +3657,60 @@ class TestGUIFilterLogic:
             for row in data["descendants"]
         )
 
+    def test_collect_derivadas_tree_data_accepts_short_relation_ids(
+        self, monkeypatch
+    ):
+        family_df = pd.DataFrame(
+            {
+                "numero_ssa": ["100", "101", "102", "103"],
+                "derivada_de": ["", "100", "100", "102"],
+                "situacao": ["STE", "APG", "SPG", "STE"],
+                "descricao_ssa": ["mae", "filha alvo", "irma", "sobrinha"],
+            }
+        )
+        self.window.df_completo = family_df
+        monkeypatch.setattr(ssa_gui_details, "_resolve_current_db_path", lambda: None)
+
+        data = ssa_gui_details._collect_derivadas_tree_data(self.window, "101")
+
+        assert data["parents"] == ["100"]
+        assert data["family_roots"] == ["100"]
+        assert data["render_family"] is True
+        assert any(
+            row.get("ssa") == "102" and row.get("parent") == "100"
+            for row in data["descendants"]
+        )
+
+    def test_collect_derivadas_tree_data_rebuilds_family_cache_after_in_place_change(
+        self, monkeypatch
+    ):
+        family_df = pd.DataFrame(
+            {
+                "numero_ssa": ["202600100", "202600101", "202600102"],
+                "derivada_de": ["", "202600100", "202600100"],
+                "situacao": ["STE", "APG", "SPG"],
+            }
+        )
+        self.window.df_completo = family_df
+        monkeypatch.setattr(ssa_gui_details, "_resolve_current_db_path", lambda: None)
+
+        first = ssa_gui_details._collect_derivadas_tree_data(self.window, "202600101")
+        family_df.loc[2, "derivada_de"] = "202600101"
+        second = ssa_gui_details._collect_derivadas_tree_data(self.window, "202600101")
+
+        assert any(
+            row.get("ssa") == "202600102" and row.get("parent") == "202600100"
+            for row in first["descendants"]
+        )
+        assert any(
+            row.get("ssa") == "202600102" and row.get("parent") == "202600101"
+            for row in second["descendants"]
+        )
+        assert not any(
+            row.get("ssa") == "202600102" and row.get("parent") == "202600100"
+            for row in second["descendants"]
+        )
+
     def test_derivadas_tree_html_renders_parent_sibling_family(self):
         data: dict[str, object] = {
             "target": "202600101",
@@ -3684,6 +3738,30 @@ class TestGUIFilterLogic:
         assert "202600101" in html
         assert "202600102" in html
         assert "202600103" in html
+
+    def test_derivadas_tree_html_marks_partial_family(self):
+        data: dict[str, object] = {
+            "target": "202600101",
+            "parents": ["202600100"],
+            "family_roots": ["202600100"],
+            "children": [],
+            "descendants": [
+                {"ssa": "202600101", "parent": "202600100"},
+            ],
+            "ancestors": [{"ssa": "202600100", "min_distance": 1}],
+            "direct_children_count": 0,
+            "descendants_count": 1,
+            "descendants_partial": True,
+            "render_family": True,
+        }
+
+        html = ssa_gui_details._build_derivadas_tree_html(
+            self.window,
+            "202600101",
+            tree_data_override=data,
+        )
+
+        assert "... (+1)" in html
 
     def test_build_derivadas_mermaid_text_generates_edges(self):
         data: dict[str, object] = {
@@ -3791,6 +3869,33 @@ class TestGUIFilterLogic:
         assert "202600101" in html
         assert "202600102" in html
         assert "202600103" in html
+        assert 'data-from="202600100" data-to="202600101"' in html
+        assert 'data-from="202600100" data-to="202600102"' in html
+        assert 'data-from="202600102" data-to="202600103"' in html
+
+    def test_build_derivadas_graph_html_marks_partial_family(self):
+        data: dict[str, object] = {
+            "target": "202600101",
+            "parents": ["202600100"],
+            "family_roots": ["202600100"],
+            "children": [],
+            "descendants": [
+                {"ssa": "202600101", "parent": "202600100"},
+            ],
+            "ancestors": [{"ssa": "202600100", "min_distance": 1}],
+            "descendants_count": 1,
+            "descendants_partial": True,
+            "render_family": True,
+        }
+
+        html = ssa_gui_details._build_derivadas_graph_html(
+            self.window,
+            data,
+            link_color="#4a90e2",
+            font_family="monospace",
+        )
+
+        assert "Exibicao parcial de descendentes: +1" in html
 
     def test_normalize_ssa_series_reuses_unique_normalizations(self, monkeypatch):
         calls = []
