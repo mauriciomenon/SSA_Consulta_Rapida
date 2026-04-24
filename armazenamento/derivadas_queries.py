@@ -6,7 +6,7 @@ import logging
 import sqlite3
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import Any, Iterator
+from typing import Any, Iterator, cast
 
 from armazenamento.database import get_db_connection
 from armazenamento.derivadas_schema import scan_derivadas_read_schema_readiness
@@ -63,7 +63,7 @@ def get_parents(db_path: str, ssa: Any, *, include_inactive: bool = False) -> li
     with _open_derivadas_connection(db_path) as (conn, schema_ready):
         if not schema_ready:
             return []
-        assert conn is not None
+        conn = cast(sqlite3.Connection, conn)
         if include_inactive:
             query = "SELECT parent_ssa FROM ssa_derivada_matrix WHERE child_ssa = ? ORDER BY parent_ssa"
             rows = conn.execute(query, (child_ssa,)).fetchall()
@@ -89,7 +89,7 @@ def get_children(
     with _open_derivadas_connection(db_path) as (conn, schema_ready):
         if not schema_ready:
             return []
-        assert conn is not None
+        conn = cast(sqlite3.Connection, conn)
         if include_inactive:
             query = "SELECT child_ssa FROM ssa_derivada_matrix WHERE parent_ssa = ? ORDER BY child_ssa"
             rows = conn.execute(query, (parent_ssa,)).fetchall()
@@ -110,7 +110,7 @@ def children_count(db_path: str, ssa: Any, *, include_inactive: bool = False) ->
     with _open_derivadas_connection(db_path) as (conn, schema_ready):
         if not schema_ready:
             return 0
-        assert conn is not None
+        conn = cast(sqlite3.Connection, conn)
         if include_inactive:
             query = "SELECT COUNT(*) FROM ssa_derivada_matrix WHERE parent_ssa = ?"
             value = conn.execute(query, (parent_ssa,)).fetchone()[0]
@@ -130,7 +130,7 @@ def get_ancestors(
     with _open_derivadas_connection(db_path) as (conn, schema_ready):
         if not schema_ready:
             return []
-        assert conn is not None
+        conn = cast(sqlite3.Connection, conn)
         if safe_max_distance is not None:
             rows = conn.execute(
                 """
@@ -172,7 +172,7 @@ def get_descendants(
     with _open_derivadas_connection(db_path) as (conn, schema_ready):
         if not schema_ready:
             return []
-        assert conn is not None
+        conn = cast(sqlite3.Connection, conn)
         if safe_max_distance is not None:
             rows = conn.execute(
                 """
@@ -211,7 +211,7 @@ def get_hierarchy_profile(db_path: str, ssa: Any) -> dict[str, Any]:
     with _open_derivadas_connection(db_path) as (conn, schema_ready):
         if not schema_ready:
             return {}
-        assert conn is not None
+        conn = cast(sqlite3.Connection, conn)
         row = conn.execute(
             """
             SELECT
@@ -388,7 +388,7 @@ def get_paths_down(
     with _open_derivadas_connection(db_path) as (conn, schema_ready):
         if not schema_ready:
             return []
-        assert conn is not None
+        conn = cast(sqlite3.Connection, conn)
         adjacency = _load_adjacency(conn, direction="down")
         return _collect_paths(adjacency, root, depth=depth, max_nodes=max_nodes)
 
@@ -406,7 +406,7 @@ def get_paths_up(
     with _open_derivadas_connection(db_path) as (conn, schema_ready):
         if not schema_ready:
             return []
-        assert conn is not None
+        conn = cast(sqlite3.Connection, conn)
         adjacency = _load_adjacency(conn, direction="up")
         return _collect_paths(adjacency, child, depth=depth, max_nodes=max_nodes)
 
@@ -420,7 +420,7 @@ def get_top_by_metric(
     with _open_derivadas_connection(db_path) as (conn, schema_ready):
         if not schema_ready:
             return []
-        assert conn is not None
+        conn = cast(sqlite3.Connection, conn)
         rows = conn.execute(
             """
             SELECT
@@ -499,7 +499,7 @@ def get_ssa_hierarchy_snapshot(
                 "ancestors": [],
                 "descendants": [],
             }
-        assert conn is not None
+        conn = cast(sqlite3.Connection, conn)
         conn.execute("BEGIN")
         parents_rows = conn.execute(
             """
