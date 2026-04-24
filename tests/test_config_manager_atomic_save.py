@@ -1,5 +1,6 @@
 import json
 import os
+import stat
 import sys
 
 import pytest
@@ -53,6 +54,37 @@ def test_save_settings_writes_valid_json(tmp_path, monkeypatch):
 
     loaded = json.loads(settings_path.read_text(encoding="utf-8"))
     assert loaded == data
+
+
+def test_save_settings_preserves_existing_file_mode(tmp_path, monkeypatch):
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+    settings_path = cfg_dir / "settings.json"
+    settings_path.write_text("{}", encoding="utf-8")
+    settings_path.chmod(0o640)
+
+    config_manager.save_settings({"mode": "preserved"})
+
+    assert stat.S_IMODE(settings_path.stat().st_mode) == 0o640
+    assert json.loads(settings_path.read_text(encoding="utf-8")) == {
+        "mode": "preserved"
+    }
+
+
+def test_load_settings_reports_user_and_default_paths_when_missing(
+    tmp_path, monkeypatch
+):
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        config_manager.load_settings()
+
+    message = str(exc_info.value)
+    assert str(cfg_dir / "settings.json") in message
+    assert str(cfg_dir / "default_settings.json") in message
 
 
 def test_ensure_default_settings_reports_copy_failure(tmp_path, monkeypatch):
