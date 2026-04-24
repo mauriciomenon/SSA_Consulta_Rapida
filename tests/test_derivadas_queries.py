@@ -9,6 +9,7 @@ import pytest
 from armazenamento.derivadas_queries import (
     _collect_paths,
     _open_derivadas_connection,
+    build_family_payload_from_edges,
     get_ancestors,
     get_children,
     get_descendants,
@@ -170,6 +171,56 @@ def test_snapshot_returns_gui_friendly_payload(temp_db):
         "202500002",
         "202500004",
         "202500003",
+    ]
+    assert snapshot["family_roots"] == ["202500001"]
+    assert {"ssa": "202500002", "parent": "202500001", "min_distance": 1} in snapshot[
+        "family_descendants"
+    ]
+    assert {"ssa": "202500004", "parent": "202500001", "min_distance": 1} in snapshot[
+        "family_descendants"
+    ]
+
+
+def test_snapshot_for_child_includes_parent_and_sibling_family(temp_db):
+    _seed_graph(temp_db)
+
+    snapshot = get_ssa_hierarchy_snapshot(temp_db, "202500003", max_distance=None)
+
+    assert snapshot["parents"] == ["202500002"]
+    assert snapshot["family_roots"] == ["202500001"]
+    assert {"ssa": "202500002", "parent": "202500001", "min_distance": 1} in snapshot[
+        "family_descendants"
+    ]
+    assert {"ssa": "202500004", "parent": "202500001", "min_distance": 1} in snapshot[
+        "family_descendants"
+    ]
+    assert {"ssa": "202500003", "parent": "202500002", "min_distance": 2} in snapshot[
+        "family_descendants"
+    ]
+
+
+def test_build_family_payload_from_edges_includes_parent_and_siblings():
+    payload = build_family_payload_from_edges(
+        "202500003",
+        [
+            ("202500001", "202500002"),
+            ("202500001", "202500004"),
+            ("202500002", "202500003"),
+        ],
+        max_nodes=10,
+    )
+
+    assert payload["parents"] == ["202500002"]
+    assert payload["children"] == []
+    assert payload["family_roots"] == ["202500001"]
+    assert {"ssa": "202500002", "parent": "202500001", "min_distance": 1} in payload[
+        "family_descendants"
+    ]
+    assert {"ssa": "202500004", "parent": "202500001", "min_distance": 1} in payload[
+        "family_descendants"
+    ]
+    assert {"ssa": "202500003", "parent": "202500002", "min_distance": 2} in payload[
+        "family_descendants"
     ]
 
 
