@@ -789,6 +789,90 @@ class TestDatabaseRepair:
             row_count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
         assert row_count == 1
 
+    def test_repair_restores_backup_when_final_validation_fails(
+        self, tmp_path, monkeypatch
+    ):
+        db_path = os.path.join(tmp_path, "restore_after_final_failure.db")
+        schema_path = os.path.join(tmp_path, "schema.sql")
+
+        with open(schema_path, "w") as f:
+            f.write("""
+            CREATE TABLE IF NOT EXISTS ssa_table (
+                numero_ssa INTEGER,
+                situacao TEXT,
+                data_cadastro TEXT,
+                descricao_ssa TEXT
+            );
+            """)
+
+        initialize_database(db_path, schema_path)
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO ssa_table (numero_ssa, situacao, data_cadastro, descricao_ssa)
+                VALUES (?, ?, ?, ?)
+                """,
+                (202312347, "STE", "2023-12-03 10:00:00", "Original final"),
+            )
+            conn.commit()
+
+        calls = {"db_path": 0}
+
+        def _fake_verify(path, table_name="ssa_table"):
+            if path == db_path:
+                calls["db_path"] += 1
+                return {
+                    "is_valid": False,
+                    "issues": ["forced final validation failure"],
+                    "warnings": [],
+                    "database_exists": True,
+                    "database_accessible": True,
+                    "table_exists": True,
+                    "schema_valid": True,
+                    "data_consistent": False,
+                    "disk_space_sufficient": True,
+                    "file_permissions_ok": True,
+                    "needs_creation": False,
+                    "missing_optional_columns": [],
+                    "table_name": table_name,
+                }
+            return {
+                "is_valid": True,
+                "issues": [],
+                "warnings": [],
+                "database_exists": True,
+                "database_accessible": True,
+                "table_exists": True,
+                "schema_valid": True,
+                "data_consistent": True,
+                "disk_space_sufficient": True,
+                "file_permissions_ok": True,
+                "needs_creation": False,
+                "missing_optional_columns": [],
+                "table_name": table_name,
+            }
+
+        monkeypatch.setattr(
+            database_integrity_module,
+            "verify_database_integrity",
+            _fake_verify,
+        )
+        monkeypatch.setattr(
+            database_upsert_logic,
+            "insert_dataframe_with_smart_upsert_impl",
+            lambda *_args, **_kwargs: True,
+        )
+
+        result = repair_database_if_needed(db_path, schema_path, table_name="ssa_table")
+
+        assert result is False
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                "SELECT descricao_ssa FROM ssa_table WHERE numero_ssa = ?",
+                (202312347,),
+            ).fetchone()
+        assert row == ("Original final",)
+
     def test_repair_prefers_restore_flow_before_reinitialize_when_corrupted(
         self, tmp_path, monkeypatch
     ):

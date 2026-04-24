@@ -12,7 +12,6 @@ DO NOT add top-level imports from database.py.
 # Last modified: 2025-10-29T11:05:00 (circular import documentation)
 from __future__ import annotations
 
-import logging
 import os
 import shutil
 import sqlite3
@@ -22,12 +21,13 @@ from typing import Any
 import pandas as pd
 
 from shared.db_names import ALL_SSA_TABLE_NAMES, CANONICAL_SSA_TABLE
+from utils.robust_logging import get_robust_logger
 
 from .identifier_utils import is_valid_identifier
 
 # Lazy imports from database.py to avoid circular dependency (see lines 82, 100, 117, etc.)
 
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "storage")
 
 MIN_FREE_SPACE_GB_WARN = 0.1
 
@@ -285,8 +285,8 @@ def repair_database_if_needed(
                             raise ValueError(f"Invalid SQL identifier: {source_table}")
                         quoted_source_table = _quote_identifier(source_table)
                         df_backup = pd.read_sql_query(
-                            f"SELECT * FROM {quoted_source_table}",
-                            conn,  # nosec B608  # skipcq: BAN-B608
+                            f"SELECT * FROM {quoted_source_table}",  # nosec B608  # skipcq: BAN-B608
+                            conn,
                         )
                     except Exception as e:  # pragma: no cover
                         logger.error(
@@ -308,10 +308,23 @@ def repair_database_if_needed(
                             )
                             if repair_check["is_valid"]:
                                 os.replace(repair_path, db_path)
-                                logger.info(
-                                    "Dados restaurados com sucesso apos correcao"
+                                final_repair_check = verify_database_integrity(
+                                    db_path, table_name
                                 )
-                                repaired = True
+                                if final_repair_check["is_valid"]:
+                                    logger.info(
+                                        "Dados restaurados com sucesso apos correcao"
+                                    )
+                                    repaired = True
+                                else:
+                                    logger.error(
+                                        "Banco substituido falhou na validacao final: %s",
+                                        final_repair_check["issues"],
+                                    )
+                                    shutil.copy2(backup_path, db_path)
+                                    logger.warning(
+                                        "Backup original restaurado apos falha na validacao final."
+                                    )
                             else:
                                 logger.error(
                                     "Banco reparado temporario falhou na validacao final: %s",
