@@ -64,10 +64,17 @@ class CacheManager:
             try:
                 row_hashes = pd.util.hash_pandas_object(df, index=True)
             except TypeError:
+                raw_data = df.to_numpy(dtype=object, copy=False).tolist()
                 content_payload = {
                     "index": list(df.index),
                     "columns": list(df.columns),
-                    "data": df.to_numpy(dtype=object, copy=False).tolist(),
+                    "data": [
+                        [
+                            sorted(value, key=repr) if isinstance(value, set) else value
+                            for value in row
+                        ]
+                        for row in raw_data
+                    ],
                 }
                 df_info["content_hash"] = hashlib.md5(
                     json.dumps(

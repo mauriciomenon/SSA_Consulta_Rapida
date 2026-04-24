@@ -189,12 +189,11 @@ class HandlerBase(ABC):
         """
         format_type = context.output_format.lower()
 
-        if data.empty and format_type == "json":
-            return "[]"
-
         if format_type == "json":
+            if data.empty:
+                return "[]"
             json_text = data.to_json(orient="records", indent=2)
-            return json_text or ""
+            return json_text or "[]"
         elif format_type == "csv":
             return data.to_csv(index=False)
         elif data.empty:
