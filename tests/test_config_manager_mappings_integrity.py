@@ -37,6 +37,13 @@ def test_load_column_mappings_integrity_restores_invalid_file(tmp_path, monkeypa
     assert result == config_manager.DEFAULT_COLUMN_MAPPINGS
 
 
+def test_default_column_mappings_include_portuguese_atividade_especial():
+    aliases = config_manager.DEFAULT_COLUMN_MAPPINGS["atividade_especial"]
+
+    assert "Atividade Especial" in aliases
+    assert "Actividad Especial" in aliases
+
+
 @pytest.mark.parametrize(
     ("loader_name", "expected_name", "filename"),
     [

@@ -14,6 +14,7 @@ import pytest
 import armazenamento.derivadas_sync as derivadas_sync
 from armazenamento.derivadas_schema import ensure_derivadas_schema_on_connection
 from armazenamento.derivadas_sync import get_sync_stats, sync_derivadas
+from utils.path_safety import PathSafetyError
 
 
 def _insert_ssa_rows(db_path: str, rows: list[tuple[str, str | None]]) -> None:
@@ -83,6 +84,56 @@ def test_sync_persists_actor_in_sync_run(temp_db):
         ).fetchone()[0]
 
     assert actor == "test-actor"
+
+
+def test_sync_validates_database_path_before_open(temp_db, monkeypatch):
+    def _blocked_path(*_args, **_kwargs):
+        raise PathSafetyError("blocked derivadas db")
+
+    monkeypatch.setattr(derivadas_sync, "ensure_path_is_allowed", _blocked_path)
+
+    with pytest.raises(PathSafetyError, match="blocked derivadas db"):
+        sync_derivadas(temp_db)
+
+
+def test_sync_deactivates_db_source_when_derivada_field_is_cleared(temp_db):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", "202500001"),
+        ],
+    )
+
+    initial_report = sync_derivadas(temp_db)
+    assert initial_report["active_edges"] == 1
+
+    with sqlite3.connect(temp_db) as conn:
+        conn.execute(
+            "UPDATE ssa_table SET derivada_de = NULL WHERE numero_ssa = ?",
+            ("202500002",),
+        )
+        conn.commit()
+
+    report = sync_derivadas(temp_db)
+
+    assert report["managed_sources"] == [derivadas_sync.SOURCE_DB_FIELD]
+    assert report["active_edges"] == 0
+    with sqlite3.connect(temp_db) as conn:
+        active_source_rows = conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM ssa_derivada_source
+            WHERE source_name = ? AND is_active = 1
+            """,
+            (derivadas_sync.SOURCE_DB_FIELD,),
+        ).fetchone()[0]
+        active_matrix_rows = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1"
+        ).fetchone()[0]
+
+    assert active_source_rows == 0
+    assert active_matrix_rows == 0
 
 
 def test_sync_cycle_detection_marks_only_cycle_nodes(temp_db):
@@ -271,6 +322,73 @@ def test_sync_merges_edges_from_multiple_sheet_files(temp_db, tmp_path: Path):
         ).fetchall()
 
     assert rows == [("202500001", "202500002"), ("202500001", "202500003")]
+
+
+def test_sync_deactivates_sheet_source_when_sheet_later_has_no_edges(
+    temp_db,
+    tmp_path: Path,
+):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+        ],
+    )
+
+    sheet_file = tmp_path / "derivadas.csv"
+    with sheet_file.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(
+            fh,
+            fieldnames=["parent_ssa", "child_ssa", "relation_label"],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "parent_ssa": "202500001",
+                "child_ssa": "202500002",
+                "relation_label": "Derivada da",
+            }
+        )
+
+    initial_report = sync_derivadas(
+        temp_db,
+        include_db_source=False,
+        sheet_file=str(sheet_file),
+    )
+    assert initial_report["active_edges"] == 1
+
+    empty_sheet_file = tmp_path / "derivadas_empty.csv"
+    with empty_sheet_file.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(
+            fh,
+            fieldnames=["parent_ssa", "child_ssa", "relation_label"],
+        )
+        writer.writeheader()
+
+    report = sync_derivadas(
+        temp_db,
+        include_db_source=False,
+        sheet_file=str(empty_sheet_file),
+    )
+
+    assert report["managed_sources"] == [derivadas_sync.SOURCE_SHEET_DERIVADAS]
+    assert report["active_edges"] == 0
+    with sqlite3.connect(temp_db) as conn:
+        active_source_rows = conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM ssa_derivada_source
+            WHERE source_name = ? AND is_active = 1
+            """,
+            (derivadas_sync.SOURCE_SHEET_DERIVADAS,),
+        ).fetchone()[0]
+        active_matrix_rows = conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1"
+        ).fetchone()[0]
+
+    assert active_source_rows == 0
+    assert active_matrix_rows == 0
 
 
 def test_sync_deduplicates_sheet_files_across_relative_and_absolute_paths(

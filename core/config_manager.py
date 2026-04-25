@@ -302,7 +302,7 @@ DEFAULT_COLUMN_MAPPINGS: Dict[str, list] = {
     "sistema_origem": ["Sis. Origem", "Sistema de Origem"],
     "numero_desvios": ["Número de Desvios", "Nº de Desvios", "Desvio"],
     "justificativa": ["Justificativa", "Justificativa sem APR"],
-    "atividade_especial": ["Actividad Especial"],
+    "atividade_especial": ["Atividade Especial", "Actividad Especial"],
     "equipamento_retirado": ["Equipamento Retirado"],
     "destino": ["Destino"],
     "equipamento_instalado": ["Equipamento Instalado"],

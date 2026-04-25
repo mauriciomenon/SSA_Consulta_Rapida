@@ -3,7 +3,13 @@
 
 PROJECT_ROOT = VARS.get("SSA_PROJECT_ROOT") or "."
 PROJECT_ROOT = PROJECT_ROOT.replace("\\", "/")
-PROJECT_PREFIX = PROJECT_ROOT + "/" if not PROJECT_ROOT.endswith("/") else PROJECT_ROOT
+PROJECT_PREFIX = (
+    ""
+    if PROJECT_ROOT in ("", ".")
+    else PROJECT_ROOT + "/"
+    if not PROJECT_ROOT.endswith("/")
+    else PROJECT_ROOT
+)
 
 
 def make_exe():

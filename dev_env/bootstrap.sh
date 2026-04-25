@@ -58,8 +58,8 @@ ensure_pyenv_clone_deps() {
     return 1
   fi
   echo "[info] Instalando dependencias de build para pyenv (sudo pode ser solicitado)"
-  sudo apt update -y
-  sudo apt install -y build-essential git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
+  sudo apt-get update
+  sudo apt-get install -y build-essential git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
     libsqlite3-dev curl llvm tk-dev libncursesw5-dev xz-utils libffi-dev liblzma-dev ca-certificates
 }
 

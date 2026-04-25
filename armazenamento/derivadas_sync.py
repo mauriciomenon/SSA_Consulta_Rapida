@@ -33,6 +33,7 @@ from armazenamento.derivadas_schema import (
 )
 from armazenamento.identifier_utils import is_valid_identifier
 from shared.numero_ssa import normalize_strict
+from utils.path_safety import ensure_path_is_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,14 @@ def _configure_derivadas_connection(conn: sqlite3.Connection) -> None:
 
 @contextmanager
 def _open_derivadas_read_connection(db_path: str):
-    with get_db_connection(db_path) as conn:
+    safe_db_path = str(
+        ensure_path_is_allowed(
+            db_path,
+            purpose="derivadas read database",
+            expect_directory=False,
+        )
+    )
+    with get_db_connection(safe_db_path) as conn:
         _configure_derivadas_connection(conn)
         # Guardrail: scan/stats helpers must remain read-only.
         conn.execute("PRAGMA query_only = ON")
@@ -1530,8 +1538,15 @@ def sync_derivadas(
     mode = "full_rebuild" if full_rebuild else "sync"
     timestamp = _now_utc_str()
     sync_actor = _resolve_sync_actor(actor)
+    safe_db_path = str(
+        ensure_path_is_allowed(
+            db_path,
+            purpose="sync derivadas database",
+            expect_directory=False,
+        )
+    )
 
-    with get_db_connection(db_path) as conn:
+    with get_db_connection(safe_db_path) as conn:
         _configure_derivadas_connection(conn)
         db_source_table_exists = _table_exists(conn, table_name=table_name)
 
@@ -1601,7 +1616,13 @@ def sync_derivadas(
         reconciliation_pre = _analyze_reconciliation(
             all_ssa, merged_edges, source_edges
         )
-        managed_sources = sorted({edge.source_name for edge in source_edges})
+        managed_source_names: set[str] = set()
+        if include_db_source:
+            managed_source_names.add(SOURCE_DB_FIELD)
+        if normalized_sheet_files:
+            managed_source_names.add(SOURCE_SHEET_DERIVADAS)
+        managed_source_names.update(edge.source_name for edge in source_edges)
+        managed_sources = sorted(managed_source_names)
 
         report: dict[str, Any] = {
             "mode": mode,
