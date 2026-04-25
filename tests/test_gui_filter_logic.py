@@ -24,8 +24,8 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from core import app_logic  # noqa: E402
-from PyQt6.QtCore import QPoint, QRect, QSize, Qt, QUrl  # noqa: E402
-from PyQt6.QtGui import QCloseEvent, QFont, QResizeEvent  # noqa: E402
+from PyQt6.QtCore import QEvent, QPoint, QRect, QSize, Qt, QTimer, QUrl  # noqa: E402
+from PyQt6.QtGui import QCloseEvent, QDesktopServices, QFont, QResizeEvent  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtWidgets import QLineEdit  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QLabel, QPushButton  # noqa: E402
@@ -3598,8 +3598,9 @@ class TestGUIFilterLogic:
             "_collect_derivadas_tree_data",
             lambda *_args, **_kwargs: {
                 "target": "202600023",
+                "target_status": "APG",
                 "parents": ["202516514"],
-                "children": ["202600029"],
+                "children": [{"ssa": "202600029", "situacao": "SPG"}],
                 "descendants": [{"ssa": "202600030", "situacao": "STE"}],
                 "ancestors": [
                     {"ssa": "202516514", "situacao": "STE", "min_distance": 1}
@@ -3608,17 +3609,6 @@ class TestGUIFilterLogic:
                 "descendants_count": 1,
             },
         )
-        monkeypatch.setattr(
-            ssa_gui_details,
-            "_get_situacao_for_ssa",
-            lambda _window, numero: {
-                "202600023": "APG",
-                "202516514": "STE",
-                "202600029": "SPG",
-                "202600030": "STE",
-            }.get(str(numero), ""),
-        )
-
         html = ssa_gui_details._build_derivadas_tree_html(self.window, "202600023")
 
         assert "202600023 (APG)" in html
@@ -3711,6 +3701,299 @@ class TestGUIFilterLogic:
             for row in second["descendants"]
         )
 
+    def test_collect_derivadas_tree_data_rebuilds_large_family_cache_without_token(
+        self, monkeypatch
+    ):
+        rows = [("202600000", ""), ("202600001", "202600000")]
+        rows.extend((f"2026{i:05d}", "202600000") for i in range(2, 80))
+        family_df = pd.DataFrame(rows, columns=["numero_ssa", "derivada_de"])
+        family_df["situacao"] = "APG"
+        self.window.df_completo = family_df
+        self.window._data_uuid = None
+        monkeypatch.setattr(ssa_gui_details, "_resolve_current_db_path", lambda: None)
+
+        first = ssa_gui_details._collect_derivadas_tree_data(self.window, "202600001")
+        family_df.loc[7, "derivada_de"] = "202600001"
+        second = ssa_gui_details._collect_derivadas_tree_data(self.window, "202600001")
+        changed_child = str(family_df.loc[7, "numero_ssa"])
+
+        assert not any(
+            row.get("ssa") == changed_child and row.get("parent") == "202600001"
+            for row in first["descendants"]
+        )
+        assert any(
+            row.get("ssa") == changed_child and row.get("parent") == "202600001"
+            for row in second["descendants"]
+        )
+
+    def test_derivadas_family_edges_cache_invalidates_on_revision_change(self):
+        family_df = pd.DataFrame(
+            {
+                "numero_ssa": ["202600100", "202600101", "202600102"],
+                "derivada_de": ["", "202600100", "202600100"],
+            }
+        )
+        self.window.df_completo = family_df
+        self.window._data_uuid = "stable-token"
+        self.window._data_revision = 1
+
+        first_edges = ssa_gui_details._get_cached_derivadas_family_edges(self.window)
+        family_df.loc[2, "derivada_de"] = "202600101"
+        self.window._data_revision = 2
+        second_edges = ssa_gui_details._get_cached_derivadas_family_edges(self.window)
+
+        assert ("202600100", "202600102") in first_edges
+        assert ("202600101", "202600102") in second_edges
+        assert ("202600100", "202600102") not in second_edges
+
+    def test_details_ssa_index_cache_invalidates_on_revision_change(self):
+        details_df = pd.DataFrame(
+            {
+                "numero_ssa": ["202600101"],
+                "situacao": ["APG"],
+            }
+        )
+        self.window._data_uuid = "stable-token"
+        self.window._data_revision = 1
+
+        first_index = ssa_gui_details._get_df_ssa_series_index(self.window, details_df)
+        details_df.loc[0, "numero_ssa"] = "202600102"
+        self.window._data_revision = 2
+        second_index = ssa_gui_details._get_df_ssa_series_index(self.window, details_df)
+
+        assert "202600101" in first_index
+        assert "202600102" in second_index
+        assert "202600101" not in second_index
+
+    def test_gui_smoke_clicks_search_tabs_and_derivadas_filter(self, monkeypatch):
+        family_df = pd.DataFrame(
+            {
+                "numero_ssa": [
+                    "202600100",
+                    "202600101",
+                    "202600102",
+                    "202600103",
+                ],
+                "situacao": ["APG", "SPG", "APG", "STE"],
+                "derivada_de": ["", "202600100", "202600100", "202600102"],
+                "localizacao_codigo": ["L0", "L1", "L2", "L3"],
+                "descricao_localizacao": ["Local"] * 4,
+                "equipamento": ["EQ"] * 4,
+                "semana_cadastro": [202601] * 4,
+                "semana_programada": [202602] * 4,
+                "data_cadastro": ["2026-01-01"] * 4,
+                "descricao_ssa": ["Mae", "Alvo", "Irma", "Sobrinha"],
+                "setor_executor": ["IEE3", "MEL4", "IEE3", "XYZ"],
+                "setor_emissor": ["ABC", "IEE3", "MEL4", "MEL4"],
+                "descricao_execucao": [
+                    "Mae exec",
+                    "Alvo exec",
+                    "Irma exec",
+                    "Sobrinha exec",
+                ],
+                "solicitante": ["User0", "User1", "User2", "User3"],
+            }
+        )
+        self.window.df_completo = family_df.copy()
+        self.window.df_exibido = family_df.copy()
+        self.window.df_para_tabela = family_df.copy()
+        self.window._df_last_search_filtered = family_df.copy()
+        self.window.paginator.set_dataframe(family_df.copy())
+        self.window.display_current_page(1)
+        monkeypatch.setattr(ssa_gui_details, "_resolve_current_db_path", lambda: None)
+        QApplication.processEvents()
+
+        main_ctx = next(
+            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "main"
+        )
+        self.window.main_tabs.setCurrentIndex(0)
+        main_ctx["search_input"].setText("202600101")
+        cast(Any, QTest).mouseClick(
+            main_ctx["search_button"],
+            Qt.MouseButton.LeftButton,
+        )
+        QApplication.processEvents()
+
+        assert self.window.df_exibido["numero_ssa"].tolist() == ["202600101"]
+
+        assert self.window.main_tabs.count() > 1
+        self.window.main_tabs.setCurrentIndex(1)
+        QApplication.processEvents()
+        self.window.main_tabs.setCurrentIndex(0)
+        QApplication.processEvents()
+
+        self.window.df_exibido = family_df.copy()
+        self.window._df_last_search_filtered = family_df.copy()
+        self.window.paginator.set_dataframe(family_df.copy())
+        self.window.display_current_page(1)
+        self.window._filter_by_derivadas("202600100")
+        QApplication.processEvents()
+
+        assert set(self.window.df_exibido["numero_ssa"].tolist()) == {
+            "202600101",
+            "202600102",
+        }
+
+    def test_gui_smoke_opens_details_dialog_with_parent_sibling_family(
+        self, monkeypatch
+    ):
+        family_df = pd.DataFrame(
+            {
+                "numero_ssa": [
+                    "202600100",
+                    "202600101",
+                    "202600102",
+                    "202600103",
+                ],
+                "situacao": ["APG", "SPG", "APG", "STE"],
+                "derivada_de": ["", "202600100", "202600100", "202600102"],
+                "localizacao_codigo": ["L0", "L1", "L2", "L3"],
+                "descricao_localizacao": ["Local"] * 4,
+                "equipamento": ["EQ"] * 4,
+                "semana_cadastro": [202601] * 4,
+                "semana_programada": [202602] * 4,
+                "data_cadastro": ["2026-01-01"] * 4,
+                "descricao_ssa": ["Mae", "Alvo", "Irma", "Sobrinha"],
+                "setor_executor": ["IEE3", "MEL4", "IEE3", "XYZ"],
+                "setor_emissor": ["ABC", "IEE3", "MEL4", "MEL4"],
+                "descricao_execucao": [
+                    "Mae exec",
+                    "Alvo exec",
+                    "Irma exec",
+                    "Sobrinha exec",
+                ],
+                "solicitante": ["User0", "User1", "User2", "User3"],
+            }
+        )
+        self.window.df_completo = family_df.copy()
+        self.window.df_exibido = family_df.copy()
+        self.window.df_para_tabela = family_df.copy()
+        self.window._df_last_search_filtered = family_df.copy()
+        self.window.paginator.set_dataframe(family_df.copy())
+        self.window.display_current_page(1)
+        monkeypatch.setattr(ssa_gui_details, "_resolve_current_db_path", lambda: None)
+        QApplication.processEvents()
+
+        dialog_result = {"found": False}
+        dialog_poll = {"active": True, "attempts": 0}
+        safety_timer = QTimer(self.window)
+        safety_timer.setSingleShot(True)
+
+        def _inspect_dialog():
+            if not dialog_poll["active"]:
+                return
+            dialog_poll["attempts"] += 1
+            for widget in QApplication.topLevelWidgets():
+                if not isinstance(widget, QtWidgets.QDialog):
+                    continue
+                if "Detalhes da SSA" not in str(widget.windowTitle()):
+                    continue
+                browsers = widget.findChildren(QtWidgets.QTextBrowser)
+                joined = "\n".join(
+                    str(browser.toPlainText() or "")
+                    + "\n"
+                    + str(browser.toHtml() or "")
+                    for browser in browsers
+                )
+                dialog_result.update(
+                    {
+                        "found": True,
+                        "has_mae": "202600100" in joined,
+                        "has_alvo": "202600101" in joined,
+                        "has_irma": "202600102" in joined,
+                        "has_sobrinha": "202600103" in joined,
+                    }
+                )
+                dialog_poll["active"] = False
+                safety_timer.stop()
+                widget.accept()
+                return
+            if dialog_poll["attempts"] < 60:
+                QTimer.singleShot(50, _inspect_dialog)
+
+        def _close_dialogs():
+            if not dialog_poll["active"]:
+                return
+            dialog_poll["active"] = False
+            for widget in QApplication.topLevelWidgets():
+                if (
+                    isinstance(widget, QtWidgets.QDialog)
+                    and "Detalhes da SSA" in str(widget.windowTitle())
+                ):
+                    widget.accept()
+
+        QTimer.singleShot(50, _inspect_dialog)
+        safety_timer.timeout.connect(_close_dialogs)
+        safety_timer.start(3000)
+        ssa_gui_details._open_details_dialog_for_ssa(self.window, "202600101")
+
+        assert dialog_result == {
+            "found": True,
+            "has_mae": True,
+            "has_alvo": True,
+            "has_irma": True,
+            "has_sobrinha": True,
+        }
+
+    def test_derivadas_tree_large_family_uses_limited_payload(self, monkeypatch):
+        rows = [("202600000", "", "APG")]
+        rows.append(("202699999", "202600000", "SPG"))
+        rows.extend((f"2026{i:05d}", "202600000", "APG") for i in range(1, 20000))
+        family_df = pd.DataFrame(
+            rows,
+            columns=["numero_ssa", "derivada_de", "situacao"],
+        )
+        family_df["descricao_ssa"] = "SSA"
+        self.window.df_completo = family_df
+        self.window.df_exibido = family_df
+        self.window.df_para_tabela = family_df
+        self.window._df_last_search_filtered = family_df
+        self.window._data_uuid = None
+        monkeypatch.setattr(ssa_gui_details, "_resolve_current_db_path", lambda: None)
+
+        tree_data = ssa_gui_details._collect_derivadas_tree_data(
+            self.window,
+            "202699999",
+        )
+        ssa_index = ssa_gui_details._get_df_ssa_series_index(
+            self.window,
+            self.window.df_para_tabela,
+        )
+        html = ssa_gui_details._build_derivadas_tree_html(
+            self.window,
+            "202699999",
+            tree_data_override=tree_data,
+            ssa_index=ssa_index,
+        )
+
+        assert tree_data["descendants_partial"] is True
+        assert len(tree_data["descendants"]) <= ssa_gui_details.DERIVADAS_GRAPH_MAX_DESCENDANTS
+        assert any(
+            row.get("ssa") == "202699999" and row.get("parent") == "202600000"
+            for row in tree_data["descendants"]
+        )
+        assert "... (+" in html
+
+    def test_collect_derivadas_tree_data_large_family_preserves_target_edge(
+        self, monkeypatch
+    ):
+        rows = [("202600000", ""), ("202699999", "202600000")]
+        rows.extend((f"2026{i:05d}", "202600000") for i in range(1, 220))
+        family_df = pd.DataFrame(rows, columns=["numero_ssa", "derivada_de"])
+        family_df["situacao"] = "APG"
+        self.window.df_completo = family_df
+        self.window._data_uuid = None
+        monkeypatch.setattr(ssa_gui_details, "_resolve_current_db_path", lambda: None)
+
+        data = ssa_gui_details._collect_derivadas_tree_data(self.window, "202699999")
+
+        assert data["descendants_partial"] is True
+        assert data["render_family"] is True
+        assert any(
+            row.get("ssa") == "202699999" and row.get("parent") == "202600000"
+            for row in data["descendants"]
+        )
+
     def test_derivadas_tree_html_renders_parent_sibling_family(self):
         data: dict[str, object] = {
             "target": "202600101",
@@ -3768,16 +4051,58 @@ class TestGUIFilterLogic:
             "target": "202600023",
             "parents": ["202516514"],
             "children": ["202600029", "202600030"],
-            "descendants": [{"ssa": "202600031", "parent": "202600029"}],
+            "descendants": [
+                {"ssa": "202600023", "parent": "202516514"},
+                {"ssa": "202600031", "parent": "202600029"},
+            ],
         }
         mermaid = ssa_gui_details._build_derivadas_mermaid_text(data)
         assert mermaid.startswith("flowchart LR")
         assert 'N202516514["202516514"] --> N202600023' in mermaid
+        assert mermaid.count("N202516514") == 1
         assert 'N202600023 --> N202600029["202600029"]' in mermaid
         assert 'N202600029 --> N202600031["202600031"]' in mermaid
 
     def test_build_derivadas_mermaid_text_returns_empty_without_target(self):
         assert ssa_gui_details._build_derivadas_mermaid_text({}) == ""
+
+    def test_build_derivadas_mermaid_text_uses_stable_non_numeric_node_id(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_normalize_ssa_relation_value",
+            lambda value: str(value or "").strip(),
+        )
+        mermaid = ssa_gui_details._build_derivadas_mermaid_text(
+            {"target": "ALVO", "children": ["FILHA"]}
+        )
+        target_id = re.search(r'(N_[a-f0-9]+)\["ALVO"\]', mermaid)
+        child_id = re.search(r'(N_[a-f0-9]+)\["FILHA"\]', mermaid)
+
+        assert target_id is not None
+        assert child_id is not None
+        assert target_id.group(1) != child_id.group(1)
+        assert f"{target_id.group(1)} --> {child_id.group(1)}" in mermaid
+
+    def test_build_derivadas_mermaid_text_avoids_digit_collision_for_text_ids(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_normalize_ssa_relation_value",
+            lambda value: str(value or "").strip(),
+        )
+        mermaid = ssa_gui_details._build_derivadas_mermaid_text(
+            {"target": "SSA-2025", "children": ["REL-2025"]}
+        )
+        target_id = re.search(r'(N_[a-f0-9]+)\["SSA-2025"\]', mermaid)
+        child_id = re.search(r'(N_[a-f0-9]+)\["REL-2025"\]', mermaid)
+
+        assert target_id is not None
+        assert child_id is not None
+        assert target_id.group(1) != child_id.group(1)
+        assert "N2025" not in mermaid
 
     def test_build_derivadas_graph_html_generates_svg(self):
         data: dict[str, object] = {
@@ -4189,7 +4514,7 @@ class TestGUIFilterLogic:
 
         class _FakeEvent:
             def type(self):
-                return gui_ssa.QEvent.Type.MouseButtonDblClick
+                return QEvent.Type.MouseButtonDblClick
 
             def position(self):
                 class _P:
@@ -4220,7 +4545,7 @@ class TestGUIFilterLogic:
 
         class _FakeEvent:
             def type(self):
-                return gui_ssa.QEvent.Type.MouseButtonPress
+                return QEvent.Type.MouseButtonPress
 
             def position(self):
                 class _P:
@@ -4268,7 +4593,7 @@ class TestGUIFilterLogic:
         opened = []
 
         monkeypatch.setattr(
-            gui_ssa.QDesktopServices,
+            QDesktopServices,
             "openUrl",
             lambda url: opened.append(url.toString()) or True,
         )
@@ -4341,7 +4666,7 @@ class TestGUIFilterLogic:
         opened = []
 
         monkeypatch.setattr(
-            gui_ssa.QDesktopServices,
+            QDesktopServices,
             "openUrl",
             lambda url: opened.append(url.toString()) or True,
         )
@@ -4353,7 +4678,7 @@ class TestGUIFilterLogic:
         opened = []
 
         monkeypatch.setattr(
-            gui_ssa.QDesktopServices,
+            QDesktopServices,
             "openUrl",
             lambda url: opened.append(url.toString()) or True,
         )

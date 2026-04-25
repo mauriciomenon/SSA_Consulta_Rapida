@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import sys
+from types import SimpleNamespace
+
+import pytest
 
 from launchers import build_complete
 
@@ -8,45 +11,121 @@ from launchers import build_complete
 def test_build_complete_executes_default_build_flow(monkeypatch):
     calls = []
 
-    class _Result:
-        returncode = 0
+    def fake_execute_builder_script(args):
+        calls.append(list(args))
+        return 0
 
-    def fake_run(cmd, cwd=None, check=False, timeout=None):
-        calls.append({"cmd": list(cmd), "cwd": cwd, "check": check, "timeout": timeout})
-        return _Result()
-
-    monkeypatch.setattr("launchers.build_complete.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        build_complete,
+        "_execute_builder_script",
+        fake_execute_builder_script,
+    )
     fake_argv = ["build_complete.py"]
     monkeypatch.setattr(sys, "argv", fake_argv)
 
     assert build_complete.main() == 0
 
-    run_cmd = calls[0]["cmd"]
-    assert "python" in run_cmd[0].lower()
+    run_cmd = calls[0]
     assert "--auto-cleanup" in run_cmd
     assert "--auto-git" in run_cmd
     assert "--cleanup-online" not in run_cmd
-    assert calls[0]["timeout"] == 1800
 
 
 def test_build_complete_cleanup_only_uses_cleanup_online(monkeypatch):
     calls = []
 
-    class _Result:
-        returncode = 0
+    def fake_execute_builder_script(args):
+        calls.append(list(args))
+        return 0
 
-    def fake_run(cmd, cwd=None, check=False, timeout=None):
-        calls.append({"cmd": list(cmd), "timeout": timeout})
-        return _Result()
-
-    monkeypatch.setattr("launchers.build_complete.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        build_complete,
+        "_execute_builder_script",
+        fake_execute_builder_script,
+    )
     fake_argv = ["build_complete.py", "--cleanup-only"]
     monkeypatch.setattr(sys, "argv", fake_argv)
 
     assert build_complete.main() == 0
 
     assert len(calls) == 1
-    run_cmd = calls[0]["cmd"]
+    run_cmd = calls[0]
     assert "--cleanup-online" in run_cmd
     assert "--auto-cleanup" not in run_cmd
-    assert calls[0]["timeout"] == 300
+
+
+def test_build_complete_treats_none_return_as_success(monkeypatch):
+    calls = []
+
+    def fake_execute_builder_script(args):
+        calls.append(list(args))
+        return None
+
+    monkeypatch.setattr(
+        build_complete,
+        "_execute_builder_script",
+        fake_execute_builder_script,
+    )
+    monkeypatch.setattr(sys, "argv", ["build_complete.py"])
+
+    assert build_complete.main() == 0
+    assert calls == [["--apps", "cli", "gui", "--auto-cleanup", "--auto-git"]]
+
+
+def test_build_complete_cleanup_only_treats_none_return_as_success(monkeypatch):
+    calls = []
+
+    def fake_execute_builder_script(args):
+        calls.append(list(args))
+        return None
+
+    monkeypatch.setattr(
+        build_complete,
+        "_execute_builder_script",
+        fake_execute_builder_script,
+    )
+    monkeypatch.setattr(sys, "argv", ["build_complete.py", "--cleanup-only"])
+
+    assert build_complete.main() == 0
+    assert calls == [["--cleanup-online"]]
+
+
+def test_execute_builder_script_invokes_main_and_restores_argv(monkeypatch):
+    previous_argv = ["outer.py", "--flag"]
+    observed_args = []
+
+    def fake_import_module(name):
+        assert name == "launchers.build_multiplatform"
+
+        def fake_main(args=None):
+            observed_args.append(list(args or []))
+            return 0
+
+        return SimpleNamespace(main=fake_main)
+
+    monkeypatch.setattr(sys, "argv", previous_argv.copy())
+    monkeypatch.setattr(build_complete.importlib, "import_module", fake_import_module)
+
+    assert build_complete._execute_builder_script(["--cleanup-online"]) == 0
+
+    assert observed_args == [["--cleanup-online"]]
+    assert sys.argv == previous_argv
+
+
+def test_execute_builder_script_restores_argv_when_import_fails(monkeypatch):
+    previous_argv = ["outer.py", "--flag"]
+
+    def fake_import_module(_name):
+        raise RuntimeError("import failed")
+
+    monkeypatch.setattr(sys, "argv", previous_argv.copy())
+    monkeypatch.setattr(build_complete.importlib, "import_module", fake_import_module)
+
+    try:
+        build_complete._execute_builder_script(["--cleanup-online"])
+    except RuntimeError as exc:
+        assert str(exc) == "import failed"
+    else:
+        pytest.fail("expected import failure")
+
+    assert sys.argv == previous_argv

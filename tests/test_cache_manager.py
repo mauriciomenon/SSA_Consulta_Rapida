@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -37,6 +38,47 @@ def test_dataframe_hash_handles_unhashable_object_cells() -> None:
     assert cache.get_dataframe_hash(left) != cache.get_dataframe_hash(right)
 
 
+def test_dataframe_hash_handles_mixed_dict_keys() -> None:
+    cache = CacheManager()
+    left = pd.DataFrame({"a": [{1: "a", "1": "b"}]})
+    right = pd.DataFrame({"a": [{1: "a", "1": "changed"}]})
+
+    assert cache.get_dataframe_hash(left) != cache.get_dataframe_hash(right)
+
+
+def test_dataframe_hash_handles_cyclic_object_cells() -> None:
+    cache = CacheManager()
+    cyclic = []
+    cyclic.append(cyclic)
+    different = ["changed"]
+    different.append(different)
+    frame = pd.DataFrame({"a": [cyclic]})
+    other_frame = pd.DataFrame({"a": [different]})
+
+    first = cache.get_dataframe_hash(frame)
+    second = cache.get_dataframe_hash(frame)
+
+    assert first == second
+    assert first != cache.get_dataframe_hash(other_frame)
+
+
+def test_dataframe_hash_handles_unpicklable_bad_repr_object_cells() -> None:
+    class BadObject:
+        def __getstate__(self):
+            raise TypeError("no pickle")
+
+        def __repr__(self):
+            raise RuntimeError("no repr")
+
+    cache = CacheManager()
+    frame = pd.DataFrame({"a": [[BadObject()]]})
+
+    result = cache.get_dataframe_hash(frame)
+
+    assert isinstance(result, str)
+    assert len(result) == 32
+
+
 def test_cleanup_old_entries_uses_timedelta_arithmetic() -> None:
     cache = CacheManager()
     cache.cache_config("old", {"value": 1})
@@ -62,3 +104,44 @@ def test_cache_stats_does_not_stringify_cached_dataframes(monkeypatch) -> None:
 
     assert stats["cache_details"]["dataframes"]["entries"] == 1
     assert stats["cache_details"]["dataframes"]["memory_estimate"] > 0
+
+
+def test_cache_stats_counts_container_entries() -> None:
+    cache = CacheManager()
+    widths = {"numero_ssa": 120, "descricao_ssa": 320}
+    cache.cache_widths("frame", widths)
+
+    stats = cache.get_cache_stats()
+
+    assert stats["cache_details"]["widths"]["entries"] == 1
+    assert stats["cache_details"]["widths"]["memory_estimate"] > sys.getsizeof(widths)
+
+
+def test_cache_stats_estimates_memory_outside_lock(monkeypatch) -> None:
+    cache = CacheManager()
+    cache.cache_widths("frame", {"numero_ssa": 120})
+    original_getsizeof = sys.getsizeof
+
+    class TrackingLock:
+        owned = False
+
+        def __enter__(self):
+            self.owned = True
+            return self
+
+        def __exit__(self, _exc_type, _exc, _traceback):
+            self.owned = False
+            return False
+
+    tracking_lock = TrackingLock()
+    cache._lock = tracking_lock
+
+    def guarded_getsizeof(value):
+        assert not tracking_lock.owned
+        return original_getsizeof(value)
+
+    monkeypatch.setattr("core.cache_manager.sys.getsizeof", guarded_getsizeof)
+
+    stats = cache.get_cache_stats()
+
+    assert stats["cache_details"]["widths"]["entries"] == 1

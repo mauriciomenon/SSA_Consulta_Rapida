@@ -6,8 +6,9 @@
 from __future__ import annotations
 
 import html as html_module
+import hashlib
 import os
-from typing import Mapping, cast
+from typing import Any, Mapping, cast
 
 import pandas as pd
 
@@ -33,8 +34,8 @@ HIGHLIGHT_FONT_WEIGHT = "bold"
 MONO_FONT_FAMILY = "monospace"
 HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
 DERIVADAS_DETAILS_TOP_N = 5
-DERIVADAS_DIALOG_RATIO_LEFT = 16
-DERIVADAS_DIALOG_RATIO_RIGHT = 84
+DERIVADAS_DIALOG_RATIO_LEFT = 24
+DERIVADAS_DIALOG_RATIO_RIGHT = 76
 DERIVADAS_DIALOG_MIN_HEIGHT = 730
 DERIVADAS_DIALOG_DETAILS_FONT_PT = 12.0
 DERIVADAS_DIALOG_TREE_FONT_PT = 12.0
@@ -519,38 +520,54 @@ def _normalize_ssa_relation_series(series: pd.Series) -> pd.Series:
 def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
     if df is None or column_name not in getattr(df, "columns", []):
         return pd.Series(dtype="object")
+    data_uuid = getattr(window, "_data_uuid", None)
+    if data_uuid is None:
+        return _normalize_ssa_series(window, df[column_name])
     cache_owner = getattr(window, "cache_manager", None)
-    if cache_owner is None:
-        cache_owner = window
-    cache = getattr(cache_owner, "_ssa_norm_cache", None)
-    if not isinstance(cache, dict):
-        cache = {}
-        setattr(cache_owner, "_ssa_norm_cache", cache)
-    key = (id(df), str(column_name))
-    cached = cache.get(key)
+    cache_get = getattr(cache_owner, "get_cached_value", None)
+    cache_put = getattr(cache_owner, "cache_value", None)
+    if not callable(cache_get) or not callable(cache_put):
+        return _normalize_ssa_series(window, df[column_name])
+    key = (
+        id(df),
+        str(column_name),
+        len(df),
+        getattr(window, "_data_revision", None),
+        data_uuid,
+    )
+    cached = cache_get("ssa_norm", key)
     if isinstance(cached, pd.Series) and len(cached) == len(df):
         return cached
     normalized = _normalize_ssa_series(window, df[column_name])
-    if len(cache) >= SSA_NORM_CACHE_MAX_ENTRIES:
-        overflow = len(cache) - SSA_NORM_CACHE_MAX_ENTRIES + 1
-        for stale_key in list(cache.keys())[:overflow]:
-            cache.pop(stale_key, None)
-    cache[key] = normalized
+    cache_put(
+        "ssa_norm",
+        key,
+        normalized,
+        max_entries=SSA_NORM_CACHE_MAX_ENTRIES,
+    )
     return normalized
 
 
 def _get_df_ssa_series_index(window, df) -> dict[str, pd.Series]:
     if df is None or df.empty or "numero_ssa" not in getattr(df, "columns", []):
         return {}
+    data_uuid = getattr(window, "_data_uuid", None)
+    cache_enabled = data_uuid is not None
     cache_owner = getattr(window, "cache_manager", None)
-    if cache_owner is None:
-        cache_owner = window
-    cache = getattr(cache_owner, "_details_df_ssa_index_cache", None)
-    if not isinstance(cache, dict):
-        cache = {}
-        setattr(cache_owner, "_details_df_ssa_index_cache", cache)
-    cache_key = id(df)
-    cached = cache.get(cache_key)
+    cache_get = getattr(cache_owner, "get_cached_value", None)
+    cache_put = getattr(cache_owner, "cache_value", None)
+    has_cache_manager = callable(cache_get) and callable(cache_put)
+    cache_key = (
+        id(df),
+        len(df),
+        getattr(window, "_data_revision", None),
+        data_uuid,
+    )
+    cached = (
+        cast(Any, cache_get)("details_df_ssa_index", cache_key)
+        if cache_enabled and has_cache_manager
+        else None
+    )
     if isinstance(cached, dict) and cached:
         return cached
 
@@ -568,11 +585,13 @@ def _get_df_ssa_series_index(window, df) -> dict[str, pd.Series]:
     except Exception as exc:
         logger.debug("Falha ao montar indice SSA por DataFrame: %s", exc)
         return {}
-    if len(cache) >= 8:
-        overflow = len(cache) - 8 + 1
-        for stale_key in list(cache.keys())[:overflow]:
-            cache.pop(stale_key, None)
-    cache[cache_key] = lookup
+    if cache_enabled and has_cache_manager:
+        cast(Any, cache_put)(
+            "details_df_ssa_index",
+            cache_key,
+            lookup,
+            max_entries=8,
+        )
     return lookup
 
 
@@ -581,13 +600,20 @@ def _get_window_ssa_series_index(window) -> dict[str, pd.Series]:
         getattr(window, "df_exibido", None),
         getattr(window, "df_completo", None),
     )
-    cached_sources = getattr(window, "_details_ssa_index_sources", None)
+    data_uuid = getattr(window, "_data_uuid", None)
+    data_revision = getattr(window, "_data_revision", None)
+    if data_uuid is None:
+        cached_sources = None
+    else:
+        cached_sources = getattr(window, "_details_ssa_index_sources", None)
     cached_lookup = getattr(window, "_details_ssa_series_index", None)
     if (
         isinstance(cached_sources, tuple)
-        and len(cached_sources) == 2
+        and len(cached_sources) == 4
         and cached_sources[0] is current_sources[0]
         and cached_sources[1] is current_sources[1]
+        and cached_sources[2] == data_revision
+        and cached_sources[3] == data_uuid
         and isinstance(cached_lookup, dict)
     ):
         return cached_lookup
@@ -597,8 +623,14 @@ def _get_window_ssa_series_index(window) -> dict[str, pd.Series]:
         for numero_ssa, series in _get_df_ssa_series_index(window, df).items():
             if numero_ssa not in merged:
                 merged[numero_ssa] = series
-    window._details_ssa_index_sources = current_sources
-    window._details_ssa_series_index = merged
+    if data_uuid is not None:
+        window._details_ssa_index_sources = (
+            current_sources[0],
+            current_sources[1],
+            data_revision,
+            data_uuid,
+        )
+        window._details_ssa_series_index = merged
     return merged
 
 
@@ -1131,35 +1163,19 @@ def _get_cached_derivadas_family_edges(window) -> list[tuple[str, str]]:
         return []
     try:
         cache_owner = getattr(window, "cache_manager", None)
-        if cache_owner is None:
-            cache_owner = window
-        family_cache = getattr(cache_owner, "_details_derivadas_family_edges_cache", None)
-        if not isinstance(family_cache, dict):
-            family_cache = {}
-            setattr(cache_owner, "_details_derivadas_family_edges_cache", family_cache)
+        cache_get = getattr(cache_owner, "get_cached_value", None)
+        cache_put = getattr(cache_owner, "cache_value", None)
+        has_cache_manager = callable(cache_get) and callable(cache_put)
         data_revision = getattr(window, "_data_revision", None)
         data_uuid = getattr(window, "_data_uuid", None)
+        cache_enabled = data_uuid is not None
         row_count = len(source_df)
-        sample_count = min(16, row_count)
-        sample_positions = (
-            sorted(
-                {
-                    int(index * (row_count - 1) / max(1, sample_count - 1))
-                    for index in range(sample_count)
-                }
-            )
-            if row_count > 0
-            else []
+        cache_key = (id(source_df), row_count, data_revision, data_uuid)
+        cached_edges = (
+            cast(Any, cache_get)("details_derivadas_family_edges", cache_key)
+            if cache_enabled and has_cache_manager
+            else None
         )
-        sample_token = tuple(
-            (
-                str(source_df.iloc[position]["numero_ssa"]),
-                str(source_df.iloc[position]["derivada_de"]),
-            )
-            for position in sample_positions
-        )
-        cache_key = (id(source_df), row_count, data_revision, data_uuid, sample_token)
-        cached_edges = family_cache.get(cache_key)
         if isinstance(cached_edges, list):
             return cast(list[tuple[str, str]], cached_edges)
 
@@ -1184,9 +1200,13 @@ def _get_cached_derivadas_family_edges(window) -> list[tuple[str, str]]:
             if edge not in seen_edges:
                 seen_edges.add(edge)
                 edges.append(edge)
-        if len(family_cache) >= SSA_NORM_CACHE_MAX_ENTRIES:
-            family_cache.pop(next(iter(family_cache)), None)
-        family_cache[cache_key] = edges
+        if cache_enabled and has_cache_manager:
+            cast(Any, cache_put)(
+                "details_derivadas_family_edges",
+                cache_key,
+                edges,
+                max_entries=SSA_NORM_CACHE_MAX_ENTRIES,
+            )
         return edges
     except Exception as exc:
         logger.debug("Falha ao montar cache local de familia de derivadas: %s", exc)
@@ -1202,6 +1222,7 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         "descendants": [],
         "ancestors": [],
         "family_roots": [],
+        "target_status": "",
         "descendants_partial": False,
         "related": [],
         "direct_children_count": 0,
@@ -1407,6 +1428,11 @@ def _collect_derivadas_tree_data(window, numero_ssa):
     else:
         descendants_count = len(descendants) or len(children)
     related = _get_related_ssas_for_series(window, series_target)
+    try:
+        target_status = get_status_code(series_target.get("situacao"))
+    except Exception as exc:
+        logger.debug("Falha ao obter situacao alvo da arvore %s: %s", target, exc)
+        target_status = ""
     return {
         "target": target,
         "parents": parents,
@@ -1414,6 +1440,7 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         "descendants": descendants,
         "ancestors": ancestors,
         "family_roots": family_roots,
+        "target_status": target_status,
         "descendants_partial": descendants_partial,
         "render_family": render_family,
         "related": related,
@@ -1448,17 +1475,27 @@ def _build_derivadas_tree_html(
 
     if ssa_index is None:
         ssa_index = _get_window_ssa_series_index(window)
+    target_status = str(data.get("target_status", "") or "").strip().upper()
+    fallback_ssa_index: dict[str, pd.Series] | None = None
 
     def _ssa_link(value, *, status_hint: str | None = None):
+        nonlocal fallback_ssa_index
         safe = _normalize_ssa_relation_value(value)
         if not safe:
             return html_module.escape(str(value))
         resolved_series = ssa_index.get(safe)
-        if resolved_series is None:
+        if resolved_series is None and fallback_ssa_index is None:
+            fallback_ssa_index = _get_window_ssa_series_index(window)
+        if resolved_series is None and fallback_ssa_index:
+            resolved_series = fallback_ssa_index.get(safe)
+        if (
+            resolved_series is None
+            and (not fallback_ssa_index or len(fallback_ssa_index) <= DERIVADAS_GRAPH_MAX_DESCENDANTS)
+        ):
             resolved_series = _get_series_for_ssa(window, safe)
         status_code = str(status_hint or "").strip().upper()
-        if not status_code:
-            status_code = str(_get_situacao_for_ssa(window, safe) or "").strip().upper()
+        if not status_code and safe == target:
+            status_code = target_status
         if not status_code and resolved_series is not None:
             try:
                 status_code = get_status_code(resolved_series.get("situacao"))
@@ -1677,8 +1714,13 @@ def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
         return ""
 
     def _node_id(value: str) -> str:
-        digits = "".join(ch for ch in value if ch.isdigit())
-        return f"N{digits}" if digits else f"N_{abs(hash(value))}"
+        if value.isdigit():
+            return f"N{value}"
+        stable_hash = hashlib.md5(
+            value.encode("utf-8"),
+            usedforsecurity=False,
+        ).hexdigest()[:12]
+        return f"N_{stable_hash}"
 
     def _label(value: str) -> str:
         clean = str(value).replace('"', "'")
@@ -1686,6 +1728,7 @@ def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
 
     lines = ["flowchart LR"]
     lines.append(f'  {_node_id(target)}["{_label(target)}"]')
+    edge_seen: set[tuple[str, str, bool]] = set()
 
     parents = data.get("parents", [])
     if isinstance(parents, list):
@@ -1693,6 +1736,10 @@ def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
             parent = _normalize_ssa_relation_value(raw)
             if not parent:
                 continue
+            edge = (parent, target, False)
+            if edge in edge_seen:
+                continue
+            edge_seen.add(edge)
             lines.append(
                 f'  {_node_id(parent)}["{_label(parent)}"] --> {_node_id(target)}'
             )
@@ -1703,6 +1750,10 @@ def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
             child = _normalize_ssa_relation_value(raw)
             if not child:
                 continue
+            edge = (target, child, False)
+            if edge in edge_seen:
+                continue
+            edge_seen.add(edge)
             lines.append(
                 f'  {_node_id(target)} --> {_node_id(child)}["{_label(child)}"]'
             )
@@ -1718,10 +1769,18 @@ def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
             if not ssa:
                 continue
             if parent:
+                edge = (parent, ssa, False)
+                if edge in edge_seen:
+                    continue
+                edge_seen.add(edge)
                 lines.append(
                     f'  {_node_id(parent)} --> {_node_id(ssa)}["{_label(ssa)}"]'
                 )
             else:
+                edge = (target, ssa, True)
+                if edge in edge_seen:
+                    continue
+                edge_seen.add(edge)
                 lines.append(
                     f'  {_node_id(target)} -.-> {_node_id(ssa)}["{_label(ssa)}"]'
                 )
@@ -1734,6 +1793,10 @@ def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
             related_ssa = _normalize_ssa_relation_value(raw_map.get("ssa", ""))
             if not related_ssa:
                 continue
+            edge = (target, related_ssa, True)
+            if edge in edge_seen:
+                continue
+            edge_seen.add(edge)
             lines.append(
                 f'  {_node_id(target)} -.-> {_node_id(related_ssa)}["{_label(related_ssa)}"]'
             )
@@ -2171,7 +2234,9 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
         QTextBrowser(), min_width=DERIVADAS_DIALOG_DETAILS_MIN_WIDTH
     )
     tree_tab_browser = _init_readonly_text_browser(
-        QTextBrowser(), min_height=DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT
+        QTextBrowser(),
+        min_width=DERIVADAS_DIALOG_TREE_MIN_WIDTH,
+        min_height=DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT,
     )
     tree_graph_label = None
     tree_graph_text_browser = None

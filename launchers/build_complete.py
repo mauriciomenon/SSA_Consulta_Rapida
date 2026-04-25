@@ -6,26 +6,34 @@ Script de conveniencia para build completo com limpeza e git operations.
 
 import argparse
 import importlib
-import sys
 import shlex
+import sys
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
+
+def _get_project_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+ROOT_DIR = _get_project_root()
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
+BUILD_SCRIPT_PATH = ROOT_DIR / "launchers" / "build_multiplatform.py"
+
+from utils.robust_logging import get_robust_logger  # noqa: E402
+
+logger = get_robust_logger().get_logger(__name__, "maintenance")
 
 
 def _execute_builder_script(args):
     """Execucao direta do script de build sem subprocess para eliminar argumentos da shell."""
-    previous_argv = list(sys.argv)
-    base_dir = Path(__file__).parent.parent
-    sys.argv = [str(base_dir / "launchers" / "build_multiplatform.py"), *args]
+    logger.info(
+        "Executando: %s %s",
+        shlex.quote(str(BUILD_SCRIPT_PATH)),
+        " ".join(shlex.quote(part) for part in args),
+    )
     build_multiplatform = importlib.import_module("launchers.build_multiplatform")
-
-    try:
-        return build_multiplatform.main()
-    finally:
-        sys.argv = previous_argv
+    return build_multiplatform.main(args)
 
 
 def main():
@@ -63,13 +71,13 @@ def main():
         script_args = []
         if args.cleanup_only:
             # Apenas limpeza
-            print("CLEAN Executando limpeza completa...")
+            logger.info("CLEAN Executando limpeza completa...")
             script_args.append("--cleanup-online")
             result_code = _execute_builder_script(script_args)
-            return result_code
+            return 0 if result_code is None else int(result_code)
 
         # Build completo
-        print("START Iniciando build completo...")
+        logger.info("START Iniciando build completo...")
         script_args = ["--apps", *args.apps]
 
         # Adicionar flags automaticas
@@ -81,21 +89,21 @@ def main():
             if args.git_message:
                 script_args.extend(["--git-message", args.git_message])
 
-        print(f"Executando: {' '.join(shlex.quote(part) for part in script_args)}")
         result_code = _execute_builder_script(script_args)
+        exit_code = 0 if result_code is None else int(result_code)
 
-        if result_code == 0:
-            print("OK Build completo concluido com sucesso!")
+        if exit_code == 0:
+            logger.info("OK Build completo concluido com sucesso!")
         else:
-            print("ERR Build falhou")
+            logger.error("ERR Build falhou")
 
-        return result_code
+        return exit_code
 
     except KeyboardInterrupt:
-        print("\nWARN  Build interrompido pelo usuario")
+        logger.warning("WARN Build interrompido pelo usuario")
         return 1
-    except Exception as e:
-        print(f"ERR Erro: {e}")
+    except Exception:
+        logger.exception("ERR Erro inesperado no build")
         return 1
 
 

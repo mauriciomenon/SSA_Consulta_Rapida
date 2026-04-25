@@ -220,6 +220,50 @@ def test_cli_snapshot_returns_hierarchy_payload(temp_db, capsys):
     assert parsed["hierarchy_profile"]["descendants_count"] >= 1
 
 
+def test_cli_snapshot_for_child_returns_parent_sibling_family(temp_db, capsys):
+    with sqlite3.connect(temp_db) as conn:
+        conn.executemany(
+            "INSERT INTO ssa_table (numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
+            [
+                ("202600100", None, "Mae"),
+                ("202600101", "202600100", "Alvo"),
+                ("202600102", "202600100", "Irma"),
+                ("202600103", "202600102", "Sobrinha"),
+            ],
+        )
+        conn.commit()
+    assert main(["--db", temp_db, "--output", "json", "sync"]) == 0
+    _ = capsys.readouterr()
+
+    assert (
+        main(
+            [
+                "--db",
+                temp_db,
+                "--output",
+                "json",
+                "snapshot",
+                "202600101",
+                "--depth",
+                "5",
+            ]
+        )
+        == 0
+    )
+    parsed = json.loads(capsys.readouterr().out)
+    family_edges = {
+        (row.get("parent"), row.get("ssa"))
+        for row in parsed["family_descendants"]
+        if isinstance(row, dict)
+    }
+
+    assert parsed["parents"] == ["202600100"]
+    assert parsed["family_roots"] == ["202600100"]
+    assert ("202600100", "202600101") in family_edges
+    assert ("202600100", "202600102") in family_edges
+    assert ("202600102", "202600103") in family_edges
+
+
 def test_cli_sync_accepts_sheet_files_glob(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
