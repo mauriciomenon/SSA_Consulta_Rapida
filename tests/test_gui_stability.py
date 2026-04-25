@@ -27,6 +27,7 @@ from PyQt6.QtTest import QTest  # noqa: E402
 # Importações específicas
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
+from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
 from gui.gui_ssa import QT_AVAILABLE  # noqa: E402
 
 try:
@@ -229,8 +230,11 @@ class TestGUIStability(unittest.TestCase):
             if item is not None:
                 headers.append(item.text())
 
-        # Contrato atual da GUI: labels em ASCII, sem acentos.
-        colunas_obrigatorias = ["Numero SSA", "Cadastro", "Descricao Execucao"]
+        # Contract: adaptive labels may shorten headers on Linux/offscreen.
+        descricao_execucao_labels = set(
+            COLUMN_HEADER_LABEL_VARIANTS["descricao_execucao"].values()
+        )
+        colunas_obrigatorias = ["Numero SSA", "Cadastro"]
         for coluna in colunas_obrigatorias:
             self.assertIn(
                 coluna,
@@ -238,6 +242,12 @@ class TestGUIStability(unittest.TestCase):
                 f"Coluna obrigatoria '{coluna}' nao encontrada. Headers: {headers}",
             )
             print(f"  OK Coluna '{coluna}' presente")
+        self.assertIn("descricao_execucao", self.window._current_display_columns)
+        self.assertTrue(
+            descricao_execucao_labels.intersection(headers),
+            f"Coluna obrigatoria 'descricao_execucao' nao encontrada. Headers: {headers}",
+        )
+        print("  OK Coluna 'descricao_execucao' presente")
 
     def test_menu_contexto(self):
         """Testa o menu de contexto sem travamento."""
