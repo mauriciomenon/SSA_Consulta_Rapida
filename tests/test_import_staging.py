@@ -107,6 +107,33 @@ def test_stage_external_import_files_rejects_unsupported_and_invalid_paths(
     assert any("caracteres invalidos" in message for message in messages)
 
 
+@pytest.mark.parametrize("raw_source", ["", "   ", "-entrada.xlsx", "bad\x00name.xlsx"])
+def test_validate_external_source_path_rejects_unsafe_text(raw_source: str) -> None:
+    with pytest.raises(ValueError):
+        import_staging.validate_external_source_path(raw_source)
+
+
+def test_stage_external_import_files_keeps_file_already_in_docs_dir(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    source = docs_dir / "entrada.xlsx"
+    source.write_text("payload", encoding="utf-8")
+
+    staged_files, summary = stage_external_import_files(
+        project_root=str(tmp_path),
+        source_files=(str(source),),
+    )
+
+    assert staged_files == [str(source)]
+    assert summary["copied"] == 0
+    assert summary["failed"] == 0
+    assert summary["unsupported"] == 0
+    assert summary["staged"] == 1
+    assert source.read_text(encoding="utf-8") == "payload"
+
+
 def test_stage_external_import_files_reports_missing_source_as_failed(
     tmp_path: Path,
 ) -> None:

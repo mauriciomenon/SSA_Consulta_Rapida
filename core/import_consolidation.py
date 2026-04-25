@@ -48,7 +48,9 @@ def resolve_latest_project_import_report(
         if name.startswith("import_run_") and name.endswith(".json")
     ]
     report_paths.sort(key=lambda report_path: report_path.stat().st_mtime, reverse=True)
-    docs_abs = str(safe_docs_path.resolve())
+    docs_abs = os.path.normcase(
+        os.path.abspath(os.path.normpath(str(safe_docs_path.resolve())))
+    )
     for report_path in report_paths:
         payload = None
         try:
@@ -59,8 +61,23 @@ def resolve_latest_project_import_report(
         if not isinstance(payload, dict):
             continue
         payload_docs = str((payload.get("paths") or {}).get("docs_dir") or "")
-        if os.path.abspath(payload_docs) != docs_abs:
-            continue
+        payload_docs_path = Path(payload_docs).expanduser()
+        if not payload_docs_path.is_absolute():
+            payload_docs_path = project_root_path / payload_docs_path
+        try:
+            paths_match = (
+                payload_docs_path.exists()
+                and safe_docs_path.exists()
+                and payload_docs_path.samefile(safe_docs_path)
+            )
+        except OSError:
+            paths_match = False
+        if not paths_match:
+            payload_docs_abs = os.path.normcase(
+                os.path.abspath(os.path.normpath(str(payload_docs_path.resolve())))
+            )
+            if payload_docs_abs != docs_abs:
+                continue
         file_reports = payload.get("file_reports") or []
         if isinstance(file_reports, list) and file_reports:
             payload["_report_path"] = str(report_path)
@@ -96,8 +113,14 @@ def consolidate_input_files(
 
     processadas_dir = docs_path / "processadas"
     nosurvivor_dir = processadas_dir / "nosurvivor"
-    processadas_dir.mkdir(parents=True, exist_ok=True)
-    nosurvivor_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        processadas_dir.mkdir(parents=True, exist_ok=True)
+        nosurvivor_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        message = f"Falha ao preparar diretorios de consolidacao: {exc}"
+        if callable(error_callback):
+            error_callback(message)
+        raise RuntimeError(message) from exc
 
     file_rows: dict[str, dict[str, int | str]] = {}
     for entry in report.get("file_reports", []):
