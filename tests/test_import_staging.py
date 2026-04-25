@@ -195,11 +195,14 @@ def test_stage_external_import_files_reports_copy_os_errors(
     source = source_dir / "falha.xlsx"
     source.write_text("payload", encoding="utf-8")
     errors: list[str] = []
+    original_open = import_staging.os.open
 
-    def fail_copy(_source: str, _destination: str) -> None:
-        raise PermissionError("blocked copy")
+    def fail_open(path, flags, *args, **kwargs):  # noqa: ANN001,ANN002,ANN003
+        if Path(path) == source:
+            raise PermissionError("blocked copy")
+        return original_open(path, flags, *args, **kwargs)
 
-    monkeypatch.setattr(import_staging.shutil, "copy2", fail_copy)
+    monkeypatch.setattr(import_staging.os, "open", fail_open)
 
     staged_files, summary = stage_external_import_files(
         project_root=str(tmp_path),
@@ -213,6 +216,42 @@ def test_stage_external_import_files_reports_copy_os_errors(
     assert summary["unsupported"] == 0
     assert summary["staged"] == 0
     assert any("blocked copy" in error for error in errors)
+
+
+def test_stage_external_import_files_copies_opened_file_when_source_path_changes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    source_dir = tmp_path / "fontes"
+    source_dir.mkdir()
+    source = source_dir / "entrada.xlsx"
+    source.write_text("original", encoding="utf-8")
+    replacement = source_dir / "replacement.xlsx"
+    replacement.write_text("swapped", encoding="utf-8")
+    original_open = import_staging.os.open
+    swapped = {"done": False}
+
+    def open_then_replace(path, flags, *args, **kwargs):  # noqa: ANN001,ANN002,ANN003
+        fd = original_open(path, flags, *args, **kwargs)
+        if Path(path) == source and not swapped["done"]:
+            import_staging.os.replace(replacement, source)
+            swapped["done"] = True
+        return fd
+
+    monkeypatch.setattr(import_staging.os, "open", open_then_replace)
+
+    staged_files, summary = stage_external_import_files(
+        project_root=str(tmp_path),
+        source_files=(str(source),),
+    )
+
+    assert summary["copied"] == 1
+    assert summary["failed"] == 0
+    assert staged_files == [str(docs_dir / "entrada.xlsx")]
+    assert (docs_dir / "entrada.xlsx").read_text(encoding="utf-8") == "original"
+    assert source.read_text(encoding="utf-8") == "swapped"
 
 
 def test_reserve_unique_path_in_set_reports_exhausted_attempts(
