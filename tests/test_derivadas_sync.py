@@ -136,6 +136,17 @@ def test_sync_deactivates_db_source_when_derivada_field_is_cleared(temp_db):
     assert active_matrix_rows == 0
 
 
+def test_sync_manages_db_source_when_base_table_is_missing(
+    tmp_path: Path,
+):
+    db_path = str(tmp_path / "missing_base_table.db")
+
+    report = sync_derivadas(db_path, table_name="missing_ssa_table", verify_only=True)
+
+    assert report["managed_sources"] == [derivadas_sync.SOURCE_DB_FIELD]
+    assert report["db_stats"] == {"accepted_edges": 0}
+
+
 def test_sync_cycle_detection_marks_only_cycle_nodes(temp_db):
     _insert_ssa_rows(
         temp_db,
