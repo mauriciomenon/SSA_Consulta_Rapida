@@ -27,6 +27,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          RUN_ADVANCED="false"
+          REASON="default_setup_unverified"
           API_URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/code-scanning/default-setup"
           HTTP_CODE="$(curl -sS -o default_setup.json -w "%{http_code}" \
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
@@ -36,23 +38,19 @@ jobs:
           if [ "${HTTP_CODE}" = "200" ]; then
             STATE="$(jq -r '.state // .status // "unknown"' default_setup.json)"
             if [ "${STATE}" = "configured" ] || [ "${STATE}" = "enabled" ]; then
-              echo "run_advanced=false" >> "${GITHUB_OUTPUT}"
-              echo "reason=default_setup_active" >> "${GITHUB_OUTPUT}"
-              exit 0
+              REASON="default_setup_active"
+            elif [ "${STATE}" = "not-configured" ] || [ "${STATE}" = "not_configured" ] || [ "${STATE}" = "disabled" ]; then
+              RUN_ADVANCED="true"
+              REASON="advanced_allowed"
+            else
+              REASON="default_setup_state_unknown"
             fi
-            if [ "${STATE}" = "not-configured" ] || [ "${STATE}" = "not_configured" ] || [ "${STATE}" = "disabled" ]; then
-              echo "run_advanced=true" >> "${GITHUB_OUTPUT}"
-              echo "reason=advanced_allowed" >> "${GITHUB_OUTPUT}"
-              exit 0
-            fi
-
-            echo "run_advanced=false" >> "${GITHUB_OUTPUT}"
-            echo "reason=default_setup_state_unknown" >> "${GITHUB_OUTPUT}"
-            exit 0
+          else
+            REASON="default_setup_unverified_http_${HTTP_CODE}"
           fi
 
-          echo "run_advanced=false" >> "${GITHUB_OUTPUT}"
-          echo "reason=default_setup_unverified_http_${HTTP_CODE}" >> "${GITHUB_OUTPUT}"
+          echo "run_advanced=${RUN_ADVANCED}" >> "${GITHUB_OUTPUT}"
+          echo "reason=${REASON}" >> "${GITHUB_OUTPUT}"
 
   analyze:
     needs: precheck-default-setup
