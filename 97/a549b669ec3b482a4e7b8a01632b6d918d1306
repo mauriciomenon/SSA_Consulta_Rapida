@@ -1,0 +1,43 @@
+tests/test_derivadas_sync.py
+  41bd7cec02910368 17,89-138,327-391
+dev_env/build/pyoxidizer.bzl
+  41bd7cec02910368 6-12
+tests/test_import_staging.py
+  41bd7cec02910368 110-136
+armazenamento/derivadas_sync.py
+  41bd7cec02910368 36,157-164,1541-1547,1549,1619-1625
+core/config_manager.py
+  41bd7cec02910368 305
+dev_env/bootstrap.sh
+  41bd7cec02910368 61-62
+pyoxidizer.bzl
+  41bd7cec02910368 6-12
+tests/test_config_manager_mappings_integrity.py
+  41bd7cec02910368 40-46
+core/import_consolidation.py
+  41bd7cec02910368 51-53,64-80,116-123
+tests/test_dev_env_build_scripts.py
+  41bd7cec02910368 1-26
+tests/test_import_consolidation.py
+  41bd7cec02910368 48-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "97a549b669ec3b482a4e7b8a01632b6d918d1306",
+  "prompts": {
+    "41bd7cec02910368": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dbaf0-1318-7781-b6a3-80fc2fb6c8f6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 307,
+      "total_deletions": 13,
+      "accepted_lines": 364,
+      "overriden_lines": 0
+    }
+  }
+}
