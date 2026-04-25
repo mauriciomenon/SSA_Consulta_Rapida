@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from pathlib import Path
 
 import pytest
@@ -216,6 +217,39 @@ def test_stage_external_import_files_reports_copy_os_errors(
     assert summary["unsupported"] == 0
     assert summary["staged"] == 0
     assert any("blocked copy" in error for error in errors)
+
+
+def test_stage_external_import_files_does_not_delete_file_on_create_collision(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    source_dir = tmp_path / "fontes"
+    source_dir.mkdir()
+    source = source_dir / "race.xlsx"
+    source.write_text("payload", encoding="utf-8")
+    destination = docs_dir / "race.xlsx"
+    original_open = builtins.open
+
+    def open_with_create_collision(path, mode="r", *args, **kwargs):  # noqa: ANN001,ANN002,ANN003
+        if Path(path) == destination and mode == "xb":
+            with original_open(path, "wb") as handle:
+                handle.write(b"foreign")
+            raise FileExistsError("created by another process")
+        return original_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(import_staging, "open", open_with_create_collision, raising=False)
+
+    staged_files, summary = stage_external_import_files(
+        project_root=str(tmp_path),
+        source_files=(str(source),),
+    )
+
+    assert staged_files == []
+    assert summary["copied"] == 0
+    assert summary["failed"] == 1
+    assert destination.read_text(encoding="utf-8") == "foreign"
 
 
 def test_stage_external_import_files_copies_opened_file_when_source_path_changes(
