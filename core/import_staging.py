@@ -112,21 +112,41 @@ def stage_external_import_files(
             reserved_paths=reserved_paths,
             starting_index=next_suffix_by_base.get(destination_abs, 1),
         )
+        destination_abs = os.path.abspath(destination)
         destination_name = Path(destination).stem
         base_name_stem = base_destination.stem
         prefix = f"{base_name_stem}__"
         if destination_name.startswith(prefix):
             raw_index = destination_name[len(prefix) :]
             if raw_index.isdigit():
-                next_suffix_by_base[destination_abs] = int(raw_index) + 1
+                next_suffix_by_base[os.path.abspath(str(base_destination))] = (
+                    int(raw_index) + 1
+                )
         try:
             if callable(should_cancel) and should_cancel():
                 break
-            shutil.copy2(validated_source, destination)
+            reserved_paths.add(destination_abs)
+            source_fd = None
+            source_stat = None
+            try:
+                source_fd = os.open(validated_source, os.O_RDONLY)
+                source_stat = os.fstat(source_fd)
+                with os.fdopen(source_fd, "rb") as source_handle:
+                    source_fd = None
+                    with open(destination, "xb") as destination_handle:
+                        shutil.copyfileobj(source_handle, destination_handle)
+                os.chmod(destination, source_stat.st_mode & 0o777)
+                os.utime(
+                    destination,
+                    ns=(source_stat.st_atime_ns, source_stat.st_mtime_ns),
+                )
+            finally:
+                if source_fd is not None:
+                    os.close(source_fd)
             if callable(should_cancel) and should_cancel():
                 try:
                     os.remove(destination)
-                    reserved_paths.discard(os.path.abspath(destination))
+                    reserved_paths.discard(destination_abs)
                 except OSError as exc:
                     failed += 1
                     if callable(error_callback):
@@ -139,6 +159,18 @@ def stage_external_import_files(
             staged_files.append(destination)
         except (OSError, shutil.Error) as exc:
             failed += 1
+            try:
+                os.remove(destination)
+                reserved_paths.discard(destination_abs)
+            except FileNotFoundError:
+                reserved_paths.discard(destination_abs)
+                pass
+            except OSError as cleanup_exc:
+                if callable(error_callback):
+                    error_callback(
+                        "[ERRO] Falha ao remover arquivo staged parcial "
+                        f"'{destination}': {cleanup_exc}"
+                    )
             if callable(error_callback):
                 error_callback(
                     f"[ERRO] Falha ao copiar arquivo externo '{validated_source}': {exc}"
