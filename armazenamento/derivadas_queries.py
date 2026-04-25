@@ -587,8 +587,6 @@ def _collect_family_subgraph(
 
     family_descendants: list[dict[str, Any]] = []
     family_truncated = False
-    if not family_roots:
-        return family_roots, family_descendants, family_truncated
 
     root_placeholders = ",".join("?" for _ in family_roots)
     family_depth_limit = safe_max_distance or DERIVADAS_MAX_DISTANCE_LIMIT

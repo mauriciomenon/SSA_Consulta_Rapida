@@ -56,6 +56,18 @@ def test_save_settings_writes_valid_json(tmp_path, monkeypatch):
     assert loaded == data
 
 
+def test_save_settings_creates_new_file_with_private_mode(tmp_path, monkeypatch):
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+    settings_path = cfg_dir / "settings.json"
+
+    config_manager.save_settings({"secret": "local"})
+
+    assert stat.S_IMODE(settings_path.stat().st_mode) == 0o600
+    assert json.loads(settings_path.read_text(encoding="utf-8")) == {"secret": "local"}
+
+
 def test_save_settings_preserves_existing_file_mode(tmp_path, monkeypatch):
     cfg_dir = tmp_path / "cfg"
     cfg_dir.mkdir(parents=True, exist_ok=True)

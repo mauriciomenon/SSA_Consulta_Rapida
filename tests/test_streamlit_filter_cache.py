@@ -509,6 +509,15 @@ def test_simple_cache_manager_named_cache_honors_limit() -> None:
     assert cache.get_cached_value("details", "k3") == 3
 
 
+def test_simple_cache_manager_named_cache_clamps_non_positive_limit() -> None:
+    cache = SimpleCacheManager()
+    cache.cache_value("details", "k0", 0, max_entries=0)
+    cache.cache_value("details", "k1", 1, max_entries=0)
+
+    assert cache.get_cached_value("details", "k0") is None
+    assert cache.get_cached_value("details", "k1") == 1
+
+
 def test_build_table_caption_non_compact() -> None:
     caption = _build_table_caption(
         compact_mode=False,

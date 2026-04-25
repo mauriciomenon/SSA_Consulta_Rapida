@@ -27,7 +27,7 @@ def _atomic_write_json_file(
     try:
         target_mode = os.stat(path).st_mode & 0o777
     except FileNotFoundError:
-        target_mode = 0o644
+        target_mode = 0o600
 
     fd = None
     tmp_path = None

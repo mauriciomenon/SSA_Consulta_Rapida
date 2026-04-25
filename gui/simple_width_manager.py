@@ -316,6 +316,7 @@ class SimpleCacheManager:
     def cache_value(self, cache_name, cache_key, value, max_entries=5):
         """Armazena valor em cache nomeado com limite simples."""
         cache = self._named_caches.setdefault(cache_name, {})
+        max_entries = max(1, int(max_entries or 1))
         if cache_key not in cache and len(cache) >= max_entries:
             oldest_key = next(iter(cache))
             del cache[oldest_key]
