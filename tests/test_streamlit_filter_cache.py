@@ -499,6 +499,16 @@ def test_simple_cache_manager_keeps_maximum_of_five_entries() -> None:
     assert "k5" in cache._formatted_cache
 
 
+def test_simple_cache_manager_named_cache_honors_limit() -> None:
+    cache = SimpleCacheManager()
+    for idx in range(4):
+        cache.cache_value("details", f"k{idx}", idx, max_entries=3)
+
+    assert cache.get_cached_value("details", "k0") is None
+    assert cache.get_cached_value("details", "k1") == 1
+    assert cache.get_cached_value("details", "k3") == 3
+
+
 def test_build_table_caption_non_compact() -> None:
     caption = _build_table_caption(
         compact_mode=False,

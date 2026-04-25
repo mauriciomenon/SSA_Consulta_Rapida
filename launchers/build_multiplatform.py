@@ -1108,7 +1108,7 @@ class MultiPlatformBuilder:
                         shutil.rmtree(dir_path)
 
 
-def main():
+def main(argv=None):
     """Funcao principal"""
     parser = argparse.ArgumentParser(
         description="Build System Multi-Plataforma SSA Consulta Rapida"
@@ -1184,7 +1184,7 @@ def main():
         help="Limpar arquivos desnecessarios do controle de versao online",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # Configurar logging
     if args.debug:

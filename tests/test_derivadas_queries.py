@@ -249,6 +249,86 @@ def test_build_family_payload_from_edges_includes_parent_and_siblings():
     ]
 
 
+def test_build_family_payload_cap_preserves_direct_parent_target_edge():
+    edges = [("202500000", "202599999")]
+    edges.extend(("202500000", f"202500{i:03d}") for i in range(1, 40))
+
+    payload = build_family_payload_from_edges(
+        "202599999",
+        edges,
+        max_nodes=1,
+    )
+
+    assert payload["family_truncated"] is True
+    assert payload["family_descendants"] == [
+        {"ssa": "202599999", "parent": "202500000", "min_distance": 1}
+    ]
+
+
+def test_build_family_payload_cap_preserves_target_direct_child_over_sibling():
+    edges = [("202500000", "202599999"), ("202599999", "202599998")]
+    edges.extend(("202500000", f"202500{i:03d}") for i in range(1, 40))
+
+    payload = build_family_payload_from_edges(
+        "202599999",
+        edges,
+        max_nodes=3,
+    )
+    edge_pairs = {
+        (row["parent"], row["ssa"])
+        for row in payload["family_descendants"]
+    }
+
+    assert payload["family_truncated"] is True
+    assert ("202500000", "202599999") in edge_pairs
+    assert ("202599999", "202599998") in edge_pairs
+
+
+def test_build_family_payload_relation_ids_require_explicit_flag():
+    strict_payload = build_family_payload_from_edges(
+        "101",
+        [("100", "101"), ("100", "102")],
+        max_nodes=10,
+    )
+    relation_payload = build_family_payload_from_edges(
+        "101",
+        [("100", "101"), ("100", "102")],
+        max_nodes=10,
+        allow_relation_ids=True,
+    )
+
+    assert strict_payload["parents"] == []
+    assert strict_payload["family_descendants"] == []
+    assert relation_payload["parents"] == ["100"]
+    assert relation_payload["family_roots"] == ["100"]
+    assert relation_payload["family_descendants"] == [
+        {"ssa": "101", "parent": "100", "min_distance": 1},
+        {"ssa": "102", "parent": "100", "min_distance": 1},
+    ]
+
+
+def test_build_family_payload_uses_min_distance_for_multiparent_node():
+    payload = build_family_payload_from_edges(
+        "202500003",
+        [
+            ("202500001", "202500002"),
+            ("202500001", "202500003"),
+            ("202500002", "202500003"),
+        ],
+        max_nodes=10,
+    )
+
+    target_edges = [
+        row
+        for row in payload["family_descendants"]
+        if row["ssa"] == "202500003"
+    ]
+
+    assert target_edges
+    assert {row["parent"] for row in target_edges} == {"202500001", "202500002"}
+    assert {row["min_distance"] for row in target_edges} == {1}
+
+
 def test_snapshot_returns_empty_for_invalid_ssa(temp_db):
     _seed_graph(temp_db)
     snapshot = get_ssa_hierarchy_snapshot(temp_db, "invalid", max_distance=5)

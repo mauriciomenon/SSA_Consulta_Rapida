@@ -1,6 +1,6 @@
 """
-Simple Width Manager - Versão simplificada para integração imediata
-Elimina código frankenstein com implementação funcional mínima.
+ Simple Width Manager - Versao simplificada para integracao imediata
+Elimina codigo frankenstein com implementacao funcional minima.
 """
 
 import logging
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class SimpleWidthManager:
     """
     Gerenciador simples de larguras de colunas.
-    Substitui as múltiplas estratégias conflitantes por uma implementação limpa.
+    Substitui as multiplas estrategias conflitantes por uma implementacao limpa.
     """
 
     def __init__(self):
@@ -67,12 +67,12 @@ class SimpleWidthManager:
         Nao aplica overrides externos para manter resultado deterministico.
 
         Args:
-            column_order: Lista explícita da ordem correta das colunas (inclui '#')
+            column_order: Lista explicita da ordem correta das colunas (inclui '#')
         """
         if df is None or df.empty:
             return {}
 
-        # Usa a ordem explícita fornecida, ou fallback para colunas ordenadas deterministicamente
+        # Usa a ordem explicita fornecida, ou fallback para colunas ordenadas deterministicamente
         if column_order:
             columns = column_order
         else:
@@ -96,12 +96,12 @@ class SimpleWidthManager:
             if col in self.expandable_columns:
                 expandable_cols.append(col)
 
-        # CÁLCULO DE CRESCIMENTO PROPORCIONAL MELHORADO
+        # CALCULO DE CRESCIMENTO PROPORCIONAL MELHORADO
         total_fixed = sum(fixed_widths.values())
         available_extra = max(0, available_width - total_fixed)
 
         if available_extra > 0 and expandable_cols:
-            # Divisão proporcional do espaço extra com tratamento de resto
+            # Divisao proporcional do espaco extra com tratamento de resto
             extra_per_col = available_extra // len(expandable_cols)
             remainder = available_extra % len(expandable_cols)
 
@@ -288,10 +288,11 @@ class SimpleWidthManager:
 
 
 class SimpleCacheManager:
-    """Cache manager simples para evitar problemas de importação."""
+    """Cache manager simples para evitar problemas de importacao."""
 
     def __init__(self):
         self._formatted_cache = {}
+        self._named_caches = {}
 
     def get_cached_formatted_df(self, df_hash):
         """Retorna DataFrame formatado do cache."""
@@ -304,3 +305,18 @@ class SimpleCacheManager:
             oldest_key = next(iter(self._formatted_cache))
             del self._formatted_cache[oldest_key]
         self._formatted_cache[df_hash] = formatted_df
+
+    def get_cached_value(self, cache_name, cache_key):
+        """Retorna valor de cache nomeado."""
+        cache = self._named_caches.get(cache_name)
+        if not isinstance(cache, dict):
+            return None
+        return cache.get(cache_key)
+
+    def cache_value(self, cache_name, cache_key, value, max_entries=5):
+        """Armazena valor em cache nomeado com limite simples."""
+        cache = self._named_caches.setdefault(cache_name, {})
+        if cache_key not in cache and len(cache) >= max_entries:
+            oldest_key = next(iter(cache))
+            del cache[oldest_key]
+        cache[cache_key] = value

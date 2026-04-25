@@ -5,12 +5,15 @@ Elimina os 4 sistemas de cache independentes.
 
 import hashlib
 import json
+import pickle
 import sys
 import threading
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
+
+from utils.robust_logging import get_robust_logger
 
 
 class CacheManager:
@@ -63,26 +66,68 @@ class CacheManager:
         if not df.empty:
             try:
                 row_hashes = pd.util.hash_pandas_object(df, index=True)
-            except TypeError:
-                raw_data = df.to_numpy(dtype=object, copy=False).tolist()
+            except (TypeError, ValueError) as hash_exc:
+                logger = get_robust_logger().get_logger(__name__, "core")
+                logger.debug(
+                    "Fallback de hash de DataFrame por objetos nao hashable: %s",
+                    hash_exc,
+                )
                 content_payload = {
                     "index": list(df.index),
                     "columns": list(df.columns),
-                    "data": [
-                        [
-                            sorted(value, key=repr) if isinstance(value, set) else value
-                            for value in row
-                        ]
-                        for row in raw_data
-                    ],
+                    "data": df.to_numpy(dtype=object, copy=False).tolist(),
                 }
+                content_bytes = None
+                fallback_strategies = (
+                    (
+                        "pickle",
+                        lambda: pickle.dumps(
+                            content_payload, protocol=pickle.HIGHEST_PROTOCOL
+                        ),
+                    ),
+                    (
+                        "json",
+                        lambda: json.dumps(
+                            content_payload,
+                            sort_keys=True,
+                            default=repr,
+                            separators=(",", ":"),
+                        ).encode(),
+                    ),
+                    (
+                        "repr",
+                        lambda: repr(content_payload).encode(
+                            "utf-8", errors="backslashreplace"
+                        ),
+                    ),
+                )
+                for fallback_name, serialize_payload in fallback_strategies:
+                    try:
+                        content_bytes = serialize_payload()
+                        break
+                    except (
+                        pickle.PickleError,
+                        TypeError,
+                        ValueError,
+                        RecursionError,
+                        AttributeError,
+                        RuntimeError,
+                    ) as fallback_exc:
+                        logger.debug(
+                            "Falha no fallback %s de hash de DataFrame: %s",
+                            fallback_name,
+                            fallback_exc,
+                        )
+
+                if content_bytes is None:
+                    content_repr = (
+                        f"{df.shape}|{list(df.columns)}|{list(df.index)}"
+                    )
+                    content_bytes = content_repr.encode(
+                        "utf-8", errors="backslashreplace"
+                    )
                 df_info["content_hash"] = hashlib.md5(
-                    json.dumps(
-                        content_payload,
-                        sort_keys=True,
-                        default=repr,
-                        separators=(",", ":"),
-                    ).encode(),
+                    content_bytes,
                     usedforsecurity=False,
                 ).hexdigest()
             else:
@@ -290,29 +335,56 @@ class CacheManager:
                 "misses": self._stats["misses"],
                 "evictions": self._stats["evictions"],
             }
+            cache_snapshots = {
+                cache_name: list(cache.items())
+                for cache_name, cache in self._caches.items()
+            }
+            total_entries = sum(len(cache) for cache in self._caches.values())
 
-            cache_details = {}
-            for cache_name, cache in self._caches.items():
-                memory_estimate = 0
-                for value in cache.values():
-                    if isinstance(value, pd.DataFrame):
-                        memory_estimate += int(value.memory_usage(deep=False).sum())
+        cache_details = {}
+        max_stats_depth = 2
+        max_stats_items = 2048
+        for cache_name, items in cache_snapshots.items():
+            memory_estimate = 0
+            seen: set[int] = set()
+            visited_items = 0
+            for _cache_key, value in items:
+                stack = [(value, 0)]
+                while stack:
+                    if visited_items >= max_stats_items:
+                        break
+                    item, depth = stack.pop()
+                    item_id = id(item)
+                    if item_id in seen:
+                        continue
+                    seen.add(item_id)
+                    visited_items += 1
+
+                    if isinstance(item, pd.DataFrame):
+                        memory_estimate += int(item.memory_usage(deep=False).sum())
                     else:
-                        memory_estimate += sys.getsizeof(value)
-                cache_details[cache_name] = {
-                    "entries": len(cache),
-                    "keys": list(cache.keys())[:5],
-                    "memory_estimate": memory_estimate,
-                }
+                        memory_estimate += sys.getsizeof(item)
+                        if depth < max_stats_depth:
+                            if isinstance(item, dict):
+                                stack.extend((child, depth + 1) for child in item.keys())
+                                stack.extend(
+                                    (child, depth + 1) for child in item.values()
+                                )
+                            elif isinstance(item, (list, tuple, set, frozenset)):
+                                stack.extend((child, depth + 1) for child in item)
 
-            stats["cache_details"] = cache_details
-            stats["total_entries"] = sum(len(cache) for cache in self._caches.values())
-            total_requests = stats["hits"] + stats["misses"]
-            stats["hit_rate"] = (
-                stats["hits"] / total_requests if total_requests > 0 else 0
-            )
+            cache_details[cache_name] = {
+                "entries": len(items),
+                "keys": [key for key, _value in items[:5]],
+                "memory_estimate": memory_estimate,
+            }
 
-            return stats
+        stats["cache_details"] = cache_details
+        stats["total_entries"] = total_entries
+        total_requests = stats["hits"] + stats["misses"]
+        stats["hit_rate"] = stats["hits"] / total_requests if total_requests > 0 else 0
+
+        return stats
 
     def cleanup_old_entries(self, max_age_minutes: int = 60) -> int:
         """

@@ -465,28 +465,84 @@ def build_family_payload_from_edges(
 
     family_descendants: list[dict[str, Any]] = []
     seen_edges: set[tuple[str, str]] = set()
-    seen_nodes: set[str] = set(family_roots)
-    stack = [(root, 0) for root in reversed(family_roots)]
     family_truncated = False
-    while stack and len(family_descendants) < safe_max_nodes:
-        parent, depth = stack.pop()
-        ordered_children = sorted(children_by_parent.get(parent, set()), reverse=True)
+
+    priority_nodes: set[str] = {target_ssa}
+    stack = [target_ssa]
+    while stack:
+        child = stack.pop()
+        for parent in sorted(parents_by_child.get(child, set()), reverse=True):
+            if parent in priority_nodes:
+                continue
+            priority_nodes.add(parent)
+            stack.append(parent)
+
+    queue = [(root, 0) for root in family_roots]
+    queued_nodes = set(family_roots)
+    distance_by_node = {root: 0 for root in family_roots}
+    queue_index = 0
+    while queue_index < len(queue) and len(family_descendants) < safe_max_nodes:
+        parent, depth = queue[queue_index]
+        queue_index += 1
+        ordered_children = sorted(
+            children_by_parent.get(parent, set()),
+            key=lambda child: (0 if child in priority_nodes else 1, child),
+        )
         for child_index, child in enumerate(ordered_children):
+            edge = (parent, child)
+            if edge in seen_edges:
+                continue
             if len(family_descendants) >= safe_max_nodes:
                 family_truncated = True
                 if child_index < len(ordered_children):
                     break
-            edge = (parent, child)
-            if edge in seen_edges:
-                continue
             seen_edges.add(edge)
+            node_distance = distance_by_node.get(child, depth + 1)
             family_descendants.append(
-                {"ssa": child, "parent": parent, "min_distance": depth + 1}
+                {"ssa": child, "parent": parent, "min_distance": node_distance}
             )
-            if child not in seen_nodes:
-                seen_nodes.add(child)
-                stack.append((child, depth + 1))
-    if stack:
+            if child not in queued_nodes:
+                queued_nodes.add(child)
+                distance_by_node[child] = depth + 1
+                queue.append((child, depth + 1))
+    if queue_index < len(queue):
+        family_truncated = True
+    for child in sorted(children_by_parent.get(target_ssa, set())):
+        edge = (target_ssa, child)
+        if edge in seen_edges:
+            continue
+        target_distance = distance_by_node.get(target_ssa, 0)
+        required_row = {
+            "ssa": child,
+            "parent": target_ssa,
+            "min_distance": target_distance + 1,
+        }
+        if len(family_descendants) < safe_max_nodes:
+            family_descendants.append(required_row)
+            seen_edges.add(edge)
+            family_truncated = True
+            continue
+        replace_index = None
+        for index in range(len(family_descendants) - 1, -1, -1):
+            row = family_descendants[index]
+            row_parent = str(row.get("parent", "") or "")
+            row_child = str(row.get("ssa", "") or "")
+            if row_child in priority_nodes or row_parent == target_ssa:
+                continue
+            replace_index = index
+            break
+        if replace_index is None:
+            family_truncated = True
+            continue
+        old_row = family_descendants[replace_index]
+        seen_edges.discard(
+            (
+                str(old_row.get("parent", "") or ""),
+                str(old_row.get("ssa", "") or ""),
+            )
+        )
+        family_descendants[replace_index] = required_row
+        seen_edges.add(edge)
         family_truncated = True
 
     return {
