@@ -2611,11 +2611,27 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
     dialog.exec()
 
 
+def _store_window_filter_state(window, reason: str) -> None:
+    try:
+        store_state = getattr(window, "_safe_store_last_filter_state", None)
+        if callable(store_state):
+            store_state(reason)
+        else:
+            window._store_last_filter_state()
+    except Exception as exc:
+        logger.warning("Falha ao salvar estado de filtros (%s): %s", reason, exc)
+
+
 def _filter_by_derivadas(window, numero_ssa):
     num_norm = _normalize_ssa_relation_value(numero_ssa)
     if not num_norm:
         return
-    window._last_derivada_origem = num_norm
+    current_value = str(
+        getattr(window, "_active_column_filters", {}).get("derivada_de", "") or ""
+    ).strip()
+    if current_value != num_norm:
+        _store_window_filter_state(window, "filter_by_derivadas")
+    window._last_derivada_origem = _normalize_ssa_value(window, num_norm) or num_norm
     window._active_column_filters["derivada_de"] = num_norm
     try:
         window._build_column_filters_panel()
@@ -2628,6 +2644,7 @@ def _filter_by_derivadas(window, numero_ssa):
 
 def _clear_derivadas_filter(window):
     if "derivada_de" in window._active_column_filters:
+        _store_window_filter_state(window, "clear_derivadas_filter")
         window._active_column_filters.pop("derivada_de", None)
     try:
         window._build_column_filters_panel()

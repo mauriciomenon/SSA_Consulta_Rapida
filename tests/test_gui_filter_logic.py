@@ -2652,6 +2652,54 @@ class TestGUIFilterLogic:
         names = [f["name"] for f in self.window.persistent_filters]
         assert names == sorted(names, key=lambda n: n.casefold())
 
+    def test_graphical_remove_active_persistent_filter_can_be_undone(self):
+        self.window.search_input.setText("Teste C")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+        assert self.window.df_exibido["numero_ssa"].tolist() == [3]
+
+        self.window.persistent_filters = [
+            {"name": "Filtro Teste C", "terms": "Teste C"}
+        ]
+        self.window.update_filter_tags()
+        QApplication.processEvents()
+
+        remove_button = None
+        for i in range(self.window.filter_tags_layout.count()):
+            tag_item = self.window.filter_tags_layout.itemAt(i)
+            tag_widget = tag_item.widget() if tag_item else None
+            tag_layout = tag_widget.layout() if tag_widget else None
+            if tag_layout is None:
+                continue
+            for j in range(tag_layout.count()):
+                widget_item = tag_layout.itemAt(j)
+                widget = widget_item.widget() if widget_item else None
+                if isinstance(widget, QPushButton) and widget.text() == "X":
+                    remove_button = widget
+                    break
+            if remove_button is not None:
+                break
+
+        assert remove_button is not None
+        cast(Any, QTest).mouseClick(remove_button, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+
+        assert self.window.persistent_filters == []
+        assert self.window.search_input.text() == ""
+        assert set(self.window.df_exibido["numero_ssa"].tolist()) == set(
+            self.base_df["numero_ssa"].tolist()
+        )
+        assert self.window._last_filter_state is not None
+
+        cast(Any, QTest).mouseClick(
+            self.window.undo_filter_btn,
+            Qt.MouseButton.LeftButton,
+        )
+        QApplication.processEvents()
+
+        assert self.window.search_input.text().strip() == "Teste C"
+        assert self.window.df_exibido["numero_ssa"].tolist() == [3]
+
     def test_advanced_filter_checks_survive_tab_switch(self):
         """Rebuild dos menus avançados deve persistir listas *_checks no tab_context."""
         self.window._adv_options_dirty = True
@@ -5107,6 +5155,103 @@ class TestGUIFilterLogic:
         details_html = str(self.window.details_text.toHtml() or "")
         assert "Origem" in details_html
         assert "Filha B" not in details_html
+
+    def test_graphical_derivadas_context_filter_can_be_undone(self, monkeypatch):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def emit(self):
+                for callback in list(self._callbacks):
+                    callback()
+
+        class _FakeAction:
+            def __init__(self, text, _parent=None):
+                self.text = text
+                self.triggered = _FakeSignal()
+
+        class _FakeMenu:
+            def __init__(self, _parent=None):
+                self._actions = []
+
+            def addAction(self, action):
+                self._actions.append(action)
+                return action
+
+            def addSeparator(self):
+                return None
+
+            def exec(self, _global_pos):
+                for action in self._actions:
+                    if str(getattr(action, "text", "")).startswith(
+                        "Mostrar derivadas"
+                    ):
+                        action.triggered.emit()
+                        return action
+                return None
+
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202500100", "202500101", "202500102", "202500200"],
+                "situacao": ["APV", "STE", "AMP", "APV"],
+                "derivada_de": ["", "202500100", "202500100", ""],
+                "localizacao_codigo": ["L0", "L1", "L2", "L3"],
+                "descricao_localizacao": ["DL0", "DL1", "DL2", "DL3"],
+                "equipamento": ["E0", "E1", "E2", "E3"],
+                "semana_cadastro": [202501] * 4,
+                "semana_programada": [202503] * 4,
+                "data_cadastro": ["2025-01-01"] * 4,
+                "descricao_ssa": ["Origem", "Filha A", "Filha B", "Outra"],
+                "setor_executor": ["IEE3", "MEL4", "XYZ", "ABC"],
+                "setor_emissor": ["ABC", "MEL4", "XYZ", "AAA"],
+                "descricao_execucao": ["Exec O", "Exec A", "Exec B", "Exec X"],
+                "solicitante": ["User0", "User1", "User2", "User3"],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        monkeypatch.setattr(gui_ssa, "QAction", _FakeAction)
+        monkeypatch.setattr(gui_ssa, "QMenu", _FakeMenu)
+
+        item = next(
+            self.window.table_widget.item(0, column)
+            for column in range(self.window.table_widget.columnCount())
+            if self.window.table_widget.item(0, column) is not None
+        )
+        pos = self.window.table_widget.visualItemRect(item).center()
+        cast(Any, QTest).mouseClick(
+            self.window.table_widget.viewport(),
+            Qt.MouseButton.RightButton,
+            pos=pos,
+        )
+        self.window.show_context_menu(pos)
+        QApplication.processEvents()
+
+        assert self.window._active_column_filters["derivada_de"] == "202500100"
+        assert self.window._last_filter_state is not None
+        assert self.window.df_exibido["numero_ssa"].tolist() == [
+            "202500102",
+            "202500101",
+        ]
+
+        cast(Any, QTest).mouseClick(
+            self.window.undo_filter_btn,
+            Qt.MouseButton.LeftButton,
+        )
+        QApplication.processEvents()
+
+        assert str(self.window._active_column_filters.get("derivada_de", "")).strip() == ""
+        assert set(self.window.df_exibido["numero_ssa"].tolist()) == set(
+            df["numero_ssa"].tolist()
+        )
 
     def test_header_resize_updates_runtime_column_width_cache(self):
         self.window._current_display_columns = ["#", "descricao_ssa"]
