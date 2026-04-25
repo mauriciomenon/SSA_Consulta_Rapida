@@ -5538,13 +5538,35 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def remove_persistent_filter(self, filter_data):
         """Remove um filtro persistente e atualiza imediatamente."""
         if filter_data in self.persistent_filters:
+            current_search = self.search_input.text().strip()
+            removed_active_filter = current_search == filter_data["terms"]
+            previous_filter_state = None
+            if removed_active_filter:
+                try:
+                    self._safe_store_last_filter_state("remove_persistent_filter")
+                    previous_filter_state = copy.deepcopy(
+                        getattr(self, "_last_filter_state", None)
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Falha ao salvar estado antes de remover filtro persistente: %s",
+                        exc,
+                    )
             self.persistent_filters.remove(filter_data)
             self.update_filter_tags()
             # Atualiza imediatamente se o filtro removido estava ativo
-            current_search = self.search_input.text().strip()
-            if current_search == filter_data["terms"]:
+            if removed_active_filter:
                 self.search_input.clear()
                 self.initiate_filtering()
+                if previous_filter_state:
+                    self._last_filter_state = previous_filter_state
+                    try:
+                        self._update_undo_button_state()
+                    except Exception as exc:
+                        logger.debug(
+                            "Falha ao atualizar botao undo apos remover filtro persistente: %s",
+                            exc,
+                        )
 
     def resizeEvent(self, event):
         """Reotimiza larguras das colunas quando a janela eh redimensionada."""
