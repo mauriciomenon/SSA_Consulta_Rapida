@@ -33,6 +33,28 @@ class _FailingFilterHandler(FilterHandlerBase):
         raise RuntimeError("load failed")
 
 
+class _InvalidLoadFilterHandler(FilterHandlerBase):
+    def __init__(self) -> None:
+        super().__init__(name="invalid_load")
+
+    def apply_filters(self, data: pd.DataFrame, context: HandlerContext) -> pd.DataFrame:
+        return data
+
+    def _load_base_data(self, context: HandlerContext) -> pd.DataFrame:
+        return cast(Any, None)
+
+
+class _InvalidApplyFilterHandler(FilterHandlerBase):
+    def __init__(self) -> None:
+        super().__init__(name="invalid_apply")
+
+    def apply_filters(self, data: pd.DataFrame, context: HandlerContext) -> pd.DataFrame:
+        return cast(Any, ["not", "a", "dataframe"])
+
+    def _load_base_data(self, context: HandlerContext) -> pd.DataFrame:
+        return pd.DataFrame({"numero_ssa": ["202600001"]})
+
+
 class _RecordingExportHandler(ExportHandlerBase):
     def __init__(self) -> None:
         super().__init__(name="export")
@@ -59,6 +81,19 @@ class _FailingExportHandler(ExportHandlerBase):
 
     def _load_export_data(self, context: HandlerContext) -> pd.DataFrame:
         return pd.DataFrame({"numero_ssa": ["202600001"]})
+
+
+class _InvalidExportDataHandler(ExportHandlerBase):
+    def __init__(self) -> None:
+        super().__init__(name="invalid_export")
+
+    def export_data(
+        self, data: pd.DataFrame, output_path: Path, context: HandlerContext
+    ) -> bool:
+        return True
+
+    def _load_export_data(self, context: HandlerContext) -> pd.DataFrame:
+        return cast(Any, None)
 
 
 def test_create_result_keeps_stats_for_non_dataframe_data() -> None:
@@ -144,6 +179,36 @@ def test_filter_handler_logs_exception_context(caplog: pytest.LogCaptureFixture)
     assert "Filter handler 'failing' failed" in caplog.text
 
 
+def test_filter_handler_rejects_invalid_loaded_data(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    handler = _InvalidLoadFilterHandler()
+    context = HandlerContext(output_format="table")
+
+    with caplog.at_level("ERROR", logger="core.handler_base"):
+        result = handler.execute(context)
+
+    assert result.success is False
+    assert context.error_count == 1
+    assert "invalid_load._load_base_data deve retornar pandas.DataFrame" in result.message
+    assert "Filter handler 'invalid_load' failed" in caplog.text
+
+
+def test_filter_handler_rejects_invalid_filtered_data(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    handler = _InvalidApplyFilterHandler()
+    context = HandlerContext(output_format="table")
+
+    with caplog.at_level("ERROR", logger="core.handler_base"):
+        result = handler.execute(context)
+
+    assert result.success is False
+    assert context.error_count == 1
+    assert "invalid_apply.apply_filters deve retornar pandas.DataFrame" in result.message
+    assert "Filter handler 'invalid_apply' failed" in caplog.text
+
+
 def test_export_handler_validates_output_path(tmp_path: Path) -> None:
     handler = _RecordingExportHandler()
     context = HandlerContext(output_path=str(tmp_path / "out.csv"))
@@ -154,6 +219,21 @@ def test_export_handler_validates_output_path(tmp_path: Path) -> None:
     assert isinstance(result.data, pd.DataFrame)
     assert result.stats["processed_rows"] == 1
     assert handler.output_path == tmp_path / "out.csv"
+
+
+def test_export_handler_rejects_invalid_loaded_data(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    handler = _InvalidExportDataHandler()
+    context = HandlerContext(output_path="out.csv")
+
+    with caplog.at_level("ERROR", logger="core.handler_base"):
+        result = handler.execute(context)
+
+    assert result.success is False
+    assert context.error_count == 1
+    assert "invalid_export._load_export_data deve retornar pandas.DataFrame" in result.message
+    assert "Export handler 'invalid_export' failed" in caplog.text
 
 
 def test_export_handler_failure_increments_context_stats(

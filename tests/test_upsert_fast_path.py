@@ -363,6 +363,48 @@ def test_insert_dataframe_with_smart_upsert_impl_rolls_back_if_upsert_phase_fail
     assert persisted_count == 0
 
 
+def test_insert_dataframe_with_smart_upsert_impl_preserves_enter_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from armazenamento import database as database_module
+
+    class BrokenConnectionManager:
+        exit_calls = 0
+
+        def __enter__(self):
+            raise RuntimeError("forced enter failure")
+
+        def __exit__(self, *_args):
+            self.exit_calls += 1
+
+    conn_cm = BrokenConnectionManager()
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "202600999",
+                "descricao_ssa": "com identidade",
+                "data_cadastro": "2026-01-02 00:00:00",
+                "semana_programada": 202602,
+            }
+        ]
+    )
+
+    monkeypatch.setattr(
+        database_module,
+        "get_db_connection",
+        lambda _db_path: conn_cm,
+    )
+
+    with pytest.raises(RuntimeError, match="forced enter failure"):
+        upsert_logic.insert_dataframe_with_smart_upsert_impl(
+            incoming,
+            "/tmp/not-opened.db",
+            "ssa_table",
+        )
+
+    assert conn_cm.exit_calls == 0
+
+
 def test_insert_dataframe_with_smart_upsert_impl_persists_no_ssa_and_has_ssa_rows() -> (
     None
 ):
