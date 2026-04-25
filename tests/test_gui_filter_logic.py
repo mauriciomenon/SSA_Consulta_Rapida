@@ -1112,22 +1112,22 @@ class TestGUIFilterLogic:
 
     def test_default_display_columns_follow_requested_canonical_order(self):
         expected = [
-            "situacao",
             "numero_ssa",
             "localizacao_codigo",
+            "situacao",
             "setor_emissor",
             "setor_executor",
             "derivada_de",
             "data_cadastro",
             "semana_cadastro",
             "descricao_ssa",
-            "solicitante",
-            "semana_programada",
-            "descricao_execucao",
             "grau_prioridade_emissao",
+            "solicitante",
             "grau_prioridade_planejamento",
+            "semana_programada",
             "total_de_reprogramacoes",
             "execucao_parcial",
+            "descricao_execucao",
             "semana_executada",
             "responsavel_execucao",
         ]
@@ -5346,12 +5346,14 @@ class TestGUIFilterLogic:
         self.window.display_current_page(1)
         QApplication.processEvents()
 
-        header = self.window.table_widget.horizontalHeader()
-        situacao_logical_index = self.window._current_display_columns.index("situacao")
-        header.moveSection(header.visualIndex(situacao_logical_index), 1)
-        QApplication.processEvents()
-
-        self.window._current_display_columns = ["#", "situacao", "numero_ssa"]
+        self.window._current_display_columns = ["#", "numero_ssa", "situacao"]
+        self.window.table_widget.setColumnCount(len(self.window._current_display_columns))
+        logical_index = self.window._current_display_columns.index("numero_ssa")
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_get_header_visual_column_order",
+            lambda _window: ["#", "situacao", "numero_ssa"],
+        )
         self.window._saved_gui_column_widths = {}
         self.window._gui_column_pixel_widths = {}
         monkeypatch.setattr(
@@ -5365,7 +5367,7 @@ class TestGUIFilterLogic:
             lambda _window: None,
         )
 
-        self.window._on_header_section_resized(situacao_logical_index, 100, 222)
+        self.window._on_header_section_resized(logical_index, 100, 222)
 
         assert self.window._saved_gui_column_widths.get("situacao") == 222
         assert self.window._gui_column_pixel_widths.get("situacao") == 222
@@ -5976,21 +5978,21 @@ class TestGUIFilterLogic:
             reloaded_window.close()
 
     def test_resolve_header_column_name_prefers_visual_mapping_during_eager_reorder(
-        self,
+        self, monkeypatch
     ):
         self.window.display_current_page(1)
         QApplication.processEvents()
 
-        header = self.window.table_widget.horizontalHeader()
-        situacao_logical_index = self.window._current_display_columns.index("situacao")
-        header.moveSection(header.visualIndex(situacao_logical_index), 1)
-        QApplication.processEvents()
-
-        self.window._current_display_columns = (
-            ssa_gui_table._get_header_visual_column_order(self.window)
+        self.window._current_display_columns = ["#", "numero_ssa", "situacao"]
+        self.window.table_widget.setColumnCount(len(self.window._current_display_columns))
+        logical_index = self.window._current_display_columns.index("numero_ssa")
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_get_header_visual_column_order",
+            lambda _window: ["#", "situacao", "numero_ssa"],
         )
 
-        resolved = self.window._resolve_header_column_name(situacao_logical_index)
+        resolved = self.window._resolve_header_column_name(logical_index)
 
         assert resolved == "situacao"
 

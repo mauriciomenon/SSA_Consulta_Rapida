@@ -58,6 +58,8 @@ def pytest_sessionstart(session):  # noqa: D401
         _TRACKED_GUI_PREFS_BYTES = _TRACKED_GUI_PREFS_PATH.read_bytes()
     _TEST_SSA_CONFIG_DIR = Path(tempfile.mkdtemp(prefix="ssa_test_config_"))
     shutil.copytree(PROJECT_ROOT / "config", _TEST_SSA_CONFIG_DIR, dirs_exist_ok=True)
+    # Keep tests independent from the developer's local, gitignored GUI layout.
+    (_TEST_SSA_CONFIG_DIR / "gui_main_preferences.json").unlink(missing_ok=True)
     os.environ["SSA_CONFIG_DIR"] = str(_TEST_SSA_CONFIG_DIR)
 
 
