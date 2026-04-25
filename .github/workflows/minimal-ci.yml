@@ -43,6 +43,14 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@v4
 
+      - name: Install Qt runtime libraries
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y libegl1 || {
+            sudo apt-get update
+            sudo apt-get install -y libegl1
+          }
+
       - name: Sync dev dependencies
         run: |
           set -euo pipefail
