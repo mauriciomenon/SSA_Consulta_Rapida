@@ -29,7 +29,11 @@ Quando houver conflito, prevalece o bloco CURRENT TRUTH acima.
   - `uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
   - `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller`
 
-**Data historica original**: 2025-11-14
+**Data historica original do snapshot preservado**: 2025-11-14
+
+> Nota: a data historica acima pertence ao material preservado. O status
+> operacional atual deste guia fica no bloco `CURRENT TRUTH`.
+
 **Autor**: Claude Code
 **Projeto**: SSA_Consulta_Rapida v4.11.0
 **Sistema Operacional**: Windows 10/11
