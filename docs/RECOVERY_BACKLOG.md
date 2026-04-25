@@ -5,6 +5,47 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-25 01:08 - external quality checks and db maintenance status
+
+Escopo desta atualizacao:
+1. registrar a politica operacional de Snyk/DeepSource como sinais externos advisory
+2. registrar as correcoes implementadas no slice de `utils/db_maintenance.py`
+3. separar o que depende de dashboard externo do que foi alterado no repositorio
+
+Status de checks externos:
+1. `main` e `dev` foram verificados sem branch protection ativa exigindo checks obrigatorios
+2. rulesets do GitHub foram verificados e apenas `Copilot_review` estava ativo
+3. Snyk apareceu como falha externa por quota/limite (`Code test limit reached`), nao como vulnerabilidade confirmada do codigo
+4. DeepSource depende de GitHub App/dashboard; a validacao local por CLI requer login
+5. politica documentada em `.github/CODE_QUALITY.md`: Snyk e DeepSource nao devem ser tratados como bloqueadores neste repo sem alteracao explicita de branch protection/ruleset/dashboard
+
+Configuracao externa:
+1. nao havia required check de Snyk/DeepSource para remover em branch protection/ruleset do GitHub
+2. a mudanca de comportamento do Snyk App por quota exige acesso ao dashboard Snyk
+3. a mudanca de comportamento do DeepSource App exige acesso ao dashboard DeepSource ou sessao CLI autenticada
+4. no repositorio, a fonte de verdade foi atualizada em `.github/CODE_QUALITY.md`
+
+Item nao bloqueante para branch futura:
+1. `utils/db_maintenance.py`
+   - categoria: `NAO_BLOQUEANTE_DEFERIDO`
+   - origem: Kluster, slice de manutencao de banco
+   - motivo: `DatabaseAnalyzer` mistura backup, analise de schema, sanity check e markdown
+   - decisao: nao decompor neste ciclo porque exige extracao de servico/modulo e criaria refatoracao transversal fora do patch de release
+   - criterio para retomar: abrir branch/slice proprio para separar report/backup/sanity check com contrato de CLI preservado e testes antes/depois
+
+Correcoes aplicadas no slice:
+1. SQL dinamico de manutencao passou a escapar identificadores vindos do schema local
+2. migracao de colunas legadas passou a migrar somente legado -> normalizado
+3. normalizacao de `numero_ssa` na migracao passou a usar `shared.numero_ssa.normalize_strict`
+4. dry-run de migracao deixou de criar backup fisico
+5. `main()` deixou de executar sanity check duplicado para o mesmo relatorio
+6. testes de regressao foram adicionados para identificador legado, multiplas fontes, valores invalidos, dry-run e parser central de datas
+7. contagem do dry-run foi consolidada em query agregada por conceito, mantendo contagem exata por coluna legada
+
+Rollback:
+1. reverter o commit atomico deste slice
+2. se algum bot remoto reabrir o P4 estrutural, responder como deferido e apontar este registro
+
 ## Update 2026-04-24 10:28 - pre-release review deferments
 
 Escopo desta atualizacao:
