@@ -22,7 +22,7 @@ from armazenamento.database import (
     validate_dataframe_before_insert,
     verify_database_integrity,
 )
-from utils.db_maintenance import DatabaseAnalyzer
+from utils.db_maintenance import DatabaseAnalyzer, DatabaseMigrator
 
 TOTAL_VALID_ROWS = 2  # Constante para evitar magic numbers
 
@@ -242,20 +242,237 @@ class TestDataValidation:
 class TestDatabaseMaintenance:
     """Testes para manutencao e analise estrutural do banco."""
 
-    def test_analyze_table_structure_ignores_invalid_identifier(self, tmp_path, caplog):
-        """Coluna com nome invalido nao deve quebrar a analise nem entrar no SELECT."""
+    def test_analyze_table_structure_counts_schema_identifier_with_punctuation(
+        self,
+        tmp_path,
+    ):
+        """Coluna vinda do schema deve ser contada com escape seguro."""
         db_path = os.path.join(tmp_path, "maintenance_invalid_identifier.db")
         conn = sqlite3.connect(db_path)
         conn.execute('CREATE TABLE ssas (numero_ssa INTEGER, "bad-name" TEXT)')
-        conn.execute('INSERT INTO ssas (numero_ssa, "bad-name") VALUES (1, "abc")')
+        conn.execute(
+            'INSERT INTO ssas (numero_ssa, "bad-name") VALUES (?, ?)',
+            (1, "abc"),
+        )
         conn.commit()
         conn.close()
 
         analyzer = DatabaseAnalyzer(db_path)
         report = analyzer.analyze_table_structure()
 
-        assert report["column_counts"]["bad-name"] == 0
-        assert "Ignorando coluna com identificador invalido" in caplog.text
+        assert report["column_counts"]["bad-name"] == 1
+
+    def test_analyze_table_structure_counts_legacy_numero_ssa_column(self, tmp_path):
+        legacy_numero = "N\u00famero da SSA"
+        db_path = os.path.join(tmp_path, "maintenance_legacy_identifier.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(f'CREATE TABLE ssas (numero_ssa TEXT, "{legacy_numero}" TEXT)')
+        conn.executemany(
+            f'INSERT INTO ssas (numero_ssa, "{legacy_numero}") VALUES (?, ?)',
+            [("", "2025-12345"), ("202512346", "")],
+        )
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.analyze_table_structure()
+
+        assert report["column_counts"][legacy_numero] == 1
+        assert report["duplicated_groups"]["numero_ssa"][0]["is_legacy"] is False
+        assert any(
+            col["name"] == legacy_numero and col["is_legacy"] is True
+            for col in report["duplicated_groups"]["numero_ssa"]
+        )
+
+    def test_migrate_duplicate_columns_moves_all_legacy_sources_once(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        db_path = os.path.join(tmp_path, "maintenance_multi_legacy.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            """
+            CREATE TABLE ssas (
+                numero_ssa TEXT,
+                legacy_numero_a TEXT,
+                legacy_numero_b TEXT
+            )
+            """
+        )
+        conn.executemany(
+            """
+            INSERT INTO ssas (numero_ssa, legacy_numero_a, legacy_numero_b)
+            VALUES (?, ?, ?)
+            """,
+            [
+                ("", "2025-12345", ""),
+                ("", "", "202500046"),
+                ("202500047", "202500048", ""),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        migrator = DatabaseMigrator(db_path)
+        monkeypatch.setattr(
+            migrator.analyzer,
+            "create_backup",
+            lambda: str(tmp_path / "backup.db"),
+        )
+        monkeypatch.setattr(
+            migrator.analyzer,
+            "analyze_table_structure",
+            lambda: {
+                "duplicated_groups": {
+                    "numero_ssa": [
+                        {"name": "numero_ssa", "count": 1, "is_legacy": False},
+                        {"name": "legacy_numero_a", "count": 2, "is_legacy": True},
+                        {"name": "legacy_numero_b", "count": 1, "is_legacy": True},
+                    ]
+                }
+            },
+        )
+
+        result = migrator.migrate_duplicate_columns(dry_run=False)
+
+        assert result["backup_created"].endswith("backup.db")
+        assert [plan["records_to_migrate"] for plan in result["migration_plan"]] == [
+            1,
+            1,
+        ]
+        assert result["migration_stats"]["updated_rows"] == 2
+        assert result["migration_stats"]["skipped_invalid_records"] == 0
+        with sqlite3.connect(db_path) as check_conn:
+            rows = check_conn.execute(
+                "SELECT numero_ssa, legacy_numero_a, legacy_numero_b FROM ssas ORDER BY rowid"
+            ).fetchall()
+        assert rows == [
+            ("202512345", "2025-12345", ""),
+            ("202500046", "", "202500046"),
+            ("202500047", "202500048", ""),
+        ]
+
+    def test_migrate_duplicate_columns_skips_invalid_numero_ssa_values(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        db_path = os.path.join(tmp_path, "maintenance_invalid_legacy_value.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            """
+            CREATE TABLE ssas (
+                numero_ssa TEXT,
+                legacy_numero TEXT
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO ssas (numero_ssa, legacy_numero) VALUES (?, ?)",
+            ("", "ABC202512345XYZ"),
+        )
+        conn.commit()
+        conn.close()
+
+        migrator = DatabaseMigrator(db_path)
+        monkeypatch.setattr(
+            migrator.analyzer,
+            "create_backup",
+            lambda: str(tmp_path / "backup.db"),
+        )
+        monkeypatch.setattr(
+            migrator.analyzer,
+            "analyze_table_structure",
+            lambda: {
+                "duplicated_groups": {
+                    "numero_ssa": [
+                        {"name": "numero_ssa", "count": 0, "is_legacy": False},
+                        {"name": "legacy_numero", "count": 1, "is_legacy": True},
+                    ]
+                }
+            },
+        )
+
+        result = migrator.migrate_duplicate_columns(dry_run=False)
+
+        assert result["migration_stats"]["updated_rows"] == 0
+        assert result["migration_stats"]["skipped_invalid_records"] == 1
+        assert result["migration_stats"]["skipped_invalid_numero_ssa"] == 1
+        with sqlite3.connect(db_path) as check_conn:
+            stored = check_conn.execute("SELECT numero_ssa FROM ssas").fetchone()[0]
+        assert stored == ""
+
+    def test_migrate_duplicate_columns_dry_run_does_not_create_backup(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        db_path = os.path.join(tmp_path, "maintenance_dry_run.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute("CREATE TABLE ssas (numero_ssa TEXT, legacy_numero TEXT)")
+        conn.execute(
+            "INSERT INTO ssas (numero_ssa, legacy_numero) VALUES (?, ?)",
+            ("", "202512345"),
+        )
+        conn.commit()
+        conn.close()
+
+        migrator = DatabaseMigrator(db_path)
+
+        def _fail_backup():
+            raise AssertionError("dry-run must not create backup")
+
+        monkeypatch.setattr(migrator.analyzer, "create_backup", _fail_backup)
+        monkeypatch.setattr(
+            migrator.analyzer,
+            "analyze_table_structure",
+            lambda: {
+                "duplicated_groups": {
+                    "numero_ssa": [
+                        {"name": "numero_ssa", "count": 0, "is_legacy": False},
+                        {"name": "legacy_numero", "count": 1, "is_legacy": True},
+                    ]
+                }
+            },
+        )
+
+        result = migrator.migrate_duplicate_columns(dry_run=True)
+
+        assert result["backup_created"] is None
+        assert result["migration_plan"][0]["records_to_migrate"] == 1
+
+    def test_perform_sanity_check_uses_central_dayfirst_date_parser(self, tmp_path):
+        db_path = os.path.join(tmp_path, "maintenance_dayfirst.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            """
+            CREATE TABLE ssas (
+                numero_ssa TEXT,
+                data_cadastro TEXT,
+                descricao_ssa TEXT,
+                setor_emissor TEXT
+            )
+            """
+        )
+        conn.executemany(
+            """
+            INSERT INTO ssas (numero_ssa, data_cadastro, descricao_ssa, setor_emissor)
+            VALUES (?, ?, ?, ?)
+            """,
+            [
+                ("202512345", "01/12/2025 10:00", "Descricao", "AREA"),
+                ("202512346", "not-a-date", "Descricao", "AREA"),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.perform_sanity_check()
+
+        assert report["summary"]["invalid_dates"] == 1
+        assert report["issues"]["invalid_dates"] == [1]
 
     def test_validate_invalid_ssa_numbers(self):
         """Testa validação com números SSA inválidos."""
