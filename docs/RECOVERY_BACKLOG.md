@@ -5,6 +5,36 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-25 19:21 - pending PT ES EN column contract evidence
+
+Escopo desta atualizacao:
+1. registrar pendencia nao bloqueante sobre documentos SSA em portugues, espanhol e ingles
+2. evitar tratar coluna espanhola como typo quando aparecer junto de coluna portuguesa equivalente
+3. deixar criterio claro para retomar assim que surgir planilha EN real com esses dados
+
+Status confirmado:
+1. `num_reprogramacoes` e `num_reprobaciones` sao colunas distintas e intencionais no schema atual
+2. `num_reprobaciones` nao deve ser renomeada por inferencia para `num_reprogramacoes`
+3. o repo ja tem contrato/teste local garantindo que `num_reprobaciones` existe no schema e no contrato de busca
+4. o conjunto atual tem aliases PT e ES para esse grupo em `config/column_mappings.json`
+5. nao foi encontrada amostra EN real suficiente para cadastrar alias em ingles sem inventar regra de negocio
+
+Pendencia ASAP quando surgir planilha EN:
+1. coletar headers reais PT, ES e EN do mesmo grupo de colunas
+2. atualizar `config/column_mappings.json` somente com aliases observados ou aprovados
+3. atualizar `docs/GUI_GENERAL_SEARCH_COLUMN_CONTRACT.md` com nota explicita de contrato multilanguage PT/ES/EN
+4. ampliar `tests/test_general_search_column_contract.py` para validar a matriz PT/ES/EN, incluindo caso negativo para nao colapsar ES em PT
+5. rodar import/extracao focados com a planilha EN e comparar colunas canonicas resultantes
+
+Decisao para este release:
+1. nao bloquear merge por ausencia de amostra EN
+2. nao criar alias EN especulativo
+3. manter `num_reprobaciones` como contrato real e documentado por teste
+
+Rollback:
+1. nenhuma mudanca runtime associada a este registro
+2. se uma planilha EN real for adicionada depois, reverter apenas o commit do slice de alias/teste caso o contrato aprovado esteja errado
+
 ## Update 2026-04-25 01:08 - external quality checks and db maintenance status
 
 Escopo desta atualizacao:
