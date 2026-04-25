@@ -2,6 +2,7 @@ import json
 import os
 import stat
 import sys
+import builtins
 
 import pytest
 
@@ -54,6 +55,66 @@ def test_save_settings_writes_valid_json(tmp_path, monkeypatch):
 
     loaded = json.loads(settings_path.read_text(encoding="utf-8"))
     assert loaded == data
+
+
+def test_handle_config_command_merges_with_latest_settings_before_save(monkeypatch):
+    saved: list[dict] = []
+    load_calls = {"count": 0}
+    inputs = iter(["exact", ""])
+
+    def _load_settings():
+        load_calls["count"] += 1
+        if load_calls["count"] == 1:
+            return {
+                "default_filters": ["old"],
+                "user_preferences": {"filter_mode_default": "contains"},
+            }
+        return {
+            "default_filters": ["external"],
+            "user_preferences": {
+                "filter_mode_default": "contains",
+                "other_pref": "keep",
+            },
+            "external_key": "keep",
+        }
+
+    monkeypatch.setattr(config_manager, "load_settings", _load_settings)
+    monkeypatch.setattr(config_manager, "save_settings", lambda data: saved.append(data))
+    monkeypatch.setattr(builtins, "input", lambda _prompt: next(inputs))
+
+    config_manager.handle_config_command()
+
+    assert load_calls["count"] == 2
+    assert saved == [
+        {
+            "default_filters": ["external"],
+            "user_preferences": {
+                "filter_mode_default": "exact",
+                "other_pref": "keep",
+            },
+            "external_key": "keep",
+        }
+    ]
+
+
+def test_handle_config_command_skips_save_when_nothing_changed(monkeypatch):
+    saved: list[dict] = []
+    inputs = iter(["", ""])
+
+    monkeypatch.setattr(
+        config_manager,
+        "load_settings",
+        lambda: {
+            "default_filters": ["keep"],
+            "user_preferences": {"filter_mode_default": "contains"},
+        },
+    )
+    monkeypatch.setattr(config_manager, "save_settings", lambda data: saved.append(data))
+    monkeypatch.setattr(builtins, "input", lambda _prompt: next(inputs))
+
+    config_manager.handle_config_command()
+
+    assert saved == []
 
 
 def test_save_settings_creates_new_file_with_private_mode(tmp_path, monkeypatch):
