@@ -2657,6 +2657,10 @@ class TestGUIFilterLogic:
         self.window.initiate_filtering()
         QApplication.processEvents()
         assert self.window.df_exibido["numero_ssa"].tolist() == [3]
+        assert "Busca: 'Teste C'" in str(
+            self.window.filters_summary_label.text() or ""
+        )
+        assert self.window._get_visual_filter_columns() == set()
 
         self.window.persistent_filters = [
             {"name": "Filtro Teste C", "terms": "Teste C"}
@@ -2686,6 +2690,10 @@ class TestGUIFilterLogic:
 
         assert self.window.persistent_filters == []
         assert self.window.search_input.text() == ""
+        assert "Nenhum filtro ativo" in str(
+            self.window.filters_summary_label.text() or ""
+        )
+        assert self.window._get_visual_filter_columns() == set()
         assert set(self.window.df_exibido["numero_ssa"].tolist()) == set(
             self.base_df["numero_ssa"].tolist()
         )
@@ -2699,6 +2707,16 @@ class TestGUIFilterLogic:
 
         assert self.window.search_input.text().strip() == "Teste C"
         assert self.window.df_exibido["numero_ssa"].tolist() == [3]
+        summary_text = str(self.window.filters_summary_label.text() or "")
+        assert "Busca: 'Teste C'" in summary_text
+        summary_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
+        assert "Busca: 'Teste C'" in summary_buttons
+        assert self.window._get_visual_filter_columns() == set()
 
     def test_advanced_filter_checks_survive_tab_switch(self):
         """Rebuild dos menus avançados deve persistir listas *_checks no tab_context."""
@@ -5237,6 +5255,16 @@ class TestGUIFilterLogic:
 
         assert self.window._active_column_filters["derivada_de"] == "202500100"
         assert self.window._last_filter_state is not None
+        summary_text = str(self.window.filters_summary_label.text() or "")
+        assert "Derivada de: 202500100" in summary_text
+        summary_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
+        assert "Derivada de: 202500100" in summary_buttons
+        assert self.window._get_visual_filter_columns() == {"derivada_de"}
         assert self.window.df_exibido["numero_ssa"].tolist() == [
             "202500102",
             "202500101",
@@ -5248,7 +5276,14 @@ class TestGUIFilterLogic:
         )
         QApplication.processEvents()
 
-        assert str(self.window._active_column_filters.get("derivada_de", "")).strip() == ""
+        assert (
+            str(self.window._active_column_filters.get("derivada_de", "")).strip()
+            == ""
+        )
+        assert "Nenhum filtro ativo" in str(
+            self.window.filters_summary_label.text() or ""
+        )
+        assert self.window._get_visual_filter_columns() == set()
         assert set(self.window.df_exibido["numero_ssa"].tolist()) == set(
             df["numero_ssa"].tolist()
         )
