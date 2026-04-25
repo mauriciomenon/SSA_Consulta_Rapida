@@ -122,6 +122,7 @@ def stage_external_import_files(
                 next_suffix_by_base[os.path.abspath(str(base_destination))] = (
                     int(raw_index) + 1
                 )
+        destination_created = False
         try:
             if callable(should_cancel) and should_cancel():
                 break
@@ -134,6 +135,7 @@ def stage_external_import_files(
                 with os.fdopen(source_fd, "rb") as source_handle:
                     source_fd = None
                     with open(destination, "xb") as destination_handle:
+                        destination_created = True
                         shutil.copyfileobj(source_handle, destination_handle)
                 os.chmod(destination, source_stat.st_mode & 0o777)
                 os.utime(
@@ -159,18 +161,18 @@ def stage_external_import_files(
             staged_files.append(destination)
         except (OSError, shutil.Error) as exc:
             failed += 1
-            try:
-                os.remove(destination)
-                reserved_paths.discard(destination_abs)
-            except FileNotFoundError:
-                reserved_paths.discard(destination_abs)
-                pass
-            except OSError as cleanup_exc:
-                if callable(error_callback):
-                    error_callback(
-                        "[ERRO] Falha ao remover arquivo staged parcial "
-                        f"'{destination}': {cleanup_exc}"
-                    )
+            if destination_created:
+                try:
+                    os.remove(destination)
+                except FileNotFoundError:
+                    pass
+                except OSError as cleanup_exc:
+                    if callable(error_callback):
+                        error_callback(
+                            "[ERRO] Falha ao remover arquivo staged parcial "
+                            f"'{destination}': {cleanup_exc}"
+                        )
+            reserved_paths.discard(destination_abs)
             if callable(error_callback):
                 error_callback(
                     f"[ERRO] Falha ao copiar arquivo externo '{validated_source}': {exc}"
