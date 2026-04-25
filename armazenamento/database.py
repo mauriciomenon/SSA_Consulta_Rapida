@@ -603,10 +603,16 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
     except Exception as e:  # pragma: no cover
         if active_conn is not None:
             try:
-                active_conn.rollback()
-            except Exception:
-                logger.exception(
-                    "Falha ao executar rollback explicito em insert_dataframe_to_db"
+                if bool(getattr(active_conn, "in_transaction", False)):
+                    active_conn.rollback()
+            except sqlite3.ProgrammingError:
+                logger.debug(
+                    "Rollback explicito ignorado em insert_dataframe_to_db: conexao encerrada."
+                )
+            except Exception as rollback_exc:
+                logger.warning(
+                    "Falha ao executar rollback explicito em insert_dataframe_to_db: %s",
+                    rollback_exc,
                 )
         logger.error(f"Falha ao inserir dados na tabela '{table_name}': {e}")
         return False

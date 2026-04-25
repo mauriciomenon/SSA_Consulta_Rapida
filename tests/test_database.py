@@ -4,6 +4,7 @@ Testes unitários para o módulo armazenamento.database.
 """
 
 import os
+import logging
 import shutil
 import sqlite3
 import sys
@@ -88,6 +89,38 @@ def test_get_db_connection_rolls_back_non_sqlite_exception(temp_db_path):
         count = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
 
     assert count == 0
+
+
+def test_insert_dataframe_to_db_skips_closed_connection_rollback_noise(
+    temp_db_path,
+    sample_dataframe,
+    monkeypatch,
+    caplog,
+):
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("""
+            CREATE TABLE teste_rollback_noise (
+                id INTEGER,
+                nome TEXT,
+                idade INTEGER
+            );
+        """)
+        conn.commit()
+
+    def _fail_insert(*_args, **_kwargs):
+        raise RuntimeError("forced insert failure")
+
+    monkeypatch.setattr("armazenamento.database._execute_simple_insert", _fail_insert)
+    caplog.set_level(logging.WARNING)
+
+    success = insert_dataframe_to_db(
+        sample_dataframe,
+        temp_db_path,
+        "teste_rollback_noise",
+    )
+
+    assert success is False
+    assert "Falha ao executar rollback explicito" not in caplog.text
 
 
 def test_initialize_database_success(temp_db_path, sample_schema_file, monkeypatch):
