@@ -221,6 +221,7 @@ class TestDataValidation:
         assert report["table_name"] == "ssa_table"
         assert len(report["warnings"]) > 0
         assert "vazio" in str(report["warnings"])
+        assert "_invalid_row_seen" not in report
 
     def test_validate_valid_dataframe(self):
         """Testa validação de DataFrame válido."""
@@ -533,6 +534,7 @@ class TestDatabaseMaintenance:
 
         assert 0 in report["invalid_rows"]
         assert len(report["invalid_rows"]) == len(set(report["invalid_rows"]))
+        assert "_invalid_row_seen" not in report
 
     def test_validate_invalid_dates(self):
         """Testa validacao com datas invalidas."""
@@ -724,6 +726,7 @@ class TestDatabaseMaintenance:
         assert report["is_valid"] is False
         assert report["error_details"]["type"] == "RuntimeError"
         assert "forced validation crash" in report["error_details"]["message"]
+        assert "_invalid_row_seen" not in report
 
 
 class TestDatabaseRepair:

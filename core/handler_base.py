@@ -366,6 +366,10 @@ class FilterHandlerBase(HandlerBase):
         try:
             # Carrega dados base (implementacao especifica deve definir fonte)
             base_data = self._load_base_data(context)
+            if not isinstance(base_data, pd.DataFrame):
+                raise TypeError(
+                    f"{self.name}._load_base_data deve retornar pandas.DataFrame"
+                )
             if base_data.empty:
                 return self.create_result(
                     data=base_data,
@@ -377,6 +381,10 @@ class FilterHandlerBase(HandlerBase):
 
             # Aplica filtros
             filtered_data = self.apply_filters(base_data, context)
+            if not isinstance(filtered_data, pd.DataFrame):
+                raise TypeError(
+                    f"{self.name}.apply_filters deve retornar pandas.DataFrame"
+                )
             context.filtered_rows = len(filtered_data)
 
             # Cria resultado
@@ -451,6 +459,10 @@ class ExportHandlerBase(HandlerBase):
         try:
             # Carrega dados para exportacao
             export_data = self._load_export_data(context)
+            if not isinstance(export_data, pd.DataFrame):
+                raise TypeError(
+                    f"{self.name}._load_export_data deve retornar pandas.DataFrame"
+                )
             context.processed_rows = len(export_data)
             if export_data.empty:
                 return self.create_result(
