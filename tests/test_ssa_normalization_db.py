@@ -60,6 +60,29 @@ def test_normalize_numero_ssa_dataframe_storage_matches_compat_alias() -> None:
     assert canonical.to_dict("list") == compat.to_dict("list")
 
 
+def test_normalize_numero_ssa_dataframe_storage_preserves_null_cells() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": [
+                None,
+                float("nan"),
+                "abc123",
+                "202501234",
+            ]
+        }
+    )
+
+    out = normalize_numero_ssa_dataframe_storage(df)
+
+    assert out.loc[0, "numero_ssa"] is None
+    assert out.loc[1, "numero_ssa"] is None
+    assert out.loc[2, "numero_ssa"] is None
+    assert out.loc[3, "numero_ssa"] == "202501234"
+    assert "nan" not in {
+        str(value).lower() for value in out["numero_ssa"] if value is not None
+    }
+
+
 def test_normalize_numero_ssa_dataframe_rejects_short_display_only_values() -> None:
     df = pd.DataFrame(
         {
