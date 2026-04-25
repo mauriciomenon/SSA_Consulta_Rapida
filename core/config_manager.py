@@ -632,12 +632,15 @@ def handle_config_command():
     print("   - Valores permitidos:", ", ".join(allowed))
     print(f"   - Atual: {current_mode}")
     new_mode = input("   > Novo valor (Enter para manter): ").strip().lower()
+    changed_filter_mode = False
+    changed_default_filters = False
     if new_mode:
         if new_mode not in allowed:
             print("Valor invalido. Nenhuma alteracao aplicada ao modo padrao.")
         else:
             user_prefs["filter_mode_default"] = new_mode
             settings["user_preferences"] = user_prefs
+            changed_filter_mode = True
             print(f"Modo padrao atualizado para: {new_mode}")
 
     print("\n2) Substituir filtros padrao (opcional):")
@@ -650,9 +653,23 @@ def handle_config_command():
     if new_filters_raw:
         new_filters = [t.strip() for t in new_filters_raw.split(",") if t.strip()]
         settings["default_filters"] = new_filters
+        changed_default_filters = True
         print(f"Filtros padrao atualizados: {new_filters}")
 
     try:
+        if not changed_filter_mode and not changed_default_filters:
+            print("Nenhuma alteracao de configuracao para salvar.")
+            return
+        latest_settings = load_settings()
+        if changed_filter_mode:
+            latest_user_prefs = latest_settings.get("user_preferences") or {}
+            latest_user_prefs["filter_mode_default"] = user_prefs[
+                "filter_mode_default"
+            ]
+            latest_settings["user_preferences"] = latest_user_prefs
+        if changed_default_filters:
+            latest_settings["default_filters"] = settings["default_filters"]
+        settings = latest_settings
         save_settings(settings)
         print(
             "Configuracoes salvas. Elas serao aplicadas imediatamente na CLI e no proximo filtro da GUI."
