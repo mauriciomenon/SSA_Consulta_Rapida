@@ -106,6 +106,18 @@ def test_ensure_schema_preserves_outer_transaction(temp_db):
     assert rows == [("before",)]
 
 
+def test_ensure_schema_persists_without_outer_transaction(temp_db):
+    with sqlite3.connect(temp_db) as conn:
+        ensure_derivadas_schema_on_connection(conn)
+        assert has_derivadas_schema(conn) is True
+
+    report = scan_derivadas_schema_readiness_from_path(temp_db)
+
+    assert report["is_ready"] is True
+    assert report["missing_tables"] == []
+    assert report["missing_columns"] == {}
+
+
 def test_ensure_derivadas_columns_preserves_original_exception(monkeypatch):
     class BrokenSavepointConnection:
         def execute(self, statement: str):

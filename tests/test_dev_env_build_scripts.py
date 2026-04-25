@@ -24,3 +24,18 @@ def test_pyoxidizer_default_project_root_uses_empty_strip_prefix() -> None:
     assert root_text == build_text
     assert 'PROJECT_ROOT in ("", ".")' in root_text
     assert 'strip_prefix=PROJECT_PREFIX' in root_text
+
+
+def test_pyoxidizer_debian_uses_root_config_kept_in_sync() -> None:
+    script = (PROJECT_ROOT / "dev_env" / "build" / "build_pyoxidizer_debian.sh").read_text(
+        encoding="utf-8"
+    )
+    root_config = PROJECT_ROOT / "pyoxidizer.bzl"
+    build_config = PROJECT_ROOT / "dev_env" / "build" / "pyoxidizer.bzl"
+
+    assert 'PYOX_CONFIG="${REPO_ROOT}/pyoxidizer.bzl"' in script
+    assert '--var SSA_PROJECT_ROOT "${REPO_ROOT}"' in script
+    assert '--path "${REPO_ROOT}"' in script
+    assert root_config.read_text(encoding="utf-8") == build_config.read_text(
+        encoding="utf-8"
+    )
