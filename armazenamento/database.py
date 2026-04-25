@@ -106,6 +106,11 @@ def get_db_connection(db_path: str):
         if conn:
             conn.rollback()
         raise
+    except Exception as e:
+        logger.error(f"Erro durante uso da conexao de banco de dados: {e}")
+        if conn:
+            conn.rollback()
+        raise
     finally:
         if conn:
             conn.close()
