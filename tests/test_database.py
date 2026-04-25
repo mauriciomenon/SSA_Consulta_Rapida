@@ -73,6 +73,23 @@ def test_get_db_connection_context_manager(temp_db_path):
     # (Difícil de testar diretamente, mas o contexto garante)
 
 
+def test_get_db_connection_rolls_back_non_sqlite_exception(temp_db_path):
+    """Runtime errors inside the context must not leave partial writes."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("CREATE TABLE events (id INTEGER PRIMARY KEY, value TEXT)")
+        conn.commit()
+
+    with pytest.raises(RuntimeError, match="forced runtime failure"):
+        with get_db_connection(temp_db_path) as conn:
+            conn.execute("INSERT INTO events (value) VALUES (?)", ("partial",))
+            raise RuntimeError("forced runtime failure")
+
+    with get_db_connection(temp_db_path) as conn:
+        count = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+
+    assert count == 0
+
+
 def test_initialize_database_success(temp_db_path, sample_schema_file, monkeypatch):
     """Testa a inicialização bem-sucedida do banco de dados."""
     assert initialize_database(temp_db_path, schema_file=sample_schema_file) is True
