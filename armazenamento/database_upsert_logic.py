@@ -1133,7 +1133,7 @@ def insert_dataframe_with_smart_upsert_impl(
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         existing_tables = {r[0] for r in cursor.fetchall()}
-        table_name = _db_mod._resolve_target_table(
+        table_name = _db_mod._resolve_target_table(  # pylint: disable=protected-access  # skipcq: PYL-W0212
             cast(_sqlite3_typehint.Connection, conn), table_name
         )
         table_exists = table_name in existing_tables
@@ -1148,7 +1148,7 @@ def insert_dataframe_with_smart_upsert_impl(
                 _db_mod.initialize_database(conn, "config/schema.sql")
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
             existing_tables = {r[0] for r in cursor.fetchall()}
-            table_name = _db_mod._resolve_target_table(
+            table_name = _db_mod._resolve_target_table(  # pylint: disable=protected-access  # skipcq: PYL-W0212
                 cast(_sqlite3_typehint.Connection, conn), table_name
             )
             table_exists = table_name in existing_tables
@@ -1199,7 +1199,9 @@ def insert_dataframe_with_smart_upsert_impl(
                 else 500
             )
             logger.debug(
-                f"Chunk size calculado para inserção sem SSA: {chunk_size} linhas para {len(no_ssa.columns)} colunas"
+                "Chunk size calculado para insercao sem SSA: %s linhas para %s colunas",
+                chunk_size,
+                len(no_ssa.columns),
             )
             _append_dataframe_rows(conn, table_name, no_ssa, chunk_size=chunk_size)
             logger.info("Inseridos %s registros sem numero_ssa", len(no_ssa))
@@ -1216,9 +1218,7 @@ def insert_dataframe_with_smart_upsert_impl(
             and bool(conn.in_transaction)
         ):
             try:
-                rollback_fn = getattr(conn, "rollback", None)
-                if callable(rollback_fn):
-                    rollback_fn()
+                cast(_sqlite3_typehint.Connection, conn).rollback()
             except Exception as rollback_exc:
                 logger.warning("Falha no rollback de upsert: %s", rollback_exc)
         raise

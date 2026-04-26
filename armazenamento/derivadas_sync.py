@@ -261,7 +261,7 @@ def collect_db_edges(
     safe_table = _validate_table_name(table_name)
     query = (
         "SELECT numero_ssa, derivada_de "
-        f'FROM "{safe_table}" '  # nosec B608
+        f'FROM "{safe_table}" '  # nosec B608  # skipcq: BAN-B608
         "WHERE derivada_de IS NOT NULL"
     )
 
