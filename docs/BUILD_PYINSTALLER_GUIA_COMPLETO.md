@@ -1,6 +1,39 @@
-# Guia Completo - Build com PyInstaller 6.16.0
+# Guia Completo (Historico/Referencia) - Build com PyInstaller
 
-**Data**: 2025-11-14
+## CURRENT TRUTH (baseline v4.37)
+
+- Sync deste guia: `2026-04-15 15:45 -0300`.
+- Caminho operacional principal:
+  - build: `uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
+  - artefatos: `launchers/dist/windows_amd64/`
+  - distribuicao: `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller`
+- Referencias a `build_pyinstaller.bat` e `builds/pyinstaller` neste arquivo sao historicas.
+- Para fluxo atual, usar `launchers/dist/*` como fonte canonica.
+- Sempre que houver conflito entre exemplos antigos e o pipeline atual, prevalece `launchers/dist/*`.
+- Validacao 2026-03-10 (host macOS arm64):
+  - `pyinstaller --version` OK (`6.19.0`)
+  - `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --skip-installer` gerou ZIP com sucesso
+  - `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller` gerou ZIP, mas installer falhou por ausencia de origem Windows/Inno no host atual
+- `pytoexe`/`py2exe` nao fazem parte do backend suportado deste repo.
+
+## HISTORICAL SNAPSHOT NOTICE
+
+Este documento preserva detalhes de troubleshooting historico.
+Quando houver conflito, prevalece o bloco CURRENT TRUTH acima.
+
+## ATENCAO OPERACIONAL
+
+- ESTE ARQUIVO E REFERENCIA HISTORICA.
+- NAO USAR ESTE RUNBOOK COMO FLUXO PRINCIPAL DE RELEASE.
+- PARA OPERACAO ATUAL, USAR:
+  - `uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
+  - `uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller`
+
+**Data historica original do snapshot preservado**: 2025-11-14
+
+> Nota: a data historica acima pertence ao material preservado. O status
+> operacional atual deste guia fica no bloco `CURRENT TRUTH`.
+
 **Autor**: Claude Code
 **Projeto**: SSA_Consulta_Rapida v4.11.0
 **Sistema Operacional**: Windows 10/11
@@ -279,6 +312,7 @@ APP_NAME = "SSA Consulta Rapida"
 Conteudo completo:
 
 ```batch
+REM HISTORICO: este trecho usa layout antigo em builds/pyinstaller
 @echo off
 REM Build script para PyInstaller 6.16.0
 REM Autor: Claude Code
@@ -1178,7 +1212,7 @@ Python 3.8 suporta Windows 7+.
 [ ] config/ e data/ foram copiados
 [ ] DLLs Qt presentes (Qt6Core.dll, etc.)
 [ ] python313.dll presente
-[ ] Copiar para builds/pyinstaller/
+[ ] Copiar para launchers/dist/windows_amd64/ (canonico) ou builds/pyinstaller/ (historico)
 [ ] Testar em outro computador (opcional)
 [ ] Comprimir para distribuicao (opcional)
 ```
@@ -1221,8 +1255,9 @@ VSVersionInfo(
 
 ---
 
-**Ultima atualizacao**: 2025-11-14
+**Ultima atualizacao historica original**: 2025-11-14
 **Versao do guia**: 1.0
 **Autor**: Claude Code
 **Status**: Completo e testado
 
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

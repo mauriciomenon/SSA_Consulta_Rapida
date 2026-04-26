@@ -4,66 +4,105 @@
 Script para parar importação lenta e fazer diagnóstico rápido.
 """
 
+import importlib
 import os
-import sys
-import psutil
 import sqlite3
 import time
+from typing import Any
+
+psutil: Any | None
+try:
+    psutil = importlib.import_module("psutil")
+except Exception:
+    psutil = None
+
+
+def _require_psutil() -> Any:
+    if psutil is None:
+        raise RuntimeError(
+            "Dependencia opcional ausente: instale psutil para executar este script"
+        )
+    return psutil
+
 
 def find_and_kill_python_processes():
     """Encontra e para processos Python relacionados à importação."""
-    print("🔍 Procurando processos Python em execução...")
+    psutil_mod = _require_psutil()
+    print("INFO Procurando processos Python em execução...")
 
     current_pid = os.getpid()
     killed_processes = []
 
-    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+    for proc in psutil_mod.process_iter(["pid", "name", "cmdline"]):
         try:
-            if proc.info['name'] and 'python' in proc.info['name'].lower():
-                if proc.info['pid'] != current_pid:  # Não matar a si mesmo
-                    cmdline = ' '.join(proc.info['cmdline'] or [])
+            if proc.info["name"] and "python" in proc.info["name"].lower():
+                if proc.info["pid"] != current_pid:  # Não matar a si mesmo
+                    cmdline = " ".join(proc.info["cmdline"] or [])
 
                     # Verificar se é processo relacionado ao SSA
-                    if any(keyword in cmdline.lower() for keyword in [
-                        'main.py', 'import', 'test_import', 'ssa', 'excel'
-                    ]):
-                        print(f"  🎯 Encontrado processo relacionado: PID {proc.info['pid']}")
+                    if any(
+                        keyword in cmdline.lower()
+                        for keyword in [
+                            "main.py",
+                            "import",
+                            "test_import",
+                            "ssa",
+                            "excel",
+                        ]
+                    ):
+                        print(
+                            f"  DONE Encontrado processo relacionado: PID {proc.info['pid']}"
+                        )
                         print(f"     Comando: {cmdline[:100]}...")
 
                         try:
                             proc.terminate()  # Terminar gentilmente
                             proc.wait(timeout=5)  # Esperar 5 segundos
-                            killed_processes.append(proc.info['pid'])
-                            print(f"  ✅ Processo {proc.info['pid']} terminado")
-                        except (psutil.NoSuchProcess, psutil.TimeoutExpired):
+                            killed_processes.append(proc.info["pid"])
+                            print(f"  OK Processo {proc.info['pid']} terminado")
+                        except (psutil_mod.NoSuchProcess, psutil_mod.TimeoutExpired):
                             try:
                                 proc.kill()  # Forçar se necessário
-                                killed_processes.append(proc.info['pid'])
-                                print(f"  ⚡ Processo {proc.info['pid']} forçado a parar")
-                            except psutil.NoSuchProcess:
-                                print(f"  ⚠️  Processo {proc.info['pid']} já finalizou")
-                        except psutil.AccessDenied:
-                            print(f"  ❌ Sem permissão para parar processo {proc.info['pid']}")
+                                killed_processes.append(proc.info["pid"])
+                                print(
+                                    f"  PERF Processo {proc.info['pid']} forçado a parar"
+                                )
+                            except psutil_mod.NoSuchProcess:
+                                print(
+                                    f"  WARN  Processo {proc.info['pid']} já finalizou"
+                                )
+                        except psutil_mod.AccessDenied:
+                            print(
+                                f"  ERR Sem permissão para parar processo {proc.info['pid']}"
+                            )
 
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        except (
+            psutil_mod.NoSuchProcess,
+            psutil_mod.AccessDenied,
+            psutil_mod.ZombieProcess,
+        ) as exc:
+            print(
+                f"  WARN Falha ao acessar processo: {getattr(proc, 'pid', '?')} ({exc})"
+            )
             continue
 
     if not killed_processes:
-        print("  ℹ️  Nenhum processo Python relacionado ao SSA encontrado")
+        print("  INFO Nenhum processo Python relacionado ao SSA encontrado")
     else:
-        print(f"  🎉 Parados {len(killed_processes)} processos")
+        print(f"  OK Parados {len(killed_processes)} processos")
 
     return killed_processes
 
+
 def check_database_status():
     """Verifica o status atual do banco de dados."""
-    print("\n📊 VERIFICANDO STATUS DO BANCO DE DADOS")
+    print("\nINFO VERIFICANDO STATUS DO BANCO DE DADOS")
     print("-" * 40)
 
     db_path = "data/ssas.db"
 
     if not os.path.exists(db_path):
-        print("❌ Banco de dados não encontrado!")
+        print("ERR Banco de dados não encontrado!")
         return False
 
     try:
@@ -71,7 +110,7 @@ def check_database_status():
         with sqlite3.connect(db_path, timeout=1) as conn:
             cursor = conn.execute("SELECT COUNT(*) FROM ssas")
             total_records = cursor.fetchone()[0]
-            print(f"✅ Banco acessível: {total_records} registros")
+            print(f"OK Banco acessível: {total_records} registros")
 
             # Verificar últimas modificações
             cursor = conn.execute("""
@@ -85,7 +124,7 @@ def check_database_status():
             recent_dates = cursor.fetchall()
 
             if recent_dates:
-                print("📅 Dados mais recentes:")
+                print(" Dados mais recentes:")
                 for date, count in recent_dates:
                     print(f"   {date}: {count} registros")
 
@@ -93,52 +132,70 @@ def check_database_status():
 
     except sqlite3.OperationalError as e:
         if "database is locked" in str(e):
-            print("🔒 Banco de dados TRAVADO - processo de importação ainda ativo")
+            print(" Banco de dados TRAVADO - processo de importação ainda ativo")
             return False
         else:
-            print(f"❌ Erro ao acessar banco: {e}")
+            print(f"ERR Erro ao acessar banco: {e}")
             return False
     except Exception as e:
-        print(f"❌ Erro inesperado: {e}")
+        print(f"ERR Erro inesperado: {e}")
         return False
+
 
 def check_system_resources():
     """Verifica recursos do sistema."""
-    print("\n🖥️  RECURSOS DO SISTEMA")
+    psutil_mod = _require_psutil()
+    print("\nINFO  RECURSOS DO SISTEMA")
     print("-" * 25)
 
     # CPU
-    cpu_percent = psutil.cpu_percent(interval=1)
-    print(f"🔥 CPU: {cpu_percent}%")
+    cpu_percent = psutil_mod.cpu_percent(interval=1)
+    print(f" CPU: {cpu_percent}%")
 
     # Memória
-    memory = psutil.virtual_memory()
-    print(f"🧠 RAM: {memory.percent}% usado ({memory.used // (1024**3):.1f}GB / {memory.total // (1024**3):.1f}GB)")
+    memory = psutil_mod.virtual_memory()
+    print(
+        f" RAM: {memory.percent}% usado ({memory.used // (1024**3):.1f}GB / {memory.total // (1024**3):.1f}GB)"
+    )
 
     # Disco
-    disk = psutil.disk_usage('.')
-    print(f"💾 Disco: {disk.percent}% usado ({disk.free // (1024**3):.1f}GB livres)")
+    disk = psutil_mod.disk_usage(".")
+    print(f" Disco: {disk.percent}% usado ({disk.free // (1024**3):.1f}GB livres)")
 
     # Processos Python
     python_procs = []
-    for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+    for proc in psutil_mod.process_iter(
+        ["pid", "name", "cpu_percent", "memory_percent"]
+    ):
         try:
-            if proc.info['name'] and 'python' in proc.info['name'].lower():
-                python_procs.append({
-                    'pid': proc.info['pid'],
-                    'cpu': proc.info['cpu_percent'] or 0,
-                    'memory': proc.info['memory_percent'] or 0
-                })
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            if proc.info["name"] and "python" in proc.info["name"].lower():
+                python_procs.append(
+                    {
+                        "pid": proc.info["pid"],
+                        "cpu": proc.info["cpu_percent"] or 0,
+                        "memory": proc.info["memory_percent"] or 0,
+                    }
+                )
+        except (psutil_mod.NoSuchProcess, psutil_mod.AccessDenied):
             continue
 
     if python_procs:
-        print(f"🐍 Processos Python ativos: {len(python_procs)}")
+        print(f" Processos Python ativos: {len(python_procs)}")
         for proc in python_procs[:3]:  # Top 3
-            print(f"   PID {proc['pid']}: CPU {proc['cpu']:.1f}%, RAM {proc['memory']:.1f}%")
+            print(
+                f"   PID {proc['pid']}: CPU {proc['cpu']:.1f}%, RAM {proc['memory']:.1f}%"
+            )
 
-def main():
-    print("🚨 PARAR IMPORTAÇÃO LENTA E DIAGNÓSTICO RÁPIDO")
+
+def run_diagnostico():
+    """Executa o fluxo completo de diagnostico e recuperacao."""
+    if psutil is None:
+        print(
+            "ERR Dependencia opcional ausente: instale psutil para executar este script"
+        )
+        return
+
+    print(" PARAR IMPORTAÇÃO LENTA E DIAGNÓSTICO RÁPIDO")
     print("=" * 50)
     print()
 
@@ -150,7 +207,7 @@ def main():
 
     # 3. Se banco travado, parar processos
     if not db_accessible:
-        print("\n🛑 PARANDO PROCESSOS DE IMPORTAÇÃO")
+        print("\n PARANDO PROCESSOS DE IMPORTAÇÃO")
         print("-" * 35)
         killed = find_and_kill_python_processes()
 
@@ -159,37 +216,42 @@ def main():
             time.sleep(3)
 
             # Verificar novamente
-            print("\n🔄 VERIFICANDO NOVAMENTE O BANCO")
+            print("\nRUN VERIFICANDO NOVAMENTE O BANCO")
             print("-" * 32)
             db_accessible = check_database_status()
 
     # 4. Relatório final
     print("\n" + "=" * 50)
-    print("📋 RESUMO DO DIAGNÓSTICO")
+    print("INFO RESUMO DO DIAGNÓSTICO")
     print("-" * 24)
 
     if db_accessible:
-        print("✅ Banco de dados acessível")
-        print("✅ Importação não está mais bloqueando")
-        print("\n🚀 PRÓXIMOS PASSOS RECOMENDADOS:")
+        print("OK Banco de dados acessível")
+        print("OK Importação não está mais bloqueando")
+        print("\nSTART PRÓXIMOS PASSOS RECOMENDADOS:")
         print("   1. Execute: python otimizacao_importacao_rapida.py")
         print("   2. Ou use: python main.py --force-rescan")
         print("   3. Para uso normal: python main.py")
     else:
-        print("❌ Banco ainda inacessível")
-        print("⚠️  Pode ser necessário reiniciar o terminal/VS Code")
+        print("ERR Banco ainda inacessível")
+        print("WARN  Pode ser necessário reiniciar o terminal/VS Code")
         print("\n🆘 SOLUÇÕES DE EMERGÊNCIA:")
         print("   1. Feche todos os terminais Python")
         print("   2. Reinicie o VS Code")
         print("   3. Em último caso: reinicie o computador")
 
-    print("\n✨ Para importação rápida no futuro:")
+    print("\n Para importação rápida no futuro:")
     print("   Use sempre: python otimizacao_importacao_rapida.py")
+
+
+def main():
+    run_diagnostico()
+
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n🛑 Interrompido pelo usuário")
+        print("\n\n Interrompido pelo usuário")
     except Exception as e:
-        print(f"\n❌ Erro: {e}")
+        print(f"\nERR Erro: {e}")

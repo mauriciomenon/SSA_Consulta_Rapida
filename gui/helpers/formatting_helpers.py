@@ -1,10 +1,8 @@
 # gui/helpers/formatting_helpers.py
 # Pure formatting helper functions
 
-import re
 import html
-import math
-import pandas as pd
+import re
 
 
 def normalize_chunk_for_parse(chunk: str) -> list[str]:
@@ -24,9 +22,9 @@ def normalize_chunk_for_parse(chunk: str) -> list[str]:
         return []
     cleaned = str(chunk).strip()
     # Replace em-dash and en-dash with regular dash for consistency
-    cleaned = cleaned.replace('–', '-').replace('—', '-')
+    cleaned = cleaned.replace("–", "-").replace("—", "-")
     # Split by commas only
-    tokens = [term.strip() for term in cleaned.split(',') if term.strip()]
+    tokens = [term.strip() for term in cleaned.split(",") if term.strip()]
     return tokens
 
 
@@ -47,54 +45,36 @@ def format_search_display(chunks: list[list[str]]) -> str:
         return ""
     # Since we always have single chunk, return first chunk as comma-separated
     if chunks and chunks[0]:
-        return ', '.join(chunks[0])
+        return ", ".join(chunks[0])
     return ""
 
 
-def format_value_for_display(value, col=None):
-    """
-    Format value removing NaN/None/nan and applying column-specific formatting.
+def _normalize_highlight_terms(terms: list[str]) -> list[str]:
+    """Normalize terms for one-pass highlight matching."""
+    normalized_terms: list[str] = []
+    seen_terms: set[str] = set()
 
-    Args:
-        value: Value to format
-        col: Optional column name for specific formatting
+    for raw_term in terms:
+        escaped_term = html.escape(str(raw_term or "")).strip()
+        if not escaped_term:
+            continue
+        term_key = escaped_term.casefold()
+        if term_key in seen_terms:
+            continue
+        seen_terms.add(term_key)
+        normalized_terms.append(escaped_term)
 
-    Returns:
-        Formatted string, empty if null
-    """
-    # Remove null values
-    if pd.isna(value) or value is None:
-        return ""
-
-    # Convert to string
-    text = str(value)
-
-    # Remove variations of nan/none
-    if text.lower() in ('nan', 'none', 'nat', '<na>'):
-        return ""
-
-    # Colunas de semana: sempre inteiro (sem .0)
-    if col and col.lower().startswith('semana'):
-        try:
-            num = float(text)
-            if math.isnan(num):
-                return ""
-            return str(int(round(num)))
-        except (ValueError, TypeError):
-            return text.strip()
-
-    # Column-specific formatting
-    if col == 'numero_ssa':
-        try:
-            return str(int(float(text)))
-        except (ValueError, TypeError):
-            return text
-
-    return text.strip()
+    normalized_terms.sort(key=len, reverse=True)
+    return normalized_terms
 
 
-def highlight_text(text: str, terms: list[str],
-                  bg_color: str = 'yellow', font_weight: str = 'bold') -> str:
+def highlight_text(
+    text: str | None,
+    terms: list[str],
+    bg_color: str = "yellow",
+    font_weight: str = "bold",
+    text_color: str | None = None,
+) -> str:
     """
     Apply HTML highlight to terms found in text.
 
@@ -103,25 +83,36 @@ def highlight_text(text: str, terms: list[str],
         terms: List of terms to highlight
         bg_color: Background color for highlight (default: yellow)
         font_weight: Font weight for highlight (default: bold)
+        text_color: Foreground color for highlight (optional)
 
     Returns:
         HTML string with highlighted terms
     """
-    if not text or not terms:
-        return text
+    if text is None:
+        return ""
 
-    # Escape HTML
-    text_escaped = html.escape(str(text))
+    escaped_text = html.escape(str(text))
+    if not terms:
+        return escaped_text
 
-    # Apply highlight for each term
-    for term in terms:
-        if not term:
-            continue
-        # Case-insensitive search
-        pattern = re.compile(re.escape(term), re.IGNORECASE)
-        text_escaped = pattern.sub(
-            lambda m: f'<span style="background-color: {bg_color}; font-weight: {font_weight};">{m.group()}</span>',
-            text_escaped
+    normalized_terms = _normalize_highlight_terms(terms)
+    if not normalized_terms:
+        return escaped_text
+
+    if text_color:
+        style = (
+            f"background-color: {bg_color}; "
+            f"font-weight: {font_weight}; "
+            f"color: {text_color};"
         )
+    else:
+        style = f"background-color: {bg_color}; font-weight: {font_weight};"
 
-    return text_escaped
+    pattern = re.compile(
+        "|".join(re.escape(term) for term in normalized_terms),
+        re.IGNORECASE,
+    )
+    return pattern.sub(
+        lambda match: f'<span style="{style}">{match.group(0)}</span>',
+        escaped_text,
+    )

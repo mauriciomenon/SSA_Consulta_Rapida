@@ -1,40 +1,43 @@
 #!/usr/bin/env python3
 """Teste completo dos executaveis gerados pelo build multiplataforma."""
 
-import os
-import sys
-import subprocess
 import json
+import shlex
+import subprocess
+import sys
 import time
-from pathlib import Path
 
 from version_info import REPO_ROOT, get_current_version
 
 APP_VERSION = get_current_version()
 DIST_DIR = REPO_ROOT / "launchers" / "dist"
 
+
 def log(msg, level="INFO"):
     """Log formatado"""
     timestamp = time.strftime("%H:%M:%S")
     print(f"[{timestamp}] {level}: {msg}")
 
+
 def run_command(cmd, timeout=30):
     """Executa comando com timeout"""
     try:
+        run_args = shlex.split(cmd) if isinstance(cmd, str) else cmd
         result = subprocess.run(
-            cmd,
-            shell=True,
+            run_args,
             capture_output=True,
             text=True,
-            timeout=timeout
+            timeout=timeout,
         )
         return result.returncode == 0, result.stdout, result.stderr
     except subprocess.TimeoutExpired:
         return False, "", "Timeout"
 
+
 def detect_platform():
     """Detecta plataforma atual"""
     import platform
+
     system = platform.system().lower()
     arch = platform.machine().lower()
 
@@ -49,6 +52,7 @@ def detect_platform():
         return "debian_amd64"
     else:
         return "unknown"
+
 
 def test_build_system():
     """Testa sistema de build"""
@@ -75,8 +79,9 @@ def test_build_system():
         log(f"ERRO: Arquivos essenciais faltando: {missing_files}", "ERROR")
         return False
 
-    log("✅ Todos os arquivos essenciais presentes")
+    log("OK Todos os arquivos essenciais presentes")
     return True
+
 
 def test_cli_build():
     """Testa build do CLI"""
@@ -85,15 +90,14 @@ def test_cli_build():
     # Build CLI
     log("Construindo CLI...")
     success, stdout, stderr = run_command(
-        "python launchers/build_multiplatform.py --apps cli",
-        timeout=300
+        "python launchers/build_multiplatform.py --apps cli", timeout=300
     )
 
     if not success:
         log(f"ERRO no build CLI: {stderr}", "ERROR")
         return False
 
-    log("✅ CLI construído com sucesso")
+    log("OK CLI construído com sucesso")
 
     # Verificar executável
     platform = detect_platform()
@@ -104,7 +108,7 @@ def test_cli_build():
         log(f"ERRO: Executável CLI não encontrado em {cli_path}", "ERROR")
         return False
 
-    log("✅ Executável CLI encontrado")
+    log("OK Executável CLI encontrado")
 
     # Testar execução
     log("Testando execução do CLI...")
@@ -114,8 +118,9 @@ def test_cli_build():
         log(f"ERRO na execução CLI: {stderr}", "ERROR")
         return False
 
-    log("✅ CLI executa corretamente")
+    log("OK CLI executa corretamente")
     return True
+
 
 def test_gui_build():
     """Testa build da GUI"""
@@ -124,15 +129,14 @@ def test_gui_build():
     # Build GUI
     log("Construindo GUI...")
     success, stdout, stderr = run_command(
-        "python launchers/build_multiplatform.py --apps gui",
-        timeout=300
+        "python launchers/build_multiplatform.py --apps gui", timeout=300
     )
 
     if not success:
         log(f"ERRO no build GUI: {stderr}", "ERROR")
         return False
 
-    log("✅ GUI construída com sucesso")
+    log("OK GUI construída com sucesso")
 
     # Verificar executável
     platform = detect_platform()
@@ -154,7 +158,7 @@ def test_gui_build():
         log(f"ERRO: Executável GUI não encontrado em {gui_path}", "ERROR")
         return False
 
-    log("✅ Executável GUI encontrado")
+    log("OK Executável GUI encontrado")
 
     # Testar importação (sem abrir janela)
     log("Testando imports da GUI...")
@@ -163,9 +167,9 @@ def test_gui_build():
         f"sys.path.insert(0, {repr(str(REPO_ROOT))})",
         "try:",
         "    from gui.gui_ssa import SSAMainWindow",
-        "    print('✅ Import GUI principal OK')",
+        "    print('OK Import GUI principal OK')",
         "except Exception as e:",
-        "    print(f'❌ Erro import GUI: {e}')",
+        "    print(f'ERR Erro import GUI: {e}')",
         "    raise",
     ]
     script = "\n".join(script_lines)
@@ -179,33 +183,41 @@ def test_gui_build():
         log(f"ERRO: Imports da GUI falharam: {result.stderr or result.stdout}", "ERROR")
         return False
 
-    log("✅ Imports da GUI funcionam")
+    log("OK Imports da GUI funcionam")
     return True
+
 
 def test_module_dependencies():
     """Testa dependências de módulos"""
     log("=== TESTE DEPENDÊNCIAS MÓDULOS ===")
 
     critical_modules = [
-        "PyQt6", "pandas", "openpyxl", "sqlite3",
-        "secrets", "hashlib", "uuid", "datetime"
+        "PyQt6",
+        "pandas",
+        "openpyxl",
+        "sqlite3",
+        "secrets",
+        "hashlib",
+        "uuid",
+        "datetime",
     ]
 
     failed_modules = []
     for module in critical_modules:
         try:
             __import__(module)
-            log(f"✅ {module}")
+            log(f"OK {module}")
         except ImportError as e:
-            log(f"❌ {module}: {e}", "ERROR")
+            log(f"ERR {module}: {e}", "ERROR")
             failed_modules.append(module)
 
     if failed_modules:
         log(f"ERRO: Módulos faltando: {failed_modules}", "ERROR")
         return False
 
-    log("✅ Todos os módulos críticos disponíveis")
+    log("OK Todos os módulos críticos disponíveis")
     return True
+
 
 def generate_test_report():
     """Gera relatório de teste"""
@@ -217,7 +229,7 @@ def generate_test_report():
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         "platform": platform,
         "tests": {},
-        "build_info": {}
+        "build_info": {},
     }
 
     # Teste sistema de build
@@ -235,7 +247,7 @@ def generate_test_report():
     # Informações de build
     manifest_path = DIST_DIR / platform / "build_manifest.json"
     if manifest_path.exists():
-        with manifest_path.open('r', encoding='utf-8') as f:
+        with manifest_path.open("r", encoding="utf-8") as f:
             report["build_info"] = json.load(f)
 
     # Salvar relatório
@@ -243,7 +255,7 @@ def generate_test_report():
     reports_dir.mkdir(parents=True, exist_ok=True)
     report_file = reports_dir / f"test_report_{platform}_{int(time.time())}.json"
 
-    with report_file.open('w', encoding='utf-8') as f:
+    with report_file.open("w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
 
     log(f"Relatório salvo: {report_file}")
@@ -258,11 +270,12 @@ def generate_test_report():
     log(f"Falhou: {total_tests - passed_tests}")
 
     if passed_tests == total_tests:
-        log("🎉 TODOS OS TESTES PASSARAM!", "SUCCESS")
+        log("OK TODOS OS TESTES PASSARAM!", "SUCCESS")
         return True
     else:
-        log("❌ ALGUNS TESTES FALHARAM!", "ERROR")
+        log("ERR ALGUNS TESTES FALHARAM!", "ERROR")
         return False
+
 
 def main():
     """Executa todos os testes"""
@@ -274,6 +287,7 @@ def main():
 
     success = generate_test_report()
     sys.exit(0 if success else 1)
+
 
 if __name__ == "__main__":
     main()

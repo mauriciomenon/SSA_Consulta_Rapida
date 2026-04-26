@@ -4,6 +4,10 @@
 # Temporary test outputs (folder exists, contents ignored)
 /temp/*
 !/temp/.gitkeep
+/.beads/
+/.sisyphus/
+/config/streamlit_ui_state.json
+/.uv-matrix/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -55,9 +59,6 @@ build_env/
 *.msi
 
 # Icones gerados
-resources/app_icon.ico
-resources/app_icon.icns
-resources/app_icon.png
 
 # Installer logs
 pip-log.txt
@@ -125,7 +126,7 @@ ipython_config.py
 #   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
 #   This is especially recommended for binary packages to ensure reproducibility, and is more
 #   commonly ignored for libraries.
-uv.lock
+#   uv.lock is intentionally tracked here to keep release builds reproducible.
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
@@ -246,9 +247,16 @@ docs/~$*.xlsx
 
 # -- SSA local ignores --
 # SQLite + backups locais
-# data/ssas.db
+data/ssas.db
 data/ssas.db-journal
 data/ssas.db.*
+# Artefatos locais de Node (desversionados)
+node_modules/
+package.json
+bun.lock
+# Preferencia local da GUI principal (subir manualmente apenas quando combinado)
+config/gui_main_preferences.json
+# Preferencias locais da GUI
 data/historico_backups/
 data/historico_backups/**
 # Artefatos de recuperacao
@@ -271,6 +279,9 @@ logs/
 build/
 dist/
 *.spec
+!dev_env/build/*.sh
+!dev_env/build/*.bat
+!dev_env/build/*.bzl
 
 # Local databases and outputs
 *.db
@@ -322,6 +333,9 @@ exportacao/temp_*
 # Builds directory (keep empty folder with .gitkeep)
 builds/*
 !builds/.gitkeep
+dev_env/build/build/
+dev_env/build/build/**
+nuitka-crash-report.xml
 
 # Packaged distributions (keep empty folder with .gitkeep)
 dist_packages/*
@@ -339,7 +353,8 @@ launchers/*.log
 
 # === DADOS SENSIVEIS ===
 # Arquivos de entrada com dados reais da empresa
-# docs_entrada/*.xlsx
+docs_entrada/*.xlsx
+docs_entrada/*.xls
 docs_entrada/*.csv
 docs_entrada/*.json
 
@@ -348,8 +363,7 @@ docs_saida/all.*
 exportacao/
 
 # Temporary work files and control files
-temp/
-temp/**
+# repo-root temp/ is handled above to preserve /temp/.gitkeep
 data/ssas.db-shm
 data/ssas.db-wal
 # Local AI / TODO removed artifacts (keep only locally, never commit)
@@ -406,16 +420,29 @@ launchers/ESTRUTURA_*.md
 launchers/GESTAO_*.md
 launchers/GUIA_PRIVACIDADE*.md
 launchers/SISTEMA_*.md
-# AI/Copilot instructions (all)
-.github/instructions/
+# AI/Copilot instructions
+.github/instructions/*
+!.github/instructions/rules/
+!.github/instructions/rules/*.md
+opencode.json
+nul
 
 # Code quality tools (local cache and configs)
 .codacy/
+.sonar/
 .trunk/
 trunk.ps1
 mypy.ini
 pyrightconfig.json
 eslint.config.mjs
+
+# GUI backup snapshots and temporary variants
+gui/**/*.backup_*
+*.py.backup_*
+*.py.bak_*
+AGENTS.md.backup_*
+*.py.planv*
+*_bkp_*.py
 
 # VS Code backup local (contem configs pessoais do usuario)
 vscode_bkp/
@@ -448,3 +475,33 @@ profile.bkp
 .envrc.backup
 .envrc.multi
 .envrc.new
+
+# Local logs/transcripts (must never be committed)
+.specstory/
+source_ssaconsultarapida*.txt
+omp.cache
+.alma-snapshots
+
+.zed/
+
+# Local agent/tool artifacts
+.gitignore.bak.*
+.serena/
+config/cache/
+config/codex.sqlite3*
+config/hypercorn.toml
+config/secret_key
+config/gui_main_preferences.json
+.python-version
+.backups/
+config/*.lock
+*.bak.*
+config/*.bak*
+heatmap-last-year.png
+
+# Keep build orchestration scripts versioned.
+!dev_env/
+!dev_env/build/
+!dev_env/build/*.sh
+!dev_env/build/*.bat
+!dev_env/build/*.bzl

@@ -11,28 +11,37 @@ parseada do nome; caso não encontrada, usa mtime do arquivo).
 
 from __future__ import annotations
 
+import logging
 import os
 import re
-import logging
 from datetime import datetime
-from typing import Optional, Iterable, Tuple
+from typing import Iterable, Optional, Tuple
 
 # Arquivos protegidos: nunca devem participar de lógica de "arquivo mais recente"
 PROTECTED_FILENAMES = {
-    'readme.md',
-    'changelog_implementacoes.md',
-    'column_priority.json',
-    'display_mappings.json',
-    'column_mappings.json',
+    "readme.md",
+    "changelog_implementacoes.md",
+    "column_priority.json",
+    "display_mappings.json",
+    "column_mappings.json",
 }
 
 DATE_NAME_REGEXES = [
     # e.g.: 14-07-2025_0343PM
-    re.compile(r"(?P<d>\d{2})-(?P<m>\d{2})-(?P<y>\d{4})[_\- ](?P<h>\d{2})(?P<M>\d{2})(?P<ampm>AM|PM)", re.IGNORECASE),
+    re.compile(
+        r"(?P<d>\d{2})-(?P<m>\d{2})-(?P<y>\d{4})[_\- ](?P<h>\d{2})(?P<M>\d{2})(?P<ampm>AM|PM)",
+        re.IGNORECASE,
+    ),
     # e.g.: 14-07-2025 03:43 PM
-    re.compile(r"(?P<d>\d{2})-(?P<m>\d{2})-(?P<y>\d{4})[ _](?P<h>\d{1,2}):(?P<M>\d{2})[ _]?(?P<ampm>AM|PM)", re.IGNORECASE),
+    re.compile(
+        r"(?P<d>\d{2})-(?P<m>\d{2})-(?P<y>\d{4})[ _](?P<h>\d{1,2}):(?P<M>\d{2})[ _]?(?P<ampm>AM|PM)",
+        re.IGNORECASE,
+    ),
     # e.g.: 2025-07-14 15.43
-    re.compile(r"(?P<y>\d{4})[-_/](?P<m>\d{2})[-_/](?P<d>\d{2})[ T](?P<h>\d{1,2})[.:](?P<M>\d{2})", re.IGNORECASE),
+    re.compile(
+        r"(?P<y>\d{4})[-_/](?P<m>\d{2})[-_/](?P<d>\d{2})[ T](?P<h>\d{1,2})[.:](?P<M>\d{2})",
+        re.IGNORECASE,
+    ),
 ]
 
 
@@ -49,11 +58,11 @@ def parse_datetime_from_filename(filename: str) -> Optional[datetime]:
             continue
         gd = m.groupdict()
         try:
-            y = int(gd.get("y"))
-            mth = int(gd.get("m"))
-            d = int(gd.get("d"))
-            h = int(gd.get("h"))
-            M = int(gd.get("M"))
+            y = int(gd.get("y") or "0")
+            mth = int(gd.get("m") or "0")
+            d = int(gd.get("d") or "0")
+            h = int(gd.get("h") or "0")
+            M = int(gd.get("M") or "0")
             ampm = gd.get("ampm")
             if ampm:
                 ampm = ampm.upper()
@@ -111,7 +120,10 @@ def choose_latest(files: Iterable[str]) -> Optional[str]:
         if best is None or dt > best[0]:
             best = (dt, f)
     return best[1] if best else None
+
+
 logger = logging.getLogger(__name__)
+
 
 def extract_datetime_from_filename(filename: str) -> Optional[datetime]:
     """
@@ -133,7 +145,7 @@ def extract_datetime_from_filename(filename: str) -> Optional[datetime]:
 
     # Padrão regex para capturar dd-mm-YYYY_HHminminAM/PM
     # Exemplos: 15-07-2025_0143PM, 15-07-2025_1033AM
-    pattern = r'(\d{2})-(\d{2})-(\d{4})_(\d{2})(\d{2})(AM|PM)'
+    pattern = r"(\d{2})-(\d{2})-(\d{4})_(\d{2})(\d{2})(AM|PM)"
 
     match = re.search(pattern, base_name)
     if match:
@@ -148,9 +160,9 @@ def extract_datetime_from_filename(filename: str) -> Optional[datetime]:
             minute = int(minute)
 
             # Converte formato 12h para 24h
-            if ampm.upper() == 'PM' and hour != 12:
+            if ampm.upper() == "PM" and hour != 12:
                 hour += 12
-            elif ampm.upper() == 'AM' and hour == 12:
+            elif ampm.upper() == "AM" and hour == 12:
                 hour = 0
 
             # Cria o objeto datetime
@@ -164,6 +176,7 @@ def extract_datetime_from_filename(filename: str) -> Optional[datetime]:
     else:
         logger.warning(f"Formato de data não reconhecido no arquivo '{filename}'")
         return None
+
 
 def get_file_metadata(file_path: str) -> Tuple[str, Optional[str], str]:
     """
@@ -184,13 +197,15 @@ def get_file_metadata(file_path: str) -> Tuple[str, Optional[str], str]:
     # Data/hora atual da importação
     import_datetime_iso = datetime.now().isoformat()
 
-    logger.debug(f"Metadados do arquivo '{filename}': data_arquivo={file_datetime_iso}, data_importacao={import_datetime_iso}")
+    logger.debug(
+        f"Metadados do arquivo '{filename}': data_arquivo={file_datetime_iso}, data_importacao={import_datetime_iso}"
+    )
 
     return filename, file_datetime_iso, import_datetime_iso
 
+
 def should_update_ssa(
-    existing_file_date: Optional[str],
-    new_file_date: Optional[str]
+    existing_file_date: Optional[str], new_file_date: Optional[str]
 ) -> bool:
     """
     Determina se uma SSA deve ser atualizada baseado nas datas dos arquivos.
@@ -217,13 +232,16 @@ def should_update_ssa(
         new_dt = datetime.fromisoformat(new_file_date)
 
         should_update = new_dt > existing_dt
-        logger.debug(f"Comparação de datas: existente={existing_dt}, novo={new_dt}, atualizar={should_update}")
+        logger.debug(
+            f"Comparação de datas: existente={existing_dt}, novo={new_dt}, atualizar={should_update}"
+        )
         return should_update
 
     except ValueError as e:
         logger.warning(f"Erro ao comparar datas: {e}")
         # Em caso de erro, atualiza por segurança
         return True
+
 
 # Função para testar a extração de datas
 def test_date_extraction():
@@ -233,13 +251,14 @@ def test_date_extraction():
         "IEE3_Emissor__202401_20250715_Todas as SSAs - 15-07-2025_1033AM.xlsx",
         "SSAs Executadas_15-07-2025_0239PM.xlsx",
         "Consulta SSA - 14-07-2025_0343PM.xlsx",
-        "Pendentes de Execução_15-07-2025_0223PM.xlsx"
+        "Pendentes de Execução_15-07-2025_0223PM.xlsx",
     ]
 
     print("=== Teste de Extração de Datas ===")
     for filename in test_files:
         dt = extract_datetime_from_filename(filename)
         print(f"{filename:<60} -> {dt.isoformat() if dt else 'FALHA'}")
+
 
 if __name__ == "__main__":
     # Executa teste se chamado diretamente

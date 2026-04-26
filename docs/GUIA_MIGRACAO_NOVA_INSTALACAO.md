@@ -1,8 +1,9 @@
-# Guia Completo de Migracao - SSA Consulta Rapida v3.0.6
+# Guia Completo de Migracao - SSA Consulta Rapida v4.37
 
 **Data de Criacao:** 27 de Agosto de 2025  
-**Versao do Sistema:** v3.0.6 (Estavel)  
+**Versao do Sistema:** v4.37 (Baseline local)  
 **Tipo:** Migracao Completa para Nova Instalacao  
+**Sync:** 26/03/2026 07:35 -0300  
 
 ---
 
@@ -24,16 +25,18 @@
 
 ### **Sistema Operacional**
 - Windows 10/11 (testado)
-- Python 3.13+ (recomendado 3.13+)
+- Python 3.10+ (preferir 3.13+)
 - Git for Windows
 - PowerShell 5.1+ ou PowerShell Core
 
 ### **Ferramentas Necessarias**
 ```powershell
 # Verificar versoes instaladas
-python --version          # Deve ser 3.13+
+uv --version             # uv instalado e acessivel no PATH
+uv run --python 3.13 python --version   # Runtime preferencial
+uv run --python 3.12 python --version   # Fallback 1 se 3.13 nao existir
 git --version             # Qualquer versao recente
-pip --version             # Incluido com Python
+uv pip --version          # Gerenciado pelo uv
 ```
 
 ---
@@ -56,7 +59,7 @@ cd SSA_Consulta_Rapida
 ```powershell
 # Verificar se esta na branch correta
 git branch -v
-# Deve mostrar: * main [commit_hash] [ultima mensagem]
+# Deve mostrar branch valida do seu fluxo (ex.: main/dev/feature em andamento)
 
 # Verificar status
 git status
@@ -68,15 +71,25 @@ ls main.py, requirements.txt, README.md
 
 ### **Passo 3: Configurar Ambiente Virtual**
 ```powershell
-# Criar ambiente virtual
-python -m venv venv
+# Fluxo recomendado (uv-first)
+# OBS: usando uv run, nao e necessario ativar venv manualmente
+uv venv
+uv sync
 
-# Ativar ambiente (escolha um dos metodos)
+# Definir runtime com fallback explicito
+# Ordem recomendada: 3.13 -> 3.12 -> 3.11 -> 3.10
+$PY_RUNTIME = "3.13"
+uv run --python $PY_RUNTIME python --version
+
+# Opcional: fluxo manual sem uv (apenas fallback)
+python -m venv .venv
+
+# Ativar ambiente (apenas para fluxo manual fallback)
 # Metodo 1 - PowerShell
-.\venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 
 # Metodo 2 - CMD/Batch
-.\venv\Scripts\activate.bat
+.\.venv\Scripts\activate.bat
 
 # Metodo 3 - Usar script incluido
 .\activate_env.ps1
@@ -84,14 +97,15 @@ python -m venv venv
 
 ### **Passo 4: Instalar Dependencias**
 ```powershell
-# Atualizar pip
-python -m pip install --upgrade pip
+# Fluxo recomendado (uv-first)
+uv sync
 
-# Instalar dependencias do projeto
-pip install -r requirements.txt
+# Compatibilidade sem uv
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 
 # Verificar instalacao
-pip list
+python -m pip list
 ```
 
 ---
@@ -151,10 +165,10 @@ Get-ExecutionPolicy -List
 ### **Passo 3: Verificar Configuracao**
 ```powershell
 # Verificar se o ambiente esta ativo
-python -c "import sys; print('Ambiente ativo:' if 'venv' in sys.path[0] else 'Ambiente NAO ativo')"
+python -c "import sys; in_venv = sys.prefix != sys.base_prefix; print('Ambiente ativo:' if in_venv else 'Ambiente NAO ativo')"
 
 # Listar pacotes instalados
-pip list | findstr -i "pandas pyqt6 openpyxl"
+python -m pip list | findstr -i "pandas pyqt6 openpyxl"
 ```
 
 ---
@@ -163,7 +177,10 @@ pip list | findstr -i "pandas pyqt6 openpyxl"
 
 ### **Teste 1: Help do Sistema**
 ```powershell
-# Verificar help completo
+# Verificar help completo (uv-first)
+uv run --python $PY_RUNTIME main.py --help
+
+# Fallback manual sem uv
 python main.py --help
 
 # Deve exibir help detalhado com todas as opcoes
@@ -171,7 +188,20 @@ python main.py --help
 
 ### **Teste 2: Verificacao da Estrutura**
 ```powershell
-# Verificar modulos principais
+# Verificar modulos principais (uv-first)
+uv run --python $PY_RUNTIME python -c "
+import sys, os
+sys.path.insert(0, '.')
+try:
+    from core import app_logic
+    from armazenamento import database
+    from interface import cli
+    print('Todos os modulos carregados com sucesso')
+except ImportError as e:
+    print(f'Erro ao importar: {e}')
+"
+
+# Fallback manual sem uv
 python -c "
 import sys, os
 sys.path.insert(0, '.')
@@ -187,7 +217,10 @@ except ImportError as e:
 
 ### **Teste 3: Criacao do Banco**
 ```powershell
-# Criar estrutura do banco (sem dados)
+# Criar estrutura do banco (sem dados, uv-first)
+uv run --python $PY_RUNTIME main.py --reset-db
+
+# Fallback manual sem uv
 python main.py --reset-db
 
 # Verificar se o banco foi criado
@@ -215,15 +248,30 @@ ls docs_entrada
 - Multiplos arquivos
 - Diferentes estruturas de coluna
 
+**Fluxo seguro pela GUI (`Importar XLS/XLSX externo`):**
+- voce pode selecionar um ou mais `.xlsx` de qualquer pasta local
+- cada arquivo selecionado e copiado para `docs_entrada` quando ainda estiver fora dessa pasta
+- se o arquivo ja estiver em `docs_entrada`, ele e reaproveitado sem copia duplicada
+- a atualizacao no banco e aplicada somente para os arquivos explicitamente selecionados nessa acao
+
 ### **Passo 2: Importacao Inicial**
 ```powershell
-# Importacao padrao (primeira vez)
+# Importacao padrao (primeira vez, uv-first)
+uv run --python $PY_RUNTIME main.py
+
+# Fallback manual sem uv
 python main.py
 
-# Ou importacao otimizada (recomendado para arquivos grandes)
+# Ou importacao otimizada (recomendado para arquivos grandes, uv-first)
+uv run --python $PY_RUNTIME main.py --optimized
+
+# Fallback manual sem uv
 python main.py --optimized
 
-# Ou forcar reimportacao completa
+# Ou forcar reimportacao completa (uv-first)
+uv run --python $PY_RUNTIME main.py --force-rescan
+
+# Fallback manual sem uv
 python main.py --force-rescan
 ```
 
@@ -242,7 +290,10 @@ type data\file_cache.json
 
 ### **Teste 1: Interface CLI**
 ```powershell
-# Testar CLI interativo
+# Testar CLI interativo (uv-first)
+uv run --python $PY_RUNTIME main.py
+
+# Fallback manual sem uv
 python main.py
 
 # Comandos de teste na CLI:
@@ -253,7 +304,10 @@ python main.py
 
 ### **Teste 2: Interface Grafica**
 ```powershell
-# Testar GUI
+# Testar GUI (uv-first)
+uv run --python $PY_RUNTIME main.py --gui
+
+# Fallback manual sem uv
 python main.py --gui
 
 # Verificar funcionalidades:
@@ -264,14 +318,20 @@ python main.py --gui
 
 ### **Teste 3: Executar Testes Automatizados**
 ```powershell
-# Executar testes basicos
+# Executar testes basicos (uv-first)
+uv run --python $PY_RUNTIME -m pytest tests\test_imports.py -v
+
+# Fallback manual sem uv
 python -m pytest tests\test_imports.py -v
 
-# Executar teste de banco
-python tests\test_db_check.py
+# Executar teste de banco (uv-first)
+uv run --python $PY_RUNTIME -m pytest tests\test_database.py -q
+
+# Fallback manual sem uv
+python -m pytest tests\test_database.py -q
 
 # Executar teste de sistema completo
-python tests\teste_sistema_completo.py
+uv run --python $PY_RUNTIME python tests\teste_sistema_completo.py
 ```
 
 ---
@@ -281,8 +341,8 @@ python tests\teste_sistema_completo.py
 ### **Problema: Erro de Dependencias**
 ```powershell
 # Reinstalar dependencias
-pip uninstall -r requirements.txt -y
-pip install -r requirements.txt
+uv pip uninstall --python $PY_RUNTIME -r requirements.txt -y
+uv pip install --python $PY_RUNTIME -r requirements.txt
 ```
 
 ### **Problema: Erro de Permissao no PowerShell**
@@ -294,32 +354,32 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ### **Problema: Modulos Nao Encontrados**
 ```powershell
 # Verificar PYTHONPATH
-python -c "import sys; print('\n'.join(sys.path))"
+uv run --python $PY_RUNTIME python -c "import sys; print('\n'.join(sys.path))"
 
 # Executar do diretorio correto
 cd SSA_Consulta_Rapida
-python main.py
+uv run --python $PY_RUNTIME main.py
 ```
 
 ### **Problema: Banco Corrompido**
 ```powershell
 # Reset completo do banco
-python main.py --reset-db
+uv run --python $PY_RUNTIME main.py --reset-db
 
 # Limpar cache
 del data\file_cache.json
 
 # Reimportar dados
-python main.py --force-rescan
+uv run --python $PY_RUNTIME main.py --force-rescan
 ```
 
 ### **Problema: GUI Nao Abre**
 ```powershell
 # Verificar PyQt6
-pip install --upgrade PyQt6
+uv pip install --python $PY_RUNTIME --upgrade PyQt6
 
 # Testar importacao
-python -c "from PyQt6.QtWidgets import QApplication; print('PyQt6 OK')"
+uv run --python $PY_RUNTIME python -c "from PyQt6.QtWidgets import QApplication; print('PyQt6 OK')"
 ```
 
 ---
@@ -368,7 +428,7 @@ ls utils\                               # ← Utilitarios diversos
 # Sequencia completa de inicializacao
 cd C:\Users\[SEU_USUARIO]\git\SSA_Consulta_Rapida
 .\activate_env.ps1
-python main.py
+uv run --python $PY_RUNTIME main.py
 ```
 
 ### **Manutencao Semanal**
@@ -377,17 +437,17 @@ python main.py
 git pull
 
 # Limpar dados antigos
-python main.py --clean-data
+uv run --python $PY_RUNTIME main.py --clean-data
 
 # Teste rapido
-python main.py --help
+uv run --python $PY_RUNTIME main.py --help
 ```
 
 ### **Reimportacao Completa**
 ```powershell
 # Quando houver mudancas significativas nos dados
-python main.py --reset-db
-python main.py --optimized --force-rescan
+uv run --python $PY_RUNTIME main.py --reset-db
+uv run --python $PY_RUNTIME main.py --optimized --force-rescan
 ```
 
 ---
@@ -410,10 +470,10 @@ ls data\historico_backups\              # ← Backups disponiveis
 ### **Informacoes de Debug**
 ```powershell
 # Executar com log detalhado
-python main.py --log-level DEBUG
+uv run --python $PY_RUNTIME main.py --log-level DEBUG
 
 # Verificar configuracao do sistema
-python -c "
+uv run --python $PY_RUNTIME python -c "
 import sys, platform, sqlite3
 print(f'Python: {sys.version}')
 print(f'Platform: {platform.platform()}')
@@ -449,5 +509,9 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 
 ---
 
-*Ultima atualizacao: 27/08/2025 - v3.0.6*
+*Ultima atualizacao: 09/04/2026 - v4.37*
 *Para duvidas ou problemas, consulte o repositorio no GitHub*
+
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

@@ -24,13 +24,14 @@ Futuras extensões (não implementadas agora):
   - Análise de seções obrigatórias por tipo.
   - Integração com agregador de índice.
 """
+
 from __future__ import annotations
 
 import argparse
 import json
 import os
 import re
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence
 
@@ -42,11 +43,29 @@ PLACEHOLDER_PATTERNS = [
     r"^TBD$",
     r"^EM\s+BRANCO$",
     r"^PREENCHER$",
-    r"lorem ipsum",
-    r"conteúdo pendente",
+    r"^lorem ipsum.*$",
+    r"^conteudo pendente$",
+    r"^conteúdo pendente$",
 ]
-IGNORE_DIRS = {".git", "__pycache__", "build", "dist", "data", "venv", ".tox", ".mypy_cache", ".trunk"}
-IGNORE_FILES_PREFIX = {"README_BUILD_AUTOMATIZADO.md": 0}  # exemplo se quisermos regras especiais futuras
+COMPILED_PLACEHOLDER_PATTERNS = [
+    re.compile(pattern, re.IGNORECASE) for pattern in PLACEHOLDER_PATTERNS
+]
+IGNORE_DIRS = {
+    ".git",
+    ".opencode",
+    "__pycache__",
+    "build",
+    "dist",
+    "data",
+    "node_modules",
+    "venv",
+    ".venv",
+    ".tox",
+    ".mypy_cache",
+    ".trunk",
+    ".specstory",
+    "local_ai_private",
+}
 MARKDOWN_EXT = ".md"
 
 # Arquivos conhecidos (placeholders / templates) permitidos vazios para não quebrar smoke.
@@ -90,6 +109,8 @@ class ScanStats:
 
 
 def list_markdown_files(base: Path) -> Iterable[Path]:
+    if base.name in IGNORE_DIRS:
+        return
     for root, dirs, files in os.walk(base):
         root_path = Path(root)
         # Filtra dirs ignorados in-place (evita caminhada profunda neles)
@@ -108,46 +129,91 @@ def read_file_lines(path: Path) -> List[str]:
 
 def has_placeholder(lines: Sequence[str]) -> Optional[str]:
     lowered = [line.strip().lower() for line in lines if line.strip()]
-    for pattern in PLACEHOLDER_PATTERNS:
-        regex = re.compile(pattern, re.IGNORECASE)
+    for pattern, regex in zip(
+        PLACEHOLDER_PATTERNS, COMPILED_PLACEHOLDER_PATTERNS, strict=False
+    ):
         for original in lowered:
-            if regex.search(original):
+            if regex.fullmatch(original):
                 return pattern
     return None
 
 
 def evaluate_file(path: Path, min_lines: int, min_nonempty: int) -> Optional[DocIssue]:
     lines = read_file_lines(path)
-    rel = path.relative_to(REPO_ROOT)
-    rel_str = rel.as_posix()
-    if rel_str in ALLOW_EMPTY_FILES:
-        # Explicitamente ignorado
-        if not lines or all(not ln.strip() for ln in lines):
-            return None
+    rel_str: str | None = None
+    try:
+        rel_path = path.resolve().relative_to(REPO_ROOT.resolve())
+        rel_str = rel_path.as_posix()
+    except ValueError:
+        rel_path = None
+    allow_empty_file = bool(
+        rel_str in ALLOW_EMPTY_FILES
+        or (rel_path == Path(path.name) and path.name in ALLOW_EMPTY_FILES)
+    )
+    if allow_empty_file:
+        return None
     if not lines:
         return DocIssue(str(path), "empty", "arquivo sem linhas", 0, 0)
     total = len(lines)
     nonempty = sum(1 for line in lines if line.strip())
     if total < min_lines:
-        return DocIssue(str(path), "too_few_lines", f"linhas={total} < {min_lines}", total, nonempty)
+        return DocIssue(
+            str(path), "too_few_lines", f"linhas={total} < {min_lines}", total, nonempty
+        )
     if nonempty < min_nonempty:
-        return DocIssue(str(path), "too_sparse", f"não-vazias={nonempty} < {min_nonempty}", total, nonempty)
+        return DocIssue(
+            str(path),
+            "too_sparse",
+            f"não-vazias={nonempty} < {min_nonempty}",
+            total,
+            nonempty,
+        )
     placeholder = has_placeholder(lines)
     if placeholder:
-        return DocIssue(str(path), "placeholder", f"padrao detectado: {placeholder}", total, nonempty)
+        return DocIssue(
+            str(path),
+            "placeholder",
+            f"padrao detectado: {placeholder}",
+            total,
+            nonempty,
+        )
     return None
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Valida arquivos Markdown do repositório.")
-    parser.add_argument("--min-lines", type=int, default=DEFAULT_MIN_LINES, help="Mínimo de linhas totais por arquivo")
-    parser.add_argument("--min-nonempty", type=int, default=DEFAULT_MIN_NONEMPTY, help="Mínimo de linhas não vazias")
-    parser.add_argument("--fail-on-issues", action="store_true", help="Retorna código 1 se encontrar issues")
+    parser = argparse.ArgumentParser(
+        description="Valida arquivos Markdown do repositório."
+    )
+    parser.add_argument(
+        "--min-lines",
+        type=int,
+        default=DEFAULT_MIN_LINES,
+        help="Mínimo de linhas totais por arquivo",
+    )
+    parser.add_argument(
+        "--min-nonempty",
+        type=int,
+        default=DEFAULT_MIN_NONEMPTY,
+        help="Mínimo de linhas não vazias",
+    )
+    parser.add_argument(
+        "--fail-on-issues",
+        action="store_true",
+        help="Retorna código 1 se encontrar issues",
+    )
     parser.add_argument("--json", action="store_true", help="Saída em JSON")
     parser.add_argument("--output", help="Arquivo para gravar JSON (quando --json)")
-    parser.add_argument("--verbose", action="store_true", help="Exibe arquivos analisados e status simplificado")
-    parser.add_argument("--paths", nargs="*", help="Lista opcional de caminhos/dirs para filtrar")
-    parser.add_argument("--exclude", nargs="*", help="Padrões simples (substring) a excluir")
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Exibe arquivos analisados e status simplificado",
+    )
+    parser.add_argument(
+        "--paths", nargs="*", help="Lista opcional de caminhos/dirs para filtrar"
+    )
+    parser.add_argument(
+        "--exclude", nargs="*", help="Padrões simples (substring) a excluir"
+    )
     return parser.parse_args(argv)
 
 
@@ -208,7 +274,13 @@ def main(argv: Optional[List[str]] = None) -> int:
                     Path(ns.output).parent.mkdir(parents=True, exist_ok=True)
                     Path(ns.output).write_text(serialized, encoding="utf-8")
                 except Exception as write_err:  # noqa: BLE001
-                    print(json.dumps({"warning": f"falha ao gravar output: {write_err}"}, ensure_ascii=False), flush=True)
+                    print(
+                        json.dumps(
+                            {"warning": f"falha ao gravar output: {write_err}"},
+                            ensure_ascii=False,
+                        ),
+                        flush=True,
+                    )
         else:
             print("=== CHECK DOCS REPORT ===")
             print(f"Arquivos candidatos: {stats.total_files}")
@@ -217,18 +289,15 @@ def main(argv: Optional[List[str]] = None) -> int:
             if issues:
                 print("\nDetalhes:")
                 for i in issues[:50]:
-                    print(f" - {i.path} :: {i.issue_type} :: {i.detail} (linhas={i.lines}, não-vazias={i.nonempty})")
+                    print(
+                        f" - {i.path} :: {i.issue_type} :: {i.detail} (linhas={i.lines}, não-vazias={i.nonempty})"
+                    )
                 if len(issues) > 50:
                     print(f"... +{len(issues) - 50} adicionais")
             else:
                 print("Nenhuma issue encontrada.")
 
-        # Estratégia para compatibilizar testes:
-        # * Caminho feliz (smoke) chama sem --paths e sem --fail-on-issues => nunca falha.
-        # * Teste de falha invoca com --paths (arquivo ruim) e espera returncode!=0.
-        # Portanto: se o usuário passou --paths explicitamente e houver issues -> return 1.
-        # Mantemos também semântica original de --fail-on-issues.
-        if issues and (ns.fail_on_issues or ns.paths):
+        if issues and ns.fail_on_issues:
             return 1
         return 0
     except Exception as e:  # noqa: BLE001

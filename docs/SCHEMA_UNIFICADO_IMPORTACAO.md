@@ -109,3 +109,6 @@ Script futuro devera:
 
 ---
 Documento mantido; alteracoes futuras relevantes devem atualizar tambem o README (secao Schema Unificado & Migracao).
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

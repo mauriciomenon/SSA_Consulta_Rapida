@@ -1,8 +1,9 @@
-import time
 from pathlib import Path
+
 import pytest
-from utils.robust_importer import import_excel_robust
+
 from armazenamento.database import insert_dataframe_with_smart_upsert
+from utils.robust_importer import import_excel_robust
 
 
 @pytest.mark.stress
@@ -13,6 +14,7 @@ def test_stress_recreate_db_loop(tmp_path: Path):
     """
     # Pequena planilha sintética
     import pandas as pd
+
     rows = [
         {"Nº SSA": "202512345", "Data Cadastro": "2025-09-10", "Valor": 1},
         {"Numero SSA": "202512345", "data_cadastro": "2025-09-12", "Valor": 2},

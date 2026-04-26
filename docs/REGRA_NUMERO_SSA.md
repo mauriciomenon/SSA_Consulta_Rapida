@@ -3,42 +3,42 @@ Especificacao do Numero SSA
 Objetivo: padronizar validacao e formatacao do campo `numero_ssa` em todo o projeto.
 
 Regra canonica
-- Formato: 9 digitos, sendo `YYYY` + 5 digitos sequenciais.
+- Formato operacional atual: 9 digitos (`YYYY` + 5 digitos sequenciais) nas planilhas validadas do fluxo principal.
 - Ano permitido: 1980–2050 (inclusive).
-- Entradas com mais de 9 digitos: considerar apenas os 9 primeiros.
+- Entradas com letras: invalidas para persistencia/valor canonico.
+- Entradas com mais de 9 digitos nao devem ser tratadas como referencia de export atual sem evidencia de planilha real.
 - Entradas com menos de 9 digitos: invalidas para persistencia/valor numerico.
 
 APIs principais
-- Valor numerico (para persistencia e comparacoes):
-  - Funcao: `armazenamento.database._normalize_numero_ssa_value(value) -> int | None`
-  - Comportamento:
-    - Extrai apenas digitos do `value`.
-    - Se vazio → `None`.
-    - Se `len(digitos) > 9` → usa os 9 primeiros.
-    - Se `len(digitos) != 9` → `None`.
-    - Se ano (4 primeiros digitos) nao estiver entre 1980–2050 → `None`.
-    - Caso valido → retorna `int(YYYYNNNNN)`.
+- Persistencia e validacao do fluxo principal:
+  - usar a referencia operacional de 9 digitos nas planilhas atuais
+  - rejeitar letras e simbolos fora de `[0-9 -]`
+  - manter ano no intervalo 1980-2050
+  - tratar sobrecomprimento como caso legacy, nunca como evidencia de export atual
 
-- Formatacao para exibicao (string de 9 digitos):
-  - Funcao: `armazenamento.database.normalize_numero_ssa(value) -> str | None`
-  - Casos aceitos:
-    - `None`/vazio → `None`.
-    - Remove nao‐digitos e zeros a esquerda para decidir casos curtos.
-    - 1..5 digitos (apos remover zeros a esquerda) → prefixa "2025" e completa para 5: "2025" + zfill(5).
-    - 7 digitos iniciando com 21–25 → prefixa "20" (ex.: "2501234" → "202501234").
-    - Ainda <9 → zfill(9).
-    - >9 → usa os 9 primeiros.
-    - 9 → retorna como esta.
+- Fachadas publicas retrocompativeis:
+  - nomes antigos continuam existindo para evitar quebra de imports
+  - essas fachadas agora seguem o mesmo contrato canonico de 9 digitos
+  - entradas curtas nao devem virar SSA valida por prefixo de ano, zero-padding ou outras heuristicas de exibicao
+  - decisao atual do projeto: valor curto invalido deve ser descartado e logado
 
 Motivacao
 - Evitar SSAs invalidos (comprimento incorreto ou ano fora do intervalo).
-- Manter comportamento previsivel para exibicao de casos curtos (ex.: rascunhos, entradas parciais) sem comprometer a persistencia.
+- Evitar que exibicao ou retrocompatibilidade redefinam o contrato de persistencia.
+- Evitar aceitar silenciosamente entradas com letras ou sobrecomprimento.
+- Separar claramente referencia operacional atual de compatibilidades legacy do helper.
 
 Testes relacionados
 - `tests/test_ssa_normalization_db.py`
 - `tests/test_db_reset_and_upsert.py`
 
 Observacoes
-- A camada de persistencia deve sempre usar a funcao numerica `_normalize_numero_ssa_value` (retorna `None` quando invalido).
-- A camada de exibicao pode usar `normalize_numero_ssa` para representar entradas parciais de maneira consistente, sem comprometer a validacao.
+- A camada de persistencia deve sempre usar a forma textual canonica do `numero_ssa`.
+- O helper numerico interno `_normalize_numero_ssa_value` existe apenas para compatibilidade de callsites legados e nao define o contrato do banco.
+- Para DataFrame, o nome explicito do caminho canonico e `normalize_numero_ssa_dataframe_storage(...)`; `normalize_numero_ssa_dataframe(...)` permanece apenas como alias legado de nome para o mesmo comportamento textual.
+- Qualquer regra antiga de prefixar ano para valor curto deve ser tratada como historica e superada pela decisao atual: curto invalido descarta e loga.
+- A camada de exibicao deve mostrar o valor canonico somente quando ele for valido; entradas invalidas permanecem invalidas.
+
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
 

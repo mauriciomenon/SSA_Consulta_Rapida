@@ -3,17 +3,23 @@ Cache Manager - Sistema Unificado de Cache
 Elimina os 4 sistemas de cache independentes.
 """
 
-from typing import Any, Dict, Optional, List, Callable
 import hashlib
 import json
+import pickle
+import sys
+import threading
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
 import pandas as pd
-from datetime import datetime
+
+from utils.robust_logging import get_robust_logger
 
 
 class CacheManager:
     """
     Gerenciador unificado de cache para GUI e CLI.
-    Substitui múltiplos sistemas de cache por uma implementação centralizada.
+    Substitui multiplos sistemas de cache por uma implementacao centralizada.
     """
 
     def __init__(self, max_entries: int = 50):
@@ -21,77 +27,137 @@ class CacheManager:
         Inicializa o gerenciador de cache.
 
         Args:
-            max_entries: Número máximo de entradas no cache
+            max_entries: Numero maximo de entradas por categoria interna de cache
         """
         self.max_entries = max_entries
         self._caches: Dict[str, Dict[str, Any]] = {
-            'widths': {},           # Cache de larguras computadas
-            'dataframes': {},       # Cache de DataFrames formatados
-            'configurations': {},   # Cache de configurações
-            'column_sets': {},      # Cache de sets de colunas
-            'outputs': {},          # Cache de saídas formatadas (CLI)
+            "widths": {},  # Cache de larguras computadas
+            "dataframes": {},  # Cache de DataFrames formatados
+            "configurations": {},  # Cache de configuracoes
+            "column_sets": {},  # Cache de sets de colunas
+            "outputs": {},  # Cache de saidas formatadas (CLI)
         }
         self._access_times: Dict[str, Dict[str, datetime]] = {
             cache_name: {} for cache_name in self._caches.keys()
         }
-        self._stats = {
-            'hits': 0,
-            'misses': 0,
-            'evictions': 0
-        }
+        self._stats: Dict[str, int] = {"hits": 0, "misses": 0, "evictions": 0}
+        self._lock = threading.RLock()
 
-    def get_dataframe_hash(self, df: pd.DataFrame, extra_info: str = '') -> str:
+    def get_dataframe_hash(self, df: pd.DataFrame, extra_info: str = "") -> str:
         """
-        Gera hash único para um DataFrame.
+        Gera hash unico para um DataFrame.
 
         Args:
             df: DataFrame para gerar hash
-            extra_info: Informação adicional para incluir no hash
+            extra_info: Informacao adicional para incluir no hash
 
         Returns:
-            Hash string único
+            Hash string unico
         """
         # Cria identificador baseado na estrutura e tamanho do DataFrame
         df_info = {
-            'shape': df.shape,
-            'columns': list(df.columns),
-            'dtypes': str(df.dtypes.to_dict()),
-            'extra': extra_info
+            "shape": df.shape,
+            "columns": list(df.columns),
+            "dtypes": str(df.dtypes.to_dict()),
+            "extra": extra_info,
         }
 
-        # Inclui sample dos dados para detectar mudanças de conteúdo
+        # Hash full content to avoid stale cache hits on middle-row changes.
         if not df.empty:
-            # Usa primeiras e últimas linhas para detecção eficiente
-            sample_data = pd.concat([df.head(2), df.tail(2)]) if len(df) > 4 else df
-            df_info['sample'] = sample_data.to_string()
+            try:
+                row_hashes = pd.util.hash_pandas_object(df, index=True)
+            except (TypeError, ValueError) as hash_exc:
+                logger = get_robust_logger().get_logger(__name__, "core")
+                logger.debug(
+                    "Fallback de hash de DataFrame por objetos nao hashable: %s",
+                    hash_exc,
+                )
+                content_payload = {
+                    "index": list(df.index),
+                    "columns": list(df.columns),
+                    "data": df.to_numpy(dtype=object, copy=False).tolist(),
+                }
+                content_bytes = None
+                fallback_strategies = (
+                    (
+                        "pickle",
+                        lambda: pickle.dumps(
+                            content_payload, protocol=pickle.HIGHEST_PROTOCOL
+                        ),
+                    ),
+                    (
+                        "json",
+                        lambda: json.dumps(
+                            content_payload,
+                            sort_keys=True,
+                            default=repr,
+                            separators=(",", ":"),
+                        ).encode(),
+                    ),
+                    (
+                        "repr",
+                        lambda: repr(content_payload).encode(
+                            "utf-8", errors="backslashreplace"
+                        ),
+                    ),
+                )
+                for fallback_name, serialize_payload in fallback_strategies:
+                    try:
+                        content_bytes = serialize_payload()
+                        break
+                    except (
+                        pickle.PickleError,
+                        TypeError,
+                        ValueError,
+                        RecursionError,
+                        AttributeError,
+                        RuntimeError,
+                    ) as fallback_exc:
+                        logger.debug(
+                            "Falha no fallback %s de hash de DataFrame: %s",
+                            fallback_name,
+                            fallback_exc,
+                        )
 
-        # Gera hash MD5
+                if content_bytes is None:
+                    content_repr = (
+                        f"{df.shape}|{list(df.columns)}|{list(df.index)}"
+                    )
+                    content_bytes = content_repr.encode(
+                        "utf-8", errors="backslashreplace"
+                    )
+                df_info["content_hash"] = hashlib.md5(
+                    content_bytes,
+                    usedforsecurity=False,
+                ).hexdigest()
+            else:
+                df_info["content_hash"] = hashlib.md5(
+                    row_hashes.to_numpy(dtype="uint64").tobytes(),
+                    usedforsecurity=False,
+                ).hexdigest()
+
+        # MD5 is used only for deterministic cache keys, never for security.
         info_str = json.dumps(df_info, sort_keys=True, default=str)
-        return hashlib.md5(info_str.encode()).hexdigest()
+        return hashlib.md5(info_str.encode(), usedforsecurity=False).hexdigest()
 
     def get_cached_widths(
-        self,
-        df_hash: str,
-        table_width: int = None
+        self, df_hash: str, table_width: Optional[int] = None
     ) -> Optional[Dict[str, int]]:
         """
         Recupera larguras do cache.
 
         Args:
             df_hash: Hash do DataFrame
-            table_width: Largura da tabela (opcional para validação)
+            table_width: Largura da tabela (opcional para validacao)
 
         Returns:
-            Dict com larguras ou None se não encontrado
+            Dict com larguras ou None se nao encontrado
         """
-        cache_key = f"{df_hash}_{table_width}" if table_width else df_hash
-        return self._get_from_cache('widths', cache_key)
+        cache_key = f"{df_hash}_{table_width}" if table_width is not None else df_hash
+        return self._get_from_cache("widths", cache_key)
 
     def cache_widths(
-        self,
-        df_hash: str,
-        widths: Dict[str, int],
-        table_width: int = None
+        self, df_hash: str, widths: Dict[str, int], table_width: Optional[int] = None
     ) -> None:
         """
         Armazena larguras no cache.
@@ -101,8 +167,8 @@ class CacheManager:
             widths: Dict com larguras por coluna
             table_width: Largura da tabela (opcional)
         """
-        cache_key = f"{df_hash}_{table_width}" if table_width else df_hash
-        self._put_in_cache('widths', cache_key, widths.copy())
+        cache_key = f"{df_hash}_{table_width}" if table_width is not None else df_hash
+        self._put_in_cache("widths", cache_key, widths.copy())
 
     def get_cached_formatted_df(self, df_hash: str) -> Optional[pd.DataFrame]:
         """
@@ -112,9 +178,9 @@ class CacheManager:
             df_hash: Hash do DataFrame original
 
         Returns:
-            DataFrame formatado ou None se não encontrado
+            DataFrame formatado ou None se nao encontrado
         """
-        return self._get_from_cache('dataframes', df_hash)
+        return self._get_from_cache("dataframes", df_hash)
 
     def cache_formatted_df(self, df_hash: str, formatted_df: pd.DataFrame) -> None:
         """
@@ -124,31 +190,31 @@ class CacheManager:
             df_hash: Hash do DataFrame original
             formatted_df: DataFrame formatado
         """
-        # Cria cópia para evitar modificações externas
+        # Cria copia para evitar modificacoes externas
         df_copy = formatted_df.copy()
-        self._put_in_cache('dataframes', df_hash, df_copy)
+        self._put_in_cache("dataframes", df_hash, df_copy)
 
     def get_cached_config(self, config_name: str) -> Optional[Dict[str, Any]]:
         """
-        Recupera configuração do cache.
+        Recupera configuracao do cache.
 
         Args:
-            config_name: Nome da configuração
+            config_name: Nome da configuracao
 
         Returns:
-            Dict com configuração ou None se não encontrado
+            Dict com configuracao ou None se nao encontrado
         """
-        return self._get_from_cache('configurations', config_name)
+        return self._get_from_cache("configurations", config_name)
 
     def cache_config(self, config_name: str, config_data: Dict[str, Any]) -> None:
         """
-        Armazena configuração no cache.
+        Armazena configuracao no cache.
 
         Args:
-            config_name: Nome da configuração
-            config_data: Dados da configuração
+            config_name: Nome da configuracao
+            config_data: Dados da configuracao
         """
-        self._put_in_cache('configurations', config_name, config_data.copy())
+        self._put_in_cache("configurations", config_name, config_data.copy())
 
     def get_cached_column_set(self, set_name: str) -> Optional[List[str]]:
         """
@@ -158,9 +224,9 @@ class CacheManager:
             set_name: Nome do set
 
         Returns:
-            Lista de colunas ou None se não encontrado
+            Lista de colunas ou None se nao encontrado
         """
-        return self._get_from_cache('column_sets', set_name)
+        return self._get_from_cache("column_sets", set_name)
 
     def cache_column_set(self, set_name: str, columns: List[str]) -> None:
         """
@@ -170,60 +236,59 @@ class CacheManager:
             set_name: Nome do set
             columns: Lista de colunas
         """
-        self._put_in_cache('column_sets', set_name, columns.copy())
+        self._put_in_cache("column_sets", set_name, columns.copy())
 
     def get_cached_output(self, output_hash: str) -> Optional[str]:
         """
-        Recupera saída formatada do cache (para CLI).
+        Recupera saida formatada do cache (para CLI).
 
         Args:
-            output_hash: Hash da saída
+            output_hash: Hash da saida
 
         Returns:
-            String formatada ou None se não encontrado
+            String formatada ou None se nao encontrado
         """
-        return self._get_from_cache('outputs', output_hash)
+        return self._get_from_cache("outputs", output_hash)
 
     def cache_output(self, output_hash: str, output_text: str) -> None:
         """
-        Armazena saída formatada no cache (para CLI).
+        Armazena saida formatada no cache (para CLI).
 
         Args:
-            output_hash: Hash da saída
+            output_hash: Hash da saida
             output_text: Texto formatado
         """
-        self._put_in_cache('outputs', output_hash, output_text)
+        self._put_in_cache("outputs", output_hash, output_text)
 
     def _get_from_cache(self, cache_name: str, key: str) -> Optional[Any]:
-        """Recupera item do cache específico."""
-        if cache_name not in self._caches:
+        """Recupera item do cache especifico."""
+        with self._lock:
+            if cache_name not in self._caches:
+                return None
+
+            cache = self._caches[cache_name]
+            if key in cache:
+                self._access_times[cache_name][key] = datetime.now()
+                self._stats["hits"] += 1
+                return cache[key]
+
+            self._stats["misses"] += 1
             return None
 
-        cache = self._caches[cache_name]
-        if key in cache:
-            # Atualiza tempo de acesso
-            self._access_times[cache_name][key] = datetime.now()
-            self._stats['hits'] += 1
-            return cache[key]
-
-        self._stats['misses'] += 1
-        return None
-
     def _put_in_cache(self, cache_name: str, key: str, value: Any) -> None:
-        """Armazena item no cache específico."""
-        if cache_name not in self._caches:
-            return
+        """Armazena item no cache especifico."""
+        with self._lock:
+            if cache_name not in self._caches:
+                return
 
-        cache = self._caches[cache_name]
-        access_times = self._access_times[cache_name]
+            cache = self._caches[cache_name]
+            access_times = self._access_times[cache_name]
 
-        # Verifica se precisa fazer eviction
-        if len(cache) >= self.max_entries and key not in cache:
-            self._evict_oldest(cache_name)
+            if len(cache) >= self.max_entries and key not in cache:
+                self._evict_oldest(cache_name)
 
-        # Armazena o item
-        cache[key] = value
-        access_times[key] = datetime.now()
+            cache[key] = value
+            access_times[key] = datetime.now()
 
     def _evict_oldest(self, cache_name: str) -> None:
         """Remove o item mais antigo do cache."""
@@ -242,94 +307,136 @@ class CacheManager:
         if oldest_key in access_times:
             del access_times[oldest_key]
 
-        self._stats['evictions'] += 1
+        self._stats["evictions"] += 1
 
     def invalidate_cache(self, cache_name: Optional[str] = None) -> None:
         """
-        Invalida cache específico ou todos os caches.
+        Invalida cache especifico ou todos os caches.
 
         Args:
             cache_name: Nome do cache a invalidar (None para todos)
         """
-        if cache_name:
-            if cache_name in self._caches:
-                self._caches[cache_name].clear()
-                self._access_times[cache_name].clear()
-        else:
-            for cache in self._caches.values():
-                cache.clear()
-            for access_time in self._access_times.values():
-                access_time.clear()
+        with self._lock:
+            if cache_name:
+                if cache_name in self._caches:
+                    self._caches[cache_name].clear()
+                    self._access_times[cache_name].clear()
+            else:
+                for cache in self._caches.values():
+                    cache.clear()
+                for access_time in self._access_times.values():
+                    access_time.clear()
 
     def get_cache_stats(self) -> Dict[str, Any]:
-        """Retorna estatísticas detalhadas do cache."""
-        stats = self._stats.copy()
+        """Retorna estatisticas detalhadas do cache."""
+        with self._lock:
+            stats: Dict[str, Any] = {
+                "hits": self._stats["hits"],
+                "misses": self._stats["misses"],
+                "evictions": self._stats["evictions"],
+            }
+            cache_snapshots = {
+                cache_name: list(cache.items())
+                for cache_name, cache in self._caches.items()
+            }
+            total_entries = sum(len(cache) for cache in self._caches.values())
 
-        # Adiciona estatísticas por cache
         cache_details = {}
-        for cache_name, cache in self._caches.items():
+        max_stats_depth = 2
+        max_stats_items = 2048
+        for cache_name, items in cache_snapshots.items():
+            memory_estimate = 0
+            seen: set[int] = set()
+            visited_items = 0
+            for _cache_key, value in items:
+                stack = [(value, 0)]
+                while stack:
+                    if visited_items >= max_stats_items:
+                        break
+                    item, depth = stack.pop()
+                    item_id = id(item)
+                    if item_id in seen:
+                        continue
+                    seen.add(item_id)
+                    visited_items += 1
+
+                    if isinstance(item, pd.DataFrame):
+                        memory_estimate += int(item.memory_usage(deep=False).sum())
+                    else:
+                        memory_estimate += sys.getsizeof(item)
+                        if depth < max_stats_depth:
+                            if isinstance(item, dict):
+                                stack.extend((child, depth + 1) for child in item.keys())
+                                stack.extend(
+                                    (child, depth + 1) for child in item.values()
+                                )
+                            elif isinstance(item, (list, tuple, set, frozenset)):
+                                stack.extend((child, depth + 1) for child in item)
+
             cache_details[cache_name] = {
-                'entries': len(cache),
-                'keys': list(cache.keys())[:5],  # Primeiras 5 chaves
-                'memory_estimate': len(str(cache))
+                "entries": len(items),
+                "keys": [key for key, _value in items[:5]],
+                "memory_estimate": memory_estimate,
             }
 
-        stats['cache_details'] = cache_details
-        stats['total_entries'] = sum(len(cache) for cache in self._caches.values())
-
-        # Calcula hit rate
-        total_requests = stats['hits'] + stats['misses']
-        stats['hit_rate'] = stats['hits'] / total_requests if total_requests > 0 else 0
+        stats["cache_details"] = cache_details
+        stats["total_entries"] = total_entries
+        total_requests = stats["hits"] + stats["misses"]
+        stats["hit_rate"] = stats["hits"] / total_requests if total_requests > 0 else 0
 
         return stats
 
     def cleanup_old_entries(self, max_age_minutes: int = 60) -> int:
         """
-        Remove entradas antigas do cache.
+        Remove entradas sem acesso recente do cache.
+
+        O nome publico e mantido por compatibilidade; a limpeza usa tempo de
+        inatividade desde o ultimo acesso registrado.
 
         Args:
-            max_age_minutes: Idade máxima em minutos
+            max_age_minutes: Limite de inatividade em minutos
 
         Returns:
-            Número de entradas removidas
+            Numero de entradas removidas
         """
-        cutoff_time = datetime.now()
-        cutoff_time = cutoff_time.replace(minute=cutoff_time.minute - max_age_minutes)
+        cutoff_time = datetime.now() - timedelta(minutes=max_age_minutes)
 
         removed_count = 0
 
-        for cache_name in self._caches.keys():
-            cache = self._caches[cache_name]
-            access_times = self._access_times[cache_name]
+        with self._lock:
+            for cache_name in self._caches.keys():
+                cache = self._caches[cache_name]
+                access_times = self._access_times[cache_name]
 
-            old_keys = [
-                key for key, access_time in access_times.items()
-                if access_time < cutoff_time
-            ]
+                old_keys = [
+                    key
+                    for key, access_time in access_times.items()
+                    if access_time < cutoff_time
+                ]
 
-            for key in old_keys:
-                if key in cache:
-                    del cache[key]
-                if key in access_times:
-                    del access_times[key]
-                removed_count += 1
+                for key in old_keys:
+                    if key in cache:
+                        del cache[key]
+                    if key in access_times:
+                        del access_times[key]
+                    removed_count += 1
 
-        return removed_count
+            return removed_count
 
     def export_cache_for_debugging(self) -> Dict[str, Any]:
         """Exporta estado do cache para debugging."""
-        export_data = {
-            'timestamp': datetime.now().isoformat(),
-            'stats': self.get_cache_stats(),
-            'caches': {}
-        }
-
-        # Exporta apenas metadados dos caches (não os dados completos)
-        for cache_name, cache in self._caches.items():
-            export_data['caches'][cache_name] = {
-                'keys': list(cache.keys()),
-                'entry_count': len(cache),
-                'sample_key': list(cache.keys())[0] if cache else None
+        with self._lock:
+            export_data = {
+                "timestamp": datetime.now().isoformat(),
+                "stats": self.get_cache_stats(),
+                "caches": {},
             }
 
-        return export_data
+            for cache_name, cache in self._caches.items():
+                export_data["caches"][cache_name] = {
+                    "keys": list(cache.keys()),
+                    "entry_count": len(cache),
+                    "sample_key": list(cache.keys())[0] if cache else None,
+                }
+
+            return export_data

@@ -1,39 +1,44 @@
-"""Utilidades compartilhadas para normalização de numero_ssa.
+"""Utilidades compartilhadas para normalizacao de numero_ssa.
 
 Objetivos:
- - Centralizar a lógica (evitando divergências entre módulos de upsert, validação e integridade)
- - Reutilizar a função já consolidada em ``core.numero_ssa.normalize_strict``
- - Fornecer conversão para inteiro (quando aplicável) usada por caminhos legados
+ - Centralizar a logica e evitar drift entre runtime, upsert e validacao.
+ - Reutilizar a funcao canonica em ``shared.numero_ssa.normalize_strict``.
+ - Expor apenas o contrato textual canonico para a API publica.
 
-API Pública (estável):
+API publica (estavel):
  - normalize_numero_ssa_strict(value) -> str | None
- - normalize_numero_ssa_int(value) -> int | None  (apenas se exatamente 9 dígitos e ano válido)
- - batch_normalize_series(series) -> pd.Series (str|None)  preservando índices
+ - normalize_numero_ssa_storage(value) -> str | None
+ - normalize_numero_ssa(value) -> str | None
+ - normalize_numero_ssa_dataframe_storage(df) -> pd.DataFrame
+ - normalize_numero_ssa_dataframe(df) -> pd.DataFrame (alias legado de nome, ainda textual)
+ - batch_normalize_series(series) -> pd.Series (str|None)
 
-Motivação:
- Os arquivos gigantes introduzidos anteriormente duplicaram esta lógica várias vezes.
- Este módulo substitui essas cópias. Durante a refatoração, chamadas internas serão
- redirecionadas para cá.
+Compatibilidade interna:
+ - existe um helper numerico legado apenas para callsites antigos internos.
+ - ele nao faz parte do contrato publico nem do write path do banco.
+ - valor curto invalido deve ser descartado e logado, sem prefixo de ano.
 """
+
 from __future__ import annotations
 
-from typing import Iterable
+import logging
 import re
-import pandas as pd  # type: ignore[import-not-found]
+from typing import Iterable
 
-from shared.numero_ssa import normalize_strict as _strict  # fonte unica de verdade
-from shared.numero_ssa import normalize_numero_ssa
+import pandas as pd
+
+from shared.numero_ssa import normalize_strict as _strict
 
 NUMERO_SSA_LEN = 9
-NUMERO_SSA_ANO_MIN = 1980
-NUMERO_SSA_ANO_MAX = 2050
+logger = logging.getLogger(__name__)
 
 __all__ = [
-    # núcleo strict
+    # nucleo strict
     "normalize_numero_ssa_strict",
-    # nomes legados expostos (valor inteiro e formato display)
-    "_normalize_numero_ssa_value",
+    "normalize_numero_ssa_storage",
+    # nomes publicos de compatibilidade
     "normalize_numero_ssa",
+    "normalize_numero_ssa_dataframe_storage",
     "normalize_numero_ssa_dataframe",
     # util de lote
     "batch_normalize_series",
@@ -41,43 +46,39 @@ __all__ = [
 
 
 def normalize_numero_ssa_strict(value) -> str | None:
-    """Wrapper explícito para clareza sem expor ``_strict`` direto fora do módulo.
+    """Wrapper explicito para clareza sem expor ``_strict`` direto fora do modulo.
 
-    Mantém compatibilidade sem duplicar implementação.
+    Mantem compatibilidade sem duplicar implementacao.
     """
     return _strict(value)
 
 
-def _normalize_numero_ssa_value(value) -> int | None:
-    """Versão numérica (legado) com regra de corte para >9 dígitos.
-
-    Comportamento exigido pelos testes legados:
-      * Remove não dígitos.
-      * Se tiver mais que 9 dígitos, usa apenas os primeiros 9.
-      * Exige exatamente 9 dígitos após o eventual corte.
-      * Ano deve estar dentro do intervalo permitido.
-    (Regras adicionais de rejeição mais complexas ficam a cargo da versão strict
-     quando chamada diretamente nos testes específicos.)
-    """
+def _normalize_numero_ssa_int_legacy(value) -> int | None:
+    """Internal legacy helper for old numeric-only callsites."""
     if value is None:
         return None
-    try:
-        digits = re.sub(r"\D", "", str(value))
-    except Exception:  # pragma: no cover
-        return None
-    if not digits:
-        return None
-    if len(digits) > NUMERO_SSA_LEN:
-        digits = digits[:NUMERO_SSA_LEN]
-    if len(digits) != NUMERO_SSA_LEN:
+    strict_value = normalize_numero_ssa_strict(value)
+    if strict_value is None:
         return None
     try:
-        ano = int(digits[:4])
-        if not (NUMERO_SSA_ANO_MIN <= ano <= NUMERO_SSA_ANO_MAX):
-            return None
-        return int(digits)
-    except Exception:  # pragma: no cover
+        return int(strict_value)
+    except (TypeError, ValueError):  # pragma: no cover
         return None
+
+
+def normalize_numero_ssa_int_legacy_bridge(value) -> int | None:
+    """Legacy bridge for internal callsites that still expect numeric output."""
+    return _normalize_numero_ssa_int_legacy(value)
+
+
+def normalize_numero_ssa_storage(value) -> str | None:
+    """Return canonical storage form for numero_ssa as text."""
+    return normalize_numero_ssa_strict(value)
+
+
+def normalize_numero_ssa(value) -> str | None:
+    """Compat wrapper alinhado ao mesmo contrato canonico de storage."""
+    return normalize_numero_ssa_strict(value)
 
 
 def batch_normalize_series(series: pd.Series) -> pd.Series:
@@ -99,15 +100,22 @@ def extract_candidate_digits(value) -> str:
     return re.sub(r"\D", "", str(value))
 
 
-def bulk_int_or_none(values: Iterable) -> list[int | None]:  # pragma: no cover (usado esporadicamente)
-    return [_normalize_numero_ssa_value(v) for v in values]
+def bulk_int_or_none(
+    values: Iterable,
+) -> list[int | None]:  # pragma: no cover (usado esporadicamente)
+    return [_normalize_numero_ssa_int_legacy(v) for v in values]
+
+
+def normalize_numero_ssa_dataframe_storage(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalize numero_ssa column to canonical text storage representation."""
+    if "numero_ssa" not in df.columns:
+        return df
+    out = df.copy()
+    mapped = out["numero_ssa"].map(normalize_numero_ssa_storage)
+    out["numero_ssa"] = mapped.astype("object").where(mapped.notna(), None)
+    return out
 
 
 def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    if 'numero_ssa' not in df.columns:
-        return df
-    out = df.copy()
-    out['numero_ssa'] = pd.Series([
-        _normalize_numero_ssa_value(v) for v in out['numero_ssa']
-    ], dtype='object')
-    return out
+    """Legacy name alias for textual storage normalization of numero_ssa."""
+    return normalize_numero_ssa_dataframe_storage(df)

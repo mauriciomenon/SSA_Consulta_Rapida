@@ -41,7 +41,7 @@ pyoxidizer build --release
 
 Resultado em: `build/x86_64-pc-windows-msvc/release/install/`
 
-Veja: [launchers/BUILD_PYOXIDIZER.md](../launchers/BUILD_PYOXIDIZER.md)
+Veja: [BUILD_PYOXIDIZER.md](BUILD_PYOXIDIZER.md)
 
 ### 3. Lazy Imports (Nao Implementado)
 
@@ -80,7 +80,7 @@ pyoxidizer build --release
 - Pastas editaveis separadas
 - Tamanho: ~150-200MB
 
-Veja: [launchers/BUILD_PYOXIDIZER.md](../launchers/BUILD_PYOXIDIZER.md)
+Veja: [BUILD_PYOXIDIZER.md](BUILD_PYOXIDIZER.md)
 
 ### Para Desenvolvimento: Python Direto
 
@@ -125,5 +125,8 @@ Total: 6154.86ms (6.15s)
 
 - Primeira execucao sempre sera lenta (imports iniciais)
 - Bytecode cache (.pyc) ja ajuda automaticamente
-- PyInstaller e a melhor opcao para uso diario
+- PyInstaller pode ser usado como alternativa de compatibilidade
 - Executavel gerado: ~100-150MB
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

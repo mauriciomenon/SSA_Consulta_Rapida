@@ -1,62 +1,112 @@
 # Documentacao SSA Consulta Rapida
 
-## Estrutura da Documentacao
+## Baseline ativo
 
-### Documentos Principais
-- `RELATORIO_COMPLETO.md` - Relatorio tecnico abrangente
-- `ESTRUTURA_PROJETO.md` - Arquitetura e organizacao
-- `REGRAS_DE_OURO.md` - Diretrizes criticas de desenvolvimento
-- `ONBOARDING.md` - Guia para novos desenvolvedores
+- Versao de referencia: `4.37`.
+- Esta pagina e a entrada curta da pasta `docs/`.
+- Navegacao oficial: `docs/INDEX.md`.
+- Current truth sincronizado com commits anteriores desta frente:
+  - `tests/test_gui_filter_logic.py` deixou de depender de globais compartilhados entre testes para aposentadoria/limpeza de workers
+  - o harness agora tira snapshot e restaura o estado global de lifecycle em `setup_method`/`teardown_method`
+  - a pendencia correspondente saiu do backlog ativo como item de correcao
+  - a auditoria tecnica grande do repo foi publicada em `docs_saida/ULTRA_AUDITORIA_TECNICA_REPO_20260330.md`
+  - `filter_dataframe()` voltou a aceitar `search_columns` numericas/datetime sem falso vazio
+  - a busca geral da GUI agora tem contrato proprio de colunas em `docs/GUI_GENERAL_SEARCH_COLUMN_CONTRACT.md`
+  - a decisao de colunas da busca geral deixou de ficar escondida no default do core para o fluxo da GUI
+  - a frente de blindagem de contratos de estado da GUI foi consolidada em `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
+  - reorder e sort de coluna agora preservam o painel `Detalhes da SSA Selecionada`
+  - resize do header agora persiste largura pela coluna correta mesmo com reorder
+  - reorder em schema parcial deixou de truncar colunas visiveis ausentes do schema atual
+  - o contrato de derivadas ficou travado por regressao de navegacao e retorno a origem
+  - `setor_executor` passou a compartilhar estado aplicado entre filtro rapido e filtro avancado
+  - `solicitante` no painel avancado agora reconhece alias `responsavel_solicitante`
+  - o prefixo de area/setor de responsaveis ficou estavel contra subconjuntos filtrados
+  - referencias de implementacao desta frente:
+    - `bf57520d`
+    - `38cb9cc5`
+    - `048700c4`
+    - `5e581d6e`
+    - `c45d9e42`
+    - `3bc0d36f`
+    - `21135ccf`
+  - recuperacao forense da sessao em `2026-03-31` confirmou que o ultimo commit realmente aterrado foi `7913c712` (`DOC_SYNC: align live continuity docs`)
+  - nesta retomada nao havia shell/agent ativo nem patch de runtime pendente; `HEAD...origin/dev = 00`
+  - existe residuo antigo `.git\REBASE_HEAD` datado de `2025-11-26`, sem `rebase-apply`/`rebase-merge`; tratar como hygiene de Git fora de escopo, nao como operacao viva desta frente
 
-### Guias de Uso
-- `GUIA_MIGRACAO_NOVA_INSTALACAO.md` - Configuracao inicial
-- `GUIA_MODO_OPTIMIZED.md` - Funcionalidades otimizadas
-- `COMANDOS_RAPIDOS.md` - Referencia rapida
-- `LARGURAS_GUI.md` - Sistema de larguras da interface
+## Regras de interpretacao
 
-### Planejamento e Historico
-- `CHANGELOG_IMPLEMENTACOES.md` - Historico de mudancas
-- `RELATORIO_IMPLEMENTACOES.md` - Implementacoes realizadas
-- `RELATORIO_MELHORIAS.md` - Melhorias aplicadas
-- `PROBLEMAS_CONHECIDOS.md` - Issues conhecidos e solucoes
+1. Em caso de conflito, prevalece:
+   - `AGENTS.md` (raiz)
+   - `docs/POLICY_BASELINE_V1_1_FROZEN.md`
+   - topo dos docs de controle (`RECOVERY_BACKLOG`, `NEXT_CHAT_MIGRATION`, `AGENTS_HANDOFF_NEXT_CYCLE`)
+2. Conteudo em `docs/archive/` e historico.
+3. Nao usar snapshot antigo como fonte de verdade para operacao atual.
 
-### Checklists e Pendencias
-- `CHECKLIST_PENDENCIAS_v3.0.7.md` - Pendencias v3.0.7
-- `CHECKLIST_PENDENCIAS_v3.10.md` - Pendencias v3.10
-- `CHECKLIST_PENDENCIAS_FUTURAS.md` - Roadmap futuro
+## Leitura rapida por objetivo
 
-### Configuracao e Build
-- `BUILD_SYSTEM.md` - Sistema de build
-- `THEMING_AND_PACKAGING_PLAN.md` - Temas e empacotamento
-- `CONFIGURATION_FIXES_2025-09-06.md` - Correcoes de configuracao
+### Operar e manter
 
-## Organizacao por Versao
+- `docs/COMANDOS_RAPIDOS.md`
+- `docs/TROUBLESHOOTING.md`
+- `docs/TROUBLESHOOTING_IMPORTACAO.md`
+- `docs/DERIVADAS_SYNC_RUNBOOK.md`
 
-### v3.0.x (Estavel)
-- Funcionalidades core estabelecidas
-- CLI e GUI com paridade funcional
-- Database SQLite otimizado
+### Entender importacao e schema
 
-### v3.10.x (Atual)
-- Sistema de build multiplataforma
-- Automacao completa
-- Documentacao organizada
+- `docs/ARQUITETURA_IMPORTACAO.md`
+- `docs/SCHEMA_UNIFICADO_IMPORTACAO.md`
+- `docs/IMPORTACAO_ROBUSTA.md`
+- `docs/indicios_importacao.md`
 
-### v3.11+ (Futuro)
-- Conforme `PLANO_ACAO_v3.11.md`
-- Melhorias baseadas em feedback
-- Novas funcionalidades
+### GUI e comportamento de filtros
 
-## Como Navegar
+- `docs/GUI_PYQT6_REGRAS_GERAIS.md`
+- `docs/GUI_GENERAL_SEARCH_COLUMN_CONTRACT.md`
+- `docs/GUI_STATE_CONTRACT_POSTMORTEM_20260409.md`
+- `docs/FILTER_TAB_OPTIMIZATIONS.md`
+- `docs/GUI_ASYNC_LOADING_GUARDRAILS.md`
+- `docs/WORKERS_API_DOCUMENTATION.md`
+- `README.md` (topo vivo do sprint atual)
 
-1. **Novos desenvolvedores**: Comece com `ONBOARDING.md`
-2. **Configuracao**: Veja `GUIA_MIGRACAO_NOVA_INSTALACAO.md`
-3. **Problemas**: Consulte `PROBLEMAS_CONHECIDOS.md`
-4. **Desenvolvimento**: Leia `REGRAS_DE_OURO.md`
+### Build e distribuicao
 
-## Arquivos de Saida
+- `docs/BUILD_SYSTEM.md`
+- `docs/BUILD_MULTIPLATFORM.md`
+- `docs/GUIA_DISTRIBUICAO.md`
+- `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+- `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
 
-Relatorios e resultados ficam em `../docs_saida/`
-- Logs de execucao
-- Relatorios de testes
-- Analises especificas
+## Controle de continuidade
+
+- `AGENTS.md`
+- `docs/RECOVERY_BACKLOG.md`
+- `docs/NEXT_CHAT_MIGRATION.md`
+- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- `docs/HISTORICO_RELEASES.md`
+- `docs/NUNCA_CONFIE_IA.md`
+- `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
+
+## Primeira leitura obrigatoria no proximo chat
+
+1. `AGENTS.md`
+2. `docs/NEXT_CHAT_MIGRATION.md`
+3. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+4. `docs/RECOVERY_BACKLOG.md`
+5. `docs/NUNCA_CONFIE_IA.md`
+
+## Passo 0 obrigatorio antes de novo patch
+
+1. ler `docs/RECOVERY_BACKLOG.md` e `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` pelo topo
+2. revisar se existe slice local aberto antes de criar frente nova
+3. usar `docs/NUNCA_CONFIE_IA.md` como checklist antes de tocar em fluxos criticos de dados
+4. referencias:
+   - `.github/instructions/kluster-code-verify.instructions.md`
+   - `docs/NUNCA_CONFIE_IA.md`
+
+## Tooling padrao
+
+- Runtime principal: `uv run --python 3.13 ...`
+- Fallback: `3.12 -> 3.11 -> 3.10`
+- Compatibilidade sem uv: `requirements*.txt`
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

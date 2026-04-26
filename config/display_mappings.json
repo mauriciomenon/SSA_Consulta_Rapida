@@ -70,5 +70,6 @@
   "situacao_relacionada_1": "Situação Relacionada",
   "situacao_relacionada_2": "Situação Relacionada 2",
   "relacao": "Relação",
-  "arquivo_origem": "Arquivo Origem"
+  "arquivo_origem": "Arquivo Origem",
+  "data_planilha": "Data Planilha (ISO)"
 }

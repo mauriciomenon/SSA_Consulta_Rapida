@@ -5,7 +5,7 @@ Define paletas de cores e roles para multiplos temas visuais, incluindo
 temas claros, escuros e populares como Dracula, Gruvbox, Tokyo Night, etc.
 """
 
-from PyQt6.QtGui import QPalette, QColor
+from PyQt6.QtGui import QColor, QPalette
 
 # Definicao de roles (papeis) de cores para cada tema
 THEME_ROLES: dict[str, dict[str, str]] = {
@@ -59,7 +59,7 @@ THEME_ROLES: dict[str, dict[str, str]] = {
         "tag_hover": "#f0f7ff",
         "tag_pressed": "#d9ecff",
     },
-    "claro": {
+    "classico": {
         "accent": "#3584e4",
         "accent_soft": "#5a96e9",
         "label_color": "#2e3436",
@@ -321,6 +321,14 @@ THEME_ROLES_DEFAULT = {
     "input_border": "#555555",
     "input_border_focus": "#4a90e2",
     "input_placeholder": "#aaaaaa",
+    "popup_bg": "#2a2a2a",
+    "popup_text": "#e0e0e0",
+    "popup_border": "#555555",
+    "popup_header_text": "#e0e0e0",
+    "checkbox_border": "#6b6b6b",
+    "checkbox_bg": "#2a2a2a",
+    "checkbox_checked_bg": "#4a90e2",
+    "checkbox_checked_fg": "#ffffff",
     "tag_normal_bg": "transparent",
     "tag_border": "#6b6b6b",
     "tag_hover": "#2a2a2a",
@@ -344,6 +352,44 @@ def get_theme_roles(name: str) -> dict[str, str]:
     specific = THEME_ROLES.get(normalized)
     if specific:
         roles.update(specific)
+    # Keep popup/checkbox colors coherent with the active theme.
+    # Avoid a fixed dark popup fallback when the selected theme is light.
+    if not specific or "popup_bg" not in specific:
+        roles["popup_bg"] = (
+            roles.get("input_bg") or roles.get("panel_bg") or roles["popup_bg"]
+        )
+    if not specific or "popup_text" not in specific:
+        roles["popup_text"] = (
+            roles.get("input_text") or roles.get("panel_text") or roles["popup_text"]
+        )
+    if not specific or "popup_border" not in specific:
+        roles["popup_border"] = (
+            roles.get("input_border")
+            or roles.get("panel_border")
+            or roles["popup_border"]
+        )
+    if not specific or "popup_header_text" not in specific:
+        roles["popup_header_text"] = (
+            roles.get("popup_text")
+            or roles.get("panel_text")
+            or roles["popup_header_text"]
+        )
+    if not specific or "checkbox_border" not in specific:
+        roles["checkbox_border"] = (
+            roles.get("input_border")
+            or roles.get("panel_border")
+            or roles["checkbox_border"]
+        )
+    if not specific or "checkbox_bg" not in specific:
+        roles["checkbox_bg"] = (
+            roles.get("popup_bg") or roles.get("input_bg") or roles["checkbox_bg"]
+        )
+    if not specific or "checkbox_checked_bg" not in specific:
+        roles["checkbox_checked_bg"] = (
+            roles.get("accent") or roles["checkbox_checked_bg"]
+        )
+    if not specific or "checkbox_checked_fg" not in specific:
+        roles["checkbox_checked_fg"] = "#ffffff"
     return roles
 
 
@@ -358,7 +404,7 @@ def get_palette(name: str) -> QPalette:
         QPalette configurada com as cores do tema selecionado.
         Usa tema 'dark' como fallback se o tema nao for encontrado.
     """
-    key = (name or "dark").lower()
+    key = normalize_theme(name)
     pal = QPalette()
 
     if key in {"grayscale", "escala de cinza", "escala_de_cinza"}:
@@ -395,7 +441,7 @@ def get_palette(name: str) -> QPalette:
         pal.setColor(QPalette.ColorRole.PlaceholderText, QColor("#5d6f89"))
         return pal
 
-    if key in {"claro", "gnome", "adwaita"}:
+    if key in {"classico"}:
         pal.setColor(QPalette.ColorRole.Window, QColor("#f7f6f5"))
         pal.setColor(QPalette.ColorRole.Base, QColor("#ffffff"))
         pal.setColor(QPalette.ColorRole.AlternateBase, QColor("#f0efed"))
@@ -591,8 +637,8 @@ def normalize_theme(name: str) -> str:
         return "grayscale"
     if name in ("windows7", "win7", "windows 7"):
         return "windows7"
-    if name in ("claro", "gnome", "adwaita"):
-        return "claro"
+    if name in ("classico", "claro", "gnome", "adwaita"):
+        return "classico"
     if name in ("gruvbox", "vim", "vim-dark", "vim dark", "vim hard"):
         return "gruvbox"
     if name in ("dracula",):
@@ -612,14 +658,3 @@ def normalize_theme(name: str) -> str:
     if name in ("nord",):
         return "nord"
     return "dark"
-
-
-
-
-
-
-
-
-
-
-

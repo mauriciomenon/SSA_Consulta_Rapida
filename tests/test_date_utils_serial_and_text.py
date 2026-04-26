@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import pytest
 from core.date_utils import parse_any_date
+from shared.date_utils import format_datetime_series_for_storage
 
 @pytest.mark.parametrize(
     "value,expect_prefix",
@@ -26,3 +27,22 @@ def test_parse_any_date(value, expect_prefix):
 def test_parse_any_date_bad(bad):
     out = parse_any_date(bad)
     assert out is None
+
+
+def test_format_datetime_series_for_storage_handles_object_parse(monkeypatch):
+    series = pytest.importorskip("pandas").Series(["bad-date"])
+
+    def _return_object_series(value):
+        return pytest.importorskip("pandas").Series(
+            ["not-a-date"] * len(value),
+            index=value.index,
+        )
+
+    monkeypatch.setattr(
+        "shared.date_utils.parse_datetime_series_mixed",
+        _return_object_series,
+    )
+
+    formatted = format_datetime_series_for_storage(series)
+
+    assert formatted.tolist() == [None]

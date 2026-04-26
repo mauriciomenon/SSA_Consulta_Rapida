@@ -19,3 +19,10 @@ def is_valid_identifier(name: str | bytes | None) -> bool:
     if not isinstance(name, str):
         return False
     return bool(_IDENTIFIER_RE.fullmatch(name))
+
+
+def quote_identifier(name: str | bytes | None) -> str:
+    """Return a double-quoted SQL identifier after strict validation."""
+    if not isinstance(name, str) or not is_valid_identifier(name):
+        raise ValueError(f"Invalid SQL identifier: {name}")
+    return f'"{name}"'

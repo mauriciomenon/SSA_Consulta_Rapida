@@ -28,6 +28,15 @@ O arquivo `tests/conftest.py` forca `QT_QPA_PLATFORM=offscreen` para evitar aber
 QT_QPA_PLATFORM=offscreen ./scripts/run_tests.sh full
 ```
 
+### Teste grafico automatico dos filtros GUI
+
+Para validar cliques reais da GUI, resumo visual de filtros, chips do resumo e
+indicadores de filtros por coluna em modo automatico/headless:
+
+```
+QT_QPA_PLATFORM=offscreen SSA_SYNC_FILTER=1 uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "graphical or filters_summary or column_filter_buttons_flow or gui_smoke or hard_reset_filters_state"
+```
+
 ## 4. Diagnostico Rapido
 | Situacao | Acao |
 |----------|------|
@@ -79,3 +88,5 @@ pip install -r requirements.txt
 
 ---
 Documento gerado para padronizar execucoes consistentes e reduzir atrito em diagnosticos.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
