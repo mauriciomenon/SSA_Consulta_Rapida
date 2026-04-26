@@ -3,18 +3,30 @@
 Teste rápido dos executáveis existentes
 """
 
-import os
 import subprocess
 import time
-from pathlib import Path
 
 from version_info import REPO_ROOT, get_current_version
 
+from utils.robust_logging import get_robust_logger
+
 APP_VERSION = get_current_version()
 DIST_BASE = REPO_ROOT / "launchers" / "dist"
+logger = get_robust_logger().get_logger(__name__, "maintenance")
+
 
 def log(msg, level="INFO"):
-    print(f"[{time.strftime('%H:%M:%S')}] {level}: {msg}")
+    text = f"[{time.strftime('%H:%M:%S')}] {msg}"
+    level_norm = str(level or "INFO").upper()
+    if level_norm in {"ERR", "ERROR"}:
+        logger.error(text)
+    elif level_norm in {"WARN", "WARNING"}:
+        logger.warning(text)
+    elif level_norm in {"DEBUG"}:
+        logger.debug(text)
+    else:
+        logger.info(text)
+
 
 def test_existing_executables():
     """Testa executáveis já construídos"""
@@ -29,19 +41,20 @@ def test_existing_executables():
     log(f"Verificando CLI: {cli_path}")
 
     if cli_path.exists():
-        log("✅ CLI encontrado")
+        log("OK CLI encontrado")
         # Testar execução
         try:
-            result = subprocess.run([str(cli_path), "--help"],
-                                  capture_output=True, text=True, timeout=5)
+            result = subprocess.run(
+                [str(cli_path), "--help"], capture_output=True, text=True, timeout=5
+            )
             if result.returncode == 0:
-                log("✅ CLI executa corretamente")
+                log("OK CLI executa corretamente")
             else:
-                log(f"❌ CLI erro: {result.stderr}")
+                log(f"ERR CLI erro: {result.stderr}")
         except Exception as e:
-            log(f"❌ CLI erro execução: {e}")
+            log(f"ERR CLI erro execução: {e}")
     else:
-        log("❌ CLI não encontrado")
+        log("ERR CLI não encontrado")
 
     # Verificar GUI
     gui_path = (
@@ -54,22 +67,24 @@ def test_existing_executables():
     log(f"Verificando GUI: {gui_path}")
 
     if gui_path.exists():
-        log("✅ GUI encontrada")
+        log("OK GUI encontrada")
         # Testar se não dá erro de import
         try:
-            result = subprocess.run([str(gui_path)],
-                                  capture_output=True, text=True, timeout=2)
+            result = subprocess.run(
+                [str(gui_path)], capture_output=True, text=True, timeout=2
+            )
             # Se não deu erro de módulo, está funcionando
             if "No module named" not in result.stderr:
-                log("✅ GUI imports OK")
+                log("OK GUI imports OK")
             else:
-                log(f"❌ GUI erro módulo: {result.stderr}")
+                log(f"ERR GUI erro módulo: {result.stderr}")
         except subprocess.TimeoutExpired:
-            log("✅ GUI iniciou (timeout normal para GUI)")
+            log("OK GUI iniciou (timeout normal para GUI)")
         except Exception as e:
-            log(f"❌ GUI erro: {e}")
+            log(f"ERR GUI erro: {e}")
     else:
-        log("❌ GUI não encontrada")
+        log("ERR GUI não encontrada")
+
 
 def test_imports():
     """Testa imports críticos"""
@@ -77,10 +92,14 @@ def test_imports():
 
     # PoC GUI removida – somente verifica GUI principal se ainda existir
     try:
-        from gui.gui_ssa import SSAMainWindow  # type: ignore
-        log(f"✅ GUI principal importa OK (classe: {SSAMainWindow.__name__})")
-    except Exception as e:  # pragma: no cover - diagnóstico
-        log(f"ℹ️ GUI principal não disponível ou erro de import: {e}")
+        from gui.gui_ssa import SSAMainWindow
+
+        log(f"OK GUI principal importa OK (classe: {SSAMainWindow.__name__})")
+    except ImportError as e:  # pragma: no cover - diagnostico
+        log(f"INFO GUI principal nao disponivel ou erro de import: {e}")
+    except Exception as e:  # pragma: no cover - diagnostico
+        log(f"ERR Erro inesperado ao importar GUI principal: {e}")
+
 
 def list_dist_contents():
     """Lista conteúdo da pasta dist"""
@@ -89,9 +108,10 @@ def list_dist_contents():
     dist_path = DIST_BASE / "macos_arm64"
     if dist_path.exists():
         for item in dist_path.iterdir():
-            log(f"📁 {item.name}")
+            log(f"DIR {item.name}")
     else:
-        log("❌ Pasta dist não existe")
+        log("ERR Pasta dist não existe")
+
 
 def main():
     log(f"TESTE RÁPIDO v{APP_VERSION}")
@@ -99,6 +119,7 @@ def main():
     test_imports()
     test_existing_executables()
     log("=== FIM DOS TESTES ===")
+
 
 if __name__ == "__main__":
     main()

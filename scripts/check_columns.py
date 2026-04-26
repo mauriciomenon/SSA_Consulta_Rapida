@@ -2,9 +2,8 @@
 """Check which columns actually exist in database."""
 
 import sqlite3
-import os
 
-db_path = 'data/ssas.db'
+db_path = "data/ssas.db"
 
 conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
@@ -24,7 +23,7 @@ print(f"Total: {len(columns)} colunas")
 print()
 
 # Check specifically for 'id' column
-has_id = any(col[1] == 'id' for col in columns)
+has_id = any(col[1] == "id" for col in columns)
 print(f"Coluna 'id' existe? {has_id}")
 
 conn.close()

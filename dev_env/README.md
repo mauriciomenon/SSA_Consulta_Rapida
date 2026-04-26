@@ -34,3 +34,6 @@ Sem direnv, rode `source ./activate_repo.sh` (pode definir `SSA_PYTHON_VARIANT=f
 ## Bootstrap opcional
 `dev_env/bootstrap.sh` e `dev_env/bootstrap.ps1` continuam uteis para instalar pyenv/direnv e criar antecipadamente os virtualenvs `ssa_consulta_stable_*` e `ssa_consulta_free-threaded_*`. O novo `.envrc` tambem cria tudo sob demanda, entao esses scripts sao opcionais.
 
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

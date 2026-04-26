@@ -1,8 +1,10 @@
 try:
     import pandas as pd
+
     print("1. Pandas importado")
 
-    import openpyxl
+    import openpyxl  # noqa: F401
+
     print("2. Openpyxl importado")
 
     arquivo = r"c:\Users\menon\git\SSA_Consulta_Rapida\docs_entrada\Em Execução_15-08-2025_0416PM.xlsx"
@@ -18,6 +20,7 @@ except FileNotFoundError as e:
 except Exception as e:
     print(f"ERRO GERAL: {e}")
     import traceback
+
     traceback.print_exc()
 
 print("FIM DO TESTE")

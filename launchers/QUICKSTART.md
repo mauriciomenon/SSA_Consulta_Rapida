@@ -33,19 +33,19 @@ launchers/
 cd /Users/menon/git/SSA_Consulta_Rapida
 
 # Instalar dependencias de build
-pip install pyinstaller pillow cairosvg
+uv pip install --python 3.13 pyinstaller "pillow>=12.1.1" cairosvg
 
 # Executar build para plataforma atual
-python launchers/build_multiplatform.py
+uv run --python 3.13 launchers/build_multiplatform.py
 
 # Ou especificar plataforma
-python launchers/build_multiplatform.py --platform macos_arm64
+uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64
 
 # Listar plataformas disponiveis
-python launchers/build_multiplatform.py --list-platforms
+uv run --python 3.13 launchers/build_multiplatform.py --list-platforms
 
 # Detectar plataforma atual
-python launchers/build_multiplatform.py --detect-platform
+uv run --python 3.13 launchers/build_multiplatform.py --detect-platform
 ```
 
 ### dependencias Otimizadas (6 total)
@@ -53,7 +53,7 @@ python launchers/build_multiplatform.py --detect-platform
 - PyQt6==6.8.0
 - pandas==2.2.3
 - openpyxl==3.1.5
-- Pillow==10.4.0
+- Pillow>=12.1.1
 - packaging==24.2
 - pyinstaller==6.0.0
 
@@ -78,7 +78,7 @@ launchers/dist/macos_arm64/
 
 ### Proximos Passos
 
-1. **Testar build**: Execute `python launchers/build_multiplatform.py`
+1. **Testar build**: Execute `uv run --python 3.13 launchers/build_multiplatform.py`
 2. **Verificar output**: Confira `launchers/dist/macos_arm64/`
 3. **Testar executaveis**: Execute os binarios gerados
 4. **Build outras plataformas**: Execute em Windows/Linux conforme necessario
@@ -87,17 +87,17 @@ launchers/dist/macos_arm64/
 
 **Erro de dependencias**:
 ```bash
-pip install -r launchers/platforms/macos_arm64/requirements.txt
+uv pip install --python 3.13 -r launchers/platforms/macos_arm64/requirements.txt
 ```
 
 **Erro de icone**:
 ```bash
-python launchers/convert_icon.py
+uv run --python 3.13 launchers/convert_icon.py
 ```
 
 **Logs detalhados**:
 ```bash
-python launchers/build_multiplatform.py --verbose
+uv run --python 3.13 launchers/build_multiplatform.py --debug
 ```
 
 ### Status do Sistema
@@ -132,3 +132,6 @@ Ver `BUILD_MULTIPLATFORM.md` para documentacao detalhada incluindo:
 - Troubleshooting completo
 - Integracao CI/CD
 - distribuicao multi-plataforma
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

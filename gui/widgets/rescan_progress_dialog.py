@@ -1,12 +1,17 @@
 # gui/widgets/rescan_progress_dialog.py
 # Progress dialog for database rescanning
 
-from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QTextEdit,
-    QPushButton, QProgressBar, QLabel
-)
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+)
 
 
 class RescanProgressDialog(QDialog):
@@ -20,12 +25,29 @@ class RescanProgressDialog(QDialog):
     - Cancel button
     """
 
+    cancel_requested = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._operation_label = "Reescaneamento"
         self.setWindowTitle("Reescaneamento em Andamento")
-        self.setModal(True)
+        self.setModal(False)
         self.resize(800, 600)
+        self._cancel_requested = False
+        self._finished = False
         self.setup_ui()
+
+    def set_operation_label(self, operation_label: str) -> None:
+        label = str(operation_label or "").strip() or "Reescaneamento"
+        self._operation_label = label
+        self.setWindowTitle(f"{label} em andamento")
+        if not self._finished and not self._cancel_requested:
+            self.status_label.setText(f"Iniciando {label.lower()}...")
+
+    def show_non_modal(self) -> None:
+        """Show the dialog without blocking the main window."""
+        self.setModal(False)
+        self.show()
 
     def setup_ui(self):
         """Setup the dialog UI."""
@@ -84,34 +106,70 @@ class RescanProgressDialog(QDialog):
 
     def append_output(self, line: str):
         """Append line to output display."""
+        # When the dialog is cancelled and closed, the worker may still emit a few
+        # lines while stopping. Avoid spending UI time updating a hidden dialog.
+        if self._cancel_requested and not self.isVisible():
+            return
         self.output_text.append(line)
         # Auto-scroll to bottom
         scrollbar = self.output_text.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        if scrollbar is not None:
+            scrollbar.setValue(scrollbar.maximum())
 
     def append_error(self, line: str):
         """Append line to error display."""
+        if self._cancel_requested and not self.isVisible():
+            return
         self.error_text.append(line)
         # Auto-scroll to bottom
         scrollbar = self.error_text.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        if scrollbar is not None:
+            scrollbar.setValue(scrollbar.maximum())
 
     def update_progress(self, percentage: int, message: str):
         """Update progress bar and status."""
+        if self._cancel_requested and not self.isVisible():
+            return
+        percentage = max(0, min(100, int(percentage)))
         self.progress_bar.setValue(percentage)
         self.status_label.setText(message)
 
     def set_finished(self, success: bool, message: str = ""):
         """Mark process as finished."""
+        if self._finished:
+            return
+        self._finished = True
         self.cancel_button.setEnabled(False)
         self.close_button.setEnabled(True)
 
         if success:
-            self.status_label.setText("Reescaneamento concluido com sucesso!")
-            self.status_label.setStyleSheet("font-weight: bold; font-size: 12pt; color: green;")
+            self.status_label.setText(
+                f"Operacao concluida com sucesso: {self._operation_label}."
+            )
+            self.status_label.setStyleSheet(
+                "font-weight: bold; font-size: 12pt; color: green;"
+            )
             self.progress_bar.setValue(100)
         else:
-            self.status_label.setText(f"Reescaneamento falhou: {message}")
-            self.status_label.setStyleSheet("font-weight: bold; font-size: 12pt; color: red;")
-            if message:
-                self.append_error(f"\nERRO FINAL: {message}")
+            final_message = message.strip() if isinstance(message, str) else ""
+            if not final_message:
+                final_message = "Erro nao detalhado pelo processo da operacao."
+            self.status_label.setText(
+                f"Operacao falhou ({self._operation_label}): {final_message}"
+            )
+            self.status_label.setStyleSheet(
+                "font-weight: bold; font-size: 12pt; color: red;"
+            )
+            self.append_error(f"\nERRO FINAL: {final_message}")
+
+    def reject(self) -> None:
+        """Request cancel while running; only close after process finishes."""
+        if self._finished:
+            super().reject()
+            return
+        if not self._cancel_requested:
+            self._cancel_requested = True
+            self.cancel_button.setEnabled(False)
+            self.status_label.setText("Cancelamento solicitado. Aguarde...")
+            self.cancel_requested.emit()
+        return

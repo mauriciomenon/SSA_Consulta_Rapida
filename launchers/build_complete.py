@@ -4,94 +4,108 @@ Build Completo - SSA Consulta Rapida
 Script de conveniencia para build completo com limpeza e git operations.
 """
 
-import sys
-import subprocess
 import argparse
+import importlib
+import shlex
+import sys
 from pathlib import Path
+
+
+def _get_project_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+ROOT_DIR = _get_project_root()
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+BUILD_SCRIPT_PATH = ROOT_DIR / "launchers" / "build_multiplatform.py"
+
+from utils.robust_logging import get_robust_logger  # noqa: E402
+
+logger = get_robust_logger().get_logger(__name__, "maintenance")
+
+
+def _execute_builder_script(args):
+    """Execucao direta do script de build sem subprocess para eliminar argumentos da shell."""
+    logger.info(
+        "Executando: %s %s",
+        shlex.quote(str(BUILD_SCRIPT_PATH)),
+        " ".join(shlex.quote(part) for part in args),
+    )
+    build_multiplatform = importlib.import_module("launchers.build_multiplatform")
+    return build_multiplatform.main(args)
+
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Build completo com limpeza automatica e git operations'
+        description="Build completo com limpeza automatica e git operations"
     )
 
     parser.add_argument(
-        '--apps',
-        nargs='+',
-        choices=['cli', 'gui'],
-        default=['cli', 'gui'],
-        help='Aplicacoes para construir'
+        "--apps",
+        nargs="+",
+        choices=["cli", "gui"],
+        default=["cli", "gui"],
+        help="Aplicacoes para construir",
     )
 
     parser.add_argument(
-        '--no-cleanup',
-        action='store_true',
-        help='Pular limpeza automatica'
+        "--no-cleanup", action="store_true", help="Pular limpeza automatica"
     )
 
     parser.add_argument(
-        '--no-git',
-        action='store_true',
-        help='Pular operacoes git automaticas'
+        "--no-git", action="store_true", help="Pular operacoes git automaticas"
     )
 
     parser.add_argument(
-        '--git-message',
-        type=str,
-        help='Mensagem personalizada para commit'
+        "--git-message", type=str, help="Mensagem personalizada para commit"
     )
 
     parser.add_argument(
-        '--cleanup-only',
-        action='store_true',
-        help='Apenas executar limpeza sem build'
+        "--cleanup-only", action="store_true", help="Apenas executar limpeza sem build"
     )
 
     args = parser.parse_args()
 
-    base_dir = Path(__file__).parent.parent
-    build_script = base_dir / 'launchers' / 'build_multiplatform.py'
-
     try:
+        script_args = []
         if args.cleanup_only:
             # Apenas limpeza
-            print("🧹 Executando limpeza completa...")
-            cmd = [sys.executable, str(build_script), '--cleanup-online']
-            result = subprocess.run(cmd, cwd=str(base_dir))
-            return result.returncode
+            logger.info("CLEAN Executando limpeza completa...")
+            script_args.append("--cleanup-online")
+            result_code = _execute_builder_script(script_args)
+            return 0 if result_code is None else int(result_code)
 
         # Build completo
-        print("🚀 Iniciando build completo...")
-
-        cmd = [
-            sys.executable, str(build_script),
-            '--apps'] + args.apps
+        logger.info("START Iniciando build completo...")
+        script_args = ["--apps", *args.apps]
 
         # Adicionar flags automaticas
         if not args.no_cleanup:
-            cmd.append('--auto-cleanup')
-            cmd.append('--cleanup-online')
+            script_args.append("--auto-cleanup")
 
         if not args.no_git:
-            cmd.append('--auto-git')
+            script_args.append("--auto-git")
             if args.git_message:
-                cmd.extend(['--git-message', args.git_message])
+                script_args.extend(["--git-message", args.git_message])
 
-        print(f"Executando: {' '.join(cmd)}")
-        result = subprocess.run(cmd, cwd=str(base_dir))
+        result_code = _execute_builder_script(script_args)
+        exit_code = 0 if result_code is None else int(result_code)
 
-        if result.returncode == 0:
-            print("✅ Build completo concluido com sucesso!")
+        if exit_code == 0:
+            logger.info("OK Build completo concluido com sucesso!")
         else:
-            print("❌ Build falhou")
+            logger.error("ERR Build falhou")
 
-        return result.returncode
+        return exit_code
 
     except KeyboardInterrupt:
-        print("\n⚠️  Build interrompido pelo usuario")
+        logger.warning("WARN Build interrompido pelo usuario")
         return 1
-    except Exception as e:
-        print(f"❌ Erro: {e}")
+    except Exception:
+        logger.exception("ERR Erro inesperado no build")
         return 1
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     sys.exit(main())

@@ -4,8 +4,9 @@ Debug: Por que CLI está mostrando "-" no lugar dos números SSA?
 """
 
 import sqlite3
+
 import pandas as pd
-import sys
+
 
 def debug_ssa_formatting():
     """Debug da formatação de número SSA na CLI."""
@@ -17,19 +18,19 @@ def debug_ssa_formatting():
 
     with sqlite3.connect(db_path) as conn:
         # Consulta exata que a CLI faz
-        query = '''
+        query = """
         SELECT
             "Número da SSA" as numero_ssa,
             situacao,
             descricao_ssa
         FROM ssas
         LIMIT 10
-        '''
+        """
 
         df = pd.read_sql_query(query, conn)
 
         print("\n1. Dados brutos do banco (query CLI):")
-        print(df[['numero_ssa']].head())
+        print(df[["numero_ssa"]].head())
         print(f"Tipos: {df['numero_ssa'].dtype}")
         print(f"Valores únicos (amostra): {df['numero_ssa'].unique()[:5]}")
 
@@ -39,16 +40,16 @@ def debug_ssa_formatting():
         # Simular a função
         def normalize_ssa_number(ssa_value) -> str:
             """Cópia da função CLI."""
-            if not ssa_value or str(ssa_value).strip() in ['', 'nan', 'None', '-']:
-                return '-'
+            if not ssa_value or str(ssa_value).strip() in ["", "nan", "None", "-"]:
+                return "-"
 
             s = str(ssa_value).strip()
 
             # Remove caracteres não numéricos
-            s = ''.join(filter(str.isdigit, s))
+            s = "".join(filter(str.isdigit, s))
 
             if not s:
-                return '-'
+                return "-"
 
             # Já com 9 dígitos
             if len(s) == 9:
@@ -62,14 +63,14 @@ def debug_ssa_formatting():
             return s.zfill(9)
 
         print("Processando cada valor:")
-        for i, valor in enumerate(df['numero_ssa'].head()):
+        for i, valor in enumerate(df["numero_ssa"].head()):
             resultado = normalize_ssa_number(valor)
             print(f"  [{i}] '{valor}' -> '{resultado}'")
 
         # 3. Verificar se o problema é na query
         print("\n3. Verificando query alternativa:")
 
-        query_alt = '''
+        query_alt = """
         SELECT
             numero_ssa,
             situacao,
@@ -77,13 +78,14 @@ def debug_ssa_formatting():
         FROM ssas
         WHERE numero_ssa IS NOT NULL
         LIMIT 10
-        '''
+        """
 
         df_alt = pd.read_sql_query(query_alt, conn)
         print(f"Query alternativa retornou {len(df_alt)} registros")
         if not df_alt.empty:
-            print(df_alt[['numero_ssa']].head())
+            print(df_alt[["numero_ssa"]].head())
             print(f"Tipos: {df_alt['numero_ssa'].dtype}")
+
 
 if __name__ == "__main__":
     debug_ssa_formatting()

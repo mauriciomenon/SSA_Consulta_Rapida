@@ -5,42 +5,51 @@ Usage (from project root):
 
 It will modify *.py files except within virtual environments or build artefacts.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 
-EXCLUDE_DIRS = {'.venv', 'venv', 'build', 'dist', '__pycache__', '.mypy_cache', '.ruff_cache', '.git'}
+EXCLUDE_DIRS = {
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "__pycache__",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".git",
+}
 
-PYTHON_EXT = '.py'
+PYTHON_EXT = ".py"
 
 
 def clean_file(path: Path) -> bool:
-    original = path.read_text(encoding='utf-8')
+    original = path.read_text(encoding="utf-8")
     changed = []
     modified = False
     for line in original.splitlines():
-        raw = line
         # Replace tabs with 4 spaces
-        line = line.replace('\t', '    ')
+        line = line.replace("\t", "    ")
         # Strip trailing whitespace
         stripped = line.rstrip()
         if stripped != line:
             modified = True
             line = stripped
         # Normalize whitespace-only lines to empty
-        if line.strip() == '' and line != '':
+        if line.strip() == "" and line != "":
             modified = True
-            line = ''
+            line = ""
         changed.append(line)
-    new_content = '\n'.join(changed) + '\n'
+    new_content = "\n".join(changed) + "\n"
     if new_content != original:
-        path.write_text(new_content, encoding='utf-8')
+        path.write_text(new_content, encoding="utf-8")
         modified = True
     return modified
 
 
 def iter_python_files(base: Path):
-    for p in base.rglob('*'):
+    for p in base.rglob("*"):
         if not p.is_file():
             continue
         if p.suffix != PYTHON_EXT:
@@ -51,7 +60,7 @@ def iter_python_files(base: Path):
 
 
 def main() -> None:
-    base = Path('.')
+    base = Path(".")
     total = 0
     modified = 0
     for file_path in iter_python_files(base):
@@ -61,5 +70,5 @@ def main() -> None:
     print(f"Whitespace cleanup complete: {modified}/{total} python files modified.")
 
 
-if __name__ == '__main__':  # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     main()

@@ -185,11 +185,7 @@ def main() -> int:
 
     candidate_files = list(iter_candidate_files(root, allowed_exts, max_kb))
     if not candidate_files:
-        logging.warning(
-            "No candidate files discovered for banned-token scan (dirs=%s, exts=%s). Passing scan.",
-            os.environ.get("SCAN_DIRS", ",".join(SCAN_DIRS_DEFAULT)),
-            ",".join(sorted(allowed_exts)),
-        )
+        logging.info("Nenhum arquivo candidato encontrado. A varredura foi encerrada sem execucao.")
         return 0
 
     for file_path in candidate_files:

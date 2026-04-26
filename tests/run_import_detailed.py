@@ -11,14 +11,13 @@ Captura:
 - Descricao do problema
 """
 
-import sys
 import os
+import sys
 import traceback
 from datetime import datetime
-import pandas as pd
 
 # Adiciona o diretorio raiz ao path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -28,33 +27,35 @@ problemas = []
 
 def registrar_problema(arquivo, linha, coluna, valor, tipo_erro, descricao):
     """Registra um problema encontrado durante importacao."""
-    problemas.append({
-        'arquivo': os.path.basename(arquivo),
-        'linha': linha,
-        'coluna': coluna,
-        'valor': valor,
-        'tipo_erro': tipo_erro,
-        'descricao': descricao
-    })
+    problemas.append(
+        {
+            "arquivo": os.path.basename(arquivo),
+            "linha": linha,
+            "coluna": coluna,
+            "valor": valor,
+            "tipo_erro": tipo_erro,
+            "descricao": descricao,
+        }
+    )
 
 
 def test_import_cli():
     """Testa importacao via CLI com relatorio detalhado."""
-    print("="*80)
+    print("=" * 80)
     print("TESTE DE IMPORTACAO DETALHADO - CLI")
-    print("="*80)
+    print("=" * 80)
 
     try:
         # Limpa banco existente
-        db_path = 'data/ssas.db'
+        db_path = "data/ssas.db"
         if os.path.exists(db_path):
             print(f"\n[INFO] Removendo banco existente: {db_path}")
             os.remove(db_path)
             print("  [OK] Banco removido")
 
         # Lista arquivos a importar
-        docs_dir = 'docs_entrada'
-        arquivos = [f for f in os.listdir(docs_dir) if f.endswith('.xlsx')]
+        docs_dir = "docs_entrada"
+        arquivos = [f for f in os.listdir(docs_dir) if f.endswith(".xlsx")]
         print(f"\n[INFO] Encontrados {len(arquivos)} arquivos .xlsx")
 
         assert len(arquivos) > 0, "Nenhum arquivo para importar"
@@ -79,16 +80,22 @@ def test_import_cli():
 
         # Executa main.py --rescan com captura de saida
         process = subprocess.Popen(
-            [sys.executable, 'main.py', '--rescan'],
+            [sys.executable, "main.py", "--rescan"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1,
-            universal_newlines=True
+            universal_newlines=True,
         )
+        if process.stdout is None or process.stderr is None:
+            raise RuntimeError(
+                "Falha ao iniciar pipes de stdout/stderr para monitoramento"
+            )
+        stdout_pipe = process.stdout
+        stderr_pipe = process.stderr
 
         print("\n[SAIDA DO PROCESSO]")
-        print("-"*80)
+        print("-" * 80)
 
         # Captura saida em tempo real
         linha_count = 0
@@ -99,7 +106,7 @@ def test_import_cli():
             retcode = process.poll()
 
             # Le stdout
-            line = process.stdout.readline()
+            line = stdout_pipe.readline()
             if line:
                 line = line.rstrip()
                 print(line)
@@ -116,7 +123,7 @@ def test_import_cli():
                             coluna="(ver log)",
                             valor="(ver log)",
                             tipo_erro="Validacao",
-                            descricao=line
+                            descricao=line,
                         )
 
             # Verifica timeout (sem output por 30 segundos)
@@ -126,12 +133,12 @@ def test_import_cli():
             # Se processo terminou, sai
             if retcode is not None:
                 # Le resto do output
-                remaining = process.stdout.read()
+                remaining = stdout_pipe.read()
                 if remaining:
                     print(remaining)
 
                 # Le stderr
-                stderr = process.stderr.read()
+                stderr = stderr_pipe.read()
                 if stderr:
                     print("\n[STDERR]")
                     print(stderr)
@@ -139,32 +146,38 @@ def test_import_cli():
                 break
 
         elapsed = time.time() - start_time
-        print("-"*80)
+        print("-" * 80)
         print(f"[INFO] Processo terminou em {elapsed:.1f}s")
         print(f"[INFO] Codigo de retorno: {retcode}")
         print(f"[INFO] Linhas de output: {linha_count}")
 
-        assert retcode == 0, f"Importacao falhou com codigo {retcode}"
+        if retcode != 0:
+            raise RuntimeError(f"Importacao falhou com codigo {retcode}")
         print("\n[SUCESSO] Importacao via CLI concluida")
+        return True
+    except Exception as e:
+        print(f"\n[ERRO] Falha no teste de importacao via CLI: {e}")
+        traceback.print_exc()
+        raise AssertionError(f"Falha no teste de importacao via CLI: {e}") from e
 
 
 def analyze_database():
     """Analisa banco de dados apos importacao."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("ANALISE DO BANCO DE DADOS")
-    print("="*80)
+    print("=" * 80)
 
     try:
         from armazenamento.database import query_db
 
-        db_path = 'data/ssas.db'
+        db_path = "data/ssas.db"
         if not os.path.exists(db_path):
             print("\n[ERRO] Banco de dados nao foi criado")
             return False
 
         # Carrega dados
         print("\n[INFO] Carregando dados do banco...")
-        df = query_db(db_path, 'ssas')
+        df = query_db(db_path, "ssas")
 
         if df is None or df.empty:
             print("  [ERRO] Banco vazio")
@@ -181,7 +194,7 @@ def analyze_database():
 
         # Verifica dados ausentes criticos
         print("\n[INFO] Verificando dados ausentes criticos...")
-        critical_columns = ['numero_ssa', 'descricao_ssa', 'situacao']
+        critical_columns = ["numero_ssa", "descricao_ssa", "situacao"]
 
         for col in critical_columns:
             if col in df.columns:
@@ -192,29 +205,33 @@ def analyze_database():
                     # Registra amostras
                     missing_indices = df[df[col].isna()].index[:5].tolist()
                     for idx in missing_indices:
-                        numero = df.loc[idx, 'numero_ssa'] if 'numero_ssa' in df.columns else 'N/A'
+                        numero = (
+                            df.loc[idx, "numero_ssa"]
+                            if "numero_ssa" in df.columns
+                            else "N/A"
+                        )
                         registrar_problema(
                             arquivo="(importado)",
                             linha=idx + 2,  # +2 porque Excel comeca em 1 e tem header
                             coluna=col,
                             valor="<vazio>",
                             tipo_erro="Dado ausente",
-                            descricao=f"Coluna critica '{col}' vazia para numero_ssa={numero}"
+                            descricao=f"Coluna critica '{col}' vazia para numero_ssa={numero}",
                         )
                 else:
                     print(f"  [OK] {col}: sem valores ausentes")
 
         # Verifica duplicatas
         print("\n[INFO] Verificando duplicatas...")
-        if 'numero_ssa' in df.columns:
-            duplicatas = df[df.duplicated(subset=['numero_ssa'], keep=False)]
+        if "numero_ssa" in df.columns:
+            duplicatas = df[df.duplicated(subset=["numero_ssa"], keep=False)]
             if not duplicatas.empty:
                 print(f"  [AVISO] {len(duplicatas)} registros duplicados")
 
                 # Mostra amostras
-                ssa_duplicadas = duplicatas['numero_ssa'].unique()[:5]
+                ssa_duplicadas = duplicatas["numero_ssa"].unique()[:5]
                 for ssa in ssa_duplicadas:
-                    count = (duplicatas['numero_ssa'] == ssa).sum()
+                    count = (duplicatas["numero_ssa"] == ssa).sum()
                     print(f"    - SSA {ssa}: {count} ocorrencias")
 
                     registrar_problema(
@@ -223,7 +240,7 @@ def analyze_database():
                         coluna="numero_ssa",
                         valor=ssa,
                         tipo_erro="Duplicata",
-                        descricao=f"SSA {ssa} aparece {count} vezes"
+                        descricao=f"SSA {ssa} aparece {count} vezes",
                     )
             else:
                 print("  [OK] Sem duplicatas")
@@ -238,9 +255,9 @@ def analyze_database():
 
 def generate_report():
     """Gera relatorio detalhado de problemas."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("RELATORIO DE PROBLEMAS")
-    print("="*80)
+    print("=" * 80)
 
     if not problemas:
         print("\n[INFO] Nenhum problema registrado durante importacao!")
@@ -251,7 +268,7 @@ def generate_report():
     # Agrupa por tipo de erro
     tipos = {}
     for p in problemas:
-        tipo = p['tipo_erro']
+        tipo = p["tipo_erro"]
         if tipo not in tipos:
             tipos[tipo] = []
         tipos[tipo].append(p)
@@ -262,16 +279,19 @@ def generate_report():
 
     # Cria arquivo de relatorio em LocalTemp (local-only, gitignored)
     import os
-    os.makedirs("LocalTemp", exist_ok=True)
-    report_file = f"LocalTemp/import_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
 
-    with open(report_file, 'w', encoding='utf-8') as f:
-        f.write("="*80 + "\n")
+    os.makedirs("LocalTemp", exist_ok=True)
+    report_file = (
+        f"LocalTemp/import_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    )
+
+    with open(report_file, "w", encoding="utf-8") as f:
+        f.write("=" * 80 + "\n")
         f.write("RELATORIO DETALHADO DE PROBLEMAS DE IMPORTACAO\n")
-        f.write("="*80 + "\n")
+        f.write("=" * 80 + "\n")
         f.write(f"Data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         f.write(f"Total de problemas: {len(problemas)}\n")
-        f.write("="*80 + "\n\n")
+        f.write("=" * 80 + "\n\n")
 
         for i, p in enumerate(problemas, 1):
             f.write(f"PROBLEMA #{i}\n")
@@ -281,7 +301,7 @@ def generate_report():
             f.write(f"  Valor:      {p['valor']}\n")
             f.write(f"  Tipo erro:  {p['tipo_erro']}\n")
             f.write(f"  Descricao:  {p['descricao']}\n")
-            f.write("-"*80 + "\n\n")
+            f.write("-" * 80 + "\n\n")
 
     print(f"\n[INFO] Relatorio salvo em: {report_file}")
 
@@ -302,30 +322,30 @@ def generate_report():
 
 def main():
     """Executa teste completo de importacao."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("TESTE COMPLETO DE IMPORTACAO COM RELATORIO DETALHADO")
-    print("="*80)
+    print("=" * 80)
     print(f"Data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("="*80)
+    print("=" * 80)
 
     results = {}
 
     # 1. Teste importacao CLI
-    results['import_cli'] = test_import_cli()
+    results["import_cli"] = test_import_cli()
 
     # 2. Analise do banco
-    if results['import_cli']:
-        results['analyze_db'] = analyze_database()
+    if results["import_cli"]:
+        results["analyze_db"] = analyze_database()
     else:
-        results['analyze_db'] = False
+        results["analyze_db"] = False
 
     # 3. Gera relatorio
     generate_report()
 
     # Resumo
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("RESUMO")
-    print("="*80)
+    print("=" * 80)
 
     for test, result in results.items():
         status = "[PASSOU]" if result else "[FALHOU]"
@@ -345,5 +365,5 @@ def main():
         return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

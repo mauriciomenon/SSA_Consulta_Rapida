@@ -6,35 +6,41 @@ Regras de formatação compartilhadas entre CLI/GUI:
 - Não exibir NaN/NaT/None (vira string vazia, a CLI pode mapear para "-")
 - Datas como dia/mês/ano (dd/mm/YYYY)
 - Colunas de semana como inteiros
-- numero_ssa como string canônica de 9 dígitos quando possível
+- numero_ssa como string canonica de 9 digitos somente quando valido
 """
+
 from __future__ import annotations
 
 import math
-from datetime import date, datetime
 import re
+from datetime import date, datetime
 from typing import Optional
 
 import pandas as pd
 
-from shared.numero_ssa import normalize_numero_ssa as _normalize_ssa_str
+from armazenamento.numero_ssa_utils import normalize_numero_ssa as _normalize_ssa_str
 
 
 def _is_nullish(v) -> bool:
     if v is None:
         return True
+    if v is pd.NA:
+        return True
     try:
-        # Trata NaN/NaT
-        if isinstance(v, float) and math.isnan(v):
+        if pd.isna(v):
             return True
-        if isinstance(v, pd.Timestamp) and pd.isna(v):
-            return True
-        if isinstance(v, (pd.NaT.__class__,)):
-            return True
-        if isinstance(v, str) and v.strip().lower() in {"", "nan", "nat", "none", "null"}:
-            return True
-    except Exception:
-        pass
+    except TypeError:
+        return False
+    except ValueError:
+        return False
+    if isinstance(v, float) and math.isnan(v):
+        return True
+    if isinstance(v, pd.Timestamp) and pd.isna(v):
+        return True
+    if isinstance(v, (pd.NaT.__class__,)):
+        return True
+    if isinstance(v, str) and v.strip().lower() in {"", "nan", "nat", "none", "null"}:
+        return True
     return False
 
 
@@ -50,7 +56,7 @@ def _format_number(v) -> str:
         if abs(v - round(v)) < 1e-9:
             return str(int(round(v)))
         # Caso contrário, usa formato compacto sem zeros à direita excessivos
-        s = ("%g" % v)
+        s = "%g" % v
         return s
     # Pandas tipos numéricos
     if isinstance(v, (pd.Int64Dtype, pd.Float64Dtype)):
@@ -96,7 +102,7 @@ def format_cell(value, column: Optional[str] = None) -> str:
     if _is_nullish(value):
         return ""
 
-    # numero_ssa: 9 dígitos para exibição, se possível
+    # numero_ssa: exibe apenas o valor canonico valido
     if column == "numero_ssa":
         if _normalize_ssa_str is not None:
             try:

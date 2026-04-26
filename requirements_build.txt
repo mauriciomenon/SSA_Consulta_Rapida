@@ -2,8 +2,9 @@
 # Use juntamente com requirements.txt quando for empacotar
 
 pyinstaller>=6.15.0
-pillow>=12.1.1
-cairosvg>=2.8.0
+nuitka>=2.8.4
+pillow>=12.2.0
+cairosvg>=2.9.0
 
 # Especificos por plataforma
 pywin32>=307; platform_system=="Windows"

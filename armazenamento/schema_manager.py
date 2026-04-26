@@ -1,14 +1,19 @@
 """Schema manager for dynamic column addition."""
 
-import logging
-from .identifier_utils import is_valid_identifier
 import sqlite3
+
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+from utils.robust_logging import get_robust_logger
 
+from .database_upsert_logic import infer_sql_type
+from .identifier_utils import is_valid_identifier, quote_identifier
 
-def ensure_columns_exist(conn: sqlite3.Connection, table_name: str, df: pd.DataFrame) -> None:
+logger = get_robust_logger().get_logger(__name__, "core")
+
+def ensure_columns_exist(
+    conn: sqlite3.Connection, table_name: str, df: pd.DataFrame
+) -> None:
     """
     Ensure all DataFrame columns exist in the table.
 
@@ -26,14 +31,16 @@ def ensure_columns_exist(conn: sqlite3.Connection, table_name: str, df: pd.DataF
     if not is_valid_identifier(table_name):
         raise ValueError(f"Invalid SQL identifier for table: {table_name}")
     cursor.execute(
-        f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        (table_name,),
     )
     if not cursor.fetchone():
         # Table doesn't exist yet, will be created by to_sql
         return
 
     # Get existing columns
-    cursor.execute(f"PRAGMA table_info({table_name})")
+    quoted_table_name = quote_identifier(table_name)
+    cursor.execute(f"PRAGMA table_info({quoted_table_name})")
     existing_cols = {row[1] for row in cursor.fetchall()}
 
     # Find missing columns
@@ -43,28 +50,32 @@ def ensure_columns_exist(conn: sqlite3.Connection, table_name: str, df: pd.DataF
     if not missing_cols:
         return
 
-    # Add missing columns
-    for col in missing_cols:
-        # Infer type from DataFrame
-        dtype = df[col].dtype
+    savepoint_name = "schema_manager_ensure_columns"
+    savepoint_active = False
+    try:
+        conn.execute(f"SAVEPOINT {savepoint_name}")
+        savepoint_active = True
+        # Add missing columns
+        for col in missing_cols:
+            if not is_valid_identifier(col):
+                raise ValueError(f"Invalid SQL identifier for column: {col}")
 
-        if pd.api.types.is_integer_dtype(dtype):
-            sql_type = 'INTEGER'
-        elif pd.api.types.is_float_dtype(dtype):
-            sql_type = 'REAL'
-        elif pd.api.types.is_bool_dtype(dtype):
-            sql_type = 'INTEGER'
-        elif pd.api.types.is_datetime64_any_dtype(dtype):
-            sql_type = 'TEXT'
-        else:
-            sql_type = 'TEXT'
+            sql_type = infer_sql_type(df[col])
 
-        try:
-            cursor.execute(f'ALTER TABLE {table_name} ADD COLUMN "{col}" {sql_type}')
-            logger.info(f"[OK] Coluna adicionada: {col} ({sql_type})")
-        except sqlite3.OperationalError as e:
-            if 'duplicate column name' not in str(e).lower():
-                logger.error(f"[ERRO] Falha ao adicionar coluna {col}: {e}")
-                raise
-
-    conn.commit()
+            quoted_col = quote_identifier(col)
+            try:
+                cursor.execute(
+                    f"ALTER TABLE {quoted_table_name} ADD COLUMN {quoted_col} {sql_type}"
+                )
+                logger.info(f"[OK] Coluna adicionada: {col} ({sql_type})")
+            except sqlite3.OperationalError as e:
+                if "duplicate column name" not in str(e).lower():
+                    logger.error(f"[ERRO] Falha ao adicionar coluna {col}: {e}")
+                    raise
+        conn.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+        savepoint_active = False
+    except (sqlite3.Error, ValueError):
+        if savepoint_active:
+            conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+            conn.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+        raise

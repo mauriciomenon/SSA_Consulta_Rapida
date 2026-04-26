@@ -1,263 +1,307 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-**Versao**: 4.11.1
-**Data**: 2025-11-19
+## CURRENT TRUTH (4.37 local / v4.36 published)
+
+- Sync deste guia: `2026-03-28 11:35 -0300`.
+- Versao de referencia local: `4.37` (arquivo `VERSION`).
+- Ultima tag publicada em `dev`: `v4.36`.
+- Este guia esta alinhado ao baseline local `4.37`; a ultima tag publicada ainda e `v4.36`.
+- Fluxo canonico de build: `launchers/build_multiplatform.py`.
+- Saida canonica de artefatos: `launchers/dist/<plataforma>/`.
+- Empacotamento: `scripts/create_distribution.py`.
+- Ferramentas historicas e caminhos legados (`build_*.bat`, `builds/*`) nao sao caminho principal neste baseline.
+- Backends reconhecidos pelo parser do empacotador: `pyinstaller`, `nuitka`, `pyoxidizer`.
+- Backend de release operacional neste baseline: `pyinstaller`.
+- `pytoexe`/`py2exe`: nao suportados neste repositorio (fora das choices dos scripts atuais).
+
+## Validacao Operacional 2026-03-10 (host macOS arm64)
+
+Status de ferramentas no host:
+- `pyinstaller`: OK (`6.19.0`)
+- `nuitka`: OK (`4.0.1`)
+- `pyoxidizer`: OK (`0.24.0`)
+- `iscc`: NOT_FOUND
+- `pytoexe`: NOT_FOUND
+- `py2exe`: NOT_FOUND
+
+Resultado de tentativa de pacote (scripts/create_distribution.py):
+- `pyinstaller --skip-installer`: OK (ZIP gerado)
+- `pyinstaller` (com installer): ZIP OK, installer FAIL (origem Windows/Inno nao resolvida neste host)
+- `nuitka --skip-installer`: FAIL (build ausente em `builds/nuitka`)
+- `pyoxidizer --skip-installer`: FAIL (build ausente em `builds/pyoxidizer`)
+- `pytoexe`: FAIL esperado (choice invalida)
+
+Evidencia local desta rodada:
+- logs consolidados: `/tmp/ssa_pack_audit_20260310_1030/summary.log`
+- artefato alvo desta rodada: `dist_packages/SSA_Consulta_Rapida_v4.37_pyinstaller.zip`
 
 ## Visao Geral
 
-Este guia descreve como criar e distribuir pacotes do SSA Consulta Rapida para usuarios finais.
+Este guia descreve como gerar pacotes para distribuicao em Windows, macOS e Debian/Linux
+usando o fluxo canonico atual.
 
-## Pacotes Disponiveis
+Nota Debian:
+- no baseline atual, Debian usa pacote ZIP canonico.
+- AppImage/.deb ficam como trilha futura e nao sao etapa automatica do pipeline oficial.
 
-O sistema oferece 3 tipos de pacotes, cada um otimizado para um caso de uso diferente:
+## Build Canonico
 
-| Build System | Tamanho ZIP | Executavel | Melhor Para |
-|--------------|-------------|-----------|-------------|
-| PyOxidizer   | 125 MB      | 3.4 MB    | Distribuicao publica (menor download) |
-| PyInstaller  | 169 MB      | 30 MB     | Desenvolvimento e testes rapidos |
-| Nuitka       | 187 MB      | 142 MB    | Performance maxima (codigo nativo) |
-
-## Criando Pacotes de Distribuicao
-
-### Opcao 1: Criar todos os pacotes
+### 1) Build da plataforma atual
 
 ```bash
-python scripts/create_distribution.py --all --skip-installer
+uv run --python 3.13 launchers/build_multiplatform.py --apps cli gui
 ```
 
-Cria arquivos ZIP para os 3 build systems.
-
-### Opcao 2: Criar pacote especifico
+### 2) Build de plataforma especifica
 
 ```bash
-# Apenas PyOxidizer (recomendado para distribuicao)
-python scripts/create_distribution.py --build-system pyoxidizer --skip-installer
-
-# Apenas PyInstaller
-python scripts/create_distribution.py --build-system pyinstaller --skip-installer
-
-# Apenas Nuitka
-python scripts/create_distribution.py --build-system nuitka --skip-installer
+uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui
+uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui
+uv run --python 3.13 launchers/build_multiplatform.py --platform debian_amd64 --apps cli gui
 ```
 
-### Opcao 3: Criar instalador Windows (Inno Setup)
-
-Requer Inno Setup instalado: https://jrsoftware.org/isdl.php
+### 3) Verificar saida do build
 
 ```bash
-# Com instalador
-python scripts/create_distribution.py --build-system pyoxidizer
-
-# Apenas instalador (sem ZIP)
-python scripts/create_distribution.py --build-system pyoxidizer --installer-only
+uv run --python 3.13 launchers/test_complete.py
 ```
 
-## Estrutura dos Pacotes
+## Empacotamento para Distribuicao
 
-Cada pacote ZIP contem:
-
-```
-SSA_Consulta_Rapida_v4.11.1_[build]/
-├── SSA_Consulta_Rapida.exe (ou main.exe para Nuitka)
-├── _internal/                 # Dependencias (PyInstaller)
-├── lib/                       # Bibliotecas (PyOxidizer)
-├── config/                    # Arquivos de configuracao
-├── data/                      # Diretorio para bancos de dados
-│   └── historico_backups/    # Backups automaticos
-├── docs_entrada/             # Coloque arquivos Excel aqui
-├── docs_saida/               # Exportacoes CSV/Excel
-├── logs/                     # Logs de execucao
-├── reports/                  # Relatorios gerados
-├── exportacao/               # Exportacoes personalizadas
-├── docs/                     # Documentacao
-│   └── ANTIVIRUS_EXCLUSOES.txt
-├── LEIA-ME-USUARIO.txt       # Instrucoes para usuario final
-├── LEIA-ME.txt               # README principal
-└── VERSION.txt               # Informacoes de versao
-```
-
-## Distribuindo para Usuarios Finais
-
-### Recomendacoes por Caso de Uso
-
-#### 1. Distribuicao Publica (Internet)
-**Use**: PyOxidizer (125 MB)
-- Menor tamanho de download
-- Executavel compacto (3.4 MB)
-- Python embedado otimizado
-
-#### 2. Distribuicao Interna (Rede Local)
-**Use**: PyInstaller (169 MB) ou Nuitka (187 MB)
-- PyInstaller: Mais facil debug se houver problemas
-- Nuitka: Melhor performance para operacoes intensivas
-
-#### 3. Ambiente Corporativo Seguro
-**Use**: Nuitka (187 MB)
-- Codigo compilado nativo (mais dificil engenharia reversa)
-- Performance maxima
-- Melhor para grandes volumes de dados
-
-### Instrucoes para o Usuario Final
-
-Incluir no email/comunicado:
-
-```
-SSA Consulta Rapida v4.11.1
-
-INSTALACAO:
-
-1. Baixe o arquivo ZIP
-2. Extraia para uma pasta de sua preferencia
-   Exemplo: C:\Programas\SSA_Consulta_Rapida
-3. Leia o arquivo LEIA-ME-USUARIO.txt para instrucoes completas
-
-IMPORTANTE ANTIVIRUS:
-
-Alguns antivirus podem bloquear o executavel na primeira execucao.
-Se isso ocorrer:
-- Adicione a pasta do programa nas exclusoes do antivirus
-- Consulte: docs/ANTIVIRUS_EXCLUSOES.txt
-
-PRIMEIRO USO:
-
-1. Clique duas vezes em SSA_Consulta_Rapida.exe
-2. Coloque arquivos Excel em: docs_entrada/
-3. Execute novamente para importar os dados
-
-SUPORTE:
-
-- Documentacao completa na pasta docs/
-- Logs em: logs/ssa.log
-```
-
-## Atualizando Versao Existente
-
-Instrucoes para usuarios atualizarem sem perder dados:
-
-1. Baixar nova versao
-2. Extrair em pasta temporaria
-3. Copiar apenas o executavel principal e pasta _internal/lib
-4. MANTER as pastas do usuario:
-   - data/ (bancos de dados)
-   - config/ (configuracoes personalizadas)
-   - docs_entrada/ (arquivos do usuario)
-   - docs_saida/ (exportacoes)
-
-## Checklist de Distribuicao
-
-Antes de distribuir, verificar:
-
-- [ ] Versao correta em VERSION.txt
-- [ ] README para usuario incluido
-- [ ] Documentacao de antivirus incluida
-- [ ] Estrutura de diretorios completa
-- [ ] Executavel funcional (testar --version e --help)
-- [ ] Tamanho do ZIP razoavel
-- [ ] Nome do arquivo descritivo (inclui versao e build system)
-
-## Integracao com Build Scripts
-
-Para integrar a criacao de pacotes com os scripts de build existentes:
-
-### build_pyinstaller.bat
-Adicionar ao final:
-```batch
-echo Criando pacote de distribuicao...
-python scripts/create_distribution.py --build-system pyinstaller --skip-installer
-```
-
-### build_pyoxidizer.bat
-Adicionar ao final:
-```batch
-echo Criando pacote de distribuicao...
-python scripts/create_distribution.py --build-system pyoxidizer --skip-installer
-```
-
-### build_nuitka.bat
-Adicionar ao final:
-```batch
-echo Criando pacote de distribuicao...
-python scripts/create_distribution.py --build-system nuitka --skip-installer
-```
-
-## Criando Instalador Windows
-
-### Requisitos
-
-1. Baixar e instalar Inno Setup: https://jrsoftware.org/isdl.php
-2. Instalar em: `C:\Program Files (x86)\Inno Setup 6\`
-
-### Criando o Instalador
+### 1) Criar ZIP
 
 ```bash
-python scripts/create_distribution.py --build-system pyoxidizer
+uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --skip-installer
 ```
 
-O instalador sera criado em: `dist_packages/SSA_Consulta_Rapida_v4.11.1_pyoxidizer_Setup.exe`
+Para incluir tambem o banco de exemplo fixo do repositorio:
 
-### Recursos do Instalador
+```bash
+uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --skip-installer --include-sample-db
+```
 
-- Instalacao em nivel de usuario (nao requer admin)
-- Cria atalho no desktop
-- Cria grupo no menu Iniciar
-- Cria estrutura de diretorios automaticamente
-- Opcao de executar ao final da instalacao
-- Desinstalador completo
+Para incluir um banco local escolhido explicitamente:
 
-## Troubleshooting
+```bash
+uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --skip-installer --include-local-db data/ssas.db
+```
 
-### Pacote muito grande
+### 2) Criar instalador Windows (Inno Setup)
 
-Se o pacote ZIP estiver muito grande:
+```bash
+uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller
+```
 
-1. Verificar se bancos de dados de teste foram incluidos
-2. Remover logs desnecessarios antes de empacotar
-3. Considerar usar PyOxidizer (menor)
+Para incluir tambem o banco de exemplo fixo do repositorio:
 
-### Executavel nao funciona no cliente
+```bash
+uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --include-sample-db
+```
 
-1. Verificar se todas as DLLs necessarias foram incluidas
-2. Testar em maquina limpa (sem Python instalado)
-3. Verificar configuracao de antivirus
-4. Consultar logs em logs/ssa.log
+Para incluir um banco local escolhido explicitamente:
 
-### Erro ao criar ZIP
+```bash
+uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --include-local-db data/ssas.db
+```
 
-1. Verificar espaco em disco suficiente
-2. Verificar permissoes de escrita em dist_packages/
-3. Fechar programas que possam estar usando os arquivos
-4. Verificar se build existe (executar build antes)
+Notas:
+- O script tenta localizar Inno Setup por:
+  1. `INNO_SETUP_COMPILER`
+  2. `iscc` no PATH
+  3. caminhos padrao do Windows
+- Se Inno Setup nao estiver disponivel, o ZIP continua funcional.
 
-## Metricas de Distribuicao
+### 3) Criar pacote de outros build systems (laboratorio)
 
-Comparacao dos pacotes criados:
+```bash
+uv run --python 3.13 scripts/create_distribution.py --build-system nuitka --skip-installer
+uv run --python 3.13 scripts/create_distribution.py --build-system pyoxidizer --skip-installer
+```
 
-| Metrica | PyOxidizer | PyInstaller | Nuitka |
-|---------|------------|-------------|--------|
-| Tamanho ZIP | 125 MB | 169 MB | 187 MB |
-| Executavel | 3.4 MB | 30 MB | 142 MB |
-| Tempo criacao | ~4 min | ~2 min | ~1 min |
-| Compressao | Otima | Boa | Regular |
+Importante:
+- `nuitka` e `pyoxidizer` estao mantidos como trilha experimental neste ciclo.
+- Para release operacional, usar PyInstaller como padrao.
 
-## Proximos Passos
+## Mapa de Pastas de Build
 
-1. **Automatizar no CI/CD**
-   - Gerar pacotes automaticamente a cada release
-   - Publicar em repositorio interno
+### Pastas temporarias (nunca versionar)
 
-2. **Assinatura Digital**
-   - Assinar executaveis para evitar avisos do Windows
-   - Usar certificado code signing
+- PyInstaller: `launchers/platforms/<plataforma>/temp/`
+- Nuitka: `builds/nuitka/<plataforma>/*.build/`
+- PyOxidizer: `build/<target>/`
 
-3. **Atualizacao Automatica**
-   - Implementar verificacao de versao
-   - Download automatico de atualizacoes
+### Artefatos linkados/intermediarios (nunca versionar)
 
-4. **Telemetria (Opcional)**
-   - Coletar metricas de uso anonimas
-   - Identificar problemas comuns
+- Tradicional (PyInstaller, canonico): `launchers/dist/<plataforma>/`
+- Tradicional (equivalente/espelho): `builds/pyinstaller/<plataforma>/`
+- Nuitka: `builds/nuitka/<plataforma>/<entry>.dist/`
+- PyOxidizer: `builds/pyoxidizer/<plataforma>/`
 
----
+### Artefatos finais de distribuicao (nunca versionar)
 
-**Autor**: Sistema automatizado de distribuicao
-**Ultima atualizacao**: 2025-11-19
+- ZIP/installer final: `dist_packages/`
+- Script `.iss` gerado: `dist_packages/installer_<backend>.iss`
+
+### Exes principais esperados (Windows)
+
+- Tradicional (PyInstaller, onedir): `launchers/dist/windows_amd64/SSA_GUI_v<versao>_windows_amd64/SSA_GUI_v<versao>_windows_amd64.exe`
+- Tradicional (equivalente/espelho): `builds/pyinstaller/windows_amd64/SSA_GUI_v<versao>_windows_amd64/SSA_GUI_v<versao>_windows_amd64.exe`
+- Nuitka: `builds/nuitka/windows_amd64/gui_entry.dist/SSA_GUI_v<versao>_windows_amd64.exe`
+- PyOxidizer: `builds/pyoxidizer/windows_amd64/SSA_Consulta_Rapida.exe`
+
+### Exes principais esperados (Debian via WSL)
+
+- Tradicional (PyInstaller, onedir): `launchers/dist/debian_amd64/SSA_GUI_v<versao>_debian_amd64/SSA_GUI_v<versao>_debian_amd64`
+- Tradicional (equivalente/espelho): `builds/pyinstaller/debian_amd64/SSA_GUI_v<versao>_debian_amd64/SSA_GUI_v<versao>_debian_amd64`
+- Nuitka: `builds/nuitka/debian_amd64/gui_entry.dist/SSA_GUI_v<versao>_debian_amd64`
+- PyOxidizer: `builds/pyoxidizer/debian_amd64/SSA_Consulta_Rapida`
+
+## Estrutura Esperada dos Pacotes
+
+Pacote ZIP:
+
+```text
+SSA_Consulta_Rapida_v<versao>_<build_system>/
+├── <executavel_principal>
+├── BancoLocal/                    # opcional com --include-local-db
+├── BancoExemplo/                  # opcional com --include-sample-db
+├── config/
+├── docs/
+├── LEIA-ME-USUARIO.txt
+├── LEIA-ME.txt
+└── VERSION.txt
+```
+
+No caminho canonico de empacotamento, diretorios de dados locais sensiveis nao entram no bundle:
+- `data`
+- `docs_entrada`
+- `docs_saida`
+- `logs`
+- `reports`
+- `exportacao`
+
+Politica operacional (v4.37+):
+- build canonico nao embeda `data/` por padrao.
+- se for necessario incluir dados locais para laboratorio, usar fluxo explicito e controlado:
+  - `uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data`
+  - nunca usar isso para pacote de distribuicao geral.
+- banco local da maquina que gerou o pacote continua bloqueado no empacotador, mesmo quando `--include-sample-db` estiver ligado.
+- `--include-sample-db` libera apenas o asset fixo e aprovado em `dist_assets/sample_db/`.
+- `--include-local-db <caminho>` libera apenas o arquivo `.db` indicado no parametro.
+- com `--include-local-db`, o ZIP recebe esse arquivo em `BancoLocal/`.
+- no ZIP, o banco aprovado entra em `BancoExemplo/ssas_example.db`.
+- no instalador Windows, o banco local escolhido vai para `{userdocs}\\SSA Consulta Rapida\\BancoLocal`.
+- no instalador Windows, o banco aprovado vai para `{userdocs}\\SSA Consulta Rapida\\BancoExemplo`.
+
+## Distribuicao para Usuario Final
+
+Texto sugerido:
+
+```text
+SSA Consulta Rapida v4.37
+
+INSTALACAO
+1. Baixe o arquivo ZIP.
+2. Extraia para uma pasta local.
+3. Entre na pasta extraida.
+4. Execute o binario principal.
+
+PRIMEIRO USO
+1. Coloque arquivos de entrada em docs_entrada/.
+2. Execute Atualizar Dados ou Reescaneamento Completo conforme o caso.
+
+BANCO DE EXEMPLO OPCIONAL
+1. Se o pacote tiver sido gerado com `--include-sample-db`, use o banco em `BancoExemplo/ssas_example.db`.
+2. Nao misture esse arquivo com `data/ssas.db`.
+3. Leia `BancoExemplo/LEIA-ME.txt` antes de reutilizar o arquivo.
+
+BANCO LOCAL OPCIONAL
+1. Se o pacote tiver sido gerado com `--include-local-db`, use o banco em `BancoLocal/`.
+2. O empacotador inclui somente o caminho indicado no parametro.
+3. Esse fluxo e intencional para quando voce realmente quiser distribuir um banco local escolhido conscientemente.
+
+SUPORTE
+- Logs em logs/ssa.log
+- Guia de antivirus em docs/ANTIVIRUS_EXCLUSOES.md
+```
+
+## Checklist de Release
+
+- [ ] Build canonico concluido em `launchers/dist/<plataforma>/`.
+- [ ] `launchers/test_complete.py` sem erro bloqueante.
+- [ ] ZIP gerado em `dist_packages/`.
+- [ ] Instalador (quando aplicavel) gerado em `dist_packages/`.
+- [ ] Nome inclui versao e build system.
+- [ ] Smoke manual: `--version`, `--help`, `--gui`.
+
+## Troubleshooting Rapido
+
+### ZIP nao gerado
+
+1. Confirmar build em `launchers/dist/<plataforma>/`.
+2. Confirmar que existe executavel primario no diretorio alvo (nao apenas manifesto/log).
+3. Para PyInstaller, o empacotador agora valida executavel antes de aceitar o build canonico.
+4. Em laboratorio, `canonical_dirs` pode ser configurado em `BUILD_SYSTEMS["pyinstaller"]`.
+5. Executar novamente com log:
+
+```bash
+uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --skip-installer
+```
+
+### Instalador nao gerado
+
+1. Se log mostrar `Inno Setup nao encontrado`, instalar Inno Setup ou definir `INNO_SETUP_COMPILER`.
+2. Se log mostrar `Falha na compilacao`, revisar saida de erro do ISCC e dependencias do build.
+3. Opcional: definir compilador explicitamente:
+
+```bash
+set INNO_SETUP_COMPILER=C:\Program Files (x86)\Inno Setup 6\ISCC.exe
+uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller
+```
+
+### Copia de dados locais para build
+
+O script `scripts/copy_data_to_builds.py` exige confirmacao explicita:
+
+```bash
+uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
+```
+
+Use somente em ambiente controlado.
+
+### Banco de exemplo opcional
+
+Se voce quer um pacote com um banco de exemplo controlado, use:
+
+```bash
+uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --include-sample-db
+```
+
+Contrato dessa flag:
+- inclui so `dist_assets/sample_db/ssas_example.db`
+- inclui tambem `dist_assets/sample_db/LEIA-ME.txt`
+- nao desbloqueia `data/ssas.db`
+- nao desbloqueia `.db`, `.xls` ou `.xlsx` locais do build
+
+### Banco local opcional
+
+Se voce quer um pacote com um banco local especifico, use:
+
+```bash
+uv run --python 3.13 scripts/create_distribution.py --build-system pyinstaller --include-local-db data/ssas.db
+```
+
+Contrato dessa flag:
+- inclui so o arquivo `.db` indicado no parametro
+- o arquivo vai para `BancoLocal/` no ZIP
+- no instalador Windows, o arquivo vai para `{userdocs}\\SSA Consulta Rapida\\BancoLocal`
+- nao desbloqueia outros `.db` locais do build
+- nao altera a opcao `--include-sample-db`
+
+## Historical Snapshot
+
+- Referencias antigas a `build_*.bat`, `builds/*` e `pyoxidizer.bzl` existem em documentos de analise historica.
+- No baseline atual, elas nao representam o caminho operacional principal.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

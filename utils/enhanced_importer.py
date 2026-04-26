@@ -4,11 +4,13 @@ Sistema aprimorado de importação que lida com diferentes formatos AMS
 e adiciona campos apenas se não existirem.
 """
 
-import pandas as pd
 import logging
 from typing import Optional
 
+import pandas as pd
+
 logger = logging.getLogger(__name__)
+
 
 class EnhancedAMSImporter:
     """Importador aprimorado para diferentes formatos de relatórios AMS."""
@@ -17,16 +19,10 @@ class EnhancedAMSImporter:
         self.known_formats = {
             "format_a": {
                 "indicators": ["Todas as SSAs", "Número da SSA"],
-                "priority": 1
+                "priority": 1,
             },
-            "format_b": {
-                "indicators": ["Em Execução", "Nº SSA"],
-                "priority": 2
-            },
-            "format_c": {
-                "indicators": ["Pendentes", "SSA"],
-                "priority": 3
-            }
+            "format_b": {"indicators": ["Em Execução", "Nº SSA"], "priority": 2},
+            "format_c": {"indicators": ["Pendentes", "SSA"], "priority": 3},
         }
 
     def detect_format(self, df: pd.DataFrame) -> str:
@@ -34,22 +30,36 @@ class EnhancedAMSImporter:
         if df.empty:
             return "unknown"
 
-        columns = df.columns.tolist()
+        columns = [str(col) for col in df.columns.tolist()]
 
         for format_name, format_info in self.known_formats.items():
-            indicators = format_info["indicators"]
-            matches = sum(1 for indicator in indicators
-                         if any(indicator in col for col in columns))
+            raw_indicators = format_info.get("indicators", [])
+            if not isinstance(raw_indicators, list):
+                continue
+            indicators = [
+                str(indicator).strip()
+                for indicator in raw_indicators
+                if str(indicator).strip()
+            ]
+            if not indicators:
+                continue
+            required_matches = max(1, (len(indicators) + 1) // 2)
+            matches = sum(
+                1
+                for indicator in indicators
+                if any(indicator in col for col in columns)
+            )
 
-            if matches >= len(indicators) // 2:  # Pelo menos metade dos indicadores
+            if matches >= required_matches:  # Pelo menos metade dos indicadores
                 logger.info(f"Formato detectado: {format_name}")
                 return format_name
 
         logger.warning("Formato não reconhecido, usando padrão")
         return "unknown"
 
-    def safe_column_addition(self, existing_df: pd.DataFrame,
-                            new_df: pd.DataFrame) -> pd.DataFrame:
+    def safe_column_addition(
+        self, existing_df: pd.DataFrame, new_df: pd.DataFrame
+    ) -> pd.DataFrame:
         """Adiciona colunas de new_df apenas se não existirem em existing_df."""
         if existing_df.empty:
             return new_df.copy()
@@ -79,7 +89,9 @@ class EnhancedAMSImporter:
             logger.error(f"Erro ao importar {file_path}: {e}")
             return None
 
-    def _apply_format_transformations(self, df: pd.DataFrame, format_type: str) -> pd.DataFrame:
+    def _apply_format_transformations(
+        self, df: pd.DataFrame, format_type: str
+    ) -> pd.DataFrame:
         """Aplica transformações específicas baseadas no formato detectado."""
         # Implementar transformações específicas conforme necessário
         return df

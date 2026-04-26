@@ -6,6 +6,8 @@ black>=24.8.0
 mypy>=1.11.2
 pytest-cov>=5.0.0
 pre-commit>=4.0.1
+ty>=0.0.15
+pillow>=12.2.0
 
 # Changelog:
 # [2025-12-10] - Alinhado com dev para consistencia. Mesmo set de ferramentas CI/dev.

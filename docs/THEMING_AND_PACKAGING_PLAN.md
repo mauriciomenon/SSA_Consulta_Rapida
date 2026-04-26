@@ -45,3 +45,6 @@ Este documento descreve as mudancas propostas (e sua justificativa) antes da cri
 - Adicionar icone (commit 2).
 - Adicionar `gui_launcher.pyw` e doc curta (commit 3).
 - Depois: README/RELEASE NOTES + PR de empacotamento.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

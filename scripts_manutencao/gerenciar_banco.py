@@ -5,9 +5,9 @@ Inclui funes para reset do DB, limpeza de backups antigos e sanitizao.
 """
 
 import os
-import sys
-import sqlite3
 import shutil
+import sqlite3
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -45,7 +45,7 @@ def reset_database(db_path="data/ssas.db"):
     with sqlite3.connect(db_path) as conn:
         # Lê e executa o schema oficial
         if os.path.exists(schema_path):
-            with open(schema_path, 'r', encoding='utf-8') as f:
+            with open(schema_path, "r", encoding="utf-8") as f:
                 schema_sql = f.read()
             conn.executescript(schema_sql)
             print(" Estrutura das tabelas recriada usando schema oficial")
@@ -91,7 +91,7 @@ def clean_old_backups(data_dir="data", days_to_keep=7):
         "ssas_emergency_backup_",
         ".backup_",
         "_bkp",
-        ".bkp"
+        ".bkp",
     ]
 
     data_path = Path(data_dir)
@@ -100,7 +100,9 @@ def clean_old_backups(data_dir="data", days_to_keep=7):
     for file_path in data_path.glob("*"):
         if file_path.is_file():
             # Verifica se  um arquivo de backup
-            is_backup = any(pattern in file_path.name.lower() for pattern in backup_patterns)
+            is_backup = any(
+                pattern in file_path.name.lower() for pattern in backup_patterns
+            )
 
             if is_backup:
                 file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
@@ -119,13 +121,17 @@ def clean_old_backups(data_dir="data", days_to_keep=7):
                 file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
                 if file_time < cutoff_date:
                     file_size = file_path.stat().st_size
-                    print(f"   Removendo: backups/{file_path.name} ({file_size:,} bytes)")
+                    print(
+                        f"   Removendo: backups/{file_path.name} ({file_size:,} bytes)"
+                    )
                     file_path.unlink()
                     removed_count += 1
                     total_size_removed += file_size
 
     print(f" Limpeza concluda: {removed_count} arquivos removidos")
-    print(f" Espao liberado: {total_size_removed:,} bytes ({total_size_removed/1024/1024:.1f} MB)")
+    print(
+        f" Espao liberado: {total_size_removed:,} bytes ({total_size_removed / 1024 / 1024:.1f} MB)"
+    )
 
 
 def sanitize_data_folder(data_dir="data"):
@@ -161,7 +167,9 @@ def sanitize_data_folder(data_dir="data"):
 
     for file_path in data_path.glob("*"):
         if file_path.is_file() and file_path.name != "ssas.db":
-            is_backup = any(pattern in file_path.name.lower() for pattern in backup_patterns)
+            is_backup = any(
+                pattern in file_path.name.lower() for pattern in backup_patterns
+            )
             if is_backup:
                 new_path = backups_path / file_path.name
                 if not new_path.exists():
@@ -169,7 +177,7 @@ def sanitize_data_folder(data_dir="data"):
                     shutil.move(str(file_path), str(new_path))
                     moved_backups += 1
 
-    print(f" Sanitizao concluda:")
+    print(" Sanitizao concluda:")
     print(f"  - {removed_temp} arquivos temporrios removidos")
     print(f"  - {moved_backups} backups organizados")
 
@@ -204,7 +212,9 @@ def show_data_status(data_dir="data"):
 
     for file_path in data_path.glob("*"):
         if file_path.is_file() and file_path.name != "ssas.db":
-            is_backup = any(pattern in file_path.name.lower() for pattern in backup_patterns)
+            is_backup = any(
+                pattern in file_path.name.lower() for pattern in backup_patterns
+            )
             if is_backup:
                 main_backups.append(file_path)
 
@@ -224,7 +234,9 @@ def show_data_status(data_dir="data"):
         if file_path.is_file():
             total_size += file_path.stat().st_size
 
-    print(f"  Espao total usado: {total_size:,} bytes ({total_size/1024/1024:.1f} MB)")
+    print(
+        f"  Espao total usado: {total_size:,} bytes ({total_size / 1024 / 1024:.1f} MB)"
+    )
 
     # Poltica de backup recomendada
     print("\nPoltica de Backup Recomendada:")
@@ -264,14 +276,20 @@ def main():
             choice = input("\nEscolha uma opo (0-4): ").strip()
 
             if choice == "1":
-                confirm = input("  Tem certeza que quer ZERAR o banco? (sim/no): ").strip().lower()
+                confirm = (
+                    input("  Tem certeza que quer ZERAR o banco? (sim/no): ")
+                    .strip()
+                    .lower()
+                )
                 if confirm in ["sim", "s", "yes", "y"]:
                     reset_database()
                 else:
                     print(" Operao cancelada")
                 break
             elif choice == "2":
-                days = input("Manter backups dos ltimos quantos dias? (padro: 7): ").strip()
+                days = input(
+                    "Manter backups dos ltimos quantos dias? (padro: 7): "
+                ).strip()
                 days = int(days) if days.isdigit() else 7
                 clean_old_backups(days_to_keep=days)
                 break

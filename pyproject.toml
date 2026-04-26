@@ -1,23 +1,57 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = []
+
 [tool.pytest.ini_options]
-minversion = "6.0"
-addopts = "-ra --strict-markers --ignore=tests/legacy_tests -p no:pylama"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
+addopts = ["--ignore=tests/legacy_tests"]
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
-    "unit: marks tests as unit tests",
-    "performance: marks performance / import throughput tests",
-    "smoke: marca smoke tests rapidos",
-    "stress: marca testes de stress"
+  "performance: performance tests",
+  "integration: integration tests",
+  "smoke: smoke tests",
+  "stress: stress tests",
 ]
 
-[tool.black]
-line-length = 100
-target-version = ["py313"]
-skip-string-normalization = true
+[tool.codeflash]
+# All paths are relative to this pyproject.toml's directory.
+module-root = "."
+tests-root = "tests"
+formatter-cmds = ["ruff check --exit-zero --fix $file", "ruff format $file"]
 
-# Changelog:
-# [2025-12-05] - Otimização de requirements: mantido como está (não afetado)
+
+
+[project]
+name = "ssa-consulta-rapida"
+version = "4.37.0"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas",
+    "openpyxl",
+    "defusedxml",
+    "pyqt6",
+    "numpy",
+    "tabulate",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "flake8",
+    "pytest",
+    "ty",
+    "black",
+    "pillow",
+]
+build = [
+    "pyinstaller",
+    "nuitka",
+]
+
+[dependency-groups]
+dev = [
+    "codeflash>=0.20.1",
+]

@@ -1,0 +1,90 @@
+name: codeql-security-scan
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  precheck-default-setup:
+    runs-on: ubuntu-latest
+    outputs:
+      run_advanced: ${{ steps.detect.outputs.run_advanced }}
+      reason: ${{ steps.detect.outputs.reason }}
+    steps:
+      - name: Detect CodeQL default setup state
+        id: detect
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RUN_ADVANCED="false"
+          REASON="default_setup_unverified"
+          API_URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/code-scanning/default-setup"
+          HTTP_CODE="$(curl -sS -o default_setup.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API_URL}" || true)"
+
+          if [ "${HTTP_CODE}" = "200" ]; then
+            STATE="$(jq -r '.state // .status // "unknown"' default_setup.json)"
+            if [ "${STATE}" = "configured" ] || [ "${STATE}" = "enabled" ]; then
+              REASON="default_setup_active"
+            elif [ "${STATE}" = "not-configured" ] || [ "${STATE}" = "not_configured" ] || [ "${STATE}" = "disabled" ]; then
+              RUN_ADVANCED="true"
+              REASON="advanced_allowed"
+            else
+              REASON="default_setup_state_unknown"
+            fi
+          else
+            REASON="default_setup_unverified_http_${HTTP_CODE}"
+          fi
+
+          echo "run_advanced=${RUN_ADVANCED}" >> "${GITHUB_OUTPUT}"
+          echo "reason=${REASON}" >> "${GITHUB_OUTPUT}"
+
+  analyze:
+    needs: precheck-default-setup
+    if: ${{ needs.precheck-default-setup.outputs.run_advanced == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["python"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  default-setup-note:
+    needs: precheck-default-setup
+    if: ${{ needs.precheck-default-setup.outputs.run_advanced != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip advanced scan due to default setup
+        run: |
+          set -euo pipefail
+          echo "CodeQL advanced workflow skipped because default setup is active or verification could not be completed."
+          echo "Reason: ${{ needs.precheck-default-setup.outputs.reason }}"

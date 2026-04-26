@@ -1,5 +1,17 @@
 # BUILD SYSTEM - SSA Consulta Rapida v4.0.0
 
+## CURRENT TRUTH (4.37 local / v4.36 published)
+
+- Sync deste guia: `2026-03-11 22:25 -0300`.
+- Este arquivo e historico e nao representa o fluxo atual de release.
+- Fluxo atual:
+  - `docs/BUILD_MULTIPLATFORM.md`
+  - `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+  - `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
+  - `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
+- Todos os comandos operacionais devem usar uv (`uv run --python 3.13 ...`).
+- Nao usar comandos antigos deste arquivo com `pip`/`python` direto como fonte primaria.
+
 ##  **BUILD SYSTEM OTIMIZADO PARA v4.0.0**
 
 ###  **PERFORMANCE APRIMORADA NO BUILD:**
@@ -40,7 +52,7 @@ dist/
 ### 2. ATIVAR E COMPILAR:
 ```bash
 source build_env/bin/activate
-python build/build_all.py
+uv run --python 3.13 launchers/build_multiplatform.py
 ```
 
 ### 3. TESTAR:
@@ -67,3 +79,5 @@ python build/build_all.py
 - Sem instalacao necessaria
 
 **PRONTO PARA TESTAR!**
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
