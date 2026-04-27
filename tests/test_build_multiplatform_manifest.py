@@ -295,3 +295,15 @@ def test_build_multiplatform_script_runs_without_explicit_pythonpath():
 
     assert result.returncode == 0
     assert "Plataformas suportadas:" in result.stdout
+    assert "debian_arm64: Linux aarch64" in result.stdout
+
+
+def test_detect_current_platform_maps_linux_arm64(monkeypatch):
+    builder = MultiPlatformBuilder()
+
+    monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Linux")
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.platform.machine", lambda: "aarch64"
+    )
+
+    assert builder.detect_current_platform() == "debian_arm64"

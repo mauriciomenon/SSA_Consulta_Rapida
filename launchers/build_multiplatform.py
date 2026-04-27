@@ -41,6 +41,7 @@ class MultiPlatformBuilder:
         },
         "macos_arm64": {"system": "Darwin", "arch": "arm64", "executable_ext": ""},
         "debian_amd64": {"system": "Linux", "arch": "x86_64", "executable_ext": ""},
+        "debian_arm64": {"system": "Linux", "arch": "aarch64", "executable_ext": ""},
     }
 
     def __init__(self):
@@ -152,6 +153,8 @@ class MultiPlatformBuilder:
             return "macos_arm64"
         elif system == "Linux" and machine in ["x86_64", "amd64"]:
             return "debian_amd64"
+        elif system == "Linux" and machine in ["aarch64", "arm64"]:
+            return "debian_arm64"
         else:
             logger.error(f"Plataforma nao suportada: {system} {machine}")
             return None
@@ -626,6 +629,7 @@ class MultiPlatformBuilder:
             "build_date": datetime.now().isoformat(),
             "executables": [],
         }
+        directory_size_cache: dict[Path, int] = {}
 
         for artifact in sorted(
             dist_dir.glob("*"), key=lambda path: path.name.casefold()
@@ -640,7 +644,11 @@ class MultiPlatformBuilder:
                 size_bytes = artifact.stat().st_size
                 artifact_kind = "file"
             elif artifact.is_dir():
-                size_bytes = self._compute_directory_size_bytes(artifact)
+                cache_key = artifact.resolve(strict=False)
+                size_bytes = directory_size_cache.get(cache_key)
+                if size_bytes is None:
+                    size_bytes = self._compute_directory_size_bytes(artifact)
+                    directory_size_cache[cache_key] = size_bytes
                 artifact_kind = "directory"
             else:
                 continue
@@ -852,7 +860,9 @@ class MultiPlatformBuilder:
             files_to_add = [
                 "launchers/*.py",
                 "launchers/platforms/*/build_config.json",
+                "launchers/platforms/*/requirements.txt",
                 "launchers/*.md",
+                "dev_env/build/*.sh",
                 "config/*.json",
                 "docs/*.md",
                 "*.py",
@@ -1116,7 +1126,7 @@ def main(argv=None):
 
     parser.add_argument(
         "--platform",
-        choices=["windows_amd64", "macos_arm64", "debian_amd64"],
+        choices=sorted(MultiPlatformBuilder.PLATFORMS),
         help="Plataforma especifica para build",
     )
 
