@@ -1,0 +1,39 @@
+tests/test_build_multiplatform_manifest.py
+  41bd7cec02910368 298-309
+dev_env/build/build_nuitka_debian_arm64.sh
+  41bd7cec02910368 1-157
+launchers/platforms/debian_arm64/build_config.json
+  41bd7cec02910368 1-45
+dev_env/build/build_pyoxidizer_debian_arm64.sh
+  41bd7cec02910368 1-105
+launchers/platforms/debian_arm64/requirements.txt
+  41bd7cec02910368 1-16
+dev_env/build/build_pyinstaller_debian_arm64.sh
+  41bd7cec02910368 1-62
+launchers/build_multiplatform.py
+  41bd7cec02910368 44,156-157,632,647-651,863,865,1129
+scripts/copy_data_to_builds.py
+  41bd7cec02910368 17,23-25,27-30,32-33,35-42
+scripts/sync_pyinstaller_outputs.py
+  41bd7cec02910368 19,21,24-31,70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "92886b7165985013037b632ef1274d3e6aec5db0",
+  "prompts": {
+    "41bd7cec02910368": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dbaf0-1318-7781-b6a3-80fc2fb6c8f6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 2229,
+      "total_deletions": 537,
+      "accepted_lines": 1721,
+      "overriden_lines": 0
+    }
+  }
+}
