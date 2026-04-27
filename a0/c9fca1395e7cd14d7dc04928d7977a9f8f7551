@@ -1,0 +1,27 @@
+tests/test_dev_env_build_scripts.py
+  41bd7cec02910368 48-63
+dev_env/build/build_nuitka_debian.sh
+  41bd7cec02910368 21-23,97-104,106,117
+launchers/platforms/debian_amd64/requirements.txt
+  41bd7cec02910368 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "a0c9fca1395e7cd14d7dc04928d7977a9f8f7551",
+  "prompts": {
+    "41bd7cec02910368": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dbaf0-1318-7781-b6a3-80fc2fb6c8f6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1294,
+      "overriden_lines": 0
+    }
+  }
+}
