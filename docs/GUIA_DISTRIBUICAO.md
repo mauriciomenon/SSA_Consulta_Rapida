@@ -42,7 +42,8 @@ usando o fluxo canonico atual.
 
 Nota Debian:
 - no baseline atual, Debian usa pacote ZIP canonico.
-- AppImage/.deb ficam como trilha futura e nao sao etapa automatica do pipeline oficial.
+- `.deb` e AppImage ficam como etapa manual de release por arquitetura.
+- scripts disponiveis para AMD64 e ARM64 ficam em `dev_env/build/package_debian_*`.
 
 ## Build Canonico
 
@@ -58,6 +59,7 @@ uv run --python 3.13 launchers/build_multiplatform.py --apps cli gui
 uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui
 uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui
 uv run --python 3.13 launchers/build_multiplatform.py --platform debian_amd64 --apps cli gui
+uv run --python 3.13 launchers/build_multiplatform.py --platform debian_arm64 --apps cli gui
 ```
 
 ### 3) Verificar saida do build
@@ -122,6 +124,21 @@ Importante:
 - `nuitka` e `pyoxidizer` estao mantidos como trilha experimental neste ciclo.
 - Para release operacional, usar PyInstaller como padrao.
 
+### 4) Criar .deb e AppImage Debian manualmente
+
+```bash
+bash dev_env/build/package_debian_amd64_deb.sh --build-system pyinstaller
+bash dev_env/build/package_debian_amd64_appimage.sh --build-system pyinstaller --prepare-only
+bash dev_env/build/package_debian_arm64_deb.sh --build-system pyinstaller
+bash dev_env/build/package_debian_arm64_appimage.sh --build-system pyinstaller --prepare-only
+```
+
+Notas Debian:
+- `.deb` aceita `pyinstaller`, `nuitka` e `pyoxidizer`.
+- AppImage aceita `pyinstaller` e `nuitka`.
+- `--prepare-only` valida AppDir sem exigir `appimagetool`.
+- Os pacotes finais removem residuos locais: `venv`, backups `.bak`, bancos, planilhas e `.env`.
+
 ## Mapa de Pastas de Build
 
 ### Pastas temporarias (nunca versionar)
@@ -140,6 +157,7 @@ Importante:
 ### Artefatos finais de distribuicao (nunca versionar)
 
 - ZIP/installer final: `dist_packages/`
+- `.deb` e AppImage Debian manual: `builds/packages/<plataforma>/`
 - Script `.iss` gerado: `dist_packages/installer_<backend>.iss`
 
 ### Exes principais esperados (Windows)
@@ -149,12 +167,14 @@ Importante:
 - Nuitka: `builds/nuitka/windows_amd64/gui_entry.dist/SSA_GUI_v<versao>_windows_amd64.exe`
 - PyOxidizer: `builds/pyoxidizer/windows_amd64/SSA_Consulta_Rapida.exe`
 
-### Exes principais esperados (Debian via WSL)
+### Exes principais esperados (Debian)
 
-- Tradicional (PyInstaller, onedir): `launchers/dist/debian_amd64/SSA_GUI_v<versao>_debian_amd64/SSA_GUI_v<versao>_debian_amd64`
-- Tradicional (equivalente/espelho): `builds/pyinstaller/debian_amd64/SSA_GUI_v<versao>_debian_amd64/SSA_GUI_v<versao>_debian_amd64`
-- Nuitka: `builds/nuitka/debian_amd64/gui_entry.dist/SSA_GUI_v<versao>_debian_amd64`
-- PyOxidizer: `builds/pyoxidizer/debian_amd64/SSA_Consulta_Rapida`
+Use `<plataforma>` como `debian_amd64` ou `debian_arm64`.
+
+- Tradicional (PyInstaller, onedir): `launchers/dist/<plataforma>/SSA_GUI_v<versao>_<plataforma>/SSA_GUI_v<versao>_<plataforma>`
+- Tradicional (equivalente/espelho): `builds/pyinstaller/<plataforma>/SSA_GUI_v<versao>_<plataforma>/SSA_GUI_v<versao>_<plataforma>`
+- Nuitka: `builds/nuitka/<plataforma>/gui_entry.dist/SSA_GUI_v<versao>_<plataforma>`
+- PyOxidizer: `builds/pyoxidizer/<plataforma>/SSA_Consulta_Rapida`
 
 ## Estrutura Esperada dos Pacotes
 
