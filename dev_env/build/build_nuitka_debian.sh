@@ -18,6 +18,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 LOG_DIR="${REPO_ROOT}/launchers/logs"
 LOG_FILE="${LOG_DIR}/build_nuitka_debian_amd64.log"
+VENV_DIR="${REPO_ROOT}/launchers/platforms/debian_amd64/venv"
+PYTHON_EXE="${VENV_DIR}/bin/python"
+REQUIREMENTS_FILE="${REPO_ROOT}/launchers/platforms/debian_amd64/requirements.txt"
 
 mkdir -p "${LOG_DIR}"
 mkdir -p "${REPO_ROOT}/builds/nuitka/debian_amd64"
@@ -91,8 +94,16 @@ GUI_DIST="${REPO_ROOT}/builds/nuitka/debian_amd64/gui_entry.dist"
 CLI_DIST="${REPO_ROOT}/builds/nuitka/debian_amd64/cli_entry.dist"
 rm -rf "${GUI_DIST}" "${CLI_DIST}"
 
+if [[ ! -x "${PYTHON_EXE}" ]]; then
+  LAST_STEP="create_venv"
+  uv venv --python 3.13 "${VENV_DIR}"
+fi
+
+LAST_STEP="install_requirements"
+uv pip install --python "${PYTHON_EXE}" -r "${REQUIREMENTS_FILE}"
+
 GUI_CMD=(
-  uv run --python 3.13 -m nuitka
+  "${PYTHON_EXE}" -m nuitka
   --standalone
   --assume-yes-for-downloads
   --follow-imports
@@ -103,7 +114,7 @@ GUI_CMD=(
 )
 
 CLI_CMD=(
-  uv run --python 3.13 -m nuitka
+  "${PYTHON_EXE}" -m nuitka
   --standalone
   --assume-yes-for-downloads
   --follow-imports
