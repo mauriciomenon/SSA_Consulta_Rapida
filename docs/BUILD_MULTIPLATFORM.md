@@ -4,7 +4,7 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 
 ## CURRENT TRUTH (4.37 local / v4.36 published)
 
-- Sync deste guia: `2026-03-26 11:40 -0300`.
+- Sync deste guia: `2026-04-27 12:45 -0300`.
 - Relatorio consolidado deste ciclo:
   - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 - Runbook operacional 3x3:
@@ -21,10 +21,14 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
     - `dev_env/build/build_pyinstaller.bat --silent`
     - `dev_env/build/build_nuitka.bat --silent`
     - `dev_env/build/build_pyoxidizer.bat --silent`
-  - Debian via WSL:
+  - Debian AMD64:
     - `bash dev_env/build/build_pyinstaller_debian.sh --silent`
     - `bash dev_env/build/build_nuitka_debian.sh --silent`
     - `bash dev_env/build/build_pyoxidizer_debian.sh --silent`
+  - Debian ARM64:
+    - `bash dev_env/build/build_pyinstaller_debian_arm64.sh --silent`
+    - `bash dev_env/build/build_nuitka_debian_arm64.sh --silent`
+    - `bash dev_env/build/build_pyoxidizer_debian_arm64.sh --silent`
 
 ## Local de saida e staging
 
@@ -72,10 +76,14 @@ launchers/
 │   │   ├── venv/               # Ambiente virtual macOS
 │   │   ├── requirements.txt    # Deps especificas macOS
 │   │   └── build_config.json   # Config PyInstaller macOS
-│   └── debian_amd64/
-│       ├── venv/               # Ambiente virtual Linux
-│       ├── requirements.txt    # Deps especificas Linux
-│       └── build_config.json   # Config PyInstaller Linux
+│   ├── debian_amd64/
+│   │   ├── venv/               # Ambiente virtual Linux AMD64
+│   │   ├── requirements.txt    # Deps especificas Linux AMD64
+│   │   └── build_config.json   # Config PyInstaller Linux AMD64
+│   └── debian_arm64/
+│       ├── venv/               # Ambiente virtual Linux ARM64
+│       ├── requirements.txt    # Deps especificas Linux ARM64
+│       └── build_config.json   # Config PyInstaller Linux ARM64
 ├── dist/                       # Executaveis gerados
 │   ├── windows_amd64/
 │   │   ├── SSA_CLI_v3.10_windows_amd64.exe
@@ -104,6 +112,7 @@ uv run --python 3.13 launchers/build_multiplatform.py
 uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64
 uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64
 uv run --python 3.13 launchers/build_multiplatform.py --platform debian_amd64
+uv run --python 3.13 launchers/build_multiplatform.py --platform debian_arm64
 ```
 
 ### Build de todos os apps da plataforma atual
@@ -145,8 +154,9 @@ O script automaticamente:
 - Pandas (Apple Silicon)
 - PyQt6 (ARM64)
 
-**Debian AMD64:**
+**Debian AMD64/ARM64:**
 - PyInstaller 6.0+
+- Nuitka 4.0+ para trilha Nuitka
 - Pandas
 - PyQt6
 - Bibliotecas sistema (libGL, libX11)
@@ -189,9 +199,15 @@ Exemplo:
 
 ### Empacotamento Debian no baseline atual
 
-- Saida operacional oficial para Debian: ZIP.
-- AppImage/.deb nao sao gerados automaticamente pelo pipeline canonico atual.
-- Se necessario, tratar AppImage/.deb como etapa manual/laboratorio fora do fluxo padrao.
+- Saida operacional oficial para Debian continua sendo ZIP pelo pipeline canonico.
+- `.deb` e AppImage existem como etapa manual de release por arquitetura, fora do `build_multiplatform.py`.
+- Scripts disponiveis:
+  - `dev_env/build/package_debian_amd64_deb.sh`
+  - `dev_env/build/package_debian_amd64_appimage.sh`
+  - `dev_env/build/package_debian_arm64_deb.sh`
+  - `dev_env/build/package_debian_arm64_appimage.sh`
+- Os scripts removem residuos locais do pacote final: `venv`, `.bak`, bancos locais, planilhas e `.env`.
+- AppImage suporta `--prepare-only` para validar o AppDir quando `appimagetool` nao esta instalado.
 
 ### Manifesto de Release
 Cada build gera um `release_manifest.json`:
