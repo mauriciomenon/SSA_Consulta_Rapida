@@ -45,3 +45,19 @@ def test_nuitka_debian_serializes_patchelf_install() -> None:
     assert 'exec 9>"${APT_LOCK_FILE}"' in script
     assert "flock 9" in script
     assert script.count("if ! command -v patchelf >/dev/null 2>&1; then") >= 2
+
+
+def test_nuitka_debian_uses_platform_venv_and_requirements() -> None:
+    for platform, script_name in (
+        ("debian_amd64", "build_nuitka_debian.sh"),
+        ("debian_arm64", "build_nuitka_debian_arm64.sh"),
+    ):
+        script = (PROJECT_ROOT / "dev_env" / "build" / script_name).read_text(
+            encoding="utf-8"
+        )
+
+        assert f'VENV_DIR="${{REPO_ROOT}}/launchers/platforms/{platform}/venv"' in script
+        assert f'REQUIREMENTS_FILE="${{REPO_ROOT}}/launchers/platforms/{platform}/requirements.txt"' in script
+        assert 'uv venv --python 3.13 "${VENV_DIR}"' in script
+        assert 'uv pip install --python "${PYTHON_EXE}" -r "${REQUIREMENTS_FILE}"' in script
+        assert '"${PYTHON_EXE}" -m nuitka' in script
