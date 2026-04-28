@@ -25,15 +25,27 @@ def test_pyoxidizer_default_project_root_uses_empty_strip_prefix() -> None:
     assert 'PROJECT_ROOT in ("", ".")' in root_text
     assert '""\n    if PROJECT_ROOT in ("", ".")' in root_text
     assert 'strip_prefix=PROJECT_PREFIX' in root_text
+    assert '"launchers/platforms/**/venv/**"' in root_text
+    assert '"launchers/platforms/**/temp/**"' in root_text
+    assert '"launchers/dist/**"' in root_text
+    assert '"docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md"' in root_text
+    assert '"config/build_info.json"' in root_text
 
 
 def test_pyoxidizer_debian_uses_root_config_kept_in_sync() -> None:
-    script = (PROJECT_ROOT / "dev_env" / "build" / "build_pyoxidizer_debian.sh").read_text(
-        encoding="utf-8"
-    )
-    assert 'PYOX_CONFIG="${REPO_ROOT}/pyoxidizer.bzl"' in script
-    assert '--var SSA_PROJECT_ROOT "${REPO_ROOT}"' in script
-    assert '--path "${REPO_ROOT}"' in script
+    for platform, script_name in (
+        ("debian_amd64", "build_pyoxidizer_debian.sh"),
+        ("debian_arm64", "build_pyoxidizer_debian_arm64.sh"),
+    ):
+        script = (PROJECT_ROOT / "dev_env" / "build" / script_name).read_text(
+            encoding="utf-8"
+        )
+        assert 'PYOX_CONFIG="${REPO_ROOT}/pyoxidizer.bzl"' in script
+        assert '--var SSA_PROJECT_ROOT "${REPO_ROOT}"' in script
+        assert '--path "${REPO_ROOT}"' in script
+        assert 'BUILD_INFO_FILE="${REPO_ROOT}/config/build_info.json"' in script
+        assert "cleanup_build_info" in script
+        assert f'"pyoxidizer" "{platform}"' in script
 
 
 def test_nuitka_debian_serializes_patchelf_install() -> None:
@@ -61,3 +73,29 @@ def test_nuitka_debian_uses_platform_venv_and_requirements() -> None:
         assert 'uv venv --python 3.13 "${VENV_DIR}"' in script
         assert 'uv pip install --python "${PYTHON_EXE}" -r "${REQUIREMENTS_FILE}"' in script
         assert '"${PYTHON_EXE}" -m nuitka' in script
+        assert '--include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md' in script
+        assert '--include-data-file="${BUILD_INFO_FILE}=config/build_info.json"' in script
+        assert 'NUITKA_OUTPUT_DIR=' in script
+        assert 'trap cleanup_build_work_dir EXIT' in script
+
+
+def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> None:
+    nuitka_script = (PROJECT_ROOT / "dev_env" / "build" / "build_nuitka_clean.bat").read_text(
+        encoding="utf-8"
+    )
+    pyoxidizer_script = (PROJECT_ROOT / "dev_env" / "build" / "build_pyoxidizer.bat").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md" in nuitka_script
+    assert "--include-data-file=%BUILD_INFO_FILE%=config/build_info.json" in nuitka_script
+    assert "--format=%%cI" in nuitka_script
+    assert "--format=%%s" in nuitka_script
+    assert 'set "MSVC_LINK="' in pyoxidizer_script
+    assert "if not defined MSVC_LINK" in pyoxidizer_script
+    assert "where link.exe" in pyoxidizer_script
+    assert 'set "APP_VERSION=%%A"' in pyoxidizer_script
+    assert "build_info.json" in pyoxidizer_script
+    assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in pyoxidizer_script
+    assert "--format=%%cI" in pyoxidizer_script
+    assert "--format=%%s" in pyoxidizer_script

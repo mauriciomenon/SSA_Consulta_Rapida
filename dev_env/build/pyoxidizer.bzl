@@ -81,8 +81,17 @@ def make_install(exe):
                 "launchers/*.py",
                 "launchers/**/*.py",
                 "config/**",
+                "config/build_info.json",
+                "docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md",
                 "themes/**",
                 "resources/**",
+            ],
+            exclude=[
+                "launchers/**/__pycache__/**",
+                "launchers/dist/**",
+                "launchers/logs/**",
+                "launchers/platforms/**/temp/**",
+                "launchers/platforms/**/venv/**",
             ],
             strip_prefix=PROJECT_PREFIX,
         )

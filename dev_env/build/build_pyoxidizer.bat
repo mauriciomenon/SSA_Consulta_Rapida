@@ -24,6 +24,12 @@ set "UV_PYTHON=3.13"
 set "UV_MANAGED_PYTHON=true"
 set "UV_PROJECT_ENVIRONMENT=.venv-win"
 
+for /f "tokens=1" %%A in ('uv run --python 3.13 python -c "import json,pathlib; print(json.loads(pathlib.Path('config/version.json').read_text(encoding='utf-8')).get('version_short','0.0'))"') do (
+    set "APP_VERSION=%%A"
+)
+if not defined APP_VERSION set "APP_VERSION=0.0"
+
+set "MSVC_LINK="
 set "VCVARS="
 set "VSWHERE=C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
 
@@ -67,6 +73,17 @@ if defined VCToolsInstallDir (
         set "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=%MSVC_LINK%"
         if "%SILENT%"=="0" echo Linker MSVC forcado: "%MSVC_LINK%"
     )
+)
+
+if not defined MSVC_LINK (
+    for /f "delims=" %%L in ('where link.exe 2^>nul') do (
+        if not defined MSVC_LINK set "MSVC_LINK=%%L"
+    )
+)
+
+if not defined MSVC_LINK (
+    echo Erro: linker MSVC nao localizado. link.exe atual no PATH pode nao ser do Visual Studio.
+    exit /b 1
 )
 
 if not exist "%MSVC_LINK%" (
@@ -137,6 +154,19 @@ for %%D in (core gui armazenamento extracao utils interface exportacao shared co
             )
         )
     )
+)
+if not exist "%STAGE_DIR%\docs" mkdir "%STAGE_DIR%\docs"
+copy /Y "%REPO_ROOT%\docs\GUIA_MIGRACAO_NOVA_INSTALACAO.md" "%STAGE_DIR%\docs\GUIA_MIGRACAO_NOVA_INSTALACAO.md" >nul
+if errorlevel 1 (
+    echo Erro ao copiar guia de instalacao para staging.
+    exit /b 1
+)
+if not exist "%STAGE_DIR%\config" mkdir "%STAGE_DIR%\config"
+set "BUILD_INFO_FILE=%STAGE_DIR%\config\build_info.json"
+uv run --python 3.13 python -c "import datetime,json,os,pathlib,subprocess; root=pathlib.Path(os.environ['REPO_ROOT']); run=lambda args: subprocess.run(args,cwd=str(root),text=True,capture_output=True,check=False).stdout.strip(); commit=run(['git','rev-parse','HEAD']); payload={'app_version':os.environ.get('APP_VERSION',''),'build_datetime':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),'build_system':'pyoxidizer','git_commit':commit,'git_commit_datetime':run(['git','log','-1','--format=%%cI']),'git_commit_short':commit[:7] if commit else '','git_commit_title':run(['git','log','-1','--format=%%s']),'platform':'windows_amd64','uv_version':run(['uv','--version'])}; pathlib.Path(os.environ['BUILD_INFO_FILE']).write_text(json.dumps(payload,ensure_ascii=True,indent=2,sort_keys=True)+'\n',encoding='utf-8')"
+if errorlevel 1 (
+    echo Erro ao gerar build_info.json para staging.
+    exit /b 1
 )
 set "STAGE_DIR_POSIX=%STAGE_DIR:\=/%"
 

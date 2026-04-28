@@ -112,6 +112,51 @@ class MultiPlatformBuilder:
         )
         return True
 
+    def _command_stdout(self, cmd, *, timeout=20) -> str:
+        result = self._run_command(
+            cmd,
+            timeout=timeout,
+            capture_output=True,
+            text=True,
+            cwd=str(self.base_dir),
+        )
+        if result.returncode != 0:
+            return ""
+        return str(result.stdout or "").strip()
+
+    def _build_info_payload(self, build_system: str, platform_name: str) -> dict:
+        git_commit = self._command_stdout(["git", "rev-parse", "HEAD"])
+        git_commit_datetime = self._command_stdout(["git", "log", "-1", "--format=%cI"])
+        git_commit_title = self._command_stdout(["git", "log", "-1", "--format=%s"])
+        uv_version = self._command_stdout([self.uv_cmd, "--version"])
+        return {
+            "app_version": self.version,
+            "build_datetime": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "build_system": build_system,
+            "git_commit": git_commit,
+            "git_commit_datetime": git_commit_datetime,
+            "git_commit_short": git_commit[:7] if git_commit else "",
+            "git_commit_title": git_commit_title,
+            "platform": platform_name,
+            "uv_version": uv_version,
+        }
+
+    def _write_build_info_file(self, build_system: str, platform_name: str) -> Path:
+        metadata_dir = self.platforms_dir / platform_name / "temp"
+        metadata_dir.mkdir(parents=True, exist_ok=True)
+        build_info_path = metadata_dir / "build_info.json"
+        build_info_path.write_text(
+            json.dumps(
+                self._build_info_payload(build_system, platform_name),
+                ensure_ascii=True,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return build_info_path
+
     def _load_requirements_signature(self, requirements_file: Path) -> str:
         """Retorna hash deterministico do conteudo de requirements."""
         digest = hashlib.sha256()
@@ -419,10 +464,15 @@ class MultiPlatformBuilder:
         # Dados adicionais
         config_path = self.base_dir / "config"
         data_path = self.base_dir / "data"
+        guide_path = self.base_dir / "docs" / "GUIA_MIGRACAO_NOVA_INSTALACAO.md"
+        build_info_path = self._write_build_info_file("pyinstaller", platform_name)
         add_data_sep = ";" if platform_name.startswith("windows") else ":"
 
         if config_path.exists():
             cmd.extend(["--add-data", f"{config_path}{add_data_sep}config"])
+        if guide_path.exists():
+            cmd.extend(["--add-data", f"{guide_path}{add_data_sep}docs"])
+        cmd.extend(["--add-data", f"{build_info_path}{add_data_sep}config"])
         include_local_data = bool(pyinstaller_args.get("include_local_data", False))
         if include_local_data and data_path.exists():
             logger.warning(
