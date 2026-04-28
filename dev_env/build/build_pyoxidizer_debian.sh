@@ -33,6 +33,65 @@ export UV_PYTHON=3.13
 export UV_MANAGED_PYTHON=true
 export UV_PROJECT_ENVIRONMENT=.venv-linux
 
+VERSION_FILE="${REPO_ROOT}/config/version.json"
+if [[ ! -f "${VERSION_FILE}" ]]; then
+  echo "Erro: version.json nao encontrado: ${VERSION_FILE}"
+  exit 1
+fi
+
+BUILD_INFO_FILE="${REPO_ROOT}/config/build_info.json"
+BUILD_INFO_BACKUP=""
+if [[ -f "${BUILD_INFO_FILE}" ]]; then
+  BUILD_INFO_BACKUP="${BUILD_INFO_FILE}.$$.bak"
+  cp -p "${BUILD_INFO_FILE}" "${BUILD_INFO_BACKUP}"
+fi
+
+cleanup_build_info() {
+  if [[ -n "${BUILD_INFO_BACKUP}" && -f "${BUILD_INFO_BACKUP}" ]]; then
+    mv -f "${BUILD_INFO_BACKUP}" "${BUILD_INFO_FILE}"
+  else
+    rm -f "${BUILD_INFO_FILE}"
+  fi
+}
+trap cleanup_build_info EXIT
+
+uv run --python 3.13 python - "${REPO_ROOT}" "${VERSION_FILE}" "${BUILD_INFO_FILE}" "pyoxidizer" "debian_amd64" <<'PY_BUILD_INFO'
+import datetime
+import json
+import pathlib
+import subprocess
+import sys
+
+root = pathlib.Path(sys.argv[1])
+version_file = pathlib.Path(sys.argv[2])
+output = pathlib.Path(sys.argv[3])
+build_system = sys.argv[4]
+platform_name = sys.argv[5]
+
+version_payload = json.loads(version_file.read_text(encoding="utf-8"))
+app_version = str(version_payload.get("version_short") or "").strip()
+if not app_version:
+    raise SystemExit("version_short ausente em config/version.json")
+
+def run(args):
+    result = subprocess.run(args, cwd=str(root), text=True, capture_output=True, check=False)
+    return (result.stdout or "").strip() if result.returncode == 0 else ""
+
+commit = run(["git", "rev-parse", "HEAD"])
+payload = {
+    "app_version": app_version,
+    "build_datetime": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+    "build_system": build_system,
+    "git_commit": commit,
+    "git_commit_datetime": run(["git", "log", "-1", "--format=%cI"]),
+    "git_commit_short": commit[:7] if commit else "",
+    "git_commit_title": run(["git", "log", "-1", "--format=%s"]),
+    "platform": platform_name,
+    "uv_version": run(["uv", "--version"]),
+}
+output.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY_BUILD_INFO
+
 PYOX_CMD=(
   uv tool run --python 3.13 --from pyoxidizer pyoxidizer build
   --release
@@ -55,9 +114,10 @@ else
   "${PYOX_CMD[@]}"
 fi
 
-SOURCE_INSTALL="${REPO_ROOT}/build/x86_64-unknown-linux-gnu/release/install"
-if [[ ! -d "${SOURCE_INSTALL}" ]]; then
-  SOURCE_INSTALL="$(find "${REPO_ROOT}/build" -maxdepth 6 -type d -path "*/x86_64-unknown-linux-gnu/*/install" | head -n 1 || true)"
+SOURCE_INSTALL_ROOT="${REPO_ROOT}/build/x86_64-unknown-linux-gnu"
+SOURCE_INSTALL="${SOURCE_INSTALL_ROOT}/release/install"
+if [[ ! -d "${SOURCE_INSTALL}" && -d "${SOURCE_INSTALL_ROOT}" ]]; then
+  SOURCE_INSTALL="$(find "${SOURCE_INSTALL_ROOT}" -maxdepth 4 -type d -path "*/install" | head -n 1 || true)"
 fi
 if [[ -z "${SOURCE_INSTALL}" || ! -d "${SOURCE_INSTALL}" ]]; then
   echo "Build PyOxidizer concluiu, mas pasta install Linux nao foi encontrada em build/."

@@ -59,6 +59,11 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         "print('ok')\n", encoding="utf-8"
     )
     (builder.base_dir / "config").mkdir(parents=True, exist_ok=True)
+    (builder.base_dir / "docs").mkdir(parents=True, exist_ok=True)
+    (builder.base_dir / "docs" / "GUIA_MIGRACAO_NOVA_INSTALACAO.md").write_text(
+        "guide",
+        encoding="utf-8",
+    )
     (builder.base_dir / "resources").mkdir(parents=True, exist_ok=True)
     (builder.base_dir / "resources" / "app_icon.ico").write_bytes(b"ico")
     (builder.base_dir / "resources" / "app_icon.icns").write_bytes(b"icns")
@@ -99,9 +104,20 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     assert "--add-data" in windows_cmd
     add_data_value = windows_cmd[windows_cmd.index("--add-data") + 1]
     assert add_data_value.endswith(";config")
+    assert any(
+        value.endswith(";docs")
+        and "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in value
+        for idx, value in enumerate(windows_cmd)
+        if idx > 0 and windows_cmd[idx - 1] == "--add-data"
+    )
+    assert any(
+        value.endswith(";config") and "build_info.json" in value
+        for idx, value in enumerate(windows_cmd)
+        if idx > 0 and windows_cmd[idx - 1] == "--add-data"
+    )
     assert "--icon" in windows_cmd
     icon_value = windows_cmd[windows_cmd.index("--icon") + 1]
-    assert icon_value.endswith("resources/app_icon.ico")
+    assert icon_value.replace("\\", "/").endswith("resources/app_icon.ico")
 
     captured_cmds.clear()
     config["cli_config"]["icon"] = "resources/app_icon.icns"
@@ -111,6 +127,12 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     assert "--add-data" in mac_cmd
     add_data_value = mac_cmd[mac_cmd.index("--add-data") + 1]
     assert add_data_value.endswith(":config")
+    assert any(
+        value.endswith(":docs")
+        and "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in value
+        for idx, value in enumerate(mac_cmd)
+        if idx > 0 and mac_cmd[idx - 1] == "--add-data"
+    )
 
 
 def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
