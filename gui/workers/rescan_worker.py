@@ -283,7 +283,13 @@ class RescanWorker(QThread):
             return None
         from core.import_staging import validate_external_source_path
 
-        resolved = [validate_external_source_path(path) for path in self.source_files]
+        resolved = [
+            validate_external_source_path(
+                path,
+                extra_allowed_files=self.source_files,
+            )
+            for path in self.source_files
+        ]
         self.source_files = tuple(resolved)
         return self.source_files
 

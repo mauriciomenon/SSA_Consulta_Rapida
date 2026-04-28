@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Callable, Iterable, Sequence
 
 from utils.path_safety import ensure_path_is_allowed, reserve_unique_path
 
@@ -11,7 +11,19 @@ CancelCallback = Callable[[], bool]
 LineCallback = Callable[[str], None]
 
 
-def validate_external_source_path(raw_source: str | os.PathLike[str]) -> str:
+def _normalize_explicit_allowed_files(
+    extra_allowed_files: Iterable[str | os.PathLike[str]] | None,
+) -> set[Path]:
+    if not extra_allowed_files:
+        return set()
+    return {Path(raw).expanduser().resolve() for raw in extra_allowed_files if raw}
+
+
+def validate_external_source_path(
+    raw_source: str | os.PathLike[str],
+    *,
+    extra_allowed_files: Iterable[str | os.PathLike[str]] | None = None,
+) -> str:
     source = str(raw_source or "").strip()
     if not source:
         raise ValueError("Caminho vazio para staging externo.")
@@ -21,6 +33,7 @@ def validate_external_source_path(raw_source: str | os.PathLike[str]) -> str:
     if os.path.basename(normalized).startswith("-"):
         raise ValueError("Caminho externo inicia com '-' e nao e permitido.")
     source_path = Path(normalized)
+    explicit_allowed_files = _normalize_explicit_allowed_files(extra_allowed_files)
     try:
         safe_source_path = ensure_path_is_allowed(
             source_path,
@@ -31,7 +44,10 @@ def validate_external_source_path(raw_source: str | os.PathLike[str]) -> str:
     except ValueError as exc:
         if not source_path.exists():
             raise FileNotFoundError(f"Arquivo inexistente: {normalized}") from exc
-        raise
+        resolved_source = source_path.resolve()
+        if resolved_source not in explicit_allowed_files:
+            raise
+        safe_source_path = resolved_source
     source_path = safe_source_path
     if source_path.suffix.casefold() not in {".xlsx", ".xls"}:
         raise ValueError(f"Arquivo nao suportado pelo pipeline: {source_path.name}")
@@ -79,7 +95,10 @@ def stage_external_import_files(
                 f"[STAGE {index}/{total_sources}] Preparando: {os.path.basename(source) or source}"
             )
         try:
-            validated_source = validate_external_source_path(source)
+            validated_source = validate_external_source_path(
+                source,
+                extra_allowed_files=source_files,
+            )
         except FileNotFoundError:
             failed += 1
             if callable(error_callback):
