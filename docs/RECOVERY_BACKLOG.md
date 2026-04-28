@@ -5,6 +5,53 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-28 14:31 - W11 AMD64 release hardening status
+
+Escopo desta atualizacao:
+1. registrar o estado real do host atual apos a migracao para Windows 11
+2. corrigir a leitura operacional sobre Debian neste computador
+3. separar o que foi corrigido nos scripts do que foi efetivamente buildado
+
+Estado do host atual:
+1. Windows 11 local: AMD64
+2. WSL local: Debian Trixie AMD64
+3. Debian ARM64 e macOS ARM64 nao foram buildados neste host
+4. os scripts Debian ARM64 foram ajustados por risco de release, mas seguem sem build local nesta maquina
+
+Status tecnico do ciclo:
+1. HEAD detached foi corrigido operacionalmente para branch local `dev`
+2. stash de seguranca criado antes da troca:
+   - `stash@{0}: wip-before-reattach-dev-2026-04-28T14-30-26`
+3. artefatos Windows gerados antes do ultimo patch de performance precisam rebuild antes de publicar
+4. correcoes de empacotamento incluem guia de migracao e `config/build_info.json`
+5. import externo explicito foi liberado para arquivos escolhidos pelo usuario
+6. abertura de detalhes com derivadas teve hotspot de scan por no removido
+
+Evidencia de performance:
+1. alvo medido: SSA `202206235`
+2. base local: `data/ssas.db`, `80459 x 84`
+3. antes: `tree_html_no_cache` em `12.818s`
+4. depois: `tree_html_no_cache` em `0.366s`
+5. smoke headless do dialogo: `open_dialog_s 1.117`
+6. RSS do smoke: carga DB `+254.0 MB`, abertura do dialogo `+19.5 MB`
+
+Pendencias nao bloqueantes:
+1. render da arvore/grafo ainda e sincronico no UI thread
+2. se familias maiores ou maquinas lentas voltarem a travar, abrir slice dedicado para worker/loading
+3. PyOxidizer ainda reporta `--version` como `0.0.0`
+4. PyOxidizer continua em runtime Python 3.10.x neste fluxo
+
+Proximo passo de release:
+1. commitar as correcoes atomicas em `dev`
+2. rebuildar artefatos Windows AMD64 nas 3 ferramentas
+3. reempacotar ZIPs
+4. rodar smoke minimo
+5. subir release somente apos autenticacao GitHub e validacao dos novos ZIPs
+
+Rollback:
+1. reverter os commits atomicos do ciclo
+2. se necessario antes dos commits, reaplicar o stash de seguranca citado acima
+
 ## Update 2026-04-25 19:21 - pending PT ES EN column contract evidence
 
 Escopo desta atualizacao:
