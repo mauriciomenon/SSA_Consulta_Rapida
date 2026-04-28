@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+from typing import Any, cast
+
 from gui import gui_ssa
 
 
@@ -35,3 +38,72 @@ def test_build_about_message_uses_embedded_build_info(monkeypatch, tmp_path) -> 
     assert "uv: uv 0.9.18" in message
     assert "Commit: def5678" in message
     assert "Build: 2026-04-28T06:30:00-03:00" in message
+
+
+def test_iter_build_info_candidates_includes_pyinstaller_internal(
+    monkeypatch, tmp_path
+) -> None:
+    runtime_root = tmp_path / "runtime_root"
+    bundled_root = tmp_path / "bundle_root"
+    runtime_root.mkdir()
+    bundled_root.mkdir()
+    monkeypatch.setattr(gui_ssa, "project_root", str(runtime_root))
+    monkeypatch.setenv("SSA_BUNDLED_ROOT", str(bundled_root))
+    monkeypatch.delenv("SSA_CONFIG_DIR", raising=False)
+
+    candidates = list(gui_ssa._iter_build_info_candidates())
+
+    assert os.path.join(str(bundled_root), "config", "build_info.json") in candidates
+    assert os.path.join(str(bundled_root), "_internal", "config", "build_info.json") in candidates
+
+
+def test_open_installation_guide_uses_bundled_internal_docs(
+    monkeypatch, tmp_path
+) -> None:
+    runtime_root = tmp_path / "runtime_root"
+    bundled_root = tmp_path / "bundle_root"
+    guide_path = (
+        bundled_root / "_internal" / "docs" / "GUIA_MIGRACAO_NOVA_INSTALACAO.md"
+    )
+    runtime_root.mkdir()
+    guide_path.parent.mkdir(parents=True)
+    guide_path.write_text("guia", encoding="utf-8")
+    monkeypatch.setattr(gui_ssa, "project_root", str(runtime_root))
+    monkeypatch.setenv("SSA_BUNDLED_ROOT", str(bundled_root))
+    monkeypatch.setattr(gui_ssa, "QT_AVAILABLE", False)
+    monkeypatch.setattr(
+        gui_ssa.SSAMainWindow,
+        "_validate_local_open_target",
+        staticmethod(lambda path, **_kwargs: path),
+    )
+    monkeypatch.setattr(
+        gui_ssa.SSAMainWindow,
+        "_resolve_platform_open_command",
+        staticmethod(lambda: "fake-open"),
+    )
+    opened = {}
+
+    class _FakeLabel:
+        def __init__(self) -> None:
+            self.text = ""
+
+        def setText(self, value: str) -> None:
+            self.text = value
+
+    class _FakeWindow:
+        def __init__(self) -> None:
+            self.status_label = _FakeLabel()
+
+    def _fake_popen(cmd, shell=False):  # noqa: ANN001
+        opened["cmd"] = list(cmd)
+        opened["shell"] = shell
+        return None
+
+    monkeypatch.setattr(gui_ssa.subprocess, "Popen", _fake_popen)
+
+    result = gui_ssa.SSAMainWindow.open_installation_guide(cast(Any, _FakeWindow()))
+
+    assert result["opened"] is True
+    assert result["path"] == os.path.abspath(str(guide_path))
+    assert opened["cmd"] == ["fake-open", os.path.abspath(str(guide_path))]
+    assert opened["shell"] is False

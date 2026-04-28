@@ -1091,6 +1091,9 @@ def _iter_build_info_candidates():
     bundled_root = os.environ.get("SSA_BUNDLED_ROOT", "")
     if bundled_root:
         raw_candidates.append(os.path.join(bundled_root, "config", "build_info.json"))
+        raw_candidates.append(
+            os.path.join(bundled_root, "_internal", "config", "build_info.json")
+        )
     config_dir = os.environ.get("SSA_CONFIG_DIR", "")
     if config_dir:
         raw_candidates.append(os.path.join(config_dir, "build_info.json"))
@@ -1115,6 +1118,24 @@ def _load_embedded_build_info() -> dict[str, Any]:
         except (OSError, json.JSONDecodeError) as exc:
             logger.debug("Falha ao ler build_info %s: %s", path, exc)
     return {}
+
+
+def _iter_installation_guide_candidates():
+    seen = set()
+    guide_rel_path = os.path.join("docs", "GUIA_MIGRACAO_NOVA_INSTALACAO.md")
+    raw_candidates = [os.path.join(project_root, guide_rel_path)]
+    bundled_root = os.environ.get("SSA_BUNDLED_ROOT", "")
+    if bundled_root:
+        raw_candidates.append(os.path.join(bundled_root, guide_rel_path))
+        raw_candidates.append(
+            os.path.join(bundled_root, "_internal", guide_rel_path)
+        )
+    for raw_path in raw_candidates:
+        path = os.path.abspath(raw_path)
+        if path in seen:
+            continue
+        seen.add(path)
+        yield path
 
 
 def resolve_git_commit_hash_text() -> str:
@@ -4900,13 +4921,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def open_installation_guide(self):
         """Abre o guia de instalacao no editor/sistema padrao."""
-        doc_path = os.path.abspath(
-            os.path.join(project_root, "docs", "GUIA_MIGRACAO_NOVA_INSTALACAO.md")
-        )
+        doc_candidates = list(_iter_installation_guide_candidates())
+        doc_path = next((path for path in doc_candidates if os.path.exists(path)), "")
         if not os.path.exists(doc_path):
+            missing_reference = (
+                doc_candidates[0]
+                if doc_candidates
+                else os.path.abspath(
+                    os.path.join(
+                        project_root, "docs", "GUIA_MIGRACAO_NOVA_INSTALACAO.md"
+                    )
+                )
+            )
             if not os.environ.get("PYTEST_CURRENT_TEST"):
                 QMessageBox.warning(
-                    self, "Erro", f"Guia de instalacao nao encontrado: {doc_path}"
+                    self,
+                    "Erro",
+                    f"Guia de instalacao nao encontrado: {missing_reference}",
                 )
             return {"opened": False, "reason": "missing_file"}
         try:
