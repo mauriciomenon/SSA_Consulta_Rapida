@@ -4854,6 +4854,29 @@ class TestGUIFilterLogic:
 
         assert derived == ["102"]
 
+    def test_get_derivadas_for_ssa_uses_cached_family_edges(self, monkeypatch):
+        self.window.df_completo = pd.DataFrame(
+            {"numero_ssa": ["101", "102"], "derivada_de": ["100", "100"]}
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_cached_derivadas_family_edges",
+            lambda _window: [("100", "101"), ("100", "102"), ("100", "101")],
+        )
+
+        def _fail_full_column_scan(_series):
+            raise AssertionError("nao deve normalizar coluna inteira a cada consulta")
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_normalize_ssa_relation_series",
+            _fail_full_column_scan,
+        )
+
+        derived = ssa_gui_details._get_derivadas_for_ssa(self.window, "100")
+
+        assert derived == ["101", "102"]
+
     def test_get_series_for_ssa_uses_index_label_and_returns_correct_row(self):
         df = pd.DataFrame(
             {
@@ -6233,6 +6256,75 @@ class TestGUIFilterLogic:
         assert "dist=" not in html
         assert "&#8942;" in html
         assert "Sem Derivadas" in html
+
+    def test_open_details_dialog_does_not_build_full_ssa_index_before_render(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202218980", "202218786", "202218787"],
+                "descricao_ssa": ["Alvo", "Filha A", "Filha B"],
+                "derivada_de": ["", "202218980", "202218980"],
+                "situacao": ["APV", "STE", "SCA"],
+            }
+        )
+        self.window.df_completo = df
+        self.window.df_exibido = df
+        self.window.df_para_tabela = df
+
+        with patch(
+            "gui.ssa.gui_details._get_df_ssa_series_index",
+            side_effect=AssertionError("full index should not be built on open"),
+        ):
+            with patch("PyQt6.QtWidgets.QDialog.exec", return_value=0):
+                ssa_gui_details._open_details_dialog_for_ssa(
+                    self.window,
+                    "202218980",
+                    series=df.iloc[0],
+                )
+
+    def test_derivadas_tree_html_does_not_scan_dataframe_per_node(self, monkeypatch):
+        node_ids = ["202206235", *[f"202206{i:03d}" for i in range(100, 180)]]
+        self.window.df_completo = pd.DataFrame(
+            {
+                "numero_ssa": node_ids,
+                "situacao": ["APV", *["STE" for _ in node_ids[1:]]],
+                "derivada_de": ["", *["202206235" for _ in node_ids[1:]]],
+            }
+        )
+        self.window.df_exibido = self.window.df_completo.iloc[:1].copy()
+        tree_data = {
+            "target": "202206235",
+            "parents": [],
+            "children": [{"ssa": node_ids[1], "parent": "202206235"}],
+            "descendants": [
+                {"ssa": child, "parent": "202206235", "min_distance": 1}
+                for child in node_ids[1:]
+            ],
+            "ancestors": [],
+            "family_roots": ["202206235"],
+            "target_status": "",
+            "direct_children_count": len(node_ids) - 1,
+            "descendants_count": len(node_ids) - 1,
+            "render_family": True,
+        }
+
+        def _fail_per_node_scan(_window, numero_ssa):
+            raise AssertionError(f"per-node dataframe scan for {numero_ssa}")
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_series_for_ssa",
+            _fail_per_node_scan,
+        )
+
+        html = ssa_gui_details._build_derivadas_tree_html(
+            self.window,
+            "202206235",
+            tree_data_override=tree_data,
+            ssa_index={},
+        )
+
+        assert "202206235" in html
+        assert "202206100" in html
 
     def test_exclude_toggle_syncs_checkbox_state_across_tabs(self):
         """Toggle programático deve manter estado interno e checkboxes em sincronia."""
