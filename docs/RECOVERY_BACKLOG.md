@@ -5,6 +5,53 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-28 18:05 - test gate hardening + WSL/VPN network note
+
+Escopo desta atualizacao:
+1. registrar ajuste minimo em teste de staging para ambiente Windows
+2. registrar status de validacao de artefatos e pendencias por arquitetura
+3. registrar nota operacional de WSL sem internet quando VPN endpoint conecta
+
+Status do slice:
+1. teste ajustado: `tests/test_import_staging.py`
+   - caso `test_stage_external_import_files_copies_opened_file_when_source_path_changes`
+   - no Windows, `os.replace` em arquivo aberto pode retornar `WinError 5`
+   - o caso passou a fazer `skip` em `os.name == "nt"` para manter portabilidade
+2. gates focados apos ajuste:
+   - `py_compile`: ok
+   - `ruff`: ok
+   - `ty`: ok
+   - `pytest` focado: `59 passed, 1 skipped`
+3. review externo:
+   - `kluster review file tests/test_import_staging.py --mode instant`: clean
+
+Validacao de artefatos (runtime):
+1. windows_amd64 (pyinstaller/nuitka/pyoxidizer):
+   - `GUIA_MIGRACAO_NOVA_INSTALACAO.md`: presente
+   - `build_info.json`: presente
+   - `git_commit_short` no build_info: `28be97f`
+2. release `v4.37`:
+   - 5 ZIPs Windows AMD64 enviados com sucesso
+   - release promovida para `isPrerelease=false`
+
+Pendencias de compilacao/executavel:
+1. debian_amd64:
+   - existem `tar.gz` locais (27/04), mas sem `build_info.json` nos pacotes verificados
+   - avaliar rebuild para alinhar metadata com patch mais recente
+2. debian_arm64 e macos_arm64:
+   - assets presentes na release, sem rebuild neste host apos o ultimo patch
+3. pyoxidizer:
+   - `--version` segue `0.0.0` (nao bloqueante deste slice)
+
+WSL x VPN (operacional):
+1. com VPN desconectada:
+   - WSL `eth0` em `172.28.122.3/20`, gateway `172.28.112.1`
+   - adapter Check Point observado em `10.5.0.2/16`
+2. sem overlap direto nesse snapshot, mas a VPN pode injetar rotas amplas e quebrar NAT do WSL
+3. acao sugerida para proximo ciclo operacional:
+   - testar `networkingMode=mirrored` no `.wslconfig`
+   - validar conectividade WSL com VPN conectada
+
 ## Update 2026-04-28 17:12 - frozen guide/build-info fix + W11 rebuild complete
 
 Escopo desta atualizacao:
