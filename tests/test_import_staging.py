@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import os
 from pathlib import Path
 
 import pytest
@@ -298,6 +299,8 @@ def test_stage_external_import_files_does_not_delete_file_on_create_collision(
     assert staged_files == []
     assert summary["copied"] == 0
     assert summary["failed"] == 1
+    assert source.read_text(encoding="utf-8") == "payload"
+    # A copy did not complete; the file created by the simulated racer remains.
     assert destination.read_text(encoding="utf-8") == "foreign"
 
 
@@ -305,6 +308,8 @@ def test_stage_external_import_files_copies_opened_file_when_source_path_changes
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    if os.name == "nt":
+        pytest.skip("os.replace over open file is not supported on Windows")
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
     source_dir = tmp_path / "fontes"
@@ -388,4 +393,5 @@ def test_stage_external_import_files_reports_cleanup_failure_after_cancel(
     assert summary["failed"] == 1
     assert summary["staged"] == 0
     assert (docs_dir / "cancel.xlsx").exists()
+    assert (docs_dir / "cancel.xlsx").read_text(encoding="utf-8") == "payload"
     assert any("Falha ao remover arquivo staged apos cancelamento" in error for error in errors)
