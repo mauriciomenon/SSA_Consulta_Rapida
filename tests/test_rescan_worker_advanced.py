@@ -29,6 +29,7 @@ if project_root not in sys.path:
 
 from gui.workers.rescan_worker import RescanOutcome  # noqa: E402
 from gui.workers.rescan_worker import RescanWorker, _LogHandler  # noqa: E402
+from utils import path_safety  # noqa: E402
 
 # =============================================================================
 # Fixtures
@@ -52,6 +53,28 @@ def rescan_worker(qapp):
     # Cleanup
     if worker._logger_attached:
         worker._detach_logger()
+
+
+def test_rescan_worker_accepts_explicit_external_source_file(
+    qapp,
+    tmp_path,
+    monkeypatch,
+):
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    source = outside_root / "entrada.xlsx"
+    source.write_text("payload", encoding="utf-8")
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
+
+    worker = RescanWorker(
+        main_py_path=str(runtime_root / "main.py"),
+        project_root=str(runtime_root),
+        source_files=(str(source),),
+    )
+
+    assert worker._resolve_source_files() == (str(source.resolve()),)
 
 
 @pytest.fixture

@@ -7,6 +7,7 @@ import pytest
 
 from core import import_staging
 from core.import_staging import stage_external_import_files
+from utils import path_safety
 
 
 def test_stage_external_import_files_accepts_xlsx_and_xls(tmp_path: Path) -> None:
@@ -31,6 +32,54 @@ def test_stage_external_import_files_accepts_xlsx_and_xls(tmp_path: Path) -> Non
     assert len(staged_files) == 2
     assert (docs_dir / "entrada.xlsx").exists()
     assert (docs_dir / "entrada.xls").exists()
+
+
+def test_validate_external_source_path_accepts_explicit_selected_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    source = outside_root / "entrada.xlsx"
+    source.write_text("payload", encoding="utf-8")
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
+
+    with pytest.raises(ValueError):
+        import_staging.validate_external_source_path(source)
+
+    resolved = import_staging.validate_external_source_path(
+        source,
+        extra_allowed_files=(source,),
+    )
+
+    assert resolved == str(source.resolve())
+
+
+def test_stage_external_import_files_accepts_explicit_external_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    docs_dir = runtime_root / "docs_entrada"
+    docs_dir.mkdir(parents=True)
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    source = outside_root / "entrada.xlsx"
+    source.write_text("payload", encoding="utf-8")
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
+
+    staged_files, summary = stage_external_import_files(
+        project_root=str(runtime_root),
+        source_files=(str(source),),
+    )
+
+    assert summary["copied"] == 1
+    assert summary["failed"] == 0
+    assert summary["unsupported"] == 0
+    assert staged_files == [str(docs_dir / "entrada.xlsx")]
+    assert (docs_dir / "entrada.xlsx").read_text(encoding="utf-8") == "payload"
 
 
 def test_stage_external_import_files_creates_unique_name_with_collisions(
