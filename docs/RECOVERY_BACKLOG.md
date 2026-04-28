@@ -5,6 +5,47 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-28 17:12 - frozen guide/build-info fix + W11 rebuild complete
+
+Escopo desta atualizacao:
+1. registrar o fix minimo para abrir o guia de migracao em runtime frozen
+2. registrar o fix de leitura de `build_info.json` no layout `_internal` do PyInstaller
+3. registrar o rebuild/zip do W11 AMD64 apos o fix
+
+Status do slice:
+1. commit e push realizados em `dev`:
+   - `28be97fe6a1403bff49e3d73aba62b20bc0b158c | 2026-04-28T15:34:39-03:00 | fix: resolve frozen guide and build info paths`
+2. build Windows AMD64 refeito nas 3 ferramentas:
+   - PyInstaller: ok
+   - Nuitka: ok
+   - PyOxidizer: ok
+3. smoke minimo executado apos rebuild:
+   - CLI PyInstaller: ok
+   - CLI Nuitka: ok
+   - `SSA_Consulta_Rapida.exe --version` (PyOxidizer): responde `0.0.0` (pendencia antiga)
+4. novos ZIPs Windows AMD64 gerados em `builds/packages/windows_amd64`
+5. todos os ZIPs novos contem:
+   - `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+   - `config/build_info.json`
+
+Impacto por plataforma/arquitetura:
+1. W11 AMD64:
+   - validado por rebuild real + smoke local
+2. Debian AMD64:
+   - sem rebuild neste slice
+   - impacto esperado baixo, pois o fix so adiciona fallback de caminho (`_internal`) sem remover caminhos antigos
+3. Debian ARM64:
+   - sem rebuild neste host
+   - impacto esperado baixo pelo mesmo motivo do Debian AMD64
+4. macOS ARM64:
+   - sem rebuild neste host
+   - impacto esperado baixo pelo mesmo motivo, com compatibilidade mantida para caminho classico de bundle
+
+Pendencias abertas:
+1. `gh auth status` segue sem login neste host; upload da release nao foi executado nesta rodada
+2. `PyOxidizer --version` segue retornando `0.0.0` (nao bloqueante deste slice)
+3. debt estrutural antigo em `gui/gui_ssa.py` (God class) segue fora de escopo do patch minimo
+
 ## Update 2026-04-28 14:31 - W11 AMD64 release hardening status
 
 Escopo desta atualizacao:
