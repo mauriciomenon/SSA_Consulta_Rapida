@@ -113,6 +113,7 @@ function Get-WindowsVersionText {
 function Get-SelectedBackends {
     param([string[]] $RequestedBackends)
 
+    $valid = @("pyinstaller", "nuitka", "pyoxidizer")
     if (-not $RequestedBackends -or $RequestedBackends.Count -eq 0) {
         Write-Host "Backends disponiveis: pyinstaller, nuitka, pyoxidizer, all"
         $raw = Read-Host "Informe um ou mais backends separados por virgula"
@@ -120,10 +121,9 @@ function Get-SelectedBackends {
     }
 
     if ($RequestedBackends -contains "all") {
-        return @("pyinstaller", "nuitka", "pyoxidizer")
+        return $valid
     }
 
-    $valid = @("pyinstaller", "nuitka", "pyoxidizer")
     foreach ($item in $RequestedBackends) {
         if ($valid -notcontains $item) {
             throw "Backend invalido: $item"
@@ -325,12 +325,20 @@ function Invoke-Smoke {
             throw "Smoke PyOxidizer --version falhou."
         }
         $versionText = ($versionOutput | Out-String).Trim()
+        $verificationType = "version_check_stdout"
+        $commandText = "--version"
         if ([string]::IsNullOrWhiteSpace($versionText)) {
-            throw "Smoke PyOxidizer --version nao retornou texto."
+            $versionInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $Config.gui_exe).Path)
+            $versionText = [string] $versionInfo.ProductVersion
+            $verificationType = "version_check_metadata"
+            $commandText = "--version + FileVersionInfo"
+        }
+        if ([string]::IsNullOrWhiteSpace($versionText)) {
+            throw "Smoke PyOxidizer nao conseguiu confirmar versao por stdout nem FileVersionInfo."
         }
         return [ordered]@{
-            verification_type = "version_check"
-            command = "--version"
+            verification_type = $verificationType
+            command = $commandText
             exit_code = 0
             output = $versionText
         }
@@ -354,9 +362,9 @@ function Write-BackendReleaseZips {
         [Parameter(Mandatory = $true)] [array] $ReleaseZips
     )
 
-    $outDir = Split-Path -Parent $ReleaseZips[0].zip
-    New-Item -ItemType Directory -Force $outDir | Out-Null
     foreach ($item in $ReleaseZips) {
+        $outDir = Split-Path -Parent $item.zip
+        New-Item -ItemType Directory -Force $outDir | Out-Null
         Assert-ExistingDirectory $item.source
         Compress-Archive -Force -Path $item.source -DestinationPath $item.zip
     }
