@@ -195,9 +195,11 @@ def test_snapshot_preserves_relation_metadata_for_graph_rendering(temp_db):
 
     snapshot = get_ssa_hierarchy_snapshot(temp_db, "202500001", max_distance=5)
 
-    child = next(
+    child_matches = [
         item for item in snapshot["family_descendants"] if item["ssa"] == "202500002"
-    )
+    ]
+    assert child_matches
+    child = child_matches[0]
     assert child["relation_type"] == 2
     assert child["relation_raw_label"] == "Relacionada"
 
@@ -216,9 +218,11 @@ def test_snapshot_ignores_invalid_relation_type_for_graph_rendering(temp_db):
 
     snapshot = get_ssa_hierarchy_snapshot(temp_db, "202500001", max_distance=5)
 
-    child = next(
+    child_matches = [
         item for item in snapshot["family_descendants"] if item["ssa"] == "202500002"
-    )
+    ]
+    assert child_matches
+    child = child_matches[0]
     assert "relation_type" not in child
     assert child["relation_raw_label"] == "Relacionada"
 

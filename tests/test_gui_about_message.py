@@ -97,7 +97,6 @@ def test_open_installation_guide_uses_bundled_internal_docs(
     def _fake_popen(cmd, shell=False):  # noqa: ANN001
         opened["cmd"] = list(cmd)
         opened["shell"] = shell
-        return None
 
     monkeypatch.setattr(gui_ssa.subprocess, "Popen", _fake_popen)
 
