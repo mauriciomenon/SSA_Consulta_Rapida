@@ -1070,9 +1070,12 @@ def resolve_app_version_text() -> str:
 
 def resolve_uv_version_text() -> str:
     """Resolve versao do uv para exibicao em UI."""
+    uv_exe = shutil.which("uv")
+    if not uv_exe:
+        return "indisponivel"
     try:
         result = subprocess.run(
-            ["uv", "--version"],
+            [uv_exe, "--version"],
             capture_output=True,
             text=True,
             timeout=2,
@@ -1141,9 +1144,12 @@ def _iter_installation_guide_candidates():
 
 def resolve_git_commit_hash_text() -> str:
     """Resolve hash curto do commit atual para exibicao em UI."""
+    git_exe = shutil.which("git")
+    if not git_exe:
+        return "indisponivel"
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
+            [git_exe, "rev-parse", "--short", "HEAD"],
             capture_output=True,
             text=True,
             timeout=2,

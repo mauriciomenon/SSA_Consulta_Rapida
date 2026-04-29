@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from types import SimpleNamespace
 from typing import Any, cast
 
 from gui import gui_ssa
@@ -38,6 +39,30 @@ def test_build_about_message_uses_embedded_build_info(monkeypatch, tmp_path) -> 
     assert "uv: uv 0.9.18" in message
     assert "Commit: def5678" in message
     assert "Build: 2026-04-28T06:30:00-03:00" in message
+
+
+def test_resolve_uv_version_uses_resolved_executable(monkeypatch) -> None:
+    captured = {}
+
+    def _fake_run(cmd, **_kwargs):  # noqa: ANN001
+        captured["cmd"] = cmd
+        return SimpleNamespace(stdout="uv 0.9.18", stderr="")
+
+    monkeypatch.setattr(gui_ssa.shutil, "which", lambda name: f"/tools/{name}")
+    monkeypatch.setattr(gui_ssa.subprocess, "run", _fake_run)
+
+    assert gui_ssa.resolve_uv_version_text() == "uv 0.9.18"
+    assert captured["cmd"] == ["/tools/uv", "--version"]
+
+
+def test_resolve_git_commit_returns_unavailable_without_git(monkeypatch) -> None:
+    def _unexpected_run(*_args, **_kwargs):  # noqa: ANN002, ANN003
+        raise AssertionError("subprocess.run should not be called without git")
+
+    monkeypatch.setattr(gui_ssa.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(gui_ssa.subprocess, "run", _unexpected_run)
+
+    assert gui_ssa.resolve_git_commit_hash_text() == "indisponivel"
 
 
 def test_iter_build_info_candidates_includes_pyinstaller_internal(
