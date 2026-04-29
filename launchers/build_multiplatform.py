@@ -157,6 +157,65 @@ class MultiPlatformBuilder:
         )
         return build_info_path
 
+    @staticmethod
+    def _windows_version_tuple(version: str) -> tuple[int, int, int, int]:
+        parts: list[int] = []
+        for raw_part in str(version or "0").split("."):
+            digits = "".join(ch for ch in raw_part if ch.isdigit())
+            parts.append(int(digits or 0))
+            if len(parts) == 4:
+                break
+        while len(parts) < 4:
+            parts.append(0)
+        return (parts[0], parts[1], parts[2], parts[3])
+
+    @staticmethod
+    def _pyinstaller_version_value(value: object) -> str:
+        return str(value or "").replace("\\", "\\\\").replace("'", "\\'")
+
+    def _write_pyinstaller_windows_version_file(self, platform_name: str, app_name: str) -> Path:
+        metadata_dir = self.platforms_dir / platform_name / "temp"
+        metadata_dir.mkdir(parents=True, exist_ok=True)
+        version_file_path = metadata_dir / f"{app_name}_version_info.txt"
+        version_tuple = self._windows_version_tuple(self.version)
+        version_text = ".".join(str(part) for part in version_tuple)
+        original_filename = f"{app_name}.exe"
+        version_file_path.write_text(
+            f"""# UTF-8
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers={version_tuple},
+    prodvers={version_tuple},
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        '040904B0',
+        [
+          StringStruct('CompanyName', 'SSA Consulta Rapida'),
+          StringStruct('FileDescription', '{self._pyinstaller_version_value(original_filename)}'),
+          StringStruct('FileVersion', '{self._pyinstaller_version_value(version_text)}'),
+          StringStruct('InternalName', '{self._pyinstaller_version_value(app_name)}'),
+          StringStruct('OriginalFilename', '{self._pyinstaller_version_value(original_filename)}'),
+          StringStruct('ProductName', 'SSA Consulta Rapida'),
+          StringStruct('ProductVersion', '{self._pyinstaller_version_value(version_text)}')
+        ]
+      )
+    ]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)
+""",
+            encoding="utf-8",
+        )
+        return version_file_path
+
     def _load_requirements_signature(self, requirements_file: Path) -> str:
         """Retorna hash deterministico do conteudo de requirements."""
         digest = hashlib.sha256()
@@ -442,6 +501,13 @@ class MultiPlatformBuilder:
         icon_path = self.base_dir / app_config.get("icon", "")
         if icon_path.exists():
             cmd.extend(["--icon", str(icon_path)])
+
+        if platform_name.startswith("windows"):
+            version_file_path = self._write_pyinstaller_windows_version_file(
+                platform_name,
+                app_config["name"],
+            )
+            cmd.extend(["--version-file", str(version_file_path)])
 
         # Otimizacoes
         if pyinstaller_args.get("optimize"):

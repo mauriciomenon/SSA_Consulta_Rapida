@@ -118,6 +118,17 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     assert "--icon" in windows_cmd
     icon_value = windows_cmd[windows_cmd.index("--icon") + 1]
     assert icon_value.replace("\\", "/").endswith("resources/app_icon.ico")
+    assert "--version-file" in windows_cmd
+    version_file_value = Path(windows_cmd[windows_cmd.index("--version-file") + 1])
+    version_file_text = version_file_value.read_text(encoding="utf-8")
+    version_tuple = builder._windows_version_tuple(builder.version)
+    version_text = ".".join(str(part) for part in version_tuple)
+    assert f"filevers={version_tuple}" in version_file_text
+    assert f"prodvers={version_tuple}" in version_file_text
+    assert f"StringStruct('FileVersion', '{version_text}')" in version_file_text
+    assert f"StringStruct('ProductVersion', '{version_text}')" in version_file_text
+    assert "StringStruct('ProductName', 'SSA Consulta Rapida')" in version_file_text
+    assert "SSA_CLI_test.exe" in version_file_text
 
     captured_cmds.clear()
     config["cli_config"]["icon"] = "resources/app_icon.icns"
@@ -133,6 +144,7 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         for idx, value in enumerate(mac_cmd)
         if idx > 0 and mac_cmd[idx - 1] == "--add-data"
     )
+    assert "--version-file" not in mac_cmd
 
 
 def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
