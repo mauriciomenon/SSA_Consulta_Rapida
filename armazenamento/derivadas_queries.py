@@ -625,7 +625,7 @@ def _collect_family_subgraph(
     node_placeholders = ",".join("?" for _ in family_nodes)
     edge_rows = conn.execute(
         f"""
-        SELECT DISTINCT parent_ssa, child_ssa
+        SELECT DISTINCT parent_ssa, child_ssa, relation_type, relation_raw_label
         FROM ssa_derivada_matrix
         WHERE active = 1
           AND parent_ssa IN ({node_placeholders})
@@ -637,13 +637,18 @@ def _collect_family_subgraph(
     ).fetchall()
     family_truncated = family_truncated or len(edge_rows) > safe_max_nodes
     for row in edge_rows[:safe_max_nodes]:
-        family_descendants.append(
-            {
-                "ssa": row[1],
-                "parent": row[0],
-                "min_distance": int(distance_by_node.get(row[1], 1)),
-            }
-        )
+        entry: dict[str, Any] = {
+            "ssa": row[1],
+            "parent": row[0],
+            "min_distance": int(distance_by_node.get(row[1], 1)),
+        }
+        relation_type = int(row[2] or 0)
+        relation_raw_label = row[3]
+        if relation_type not in (0, 1):
+            entry["relation_type"] = relation_type
+        if relation_raw_label:
+            entry["relation_raw_label"] = relation_raw_label
+        family_descendants.append(entry)
     return family_roots, family_descendants, family_truncated
 
 

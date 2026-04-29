@@ -357,6 +357,45 @@ def test_run_importer_runs_db_only_derivadas_sync_for_regular_import(
     assert cached_files == [str(regular)]
 
 
+def test_db_only_derivadas_sync_progress_does_not_report_zero_sheet_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(
+        app_logic,
+        "_run_derivadas_sync_phase",
+        lambda **kwargs: (
+            True,
+            [],
+            {
+                "db_stats": {"accepted_edges": 4},
+                "merge_stats": {"merged_edges": 4},
+            },
+        ),
+    )
+    events: list[tuple[str, dict]] = []
+
+    app_logic._run_optional_derivadas_sync(
+        auto_derivadas_sync_enabled=True,
+        successfully_processed_files=["Consulta SSA.xlsx"],
+        derivadas_sheet_files=[],
+        db_only_derivadas_sync=True,
+        should_cancel=None,
+        working_db_path="ssa.db",
+        table_name="ssa_table",
+        docs_dir="docs_entrada",
+        critical_errors=[],
+        emit_progress=lambda event, payload: events.append((event, payload)),
+    )
+
+    success_events = [payload for event, payload in events if event == "file_success"]
+    assert success_events
+    assert success_events[-1]["records"] == 4
+    assert "0 arquivos" not in success_events[-1]["filename"]
+    assert "banco atual" in success_events[-1]["filename"]
+
+
 def test_run_importer_runs_special_derivadas_sync_for_explicit_file_import(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

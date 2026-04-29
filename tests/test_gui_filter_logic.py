@@ -616,11 +616,75 @@ class TestGUIFilterLogic:
         self.window._on_macro_filter_changed()
         QApplication.processEvents()
 
+        self.window._apply_advanced_filters_from_ui()
+        QApplication.processEvents()
+
         assert self.window._advanced_filters.get("derivada_all_ste") is True
         assert set(
             self.window._advanced_filters.get("situacao_exclude_values") or []
         ) == {"SAD", "SCA", "SES", "STE"}
         assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == ["100"]
+
+    def test_macro_baixar_waits_for_apply_button_before_filtering(self):
+        macro_df = pd.DataFrame(
+            {
+                "numero_ssa": ["202600100", "202600101"],
+                "situacao": ["APV", "STE"],
+                "derivada_de": ["", "202600100"],
+                "localizacao_codigo": ["LOC1", "LOC2"],
+                "descricao_localizacao": ["Desc1", "Desc2"],
+                "equipamento": ["EQ1", "EQ2"],
+                "semana_cadastro": [202501, 202501],
+                "semana_programada": [202503, 202503],
+                "data_cadastro": ["2025-01-01", "2025-01-01"],
+                "descricao_ssa": ["Origem", "Filha"],
+                "setor_executor": ["IEE3", "IEE3"],
+                "setor_emissor": ["IEE3", "IEE3"],
+                "descricao_execucao": ["Exec A", "Exec B"],
+                "solicitante": ["User1", "User2"],
+            }
+        )
+        self.window.df_completo = macro_df.copy()
+        self.window.df_exibido = macro_df.copy()
+        self.window._df_last_search_filtered = macro_df.copy()
+        self.window.paginator.set_dataframe(macro_df.copy())
+        self.window.main_tabs.setCurrentIndex(1)
+        QApplication.processEvents()
+        self.window._refresh_advanced_filter_options()
+
+        macro_idx = self.window.adv_macro_combo.findData("ssas_para_baixar")
+        assert macro_idx >= 0
+
+        self.window.adv_macro_combo.setCurrentIndex(macro_idx)
+        self.window._on_macro_filter_changed()
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters.get("macro_filter") in (None, "")
+        assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == [
+            "202600100",
+            "202600101",
+        ]
+
+        self.window._apply_advanced_filters_from_ui()
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters.get("macro_filter") == "ssas_para_baixar"
+        assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == [
+            "202600100"
+        ]
+
+    def test_details_html_uses_display_label_for_situacao_da_parcial(self):
+        series = pd.Series(
+            {
+                "numero_ssa": "202600001",
+                "situacao_da_parcial": "Pendente",
+            }
+        )
+
+        html = ssa_gui_details._format_details_html(self.window, series)
+
+        assert "Situacao da Parcial" in html
+        assert "situacao_da_parcial" not in html
 
     def test_filters_summary_deduplicates_column_and_advanced_entries(self):
         self.window._active_column_filters["setor_executor"] = "IEE3"
@@ -4191,6 +4255,32 @@ class TestGUIFilterLogic:
         assert "stroke-dasharray" in html
         assert "marker-end" in html
         assert "Grafo de derivadas" in html
+
+    def test_build_derivadas_graph_html_dashes_relation_type_edges(self):
+        data: dict[str, object] = {
+            "target": "202600023",
+            "parents": [],
+            "children": ["202600024"],
+            "descendants": [
+                {
+                    "ssa": "202600024",
+                    "parent": "202600023",
+                    "relation_type": 2,
+                    "relation_raw_label": "Relacionada",
+                }
+            ],
+            "descendants_count": 1,
+        }
+
+        html = ssa_gui_details._build_derivadas_graph_html(
+            self.window,
+            data,
+            link_color="#4a90e2",
+            font_family="monospace",
+        )
+
+        assert 'data-from="202600023" data-to="202600024"' in html
+        assert "stroke-dasharray" in html
 
     def test_build_derivadas_graph_html_separates_sibling_edge_lanes(self):
         data: dict[str, object] = {

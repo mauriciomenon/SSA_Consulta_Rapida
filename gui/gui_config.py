@@ -91,6 +91,7 @@ DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
     "data_arquivo_origem": "Data do Arquivo de Origem",
     "total_de_reprogramacoes": "Tot. Reprog.",
     "execucao_parcial": "Exec. Parc.",
+    "situacao_da_parcial": "Situacao da Parcial",
     "semana_executada": "Sem. Exec.",
 }
 

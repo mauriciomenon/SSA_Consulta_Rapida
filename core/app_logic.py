@@ -1751,14 +1751,18 @@ def _run_optional_derivadas_sync(
             )
             if db_edges > 0 or merged_edges > 0:
                 sync_materialized = True
+            if len(synced_sheets) == 1:
+                progress_filename = os.path.basename(synced_sheets[0])
+            elif synced_sheets:
+                progress_filename = (
+                    f"SSAs Derivadas e Relacionadas ({len(synced_sheets)} arquivos)"
+                )
+            else:
+                progress_filename = "SSAs Derivadas e Relacionadas (banco atual)"
             emit_progress(
                 "file_success",
                 {
-                    "filename": (
-                        os.path.basename(synced_sheets[0])
-                        if len(synced_sheets) == 1
-                        else f"SSAs Derivadas e Relacionadas ({len(synced_sheets)} arquivos)"
-                    ),
+                    "filename": progress_filename,
                     "records": int(
                         (sync_report.get("merge_stats") or {}).get("merged_edges", 0)
                     ),

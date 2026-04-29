@@ -1912,7 +1912,7 @@ def _build_derivadas_graph_html(
     parents = _normalize_list(data.get("parents", []))
     children = _normalize_list(data.get("children", []))
     descendants_entries = data.get("descendants", [])
-    descendants: list[dict[str, str]] = []
+    descendants: list[dict[str, object]] = []
     if isinstance(descendants_entries, list):
         for raw in descendants_entries[:DERIVADAS_GRAPH_MAX_DESCENDANTS]:
             if not isinstance(raw, dict):
@@ -1922,7 +1922,12 @@ def _build_derivadas_graph_html(
             parent = _normalize_ssa_relation_value(raw_map.get("parent"))
             if not child:
                 continue
-            descendants.append({"ssa": child, "parent": parent})
+            row: dict[str, object] = {"ssa": child, "parent": parent}
+            if raw_map.get("relation_type") is not None:
+                row["relation_type"] = raw_map.get("relation_type")
+            if raw_map.get("relation_raw_label"):
+                row["relation_raw_label"] = raw_map.get("relation_raw_label")
+            descendants.append(row)
 
     nodes: set[str] = {target}
     edges: list[tuple[str, str]] = []
@@ -1934,6 +1939,8 @@ def _build_derivadas_graph_html(
             return
         edge = (source, target_node)
         if edge in edge_seen:
+            if dashed:
+                dashed_edges.add(edge)
             return
         edge_seen.add(edge)
         edges.append(edge)
@@ -1942,15 +1949,31 @@ def _build_derivadas_graph_html(
         if dashed:
             dashed_edges.add(edge)
 
+    def _is_related_edge(row: Mapping[str, object]) -> bool:
+        raw_label = str(row.get("relation_raw_label") or row.get("relacao") or "")
+        label = raw_label.strip().casefold()
+        if "derivad" in label:
+            return False
+        if label:
+            return True
+        raw_type = row.get("relation_type")
+        if raw_type is None:
+            return False
+        try:
+            return int(cast(Any, raw_type)) not in (0, 1)
+        except (TypeError, ValueError):
+            return False
+
     for parent in parents:
         _add_edge(parent, target)
     for child in children:
         _add_edge(target, child)
     for row in descendants:
-        descendant = row.get("ssa", "")
-        parent = row.get("parent", "")
+        descendant = str(row.get("ssa", "") or "")
+        parent = str(row.get("parent", "") or "")
+        dashed = _is_related_edge(row)
         if parent:
-            _add_edge(parent, descendant)
+            _add_edge(parent, descendant, dashed=dashed)
         else:
             _add_edge(target, descendant, dashed=True)
     related_entries = data.get("related", [])
