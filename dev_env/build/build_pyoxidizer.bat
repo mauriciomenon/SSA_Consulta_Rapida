@@ -26,10 +26,12 @@ set "PYOX_RUNTIME_PYTHON=3.10"
 set "UV_MANAGED_PYTHON=true"
 set "UV_PROJECT_ENVIRONMENT=.venv-win"
 
-for /f "tokens=1" %%A in ('uv run --python 3.13 python -c "import json,pathlib; print(json.loads(pathlib.Path('config/version.json').read_text(encoding='utf-8')).get('version_short','0.0'))"') do (
+for /f "tokens=1,2 delims=|" %%A in ('uv run --python 3.13 python -c "import json,pathlib,re; v=str(json.loads(pathlib.Path('config/version.json').read_text(encoding='utf-8')).get('version_short','0.0')); parts=[int(p) for p in re.findall(r'\d+', v)[:4]]; parts=(parts+[0,0,0,0])[:4]; print(v+'|'+'.'.join(str(p) for p in parts))"') do (
     set "APP_VERSION=%%A"
+    set "APP_VERSION_PE=%%B"
 )
 if not defined APP_VERSION set "APP_VERSION=0.0"
+if not defined APP_VERSION_PE set "APP_VERSION_PE=0.0.0.0"
 
 set "MSVC_LINK="
 set "VCVARS="
@@ -246,6 +248,19 @@ if not exist "%APP_ICON%" (
 "%RCEDIT_EXE%" "%TARGET_BUILD_DIR%\SSA_Consulta_Rapida.exe" --set-icon "%APP_ICON%"
 if errorlevel 1 (
     echo Build PyOxidizer concluiu, mas aplicacao do icone falhou.
+    exit /b 1
+)
+"%RCEDIT_EXE%" "%TARGET_BUILD_DIR%\SSA_Consulta_Rapida.exe" ^
+    --set-file-version "%APP_VERSION_PE%" ^
+    --set-product-version "%APP_VERSION_PE%" ^
+    --set-version-string "CompanyName" "SSA Consulta Rapida" ^
+    --set-version-string "FileDescription" "SSA_Consulta_Rapida.exe" ^
+    --set-version-string "InternalName" "SSA_Consulta_Rapida" ^
+    --set-version-string "OriginalFilename" "SSA_Consulta_Rapida.exe" ^
+    --set-version-string "ProductName" "SSA Consulta Rapida" ^
+    --set-version-string "ProductVersion" "%APP_VERSION_PE%"
+if errorlevel 1 (
+    echo Build PyOxidizer concluiu, mas aplicacao de metadata falhou.
     exit /b 1
 )
 
