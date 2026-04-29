@@ -5,6 +5,34 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-29 20:35 - Debian release orchestrator
+
+Escopo desta atualizacao:
+1. criar orquestrador Debian AMD64 deterministico para execucao local ou via SSH
+2. evitar mistura manual entre PowerShell e shell POSIX no fluxo Debian
+3. validar conteudo de artefatos para evitar pacote sem `build_info.json` ou guia de migracao
+
+Fluxo novo:
+1. `dev_env/build/release_debian.sh`
+2. utilitario de relatorio: `dev_env/build/release_debian_report.py`
+3. testes de contrato: `tests/test_release_debian_script.py`
+4. modo local:
+   - `bash dev_env/build/release_debian.sh --backend pyinstaller,nuitka,pyoxidizer --package deb -y`
+5. modo remoto:
+   - `bash dev_env/build/release_debian.sh --ssh-host user@host --ssh-repo /home/user/SSA_Consulta_Rapida --backend pyinstaller,nuitka,pyoxidizer --package deb -y`
+
+Regras de seguranca/reprodutibilidade:
+1. nao ha `AllowDirty`
+2. workspace sujo bloqueia release
+3. `.deb` e suportado para `pyinstaller`, `nuitka` e `pyoxidizer`
+4. AppImage e suportado somente para `pyinstaller` e `nuitka`
+5. `--with-local-data` via SSH falha explicitamente, porque nao ha transferencia implicita de dados locais
+6. o relatorio final hasheia apenas `.deb` e `.AppImage`
+
+Pendencia operacional:
+1. rodar release Debian real somente apos commit/push deste slice e workspace limpo
+2. `docs_saida/ANALISE_SUPERFICIAL_MIGRACAO_MULTILINGUAGEM_2026_04_28.md` permanece arquivo local do usuario e nao deve entrar no release/commit
+
 ## Update 2026-04-29 19:40 - Windows release orchestrator
 
 Escopo desta atualizacao:
