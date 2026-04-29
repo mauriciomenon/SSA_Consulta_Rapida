@@ -5,6 +5,20 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-29 19:05 - PyOxidizer metadata clean rebuild correction
+
+Correcao de estado:
+1. artefato PyOxidizer local existente tinha metadata apos aplicacao manual anterior
+2. clean rebuild mostrou que `build_pyoxidizer.bat` aplicava `--set-icon`, mas nao aplicava version resource
+3. o fluxo correto e aplicar `--set-file-version`, `--set-product-version` e strings de versao via `rcedit` dentro do build
+
+Validacao antes do commit:
+1. `build_pyoxidizer.bat --silent` concluiu com sucesso
+2. `FileVersion=4.37.0.0`
+3. `ProductVersion=4.37.0.0`
+4. `ProductName=SSA Consulta Rapida`
+5. `SSA_Consulta_Rapida.exe --version` retornou `4.37` com exit `0`
+
 ## Update 2026-04-29 18:45 - Windows EXE metadata and shell separation
 
 Escopo desta atualizacao:
@@ -21,9 +35,8 @@ Estado confirmado antes do patch:
    - `ProductVersion=4.37.0.0`
    - `ProductName=SSA Consulta Rapida`
 3. PyOxidizer Windows:
-   - `FileVersion=4.37.0.0`
-   - `ProductVersion=4.37.0.0`
-   - `ProductName=SSA Consulta Rapida`
+   - artefato local entao existente tinha metadata, mas clean rebuild posterior mostrou que o script ainda nao preservava version resource
+   - correcao registrada em `Update 2026-04-29 19:05`
 
 Regra operacional:
 1. PyInstaller Windows deve receber `--version-file` durante o build.
