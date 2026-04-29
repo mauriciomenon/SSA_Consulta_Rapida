@@ -18,14 +18,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 LOG_DIR="${REPO_ROOT}/launchers/logs"
 LOG_FILE="${LOG_DIR}/build_nuitka_debian_amd64.log"
-VENV_DIR="${REPO_ROOT}/launchers/platforms/debian_amd64/venv"
-PYTHON_EXE="${VENV_DIR}/bin/python"
 REQUIREMENTS_FILE="${REPO_ROOT}/launchers/platforms/debian_amd64/requirements.txt"
 
 mkdir -p "${LOG_DIR}"
 FINAL_BUILD_DIR="${REPO_ROOT}/builds/nuitka/debian_amd64"
 mkdir -p "${FINAL_BUILD_DIR}"
 BUILD_WORK_DIR=""
+if [[ "${REPO_ROOT}" == /mnt/* ]]; then
+  NATIVE_CACHE_ROOT="${SSA_NUITKA_NATIVE_ROOT:-${XDG_CACHE_HOME:-${HOME}/.cache}/ssa_consulta_rapida/nuitka}"
+  VENV_DIR="${SSA_NUITKA_VENV_DIR:-${NATIVE_CACHE_ROOT}/debian_amd64/venv}"
+else
+  VENV_DIR="${REPO_ROOT}/launchers/platforms/debian_amd64/venv"
+fi
+PYTHON_EXE="${VENV_DIR}/bin/python"
 
 cleanup_build_work_dir() {
   if [[ -n "${BUILD_WORK_DIR}" && "${KEEP_NUITKA_WORK_DIR:-0}" != "1" ]]; then
@@ -58,8 +63,10 @@ trap on_error ERR
 
 if ! command -v patchelf >/dev/null 2>&1; then
   if sudo -n true >/dev/null 2>&1; then
-    mkdir -p "${TMPDIR:-/tmp}/ssa_build_locks"
-    APT_LOCK_FILE="${TMPDIR:-/tmp}/ssa_build_locks/patchelf_install.lock"
+    APT_LOCK_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/ssa_consulta_rapida/build_locks"
+    mkdir -p "${APT_LOCK_DIR}"
+    chmod 700 "${APT_LOCK_DIR}"
+    APT_LOCK_FILE="${APT_LOCK_DIR}/patchelf_install.lock"
     exec 9>"${APT_LOCK_FILE}"
     if command -v flock >/dev/null 2>&1; then
       flock 9
@@ -142,16 +149,24 @@ rm -rf "${GUI_DIST}" "${CLI_DIST}"
 
 if [[ ! -x "${PYTHON_EXE}" ]]; then
   LAST_STEP="create_venv"
+  mkdir -p "$(dirname "${VENV_DIR}")"
   uv venv --python 3.13 "${VENV_DIR}"
 fi
 
 LAST_STEP="install_requirements"
 uv pip install --python "${PYTHON_EXE}" -r "${REQUIREMENTS_FILE}"
-
-WORK_PARENT="${SSA_NUITKA_WORK_ROOT:-${TMPDIR:-/tmp}/ssa_nuitka_build}"
 if [[ "${REPO_ROOT}" == /mnt/* ]]; then
-  mkdir -p "${WORK_PARENT}"
-  BUILD_WORK_DIR="$(mktemp -d "${WORK_PARENT}/debian_amd64.XXXXXX")"
+  echo "[build_nuitka_debian] usando venv nativo WSL: ${VENV_DIR}" >>"${LOG_FILE}"
+fi
+
+if [[ "${REPO_ROOT}" == /mnt/* ]]; then
+  if [[ -n "${SSA_NUITKA_WORK_ROOT:-}" ]]; then
+    mkdir -p "${SSA_NUITKA_WORK_ROOT}"
+    chmod 700 "${SSA_NUITKA_WORK_ROOT}"
+    BUILD_WORK_DIR="$(mktemp -d "${SSA_NUITKA_WORK_ROOT}/debian_amd64.XXXXXX")"
+  else
+    BUILD_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ssa_nuitka_debian_amd64.XXXXXX")"
+  fi
   NUITKA_OUTPUT_DIR="${BUILD_WORK_DIR}"
 else
   NUITKA_OUTPUT_DIR="${FINAL_BUILD_DIR}"
@@ -176,6 +191,7 @@ CLI_CMD=(
   --assume-yes-for-downloads
   --follow-imports
   --include-data-dir=config=config
+  --include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md
   --include-data-file="${BUILD_INFO_FILE}=config/build_info.json"
   --output-dir="${NUITKA_OUTPUT_DIR}"
 )
@@ -215,7 +231,7 @@ else
   fi
 fi
 
-echo "Build Nuitka Debian concluido com sucesso."
+echo "Build Nuitka Debian amd64 concluido com sucesso."
 echo "Artefatos em: ${REPO_ROOT}/builds/nuitka/debian_amd64"
 if [[ "${SILENT}" != "1" ]]; then
   read -r -p "Executar cleanup TEMP agora? [s/N]: " DO_CLEANUP

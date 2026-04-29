@@ -63,7 +63,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 OUTPUT_DIR="${OUTPUT_DIR:-${REPO_ROOT}/builds/packages/${DEBIAN_PLATFORM}}"
-STAGING_DIR="${STAGING_DIR:-${REPO_ROOT}/build/package_${DEBIAN_PLATFORM}_deb}"
+if [[ -z "${STAGING_DIR}" ]]; then
+  STAGING_DIR="$(default_package_staging_dir deb)"
+fi
 APP_ID="ssa-consulta-rapida"
 APP_DISPLAY_NAME="SSA Consulta Rapida"
 APP_MAINTAINER="SSA Consulta Rapida <noreply@example.invalid>"
@@ -106,8 +108,8 @@ case "${BUILD_SYSTEM}" in
     copy_dir_checked "${SOURCE_ROOT}/SSA_GUI_v${APP_VERSION}_${DEBIAN_PLATFORM}" "${INSTALL_ROOT}/gui"
     CLI_TARGET="$(first_existing_executable "${INSTALL_ROOT}/cli/SSA_CLI_v${APP_VERSION}_${DEBIAN_PLATFORM}")"
     GUI_TARGET="$(first_existing_executable "${INSTALL_ROOT}/gui/SSA_GUI_v${APP_VERSION}_${DEBIAN_PLATFORM}")"
-    write_wrapper "${BIN_DIR}/${APP_ID}-cli" "${CLI_TARGET/${PACKAGE_ROOT}/}"
-    write_wrapper "${BIN_DIR}/${APP_ID}-gui" "${GUI_TARGET/${PACKAGE_ROOT}/}"
+    write_wrapper "${BIN_DIR}/${APP_ID}-cli" "${CLI_TARGET#"${PACKAGE_ROOT}"}"
+    write_wrapper "${BIN_DIR}/${APP_ID}-gui" "${GUI_TARGET#"${PACKAGE_ROOT}"}"
     ;;
   nuitka)
     copy_dir_checked "${REPO_ROOT}/builds/nuitka/${DEBIAN_PLATFORM}/cli_entry.dist" "${INSTALL_ROOT}/cli"
@@ -122,14 +124,15 @@ case "${BUILD_SYSTEM}" in
         "${INSTALL_ROOT}/gui/SSA_GUI_v${APP_VERSION}_${DEBIAN_PLATFORM}" \
         "${INSTALL_ROOT}/gui/gui_entry"
     )"
-    write_wrapper "${BIN_DIR}/${APP_ID}-cli" "${CLI_TARGET/${PACKAGE_ROOT}/}"
-    write_wrapper "${BIN_DIR}/${APP_ID}-gui" "${GUI_TARGET/${PACKAGE_ROOT}/}"
+    write_wrapper "${BIN_DIR}/${APP_ID}-cli" "${CLI_TARGET#"${PACKAGE_ROOT}"}"
+    write_wrapper "${BIN_DIR}/${APP_ID}-gui" "${GUI_TARGET#"${PACKAGE_ROOT}"}"
     ;;
   pyoxidizer)
     copy_dir_checked "${REPO_ROOT}/builds/pyoxidizer/${DEBIAN_PLATFORM}" "${INSTALL_ROOT}/runtime"
     CLI_TARGET="$(first_existing_executable "${INSTALL_ROOT}/runtime/SSA_Consulta_Rapida")"
-    write_wrapper "${BIN_DIR}/${APP_ID}-cli" "${CLI_TARGET/${PACKAGE_ROOT}/}"
-    write_wrapper "${BIN_DIR}/${APP_ID}-gui" "${CLI_TARGET/${PACKAGE_ROOT}/}" "--gui"
+    GUI_TARGET="${CLI_TARGET}"
+    write_wrapper "${BIN_DIR}/${APP_ID}-cli" "${CLI_TARGET#"${PACKAGE_ROOT}"}"
+    write_wrapper "${BIN_DIR}/${APP_ID}-gui" "${GUI_TARGET#"${PACKAGE_ROOT}"}" "--gui"
     ;;
 esac
 
