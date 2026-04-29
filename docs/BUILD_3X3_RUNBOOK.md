@@ -24,6 +24,12 @@ uv run --python 3.13 python -V
 ```
 
 3. Inno Setup para empacotador (`iscc`) quando for gerar instalador.
+4. `rcedit` no `PATH` para build PyOxidizer Windows com icone:
+
+```powershell
+scoop install rcedit
+rcedit
+```
 
 ### Debian 13 via WSL
 
