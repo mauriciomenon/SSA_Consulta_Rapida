@@ -412,7 +412,7 @@ def _should_update_existing(
                     timestamp = pd.Timestamp(parsed)
                     if pd.isna(timestamp):
                         return None
-                    return timestamp
+                    return cast(pd.Timestamp, timestamp)
             raw = str(origin_name_value or "").strip()
             if not raw:
                 return None
@@ -422,7 +422,7 @@ def _should_update_existing(
             timestamp = pd.Timestamp(parsed)
             if pd.isna(timestamp):
                 return None
-            return timestamp
+            return cast(pd.Timestamp, timestamp)
 
         existing_situacao = _status_code(existing_row.get("situacao"))
         if existing_situacao in terminal_states:

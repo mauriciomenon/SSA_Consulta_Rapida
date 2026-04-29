@@ -464,6 +464,7 @@ def build_family_payload_from_edges(
         family_roots = list(dict.fromkeys(parents or [target_ssa]))
 
     family_descendants: list[dict[str, Any]] = []
+    replace_candidate_indexes: list[int] = []
     seen_edges: set[tuple[str, str]] = set()
     family_truncated = False
 
@@ -501,6 +502,8 @@ def build_family_payload_from_edges(
             family_descendants.append(
                 {"ssa": child, "parent": parent, "min_distance": node_distance}
             )
+            if child not in priority_nodes and parent != target_ssa:
+                replace_candidate_indexes.append(len(family_descendants) - 1)
             if child not in queued_nodes:
                 queued_nodes.add(child)
                 distance_by_node[child] = depth + 1
@@ -523,7 +526,8 @@ def build_family_payload_from_edges(
             family_truncated = True
             continue
         replace_index = None
-        for index in range(len(family_descendants) - 1, -1, -1):
+        while replace_candidate_indexes:
+            index = replace_candidate_indexes.pop()
             row = family_descendants[index]
             row_parent = str(row.get("parent", "") or "")
             row_child = str(row.get("ssa", "") or "")
@@ -642,7 +646,17 @@ def _collect_family_subgraph(
             "parent": row[0],
             "min_distance": int(distance_by_node.get(row[1], 1)),
         }
-        relation_type = int(row[2] or 0)
+        raw_relation_type = row[2]
+        try:
+            relation_type = int(raw_relation_type or 0)
+        except (TypeError, ValueError):
+            logger.warning(
+                "relation_type invalido em ssa_derivada_matrix: parent=%s child=%s value=%r",
+                row[0],
+                row[1],
+                raw_relation_type,
+            )
+            relation_type = 0
         relation_raw_label = row[3]
         if relation_type not in (0, 1):
             entry["relation_type"] = relation_type
