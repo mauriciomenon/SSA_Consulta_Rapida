@@ -5,6 +5,47 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-29 18:45 - Windows EXE metadata and shell separation
+
+Escopo desta atualizacao:
+1. corrigir metadata PyInstaller Windows no fluxo de build, nao por patch manual no EXE pronto
+2. documentar separacao de comandos PowerShell vs WSL/Linux/macOS
+3. registrar pendencias reais de Kluster fora do slice atual
+
+Estado confirmado antes do patch:
+1. PyInstaller Windows:
+   - executaveis funcionais
+   - `FileVersionInfo` vazio em CLI e GUI
+2. Nuitka Windows:
+   - `FileVersion=4.37.0.0`
+   - `ProductVersion=4.37.0.0`
+   - `ProductName=SSA Consulta Rapida`
+3. PyOxidizer Windows:
+   - `FileVersion=4.37.0.0`
+   - `ProductVersion=4.37.0.0`
+   - `ProductName=SSA Consulta Rapida`
+
+Regra operacional:
+1. PyInstaller Windows deve receber `--version-file` durante o build.
+2. Nao aplicar `rcedit` manualmente em PyInstaller onefile pronto, porque isso pode quebrar o pacote PKG embutido.
+3. PyOxidizer Windows pode usar `rcedit` no script de build para icone e metadata.
+4. `rcedit` e editor de recursos PE do Windows para icone e version resource.
+
+Artefatos stale:
+1. artefatos Windows anteriores tinham `build_info.json` de `c79c31c`, antes de commits posteriores do branch `dev`
+2. estado local foi reconstruido no commit `0231693daf56a2485ea23a59b75026f91410f91f`
+3. upload/tag de release ainda deve usar somente artefatos gerados apos este patch de metadata
+
+Pendencias Kluster fora do slice atual:
+1. `launchers/build_multiplatform.py`: revisar `git_add_commit_push` e glob/pathspec em slice proprio
+2. `launchers/build_multiplatform.py`: revisar fallback de DMG macOS para evitar bundle stale
+3. `launchers/build_multiplatform.py`: revisar contrato de retorno de `setup_virtual_environment`
+4. `launchers/build_multiplatform.py`: revisar riscos de `include_local_data` antes de qualquer build publico que ative esse flag
+5. `launchers/build_multiplatform.py`: reduzir cleanup amplo e responsabilidades misturadas em slice proprio, sem refatorar junto com hotfix
+
+Arquivos locais intocados:
+1. `docs_saida/ANALISE_SUPERFICIAL_MIGRACAO_MULTILINGUAGEM_2026_04_28.md` pertence ao usuario e nao deve ser incluido neste ciclo
+
 ## Update 2026-04-28 18:22 - WSL mirrored applied with VPN ON (operational fix)
 
 Escopo desta atualizacao:

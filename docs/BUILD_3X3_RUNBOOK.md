@@ -10,6 +10,11 @@ Padrao reproduzivel para gerar e validar build nas 3 plataformas e 3 backends, c
 2. Nao commitar artefatos de build (`builds/`, `launchers/dist/`, `dist_packages/`).
 3. Rodar smoke fora do repo (`C:\Windows\Temp` ou `/tmp`).
 4. Garantir runtime dirs visiveis: `config`, `data`, `docs_entrada`, `docs_saida`, `exportacao`.
+5. Nao misturar shells:
+   - Windows: PowerShell chama `.bat` com `.\` e caminhos `\`.
+   - Debian/WSL/Linux: shell POSIX chama `.sh` com `/`.
+   - macOS: shell POSIX chama `.sh` ou `uv` com `/`.
+6. Nao chamar `bash dev_env/...` no PowerShell e nao chamar `.\dev_env\...bat` no WSL/Linux/macOS.
 
 ## Pre requisitos por host
 
@@ -24,12 +29,21 @@ uv run --python 3.13 python -V
 ```
 
 3. Inno Setup para empacotador (`iscc`) quando for gerar instalador.
-4. `rcedit` no `PATH` para build PyOxidizer Windows com icone:
+4. `rcedit` no `PATH` para build PyOxidizer Windows com icone e metadata:
 
 ```powershell
 scoop install rcedit
-rcedit
+rcedit.exe --help
 ```
+
+`rcedit` e um editor de recursos PE do Windows. Ele altera icone, `FileVersion`,
+`ProductVersion` e strings de versao em executaveis `.exe`.
+
+Regra de uso no projeto:
+1. PyInstaller Windows recebe metadata no momento do build via `--version-file`.
+2. Nao aplicar `rcedit` manualmente sobre PyInstaller onefile pronto; isso pode quebrar o arquivo PKG embutido.
+3. PyOxidizer Windows usa `rcedit` no script de build para aplicar icone e metadata.
+4. Nuitka Windows deve continuar usando recursos/versionamento no proprio fluxo de build.
 
 ### Debian 13 via WSL
 
@@ -63,9 +77,9 @@ export UV_PROJECT_ENVIRONMENT=.venv-linux
 ### Windows
 
 ```powershell
-dev_env/build/build_pyinstaller.bat --silent
-dev_env/build/build_nuitka.bat --silent
-dev_env/build/build_pyoxidizer.bat --silent
+.\dev_env\build\build_pyinstaller.bat --silent
+.\dev_env\build\build_nuitka.bat --silent
+.\dev_env\build\build_pyoxidizer.bat --silent
 ```
 
 ### Debian 13 via WSL
@@ -108,6 +122,29 @@ if (-not $CLI_BIN) {
   throw "Nenhum binario SSA_CLI_v*_windows_amd64.exe encontrado em $DIST_ROOT"
 }
 & $CLI_BIN --help
+```
+
+### Windows metadata (PowerShell)
+
+```powershell
+$EXES = @(
+  ".\launchers\dist\windows_amd64\SSA_CLI_v4.37_windows_amd64\SSA_CLI_v4.37_windows_amd64.exe",
+  ".\launchers\dist\windows_amd64\SSA_GUI_v4.37_windows_amd64\SSA_GUI_v4.37_windows_amd64.exe",
+  ".\builds\nuitka\windows_amd64\cli_entry.dist\SSA_CLI_v4.37_windows_amd64.exe",
+  ".\builds\nuitka\windows_amd64\gui_entry.dist\SSA_GUI_v4.37_windows_amd64.exe",
+  ".\builds\pyoxidizer\windows_amd64\SSA_Consulta_Rapida.exe"
+)
+$ROWS = @()
+foreach ($EXE in $EXES) {
+  $INFO = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $EXE).Path)
+  $ROWS += [pscustomobject]@{
+    Path = $EXE
+    FileVersion = $INFO.FileVersion
+    ProductVersion = $INFO.ProductVersion
+    ProductName = $INFO.ProductName
+  }
+}
+$ROWS | Format-Table -AutoSize
 ```
 
 ### Linux/WSL
