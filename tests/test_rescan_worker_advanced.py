@@ -561,7 +561,8 @@ class TestRescanWorkerIntegration:
             assert callable(call_kwargs["should_cancel"])
             assert callable(call_kwargs["progress_callback"])
 
-    def test_run_calls_importer_with_active_db_path(self, tmp_path):
+    @staticmethod
+    def test_run_calls_importer_with_active_db_path(tmp_path):
         active_db = tmp_path / "alternate_db" / "custom.sqlite"
         active_db.parent.mkdir()
         active_db.write_bytes(b"")

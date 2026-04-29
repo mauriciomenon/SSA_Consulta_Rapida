@@ -6369,13 +6369,12 @@ class TestGUIFilterLogic:
         with patch(
             "gui.ssa.gui_details._get_df_ssa_series_index",
             side_effect=AssertionError("full index should not be built on open"),
-        ):
-            with patch("PyQt6.QtWidgets.QDialog.exec", return_value=0):
-                ssa_gui_details._open_details_dialog_for_ssa(
-                    self.window,
-                    "202218980",
-                    series=df.iloc[0],
-                )
+        ), patch("PyQt6.QtWidgets.QDialog.exec", return_value=0):
+            ssa_gui_details._open_details_dialog_for_ssa(
+                self.window,
+                "202218980",
+                series=df.iloc[0],
+            )
 
     def test_derivadas_tree_html_does_not_scan_dataframe_per_node(self, monkeypatch):
         node_ids = ["202206235", *[f"202206{i:03d}" for i in range(100, 180)]]
