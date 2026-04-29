@@ -8,6 +8,15 @@ require_debian_package_context() {
   : "${DEBIAN_ARCH_LABEL:?DEBIAN_ARCH_LABEL nao definido}"
 }
 
+default_package_staging_dir() {
+  local package_kind="$1"
+  if [[ "${REPO_ROOT}" == /mnt/* ]]; then
+    printf '%s\n' "${TMPDIR:-/tmp}/ssa_consulta_rapida_package/package_${DEBIAN_PLATFORM}_${package_kind}"
+  else
+    printf '%s\n' "${REPO_ROOT}/build/package_${DEBIAN_PLATFORM}_${package_kind}"
+  fi
+}
+
 read_app_version() {
   local version_file="$1"
   local version=""
@@ -36,15 +45,17 @@ safe_reset_dir() {
   local resolved_dir
   local allowed_build
   local allowed_packages
+  local allowed_tmp_package
   resolved_dir="$(realpath -m -- "${dir}")"
   allowed_build="$(realpath -m -- "${REPO_ROOT}/build")"
   allowed_packages="$(realpath -m -- "${REPO_ROOT}/builds/packages")"
+  allowed_tmp_package="$(realpath -m -- "${TMPDIR:-/tmp}/ssa_consulta_rapida_package")"
   if [[ -z "${dir}" || "${resolved_dir}" == "/" || "${resolved_dir}" == "${REPO_ROOT}" ]]; then
     echo "Erro: recusa limpar diretorio inseguro: ${dir}" >&2
     exit 1
   fi
   case "${resolved_dir}/" in
-    "${allowed_build}/"* | "${allowed_packages}/"*) ;;
+    "${allowed_build}/"* | "${allowed_packages}/"* | "${allowed_tmp_package}/"*) ;;
     *)
       echo "Erro: staging fora dos diretorios permitidos: ${resolved_dir}" >&2
       exit 1
@@ -52,12 +63,13 @@ safe_reset_dir() {
   esac
   rm -rf -- "${resolved_dir}"
   mkdir -p -- "${resolved_dir}"
+  chmod 700 "${resolved_dir}"
 }
 
 clean_release_tree() {
   local root="$1"
   find "${root}" \
-    \( -type d \( -name venv -o -name .venv -o -name __pycache__ \) -prune -exec rm -rf -- {} + \) -o \
+    \( -type d \( -name venv -o -name .venv -o -name __pycache__ -o -name .git -o -name .hg -o -name .svn -o -name .ssh \) -prune -exec rm -rf -- {} + \) -o \
     \( -type f \( \
       -name '*.bak' -o -name '*.bak-*' -o -name '*.bak.*' -o -name '*.example.bak_*' -o \
       -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o \

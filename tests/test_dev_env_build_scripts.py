@@ -53,7 +53,8 @@ def test_nuitka_debian_serializes_patchelf_install() -> None:
         encoding="utf-8"
     )
 
-    assert 'APT_LOCK_FILE="${TMPDIR:-/tmp}/ssa_build_locks/patchelf_install.lock"' in script
+    assert 'APT_LOCK_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/ssa_consulta_rapida/build_locks"' in script
+    assert 'APT_LOCK_FILE="${APT_LOCK_DIR}/patchelf_install.lock"' in script
     assert 'exec 9>"${APT_LOCK_FILE}"' in script
     assert "flock 9" in script
     assert script.count("if ! command -v patchelf >/dev/null 2>&1; then") >= 2
@@ -74,9 +75,13 @@ def test_nuitka_debian_uses_platform_venv_and_requirements() -> None:
         assert 'uv pip install --python "${PYTHON_EXE}" -r "${REQUIREMENTS_FILE}"' in script
         assert '"${PYTHON_EXE}" -m nuitka' in script
         assert '--include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md' in script
+        assert script.count('--include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md') >= 2
         assert '--include-data-file="${BUILD_INFO_FILE}=config/build_info.json"' in script
         assert 'NUITKA_OUTPUT_DIR=' in script
         assert 'trap cleanup_build_work_dir EXIT' in script
+        assert 'SSA_NUITKA_WORK_ROOT' in script
+        assert 'mktemp -d "${TMPDIR:-/tmp}/ssa_nuitka_' in script
+        assert "ssa_nuitka_build" not in script
 
 
 def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> None:

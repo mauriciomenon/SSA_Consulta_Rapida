@@ -38,8 +38,11 @@ ARCH_WRAPPERS = (
 
 
 def _run_help(script: Path) -> str:
+    script_arg = str(script)
+    if script.drive:
+        script_arg = f"/mnt/{script.drive.rstrip(':').lower()}{script.as_posix()[2:]}"
     result = subprocess.run(
-        ["bash", str(script), "--help"],
+        ["bash", script_arg, "--help"],
         capture_output=True,
         text=True,
         check=False,
@@ -100,6 +103,10 @@ def test_debian_deb_engine_is_arch_aware_without_hardcoded_target() -> None:
     assert "SSA_GUI_v${APP_VERSION}_${DEBIAN_PLATFORM}" in content
     assert "pyinstaller | nuitka | pyoxidizer" in content
     assert "--gui" in content
+    assert "default_package_staging_dir deb" in content
+    assert '${CLI_TARGET#"${PACKAGE_ROOT}"}' in content
+    assert "${CLI_TARGET#${PACKAGE_ROOT}}" not in content
+    assert "${CLI_TARGET/${PACKAGE_ROOT}/}" not in content
     assert "debian_arm64" not in content
     assert "debian_amd64" not in content
     assert "aarch64" not in content
@@ -115,6 +122,10 @@ def test_debian_appimage_engine_is_arch_aware_without_hardcoded_target() -> None
     assert "SSA_GUI_v${APP_VERSION}_${DEBIAN_PLATFORM}" in content
     assert "--prepare-only" in content
     assert "pyinstaller | nuitka" in content
+    assert "default_package_staging_dir appimage" in content
+    assert '${APP_EXEC#"${APPDIR}"}' in content
+    assert "${APP_EXEC#${APPDIR}}" not in content
+    assert "${APP_EXEC/${APPDIR}/}" not in content
     assert "sed -i" not in content
     assert "debian_arm64" not in content
     assert "debian_amd64" not in content
@@ -125,6 +136,8 @@ def test_debian_appimage_engine_is_arch_aware_without_hardcoded_target() -> None
 def test_debian_package_common_removes_local_data_and_build_residue() -> None:
     content = COMMON_SCRIPT.read_text(encoding="utf-8")
     assert "-name venv" in content
+    assert "-name .git" in content
+    assert "-name .ssh" in content
     assert "-name '*.bak'" in content
     assert "-name '*.bak.*'" in content
     assert "-name '*.db'" in content
@@ -135,6 +148,10 @@ def test_debian_package_common_removes_local_data_and_build_residue() -> None:
     assert "jq -er" in content
     assert "${REPO_ROOT}/build" in content
     assert "${REPO_ROOT}/builds/packages" in content
+    assert "default_package_staging_dir" in content
+    assert '[[ "${REPO_ROOT}" == /mnt/* ]]' in content
+    assert "ssa_consulta_rapida_package" in content
+    assert "chmod 700" in content
 
     assert "clean_release_tree" in DEB_ENGINE_SCRIPT.read_text(encoding="utf-8")
     assert "clean_release_tree" in APPIMAGE_ENGINE_SCRIPT.read_text(encoding="utf-8")

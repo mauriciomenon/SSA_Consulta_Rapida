@@ -75,7 +75,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 OUTPUT_DIR="${OUTPUT_DIR:-${REPO_ROOT}/builds/packages/${DEBIAN_PLATFORM}}"
-STAGING_DIR="${STAGING_DIR:-${REPO_ROOT}/build/package_${DEBIAN_PLATFORM}_appimage}"
+if [[ -z "${STAGING_DIR}" ]]; then
+  STAGING_DIR="$(default_package_staging_dir appimage)"
+fi
 APPDIR="${STAGING_DIR}/SSA_Consulta_Rapida.AppDir"
 APP_ID="ssa-consulta-rapida"
 APP_DISPLAY_NAME="SSA Consulta Rapida"
@@ -109,16 +111,20 @@ case "${BUILD_SYSTEM}" in
     ;;
   nuitka)
     copy_dir_checked "${REPO_ROOT}/builds/nuitka/${DEBIAN_PLATFORM}/gui_entry.dist" "${APPDIR}/opt/${APP_ID}/runtime"
+    APP_FALLBACK_EXEC="$(
+      find "${APPDIR}/opt/${APP_ID}/runtime" -maxdepth 1 -type f -executable -print -quit
+    )"
     APP_EXEC="$(
       first_existing_executable \
         "${APPDIR}/opt/${APP_ID}/runtime/SSA_GUI_v${APP_VERSION}_${DEBIAN_PLATFORM}" \
-        "${APPDIR}/opt/${APP_ID}/runtime/gui_entry"
+        "${APPDIR}/opt/${APP_ID}/runtime/gui_entry" \
+        "${APP_FALLBACK_EXEC}"
     )"
     ;;
 esac
 
 require_executable "${APP_EXEC}"
-APP_REL_EXEC="${APP_EXEC/${APPDIR}/}"
+APP_REL_EXEC="${APP_EXEC#"${APPDIR}"}"
 
 clean_release_tree "${APPDIR}"
 

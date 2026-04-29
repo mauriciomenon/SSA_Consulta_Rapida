@@ -49,6 +49,14 @@ def test_create_zip_package_uses_canonical_pyinstaller_dir(
 
     gui_exe = canonical_dir / "SSA_GUI_v1_windows_amd64.exe"
     gui_exe.write_text("fake exe", encoding="utf-8")
+    docs_dir = project_root / "docs"
+    docs_dir.mkdir()
+    (project_root / "README.md").write_text("readme", encoding="utf-8")
+    (docs_dir / "ANTIVIRUS_EXCLUSOES.md").write_text("av", encoding="utf-8")
+    (docs_dir / "GUIA_MIGRACAO_NOVA_INSTALACAO.md").write_text(
+        "guide",
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
     monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
@@ -72,6 +80,10 @@ def test_create_zip_package_uses_canonical_pyinstaller_dir(
     with zipfile.ZipFile(result, "r") as zf:
         names = zf.namelist()
         assert any(name.endswith("SSA_GUI_v1_windows_amd64.exe") for name in names)
+        assert any(
+            name.endswith("docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md")
+            for name in names
+        )
 
 
 def test_create_zip_package_excludes_local_data_and_excel_from_canonical_pyinstaller(
