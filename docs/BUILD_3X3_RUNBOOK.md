@@ -116,6 +116,43 @@ Regra de integridade:
 .\dev_env\build\build_pyoxidizer.bat --silent
 ```
 
+### Debian 13 deterministico local ou via SSH
+
+Use este fluxo para release Debian AMD64. Ele roda somente em shell POSIX,
+chama somente wrappers `.sh`, valida workspace limpo, `build_info.json`,
+guia de migracao, conteudo do `.deb` e escreve relatorio com hashes.
+
+Local no Debian/WSL:
+
+```bash
+bash dev_env/build/release_debian.sh --backend pyinstaller,nuitka,pyoxidizer --package deb -y
+```
+
+Via SSH para host Debian:
+
+```bash
+bash dev_env/build/release_debian.sh --ssh-host user@debian-host --ssh-repo /home/user/SSA_Consulta_Rapida --backend pyinstaller,nuitka,pyoxidizer --package deb -y
+```
+
+AppImage e opcional e existe somente para `pyinstaller` e `nuitka`:
+
+```bash
+bash dev_env/build/release_debian.sh --backend pyinstaller,nuitka --package appimage -y
+```
+
+Saida de auditoria:
+
+```text
+builds/reports/release_report_debian_amd64.json
+```
+
+Regras Debian:
+1. workspace sujo bloqueia o release
+2. `.deb` aceita `pyinstaller`, `nuitka` e `pyoxidizer`
+3. AppImage aceita apenas `pyinstaller` e `nuitka`
+4. `--with-local-data` nao e suportado via SSH; execute localmente no host Debian se precisar desse modo
+5. PowerShell nao entra neste fluxo
+
 ### Debian 13 via WSL
 
 ```bash

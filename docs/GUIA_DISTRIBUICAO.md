@@ -126,6 +126,30 @@ Importante:
 
 ### 4) Criar .deb e AppImage Debian manualmente
 
+Fluxo recomendado para Debian AMD64:
+
+```bash
+bash dev_env/build/release_debian.sh --backend pyinstaller,nuitka,pyoxidizer --package deb -y
+```
+
+Fluxo remoto por SSH:
+
+```bash
+bash dev_env/build/release_debian.sh --ssh-host user@host --ssh-repo /home/user/SSA_Consulta_Rapida --backend pyinstaller,nuitka,pyoxidizer --package deb -y
+```
+
+AppImage Debian AMD64:
+
+```bash
+bash dev_env/build/release_debian.sh --backend pyinstaller,nuitka --package appimage -y
+```
+
+O orquestrador valida workspace limpo, `config/build_info.json`,
+`docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`, conteudo de `.deb` e gera
+`builds/reports/release_report_debian_amd64.json`.
+
+Comandos manuais por wrapper continuam disponiveis:
+
 ```bash
 bash dev_env/build/package_debian_amd64_deb.sh --build-system pyinstaller
 bash dev_env/build/package_debian_amd64_appimage.sh --build-system pyinstaller --prepare-only
