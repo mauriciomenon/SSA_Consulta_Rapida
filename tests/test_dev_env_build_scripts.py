@@ -107,6 +107,9 @@ def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> No
     assert "Error importing numpy" in pyoxidizer_script
     assert "rcedit.exe" in pyoxidizer_script
     assert "--set-icon" in pyoxidizer_script
+    assert "--set-file-version" in pyoxidizer_script
+    assert "--set-product-version" in pyoxidizer_script
+    assert '--set-version-string "ProductName" "SSA Consulta Rapida"' in pyoxidizer_script
     assert r"config\version.json" in pyoxidizer_script
     assert "build_info.json" in pyoxidizer_script
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in pyoxidizer_script
