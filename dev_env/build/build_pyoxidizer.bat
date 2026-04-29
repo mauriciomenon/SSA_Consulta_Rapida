@@ -21,6 +21,8 @@ if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 if not exist "%REPO_ROOT%\builds\pyoxidizer" mkdir "%REPO_ROOT%\builds\pyoxidizer"
 
 set "UV_PYTHON=3.13"
+REM PyOxidizer embeds CPython 3.10 on this target; native runtime libs must match it.
+set "PYOX_RUNTIME_PYTHON=3.10"
 set "UV_MANAGED_PYTHON=true"
 set "UV_PROJECT_ENVIRONMENT=.venv-win"
 
@@ -221,13 +223,39 @@ if /I "%COPY_TOOL%"=="xcopy" (
     )
 )
 
+if not exist "%TARGET_BUILD_DIR%\config" mkdir "%TARGET_BUILD_DIR%\config"
+copy /Y "%REPO_ROOT%\config\version.json" "%TARGET_BUILD_DIR%\config\version.json" >nul
+if errorlevel 1 (
+    echo Build PyOxidizer concluiu, mas copia de config/version.json falhou.
+    exit /b 1
+)
+
+set "RCEDIT_EXE="
+for /f "delims=" %%R in ('where rcedit.exe 2^>nul') do (
+    if not defined RCEDIT_EXE set "RCEDIT_EXE=%%R"
+)
+if not defined RCEDIT_EXE (
+    echo Erro: rcedit.exe nao encontrado. Instale com: scoop install rcedit
+    exit /b 1
+)
+set "APP_ICON=%REPO_ROOT%\resources\app_icon.ico"
+if not exist "%APP_ICON%" (
+    echo Erro: icone do aplicativo nao encontrado: "%APP_ICON%"
+    exit /b 1
+)
+"%RCEDIT_EXE%" "%TARGET_BUILD_DIR%\SSA_Consulta_Rapida.exe" --set-icon "%APP_ICON%"
+if errorlevel 1 (
+    echo Build PyOxidizer concluiu, mas aplicacao do icone falhou.
+    exit /b 1
+)
+
 if "%SILENT%"=="1" (
     set "UV_PROJECT_ENVIRONMENT=.venv-pyoxidizer-runtime-win"
-    uv run --python %UV_PYTHON% --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 python "%REPO_ROOT%\scripts\sync_pyoxidizer_runtime_libs.py" --target "%TARGET_BUILD_DIR%\lib" >> "%LOG_FILE%" 2>&1
+    uv run --python %PYOX_RUNTIME_PYTHON% --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 python "%REPO_ROOT%\scripts\sync_pyoxidizer_runtime_libs.py" --target "%TARGET_BUILD_DIR%\lib" >> "%LOG_FILE%" 2>&1
     set "UV_PROJECT_ENVIRONMENT=.venv-win"
 ) else (
     set "UV_PROJECT_ENVIRONMENT=.venv-pyoxidizer-runtime-win"
-    uv run --python %UV_PYTHON% --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 python "%REPO_ROOT%\scripts\sync_pyoxidizer_runtime_libs.py" --target "%TARGET_BUILD_DIR%\lib"
+    uv run --python %PYOX_RUNTIME_PYTHON% --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 python "%REPO_ROOT%\scripts\sync_pyoxidizer_runtime_libs.py" --target "%TARGET_BUILD_DIR%\lib"
     set "UV_PROJECT_ENVIRONMENT=.venv-win"
 )
 
@@ -255,6 +283,22 @@ if "%WITH_LOCAL_DATA%"=="1" (
     ) else (
         echo INFO Pulando copia de dados locais. Use --with-local-data para habilitar.
     )
+)
+
+set "SSA_PYOXIDIZER_SMOKE_LOG=%TEMP%\ssa_pyoxidizer_windows_amd64_smoke.log"
+set "PYOXIDIZER_EXE=%TARGET_BUILD_DIR%\SSA_Consulta_Rapida.exe"
+pushd "%TARGET_BUILD_DIR%" >nul
+echo q | "%PYOXIDIZER_EXE%" > "%SSA_PYOXIDIZER_SMOKE_LOG%" 2>&1
+set "PYOX_SMOKE_RC=!ERRORLEVEL!"
+popd >nul
+if not "%PYOX_SMOKE_RC%"=="0" (
+    echo Smoke PyOxidizer falhou. Veja: "%SSA_PYOXIDIZER_SMOKE_LOG%"
+    exit /b 1
+)
+findstr /C:"Falha critica nas importacoes" /C:"Error importing numpy" /C:"modo limitado" "%SSA_PYOXIDIZER_SMOKE_LOG%" >nul 2>&1
+if not errorlevel 1 (
+    echo Smoke PyOxidizer detectou runtime quebrado. Veja: "%SSA_PYOXIDIZER_SMOKE_LOG%"
+    exit /b 1
 )
 
 echo Build PyOxidizer concluido com sucesso.

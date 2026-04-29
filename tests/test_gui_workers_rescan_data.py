@@ -686,6 +686,46 @@ def test_rescan_data_prompt_without_qmessagebox_uses_incremental_mode(tmp_path):
     assert captured_modes == [False]
 
 
+def test_rescan_data_passes_active_db_path_to_worker(tmp_path):
+    captured_db_paths: list[str | None] = []
+    active_db = tmp_path / "alternate" / "custom.sqlite"
+    active_db.parent.mkdir()
+    active_db.write_bytes(b"")
+
+    class _WorkerCaptureDbPath(_BaseWorker):
+        def __init__(
+            self,
+            _main_py_path: str,
+            _project_root: str,
+            db_path: str | None = None,
+        ):
+            super().__init__(_main_py_path, _project_root)
+            captured_db_paths.append(db_path)
+
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_WorkerCaptureDbPath,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="diff",
+        db_path=str(active_db),
+    )
+
+    assert captured_db_paths == [str(active_db)]
+
+
 def test_classify_workers_for_ttl_expires_oldest_when_above_cap():
     workers = ["w1", "w2", "w3"]
     meta = {"w1": 100.0, "w2": 101.0, "w3": 102.0}

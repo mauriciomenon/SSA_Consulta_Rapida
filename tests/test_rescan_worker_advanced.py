@@ -561,6 +561,29 @@ class TestRescanWorkerIntegration:
             assert callable(call_kwargs["should_cancel"])
             assert callable(call_kwargs["progress_callback"])
 
+    def test_run_calls_importer_with_active_db_path(self, tmp_path):
+        active_db = tmp_path / "alternate_db" / "custom.sqlite"
+        active_db.parent.mkdir()
+        active_db.write_bytes(b"")
+        worker = RescanWorker(
+            main_py_path=str(tmp_path / "main.py"),
+            project_root=str(tmp_path),
+            db_path=str(active_db),
+        )
+        try:
+            with patch("gui.workers.rescan_worker.run_importer_logic") as mock_importer:
+                mock_importer.return_value = True
+                worker.run()
+
+                mock_importer.assert_called_once()
+                call_kwargs = mock_importer.call_args[1]
+
+                assert call_kwargs["data_dir"] == str(active_db.parent)
+                assert call_kwargs["db_name"] == active_db.name
+        finally:
+            if worker._logger_attached:
+                worker._detach_logger()
+
     def test_run_calls_importer_with_explicit_files(self, tmp_path):
         """Testa que run() encaminha explicit_files no modo de importacao explicita."""
         docs_dir = tmp_path / "docs_entrada"
