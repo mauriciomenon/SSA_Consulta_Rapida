@@ -195,7 +195,7 @@ class HandlerBase(ABC):
             json_text = data.to_json(orient="records", indent=2)
             return json_text or "[]"
         elif format_type == "csv":
-            return data.to_csv(index=False)
+            return data.to_csv(index=False, lineterminator="\n")
         elif data.empty:
             return "Nenhum resultado encontrado."
         else:  # table (default)

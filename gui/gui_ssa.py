@@ -21,6 +21,7 @@ import json
 import logging
 import ntpath
 import os
+import posixpath
 import re
 import shutil
 import sqlite3
@@ -4624,9 +4625,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         elif sys.platform == "darwin":
             preferred_paths.append("/usr/bin/open")
             cmd = "open"
+            path_module = posixpath
         else:
             preferred_paths.extend(("/usr/bin/xdg-open", "/bin/xdg-open"))
             cmd = "xdg-open"
+            path_module = posixpath
         for preferred in preferred_paths:
             preferred_abs = path_module.abspath(preferred)
             if path_module.isabs(preferred_abs) and os.path.isfile(preferred_abs):

@@ -202,6 +202,27 @@ def test_snapshot_preserves_relation_metadata_for_graph_rendering(temp_db):
     assert child["relation_raw_label"] == "Relacionada"
 
 
+def test_snapshot_ignores_invalid_relation_type_for_graph_rendering(temp_db):
+    _seed_graph(temp_db)
+    with sqlite3.connect(temp_db) as conn:
+        conn.execute(
+            """
+            UPDATE ssa_derivada_matrix
+            SET relation_type = 'bad', relation_raw_label = 'Relacionada'
+            WHERE parent_ssa = '202500001' AND child_ssa = '202500002'
+            """
+        )
+        conn.commit()
+
+    snapshot = get_ssa_hierarchy_snapshot(temp_db, "202500001", max_distance=5)
+
+    child = next(
+        item for item in snapshot["family_descendants"] if item["ssa"] == "202500002"
+    )
+    assert "relation_type" not in child
+    assert child["relation_raw_label"] == "Relacionada"
+
+
 def test_snapshot_for_child_includes_parent_and_sibling_family(temp_db):
     _seed_graph(temp_db)
 

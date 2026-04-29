@@ -542,7 +542,7 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
             if db_path is None:
                 raise ValueError("db_path ausente no caminho padrao de insercao")
 
-            with get_db_connection(cast(str, db_path)) as conn:
+            with get_db_connection(db_path) as conn:
                 active_conn = conn
                 cur = conn.cursor()
                 cur.execute("PRAGMA journal_mode")

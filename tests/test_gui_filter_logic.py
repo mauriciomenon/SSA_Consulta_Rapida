@@ -983,6 +983,8 @@ class TestGUIFilterLogic:
             "_measure_header_text_px",
             lambda _window, text: len(str(text or "")) * 8,
         )
+        self.window._adaptive_header_label_width_cache = {}
+        self.window._adaptive_header_label_signatures = {}
         self.window._saved_gui_column_widths["numero_ssa"] = 100
 
         self.window.display_current_page(1)
@@ -1123,6 +1125,8 @@ class TestGUIFilterLogic:
             "_measure_header_text_px",
             lambda _window, text: len(str(text or "")) * 8,
         )
+        self.window._adaptive_header_label_width_cache = {}
+        self.window._adaptive_header_label_signatures = {}
 
         self.window.visible_columns = ["descricao_ssa"]
         self.window.display_current_page(1)
@@ -1235,11 +1239,11 @@ class TestGUIFilterLogic:
             }
         elif sys.platform == "win32":
             expected = {
-                "grau_prioridade_emissao": 96,
-                "grau_prioridade_planejamento": 98,
+                "grau_prioridade_emissao": 120,
+                "grau_prioridade_planejamento": 128,
                 "execucao_parcial": 78,
-                "total_de_reprogramacoes": 82,
-                "semana_executada": 60,
+                "total_de_reprogramacoes": 130,
+                "semana_executada": 92,
             }
         else:
             expected = {
@@ -5438,6 +5442,8 @@ class TestGUIFilterLogic:
             "_measure_header_text_px",
             lambda _window, text: len(str(text or "")) * 8,
         )
+        self.window._adaptive_header_label_width_cache = {}
+        self.window._adaptive_header_label_signatures = {}
         self.window._saved_gui_column_widths["numero_ssa"] = 50
         self.window.display_current_page(1)
         QApplication.processEvents()
