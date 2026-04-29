@@ -293,7 +293,7 @@ class TestGUIMainConfiguration:
         assert "execucao_parcial" in config["hidden_columns"]
         assert "responsavel_execucao" in config["hidden_columns"]
 
-    def test_load_gui_main_preferences_removes_hidden_overlap_from_display_columns(
+    def test_load_gui_main_preferences_prioritizes_display_columns_over_hidden_overlap(
         self,
     ):
         partial_config = {
@@ -338,6 +338,23 @@ class TestGUIMainConfiguration:
                 config = load_gui_main_preferences()
 
         assert config["column_widths"]["data_arquivo_origem"] == 100
+
+    def test_migrate_managed_legacy_widths_skips_missing_target_width(self):
+        from gui.gui_config import (
+            HARD_DEFAULT_GUI_MAIN_PREFERENCES,
+            _migrate_managed_legacy_widths,
+        )
+
+        legacy_width = HARD_DEFAULT_GUI_MAIN_PREFERENCES["column_widths"][
+            "descricao_ssa"
+        ]
+
+        migrated = _migrate_managed_legacy_widths(
+            {"descricao_ssa": legacy_width},
+            {},
+        )
+
+        assert migrated["descricao_ssa"] == legacy_width
 
     def test_load_gui_main_preferences_uses_platform_specific_widths(self):
         partial_config = {
