@@ -2121,7 +2121,6 @@ def _on_macro_filter_changed(self):
                 self.adv_executor_button.showMenu()
         except Exception as exc:
             logger.debug("Falha ao abrir menu de executor apos macro filtro: %s", exc)
-    self._apply_advanced_filters_from_ui()
 
 
 def _reorganize_advanced_filters_grid(self, width: int):
