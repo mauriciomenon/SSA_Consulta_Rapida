@@ -5,6 +5,33 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-29 19:40 - Windows release orchestrator
+
+Escopo desta atualizacao:
+1. criar orquestrador Windows deterministico para release local
+2. eliminar mistura manual de sintaxe PowerShell com shell POSIX no fluxo Windows
+3. exigir fonte limpa e `build_info.json` alinhado ao HEAD antes de validar artefato
+
+Fluxo novo:
+1. `dev_env/build/release_windows.ps1`
+2. seleciona `pyinstaller`, `nuitka`, `pyoxidizer` ou multiplos backends
+3. chama somente wrappers Windows `.bat`
+4. gera ZIPs em `builds/packages/windows_amd64`
+5. chama `scripts/create_distribution.py` para pacotes canonicos
+6. valida metadata PE com `[System.Diagnostics.FileVersionInfo]`
+7. valida ZIP com EXE, `config/build_info.json` e `GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+8. gera `builds/reports/release_report_windows_amd64.json`
+
+Regra de seguranca/reprodutibilidade:
+1. nao ha `AllowDirty`
+2. workspace sujo bloqueia release
+3. smoke PyOxidizer precisa retornar texto em `--version`
+4. falha em um backend para o processo, por politica fail-fast de release
+
+Pendencia proximo slice:
+1. criar orquestrador Debian local/remoto equivalente, sem chamar PowerShell
+2. definir se o Debian remoto sera por `ssh` ou apenas comando local documentado
+
 ## Update 2026-04-29 19:05 - PyOxidizer metadata clean rebuild correction
 
 Correcao de estado:
