@@ -144,6 +144,7 @@ def _build_rescan_worker(
     force_import: bool,
     explicit_files: tuple[str, ...],
     source_files: tuple[str, ...],
+    db_path: str | None,
     operation_label: str,
     operation_kind: str,
 ):
@@ -158,6 +159,8 @@ def _build_rescan_worker(
         worker_kwargs["explicit_files"] = explicit_files or None
     if "source_files" in accepted_params:
         worker_kwargs["source_files"] = source_files or None
+    if "db_path" in accepted_params:
+        worker_kwargs["db_path"] = db_path
     if "operation_label" in accepted_params:
         worker_kwargs["operation_label"] = operation_label
     if "operation_kind" in accepted_params:
@@ -1239,6 +1242,7 @@ def rescan_data(
     rescan_mode: str = "prompt",
     explicit_files: tuple[str, ...] | None = None,
     source_files: tuple[str, ...] | None = None,
+    db_path: str | None = None,
     operation_label: str = "Reescaneamento",
     reload_on_success: bool = False,
     operation_kind: str = "import",
@@ -1364,6 +1368,7 @@ def rescan_data(
         force_import=force_import,
         explicit_files=explicit_files_tuple,
         source_files=source_files_tuple,
+        db_path=db_path,
         operation_label=operation_label,
         operation_kind=normalized_kind,
     )
@@ -1460,22 +1465,11 @@ def rescan_data(
             and normalized_kind != "consolidate"
             and hasattr(window, "load_data")
         )
-        reload_started = False
-        if should_reload_data:
-            try:
-                window.load_data()
-                reload_started = True
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao recarregar dados apos operacao concluida: %s", exc
-                )
         success_text = (
             _consolidation_status_text(outcome)
             if normalized_kind == "consolidate"
             else _success_status_text(is_explicit_import, outcome)
         )
-        if reload_started:
-            return
         _set_status_label_text(
             window,
             success_text,
@@ -1487,6 +1481,13 @@ def rescan_data(
                 else "rescan.success.done"
             ),
         )
+        if should_reload_data:
+            try:
+                window.load_data()
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao recarregar dados apos operacao concluida: %s", exc
+                )
 
     def on_error(error_msg):
         nonlocal cancelled

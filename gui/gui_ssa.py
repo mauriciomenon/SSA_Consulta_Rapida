@@ -4355,6 +4355,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         importacao_menu.addAction(rescan_full_action)
 
         open_docs_action = QAction("Abrir Pasta de Arquivos", self)
+        set_status_tip = getattr(open_docs_action, "setStatusTip", None)
+        if callable(set_status_tip):
+            set_status_tip(
+                f"Pasta atual de entrada: {os.path.join(project_root, 'docs_entrada')}"
+            )
         open_docs_action.triggered.connect(self.open_docs_folder)
         importacao_menu.addAction(open_docs_action)
 
@@ -4514,6 +4519,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     sip_module=sip,
                     rescan_mode="explicit",
                     source_files=tuple(safe_selected_files),
+                    db_path=DB_PATH,
                     operation_label="Importacao externa",
                     reload_on_success=True,
                     operation_kind="import",
@@ -4845,6 +4851,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
             sip_module=sip,
             rescan_mode="prompt",
+            db_path=DB_PATH,
+            reload_on_success=True,
         )
 
     def rescan_diff_data(self):
@@ -4865,6 +4873,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
             sip_module=sip,
             rescan_mode="diff",
+            db_path=DB_PATH,
+            reload_on_success=True,
         )
 
     def rescan_full_data(self):
@@ -4885,11 +4895,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
             sip_module=sip,
             rescan_mode="full",
+            db_path=DB_PATH,
+            reload_on_success=True,
         )
 
     def open_docs_folder(self):
         """Abre a pasta docs_entrada no explorador de arquivos (nao bloqueante)."""
         docs_path = os.path.join(project_root, "docs_entrada")
+        if hasattr(self, "status_label"):
+            self.status_label.setText(f"Status: Pasta de entrada: {docs_path}")
         SSAMainWindow._open_folder_non_blocking(
             cast(Any, self),
             folder_path=docs_path,

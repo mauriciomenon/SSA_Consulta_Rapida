@@ -176,6 +176,7 @@ class RescanWorker(QThread):
         force_import: bool = True,
         explicit_files: Sequence[str] | None = None,
         source_files: Sequence[str] | None = None,
+        db_path: str | None = None,
         operation_label: str = "Reescaneamento",
         operation_kind: str = "import",
     ):
@@ -189,6 +190,7 @@ class RescanWorker(QThread):
         self.source_files = (
             tuple(str(path) for path in source_files) if source_files else None
         )
+        self.db_path = str(db_path) if db_path else None
         normalized_label = str(operation_label or "").strip()
         self.operation_label = normalized_label or "Reescaneamento"
         normalized_kind = str(operation_kind or "").strip().lower()
@@ -352,10 +354,16 @@ class RescanWorker(QThread):
         return True, summary
 
     def _run_import_operation(self) -> bool:
+        data_dir = "data"
+        db_name = "ssas.db"
+        if self.db_path:
+            db_path = Path(self.db_path)
+            data_dir = str(db_path.parent)
+            db_name = db_path.name
         return run_importer_logic(
             docs_dir="docs_entrada",
-            data_dir="data",
-            db_name="ssas.db",
+            data_dir=data_dir,
+            db_name=db_name,
             table_name="ssa_table",
             force_import=self.force_import,
             explicit_files=self.explicit_files,
