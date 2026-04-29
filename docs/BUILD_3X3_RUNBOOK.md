@@ -74,6 +74,40 @@ export UV_PROJECT_ENVIRONMENT=.venv-linux
 
 ## Build por backend
 
+### Windows deterministico
+
+Use este fluxo para release local Windows. Ele executa preflight, seleciona
+backends, chama somente wrappers `.bat`, valida `build_info.json`, valida
+metadata dos EXEs, gera ZIPs por backend, roda smoke minimo e escreve relatorio.
+
+```powershell
+.\dev_env\build\release_windows.ps1
+```
+
+Modo nao interativo:
+
+```powershell
+.\dev_env\build\release_windows.ps1 -Backend pyinstaller,nuitka,pyoxidizer -Yes
+```
+
+Sem instalador Inno:
+
+```powershell
+.\dev_env\build\release_windows.ps1 -Backend pyinstaller -Yes -SkipInstaller
+```
+
+Saida de auditoria:
+
+```text
+builds\reports\release_report_windows_amd64.json
+```
+
+Regra de integridade:
+1. workspace sujo bloqueia o release
+2. `build_info.git_commit` precisa bater com `git rev-parse HEAD`
+3. ZIP precisa conter EXE, `config/build_info.json` e `GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+4. PowerShell nao chama shell POSIX neste fluxo
+
 ### Windows
 
 ```powershell
