@@ -339,7 +339,8 @@ class TestGUIMainConfiguration:
 
         assert config["column_widths"]["data_arquivo_origem"] == 100
 
-    def test_migrate_managed_legacy_widths_skips_missing_target_width(self):
+    @staticmethod
+    def test_migrate_managed_legacy_widths_skips_missing_target_width():
         from gui.gui_config import (
             HARD_DEFAULT_GUI_MAIN_PREFERENCES,
             _migrate_managed_legacy_widths,
