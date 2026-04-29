@@ -152,6 +152,7 @@ Regras Debian:
 3. AppImage aceita apenas `pyinstaller` e `nuitka`
 4. `--with-local-data` nao e suportado via SSH; execute localmente no host Debian se precisar desse modo
 5. PowerShell nao entra neste fluxo
+6. backends rodam em serie por desenho; Nuitka e PyOxidizer pressionam CPU/RAM/IO e paralelizar build completo so deve ser feito em slice proprio com medicao de recursos
 
 ### Debian 13 via WSL
 

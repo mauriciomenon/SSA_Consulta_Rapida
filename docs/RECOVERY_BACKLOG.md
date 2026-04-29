@@ -28,6 +28,7 @@ Regras de seguranca/reprodutibilidade:
 4. AppImage e suportado somente para `pyinstaller` e `nuitka`
 5. `--with-local-data` via SSH falha explicitamente, porque nao ha transferencia implicita de dados locais
 6. o relatorio final hasheia apenas `.deb` e `.AppImage`
+7. build de backends e sequencial por desenho neste slice; paralelismo fica fora de escopo ate existir medicao de CPU/RAM/IO em host dedicado
 
 Pendencia operacional:
 1. rodar release Debian real somente apos commit/push deste slice e workspace limpo
