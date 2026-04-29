@@ -5,6 +5,45 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-28 18:22 - WSL mirrored applied with VPN ON (operational fix)
+
+Escopo desta atualizacao:
+1. corrigir quebra de internet no WSL com VPN endpoint ligada
+2. aplicar mudanca operacional sem tocar runtime do app
+3. registrar evidencia tecnica de antes/depois
+
+Backup e mudanca aplicada:
+1. backup timestamp criado antes da alteracao:
+   - `C:\\Users\\mauri\\.wslconfig.backup_20260428_182150`
+2. arquivo atualizado:
+   - `C:\\Users\\mauri\\.wslconfig`
+3. conteudo aplicado:
+   - `[wsl2]`
+   - `guiApplications=false`
+   - `networkingMode=mirrored`
+   - `dnsTunneling=true`
+   - `autoProxy=true`
+4. WSL reiniciado com `wsl --shutdown`
+
+Evidencia com VPN ligada (estado atual):
+1. host VPN:
+   - IP corporativo ativo: `10.30.15.132`
+   - rota VPN para varias redes via `10.30.15.131`
+2. WSL apos mirrored:
+   - interface `eth0` em `10.30.15.132/24`
+   - interface `eth3` em `10.5.0.2/16`
+   - rota default visivel no snapshot: `default via 192.168.0.1 dev eth7`
+3. conectividade WSL validada:
+   - `curl -I https://api.github.com` -> `HTTP/2 200`
+   - `gh api rate_limit` -> resposta valida
+
+Resultado:
+1. mitigacao operacional aplicada e validada no ambiente atual
+2. WSL voltou a ter acesso externo mesmo com VPN ligada
+
+Pendencia residual:
+1. monitorar estabilidade em proximas sessoes (mudancas de politica de rota da VPN podem alterar comportamento)
+
 ## Update 2026-04-28 18:05 - test gate hardening + WSL/VPN network note
 
 Escopo desta atualizacao:
