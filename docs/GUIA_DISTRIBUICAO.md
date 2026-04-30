@@ -160,6 +160,7 @@ bash dev_env/build/package_debian_arm64_appimage.sh --build-system pyinstaller -
 Notas Debian:
 - `.deb` aceita `pyinstaller`, `nuitka` e `pyoxidizer`.
 - AppImage aceita `pyinstaller` e `nuitka`.
+- Debian ARM64 requer host Debian ARM64 nativo; este fluxo nao faz cross-compilation.
 - `--prepare-only` valida AppDir sem exigir `appimagetool`.
 - Os pacotes finais removem residuos locais: `venv`, backups `.bak`, bancos, planilhas e `.env`.
 
