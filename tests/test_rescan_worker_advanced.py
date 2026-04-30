@@ -21,6 +21,7 @@ pytest.importorskip(
 from PyQt6.QtWidgets import QApplication
 
 from utils.path_safety import reserve_unique_path  # noqa: E402
+from core import import_staging
 from core.import_staging import stage_external_import_files
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -75,6 +76,44 @@ def test_rescan_worker_accepts_explicit_external_source_file(
     )
 
     assert worker._resolve_source_files() == (str(source.resolve()),)
+
+
+def test_rescan_worker_normalizes_explicit_allowlist_once(
+    qapp,
+    tmp_path,
+    monkeypatch,
+):
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    sources = (outside_root / "one.xlsx", outside_root / "two.xlsx")
+    for source in sources:
+        source.write_text("payload", encoding="utf-8")
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
+
+    original_normalize = import_staging._normalize_explicit_allowed_files
+    calls = 0
+
+    def counting_normalize(extra_allowed_files):
+        nonlocal calls
+        calls += 1
+        return original_normalize(extra_allowed_files)
+
+    monkeypatch.setattr(
+        import_staging,
+        "_normalize_explicit_allowed_files",
+        counting_normalize,
+    )
+
+    worker = RescanWorker(
+        main_py_path=str(runtime_root / "main.py"),
+        project_root=str(runtime_root),
+        source_files=tuple(str(source) for source in sources),
+    )
+
+    assert worker._resolve_source_files() == tuple(str(source.resolve()) for source in sources)
+    assert calls == 1
 
 
 @pytest.fixture
