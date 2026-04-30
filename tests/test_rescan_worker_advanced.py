@@ -620,6 +620,33 @@ class TestRescanWorkerIntegration:
 
                 assert call_kwargs["data_dir"] == str(active_db.parent)
                 assert call_kwargs["db_name"] == active_db.name
+                assert call_kwargs["extra_allowed_roots"] == (str(active_db.parent),)
+        finally:
+            if worker._logger_attached:
+                worker._detach_logger()
+
+    @staticmethod
+    def test_run_passes_external_active_db_parent_as_allowed_root(tmp_path):
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        active_db = tmp_path / "selected_db" / "custom.sqlite"
+        active_db.parent.mkdir()
+        active_db.write_bytes(b"")
+        worker = RescanWorker(
+            main_py_path=str(project_root / "main.py"),
+            project_root=str(project_root),
+            db_path=str(active_db),
+        )
+        try:
+            with patch("gui.workers.rescan_worker.run_importer_logic") as mock_importer:
+                mock_importer.return_value = True
+                worker.run()
+
+                call_kwargs = mock_importer.call_args[1]
+
+                assert call_kwargs["data_dir"] == str(active_db.parent)
+                assert call_kwargs["db_name"] == active_db.name
+                assert call_kwargs["extra_allowed_roots"] == (str(active_db.parent),)
         finally:
             if worker._logger_attached:
                 worker._detach_logger()

@@ -21,8 +21,6 @@ EMOJI_RANGES = [
     (0x1F600, 0x1F64F),  # Emoticons
     (0x1F680, 0x1F6FF),  # Transport and map symbols
     (0x1F900, 0x1F9FF),  # Supplemental Symbols and Pictographs
-    (0x2600, 0x26FF),  # Misc symbols
-    (0x2700, 0x27BF),  # Dingbats
 ]
 
 EXTS = (".md", ".rst", ".txt")

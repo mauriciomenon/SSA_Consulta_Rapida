@@ -20,8 +20,8 @@ Get-ChildItem -Path $Root -Recurse -File -Include $Includes | ForEach-Object {
         return
     }
 
-    # Remove symbol emojis and supplementary Unicode pairs with .NET regex.
-    $emojiPattern = '[\p{So}\u2600-\u27BF]|[\uD800-\uDBFF][\uDC00-\uDFFF]'
+    # Keep ranges aligned with scripts/remove_emojis.py; only match emoji surrogate ranges.
+    $emojiPattern = '[\uD83C][\uDF00-\uDFFF]|[\uD83D][\uDC00-\uDEFF]|[\uD83E][\uDD00-\uDDFF]'
     $clean = [regex]::Replace($text, $emojiPattern, "")
     if ($clean -ne $text) {
         Write-Host "Limpando emojis em: $path"
