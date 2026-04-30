@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
+
+import pytest
 
 from main import _get_project_root
 
@@ -8,6 +11,7 @@ from main import _get_project_root
 PROJECT_ROOT = Path(_get_project_root())
 SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_debian.sh"
 REPORT_SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_debian_report.py"
+REPORT_MODULE = importlib.import_module("dev_env.build.release_debian_report")
 
 
 def _script_text() -> str:
@@ -101,3 +105,30 @@ def test_release_debian_script_exposes_backend_scorecard() -> None:
     assert "python_source_exposure_score" in report_script
     assert "easy_user_dirs_score" in report_script
     assert "package_size_score" in report_script
+
+
+def test_release_debian_report_read_json_errors_include_path(tmp_path) -> None:
+    missing = tmp_path / "missing.json"
+    with pytest.raises(REPORT_MODULE.ReleaseReportError, match="missing.json"):
+        REPORT_MODULE._read_json(missing)
+
+    invalid = tmp_path / "invalid.json"
+    invalid.write_text("{", encoding="utf-8")
+    with pytest.raises(REPORT_MODULE.ReleaseReportError, match="JSON invalido"):
+        REPORT_MODULE._read_json(invalid)
+
+
+def test_release_debian_report_asset_payload_errors_include_path(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    asset = tmp_path / "package.deb"
+    asset.write_bytes(b"payload")
+
+    def fail_sha256(_path):
+        raise OSError("blocked")
+
+    monkeypatch.setattr(REPORT_MODULE, "_sha256", fail_sha256)
+
+    with pytest.raises(REPORT_MODULE.ReleaseReportError, match="package.deb"):
+        REPORT_MODULE._asset_payload(asset)
