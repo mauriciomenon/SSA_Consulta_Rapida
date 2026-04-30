@@ -3,6 +3,7 @@ from __future__ import annotations
 import builtins
 import os
 from pathlib import Path
+from typing import Iterable
 
 import pytest
 
@@ -58,6 +59,44 @@ def test_validate_external_source_path_accepts_explicit_selected_file(
     assert resolved == str(source.resolve())
 
 
+def test_validate_external_source_path_ignores_missing_extra_allowed_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    source = outside_root / "entrada.xlsx"
+    source.write_text("payload", encoding="utf-8")
+    missing_source = outside_root / "ausente.xlsx"
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
+
+    resolved = import_staging.validate_external_source_path(
+        source,
+        extra_allowed_files=(missing_source, source),
+    )
+
+    assert resolved == str(source.resolve())
+
+
+def test_validate_external_source_path_rejects_explicit_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
+
+    with pytest.raises(ValueError):
+        import_staging.validate_external_source_path(
+            outside_root,
+            extra_allowed_files=(outside_root,),
+        )
+
+
 def test_stage_external_import_files_accepts_explicit_external_source(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -81,6 +120,49 @@ def test_stage_external_import_files_accepts_explicit_external_source(
     assert summary["unsupported"] == 0
     assert staged_files == [str(docs_dir / "entrada.xlsx")]
     assert (docs_dir / "entrada.xlsx").read_text(encoding="utf-8") == "payload"
+
+
+def test_stage_external_import_files_normalizes_explicit_allowlist_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    docs_dir = runtime_root / "docs_entrada"
+    docs_dir.mkdir(parents=True)
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    source_a = outside_root / "entrada_a.xlsx"
+    source_b = outside_root / "entrada_b.xlsx"
+    source_a.write_text("a", encoding="utf-8")
+    source_b.write_text("b", encoding="utf-8")
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
+    original_normalize = import_staging._normalize_explicit_allowed_files
+    call_count = 0
+
+    def counting_normalize(
+        extra_allowed_files: Iterable[str | os.PathLike[str]] | None,
+    ) -> set[Path]:
+        nonlocal call_count
+        call_count += 1
+        return original_normalize(extra_allowed_files)
+
+    monkeypatch.setattr(
+        import_staging,
+        "_normalize_explicit_allowed_files",
+        counting_normalize,
+    )
+
+    staged_files, summary = stage_external_import_files(
+        project_root=str(runtime_root),
+        source_files=(str(source_a), str(source_b)),
+    )
+
+    assert call_count == 1
+    assert summary["copied"] == 2
+    assert staged_files == [
+        str(docs_dir / "entrada_a.xlsx"),
+        str(docs_dir / "entrada_b.xlsx"),
+    ]
 
 
 def test_stage_external_import_files_creates_unique_name_with_collisions(

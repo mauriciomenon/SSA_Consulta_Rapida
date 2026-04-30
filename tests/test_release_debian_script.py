@@ -11,7 +11,8 @@ REPORT_SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_debian_report.py"
 
 
 def _script_text() -> str:
-    assert SCRIPT.is_file()
+    if not SCRIPT.is_file():
+        raise AssertionError(f"script ausente: {SCRIPT}")
     return SCRIPT.read_text(encoding="utf-8")
 
 
@@ -56,8 +57,22 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
     assert "write_release_report" in script
     assert "build_info.json" in script
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in script
+    assert "bundle_roots" in script
+    assert "SSA_CLI_v${app_version}_debian_amd64" in script
+    assert "SSA_GUI_v${app_version}_debian_amd64" in script
+    assert "cli_entry.dist" in script
+    assert "gui_entry.dist" in script
     report_script = REPORT_SCRIPT.read_text(encoding="utf-8")
     assert "hashlib.sha256" in report_script
+
+
+def test_release_debian_script_normalizes_csv_tokens() -> None:
+    script = _script_text()
+
+    assert "[![:space:]]" in script
+    assert "join_csv" in script
+    assert 'BACKENDS_CSV="$(normalize_backends "${BACKENDS_CSV}")"' in script
+    assert 'PACKAGES_CSV="$(normalize_packages "${PACKAGES_CSV}")"' in script
 
 
 def test_release_debian_script_calls_only_debian_wrappers() -> None:
