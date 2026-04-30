@@ -124,9 +124,9 @@ Escopo desta atualizacao:
 
 Backup e mudanca aplicada:
 1. backup timestamp criado antes da alteracao:
-   - `C:\\Users\\mauri\\.wslconfig.backup_20260428_182150`
+   - arquivo `.wslconfig.backup_<timestamp>` no perfil do usuario Windows
 2. arquivo atualizado:
-   - `C:\\Users\\mauri\\.wslconfig`
+   - `.wslconfig` no perfil do usuario Windows
 3. conteudo aplicado:
    - `[wsl2]`
    - `guiApplications=false`
@@ -137,12 +137,11 @@ Backup e mudanca aplicada:
 
 Evidencia com VPN ligada (estado atual):
 1. host VPN:
-   - IP corporativo ativo: `10.30.15.132`
-   - rota VPN para varias redes via `10.30.15.131`
+   - IP corporativo ativo observado em faixa privada corporativa
+   - rota VPN para redes corporativas via gateway privado corporativo
 2. WSL apos mirrored:
-   - interface `eth0` em `10.30.15.132/24`
-   - interface `eth3` em `10.5.0.2/16`
-   - rota default visivel no snapshot: `default via 192.168.0.1 dev eth7`
+   - interfaces do WSL em modo mirrored observadas em faixas privadas locais/corporativas
+   - rota default visivel para gateway privado local
 3. conectividade WSL validada:
    - `curl -I https://api.github.com` -> `HTTP/2 200`
    - `gh api rate_limit` -> resposta valida
@@ -194,8 +193,8 @@ Pendencias de compilacao/executavel:
 
 WSL x VPN (operacional):
 1. com VPN desconectada:
-   - WSL `eth0` em `172.28.122.3/20`, gateway `172.28.112.1`
-   - adapter Check Point observado em `10.5.0.2/16`
+   - WSL em faixa privada NAT local
+   - adapter Check Point observado em faixa privada corporativa
 2. sem overlap direto nesse snapshot, mas a VPN pode injetar rotas amplas e quebrar NAT do WSL
 3. acao sugerida para proximo ciclo operacional:
    - testar `networkingMode=mirrored` no `.wslconfig`
