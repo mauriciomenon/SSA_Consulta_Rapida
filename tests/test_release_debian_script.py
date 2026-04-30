@@ -36,9 +36,12 @@ def test_release_debian_script_has_local_and_ssh_modes() -> None:
 
     assert "--ssh-host" in script
     assert "--ssh-repo" in script
+    assert "caminho absoluto do repositorio no host remoto" in script
+    assert "Use caminho absoluto sem espacos/metacaracteres" in script
     assert "run_remote_release" in script
     assert "ssh " in script
-    assert "shell_quote" in script
+    assert "bash -s --" in script
+    assert "REMOTE_RELEASE" in script
     assert "assert_ssh_host" in script
     assert "assert_ssh_repo" in script
     assert "assert_debian_host" in script
@@ -71,6 +74,7 @@ def test_release_debian_script_normalizes_csv_tokens() -> None:
 
     assert "[![:space:]]" in script
     assert "join_csv" in script
+    assert 'while [[ "${csv}" == *, ]]' in script
     assert 'BACKENDS_CSV="$(normalize_backends "${BACKENDS_CSV}")"' in script
     assert 'PACKAGES_CSV="$(normalize_packages "${PACKAGES_CSV}")"' in script
 

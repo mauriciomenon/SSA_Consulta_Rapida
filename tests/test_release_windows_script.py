@@ -35,6 +35,10 @@ def test_release_windows_script_has_deterministic_preflight_and_report() -> None
     assert '$Command -notin @("git", "uv")' in script
     assert script.index('Assert-Tool "git"') < script.index("$repoRoot = Resolve-RepoRoot")
     assert script.index('Assert-Tool "uv"') < script.index("$repoRoot = Resolve-RepoRoot")
+    assert '($selectedBackends -contains "pyoxidizer")' in script
+    assert script.index('Assert-Tool "rcedit.exe"') > script.index(
+        "$selectedBackends = Get-SelectedBackends $Backend"
+    )
     assert "Assert-CleanReleaseWorkspace" in script
     assert "AllowDirty" not in script
     assert "Get-GitHead" in script
@@ -55,7 +59,7 @@ def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in script
     assert "Get-FileHash" in script
     assert "functional_cli_check" in script
-    assert "version_check" in script
+    assert "gui_version_check" in script
 
 
 def test_release_windows_script_exposes_backend_scorecard() -> None:
