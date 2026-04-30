@@ -1,9 +1,11 @@
 # Remove emojis from documentation files (md, rst, txt)
-# Usage: .\scripts\remove_emojis.ps1 -Root . -Includes "*.md","*.rst","*.txt"
+# Usage: .\scripts\remove_emojis.ps1 -Root . -Includes "*.md","*.rst","*.txt","README.md","README.rst","README.txt"
 param(
-    [string[]]$Includes = @("*.md","*.rst","*.txt","README*"),
+    [string[]]$Includes = @("*.md","*.rst","*.txt","README.md","README.rst","README.txt"),
     [string]$Root = "."
 )
+
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
 Write-Host "Buscando arquivos para limpar emojis em $Root ..."
 Get-ChildItem -Path $Root -Recurse -File -Include $Includes | ForEach-Object {
@@ -14,13 +16,24 @@ Get-ChildItem -Path $Root -Recurse -File -Include $Includes | ForEach-Object {
         Write-Host ("Falha ao ler {0}: {1}" -f $path, $_) -ForegroundColor Yellow
         return
     }
+    if ($null -eq $text) {
+        return
+    }
 
-    # Remove emoji ranges supported by the .NET regex engine.
-    $emojiPattern = '[\u2600-\u27BF]|[\uD83C-\uDBFF][\uDC00-\uDFFF]'
+    # Remove symbol emojis and supplementary Unicode pairs with .NET regex.
+    $emojiPattern = '[\p{So}\u2600-\u27BF]|[\uD800-\uDBFF][\uDC00-\uDFFF]'
     $clean = [regex]::Replace($text, $emojiPattern, "")
     if ($clean -ne $text) {
         Write-Host "Limpando emojis em: $path"
-        $clean | Set-Content -LiteralPath $path -Encoding UTF8
+        try {
+            [System.IO.File]::WriteAllText(
+                $path,
+                $clean,
+                $utf8NoBom
+            )
+        } catch {
+            Write-Host ("Falha ao escrever {0}: {1}" -f $path, $_) -ForegroundColor Yellow
+        }
     }
 }
 
