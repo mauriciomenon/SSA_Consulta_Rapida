@@ -36,7 +36,14 @@ SCORECARDS = {
 
 
 def _read_json(path: pathlib.Path) -> dict[str, object]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ReleaseReportError(f"arquivo JSON ausente: {path}") from exc
+    except OSError as exc:
+        raise ReleaseReportError(f"falha lendo JSON {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise ReleaseReportError(f"JSON invalido em {path}: {exc}") from exc
 
 
 def _sha256(path: pathlib.Path) -> str:
@@ -48,11 +55,14 @@ def _sha256(path: pathlib.Path) -> str:
 
 
 def _asset_payload(path: pathlib.Path) -> dict[str, object]:
-    return {
-        "name": path.name,
-        "size": path.stat().st_size,
-        "sha256": _sha256(path),
-    }
+    try:
+        return {
+            "name": path.name,
+            "size": path.stat().st_size,
+            "sha256": _sha256(path),
+        }
+    except OSError as exc:
+        raise ReleaseReportError(f"falha lendo asset {path}: {exc}") from exc
 
 
 def cmd_print_app_version(args: argparse.Namespace) -> int:
