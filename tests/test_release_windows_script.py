@@ -10,7 +10,8 @@ SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_windows.ps1"
 
 
 def _script_text() -> str:
-    assert SCRIPT.is_file()
+    if not SCRIPT.is_file():
+        raise AssertionError(f"script ausente: {SCRIPT}")
     return SCRIPT.read_text(encoding="utf-8")
 
 
@@ -31,6 +32,9 @@ def test_release_windows_script_has_deterministic_preflight_and_report() -> None
     script = _script_text()
 
     assert "Assert-Tool" in script
+    assert '$Command -notin @("git", "uv")' in script
+    assert script.index('Assert-Tool "git"') < script.index("$repoRoot = Resolve-RepoRoot")
+    assert script.index('Assert-Tool "uv"') < script.index("$repoRoot = Resolve-RepoRoot")
     assert "Assert-CleanReleaseWorkspace" in script
     assert "AllowDirty" not in script
     assert "Get-GitHead" in script

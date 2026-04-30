@@ -16,13 +16,22 @@ def _normalize_explicit_allowed_files(
 ) -> set[Path]:
     if not extra_allowed_files:
         return set()
-    return {Path(raw).expanduser().resolve() for raw in extra_allowed_files if raw}
+    allowed_files: set[Path] = set()
+    for raw in extra_allowed_files:
+        if not raw:
+            continue
+        candidate = Path(raw).expanduser()
+        resolved = candidate.resolve(strict=False)
+        if resolved.is_file():
+            allowed_files.add(resolved)
+    return allowed_files
 
 
 def validate_external_source_path(
     raw_source: str | os.PathLike[str],
     *,
     extra_allowed_files: Iterable[str | os.PathLike[str]] | None = None,
+    normalized_allowed_files: set[Path] | None = None,
 ) -> str:
     source = str(raw_source or "").strip()
     if not source:
@@ -33,18 +42,24 @@ def validate_external_source_path(
     if os.path.basename(normalized).startswith("-"):
         raise ValueError("Caminho externo inicia com '-' e nao e permitido.")
     source_path = Path(normalized)
-    explicit_allowed_files = _normalize_explicit_allowed_files(extra_allowed_files)
     try:
         safe_source_path = ensure_path_is_allowed(
             source_path,
-            purpose="external_import_source",
+            purpose="external_import_file",
             must_exist=True,
             expect_directory=False,
         )
     except ValueError as exc:
         if not source_path.exists():
             raise FileNotFoundError(f"Arquivo inexistente: {normalized}") from exc
-        resolved_source = source_path.resolve()
+        if not source_path.is_file():
+            raise
+        explicit_allowed_files = (
+            normalized_allowed_files
+            if normalized_allowed_files is not None
+            else _normalize_explicit_allowed_files(extra_allowed_files)
+        )
+        resolved_source = source_path.resolve(strict=False)
         if resolved_source not in explicit_allowed_files:
             raise
         safe_source_path = resolved_source
@@ -82,6 +97,7 @@ def stage_external_import_files(
     unsupported = 0
     staged_files: list[str] = []
     total_sources = len(source_files)
+    explicit_allowed_files = _normalize_explicit_allowed_files(source_files)
 
     for index, raw_source in enumerate(tuple(source_files), start=1):
         if callable(should_cancel) and should_cancel():
@@ -97,7 +113,7 @@ def stage_external_import_files(
         try:
             validated_source = validate_external_source_path(
                 source,
-                extra_allowed_files=source_files,
+                normalized_allowed_files=explicit_allowed_files,
             )
         except FileNotFoundError:
             failed += 1
@@ -156,7 +172,7 @@ def stage_external_import_files(
                     with open(destination, "xb") as destination_handle:
                         destination_created = True
                         shutil.copyfileobj(source_handle, destination_handle)
-                os.chmod(destination, source_stat.st_mode & 0o777)
+                os.chmod(destination, source_stat.st_mode & 0o600)
                 os.utime(
                     destination,
                     ns=(source_stat.st_atime_ns, source_stat.st_mtime_ns),

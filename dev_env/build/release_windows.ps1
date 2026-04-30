@@ -33,6 +33,10 @@ function Invoke-RepoCommand {
         [string[]] $Arguments = @()
     )
 
+    if ($Command -notin @("git", "uv")) {
+        throw "Comando de repo nao permitido: $Command"
+    }
+
     Push-Location $RepoRoot
     try {
         $output = & $Command @Arguments
@@ -454,19 +458,19 @@ function Write-ReleaseReport {
 
 Assert-WindowsHost
 Assert-PowerShellHost
-$repoRoot = Resolve-RepoRoot
-$selectedBackends = Get-SelectedBackends $Backend
-$version = Get-AppVersion $repoRoot
-$windowsVersion = Get-WindowsVersionText $version
-$gitHead = Get-GitHead $repoRoot
-$dirtyEntries = Assert-CleanReleaseWorkspace $repoRoot
-
 Assert-Tool "git" "instale Git para Windows"
 Assert-Tool "uv" "instale uv"
 Assert-Tool "rcedit.exe" "scoop install rcedit"
 if (-not $SkipInstaller) {
     Assert-Tool "iscc" "instale Inno Setup ou use -SkipInstaller"
 }
+
+$repoRoot = Resolve-RepoRoot
+$selectedBackends = Get-SelectedBackends $Backend
+$version = Get-AppVersion $repoRoot
+$windowsVersion = Get-WindowsVersionText $version
+$gitHead = Get-GitHead $repoRoot
+$dirtyEntries = Assert-CleanReleaseWorkspace $repoRoot
 
 if (-not $Yes) {
     Write-Host "Repo: $repoRoot"

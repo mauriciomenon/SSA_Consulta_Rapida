@@ -58,10 +58,20 @@ split_csv() {
   local csv="${1%,}"
   local -n output="$2"
   local item
-  IFS=',' read -r -a output <<<"${csv}"
-  for item in "${output[@]}"; do
+  local raw_items=()
+  IFS=',' read -r -a raw_items <<<"${csv}"
+  output=()
+  for item in "${raw_items[@]}"; do
+    item="${item#"${item%%[![:space:]]*}"}"
+    item="${item%"${item##*[![:space:]]}"}"
     [[ -n "${item}" ]] || die "lista contem item vazio: ${csv}"
+    output+=("${item}")
   done
+}
+
+join_csv() {
+  local IFS=,
+  printf '%s\n' "$*"
 }
 
 normalize_backends() {
@@ -82,7 +92,7 @@ normalize_backends() {
       *) die "--backend invalido: ${backend}" ;;
     esac
   done
-  printf '%s\n' "${csv}"
+  join_csv "${items[@]}"
 }
 
 normalize_packages() {
@@ -100,7 +110,7 @@ normalize_packages() {
       *) die "--package invalido: ${package_kind}" ;;
     esac
   done
-  printf '%s\n' "${csv}"
+  join_csv "${items[@]}"
 }
 
 select_backend_interactively() {
@@ -228,35 +238,46 @@ validate_build_payload() {
   local app_version="$3"
   local git_commit="$4"
   local build_root=""
-  local build_info=""
-  local guide=""
+  local bundle_root=""
+  local bundle_roots=()
 
   case "${backend}" in
     pyinstaller)
       build_root="${root}/launchers/dist/debian_amd64"
       [[ -d "${build_root}" ]] || build_root="${root}/builds/pyinstaller/debian_amd64"
+      bundle_roots=(
+        "${build_root}/SSA_CLI_v${app_version}_debian_amd64"
+        "${build_root}/SSA_GUI_v${app_version}_debian_amd64"
+      )
       ;;
     nuitka)
       build_root="${root}/builds/nuitka/debian_amd64"
+      bundle_roots=(
+        "${build_root}/cli_entry.dist"
+        "${build_root}/gui_entry.dist"
+      )
       ;;
     pyoxidizer)
       build_root="${root}/builds/pyoxidizer/debian_amd64"
+      bundle_roots=("${build_root}")
       ;;
   esac
 
   [[ -d "${build_root}" ]] || die "artefato ${backend} nao encontrado: ${build_root}"
-  build_info="$(find "${build_root}" -path '*/config/build_info.json' -type f -print -quit)"
-  guide="$(find "${build_root}" -path '*/docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md' -type f -print -quit)"
-  [[ -n "${build_info}" ]] || die "build_info.json ausente em ${backend}"
-  [[ -n "${guide}" ]] || die "GUIA_MIGRACAO_NOVA_INSTALACAO.md ausente em ${backend}"
 
-  uv run --python 3.13 python "${root}/dev_env/build/release_debian_report.py" \
-    validate-build-info \
-    --build-info "${build_info}" \
-    --backend "${backend}" \
-    --platform "debian_amd64" \
-    --app-version "${app_version}" \
-    --git-commit "${git_commit}"
+  for bundle_root in "${bundle_roots[@]}"; do
+    [[ -d "${bundle_root}" ]] || die "bundle ${backend} ausente: ${bundle_root}"
+    [[ -f "${bundle_root}/config/build_info.json" ]] || die "build_info.json ausente em ${bundle_root}"
+    [[ -f "${bundle_root}/docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md" ]] || die "GUIA_MIGRACAO_NOVA_INSTALACAO.md ausente em ${bundle_root}"
+
+    uv run --python 3.13 python "${root}/dev_env/build/release_debian_report.py" \
+      validate-build-info \
+      --build-info "${bundle_root}/config/build_info.json" \
+      --backend "${backend}" \
+      --platform "debian_amd64" \
+      --app-version "${app_version}" \
+      --git-commit "${git_commit}"
+  done
 }
 
 run_build_backend() {

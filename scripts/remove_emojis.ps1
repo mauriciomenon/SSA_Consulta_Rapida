@@ -11,12 +11,13 @@ Get-ChildItem -Path $Root -Recurse -File -Include $Includes | ForEach-Object {
     try {
         $text = Get-Content -Raw -LiteralPath $path -ErrorAction Stop
     } catch {
-        Write-Host "Falha ao ler $path: $_" -ForegroundColor Yellow
+        Write-Host ("Falha ao ler {0}: {1}" -f $path, $_) -ForegroundColor Yellow
         return
     }
 
-    # Remove emoji ranges: pictographs, emoticons, transport/map, misc symbols, dingbats
-    $clean = $text -replace '[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]',''
+    # Remove emoji ranges supported by the .NET regex engine.
+    $emojiPattern = '[\u2600-\u27BF]|[\uD83C-\uDBFF][\uDC00-\uDFFF]'
+    $clean = [regex]::Replace($text, $emojiPattern, "")
     if ($clean -ne $text) {
         Write-Host "Limpando emojis em: $path"
         $clean | Set-Content -LiteralPath $path -Encoding UTF8
