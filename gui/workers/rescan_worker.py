@@ -360,10 +360,12 @@ class RescanWorker(QThread):
     def _run_import_operation(self) -> bool:
         data_dir = "data"
         db_name = "ssas.db"
+        extra_allowed_roots = None
         if self.db_path:
-            db_path = Path(self.db_path)
+            db_path = Path(self.db_path).expanduser().resolve()
             data_dir = str(db_path.parent)
             db_name = db_path.name
+            extra_allowed_roots = (str(db_path.parent),)
         return run_importer_logic(
             docs_dir="docs_entrada",
             data_dir=data_dir,
@@ -371,6 +373,7 @@ class RescanWorker(QThread):
             table_name="ssa_table",
             force_import=self.force_import,
             explicit_files=self.explicit_files,
+            extra_allowed_roots=extra_allowed_roots,
             should_cancel=lambda: self._should_stop,
             progress_callback=self._progress_callback,
         )
