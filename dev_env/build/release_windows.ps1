@@ -329,13 +329,13 @@ function Invoke-Smoke {
             throw "Smoke PyOxidizer --version falhou."
         }
         $versionText = ($versionOutput | Out-String).Trim()
-        $verificationType = "version_check_stdout"
-        $commandText = "--version"
+        $verificationType = "gui_version_check_stdout"
+        $commandText = "GUI --version"
         if ([string]::IsNullOrWhiteSpace($versionText)) {
             $versionInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $Config.gui_exe).Path)
             $versionText = [string] $versionInfo.ProductVersion
-            $verificationType = "version_check_metadata"
-            $commandText = "--version + FileVersionInfo"
+            $verificationType = "gui_version_check_metadata"
+            $commandText = "GUI --version + FileVersionInfo"
         }
         if ([string]::IsNullOrWhiteSpace($versionText)) {
             throw "Smoke PyOxidizer nao conseguiu confirmar versao por stdout nem FileVersionInfo."
@@ -460,13 +460,15 @@ Assert-WindowsHost
 Assert-PowerShellHost
 Assert-Tool "git" "instale Git para Windows"
 Assert-Tool "uv" "instale uv"
-Assert-Tool "rcedit.exe" "scoop install rcedit"
 if (-not $SkipInstaller) {
     Assert-Tool "iscc" "instale Inno Setup ou use -SkipInstaller"
 }
 
 $repoRoot = Resolve-RepoRoot
 $selectedBackends = Get-SelectedBackends $Backend
+if ((-not $SkipBuild) -and ($selectedBackends -contains "pyoxidizer")) {
+    Assert-Tool "rcedit.exe" "scoop install rcedit"
+}
 $version = Get-AppVersion $repoRoot
 $windowsVersion = Get-WindowsVersionText $version
 $gitHead = Get-GitHead $repoRoot

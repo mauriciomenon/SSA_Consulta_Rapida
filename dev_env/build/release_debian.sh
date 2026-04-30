@@ -21,10 +21,10 @@ Opcoes:
   --backend LIST      pyinstaller,nuitka,pyoxidizer ou all
   --package LIST      deb,appimage ou all (default: deb)
   --ssh-host HOST     executa remotamente via ssh (ex: user@host)
-  --ssh-repo DIR      caminho do repositorio no host remoto
+  --ssh-repo DIR      caminho absoluto do repositorio no host remoto
   --with-local-data   copia dados locais para os artefatos
   --skip-build        nao recompila, apenas valida/empacota artefatos existentes
-  --skip-package      nao empacota, apenas build/valida artefatos de build
+  --skip-package      nao gera .deb/AppImage; ainda valida artefatos de build
   --dry-run           valida ambiente e mostra plano sem executar build/pacote
   -y, --yes           nao perguntar interativamente
   -h, --help          mostra esta ajuda
@@ -43,11 +43,6 @@ die() {
   exit 1
 }
 
-shell_quote() {
-  local value="$1"
-  printf "'%s'" "$(printf '%s' "${value}" | sed "s/'/'\\\\''/g")"
-}
-
 repo_root() {
   local script_dir
   script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -59,6 +54,9 @@ split_csv() {
   local -n output="$2"
   local item
   local raw_items=()
+  while [[ "${csv}" == *, ]]; do
+    csv="${csv%,}"
+  done
   IFS=',' read -r -a raw_items <<<"${csv}"
   output=()
   for item in "${raw_items[@]}"; do
@@ -158,8 +156,8 @@ assert_ssh_host() {
 
 assert_ssh_repo() {
   local repo="$1"
-  if [[ ! "${repo}" =~ ^(/|~/)[A-Za-z0-9._/@%+=:,~-]+$ ]]; then
-    die "--ssh-repo invalido. Use caminho absoluto ou ~/... sem espacos/metacaracteres."
+  if [[ ! "${repo}" =~ ^/[A-Za-z0-9._/@%+=:,~-]+$ ]]; then
+    die "--ssh-repo invalido. Use caminho absoluto sem espacos/metacaracteres."
   fi
 }
 
@@ -210,26 +208,26 @@ run_remote_release() {
   if [[ "${WITH_LOCAL_DATA}" == "1" ]]; then
     die "--with-local-data nao e suportado via SSH; execute localmente no host Debian com os dados ja presentes."
   fi
-  local remote_cmd
-  local quoted_backends
-  local quoted_packages
-  local quoted_repo
-  quoted_backends="$(shell_quote "${BACKENDS_CSV}")"
-  quoted_packages="$(shell_quote "${PACKAGES_CSV}")"
-  quoted_repo="$(shell_quote "${SSH_REPO}")"
-  remote_cmd="cd ${quoted_repo} && bash dev_env/build/release_debian.sh --backend ${quoted_backends} --package ${quoted_packages} -y"
+  local remote_flags=()
   if [[ "${SKIP_BUILD}" == "1" ]]; then
-    remote_cmd+=" --skip-build"
+    remote_flags+=(--skip-build)
   fi
   if [[ "${SKIP_PACKAGE}" == "1" ]]; then
-    remote_cmd+=" --skip-package"
+    remote_flags+=(--skip-package)
   fi
   if [[ "${DRY_RUN}" == "1" ]]; then
-    remote_cmd+=" --dry-run"
+    remote_flags+=(--dry-run)
   fi
   log "executando remoto via ssh: ${SSH_HOST}"
-  # shellcheck disable=SC2029
-  ssh "${SSH_HOST}" "${remote_cmd}"
+  ssh "${SSH_HOST}" bash -s -- "${SSH_REPO}" "${BACKENDS_CSV}" "${PACKAGES_CSV}" "${remote_flags[@]}" <<'REMOTE_RELEASE'
+set -euo pipefail
+repo="$1"
+backends="$2"
+packages="$3"
+shift 3
+cd -- "${repo}"
+bash dev_env/build/release_debian.sh --backend "${backends}" --package "${packages}" -y "$@"
+REMOTE_RELEASE
 }
 
 validate_build_payload() {
