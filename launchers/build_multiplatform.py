@@ -121,6 +121,16 @@ class MultiPlatformBuilder:
             cwd=str(self.base_dir),
         )
         if result.returncode != 0:
+            command_text = " ".join(shlex.quote(str(item)) for item in cmd)
+            stdout = str(result.stdout or "").strip()
+            stderr = str(result.stderr or "").strip()
+            detail = (stderr or stdout)[:1000]
+            logger.warning(
+                "Metadata command failed (%s): %s%s",
+                result.returncode,
+                command_text,
+                f": {detail}" if detail else "",
+            )
             return ""
         return str(result.stdout or "").strip()
 

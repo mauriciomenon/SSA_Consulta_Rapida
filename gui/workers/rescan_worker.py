@@ -283,12 +283,16 @@ class RescanWorker(QThread):
     def _resolve_source_files(self) -> tuple[str, ...] | None:
         if not self.source_files:
             return None
-        from core.import_staging import validate_external_source_path
+        from core.import_staging import (
+            _normalize_explicit_allowed_files,
+            validate_external_source_path,
+        )
 
+        explicit_allowed_files = _normalize_explicit_allowed_files(self.source_files)
         resolved = [
             validate_external_source_path(
                 path,
-                extra_allowed_files=self.source_files,
+                normalized_allowed_files=explicit_allowed_files,
             )
             for path in self.source_files
         ]

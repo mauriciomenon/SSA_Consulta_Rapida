@@ -10,6 +10,30 @@ from pathlib import Path
 from launchers.build_multiplatform import MultiPlatformBuilder
 
 
+def test_command_stdout_logs_metadata_command_failure(monkeypatch):
+    builder = MultiPlatformBuilder()
+    warnings = []
+
+    def fake_run_command(*_args, **_kwargs):
+        return subprocess.CompletedProcess(
+            ["git", "bad"],
+            returncode=7,
+            stdout="stdout detail",
+            stderr="stderr detail",
+        )
+
+    monkeypatch.setattr(builder, "_run_command", fake_run_command)
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.logger.warning",
+        lambda *args, **_kwargs: warnings.append(args),
+    )
+
+    assert builder._command_stdout(["git", "bad"]) == ""
+    assert warnings
+    assert "Metadata command failed" in warnings[0][0]
+    assert "stderr detail" in "".join(str(item) for item in warnings[0])
+
+
 def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
     builder = MultiPlatformBuilder()
     builder.dist_dir = tmp_path / "dist"
