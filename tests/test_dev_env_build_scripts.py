@@ -14,7 +14,26 @@ def test_bootstrap_uses_apt_get_update_without_invalid_yes_flag() -> None:
     assert "sudo apt-get install -y" in script
 
 
-def test_pyoxidizer_default_project_root_uses_empty_strip_prefix() -> None:
+def test_repository_line_ending_policy_covers_build_scripts() -> None:
+    attributes = (PROJECT_ROOT / ".gitattributes").read_text(encoding="utf-8")
+
+    assert "*.sh text eol=lf" in attributes
+    assert "*.py text eol=lf" in attributes
+    assert "*.bzl text eol=lf" in attributes
+    assert "*.md text eol=lf" in attributes
+    assert "*.bat text eol=crlf" in attributes
+    assert "*.ps1 text eol=crlf" in attributes
+
+    for relative_path in (
+        "pyoxidizer.bzl",
+        "docs/GUIA_DISTRIBUICAO.md",
+        "docs/RECOVERY_BACKLOG.md",
+    ):
+        data = (PROJECT_ROOT / relative_path).read_bytes()
+        assert b"\r\n" not in data
+
+
+def test_pyoxidizer_config_defaults_and_paths() -> None:
     root_config = PROJECT_ROOT / "pyoxidizer.bzl"
 
     root_text = root_config.read_text(encoding="utf-8")
