@@ -51,19 +51,17 @@ repo_root() {
 
 split_csv() {
   local csv="${1%,}"
-  local -n output="$2"
   local item
   local raw_items=()
   while [[ "${csv}" == *, ]]; do
     csv="${csv%,}"
   done
   IFS=',' read -r -a raw_items <<<"${csv}"
-  output=()
   for item in "${raw_items[@]}"; do
     item="${item#"${item%%[![:space:]]*}"}"
     item="${item%"${item##*[![:space:]]}"}"
     [[ -n "${item}" ]] || die "lista contem item vazio: ${csv}"
-    output+=("${item}")
+    printf '%s\n' "${item}"
   done
 }
 
@@ -83,7 +81,9 @@ normalize_backends() {
     return 0
   fi
   local items=()
-  split_csv "${csv}" items
+  for backend in $(split_csv "${csv}"); do
+    items+=("${backend}")
+  done
   for backend in "${items[@]}"; do
     case "${backend}" in
       pyinstaller | nuitka | pyoxidizer) ;;
@@ -101,7 +101,9 @@ normalize_packages() {
     return 0
   fi
   local items=()
-  split_csv "${csv}" items
+  for package_kind in $(split_csv "${csv}"); do
+    items+=("${package_kind}")
+  done
   for package_kind in "${items[@]}"; do
     case "${package_kind}" in
       deb | appimage | tar) ;;
@@ -551,8 +553,15 @@ load_release_metadata() {
 }
 
 prepare_release_arrays() {
-  split_csv "${BACKENDS_CSV}" BACKENDS
-  split_csv "${PACKAGES_CSV}" PACKAGES
+  BACKENDS=()
+  PACKAGES=()
+  local item
+  for item in $(split_csv "${BACKENDS_CSV}"); do
+    BACKENDS+=("${item}")
+  done
+  for item in $(split_csv "${PACKAGES_CSV}"); do
+    PACKAGES+=("${item}")
+  done
 }
 
 log_backend_scorecards() {

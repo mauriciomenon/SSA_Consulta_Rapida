@@ -94,6 +94,10 @@ def test_release_debian_script_normalizes_csv_tokens() -> None:
     assert "[![:space:]]" in script
     assert "join_csv" in script
     assert 'while [[ "${csv}" == *, ]]' in script
+    assert "local -n" not in script
+    assert "<(split_csv" not in script
+    assert 'for backend in $(split_csv "${csv}")' in script
+    assert 'for package_kind in $(split_csv "${csv}")' in script
     assert 'BACKENDS_CSV="$(normalize_backends "${BACKENDS_CSV}")"' in script
     assert 'PACKAGES_CSV="$(normalize_packages "${PACKAGES_CSV}")"' in script
 
