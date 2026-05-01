@@ -317,6 +317,15 @@ run_package_backend() {
   esac
 }
 
+is_supported_package_pair() {
+  local backend="$1"
+  local package_kind="$2"
+  case "${package_kind}:${backend}" in
+    appimage:pyoxidizer) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
 validate_package_payload() {
   local root="$1"
   local backend="$2"
@@ -461,6 +470,20 @@ log_backend_scorecards() {
   done
 }
 
+log_package_matrix() {
+  local backend
+  local package_kind
+  for backend in "${BACKENDS[@]}"; do
+    for package_kind in "${PACKAGES[@]}"; do
+      if is_supported_package_pair "${backend}" "${package_kind}"; then
+        log "pacote planejado ${package_kind} ${backend}"
+      else
+        log "pacote ignorado ${package_kind} ${backend}: nao suportado"
+      fi
+    done
+  done
+}
+
 run_build_phase() {
   local backend
   if [[ "${DRY_RUN}" == "1" ]]; then
@@ -483,6 +506,10 @@ run_package_phase() {
   if [[ "${SKIP_PACKAGE}" != "1" ]]; then
     for backend in "${BACKENDS[@]}"; do
       for package_kind in "${PACKAGES[@]}"; do
+        if ! is_supported_package_pair "${backend}" "${package_kind}"; then
+          log "pacote ignorado ${package_kind} ${backend}: nao suportado"
+          continue
+        fi
         log "pacote ${package_kind} ${backend}"
         run_package_backend "${REPO_ROOT}" "${backend}" "${package_kind}"
         validate_package_payload "${REPO_ROOT}" "${backend}" "${package_kind}" "${APP_VERSION}"
@@ -499,6 +526,7 @@ run_local_release() {
   load_release_metadata
   prepare_release_arrays
   log_backend_scorecards
+  log_package_matrix
   run_build_phase
 
   if [[ "${DRY_RUN}" == "1" ]]; then
