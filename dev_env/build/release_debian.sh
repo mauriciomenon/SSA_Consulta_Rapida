@@ -99,10 +99,10 @@ load_release_target_cache() {
 release_target_supported() {
   local backend="$1"
   local package_kind="$2"
-  local tab
-  tab="$(printf '\t')"
   if [[ -n "${RELEASE_UNSUPPORTED_PAIRS}" ]] &&
-    printf '%s\n' "${RELEASE_UNSUPPORTED_PAIRS}" | grep -F "${backend}${tab}${package_kind}${tab}" >/dev/null; then
+    printf '%s\n' "${RELEASE_UNSUPPORTED_PAIRS}" |
+      awk -F '\t' -v backend="${backend}" -v package_kind="${package_kind}" \
+        '$1 == backend && $2 == package_kind { found = 1 } END { exit found ? 0 : 1 }'; then
     return 1
   fi
   release_report_cmd check-release-target \
@@ -273,10 +273,12 @@ assert_debian_amd64() {
 assert_clean_release_workspace() {
   local root="$1"
   local staged unstaged untracked
-  local win_root dirty
-  if [[ "${root}" == /mnt/[A-Za-z]/* ]] && command -v git.exe >/dev/null 2>&1 && command -v wslpath >/dev/null 2>&1; then
+  local cmd_exe win_root dirty git_status_command
+  cmd_exe="/mnt/c/Windows/System32/cmd.exe"
+  if [[ "${root}" == /mnt/[A-Za-z]/* ]] && [[ -x "${cmd_exe}" ]] && command -v wslpath >/dev/null 2>&1; then
     win_root="$(wslpath -w "${root}")"
-    dirty="$(git.exe -C "${win_root}" status --porcelain=v1)"
+    git_status_command="git -C \"${win_root}\" status --porcelain=v1"
+    dirty="$("${cmd_exe}" /d /c "${git_status_command}" | tr -d '\r')"
     if [[ -n "${dirty}" ]]; then
       printf '%s\n' "${dirty}" >&2
       die "workspace sujo. Release deterministico exige git limpo."
@@ -427,11 +429,8 @@ run_package_backend() {
     deb:*)
       bash "${root}/dev_env/build/package_debian_amd64_deb.sh" --build-system "${backend}"
       ;;
-    appimage:pyinstaller | appimage:nuitka)
+    appimage:*)
       bash "${root}/dev_env/build/package_debian_amd64_appimage.sh" --build-system "${backend}"
-      ;;
-    appimage:pyoxidizer)
-      die "$(release_target_reason "${backend}" "${package_kind}")"
       ;;
     tar:*)
       write_tar_packages "${root}" "${backend}"
@@ -509,12 +508,9 @@ validate_package_payload() {
       grep -F "GUIA_MIGRACAO_NOVA_INSTALACAO.md" <<<"${package_contents}" >/dev/null || die "guia ausente no .deb ${backend}"
       grep -F "build_info.json" <<<"${package_contents}" >/dev/null || die "build_info ausente no .deb ${backend}"
       ;;
-    appimage:pyinstaller | appimage:nuitka)
+    appimage:*)
       package_file="${package_dir}/SSA_Consulta_Rapida_v${app_version#v}_debian_amd64_${backend}.AppImage"
       [[ -x "${package_file}" ]] || die "AppImage ausente ou sem execucao: ${package_file}"
-      ;;
-    appimage:pyoxidizer)
-      die "$(release_target_reason "${backend}" "${package_kind}")"
       ;;
     tar:pyinstaller)
       validate_tar_payload "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyinstaller_cli.tar.gz"
