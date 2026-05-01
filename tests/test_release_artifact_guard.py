@@ -4,9 +4,15 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import zipfile
 from pathlib import Path
 
 import pytest
+
+from dev_env.build.source_protection import (
+    SourceExposureError,
+    validate_source_protection,
+)
 
 
 def _require_git() -> None:
@@ -60,3 +66,41 @@ def test_backup_artifacts_are_not_tracked():
     assert offenders == [], (
         f"Arquivos de backup nao devem ser versionados: {offenders[:10]}"
     )
+
+
+def test_source_protection_rejects_app_py_in_zip(tmp_path: Path) -> None:
+    package = tmp_path / "artifact.zip"
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("bundle/core/app_logic.py", "print('leak')\n")
+        archive.writestr("bundle/config/build_info.json", "{}")
+
+    with pytest.raises(SourceExposureError, match="core/app_logic.py"):
+        validate_source_protection(package)
+
+
+def test_source_protection_rejects_app_pyc_in_directory(tmp_path: Path) -> None:
+    exposed = tmp_path / "bundle" / "gui" / "__pycache__" / "gui_ssa.cpython-313.pyc"
+    exposed.parent.mkdir(parents=True)
+    exposed.write_bytes(b"pyc")
+
+    with pytest.raises(SourceExposureError, match="gui_ssa.cpython-313.pyc"):
+        validate_source_protection(tmp_path / "bundle")
+
+
+def test_source_protection_allows_non_code_resources(tmp_path: Path) -> None:
+    package = tmp_path / "artifact.zip"
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("bundle/docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md", "doc\n")
+        archive.writestr("bundle/config/build_info.json", "{}")
+        archive.writestr("bundle/resources/app_icon.ico", b"ico")
+
+    validate_source_protection(package)
+
+
+def test_source_protection_allows_third_party_package_paths(tmp_path: Path) -> None:
+    package = tmp_path / "artifact.zip"
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("bundle/_internal/pandas/core/frame.py", "third party\n")
+        archive.writestr("bundle/_internal/pkg_resources/_vendor/jaraco/context.py", "")
+
+    validate_source_protection(package)

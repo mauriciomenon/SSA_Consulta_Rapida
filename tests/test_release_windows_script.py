@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from main import _get_project_root
@@ -7,6 +8,7 @@ from main import _get_project_root
 
 PROJECT_ROOT = Path(_get_project_root())
 SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_windows.ps1"
+SCORECARD_FILE = PROJECT_ROOT / "dev_env" / "build" / "backend_scorecards.json"
 
 
 def _script_text() -> str:
@@ -68,16 +70,25 @@ def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
     assert "Get-FileHash" in script
     assert "functional_cli_check" in script
     assert "gui_version_check" in script
+    assert "Assert-SourceProtection" in script
+    assert "dev_env\\build\\release_platform_report.py" in script
+    assert "source-protection" in script
 
 
 def test_release_windows_script_exposes_backend_scorecard() -> None:
     script = _script_text()
+    scorecard = json.loads(SCORECARD_FILE.read_text(encoding="utf-8"))
 
     assert "Get-BackendScorecard" in script
+    assert "backend_scorecards.json" in script
     assert "security_score" in script
-    assert "python_source_exposure_score" in script
+    assert "source_protection_score" in script
     assert "easy_user_dirs_score" in script
     assert "package_size_score" in script
+    assert scorecard["nuitka"]["protected_release"] is True
+    assert "codigo protegido por compilacao nativa" in scorecard["nuitka"]["note"]
+    assert scorecard["pyinstaller"]["protected_release"] is False
+    assert "compatibilidade; nao e artefato protegido" in scorecard["pyinstaller"]["note"]
 
 
 def test_release_windows_backend_paths_are_grouped_expressions() -> None:

@@ -10,8 +10,9 @@ from main import _get_project_root
 
 PROJECT_ROOT = Path(_get_project_root())
 SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_debian.sh"
-REPORT_SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_debian_report.py"
-REPORT_MODULE = importlib.import_module("dev_env.build.release_debian_report")
+REPORT_SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_platform_report.py"
+SCORECARD_FILE = PROJECT_ROOT / "dev_env" / "build" / "backend_scorecards.json"
+REPORT_MODULE = importlib.import_module("dev_env.build.release_platform_report")
 
 
 def _script_text() -> str:
@@ -62,10 +63,13 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
     assert "status --porcelain" in script
     assert "release_report_debian_amd64.json" in script
     assert "write_release_report" in script
+    assert '--platform "debian_amd64"' in script
     assert "write_tar_packages" in script
     assert "validate_tar_payload" in script
     assert "build_info.json" in script
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in script
+    assert "validate_source_protection" in script
+    assert "source-protection" in REPORT_SCRIPT.read_text(encoding="utf-8")
     assert "bundle_roots" in script
     assert "SSA_CLI_v${app_version}_debian_amd64" in script
     assert "SSA_GUI_v${app_version}_debian_amd64" in script
@@ -112,12 +116,16 @@ def test_release_debian_script_calls_only_debian_wrappers() -> None:
 def test_release_debian_script_exposes_backend_scorecard() -> None:
     script = _script_text()
     report_script = REPORT_SCRIPT.read_text(encoding="utf-8")
+    scorecard_text = SCORECARD_FILE.read_text(encoding="utf-8")
 
     assert "get_backend_scorecard" in script
     assert "security_score" in report_script
-    assert "python_source_exposure_score" in report_script
+    assert "source_protection_score" in report_script
     assert "easy_user_dirs_score" in report_script
     assert "package_size_score" in report_script
+    assert "backend_scorecards.json" in report_script
+    assert '"protected_release": true' in scorecard_text
+    assert '"protected_release": false' in scorecard_text
     assert 'path.name.endswith(".tar.gz")' in report_script
 
 
