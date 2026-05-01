@@ -115,3 +115,16 @@ def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> No
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in pyoxidizer_script
     assert "--format=%%cI" in pyoxidizer_script
     assert "--format=%%s" in pyoxidizer_script
+
+
+def test_pyoxidizer_debian_runtime_includes_version_json() -> None:
+    for script_name in (
+        "build_pyoxidizer_debian.sh",
+        "build_pyoxidizer_debian_arm64.sh",
+    ):
+        script = (PROJECT_ROOT / "dev_env" / "build" / script_name).read_text(
+            encoding="utf-8"
+        )
+        assert 'VERSION_FILE="${REPO_ROOT}/config/version.json"' in script
+        assert 'mkdir -p "${TARGET_BUILD_DIR}/config"' in script
+        assert 'cp -f "${VERSION_FILE}" "${TARGET_BUILD_DIR}/config/version.json"' in script
