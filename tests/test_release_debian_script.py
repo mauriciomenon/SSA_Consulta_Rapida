@@ -69,7 +69,9 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
     assert "diff --cached --name-only" in script
     assert "diff --ignore-cr-at-eol --name-only" in script
     assert "ls-files --others --exclude-standard" in script
-    assert "git.exe -C" in script
+    assert "/mnt/c/Windows/System32/cmd.exe" in script
+    assert "status --porcelain=v1" in script
+    assert "tr -d '\\r'" in script
     assert "wslpath -w" in script
     assert "release_report_debian_amd64.json" in script
     assert "write_release_report" in script
@@ -101,6 +103,8 @@ def test_release_debian_script_normalizes_csv_tokens() -> None:
     assert "load_release_target_cache" in script
     assert "release-unsupported-pairs" in script
     assert "check-release-target" in script
+    assert "awk -F '\\t'" in script
+    assert "grep -F \"${backend}${tab}${package_kind}${tab}\"" not in script
     assert "[![:space:]]" in script
     assert "join_csv" in script
     assert 'while [[ "${csv}" == *, ]]' in script
@@ -126,6 +130,7 @@ def test_release_debian_script_calls_only_debian_wrappers() -> None:
     assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyoxidizer.tar.gz" in script
     assert "release_target_reason" in script
     assert "is_supported_package_pair" in script
+    assert "appimage:pyoxidizer)" not in script
     assert 'pacote ignorado ${package_kind} ${backend}: $(release_target_reason' in script
     assert script.index("log_package_matrix") < script.index("run_build_phase")
     assert "package_debian_arm64" not in script
