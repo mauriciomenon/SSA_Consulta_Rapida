@@ -149,16 +149,26 @@ assert_tool() {
 
 assert_ssh_host() {
   local host="$1"
-  if [[ ! "${host}" =~ ^([A-Za-z0-9._-]+@)?[A-Za-z0-9._-]+$ ]]; then
-    die "--ssh-host invalido. Use apenas user@host ou host sem opcoes ssh."
-  fi
+  case "${host}" in
+    ""|*@*@*|@*|*@|*[!A-Za-z0-9._@-]*)
+      die "--ssh-host invalido. Use apenas user@host ou host sem opcoes ssh."
+      ;;
+  esac
 }
 
 assert_ssh_repo() {
   local repo="$1"
-  if [[ ! "${repo}" =~ ^/[A-Za-z0-9._/@%+=:,~-]+$ ]]; then
-    die "--ssh-repo invalido. Use caminho absoluto sem espacos/metacaracteres."
-  fi
+  case "${repo}" in
+    /*) ;;
+    *)
+      die "--ssh-repo invalido. Use caminho absoluto sem espacos/metacaracteres."
+      ;;
+  esac
+  case "${repo}" in
+    *[!A-Za-z0-9._/@%+=:,~-]*)
+      die "--ssh-repo invalido. Use caminho absoluto sem espacos/metacaracteres."
+      ;;
+  esac
 }
 
 assert_debian_host() {
