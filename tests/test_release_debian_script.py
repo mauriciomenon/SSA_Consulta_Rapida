@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ PROJECT_ROOT = Path(_get_project_root())
 SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_debian.sh"
 REPORT_SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_platform_report.py"
 SCORECARD_FILE = PROJECT_ROOT / "dev_env" / "build" / "backend_scorecards.json"
+TARGETS_FILE = PROJECT_ROOT / "dev_env" / "build" / "release_targets.json"
 REPORT_MODULE = importlib.import_module("dev_env.build.release_platform_report")
 
 
@@ -64,7 +66,9 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
     assert "assert_clean_release_workspace" in script
     assert "AllowDirty" not in script
     assert "rev-parse HEAD" in script
-    assert "status --porcelain" in script
+    assert "diff --cached --name-only" in script
+    assert "diff --ignore-cr-at-eol --name-only" in script
+    assert "ls-files --others --exclude-standard" in script
     assert "release_report_debian_amd64.json" in script
     assert "write_release_report" in script
     assert '--platform "debian_amd64"' in script
@@ -90,8 +94,11 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
 def test_release_debian_script_normalizes_csv_tokens() -> None:
     script = _script_text()
 
-    assert "deb,appimage,tar" in script
-    assert "deb | appimage | tar" in script
+    assert "release_targets_csv backends" in script
+    assert "release_targets_csv packages" in script
+    assert "load_release_target_cache" in script
+    assert "release-unsupported-pairs" in script
+    assert "check-release-target" in script
     assert "[![:space:]]" in script
     assert "join_csv" in script
     assert 'while [[ "${csv}" == *, ]]' in script
@@ -101,6 +108,7 @@ def test_release_debian_script_normalizes_csv_tokens() -> None:
     assert 'for package_kind in $(split_csv "${csv}")' in script
     assert 'BACKENDS_CSV="$(normalize_backends "${BACKENDS_CSV}")"' in script
     assert 'PACKAGES_CSV="$(normalize_packages "${PACKAGES_CSV}")"' in script
+    assert 'printf \'%s\\n\' "pyinstaller,nuitka,pyoxidizer"' not in script
 
 
 def test_release_debian_script_calls_only_debian_wrappers() -> None:
@@ -114,9 +122,9 @@ def test_release_debian_script_calls_only_debian_wrappers() -> None:
     assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyinstaller_cli.tar.gz" in script
     assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_nuitka_cli.tar.gz" in script
     assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyoxidizer.tar.gz" in script
-    assert "AppImage pyoxidizer nao suportado" in script
+    assert "release_target_reason" in script
     assert "is_supported_package_pair" in script
-    assert "pacote ignorado ${package_kind} ${backend}: nao suportado" in script
+    assert 'pacote ignorado ${package_kind} ${backend}: $(release_target_reason' in script
     assert script.index("log_package_matrix") < script.index("run_build_phase")
     assert "package_debian_arm64" not in script
     assert "release_windows.ps1" not in script
@@ -136,6 +144,39 @@ def test_release_debian_script_exposes_backend_scorecard() -> None:
     assert '"protected_release": true' in scorecard_text
     assert '"protected_release": false' in scorecard_text
     assert 'path.name.endswith(".tar.gz")' in report_script
+
+
+def test_release_targets_json_defines_validated_targets() -> None:
+    payload = json.loads(TARGETS_FILE.read_text(encoding="utf-8"))
+
+    assert payload["schema_version"] == 1
+    assert [item["name"] for item in payload["backends"]] == [
+        "pyinstaller",
+        "nuitka",
+        "pyoxidizer",
+    ]
+    assert [item["name"] for item in payload["packages"]] == [
+        "deb",
+        "appimage",
+        "tar",
+        "zip",
+    ]
+    assert REPORT_MODULE._enabled_target_names(
+        REPORT_MODULE._load_release_targets(),
+        "backends",
+        "debian_amd64",
+    ) == ["pyinstaller", "nuitka", "pyoxidizer"]
+    assert REPORT_MODULE._enabled_target_names(
+        REPORT_MODULE._load_release_targets(),
+        "packages",
+        "debian_amd64",
+    ) == ["deb", "appimage", "tar"]
+    assert REPORT_MODULE._unsupported_pair_reason(
+        REPORT_MODULE._load_release_targets(),
+        "debian_amd64",
+        "pyoxidizer",
+        "appimage",
+    )
 
 
 def test_release_debian_report_read_json_errors_include_path(tmp_path) -> None:
