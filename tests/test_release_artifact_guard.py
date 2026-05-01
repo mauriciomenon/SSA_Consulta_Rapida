@@ -74,6 +74,7 @@ def test_source_protection_rejects_app_py_in_zip(tmp_path: Path) -> None:
     package = tmp_path / "artifact.zip"
     with zipfile.ZipFile(package, "w") as archive:
         archive.writestr("bundle/core/app_logic.py", "print('leak')\n")
+        archive.writestr("bundle/main.py", "print('leak')\n")
         archive.writestr("bundle/config/build_info.json", "{}")
 
     with pytest.raises(SourceExposureError, match="core/app_logic.py"):
@@ -87,6 +88,38 @@ def test_source_protection_rejects_app_pyc_in_directory(tmp_path: Path) -> None:
 
     with pytest.raises(SourceExposureError, match="gui_ssa.cpython-313.pyc"):
         validate_source_protection(tmp_path / "bundle")
+
+
+def test_source_protection_rejects_nested_bundle_app_source(tmp_path: Path) -> None:
+    package = tmp_path / "artifact.zip"
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("release/v4.37/bundle/core/app_logic.py", "print('leak')\n")
+
+    with pytest.raises(SourceExposureError, match="core/app_logic.py"):
+        validate_source_protection(package)
+
+
+def test_source_protection_rejects_case_variant_app_source(tmp_path: Path) -> None:
+    package = tmp_path / "artifact.zip"
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("BUNDLE/CORE/APP_LOGIC.PY", "print('leak')\n")
+
+    with pytest.raises(SourceExposureError, match="BUNDLE/CORE/APP_LOGIC.PY"):
+        validate_source_protection(package)
+
+
+def test_source_protection_rejects_app_source_under_internal_prefix(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "artifact.zip"
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr(
+            "bundle/_internal/ssa_consulta/core/app_logic.py",
+            "print('leak')\n",
+        )
+
+    with pytest.raises(SourceExposureError, match="core/app_logic.py"):
+        validate_source_protection(package)
 
 
 def test_source_protection_allows_non_code_resources(tmp_path: Path) -> None:
@@ -103,6 +136,8 @@ def test_source_protection_allows_third_party_package_paths(tmp_path: Path) -> N
     package = tmp_path / "artifact.zip"
     with zipfile.ZipFile(package, "w") as archive:
         archive.writestr("bundle/_internal/pandas/core/frame.py", "third party\n")
+        archive.writestr("bundle/_internal/pandas/core/app_logic.py", "third party\n")
+        archive.writestr("bundle/_internal/example/main.py", "third party\n")
         archive.writestr("bundle/_internal/pkg_resources/_vendor/jaraco/context.py", "")
 
     validate_source_protection(package)

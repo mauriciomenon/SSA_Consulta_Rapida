@@ -39,24 +39,32 @@ def _normalize_entry(name: str) -> str:
 
 
 def _repo_python_files_from_git(repo_root: Path) -> set[str]:
-    result = subprocess.run(
-        ["git", "ls-files", "*.py"],
-        cwd=repo_root,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "ls-files"],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            encoding="utf-8",
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise SourceExposureError("git nao encontrado no PATH") from exc
     if result.returncode != 0:
         raise SourceExposureError(
             f"falha ao listar fontes Python rastreados em {repo_root}: "
             f"{result.stderr.strip() or result.stdout.strip()}"
         )
-    return {_normalize_entry(line) for line in result.stdout.splitlines() if line}
+    return {
+        normalized.lower()
+        for line in result.stdout.splitlines()
+        if (normalized := _normalize_entry(line)).lower().endswith(".py")
+    }
 
 
 @functools.lru_cache(maxsize=8)
 def _tracked_python_sources(repo_root_text: str) -> frozenset[str]:
-    repo_root = Path(repo_root_text)
+    repo_root = Path(repo_root_text).resolve()
     sources = _repo_python_files_from_git(repo_root)
     if not sources:
         raise SourceExposureError(f"nenhum arquivo Python rastreado em {repo_root}")
@@ -72,27 +80,66 @@ def _pyc_source_name(name: str) -> str:
     return path.with_name(source_name).as_posix()
 
 
-def _source_candidates(name: str) -> set[str]:
-    normalized = _normalize_entry(name)
+def _artifact_source_name(name: str) -> str | None:
+    normalized = _normalize_entry(name).lower()
     path = Path(normalized)
     if path.suffix.lower() not in FORBIDDEN_SUFFIXES:
-        return set()
+        return None
+    if path.suffix.lower() in {".pyc", ".pyo"}:
+        return _pyc_source_name(normalized).lower()
+    return normalized
 
-    parts = tuple(part for part in normalized.split("/") if part)
+
+def _source_candidates_from_name(source_name: str) -> set[str]:
+    parts = tuple(part for part in source_name.split("/") if part)
     if not parts:
         return set()
 
     candidates = set()
-    candidate_parts = parts
-    if path.suffix.lower() in {".pyc", ".pyo"}:
-        candidate_parts = tuple(part for part in _pyc_source_name(normalized).split("/") if part)
-    for index in range(len(candidate_parts)):
-        candidates.add("/".join(candidate_parts[index:]))
+    for index in range(len(parts)):
+        candidates.add("/".join(parts[index:]))
     return candidates
 
 
+def _source_candidates(name: str) -> set[str]:
+    source_name = _artifact_source_name(name)
+    if source_name is None:
+        return set()
+    return _source_candidates_from_name(source_name)
+
+
+def _has_app_source_context(
+    parts: tuple[str, ...],
+    index: int,
+    candidate_parts: tuple[str, ...],
+) -> bool:
+    if index == 0:
+        return True
+    prefix = parts[:index]
+    if any(part.startswith("ssa_") for part in prefix):
+        return True
+    if "_internal" in prefix:
+        return prefix.index("_internal") + 1 == index
+    return "bundle" in prefix
+
+
 def _is_forbidden_source_entry(name: str, tracked_sources: frozenset[str]) -> bool:
-    return bool(_source_candidates(name) & tracked_sources)
+    source_name = _artifact_source_name(name)
+    if source_name is None:
+        return False
+    entry_parts = tuple(part for part in source_name.split("/") if part)
+    for candidate in _source_candidates_from_name(source_name) & tracked_sources:
+        candidate_parts = tuple(part for part in candidate.split("/") if part)
+        if not candidate_parts:
+            continue
+        for index in range(len(entry_parts) - len(candidate_parts) + 1):
+            if entry_parts[index:] == candidate_parts and _has_app_source_context(
+                entry_parts,
+                index,
+                candidate_parts,
+            ):
+                return True
+    return False
 
 
 def _iter_directory_entries(path: Path) -> Iterable[str]:
@@ -130,7 +177,7 @@ def _iter_artifact_entries(path: Path) -> Iterable[str]:
 
 def validate_source_protection(path: Path, repo_root: Path | None = None) -> None:
     effective_repo_root = (repo_root or _default_repo_root()).resolve()
-    tracked_sources = _tracked_python_sources(str(effective_repo_root))
+    tracked_sources = _tracked_python_sources(effective_repo_root.as_posix())
     exposed = []
     for entry in _iter_artifact_entries(path):
         if _is_forbidden_source_entry(entry, tracked_sources):
