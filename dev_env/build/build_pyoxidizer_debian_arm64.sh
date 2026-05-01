@@ -129,6 +129,9 @@ rm -rf "${TARGET_BUILD_DIR}"
 mkdir -p "${TARGET_BUILD_DIR}"
 cp -a "${SOURCE_INSTALL}/." "${TARGET_BUILD_DIR}/"
 
+mkdir -p "${TARGET_BUILD_DIR}/config"
+cp -f "${VERSION_FILE}" "${TARGET_BUILD_DIR}/config/version.json"
+
 if [[ -d "${TARGET_BUILD_DIR}/lib" && ! -e "${TARGET_BUILD_DIR}/lib/python3.10" ]]; then
   ln -s . "${TARGET_BUILD_DIR}/lib/python3.10"
 fi
