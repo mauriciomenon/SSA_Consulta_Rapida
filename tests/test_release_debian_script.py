@@ -92,6 +92,9 @@ def test_release_debian_script_calls_only_debian_wrappers() -> None:
     assert "package_debian_amd64_deb.sh" in script
     assert "package_debian_amd64_appimage.sh" in script
     assert "AppImage pyoxidizer nao suportado" in script
+    assert "is_supported_package_pair" in script
+    assert "pacote ignorado ${package_kind} ${backend}: nao suportado" in script
+    assert script.index("log_package_matrix") < script.index("run_build_phase")
     assert "package_debian_arm64" not in script
     assert "release_windows.ps1" not in script
 
