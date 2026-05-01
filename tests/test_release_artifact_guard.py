@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from dev_env.build import source_protection
 from dev_env.build.source_protection import (
     SourceExposureError,
     _source_candidates,
@@ -148,6 +149,40 @@ def test_source_protection_uses_tracked_python_inventory() -> None:
 
     assert "core/app_logic.py" in tracked
     assert "dev_env/build/source_protection.py" in tracked
+
+
+def test_source_protection_rejects_case_ambiguous_git_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class Result:
+        returncode = 0
+        stdout = "core/app_logic.py\nCore/App_Logic.py\n"
+        stderr = ""
+
+    monkeypatch.setattr(
+        source_protection.subprocess,
+        "run",
+        lambda *args, **kwargs: Result(),
+    )
+
+    with pytest.raises(SourceExposureError, match="ambiguos por caixa"):
+        source_protection._repo_python_files_from_git(tmp_path)
+
+
+def test_source_protection_cli_checks_all_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    visited = []
+
+    def fake_validate(path: Path, repo_root: Path | None = None) -> None:
+        visited.append(path.name)
+        raise SourceExposureError("erro")
+
+    monkeypatch.setattr(source_protection, "validate_source_protection", fake_validate)
+
+    assert source_protection.main(["a.zip", "b.zip"]) == 1
+    assert visited == ["a.zip", "b.zip"]
 
 
 def test_source_protection_maps_pyc_to_tracked_source() -> None:
