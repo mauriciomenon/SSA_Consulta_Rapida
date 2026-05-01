@@ -264,13 +264,17 @@ validate_build_payload() {
   [[ -d "${build_root}" ]] || die "artefato ${backend} nao encontrado: ${build_root}"
 
   for bundle_root in "${bundle_roots[@]}"; do
+    local payload_root="${bundle_root}"
+    if [[ -d "${bundle_root}/_internal" ]]; then
+      payload_root="${bundle_root}/_internal"
+    fi
     [[ -d "${bundle_root}" ]] || die "bundle ${backend} ausente: ${bundle_root}"
-    [[ -f "${bundle_root}/config/build_info.json" ]] || die "build_info.json ausente em ${bundle_root}"
-    [[ -f "${bundle_root}/docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md" ]] || die "GUIA_MIGRACAO_NOVA_INSTALACAO.md ausente em ${bundle_root}"
+    [[ -f "${payload_root}/config/build_info.json" ]] || die "build_info.json ausente em ${payload_root}"
+    [[ -f "${payload_root}/docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md" ]] || die "GUIA_MIGRACAO_NOVA_INSTALACAO.md ausente em ${payload_root}"
 
     uv run --python 3.13 python "${root}/dev_env/build/release_debian_report.py" \
       validate-build-info \
-      --build-info "${bundle_root}/config/build_info.json" \
+      --build-info "${payload_root}/config/build_info.json" \
       --backend "${backend}" \
       --platform "debian_amd64" \
       --app-version "${app_version}" \
