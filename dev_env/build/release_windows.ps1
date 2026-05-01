@@ -4,7 +4,8 @@ param(
     [switch] $Yes,
     [switch] $SkipBuild,
     [switch] $SkipPackage,
-    [switch] $SkipInstaller
+    [switch] $SkipInstaller,
+    [switch] $DryRun
 )
 
 Set-StrictMode -Version 3.0
@@ -487,19 +488,33 @@ Assert-WindowsHost
 Assert-PowerShellHost
 Assert-Tool "git" "instale Git para Windows"
 Assert-Tool "uv" "instale uv"
-if (-not $SkipInstaller) {
-    Assert-Tool "iscc" "instale Inno Setup ou use -SkipInstaller"
-}
 
 $repoRoot = Resolve-RepoRoot
 $selectedBackends = Get-SelectedBackends $Backend
-if ((-not $SkipBuild) -and ($selectedBackends -contains "pyoxidizer")) {
+if ((-not $DryRun) -and (-not $SkipInstaller)) {
+    Assert-Tool "iscc" "instale Inno Setup ou use -SkipInstaller"
+}
+if ((-not $DryRun) -and (-not $SkipBuild) -and ($selectedBackends -contains "pyoxidizer")) {
     Assert-Tool "rcedit.exe" "scoop install rcedit"
 }
 $version = Get-AppVersion $repoRoot
 $windowsVersion = Get-WindowsVersionText $version
 $gitHead = Get-GitHead $repoRoot
 $dirtyEntries = Assert-CleanReleaseWorkspace $repoRoot
+$scorecard = Get-BackendScorecard
+
+if ($DryRun) {
+    Write-Host "Dry-run Windows concluido sem build/pacote."
+    Write-Host "Repo: $repoRoot"
+    Write-Host "HEAD: $($gitHead.commit)"
+    Write-Host "Versao: $version"
+    Write-Host "Backends: $($selectedBackends -join ', ')"
+    foreach ($backendName in $selectedBackends) {
+        $backendScore = $scorecard[$backendName]
+        Write-Host "Scorecard ${backendName}: seguranca=$($backendScore.security_score); python=$($backendScore.python_source_exposure_score); pastas=$($backendScore.easy_user_dirs_score); tamanho=$($backendScore.package_size_score); nota=$($backendScore.note)"
+    }
+    return
+}
 
 if (-not $Yes) {
     Write-Host "Repo: $repoRoot"
@@ -512,7 +527,6 @@ if (-not $Yes) {
 }
 
 $configs = Get-BackendConfig $repoRoot $version
-$scorecard = Get-BackendScorecard
 $results = @()
 
 foreach ($backendName in $selectedBackends) {
