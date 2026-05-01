@@ -273,6 +273,16 @@ assert_debian_amd64() {
 assert_clean_release_workspace() {
   local root="$1"
   local staged unstaged untracked
+  local win_root dirty
+  if [[ "${root}" == /mnt/[A-Za-z]/* ]] && command -v git.exe >/dev/null 2>&1 && command -v wslpath >/dev/null 2>&1; then
+    win_root="$(wslpath -w "${root}")"
+    dirty="$(git.exe -C "${win_root}" status --porcelain=v1)"
+    if [[ -n "${dirty}" ]]; then
+      printf '%s\n' "${dirty}" >&2
+      die "workspace sujo. Release deterministico exige git limpo."
+    fi
+    return 0
+  fi
   staged="$(git -C "${root}" diff --cached --name-only)"
   if [[ -n "${staged}" ]]; then
     printf '%s\n' "${staged}" >&2
