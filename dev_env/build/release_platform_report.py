@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: E402
+
 import argparse
 import concurrent.futures
 import functools
@@ -7,6 +9,12 @@ import hashlib
 import json
 import pathlib
 import platform
+import sys
+from typing import Any
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 try:
     from dev_env.build.source_protection import (
@@ -32,6 +40,29 @@ class ReleaseReportError(RuntimeError):
 
 
 SCORECARD_FILE = pathlib.Path(__file__).with_name("backend_scorecards.json")
+TARGETS_FILE = pathlib.Path(__file__).with_name("release_targets.json")
+DEFAULT_TARGETS: dict[str, Any] = {
+    "schema_version": 1,
+    "backends": [
+        {"name": "pyinstaller", "order": 1, "windows_amd64": True, "debian_amd64": True},
+        {"name": "nuitka", "order": 2, "windows_amd64": True, "debian_amd64": True},
+        {"name": "pyoxidizer", "order": 3, "windows_amd64": True, "debian_amd64": True},
+    ],
+    "packages": [
+        {"name": "deb", "order": 1, "debian_amd64": True},
+        {"name": "appimage", "order": 2, "debian_amd64": True},
+        {"name": "tar", "order": 3, "debian_amd64": True},
+        {"name": "zip", "order": 4, "windows_amd64": True},
+    ],
+    "unsupported_pairs": [
+        {
+            "platform": "debian_amd64",
+            "backend": "pyoxidizer",
+            "package": "appimage",
+            "reason": "AppImage pyoxidizer nao suportado pelos scripts atuais. Use --package deb para pyoxidizer.",
+        }
+    ],
+}
 DEFAULT_SCORECARDS: dict[str, dict[str, object]] = {
     "nuitka": {
         "easy_user_dirs_score": 4,
@@ -77,7 +108,7 @@ def _load_scorecards() -> dict[str, dict[str, object]]:
     return payload
 
 
-def _read_json(path: pathlib.Path) -> dict[str, object]:
+def _read_json(path: pathlib.Path) -> dict[str, Any]:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
@@ -86,6 +117,154 @@ def _read_json(path: pathlib.Path) -> dict[str, object]:
         raise ReleaseReportError(f"falha lendo JSON {path}: {exc}") from exc
     except json.JSONDecodeError as exc:
         raise ReleaseReportError(f"JSON invalido em {path}: {exc}") from exc
+
+
+def _target_records(payload: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    records = payload.get(key)
+    if not isinstance(records, list) or not records:
+        raise ReleaseReportError(f"{key} ausente ou invalido em {TARGETS_FILE}")
+    checked = []
+    names = set()
+    for record in records:
+        if not isinstance(record, dict):
+            raise ReleaseReportError(f"{key} contem item invalido em {TARGETS_FILE}")
+        name = str(record.get("name") or "").strip()
+        order = record.get("order")
+        if not name or not isinstance(order, int):
+            raise ReleaseReportError(f"{key} contem nome/order invalido em {TARGETS_FILE}")
+        if name in names:
+            raise ReleaseReportError(f"{key} contem nome duplicado em {TARGETS_FILE}: {name}")
+        names.add(name)
+        checked.append(record)
+    return sorted(checked, key=lambda item: int(item["order"]))
+
+
+def _validate_release_targets_payload(payload: dict[str, Any]) -> None:
+    if payload.get("schema_version") != 1:
+        raise ReleaseReportError(f"schema_version invalido em {TARGETS_FILE}")
+    backends = _target_records(payload, "backends")
+    packages = _target_records(payload, "packages")
+    backend_names = {str(item["name"]) for item in backends}
+    package_names = {str(item["name"]) for item in packages}
+    unsupported_pairs = payload.get("unsupported_pairs", [])
+    if not isinstance(unsupported_pairs, list):
+        raise ReleaseReportError(f"unsupported_pairs invalido em {TARGETS_FILE}")
+    for pair in unsupported_pairs:
+        if not isinstance(pair, dict):
+            raise ReleaseReportError(f"unsupported_pairs contem item invalido em {TARGETS_FILE}")
+        backend = str(pair.get("backend") or "")
+        package = str(pair.get("package") or "")
+        platform_name = str(pair.get("platform") or "")
+        reason = str(pair.get("reason") or "")
+        if backend not in backend_names or package not in package_names:
+            raise ReleaseReportError(
+                f"unsupported_pairs referencia alvo desconhecido em {TARGETS_FILE}"
+            )
+        if not platform_name or not reason:
+            raise ReleaseReportError(
+                f"unsupported_pairs exige platform e reason em {TARGETS_FILE}"
+            )
+
+
+def _load_release_targets() -> dict[str, Any]:
+    try:
+        payload = _read_json(TARGETS_FILE)
+        _validate_release_targets_payload(payload)
+    except ReleaseReportError as exc:
+        logger.warning(
+            "Falha ao carregar %s; usando defaults: %s",
+            TARGETS_FILE,
+            exc,
+        )
+        payload = DEFAULT_TARGETS
+        _validate_release_targets_payload(payload)
+    return payload
+
+
+def _enabled_target_names(
+    payload: dict[str, Any],
+    key: str,
+    platform_name: str,
+) -> list[str]:
+    return [
+        str(record["name"])
+        for record in _target_records(payload, key)
+        if record.get(platform_name) is True
+    ]
+
+
+def _unsupported_pair_reason(
+    payload: dict[str, Any],
+    platform_name: str,
+    backend: str,
+    package: str,
+) -> str | None:
+    for pair in payload.get("unsupported_pairs", []):
+        if not isinstance(pair, dict):
+            continue
+        if (
+            pair.get("platform") == platform_name
+            and pair.get("backend") == backend
+            and pair.get("package") == package
+        ):
+            return str(pair["reason"])
+    return None
+
+
+def print_release_targets(args: argparse.Namespace) -> int:
+    payload = _load_release_targets()
+    key = "backends" if args.kind == "backends" else "packages"
+    names = _enabled_target_names(payload, key, args.platform)
+    if not names:
+        raise ReleaseReportError(f"nenhum target {args.kind} para {args.platform}")
+    print(",".join(names))
+    return 0
+
+
+def check_release_target(args: argparse.Namespace) -> int:
+    payload = _load_release_targets()
+    backend_names = _enabled_target_names(payload, "backends", args.platform)
+    if args.backend not in backend_names:
+        raise ReleaseReportError(f"backend invalido para {args.platform}: {args.backend}")
+    if args.package:
+        package_names = _enabled_target_names(payload, "packages", args.platform)
+        if args.package not in package_names:
+            raise ReleaseReportError(
+                f"package invalido para {args.platform}: {args.package}"
+            )
+        reason = _unsupported_pair_reason(
+            payload,
+            args.platform,
+            args.backend,
+            args.package,
+        )
+        if reason:
+            raise ReleaseReportError(reason)
+    return 0
+
+
+def print_release_target_reason(args: argparse.Namespace) -> int:
+    payload = _load_release_targets()
+    reason = _unsupported_pair_reason(
+        payload,
+        args.platform,
+        args.backend,
+        args.package,
+    )
+    if reason:
+        print(reason)
+        return 0
+    print("par backend/package suportado")
+    return 0
+
+
+def print_release_unsupported_pairs(args: argparse.Namespace) -> int:
+    payload = _load_release_targets()
+    for pair in payload.get("unsupported_pairs", []):
+        if not isinstance(pair, dict) or pair.get("platform") != args.platform:
+            continue
+        print(f"{pair['backend']}\t{pair['package']}\t{pair['reason']}")
+    return 0
 
 
 def _sha256(path: pathlib.Path) -> str:
@@ -215,6 +394,27 @@ def build_parser() -> argparse.ArgumentParser:
     scorecard = subparsers.add_parser("scorecard")
     scorecard.add_argument("--backend", required=True)
     scorecard.set_defaults(func=print_scorecard)
+
+    targets = subparsers.add_parser("release-targets")
+    targets.add_argument("--platform", required=True)
+    targets.add_argument("--kind", choices=("backends", "packages"), required=True)
+    targets.set_defaults(func=print_release_targets)
+
+    check_target = subparsers.add_parser("check-release-target")
+    check_target.add_argument("--platform", required=True)
+    check_target.add_argument("--backend", required=True)
+    check_target.add_argument("--package", default="")
+    check_target.set_defaults(func=check_release_target)
+
+    target_reason = subparsers.add_parser("release-target-reason")
+    target_reason.add_argument("--platform", required=True)
+    target_reason.add_argument("--backend", required=True)
+    target_reason.add_argument("--package", required=True)
+    target_reason.set_defaults(func=print_release_target_reason)
+
+    unsupported_pairs = subparsers.add_parser("release-unsupported-pairs")
+    unsupported_pairs.add_argument("--platform", required=True)
+    unsupported_pairs.set_defaults(func=print_release_unsupported_pairs)
 
     source_protection = subparsers.add_parser("source-protection")
     source_protection.add_argument("--artifact", type=pathlib.Path, required=True)

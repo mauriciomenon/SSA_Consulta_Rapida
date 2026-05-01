@@ -1,5 +1,4 @@
 param(
-    [ValidateSet("pyinstaller", "nuitka", "pyoxidizer", "all")]
     [string[]] $Backend,
     [switch] $Yes,
     [switch] $SkipBuild,
@@ -115,12 +114,40 @@ function Get-WindowsVersionText {
     return ($list[0..3] -join ".")
 }
 
-function Get-SelectedBackends {
-    param([string[]] $RequestedBackends)
+function Get-ReleaseTargetNames {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepoRoot,
+        [Parameter(Mandatory = $true)] [string] $Kind
+    )
 
-    $valid = @("pyinstaller", "nuitka", "pyoxidizer")
+    $targetOutput = Invoke-RepoCommand $RepoRoot "uv" @(
+        "run",
+        "--python",
+        "3.13",
+        "python",
+        "dev_env\build\release_platform_report.py",
+        "release-targets",
+        "--platform",
+        $Platform,
+        "--kind",
+        $Kind
+    )
+    $targets = @($targetOutput -split "," | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
+    if ($targets.Count -eq 0) {
+        throw "Nenhum target $Kind retornado para $Platform."
+    }
+    return $targets
+}
+
+function Get-SelectedBackends {
+    param(
+        [string[]] $RequestedBackends,
+        [Parameter(Mandatory = $true)] [string[]] $ValidBackends
+    )
+
+    $valid = @($ValidBackends)
     if (-not $RequestedBackends -or $RequestedBackends.Count -eq 0) {
-        Write-Host "Backends disponiveis: pyinstaller, nuitka, pyoxidizer, all"
+        Write-Host "Backends disponiveis: $($valid -join ', '), all"
         $raw = Read-Host "Informe um ou mais backends separados por virgula"
         $RequestedBackends = $raw -split "," | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ }
     }
@@ -515,7 +542,8 @@ Assert-Tool "git" "instale Git para Windows"
 Assert-Tool "uv" "instale uv"
 
 $repoRoot = Resolve-RepoRoot
-$selectedBackends = Get-SelectedBackends $Backend
+$validBackends = Get-ReleaseTargetNames $repoRoot "backends"
+$selectedBackends = Get-SelectedBackends $Backend $validBackends
 if ((-not $DryRun) -and (-not $SkipInstaller)) {
     Assert-Tool "iscc" "instale Inno Setup ou use -SkipInstaller"
 }

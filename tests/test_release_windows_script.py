@@ -9,6 +9,7 @@ from main import _get_project_root
 PROJECT_ROOT = Path(_get_project_root())
 SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_windows.ps1"
 SCORECARD_FILE = PROJECT_ROOT / "dev_env" / "build" / "backend_scorecards.json"
+TARGETS_FILE = PROJECT_ROOT / "dev_env" / "build" / "release_targets.json"
 
 
 def _script_text() -> str:
@@ -21,7 +22,7 @@ def test_release_windows_script_is_powershell_only_and_interactive() -> None:
     script = _script_text()
 
     assert "param(" in script
-    assert '[ValidateSet("pyinstaller", "nuitka", "pyoxidizer", "all")]' in script
+    assert "ValidateSet" not in script
     assert "Read-Host" in script
     assert "Assert-WindowsHost" in script
     assert "Assert-PowerShellHost" in script
@@ -36,6 +37,9 @@ def test_release_windows_script_has_deterministic_preflight_and_report() -> None
 
     assert "Assert-Tool" in script
     assert '$Command -notin @("git", "uv")' in script
+    assert "Get-ReleaseTargetNames" in script
+    assert "release-targets" in script
+    assert "release_targets.json" not in script
     assert script.index('Assert-Tool "git"') < script.index("$repoRoot = Resolve-RepoRoot")
     assert script.index('Assert-Tool "uv"') < script.index("$repoRoot = Resolve-RepoRoot")
     assert '($selectedBackends -contains "pyoxidizer")' in script
@@ -79,9 +83,18 @@ def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
 def test_release_windows_script_exposes_backend_scorecard() -> None:
     script = _script_text()
     scorecard = json.loads(SCORECARD_FILE.read_text(encoding="utf-8"))
+    targets = json.loads(TARGETS_FILE.read_text(encoding="utf-8"))
 
     assert "Get-BackendScorecard" in script
     assert "backend_scorecards.json" in script
+    assert [item["name"] for item in targets["backends"]] == [
+        "pyinstaller",
+        "nuitka",
+        "pyoxidizer",
+    ]
+    assert [item["name"] for item in targets["packages"] if item.get("windows_amd64")] == [
+        "zip",
+    ]
     assert "security_score" in script
     assert "source_protection_score" in script
     assert "easy_user_dirs_score" in script

@@ -10,6 +10,9 @@ SKIP_BUILD=0
 SKIP_PACKAGE=0
 WITH_LOCAL_DATA=0
 ASSUME_YES=0
+RELEASE_BACKENDS_CSV=""
+RELEASE_PACKAGES_CSV=""
+RELEASE_UNSUPPORTED_PAIRS=""
 
 usage() {
   cat <<'USAGE'
@@ -18,8 +21,8 @@ Uso: release_debian.sh [opcoes]
 Orquestra build e pacote Debian amd64 de forma deterministica.
 
 Opcoes:
-  --backend LIST      pyinstaller,nuitka,pyoxidizer ou all
-  --package LIST      deb,appimage,tar ou all (default: deb)
+  --backend LIST      lista de backends de release_targets.json ou all
+  --package LIST      lista de pacotes de release_targets.json ou all (default: deb)
   --ssh-host HOST     executa remotamente via ssh (ex: user@host)
   --ssh-repo DIR      caminho absoluto do repositorio no host remoto
   --with-local-data   copia dados locais para os artefatos
@@ -70,14 +73,82 @@ join_csv() {
   printf '%s\n' "$*"
 }
 
+release_report_cmd() {
+  uv run --python 3.13 python "$(repo_root)/dev_env/build/release_platform_report.py" "$@"
+}
+
+release_targets_csv() {
+  local kind="$1"
+  if [[ "${kind}" == "backends" && -n "${RELEASE_BACKENDS_CSV}" ]]; then
+    printf '%s\n' "${RELEASE_BACKENDS_CSV}"
+    return 0
+  fi
+  if [[ "${kind}" == "packages" && -n "${RELEASE_PACKAGES_CSV}" ]]; then
+    printf '%s\n' "${RELEASE_PACKAGES_CSV}"
+    return 0
+  fi
+  release_report_cmd release-targets --platform debian_amd64 --kind "${kind}"
+}
+
+load_release_target_cache() {
+  RELEASE_BACKENDS_CSV="$(release_report_cmd release-targets --platform debian_amd64 --kind backends)"
+  RELEASE_PACKAGES_CSV="$(release_report_cmd release-targets --platform debian_amd64 --kind packages)"
+  RELEASE_UNSUPPORTED_PAIRS="$(release_report_cmd release-unsupported-pairs --platform debian_amd64)"
+}
+
+release_target_supported() {
+  local backend="$1"
+  local package_kind="$2"
+  local tab
+  tab="$(printf '\t')"
+  if [[ -n "${RELEASE_UNSUPPORTED_PAIRS}" ]] &&
+    printf '%s\n' "${RELEASE_UNSUPPORTED_PAIRS}" | grep -F "${backend}${tab}${package_kind}${tab}" >/dev/null; then
+    return 1
+  fi
+  release_report_cmd check-release-target \
+    --platform debian_amd64 \
+    --backend "${backend}" \
+    --package "${package_kind}" >/dev/null
+}
+
+release_target_reason() {
+  local backend="$1"
+  local package_kind="$2"
+  local reason
+  reason="$(
+    printf '%s\n' "${RELEASE_UNSUPPORTED_PAIRS}" |
+      awk -F '\t' -v b="${backend}" -v p="${package_kind}" '$1 == b && $2 == p { print $3; found=1; exit } END { if (!found) print "" }'
+  )"
+  if [[ -n "${reason}" ]]; then
+    printf '%s\n' "${reason}"
+    return 0
+  fi
+  release_report_cmd release-target-reason \
+    --platform debian_amd64 \
+    --backend "${backend}" \
+    --package "${package_kind}"
+}
+
+csv_contains() {
+  local csv="$1"
+  local needle="$2"
+  local item
+  for item in $(split_csv "${csv}"); do
+    [[ "${item}" == "${needle}" ]] && return 0
+  done
+  return 1
+}
+
 normalize_backends() {
   local csv="$1"
   local backend
+  local valid_csv
+  valid_csv="$(release_targets_csv backends)"
   if [[ -z "${csv}" ]]; then
     die "backend vazio"
   fi
   if [[ "${csv}" == "all" ]]; then
-    printf '%s\n' "pyinstaller,nuitka,pyoxidizer"
+    printf '%s\n' "${valid_csv}"
     return 0
   fi
   local items=()
@@ -85,10 +156,7 @@ normalize_backends() {
     items+=("${backend}")
   done
   for backend in "${items[@]}"; do
-    case "${backend}" in
-      pyinstaller | nuitka | pyoxidizer) ;;
-      *) die "--backend invalido: ${backend}" ;;
-    esac
+    csv_contains "${valid_csv}" "${backend}" || die "--backend invalido: ${backend}"
   done
   join_csv "${items[@]}"
 }
@@ -96,8 +164,10 @@ normalize_backends() {
 normalize_packages() {
   local csv="$1"
   local package_kind
+  local valid_csv
+  valid_csv="$(release_targets_csv packages)"
   if [[ -z "${csv}" || "${csv}" == "all" ]]; then
-    printf '%s\n' "deb,appimage,tar"
+    printf '%s\n' "${valid_csv}"
     return 0
   fi
   local items=()
@@ -105,43 +175,51 @@ normalize_packages() {
     items+=("${package_kind}")
   done
   for package_kind in "${items[@]}"; do
-    case "${package_kind}" in
-      deb | appimage | tar) ;;
-      *) die "--package invalido: ${package_kind}" ;;
-    esac
+    csv_contains "${valid_csv}" "${package_kind}" || die "--package invalido: ${package_kind}"
   done
   join_csv "${items[@]}"
 }
 
 select_backend_interactively() {
   local answer
+  local valid_csv
+  local choices=()
+  local backend
+  local index=1
+  valid_csv="$(release_targets_csv backends)"
+  printf '%s\n' "Backends disponiveis:"
+  for backend in $(split_csv "${valid_csv}"); do
+    choices+=("${backend}")
+    printf '  %s) %s\n' "${index}" "${backend}"
+    index=$((index + 1))
+  done
+  printf '  %s) all\n' "${index}"
   cat <<'CHOICES'
-Backends disponiveis:
-  1) pyinstaller
-  2) nuitka
-  3) pyoxidizer
-  4) all
-
 Nota resumida:
-  pyinstaller: seguranca media, codigo Python mais exposto, boa compatibilidade.
-  nuitka: seguranca maior, codigo menos exposto, build mais pesado.
-  pyoxidizer: seguranca media/alta, runtime mais fechado, maior risco operacional.
+  Consulte os scorecards detalhados no dry-run antes do build.
 CHOICES
   read -r -p "Escolha backend(s) [all]: " answer
-  case "${answer:-all}" in
-    1 | pyinstaller) printf '%s\n' "pyinstaller" ;;
-    2 | nuitka) printf '%s\n' "nuitka" ;;
-    3 | pyoxidizer) printf '%s\n' "pyoxidizer" ;;
-    4 | all) printf '%s\n' "pyinstaller,nuitka,pyoxidizer" ;;
-    *) printf '%s\n' "${answer}" ;;
+  if [[ -z "${answer}" || "${answer}" == "all" || "${answer}" == "${index}" ]]; then
+    printf '%s\n' "${valid_csv}"
+    return 0
+  fi
+  case "${answer}" in
+    ''|*[!0-9]*)
+      printf '%s\n' "${answer}"
+      ;;
+    *)
+      if (( answer >= 1 && answer < index )); then
+        printf '%s\n' "${choices[$((answer - 1))]}"
+      else
+        die "opcao de backend invalida: ${answer}"
+      fi
+      ;;
   esac
 }
 
 get_backend_scorecard() {
   local backend="$1"
-  uv run --python 3.13 python "$(repo_root)/dev_env/build/release_platform_report.py" \
-    scorecard \
-    --backend "${backend}"
+  release_report_cmd scorecard --backend "${backend}"
 }
 
 assert_tool() {
@@ -194,10 +272,19 @@ assert_debian_amd64() {
 
 assert_clean_release_workspace() {
   local root="$1"
-  local dirty
-  dirty="$(git -C "${root}" status --porcelain)"
-  if [[ -n "${dirty}" ]]; then
-    printf '%s\n' "${dirty}" >&2
+  local staged unstaged untracked
+  staged="$(git -C "${root}" diff --cached --name-only)"
+  if [[ -n "${staged}" ]]; then
+    printf '%s\n' "${staged}" >&2
+    die "workspace sujo. Release deterministico exige git limpo."
+  fi
+  unstaged="$(git -C "${root}" diff --ignore-cr-at-eol --name-only)"
+  untracked="$(git -C "${root}" ls-files --others --exclude-standard)"
+  if [[ -n "${unstaged}${untracked}" ]]; then
+    {
+      printf '%s\n' "${unstaged}"
+      printf '%s\n' "${untracked}"
+    } | sed '/^$/d' >&2
     die "workspace sujo. Release deterministico exige git limpo."
   fi
 }
@@ -323,6 +410,9 @@ run_package_backend() {
   local root="$1"
   local backend="$2"
   local package_kind="$3"
+  if ! is_supported_package_pair "${backend}" "${package_kind}"; then
+    die "$(release_target_reason "${backend}" "${package_kind}")"
+  fi
   case "${package_kind}:${backend}" in
     deb:*)
       bash "${root}/dev_env/build/package_debian_amd64_deb.sh" --build-system "${backend}"
@@ -331,7 +421,7 @@ run_package_backend() {
       bash "${root}/dev_env/build/package_debian_amd64_appimage.sh" --build-system "${backend}"
       ;;
     appimage:pyoxidizer)
-      die "AppImage pyoxidizer nao suportado pelos scripts atuais. Use --package deb para pyoxidizer."
+      die "$(release_target_reason "${backend}" "${package_kind}")"
       ;;
     tar:*)
       write_tar_packages "${root}" "${backend}"
@@ -390,10 +480,7 @@ write_tar_packages() {
 is_supported_package_pair() {
   local backend="$1"
   local package_kind="$2"
-  case "${package_kind}:${backend}" in
-    appimage:pyoxidizer) return 1 ;;
-    *) return 0 ;;
-  esac
+  release_target_supported "${backend}" "${package_kind}"
 }
 
 validate_package_payload() {
@@ -417,7 +504,7 @@ validate_package_payload() {
       [[ -x "${package_file}" ]] || die "AppImage ausente ou sem execucao: ${package_file}"
       ;;
     appimage:pyoxidizer)
-      die "AppImage pyoxidizer nao suportado pelos scripts atuais. Use --package deb para pyoxidizer."
+      die "$(release_target_reason "${backend}" "${package_kind}")"
       ;;
     tar:pyinstaller)
       validate_tar_payload "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyinstaller_cli.tar.gz"
@@ -514,7 +601,7 @@ parse_args() {
 resolve_release_options() {
   if [[ -z "${BACKENDS_CSV}" ]]; then
     if [[ "${ASSUME_YES}" == "1" ]]; then
-      BACKENDS_CSV="pyinstaller,nuitka,pyoxidizer"
+      BACKENDS_CSV="$(release_targets_csv backends)"
     elif [[ ! -t 0 ]]; then
       die "--backend e obrigatorio em ambiente nao interativo. Use --backend LIST ou -y."
     else
@@ -580,7 +667,7 @@ log_package_matrix() {
       if is_supported_package_pair "${backend}" "${package_kind}"; then
         log "pacote planejado ${package_kind} ${backend}"
       else
-        log "pacote ignorado ${package_kind} ${backend}: nao suportado"
+        log "pacote ignorado ${package_kind} ${backend}: $(release_target_reason "${backend}" "${package_kind}")"
       fi
     done
   done
@@ -609,7 +696,7 @@ run_package_phase() {
     for backend in "${BACKENDS[@]}"; do
       for package_kind in "${PACKAGES[@]}"; do
         if ! is_supported_package_pair "${backend}" "${package_kind}"; then
-          log "pacote ignorado ${package_kind} ${backend}: nao suportado"
+          log "pacote ignorado ${package_kind} ${backend}: $(release_target_reason "${backend}" "${package_kind}")"
           continue
         fi
         log "pacote ${package_kind} ${backend}"
@@ -644,6 +731,7 @@ run_local_release() {
 
 main() {
   parse_args "$@"
+  load_release_target_cache
   resolve_release_options
 
   if [[ -n "${SSH_HOST}" ]]; then
