@@ -146,7 +146,7 @@ def print_scorecard(args: argparse.Namespace) -> int:
 
 def validate_source_protection_command(args: argparse.Namespace) -> int:
     try:
-        validate_source_protection(args.artifact)
+        validate_source_protection(args.artifact, repo_root=args.repo_root)
     except (SourceExposureError, UnsupportedArtifactError) as exc:
         raise ReleaseReportError(str(exc)) from exc
     return 0
@@ -218,6 +218,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     source_protection = subparsers.add_parser("source-protection")
     source_protection.add_argument("--artifact", type=pathlib.Path, required=True)
+    source_protection.add_argument("--repo-root", type=pathlib.Path, default=None)
     source_protection.set_defaults(func=validate_source_protection_command)
 
     report = subparsers.add_parser("write-report")

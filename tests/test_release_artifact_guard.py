@@ -11,6 +11,8 @@ import pytest
 
 from dev_env.build.source_protection import (
     SourceExposureError,
+    _source_candidates,
+    _tracked_python_sources,
     validate_source_protection,
 )
 
@@ -104,3 +106,16 @@ def test_source_protection_allows_third_party_package_paths(tmp_path: Path) -> N
         archive.writestr("bundle/_internal/pkg_resources/_vendor/jaraco/context.py", "")
 
     validate_source_protection(package)
+
+
+def test_source_protection_uses_tracked_python_inventory() -> None:
+    tracked = _tracked_python_sources(str(Path.cwd().resolve()))
+
+    assert "core/app_logic.py" in tracked
+    assert "dev_env/build/source_protection.py" in tracked
+
+
+def test_source_protection_maps_pyc_to_tracked_source() -> None:
+    candidates = _source_candidates("bundle/gui/__pycache__/gui_ssa.cpython-313.pyc")
+
+    assert "gui/gui_ssa.py" in candidates
