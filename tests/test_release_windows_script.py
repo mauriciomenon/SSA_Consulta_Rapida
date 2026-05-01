@@ -50,6 +50,10 @@ def test_release_windows_script_has_deterministic_preflight_and_report() -> None
     assert "Dry-run Windows concluido sem build/pacote." in script
     assert script.index("if ($DryRun)") < script.index("if (-not $Yes)")
     assert "Invoke-CheckedProcess $repoRoot $config.build_script" in script
+    assert script.index("if ($DryRun)") < script.index("foreach ($backendName in $selectedBackends)")
+    assert script.index("if ($DryRun)") < script.index("Invoke-CheckedProcess $repoRoot $config.build_script")
+    release_loop = script.split("foreach ($backendName in $selectedBackends)", 1)[1]
+    assert "Invoke-DistributionPackage" in release_loop
 
 
 def test_release_windows_script_calls_only_windows_build_wrappers() -> None:

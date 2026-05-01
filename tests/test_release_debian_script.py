@@ -71,6 +71,9 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
     assert "SSA_GUI_v${app_version}_debian_amd64" in script
     assert "cli_entry.dist" in script
     assert "gui_entry.dist" in script
+    assert 'if [[ "${DRY_RUN}" == "1" ]]; then' in script
+    assert script.index('log "dry-run concluido sem build/pacote"') < script.index("run_package_phase()")
+    assert script.index('if [[ "${DRY_RUN}" == "1" ]]; then') < script.index("run_package_phase")
     report_script = REPORT_SCRIPT.read_text(encoding="utf-8")
     assert "hashlib.sha256" in report_script
 

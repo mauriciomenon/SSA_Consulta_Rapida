@@ -1,18 +1,51 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-## CURRENT TRUTH (4.37 local / v4.36 published)
+## CURRENT TRUTH (4.37 local automation)
 
-- Sync deste guia: `2026-03-28 11:35 -0300`.
+- Sync deste guia: `2026-05-01 13:20 -0300`.
 - Versao de referencia local: `4.37` (arquivo `VERSION`).
-- Ultima tag publicada em `dev`: `v4.36`.
-- Este guia esta alinhado ao baseline local `4.37`; a ultima tag publicada ainda e `v4.36`.
-- Fluxo canonico de build: `launchers/build_multiplatform.py`.
-- Saida canonica de artefatos: `launchers/dist/<plataforma>/`.
-- Empacotamento: `scripts/create_distribution.py`.
-- Ferramentas historicas e caminhos legados (`build_*.bat`, `builds/*`) nao sao caminho principal neste baseline.
+- Fluxo automatico local Windows + Debian AMD64: `dev_env/build/release_local.ps1`.
+- Fluxo automatico Windows AMD64: `dev_env/build/release_windows.ps1`.
+- Fluxo automatico Debian AMD64: `dev_env/build/release_debian.sh`.
+- Saida de release Windows AMD64: `builds/packages/windows_amd64/` e `dist_packages/`.
+- Saida de release Debian AMD64: `builds/packages/debian_amd64/`.
 - Backends reconhecidos pelo parser do empacotador: `pyinstaller`, `nuitka`, `pyoxidizer`.
-- Backend de release operacional neste baseline: `pyinstaller`.
+- Backends de release operacional neste baseline: `pyinstaller`, `nuitka`, `pyoxidizer`.
 - `pytoexe`/`py2exe`: nao suportados neste repositorio (fora das choices dos scripts atuais).
+
+## Release Automatico Local
+
+Use PowerShell no Windows para orquestrar Windows AMD64 e Debian AMD64 via WSL sem
+misturar sintaxe no terminal:
+
+```powershell
+.\dev_env\build\release_local.ps1 -Backend all -DebianPackage all -Yes
+```
+
+Dry-run sem build/pacote:
+
+```powershell
+.\dev_env\build\release_local.ps1 -Backend all -DebianPackage all -Yes -DryRun
+```
+
+Somente Windows:
+
+```powershell
+.\dev_env\build\release_windows.ps1 -Backend all -Yes
+```
+
+Somente Debian AMD64 via WSL:
+
+```powershell
+wsl -d Debian -- bash -lc 'cd /mnt/c/Users/mauri/git/SSA_Consulta_Rapida && bash dev_env/build/release_debian.sh --backend all --package all -y'
+```
+
+Contrato do fluxo:
+- `-Yes`/`-y` e obrigatorio para execucao automatica sem prompt.
+- `-DryRun`/`--dry-run` deve validar ambiente e plano sem build nem pacote.
+- `release_windows.ps1` nao chama Bash/WSL.
+- `release_debian.sh` nao chama PowerShell, `.bat` ou Inno Setup.
+- `release_local.ps1` apenas orquestra os dois scripts e nao contem logica de build.
 
 ## Validacao Operacional 2026-03-10 (host macOS arm64)
 
