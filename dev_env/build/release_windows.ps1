@@ -436,11 +436,11 @@ function Invoke-DistributionPackage {
         [Parameter(Mandatory = $true)] [bool] $SkipInstallerFlag
     )
 
-    $args = @("run", "--python", "3.13", $DistributionScript, "--build-system", $BackendName)
+    $distributionArgs = @("run", "--python", "3.13", $DistributionScript, "--build-system", $BackendName)
     if ($SkipInstallerFlag) {
-        $args += "--skip-installer"
+        $distributionArgs += "--skip-installer"
     }
-    Invoke-CheckedProcess $RepoRoot "uv" $args
+    Invoke-CheckedProcess $RepoRoot "uv" $distributionArgs
 }
 
 function Write-ReleaseReport {
