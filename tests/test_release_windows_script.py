@@ -23,6 +23,7 @@ def test_release_windows_script_is_powershell_only_and_interactive() -> None:
     assert "Read-Host" in script
     assert "Assert-WindowsHost" in script
     assert "Assert-PowerShellHost" in script
+    assert "[switch] $DryRun" in script
     assert "bash " not in script
     assert "wsl " not in script
     assert ".sh" not in script
@@ -46,6 +47,9 @@ def test_release_windows_script_has_deterministic_preflight_and_report() -> None
     assert "release_report_windows_amd64.json" in script
     assert "$PSVersionTable" in script
     assert "[System.Diagnostics.FileVersionInfo]" in script
+    assert "Dry-run Windows concluido sem build/pacote." in script
+    assert script.index("if ($DryRun)") < script.index("if (-not $Yes)")
+    assert "Invoke-CheckedProcess $repoRoot $config.build_script" in script
 
 
 def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
