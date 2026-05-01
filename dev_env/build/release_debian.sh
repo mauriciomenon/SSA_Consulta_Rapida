@@ -713,7 +713,6 @@ run_package_phase() {
 }
 
 run_local_release() {
-  REPO_ROOT="$(repo_root)"
   REPORT_FILE="${REPO_ROOT}/builds/reports/release_report_debian_amd64.json"
 
   assert_local_environment
@@ -739,6 +738,7 @@ run_local_release() {
 
 main() {
   parse_args "$@"
+  REPO_ROOT="$(repo_root)"
   assert_tool uv
   load_release_target_cache
   resolve_release_options
