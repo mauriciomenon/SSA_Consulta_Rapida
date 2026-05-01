@@ -99,16 +99,15 @@ load_release_target_cache() {
 release_target_supported() {
   local backend="$1"
   local package_kind="$2"
+  csv_contains "${RELEASE_BACKENDS_CSV}" "${backend}" || return 1
+  csv_contains "${RELEASE_PACKAGES_CSV}" "${package_kind}" || return 1
   if [[ -n "${RELEASE_UNSUPPORTED_PAIRS}" ]] &&
     printf '%s\n' "${RELEASE_UNSUPPORTED_PAIRS}" |
       awk -F '\t' -v backend="${backend}" -v package_kind="${package_kind}" \
         '$1 == backend && $2 == package_kind { found = 1 } END { exit found ? 0 : 1 }'; then
     return 1
   fi
-  release_report_cmd check-release-target \
-    --platform debian_amd64 \
-    --backend "${backend}" \
-    --package "${package_kind}" >/dev/null
+  return 0
 }
 
 release_target_reason() {
@@ -123,10 +122,7 @@ release_target_reason() {
     printf '%s\n' "${reason}"
     return 0
   fi
-  release_report_cmd release-target-reason \
-    --platform debian_amd64 \
-    --backend "${backend}" \
-    --package "${package_kind}"
+  printf 'par nao suportado por release_targets.json: %s/%s\n' "${backend}" "${package_kind}"
 }
 
 csv_contains() {
@@ -273,12 +269,12 @@ assert_debian_amd64() {
 assert_clean_release_workspace() {
   local root="$1"
   local staged unstaged untracked
-  local cmd_exe win_root dirty git_status_command
-  cmd_exe="/mnt/c/Windows/System32/cmd.exe"
-  if [[ "${root}" == /mnt/[A-Za-z]/* ]] && [[ -x "${cmd_exe}" ]] && command -v wslpath >/dev/null 2>&1; then
+  local ps_exe win_root ps_win_root dirty
+  ps_exe="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+  if [[ "${root}" == /mnt/[A-Za-z]/* ]] && [[ -x "${ps_exe}" ]] && command -v wslpath >/dev/null 2>&1; then
     win_root="$(wslpath -w "${root}")"
-    git_status_command="git -C \"${win_root}\" status --porcelain=v1"
-    dirty="$("${cmd_exe}" /d /c "${git_status_command}" | tr -d '\r')"
+    ps_win_root="$(printf '%s' "${win_root}" | sed "s/'/''/g")"
+    dirty="$("${ps_exe}" -NoProfile -NonInteractive -Command "& git -C '${ps_win_root}' status --porcelain=v1" | tr -d '\r')"
     if [[ -n "${dirty}" ]]; then
       printf '%s\n' "${dirty}" >&2
       die "workspace sujo. Release deterministico exige git limpo."
@@ -422,9 +418,6 @@ run_package_backend() {
   local root="$1"
   local backend="$2"
   local package_kind="$3"
-  if ! is_supported_package_pair "${backend}" "${package_kind}"; then
-    die "$(release_target_reason "${backend}" "${package_kind}")"
-  fi
   case "${package_kind}:${backend}" in
     deb:*)
       bash "${root}/dev_env/build/package_debian_amd64_deb.sh" --build-system "${backend}"
@@ -718,6 +711,9 @@ run_local_release() {
   REPORT_FILE="${REPO_ROOT}/builds/reports/release_report_debian_amd64.json"
 
   assert_local_environment
+  if [[ -z "${RELEASE_BACKENDS_CSV}" || -z "${RELEASE_PACKAGES_CSV}" ]]; then
+    load_release_target_cache
+  fi
   load_release_metadata
   prepare_release_arrays
   log_backend_scorecards
@@ -737,6 +733,8 @@ run_local_release() {
 
 main() {
   parse_args "$@"
+  REPO_ROOT="$(repo_root)"
+  assert_tool uv
   load_release_target_cache
   resolve_release_options
 

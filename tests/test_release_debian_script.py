@@ -25,13 +25,17 @@ def _script_text() -> str:
 
 def test_release_debian_script_is_bash_only_and_interactive() -> None:
     script = _script_text()
+    allowed_wsl_powershell = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 
     assert script.startswith("#!/usr/bin/env bash")
     assert "set -euo pipefail" in script
     assert "select_backend_interactively" in script
     assert "read -r -p" in script
     assert "--backend e obrigatorio em ambiente nao interativo" in script
-    assert "powershell" not in script.lower()
+    assert allowed_wsl_powershell in script
+    script_without_allowed = script.replace(allowed_wsl_powershell, "")
+    script_without_allowed = script_without_allowed.replace("Windows PowerShell", "")
+    assert "powershell" not in script_without_allowed.lower()
     assert "pwsh" not in script.lower()
     assert ".bat" not in script.lower()
     assert "Compress-Archive" not in script
@@ -69,7 +73,11 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
     assert "diff --cached --name-only" in script
     assert "diff --ignore-cr-at-eol --name-only" in script
     assert "ls-files --others --exclude-standard" in script
-    assert "/mnt/c/Windows/System32/cmd.exe" in script
+    assert "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" in script
+    assert "-NoProfile -NonInteractive" in script
+    assert "ps_win_root" in script
+    assert "sed \"s/'/''/g\"" in script
+    assert "\"& git -C '${ps_win_root}' status --porcelain=v1\"" in script
     assert "status --porcelain=v1" in script
     assert "tr -d '\\r'" in script
     assert "wslpath -w" in script
@@ -102,7 +110,7 @@ def test_release_debian_script_normalizes_csv_tokens() -> None:
     assert "release_targets_csv packages" in script
     assert "load_release_target_cache" in script
     assert "release-unsupported-pairs" in script
-    assert "check-release-target" in script
+    assert "check-release-target" not in script
     assert "awk -F '\\t'" in script
     assert "grep -F \"${backend}${tab}${package_kind}${tab}\"" not in script
     assert "[![:space:]]" in script
@@ -132,6 +140,11 @@ def test_release_debian_script_calls_only_debian_wrappers() -> None:
     assert "is_supported_package_pair" in script
     assert "appimage:pyoxidizer)" not in script
     assert 'pacote ignorado ${package_kind} ${backend}: $(release_target_reason' in script
+    package_backend_body = script.split("run_package_backend()", 1)[1].split(
+        "\nis_supported_package_pair()",
+        1,
+    )[0]
+    assert "is_supported_package_pair" not in package_backend_body
     assert script.index("log_package_matrix") < script.index("run_build_phase")
     assert "package_debian_arm64" not in script
     assert "release_windows.ps1" not in script
