@@ -59,7 +59,7 @@ DEFAULT_TARGETS: dict[str, Any] = {
             "platform": "debian_amd64",
             "backend": "pyoxidizer",
             "package": "appimage",
-            "reason": "AppImage pyoxidizer nao suportado pelos scripts atuais. Use --package deb para pyoxidizer.",
+            "reason": "AppImage pyoxidizer nao suportado pelos scripts atuais.",
         }
     ],
 }
