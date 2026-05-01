@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from utils.file_metadata import best_datetime_for_file
+from utils.path_safety import ensure_path_is_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,14 @@ def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
 
 def _cache_lock_path(cache_file: str) -> str:
     """Return sidecar lock path used to serialize cache writes across processes."""
-    return f"{cache_file}.lock"
+    lock_path = f"{cache_file}.lock"
+    return str(
+        ensure_path_is_allowed(
+            lock_path,
+            purpose="cache_lock",
+            expect_directory=False,
+        )
+    )
 
 
 def _read_lock_pid(lock_path: str) -> Optional[int]:
