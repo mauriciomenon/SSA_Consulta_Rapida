@@ -453,6 +453,8 @@ function Assert-SourceProtection {
             "3.13",
             "dev_env\build\release_platform_report.py",
             "source-protection",
+            "--repo-root",
+            $RepoRoot,
             "--artifact",
             $path
         )

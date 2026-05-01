@@ -74,6 +74,7 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in script
     assert "validate_source_protection" in script
     assert "source-protection" in REPORT_SCRIPT.read_text(encoding="utf-8")
+    assert '--repo-root "${root}"' in script
     assert "bundle_roots" in script
     assert "SSA_CLI_v${app_version}_debian_amd64" in script
     assert "SSA_GUI_v${app_version}_debian_amd64" in script

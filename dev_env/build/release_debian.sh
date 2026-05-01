@@ -300,6 +300,7 @@ validate_source_protection() {
   local artifact="$2"
   uv run --python 3.13 python "${root}/dev_env/build/release_platform_report.py" \
     source-protection \
+    --repo-root "${root}" \
     --artifact "${artifact}"
 }
 

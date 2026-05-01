@@ -73,6 +73,7 @@ def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
     assert "Assert-SourceProtection" in script
     assert "dev_env\\build\\release_platform_report.py" in script
     assert "source-protection" in script
+    assert '"--repo-root",' in script
 
 
 def test_release_windows_script_exposes_backend_scorecard() -> None:
