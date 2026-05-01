@@ -1,5 +1,25 @@
 # Recovery Backlog
 
+## CURRENT TRUTH 2026-05-01 20h56
+
+- Branch alvo: `dev`.
+- HEAD validado: `55e2c4e2685099d672e05897f4631ca1af6b0175 2026-05-01 20:55:47 -0300 STABILITY_PATCH: deduplicate Debian target normalization`.
+- PR #56: merged.
+- `dev` contem correcoes de release v4.37 que ainda precisam chegar ao `main` antes do rebuild final.
+- Artefatos v4.37 anteriores a este HEAD estao stale e nao devem ser usados para publicacao final.
+- Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
+- Orquestradores ativos:
+  - Windows AMD64: `dev_env/build/release_windows.ps1`.
+  - Debian AMD64: `dev_env/build/release_debian.sh`.
+- Dry-run validado neste HEAD:
+  - Windows: `release_windows.ps1 -Backend all -DryRun -Yes -SkipBuild -SkipPackage -SkipInstaller`.
+  - Debian WSL: `release_debian.sh --backend all --package all --dry-run -y`.
+- Protecao de codigo:
+  - Nuitka e o backend preferencial para release protegido.
+  - PyInstaller tem protecao parcial.
+  - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
+- Proximo passo operacional: sincronizar `main`, rebuildar Windows AMD64 e Debian AMD64 a partir deste HEAD, validar artefatos e so entao atualizar release v4.37.
+
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
