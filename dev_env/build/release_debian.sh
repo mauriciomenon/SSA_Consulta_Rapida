@@ -138,45 +138,41 @@ csv_contains() {
   return 1
 }
 
-normalize_backends() {
+normalize_release_targets() {
   local csv="$1"
-  local backend
+  local kind="$2"
+  local empty_error="$3"
+  local invalid_error="$4"
+  local target
   local valid_csv
-  valid_csv="$(release_targets_csv backends)"
+  valid_csv="$(release_targets_csv "${kind}")"
   if [[ -z "${csv}" ]]; then
-    die "backend vazio"
+    [[ -z "${empty_error}" ]] || die "${empty_error}"
+    printf '%s\n' "${valid_csv}"
+    return 0
   fi
   if [[ "${csv}" == "all" ]]; then
     printf '%s\n' "${valid_csv}"
     return 0
   fi
   local items=()
-  for backend in $(split_csv "${csv}"); do
-    items+=("${backend}")
+  for target in $(split_csv "${csv}"); do
+    items+=("${target}")
   done
-  for backend in "${items[@]}"; do
-    csv_contains "${valid_csv}" "${backend}" || die "--backend invalido: ${backend}"
+  for target in "${items[@]}"; do
+    csv_contains "${valid_csv}" "${target}" || die "${invalid_error}: ${target}"
   done
   join_csv "${items[@]}"
 }
 
+normalize_backends() {
+  local csv="$1"
+  normalize_release_targets "${csv}" "backends" "backend vazio" "--backend invalido"
+}
+
 normalize_packages() {
   local csv="$1"
-  local package_kind
-  local valid_csv
-  valid_csv="$(release_targets_csv packages)"
-  if [[ -z "${csv}" || "${csv}" == "all" ]]; then
-    printf '%s\n' "${valid_csv}"
-    return 0
-  fi
-  local items=()
-  for package_kind in $(split_csv "${csv}"); do
-    items+=("${package_kind}")
-  done
-  for package_kind in "${items[@]}"; do
-    csv_contains "${valid_csv}" "${package_kind}" || die "--package invalido: ${package_kind}"
-  done
-  join_csv "${items[@]}"
+  normalize_release_targets "${csv}" "packages" "" "--package invalido"
 }
 
 select_backend_interactively() {

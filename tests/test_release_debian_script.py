@@ -106,8 +106,7 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
 def test_release_debian_script_normalizes_csv_tokens() -> None:
     script = _script_text()
 
-    assert "release_targets_csv backends" in script
-    assert "release_targets_csv packages" in script
+    assert 'release_targets_csv "${kind}"' in script
     assert "load_release_target_cache" in script
     assert "release-unsupported-pairs" in script
     assert "check-release-target" not in script
@@ -115,11 +114,14 @@ def test_release_debian_script_normalizes_csv_tokens() -> None:
     assert "grep -F \"${backend}${tab}${package_kind}${tab}\"" not in script
     assert "[![:space:]]" in script
     assert "join_csv" in script
+    assert "normalize_release_targets()" in script
     assert 'while [[ "${csv}" == *, ]]' in script
     assert "local -n" not in script
     assert "<(split_csv" not in script
-    assert 'for backend in $(split_csv "${csv}")' in script
-    assert 'for package_kind in $(split_csv "${csv}")' in script
+    assert 'for backend in $(split_csv "${csv}")' not in script
+    assert 'for package_kind in $(split_csv "${csv}")' not in script
+    assert 'normalize_release_targets "${csv}" "backends" "backend vazio" "--backend invalido"' in script
+    assert 'normalize_release_targets "${csv}" "packages" "" "--package invalido"' in script
     assert 'BACKENDS_CSV="$(normalize_backends "${BACKENDS_CSV}")"' in script
     assert 'PACKAGES_CSV="$(normalize_packages "${PACKAGES_CSV}")"' in script
     assert 'printf \'%s\\n\' "pyinstaller,nuitka,pyoxidizer"' not in script
