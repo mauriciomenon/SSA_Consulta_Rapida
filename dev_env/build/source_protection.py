@@ -7,7 +7,7 @@ import subprocess
 import tarfile
 import zipfile
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from utils.robust_logging import get_robust_logger
 
@@ -47,19 +47,35 @@ def _repo_python_files_from_git(repo_root: Path) -> set[str]:
             capture_output=True,
             encoding="utf-8",
             text=True,
+            timeout=120,
         )
     except FileNotFoundError as exc:
         raise SourceExposureError("git nao encontrado no PATH") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise SourceExposureError("git ls-files excedeu timeout de 120s") from exc
     if result.returncode != 0:
         raise SourceExposureError(
             f"falha ao listar fontes Python rastreados em {repo_root}: "
             f"{result.stderr.strip() or result.stdout.strip()}"
         )
-    return {
-        normalized.lower()
+    sources = [
+        normalized
         for line in result.stdout.splitlines()
         if (normalized := _normalize_entry(line)).lower().endswith(".py")
-    }
+    ]
+    case_map: dict[str, str] = {}
+    collisions = []
+    for source in sources:
+        key = source.lower()
+        previous = case_map.setdefault(key, source)
+        if previous != source:
+            collisions.append(f"{previous} / {source}")
+    if collisions:
+        sample = ", ".join(sorted(collisions)[:5])
+        raise SourceExposureError(
+            f"inventario Python tem caminhos ambiguos por caixa: {sample}"
+        )
+    return set(case_map)
 
 
 @functools.lru_cache(maxsize=8)
@@ -123,13 +139,16 @@ def _has_app_source_context(
     return "bundle" in prefix
 
 
-def _is_forbidden_source_entry(name: str, tracked_sources: frozenset[str]) -> bool:
+def _is_forbidden_source_entry(
+    name: str,
+    tracked_source_parts: Mapping[str, tuple[str, ...]],
+) -> bool:
     source_name = _artifact_source_name(name)
     if source_name is None:
         return False
     entry_parts = tuple(part for part in source_name.split("/") if part)
-    for candidate in _source_candidates_from_name(source_name) & tracked_sources:
-        candidate_parts = tuple(part for part in candidate.split("/") if part)
+    for candidate in _source_candidates_from_name(source_name):
+        candidate_parts = tracked_source_parts.get(candidate)
         if not candidate_parts:
             continue
         for index in range(len(entry_parts) - len(candidate_parts) + 1):
@@ -178,9 +197,13 @@ def _iter_artifact_entries(path: Path) -> Iterable[str]:
 def validate_source_protection(path: Path, repo_root: Path | None = None) -> None:
     effective_repo_root = (repo_root or _default_repo_root()).resolve()
     tracked_sources = _tracked_python_sources(effective_repo_root.as_posix())
+    tracked_source_parts = {
+        source: tuple(part for part in source.split("/") if part)
+        for source in tracked_sources
+    }
     exposed = []
     for entry in _iter_artifact_entries(path):
-        if _is_forbidden_source_entry(entry, tracked_sources):
+        if _is_forbidden_source_entry(entry, tracked_source_parts):
             exposed.append(entry)
             if len(exposed) >= 10:
                 break
@@ -197,13 +220,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo-root", type=Path, default=None)
     args = parser.parse_args(argv)
 
-    try:
-        for artifact in args.artifacts:
+    failed = False
+    for artifact in args.artifacts:
+        try:
             validate_source_protection(artifact, repo_root=args.repo_root)
-    except (SourceExposureError, UnsupportedArtifactError) as exc:
-        logger.error("Erro: %s", exc)
-        return 1
-    return 0
+        except (SourceExposureError, UnsupportedArtifactError) as exc:
+            logger.error("Erro: %s", exc)
+            failed = True
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
