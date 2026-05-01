@@ -19,7 +19,7 @@ Orquestra build e pacote Debian amd64 de forma deterministica.
 
 Opcoes:
   --backend LIST      pyinstaller,nuitka,pyoxidizer ou all
-  --package LIST      deb,appimage ou all (default: deb)
+  --package LIST      deb,appimage,tar ou all (default: deb)
   --ssh-host HOST     executa remotamente via ssh (ex: user@host)
   --ssh-repo DIR      caminho absoluto do repositorio no host remoto
   --with-local-data   copia dados locais para os artefatos
@@ -97,14 +97,14 @@ normalize_packages() {
   local csv="$1"
   local package_kind
   if [[ -z "${csv}" || "${csv}" == "all" ]]; then
-    printf '%s\n' "deb,appimage"
+    printf '%s\n' "deb,appimage,tar"
     return 0
   fi
   local items=()
   split_csv "${csv}" items
   for package_kind in "${items[@]}"; do
     case "${package_kind}" in
-      deb | appimage) ;;
+      deb | appimage | tar) ;;
       *) die "--package invalido: ${package_kind}" ;;
     esac
   done
@@ -311,9 +311,57 @@ run_package_backend() {
     appimage:pyoxidizer)
       die "AppImage pyoxidizer nao suportado pelos scripts atuais. Use --package deb para pyoxidizer."
       ;;
+    tar:*)
+      write_tar_packages "${root}" "${backend}"
+      ;;
     *)
       die "pacote invalido: ${package_kind}:${backend}"
       ;;
+  esac
+}
+
+write_tar_archive() {
+  local source_parent="$1"
+  local source_name="$2"
+  local output_file="$3"
+  [[ -d "${source_parent}/${source_name}" ]] || die "diretorio para tar ausente: ${source_parent}/${source_name}"
+  mkdir -p -- "$(dirname -- "${output_file}")"
+  tar -C "${source_parent}" -czf "${output_file}" "${source_name}"
+}
+
+write_tar_packages() {
+  local root="$1"
+  local backend="$2"
+  local package_dir="${root}/builds/packages/debian_amd64"
+  local app_version="${APP_VERSION:?APP_VERSION ausente}"
+  case "${backend}" in
+    pyinstaller)
+      write_tar_archive \
+        "${root}/launchers/dist/debian_amd64" \
+        "SSA_CLI_v${app_version}_debian_amd64" \
+        "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyinstaller_cli.tar.gz"
+      write_tar_archive \
+        "${root}/launchers/dist/debian_amd64" \
+        "SSA_GUI_v${app_version}_debian_amd64" \
+        "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyinstaller_gui.tar.gz"
+      ;;
+    nuitka)
+      write_tar_archive \
+        "${root}/builds/nuitka/debian_amd64" \
+        "cli_entry.dist" \
+        "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_nuitka_cli.tar.gz"
+      write_tar_archive \
+        "${root}/builds/nuitka/debian_amd64" \
+        "gui_entry.dist" \
+        "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_nuitka_gui.tar.gz"
+      ;;
+    pyoxidizer)
+      write_tar_archive \
+        "${root}/builds/pyoxidizer" \
+        "debian_amd64" \
+        "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyoxidizer.tar.gz"
+      ;;
+    *) die "backend invalido para tar: ${backend}" ;;
   esac
 }
 
@@ -349,7 +397,27 @@ validate_package_payload() {
     appimage:pyoxidizer)
       die "AppImage pyoxidizer nao suportado pelos scripts atuais. Use --package deb para pyoxidizer."
       ;;
+    tar:pyinstaller)
+      validate_tar_payload "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyinstaller_cli.tar.gz"
+      validate_tar_payload "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyinstaller_gui.tar.gz"
+      ;;
+    tar:nuitka)
+      validate_tar_payload "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_nuitka_cli.tar.gz"
+      validate_tar_payload "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_nuitka_gui.tar.gz"
+      ;;
+    tar:pyoxidizer)
+      validate_tar_payload "${package_dir}/SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyoxidizer.tar.gz"
+      ;;
   esac
+}
+
+validate_tar_payload() {
+  local package_file="$1"
+  local package_contents
+  [[ -f "${package_file}" ]] || die "pacote tar ausente: ${package_file}"
+  package_contents="$(tar -tzf "${package_file}")"
+  grep -F "GUIA_MIGRACAO_NOVA_INSTALACAO.md" <<<"${package_contents}" >/dev/null || die "guia ausente no tar ${package_file}"
+  grep -F "build_info.json" <<<"${package_contents}" >/dev/null || die "build_info ausente no tar ${package_file}"
 }
 
 write_release_report() {
@@ -441,6 +509,9 @@ assert_local_environment() {
   assert_tool bash
   if [[ "${PACKAGES_CSV}" == *deb* ]]; then
     assert_tool dpkg-deb
+  fi
+  if [[ "${PACKAGES_CSV}" == *tar* ]]; then
+    assert_tool tar
   fi
   if [[ "${PACKAGES_CSV}" == *appimage* && "${SKIP_PACKAGE}" != "1" ]]; then
     assert_tool appimagetool

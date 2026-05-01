@@ -62,6 +62,8 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
     assert "status --porcelain" in script
     assert "release_report_debian_amd64.json" in script
     assert "write_release_report" in script
+    assert "write_tar_packages" in script
+    assert "validate_tar_payload" in script
     assert "build_info.json" in script
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in script
     assert "bundle_roots" in script
@@ -76,6 +78,8 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
 def test_release_debian_script_normalizes_csv_tokens() -> None:
     script = _script_text()
 
+    assert "deb,appimage,tar" in script
+    assert "deb | appimage | tar" in script
     assert "[![:space:]]" in script
     assert "join_csv" in script
     assert 'while [[ "${csv}" == *, ]]' in script
@@ -91,6 +95,9 @@ def test_release_debian_script_calls_only_debian_wrappers() -> None:
     assert "build_pyoxidizer_debian.sh" in script
     assert "package_debian_amd64_deb.sh" in script
     assert "package_debian_amd64_appimage.sh" in script
+    assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyinstaller_cli.tar.gz" in script
+    assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_nuitka_cli.tar.gz" in script
+    assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyoxidizer.tar.gz" in script
     assert "AppImage pyoxidizer nao suportado" in script
     assert "is_supported_package_pair" in script
     assert "pacote ignorado ${package_kind} ${backend}: nao suportado" in script
@@ -108,6 +115,7 @@ def test_release_debian_script_exposes_backend_scorecard() -> None:
     assert "python_source_exposure_score" in report_script
     assert "easy_user_dirs_score" in report_script
     assert "package_size_score" in report_script
+    assert 'path.name.endswith(".tar.gz")' in report_script
 
 
 def test_release_debian_report_read_json_errors_include_path(tmp_path) -> None:
