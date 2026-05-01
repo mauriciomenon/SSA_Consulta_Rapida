@@ -144,7 +144,7 @@ def test_release_debian_script_calls_only_debian_wrappers() -> None:
         "\nis_supported_package_pair()",
         1,
     )[0]
-    assert "is_supported_package_pair" not in package_backend_body
+    assert 'if ! is_supported_package_pair "${backend}" "${package_kind}"; then' in package_backend_body
     assert script.index("log_package_matrix") < script.index("run_build_phase")
     assert "package_debian_arm64" not in script
     assert "release_windows.ps1" not in script
