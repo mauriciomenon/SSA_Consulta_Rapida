@@ -69,6 +69,8 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
     assert "diff --cached --name-only" in script
     assert "diff --ignore-cr-at-eol --name-only" in script
     assert "ls-files --others --exclude-standard" in script
+    assert "git.exe -C" in script
+    assert "wslpath -w" in script
     assert "release_report_debian_amd64.json" in script
     assert "write_release_report" in script
     assert '--platform "debian_amd64"' in script
