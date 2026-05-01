@@ -495,7 +495,8 @@ foreach ($backendName in $selectedBackends) {
     }
 
     $buildInfoRecords = Assert-BuildInfo $config.build_info $gitHead.commit $Platform $config.package_system
-    $metadataRecords = Assert-ExeMetadata @($config.cli_exe, $config.gui_exe) $windowsVersion
+    $exePaths = @($config.cli_exe, $config.gui_exe) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $metadataRecords = Assert-ExeMetadata $exePaths $windowsVersion
     $smokeRecord = Invoke-Smoke $backendName $config
 
     if (-not $SkipPackage) {
