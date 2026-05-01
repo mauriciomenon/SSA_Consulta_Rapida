@@ -125,8 +125,10 @@ def test_save_settings_creates_new_file_with_private_mode(tmp_path, monkeypatch)
 
     config_manager.save_settings({"secret": "local"})
 
-    assert stat.S_IMODE(settings_path.stat().st_mode) == 0o600
     assert json.loads(settings_path.read_text(encoding="utf-8")) == {"secret": "local"}
+    if os.name == "nt":
+        return
+    assert stat.S_IMODE(settings_path.stat().st_mode) == 0o600
 
 
 def test_save_settings_preserves_existing_file_mode(tmp_path, monkeypatch):
@@ -139,10 +141,12 @@ def test_save_settings_preserves_existing_file_mode(tmp_path, monkeypatch):
 
     config_manager.save_settings({"mode": "preserved"})
 
-    assert stat.S_IMODE(settings_path.stat().st_mode) == 0o640
     assert json.loads(settings_path.read_text(encoding="utf-8")) == {
         "mode": "preserved"
     }
+    if os.name == "nt":
+        return
+    assert stat.S_IMODE(settings_path.stat().st_mode) == 0o640
 
 
 def test_load_settings_reports_user_and_default_paths_when_missing(

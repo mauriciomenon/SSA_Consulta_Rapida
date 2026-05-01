@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from utils.file_metadata import best_datetime_for_file
+from utils.path_safety import ensure_path_is_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +40,8 @@ def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
     tmp_path = None
     try:
         fd, tmp_path = tempfile.mkstemp(prefix=f".{base_name}.tmp.", dir=target_dir)
-        # Close raw descriptor before reopen to avoid leaks on fdopen/open errors.
-        os.close(fd)
-        fd = None
-        with open(tmp_path, "w", encoding="utf-8") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            fd = None
             json.dump(cache, f, indent=4)
             f.flush()
             try:
@@ -72,7 +71,14 @@ def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
 
 def _cache_lock_path(cache_file: str) -> str:
     """Return sidecar lock path used to serialize cache writes across processes."""
-    return f"{cache_file}.lock"
+    lock_path = f"{cache_file}.lock"
+    return str(
+        ensure_path_is_allowed(
+            lock_path,
+            purpose="cache_lock",
+            expect_directory=False,
+        )
+    )
 
 
 def _read_lock_pid(lock_path: str) -> Optional[int]:
@@ -167,9 +173,27 @@ def _acquire_cache_lock(lock_path: str) -> int:
             try:
                 os.write(lock_fd, f"{os.getpid()}\n".encode("ascii", "ignore"))
             except OSError as exc:
-                logger.debug(
-                    "Failed to write cache lock metadata '%s': %s", lock_path, exc
-                )
+                try:
+                    os.close(lock_fd)
+                except OSError as close_exc:
+                    logger.warning(
+                        "Failed to close partial cache lock descriptor '%s': %s",
+                        lock_path,
+                        close_exc,
+                    )
+                try:
+                    os.remove(lock_path)
+                except FileNotFoundError:
+                    pass
+                except OSError as cleanup_exc:
+                    logger.warning(
+                        "Failed to remove partial cache lock file '%s': %s",
+                        lock_path,
+                        cleanup_exc,
+                    )
+                raise RuntimeError(
+                    f"Failed to write cache lock metadata '{lock_path}': {exc}"
+                ) from exc
             return lock_fd
         except FileExistsError:
             if _recover_stale_cache_lock(lock_path):
@@ -190,12 +214,18 @@ def _release_cache_lock(lock_fd: int, lock_path: str) -> None:
     except OSError as exc:
         logger.warning("Failed to close cache lock descriptor '%s': %s", lock_path, exc)
 
-    try:
-        os.remove(lock_path)
-    except FileNotFoundError:
-        return
-    except OSError as exc:
-        logger.warning("Failed to remove cache lock file '%s': %s", lock_path, exc)
+    deadline = time.monotonic() + _CACHE_LOCK_TIMEOUT_SEC
+    while True:
+        try:
+            os.remove(lock_path)
+            return
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            if time.monotonic() >= deadline:
+                logger.warning("Failed to remove cache lock file '%s': %s", lock_path, exc)
+                return
+            time.sleep(_CACHE_LOCK_RETRY_SEC)
 
 
 def _merge_cache_updates(cache_updates: Dict[str, Any], cache_file: str) -> None:

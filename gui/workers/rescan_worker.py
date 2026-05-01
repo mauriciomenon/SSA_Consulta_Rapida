@@ -176,6 +176,7 @@ class RescanWorker(QThread):
         force_import: bool = True,
         explicit_files: Sequence[str] | None = None,
         source_files: Sequence[str] | None = None,
+        db_path: str | None = None,
         operation_label: str = "Reescaneamento",
         operation_kind: str = "import",
     ):
@@ -189,6 +190,7 @@ class RescanWorker(QThread):
         self.source_files = (
             tuple(str(path) for path in source_files) if source_files else None
         )
+        self.db_path = str(db_path) if db_path else None
         normalized_label = str(operation_label or "").strip()
         self.operation_label = normalized_label or "Reescaneamento"
         normalized_kind = str(operation_kind or "").strip().lower()
@@ -281,9 +283,19 @@ class RescanWorker(QThread):
     def _resolve_source_files(self) -> tuple[str, ...] | None:
         if not self.source_files:
             return None
-        from core.import_staging import validate_external_source_path
+        from core.import_staging import (
+            _normalize_explicit_allowed_files,
+            validate_external_source_path,
+        )
 
-        resolved = [validate_external_source_path(path) for path in self.source_files]
+        explicit_allowed_files = _normalize_explicit_allowed_files(self.source_files)
+        resolved = [
+            validate_external_source_path(
+                path,
+                normalized_allowed_files=explicit_allowed_files,
+            )
+            for path in self.source_files
+        ]
         self.source_files = tuple(resolved)
         return self.source_files
 
@@ -346,13 +358,22 @@ class RescanWorker(QThread):
         return True, summary
 
     def _run_import_operation(self) -> bool:
+        data_dir = "data"
+        db_name = "ssas.db"
+        extra_allowed_roots = None
+        if self.db_path:
+            db_path = Path(self.db_path).expanduser().resolve()
+            data_dir = str(db_path.parent)
+            db_name = db_path.name
+            extra_allowed_roots = (str(db_path.parent),)
         return run_importer_logic(
             docs_dir="docs_entrada",
-            data_dir="data",
-            db_name="ssas.db",
+            data_dir=data_dir,
+            db_name=db_name,
             table_name="ssa_table",
             force_import=self.force_import,
             explicit_files=self.explicit_files,
+            extra_allowed_roots=extra_allowed_roots,
             should_cancel=lambda: self._should_stop,
             progress_callback=self._progress_callback,
         )

@@ -21,6 +21,7 @@ import json
 import logging
 import ntpath
 import os
+import posixpath
 import re
 import shutil
 import sqlite3
@@ -1069,9 +1070,12 @@ def resolve_app_version_text() -> str:
 
 def resolve_uv_version_text() -> str:
     """Resolve versao do uv para exibicao em UI."""
+    uv_exe = shutil.which("uv")
+    if not uv_exe:
+        return "indisponivel"
     try:
         result = subprocess.run(
-            ["uv", "--version"],
+            [uv_exe, "--version"],
             capture_output=True,
             text=True,
             timeout=2,
@@ -1080,16 +1084,72 @@ def resolve_uv_version_text() -> str:
         output = str(result.stdout or result.stderr).strip()
         if output:
             return output
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Falha ao resolver versao do uv: %s", exc)
     return "indisponivel"
+
+
+def _iter_build_info_candidates():
+    seen = set()
+    raw_candidates = []
+    bundled_root = os.environ.get("SSA_BUNDLED_ROOT", "")
+    if bundled_root:
+        raw_candidates.append(os.path.join(bundled_root, "config", "build_info.json"))
+        raw_candidates.append(
+            os.path.join(bundled_root, "_internal", "config", "build_info.json")
+        )
+    config_dir = os.environ.get("SSA_CONFIG_DIR", "")
+    if config_dir:
+        raw_candidates.append(os.path.join(config_dir, "build_info.json"))
+    raw_candidates.append(os.path.join(project_root, "config", "build_info.json"))
+    for raw_path in raw_candidates:
+        path = os.path.abspath(raw_path)
+        if path in seen:
+            continue
+        seen.add(path)
+        yield path
+
+
+def _load_embedded_build_info() -> dict[str, Any]:
+    for path in _iter_build_info_candidates():
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            if isinstance(payload, dict):
+                return cast(dict[str, Any], payload)
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.debug("Falha ao ler build_info %s: %s", path, exc)
+    return {}
+
+
+def _iter_installation_guide_candidates():
+    seen = set()
+    guide_rel_path = os.path.join("docs", "GUIA_MIGRACAO_NOVA_INSTALACAO.md")
+    raw_candidates = [os.path.join(project_root, guide_rel_path)]
+    bundled_root = os.environ.get("SSA_BUNDLED_ROOT", "")
+    if bundled_root:
+        raw_candidates.append(os.path.join(bundled_root, guide_rel_path))
+        raw_candidates.append(
+            os.path.join(bundled_root, "_internal", guide_rel_path)
+        )
+    for raw_path in raw_candidates:
+        path = os.path.abspath(raw_path)
+        if path in seen:
+            continue
+        seen.add(path)
+        yield path
 
 
 def resolve_git_commit_hash_text() -> str:
     """Resolve hash curto do commit atual para exibicao em UI."""
+    git_exe = shutil.which("git")
+    if not git_exe:
+        return "indisponivel"
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
+            [git_exe, "rev-parse", "--short", "HEAD"],
             capture_output=True,
             text=True,
             timeout=2,
@@ -1110,21 +1170,32 @@ def build_about_message(app_version: str) -> str:
     pandas_version = str(getattr(pd, "__version__", "indisponivel"))
     pyqt_version = str(PYQT_VERSION_STR or "indisponivel")
     qt_version = str(QT_VERSION_STR or "indisponivel")
+    build_info = _load_embedded_build_info()
     uv_version = resolve_uv_version_text()
+    if uv_version == "indisponivel":
+        uv_version = str(build_info.get("uv_version") or uv_version)
     commit_hash = resolve_git_commit_hash_text()
-    return "\n".join(
-        (
-            "Consulta Rapida de SSAs",
-            f"Versao app: {app_version}",
-            "",
-            f"Python: {python_version}",
-            f"uv: {uv_version}",
-            f"PyQt6: {pyqt_version}",
-            f"Qt: {qt_version}",
-            f"pandas: {pandas_version}",
-            f"Commit: {commit_hash}",
+    if commit_hash == "indisponivel":
+        commit_hash = str(
+            build_info.get("git_commit_short")
+            or build_info.get("git_commit")
+            or commit_hash
         )
-    )
+    lines = [
+        "Consulta Rapida de SSAs",
+        f"Versao app: {app_version}",
+        "",
+        f"Python: {python_version}",
+        f"uv: {uv_version}",
+        f"PyQt6: {pyqt_version}",
+        f"Qt: {qt_version}",
+        f"pandas: {pandas_version}",
+        f"Commit: {commit_hash}",
+    ]
+    build_datetime = str(build_info.get("build_datetime") or "").strip()
+    if build_datetime:
+        lines.append(f"Build: {build_datetime}")
+    return "\n".join(lines)
 
 
 # --- Worker Threads ---
@@ -4291,6 +4362,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         importacao_menu.addAction(rescan_full_action)
 
         open_docs_action = QAction("Abrir Pasta de Arquivos", self)
+        set_status_tip = getattr(open_docs_action, "setStatusTip", None)
+        if callable(set_status_tip):
+            set_status_tip(
+                f"Pasta atual de entrada: {os.path.join(project_root, 'docs_entrada')}"
+            )
         open_docs_action.triggered.connect(self.open_docs_folder)
         importacao_menu.addAction(open_docs_action)
 
@@ -4450,6 +4526,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     sip_module=sip,
                     rescan_mode="explicit",
                     source_files=tuple(safe_selected_files),
+                    db_path=DB_PATH,
                     operation_label="Importacao externa",
                     reload_on_success=True,
                     operation_kind="import",
@@ -4554,9 +4631,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         elif sys.platform == "darwin":
             preferred_paths.append("/usr/bin/open")
             cmd = "open"
+            path_module = posixpath
         else:
             preferred_paths.extend(("/usr/bin/xdg-open", "/bin/xdg-open"))
             cmd = "xdg-open"
+            path_module = posixpath
         for preferred in preferred_paths:
             preferred_abs = path_module.abspath(preferred)
             if path_module.isabs(preferred_abs) and os.path.isfile(preferred_abs):
@@ -4781,6 +4860,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
             sip_module=sip,
             rescan_mode="prompt",
+            db_path=DB_PATH,
+            reload_on_success=True,
         )
 
     def rescan_diff_data(self):
@@ -4801,6 +4882,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
             sip_module=sip,
             rescan_mode="diff",
+            db_path=DB_PATH,
+            reload_on_success=True,
         )
 
     def rescan_full_data(self):
@@ -4821,11 +4904,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
             sip_module=sip,
             rescan_mode="full",
+            db_path=DB_PATH,
+            reload_on_success=True,
         )
 
     def open_docs_folder(self):
         """Abre a pasta docs_entrada no explorador de arquivos (nao bloqueante)."""
         docs_path = os.path.join(project_root, "docs_entrada")
+        if hasattr(self, "status_label"):
+            self.status_label.setText(f"Status: Pasta de entrada: {docs_path}")
         SSAMainWindow._open_folder_non_blocking(
             cast(Any, self),
             folder_path=docs_path,
@@ -4857,13 +4944,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def open_installation_guide(self):
         """Abre o guia de instalacao no editor/sistema padrao."""
-        doc_path = os.path.abspath(
-            os.path.join(project_root, "docs", "GUIA_MIGRACAO_NOVA_INSTALACAO.md")
-        )
+        doc_candidates = list(_iter_installation_guide_candidates())
+        doc_path = next((path for path in doc_candidates if os.path.exists(path)), "")
         if not os.path.exists(doc_path):
+            missing_reference = (
+                doc_candidates[0]
+                if doc_candidates
+                else os.path.abspath(
+                    os.path.join(
+                        project_root, "docs", "GUIA_MIGRACAO_NOVA_INSTALACAO.md"
+                    )
+                )
+            )
             if not os.environ.get("PYTEST_CURRENT_TEST"):
                 QMessageBox.warning(
-                    self, "Erro", f"Guia de instalacao nao encontrado: {doc_path}"
+                    self,
+                    "Erro",
+                    f"Guia de instalacao nao encontrado: {missing_reference}",
                 )
             return {"opened": False, "reason": "missing_file"}
         try:

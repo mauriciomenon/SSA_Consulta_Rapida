@@ -21,9 +21,19 @@ if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 if not exist "%REPO_ROOT%\builds\pyoxidizer" mkdir "%REPO_ROOT%\builds\pyoxidizer"
 
 set "UV_PYTHON=3.13"
+REM PyOxidizer embeds CPython 3.10 on this target; native runtime libs must match it.
+set "PYOX_RUNTIME_PYTHON=3.10"
 set "UV_MANAGED_PYTHON=true"
 set "UV_PROJECT_ENVIRONMENT=.venv-win"
 
+for /f "tokens=1,2 delims=|" %%A in ('uv run --python 3.13 python -c "import json,pathlib,re; v=str(json.loads(pathlib.Path('config/version.json').read_text(encoding='utf-8')).get('version_short','0.0')); parts=[int(p) for p in re.findall(r'\d+', v)[:4]]; parts=(parts+[0,0,0,0])[:4]; print(v+'|'+'.'.join(str(p) for p in parts))"') do (
+    set "APP_VERSION=%%A"
+    set "APP_VERSION_PE=%%B"
+)
+if not defined APP_VERSION set "APP_VERSION=0.0"
+if not defined APP_VERSION_PE set "APP_VERSION_PE=0.0.0.0"
+
+set "MSVC_LINK="
 set "VCVARS="
 set "VSWHERE=C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
 
@@ -67,6 +77,17 @@ if defined VCToolsInstallDir (
         set "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=%MSVC_LINK%"
         if "%SILENT%"=="0" echo Linker MSVC forcado: "%MSVC_LINK%"
     )
+)
+
+if not defined MSVC_LINK (
+    for /f "delims=" %%L in ('where link.exe 2^>nul') do (
+        if not defined MSVC_LINK set "MSVC_LINK=%%L"
+    )
+)
+
+if not defined MSVC_LINK (
+    echo Erro: linker MSVC nao localizado. link.exe atual no PATH pode nao ser do Visual Studio.
+    exit /b 1
 )
 
 if not exist "%MSVC_LINK%" (
@@ -138,6 +159,19 @@ for %%D in (core gui armazenamento extracao utils interface exportacao shared co
         )
     )
 )
+if not exist "%STAGE_DIR%\docs" mkdir "%STAGE_DIR%\docs"
+copy /Y "%REPO_ROOT%\docs\GUIA_MIGRACAO_NOVA_INSTALACAO.md" "%STAGE_DIR%\docs\GUIA_MIGRACAO_NOVA_INSTALACAO.md" >nul
+if errorlevel 1 (
+    echo Erro ao copiar guia de instalacao para staging.
+    exit /b 1
+)
+if not exist "%STAGE_DIR%\config" mkdir "%STAGE_DIR%\config"
+set "BUILD_INFO_FILE=%STAGE_DIR%\config\build_info.json"
+uv run --python 3.13 python -c "import datetime,json,os,pathlib,subprocess; root=pathlib.Path(os.environ['REPO_ROOT']); run=lambda args: subprocess.run(args,cwd=str(root),text=True,capture_output=True,check=False).stdout.strip(); commit=run(['git','rev-parse','HEAD']); payload={'app_version':os.environ.get('APP_VERSION',''),'build_datetime':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),'build_system':'pyoxidizer','git_commit':commit,'git_commit_datetime':run(['git','log','-1','--format=%%cI']),'git_commit_short':commit[:7] if commit else '','git_commit_title':run(['git','log','-1','--format=%%s']),'platform':'windows_amd64','uv_version':run(['uv','--version'])}; pathlib.Path(os.environ['BUILD_INFO_FILE']).write_text(json.dumps(payload,ensure_ascii=True,indent=2,sort_keys=True)+'\n',encoding='utf-8')"
+if errorlevel 1 (
+    echo Erro ao gerar build_info.json para staging.
+    exit /b 1
+)
 set "STAGE_DIR_POSIX=%STAGE_DIR:\=/%"
 
 if "%SILENT%"=="1" (
@@ -191,13 +225,52 @@ if /I "%COPY_TOOL%"=="xcopy" (
     )
 )
 
+if not exist "%TARGET_BUILD_DIR%\config" mkdir "%TARGET_BUILD_DIR%\config"
+copy /Y "%REPO_ROOT%\config\version.json" "%TARGET_BUILD_DIR%\config\version.json" >nul
+if errorlevel 1 (
+    echo Build PyOxidizer concluiu, mas copia de config/version.json falhou.
+    exit /b 1
+)
+
+set "RCEDIT_EXE="
+for /f "delims=" %%R in ('where rcedit.exe 2^>nul') do (
+    if not defined RCEDIT_EXE set "RCEDIT_EXE=%%R"
+)
+if not defined RCEDIT_EXE (
+    echo Erro: rcedit.exe nao encontrado. Instale com: scoop install rcedit
+    exit /b 1
+)
+set "APP_ICON=%REPO_ROOT%\resources\app_icon.ico"
+if not exist "%APP_ICON%" (
+    echo Erro: icone do aplicativo nao encontrado: "%APP_ICON%"
+    exit /b 1
+)
+"%RCEDIT_EXE%" "%TARGET_BUILD_DIR%\SSA_Consulta_Rapida.exe" --set-icon "%APP_ICON%"
+if errorlevel 1 (
+    echo Build PyOxidizer concluiu, mas aplicacao do icone falhou.
+    exit /b 1
+)
+"%RCEDIT_EXE%" "%TARGET_BUILD_DIR%\SSA_Consulta_Rapida.exe" ^
+    --set-file-version "%APP_VERSION_PE%" ^
+    --set-product-version "%APP_VERSION_PE%" ^
+    --set-version-string "CompanyName" "SSA Consulta Rapida" ^
+    --set-version-string "FileDescription" "SSA_Consulta_Rapida.exe" ^
+    --set-version-string "InternalName" "SSA_Consulta_Rapida" ^
+    --set-version-string "OriginalFilename" "SSA_Consulta_Rapida.exe" ^
+    --set-version-string "ProductName" "SSA Consulta Rapida" ^
+    --set-version-string "ProductVersion" "%APP_VERSION_PE%"
+if errorlevel 1 (
+    echo Build PyOxidizer concluiu, mas aplicacao de metadata falhou.
+    exit /b 1
+)
+
 if "%SILENT%"=="1" (
     set "UV_PROJECT_ENVIRONMENT=.venv-pyoxidizer-runtime-win"
-    uv run --python %UV_PYTHON% --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 python "%REPO_ROOT%\scripts\sync_pyoxidizer_runtime_libs.py" --target "%TARGET_BUILD_DIR%\lib" >> "%LOG_FILE%" 2>&1
+    uv run --python %PYOX_RUNTIME_PYTHON% --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 python "%REPO_ROOT%\scripts\sync_pyoxidizer_runtime_libs.py" --target "%TARGET_BUILD_DIR%\lib" >> "%LOG_FILE%" 2>&1
     set "UV_PROJECT_ENVIRONMENT=.venv-win"
 ) else (
     set "UV_PROJECT_ENVIRONMENT=.venv-pyoxidizer-runtime-win"
-    uv run --python %UV_PYTHON% --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 python "%REPO_ROOT%\scripts\sync_pyoxidizer_runtime_libs.py" --target "%TARGET_BUILD_DIR%\lib"
+    uv run --python %PYOX_RUNTIME_PYTHON% --with numpy --with pandas --with tabulate --with openpyxl --with pyqt6 python "%REPO_ROOT%\scripts\sync_pyoxidizer_runtime_libs.py" --target "%TARGET_BUILD_DIR%\lib"
     set "UV_PROJECT_ENVIRONMENT=.venv-win"
 )
 
@@ -225,6 +298,22 @@ if "%WITH_LOCAL_DATA%"=="1" (
     ) else (
         echo INFO Pulando copia de dados locais. Use --with-local-data para habilitar.
     )
+)
+
+set "SSA_PYOXIDIZER_SMOKE_LOG=%TEMP%\ssa_pyoxidizer_windows_amd64_smoke.log"
+set "PYOXIDIZER_EXE=%TARGET_BUILD_DIR%\SSA_Consulta_Rapida.exe"
+pushd "%TARGET_BUILD_DIR%" >nul
+echo q | "%PYOXIDIZER_EXE%" > "%SSA_PYOXIDIZER_SMOKE_LOG%" 2>&1
+set "PYOX_SMOKE_RC=!ERRORLEVEL!"
+popd >nul
+if not "%PYOX_SMOKE_RC%"=="0" (
+    echo Smoke PyOxidizer falhou. Veja: "%SSA_PYOXIDIZER_SMOKE_LOG%"
+    exit /b 1
+)
+findstr /C:"Falha critica nas importacoes" /C:"Error importing numpy" /C:"modo limitado" "%SSA_PYOXIDIZER_SMOKE_LOG%" >nul 2>&1
+if not errorlevel 1 (
+    echo Smoke PyOxidizer detectou runtime quebrado. Veja: "%SSA_PYOXIDIZER_SMOKE_LOG%"
+    exit /b 1
 )
 
 echo Build PyOxidizer concluido com sucesso.

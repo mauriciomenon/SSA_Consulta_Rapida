@@ -10,6 +10,11 @@ Padrao reproduzivel para gerar e validar build nas 3 plataformas e 3 backends, c
 2. Nao commitar artefatos de build (`builds/`, `launchers/dist/`, `dist_packages/`).
 3. Rodar smoke fora do repo (`C:\Windows\Temp` ou `/tmp`).
 4. Garantir runtime dirs visiveis: `config`, `data`, `docs_entrada`, `docs_saida`, `exportacao`.
+5. Nao misturar shells:
+   - Windows: PowerShell chama `.bat` com `.\` e caminhos `\`.
+   - Debian/WSL/Linux: shell POSIX chama `.sh` com `/`.
+   - macOS: shell POSIX chama `.sh` ou `uv` com `/`.
+6. Nao chamar `bash dev_env/...` no PowerShell e nao chamar `.\dev_env\...bat` no WSL/Linux/macOS.
 
 ## Pre requisitos por host
 
@@ -24,6 +29,21 @@ uv run --python 3.13 python -V
 ```
 
 3. Inno Setup para empacotador (`iscc`) quando for gerar instalador.
+4. `rcedit` no `PATH` para build PyOxidizer Windows com icone e metadata:
+
+```powershell
+scoop install rcedit
+rcedit.exe --help
+```
+
+`rcedit` e um editor de recursos PE do Windows. Ele altera icone, `FileVersion`,
+`ProductVersion` e strings de versao em executaveis `.exe`.
+
+Regra de uso no projeto:
+1. PyInstaller Windows recebe metadata no momento do build via `--version-file`.
+2. Nao aplicar `rcedit` manualmente sobre PyInstaller onefile pronto; isso pode quebrar o arquivo PKG embutido.
+3. PyOxidizer Windows usa `rcedit` no script de build para aplicar icone e metadata.
+4. Nuitka Windows deve continuar usando recursos/versionamento no proprio fluxo de build.
 
 ### Debian 13 via WSL
 
@@ -54,13 +74,85 @@ export UV_PROJECT_ENVIRONMENT=.venv-linux
 
 ## Build por backend
 
+### Windows deterministico
+
+Use este fluxo para release local Windows. Ele executa preflight, seleciona
+backends, chama somente wrappers `.bat`, valida `build_info.json`, valida
+metadata dos EXEs, gera ZIPs por backend, roda smoke minimo e escreve relatorio.
+
+```powershell
+.\dev_env\build\release_windows.ps1
+```
+
+Modo nao interativo:
+
+```powershell
+.\dev_env\build\release_windows.ps1 -Backend pyinstaller,nuitka,pyoxidizer -Yes
+```
+
+Sem instalador Inno:
+
+```powershell
+.\dev_env\build\release_windows.ps1 -Backend pyinstaller -Yes -SkipInstaller
+```
+
+Saida de auditoria:
+
+```text
+builds\reports\release_report_windows_amd64.json
+```
+
+Regra de integridade:
+1. workspace sujo bloqueia o release
+2. `build_info.git_commit` precisa bater com `git rev-parse HEAD`
+3. ZIP precisa conter EXE, `config/build_info.json` e `GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+4. PowerShell nao chama shell POSIX neste fluxo
+
 ### Windows
 
 ```powershell
-dev_env/build/build_pyinstaller.bat --silent
-dev_env/build/build_nuitka.bat --silent
-dev_env/build/build_pyoxidizer.bat --silent
+.\dev_env\build\build_pyinstaller.bat --silent
+.\dev_env\build\build_nuitka.bat --silent
+.\dev_env\build\build_pyoxidizer.bat --silent
 ```
+
+### Debian 13 deterministico local ou via SSH
+
+Use este fluxo para release Debian AMD64. Ele roda somente em shell POSIX,
+chama somente wrappers `.sh`, valida workspace limpo, `build_info.json`,
+guia de migracao, conteudo do `.deb` e escreve relatorio com hashes.
+
+Local no Debian/WSL:
+
+```bash
+bash dev_env/build/release_debian.sh --backend pyinstaller,nuitka,pyoxidizer --package deb -y
+```
+
+Via SSH para host Debian:
+
+```bash
+bash dev_env/build/release_debian.sh --ssh-host user@debian-host --ssh-repo /home/user/SSA_Consulta_Rapida --backend pyinstaller,nuitka,pyoxidizer --package deb -y
+```
+
+AppImage e opcional e existe somente para `pyinstaller` e `nuitka`:
+
+```bash
+bash dev_env/build/release_debian.sh --backend pyinstaller,nuitka --package appimage -y
+```
+
+Saida de auditoria:
+
+```text
+builds/reports/release_report_debian_amd64.json
+```
+
+Regras Debian:
+1. workspace sujo bloqueia o release
+2. `.deb` aceita `pyinstaller`, `nuitka` e `pyoxidizer`
+3. AppImage aceita apenas `pyinstaller` e `nuitka`
+4. `--with-local-data` nao e suportado via SSH; execute localmente no host Debian se precisar desse modo
+5. PowerShell nao entra neste fluxo
+6. backends rodam em serie por desenho; Nuitka e PyOxidizer pressionam CPU/RAM/IO e paralelizar build completo so deve ser feito em slice proprio com medicao de recursos
 
 ### Debian 13 via WSL
 
@@ -102,6 +194,29 @@ if (-not $CLI_BIN) {
   throw "Nenhum binario SSA_CLI_v*_windows_amd64.exe encontrado em $DIST_ROOT"
 }
 & $CLI_BIN --help
+```
+
+### Windows metadata (PowerShell)
+
+```powershell
+$EXES = @(
+  ".\launchers\dist\windows_amd64\SSA_CLI_v4.37_windows_amd64\SSA_CLI_v4.37_windows_amd64.exe",
+  ".\launchers\dist\windows_amd64\SSA_GUI_v4.37_windows_amd64\SSA_GUI_v4.37_windows_amd64.exe",
+  ".\builds\nuitka\windows_amd64\cli_entry.dist\SSA_CLI_v4.37_windows_amd64.exe",
+  ".\builds\nuitka\windows_amd64\gui_entry.dist\SSA_GUI_v4.37_windows_amd64.exe",
+  ".\builds\pyoxidizer\windows_amd64\SSA_Consulta_Rapida.exe"
+)
+$ROWS = @()
+foreach ($EXE in $EXES) {
+  $INFO = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $EXE).Path)
+  $ROWS += [pscustomobject]@{
+    Path = $EXE
+    FileVersion = $INFO.FileVersion
+    ProductVersion = $INFO.ProductVersion
+    ProductName = $INFO.ProductName
+  }
+}
+$ROWS | Format-Table -AutoSize
 ```
 
 ### Linux/WSL

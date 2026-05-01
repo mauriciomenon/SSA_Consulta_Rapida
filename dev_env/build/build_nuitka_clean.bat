@@ -31,10 +31,19 @@ for /f "tokens=1,2 delims=|" %%A in ('uv run --python 3.13 python -c "import jso
 if not defined APP_VERSION set "APP_VERSION=0.0"
 if not defined FILE_VERSION set "FILE_VERSION=0.0.0.0"
 
+set "BUILD_METADATA_DIR=%REPO_ROOT%\builds\metadata"
+if not exist "%BUILD_METADATA_DIR%" mkdir "%BUILD_METADATA_DIR%"
+set "BUILD_INFO_FILE=%BUILD_METADATA_DIR%\build_info_windows_amd64_nuitka.json"
+uv run --python 3.13 python -c "import datetime,json,os,pathlib,subprocess; root=pathlib.Path(os.environ['REPO_ROOT']); run=lambda args: subprocess.run(args,cwd=str(root),text=True,capture_output=True,check=False).stdout.strip(); commit=run(['git','rev-parse','HEAD']); payload={'app_version':os.environ.get('APP_VERSION',''),'build_datetime':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),'build_system':'nuitka','git_commit':commit,'git_commit_datetime':run(['git','log','-1','--format=%%cI']),'git_commit_short':commit[:7] if commit else '','git_commit_title':run(['git','log','-1','--format=%%s']),'platform':'windows_amd64','uv_version':run(['uv','--version'])}; pathlib.Path(os.environ['BUILD_INFO_FILE']).write_text(json.dumps(payload,ensure_ascii=True,indent=2,sort_keys=True)+'\n',encoding='utf-8')"
+if errorlevel 1 (
+    echo Erro ao gerar build_info.json.
+    exit /b 1
+)
+
 if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_GUI_v%APP_VERSION%_windows_amd64.dist" rmdir /s /q "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_GUI_v%APP_VERSION%_windows_amd64.dist"
 if exist "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_CLI_v%APP_VERSION%_windows_amd64.dist" rmdir /s /q "%REPO_ROOT%\builds\nuitka\windows_amd64\SSA_CLI_v%APP_VERSION%_windows_amd64.dist"
 
-set "BASE_CMD=uv run --python 3.13 -m nuitka --standalone --assume-yes-for-downloads --follow-imports --enable-plugin=pyqt6 --company-name=SSA --product-name=Consulta_Rapida_de_SSAs --file-version=%FILE_VERSION% --product-version=%FILE_VERSION% --include-data-dir=config=config --include-data-dir=resources=resources --output-dir=builds/nuitka/windows_amd64"
+set "BASE_CMD=uv run --python 3.13 -m nuitka --standalone --assume-yes-for-downloads --follow-imports --enable-plugin=pyqt6 --company-name=SSA --product-name=Consulta_Rapida_de_SSAs --file-version=%FILE_VERSION% --product-version=%FILE_VERSION% --include-data-dir=config=config --include-data-dir=resources=resources --include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md --include-data-file=%BUILD_INFO_FILE%=config/build_info.json --output-dir=builds/nuitka/windows_amd64"
 
 if "%SILENT%"=="1" (
     echo [build_nuitka] modo silencioso ativo. log: "%LOG_FILE%"

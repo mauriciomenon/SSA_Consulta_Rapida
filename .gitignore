@@ -505,3 +505,4 @@ heatmap-last-year.png
 !dev_env/build/*.sh
 !dev_env/build/*.bat
 !dev_env/build/*.bzl
+docs_entrada/docs_entrada.zip

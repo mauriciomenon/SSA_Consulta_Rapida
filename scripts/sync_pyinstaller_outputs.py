@@ -16,10 +16,19 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import importlib
 import shutil
+import sys
 from pathlib import Path
 
-PLATFORMS = ("windows_amd64", "debian_amd64", "macos_arm64")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+MultiPlatformBuilder = importlib.import_module(
+    "launchers.build_multiplatform"
+).MultiPlatformBuilder
+PLATFORMS = tuple(sorted(MultiPlatformBuilder.PLATFORMS))
 
 
 def _sync_platform(repo_root: Path, platform: str, verbose: bool) -> bool:
@@ -58,8 +67,7 @@ def main() -> int:
     args = parser.parse_args()
 
     verbose = not args.quiet
-    repo_root = Path(__file__).resolve().parents[1]
-
+    repo_root = PROJECT_ROOT
     platforms = [args.platform] if args.platform else list(PLATFORMS)
     any_synced = False
     for platform in platforms:

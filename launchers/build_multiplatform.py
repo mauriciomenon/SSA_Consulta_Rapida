@@ -41,6 +41,7 @@ class MultiPlatformBuilder:
         },
         "macos_arm64": {"system": "Darwin", "arch": "arm64", "executable_ext": ""},
         "debian_amd64": {"system": "Linux", "arch": "x86_64", "executable_ext": ""},
+        "debian_arm64": {"system": "Linux", "arch": "aarch64", "executable_ext": ""},
     }
 
     def __init__(self):
@@ -111,6 +112,120 @@ class MultiPlatformBuilder:
         )
         return True
 
+    def _command_stdout(self, cmd, *, timeout=20) -> str:
+        result = self._run_command(
+            cmd,
+            timeout=timeout,
+            capture_output=True,
+            text=True,
+            cwd=str(self.base_dir),
+        )
+        if result.returncode != 0:
+            command_text = " ".join(shlex.quote(str(item)) for item in cmd)
+            stdout = str(result.stdout or "").strip()
+            stderr = str(result.stderr or "").strip()
+            detail = (stderr or stdout)[:1000]
+            logger.warning(
+                "Metadata command failed (%s): %s%s",
+                result.returncode,
+                command_text,
+                f": {detail}" if detail else "",
+            )
+            return ""
+        return str(result.stdout or "").strip()
+
+    def _build_info_payload(self, build_system: str, platform_name: str) -> dict:
+        git_commit = self._command_stdout(["git", "rev-parse", "HEAD"])
+        git_commit_datetime = self._command_stdout(["git", "log", "-1", "--format=%cI"])
+        git_commit_title = self._command_stdout(["git", "log", "-1", "--format=%s"])
+        uv_version = self._command_stdout([self.uv_cmd, "--version"])
+        return {
+            "app_version": self.version,
+            "build_datetime": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "build_system": build_system,
+            "git_commit": git_commit,
+            "git_commit_datetime": git_commit_datetime,
+            "git_commit_short": git_commit[:7] if git_commit else "",
+            "git_commit_title": git_commit_title,
+            "platform": platform_name,
+            "uv_version": uv_version,
+        }
+
+    def _write_build_info_file(self, build_system: str, platform_name: str) -> Path:
+        metadata_dir = self.platforms_dir / platform_name / "temp"
+        metadata_dir.mkdir(parents=True, exist_ok=True)
+        build_info_path = metadata_dir / "build_info.json"
+        build_info_path.write_text(
+            json.dumps(
+                self._build_info_payload(build_system, platform_name),
+                ensure_ascii=True,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return build_info_path
+
+    @staticmethod
+    def _windows_version_tuple(version: str) -> tuple[int, int, int, int]:
+        parts: list[int] = []
+        for raw_part in str(version or "0").split("."):
+            digits = "".join(ch for ch in raw_part if ch.isdigit())
+            parts.append(int(digits or 0))
+            if len(parts) == 4:
+                break
+        while len(parts) < 4:
+            parts.append(0)
+        return (parts[0], parts[1], parts[2], parts[3])
+
+    @staticmethod
+    def _pyinstaller_version_value(value: object) -> str:
+        return str(value or "").replace("\\", "\\\\").replace("'", "\\'")
+
+    def _write_pyinstaller_windows_version_file(self, platform_name: str, app_name: str) -> Path:
+        metadata_dir = self.platforms_dir / platform_name / "temp"
+        metadata_dir.mkdir(parents=True, exist_ok=True)
+        version_file_path = metadata_dir / f"{app_name}_version_info.txt"
+        version_tuple = self._windows_version_tuple(self.version)
+        version_text = ".".join(str(part) for part in version_tuple)
+        original_filename = f"{app_name}.exe"
+        version_file_path.write_text(
+            f"""# UTF-8
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers={version_tuple},
+    prodvers={version_tuple},
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        '040904B0',
+        [
+          StringStruct('CompanyName', 'SSA Consulta Rapida'),
+          StringStruct('FileDescription', '{self._pyinstaller_version_value(original_filename)}'),
+          StringStruct('FileVersion', '{self._pyinstaller_version_value(version_text)}'),
+          StringStruct('InternalName', '{self._pyinstaller_version_value(app_name)}'),
+          StringStruct('OriginalFilename', '{self._pyinstaller_version_value(original_filename)}'),
+          StringStruct('ProductName', 'SSA Consulta Rapida'),
+          StringStruct('ProductVersion', '{self._pyinstaller_version_value(version_text)}')
+        ]
+      )
+    ]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)
+""",
+            encoding="utf-8",
+        )
+        return version_file_path
+
     def _load_requirements_signature(self, requirements_file: Path) -> str:
         """Retorna hash deterministico do conteudo de requirements."""
         digest = hashlib.sha256()
@@ -152,6 +267,8 @@ class MultiPlatformBuilder:
             return "macos_arm64"
         elif system == "Linux" and machine in ["x86_64", "amd64"]:
             return "debian_amd64"
+        elif system == "Linux" and machine in ["aarch64", "arm64"]:
+            return "debian_arm64"
         else:
             logger.error(f"Plataforma nao suportada: {system} {machine}")
             return None
@@ -395,6 +512,13 @@ class MultiPlatformBuilder:
         if icon_path.exists():
             cmd.extend(["--icon", str(icon_path)])
 
+        if platform_name.startswith("windows"):
+            version_file_path = self._write_pyinstaller_windows_version_file(
+                platform_name,
+                app_config["name"],
+            )
+            cmd.extend(["--version-file", str(version_file_path)])
+
         # Otimizacoes
         if pyinstaller_args.get("optimize"):
             cmd.extend(["--optimize", str(pyinstaller_args["optimize"])])
@@ -416,10 +540,15 @@ class MultiPlatformBuilder:
         # Dados adicionais
         config_path = self.base_dir / "config"
         data_path = self.base_dir / "data"
+        guide_path = self.base_dir / "docs" / "GUIA_MIGRACAO_NOVA_INSTALACAO.md"
+        build_info_path = self._write_build_info_file("pyinstaller", platform_name)
         add_data_sep = ";" if platform_name.startswith("windows") else ":"
 
         if config_path.exists():
             cmd.extend(["--add-data", f"{config_path}{add_data_sep}config"])
+        if guide_path.exists():
+            cmd.extend(["--add-data", f"{guide_path}{add_data_sep}docs"])
+        cmd.extend(["--add-data", f"{build_info_path}{add_data_sep}config"])
         include_local_data = bool(pyinstaller_args.get("include_local_data", False))
         if include_local_data and data_path.exists():
             logger.warning(
@@ -626,6 +755,7 @@ class MultiPlatformBuilder:
             "build_date": datetime.now().isoformat(),
             "executables": [],
         }
+        directory_size_cache: dict[Path, int] = {}
 
         for artifact in sorted(
             dist_dir.glob("*"), key=lambda path: path.name.casefold()
@@ -640,7 +770,11 @@ class MultiPlatformBuilder:
                 size_bytes = artifact.stat().st_size
                 artifact_kind = "file"
             elif artifact.is_dir():
-                size_bytes = self._compute_directory_size_bytes(artifact)
+                cache_key = artifact.resolve(strict=False)
+                size_bytes = directory_size_cache.get(cache_key)
+                if size_bytes is None:
+                    size_bytes = self._compute_directory_size_bytes(artifact)
+                    directory_size_cache[cache_key] = size_bytes
                 artifact_kind = "directory"
             else:
                 continue
@@ -852,7 +986,9 @@ class MultiPlatformBuilder:
             files_to_add = [
                 "launchers/*.py",
                 "launchers/platforms/*/build_config.json",
+                "launchers/platforms/*/requirements.txt",
                 "launchers/*.md",
+                "dev_env/build/*.sh",
                 "config/*.json",
                 "docs/*.md",
                 "*.py",
@@ -1116,7 +1252,7 @@ def main(argv=None):
 
     parser.add_argument(
         "--platform",
-        choices=["windows_amd64", "macos_arm64", "debian_amd64"],
+        choices=sorted(MultiPlatformBuilder.PLATFORMS),
         help="Plataforma especifica para build",
     )
 

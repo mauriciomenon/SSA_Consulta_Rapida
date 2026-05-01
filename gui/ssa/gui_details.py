@@ -348,8 +348,10 @@ def _format_details_html(
             f"</tr>"
         )
 
-    if ssa_index is None:
+    allow_global_index = ssa_index is None
+    if allow_global_index:
         ssa_index = _get_window_ssa_series_index(window)
+    assert ssa_index is not None
 
     try:
         derived_list = _get_derivadas_for_ssa(window, series.get("numero_ssa"))
@@ -821,18 +823,13 @@ def _get_derivadas_for_ssa(window, numero_ssa):
     if not num_norm:
         return []
     try:
-        series_norm = _normalize_ssa_relation_series(window.df_completo["derivada_de"])
-        mask = series_norm.eq(num_norm)
-        derived_series = _normalize_ssa_relation_series(
-            window.df_completo.loc[mask, "numero_ssa"]
-        )
         derived = []
         seen = set()
-        for value in derived_series.tolist():
-            formatted = str(value or "").strip()
-            if formatted and formatted not in seen:
-                seen.add(formatted)
-                derived.append(formatted)
+        for parent_value, child_value in _get_cached_derivadas_family_edges(window):
+            if parent_value != num_norm or not child_value or child_value in seen:
+                continue
+            seen.add(child_value)
+            derived.append(child_value)
         return derived
     except Exception as exc:
         logger.debug("Falha ao coletar derivadas para SSA %s: %s", numero_ssa, exc)
@@ -1473,10 +1470,92 @@ def _build_derivadas_tree_html(
     if not target:
         return ""
 
-    if ssa_index is None:
+    allow_global_index = ssa_index is None
+    if allow_global_index:
         ssa_index = _get_window_ssa_series_index(window)
+    assert ssa_index is not None
     target_status = str(data.get("target_status", "") or "").strip().upper()
     fallback_ssa_index: dict[str, pd.Series] | None = None
+    candidate_ssas: set[str] = {target}
+    existing_tree_ssas: set[str] = set()
+    status_by_ssa: dict[str, str] = {}
+    if target_status:
+        status_by_ssa[target] = target_status
+
+    def _remember_tree_candidate(raw) -> None:
+        if isinstance(raw, dict):
+            raw_map = cast(dict[str, object], raw)
+            ssa = _normalize_ssa_relation_value(raw_map.get("ssa"))
+            parent = _normalize_ssa_relation_value(raw_map.get("parent"))
+            if parent:
+                candidate_ssas.add(parent)
+            status_hint = str(raw_map.get("situacao", "") or "").strip().upper()
+        else:
+            ssa = _normalize_ssa_relation_value(raw)
+            status_hint = ""
+        if not ssa:
+            return
+        candidate_ssas.add(ssa)
+        if status_hint and ssa not in status_by_ssa:
+            status_by_ssa[ssa] = status_hint
+
+    for candidate_key in (
+        "parents",
+        "children",
+        "descendants",
+        "ancestors",
+        "family_roots",
+        "related",
+    ):
+        raw_candidates = data.get(candidate_key, [])
+        if isinstance(raw_candidates, list):
+            for raw_candidate in raw_candidates:
+                _remember_tree_candidate(raw_candidate)
+
+    def _hydrate_tree_candidates_from_df(df) -> None:
+        remaining = candidate_ssas - existing_tree_ssas
+        if (
+            not remaining
+            or df is None
+            or df.empty
+            or "numero_ssa" not in getattr(df, "columns", [])
+        ):
+            return
+        try:
+            normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
+            if normalized_series.empty:
+                return
+            matches = normalized_series.isin(remaining)
+            if not bool(matches.any()):
+                return
+            for idx_label, normalized in normalized_series[matches].items():
+                normalized_text = str(normalized or "").strip()
+                if not normalized_text:
+                    continue
+                existing_tree_ssas.add(normalized_text)
+                if normalized_text in status_by_ssa or "situacao" not in df.columns:
+                    continue
+                matched = df.loc[idx_label]
+                if isinstance(matched, pd.DataFrame):
+                    matched = matched.iloc[0]
+                try:
+                    status_code = get_status_code(matched.get("situacao"))
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao obter situacao da SSA %s no mapa local da arvore: %s",
+                        normalized_text,
+                        exc,
+                    )
+                    status_code = ""
+                if status_code:
+                    status_by_ssa[normalized_text] = status_code
+                if len(existing_tree_ssas) >= len(candidate_ssas):
+                    return
+        except Exception as exc:
+            logger.debug("Falha ao hidratar candidatos da arvore de derivadas: %s", exc)
+
+    _hydrate_tree_candidates_from_df(getattr(window, "df_exibido", None))
+    _hydrate_tree_candidates_from_df(getattr(window, "df_completo", None))
 
     def _ssa_link(value, *, status_hint: str | None = None):
         nonlocal fallback_ssa_index
@@ -1484,18 +1563,21 @@ def _build_derivadas_tree_html(
         if not safe:
             return html_module.escape(str(value))
         resolved_series = ssa_index.get(safe)
-        if resolved_series is None and fallback_ssa_index is None:
+        if resolved_series is None and allow_global_index and fallback_ssa_index is None:
             fallback_ssa_index = _get_window_ssa_series_index(window)
         if resolved_series is None and fallback_ssa_index:
             resolved_series = fallback_ssa_index.get(safe)
         if (
             resolved_series is None
+            and allow_global_index
             and (not fallback_ssa_index or len(fallback_ssa_index) <= DERIVADAS_GRAPH_MAX_DESCENDANTS)
         ):
             resolved_series = _get_series_for_ssa(window, safe)
         status_code = str(status_hint or "").strip().upper()
         if not status_code and safe == target:
             status_code = target_status
+        if not status_code:
+            status_code = status_by_ssa.get(safe, "")
         if not status_code and resolved_series is not None:
             try:
                 status_code = get_status_code(resolved_series.get("situacao"))
@@ -1505,7 +1587,7 @@ def _build_derivadas_tree_html(
             safe,
             link_color=safe_link_color,
             panel_mode=True,
-            exists=resolved_series is not None,
+            exists=resolved_series is not None or safe in existing_tree_ssas,
             status_hint=status_code,
         )
 
@@ -1830,7 +1912,7 @@ def _build_derivadas_graph_html(
     parents = _normalize_list(data.get("parents", []))
     children = _normalize_list(data.get("children", []))
     descendants_entries = data.get("descendants", [])
-    descendants: list[dict[str, str]] = []
+    descendants: list[dict[str, object]] = []
     if isinstance(descendants_entries, list):
         for raw in descendants_entries[:DERIVADAS_GRAPH_MAX_DESCENDANTS]:
             if not isinstance(raw, dict):
@@ -1840,7 +1922,12 @@ def _build_derivadas_graph_html(
             parent = _normalize_ssa_relation_value(raw_map.get("parent"))
             if not child:
                 continue
-            descendants.append({"ssa": child, "parent": parent})
+            row: dict[str, object] = {"ssa": child, "parent": parent}
+            if raw_map.get("relation_type") is not None:
+                row["relation_type"] = raw_map.get("relation_type")
+            if raw_map.get("relation_raw_label"):
+                row["relation_raw_label"] = raw_map.get("relation_raw_label")
+            descendants.append(row)
 
     nodes: set[str] = {target}
     edges: list[tuple[str, str]] = []
@@ -1852,6 +1939,8 @@ def _build_derivadas_graph_html(
             return
         edge = (source, target_node)
         if edge in edge_seen:
+            if dashed:
+                dashed_edges.add(edge)
             return
         edge_seen.add(edge)
         edges.append(edge)
@@ -1860,15 +1949,31 @@ def _build_derivadas_graph_html(
         if dashed:
             dashed_edges.add(edge)
 
+    def _is_related_edge(row: Mapping[str, object]) -> bool:
+        raw_label = str(row.get("relation_raw_label") or row.get("relacao") or "")
+        label = raw_label.strip().casefold()
+        if "derivad" in label:
+            return False
+        if label:
+            return True
+        raw_type = row.get("relation_type")
+        if raw_type is None:
+            return False
+        try:
+            return int(cast(Any, raw_type)) not in (0, 1)
+        except (TypeError, ValueError):
+            return False
+
     for parent in parents:
         _add_edge(parent, target)
     for child in children:
         _add_edge(target, child)
     for row in descendants:
-        descendant = row.get("ssa", "")
-        parent = row.get("parent", "")
+        descendant = str(row.get("ssa", "") or "")
+        parent = str(row.get("parent", "") or "")
+        dashed = _is_related_edge(row)
         if parent:
-            _add_edge(parent, descendant)
+            _add_edge(parent, descendant, dashed=dashed)
         else:
             _add_edge(target, descendant, dashed=True)
     related_entries = data.get("related", [])
@@ -2343,7 +2448,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
             series_target = _get_series_for_ssa(window, normalized)
         if series_target is None:
             return False
-        ssa_index = _get_df_ssa_series_index(window, getattr(window, "df_para_tabela", None))
+        ssa_index: dict[str, pd.Series] = {}
         current_target["ssa"] = normalized
         export_state["target"] = normalized
         tree_data = _collect_derivadas_tree_data(window, normalized)

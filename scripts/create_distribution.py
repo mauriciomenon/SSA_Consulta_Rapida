@@ -104,6 +104,7 @@ USER_DIRS = [
 DOC_FILES = [
     "README.md",
     "docs/ANTIVIRUS_EXCLUSOES.md",
+    "docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md",
 ]
 
 

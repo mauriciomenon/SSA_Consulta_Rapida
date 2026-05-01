@@ -18,9 +18,28 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 LOG_DIR="${REPO_ROOT}/launchers/logs"
 LOG_FILE="${LOG_DIR}/build_nuitka_debian_amd64.log"
+REQUIREMENTS_FILE="${REPO_ROOT}/launchers/platforms/debian_amd64/requirements.txt"
 
 mkdir -p "${LOG_DIR}"
-mkdir -p "${REPO_ROOT}/builds/nuitka/debian_amd64"
+FINAL_BUILD_DIR="${REPO_ROOT}/builds/nuitka/debian_amd64"
+mkdir -p "${FINAL_BUILD_DIR}"
+BUILD_WORK_DIR=""
+if [[ "${REPO_ROOT}" == /mnt/* ]]; then
+  NATIVE_CACHE_ROOT="${SSA_NUITKA_NATIVE_ROOT:-${XDG_CACHE_HOME:-${HOME}/.cache}/ssa_consulta_rapida/nuitka}"
+  VENV_DIR="${SSA_NUITKA_VENV_DIR:-${NATIVE_CACHE_ROOT}/debian_amd64/venv}"
+else
+  VENV_DIR="${REPO_ROOT}/launchers/platforms/debian_amd64/venv"
+fi
+PYTHON_EXE="${VENV_DIR}/bin/python"
+
+cleanup_build_work_dir() {
+  if [[ -n "${BUILD_WORK_DIR}" && "${KEEP_NUITKA_WORK_DIR:-0}" != "1" ]]; then
+    rm -rf -- "${BUILD_WORK_DIR}"
+  fi
+}
+
+trap cleanup_build_work_dir EXIT
+cd "${REPO_ROOT}"
 
 export UV_PYTHON=3.13
 export UV_MANAGED_PYTHON=true
@@ -44,8 +63,10 @@ trap on_error ERR
 
 if ! command -v patchelf >/dev/null 2>&1; then
   if sudo -n true >/dev/null 2>&1; then
-    mkdir -p "${TMPDIR:-/tmp}/ssa_build_locks"
-    APT_LOCK_FILE="${TMPDIR:-/tmp}/ssa_build_locks/patchelf_install.lock"
+    APT_LOCK_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/ssa_consulta_rapida/build_locks"
+    mkdir -p "${APT_LOCK_DIR}"
+    chmod 700 "${APT_LOCK_DIR}"
+    APT_LOCK_FILE="${APT_LOCK_DIR}/patchelf_install.lock"
     exec 9>"${APT_LOCK_FILE}"
     if command -v flock >/dev/null 2>&1; then
       flock 9
@@ -87,28 +108,92 @@ print(version)
 PY_VERSION
 )"
 
-GUI_DIST="${REPO_ROOT}/builds/nuitka/debian_amd64/gui_entry.dist"
-CLI_DIST="${REPO_ROOT}/builds/nuitka/debian_amd64/cli_entry.dist"
+BUILD_INFO_FILE="${REPO_ROOT}/builds/metadata/build_info_debian_amd64_nuitka.json"
+mkdir -p "$(dirname "${BUILD_INFO_FILE}")"
+LAST_STEP="write_build_info"
+uv run --python 3.13 python - "${REPO_ROOT}" "${BUILD_INFO_FILE}" "nuitka" "debian_amd64" "${APP_VERSION}" <<'PY_BUILD_INFO'
+import datetime
+import json
+import pathlib
+import subprocess
+import sys
+
+root = pathlib.Path(sys.argv[1])
+output = pathlib.Path(sys.argv[2])
+build_system = sys.argv[3]
+platform_name = sys.argv[4]
+app_version = sys.argv[5]
+
+def run(args):
+    result = subprocess.run(args, cwd=str(root), text=True, capture_output=True, check=False)
+    return (result.stdout or "").strip() if result.returncode == 0 else ""
+
+commit = run(["git", "rev-parse", "HEAD"])
+payload = {
+    "app_version": app_version,
+    "build_datetime": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+    "build_system": build_system,
+    "git_commit": commit,
+    "git_commit_datetime": run(["git", "log", "-1", "--format=%cI"]),
+    "git_commit_short": commit[:7] if commit else "",
+    "git_commit_title": run(["git", "log", "-1", "--format=%s"]),
+    "platform": platform_name,
+    "uv_version": run(["uv", "--version"]),
+}
+output.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY_BUILD_INFO
+
+GUI_DIST="${FINAL_BUILD_DIR}/gui_entry.dist"
+CLI_DIST="${FINAL_BUILD_DIR}/cli_entry.dist"
 rm -rf "${GUI_DIST}" "${CLI_DIST}"
 
+if [[ ! -x "${PYTHON_EXE}" ]]; then
+  LAST_STEP="create_venv"
+  mkdir -p "$(dirname "${VENV_DIR}")"
+  uv venv --python 3.13 "${VENV_DIR}"
+fi
+
+LAST_STEP="install_requirements"
+uv pip install --python "${PYTHON_EXE}" -r "${REQUIREMENTS_FILE}"
+if [[ "${REPO_ROOT}" == /mnt/* ]]; then
+  echo "[build_nuitka_debian] usando venv nativo WSL: ${VENV_DIR}" >>"${LOG_FILE}"
+fi
+
+if [[ "${REPO_ROOT}" == /mnt/* ]]; then
+  if [[ -n "${SSA_NUITKA_WORK_ROOT:-}" ]]; then
+    mkdir -p "${SSA_NUITKA_WORK_ROOT}"
+    chmod 700 "${SSA_NUITKA_WORK_ROOT}"
+    BUILD_WORK_DIR="$(mktemp -d "${SSA_NUITKA_WORK_ROOT}/debian_amd64.XXXXXX")"
+  else
+    BUILD_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ssa_nuitka_debian_amd64.XXXXXX")"
+  fi
+  NUITKA_OUTPUT_DIR="${BUILD_WORK_DIR}"
+else
+  NUITKA_OUTPUT_DIR="${FINAL_BUILD_DIR}"
+fi
+
 GUI_CMD=(
-  uv run --python 3.13 -m nuitka
+  "${PYTHON_EXE}" -m nuitka
   --standalone
   --assume-yes-for-downloads
   --follow-imports
   --enable-plugin=pyqt6
   --include-data-dir=config=config
   --include-data-dir=resources=resources
-  --output-dir=builds/nuitka/debian_amd64
+  --include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md
+  --include-data-file="${BUILD_INFO_FILE}=config/build_info.json"
+  --output-dir="${NUITKA_OUTPUT_DIR}"
 )
 
 CLI_CMD=(
-  uv run --python 3.13 -m nuitka
+  "${PYTHON_EXE}" -m nuitka
   --standalone
   --assume-yes-for-downloads
   --follow-imports
   --include-data-dir=config=config
-  --output-dir=builds/nuitka/debian_amd64
+  --include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md
+  --include-data-file="${BUILD_INFO_FILE}=config/build_info.json"
+  --output-dir="${NUITKA_OUTPUT_DIR}"
 )
 
 if [[ "${SILENT}" == "1" ]]; then
@@ -116,6 +201,11 @@ if [[ "${SILENT}" == "1" ]]; then
   "${GUI_CMD[@]}" --output-filename="SSA_GUI_v${APP_VERSION}_debian_amd64" --linux-icon=resources/app_icon.png launchers/gui_entry.py >"${LOG_FILE}" 2>&1
   LAST_STEP="nuitka_cli"
   "${CLI_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_debian_amd64" launchers/cli_entry.py >>"${LOG_FILE}" 2>&1
+  if [[ "${NUITKA_OUTPUT_DIR}" != "${FINAL_BUILD_DIR}" ]]; then
+    LAST_STEP="copy_nuitka_dist"
+    cp -a "${NUITKA_OUTPUT_DIR}/gui_entry.dist" "${GUI_DIST}"
+    cp -a "${NUITKA_OUTPUT_DIR}/cli_entry.dist" "${CLI_DIST}"
+  fi
   if [[ "${WITH_LOCAL_DATA}" == "1" ]]; then
     LAST_STEP="copy_data_to_builds"
     uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" --build-system nuitka --allow-local-data >>"${LOG_FILE}" 2>&1
@@ -128,6 +218,11 @@ else
   "${GUI_CMD[@]}" --output-filename="SSA_GUI_v${APP_VERSION}_debian_amd64" --linux-icon=resources/app_icon.png launchers/gui_entry.py
   LAST_STEP="nuitka_cli"
   "${CLI_CMD[@]}" --output-filename="SSA_CLI_v${APP_VERSION}_debian_amd64" launchers/cli_entry.py
+  if [[ "${NUITKA_OUTPUT_DIR}" != "${FINAL_BUILD_DIR}" ]]; then
+    LAST_STEP="copy_nuitka_dist"
+    cp -a "${NUITKA_OUTPUT_DIR}/gui_entry.dist" "${GUI_DIST}"
+    cp -a "${NUITKA_OUTPUT_DIR}/cli_entry.dist" "${CLI_DIST}"
+  fi
   if [[ "${WITH_LOCAL_DATA}" == "1" ]]; then
     LAST_STEP="copy_data_to_builds"
     uv run --python 3.13 "${REPO_ROOT}/scripts/copy_data_to_builds.py" --build-system nuitka --allow-local-data
@@ -136,7 +231,7 @@ else
   fi
 fi
 
-echo "Build Nuitka Debian concluido com sucesso."
+echo "Build Nuitka Debian amd64 concluido com sucesso."
 echo "Artefatos em: ${REPO_ROOT}/builds/nuitka/debian_amd64"
 if [[ "${SILENT}" != "1" ]]; then
   read -r -p "Executar cleanup TEMP agora? [s/N]: " DO_CLEANUP

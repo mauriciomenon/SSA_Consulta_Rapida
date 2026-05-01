@@ -74,6 +74,40 @@ def _fake_extract_transition(file_path: str, should_cancel=None):  # noqa: ARG00
     )
 
 
+def test_run_importer_logic_accepts_explicit_external_db_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from utils import path_safety
+
+    project_root = tmp_path / "project"
+    docs_dir = project_root / "docs_entrada"
+    docs_dir.mkdir(parents=True)
+    external_data_dir = tmp_path / "selected_db"
+    external_data_dir.mkdir()
+
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [project_root])
+    monkeypatch.setattr(app_logic, "project_root_path", project_root)
+
+    with pytest.raises(path_safety.PathSafetyError):
+        app_logic.run_importer_logic(
+            docs_dir=str(docs_dir),
+            data_dir=str(external_data_dir),
+            db_name="custom.sqlite",
+            force_import=False,
+        )
+
+    result = app_logic.run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(external_data_dir),
+        db_name="custom.sqlite",
+        force_import=False,
+        extra_allowed_roots=(external_data_dir,),
+    )
+
+    assert result is False
+
+
 def _prepare_import_update_runtime(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -14,33 +14,32 @@ Uso:
 """
 
 import argparse
+import importlib
 import shutil
 import sys
 import tempfile
 from pathlib import Path
 
-PYINSTALLER_CANONICAL_DIRS = (
-    "launchers/dist/windows_amd64",
-    "launchers/dist/macos_arm64",
-    "launchers/dist/debian_amd64",
-)
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-PYINSTALLER_EQUIVALENT_DIRS = (
-    "builds/pyinstaller/windows_amd64",
-    "builds/pyinstaller/macos_arm64",
-    "builds/pyinstaller/debian_amd64",
-)
+MultiPlatformBuilder = importlib.import_module(
+    "launchers.build_multiplatform"
+).MultiPlatformBuilder
+_SUPPORTED_PLATFORMS = tuple(sorted(MultiPlatformBuilder.PLATFORMS))
 
-NUITKA_PLATFORM_DIRS = (
-    "builds/nuitka/windows_amd64",
-    "builds/nuitka/debian_amd64",
-    "builds/nuitka/macos_arm64",
+PYINSTALLER_CANONICAL_DIRS = tuple(
+    f"launchers/dist/{platform}" for platform in _SUPPORTED_PLATFORMS
 )
-
-PYOXIDIZER_PLATFORM_DIRS = (
-    "builds/pyoxidizer/windows_amd64",
-    "builds/pyoxidizer/debian_amd64",
-    "builds/pyoxidizer/macos_arm64",
+PYINSTALLER_EQUIVALENT_DIRS = tuple(
+    f"builds/pyinstaller/{platform}" for platform in _SUPPORTED_PLATFORMS
+)
+NUITKA_PLATFORM_DIRS = tuple(
+    f"builds/nuitka/{platform}" for platform in _SUPPORTED_PLATFORMS
+)
+PYOXIDIZER_PLATFORM_DIRS = tuple(
+    f"builds/pyoxidizer/{platform}" for platform in _SUPPORTED_PLATFORMS
 )
 
 
