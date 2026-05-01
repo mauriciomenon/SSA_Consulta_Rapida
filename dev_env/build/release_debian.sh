@@ -94,19 +94,22 @@ load_release_target_cache() {
   RELEASE_BACKENDS_CSV="$(release_report_cmd release-targets --platform debian_amd64 --kind backends)"
   RELEASE_PACKAGES_CSV="$(release_report_cmd release-targets --platform debian_amd64 --kind packages)"
   RELEASE_UNSUPPORTED_PAIRS="$(release_report_cmd release-unsupported-pairs --platform debian_amd64)"
+  [[ -n "${RELEASE_BACKENDS_CSV}" ]] || die "release_targets.json nao retornou backends debian_amd64"
+  [[ -n "${RELEASE_PACKAGES_CSV}" ]] || die "release_targets.json nao retornou packages debian_amd64"
 }
 
 release_target_supported() {
   local backend="$1"
   local package_kind="$2"
+  local unsupported_backend unsupported_package _unused_reason
   csv_contains "${RELEASE_BACKENDS_CSV}" "${backend}" || return 1
   csv_contains "${RELEASE_PACKAGES_CSV}" "${package_kind}" || return 1
-  if [[ -n "${RELEASE_UNSUPPORTED_PAIRS}" ]] &&
-    printf '%s\n' "${RELEASE_UNSUPPORTED_PAIRS}" |
-      awk -F '\t' -v backend="${backend}" -v package_kind="${package_kind}" \
-        '$1 == backend && $2 == package_kind { found = 1 } END { exit found ? 0 : 1 }'; then
-    return 1
-  fi
+  while IFS=$'\t' read -r unsupported_backend unsupported_package _unused_reason; do
+    [[ -n "${unsupported_backend}" ]] || continue
+    if [[ "${unsupported_backend}" == "${backend}" && "${unsupported_package}" == "${package_kind}" ]]; then
+      return 1
+    fi
+  done <<<"${RELEASE_UNSUPPORTED_PAIRS}"
   return 0
 }
 
@@ -418,6 +421,9 @@ run_package_backend() {
   local root="$1"
   local backend="$2"
   local package_kind="$3"
+  if ! is_supported_package_pair "${backend}" "${package_kind}"; then
+    die "$(release_target_reason "${backend}" "${package_kind}")"
+  fi
   case "${package_kind}:${backend}" in
     deb:*)
       bash "${root}/dev_env/build/package_debian_amd64_deb.sh" --build-system "${backend}"
@@ -733,7 +739,6 @@ run_local_release() {
 
 main() {
   parse_args "$@"
-  REPO_ROOT="$(repo_root)"
   assert_tool uv
   load_release_target_cache
   resolve_release_options
