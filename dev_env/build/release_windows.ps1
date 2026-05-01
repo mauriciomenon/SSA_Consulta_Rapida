@@ -170,57 +170,57 @@ function Get-BackendConfig {
 
     return @{
         pyinstaller = [ordered]@{
-            build_script = Join-Path $RepoRoot "dev_env\build\build_pyinstaller.bat"
+            build_script = (Join-Path $RepoRoot "dev_env\build\build_pyinstaller.bat")
             package_system = "pyinstaller"
-            cli_exe = Join-Path $RepoRoot "launchers\dist\windows_amd64\SSA_CLI_v$($Version)_windows_amd64\SSA_CLI_v$($Version)_windows_amd64.exe"
-            gui_exe = Join-Path $RepoRoot "launchers\dist\windows_amd64\SSA_GUI_v$($Version)_windows_amd64\SSA_GUI_v$($Version)_windows_amd64.exe"
+            cli_exe = (Join-Path $RepoRoot "launchers\dist\windows_amd64\SSA_CLI_v$($Version)_windows_amd64\SSA_CLI_v$($Version)_windows_amd64.exe")
+            gui_exe = (Join-Path $RepoRoot "launchers\dist\windows_amd64\SSA_GUI_v$($Version)_windows_amd64\SSA_GUI_v$($Version)_windows_amd64.exe")
             build_info = @(
-                Join-Path $RepoRoot "launchers\dist\windows_amd64\SSA_CLI_v$($Version)_windows_amd64\_internal\config\build_info.json",
-                Join-Path $RepoRoot "launchers\dist\windows_amd64\SSA_GUI_v$($Version)_windows_amd64\_internal\config\build_info.json"
+                (Join-Path $RepoRoot "launchers\dist\windows_amd64\SSA_CLI_v$($Version)_windows_amd64\_internal\config\build_info.json"),
+                (Join-Path $RepoRoot "launchers\dist\windows_amd64\SSA_GUI_v$($Version)_windows_amd64\_internal\config\build_info.json")
             )
             release_zips = @(
                 [ordered]@{
-                    source = Join-Path $RepoRoot "launchers\dist\windows_amd64\SSA_CLI_v$($Version)_windows_amd64"
-                    zip = Join-Path $RepoRoot "builds\packages\windows_amd64\SSA_Consulta_Rapida_v$($Version)_windows_amd64_pyinstaller_cli.zip"
+                    source = (Join-Path $RepoRoot "launchers\dist\windows_amd64\SSA_CLI_v$($Version)_windows_amd64")
+                    zip = (Join-Path $RepoRoot "builds\packages\windows_amd64\SSA_Consulta_Rapida_v$($Version)_windows_amd64_pyinstaller_cli.zip")
                 },
                 [ordered]@{
-                    source = Join-Path $RepoRoot "launchers\dist\windows_amd64\SSA_GUI_v$($Version)_windows_amd64"
-                    zip = Join-Path $RepoRoot "builds\packages\windows_amd64\SSA_Consulta_Rapida_v$($Version)_windows_amd64_pyinstaller_gui.zip"
+                    source = (Join-Path $RepoRoot "launchers\dist\windows_amd64\SSA_GUI_v$($Version)_windows_amd64")
+                    zip = (Join-Path $RepoRoot "builds\packages\windows_amd64\SSA_Consulta_Rapida_v$($Version)_windows_amd64_pyinstaller_gui.zip")
                 }
             )
         }
         nuitka = [ordered]@{
-            build_script = Join-Path $RepoRoot "dev_env\build\build_nuitka.bat"
+            build_script = (Join-Path $RepoRoot "dev_env\build\build_nuitka.bat")
             package_system = "nuitka"
-            cli_exe = Join-Path $RepoRoot "builds\nuitka\windows_amd64\cli_entry.dist\SSA_CLI_v$($Version)_windows_amd64.exe"
-            gui_exe = Join-Path $RepoRoot "builds\nuitka\windows_amd64\gui_entry.dist\SSA_GUI_v$($Version)_windows_amd64.exe"
+            cli_exe = (Join-Path $RepoRoot "builds\nuitka\windows_amd64\cli_entry.dist\SSA_CLI_v$($Version)_windows_amd64.exe")
+            gui_exe = (Join-Path $RepoRoot "builds\nuitka\windows_amd64\gui_entry.dist\SSA_GUI_v$($Version)_windows_amd64.exe")
             build_info = @(
-                Join-Path $RepoRoot "builds\nuitka\windows_amd64\cli_entry.dist\config\build_info.json",
-                Join-Path $RepoRoot "builds\nuitka\windows_amd64\gui_entry.dist\config\build_info.json"
+                (Join-Path $RepoRoot "builds\nuitka\windows_amd64\cli_entry.dist\config\build_info.json"),
+                (Join-Path $RepoRoot "builds\nuitka\windows_amd64\gui_entry.dist\config\build_info.json")
             )
             release_zips = @(
                 [ordered]@{
-                    source = Join-Path $RepoRoot "builds\nuitka\windows_amd64\cli_entry.dist"
-                    zip = Join-Path $RepoRoot "builds\packages\windows_amd64\SSA_Consulta_Rapida_v$($Version)_windows_amd64_nuitka_cli.zip"
+                    source = (Join-Path $RepoRoot "builds\nuitka\windows_amd64\cli_entry.dist")
+                    zip = (Join-Path $RepoRoot "builds\packages\windows_amd64\SSA_Consulta_Rapida_v$($Version)_windows_amd64_nuitka_cli.zip")
                 },
                 [ordered]@{
-                    source = Join-Path $RepoRoot "builds\nuitka\windows_amd64\gui_entry.dist"
-                    zip = Join-Path $RepoRoot "builds\packages\windows_amd64\SSA_Consulta_Rapida_v$($Version)_windows_amd64_nuitka_gui.zip"
+                    source = (Join-Path $RepoRoot "builds\nuitka\windows_amd64\gui_entry.dist")
+                    zip = (Join-Path $RepoRoot "builds\packages\windows_amd64\SSA_Consulta_Rapida_v$($Version)_windows_amd64_nuitka_gui.zip")
                 }
             )
         }
         pyoxidizer = [ordered]@{
-            build_script = Join-Path $RepoRoot "dev_env\build\build_pyoxidizer.bat"
+            build_script = (Join-Path $RepoRoot "dev_env\build\build_pyoxidizer.bat")
             package_system = "pyoxidizer"
             cli_exe = $null
-            gui_exe = Join-Path $RepoRoot "builds\pyoxidizer\windows_amd64\SSA_Consulta_Rapida.exe"
+            gui_exe = (Join-Path $RepoRoot "builds\pyoxidizer\windows_amd64\SSA_Consulta_Rapida.exe")
             build_info = @(
-                Join-Path $RepoRoot "builds\pyoxidizer\windows_amd64\config\build_info.json"
+                (Join-Path $RepoRoot "builds\pyoxidizer\windows_amd64\config\build_info.json")
             )
             release_zips = @(
                 [ordered]@{
-                    source = Join-Path $RepoRoot "builds\pyoxidizer\windows_amd64"
-                    zip = Join-Path $RepoRoot "builds\packages\windows_amd64\SSA_Consulta_Rapida_v$($Version)_windows_amd64_pyoxidizer.zip"
+                    source = (Join-Path $RepoRoot "builds\pyoxidizer\windows_amd64")
+                    zip = (Join-Path $RepoRoot "builds\packages\windows_amd64\SSA_Consulta_Rapida_v$($Version)_windows_amd64_pyoxidizer.zip")
                 }
             )
         }

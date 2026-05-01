@@ -70,3 +70,15 @@ def test_release_windows_script_exposes_backend_scorecard() -> None:
     assert "python_source_exposure_score" in script
     assert "easy_user_dirs_score" in script
     assert "package_size_score" in script
+
+
+def test_release_windows_backend_paths_are_grouped_expressions() -> None:
+    script = _script_text()
+    backend_block = script.split("function Get-BackendConfig", 1)[1].split(
+        "function Invoke-CheckedProcess", 1
+    )[0]
+
+    for line in backend_block.splitlines():
+        stripped = line.strip()
+        if "Join-Path $RepoRoot" in stripped:
+            assert stripped.startswith(("(", "build_script = (", "cli_exe = (", "gui_exe = (", "source = (", "zip = ("))

@@ -154,3 +154,20 @@ def test_acquire_cache_lock_preserves_active_lock_and_times_out(tmp_path, monkey
         caching._acquire_cache_lock(lock_path)
 
     assert os.path.exists(lock_path)
+
+
+def test_acquire_cache_lock_removes_partial_lock_when_pid_write_fails(
+    tmp_path, monkeypatch
+):
+    cache_file = tmp_path / "file_cache.json"
+    lock_path = str(cache_file) + ".lock"
+
+    def fail_write(fd, data):  # noqa: ARG001
+        raise OSError("write failed")
+
+    monkeypatch.setattr(caching.os, "write", fail_write)
+
+    with pytest.raises(RuntimeError, match="Failed to write cache lock metadata"):
+        caching._acquire_cache_lock(lock_path)
+
+    assert not os.path.exists(lock_path)
