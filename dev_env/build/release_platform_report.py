@@ -2,37 +2,79 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import functools
 import hashlib
 import json
 import pathlib
 import platform
-import sys
+
+try:
+    from dev_env.build.source_protection import (
+        SourceExposureError,
+        UnsupportedArtifactError,
+        validate_source_protection,
+    )
+except ModuleNotFoundError:
+    from source_protection import (  # type: ignore[no-redef]
+        SourceExposureError,
+        UnsupportedArtifactError,
+        validate_source_protection,
+    )
+
+from utils.robust_logging import get_robust_logger
+
+
+logger = get_robust_logger().get_logger(__name__, "build")
 
 
 class ReleaseReportError(RuntimeError):
     pass
 
 
-SCORECARDS = {
-    "pyinstaller": {
-        "security_score": 3,
-        "python_source_exposure_score": 2,
-        "easy_user_dirs_score": 5,
-        "package_size_score": 4,
-    },
+SCORECARD_FILE = pathlib.Path(__file__).with_name("backend_scorecards.json")
+DEFAULT_SCORECARDS: dict[str, dict[str, object]] = {
     "nuitka": {
-        "security_score": 4,
-        "python_source_exposure_score": 4,
         "easy_user_dirs_score": 4,
+        "note": "Melhor protecao do codigo protegido por compilacao nativa; build mais lento.",
         "package_size_score": 3,
+        "protected_release": True,
+        "security_score": 4,
+        "source_protection_score": 4,
+    },
+    "pyinstaller": {
+        "easy_user_dirs_score": 5,
+        "note": "Alta compatibilidade; nao e artefato protegido sem obfuscation.",
+        "package_size_score": 4,
+        "protected_release": False,
+        "security_score": 2,
+        "source_protection_score": 2,
     },
     "pyoxidizer": {
-        "security_score": 4,
-        "python_source_exposure_score": 3,
         "easy_user_dirs_score": 3,
-        "package_size_score": 4,
+        "note": "Empacotamento forte, mas requer embedding sem fonte Python exposta.",
+        "package_size_score": 2,
+        "protected_release": False,
+        "security_score": 3,
+        "source_protection_score": 3,
     },
 }
+
+
+@functools.lru_cache(maxsize=1)
+def _load_scorecards() -> dict[str, dict[str, object]]:
+    try:
+        payload = json.loads(SCORECARD_FILE.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError) as exc:
+        logger.warning(
+            "Falha ao carregar %s; usando defaults: %s",
+            SCORECARD_FILE,
+            exc,
+        )
+        return DEFAULT_SCORECARDS
+    if not isinstance(payload, dict):
+        logger.warning("%s invalido; usando defaults.", SCORECARD_FILE)
+        return DEFAULT_SCORECARDS
+    return payload
 
 
 def _read_json(path: pathlib.Path) -> dict[str, object]:
@@ -93,23 +135,35 @@ def validate_build_info(args: argparse.Namespace) -> int:
 
 
 def print_scorecard(args: argparse.Namespace) -> int:
+    scorecards = _load_scorecards()
     try:
-        scorecard = SCORECARDS[args.backend]
+        scorecard = scorecards[args.backend]
     except KeyError as exc:
         raise ReleaseReportError(f"backend desconhecido: {args.backend}") from exc
     print(json.dumps(scorecard, ensure_ascii=True, sort_keys=True))
     return 0
 
 
+def validate_source_protection_command(args: argparse.Namespace) -> int:
+    try:
+        validate_source_protection(args.artifact)
+    except (SourceExposureError, UnsupportedArtifactError) as exc:
+        raise ReleaseReportError(str(exc)) from exc
+    return 0
+
+
 def write_report(args: argparse.Namespace) -> int:
-    package_dir = args.repo_root / "builds" / "packages" / "debian_amd64"
+    package_dir = args.repo_root / "builds" / "packages" / args.platform
     assets = []
     if package_dir.is_dir():
         asset_paths = [
             path
             for path in sorted(package_dir.iterdir())
             if path.is_file()
-            and (path.suffix in {".deb", ".AppImage"} or path.name.endswith(".tar.gz"))
+            and (
+                path.suffix in {".AppImage", ".deb", ".exe", ".msi", ".zip"}
+                or path.name.endswith(".tar.gz")
+            )
         ]
         if asset_paths:
             workers = min(4, len(asset_paths))
@@ -118,19 +172,20 @@ def write_report(args: argparse.Namespace) -> int:
 
     backends = [item for item in args.backends.split(",") if item]
     packages = [item for item in args.packages.split(",") if item]
-    unknown_backends = [backend for backend in backends if backend not in SCORECARDS]
+    scorecards = _load_scorecards()
+    unknown_backends = [backend for backend in backends if backend not in scorecards]
     if unknown_backends:
         joined = ", ".join(unknown_backends)
         raise ReleaseReportError(f"backend desconhecido no report: {joined}")
     payload = {
-        "platform": "debian_amd64",
+        "platform": args.platform,
         "host_os": platform.platform(),
         "machine": platform.machine(),
         "app_version": args.app_version,
         "git_commit": args.git_commit,
         "backends": backends,
         "packages": packages,
-        "scorecards": {backend: SCORECARDS[backend] for backend in backends},
+        "scorecards": {backend: scorecards[backend] for backend in backends},
         "assets": assets,
     }
     args.report_file.parent.mkdir(parents=True, exist_ok=True)
@@ -161,9 +216,14 @@ def build_parser() -> argparse.ArgumentParser:
     scorecard.add_argument("--backend", required=True)
     scorecard.set_defaults(func=print_scorecard)
 
+    source_protection = subparsers.add_parser("source-protection")
+    source_protection.add_argument("--artifact", type=pathlib.Path, required=True)
+    source_protection.set_defaults(func=validate_source_protection_command)
+
     report = subparsers.add_parser("write-report")
     report.add_argument("--repo-root", type=pathlib.Path, required=True)
     report.add_argument("--report-file", type=pathlib.Path, required=True)
+    report.add_argument("--platform", required=True)
     report.add_argument("--backends", required=True)
     report.add_argument("--packages", required=True)
     report.add_argument("--app-version", required=True)
@@ -179,7 +239,7 @@ def main() -> int:
     try:
         return int(args.func(args))
     except ReleaseReportError as exc:
-        print(f"Erro: {exc}", file=sys.stderr)
+        logger.error("Erro: %s", exc)
         return 1
 
 

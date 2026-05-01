@@ -137,7 +137,7 @@ CHOICES
 
 get_backend_scorecard() {
   local backend="$1"
-  uv run --python 3.13 python "$(repo_root)/dev_env/build/release_debian_report.py" \
+  uv run --python 3.13 python "$(repo_root)/dev_env/build/release_platform_report.py" \
     scorecard \
     --backend "${backend}"
 }
@@ -197,7 +197,7 @@ git_head() {
 
 read_app_version() {
   local root="$1"
-  uv run --python 3.13 python "${root}/dev_env/build/release_debian_report.py" \
+  uv run --python 3.13 python "${root}/dev_env/build/release_platform_report.py" \
     app-version \
     --version-file "${root}/config/version.json"
 }
@@ -272,14 +272,23 @@ validate_build_payload() {
     [[ -f "${payload_root}/config/build_info.json" ]] || die "build_info.json ausente em ${payload_root}"
     [[ -f "${payload_root}/docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md" ]] || die "GUIA_MIGRACAO_NOVA_INSTALACAO.md ausente em ${payload_root}"
 
-    uv run --python 3.13 python "${root}/dev_env/build/release_debian_report.py" \
+    uv run --python 3.13 python "${root}/dev_env/build/release_platform_report.py" \
       validate-build-info \
       --build-info "${payload_root}/config/build_info.json" \
       --backend "${backend}" \
       --platform "debian_amd64" \
       --app-version "${app_version}" \
       --git-commit "${git_commit}"
+    validate_source_protection "${root}" "${bundle_root}"
   done
+}
+
+validate_source_protection() {
+  local root="$1"
+  local artifact="$2"
+  uv run --python 3.13 python "${root}/dev_env/build/release_platform_report.py" \
+    source-protection \
+    --artifact "${artifact}"
 }
 
 run_build_backend() {
@@ -415,6 +424,7 @@ validate_tar_payload() {
   local package_file="$1"
   local package_contents
   [[ -f "${package_file}" ]] || die "pacote tar ausente: ${package_file}"
+  validate_source_protection "${REPO_ROOT:?REPO_ROOT ausente}" "${package_file}"
   package_contents="$(tar -tzf "${package_file}")"
   grep -F "GUIA_MIGRACAO_NOVA_INSTALACAO.md" <<<"${package_contents}" >/dev/null || die "guia ausente no tar ${package_file}"
   grep -F "build_info.json" <<<"${package_contents}" >/dev/null || die "build_info ausente no tar ${package_file}"
@@ -427,10 +437,11 @@ write_release_report() {
   local package_csv="$4"
   local app_version="$5"
   local git_commit="$6"
-  uv run --python 3.13 python "${root}/dev_env/build/release_debian_report.py" \
+  uv run --python 3.13 python "${root}/dev_env/build/release_platform_report.py" \
     write-report \
     --repo-root "${root}" \
     --report-file "${report_file}" \
+    --platform "debian_amd64" \
     --backends "${backend_csv}" \
     --packages "${package_csv}" \
     --app-version "${app_version}" \

@@ -138,29 +138,20 @@ function Get-SelectedBackends {
 }
 
 function Get-BackendScorecard {
-    return [ordered]@{
-        pyinstaller = [ordered]@{
-            security_score = 2
-            python_source_exposure_score = 2
-            easy_user_dirs_score = 5
-            package_size_score = 4
-            note = "Alta compatibilidade; menor protecao contra inspecao do Python empacotado."
+    param([Parameter(Mandatory = $true)] [string] $RepoRoot)
+
+    $scorecardFile = Join-Path $RepoRoot "dev_env\build\backend_scorecards.json"
+    Assert-ExistingFile $scorecardFile
+    $raw = Get-Content $scorecardFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    $scorecards = @{}
+    foreach ($backend in $raw.PSObject.Properties) {
+        $record = [ordered]@{}
+        foreach ($field in $backend.Value.PSObject.Properties) {
+            $record[$field.Name] = $field.Value
         }
-        nuitka = [ordered]@{
-            security_score = 4
-            python_source_exposure_score = 4
-            easy_user_dirs_score = 4
-            package_size_score = 3
-            note = "Melhor protecao do codigo Python; build mais lento e dependente de toolchain."
-        }
-        pyoxidizer = [ordered]@{
-            security_score = 3
-            python_source_exposure_score = 3
-            easy_user_dirs_score = 3
-            package_size_score = 2
-            note = "Empacotamento forte, mas o layout atual ainda expoe varias pastas Python no output."
-        }
+        $scorecards[$backend.Name] = $record
     }
+    return $scorecards
 }
 
 function Get-BackendConfig {
@@ -441,6 +432,38 @@ function Assert-ZipContents {
     return $records
 }
 
+function Assert-SourceProtection {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepoRoot,
+        [Parameter(Mandatory = $true)] [string[]] $ArtifactPaths
+    )
+
+    $records = @()
+    foreach ($path in $ArtifactPaths) {
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            Assert-ExistingFile $path
+        } elseif (Test-Path -LiteralPath $path -PathType Container) {
+            Assert-ExistingDirectory $path
+        } else {
+            throw "Artefato para protecao de fonte ausente: $path"
+        }
+        Invoke-CheckedProcess $RepoRoot "uv" @(
+            "run",
+            "--python",
+            "3.13",
+            "dev_env\build\release_platform_report.py",
+            "source-protection",
+            "--artifact",
+            $path
+        )
+        $records += [ordered]@{
+            path = $path
+            protected_python_source = $true
+        }
+    }
+    return $records
+}
+
 function Get-ArtifactHash {
     param([Parameter(Mandatory = $true)] [string[]] $Paths)
 
@@ -501,7 +524,7 @@ $version = Get-AppVersion $repoRoot
 $windowsVersion = Get-WindowsVersionText $version
 $gitHead = Get-GitHead $repoRoot
 $dirtyEntries = Assert-CleanReleaseWorkspace $repoRoot
-$scorecard = Get-BackendScorecard
+$scorecard = Get-BackendScorecard $repoRoot
 
 if ($DryRun) {
     Write-Host "Dry-run Windows concluido sem build/pacote."
@@ -511,7 +534,7 @@ if ($DryRun) {
     Write-Host "Backends: $($selectedBackends -join ', ')"
     foreach ($backendName in $selectedBackends) {
         $backendScore = $scorecard[$backendName]
-        Write-Host "Scorecard ${backendName}: seguranca=$($backendScore.security_score); python=$($backendScore.python_source_exposure_score); pastas=$($backendScore.easy_user_dirs_score); tamanho=$($backendScore.package_size_score); nota=$($backendScore.note)"
+        Write-Host "Scorecard ${backendName}: seguranca=$($backendScore.security_score); python=$($backendScore.source_protection_score); pastas=$($backendScore.easy_user_dirs_score); tamanho=$($backendScore.package_size_score); nota=$($backendScore.note)"
     }
     return
 }
@@ -539,7 +562,6 @@ foreach ($backendName in $selectedBackends) {
     $exePaths = @($config.cli_exe, $config.gui_exe) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     $metadataRecords = Assert-ExeMetadata $exePaths $windowsVersion
     $smokeRecord = Invoke-Smoke $backendName $config
-
     if (-not $SkipPackage) {
         Write-BackendReleaseZips $config.release_zips
         Invoke-DistributionPackage $repoRoot $config.package_system ([bool] $SkipInstaller)
@@ -547,6 +569,7 @@ foreach ($backendName in $selectedBackends) {
 
     $zipPaths = @($config.release_zips | ForEach-Object { $_.zip })
     $zipRecords = Assert-ZipContents $zipPaths
+    $zipProtectionRecords = @(Assert-SourceProtection $repoRoot $zipPaths)
     $hashRecords = Get-ArtifactHash $zipPaths
 
     $results += [ordered]@{
@@ -556,6 +579,7 @@ foreach ($backendName in $selectedBackends) {
         exe_metadata = $metadataRecords
         smoke = $smokeRecord
         zip_validation = $zipRecords
+        zip_source_protection = $zipProtectionRecords
         hashes = $hashRecords
     }
 }
