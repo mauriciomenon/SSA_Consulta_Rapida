@@ -16,12 +16,10 @@ def test_bootstrap_uses_apt_get_update_without_invalid_yes_flag() -> None:
 
 def test_pyoxidizer_default_project_root_uses_empty_strip_prefix() -> None:
     root_config = PROJECT_ROOT / "pyoxidizer.bzl"
-    build_config = PROJECT_ROOT / "dev_env" / "build" / "pyoxidizer.bzl"
 
     root_text = root_config.read_text(encoding="utf-8")
-    build_text = build_config.read_text(encoding="utf-8")
 
-    assert root_text == build_text
+    assert not (PROJECT_ROOT / "dev_env" / "build" / "pyoxidizer.bzl").exists()
     assert 'PROJECT_ROOT in ("", ".")' in root_text
     assert '""\n    if PROJECT_ROOT in ("", ".")' in root_text
     assert 'strip_prefix=PROJECT_PREFIX' in root_text
@@ -30,6 +28,22 @@ def test_pyoxidizer_default_project_root_uses_empty_strip_prefix() -> None:
     assert '"launchers/dist/**"' in root_text
     assert '"docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md"' in root_text
     assert '"config/build_info.json"' in root_text
+
+
+def test_pyoxidizer_config_embeds_app_code_without_filesystem_python_sources() -> None:
+    root_config = PROJECT_ROOT / "pyoxidizer.bzl"
+
+    root_text = root_config.read_text(encoding="utf-8")
+
+    assert 'policy.resources_location = "in-memory"' in root_text
+    assert 'policy.resources_location_fallback = "filesystem-relative:lib"' in root_text
+    assert "python_config.oxidized_importer = True" in root_text
+    assert "python_config.filesystem_importer = False" in root_text
+    assert "exe.read_package_root(" in root_text
+    assert '"core"' in root_text
+    assert '"main"' in root_text
+    assert '"core/*.py"' not in root_text
+    assert '"main.py"' not in root_text
 
 
 def test_pyoxidizer_debian_uses_root_config_kept_in_sync() -> None:
