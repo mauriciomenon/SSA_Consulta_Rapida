@@ -348,16 +348,43 @@ function Invoke-Smoke {
         }
     }
 
-    $inputText = "q`n"
-    $inputText | & $Config.cli_exe --skip-import | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Smoke CLI falhou para ${BackendName}."
+    $smokeOutput = ""
+    $smokeDir = Join-Path ([System.IO.Path]::GetTempPath()) ("ssa_release_smoke_" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force $smokeDir | Out-Null
+    try {
+        $stdinPath = Join-Path $smokeDir "stdin.txt"
+        $stdoutPath = Join-Path $smokeDir "stdout.txt"
+        $stderrPath = Join-Path $smokeDir "stderr.txt"
+        Set-Content -LiteralPath $stdinPath -Value "q`n" -NoNewline -Encoding ASCII
+        $process = Start-Process `
+            -FilePath (Resolve-Path $Config.cli_exe).Path `
+            -ArgumentList "--skip-import" `
+            -RedirectStandardInput $stdinPath `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath `
+            -NoNewWindow `
+            -Wait `
+            -PassThru
+        if ($process.ExitCode -ne 0) {
+            $stderrText = ""
+            if (Test-Path $stderrPath) {
+                $stderrText = (Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue).Trim()
+            }
+            throw "Smoke CLI falhou para ${BackendName}. ExitCode=$($process.ExitCode). $stderrText"
+        }
+        if (Test-Path $stdoutPath) {
+            $smokeOutput = (Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue).Trim()
+        }
+    } finally {
+        if (Test-Path $smokeDir) {
+            Remove-Item -LiteralPath $smokeDir -Recurse -Force
+        }
     }
     return [ordered]@{
         verification_type = "functional_cli_check"
         command = "CLI --skip-import"
         exit_code = 0
-        output = ""
+        output = $smokeOutput
     }
 }
 
