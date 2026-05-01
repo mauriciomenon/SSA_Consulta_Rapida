@@ -108,7 +108,8 @@ def write_report(args: argparse.Namespace) -> int:
         asset_paths = [
             path
             for path in sorted(package_dir.iterdir())
-            if path.is_file() and path.suffix in {".deb", ".AppImage"}
+            if path.is_file()
+            and (path.suffix in {".deb", ".AppImage"} or path.name.endswith(".tar.gz"))
         ]
         if asset_paths:
             workers = min(4, len(asset_paths))
