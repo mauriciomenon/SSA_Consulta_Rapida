@@ -21,6 +21,7 @@ pytest.importorskip(
 from PyQt6.QtWidgets import QApplication
 
 from utils.path_safety import reserve_unique_path  # noqa: E402
+from core import import_staging
 from core.import_staging import stage_external_import_files
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -29,6 +30,7 @@ if project_root not in sys.path:
 
 from gui.workers.rescan_worker import RescanOutcome  # noqa: E402
 from gui.workers.rescan_worker import RescanWorker, _LogHandler  # noqa: E402
+from utils import path_safety  # noqa: E402
 
 # =============================================================================
 # Fixtures
@@ -52,6 +54,66 @@ def rescan_worker(qapp):
     # Cleanup
     if worker._logger_attached:
         worker._detach_logger()
+
+
+def test_rescan_worker_accepts_explicit_external_source_file(
+    qapp,
+    tmp_path,
+    monkeypatch,
+):
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    source = outside_root / "entrada.xlsx"
+    source.write_text("payload", encoding="utf-8")
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
+
+    worker = RescanWorker(
+        main_py_path=str(runtime_root / "main.py"),
+        project_root=str(runtime_root),
+        source_files=(str(source),),
+    )
+
+    assert worker._resolve_source_files() == (str(source.resolve()),)
+
+
+def test_rescan_worker_normalizes_explicit_allowlist_once(
+    qapp,
+    tmp_path,
+    monkeypatch,
+):
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    sources = (outside_root / "one.xlsx", outside_root / "two.xlsx")
+    for source in sources:
+        source.write_text("payload", encoding="utf-8")
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
+
+    original_normalize = import_staging._normalize_explicit_allowed_files
+    calls = 0
+
+    def counting_normalize(extra_allowed_files):
+        nonlocal calls
+        calls += 1
+        return original_normalize(extra_allowed_files)
+
+    monkeypatch.setattr(
+        import_staging,
+        "_normalize_explicit_allowed_files",
+        counting_normalize,
+    )
+
+    worker = RescanWorker(
+        main_py_path=str(runtime_root / "main.py"),
+        project_root=str(runtime_root),
+        source_files=tuple(str(source) for source in sources),
+    )
+
+    assert worker._resolve_source_files() == tuple(str(source.resolve()) for source in sources)
+    assert calls == 1
 
 
 @pytest.fixture
@@ -537,6 +599,57 @@ class TestRescanWorkerIntegration:
             assert call_kwargs["force_import"] is True
             assert callable(call_kwargs["should_cancel"])
             assert callable(call_kwargs["progress_callback"])
+
+    @staticmethod
+    def test_run_calls_importer_with_active_db_path(tmp_path):
+        active_db = tmp_path / "alternate_db" / "custom.sqlite"
+        active_db.parent.mkdir()
+        active_db.write_bytes(b"")
+        worker = RescanWorker(
+            main_py_path=str(tmp_path / "main.py"),
+            project_root=str(tmp_path),
+            db_path=str(active_db),
+        )
+        try:
+            with patch("gui.workers.rescan_worker.run_importer_logic") as mock_importer:
+                mock_importer.return_value = True
+                worker.run()
+
+                mock_importer.assert_called_once()
+                call_kwargs = mock_importer.call_args[1]
+
+                assert call_kwargs["data_dir"] == str(active_db.parent)
+                assert call_kwargs["db_name"] == active_db.name
+                assert call_kwargs["extra_allowed_roots"] == (str(active_db.parent),)
+        finally:
+            if worker._logger_attached:
+                worker._detach_logger()
+
+    @staticmethod
+    def test_run_passes_external_active_db_parent_as_allowed_root(tmp_path):
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        active_db = tmp_path / "selected_db" / "custom.sqlite"
+        active_db.parent.mkdir()
+        active_db.write_bytes(b"")
+        worker = RescanWorker(
+            main_py_path=str(project_root / "main.py"),
+            project_root=str(project_root),
+            db_path=str(active_db),
+        )
+        try:
+            with patch("gui.workers.rescan_worker.run_importer_logic") as mock_importer:
+                mock_importer.return_value = True
+                worker.run()
+
+                call_kwargs = mock_importer.call_args[1]
+
+                assert call_kwargs["data_dir"] == str(active_db.parent)
+                assert call_kwargs["db_name"] == active_db.name
+                assert call_kwargs["extra_allowed_roots"] == (str(active_db.parent),)
+        finally:
+            if worker._logger_attached:
+                worker._detach_logger()
 
     def test_run_calls_importer_with_explicit_files(self, tmp_path):
         """Testa que run() encaminha explicit_files no modo de importacao explicita."""

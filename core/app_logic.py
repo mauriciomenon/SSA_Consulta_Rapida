@@ -85,7 +85,7 @@ class FilterSearchCacheManager:
         elif row_count <= 5000:
             hashed = pd.util.hash_pandas_object(search_df, index=True)
             data_digest = hashlib.blake2b(
-                hashed.to_numpy(copy=False).tobytes(),
+                hashed.to_numpy().tobytes(),
                 digest_size=16,
             ).hexdigest()
         else:
@@ -98,7 +98,7 @@ class FilterSearchCacheManager:
             sample_df = search_df.iloc[sorted(sample_positions)]
             hashed = pd.util.hash_pandas_object(sample_df, index=True)
             data_digest = hashlib.blake2b(
-                hashed.to_numpy(copy=False).tobytes(),
+                hashed.to_numpy().tobytes(),
                 digest_size=16,
             ).hexdigest()
         payload = (
@@ -1751,14 +1751,18 @@ def _run_optional_derivadas_sync(
             )
             if db_edges > 0 or merged_edges > 0:
                 sync_materialized = True
+            if len(synced_sheets) == 1:
+                progress_filename = os.path.basename(synced_sheets[0])
+            elif synced_sheets:
+                progress_filename = (
+                    f"SSAs Derivadas e Relacionadas ({len(synced_sheets)} arquivos)"
+                )
+            else:
+                progress_filename = "SSAs Derivadas e Relacionadas (banco atual)"
             emit_progress(
                 "file_success",
                 {
-                    "filename": (
-                        os.path.basename(synced_sheets[0])
-                        if len(synced_sheets) == 1
-                        else f"SSAs Derivadas e Relacionadas ({len(synced_sheets)} arquivos)"
-                    ),
+                    "filename": progress_filename,
                     "records": int(
                         (sync_report.get("merge_stats") or {}).get("merged_edges", 0)
                     ),
@@ -2187,6 +2191,7 @@ def _initialize_import_run_context(
     docs_dir: str,
     data_dir: str,
     db_name: str,
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> Dict[str, Any]:
     """Resolve caminhos e inicializa o estado mutavel da rodada de importacao."""
     try:
@@ -2203,6 +2208,7 @@ def _initialize_import_run_context(
             base=project_root_path,
             must_exist=False,
             expect_directory=True,
+            extra_allowed_roots=extra_allowed_roots,
         )
     except PathSafetyError as e:
         logger.error(f"Caminho bloqueado na importacao: {e}")
@@ -2215,6 +2221,7 @@ def _initialize_import_run_context(
             base=project_root_path,
             must_exist=False,
             expect_directory=False,
+            extra_allowed_roots=extra_allowed_roots,
         )
     except PathSafetyError as e:
         logger.error(f"Caminho de DB bloqueado: {e}")
@@ -2363,6 +2370,7 @@ def run_importer_logic(
     should_cancel: Optional[Callable[[], bool]] = None,
     progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     explicit_files: Optional[Sequence[str | os.PathLike[str]]] = None,
+    extra_allowed_roots: Optional[Sequence[str | os.PathLike[str]]] = None,
 ) -> bool:
     """
     Executa a logica principal de importacao de dados.
@@ -2378,6 +2386,7 @@ def run_importer_logic(
         progress_callback (Optional[Callable]): Callback para reportar progresso da importacao.
         explicit_files (Optional[Sequence[str | os.PathLike[str]]]): Se informado,
             processa apenas esses arquivos .xlsx ja presentes em docs_dir.
+        extra_allowed_roots: Bases adicionais explicitas para data_dir/db_path.
 
     Returns:
         bool: True se o banco de dados foi atualizado, False caso contrario.
@@ -2388,6 +2397,7 @@ def run_importer_logic(
         docs_dir=docs_dir,
         data_dir=data_dir,
         db_name=db_name,
+        extra_allowed_roots=extra_allowed_roots,
     )
     docs_dir_path = cast(Path, context["docs_dir_path"])
     db_path = str(context["db_path"])

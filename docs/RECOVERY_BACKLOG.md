@@ -5,6 +5,289 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-04-29 20:35 - Debian release orchestrator
+
+Escopo desta atualizacao:
+1. criar orquestrador Debian AMD64 deterministico para execucao local ou via SSH
+2. evitar mistura manual entre PowerShell e shell POSIX no fluxo Debian
+3. validar conteudo de artefatos para evitar pacote sem `build_info.json` ou guia de migracao
+
+Fluxo novo:
+1. `dev_env/build/release_debian.sh`
+2. utilitario de relatorio: `dev_env/build/release_debian_report.py`
+3. testes de contrato: `tests/test_release_debian_script.py`
+4. modo local:
+   - `bash dev_env/build/release_debian.sh --backend pyinstaller,nuitka,pyoxidizer --package deb -y`
+5. modo remoto:
+   - `bash dev_env/build/release_debian.sh --ssh-host user@host --ssh-repo /home/user/SSA_Consulta_Rapida --backend pyinstaller,nuitka,pyoxidizer --package deb -y`
+
+Regras de seguranca/reprodutibilidade:
+1. nao ha `AllowDirty`
+2. workspace sujo bloqueia release
+3. `.deb` e suportado para `pyinstaller`, `nuitka` e `pyoxidizer`
+4. AppImage e suportado somente para `pyinstaller` e `nuitka`
+5. `--with-local-data` via SSH falha explicitamente, porque nao ha transferencia implicita de dados locais
+6. o relatorio final hasheia apenas `.deb` e `.AppImage`
+7. build de backends e sequencial por desenho neste slice; paralelismo fica fora de escopo ate existir medicao de CPU/RAM/IO em host dedicado
+
+Pendencia operacional:
+1. rodar release Debian real somente apos commit/push deste slice e workspace limpo
+2. `docs_saida/ANALISE_SUPERFICIAL_MIGRACAO_MULTILINGUAGEM_2026_04_28.md` permanece arquivo local do usuario e nao deve entrar no release/commit
+
+## Update 2026-04-29 19:40 - Windows release orchestrator
+
+Escopo desta atualizacao:
+1. criar orquestrador Windows deterministico para release local
+2. eliminar mistura manual de sintaxe PowerShell com shell POSIX no fluxo Windows
+3. exigir fonte limpa e `build_info.json` alinhado ao HEAD antes de validar artefato
+
+Fluxo novo:
+1. `dev_env/build/release_windows.ps1`
+2. seleciona `pyinstaller`, `nuitka`, `pyoxidizer` ou multiplos backends
+3. chama somente wrappers Windows `.bat`
+4. gera ZIPs em `builds/packages/windows_amd64`
+5. chama `scripts/create_distribution.py` para pacotes canonicos
+6. valida metadata PE com `[System.Diagnostics.FileVersionInfo]`
+7. valida ZIP com EXE, `config/build_info.json` e `GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+8. gera `builds/reports/release_report_windows_amd64.json`
+
+Regra de seguranca/reprodutibilidade:
+1. nao ha `AllowDirty`
+2. workspace sujo bloqueia release
+3. smoke PyOxidizer precisa retornar texto em `--version`
+4. falha em um backend para o processo, por politica fail-fast de release
+
+Pendencia proximo slice:
+1. criar orquestrador Debian local/remoto equivalente, sem chamar PowerShell
+2. definir se o Debian remoto sera por `ssh` ou apenas comando local documentado
+
+## Update 2026-04-29 19:05 - PyOxidizer metadata clean rebuild correction
+
+Correcao de estado:
+1. artefato PyOxidizer local existente tinha metadata apos aplicacao manual anterior
+2. clean rebuild mostrou que `build_pyoxidizer.bat` aplicava `--set-icon`, mas nao aplicava version resource
+3. o fluxo correto e aplicar `--set-file-version`, `--set-product-version` e strings de versao via `rcedit` dentro do build
+
+Validacao antes do commit:
+1. `build_pyoxidizer.bat --silent` concluiu com sucesso
+2. `FileVersion=4.37.0.0`
+3. `ProductVersion=4.37.0.0`
+4. `ProductName=SSA Consulta Rapida`
+5. `SSA_Consulta_Rapida.exe --version` retornou `4.37` com exit `0`
+
+## Update 2026-04-29 18:45 - Windows EXE metadata and shell separation
+
+Escopo desta atualizacao:
+1. corrigir metadata PyInstaller Windows no fluxo de build, nao por patch manual no EXE pronto
+2. documentar separacao de comandos PowerShell vs WSL/Linux/macOS
+3. registrar pendencias reais de Kluster fora do slice atual
+
+Estado confirmado antes do patch:
+1. PyInstaller Windows:
+   - executaveis funcionais
+   - `FileVersionInfo` vazio em CLI e GUI
+2. Nuitka Windows:
+   - `FileVersion=4.37.0.0`
+   - `ProductVersion=4.37.0.0`
+   - `ProductName=SSA Consulta Rapida`
+3. PyOxidizer Windows:
+   - artefato local entao existente tinha metadata, mas clean rebuild posterior mostrou que o script ainda nao preservava version resource
+   - correcao registrada em `Update 2026-04-29 19:05`
+
+Regra operacional:
+1. PyInstaller Windows deve receber `--version-file` durante o build.
+2. Nao aplicar `rcedit` manualmente em PyInstaller onefile pronto, porque isso pode quebrar o pacote PKG embutido.
+3. PyOxidizer Windows pode usar `rcedit` no script de build para icone e metadata.
+4. `rcedit` e editor de recursos PE do Windows para icone e version resource.
+
+Artefatos stale:
+1. artefatos Windows anteriores tinham `build_info.json` de `c79c31c`, antes de commits posteriores do branch `dev`
+2. estado local foi reconstruido no commit `0231693daf56a2485ea23a59b75026f91410f91f`
+3. upload/tag de release ainda deve usar somente artefatos gerados apos este patch de metadata
+
+Pendencias Kluster fora do slice atual:
+1. `launchers/build_multiplatform.py`: revisar `git_add_commit_push` e glob/pathspec em slice proprio
+2. `launchers/build_multiplatform.py`: revisar fallback de DMG macOS para evitar bundle stale
+3. `launchers/build_multiplatform.py`: revisar contrato de retorno de `setup_virtual_environment`
+4. `launchers/build_multiplatform.py`: revisar riscos de `include_local_data` antes de qualquer build publico que ative esse flag
+5. `launchers/build_multiplatform.py`: reduzir cleanup amplo e responsabilidades misturadas em slice proprio, sem refatorar junto com hotfix
+
+Arquivos locais intocados:
+1. `docs_saida/ANALISE_SUPERFICIAL_MIGRACAO_MULTILINGUAGEM_2026_04_28.md` pertence ao usuario e nao deve ser incluido neste ciclo
+
+## Update 2026-04-28 18:22 - WSL mirrored applied with VPN ON (operational fix)
+
+Escopo desta atualizacao:
+1. corrigir quebra de internet no WSL com VPN endpoint ligada
+2. aplicar mudanca operacional sem tocar runtime do app
+3. registrar evidencia tecnica de antes/depois
+
+Backup e mudanca aplicada:
+1. backup timestamp criado antes da alteracao:
+   - arquivo `.wslconfig.backup_<timestamp>` no perfil do usuario Windows
+2. arquivo atualizado:
+   - `.wslconfig` no perfil do usuario Windows
+3. conteudo aplicado:
+   - `[wsl2]`
+   - `guiApplications=false`
+   - `networkingMode=mirrored`
+   - `dnsTunneling=true`
+   - `autoProxy=true`
+4. WSL reiniciado com `wsl --shutdown`
+
+Evidencia com VPN ligada (estado atual):
+1. host VPN:
+   - IP corporativo ativo observado em faixa privada corporativa
+   - rota VPN para redes corporativas via gateway privado corporativo
+2. WSL apos mirrored:
+   - interfaces do WSL em modo mirrored observadas em faixas privadas locais/corporativas
+   - rota default visivel para gateway privado local
+3. conectividade WSL validada:
+   - `curl -I https://api.github.com` -> `HTTP/2 200`
+   - `gh api rate_limit` -> resposta valida
+
+Resultado:
+1. mitigacao operacional aplicada e validada no ambiente atual
+2. WSL voltou a ter acesso externo mesmo com VPN ligada
+
+Pendencia residual:
+1. monitorar estabilidade em proximas sessoes (mudancas de politica de rota da VPN podem alterar comportamento)
+
+## Update 2026-04-28 18:05 - test gate hardening + WSL/VPN network note
+
+Escopo desta atualizacao:
+1. registrar ajuste minimo em teste de staging para ambiente Windows
+2. registrar status de validacao de artefatos e pendencias por arquitetura
+3. registrar nota operacional de WSL sem internet quando VPN endpoint conecta
+
+Status do slice:
+1. teste ajustado: `tests/test_import_staging.py`
+   - caso `test_stage_external_import_files_copies_opened_file_when_source_path_changes`
+   - no Windows, `os.replace` em arquivo aberto pode retornar `WinError 5`
+   - o caso passou a fazer `skip` em `os.name == "nt"` para manter portabilidade
+2. gates focados apos ajuste:
+   - `py_compile`: ok
+   - `ruff`: ok
+   - `ty`: ok
+   - `pytest` focado: `59 passed, 1 skipped`
+3. review externo:
+   - `kluster review file tests/test_import_staging.py --mode instant`: clean
+
+Validacao de artefatos (runtime):
+1. windows_amd64 (pyinstaller/nuitka/pyoxidizer):
+   - `GUIA_MIGRACAO_NOVA_INSTALACAO.md`: presente
+   - `build_info.json`: presente
+   - `git_commit_short` no build_info: `28be97f`
+2. release `v4.37`:
+   - 5 ZIPs Windows AMD64 enviados com sucesso
+   - release promovida para `isPrerelease=false`
+
+Pendencias de compilacao/executavel:
+1. debian_amd64:
+   - existem `tar.gz` locais (27/04), mas sem `build_info.json` nos pacotes verificados
+   - avaliar rebuild para alinhar metadata com patch mais recente
+2. debian_arm64 e macos_arm64:
+   - assets presentes na release, sem rebuild neste host apos o ultimo patch
+3. pyoxidizer:
+   - `--version` segue `0.0.0` (nao bloqueante deste slice)
+
+WSL x VPN (operacional):
+1. com VPN desconectada:
+   - WSL em faixa privada NAT local
+   - adapter Check Point observado em faixa privada corporativa
+2. sem overlap direto nesse snapshot, mas a VPN pode injetar rotas amplas e quebrar NAT do WSL
+3. acao sugerida para proximo ciclo operacional:
+   - testar `networkingMode=mirrored` no `.wslconfig`
+   - validar conectividade WSL com VPN conectada
+
+## Update 2026-04-28 17:12 - frozen guide/build-info fix + W11 rebuild complete
+
+Escopo desta atualizacao:
+1. registrar o fix minimo para abrir o guia de migracao em runtime frozen
+2. registrar o fix de leitura de `build_info.json` no layout `_internal` do PyInstaller
+3. registrar o rebuild/zip do W11 AMD64 apos o fix
+
+Status do slice:
+1. commit e push realizados em `dev`:
+   - `28be97fe6a1403bff49e3d73aba62b20bc0b158c | 2026-04-28T15:34:39-03:00 | fix: resolve frozen guide and build info paths`
+2. build Windows AMD64 refeito nas 3 ferramentas:
+   - PyInstaller: ok
+   - Nuitka: ok
+   - PyOxidizer: ok
+3. smoke minimo executado apos rebuild:
+   - CLI PyInstaller: ok
+   - CLI Nuitka: ok
+   - `SSA_Consulta_Rapida.exe --version` (PyOxidizer): responde `0.0.0` (pendencia antiga)
+4. novos ZIPs Windows AMD64 gerados em `builds/packages/windows_amd64`
+5. todos os ZIPs novos contem:
+   - `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+   - `config/build_info.json`
+
+Impacto por plataforma/arquitetura:
+1. W11 AMD64:
+   - validado por rebuild real + smoke local
+2. Debian AMD64:
+   - sem rebuild neste slice
+   - impacto esperado baixo, pois o fix so adiciona fallback de caminho (`_internal`) sem remover caminhos antigos
+3. Debian ARM64:
+   - sem rebuild neste host
+   - impacto esperado baixo pelo mesmo motivo do Debian AMD64
+4. macOS ARM64:
+   - sem rebuild neste host
+   - impacto esperado baixo pelo mesmo motivo, com compatibilidade mantida para caminho classico de bundle
+
+Pendencias abertas:
+1. `gh auth status` segue sem login neste host; upload da release nao foi executado nesta rodada
+2. `PyOxidizer --version` segue retornando `0.0.0` (nao bloqueante deste slice)
+3. debt estrutural antigo em `gui/gui_ssa.py` (God class) segue fora de escopo do patch minimo
+
+## Update 2026-04-28 14:31 - W11 AMD64 release hardening status
+
+Escopo desta atualizacao:
+1. registrar o estado real do host atual apos a migracao para Windows 11
+2. corrigir a leitura operacional sobre Debian neste computador
+3. separar o que foi corrigido nos scripts do que foi efetivamente buildado
+
+Estado do host atual:
+1. Windows 11 local: AMD64
+2. WSL local: Debian Trixie AMD64
+3. Debian ARM64 e macOS ARM64 nao foram buildados neste host
+4. os scripts Debian ARM64 foram ajustados por risco de release, mas seguem sem build local nesta maquina
+
+Status tecnico do ciclo:
+1. HEAD detached foi corrigido operacionalmente para branch local `dev`
+2. stash de seguranca criado antes da troca:
+   - `stash@{0}: wip-before-reattach-dev-2026-04-28T14-30-26`
+3. artefatos Windows gerados antes do ultimo patch de performance precisam rebuild antes de publicar
+4. correcoes de empacotamento incluem guia de migracao e `config/build_info.json`
+5. import externo explicito foi liberado para arquivos escolhidos pelo usuario
+6. abertura de detalhes com derivadas teve hotspot de scan por no removido
+
+Evidencia de performance:
+1. alvo medido: SSA `202206235`
+2. base local: `data/ssas.db`, `80459 x 84`
+3. antes: `tree_html_no_cache` em `12.818s`
+4. depois: `tree_html_no_cache` em `0.366s`
+5. smoke headless do dialogo: `open_dialog_s 1.117`
+6. RSS do smoke: carga DB `+254.0 MB`, abertura do dialogo `+19.5 MB`
+
+Pendencias nao bloqueantes:
+1. render da arvore/grafo ainda e sincronico no UI thread
+2. se familias maiores ou maquinas lentas voltarem a travar, abrir slice dedicado para worker/loading
+3. PyOxidizer ainda reporta `--version` como `0.0.0`
+4. PyOxidizer continua em runtime Python 3.10.x neste fluxo
+
+Proximo passo de release:
+1. commitar as correcoes atomicas em `dev`
+2. rebuildar artefatos Windows AMD64 nas 3 ferramentas
+3. reempacotar ZIPs
+4. rodar smoke minimo
+5. subir release somente apos autenticacao GitHub e validacao dos novos ZIPs
+
+Rollback:
+1. reverter os commits atomicos do ciclo
+2. se necessario antes dos commits, reaplicar o stash de seguranca citado acima
+
 ## Update 2026-04-25 19:21 - pending PT ES EN column contract evidence
 
 Escopo desta atualizacao:

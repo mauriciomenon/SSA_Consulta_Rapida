@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from datetime import datetime, timedelta
+from typing import Any
 
 import pandas as pd
 
@@ -48,9 +49,9 @@ def test_dataframe_hash_handles_mixed_dict_keys() -> None:
 
 def test_dataframe_hash_handles_cyclic_object_cells() -> None:
     cache = CacheManager()
-    cyclic = []
+    cyclic: list[Any] = []
     cyclic.append(cyclic)
-    different = ["changed"]
+    different: list[Any] = ["changed"]
     different.append(different)
     frame = pd.DataFrame({"a": [cyclic]})
     other_frame = pd.DataFrame({"a": [different]})
@@ -134,7 +135,7 @@ def test_cache_stats_estimates_memory_outside_lock(monkeypatch) -> None:
             return False
 
     tracking_lock = TrackingLock()
-    cache._lock = tracking_lock
+    setattr(cache, "_lock", tracking_lock)
 
     def guarded_getsizeof(value):
         assert not tracking_lock.owned

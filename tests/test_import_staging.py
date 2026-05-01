@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import builtins
+import os
 from pathlib import Path
+from typing import Iterable
 
 import pytest
 
 from core import import_staging
 from core.import_staging import stage_external_import_files
+from utils import path_safety
 
 
 def test_stage_external_import_files_accepts_xlsx_and_xls(tmp_path: Path) -> None:
@@ -31,6 +34,135 @@ def test_stage_external_import_files_accepts_xlsx_and_xls(tmp_path: Path) -> Non
     assert len(staged_files) == 2
     assert (docs_dir / "entrada.xlsx").exists()
     assert (docs_dir / "entrada.xls").exists()
+
+
+def test_validate_external_source_path_accepts_explicit_selected_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    source = outside_root / "entrada.xlsx"
+    source.write_text("payload", encoding="utf-8")
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
+
+    with pytest.raises(ValueError):
+        import_staging.validate_external_source_path(source)
+
+    resolved = import_staging.validate_external_source_path(
+        source,
+        extra_allowed_files=(source,),
+    )
+
+    assert resolved == str(source.resolve())
+
+
+def test_validate_external_source_path_ignores_missing_extra_allowed_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    source = outside_root / "entrada.xlsx"
+    source.write_text("payload", encoding="utf-8")
+    missing_source = outside_root / "ausente.xlsx"
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
+
+    resolved = import_staging.validate_external_source_path(
+        source,
+        extra_allowed_files=(missing_source, source),
+    )
+
+    assert resolved == str(source.resolve())
+
+
+def test_validate_external_source_path_rejects_explicit_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
+
+    with pytest.raises(ValueError):
+        import_staging.validate_external_source_path(
+            outside_root,
+            extra_allowed_files=(outside_root,),
+        )
+
+
+def test_stage_external_import_files_accepts_explicit_external_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    docs_dir = runtime_root / "docs_entrada"
+    docs_dir.mkdir(parents=True)
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    source = outside_root / "entrada.xlsx"
+    source.write_text("payload", encoding="utf-8")
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
+
+    staged_files, summary = stage_external_import_files(
+        project_root=str(runtime_root),
+        source_files=(str(source),),
+    )
+
+    assert summary["copied"] == 1
+    assert summary["failed"] == 0
+    assert summary["unsupported"] == 0
+    assert staged_files == [str(docs_dir / "entrada.xlsx")]
+    assert (docs_dir / "entrada.xlsx").read_text(encoding="utf-8") == "payload"
+
+
+def test_stage_external_import_files_normalizes_explicit_allowlist_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    docs_dir = runtime_root / "docs_entrada"
+    docs_dir.mkdir(parents=True)
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    source_a = outside_root / "entrada_a.xlsx"
+    source_b = outside_root / "entrada_b.xlsx"
+    source_a.write_text("a", encoding="utf-8")
+    source_b.write_text("b", encoding="utf-8")
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
+    original_normalize = import_staging._normalize_explicit_allowed_files
+    call_count = 0
+
+    def counting_normalize(
+        extra_allowed_files: Iterable[str | os.PathLike[str]] | None,
+    ) -> set[Path]:
+        nonlocal call_count
+        call_count += 1
+        return original_normalize(extra_allowed_files)
+
+    monkeypatch.setattr(
+        import_staging,
+        "_normalize_explicit_allowed_files",
+        counting_normalize,
+    )
+
+    staged_files, summary = stage_external_import_files(
+        project_root=str(runtime_root),
+        source_files=(str(source_a), str(source_b)),
+    )
+
+    assert call_count == 1
+    assert summary["copied"] == 2
+    assert staged_files == [
+        str(docs_dir / "entrada_a.xlsx"),
+        str(docs_dir / "entrada_b.xlsx"),
+    ]
 
 
 def test_stage_external_import_files_creates_unique_name_with_collisions(
@@ -249,6 +381,8 @@ def test_stage_external_import_files_does_not_delete_file_on_create_collision(
     assert staged_files == []
     assert summary["copied"] == 0
     assert summary["failed"] == 1
+    assert source.read_text(encoding="utf-8") == "payload"
+    # A copy did not complete; the file created by the simulated racer remains.
     assert destination.read_text(encoding="utf-8") == "foreign"
 
 
@@ -256,6 +390,8 @@ def test_stage_external_import_files_copies_opened_file_when_source_path_changes
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    if os.name == "nt":
+        pytest.skip("os.replace over open file is not supported on Windows")
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
     source_dir = tmp_path / "fontes"
@@ -339,4 +475,5 @@ def test_stage_external_import_files_reports_cleanup_failure_after_cancel(
     assert summary["failed"] == 1
     assert summary["staged"] == 0
     assert (docs_dir / "cancel.xlsx").exists()
+    assert (docs_dir / "cancel.xlsx").read_text(encoding="utf-8") == "payload"
     assert any("Falha ao remover arquivo staged apos cancelamento" in error for error in errors)

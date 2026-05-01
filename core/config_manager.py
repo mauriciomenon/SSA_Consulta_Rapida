@@ -163,6 +163,7 @@ DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
     "semana_executada": "Sem. Exec.",
     "num_reprogramacoes": "Nº Reprog.",
     "execucao_parcial": "Exec. Parcial",
+    "situacao_da_parcial": "Situacao da Parcial",
     "atividade_especial": "Atividade Especial",
     "equipamento_retirado": "Equipamento Retirado",
     "sn_retirado": "SN Retirado",

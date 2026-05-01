@@ -55,6 +55,7 @@
     "data_arquivo_origem": "Data do Arquivo de Origem",
     "total_de_reprogramacoes": "Tot. Reprog.",
     "execucao_parcial": "Exec. Parc.",
+    "situacao_da_parcial": "Situacao da Parcial",
     "semana_executada": "Sem. Exec."
   },
   "column_widths": {
@@ -197,6 +198,7 @@
     "data_arquivo_origem": "Data do Arquivo de Origem",
     "total_de_reprogramacoes": "Tot. Reprog.",
     "execucao_parcial": "Exec. Parc.",
+    "situacao_da_parcial": "Situacao da Parcial",
     "semana_executada": "Sem. Exec."
   },
   "required_display_columns": [

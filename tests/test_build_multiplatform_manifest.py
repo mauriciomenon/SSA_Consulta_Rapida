@@ -10,6 +10,30 @@ from pathlib import Path
 from launchers.build_multiplatform import MultiPlatformBuilder
 
 
+def test_command_stdout_logs_metadata_command_failure(monkeypatch):
+    builder = MultiPlatformBuilder()
+    warnings = []
+
+    def fake_run_command(*_args, **_kwargs):
+        return subprocess.CompletedProcess(
+            ["git", "bad"],
+            returncode=7,
+            stdout="stdout detail",
+            stderr="stderr detail",
+        )
+
+    monkeypatch.setattr(builder, "_run_command", fake_run_command)
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.logger.warning",
+        lambda *args, **_kwargs: warnings.append(args),
+    )
+
+    assert builder._command_stdout(["git", "bad"]) == ""
+    assert warnings
+    assert "Metadata command failed" in warnings[0][0]
+    assert "stderr detail" in "".join(str(item) for item in warnings[0])
+
+
 def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
     builder = MultiPlatformBuilder()
     builder.dist_dir = tmp_path / "dist"
@@ -59,6 +83,11 @@ def test_build_executable_uses_platform_specific_add_data_separator(
         "print('ok')\n", encoding="utf-8"
     )
     (builder.base_dir / "config").mkdir(parents=True, exist_ok=True)
+    (builder.base_dir / "docs").mkdir(parents=True, exist_ok=True)
+    (builder.base_dir / "docs" / "GUIA_MIGRACAO_NOVA_INSTALACAO.md").write_text(
+        "guide",
+        encoding="utf-8",
+    )
     (builder.base_dir / "resources").mkdir(parents=True, exist_ok=True)
     (builder.base_dir / "resources" / "app_icon.ico").write_bytes(b"ico")
     (builder.base_dir / "resources" / "app_icon.icns").write_bytes(b"icns")
@@ -99,9 +128,31 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     assert "--add-data" in windows_cmd
     add_data_value = windows_cmd[windows_cmd.index("--add-data") + 1]
     assert add_data_value.endswith(";config")
+    assert any(
+        value.endswith(";docs")
+        and "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in value
+        for idx, value in enumerate(windows_cmd)
+        if idx > 0 and windows_cmd[idx - 1] == "--add-data"
+    )
+    assert any(
+        value.endswith(";config") and "build_info.json" in value
+        for idx, value in enumerate(windows_cmd)
+        if idx > 0 and windows_cmd[idx - 1] == "--add-data"
+    )
     assert "--icon" in windows_cmd
     icon_value = windows_cmd[windows_cmd.index("--icon") + 1]
-    assert icon_value.endswith("resources/app_icon.ico")
+    assert icon_value.replace("\\", "/").endswith("resources/app_icon.ico")
+    assert "--version-file" in windows_cmd
+    version_file_value = Path(windows_cmd[windows_cmd.index("--version-file") + 1])
+    version_file_text = version_file_value.read_text(encoding="utf-8")
+    version_tuple = builder._windows_version_tuple(builder.version)
+    version_text = ".".join(str(part) for part in version_tuple)
+    assert f"filevers={version_tuple}" in version_file_text
+    assert f"prodvers={version_tuple}" in version_file_text
+    assert f"StringStruct('FileVersion', '{version_text}')" in version_file_text
+    assert f"StringStruct('ProductVersion', '{version_text}')" in version_file_text
+    assert "StringStruct('ProductName', 'SSA Consulta Rapida')" in version_file_text
+    assert "SSA_CLI_test.exe" in version_file_text
 
     captured_cmds.clear()
     config["cli_config"]["icon"] = "resources/app_icon.icns"
@@ -111,6 +162,13 @@ def test_build_executable_uses_platform_specific_add_data_separator(
     assert "--add-data" in mac_cmd
     add_data_value = mac_cmd[mac_cmd.index("--add-data") + 1]
     assert add_data_value.endswith(":config")
+    assert any(
+        value.endswith(":docs")
+        and "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in value
+        for idx, value in enumerate(mac_cmd)
+        if idx > 0 and mac_cmd[idx - 1] == "--add-data"
+    )
+    assert "--version-file" not in mac_cmd
 
 
 def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
@@ -295,3 +353,15 @@ def test_build_multiplatform_script_runs_without_explicit_pythonpath():
 
     assert result.returncode == 0
     assert "Plataformas suportadas:" in result.stdout
+    assert "debian_arm64: Linux aarch64" in result.stdout
+
+
+def test_detect_current_platform_maps_linux_arm64(monkeypatch):
+    builder = MultiPlatformBuilder()
+
+    monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Linux")
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.platform.machine", lambda: "aarch64"
+    )
+
+    assert builder.detect_current_platform() == "debian_arm64"

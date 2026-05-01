@@ -616,11 +616,75 @@ class TestGUIFilterLogic:
         self.window._on_macro_filter_changed()
         QApplication.processEvents()
 
+        self.window._apply_advanced_filters_from_ui()
+        QApplication.processEvents()
+
         assert self.window._advanced_filters.get("derivada_all_ste") is True
         assert set(
             self.window._advanced_filters.get("situacao_exclude_values") or []
         ) == {"SAD", "SCA", "SES", "STE"}
         assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == ["100"]
+
+    def test_macro_baixar_waits_for_apply_button_before_filtering(self):
+        macro_df = pd.DataFrame(
+            {
+                "numero_ssa": ["202600100", "202600101"],
+                "situacao": ["APV", "STE"],
+                "derivada_de": ["", "202600100"],
+                "localizacao_codigo": ["LOC1", "LOC2"],
+                "descricao_localizacao": ["Desc1", "Desc2"],
+                "equipamento": ["EQ1", "EQ2"],
+                "semana_cadastro": [202501, 202501],
+                "semana_programada": [202503, 202503],
+                "data_cadastro": ["2025-01-01", "2025-01-01"],
+                "descricao_ssa": ["Origem", "Filha"],
+                "setor_executor": ["IEE3", "IEE3"],
+                "setor_emissor": ["IEE3", "IEE3"],
+                "descricao_execucao": ["Exec A", "Exec B"],
+                "solicitante": ["User1", "User2"],
+            }
+        )
+        self.window.df_completo = macro_df.copy()
+        self.window.df_exibido = macro_df.copy()
+        self.window._df_last_search_filtered = macro_df.copy()
+        self.window.paginator.set_dataframe(macro_df.copy())
+        self.window.main_tabs.setCurrentIndex(1)
+        QApplication.processEvents()
+        self.window._refresh_advanced_filter_options()
+
+        macro_idx = self.window.adv_macro_combo.findData("ssas_para_baixar")
+        assert macro_idx >= 0
+
+        self.window.adv_macro_combo.setCurrentIndex(macro_idx)
+        self.window._on_macro_filter_changed()
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters.get("macro_filter") in (None, "")
+        assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == [
+            "202600100",
+            "202600101",
+        ]
+
+        self.window._apply_advanced_filters_from_ui()
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters.get("macro_filter") == "ssas_para_baixar"
+        assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == [
+            "202600100"
+        ]
+
+    def test_details_html_uses_display_label_for_situacao_da_parcial(self):
+        series = pd.Series(
+            {
+                "numero_ssa": "202600001",
+                "situacao_da_parcial": "Pendente",
+            }
+        )
+
+        html = ssa_gui_details._format_details_html(self.window, series)
+
+        assert "Situacao da Parcial" in html
+        assert "situacao_da_parcial" not in html
 
     def test_filters_summary_deduplicates_column_and_advanced_entries(self):
         self.window._active_column_filters["setor_executor"] = "IEE3"
@@ -919,6 +983,8 @@ class TestGUIFilterLogic:
             "_measure_header_text_px",
             lambda _window, text: len(str(text or "")) * 8,
         )
+        self.window._adaptive_header_label_width_cache = {}
+        self.window._adaptive_header_label_signatures = {}
         self.window._saved_gui_column_widths["numero_ssa"] = 100
 
         self.window.display_current_page(1)
@@ -1059,6 +1125,8 @@ class TestGUIFilterLogic:
             "_measure_header_text_px",
             lambda _window, text: len(str(text or "")) * 8,
         )
+        self.window._adaptive_header_label_width_cache = {}
+        self.window._adaptive_header_label_signatures = {}
 
         self.window.visible_columns = ["descricao_ssa"]
         self.window.display_current_page(1)
@@ -1171,11 +1239,11 @@ class TestGUIFilterLogic:
             }
         elif sys.platform == "win32":
             expected = {
-                "grau_prioridade_emissao": 96,
-                "grau_prioridade_planejamento": 98,
+                "grau_prioridade_emissao": 120,
+                "grau_prioridade_planejamento": 128,
                 "execucao_parcial": 78,
-                "total_de_reprogramacoes": 82,
-                "semana_executada": 60,
+                "total_de_reprogramacoes": 130,
+                "semana_executada": 92,
             }
         else:
             expected = {
@@ -4192,6 +4260,32 @@ class TestGUIFilterLogic:
         assert "marker-end" in html
         assert "Grafo de derivadas" in html
 
+    def test_build_derivadas_graph_html_dashes_relation_type_edges(self):
+        data: dict[str, object] = {
+            "target": "202600023",
+            "parents": [],
+            "children": ["202600024"],
+            "descendants": [
+                {
+                    "ssa": "202600024",
+                    "parent": "202600023",
+                    "relation_type": 2,
+                    "relation_raw_label": "Relacionada",
+                }
+            ],
+            "descendants_count": 1,
+        }
+
+        html = ssa_gui_details._build_derivadas_graph_html(
+            self.window,
+            data,
+            link_color="#4a90e2",
+            font_family="monospace",
+        )
+
+        assert 'data-from="202600023" data-to="202600024"' in html
+        assert "stroke-dasharray" in html
+
     def test_build_derivadas_graph_html_separates_sibling_edge_lanes(self):
         data: dict[str, object] = {
             "target": "202603583",
@@ -4854,6 +4948,29 @@ class TestGUIFilterLogic:
 
         assert derived == ["102"]
 
+    def test_get_derivadas_for_ssa_uses_cached_family_edges(self, monkeypatch):
+        self.window.df_completo = pd.DataFrame(
+            {"numero_ssa": ["101", "102"], "derivada_de": ["100", "100"]}
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_cached_derivadas_family_edges",
+            lambda _window: [("100", "101"), ("100", "102"), ("100", "101")],
+        )
+
+        def _fail_full_column_scan(_series):
+            raise AssertionError("nao deve normalizar coluna inteira a cada consulta")
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_normalize_ssa_relation_series",
+            _fail_full_column_scan,
+        )
+
+        derived = ssa_gui_details._get_derivadas_for_ssa(self.window, "100")
+
+        assert derived == ["101", "102"]
+
     def test_get_series_for_ssa_uses_index_label_and_returns_correct_row(self):
         df = pd.DataFrame(
             {
@@ -5325,6 +5442,8 @@ class TestGUIFilterLogic:
             "_measure_header_text_px",
             lambda _window, text: len(str(text or "")) * 8,
         )
+        self.window._adaptive_header_label_width_cache = {}
+        self.window._adaptive_header_label_signatures = {}
         self.window._saved_gui_column_widths["numero_ssa"] = 50
         self.window.display_current_page(1)
         QApplication.processEvents()
@@ -6233,6 +6352,74 @@ class TestGUIFilterLogic:
         assert "dist=" not in html
         assert "&#8942;" in html
         assert "Sem Derivadas" in html
+
+    def test_open_details_dialog_does_not_build_full_ssa_index_before_render(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202218980", "202218786", "202218787"],
+                "descricao_ssa": ["Alvo", "Filha A", "Filha B"],
+                "derivada_de": ["", "202218980", "202218980"],
+                "situacao": ["APV", "STE", "SCA"],
+            }
+        )
+        self.window.df_completo = df
+        self.window.df_exibido = df
+        self.window.df_para_tabela = df
+
+        with patch(
+            "gui.ssa.gui_details._get_df_ssa_series_index",
+            side_effect=AssertionError("full index should not be built on open"),
+        ), patch("PyQt6.QtWidgets.QDialog.exec", return_value=0):
+            ssa_gui_details._open_details_dialog_for_ssa(
+                self.window,
+                "202218980",
+                series=df.iloc[0],
+            )
+
+    def test_derivadas_tree_html_does_not_scan_dataframe_per_node(self, monkeypatch):
+        node_ids = ["202206235", *[f"202206{i:03d}" for i in range(100, 180)]]
+        self.window.df_completo = pd.DataFrame(
+            {
+                "numero_ssa": node_ids,
+                "situacao": ["APV", *["STE" for _ in node_ids[1:]]],
+                "derivada_de": ["", *["202206235" for _ in node_ids[1:]]],
+            }
+        )
+        self.window.df_exibido = self.window.df_completo.iloc[:1].copy()
+        tree_data = {
+            "target": "202206235",
+            "parents": [],
+            "children": [{"ssa": node_ids[1], "parent": "202206235"}],
+            "descendants": [
+                {"ssa": child, "parent": "202206235", "min_distance": 1}
+                for child in node_ids[1:]
+            ],
+            "ancestors": [],
+            "family_roots": ["202206235"],
+            "target_status": "",
+            "direct_children_count": len(node_ids) - 1,
+            "descendants_count": len(node_ids) - 1,
+            "render_family": True,
+        }
+
+        def _fail_per_node_scan(_window, numero_ssa):
+            raise AssertionError(f"per-node dataframe scan for {numero_ssa}")
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_series_for_ssa",
+            _fail_per_node_scan,
+        )
+
+        html = ssa_gui_details._build_derivadas_tree_html(
+            self.window,
+            "202206235",
+            tree_data_override=tree_data,
+            ssa_index={},
+        )
+
+        assert "202206235" in html
+        assert "202206100" in html
 
     def test_exclude_toggle_syncs_checkbox_state_across_tabs(self):
         """Toggle programático deve manter estado interno e checkboxes em sincronia."""

@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from launchers import convert_icon
 from struct import unpack
 
@@ -73,7 +75,7 @@ def test_convert_svg_to_ico_uses_sizes_on_single_base_image(monkeypatch):
 
 
 def test_app_icon_ico_contains_expected_sizes_via_pillow() -> None:
-    from PIL import Image
+    Image = pytest.importorskip("PIL.Image", reason="Pillow optional in base env")
 
     with Image.open("resources/app_icon.ico") as image:
         ico_sizes = image.info.get("sizes", set())

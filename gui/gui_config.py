@@ -91,6 +91,7 @@ DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
     "data_arquivo_origem": "Data do Arquivo de Origem",
     "total_de_reprogramacoes": "Tot. Reprog.",
     "execucao_parcial": "Exec. Parc.",
+    "situacao_da_parcial": "Situacao da Parcial",
     "semana_executada": "Sem. Exec.",
 }
 
@@ -109,6 +110,11 @@ COLUMN_HEADER_LABEL_VARIANTS: Dict[str, Dict[str, str]] = {
         "short": "Sit.",
         "medium": "Situacao",
         "long": "Situacao",
+    },
+    "situacao_da_parcial": {
+        "short": "Sit. Parc.",
+        "medium": "Situacao Parcial",
+        "long": "Situacao da Parcial",
     },
     "descricao_ssa": {
         "short": "Desc. SSA",
@@ -540,7 +546,10 @@ def _migrate_managed_legacy_widths(
         if not previous_default_candidates:
             continue
         if migrated[key] in previous_default_candidates:
-            migrated[key] = target_widths[key]
+            target_width = target_widths.get(key)
+            if target_width is None:
+                continue
+            migrated[key] = target_width
     return migrated
 
 
@@ -554,13 +563,13 @@ def _migrate_managed_legacy_platform_widths(
         if not isinstance(platform_name, str):
             continue
         platform_key = _normalize_platform_key(platform_name)
-        target_widths = DEFAULT_COLUMN_WIDTHS_BY_PLATFORM.get(
+        platform_reference_widths = DEFAULT_COLUMN_WIDTHS_BY_PLATFORM.get(
             platform_key,
             DEFAULT_COLUMN_WIDTHS_BY_PLATFORM["linux"],
         )
         migrated[platform_key] = _migrate_managed_legacy_widths(
             width_map,
-            target_widths,
+            platform_reference_widths,
         )
     return migrated
 
