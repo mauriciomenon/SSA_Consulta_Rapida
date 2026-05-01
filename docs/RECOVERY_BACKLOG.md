@@ -14,10 +14,13 @@ Escopo desta atualizacao:
 
 Fluxo novo:
 1. `dev_env/build/release_debian.sh`
-2. utilitario de relatorio: `dev_env/build/release_debian_report.py`
+2. utilitario de relatorio: `dev_env/build/release_platform_report.py`
 3. testes de contrato: `tests/test_release_debian_script.py`
 4. modo local:
    - `bash dev_env/build/release_debian.sh --backend pyinstaller,nuitka,pyoxidizer --package deb -y`
+
+Pendente nao bloqueante:
+- `dev_env/build/source_protection.py`: mover lista de diretorios sensiveis do app para configuracao versionada se houver refatoracao futura da estrutura de pacotes.
 5. modo remoto:
    - `bash dev_env/build/release_debian.sh --ssh-host user@host --ssh-repo /home/user/SSA_Consulta_Rapida --backend pyinstaller,nuitka,pyoxidizer --package deb -y`
 
