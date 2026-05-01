@@ -10076,3 +10076,17 @@ Residual mantido fora do escopo daquele ciclo:
 3. `_build_df_hash(...)` continua concentrando amostragem e hashing no mesmo metodo; extracao estrutural foi deferida para evitar refatoracao transversal
 4. `scripts/pytest_stream_common.py` ainda mistura orquestracao de subprocesso com concerns de terminal/CLI; reducao adicional deve ocorrer em slice separado
 5. review do kluster sobre limite do cache em `FilterWorker` foi classificado como falso positivo nesta rodada porque `gui/cache/filter_cache.py` ja implementa LRU com eviction interno
+
+## Update 2026-05-01 17:08 - PyInstaller obfuscation gate status
+
+Slice 3 resultado:
+1. PyArmor foi testado via `uv tool run --python 3.13 --from pyarmor pyarmor gen` em staging temporario.
+2. A licenca local e trial e falhou com `ERROR out of license` ao obfuscar `core/app_logic.py`.
+3. Nao foi habilitada obfuscacao PyInstaller por default, porque isso quebraria build reproduzivel neste host.
+4. Decisao operacional atual:
+   - Nuitka: backend preferencial para protecao de fonte.
+   - PyOxidizer: codigo do app foi movido para recursos embutidos no executavel, sem `.py` do app no manifest final esperado.
+   - PyInstaller: permanece `protected_release=false` ate haver PyArmor licenciado ou ferramenta equivalente aprovada.
+
+Pendencia nao bloqueante:
+1. Se PyInstaller precisar ser publicado como protegido, instalar/licenciar ferramenta de obfuscacao e habilitar staging obfuscado com teste de smoke antes do release.
