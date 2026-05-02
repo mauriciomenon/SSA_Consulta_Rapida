@@ -55,6 +55,9 @@ function Join-Csv {
 }
 
 Assert-Tool "git"
+if (-not $SkipDebian) {
+    Assert-Tool "wsl"
+}
 
 $repoRoot = Resolve-RepoRoot
 $repoRootWsl = ConvertTo-WslPath $repoRoot
@@ -96,7 +99,6 @@ if (-not $SkipWindows) {
 }
 
 if (-not $SkipDebian) {
-    Assert-Tool "wsl"
     $debianArgs = @(
         "-d",
         $WslDistro,

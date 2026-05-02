@@ -55,14 +55,14 @@ def test_release_local_quotes_wsl_bash_arguments() -> None:
 
 def test_release_local_requires_wsl_only_for_debian_phase() -> None:
     script = _script_text()
-    debian_phase = section_between(
+    pre_resolution = section_between(
         script,
-        "if (-not $SkipDebian) {",
-        "Write-Host \"Release local concluido.\"",
+        'Assert-Tool "git"',
+        "$repoRoot = Resolve-RepoRoot",
     )
 
-    assert 'Assert-Tool "wsl"' in debian_phase
-    assert_before(script, "if (-not $SkipDebian) {", 'Assert-Tool "wsl"')
+    assert 'if (-not $SkipDebian) {\n    Assert-Tool "wsl"\n}' in pre_resolution
+    assert_before(script, 'Assert-Tool "wsl"', "$repoRoot = Resolve-RepoRoot")
 
 
 def test_release_local_skip_all_dry_run_executes_without_wsl_preflight() -> None:
