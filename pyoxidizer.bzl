@@ -16,13 +16,16 @@ def make_exe():
     dist = default_python_distribution()
 
     policy = dist.make_python_packaging_policy()
-    policy.resources_location = "filesystem-relative:lib"
+    policy.set_resource_handling_mode("classify")
+    policy.resources_location = "in-memory"
     policy.resources_location_fallback = "filesystem-relative:lib"
     policy.include_test = False
-    policy.file_scanner_emit_files = True
+    policy.file_scanner_emit_files = False
     policy.file_scanner_classify_files = True
+    policy.include_distribution_sources = False
     policy.include_distribution_resources = True
-    policy.include_non_distribution_sources = True
+    policy.include_non_distribution_sources = False
+    policy.bytecode_optimize_level_zero = True
     policy.extension_module_filter = "all"
     policy.include_classified_resources = True
 
@@ -33,8 +36,8 @@ def make_exe():
         "$ORIGIN/lib",
         "$ORIGIN/lib/python3.10",
     ]
-    python_config.oxidized_importer = False
-    python_config.filesystem_importer = True
+    python_config.oxidized_importer = True
+    python_config.filesystem_importer = False
     python_config.sys_frozen = False
     python_config.sys_meipass = False
 
@@ -46,6 +49,22 @@ def make_exe():
 
     exe.add_python_resources(
         exe.pip_install(["pandas", "openpyxl", "PyQt6", "numpy", "tabulate"])
+    )
+    exe.add_python_resources(
+        exe.read_package_root(
+            path=PROJECT_ROOT,
+            packages=[
+                "main",
+                "armazenamento",
+                "core",
+                "exportacao",
+                "extracao",
+                "gui",
+                "interface",
+                "shared",
+                "utils",
+            ],
+        )
     )
     return exe
 
@@ -61,26 +80,8 @@ def make_install(exe):
     files.add_manifest(
         glob(
             include=[
-                "main.py",
-                "core/*.py",
-                "core/**/*.py",
-                "gui/*.py",
-                "gui/**/*.py",
-                "armazenamento/*.py",
-                "armazenamento/**/*.py",
-                "extracao/*.py",
-                "extracao/**/*.py",
-                "utils/*.py",
-                "utils/**/*.py",
-                "interface/*.py",
-                "interface/**/*.py",
-                "exportacao/*.py",
-                "exportacao/**/*.py",
-                "shared/*.py",
-                "shared/**/*.py",
-                "launchers/*.py",
-                "launchers/**/*.py",
-                "config/**",
+                "config/*.json",
+                "config/*.sql",
                 "config/build_info.json",
                 "docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md",
                 "themes/**",

@@ -1,5 +1,11 @@
 # Build 3x3 Runbook (Windows Linux macOS x PyInstaller Nuitka PyOxidizer)
 
+## CURRENT TRUTH 2026-05-02 00h01
+
+- Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
+- PR atual: #57, aberto em draft, `dev` -> `main`.
+- Este runbook detalha execucao 3x3; nao deve duplicar a matriz completa de release.
+
 ## Objetivo
 
 Padrao reproduzivel para gerar e validar build nas 3 plataformas e 3 backends, com comandos canonicos via `uv` e saida padronizada.

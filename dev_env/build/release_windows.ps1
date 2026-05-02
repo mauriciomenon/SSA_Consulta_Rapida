@@ -1,10 +1,10 @@
 param(
-    [ValidateSet("pyinstaller", "nuitka", "pyoxidizer", "all")]
     [string[]] $Backend,
     [switch] $Yes,
     [switch] $SkipBuild,
     [switch] $SkipPackage,
-    [switch] $SkipInstaller
+    [switch] $SkipInstaller,
+    [switch] $DryRun
 )
 
 Set-StrictMode -Version 3.0
@@ -114,52 +114,81 @@ function Get-WindowsVersionText {
     return ($list[0..3] -join ".")
 }
 
-function Get-SelectedBackends {
-    param([string[]] $RequestedBackends)
+function Get-ReleaseTargetNames {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepoRoot,
+        [Parameter(Mandatory = $true)] [string] $Kind
+    )
 
-    $valid = @("pyinstaller", "nuitka", "pyoxidizer")
+    $targetOutput = Invoke-RepoCommand $RepoRoot "uv" @(
+        "run",
+        "--python",
+        "3.13",
+        "python",
+        "dev_env\build\release_platform_report.py",
+        "release-targets",
+        "--platform",
+        $Platform,
+        "--kind",
+        $Kind
+    )
+    $targets = @($targetOutput -split "," | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
+    if ($targets.Count -eq 0) {
+        throw "Nenhum target $Kind retornado para $Platform."
+    }
+    return $targets
+}
+
+function Get-SelectedBackends {
+    param(
+        [string[]] $RequestedBackends,
+        [Parameter(Mandatory = $true)] [string[]] $ValidBackends
+    )
+
+    $valid = @($ValidBackends)
     if (-not $RequestedBackends -or $RequestedBackends.Count -eq 0) {
-        Write-Host "Backends disponiveis: pyinstaller, nuitka, pyoxidizer, all"
+        Write-Host "Backends disponiveis: $($valid -join ', '), all"
         $raw = Read-Host "Informe um ou mais backends separados por virgula"
         $RequestedBackends = $raw -split "," | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ }
     }
 
-    if ($RequestedBackends -contains "all") {
+    $normalized = @()
+    foreach ($item in $RequestedBackends) {
+        foreach ($token in ($item -split ",")) {
+            $value = $token.Trim().ToLowerInvariant()
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                $normalized += $value
+            }
+        }
+    }
+
+    if ($normalized -contains "all") {
         return $valid
     }
 
-    foreach ($item in $RequestedBackends) {
+    foreach ($item in $normalized) {
         if ($valid -notcontains $item) {
             throw "Backend invalido: $item"
         }
     }
-    return @($RequestedBackends | Select-Object -Unique)
+    return @($normalized | Select-Object -Unique)
 }
 
 function Get-BackendScorecard {
-    return [ordered]@{
-        pyinstaller = [ordered]@{
-            security_score = 2
-            python_source_exposure_score = 2
-            easy_user_dirs_score = 5
-            package_size_score = 4
-            note = "Alta compatibilidade; menor protecao contra inspecao do Python empacotado."
+    param([Parameter(Mandatory = $true)] [string] $RepoRoot)
+
+    $scorecardFile = Join-Path $RepoRoot "dev_env\build\backend_scorecards.json"
+    Assert-ExistingFile $scorecardFile
+    $raw = Get-Content $scorecardFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    $scorecards = @{}
+    foreach ($backend in $raw.PSObject.Properties) {
+        $record = [ordered]@{}
+        foreach ($field in $backend.Value.PSObject.Properties) {
+            $record[$field.Name] = $field.Value
         }
-        nuitka = [ordered]@{
-            security_score = 4
-            python_source_exposure_score = 4
-            easy_user_dirs_score = 4
-            package_size_score = 3
-            note = "Melhor protecao do codigo Python; build mais lento e dependente de toolchain."
-        }
-        pyoxidizer = [ordered]@{
-            security_score = 3
-            python_source_exposure_score = 3
-            easy_user_dirs_score = 3
-            package_size_score = 2
-            note = "Empacotamento forte, mas o layout atual ainda expoe varias pastas Python no output."
-        }
+        $scorecards[$backend.Name] = $record
     }
+    return $scorecards
 }
 
 function Get-BackendConfig {
@@ -348,16 +377,43 @@ function Invoke-Smoke {
         }
     }
 
-    $inputText = "q`n"
-    $inputText | & $Config.cli_exe --skip-import | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Smoke CLI falhou para ${BackendName}."
+    $smokeOutput = ""
+    $smokeDir = Join-Path ([System.IO.Path]::GetTempPath()) ("ssa_release_smoke_" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force $smokeDir | Out-Null
+    try {
+        $stdinPath = Join-Path $smokeDir "stdin.txt"
+        $stdoutPath = Join-Path $smokeDir "stdout.txt"
+        $stderrPath = Join-Path $smokeDir "stderr.txt"
+        Set-Content -LiteralPath $stdinPath -Value "q`n" -NoNewline -Encoding ASCII
+        $process = Start-Process `
+            -FilePath (Resolve-Path $Config.cli_exe).Path `
+            -ArgumentList "--skip-import" `
+            -RedirectStandardInput $stdinPath `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath `
+            -NoNewWindow `
+            -Wait `
+            -PassThru
+        if ($process.ExitCode -ne 0) {
+            $stderrText = ""
+            if (Test-Path $stderrPath) {
+                $stderrText = (Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue).Trim()
+            }
+            throw "Smoke CLI falhou para ${BackendName}. ExitCode=$($process.ExitCode). $stderrText"
+        }
+        if (Test-Path $stdoutPath) {
+            $smokeOutput = (Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue).Trim()
+        }
+    } finally {
+        if (Test-Path $smokeDir) {
+            Remove-Item -LiteralPath $smokeDir -Recurse -Force
+        }
     }
     return [ordered]@{
         verification_type = "functional_cli_check"
         command = "CLI --skip-import"
         exit_code = 0
-        output = ""
+        output = $smokeOutput
     }
 }
 
@@ -413,6 +469,40 @@ function Assert-ZipContents {
     return $records
 }
 
+function Assert-SourceProtection {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepoRoot,
+        [Parameter(Mandatory = $true)] [string[]] $ArtifactPaths
+    )
+
+    $records = @()
+    foreach ($path in $ArtifactPaths) {
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            Assert-ExistingFile $path
+        } elseif (Test-Path -LiteralPath $path -PathType Container) {
+            Assert-ExistingDirectory $path
+        } else {
+            throw "Artefato para protecao de fonte ausente: $path"
+        }
+        Invoke-CheckedProcess $RepoRoot "uv" @(
+            "run",
+            "--python",
+            "3.13",
+            "dev_env\build\release_platform_report.py",
+            "source-protection",
+            "--repo-root",
+            $RepoRoot,
+            "--artifact",
+            $path
+        )
+        $records += [ordered]@{
+            path = $path
+            protected_python_source = $true
+        }
+    }
+    return $records
+}
+
 function Get-ArtifactHash {
     param([Parameter(Mandatory = $true)] [string[]] $Paths)
 
@@ -460,19 +550,34 @@ Assert-WindowsHost
 Assert-PowerShellHost
 Assert-Tool "git" "instale Git para Windows"
 Assert-Tool "uv" "instale uv"
-if (-not $SkipInstaller) {
-    Assert-Tool "iscc" "instale Inno Setup ou use -SkipInstaller"
-}
 
 $repoRoot = Resolve-RepoRoot
-$selectedBackends = Get-SelectedBackends $Backend
-if ((-not $SkipBuild) -and ($selectedBackends -contains "pyoxidizer")) {
+$validBackends = Get-ReleaseTargetNames $repoRoot "backends"
+$selectedBackends = Get-SelectedBackends $Backend $validBackends
+if ((-not $DryRun) -and (-not $SkipInstaller)) {
+    Assert-Tool "iscc" "instale Inno Setup ou use -SkipInstaller"
+}
+if ((-not $DryRun) -and (-not $SkipBuild) -and ($selectedBackends -contains "pyoxidizer")) {
     Assert-Tool "rcedit.exe" "scoop install rcedit"
 }
 $version = Get-AppVersion $repoRoot
 $windowsVersion = Get-WindowsVersionText $version
 $gitHead = Get-GitHead $repoRoot
 $dirtyEntries = Assert-CleanReleaseWorkspace $repoRoot
+$scorecard = Get-BackendScorecard $repoRoot
+
+if ($DryRun) {
+    Write-Host "Dry-run Windows concluido sem build/pacote."
+    Write-Host "Repo: $repoRoot"
+    Write-Host "HEAD: $($gitHead.commit)"
+    Write-Host "Versao: $version"
+    Write-Host "Backends: $($selectedBackends -join ', ')"
+    foreach ($backendName in $selectedBackends) {
+        $backendScore = $scorecard[$backendName]
+        Write-Host "Scorecard ${backendName}: seguranca=$($backendScore.security_score); python=$($backendScore.source_protection_score); pastas=$($backendScore.easy_user_dirs_score); tamanho=$($backendScore.package_size_score); nota=$($backendScore.note)"
+    }
+    return
+}
 
 if (-not $Yes) {
     Write-Host "Repo: $repoRoot"
@@ -485,7 +590,6 @@ if (-not $Yes) {
 }
 
 $configs = Get-BackendConfig $repoRoot $version
-$scorecard = Get-BackendScorecard
 $results = @()
 
 foreach ($backendName in $selectedBackends) {
@@ -495,9 +599,9 @@ foreach ($backendName in $selectedBackends) {
     }
 
     $buildInfoRecords = Assert-BuildInfo $config.build_info $gitHead.commit $Platform $config.package_system
-    $metadataRecords = Assert-ExeMetadata @($config.cli_exe, $config.gui_exe) $windowsVersion
+    $exePaths = @($config.cli_exe, $config.gui_exe) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $metadataRecords = Assert-ExeMetadata $exePaths $windowsVersion
     $smokeRecord = Invoke-Smoke $backendName $config
-
     if (-not $SkipPackage) {
         Write-BackendReleaseZips $config.release_zips
         Invoke-DistributionPackage $repoRoot $config.package_system ([bool] $SkipInstaller)
@@ -505,6 +609,7 @@ foreach ($backendName in $selectedBackends) {
 
     $zipPaths = @($config.release_zips | ForEach-Object { $_.zip })
     $zipRecords = Assert-ZipContents $zipPaths
+    $zipProtectionRecords = @(Assert-SourceProtection $repoRoot $zipPaths)
     $hashRecords = Get-ArtifactHash $zipPaths
 
     $results += [ordered]@{
@@ -514,6 +619,7 @@ foreach ($backendName in $selectedBackends) {
         exe_metadata = $metadataRecords
         smoke = $smokeRecord
         zip_validation = $zipRecords
+        zip_source_protection = $zipProtectionRecords
         hashes = $hashRecords
     }
 }

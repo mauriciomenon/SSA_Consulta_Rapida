@@ -1,0 +1,53 @@
+from __future__ import annotations
+
+from tests.release_script_assertions import PROJECT_ROOT, read_repo_text
+
+
+GUIA_DISTRIBUICAO = PROJECT_ROOT / "docs" / "GUIA_DISTRIBUICAO.md"
+SOLUCOES_AMBIENTE = PROJECT_ROOT / "docs" / "SOLUCOES_AMBIENTE_BUILD.md"
+
+
+def test_distribuicao_doc_does_not_hardcode_personal_wsl_path() -> None:
+    text = read_repo_text("docs", "GUIA_DISTRIBUICAO.md")
+
+    assert "/mnt/c/Users/mauri/" not in text
+    assert "C:\\Users\\mauri" not in text
+    assert "<WSL-repo-path>" in text
+
+
+def test_solucoes_ambiente_doc_marks_legacy_body_historical() -> None:
+    text = read_repo_text("docs", "SOLUCOES_AMBIENTE_BUILD.md")
+
+    assert text.count("## CURRENT TRUTH") == 1
+    assert "Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`" in text
+    assert "PR atual: #57" in text
+    assert "- Branch alvo: `dev`." not in text
+    assert "## HISTORICAL SNAPSHOT 2025-11-14" in text
+    assert "**Data**: 2025-11-14" not in text
+
+
+def test_solucoes_ambiente_doc_uses_generic_user_paths() -> None:
+    text = read_repo_text("docs", "SOLUCOES_AMBIENTE_BUILD.md")
+
+    assert "C:\\Users\\menon" not in text
+    assert "C:\\Users\\<usuario>" in text
+
+
+def test_release_docs_sync_contract() -> None:
+    source_text = read_repo_text("docs", "GUIA_DISTRIBUICAO.md")
+    source_truth = source_text.split("## HISTORICAL SNAPSHOT", 1)[0]
+
+    assert "PR #57: aberto em draft" in source_truth
+    assert "PR #56: merged" not in source_truth
+    assert "df0345caea9ac3050c87d2172eb75817b8fc3689" in source_truth
+    assert 'release_local.ps1 -Backend "pyinstaller,nuitka"' in source_truth
+
+    for doc_name in [
+        "SOLUCOES_AMBIENTE_BUILD.md",
+        "BUILD_3X3_RUNBOOK.md",
+        "BUILD_TOOLING_LESSONS_LEARNED.md",
+    ]:
+        current_truth = read_repo_text("docs", doc_name).split("## HISTORICAL SNAPSHOT", 1)[0]
+        assert "Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`" in current_truth
+        assert "PR atual: #57" in current_truth
+        assert "df0345caea9ac3050c87d2172eb75817b8fc3689" not in current_truth
