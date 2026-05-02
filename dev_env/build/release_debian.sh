@@ -273,7 +273,10 @@ assert_clean_release_workspace() {
   if [[ "${root}" == /mnt/[A-Za-z]/* ]] && [[ -x "${ps_exe}" ]] && command -v wslpath >/dev/null 2>&1; then
     win_root="$(wslpath -w "${root}")"
     ps_win_root="$(printf '%s' "${win_root}" | sed "s/'/''/g")"
-    dirty="$("${ps_exe}" -NoProfile -NonInteractive -Command "& git -C '${ps_win_root}' status --porcelain=v1" | tr -d '\r')"
+    if ! dirty="$("${ps_exe}" -NoProfile -NonInteractive -Command "& git -C '${ps_win_root}' status --porcelain=v1" 2>&1 | tr -d '\r')"; then
+      printf '%s\n' "${dirty}" >&2
+      die "nao foi possivel validar git limpo via Windows."
+    fi
     if [[ -n "${dirty}" ]]; then
       printf '%s\n' "${dirty}" >&2
       die "workspace sujo. Release deterministico exige git limpo."
@@ -440,9 +443,21 @@ write_tar_archive() {
   local source_parent="$1"
   local source_name="$2"
   local output_file="$3"
+  local tmp_file="${output_file}.tmp"
   [[ -d "${source_parent}/${source_name}" ]] || die "diretorio para tar ausente: ${source_parent}/${source_name}"
   mkdir -p -- "$(dirname -- "${output_file}")"
-  tar -C "${source_parent}" -czf "${output_file}" "${source_name}"
+  rm -f -- "${tmp_file}"
+  tar \
+    --sort=name \
+    --mtime="UTC 1970-01-01" \
+    --owner=0 \
+    --group=0 \
+    --numeric-owner \
+    -C "${source_parent}" \
+    -cf - \
+    "${source_name}" \
+    | gzip -n >"${tmp_file}"
+  mv -f -- "${tmp_file}" "${output_file}"
 }
 
 write_tar_packages() {

@@ -90,6 +90,7 @@ def test_release_debian_script_has_deterministic_preflight() -> None:
     assert "status --porcelain=v1" in script
     assert "tr -d '\\r'" in script
     assert "wslpath -w" in script
+    assert "nao foi possivel validar git limpo via Windows." in script
 
 
 def test_release_debian_script_writes_report_and_validates_payloads() -> None:
@@ -165,6 +166,13 @@ def test_release_debian_script_calls_only_debian_build_wrappers() -> None:
 def test_release_debian_script_declares_tar_packages_and_supported_pairs() -> None:
     script = _script_text()
 
+    assert "--sort=name" in script
+    assert '--mtime="UTC 1970-01-01"' in script
+    assert "--owner=0" in script
+    assert "--group=0" in script
+    assert "--numeric-owner" in script
+    assert "gzip -n" in script
+    assert 'mv -f -- "${tmp_file}" "${output_file}"' in script
     assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyinstaller_cli.tar.gz" in script
     assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_nuitka_cli.tar.gz" in script
     assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyoxidizer.tar.gz" in script
