@@ -89,13 +89,26 @@ DEFAULT_SCORECARDS: dict[str, dict[str, object]] = {
         "source_protection_score": 3,
     },
 }
+PACKAGE_ASSET_SUFFIXES: dict[str, tuple[str, ...]] = {
+    "appimage": (".AppImage",),
+    "deb": (".deb",),
+    "tar": (".tar.gz",),
+    "zip": (".zip", ".exe", ".msi"),
+}
 
 
 @functools.lru_cache(maxsize=1)
 def _load_scorecards() -> dict[str, dict[str, object]]:
     try:
         payload = json.loads(SCORECARD_FILE.read_text(encoding="utf-8"))
-    except (FileNotFoundError, OSError, json.JSONDecodeError) as exc:
+    except FileNotFoundError as exc:
+        logger.warning(
+            "Falha ao carregar %s; usando defaults: %s",
+            SCORECARD_FILE,
+            exc,
+        )
+        return DEFAULT_SCORECARDS
+    except (OSError, json.JSONDecodeError) as exc:
         logger.warning(
             "Falha ao carregar %s; usando defaults: %s",
             SCORECARD_FILE,
@@ -270,7 +283,7 @@ def print_release_unsupported_pairs(args: argparse.Namespace) -> int:
 def _sha256(path: pathlib.Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+        for chunk in iter(lambda: handle.read(4 * 1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
 
@@ -290,7 +303,7 @@ def cmd_print_app_version(args: argparse.Namespace) -> int:
     payload = _read_json(args.version_file)
     version = str(payload.get("version_short") or "").strip()
     if not version:
-        raise ReleaseReportError("version_short ausente em config/version.json")
+        raise ReleaseReportError(f"version_short ausente em {args.version_file}")
     print(version)
     return 0
 
@@ -331,18 +344,24 @@ def validate_source_protection_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _asset_suffixes_for_platform(platform_name: str) -> tuple[str, ...]:
+    payload = _load_release_targets()
+    packages = _enabled_target_names(payload, "packages", platform_name)
+    suffixes: list[str] = []
+    for package in packages:
+        suffixes.extend(PACKAGE_ASSET_SUFFIXES.get(package, (f".{package}",)))
+    return tuple(suffix.lower() for suffix in suffixes)
+
+
 def write_report(args: argparse.Namespace) -> int:
     package_dir = args.repo_root / "builds" / "packages" / args.platform
     assets = []
     if package_dir.is_dir():
+        asset_suffixes = _asset_suffixes_for_platform(args.platform)
         asset_paths = [
             path
             for path in sorted(package_dir.iterdir())
-            if path.is_file()
-            and (
-                path.suffix in {".AppImage", ".deb", ".exe", ".msi", ".zip"}
-                or path.name.endswith(".tar.gz")
-            )
+            if path.is_file() and path.name.lower().endswith(asset_suffixes)
         ]
         if asset_paths:
             workers = min(4, len(asset_paths))

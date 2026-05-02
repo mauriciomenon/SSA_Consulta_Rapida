@@ -194,7 +194,8 @@ def test_release_debian_script_exposes_backend_scorecard() -> None:
     assert "backend_scorecards.json" in report_script
     assert '"protected_release": true' in scorecard_text
     assert '"protected_release": false' in scorecard_text
-    assert 'path.name.endswith(".tar.gz")' in report_script
+    assert "PACKAGE_ASSET_SUFFIXES" in report_script
+    assert "path.name.lower().endswith(asset_suffixes)" in report_script
 
 
 def test_release_targets_json_defines_validated_targets() -> None:

@@ -29,7 +29,8 @@ def position_of(text: str, needle: str) -> int:
 def assert_before(text: str, first: str, second: str) -> None:
     first_position = position_of(text, first)
     second_position = position_of(text, second)
-    assert first_position < second_position, f"ordem invalida: {first} antes de {second}"
+    if first_position >= second_position:
+        raise AssertionError(f"ordem invalida: {first} antes de {second}")
 
 
 def section_between(text: str, start: str, end: str) -> str:
@@ -66,4 +67,7 @@ def assert_no_unguarded_string_position_helpers(test_source: str) -> None:
             self.generic_visit(node)
 
     Visitor().visit(tree)
-    assert offenders == [], "uso fragil de index/split em teste: " + "; ".join(offenders)
+    if offenders:
+        raise AssertionError(
+            "uso fragil de index/split em teste: " + "; ".join(offenders)
+        )

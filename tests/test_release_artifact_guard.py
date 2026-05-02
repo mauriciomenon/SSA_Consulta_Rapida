@@ -12,7 +12,8 @@ import pytest
 from dev_env.build import source_protection
 from dev_env.build.source_protection import (
     SourceExposureError,
-    _source_candidates,
+    _artifact_source_name,
+    _source_candidates_from_name,
     _tracked_python_sources,
     validate_source_protection,
 )
@@ -196,6 +197,10 @@ def test_source_protection_cli_checks_all_artifacts(
 
 
 def test_source_protection_maps_pyc_to_tracked_source() -> None:
-    candidates = _source_candidates("bundle/gui/__pycache__/gui_ssa.cpython-313.pyc")
+    source_name = _artifact_source_name(
+        "bundle/gui/__pycache__/gui_ssa.cpython-313.pyc"
+    )
+    assert source_name == "bundle/gui/gui_ssa.py"
+    candidates = _source_candidates_from_name(source_name)
 
     assert "gui/gui_ssa.py" in candidates

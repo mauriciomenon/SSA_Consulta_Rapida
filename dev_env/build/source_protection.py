@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import functools
 import re
+import shutil
 import subprocess
 import tarfile
 import zipfile
@@ -39,9 +40,12 @@ def _normalize_entry(name: str) -> str:
 
 
 def _repo_python_files_from_git(repo_root: Path) -> set[str]:
+    git_path = shutil.which("git")
+    if git_path is None:
+        raise SourceExposureError("git nao encontrado no PATH")
     try:
         result = subprocess.run(
-            ["git", "ls-files"],
+            [git_path, "ls-files"],
             cwd=repo_root,
             check=False,
             capture_output=True,
@@ -117,17 +121,9 @@ def _source_candidates_from_name(source_name: str) -> set[str]:
     return candidates
 
 
-def _source_candidates(name: str) -> set[str]:
-    source_name = _artifact_source_name(name)
-    if source_name is None:
-        return set()
-    return _source_candidates_from_name(source_name)
-
-
 def _has_app_source_context(
     parts: tuple[str, ...],
     index: int,
-    candidate_parts: tuple[str, ...],
 ) -> bool:
     if index == 0:
         return True
@@ -155,7 +151,6 @@ def _is_forbidden_source_entry(
             if entry_parts[index:] == candidate_parts and _has_app_source_context(
                 entry_parts,
                 index,
-                candidate_parts,
             ):
                 return True
     return False
