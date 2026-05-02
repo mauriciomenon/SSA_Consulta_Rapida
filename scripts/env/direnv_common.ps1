@@ -19,13 +19,14 @@ if (-not $env:SSA_PYTHON_STABLE_VERSION) {
     $env:SSA_ENV__STABLE_FROM_ENV = 1
 }
 
-$env:SSA_PYTHON_STABLE_VERSION = if ($env:SSA_PYTHON_STABLE_VERSION) { $env:SSA_PYTHON_STABLE_VERSION } else { "3.13.7" }
+$env:SSA_PYTHON_STABLE_VERSION = if ($env:SSA_PYTHON_STABLE_VERSION) { $env:SSA_PYTHON_STABLE_VERSION } else { "3.13.12" }
 
 if ($env:SSA_ENV__STABLE_FROM_ENV -eq 0 -and (Test-Path "$env:SSA_ENV_REPO_ROOT\.python-version")) {
     try {
         $fileVersion = Get-Content "$env:SSA_ENV_REPO_ROOT\.python-version" -Raw
         $env:SSA_ENV__FILE_VERSION = $fileVersion.Trim().TrimEnd("`r")
-        if ($env:SSA_ENV__FILE_VERSION -match '^\d+\.\d+(\.\d+)?$') {
+        $pythonVersionPattern = '^\d+\.\d+(\.\d+)?$'
+        if ($env:SSA_ENV__FILE_VERSION -match $pythonVersionPattern) {
             $env:SSA_PYTHON_STABLE_VERSION = $env:SSA_ENV__FILE_VERSION
         }
     } catch {
