@@ -17,12 +17,14 @@ SSA_PYTHON_STABLE_VERSION="${SSA_PYTHON_STABLE_VERSION:-3.13.12}"
 if [[ "${SSA_ENV__STABLE_FROM_ENV:-0}" -eq 0 && -f "${ssa_env__repo_root}/.python-version" ]]; then
   read -r SSA_ENV__FILE_VERSION < "${ssa_env__repo_root}/.python-version" || true
   SSA_ENV__FILE_VERSION=${SSA_ENV__FILE_VERSION%$'\r'}
-  if [[ "${SSA_ENV__FILE_VERSION}" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+  SSA_ENV__PYTHON_VERSION_RE='^[0-9]+\.[0-9]+(\.[0-9]+)?$'
+  if [[ "${SSA_ENV__FILE_VERSION}" =~ $SSA_ENV__PYTHON_VERSION_RE ]]; then
     SSA_PYTHON_STABLE_VERSION="${SSA_ENV__FILE_VERSION}"
   fi
 fi
 unset SSA_ENV__STABLE_FROM_ENV
 unset SSA_ENV__FILE_VERSION
+unset SSA_ENV__PYTHON_VERSION_RE
 
 SSA_PYTHON_FT_VERSION="${SSA_PYTHON_FT_VERSION:-3.14-dev}"
 ssa_env__log() {

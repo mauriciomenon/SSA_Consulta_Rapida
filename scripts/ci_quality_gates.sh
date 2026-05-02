@@ -11,14 +11,19 @@ set -euo pipefail
 
 GATES_ARGS=${GATES_ARGS:-}
 PY=${PYTHON:-python}
+GATES_ARGS_ARRAY=()
 
 if ! command -v "$PY" >/dev/null 2>&1; then
   echo "Python nao encontrado" >&2
   exit 2
 fi
 
+if [ -n "$GATES_ARGS" ]; then
+  read -r -a GATES_ARGS_ARRAY <<< "$GATES_ARGS"
+fi
+
 set +e
-OUT=$($PY scripts/run_quality_gates.py $GATES_ARGS 2>&1)
+OUT=$("$PY" scripts/run_quality_gates.py "${GATES_ARGS_ARRAY[@]}" 2>&1)
 CODE=$?
 set -e
 
@@ -36,7 +41,7 @@ echo "[ci_quality_gates] overall_status=${STATUS} (exit=${CODE})"
 
 SMOKE_STATUS="ok"
 set +e
-$PY -m pytest -m "smoke" -q
+"$PY" -m pytest -m "smoke" -q
 SMOKE_CODE=$?
 set -e
 [ $SMOKE_CODE -eq 0 ] || SMOKE_STATUS="fail"
