@@ -16,6 +16,7 @@ from dev_env.build.source_protection import (
     _tracked_python_sources,
     validate_source_protection,
 )
+from tests.release_script_assertions import section_between
 
 
 def _require_git() -> None:
@@ -145,10 +146,19 @@ def test_source_protection_allows_third_party_package_paths(tmp_path: Path) -> N
 
 
 def test_source_protection_uses_tracked_python_inventory() -> None:
+    _require_git()
     tracked = _tracked_python_sources(str(Path.cwd().resolve()))
 
     assert "core/app_logic.py" in tracked
     assert "dev_env/build/source_protection.py" in tracked
+
+
+def test_git_backed_source_inventory_tests_require_git_guard() -> None:
+    test_source = Path(__file__).read_text(encoding="utf-8")
+    needle = "def test_source_protection_uses_tracked_python_inventory() -> None:\n"
+    body = section_between(test_source, needle, "\n\ndef ")
+
+    assert "    _require_git()\n" in body
 
 
 def test_source_protection_rejects_case_ambiguous_git_inventory(

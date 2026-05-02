@@ -39,6 +39,13 @@ function ConvertTo-WslPath {
     return "/mnt/$drive$tail"
 }
 
+function ConvertTo-BashSingleQuoted {
+    param([Parameter(Mandatory = $true)] [string] $Value)
+    $singleQuote = [char]39
+    $escaped = $Value.Replace([string] $singleQuote, "$singleQuote\$singleQuote$singleQuote")
+    return "$singleQuote$escaped$singleQuote"
+}
+
 function Join-Csv {
     param([Parameter(Mandatory = $true)] [string[]] $Items)
     if ($Items -contains "all") {
@@ -48,12 +55,14 @@ function Join-Csv {
 }
 
 Assert-Tool "git"
-Assert-Tool "wsl"
 
 $repoRoot = Resolve-RepoRoot
 $repoRootWsl = ConvertTo-WslPath $repoRoot
+$repoRootWslQuoted = ConvertTo-BashSingleQuoted $repoRootWsl
 $backendCsv = Join-Csv $Backend
 $packageCsv = Join-Csv $DebianPackage
+$backendCsvQuoted = ConvertTo-BashSingleQuoted $backendCsv
+$packageCsvQuoted = ConvertTo-BashSingleQuoted $packageCsv
 
 if (-not $Yes) {
     Write-Host "Repo: $repoRoot"
@@ -87,13 +96,14 @@ if (-not $SkipWindows) {
 }
 
 if (-not $SkipDebian) {
+    Assert-Tool "wsl"
     $debianArgs = @(
         "-d",
         $WslDistro,
         "--",
         "bash",
         "-lc",
-        "cd '$repoRootWsl' && bash dev_env/build/release_debian.sh --backend '$backendCsv' --package '$packageCsv' -y$(if ($DryRun) { ' --dry-run' } else { '' })"
+        "cd $repoRootWslQuoted && bash dev_env/build/release_debian.sh --backend $backendCsvQuoted --package $packageCsvQuoted -y$(if ($DryRun) { ' --dry-run' } else { '' })"
     )
     & wsl @debianArgs
     if ($LASTEXITCODE -ne 0) {

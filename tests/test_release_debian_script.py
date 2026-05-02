@@ -6,10 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from main import _get_project_root
+from tests.release_script_assertions import (
+    PROJECT_ROOT,
+    assert_no_unguarded_string_position_helpers,
+    assert_before,
+    read_repo_text,
+    section_between,
+)
 
 
-PROJECT_ROOT = Path(_get_project_root())
 SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_debian.sh"
 REPORT_SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_platform_report.py"
 SCORECARD_FILE = PROJECT_ROOT / "dev_env" / "build" / "backend_scorecards.json"
@@ -18,9 +23,7 @@ REPORT_MODULE = importlib.import_module("dev_env.build.release_platform_report")
 
 
 def _script_text() -> str:
-    if not SCRIPT.is_file():
-        raise AssertionError(f"script ausente: {SCRIPT}")
-    return SCRIPT.read_text(encoding="utf-8")
+    return read_repo_text("dev_env", "build", "release_debian.sh")
 
 
 def test_release_debian_script_is_bash_only_and_interactive() -> None:
@@ -64,7 +67,7 @@ def test_release_debian_script_has_local_and_ssh_modes() -> None:
     assert "--with-local-data nao e suportado via SSH" in script
 
 
-def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
+def test_release_debian_script_has_deterministic_preflight() -> None:
     script = _script_text()
 
     assert "assert_clean_release_workspace" in script
@@ -81,6 +84,11 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
     assert "status --porcelain=v1" in script
     assert "tr -d '\\r'" in script
     assert "wslpath -w" in script
+
+
+def test_release_debian_script_writes_report_and_validates_payloads() -> None:
+    script = _script_text()
+
     assert "release_report_debian_amd64.json" in script
     assert "write_release_report" in script
     assert '--platform "debian_amd64"' in script
@@ -96,11 +104,20 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
     assert "SSA_GUI_v${app_version}_debian_amd64" in script
     assert "cli_entry.dist" in script
     assert "gui_entry.dist" in script
-    assert 'if [[ "${DRY_RUN}" == "1" ]]; then' in script
-    assert script.index('log "dry-run concluido sem build/pacote"') < script.index("run_package_phase()")
-    assert script.index('if [[ "${DRY_RUN}" == "1" ]]; then') < script.index("run_package_phase")
     report_script = REPORT_SCRIPT.read_text(encoding="utf-8")
     assert "hashlib.sha256" in report_script
+
+
+def test_release_debian_script_checks_dry_run_before_package_phase() -> None:
+    script = _script_text()
+
+    assert 'if [[ "${DRY_RUN}" == "1" ]]; then' in script
+    assert_before(
+        script,
+        'log "dry-run concluido sem build/pacote"',
+        "run_package_phase()",
+    )
+    assert_before(script, 'if [[ "${DRY_RUN}" == "1" ]]; then', "run_package_phase")
 
 
 def test_release_debian_script_normalizes_csv_tokens() -> None:
@@ -142,12 +159,13 @@ def test_release_debian_script_calls_only_debian_wrappers() -> None:
     assert "is_supported_package_pair" in script
     assert "appimage:pyoxidizer)" not in script
     assert 'pacote ignorado ${package_kind} ${backend}: $(release_target_reason' in script
-    package_backend_body = script.split("run_package_backend()", 1)[1].split(
+    package_backend_body = section_between(
+        script,
+        "run_package_backend()",
         "\nis_supported_package_pair()",
-        1,
-    )[0]
+    )
     assert 'if ! is_supported_package_pair "${backend}" "${package_kind}"; then' in package_backend_body
-    assert script.index("log_package_matrix") < script.index("run_build_phase")
+    assert_before(script, "log_package_matrix", "run_build_phase")
     assert "package_debian_arm64" not in script
     assert "release_windows.ps1" not in script
 
@@ -226,3 +244,9 @@ def test_release_debian_report_asset_payload_errors_include_path(
 
     with pytest.raises(REPORT_MODULE.ReleaseReportError, match="package.deb"):
         REPORT_MODULE._asset_payload(asset)
+
+
+def test_release_debian_tests_use_guarded_string_positions() -> None:
+    test_source = Path(__file__).read_text(encoding="utf-8")
+
+    assert_no_unguarded_string_position_helpers(test_source)
