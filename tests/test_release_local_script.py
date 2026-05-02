@@ -3,6 +3,8 @@ from __future__ import annotations
 import shutil
 import subprocess
 
+import pytest
+
 from tests.release_script_assertions import (
     PROJECT_ROOT,
     assert_before,
@@ -68,7 +70,7 @@ def test_release_local_requires_wsl_only_for_debian_phase() -> None:
 def test_release_local_skip_all_dry_run_executes_without_wsl_preflight() -> None:
     powershell = shutil.which("powershell") or shutil.which("pwsh")
     if powershell is None:
-        raise AssertionError("PowerShell ausente para validar release_local.ps1")
+        pytest.skip("PowerShell ausente para validar release_local.ps1")
 
     result = subprocess.run(
         [
@@ -87,9 +89,10 @@ def test_release_local_skip_all_dry_run_executes_without_wsl_preflight() -> None
         capture_output=True,
         text=True,
         check=False,
+        timeout=60,
     )
 
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 0, f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     assert "Release local concluido." in result.stdout
 
 
