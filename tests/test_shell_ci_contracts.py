@@ -66,6 +66,13 @@ def test_ci_quality_gates_does_not_expand_arg_string_unquoted() -> None:
     assert '"${GATES_ARGS_ARRAY[@]}"' in script
 
 
+def test_minimal_ci_runs_for_any_workflow_change() -> None:
+    workflow = _read_repo_text(".github", "workflows", "minimal-ci.yml")
+
+    assert workflow.count('".github/workflows/*.yml"') == 2
+    assert '".github/workflows/minimal-ci.yml"' not in workflow
+
+
 def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
     workflow = _read_repo_text(".github", "workflows", "secret_scan.yml")
 
@@ -74,6 +81,22 @@ def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
     assert "BASE_REF: ${{ github.base_ref }}" in workflow
     assert 'git fetch origin "$BASE_REF" --depth=1 || true' in workflow
     assert 'git diff --unified=0 "origin/${BASE_REF}...HEAD"' in workflow
+
+
+def test_secret_scan_is_blocking_on_main_and_dev() -> None:
+    workflow = _read_repo_text(".github", "workflows", "secret_scan.yml")
+
+    assert "branches: [ main, dev ]" in workflow
+    assert "continue-on-error: true" not in workflow
+    assert "echo '[ERROR] Sensitive patterns found'" in workflow
+    assert "echo '[ERROR] Possible secret in diff'" in workflow
+
+
+def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
+    workflow = _read_repo_text(".github", "workflows", "opencode.yml")
+
+    assert workflow.count("environment: SECRETS") == 3
+    assert "id-token: write" not in workflow
 
 
 def test_shell_doctor_does_not_print_sensitive_value_prefixes() -> None:

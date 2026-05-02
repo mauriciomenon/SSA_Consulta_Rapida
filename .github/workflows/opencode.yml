@@ -13,9 +13,6 @@ concurrency:
   group: opencode-${{ github.event.comment.id }}
   cancel-in-progress: false
 
-env:
-  COMMENT_BODY: ${{ github.event.comment.body }}
-
 jobs:
   opencode:
     if: |
@@ -30,8 +27,8 @@ jobs:
       )
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: SECRETS
     permissions: &opencode_permissions
-      id-token: write
       contents: read
       pull-requests: write
       issues: write
@@ -123,6 +120,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "${HOME}/.config/opencode"
+          # Qwen Coding Plan is exposed through an Anthropic-compatible adapter.
           python - <<'PY'
           import json
           import os

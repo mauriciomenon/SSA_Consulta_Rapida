@@ -30,12 +30,13 @@ jobs:
         id: detect
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           RUN_ADVANCED="false"
           REASON="default_setup_unverified"
-          API_URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/code-scanning/default-setup"
-          HTTP_CODE="$(curl -sS -o default_setup.json -w "%{http_code}" \
+          API_URL="https://api.github.com/repos/${REPO}/code-scanning/default-setup"
+          HTTP_CODE="$(curl -sS --connect-timeout 5 --max-time 10 -o default_setup.json -w "%{http_code}" \
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "${API_URL}" || true)"
@@ -43,15 +44,18 @@ jobs:
           if [ "${HTTP_CODE}" = "200" ]; then
             STATE="$(jq -r '.state // .status // "unknown"' default_setup.json)"
             if [ "${STATE}" = "configured" ] || [ "${STATE}" = "enabled" ]; then
+              RUN_ADVANCED="false"
               REASON="default_setup_active"
             elif [ "${STATE}" = "not-configured" ] || [ "${STATE}" = "not_configured" ] || [ "${STATE}" = "disabled" ]; then
               RUN_ADVANCED="true"
               REASON="advanced_allowed"
             else
-              REASON="default_setup_state_unknown"
+              echo "Unsupported CodeQL default setup state: ${STATE}" >&2
+              exit 1
             fi
           else
-            REASON="default_setup_unverified_http_${HTTP_CODE}"
+            echo "Could not verify CodeQL default setup state: HTTP ${HTTP_CODE}" >&2
+            exit 1
           fi
 
           echo "run_advanced=${RUN_ADVANCED}" >> "${GITHUB_OUTPUT}"
@@ -99,7 +103,9 @@ jobs:
           egress-policy: audit
 
       - name: Skip advanced scan due to default setup
+        env:
+          CODEQL_SKIP_REASON: ${{ needs.precheck-default-setup.outputs.reason }}
         run: |
           set -euo pipefail
           echo "CodeQL advanced workflow skipped because default setup is active or verification could not be completed."
-          echo "Reason: ${{ needs.precheck-default-setup.outputs.reason }}"
+          echo "Reason: ${CODEQL_SKIP_REASON}"
