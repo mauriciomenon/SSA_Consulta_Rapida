@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -19,6 +21,35 @@ SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_local.ps1"
 
 def _script_text() -> str:
     return read_repo_text("dev_env", "build", "release_local.ps1")
+
+
+def _powershell_executable() -> str:
+    if not sys.platform.startswith("win"):
+        pytest.skip("release_local.ps1 execution requires Windows path semantics")
+    powershell = shutil.which("powershell") or shutil.which("pwsh")
+    if powershell is None:
+        pytest.skip("PowerShell ausente para validar release_local.ps1")
+    return powershell
+
+
+def _run_release_local(args: list[str], *, timeout: int = 60, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            _powershell_executable(),
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(SCRIPT),
+            *args,
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=timeout,
+        env=env,
+    )
 
 
 def test_release_local_orchestrates_windows_and_debian_without_inline_build_logic() -> None:
@@ -87,30 +118,13 @@ def test_release_local_requires_wsl_only_for_debian_phase() -> None:
 
 
 def test_release_local_skip_all_dry_run_executes_without_wsl_preflight() -> None:
-    if not sys.platform.startswith("win"):
-        pytest.skip("release_local.ps1 execution requires Windows path semantics")
-    powershell = shutil.which("powershell") or shutil.which("pwsh")
-    if powershell is None:
-        pytest.skip("PowerShell ausente para validar release_local.ps1")
-
-    result = subprocess.run(
+    result = _run_release_local(
         [
-            powershell,
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(SCRIPT),
             "-SkipWindows",
             "-SkipDebian",
             "-DryRun",
             "-Yes",
-        ],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=60,
+        ]
     )
 
     assert result.returncode == 0, f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
@@ -118,20 +132,8 @@ def test_release_local_skip_all_dry_run_executes_without_wsl_preflight() -> None
 
 
 def test_release_local_accepts_comma_separated_tokens_from_external_shell() -> None:
-    if not sys.platform.startswith("win"):
-        pytest.skip("release_local.ps1 execution requires Windows path semantics")
-    powershell = shutil.which("powershell") or shutil.which("pwsh")
-    if powershell is None:
-        pytest.skip("PowerShell ausente para validar release_local.ps1")
-
-    result = subprocess.run(
+    result = _run_release_local(
         [
-            powershell,
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(SCRIPT),
             "-Backend",
             "pyinstaller,nuitka",
             "-DebianPackage",
@@ -140,15 +142,47 @@ def test_release_local_accepts_comma_separated_tokens_from_external_shell() -> N
             "-SkipDebian",
             "-DryRun",
             "-Yes",
-        ],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=60,
+        ]
     )
 
     assert result.returncode == 0, f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+    assert "Release local concluido." in result.stdout
+
+
+def test_release_local_forwards_comma_separated_backends_to_windows(tmp_path: Path) -> None:
+    args_file = tmp_path / "fake_powershell_args.txt"
+    fake_powershell = tmp_path / "powershell.cmd"
+    fake_powershell.write_text(
+        "@echo off\r\n"
+        "echo %* > \"%SSA_FAKE_POWERSHELL_ARGS%\"\r\n"
+        "exit /b 0\r\n",
+        encoding="utf-8",
+    )
+    env = {
+        **os.environ,
+        "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
+        "SSA_FAKE_POWERSHELL_ARGS": str(args_file),
+    }
+
+    result = _run_release_local(
+        [
+            "-Backend",
+            "pyinstaller,nuitka",
+            "-DebianPackage",
+            "deb",
+            "-SkipDebian",
+            "-DryRun",
+            "-Yes",
+        ],
+        env=env,
+    )
+
+    assert result.returncode == 0, f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+    forwarded_args = args_file.read_text(encoding="utf-8")
+    assert "-File" in forwarded_args
+    assert "release_windows.ps1" in forwarded_args
+    assert "-Backend pyinstaller,nuitka" in forwarded_args
+    assert "-DryRun" in forwarded_args
     assert "Release local concluido." in result.stdout
 
 
