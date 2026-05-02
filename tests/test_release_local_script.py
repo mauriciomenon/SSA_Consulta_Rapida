@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -86,6 +87,8 @@ def test_release_local_requires_wsl_only_for_debian_phase() -> None:
 
 
 def test_release_local_skip_all_dry_run_executes_without_wsl_preflight() -> None:
+    if not sys.platform.startswith("win"):
+        pytest.skip("release_local.ps1 execution requires Windows path semantics")
     powershell = shutil.which("powershell") or shutil.which("pwsh")
     if powershell is None:
         pytest.skip("PowerShell ausente para validar release_local.ps1")
@@ -115,6 +118,8 @@ def test_release_local_skip_all_dry_run_executes_without_wsl_preflight() -> None
 
 
 def test_release_local_accepts_comma_separated_tokens_from_external_shell() -> None:
+    if not sys.platform.startswith("win"):
+        pytest.skip("release_local.ps1 execution requires Windows path semantics")
     powershell = shutil.which("powershell") or shutil.which("pwsh")
     if powershell is None:
         pytest.skip("PowerShell ausente para validar release_local.ps1")
