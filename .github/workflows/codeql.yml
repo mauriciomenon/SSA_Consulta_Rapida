@@ -33,8 +33,8 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          RUN_ADVANCED="false"
-          REASON="default_setup_unverified"
+          RUN_ADVANCED="true"
+          REASON="advanced_allowed_default_setup_unverified"
           API_URL="https://api.github.com/repos/${REPO}/code-scanning/default-setup"
           HTTP_CODE="$(curl -sS --connect-timeout 5 --max-time 10 -o default_setup.json -w "%{http_code}" \
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
@@ -54,8 +54,8 @@ jobs:
               exit 1
             fi
           else
-            echo "Could not verify CodeQL default setup state: HTTP ${HTTP_CODE}" >&2
-            exit 1
+            echo "Could not verify CodeQL default setup state: HTTP ${HTTP_CODE}; running advanced scan." >&2
+            REASON="advanced_allowed_default_setup_unverified_http_${HTTP_CODE}"
           fi
 
           echo "run_advanced=${RUN_ADVANCED}" >> "${GITHUB_OUTPUT}"
@@ -92,7 +92,7 @@ jobs:
         with:
           category: "/language:${{ matrix.language }}"
 
-  default-setup-note:
+  default-setup-skip-note:
     needs: precheck-default-setup
     if: ${{ needs.precheck-default-setup.outputs.run_advanced != 'true' }}
     runs-on: ubuntu-latest
@@ -102,10 +102,10 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Skip advanced scan due to default setup
+      - name: Report default setup skip
         env:
           CODEQL_SKIP_REASON: ${{ needs.precheck-default-setup.outputs.reason }}
         run: |
           set -euo pipefail
-          echo "CodeQL advanced workflow skipped because default setup is active or verification could not be completed."
+          echo "CodeQL advanced workflow skipped because default setup is active."
           echo "Reason: ${CODEQL_SKIP_REASON}"

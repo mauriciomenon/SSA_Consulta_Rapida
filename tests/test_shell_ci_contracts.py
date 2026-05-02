@@ -99,6 +99,18 @@ def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     assert "id-token: write" not in workflow
 
 
+def test_codeql_precheck_runs_advanced_when_default_setup_is_unverified() -> None:
+    workflow = _read_repo_text(".github", "workflows", "codeql.yml")
+
+    assert 'RUN_ADVANCED="true"' in workflow
+    assert 'REASON="advanced_allowed_default_setup_unverified"' in workflow
+    assert "Could not verify CodeQL default setup state: HTTP ${HTTP_CODE}; running advanced scan." in workflow
+    assert 'REASON="advanced_allowed_default_setup_unverified_http_${HTTP_CODE}"' in workflow
+    assert 'echo "Could not verify CodeQL default setup state: HTTP ${HTTP_CODE}" >&2\n            exit 1' not in workflow
+    assert "default-setup-skip-note:" in workflow
+    assert "verification could not be completed" not in workflow
+
+
 def test_shell_doctor_does_not_print_sensitive_value_prefixes() -> None:
     script = _read_repo_text("scripts", "shell_doctor.sh")
 
