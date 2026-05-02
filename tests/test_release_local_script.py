@@ -50,7 +50,8 @@ def test_release_local_dry_run_is_forwarded_to_both_orchestrators() -> None:
 def test_release_local_passes_windows_backends_as_argument_array() -> None:
     script = _script_text()
 
-    assert "$backendItems = Normalize-Selection $Backend" in script
+    assert "$backendItems = Normalize-Selection -Items $Backend" in script
+    assert "$packageItems = Normalize-Selection -Items $DebianPackage" in script
     assert "$windowsArgs += $backendItems" in script
     assert '"-Backend",\n        $backendCsv' not in script
     assert_before(script, '"-Backend"', "$windowsArgs += $backendItems")
