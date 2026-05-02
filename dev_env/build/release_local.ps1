@@ -86,8 +86,8 @@ if (-not $SkipDebian) {
 $repoRoot = Resolve-RepoRoot
 $repoRootWsl = ConvertTo-WslPath $repoRoot
 $repoRootWslQuoted = ConvertTo-BashSingleQuoted $repoRootWsl
-$backendItems = Normalize-Selection $Backend @("pyinstaller", "nuitka", "pyoxidizer") "backend"
-$packageItems = Normalize-Selection $DebianPackage @("deb", "appimage", "tar") "pacote Debian"
+$backendItems = Normalize-Selection -Items $Backend -Allowed @("pyinstaller", "nuitka", "pyoxidizer") -Label "backend"
+$packageItems = Normalize-Selection -Items $DebianPackage -Allowed @("deb", "appimage", "tar") -Label "pacote Debian"
 $backendCsv = Join-Csv $backendItems
 $packageCsv = Join-Csv $packageItems
 $backendCsvQuoted = ConvertTo-BashSingleQuoted $backendCsv
