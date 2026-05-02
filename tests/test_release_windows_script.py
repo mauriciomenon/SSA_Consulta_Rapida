@@ -3,19 +3,22 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from main import _get_project_root
+from tests.release_script_assertions import (
+    PROJECT_ROOT,
+    assert_no_unguarded_string_position_helpers,
+    assert_before,
+    read_repo_text,
+    section_between,
+)
 
 
-PROJECT_ROOT = Path(_get_project_root())
 SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_windows.ps1"
 SCORECARD_FILE = PROJECT_ROOT / "dev_env" / "build" / "backend_scorecards.json"
 TARGETS_FILE = PROJECT_ROOT / "dev_env" / "build" / "release_targets.json"
 
 
 def _script_text() -> str:
-    if not SCRIPT.is_file():
-        raise AssertionError(f"script ausente: {SCRIPT}")
-    return SCRIPT.read_text(encoding="utf-8")
+    return read_repo_text("dev_env", "build", "release_windows.ps1")
 
 
 def test_release_windows_script_is_powershell_only_and_interactive() -> None:
@@ -40,11 +43,13 @@ def test_release_windows_script_has_deterministic_preflight_and_report() -> None
     assert "Get-ReleaseTargetNames" in script
     assert "release-targets" in script
     assert "release_targets.json" not in script
-    assert script.index('Assert-Tool "git"') < script.index("$repoRoot = Resolve-RepoRoot")
-    assert script.index('Assert-Tool "uv"') < script.index("$repoRoot = Resolve-RepoRoot")
+    assert_before(script, 'Assert-Tool "git"', "$repoRoot = Resolve-RepoRoot")
+    assert_before(script, 'Assert-Tool "uv"', "$repoRoot = Resolve-RepoRoot")
     assert '($selectedBackends -contains "pyoxidizer")' in script
-    assert script.index('Assert-Tool "rcedit.exe"') > script.index(
-        "$selectedBackends = Get-SelectedBackends $Backend"
+    assert_before(
+        script,
+        "$selectedBackends = Get-SelectedBackends $Backend",
+        'Assert-Tool "rcedit.exe"',
     )
     assert "Assert-CleanReleaseWorkspace" in script
     assert "AllowDirty" not in script
@@ -54,11 +59,15 @@ def test_release_windows_script_has_deterministic_preflight_and_report() -> None
     assert "$PSVersionTable" in script
     assert "[System.Diagnostics.FileVersionInfo]" in script
     assert "Dry-run Windows concluido sem build/pacote." in script
-    assert script.index("if ($DryRun)") < script.index("if (-not $Yes)")
+    assert_before(script, "if ($DryRun)", "if (-not $Yes)")
     assert "Invoke-CheckedProcess $repoRoot $config.build_script" in script
-    assert script.index("if ($DryRun)") < script.index("foreach ($backendName in $selectedBackends)")
-    assert script.index("if ($DryRun)") < script.index("Invoke-CheckedProcess $repoRoot $config.build_script")
-    release_loop = script.split("foreach ($backendName in $selectedBackends)", 1)[1]
+    assert_before(script, "if ($DryRun)", "foreach ($backendName in $selectedBackends)")
+    assert_before(script, "if ($DryRun)", "Invoke-CheckedProcess $repoRoot $config.build_script")
+    release_loop = section_between(
+        script,
+        "foreach ($backendName in $selectedBackends)",
+        "Write-ReleaseReport",
+    )
     assert "Invoke-DistributionPackage" in release_loop
 
 
@@ -107,11 +116,21 @@ def test_release_windows_script_exposes_backend_scorecard() -> None:
 
 def test_release_windows_backend_paths_are_grouped_expressions() -> None:
     script = _script_text()
-    backend_block = script.split("function Get-BackendConfig", 1)[1].split(
-        "function Invoke-CheckedProcess", 1
-    )[0]
+    backend_block = section_between(
+        script,
+        "function Get-BackendConfig",
+        "function Invoke-CheckedProcess",
+    )
 
     for line in backend_block.splitlines():
         stripped = line.strip()
         if "Join-Path $RepoRoot" in stripped:
-            assert stripped.startswith(("(", "build_script = (", "cli_exe = (", "gui_exe = (", "source = (", "zip = ("))
+            assert stripped.startswith(
+                ("(", "build_script = (", "cli_exe = (", "gui_exe = (", "source = (", "zip = (")
+            )
+
+
+def test_release_windows_tests_use_guarded_string_positions() -> None:
+    test_source = Path(__file__).read_text(encoding="utf-8")
+
+    assert_no_unguarded_string_position_helpers(test_source)

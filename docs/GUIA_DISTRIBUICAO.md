@@ -57,7 +57,7 @@ Somente Windows:
 Somente Debian AMD64 via WSL:
 
 ```powershell
-wsl -d Debian -- bash -lc 'cd /mnt/c/Users/mauri/git/SSA_Consulta_Rapida && bash dev_env/build/release_debian.sh --backend all --package all -y'
+wsl -d Debian -- bash -lc 'cd <WSL-repo-path> && bash dev_env/build/release_debian.sh --backend all --package all -y'
 ```
 
 Contrato do fluxo:
@@ -402,4 +402,3 @@ Contrato dessa flag:
 - No baseline atual, elas nao representam o caminho operacional principal.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-
