@@ -46,6 +46,15 @@ def test_release_local_dry_run_is_forwarded_to_both_orchestrators() -> None:
     assert_before(script, " --dry-run", "& wsl @debianArgs")
 
 
+def test_release_local_passes_windows_backends_as_argument_array() -> None:
+    script = _script_text()
+
+    assert "$windowsArgs += $Backend" in script
+    assert '"-Backend",\n        $backendCsv' not in script
+    assert_before(script, '"-Backend"', "$windowsArgs += $Backend")
+    assert_before(script, "$windowsArgs += $Backend", "& powershell @windowsArgs")
+
+
 def test_release_local_quotes_wsl_bash_arguments() -> None:
     script = _script_text()
 

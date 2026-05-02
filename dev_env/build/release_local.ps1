@@ -85,10 +85,10 @@ if (-not $SkipWindows) {
         "Bypass",
         "-File",
         (Join-Path $repoRoot "dev_env\build\release_windows.ps1"),
-        "-Backend",
-        $backendCsv,
-        "-Yes"
+        "-Backend"
     )
+    $windowsArgs += $Backend
+    $windowsArgs += "-Yes"
     if ($DryRun) {
         $windowsArgs += "-DryRun"
     }
