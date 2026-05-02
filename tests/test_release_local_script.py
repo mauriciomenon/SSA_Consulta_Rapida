@@ -50,6 +50,12 @@ def test_release_local_dry_run_is_forwarded_to_both_orchestrators() -> None:
 def test_release_local_passes_windows_backends_as_argument_array() -> None:
     script = _script_text()
 
+    assert "function Get-ReleaseTargetNames" in script
+    assert 'Join-Path $RepoRoot "dev_env\\build\\release_targets.json"' in script
+    assert '-Allowed @("pyinstaller", "nuitka", "pyoxidizer")' not in script
+    assert '-Allowed @("deb", "appimage", "tar")' not in script
+    assert "$allowedBackends = Get-ReleaseTargetNames" in script
+    assert "$allowedDebianPackages = Get-ReleaseTargetNames" in script
     assert "$backendItems = Normalize-Selection -Items $Backend" in script
     assert "$packageItems = Normalize-Selection -Items $DebianPackage" in script
     assert "$windowsArgs += $backendCsv" in script

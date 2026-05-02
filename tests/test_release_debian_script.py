@@ -63,6 +63,7 @@ def test_release_debian_script_has_local_and_ssh_modes() -> None:
     assert "REMOTE_RELEASE" in script
     assert "assert_ssh_host" in script
     assert "assert_ssh_repo" in script
+    assert '""|-*|*@*@*|@*|*@|*[!A-Za-z0-9._@-]*)' in script
     assert "*@*@*" in script
     assert "*[!A-Za-z0-9._@-]*" in script
     assert "*[!A-Za-z0-9._/@%+=:,~-]*" in script
