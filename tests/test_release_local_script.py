@@ -52,10 +52,10 @@ def test_release_local_passes_windows_backends_as_argument_array() -> None:
 
     assert "$backendItems = Normalize-Selection -Items $Backend" in script
     assert "$packageItems = Normalize-Selection -Items $DebianPackage" in script
-    assert "$windowsArgs += $backendItems" in script
+    assert "$windowsArgs += $backendCsv" in script
     assert '"-Backend",\n        $backendCsv' not in script
-    assert_before(script, '"-Backend"', "$windowsArgs += $backendItems")
-    assert_before(script, "$windowsArgs += $backendItems", "& powershell @windowsArgs")
+    assert_before(script, '"-Backend"', "$windowsArgs += $backendCsv")
+    assert_before(script, "$windowsArgs += $backendCsv", "& powershell @windowsArgs")
 
 
 def test_release_local_quotes_wsl_bash_arguments() -> None:
