@@ -26,15 +26,12 @@ def _script_text() -> str:
     return read_repo_text("dev_env", "build", "release_debian.sh")
 
 
-def test_release_debian_script_is_bash_only_and_interactive() -> None:
+def test_release_debian_script_is_bash_only() -> None:
     script = _script_text()
     allowed_wsl_powershell = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 
     assert script.startswith("#!/usr/bin/env bash")
     assert "set -euo pipefail" in script
-    assert "select_backend_interactively" in script
-    assert "read -r -p" in script
-    assert "--backend e obrigatorio em ambiente nao interativo" in script
     assert allowed_wsl_powershell in script
     script_without_allowed = script.replace(allowed_wsl_powershell, "")
     script_without_allowed = script_without_allowed.replace("Windows PowerShell", "")
@@ -43,6 +40,14 @@ def test_release_debian_script_is_bash_only_and_interactive() -> None:
     assert ".bat" not in script.lower()
     assert "Compress-Archive" not in script
     assert "FileVersionInfo" not in script
+
+
+def test_release_debian_script_keeps_interactive_contract() -> None:
+    script = _script_text()
+
+    assert "select_backend_interactively" in script
+    assert "read -r -p" in script
+    assert "--backend e obrigatorio em ambiente nao interativo" in script
 
 
 def test_release_debian_script_has_local_and_ssh_modes() -> None:
@@ -144,7 +149,7 @@ def test_release_debian_script_normalizes_csv_tokens() -> None:
     assert 'printf \'%s\\n\' "pyinstaller,nuitka,pyoxidizer"' not in script
 
 
-def test_release_debian_script_calls_only_debian_wrappers() -> None:
+def test_release_debian_script_calls_only_debian_build_wrappers() -> None:
     script = _script_text()
 
     assert "build_pyinstaller_debian.sh" in script
@@ -152,6 +157,13 @@ def test_release_debian_script_calls_only_debian_wrappers() -> None:
     assert "build_pyoxidizer_debian.sh" in script
     assert "package_debian_amd64_deb.sh" in script
     assert "package_debian_amd64_appimage.sh" in script
+    assert "package_debian_arm64" not in script
+    assert "release_windows.ps1" not in script
+
+
+def test_release_debian_script_declares_tar_packages_and_supported_pairs() -> None:
+    script = _script_text()
+
     assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyinstaller_cli.tar.gz" in script
     assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_nuitka_cli.tar.gz" in script
     assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyoxidizer.tar.gz" in script
@@ -166,8 +178,6 @@ def test_release_debian_script_calls_only_debian_wrappers() -> None:
     )
     assert 'if ! is_supported_package_pair "${backend}" "${package_kind}"; then' in package_backend_body
     assert_before(script, "log_package_matrix", "run_build_phase")
-    assert "package_debian_arm64" not in script
-    assert "release_windows.ps1" not in script
 
 
 def test_release_debian_script_exposes_backend_scorecard() -> None:
@@ -250,3 +260,13 @@ def test_release_debian_tests_use_guarded_string_positions() -> None:
     test_source = Path(__file__).read_text(encoding="utf-8")
 
     assert_no_unguarded_string_position_helpers(test_source)
+
+
+def test_release_string_position_guard_rejects_fragile_patterns() -> None:
+    with pytest.raises(AssertionError, match="index"):
+        assert_no_unguarded_string_position_helpers("def test_x():\n    text.index('x')\n")
+
+    with pytest.raises(AssertionError, match="split"):
+        assert_no_unguarded_string_position_helpers(
+            "def test_x():\n    text.split('x', 1)[1]\n"
+        )
