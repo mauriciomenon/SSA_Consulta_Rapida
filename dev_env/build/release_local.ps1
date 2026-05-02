@@ -1,7 +1,6 @@
+[CmdletBinding(PositionalBinding = $false)]
 param(
-    [ValidateSet("pyinstaller", "nuitka", "pyoxidizer", "all")]
     [string[]] $Backend = @("all"),
-    [ValidateSet("deb", "appimage", "tar", "all")]
     [string[]] $DebianPackage = @("all"),
     [string] $WslDistro = "Debian",
     [switch] $SkipWindows,
@@ -54,6 +53,31 @@ function Join-Csv {
     return (($Items | Select-Object -Unique) -join ",")
 }
 
+function Normalize-Selection {
+    param(
+        [Parameter(Mandatory = $true)] [string[]] $Items,
+        [Parameter(Mandatory = $true)] [string[]] $Allowed,
+        [Parameter(Mandatory = $true)] [string] $Label
+    )
+    $selected = @()
+    foreach ($item in $Items) {
+        foreach ($token in ($item -split ",")) {
+            $value = $token.Trim()
+            if ([string]::IsNullOrWhiteSpace($value)) {
+                throw "$Label vazio."
+            }
+            if ($value -eq "all") {
+                return @("all")
+            }
+            if ($value -notin $Allowed) {
+                throw "$Label invalido: $value. Permitidos: all,$($Allowed -join ',')"
+            }
+            $selected += $value
+        }
+    }
+    return @($selected | Select-Object -Unique)
+}
+
 Assert-Tool "git"
 if (-not $SkipDebian) {
     Assert-Tool "wsl"
@@ -62,8 +86,10 @@ if (-not $SkipDebian) {
 $repoRoot = Resolve-RepoRoot
 $repoRootWsl = ConvertTo-WslPath $repoRoot
 $repoRootWslQuoted = ConvertTo-BashSingleQuoted $repoRootWsl
-$backendCsv = Join-Csv $Backend
-$packageCsv = Join-Csv $DebianPackage
+$backendItems = Normalize-Selection $Backend @("pyinstaller", "nuitka", "pyoxidizer") "backend"
+$packageItems = Normalize-Selection $DebianPackage @("deb", "appimage", "tar") "pacote Debian"
+$backendCsv = Join-Csv $backendItems
+$packageCsv = Join-Csv $packageItems
 $backendCsvQuoted = ConvertTo-BashSingleQuoted $backendCsv
 $packageCsvQuoted = ConvertTo-BashSingleQuoted $packageCsv
 
@@ -87,7 +113,7 @@ if (-not $SkipWindows) {
         (Join-Path $repoRoot "dev_env\build\release_windows.ps1"),
         "-Backend"
     )
-    $windowsArgs += $Backend
+    $windowsArgs += $backendItems
     $windowsArgs += "-Yes"
     if ($DryRun) {
         $windowsArgs += "-DryRun"

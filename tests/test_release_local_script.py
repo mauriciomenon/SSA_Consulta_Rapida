@@ -27,8 +27,9 @@ def test_release_local_orchestrates_windows_and_debian_without_inline_build_logi
     assert "[switch] $Yes" in script
     assert "[switch] $SkipWindows" in script
     assert "[switch] $SkipDebian" in script
-    assert 'ValidateSet("pyinstaller", "nuitka", "pyoxidizer", "all")' in script
-    assert 'ValidateSet("deb", "appimage", "tar", "all")' in script
+    assert "[CmdletBinding(PositionalBinding = $false)]" in script
+    assert "Normalize-Selection" in script
+    assert "ValidateSet(" not in script
     assert "release_windows.ps1" in script
     assert "release_debian.sh" in script
     assert "build_pyinstaller" not in script
@@ -49,10 +50,11 @@ def test_release_local_dry_run_is_forwarded_to_both_orchestrators() -> None:
 def test_release_local_passes_windows_backends_as_argument_array() -> None:
     script = _script_text()
 
-    assert "$windowsArgs += $Backend" in script
+    assert "$backendItems = Normalize-Selection $Backend" in script
+    assert "$windowsArgs += $backendItems" in script
     assert '"-Backend",\n        $backendCsv' not in script
-    assert_before(script, '"-Backend"', "$windowsArgs += $Backend")
-    assert_before(script, "$windowsArgs += $Backend", "& powershell @windowsArgs")
+    assert_before(script, '"-Backend"', "$windowsArgs += $backendItems")
+    assert_before(script, "$windowsArgs += $backendItems", "& powershell @windowsArgs")
 
 
 def test_release_local_quotes_wsl_bash_arguments() -> None:
@@ -89,6 +91,39 @@ def test_release_local_skip_all_dry_run_executes_without_wsl_preflight() -> None
             "Bypass",
             "-File",
             str(SCRIPT),
+            "-SkipWindows",
+            "-SkipDebian",
+            "-DryRun",
+            "-Yes",
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+
+    assert result.returncode == 0, f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+    assert "Release local concluido." in result.stdout
+
+
+def test_release_local_accepts_comma_separated_tokens_from_external_shell() -> None:
+    powershell = shutil.which("powershell") or shutil.which("pwsh")
+    if powershell is None:
+        pytest.skip("PowerShell ausente para validar release_local.ps1")
+
+    result = subprocess.run(
+        [
+            powershell,
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(SCRIPT),
+            "-Backend",
+            "pyinstaller,nuitka",
+            "-DebianPackage",
+            "deb,tar",
             "-SkipWindows",
             "-SkipDebian",
             "-DryRun",
