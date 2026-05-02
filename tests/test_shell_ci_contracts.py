@@ -38,6 +38,7 @@ def test_key_shell_scripts_parse_with_available_bash() -> None:
 
 def test_bash_regex_guards_are_windows_git_bash_compatible() -> None:
     direnv_common = _read_repo_text("scripts", "env", "direnv_common.sh")
+    direnv_common_ps1 = _read_repo_text("scripts", "env", "direnv_common.ps1")
     shell_doctor = _read_repo_text("scripts", "shell_doctor.sh")
 
     assert '[[ "${SSA_ENV__FILE_VERSION}" =~ ^[0-9]+\\.[0-9]+(\\.[0-9]+)?$ ]]' not in direnv_common
@@ -45,7 +46,16 @@ def test_bash_regex_guards_are_windows_git_bash_compatible() -> None:
     assert "[[ $name =~ $SENSITIVE_ENV_NAME_RE ]]" not in shell_doctor
 
     assert "SSA_ENV__PYTHON_VERSION_RE=" in direnv_common
+    assert "$pythonVersionPattern = '^\\d+\\.\\d+(\\.\\d+)?$'" in direnv_common_ps1
     assert 'case "$name" in' in shell_doctor
+
+
+def test_direnv_common_shell_and_powershell_share_stable_version() -> None:
+    direnv_common = _read_repo_text("scripts", "env", "direnv_common.sh")
+    direnv_common_ps1 = _read_repo_text("scripts", "env", "direnv_common.ps1")
+
+    assert 'SSA_PYTHON_STABLE_VERSION="${SSA_PYTHON_STABLE_VERSION:-3.13.12}"' in direnv_common
+    assert 'else { "3.13.12" }' in direnv_common_ps1
 
 
 def test_ci_quality_gates_does_not_expand_arg_string_unquoted() -> None:
