@@ -71,6 +71,20 @@ def test_release_windows_script_has_deterministic_preflight_and_report() -> None
     assert "Invoke-DistributionPackage" in release_loop
 
 
+def test_release_windows_script_normalizes_comma_separated_backend_tokens() -> None:
+    script = _script_text()
+    selected_backend_body = section_between(
+        script,
+        "function Get-SelectedBackends",
+        "function Get-BackendScorecard",
+    )
+
+    assert 'foreach ($token in ($item -split ","))' in selected_backend_body
+    assert "$value = $token.Trim().ToLowerInvariant()" in selected_backend_body
+    assert "if ($normalized -contains \"all\")" in selected_backend_body
+    assert "return @($normalized | Select-Object -Unique)" in selected_backend_body
+
+
 def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
     script = _script_text()
 

@@ -152,16 +152,26 @@ function Get-SelectedBackends {
         $RequestedBackends = $raw -split "," | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ }
     }
 
-    if ($RequestedBackends -contains "all") {
+    $normalized = @()
+    foreach ($item in $RequestedBackends) {
+        foreach ($token in ($item -split ",")) {
+            $value = $token.Trim().ToLowerInvariant()
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                $normalized += $value
+            }
+        }
+    }
+
+    if ($normalized -contains "all") {
         return $valid
     }
 
-    foreach ($item in $RequestedBackends) {
+    foreach ($item in $normalized) {
         if ($valid -notcontains $item) {
             throw "Backend invalido: $item"
         }
     }
-    return @($RequestedBackends | Select-Object -Unique)
+    return @($normalized | Select-Object -Unique)
 }
 
 function Get-BackendScorecard {
