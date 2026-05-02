@@ -1,6 +1,15 @@
 # Solucoes para Problemas de Ambiente - Build Systems
 
-**Data**: 2025-11-14
+## CURRENT TRUTH 2026-05-02 00h01
+
+- Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
+- PR atual: #57, aberto em draft, `dev` -> `main`.
+- Este documento registra solucoes de ambiente; nao deve duplicar a matriz completa de release.
+
+## HISTORICAL SNAPSHOT 2025-11-14
+
+Conteudo legado preservado apenas como referencia historica; o bloco `CURRENT TRUTH` acima e a fonte operacional atual.
+
 **Autor**: Claude Code
 
 ## Problema 1: PyOxidizer - Erro `ntpath.abspath`
@@ -71,7 +80,7 @@ Criado script [build_nuitka_clean.bat](../build_nuitka_clean.bat) que:
 
 ```batch
 REM PATH limpo sem MSYS2
-set "PATH=C:\Windows\System32;C:\Windows;C:\Users\menon\.pyenv\pyenv-win\bin;C:\Users\menon\.pyenv\pyenv-win\shims;C:\Users\menon\scoop\shims"
+set "PATH=C:\Windows\System32;C:\Windows;C:\Users\<usuario>\.pyenv\pyenv-win\bin;C:\Users\<usuario>\.pyenv\pyenv-win\shims;C:\Users\<usuario>\scoop\shims"
 
 REM Build com Nuitka
 python -m nuitka --standalone ...
@@ -89,8 +98,8 @@ set "PATH=%PATH_BACKUP%"
 
 ### Diagnostico
 PyOxidizer instalado em 2 locais:
-- `C:\Users\menon\.pyenv\pyenv-win\shims\pyoxidizer.bat` (via pip)
-- `C:\Users\menon\scoop\shims\pyoxidizer.exe` (via scoop)
+- `C:\Users\<usuario>\.pyenv\pyenv-win\shims\pyoxidizer.bat` (via pip)
+- `C:\Users\<usuario>\scoop\shims\pyoxidizer.exe` (via scoop)
 
 ### Solucao
 Manter ambas instalacoes esta OK porque:
@@ -121,9 +130,9 @@ Manter ambas instalacoes esta OK porque:
 C:\msys64\ucrt64\bin          # GCC e ferramentas Unix
 C:\Windows\System32
 C:\Windows
-C:\Users\menon\.pyenv\pyenv-win\bin
-C:\Users\menon\.pyenv\pyenv-win\shims
-C:\Users\menon\scoop\shims
+C:\Users\<usuario>\.pyenv\pyenv-win\bin
+C:\Users\<usuario>\.pyenv\pyenv-win\shims
+C:\Users\<usuario>\scoop\shims
 ```
 
 ---

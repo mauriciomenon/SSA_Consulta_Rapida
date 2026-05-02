@@ -1,6 +1,12 @@
 # Build Tooling Lessons Learned (PyInstaller/Nuitka/PyOxidizer)
 
-## Current Truth (4.37 local / v4.36 published)
+## CURRENT TRUTH 2026-05-02 00h01
+
+- Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
+- PR atual: #57, aberto em draft, `dev` -> `main`.
+- Este documento registra aprendizados; nao deve duplicar a matriz completa de release.
+
+## HISTORICAL SNAPSHOT (4.37 local / v4.36 published)
 
 - Sync: `2026-03-27 04:10 -0300`
 - Objetivo: registrar erros reais, causa-raiz, fix aplicado e comandos de validacao.

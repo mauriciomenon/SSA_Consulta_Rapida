@@ -1,18 +1,73 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-## CURRENT TRUTH (4.37 local / v4.36 published)
+## CURRENT TRUTH 2026-05-02 00h01
 
-- Sync deste guia: `2026-03-28 11:35 -0300`.
+- Branch fonte: `dev`.
+- Branch destino do PR: `main`.
+- HEAD funcional validado: `df0345caea9ac3050c87d2172eb75817b8fc3689 2026-05-02T00:01:26-03:00 STABILITY_PATCH: cover release local backend forwarding`.
+- PR #57: aberto em draft, `dev` -> `main`.
+- `dev` contem correcoes de release v4.37 que ainda precisam chegar ao `main` antes do rebuild final.
+- Artefatos v4.37 anteriores a este HEAD funcional estao stale e nao devem ser usados para publicacao final.
+- Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
+- Orquestradores ativos:
+  - Windows AMD64: `dev_env/build/release_windows.ps1`.
+  - Debian AMD64: `dev_env/build/release_debian.sh`.
+- Dry-run validado neste HEAD:
+  - Local Windows + Windows AMD64: `release_local.ps1 -Backend "pyinstaller,nuitka" -SkipDebian -DryRun -Yes`.
+  - Windows: `release_windows.ps1 -Backend all -DryRun -Yes -SkipBuild -SkipPackage -SkipInstaller`.
+  - Debian WSL: `release_debian.sh --backend all --package all --dry-run -y`.
+- Protecao de codigo:
+  - Nuitka e o backend preferencial para release protegido.
+  - PyInstaller tem protecao parcial.
+  - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
+- Proximo passo operacional: sincronizar `main`, rebuildar Windows AMD64 e Debian AMD64 a partir deste HEAD, validar artefatos e so entao atualizar release v4.37.
+
+## HISTORICAL SNAPSHOT (4.37 local automation)
+
+- Sync deste guia: `2026-05-01 13:20 -0300`.
 - Versao de referencia local: `4.37` (arquivo `VERSION`).
-- Ultima tag publicada em `dev`: `v4.36`.
-- Este guia esta alinhado ao baseline local `4.37`; a ultima tag publicada ainda e `v4.36`.
-- Fluxo canonico de build: `launchers/build_multiplatform.py`.
-- Saida canonica de artefatos: `launchers/dist/<plataforma>/`.
-- Empacotamento: `scripts/create_distribution.py`.
-- Ferramentas historicas e caminhos legados (`build_*.bat`, `builds/*`) nao sao caminho principal neste baseline.
+- Fluxo automatico local Windows + Debian AMD64: `dev_env/build/release_local.ps1`.
+- Fluxo automatico Windows AMD64: `dev_env/build/release_windows.ps1`.
+- Fluxo automatico Debian AMD64: `dev_env/build/release_debian.sh`.
+- Saida de release Windows AMD64: `builds/packages/windows_amd64/` e `dist_packages/`.
+- Saida de release Debian AMD64: `builds/packages/debian_amd64/`.
 - Backends reconhecidos pelo parser do empacotador: `pyinstaller`, `nuitka`, `pyoxidizer`.
-- Backend de release operacional neste baseline: `pyinstaller`.
+- Backends de release operacional neste baseline: `pyinstaller`, `nuitka`, `pyoxidizer`.
 - `pytoexe`/`py2exe`: nao suportados neste repositorio (fora das choices dos scripts atuais).
+
+## Release Automatico Local
+
+Use PowerShell no Windows para orquestrar Windows AMD64 e Debian AMD64 via WSL sem
+misturar sintaxe no terminal:
+
+```powershell
+.\dev_env\build\release_local.ps1 -Backend all -DebianPackage all -Yes
+```
+
+Dry-run sem build/pacote:
+
+```powershell
+.\dev_env\build\release_local.ps1 -Backend all -DebianPackage all -Yes -DryRun
+```
+
+Somente Windows:
+
+```powershell
+.\dev_env\build\release_windows.ps1 -Backend all -Yes
+```
+
+Somente Debian AMD64 via WSL:
+
+```powershell
+wsl -d Debian -- bash -lc 'cd <WSL-repo-path> && bash dev_env/build/release_debian.sh --backend all --package all -y'
+```
+
+Contrato do fluxo:
+- `-Yes`/`-y` e obrigatorio para execucao automatica sem prompt.
+- `-DryRun`/`--dry-run` deve validar ambiente e plano sem build nem pacote.
+- `release_windows.ps1` nao chama Bash/WSL.
+- `release_debian.sh` nao chama PowerShell, `.bat` ou Inno Setup.
+- `release_local.ps1` apenas orquestra os dois scripts e nao contem logica de build.
 
 ## Validacao Operacional 2026-03-10 (host macOS arm64)
 
@@ -349,4 +404,3 @@ Contrato dessa flag:
 - No baseline atual, elas nao representam o caminho operacional principal.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

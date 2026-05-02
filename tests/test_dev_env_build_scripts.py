@@ -14,14 +14,31 @@ def test_bootstrap_uses_apt_get_update_without_invalid_yes_flag() -> None:
     assert "sudo apt-get install -y" in script
 
 
-def test_pyoxidizer_default_project_root_uses_empty_strip_prefix() -> None:
+def test_repository_line_ending_policy_covers_build_scripts() -> None:
+    attributes = (PROJECT_ROOT / ".gitattributes").read_text(encoding="utf-8")
+
+    assert "*.sh text eol=lf" in attributes
+    assert "*.py text eol=lf" in attributes
+    assert "*.bzl text eol=lf" in attributes
+    assert "*.md text eol=lf" in attributes
+    assert "*.bat text eol=crlf" in attributes
+    assert "*.ps1 text eol=crlf" in attributes
+
+    for relative_path in (
+        "pyoxidizer.bzl",
+        "docs/GUIA_DISTRIBUICAO.md",
+        "docs/RECOVERY_BACKLOG.md",
+    ):
+        data = (PROJECT_ROOT / relative_path).read_bytes()
+        assert b"\r\n" not in data
+
+
+def test_pyoxidizer_config_defaults_and_paths() -> None:
     root_config = PROJECT_ROOT / "pyoxidizer.bzl"
-    build_config = PROJECT_ROOT / "dev_env" / "build" / "pyoxidizer.bzl"
 
     root_text = root_config.read_text(encoding="utf-8")
-    build_text = build_config.read_text(encoding="utf-8")
 
-    assert root_text == build_text
+    assert not (PROJECT_ROOT / "dev_env" / "build" / "pyoxidizer.bzl").exists()
     assert 'PROJECT_ROOT in ("", ".")' in root_text
     assert '""\n    if PROJECT_ROOT in ("", ".")' in root_text
     assert 'strip_prefix=PROJECT_PREFIX' in root_text
@@ -30,6 +47,22 @@ def test_pyoxidizer_default_project_root_uses_empty_strip_prefix() -> None:
     assert '"launchers/dist/**"' in root_text
     assert '"docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md"' in root_text
     assert '"config/build_info.json"' in root_text
+
+
+def test_pyoxidizer_config_embeds_app_code_without_filesystem_python_sources() -> None:
+    root_config = PROJECT_ROOT / "pyoxidizer.bzl"
+
+    root_text = root_config.read_text(encoding="utf-8")
+
+    assert 'policy.resources_location = "in-memory"' in root_text
+    assert 'policy.resources_location_fallback = "filesystem-relative:lib"' in root_text
+    assert "python_config.oxidized_importer = True" in root_text
+    assert "python_config.filesystem_importer = False" in root_text
+    assert "exe.read_package_root(" in root_text
+    assert '"core"' in root_text
+    assert '"main"' in root_text
+    assert '"core/*.py"' not in root_text
+    assert '"main.py"' not in root_text
 
 
 def test_pyoxidizer_debian_uses_root_config_kept_in_sync() -> None:
@@ -115,3 +148,16 @@ def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> No
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in pyoxidizer_script
     assert "--format=%%cI" in pyoxidizer_script
     assert "--format=%%s" in pyoxidizer_script
+
+
+def test_pyoxidizer_debian_runtime_includes_version_json() -> None:
+    for script_name in (
+        "build_pyoxidizer_debian.sh",
+        "build_pyoxidizer_debian_arm64.sh",
+    ):
+        script = (PROJECT_ROOT / "dev_env" / "build" / script_name).read_text(
+            encoding="utf-8"
+        )
+        assert 'VERSION_FILE="${REPO_ROOT}/config/version.json"' in script
+        assert 'mkdir -p "${TARGET_BUILD_DIR}/config"' in script
+        assert 'cp -f "${VERSION_FILE}" "${TARGET_BUILD_DIR}/config/version.json"' in script

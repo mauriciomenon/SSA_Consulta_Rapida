@@ -1,38 +1,53 @@
 from __future__ import annotations
 
 import importlib
+import json
 from pathlib import Path
 
 import pytest
 
-from main import _get_project_root
+from tests.release_script_assertions import (
+    PROJECT_ROOT,
+    assert_no_unguarded_string_position_helpers,
+    assert_before,
+    read_repo_text,
+    section_between,
+)
 
 
-PROJECT_ROOT = Path(_get_project_root())
 SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_debian.sh"
-REPORT_SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_debian_report.py"
-REPORT_MODULE = importlib.import_module("dev_env.build.release_debian_report")
+REPORT_SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_platform_report.py"
+SCORECARD_FILE = PROJECT_ROOT / "dev_env" / "build" / "backend_scorecards.json"
+TARGETS_FILE = PROJECT_ROOT / "dev_env" / "build" / "release_targets.json"
+REPORT_MODULE = importlib.import_module("dev_env.build.release_platform_report")
 
 
 def _script_text() -> str:
-    if not SCRIPT.is_file():
-        raise AssertionError(f"script ausente: {SCRIPT}")
-    return SCRIPT.read_text(encoding="utf-8")
+    return read_repo_text("dev_env", "build", "release_debian.sh")
 
 
-def test_release_debian_script_is_bash_only_and_interactive() -> None:
+def test_release_debian_script_is_bash_only() -> None:
     script = _script_text()
+    allowed_wsl_powershell = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 
     assert script.startswith("#!/usr/bin/env bash")
     assert "set -euo pipefail" in script
-    assert "select_backend_interactively" in script
-    assert "read -r -p" in script
-    assert "--backend e obrigatorio em ambiente nao interativo" in script
-    assert "powershell" not in script.lower()
+    assert allowed_wsl_powershell in script
+    script_without_allowed = script.replace(allowed_wsl_powershell, "")
+    script_without_allowed = script_without_allowed.replace("Windows PowerShell", "")
+    assert "powershell" not in script_without_allowed.lower()
     assert "pwsh" not in script.lower()
     assert ".bat" not in script.lower()
     assert "Compress-Archive" not in script
     assert "FileVersionInfo" not in script
+
+
+def test_release_debian_script_keeps_interactive_contract() -> None:
+    script = _script_text()
+
+    assert "select_backend_interactively" in script
+    assert "read -r -p" in script
+    assert "--backend e obrigatorio em ambiente nao interativo" in script
 
 
 def test_release_debian_script_has_local_and_ssh_modes() -> None:
@@ -48,22 +63,49 @@ def test_release_debian_script_has_local_and_ssh_modes() -> None:
     assert "REMOTE_RELEASE" in script
     assert "assert_ssh_host" in script
     assert "assert_ssh_repo" in script
+    assert '""|-*|*@*@*|@*|*@|*[!A-Za-z0-9._@-]*)' in script
+    assert "*@*@*" in script
+    assert "*[!A-Za-z0-9._@-]*" in script
+    assert "*[!A-Za-z0-9._/@%+=:,~-]*" in script
+    assert " =~ ^(" not in script
     assert "assert_debian_host" in script
     assert "assert_debian_amd64" in script
     assert "--with-local-data nao e suportado via SSH" in script
 
 
-def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
+def test_release_debian_script_has_deterministic_preflight() -> None:
     script = _script_text()
 
     assert "assert_clean_release_workspace" in script
     assert "AllowDirty" not in script
     assert "rev-parse HEAD" in script
-    assert "status --porcelain" in script
+    assert "diff --cached --name-only" in script
+    assert "diff --ignore-cr-at-eol --name-only" in script
+    assert "ls-files --others --exclude-standard" in script
+    assert "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" in script
+    assert "-NoProfile -NonInteractive" in script
+    assert "ps_win_root" in script
+    assert "sed \"s/'/''/g\"" in script
+    assert "\"& git -C '${ps_win_root}' status --porcelain=v1\"" in script
+    assert "status --porcelain=v1" in script
+    assert "tr -d '\\r'" in script
+    assert "wslpath -w" in script
+    assert "nao foi possivel validar git limpo via Windows." in script
+
+
+def test_release_debian_script_writes_report_and_validates_payloads() -> None:
+    script = _script_text()
+
     assert "release_report_debian_amd64.json" in script
     assert "write_release_report" in script
+    assert '--platform "debian_amd64"' in script
+    assert "write_tar_packages" in script
+    assert "validate_tar_payload" in script
     assert "build_info.json" in script
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in script
+    assert "validate_source_protection" in script
+    assert "source-protection" in REPORT_SCRIPT.read_text(encoding="utf-8")
+    assert '--repo-root "${root}"' in script
     assert "bundle_roots" in script
     assert "SSA_CLI_v${app_version}_debian_amd64" in script
     assert "SSA_GUI_v${app_version}_debian_amd64" in script
@@ -73,17 +115,43 @@ def test_release_debian_script_has_deterministic_preflight_and_report() -> None:
     assert "hashlib.sha256" in report_script
 
 
+def test_release_debian_script_checks_dry_run_before_package_phase() -> None:
+    script = _script_text()
+
+    assert 'if [[ "${DRY_RUN}" == "1" ]]; then' in script
+    assert_before(
+        script,
+        'log "dry-run concluido sem build/pacote"',
+        "run_package_phase()",
+    )
+    assert_before(script, 'if [[ "${DRY_RUN}" == "1" ]]; then', "run_package_phase")
+
+
 def test_release_debian_script_normalizes_csv_tokens() -> None:
     script = _script_text()
 
+    assert 'release_targets_csv "${kind}"' in script
+    assert "load_release_target_cache" in script
+    assert "release-unsupported-pairs" in script
+    assert "check-release-target" not in script
+    assert "awk -F '\\t'" in script
+    assert "grep -F \"${backend}${tab}${package_kind}${tab}\"" not in script
     assert "[![:space:]]" in script
     assert "join_csv" in script
+    assert "normalize_release_targets()" in script
     assert 'while [[ "${csv}" == *, ]]' in script
+    assert "local -n" not in script
+    assert "<(split_csv" not in script
+    assert 'for backend in $(split_csv "${csv}")' not in script
+    assert 'for package_kind in $(split_csv "${csv}")' not in script
+    assert 'normalize_release_targets "${csv}" "backends" "backend vazio" "--backend invalido"' in script
+    assert 'normalize_release_targets "${csv}" "packages" "" "--package invalido"' in script
     assert 'BACKENDS_CSV="$(normalize_backends "${BACKENDS_CSV}")"' in script
     assert 'PACKAGES_CSV="$(normalize_packages "${PACKAGES_CSV}")"' in script
+    assert 'printf \'%s\\n\' "pyinstaller,nuitka,pyoxidizer"' not in script
 
 
-def test_release_debian_script_calls_only_debian_wrappers() -> None:
+def test_release_debian_script_calls_only_debian_build_wrappers() -> None:
     script = _script_text()
 
     assert "build_pyinstaller_debian.sh" in script
@@ -91,20 +159,84 @@ def test_release_debian_script_calls_only_debian_wrappers() -> None:
     assert "build_pyoxidizer_debian.sh" in script
     assert "package_debian_amd64_deb.sh" in script
     assert "package_debian_amd64_appimage.sh" in script
-    assert "AppImage pyoxidizer nao suportado" in script
     assert "package_debian_arm64" not in script
     assert "release_windows.ps1" not in script
+
+
+def test_release_debian_script_declares_tar_packages_and_supported_pairs() -> None:
+    script = _script_text()
+
+    assert "--sort=name" in script
+    assert '--mtime="UTC 1970-01-01"' in script
+    assert "--owner=0" in script
+    assert "--group=0" in script
+    assert "--numeric-owner" in script
+    assert "gzip -n" in script
+    assert 'mv -f -- "${tmp_file}" "${output_file}"' in script
+    assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyinstaller_cli.tar.gz" in script
+    assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_nuitka_cli.tar.gz" in script
+    assert "SSA_Consulta_Rapida_v${app_version}_debian_amd64_pyoxidizer.tar.gz" in script
+    assert "release_target_reason" in script
+    assert "is_supported_package_pair" in script
+    assert "appimage:pyoxidizer)" not in script
+    assert 'pacote ignorado ${package_kind} ${backend}: $(release_target_reason' in script
+    package_backend_body = section_between(
+        script,
+        "run_package_backend()",
+        "\nis_supported_package_pair()",
+    )
+    assert 'if ! is_supported_package_pair "${backend}" "${package_kind}"; then' in package_backend_body
+    assert_before(script, "log_package_matrix", "run_build_phase")
 
 
 def test_release_debian_script_exposes_backend_scorecard() -> None:
     script = _script_text()
     report_script = REPORT_SCRIPT.read_text(encoding="utf-8")
+    scorecard_text = SCORECARD_FILE.read_text(encoding="utf-8")
 
     assert "get_backend_scorecard" in script
     assert "security_score" in report_script
-    assert "python_source_exposure_score" in report_script
+    assert "source_protection_score" in report_script
     assert "easy_user_dirs_score" in report_script
     assert "package_size_score" in report_script
+    assert "backend_scorecards.json" in report_script
+    assert '"protected_release": true' in scorecard_text
+    assert '"protected_release": false' in scorecard_text
+    assert "PACKAGE_ASSET_SUFFIXES" in report_script
+    assert "path.name.lower().endswith(asset_suffixes)" in report_script
+
+
+def test_release_targets_json_defines_validated_targets() -> None:
+    payload = json.loads(TARGETS_FILE.read_text(encoding="utf-8"))
+
+    assert payload["schema_version"] == 1
+    assert [item["name"] for item in payload["backends"]] == [
+        "pyinstaller",
+        "nuitka",
+        "pyoxidizer",
+    ]
+    assert [item["name"] for item in payload["packages"]] == [
+        "deb",
+        "appimage",
+        "tar",
+        "zip",
+    ]
+    assert REPORT_MODULE._enabled_target_names(
+        REPORT_MODULE._load_release_targets(),
+        "backends",
+        "debian_amd64",
+    ) == ["pyinstaller", "nuitka", "pyoxidizer"]
+    assert REPORT_MODULE._enabled_target_names(
+        REPORT_MODULE._load_release_targets(),
+        "packages",
+        "debian_amd64",
+    ) == ["deb", "appimage", "tar"]
+    assert REPORT_MODULE._unsupported_pair_reason(
+        REPORT_MODULE._load_release_targets(),
+        "debian_amd64",
+        "pyoxidizer",
+        "appimage",
+    )
 
 
 def test_release_debian_report_read_json_errors_include_path(tmp_path) -> None:
@@ -132,3 +264,19 @@ def test_release_debian_report_asset_payload_errors_include_path(
 
     with pytest.raises(REPORT_MODULE.ReleaseReportError, match="package.deb"):
         REPORT_MODULE._asset_payload(asset)
+
+
+def test_release_debian_tests_use_guarded_string_positions() -> None:
+    test_source = Path(__file__).read_text(encoding="utf-8")
+
+    assert_no_unguarded_string_position_helpers(test_source)
+
+
+def test_release_string_position_guard_rejects_fragile_patterns() -> None:
+    with pytest.raises(AssertionError, match="index"):
+        assert_no_unguarded_string_position_helpers("def test_x():\n    text.index('x')\n")
+
+    with pytest.raises(AssertionError, match="split"):
+        assert_no_unguarded_string_position_helpers(
+            "def test_x():\n    text.split('x', 1)[1]\n"
+        )
