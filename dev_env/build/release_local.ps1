@@ -78,6 +78,49 @@ function Normalize-Selection {
     return @($selected | Select-Object -Unique)
 }
 
+function Get-ReleaseTargetNames {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepoRoot,
+        [Parameter(Mandatory = $true)] [string] $Kind,
+        [Parameter(Mandatory = $true)] [string[]] $PlatformKeys
+    )
+    $targetFile = Join-Path $RepoRoot "dev_env\build\release_targets.json"
+    if (-not (Test-Path -LiteralPath $targetFile -PathType Leaf)) {
+        throw "Arquivo de targets ausente: $targetFile"
+    }
+    try {
+        $payload = Get-Content -LiteralPath $targetFile -Raw | ConvertFrom-Json
+    } catch {
+        throw "Falha ao carregar targets de release: $targetFile`: $($_.Exception.Message)"
+    }
+    if ($payload.schema_version -ne 1) {
+        throw "schema_version invalido em $targetFile"
+    }
+    $records = $payload.$Kind
+    if ($null -eq $records) {
+        throw "targets ausentes em $targetFile`: $Kind"
+    }
+    $names = @()
+    foreach ($record in @($records | Sort-Object order)) {
+        $name = [string] $record.name
+        if ([string]::IsNullOrWhiteSpace($name)) {
+            throw "target sem nome em $targetFile`: $Kind"
+        }
+        foreach ($platform in $PlatformKeys) {
+            $property = $record.PSObject.Properties[$platform]
+            if ($null -ne $property -and $property.Value -eq $true) {
+                $names += $name
+                break
+            }
+        }
+    }
+    $uniqueNames = @($names | Select-Object -Unique)
+    if ($uniqueNames.Count -eq 0) {
+        throw "nenhum target habilitado em $targetFile`: $Kind"
+    }
+    return $uniqueNames
+}
+
 Assert-Tool "git"
 if (-not $SkipDebian) {
     Assert-Tool "wsl"
@@ -86,8 +129,20 @@ if (-not $SkipDebian) {
 $repoRoot = Resolve-RepoRoot
 $repoRootWsl = ConvertTo-WslPath $repoRoot
 $repoRootWslQuoted = ConvertTo-BashSingleQuoted $repoRootWsl
-$backendItems = Normalize-Selection -Items $Backend -Allowed @("pyinstaller", "nuitka", "pyoxidizer") -Label "backend"
-$packageItems = Normalize-Selection -Items $DebianPackage -Allowed @("deb", "appimage", "tar") -Label "pacote Debian"
+$backendPlatforms = @()
+if (-not $SkipWindows) {
+    $backendPlatforms += "windows_amd64"
+}
+if (-not $SkipDebian) {
+    $backendPlatforms += "debian_amd64"
+}
+if ($backendPlatforms.Count -eq 0) {
+    $backendPlatforms = @("windows_amd64", "debian_amd64")
+}
+$allowedBackends = Get-ReleaseTargetNames -RepoRoot $repoRoot -Kind "backends" -PlatformKeys $backendPlatforms
+$allowedDebianPackages = Get-ReleaseTargetNames -RepoRoot $repoRoot -Kind "packages" -PlatformKeys @("debian_amd64")
+$backendItems = Normalize-Selection -Items $Backend -Allowed $allowedBackends -Label "backend"
+$packageItems = Normalize-Selection -Items $DebianPackage -Allowed $allowedDebianPackages -Label "pacote Debian"
 $backendCsv = Join-Csv $backendItems
 $packageCsv = Join-Csv $packageItems
 $backendCsvQuoted = ConvertTo-BashSingleQuoted $backendCsv

@@ -2,10 +2,11 @@
 
 ## CURRENT TRUTH 2026-05-01 20h56
 
-- Branch alvo: `dev`.
+- Branch fonte: `dev`.
+- Branch destino do PR: `main`.
 - HEAD validado: `55e2c4e2685099d672e05897f4631ca1af6b0175 2026-05-01 20:55:47 -0300 STABILITY_PATCH: deduplicate Debian target normalization`.
 - PR #56: merged.
-- `dev` contem correcoes de release v4.37 que ainda precisam chegar ao `main` antes do rebuild final.
+- O branch `dev` contem correcoes de release v4.37 que ainda precisam chegar ao `main` antes do rebuild final.
 - Artefatos v4.37 anteriores a este HEAD estao stale e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
 - Orquestradores ativos:

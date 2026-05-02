@@ -225,7 +225,7 @@ assert_tool() {
 assert_ssh_host() {
   local host="$1"
   case "${host}" in
-    ""|*@*@*|@*|*@|*[!A-Za-z0-9._@-]*)
+    ""|-*|*@*@*|@*|*@|*[!A-Za-z0-9._@-]*)
       die "--ssh-host invalido. Use apenas user@host ou host sem opcoes ssh."
       ;;
   esac

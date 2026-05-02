@@ -19,6 +19,9 @@ def test_solucoes_ambiente_doc_marks_legacy_body_historical() -> None:
     text = read_repo_text("docs", "SOLUCOES_AMBIENTE_BUILD.md")
 
     assert text.count("## CURRENT TRUTH") == 1
+    assert "- Branch fonte: `dev`." in text
+    assert "- Branch destino do PR: `main`." in text
+    assert "- Branch alvo: `dev`." not in text
     assert "## HISTORICAL SNAPSHOT 2025-11-14" in text
     assert "**Data**: 2025-11-14" not in text
 
