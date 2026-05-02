@@ -113,7 +113,7 @@ if (-not $SkipWindows) {
         (Join-Path $repoRoot "dev_env\build\release_windows.ps1"),
         "-Backend"
     )
-    $windowsArgs += $backendItems
+    $windowsArgs += $backendCsv
     $windowsArgs += "-Yes"
     if ($DryRun) {
         $windowsArgs += "-DryRun"
