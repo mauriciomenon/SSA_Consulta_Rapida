@@ -13,4 +13,4 @@ pillow>=12.2.0
 cairosvg>=2.9.0
 
 # Linux especifico para AppImage
-patchelf>=0.17.0; platform_system=="Linux"
+patchelf>=0.17.0 ; platform_system=="Linux"

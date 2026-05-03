@@ -79,7 +79,9 @@ def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
     assert "git fetch origin ${{ github.base_ref }}" not in workflow
     assert "origin/${{ github.base_ref }}" not in workflow
     assert "BASE_REF: ${{ github.base_ref }}" in workflow
-    assert 'git fetch origin "$BASE_REF" --depth=1 || true' in workflow
+    assert 'git fetch origin "$BASE_REF"' in workflow
+    assert 'git fetch origin "$BASE_REF" --depth=1' not in workflow
+    assert 'git fetch origin "$BASE_REF" || true' not in workflow
     assert 'git diff --unified=0 "origin/${BASE_REF}...HEAD"' in workflow
 
 

@@ -30,3 +30,10 @@
 - Kluster CLI instant successful run after status update: review `69f39d18295e5d0b624eac55`.
 - Kluster final remaining items: structural import orchestrator refactor, filter/search performance and parser documentation, duplicated emoji definitions, local lazy imports in rescan worker, and filter-search cache performance.
 - Status: classic validation passed; Kluster backend was unstable and final remaining items are deferred as non-blocking or performance-slice items.
+
+## 2026-05-03T00:45:00-03:00 security workflow slice
+
+- Scope: GitHub Actions hardening, vulnerable requirements scan cleanup, and secret scan workflow tightening.
+- Kluster CLI deep on `docs/RECOVERY_BACKLOG.md`: timed out after 60s (`kluster review file docs/RECOVERY_BACKLOG.md --mode deep`).
+- Fallback planned: rerun Kluster in instant mode for documentation/status files and keep deep mode for code/workflow files when it completes inside the local 60s window.
+- Codex security preflight: timed out after 60s while running broad `gitleaks` (`C:\Users\mauri\.codex\scripts\security-preflight.ps1 -RepoPath C:\Users\mauri\git\SSA_Consulta_Rapida -Mode manual`).
