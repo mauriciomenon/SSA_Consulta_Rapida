@@ -37,3 +37,12 @@
 - Kluster CLI deep on `docs/RECOVERY_BACKLOG.md`: timed out after 60s (`kluster review file docs/RECOVERY_BACKLOG.md --mode deep`).
 - Fallback planned: rerun Kluster in instant mode for documentation/status files and keep deep mode for code/workflow files when it completes inside the local 60s window.
 - Codex security preflight: timed out after 60s while running broad `gitleaks` (`C:\Users\mauri\.codex\scripts\security-preflight.ps1 -RepoPath C:\Users\mauri\git\SSA_Consulta_Rapida -Mode manual`).
+
+## 2026-05-03T02:30:00-03:00 Nuitka runtime source-path slice
+
+- Scope: corrigir entrypoints Nuitka para nao usar caminho do repo de build como fallback de runtime.
+- Evidencia: smoke isolado do executavel Nuitka CLI carregou 70.954 SSAs mesmo com `APPDATA`, `LOCALAPPDATA` e `SSA_*` limpos; o entrypoint `launchers/cli_entry.py` so tratava `sys.frozen`, mas Nuitka expõe `__compiled__`.
+- Kluster MCP/tool discovery: `tool_search` nao expôs ferramenta Kluster callable nesta sessao.
+- Kluster CLI fallback: `pnpm.CMD dlx kluster-verify --help` falhou com `ERR_PNPM_FETCH_404` para `https://registry.npmjs.org/kluster-verify`.
+- Validacao classica focada: `py_compile`, `ruff`, `ty` e `pytest` focado passaram antes do commit.
+- Observacao operacional: hooks locais de commit ainda executam Kluster quando disponiveis no fluxo de commit.
