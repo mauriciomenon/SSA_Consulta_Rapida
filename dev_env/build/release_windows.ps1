@@ -426,7 +426,11 @@ function Invoke-Smoke {
         }
         $exitCode = 1
         if (-not $timedOut) {
+            [void]$process.WaitForExit()
             $process.Refresh()
+            if ($null -eq $process.ExitCode) {
+                throw "Smoke CLI falhou para ${BackendName}. ExitCode indisponivel."
+            }
             $exitCode = $process.ExitCode
         }
         $stderrText = ""
