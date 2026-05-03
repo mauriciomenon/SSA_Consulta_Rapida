@@ -203,6 +203,7 @@ def test_secret_scan_script_valid_pattern_without_match_succeeds(tmp_path: Path)
 
 def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     workflow = _read_repo_text(".github", "workflows", "opencode.yml")
+    local_action = _read_repo_text(".github", "actions", "opencode-github", "action.yml")
 
     assert "push:" in workflow
     assert "pull_request:" in workflow
@@ -216,7 +217,14 @@ def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     assert "Review this pull request for concrete bugs" in workflow
     assert "Review the pushed commit range for concrete bugs" in workflow
     assert workflow.count("uses: ./.github/actions/configure-qwen-opencode") == 3
+    assert workflow.count("uses: ./.github/actions/opencode-github") == 5
     assert workflow.count("qwen-cloud-coding-plan") == 3
+    assert "anomalyco/opencode/github@" not in workflow
+    assert "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830" in local_action
+    assert "actions/cache@v4" not in local_action
+    assert "opencode-ai@${{ inputs.opencode_version }}" in local_action
+    assert "curl -fsSL https://opencode.ai/install | bash" not in local_action
+    assert "releases/latest" not in local_action
     assert "id-token: write" not in workflow
 
 
