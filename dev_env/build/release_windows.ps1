@@ -509,10 +509,30 @@ function Get-ArtifactHash {
     $records = @()
     foreach ($path in $Paths) {
         Assert-ExistingFile $path
-        $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $path
+        $hashCommand = Get-Command -Name "Get-FileHash" -ErrorAction SilentlyContinue
+        if ($hashCommand) {
+            $hash = & $hashCommand -Algorithm SHA256 -LiteralPath $path
+            $hashPath = $hash.Path
+            $hashValue = $hash.Hash
+        }
+        else {
+            $stream = [System.IO.File]::OpenRead($path)
+            try {
+                $sha256 = [System.Security.Cryptography.SHA256]::Create()
+                $hashBytes = $sha256.ComputeHash($stream)
+                $hashValue = ([System.BitConverter]::ToString($hashBytes) -replace "-", "").ToUpperInvariant()
+            }
+            finally {
+                if ($sha256) {
+                    $sha256.Dispose()
+                }
+                $stream.Dispose()
+            }
+            $hashPath = (Resolve-Path -LiteralPath $path).Path
+        }
         $records += [ordered]@{
-            path = $hash.Path
-            sha256 = $hash.Hash
+            path = $hashPath
+            sha256 = $hashValue
             length = (Get-Item -LiteralPath $path).Length
         }
     }
