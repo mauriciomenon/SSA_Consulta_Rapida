@@ -121,6 +121,8 @@ def test_release_windows_smoke_uses_isolated_user_environment() -> None:
     assert 'cd /d `"$smokeDir`"' in smoke_body
     assert "-FilePath $env:ComSpec" in smoke_body
     assert "-RedirectStandardInput $stdinPath" in smoke_body
+    assert "([string] (Get-Content -LiteralPath $stderrPath -Raw" in smoke_body
+    assert "([string] (Get-Content -LiteralPath $stdoutPath -Raw" in smoke_body
     assert 'DADOS CARREGADOS:\\s+[1-9][0-9.,]*\\s+SSAs' in smoke_body
     assert "Smoke CLI contaminado por dados locais" in smoke_body
 
