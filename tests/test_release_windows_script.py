@@ -105,6 +105,25 @@ def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
     assert '"--repo-root",' in script
 
 
+def test_release_windows_smoke_uses_isolated_user_environment() -> None:
+    script = _script_text()
+    smoke_body = section_between(
+        script,
+        "function Invoke-Smoke",
+        "function Write-BackendReleaseZips",
+    )
+
+    assert "System.Diagnostics.ProcessStartInfo" in smoke_body
+    assert '$processInfo.WorkingDirectory = $smokeDir' in smoke_body
+    assert '$processInfo.EnvironmentVariables["APPDATA"] = $appDataDir' in smoke_body
+    assert '$processInfo.EnvironmentVariables["LOCALAPPDATA"] = $localAppDataDir' in smoke_body
+    assert '$processInfo.EnvironmentVariables["USERPROFILE"] = $userProfileDir' in smoke_body
+    assert 'Where-Object { $_ -like "SSA_*" }' in smoke_body
+    assert 'DADOS CARREGADOS:\\s+[1-9][0-9.,]*\\s+SSAs' in smoke_body
+    assert "Smoke CLI contaminado por dados locais" in smoke_body
+    assert "Start-Process" not in smoke_body
+
+
 def test_release_windows_script_exposes_backend_scorecard() -> None:
     script = _script_text()
     scorecard = json.loads(SCORECARD_FILE.read_text(encoding="utf-8"))
