@@ -144,9 +144,10 @@ def test_secret_scan_script_uses_fetch_head_pr_diff_and_configurable_history() -
     assert 'git fetch --no-tags origin "$base_ref"' in script
     assert "git diff --unified=0 FETCH_HEAD...HEAD" in script
     assert '>"$added_lines"' in script
+    assert "if ! git diff --unified=0 FETCH_HEAD...HEAD" in script
     assert 'grep -E -q "$SENSITIVE_PATTERN" "$added_lines"' in script
-    assert 'trap \'rm -f "${added_lines:-}"\' RETURN' in script
-    assert "trap - RETURN" in script
+    assert "PR diff scan failed" in script
+    assert "trap - RETURN" not in script
     assert 'git diff --unified=0 "origin/${base_ref}...HEAD"' not in script
     assert 'SECRET_SCAN_HISTORY_MAX_COUNT:-200' in script
 
