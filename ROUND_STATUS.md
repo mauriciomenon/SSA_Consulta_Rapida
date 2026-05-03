@@ -55,3 +55,10 @@
 - Kluster MCP/tool discovery: `tool_search` nao expos ferramenta Kluster callable nesta sessao.
 - Kluster CLI fallback: `C:\Users\mauri\.pnpm\bin\pnpm.CMD dlx kluster-verify --help` falhou com `ERR_PNPM_FETCH_404` para `https://registry.npmjs.org/kluster-verify`.
 - Validacao classica focada antes do commit: `py_compile`, `ruff`, `ty` e `pytest` focado passaram.
+
+## 2026-05-03T03:50:00-03:00 Windows release smoke isolation slice
+
+- Scope: impedir que o smoke do orquestrador Windows use `APPDATA`, `LOCALAPPDATA`, `USERPROFILE`, cwd ou `SSA_*` do usuario.
+- Evidencia: `builds/reports/release_report_windows_amd64.json` gerado para `da964144a82b7e93a3f46ccf239949fc23318547` registrou `DADOS CARREGADOS: 70,954 SSAs` no smoke, enquanto o smoke manual isolado do mesmo executavel retornou sem dados carregados.
+- Causa: `Invoke-Smoke` em `dev_env/build/release_windows.ps1` usava `Start-Process` sem ambiente isolado.
+- Kluster CLI fallback: `C:\Users\mauri\.pnpm\bin\pnpm.CMD dlx kluster-verify --help` falhou com `ERR_PNPM_FETCH_404` para `https://registry.npmjs.org/kluster-verify`.

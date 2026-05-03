@@ -381,28 +381,45 @@ function Invoke-Smoke {
     $smokeDir = Join-Path ([System.IO.Path]::GetTempPath()) ("ssa_release_smoke_" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Force $smokeDir | Out-Null
     try {
-        $stdinPath = Join-Path $smokeDir "stdin.txt"
-        $stdoutPath = Join-Path $smokeDir "stdout.txt"
-        $stderrPath = Join-Path $smokeDir "stderr.txt"
-        Set-Content -LiteralPath $stdinPath -Value "q`n" -NoNewline -Encoding ASCII
-        $process = Start-Process `
-            -FilePath (Resolve-Path $Config.cli_exe).Path `
-            -ArgumentList "--skip-import" `
-            -RedirectStandardInput $stdinPath `
-            -RedirectStandardOutput $stdoutPath `
-            -RedirectStandardError $stderrPath `
-            -NoNewWindow `
-            -Wait `
-            -PassThru
+        $appDataDir = Join-Path $smokeDir "appdata"
+        $localAppDataDir = Join-Path $smokeDir "localappdata"
+        $userProfileDir = Join-Path $smokeDir "userprofile"
+        New-Item -ItemType Directory -Force $appDataDir, $localAppDataDir, $userProfileDir | Out-Null
+
+        $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $processInfo.FileName = (Resolve-Path $Config.cli_exe).Path
+        $processInfo.Arguments = "--skip-import"
+        $processInfo.WorkingDirectory = $smokeDir
+        $processInfo.UseShellExecute = $false
+        $processInfo.RedirectStandardInput = $true
+        $processInfo.RedirectStandardOutput = $true
+        $processInfo.RedirectStandardError = $true
+        $processInfo.EnvironmentVariables["APPDATA"] = $appDataDir
+        $processInfo.EnvironmentVariables["LOCALAPPDATA"] = $localAppDataDir
+        $processInfo.EnvironmentVariables["USERPROFILE"] = $userProfileDir
+        foreach ($key in @($processInfo.EnvironmentVariables.Keys | Where-Object { $_ -like "SSA_*" })) {
+            $processInfo.EnvironmentVariables.Remove($key)
+        }
+
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $processInfo
+        if (-not $process.Start()) {
+            throw "Smoke CLI nao iniciou para ${BackendName}."
+        }
+        $process.StandardInput.WriteLine("q")
+        $process.StandardInput.Close()
+        $stdoutText = $process.StandardOutput.ReadToEnd()
+        $stderrText = $process.StandardError.ReadToEnd()
+        if (-not $process.WaitForExit(60000)) {
+            $process.Kill()
+            throw "Smoke CLI timeout para ${BackendName}."
+        }
         if ($process.ExitCode -ne 0) {
-            $stderrText = ""
-            if (Test-Path $stderrPath) {
-                $stderrText = (Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue).Trim()
-            }
             throw "Smoke CLI falhou para ${BackendName}. ExitCode=$($process.ExitCode). $stderrText"
         }
-        if (Test-Path $stdoutPath) {
-            $smokeOutput = (Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue).Trim()
+        $smokeOutput = $stdoutText.Trim()
+        if ($smokeOutput -match "DADOS CARREGADOS:\s+[1-9][0-9.,]*\s+SSAs") {
+            throw "Smoke CLI contaminado por dados locais para ${BackendName}."
         }
     } finally {
         if (Test-Path $smokeDir) {
