@@ -413,13 +413,19 @@ function Invoke-Smoke {
             -PassThru
         $stderrText = ""
         if (Test-Path $stderrPath) {
-            $stderrText = ([string] (Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue)).Trim()
+            $stderrRaw = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
+            if ($null -ne $stderrRaw) {
+                $stderrText = $stderrRaw.Trim()
+            }
         }
         if ($process.ExitCode -ne 0) {
             throw "Smoke CLI falhou para ${BackendName}. ExitCode=$($process.ExitCode). $stderrText"
         }
         if (Test-Path $stdoutPath) {
-            $smokeOutput = ([string] (Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue)).Trim()
+            $stdoutRaw = Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue
+            if ($null -ne $stdoutRaw) {
+                $smokeOutput = $stdoutRaw.Trim()
+            }
         }
         if ($smokeOutput -match "DADOS CARREGADOS:\s+[1-9][0-9.,]*\s+SSAs") {
             throw "Smoke CLI contaminado por dados locais para ${BackendName}."
