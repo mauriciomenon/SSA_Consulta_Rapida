@@ -31,8 +31,10 @@ def test_key_shell_scripts_parse_with_available_bash() -> None:
         "scripts/security/scan_secrets.sh",
     ]
     for script in scripts:
+        script_path = PROJECT_ROOT / script
+        assert script_path.exists(), f"Script not found: {script_path}"
         result = subprocess.run(
-            [bash, "-n", script],
+            [bash, "-n", str(script_path)],
             cwd=PROJECT_ROOT,
             text=True,
             capture_output=True,
@@ -138,11 +140,38 @@ def test_secret_scan_script_blocks_workspace_matches(tmp_path: Path) -> None:
     assert "TEST_SECRET_1234" not in dirty_result.stderr
 
 
+def test_secret_scan_script_blocks_untracked_git_workspace_matches(tmp_path: Path) -> None:
+    bash = shutil.which("bash")
+    git = shutil.which("git")
+    assert bash is not None, "bash must be available for shell contract tests"
+    assert git is not None, "git must be available for shell contract tests"
+
+    script = PROJECT_ROOT / "scripts" / "security" / "scan_secrets.sh"
+    subprocess.run([git, "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    (tmp_path / "tracked.txt").write_text("clean tracked file\n", encoding="utf-8")
+    subprocess.run([git, "add", "tracked.txt"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    (tmp_path / "untracked.txt").write_text("token=TEST_SECRET_9999\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [bash, str(script), "workspace"],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=_test_env(SENSITIVE_PATTERN="TEST_SECRET_[0-9][0-9][0-9][0-9]"),
+    )
+
+    assert result.returncode == 1
+    assert "TEST_SECRET_9999" not in result.stdout
+    assert "TEST_SECRET_9999" not in result.stderr
+
+
 def test_secret_scan_script_uses_fetch_head_pr_diff_and_configurable_history() -> None:
     script = _read_repo_text("scripts", "security", "scan_secrets.sh")
 
     assert 'git fetch --no-tags origin "$base_ref"' in script
     assert "git diff --unified=0 FETCH_HEAD...HEAD" in script
+    assert "git grep --untracked" in script
     assert '>"$added_lines"' in script
     assert "if ! git diff --unified=0 FETCH_HEAD...HEAD" in script
     assert 'grep -E -q "$SENSITIVE_PATTERN" "$added_lines"' in script
@@ -176,6 +205,8 @@ def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     workflow = _read_repo_text(".github", "workflows", "opencode.yml")
 
     assert workflow.count("environment: SECRETS") == 3
+    assert "noop:" in workflow
+    assert 'echo "No opencode command in comment; skipping."' in workflow
     assert "id-token: write" not in workflow
 
 
