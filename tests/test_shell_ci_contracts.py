@@ -205,21 +205,23 @@ def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     workflow = _read_repo_text(".github", "workflows", "opencode.yml")
     local_action = _read_repo_text(".github", "actions", "opencode-github", "action.yml")
 
-    assert "push:" in workflow
+    assert "push:" not in workflow
     assert "pull_request:" in workflow
     assert "opencode-pr-review:" in workflow
-    assert "opencode-push-review:" in workflow
-    assert workflow.count("environment: SECRETS") == 5
+    assert "opencode-push-review:" not in workflow
+    assert workflow.count("environment: SECRETS") == 4
     assert "noop:" in workflow
     assert 'echo "No opencode command in comment; skipping."' in workflow
     assert "Run automatic PR review" in workflow
-    assert "Run automatic push review" in workflow
+    assert "Run automatic push review" not in workflow
     assert "Review this pull request for concrete bugs" in workflow
-    assert "Review the pushed commit range for concrete bugs" in workflow
-    assert workflow.count("uses: ./.github/actions/configure-qwen-opencode") == 3
-    assert workflow.count("uses: ./.github/actions/opencode-github") == 5
-    assert workflow.count("qwen-cloud-coding-plan") == 3
+    assert "Review the pushed commit range for concrete bugs" not in workflow
+    assert workflow.count("uses: ./.github/actions/configure-qwen-opencode") == 2
+    assert workflow.count("uses: ./.github/actions/opencode-github") == 4
+    assert workflow.count("qwen-cloud-coding-plan") == 2
     assert "anomalyco/opencode/github@" not in workflow
+    assert 'default: "true"' in local_action
+    assert "GITHUB_TOKEN: ${{ github.token }}" in local_action
     assert "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830" in local_action
     assert "actions/cache@v4" not in local_action
     assert "opencode-ai@${{ inputs.opencode_version }}" in local_action
