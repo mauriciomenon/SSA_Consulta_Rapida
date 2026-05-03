@@ -46,3 +46,12 @@
 - Kluster CLI fallback: `pnpm.CMD dlx kluster-verify --help` falhou com `ERR_PNPM_FETCH_404` para `https://registry.npmjs.org/kluster-verify`.
 - Validacao classica focada: `py_compile`, `ruff`, `ty` e `pytest` focado passaram antes do commit.
 - Observacao operacional: hooks locais de commit ainda executam Kluster quando disponiveis no fluxo de commit.
+
+## 2026-05-03T03:12:00-03:00 Nuitka parent-data isolation slice
+
+- Scope: impedir que entrypoints Nuitka copiem `data/ssas.db` de diretorio pai do `.dist`.
+- Evidencia: smoke isolado do Windows Nuitka CLI criou runtime temporario e copiou `builds/nuitka/windows_amd64/data/ssas.db` com 70.954 SSAs para `APPDATA` temporario.
+- Causa: `_find_bundled_dir` e `_find_bundled_data_dir` aceitavam `exe_path.parent.parent / "data"`, que no layout local aponta para `builds/nuitka/windows_amd64/data`.
+- Kluster MCP/tool discovery: `tool_search` nao expos ferramenta Kluster callable nesta sessao.
+- Kluster CLI fallback: `C:\Users\mauri\.pnpm\bin\pnpm.CMD dlx kluster-verify --help` falhou com `ERR_PNPM_FETCH_404` para `https://registry.npmjs.org/kluster-verify`.
+- Validacao classica focada antes do commit: `py_compile`, `ruff`, `ty` e `pytest` focado passaram.

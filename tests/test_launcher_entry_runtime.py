@@ -50,6 +50,14 @@ def _run_entry_as_nuitka(
         sys.path[:] = original_sys_path
 
 
+def _write_parent_data_db(tmp_path: Path) -> Path:
+    parent_data = tmp_path / "data"
+    parent_data.mkdir()
+    parent_db = parent_data / "ssas.db"
+    parent_db.write_text("local-db-must-not-be-seeded", encoding="utf-8")
+    return parent_db
+
+
 def test_cli_entry_nuitka_runtime_does_not_use_build_repo_db(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -68,6 +76,8 @@ def test_cli_entry_nuitka_runtime_does_not_use_build_repo_db(
 def test_cli_entry_nuitka_runtime_uses_executable_layout_without_compiled_global(
     monkeypatch, tmp_path: Path
 ) -> None:
+    parent_db = _write_parent_data_db(tmp_path)
+
     namespace = _run_entry_as_nuitka(
         monkeypatch,
         tmp_path,
@@ -82,11 +92,15 @@ def test_cli_entry_nuitka_runtime_uses_executable_layout_without_compiled_global
     assert namespace["app_dir"] == str(tmp_path / "entry.dist")
     assert db_path == runtime_root / "data" / "ssas.db"
     assert REPO_ROOT not in db_path.parents
+    assert parent_db.exists()
+    assert not db_path.exists()
 
 
 def test_gui_entry_nuitka_runtime_does_not_use_build_repo_db(
     monkeypatch, tmp_path: Path
 ) -> None:
+    parent_db = _write_parent_data_db(tmp_path)
+
     namespace = _run_entry_as_nuitka(
         monkeypatch, tmp_path, "gui_entry.py", "SSA_GUI_v4.37_windows_amd64.exe"
     )
@@ -97,3 +111,5 @@ def test_gui_entry_nuitka_runtime_does_not_use_build_repo_db(
     assert namespace["app_dir"] == str(tmp_path / "entry.dist")
     assert db_path == runtime_root / "data" / "ssas.db"
     assert REPO_ROOT not in db_path.parents
+    assert parent_db.exists()
+    assert not db_path.exists()
