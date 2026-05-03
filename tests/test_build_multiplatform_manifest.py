@@ -34,6 +34,19 @@ def test_command_stdout_logs_metadata_command_failure(monkeypatch):
     assert "stderr detail" in "".join(str(item) for item in warnings[0])
 
 
+def test_upx_contract_uses_system_binary_not_python_package():
+    repo_root = Path(__file__).resolve().parents[1]
+    build_script = repo_root / "launchers" / "build_multiplatform.py"
+    requirements_files = [
+        repo_root / "requirements_build.txt",
+        repo_root / "launchers" / "platforms" / "windows_amd64" / "requirements_windows_build.txt",
+    ]
+
+    assert "shutil.which(\"upx\")" in build_script.read_text(encoding="utf-8")
+    for requirements_file in requirements_files:
+        assert "upx4py" not in requirements_file.read_text(encoding="utf-8")
+
+
 def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):
     builder = MultiPlatformBuilder()
     builder.dist_dir = tmp_path / "dist"

@@ -467,17 +467,11 @@ VSVersionInfo(
         app_config = config[f"{app_type}_config"]
         pyinstaller_args = config["pyinstaller_args"]
 
-        # Aviso amigavel sobre compressao UPX opcional (nao bloqueante)
         if platform_name.startswith("windows"):
-            # Heuristica: se config pyinstaller_args contiver algo indicando compressao futura
-            # (ex.: flag custom que adicionaremos no futuro) ou simplesmente sempre avisar se upx ausente
-            try:
-                __import__("upx4py")  # noqa: F401
-            except Exception:
+            if not shutil.which("upx"):
                 logger.warning(
-                    "UPX nao detectado (pacote 'upx4py' ausente). Build seguira sem compressao. "
-                    "Para habilitar instale: uv pip install --python %s -r launchers/platforms/windows_amd64/requirements_windows_build.txt",
-                    str(python_exe),
+                    "UPX nao detectado no PATH. Build seguira sem compressao. "
+                    "Para habilitar, instale o binario UPX pelo gerenciador do sistema."
                 )
 
         # Comando base

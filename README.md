@@ -232,7 +232,7 @@ As notas antigas permanecem abaixo para referencia e auditoria tecnica.
 - **Estrutura de Requirements (Otimizada):**
   - **requirements.txt** - Dependências de runtime essenciais (PyQt6, pandas, openpyxl, tabulate)
   - **requirements_dev.txt** - Ferramentas de desenvolvimento (pytest, flake8, black, mypy, pre-commit)
-  - **requirements_build.txt** - Ferramentas de build (pyinstaller, pillow, cairosvg, pywin32, upx4py)
+  - **requirements_build.txt** - Ferramentas de build (pyinstaller, pillow, cairosvg, pywin32)
   - **requirements_ci.txt** - Ferramentas de CI/CD (pytest, flake8, black, mypy, pre-commit, pyinstaller)
   - **requirements_clean.txt** - Arquivo documental (não utilizado para instalação)
 
@@ -556,11 +556,11 @@ Tip: The repository contains a `.gitattributes` entry that enforces LF for `.env
 **Windows + direnv (scoop):** se `direnv exec` nao achar o binario, aponte `DIRENV_BIN` para o caminho retornado por `where direnv` (converta para formato WSL com `cygpath -u` se estiver dentro do bash). Evite hardcode de usuario/caminho; ajuste tambem `XDG_*` se necessario. Em caso de duvida, ative o ambiente manualmente com `.venv\\Scripts\\Activate.ps1`.
 
 
-Para build Windows com compressao UPX (reducao de tamanho), instale tambem:
+Para build Windows com compressao UPX (reducao de tamanho), instale o binario `upx` pelo gerenciador do sistema.
 ```pwsh
-uv pip install --python 3.13 -r launchers/platforms/windows_amd64/requirements_windows_build.txt
+scoop install upx
 ```
-Esse arquivo separado evita alerta de dependencia ausente em ambientes macOS/Linux onde `upx4py` nao e necessario.
+O build continua sem compressao se `upx` nao estiver disponivel no `PATH`.
 
 ## Inicializacao automatica de diretorios
 Na primeira execucao o sistema garante a criacao idempotente dos diretorios essenciais (ex.: `data/`, `data/historico_backups/`, `logs/`, `reports/`, `extracao/`, `exportacao/`).
