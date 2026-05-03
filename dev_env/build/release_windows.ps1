@@ -543,6 +543,7 @@ function Get-ArtifactHash {
         }
         else {
             $stream = [System.IO.File]::OpenRead($path)
+            $sha256 = $null
             try {
                 $sha256 = [System.Security.Cryptography.SHA256]::Create()
                 $hashBytes = $sha256.ComputeHash($stream)

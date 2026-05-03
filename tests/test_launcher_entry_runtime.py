@@ -22,11 +22,17 @@ def _run_entry_as_nuitka(
     executable = exe_dir / executable_name
     executable.write_text("", encoding="utf-8")
     appdata = tmp_path / "appdata"
+    home_dir = tmp_path / "home"
+    xdg_data_home = tmp_path / "xdg_data"
     appdata.mkdir()
+    home_dir.mkdir()
+    xdg_data_home.mkdir()
 
     monkeypatch.setattr(sys, "executable", str(executable))
     monkeypatch.setenv("APPDATA", str(appdata))
     monkeypatch.setenv("LOCALAPPDATA", str(appdata))
+    monkeypatch.setenv("HOME", str(home_dir))
+    monkeypatch.setenv("XDG_DATA_HOME", str(xdg_data_home))
     for key in (
         "SSA_BUNDLED_ROOT",
         "SSA_CONFIG_DIR",
@@ -61,6 +67,8 @@ def _write_parent_data_db(tmp_path: Path) -> Path:
 def test_cli_entry_nuitka_runtime_does_not_use_build_repo_db(
     monkeypatch, tmp_path: Path
 ) -> None:
+    parent_db = _write_parent_data_db(tmp_path)
+
     namespace = _run_entry_as_nuitka(
         monkeypatch, tmp_path, "cli_entry.py", "SSA_CLI_v4.37_windows_amd64.exe"
     )
@@ -71,6 +79,8 @@ def test_cli_entry_nuitka_runtime_does_not_use_build_repo_db(
     assert namespace["app_dir"] == str(tmp_path / "entry.dist")
     assert db_path == runtime_root / "data" / "ssas.db"
     assert REPO_ROOT not in db_path.parents
+    assert parent_db.exists()
+    assert not db_path.exists()
 
 
 def test_cli_entry_nuitka_runtime_uses_executable_layout_without_compiled_global(
