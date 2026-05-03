@@ -14,6 +14,42 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  noop:
+    if: |
+      !(
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
+        (
+          github.event.comment.body == '/oc' ||
+          startsWith(github.event.comment.body, '/oc ') ||
+          contains(github.event.comment.body, ' /oc ') ||
+          github.event.comment.body == '/opencode' ||
+          startsWith(github.event.comment.body, '/opencode ') ||
+          contains(github.event.comment.body, ' /opencode ') ||
+          github.event.comment.body == '/oc-glm' ||
+          startsWith(github.event.comment.body, '/oc-glm ') ||
+          contains(github.event.comment.body, ' /oc-glm ') ||
+          github.event.comment.body == '/glm-review' ||
+          startsWith(github.event.comment.body, '/glm-review ') ||
+          contains(github.event.comment.body, ' /glm-review ') ||
+          github.event.comment.body == '/zhipu-review' ||
+          startsWith(github.event.comment.body, '/zhipu-review ') ||
+          contains(github.event.comment.body, ' /zhipu-review ') ||
+          github.event.comment.body == '/oc-qwen' ||
+          startsWith(github.event.comment.body, '/oc-qwen ') ||
+          contains(github.event.comment.body, ' /oc-qwen ') ||
+          github.event.comment.body == '/qwen-review' ||
+          startsWith(github.event.comment.body, '/qwen-review ') ||
+          contains(github.event.comment.body, ' /qwen-review ')
+        )
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - name: No opencode command
+        run: echo "No opencode command in comment; skipping."
+
   opencode:
     if: |
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&

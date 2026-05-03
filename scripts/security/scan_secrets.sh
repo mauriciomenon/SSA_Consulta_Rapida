@@ -81,7 +81,7 @@ scan_workspace() {
   local status
   set +e
   if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git grep -I -E -l "$SENSITIVE_PATTERN" "${pathspec_args[@]}"
+    git grep --untracked -I -E -l "$SENSITIVE_PATTERN" "${pathspec_args[@]}"
   else
     grep -R -E -l "${grep_args[@]}" "$SENSITIVE_PATTERN" .
   fi
