@@ -54,7 +54,6 @@ def _find_bundled_data_dir(app_dir: str) -> Path | None:
         app_path / "data",
         app_path / "_internal" / "data",
         exe_path.parent.parent / "Resources" / "data",
-        exe_path.parent.parent / "data",
     )
     for candidate in candidates:
         if candidate.is_dir():

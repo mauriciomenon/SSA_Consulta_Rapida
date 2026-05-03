@@ -36,12 +36,13 @@ def _find_bundled_dir(app_dir: str, folder_name: str) -> Path | None:
     """Localiza pasta embutida em layouts de empacotamento comuns."""
     exe_path = Path(sys.executable).resolve()
     app_path = Path(app_dir)
-    candidates = (
+    candidates = [
         app_path / folder_name,
         app_path / "_internal" / folder_name,
         exe_path.parent.parent / "Resources" / folder_name,
-        exe_path.parent.parent / folder_name,
-    )
+    ]
+    if folder_name != "data":
+        candidates.append(exe_path.parent.parent / folder_name)
     for candidate in candidates:
         if candidate.is_dir():
             return candidate
