@@ -402,35 +402,29 @@ function Invoke-Smoke {
         )
         Set-Content -LiteralPath $wrapperPath -Value $wrapperLines -Encoding ASCII
 
-        $process = Start-Process `
-            -FilePath $env:ComSpec `
-            -ArgumentList @("/d", "/c", "`"$wrapperPath`"") `
-            -RedirectStandardInput $stdinPath `
-            -RedirectStandardOutput $stdoutPath `
-            -RedirectStandardError $stderrPath `
-            -NoNewWindow `
-            -PassThru
         $smokeTimeoutSeconds = 60
-        $deadline = (Get-Date).AddSeconds($smokeTimeoutSeconds)
-        while (-not $process.HasExited -and (Get-Date) -lt $deadline) {
-            Start-Sleep -Milliseconds 200
-            $process.Refresh()
+        $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $startInfo.FileName = $env:ComSpec
+        $startInfo.Arguments = "/d /c `"`"$wrapperPath`" < `"$stdinPath`" > `"$stdoutPath`" 2> `"$stderrPath`"`""
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $startInfo
+        if (-not $process.Start()) {
+            throw "Smoke CLI falhou para ${BackendName}. Processo nao iniciou."
         }
-        $timedOut = -not $process.HasExited
+        $completed = $process.WaitForExit($smokeTimeoutSeconds * 1000)
+        $timedOut = -not $completed
         if ($timedOut) {
             if (-not $process.HasExited) {
-                Stop-Process -Id $process.Id -Force
+                $process.Kill()
                 [void]$process.WaitForExit(10000)
             }
             $process.Refresh()
         }
         $exitCode = 1
         if (-not $timedOut) {
-            [void]$process.WaitForExit()
-            $process.Refresh()
-            if ($null -eq $process.ExitCode) {
-                throw "Smoke CLI falhou para ${BackendName}. ExitCode indisponivel."
-            }
             $exitCode = $process.ExitCode
         }
         $stderrText = ""
