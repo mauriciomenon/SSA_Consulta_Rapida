@@ -62,3 +62,9 @@
 - Evidencia: `builds/reports/release_report_windows_amd64.json` gerado para `da964144a82b7e93a3f46ccf239949fc23318547` registrou `DADOS CARREGADOS: 70,954 SSAs` no smoke, enquanto o smoke manual isolado do mesmo executavel retornou sem dados carregados.
 - Causa: `Invoke-Smoke` em `dev_env/build/release_windows.ps1` usava `Start-Process` sem ambiente isolado.
 - Kluster CLI fallback: `C:\Users\mauri\.pnpm\bin\pnpm.CMD dlx kluster-verify --help` falhou com `ERR_PNPM_FETCH_404` para `https://registry.npmjs.org/kluster-verify`.
+
+## 2026-05-03T10:04:00-03:00 secret scan extraction slice
+
+- Scope: extracted `.github/workflows/secret_scan.yml` shell logic into `scripts/security/scan_secrets.sh`.
+- TruffleHog historical scan: timed out after 240s (`trufflehog git file://C:/Users/mauri/git/SSA_Consulta_Rapida --json --no-verification --no-update --results=verified,unknown`).
+- TruffleHog partial redacted parse: 4 JSON lines, 0 findings, 2 scanner errors before timeout.
