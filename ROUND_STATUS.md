@@ -68,3 +68,11 @@
 - Scope: extracted `.github/workflows/secret_scan.yml` shell logic into `scripts/security/scan_secrets.sh`.
 - TruffleHog historical scan: timed out after 240s (`trufflehog git file://C:/Users/mauri/git/SSA_Consulta_Rapida --json --no-verification --no-update --results=verified,unknown`).
 - TruffleHog partial redacted parse: 4 JSON lines, 0 findings, 2 scanner errors before timeout.
+
+## 2026-05-03T10:55:00-03:00 gitleaks baseline review slice
+
+- Scope: reviewed `.secrets.baseline` and added focused Gitleaks config for detect-secrets hash metadata.
+- Full workspace Gitleaks scan: timed out after 180s (`gitleaks detect --config .gitleaks.toml --no-git --source . --redact --exit-code 1`).
+- Focused substitute: `uvx pre-commit run gitleaks --files .secrets.baseline` passed.
+- Focused substitute: `gitleaks detect --config .gitleaks.toml --no-git --source .secrets.baseline --redact --exit-code 1` passed.
+- Focused substitute: `trufflehog filesystem .gitleaks.toml .secrets.baseline docs/RECOVERY_BACKLOG.md --no-update --no-verification --results=verified,unknown --json` found 0 verified or unknown secrets.
