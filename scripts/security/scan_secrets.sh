@@ -117,22 +117,23 @@ scan_pr_diff() {
 
   local added_lines
   added_lines="$(mktemp)"
-  trap 'rm -f "${added_lines:-}"' RETURN
-  git diff --unified=0 FETCH_HEAD...HEAD "${pathspec_args[@]}" \
+  if ! git diff --unified=0 FETCH_HEAD...HEAD "${pathspec_args[@]}" \
     | awk '/^\+\+\+ (b\/|\/dev\/null)/ { next } /^\+/ { sub(/^\+/, ""); print }' \
-    >"$added_lines"
+    >"$added_lines"; then
+    echo '[ERROR] PR diff scan failed' >&2
+    rm -f "$added_lines"
+    return 1
+  fi
 
   if grep -E -q "$SENSITIVE_PATTERN" "$added_lines"; then
     echo '[ERROR] Possible secret in diff'
     echo '[INFO] Changed files in scanned diff:'
     git diff --name-only FETCH_HEAD...HEAD "${pathspec_args[@]}" | sed 's/^/[INFO] /'
     rm -f "$added_lines"
-    trap - RETURN
     return 1
   fi
 
   rm -f "$added_lines"
-  trap - RETURN
   echo '[OK] No sensitive patterns in diff'
 }
 
