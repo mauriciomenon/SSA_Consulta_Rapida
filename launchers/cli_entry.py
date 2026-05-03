@@ -143,13 +143,18 @@ def _prepare_frozen_runtime(app_dir: str) -> Path:
 
 
 # Adicionar diretorio raiz ao path CORRETAMENTE
-if getattr(sys, "frozen", False):
-    # Executavel PyInstaller - buscar na raiz dos dados empacotados
+is_frozen_runtime = bool(
+    getattr(sys, "frozen", False)
+    or getattr(sys, "oxidized", False)
+    or "__compiled__" in globals()
+)
+if is_frozen_runtime:
+    # Executavel empacotado - buscar na raiz dos dados empacotados.
     if hasattr(sys, "_MEIPASS"):
         # PyInstaller - usar diretorio do executavel, NAO _MEIPASS (pasta temporaria)
         app_dir = os.path.dirname(os.path.abspath(sys.executable))
     else:
-        app_dir = os.path.dirname(sys.executable)
+        app_dir = os.path.dirname(os.path.abspath(sys.executable))
     _prepare_frozen_runtime(app_dir)
 else:
     # Script Python normal
