@@ -53,6 +53,12 @@ runs:
       shell: bash
       run: echo "$HOME/.opencode/npm/bin" >> "${GITHUB_PATH}"
 
+    - name: Configure Git identity
+      shell: bash
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
     - name: Run opencode
       shell: bash
       id: run_opencode

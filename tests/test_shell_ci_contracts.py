@@ -222,6 +222,8 @@ def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     assert "anomalyco/opencode/github@" not in workflow
     assert 'default: "true"' in local_action
     assert "GITHUB_TOKEN: ${{ github.token }}" in local_action
+    assert 'git config --global user.name "github-actions[bot]"' in local_action
+    assert 'git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"' in local_action
     assert "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830" in local_action
     assert "actions/cache@v4" not in local_action
     assert "opencode-ai@${{ inputs.opencode_version }}" in local_action
