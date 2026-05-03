@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import importlib.util
+import os
 import shutil
 import subprocess
-import os
 from pathlib import Path
 
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,6 +19,16 @@ def _test_env(**overrides: str) -> dict[str, str]:
 
 def _read_repo_text(*parts: str) -> str:
     return (PROJECT_ROOT.joinpath(*parts)).read_text(encoding="utf-8")
+
+
+def _load_opencode_review_module():
+    script_path = PROJECT_ROOT / "scripts" / "ci" / "opencode_pr_review.py"
+    spec = importlib.util.spec_from_file_location("opencode_pr_review_test", script_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_key_shell_scripts_parse_with_available_bash() -> None:
@@ -219,17 +231,64 @@ def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     assert workflow.count("uses: ./.github/actions/configure-qwen-opencode") == 2
     assert workflow.count("uses: ./.github/actions/opencode-github") == 4
     assert workflow.count("qwen-cloud-coding-plan") == 2
+    assert workflow.count("github.event.issue.pull_request") == 3
     assert "anomalyco/opencode/github@" not in workflow
     assert 'default: "true"' in local_action
     assert "GITHUB_TOKEN: ${{ github.token }}" in local_action
-    assert 'git config --global user.name "github-actions[bot]"' in local_action
-    assert 'git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"' in local_action
+    assert "opencode github run" not in local_action
+    assert "python scripts/ci/opencode_pr_review.py" in local_action
+    assert "GH_TOKEN: ${{ github.token }}" in local_action
     assert "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830" in local_action
     assert "actions/cache@v4" not in local_action
     assert "opencode-ai@${{ inputs.opencode_version }}" in local_action
     assert "curl -fsSL https://opencode.ai/install | bash" not in local_action
     assert "releases/latest" not in local_action
     assert "id-token: write" not in workflow
+
+
+def test_opencode_review_script_extracts_pr_number() -> None:
+    module = _load_opencode_review_module()
+
+    assert module.extract_pr_number({"pull_request": {"number": 58}}) == 58
+    assert module.extract_pr_number({"issue": {"number": 59, "pull_request": {"url": "x"}}}) == 59
+    with pytest.raises(ValueError, match="pull request"):
+        module.extract_pr_number({"issue": {"number": 60}})
+
+
+def test_opencode_review_script_truncates_large_diff(tmp_path: Path) -> None:
+    module = _load_opencode_review_module()
+    diff_path = tmp_path / "large.diff"
+    diff_path.write_bytes(b"a" * 120)
+
+    text, truncated = module.truncate_diff(diff_path, limit=80)
+    assert truncated is True
+    data = diff_path.read_bytes()
+    assert data == b"a" * 120
+    assert len(text.encode("utf-8")) <= 80
+    assert "[diff truncated at 80 bytes]" in text
+
+    utf8_path = tmp_path / "utf8.diff"
+    utf8_path.write_text("linha\n" + ("\u00e1" * 100), encoding="utf-8")
+    text, truncated = module.truncate_diff(utf8_path, limit=80)
+    assert truncated is True
+    assert "\ufffd" not in text
+    assert "[diff truncated at 80 bytes]" in text
+
+    source_path = tmp_path / "source.diff"
+    review_path = tmp_path / "review.diff"
+    source_path.write_bytes(b"b" * 120)
+    _, truncated = module.truncate_diff(source_path, output_path=review_path, limit=80)
+    assert truncated is True
+    assert source_path.read_bytes() == b"b" * 120
+    assert b"[diff truncated at 80 bytes]" in review_path.read_bytes()
+
+
+def test_opencode_review_script_adds_lfs_note() -> None:
+    module = _load_opencode_review_module()
+
+    prompt = module.build_prompt("base", "version https://git-lfs.github.com/spec/v1")
+
+    assert "manual review" in prompt
 
 
 def test_codeql_precheck_runs_advanced_when_default_setup_is_unverified() -> None:

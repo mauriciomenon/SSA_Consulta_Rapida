@@ -53,16 +53,10 @@ runs:
       shell: bash
       run: echo "$HOME/.opencode/npm/bin" >> "${GITHUB_PATH}"
 
-    - name: Configure Git identity
-      shell: bash
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-    - name: Run opencode
+    - name: Run opencode review
       shell: bash
       id: run_opencode
-      run: opencode github run
+      run: python scripts/ci/opencode_pr_review.py
       env:
         MODEL: ${{ inputs.model }}
         AGENT: ${{ inputs.agent }}
@@ -70,6 +64,7 @@ runs:
         PROMPT: ${{ inputs.prompt }}
         USE_GITHUB_TOKEN: ${{ inputs.use_github_token }}
         GITHUB_TOKEN: ${{ github.token }}
+        GH_TOKEN: ${{ github.token }}
         MENTIONS: ${{ inputs.mentions }}
         VARIANT: ${{ inputs.variant }}
         OIDC_BASE_URL: ${{ inputs.oidc_base_url }}
