@@ -195,10 +195,13 @@ def _prepare_frozen_runtime(app_dir: str) -> Path:
 
 
 # Adicionar diretorio raiz ao path CORRETAMENTE
+exe_path = Path(sys.executable)
 is_frozen_runtime = bool(
     getattr(sys, "frozen", False)
     or getattr(sys, "oxidized", False)
     or "__compiled__" in globals()
+    or exe_path.parent.name.endswith(".dist")
+    or exe_path.name.startswith(("SSA_GUI_", "SSA_Consulta_Rapida"))
 )
 if is_frozen_runtime:
     # Executavel empacotado - buscar na raiz dos dados empacotados.
