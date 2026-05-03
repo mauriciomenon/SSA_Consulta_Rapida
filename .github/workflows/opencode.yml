@@ -81,7 +81,7 @@ jobs:
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
 
       - name: Run automatic PR review
-        uses: anomalyco/opencode/github@80f1f1b5b8535b6008af54621665738115346cde
+        uses: ./.github/actions/opencode-github
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
@@ -116,7 +116,7 @@ jobs:
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
 
       - name: Run automatic push review
-        uses: anomalyco/opencode/github@80f1f1b5b8535b6008af54621665738115346cde
+        uses: ./.github/actions/opencode-github
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
@@ -156,7 +156,7 @@ jobs:
           persist-credentials: false
 
       - name: Run opencode
-        uses: anomalyco/opencode/github@80f1f1b5b8535b6008af54621665738115346cde
+        uses: ./.github/actions/opencode-github
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         with:
@@ -192,7 +192,7 @@ jobs:
           persist-credentials: false
 
       - name: Run opencode with GLM
-        uses: anomalyco/opencode/github@80f1f1b5b8535b6008af54621665738115346cde
+        uses: ./.github/actions/opencode-github
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           ZAI_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
@@ -232,7 +232,7 @@ jobs:
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
 
       - name: Run opencode with Qwen
-        uses: anomalyco/opencode/github@80f1f1b5b8535b6008af54621665738115346cde
+        uses: ./.github/actions/opencode-github
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
