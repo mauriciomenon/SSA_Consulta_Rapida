@@ -92,6 +92,7 @@ jobs:
   opencode:
     if: |
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
+      (github.event_name == 'pull_request_review_comment' || github.event.issue.pull_request) &&
       (
         github.event.comment.body == '/oc' ||
         startsWith(github.event.comment.body, '/oc ') ||
@@ -128,6 +129,7 @@ jobs:
   opencode-glm:
     if: |
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
+      (github.event_name == 'pull_request_review_comment' || github.event.issue.pull_request) &&
       (
         github.event.comment.body == '/oc-glm' ||
         startsWith(github.event.comment.body, '/oc-glm ') ||
@@ -166,6 +168,7 @@ jobs:
   opencode-qwen:
     if: |
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
+      (github.event_name == 'pull_request_review_comment' || github.event.issue.pull_request) &&
       (
         github.event.comment.body == '/oc-qwen' ||
         startsWith(github.event.comment.body, '/oc-qwen ') ||
