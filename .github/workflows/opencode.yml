@@ -158,7 +158,7 @@ jobs:
           PY
 
       - name: Run opencode with Qwen
-        uses: anomalyco/opencode/github@77fc88c8ade8e5a620ebbe1197f3a572d29ae91a
+        uses: anomalyco/opencode/github@80f1f1b5b8535b6008af54621665738115346cde
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
