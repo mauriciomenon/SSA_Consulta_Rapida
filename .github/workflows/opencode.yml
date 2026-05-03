@@ -44,7 +44,7 @@ jobs:
           persist-credentials: false
 
       - name: Run opencode
-        uses: anomalyco/opencode/github@77fc88c8ade8e5a620ebbe1197f3a572d29ae91a
+        uses: anomalyco/opencode/github@80f1f1b5b8535b6008af54621665738115346cde
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         with:
@@ -80,7 +80,7 @@ jobs:
           persist-credentials: false
 
       - name: Run opencode with GLM
-        uses: anomalyco/opencode/github@77fc88c8ade8e5a620ebbe1197f3a572d29ae91a
+        uses: anomalyco/opencode/github@80f1f1b5b8535b6008af54621665738115346cde
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           ZAI_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
