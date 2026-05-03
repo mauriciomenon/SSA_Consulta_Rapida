@@ -120,14 +120,15 @@ def test_release_windows_smoke_uses_isolated_user_environment() -> None:
     assert 'set `"USERPROFILE=$userProfileDir`"' in smoke_body
     assert "set SSA_ 2^>nul" in smoke_body
     assert 'cd /d `"$smokeDir`"' in smoke_body
-    assert "-FilePath $env:ComSpec" in smoke_body
-    assert "-RedirectStandardInput $stdinPath" in smoke_body
+    assert "$startInfo = New-Object System.Diagnostics.ProcessStartInfo" in smoke_body
+    assert "$startInfo.FileName = $env:ComSpec" in smoke_body
+    assert '< `"$stdinPath`" > `"$stdoutPath`" 2> `"$stderrPath`"' in smoke_body
+    assert "$process = New-Object System.Diagnostics.Process" in smoke_body
+    assert "$process.StartInfo = $startInfo" in smoke_body
+    assert "$completed = $process.WaitForExit($smokeTimeoutSeconds * 1000)" in smoke_body
     assert "            -Wait" not in smoke_body
     assert "$smokeTimeoutSeconds = 60" in smoke_body
-    assert "while (-not $process.HasExited" in smoke_body
-    assert "[void]$process.WaitForExit()" in smoke_body
-    assert "ExitCode indisponivel" in smoke_body
-    assert "Stop-Process -Id $process.Id -Force" in smoke_body
+    assert "$process.Kill()" in smoke_body
     assert "Smoke CLI timeout para" in smoke_body
     assert "$stderrRaw = Get-Content -LiteralPath $stderrPath -Raw" in smoke_body
     assert "if ($null -ne $stderrRaw)" in smoke_body
