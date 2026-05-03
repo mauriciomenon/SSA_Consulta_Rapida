@@ -113,15 +113,16 @@ def test_release_windows_smoke_uses_isolated_user_environment() -> None:
         "function Write-BackendReleaseZips",
     )
 
-    assert "System.Diagnostics.ProcessStartInfo" in smoke_body
-    assert '$processInfo.WorkingDirectory = $smokeDir' in smoke_body
-    assert '$processInfo.EnvironmentVariables["APPDATA"] = $appDataDir' in smoke_body
-    assert '$processInfo.EnvironmentVariables["LOCALAPPDATA"] = $localAppDataDir' in smoke_body
-    assert '$processInfo.EnvironmentVariables["USERPROFILE"] = $userProfileDir' in smoke_body
-    assert 'Where-Object { $_ -like "SSA_*" }' in smoke_body
+    assert '$wrapperPath = Join-Path $smokeDir "smoke.cmd"' in smoke_body
+    assert 'set `"APPDATA=$appDataDir`"' in smoke_body
+    assert 'set `"LOCALAPPDATA=$localAppDataDir`"' in smoke_body
+    assert 'set `"USERPROFILE=$userProfileDir`"' in smoke_body
+    assert "set SSA_ 2^>nul" in smoke_body
+    assert 'cd /d `"$smokeDir`"' in smoke_body
+    assert "-FilePath $env:ComSpec" in smoke_body
+    assert "-RedirectStandardInput $stdinPath" in smoke_body
     assert 'DADOS CARREGADOS:\\s+[1-9][0-9.,]*\\s+SSAs' in smoke_body
     assert "Smoke CLI contaminado por dados locais" in smoke_body
-    assert "Start-Process" not in smoke_body
 
 
 def test_release_windows_script_exposes_backend_scorecard() -> None:
