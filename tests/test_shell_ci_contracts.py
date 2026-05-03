@@ -21,6 +21,7 @@ def test_key_shell_scripts_parse_with_available_bash() -> None:
         "scripts/shell_doctor.sh",
         "scripts/ci_quality_gates.sh",
         "scripts/run_tests.sh",
+        "scripts/security/scan_secrets.sh",
     ]
     for script in scripts:
         result = subprocess.run(
@@ -79,19 +80,64 @@ def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
     assert "git fetch origin ${{ github.base_ref }}" not in workflow
     assert "origin/${{ github.base_ref }}" not in workflow
     assert "BASE_REF: ${{ github.base_ref }}" in workflow
-    assert 'git fetch origin "$BASE_REF"' in workflow
+    assert 'bash scripts/security/scan_secrets.sh pr-diff "$BASE_REF"' in workflow
     assert 'git fetch origin "$BASE_REF" --depth=1' not in workflow
     assert 'git fetch origin "$BASE_REF" || true' not in workflow
-    assert 'git diff --unified=0 "origin/${BASE_REF}...HEAD"' in workflow
+    assert 'git diff --unified=0 "origin/${BASE_REF}...HEAD"' not in workflow
 
 
-def test_secret_scan_is_blocking_on_main_and_dev() -> None:
+def test_secret_scan_workspace_and_pr_diff_are_blocking_on_main_and_dev() -> None:
     workflow = _read_repo_text(".github", "workflows", "secret_scan.yml")
 
     assert "branches: [ main, dev ]" in workflow
     assert "continue-on-error: true" not in workflow
-    assert "echo '[ERROR] Sensitive patterns found'" in workflow
-    assert "echo '[ERROR] Possible secret in diff'" in workflow
+    assert "bash scripts/security/scan_secrets.sh workspace" in workflow
+    assert "bash scripts/security/scan_secrets.sh history" in workflow
+
+
+def test_secret_scan_script_blocks_workspace_matches(tmp_path: Path) -> None:
+    bash = shutil.which("bash")
+    assert bash is not None, "bash must be available for shell contract tests"
+
+    script = PROJECT_ROOT / "scripts" / "security" / "scan_secrets.sh"
+    clean_dir = tmp_path / "clean"
+    clean_dir.mkdir()
+    (clean_dir / "app.txt").write_text("no sensitive value here\n", encoding="utf-8")
+
+    clean_result = subprocess.run(
+        [bash, str(script), "workspace"],
+        cwd=clean_dir,
+        text=True,
+        capture_output=True,
+        check=False,
+        env={"SENSITIVE_PATTERN": "TEST_SECRET_[0-9][0-9][0-9][0-9]"},
+    )
+    assert clean_result.returncode == 0, clean_result.stderr
+
+    dirty_dir = tmp_path / "dirty"
+    dirty_dir.mkdir()
+    (dirty_dir / "app.txt").write_text("token=TEST_SECRET_1234\n", encoding="utf-8")
+
+    dirty_result = subprocess.run(
+        [bash, str(script), "workspace"],
+        cwd=dirty_dir,
+        text=True,
+        capture_output=True,
+        check=False,
+        env={"SENSITIVE_PATTERN": "TEST_SECRET_[0-9][0-9][0-9][0-9]"},
+    )
+    assert dirty_result.returncode == 1
+    assert "TEST_SECRET_1234" not in dirty_result.stdout
+    assert "TEST_SECRET_1234" not in dirty_result.stderr
+
+
+def test_secret_scan_script_uses_fetch_head_pr_diff_and_configurable_history() -> None:
+    script = _read_repo_text("scripts", "security", "scan_secrets.sh")
+
+    assert 'git fetch --no-tags origin "$base_ref"' in script
+    assert "git diff --unified=0 FETCH_HEAD...HEAD" in script
+    assert 'git diff --unified=0 "origin/${base_ref}...HEAD"' not in script
+    assert 'SECRET_SCAN_HISTORY_MAX_COUNT:-200' in script
 
 
 def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
