@@ -204,9 +204,17 @@ def test_secret_scan_script_valid_pattern_without_match_succeeds(tmp_path: Path)
 def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     workflow = _read_repo_text(".github", "workflows", "opencode.yml")
 
-    assert workflow.count("environment: SECRETS") == 3
+    assert "push:" in workflow
+    assert "pull_request:" in workflow
+    assert "opencode-pr-review:" in workflow
+    assert "opencode-push-review:" in workflow
+    assert workflow.count("environment: SECRETS") == 5
     assert "noop:" in workflow
     assert 'echo "No opencode command in comment; skipping."' in workflow
+    assert "Run automatic PR review" in workflow
+    assert "Run automatic push review" in workflow
+    assert "Review this pull request for concrete bugs" in workflow
+    assert "Review the pushed commit range for concrete bugs" in workflow
     assert "id-token: write" not in workflow
 
 
