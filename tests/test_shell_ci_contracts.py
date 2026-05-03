@@ -2,10 +2,17 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import os
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _test_env(**overrides: str) -> dict[str, str]:
+    env = os.environ.copy()
+    env.update(overrides)
+    return env
 
 
 def _read_repo_text(*parts: str) -> str:
@@ -89,7 +96,7 @@ def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
 def test_secret_scan_workspace_and_pr_diff_are_blocking_on_main_and_dev() -> None:
     workflow = _read_repo_text(".github", "workflows", "secret_scan.yml")
 
-    assert "branches: [ main, dev ]" in workflow
+    assert "branches: [main, dev]" in workflow
     assert "continue-on-error: true" not in workflow
     assert "bash scripts/security/scan_secrets.sh workspace" in workflow
     assert "bash scripts/security/scan_secrets.sh history" in workflow
@@ -110,7 +117,7 @@ def test_secret_scan_script_blocks_workspace_matches(tmp_path: Path) -> None:
         text=True,
         capture_output=True,
         check=False,
-        env={"SENSITIVE_PATTERN": "TEST_SECRET_[0-9][0-9][0-9][0-9]"},
+        env=_test_env(SENSITIVE_PATTERN="TEST_SECRET_[0-9][0-9][0-9][0-9]"),
     )
     assert clean_result.returncode == 0, clean_result.stderr
 
@@ -124,7 +131,7 @@ def test_secret_scan_script_blocks_workspace_matches(tmp_path: Path) -> None:
         text=True,
         capture_output=True,
         check=False,
-        env={"SENSITIVE_PATTERN": "TEST_SECRET_[0-9][0-9][0-9][0-9]"},
+        env=_test_env(SENSITIVE_PATTERN="TEST_SECRET_[0-9][0-9][0-9][0-9]"),
     )
     assert dirty_result.returncode == 1
     assert "TEST_SECRET_1234" not in dirty_result.stdout
@@ -136,8 +143,32 @@ def test_secret_scan_script_uses_fetch_head_pr_diff_and_configurable_history() -
 
     assert 'git fetch --no-tags origin "$base_ref"' in script
     assert "git diff --unified=0 FETCH_HEAD...HEAD" in script
+    assert '>"$added_lines"' in script
+    assert 'grep -E -q "$SENSITIVE_PATTERN" "$added_lines"' in script
+    assert 'trap \'rm -f "${added_lines:-}"\' RETURN' in script
+    assert "trap - RETURN" in script
     assert 'git diff --unified=0 "origin/${base_ref}...HEAD"' not in script
     assert 'SECRET_SCAN_HISTORY_MAX_COUNT:-200' in script
+
+
+def test_secret_scan_script_valid_pattern_without_match_succeeds(tmp_path: Path) -> None:
+    bash = shutil.which("bash")
+    assert bash is not None, "bash must be available for shell contract tests"
+
+    script = PROJECT_ROOT / "scripts" / "security" / "scan_secrets.sh"
+    (tmp_path / "clean.txt").write_text("nothing to report\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [bash, str(script), "workspace"],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=_test_env(SENSITIVE_PATTERN="TEST_SECRET_[0-9][0-9][0-9][0-9]"),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "[OK] No sensitive patterns detected" in result.stdout
 
 
 def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
@@ -153,6 +184,8 @@ def test_codeql_precheck_runs_advanced_when_default_setup_is_unverified() -> Non
     assert 'RUN_ADVANCED="true"' in workflow
     assert 'REASON="advanced_allowed_default_setup_unverified"' in workflow
     assert "Could not verify CodeQL default setup state: HTTP ${HTTP_CODE}; running advanced scan." in workflow
+    assert 'HTTP_CODE="000"' in workflow
+    assert 'Unsupported CodeQL default setup state: ${STATE}; running advanced scan.' in workflow
     assert 'REASON="advanced_allowed_default_setup_unverified_http_${HTTP_CODE}"' in workflow
     assert 'echo "Could not verify CodeQL default setup state: HTTP ${HTTP_CODE}" >&2\n            exit 1' not in workflow
     assert "default-setup-skip-note:" in workflow
