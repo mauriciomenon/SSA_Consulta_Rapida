@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import argparse
 import json
 from pathlib import Path
 
@@ -264,6 +265,37 @@ def test_release_debian_report_asset_payload_errors_include_path(
 
     with pytest.raises(REPORT_MODULE.ReleaseReportError, match="package.deb"):
         REPORT_MODULE._asset_payload(asset)
+
+
+def test_release_debian_report_filters_stale_assets_from_other_backends(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    package_dir = tmp_path / "builds" / "packages" / "debian_amd64"
+    package_dir.mkdir(parents=True)
+    current = package_dir / "SSA_Consulta_Rapida_v4.37_debian_amd64_nuitka_cli.tar.gz"
+    stale = package_dir / "SSA_Consulta_Rapida_v4.37_debian_amd64_pyoxidizer.tar.gz"
+    current.write_bytes(b"current")
+    stale.write_bytes(b"stale")
+
+    monkeypatch.setattr(REPORT_MODULE, "_sha256", lambda _path: "0" * 64)
+    report_file = tmp_path / "report.json"
+
+    result = REPORT_MODULE.write_report(
+        argparse.Namespace(
+            repo_root=tmp_path,
+            report_file=report_file,
+            platform="debian_amd64",
+            backends="nuitka",
+            packages="tar",
+            app_version="4.37",
+            git_commit="abc",
+        )
+    )
+
+    payload = json.loads(report_file.read_text(encoding="utf-8"))
+    assert result == 0
+    assert [asset["name"] for asset in payload["assets"]] == [current.name]
 
 
 def test_release_debian_tests_use_guarded_string_positions() -> None:
