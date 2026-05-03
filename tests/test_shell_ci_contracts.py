@@ -215,6 +215,8 @@ def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     assert "Run automatic push review" in workflow
     assert "Review this pull request for concrete bugs" in workflow
     assert "Review the pushed commit range for concrete bugs" in workflow
+    assert workflow.count("uses: ./.github/actions/configure-qwen-opencode") == 3
+    assert workflow.count("qwen-cloud-coding-plan") == 3
     assert "id-token: write" not in workflow
 
 

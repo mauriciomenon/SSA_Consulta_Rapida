@@ -76,46 +76,9 @@ jobs:
           persist-credentials: false
 
       - name: Configure Qwen provider
+        uses: ./.github/actions/configure-qwen-opencode
         env:
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
-        run: |
-          set -euo pipefail
-          mkdir -p "${HOME}/.config/opencode"
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          api_key = os.environ["QWEN_API_KEY"]
-          config = {
-              "$schema": "https://opencode.ai/config.json",
-              "provider": {
-                  "qwen-cloud-coding-plan": {
-                      "npm": "@ai-sdk/anthropic",
-                      "name": "Qwen Cloud Coding Plan",
-                      "options": {
-                          "baseURL": "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic/v1",
-                          "apiKey": api_key,
-                      },
-                      "models": {
-                          "qwen3-coder-plus": {
-                              "name": "Qwen3 Coder Plus",
-                              "modalities": {
-                                  "input": ["text"],
-                                  "output": ["text"],
-                              },
-                              "limit": {
-                                  "context": 1000000,
-                                  "output": 65536,
-                              },
-                          },
-                      },
-                  },
-              },
-          }
-          target = Path.home() / ".config" / "opencode" / "opencode.json"
-          target.write_text(json.dumps(config, indent=2), encoding="utf-8")
-          PY
 
       - name: Run automatic PR review
         uses: anomalyco/opencode/github@80f1f1b5b8535b6008af54621665738115346cde
@@ -148,46 +111,9 @@ jobs:
           persist-credentials: false
 
       - name: Configure Qwen provider
+        uses: ./.github/actions/configure-qwen-opencode
         env:
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
-        run: |
-          set -euo pipefail
-          mkdir -p "${HOME}/.config/opencode"
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          api_key = os.environ["QWEN_API_KEY"]
-          config = {
-              "$schema": "https://opencode.ai/config.json",
-              "provider": {
-                  "qwen-cloud-coding-plan": {
-                      "npm": "@ai-sdk/anthropic",
-                      "name": "Qwen Cloud Coding Plan",
-                      "options": {
-                          "baseURL": "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic/v1",
-                          "apiKey": api_key,
-                      },
-                      "models": {
-                          "qwen3-coder-plus": {
-                              "name": "Qwen3 Coder Plus",
-                              "modalities": {
-                                  "input": ["text"],
-                                  "output": ["text"],
-                              },
-                              "limit": {
-                                  "context": 1000000,
-                                  "output": 65536,
-                              },
-                          },
-                      },
-                  },
-              },
-          }
-          target = Path.home() / ".config" / "opencode" / "opencode.json"
-          target.write_text(json.dumps(config, indent=2), encoding="utf-8")
-          PY
 
       - name: Run automatic push review
         uses: anomalyco/opencode/github@80f1f1b5b8535b6008af54621665738115346cde
@@ -301,47 +227,9 @@ jobs:
           persist-credentials: false
 
       - name: Configure Qwen provider
+        uses: ./.github/actions/configure-qwen-opencode
         env:
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
-        run: |
-          set -euo pipefail
-          mkdir -p "${HOME}/.config/opencode"
-          # Qwen Coding Plan is exposed through an Anthropic-compatible adapter.
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          api_key = os.environ["QWEN_API_KEY"]
-          config = {
-              "$schema": "https://opencode.ai/config.json",
-              "provider": {
-                  "qwen-cloud-coding-plan": {
-                      "npm": "@ai-sdk/anthropic",
-                      "name": "Qwen Cloud Coding Plan",
-                      "options": {
-                          "baseURL": "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic/v1",
-                          "apiKey": api_key,
-                      },
-                      "models": {
-                          "qwen3-coder-plus": {
-                              "name": "Qwen3 Coder Plus",
-                              "modalities": {
-                                  "input": ["text"],
-                                  "output": ["text"],
-                              },
-                              "limit": {
-                                  "context": 1000000,
-                                  "output": 65536,
-                              },
-                          },
-                      },
-                  },
-              },
-          }
-          target = Path.home() / ".config" / "opencode" / "opencode.json"
-          target.write_text(json.dumps(config, indent=2), encoding="utf-8")
-          PY
 
       - name: Run opencode with Qwen
         uses: anomalyco/opencode/github@80f1f1b5b8535b6008af54621665738115346cde
