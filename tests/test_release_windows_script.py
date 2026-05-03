@@ -95,6 +95,8 @@ def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
     assert "build_info.json" in script
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in script
     assert "Get-FileHash" in script
+    assert "[System.Security.Cryptography.SHA256]::Create()" in script
+    assert "ComputeHash($stream)" in script
     assert "functional_cli_check" in script
     assert "gui_version_check" in script
     assert "Assert-SourceProtection" in script
