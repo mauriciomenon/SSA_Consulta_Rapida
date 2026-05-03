@@ -122,6 +122,11 @@ def test_release_windows_smoke_uses_isolated_user_environment() -> None:
     assert 'cd /d `"$smokeDir`"' in smoke_body
     assert "-FilePath $env:ComSpec" in smoke_body
     assert "-RedirectStandardInput $stdinPath" in smoke_body
+    assert "            -Wait" not in smoke_body
+    assert "$smokeTimeoutSeconds = 60" in smoke_body
+    assert "while (-not $process.HasExited" in smoke_body
+    assert "Stop-Process -Id $process.Id -Force" in smoke_body
+    assert "Smoke CLI timeout para" in smoke_body
     assert "$stderrRaw = Get-Content -LiteralPath $stderrPath -Raw" in smoke_body
     assert "if ($null -ne $stderrRaw)" in smoke_body
     assert "$stdoutRaw = Get-Content -LiteralPath $stdoutPath -Raw" in smoke_body

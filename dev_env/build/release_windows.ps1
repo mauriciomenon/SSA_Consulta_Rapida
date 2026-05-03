@@ -409,8 +409,26 @@ function Invoke-Smoke {
             -RedirectStandardOutput $stdoutPath `
             -RedirectStandardError $stderrPath `
             -NoNewWindow `
-            -Wait `
             -PassThru
+        $smokeTimeoutSeconds = 60
+        $deadline = (Get-Date).AddSeconds($smokeTimeoutSeconds)
+        while (-not $process.HasExited -and (Get-Date) -lt $deadline) {
+            Start-Sleep -Milliseconds 200
+            $process.Refresh()
+        }
+        $timedOut = -not $process.HasExited
+        if ($timedOut) {
+            if (-not $process.HasExited) {
+                Stop-Process -Id $process.Id -Force
+                [void]$process.WaitForExit(10000)
+            }
+            $process.Refresh()
+        }
+        $exitCode = 1
+        if (-not $timedOut) {
+            $process.Refresh()
+            $exitCode = $process.ExitCode
+        }
         $stderrText = ""
         if (Test-Path $stderrPath) {
             $stderrRaw = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
@@ -418,8 +436,11 @@ function Invoke-Smoke {
                 $stderrText = $stderrRaw.Trim()
             }
         }
-        if ($process.ExitCode -ne 0) {
-            throw "Smoke CLI falhou para ${BackendName}. ExitCode=$($process.ExitCode). $stderrText"
+        if ($timedOut) {
+            throw "Smoke CLI timeout para ${BackendName} depois de ${smokeTimeoutSeconds}s. $stderrText"
+        }
+        if ($exitCode -ne 0) {
+            throw "Smoke CLI falhou para ${BackendName}. ExitCode=${exitCode}. $stderrText"
         }
         if (Test-Path $stdoutPath) {
             $stdoutRaw = Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue
