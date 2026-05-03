@@ -12,6 +12,7 @@ on:
 permissions:
   actions: read
   contents: read
+  security-events: read
 
 jobs:
   precheck-default-setup:
@@ -49,10 +50,14 @@ jobs:
               RUN_ADVANCED="true"
               REASON="advanced_allowed"
             else
-              echo "Unsupported CodeQL default setup state: ${STATE}" >&2
-              exit 1
+              echo "Unsupported CodeQL default setup state: ${STATE}; running advanced scan." >&2
+              SAFE_STATE="$(printf '%s' "${STATE}" | tr -c 'A-Za-z0-9_-' '_')"
+              REASON="advanced_allowed_default_setup_unknown_state_${SAFE_STATE}"
             fi
           else
+            if [ -z "${HTTP_CODE}" ]; then
+              HTTP_CODE="000"
+            fi
             echo "Could not verify CodeQL default setup state: HTTP ${HTTP_CODE}; running advanced scan." >&2
             REASON="advanced_allowed_default_setup_unverified_http_${HTTP_CODE}"
           fi

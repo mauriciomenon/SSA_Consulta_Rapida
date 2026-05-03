@@ -45,6 +45,7 @@ validate_pattern() {
     echo '[ERROR] Invalid sensitive pattern' >&2
     return "$status"
   fi
+  return 0
 }
 
 append_grep_excludes() {
@@ -82,7 +83,7 @@ scan_workspace() {
   if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     git grep -I -E -l "$SENSITIVE_PATTERN" "${pathspec_args[@]}"
   else
-    grep -R -E -l "$SENSITIVE_PATTERN" . "${grep_args[@]}"
+    grep -R -E -l "${grep_args[@]}" "$SENSITIVE_PATTERN" .
   fi
   status=$?
   set -e
@@ -114,15 +115,24 @@ scan_pr_diff() {
   local pathspec_args=(-- .)
   append_git_pathspec_excludes
 
-  if git diff --unified=0 FETCH_HEAD...HEAD "${pathspec_args[@]}" \
+  local added_lines
+  added_lines="$(mktemp)"
+  trap 'rm -f "${added_lines:-}"' RETURN
+  git diff --unified=0 FETCH_HEAD...HEAD "${pathspec_args[@]}" \
     | awk '/^\+\+\+ (b\/|\/dev\/null)/ { next } /^\+/ { sub(/^\+/, ""); print }' \
-    | grep -E -q "$SENSITIVE_PATTERN"; then
+    >"$added_lines"
+
+  if grep -E -q "$SENSITIVE_PATTERN" "$added_lines"; then
     echo '[ERROR] Possible secret in diff'
     echo '[INFO] Changed files in scanned diff:'
     git diff --name-only FETCH_HEAD...HEAD "${pathspec_args[@]}" | sed 's/^/[INFO] /'
+    rm -f "$added_lines"
+    trap - RETURN
     return 1
   fi
 
+  rm -f "$added_lines"
+  trap - RETURN
   echo '[OK] No sensitive patterns in diff'
 }
 

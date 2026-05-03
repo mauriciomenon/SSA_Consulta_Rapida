@@ -76,3 +76,10 @@
 - Focused substitute: `uvx pre-commit run gitleaks --files .secrets.baseline` passed.
 - Focused substitute: `gitleaks detect --config .gitleaks.toml --no-git --source .secrets.baseline --redact --exit-code 1` passed.
 - Focused substitute: `trufflehog filesystem .gitleaks.toml .secrets.baseline docs/RECOVERY_BACKLOG.md --no-update --no-verification --results=verified,unknown --json` found 0 verified or unknown secrets.
+
+## 2026-05-03T17:40:00-03:00 PR58 CI security follow-up slice
+
+- Scope: CodeQL precheck fail-open behavior, secret scan script robustness, and detect-secrets baseline path portability.
+- Kluster MCP auto review: `kluster_code_review_auto` failed with `Transport closed`.
+- Kluster CLI fallback: `C:\Users\mauri\.pnpm\bin\pnpm.CMD dlx kluster-verify --help` failed with `ERR_PNPM_FETCH_404` for `https://registry.npmjs.org/kluster-verify`.
+- Status: external Kluster verification blocked by environment/tool availability; classic validation still required before commit.
