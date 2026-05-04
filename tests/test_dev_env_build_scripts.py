@@ -78,7 +78,8 @@ def test_pyoxidizer_debian_uses_root_config_kept_in_sync() -> None:
         assert '--path "${REPO_ROOT}"' in script
         assert 'BUILD_INFO_FILE="${REPO_ROOT}/config/build_info.json"' in script
         assert "cleanup_build_info" in script
-        assert 'BUILD_INFO_BACKUP_CANDIDATE="${BUILD_INFO_FILE}.$$.$RANDOM.bak"' in script
+        assert 'BUILD_INFO_BACKUP_CANDIDATE="$(mktemp "${BUILD_INFO_FILE}.XXXXXX")"' in script
+        assert 'rm -f "${BUILD_INFO_BACKUP_CANDIDATE}"' in script
         assert 'BUILD_INFO_BACKUP="${BUILD_INFO_BACKUP_CANDIDATE}"' in script
         assert "write_build_info.py" in script
         assert "--build-system pyoxidizer" in script

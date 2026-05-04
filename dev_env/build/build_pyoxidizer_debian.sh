@@ -42,8 +42,12 @@ fi
 BUILD_INFO_FILE="${REPO_ROOT}/config/build_info.json"
 BUILD_INFO_BACKUP=""
 if [[ -f "${BUILD_INFO_FILE}" ]]; then
-  BUILD_INFO_BACKUP_CANDIDATE="${BUILD_INFO_FILE}.$$.$RANDOM.bak"
-  cp -p "${BUILD_INFO_FILE}" "${BUILD_INFO_BACKUP_CANDIDATE}"
+  BUILD_INFO_BACKUP_CANDIDATE="$(mktemp "${BUILD_INFO_FILE}.XXXXXX")"
+  if ! cp -p "${BUILD_INFO_FILE}" "${BUILD_INFO_BACKUP_CANDIDATE}"; then
+    rm -f "${BUILD_INFO_BACKUP_CANDIDATE}"
+    echo "Erro: falha ao criar backup temporario de ${BUILD_INFO_FILE}" >&2
+    exit 1
+  fi
   BUILD_INFO_BACKUP="${BUILD_INFO_BACKUP_CANDIDATE}"
 fi
 
