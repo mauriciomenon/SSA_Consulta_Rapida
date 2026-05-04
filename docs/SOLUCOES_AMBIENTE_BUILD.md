@@ -1,10 +1,11 @@
 # Solucoes para Problemas de Ambiente - Build Systems
 
-## CURRENT TRUTH 2026-05-02 00h01
+## CURRENT TRUTH 2026-05-04 01h14
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- PR atual: #57, aberto em draft, `dev` -> `main`.
+- PR #58: merged; `main`, `dev`, `origin/main` e `origin/dev` estao sincronizados em `8298036fff754b246bd2cdd3edc1db969b35a449`.
 - Este documento registra solucoes de ambiente; nao deve duplicar a matriz completa de release.
+- Proximo passo operacional: rebuildar artefatos v4.37 no Windows AMD64 e Debian AMD64 a partir do HEAD sincronizado.
 
 ## HISTORICAL SNAPSHOT 2025-11-14
 
