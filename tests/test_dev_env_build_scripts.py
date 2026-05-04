@@ -78,7 +78,9 @@ def test_pyoxidizer_debian_uses_root_config_kept_in_sync() -> None:
         assert '--path "${REPO_ROOT}"' in script
         assert 'BUILD_INFO_FILE="${REPO_ROOT}/config/build_info.json"' in script
         assert "cleanup_build_info" in script
-        assert f'"pyoxidizer" "{platform}"' in script
+        assert "write_build_info.py" in script
+        assert "--build-system pyoxidizer" in script
+        assert f"--platform {platform}" in script
 
 
 def test_nuitka_debian_serializes_patchelf_install() -> None:
@@ -107,6 +109,7 @@ def test_nuitka_debian_uses_platform_venv_and_requirements() -> None:
         assert 'uv venv --python 3.13 "${VENV_DIR}"' in script
         assert 'uv pip install --python "${PYTHON_EXE}" -r "${REQUIREMENTS_FILE}"' in script
         assert '"${PYTHON_EXE}" -m nuitka' in script
+        assert "write_build_info.py" in script
         assert '--include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md' in script
         assert script.count('--include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md') >= 2
         assert '--include-data-file="${BUILD_INFO_FILE}=config/build_info.json"' in script
@@ -127,8 +130,9 @@ def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> No
 
     assert "--include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md" in nuitka_script
     assert "--include-data-file=%BUILD_INFO_FILE%=config/build_info.json" in nuitka_script
-    assert "--format=%%cI" in nuitka_script
-    assert "--format=%%s" in nuitka_script
+    assert "write_build_info.py" in nuitka_script
+    assert "--build-system nuitka" in nuitka_script
+    assert "--platform windows_amd64" in nuitka_script
     assert 'set "MSVC_LINK="' in pyoxidizer_script
     assert "if not defined MSVC_LINK" in pyoxidizer_script
     assert "where link.exe" in pyoxidizer_script
@@ -145,9 +149,10 @@ def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> No
     assert '--set-version-string "ProductName" "SSA Consulta Rapida"' in pyoxidizer_script
     assert r"config\version.json" in pyoxidizer_script
     assert "build_info.json" in pyoxidizer_script
+    assert "write_build_info.py" in pyoxidizer_script
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in pyoxidizer_script
-    assert "--format=%%cI" in pyoxidizer_script
-    assert "--format=%%s" in pyoxidizer_script
+    assert "--build-system pyoxidizer" in pyoxidizer_script
+    assert "--platform windows_amd64" in pyoxidizer_script
 
 
 def test_pyoxidizer_debian_runtime_includes_version_json() -> None:

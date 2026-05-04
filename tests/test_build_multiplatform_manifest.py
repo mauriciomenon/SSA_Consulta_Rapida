@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from launchers.build_multiplatform import MultiPlatformBuilder
+from dev_env.build import write_build_info
 
 
 def test_command_stdout_logs_metadata_command_failure(monkeypatch):
@@ -32,6 +33,76 @@ def test_command_stdout_logs_metadata_command_failure(monkeypatch):
     assert warnings
     assert "Metadata command failed" in warnings[0][0]
     assert "stderr detail" in "".join(str(item) for item in warnings[0])
+
+
+def test_build_info_payload_includes_toolchain_versions(monkeypatch):
+    builder = MultiPlatformBuilder()
+
+    outputs: dict[tuple[str, ...], str] = {
+        ("git", "rev-parse", "HEAD"): "abcdef123456",
+        ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
+        ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
+        ("uv", "--version"): "uv 0.9.18",
+        ("cc", "--version"): "gcc 14.2.0",
+        ("rustc", "--version"): "rustc 1.90.0",
+    }
+
+    def fake_run(cmd, cwd, require_success):  # noqa: ANN001, ARG001
+        return outputs.get(tuple(str(item) for item in cmd), "")
+
+    monkeypatch.setattr(write_build_info, "_run_output", fake_run)
+
+    payload = builder._build_info_payload("pyinstaller", "windows_amd64")
+
+    assert payload["c_compiler_version"] == "gcc 14.2.0"
+    assert payload["rustc_version"] == "rustc 1.90.0"
+
+
+def test_build_info_payload_uses_msvc_environment_fallback(monkeypatch):
+    builder = MultiPlatformBuilder()
+    outputs: dict[tuple[str, ...], str] = {
+        ("git", "rev-parse", "HEAD"): "abcdef123456",
+        ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
+        ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
+        ("uv", "--version"): "uv 0.9.18",
+        ("rustc", "--version"): "rustc 1.90.0",
+    }
+
+    def fake_run(cmd, cwd, require_success):  # noqa: ANN001, ARG001
+        return outputs.get(tuple(str(item) for item in cmd), "")
+
+    monkeypatch.setattr(write_build_info, "_run_output", fake_run)
+    monkeypatch.setenv("VCToolsVersion", "14.44.35207")
+
+    payload = builder._build_info_payload("pyinstaller", "windows_amd64")
+
+    assert payload["c_compiler_version"] == "MSVC 14.44.35207"
+
+
+def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_path):
+    outputs = {
+        ("git", "rev-parse", "HEAD"): "abcdef123456",
+        ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
+        ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
+        ("uv", "--version"): "uv 0.9.18",
+        ("cc", "--version"): "gcc 14.2.0",
+        ("rustc", "--version"): "rustc 1.90.0",
+    }
+
+    def fake_run(args, cwd, require_success):  # noqa: ANN001, FBT001
+        return outputs.get(tuple(args), "")
+
+    monkeypatch.setattr(write_build_info, "_run_output", fake_run)
+
+    payload = write_build_info.build_payload(
+        tmp_path,
+        "nuitka",
+        "debian_amd64",
+        "4.37",
+    )
+
+    assert payload["c_compiler_version"] == "gcc 14.2.0"
+    assert payload["rustc_version"] == "rustc 1.90.0"
 
 
 def test_upx_contract_uses_system_binary_not_python_package():
