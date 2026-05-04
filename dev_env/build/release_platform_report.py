@@ -408,24 +408,26 @@ def write_report(args: argparse.Namespace) -> int:
     packages = _split_csv(args.packages)
     package_dir = args.repo_root / "builds" / "packages" / args.platform
     assets = []
-    if package_dir.is_dir():
-        asset_suffixes = _asset_suffixes_for_packages(packages)
-        expected_asset_names = _expected_asset_names(
-            args.platform,
-            backends,
-            packages,
-            args.app_version,
-        )
-        asset_paths = [
-            path
-            for path in sorted(package_dir.iterdir())
-            if path.is_file() and path.name.lower().endswith(asset_suffixes)
-            and (expected_asset_names is None or path.name in expected_asset_names)
-        ]
-        if asset_paths:
-            workers = min(4, len(asset_paths))
-            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-                assets = list(executor.map(_asset_payload, asset_paths))
+    if not package_dir.is_dir():
+        raise ReleaseReportError(f"diretorio de pacotes ausente: {package_dir}")
+
+    asset_suffixes = _asset_suffixes_for_packages(packages)
+    expected_asset_names = _expected_asset_names(
+        args.platform,
+        backends,
+        packages,
+        args.app_version,
+    )
+    asset_paths = [
+        path
+        for path in sorted(package_dir.iterdir())
+        if path.is_file() and path.name.lower().endswith(asset_suffixes)
+        and (expected_asset_names is None or path.name in expected_asset_names)
+    ]
+    if asset_paths:
+        workers = min(4, len(asset_paths))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            assets = list(executor.map(_asset_payload, asset_paths))
 
     scorecards = _load_scorecards()
     unknown_backends = [backend for backend in backends if backend not in scorecards]

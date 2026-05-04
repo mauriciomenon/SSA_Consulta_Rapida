@@ -32,9 +32,23 @@ def _resolve_runtime_home() -> Path:
     return runtime_dir
 
 
+def _resolve_executable_path() -> Path:
+    executable = str(getattr(sys, "executable", "") or "").strip()
+    if executable:
+        return Path(executable).resolve()
+    return Path(__file__).resolve()
+
+
+def _resolve_bundle_root() -> Path:
+    meipass = str(getattr(sys, "_MEIPASS", "") or "").strip()
+    if meipass:
+        return Path(meipass).resolve()
+    return _resolve_executable_path().parent
+
+
 def _find_bundled_dir(app_dir: str, folder_name: str) -> Path | None:
     """Localiza pasta embutida em layouts de empacotamento comuns."""
-    exe_path = Path(sys.executable).resolve()
+    exe_path = _resolve_executable_path()
     app_path = Path(app_dir)
     candidates = [
         app_path / folder_name,
@@ -144,7 +158,7 @@ def _prepare_frozen_runtime(app_dir: str) -> Path:
 
 
 # Adicionar diretorio raiz ao path CORRETAMENTE
-exe_path = Path(sys.executable)
+exe_path = _resolve_executable_path()
 is_frozen_runtime = bool(
     getattr(sys, "frozen", False)
     or getattr(sys, "oxidized", False)
@@ -154,11 +168,7 @@ is_frozen_runtime = bool(
 )
 if is_frozen_runtime:
     # Executavel empacotado - buscar na raiz dos dados empacotados.
-    if hasattr(sys, "_MEIPASS"):
-        # PyInstaller - usar diretorio do executavel, NAO _MEIPASS (pasta temporaria)
-        app_dir = os.path.dirname(os.path.abspath(sys.executable))
-    else:
-        app_dir = os.path.dirname(os.path.abspath(sys.executable))
+    app_dir = str(_resolve_bundle_root())
     _prepare_frozen_runtime(app_dir)
 else:
     # Script Python normal

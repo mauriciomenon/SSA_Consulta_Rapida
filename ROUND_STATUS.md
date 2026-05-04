@@ -93,3 +93,13 @@
 - Kluster CLI fallback: `C:\Users\mauri\.pnpm\bin\pnpm.CMD dlx kluster-verify --help` failed with `ERR_PNPM_FETCH_404` for `https://registry.npmjs.org/kluster-verify`.
 - Local config evidence: `C:\Users\mauri\.config\opencode\opencode.json` points to MCP package `@klusterai/kluster-verify-code-mcp@latest` with `--server=https://api.kluster.ai`, not to a standalone `kluster-verify` CLI package.
 - Status: external Kluster verification blocked by MCP transport failure; classic validation remains mandatory before commit.
+
+## 2026-05-03T22:31:00-03:00 PR58 launcher and secret scan follow-up slice
+
+- Scope: launcher bundle-root handling, runtime test environment cleanup, secret scan fallback/preflight, and Debian release report missing package-dir contract.
+- Kluster MCP auto review attempt 1: `kluster_code_review_auto` failed with `Transport closed`.
+- Kluster MCP auto review attempt 2: `kluster_code_review_auto` failed with `Transport closed`.
+- Kluster MCP auto review attempt 3: `kluster_code_review_auto` failed with `Transport closed`.
+- Kluster MCP auto review attempt 4: `kluster_code_review_auto` failed with `Transport closed`.
+- Kluster MCP auto review attempt 5: `kluster_code_review_auto` failed with `Transport closed`.
+- Status: external Kluster MCP remains blocked by transport failure; commit/push hooks and classic validation remain mandatory before commit.

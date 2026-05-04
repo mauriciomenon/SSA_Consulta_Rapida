@@ -184,6 +184,10 @@ def test_secret_scan_script_blocks_untracked_git_workspace_matches(tmp_path: Pat
 def test_secret_scan_script_uses_fetch_head_pr_diff_and_configurable_history() -> None:
     script = _read_repo_text("scripts", "security", "scan_secrets.sh")
 
+    assert "require_commands" in script
+    assert "for command in git grep awk mktemp" in script
+    assert "grep -R" not in script
+    assert "grep -r" in script
     assert 'git cat-file -e "${diff_base}^{commit}"' in script
     assert 'git fetch --no-tags --depth=1 origin "$base_ref"' in script
     assert 'diff_base="FETCH_HEAD"' in script
