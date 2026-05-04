@@ -1,0 +1,31 @@
+gui/workers/rescan_worker.py
+  082d1ff7d55d96ca 361-363,365,370-372,374,380,547-554
+tests/test_rescan_worker_advanced.py
+  082d1ff7d55d96ca 623-627,653-657,686,723
+tests/test_rescan_worker_cleanup.py
+  082d1ff7d55d96ca 58-77
+tests/test_import_run_report.py
+  082d1ff7d55d96ca 1449-1467
+core/app_logic.py
+  082d1ff7d55d96ca 1346-1363,2222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "92692ee508a8578fa0c83fcf4ac762151ab85382",
+  "prompts": {
+    "082d1ff7d55d96ca": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 174,
+      "total_deletions": 19,
+      "accepted_lines": 174,
+      "overriden_lines": 0
+    }
+  }
+}
