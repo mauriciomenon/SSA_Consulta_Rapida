@@ -5,6 +5,11 @@
 - Versao de referencia: `4.37`.
 - Esta pagina e a entrada curta da pasta `docs/`.
 - Navegacao oficial: `docs/INDEX.md`.
+- Current truth operacional 2026-05-04 01h14:
+  - `main`, `dev`, `origin/main` e `origin/dev` sincronizados em `8298036fff754b246bd2cdd3edc1db969b35a449`
+  - PR #58 merged
+  - artefatos v4.37 anteriores a este HEAD seguem stale
+  - proximo passo: rebuild Windows AMD64 e Debian AMD64 antes de atualizar release v4.37
 - Current truth sincronizado com commits anteriores desta frente:
   - `tests/test_gui_filter_logic.py` deixou de depender de globais compartilhados entre testes para aposentadoria/limpeza de workers
   - o harness agora tira snapshot e restaura o estado global de lifecycle em `setup_method`/`teardown_method`
