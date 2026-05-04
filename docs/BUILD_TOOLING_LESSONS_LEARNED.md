@@ -1,9 +1,9 @@
 # Build Tooling Lessons Learned (PyInstaller/Nuitka/PyOxidizer)
 
-## CURRENT TRUTH 2026-05-02 00h01
+## CURRENT TRUTH 2026-05-04 01h14
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- PR atual: #57, aberto em draft, `dev` -> `main`.
+- PR #58: merged; `main`, `dev`, `origin/main` e `origin/dev` devem seguir sincronizados apos o PR de DOC_SYNC/CI.
 - Este documento registra aprendizados; nao deve duplicar a matriz completa de release.
 
 ## HISTORICAL SNAPSHOT (4.37 local / v4.36 published)
@@ -157,4 +157,3 @@
   - seed inicial nao deve sobrescrever customizacao local do usuario.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-
