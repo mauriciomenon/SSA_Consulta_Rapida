@@ -194,6 +194,7 @@ def test_secret_scan_script_uses_fetch_head_pr_diff_and_configurable_history() -
     assert 'git diff --unified=0 "${diff_base}...HEAD"' in script
     assert 'git grep --untracked -I -E -l -e "$SENSITIVE_PATTERN"' in script
     assert '>"$added_lines"' in script
+    assert 'if ! added_lines="$(mktemp)"; then' in script
     assert 'if ! git diff --unified=0 "${diff_base}...HEAD"' in script
     assert 'grep -E -q -- "$SENSITIVE_PATTERN" "$added_lines"' in script
     assert "PR diff scan failed" in script
@@ -273,6 +274,9 @@ def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     assert "curl -fsSL https://opencode.ai/install | bash" not in local_action
     assert "releases/latest" not in local_action
     assert "id-token: write" not in workflow
+    qwen_action = _read_repo_text(".github", "actions", "configure-qwen-opencode", "action.yml")
+    assert "umask 077" in qwen_action
+    assert 'chmod 600 "${HOME}/.config/opencode/opencode.json"' in qwen_action
 
 
 def test_opencode_review_script_extracts_pr_number() -> None:

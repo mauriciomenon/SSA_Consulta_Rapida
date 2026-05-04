@@ -10,6 +10,7 @@ runs:
         QWEN_API_KEY: ${{ env.QWEN_API_KEY }}
       run: |
         set -euo pipefail
+        umask 077
         mkdir -p "${HOME}/.config/opencode"
         python - <<'PY'
         import json
@@ -46,3 +47,4 @@ runs:
         target = Path.home() / ".config" / "opencode" / "opencode.json"
         target.write_text(json.dumps(config, indent=2), encoding="utf-8")
         PY
+        chmod 600 "${HOME}/.config/opencode/opencode.json"

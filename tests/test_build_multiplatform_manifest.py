@@ -107,6 +107,50 @@ def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_p
     assert payload["rustc_version"] == "rustc 1.90.0"
 
 
+def test_write_build_info_logs_required_metadata_command_failure(
+    capsys,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    def fake_run(*_args, **_kwargs):
+        return subprocess.CompletedProcess(
+            ["git", "rev-parse", "HEAD"],
+            returncode=128,
+            stdout="",
+            stderr="not a git repo",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert write_build_info._run_output(
+        ["git", "rev-parse", "HEAD"],
+        tmp_path,
+        require_success=True,
+    ) == ""
+    assert "Metadata command failed" in capsys.readouterr().err
+
+
+def test_write_build_info_ignores_optional_command_stderr_on_failure(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    def fake_run(*_args, **_kwargs):
+        return subprocess.CompletedProcess(
+            ["cc", "--version"],
+            returncode=1,
+            stdout="",
+            stderr="compiler error detail",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert write_build_info._run_output(
+        ["cc", "--version"],
+        tmp_path,
+        require_success=False,
+    ) == ""
+
+
 def test_write_build_info_main_reports_output_write_errors(
     capsys,
     monkeypatch,
@@ -139,6 +183,35 @@ def test_write_build_info_main_reports_output_write_errors(
 
     assert write_build_info.main() == 1
     assert "Failed to write build info" in capsys.readouterr().err
+
+
+def test_write_build_info_main_writes_valid_json(monkeypatch, tmp_path) -> None:
+    output = tmp_path / "build_info.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "write_build_info.py",
+            "--repo-root",
+            str(tmp_path),
+            "--output",
+            str(output),
+            "--build-system",
+            "nuitka",
+            "--platform",
+            "debian_amd64",
+            "--app-version",
+            "4.37",
+        ],
+    )
+    monkeypatch.setattr(
+        write_build_info,
+        "build_payload",
+        lambda *_args: {"app_version": "4.37"},
+    )
+
+    assert write_build_info.main() == 0
+    assert json.loads(output.read_text(encoding="utf-8")) == {"app_version": "4.37"}
 
 
 def test_pyinstaller_build_info_write_logs_before_raising(monkeypatch) -> None:

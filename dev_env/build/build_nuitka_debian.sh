@@ -128,7 +128,6 @@ if [[ ! -s "${BUILD_INFO_FILE}" ]]; then
   echo "Erro: falha ao gerar build_info_debian_amd64_nuitka.json" >&2
   exit 1
 fi
-
 GUI_DIST="${FINAL_BUILD_DIR}/gui_entry.dist"
 CLI_DIST="${FINAL_BUILD_DIR}/cli_entry.dist"
 rm -rf "${GUI_DIST}" "${CLI_DIST}"
