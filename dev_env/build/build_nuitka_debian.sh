@@ -93,7 +93,7 @@ if [[ ! -f "${VERSION_FILE}" ]]; then
   echo "Erro: version.json nao encontrado: ${VERSION_FILE}"
   exit 1
 fi
-APP_VERSION="$(
+if ! APP_VERSION="$(
   uv run --python 3.13 python - "${VERSION_FILE}" <<'PY_VERSION'
 import json
 import pathlib
@@ -106,7 +106,14 @@ if not version:
     raise SystemExit("version_short ausente em config/version.json")
 print(version)
 PY_VERSION
-)"
+)"; then
+  echo "Erro: falha ao extrair version_short de config/version.json" >&2
+  exit 1
+fi
+if [[ -z "${APP_VERSION}" ]]; then
+  echo "Erro: version_short vazio em config/version.json" >&2
+  exit 1
+fi
 
 BUILD_INFO_FILE="${REPO_ROOT}/builds/metadata/build_info_debian_amd64_nuitka.json"
 mkdir -p "$(dirname "${BUILD_INFO_FILE}")"
@@ -117,6 +124,10 @@ uv run --python 3.13 "${REPO_ROOT}/dev_env/build/write_build_info.py" \
   --build-system nuitka \
   --platform debian_amd64 \
   --app-version "${APP_VERSION}"
+if [[ ! -s "${BUILD_INFO_FILE}" ]]; then
+  echo "Erro: falha ao gerar build_info_debian_amd64_nuitka.json" >&2
+  exit 1
+fi
 
 GUI_DIST="${FINAL_BUILD_DIR}/gui_entry.dist"
 CLI_DIST="${FINAL_BUILD_DIR}/cli_entry.dist"

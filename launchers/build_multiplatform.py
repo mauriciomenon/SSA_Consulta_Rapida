@@ -147,16 +147,20 @@ class MultiPlatformBuilder:
         metadata_dir = self.platforms_dir / platform_name / "temp"
         metadata_dir.mkdir(parents=True, exist_ok=True)
         build_info_path = metadata_dir / "build_info.json"
-        build_info_path.write_text(
-            json.dumps(
-                self._build_info_payload(build_system, platform_name),
-                ensure_ascii=True,
-                indent=2,
-                sort_keys=True,
+        try:
+            build_info_path.write_text(
+                json.dumps(
+                    self._build_info_payload(build_system, platform_name),
+                    ensure_ascii=True,
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
             )
-            + "\n",
-            encoding="utf-8",
-        )
+        except OSError:
+            logger.error("Failed to write build info to %s", build_info_path)
+            raise
         return build_info_path
 
     @staticmethod

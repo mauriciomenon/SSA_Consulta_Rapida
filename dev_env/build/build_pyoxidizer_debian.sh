@@ -42,8 +42,9 @@ fi
 BUILD_INFO_FILE="${REPO_ROOT}/config/build_info.json"
 BUILD_INFO_BACKUP=""
 if [[ -f "${BUILD_INFO_FILE}" ]]; then
-  BUILD_INFO_BACKUP="${BUILD_INFO_FILE}.$$.bak"
-  cp -p "${BUILD_INFO_FILE}" "${BUILD_INFO_BACKUP}"
+  BUILD_INFO_BACKUP_CANDIDATE="${BUILD_INFO_FILE}.$$.$RANDOM.bak"
+  cp -p "${BUILD_INFO_FILE}" "${BUILD_INFO_BACKUP_CANDIDATE}"
+  BUILD_INFO_BACKUP="${BUILD_INFO_BACKUP_CANDIDATE}"
 fi
 
 cleanup_build_info() {
@@ -55,7 +56,7 @@ cleanup_build_info() {
 }
 trap cleanup_build_info EXIT
 
-APP_VERSION="$(
+if ! APP_VERSION="$(
   uv run --python 3.13 python - "${VERSION_FILE}" <<'PY_VERSION'
 import json
 import pathlib
@@ -68,13 +69,24 @@ if not version:
     raise SystemExit("version_short ausente em config/version.json")
 print(version)
 PY_VERSION
-)"
+)"; then
+  echo "Erro: falha ao extrair version_short de config/version.json" >&2
+  exit 1
+fi
+if [[ -z "${APP_VERSION}" ]]; then
+  echo "Erro: version_short vazio em config/version.json" >&2
+  exit 1
+fi
 uv run --python 3.13 "${REPO_ROOT}/dev_env/build/write_build_info.py" \
   --repo-root "${REPO_ROOT}" \
   --output "${BUILD_INFO_FILE}" \
   --build-system pyoxidizer \
   --platform debian_amd64 \
   --app-version "${APP_VERSION}"
+if [[ ! -s "${BUILD_INFO_FILE}" ]]; then
+  echo "Erro: falha ao gerar build_info.json para PyOxidizer debian_amd64" >&2
+  exit 1
+fi
 
 PYOX_CMD=(
   uv tool run --python 3.13 --from pyoxidizer pyoxidizer build
