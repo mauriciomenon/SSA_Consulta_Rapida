@@ -95,6 +95,11 @@ def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
     assert "build_info.json" in script
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in script
     assert "Get-FileHash" in script
+    assert_before(
+        script,
+        '$hashCommand = Get-Command -Name "Get-FileHash"',
+        "foreach ($path in $Paths)",
+    )
     assert "[System.Security.Cryptography.SHA256]::Create()" in script
     assert "$sha256 = $null" in script
     assert "ComputeHash($stream)" in script

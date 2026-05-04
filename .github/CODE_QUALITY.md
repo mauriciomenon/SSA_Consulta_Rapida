@@ -19,7 +19,7 @@ This repository separates blocking local/CI checks from external advisory servic
 
 - `.github/workflows/minimal-ci.yml`: Python import/lint/test gate for the supported project scope.
 - `.github/workflows/codeql.yml`: GitHub CodeQL security scan.
-- `.github/workflows/secret_scan.yml`: secret scan jobs configured as non-blocking with `continue-on-error`.
+- `.github/workflows/secret_scan.yml`: blocking workspace and PR diff secret scans; history scan is advisory and only runs on schedule/manual dispatch.
 - `.deepsource.toml`: local analyzer configuration only; it does not decide whether the GitHub App blocks a PR.
 
 ## External Advisory Services

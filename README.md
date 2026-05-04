@@ -557,9 +557,11 @@ Tip: The repository contains a `.gitattributes` entry that enforces LF for `.env
 
 
 Para build Windows com compressao UPX (reducao de tamanho), instale o binario `upx` pelo gerenciador do sistema.
+
 ```pwsh
 scoop install upx
 ```
+
 O build continua sem compressao se `upx` nao estiver disponivel no `PATH`.
 
 ## Inicializacao automatica de diretorios
