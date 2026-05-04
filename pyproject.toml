@@ -53,5 +53,5 @@ build = [
 
 [dependency-groups]
 dev = [
-    "codeflash>=0.20.1",
+    "codeflash>=0.20.5",
 ]
