@@ -63,6 +63,17 @@ def _find_bundled_dir(app_dir: str, folder_name: str) -> Path | None:
     return None
 
 
+def _copy_missing_tree(source_dir: Path, target_dir: Path) -> None:
+    for source in source_dir.rglob("*"):
+        relative = source.relative_to(source_dir)
+        target = target_dir / relative
+        if source.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+        elif source.is_file() and not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+
+
 def _seed_runtime_config(runtime_dir: Path, bundled_config: Path | None) -> Path:
     """Inicializa config de runtime com defaults do bundle."""
     runtime_config = runtime_dir / "config"
@@ -74,11 +85,8 @@ def _seed_runtime_config(runtime_dir: Path, bundled_config: Path | None) -> Path
         for source in bundled_config.iterdir():
             target = runtime_config / source.name
             if source.is_dir():
-                try:
-                    shutil.copytree(source, target, dirs_exist_ok=True)
-                except TypeError:
-                    if not target.exists():
-                        shutil.copytree(source, target)
+                target.mkdir(parents=True, exist_ok=True)
+                _copy_missing_tree(source, target)
             elif source.is_file() and not target.exists():
                 shutil.copy2(source, target)
     except Exception:

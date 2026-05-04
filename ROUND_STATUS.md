@@ -102,4 +102,5 @@
 - Kluster MCP auto review attempt 3: `kluster_code_review_auto` failed with `Transport closed`.
 - Kluster MCP auto review attempt 4: `kluster_code_review_auto` failed with `Transport closed`.
 - Kluster MCP auto review attempt 5: `kluster_code_review_auto` failed with `Transport closed`.
+- Kluster MCP auto review attempt 6: `kluster_code_review_auto` failed with `Transport closed`.
 - Status: external Kluster MCP remains blocked by transport failure; commit/push hooks and classic validation remain mandatory before commit.
