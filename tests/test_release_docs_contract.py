@@ -20,7 +20,7 @@ def test_solucoes_ambiente_doc_marks_legacy_body_historical() -> None:
 
     assert text.count("## CURRENT TRUTH") == 1
     assert "Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`" in text
-    assert "PR #58: merged" in text
+    assert "PR #58 e PR #59: merged" in text
     assert "PR atual: #57" not in text
     assert "- Branch alvo: `dev`." not in text
     assert "## HISTORICAL SNAPSHOT 2025-11-14" in text
@@ -38,11 +38,11 @@ def test_release_docs_sync_contract() -> None:
     source_text = read_repo_text("docs", "GUIA_DISTRIBUICAO.md")
     source_truth = source_text.split("## HISTORICAL SNAPSHOT", 1)[0]
 
-    assert "PR #58: merged" in source_truth
+    assert "PR #58 e PR #59: merged" in source_truth
     assert "PR #57: aberto em draft" not in source_truth
     assert "PR #56: merged" not in source_truth
     assert "df0345caea9ac3050c87d2172eb75817b8fc3689" not in source_truth
-    assert "8298036fff754b246bd2cdd3edc1db969b35a449" in source_truth
+    assert "4705c2e5722c4f3a5266ac02a5d15a1928d5a223" in source_truth
 
     for doc_name in [
         "SOLUCOES_AMBIENTE_BUILD.md",
@@ -51,6 +51,6 @@ def test_release_docs_sync_contract() -> None:
     ]:
         current_truth = read_repo_text("docs", doc_name).split("## HISTORICAL SNAPSHOT", 1)[0]
         assert "Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`" in current_truth
-        assert "PR #58: merged" in current_truth
+        assert "PR #58 e PR #59: merged" in current_truth
         assert "PR atual: #57" not in current_truth
         assert "df0345caea9ac3050c87d2172eb75817b8fc3689" not in current_truth
