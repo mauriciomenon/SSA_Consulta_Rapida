@@ -130,7 +130,10 @@ scan_pr_diff() {
   append_git_pathspec_excludes
 
   local added_lines
-  added_lines="$(mktemp)"
+  if ! added_lines="$(mktemp)"; then
+    echo '[ERROR] Failed to create temporary file for PR diff scan' >&2
+    return 1
+  fi
   if ! git diff --unified=0 "${diff_base}...HEAD" "${pathspec_args[@]}" \
     | awk '/^\+\+\+ (b\/|\/dev\/null)/ { next } /^\+/ { sub(/^\+/, ""); print }' \
     >"$added_lines"; then

@@ -91,7 +91,6 @@ if [[ ! -s "${BUILD_INFO_FILE}" ]]; then
   echo "Erro: falha ao gerar build_info.json para PyOxidizer debian_amd64" >&2
   exit 1
 fi
-
 PYOX_CMD=(
   uv tool run --python 3.13 --from pyoxidizer pyoxidizer build
   --release

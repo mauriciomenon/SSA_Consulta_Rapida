@@ -19,10 +19,24 @@ def _run_output(args: list[str], cwd: pathlib.Path, *, require_success: bool) ->
             check=False,
             timeout=20,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError as exc:
+        if require_success:
+            print(f"Metadata command failed ({' '.join(args)}): {exc}", file=sys.stderr)
         return ""
-    if require_success and result.returncode != 0:
+    except subprocess.TimeoutExpired as exc:
+        if require_success:
+            print(f"Metadata command timed out ({' '.join(args)}): {exc}", file=sys.stderr)
         return ""
+    if result.returncode != 0:
+        if require_success:
+            print(
+                "Metadata command failed "
+                f"({' '.join(args)}): exit {result.returncode}; "
+                f"stdout={result.stdout.strip()!r}; stderr={result.stderr.strip()!r}",
+                file=sys.stderr,
+            )
+            return ""
+        return result.stdout.strip()
     return "\n".join(
         part.strip() for part in (result.stdout, result.stderr) if part and part.strip()
     ).strip()
@@ -115,10 +129,9 @@ def main() -> int:
     )
     try:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(
-            json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
+        serialized = json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True)
+        json.loads(serialized)
+        args.output.write_text(serialized + "\n", encoding="utf-8")
     except OSError as exc:
         print(f"Failed to write build info: {exc}", file=sys.stderr)
         return 1
