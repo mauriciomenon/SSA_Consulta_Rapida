@@ -25,6 +25,26 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-05-03 - security scan follow-ups
+
+Escopo deste slice:
+1. corrigir permissoes e persistencia de credenciais em workflows GitHub Actions.
+2. corrigir marcadores de ambiente em requirements para evitar falso positivo de OSV.
+3. atualizar `black` para versao sem `GHSA-3936-cmfr-pm3m`.
+4. endurecer `secret_scan.yml` sem imprimir segredo em logs.
+
+Pendente nao bloqueante:
+1. avaliar scan historico completo com TruffleHog fora do limite padrao de 60s, porque o scan local de historico excedeu a janela nesta rodada.
+2. avaliar limite de escopo/profundidade no scan recursivo do `secret_scan.yml` se o tempo de CI crescer.
+3. centralizar constantes de versao usadas por `tests/test_shell_ci_contracts.py` e scripts de ambiente, para evitar drift em proximo bump.
+
+Feito em 2026-05-03:
+1. `.github/workflows/secret_scan.yml` passou a chamar `scripts/security/scan_secrets.sh`.
+2. o script versionado centraliza os modos `workspace`, `pr-diff` e `history`.
+3. `tests/test_shell_ci_contracts.py` cobre sintaxe e smoke local do script.
+4. `.secrets.baseline` foi revisada sem imprimir valores sensiveis; os achados remanescentes eram hashes e referencias sem valor em claro.
+5. `.gitleaks.toml` passou a estender regras padrao e permitir apenas linhas `hashed_secret` da baseline.
+
 ## Update 2026-04-29 20:35 - Debian release orchestrator
 
 Escopo desta atualizacao:
