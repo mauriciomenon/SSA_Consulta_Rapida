@@ -3,7 +3,7 @@
 ## CURRENT TRUTH 2026-05-04 01h14
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- PR #58: merged; `main`, `dev`, `origin/main` e `origin/dev` devem seguir sincronizados apos o PR de DOC_SYNC/CI.
+- PR #58 e PR #59: merged; usar base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`, ou sucessor sincronizado em `main`/`dev`.
 - Este runbook detalha execucao 3x3; nao deve duplicar a matriz completa de release.
 
 ## Objetivo

@@ -6,8 +6,8 @@
 - Esta pagina e a entrada curta da pasta `docs/`.
 - Navegacao oficial: `docs/INDEX.md`.
 - Current truth operacional 2026-05-04 01h14:
-  - `main`, `dev`, `origin/main` e `origin/dev` sincronizados em `8298036fff754b246bd2cdd3edc1db969b35a449`
-  - PR #58 merged
+  - `main`, `dev`, `origin/main` e `origin/dev` devem estar sincronizados; base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`
+  - PR #58 e PR #59 merged
   - artefatos v4.37 anteriores a este HEAD seguem stale
   - proximo passo: rebuild Windows AMD64 e Debian AMD64 antes de atualizar release v4.37
 - Current truth sincronizado com commits anteriores desta frente:

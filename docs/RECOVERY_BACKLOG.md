@@ -3,11 +3,11 @@
 ## CURRENT TRUTH 2026-05-04 01h14
 
 - Branch alvo operacional: `dev` e `main` sincronizados.
-- HEAD sincronizado: `8298036fff754b246bd2cdd3edc1db969b35a449 2026-05-04 01:14:06 -0300 Merge PR #58: shell CI and build hardening`.
-- PR #58: merged.
-- PR #56 e PR #57: merged anteriormente; o estado ativo agora e pos-merge do PR #58.
+- Base minima sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`; usar este commit ou sucessor sincronizado em `main`/`dev`.
+- PR #58 e PR #59: merged.
+- PR #56 e PR #57: merged anteriormente; o estado ativo agora e pos-merge do PR #59.
 - `main`, `dev`, `origin/main` e `origin/dev` apontam para o mesmo HEAD.
-- Artefatos v4.37 anteriores ao HEAD `8298036fff754b246bd2cdd3edc1db969b35a449` seguem stale e nao devem ser usados para publicacao final.
+- Artefatos v4.37 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` seguem stale e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
 - Orquestradores ativos:
   - Windows AMD64: `dev_env/build/release_windows.ps1`.

@@ -3,7 +3,7 @@
 ## CURRENT TRUTH 2026-05-04 01h14
 
 - Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
-- PR #58: merged; `main`, `dev`, `origin/main` e `origin/dev` estao sincronizados em `8298036fff754b246bd2cdd3edc1db969b35a449`.
+- PR #58 e PR #59: merged; base minima sincronizada `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`, ou sucessor sincronizado em `main`/`dev`.
 - Este documento registra solucoes de ambiente; nao deve duplicar a matriz completa de release.
 - Proximo passo operacional: rebuildar artefatos v4.37 no Windows AMD64 e Debian AMD64 a partir do HEAD sincronizado.
 
