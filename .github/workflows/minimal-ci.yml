@@ -61,7 +61,7 @@ jobs:
                 ;;
             esac
           done < .changed_quality_scope
-          if grep -Eq '(^|/)[^/]+\.py$|^pyproject\.toml$|^requirements[^/]*\.txt$|^uv\.lock$|^\.github/workflows/[^/]+\.ya?ml$' .changed_quality_scope; then
+          if grep -Eq '(^|/)[^/]+\.py$|^pyproject\.toml$|^requirements[^/]*\.txt$|^uv\.lock$|^\.github/workflows/[^/]+\.ya?ml$|^scripts/|^dev_env/build/' .changed_quality_scope; then
             echo "run_python=true" >> "$GITHUB_OUTPUT"
             echo "Python or CI config changes detected."
             if [ -s .changed_python_files ]; then
