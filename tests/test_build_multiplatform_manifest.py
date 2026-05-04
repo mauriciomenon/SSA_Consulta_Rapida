@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from launchers.build_multiplatform import MultiPlatformBuilder
 from dev_env.build import write_build_info
 
@@ -103,6 +105,60 @@ def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_p
 
     assert payload["c_compiler_version"] == "gcc 14.2.0"
     assert payload["rustc_version"] == "rustc 1.90.0"
+
+
+def test_write_build_info_main_reports_output_write_errors(
+    capsys,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    output_dir = tmp_path / "output-dir"
+    output_dir.mkdir()
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "write_build_info.py",
+            "--repo-root",
+            str(tmp_path),
+            "--output",
+            str(output_dir),
+            "--build-system",
+            "nuitka",
+            "--platform",
+            "debian_amd64",
+            "--app-version",
+            "4.37",
+        ],
+    )
+    monkeypatch.setattr(
+        write_build_info,
+        "build_payload",
+        lambda *_args: {"app_version": "4.37"},
+    )
+
+    assert write_build_info.main() == 1
+    assert "Failed to write build info" in capsys.readouterr().err
+
+
+def test_pyinstaller_build_info_write_logs_before_raising(monkeypatch) -> None:
+    builder = MultiPlatformBuilder()
+    errors = []
+
+    def fail_write(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "write_text", fail_write)
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.logger.error",
+        lambda *args, **_kwargs: errors.append(args),
+    )
+
+    with pytest.raises(OSError):
+        builder._write_build_info_file("pyinstaller", "windows_amd64")
+
+    assert errors
+    assert "Failed to write build info" in errors[0][0]
 
 
 def test_upx_contract_uses_system_binary_not_python_package():

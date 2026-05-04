@@ -78,9 +78,13 @@ def test_pyoxidizer_debian_uses_root_config_kept_in_sync() -> None:
         assert '--path "${REPO_ROOT}"' in script
         assert 'BUILD_INFO_FILE="${REPO_ROOT}/config/build_info.json"' in script
         assert "cleanup_build_info" in script
+        assert 'BUILD_INFO_BACKUP_CANDIDATE="${BUILD_INFO_FILE}.$$.$RANDOM.bak"' in script
+        assert 'BUILD_INFO_BACKUP="${BUILD_INFO_BACKUP_CANDIDATE}"' in script
         assert "write_build_info.py" in script
         assert "--build-system pyoxidizer" in script
         assert f"--platform {platform}" in script
+        assert 'if [[ -z "${APP_VERSION}" ]]; then' in script
+        assert 'if [[ ! -s "${BUILD_INFO_FILE}" ]]; then' in script
 
 
 def test_nuitka_debian_serializes_patchelf_install() -> None:
@@ -110,6 +114,8 @@ def test_nuitka_debian_uses_platform_venv_and_requirements() -> None:
         assert 'uv pip install --python "${PYTHON_EXE}" -r "${REQUIREMENTS_FILE}"' in script
         assert '"${PYTHON_EXE}" -m nuitka' in script
         assert "write_build_info.py" in script
+        assert 'if [[ -z "${APP_VERSION}" ]]; then' in script
+        assert 'if [[ ! -s "${BUILD_INFO_FILE}" ]]; then' in script
         assert '--include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md' in script
         assert script.count('--include-data-file=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md=docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md') >= 2
         assert '--include-data-file="${BUILD_INFO_FILE}=config/build_info.json"' in script

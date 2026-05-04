@@ -6,6 +6,7 @@ import json
 import os
 import pathlib
 import subprocess
+import sys
 
 
 def _run_output(args: list[str], cwd: pathlib.Path, *, require_success: bool) -> str:
@@ -112,11 +113,15 @@ def main() -> int:
         args.platform,
         args.app_version,
     )
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
-        json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    try:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(
+            json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        print(f"Failed to write build info: {exc}", file=sys.stderr)
+        return 1
     return 0
 
 

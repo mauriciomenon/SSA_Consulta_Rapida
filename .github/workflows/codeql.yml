@@ -42,7 +42,12 @@ jobs:
             "${API_URL}" || true)"
 
           if [ "${HTTP_CODE}" = "200" ]; then
-            STATE="$(jq -r '.state // .status // "unknown"' default_setup.json)"
+            if STATE="$(jq -r '.state // .status // "unknown"' default_setup.json 2>/dev/null)"; then
+              :
+            else
+              STATE="unknown"
+              echo "Could not parse CodeQL default setup response; running advanced scan." >&2
+            fi
             if [ "${STATE}" = "configured" ] || [ "${STATE}" = "enabled" ]; then
               RUN_ADVANCED="false"
               REASON="default_setup_active"

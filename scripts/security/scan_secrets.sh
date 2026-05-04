@@ -37,7 +37,7 @@ EOF
 
 require_commands() {
   local command
-  for command in git grep awk mktemp; do
+  for command in git grep awk mktemp sed; do
     if ! command -v "$command" >/dev/null 2>&1; then
       echo "[ERROR] Required command not found: ${command}" >&2
       return 127
@@ -48,7 +48,7 @@ require_commands() {
 validate_pattern() {
   local status
   set +e
-  grep -E "$SENSITIVE_PATTERN" </dev/null >/dev/null
+  grep -E -- "$SENSITIVE_PATTERN" </dev/null >/dev/null
   status=$?
   set -e
   if (( status > 1 )); then
@@ -91,9 +91,9 @@ scan_workspace() {
   local status
   set +e
   if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git grep --untracked -I -E -l "$SENSITIVE_PATTERN" "${pathspec_args[@]}"
+    git grep --untracked -I -E -l -e "$SENSITIVE_PATTERN" "${pathspec_args[@]}"
   else
-    grep -r -E -l "${grep_args[@]}" "$SENSITIVE_PATTERN" .
+    grep -r -E -l "${grep_args[@]}" -- "$SENSITIVE_PATTERN" .
   fi
   status=$?
   set -e
@@ -139,7 +139,7 @@ scan_pr_diff() {
     return 1
   fi
 
-  if grep -E -q "$SENSITIVE_PATTERN" "$added_lines"; then
+  if grep -E -q -- "$SENSITIVE_PATTERN" "$added_lines"; then
     echo '[ERROR] Possible secret in diff'
     echo '[INFO] Changed files in scanned diff:'
     git diff --name-only "${diff_base}...HEAD" "${pathspec_args[@]}" | sed 's/^/[INFO] /'
@@ -155,7 +155,7 @@ scan_history() {
   echo '[INFO] Sampling recent commits'
   validate_pattern
 
-  if git log --max-count="$HISTORY_MAX_COUNT" -E -G "$SENSITIVE_PATTERN" --format='%H' HEAD | grep -q .; then
+  if git log --max-count="$HISTORY_MAX_COUNT" -E -G "$SENSITIVE_PATTERN" --format='%H' HEAD | grep -q -- .; then
     echo '[INFO] Historical pattern found in recent commits'
     echo '[INFO] Advisory only: current tree and PR diff scans are blocking'
     return 0
