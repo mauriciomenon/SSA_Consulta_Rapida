@@ -61,10 +61,10 @@ launchers/
 Para compressao opcional no Windows:
 
 ```bash
-uv pip install --python 3.13 -r launchers/platforms/windows_amd64/requirements_windows_build.txt
+scoop install upx
 ```
 
-Se `upx4py` nao estiver instalado, o build continua sem compressao.
+Se `upx` nao estiver no `PATH`, o build continua sem compressao.
 
 ## Troubleshooting
 
@@ -92,4 +92,3 @@ uv run --python 3.13 launchers/build_multiplatform.py --clean-all
 - Estado oficial de runtime/build para este ciclo e v4.33.
 
 <!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-

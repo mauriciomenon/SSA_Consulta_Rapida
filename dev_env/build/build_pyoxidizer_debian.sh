@@ -42,8 +42,13 @@ fi
 BUILD_INFO_FILE="${REPO_ROOT}/config/build_info.json"
 BUILD_INFO_BACKUP=""
 if [[ -f "${BUILD_INFO_FILE}" ]]; then
-  BUILD_INFO_BACKUP="${BUILD_INFO_FILE}.$$.bak"
-  cp -p "${BUILD_INFO_FILE}" "${BUILD_INFO_BACKUP}"
+  BUILD_INFO_BACKUP_CANDIDATE="$(mktemp "${BUILD_INFO_FILE}.XXXXXX")"
+  if ! cp -p "${BUILD_INFO_FILE}" "${BUILD_INFO_BACKUP_CANDIDATE}"; then
+    rm -f "${BUILD_INFO_BACKUP_CANDIDATE}"
+    echo "Erro: falha ao criar backup temporario de ${BUILD_INFO_FILE}" >&2
+    exit 1
+  fi
+  BUILD_INFO_BACKUP="${BUILD_INFO_BACKUP_CANDIDATE}"
 fi
 
 cleanup_build_info() {
@@ -55,43 +60,37 @@ cleanup_build_info() {
 }
 trap cleanup_build_info EXIT
 
-uv run --python 3.13 python - "${REPO_ROOT}" "${VERSION_FILE}" "${BUILD_INFO_FILE}" "pyoxidizer" "debian_amd64" <<'PY_BUILD_INFO'
-import datetime
+if ! APP_VERSION="$(
+  uv run --python 3.13 python - "${VERSION_FILE}" <<'PY_VERSION'
 import json
 import pathlib
-import subprocess
 import sys
 
-root = pathlib.Path(sys.argv[1])
-version_file = pathlib.Path(sys.argv[2])
-output = pathlib.Path(sys.argv[3])
-build_system = sys.argv[4]
-platform_name = sys.argv[5]
-
-version_payload = json.loads(version_file.read_text(encoding="utf-8"))
-app_version = str(version_payload.get("version_short") or "").strip()
-if not app_version:
+version_file = pathlib.Path(sys.argv[1])
+payload = json.loads(version_file.read_text(encoding="utf-8"))
+version = str(payload.get("version_short") or "").strip()
+if not version:
     raise SystemExit("version_short ausente em config/version.json")
-
-def run(args):
-    result = subprocess.run(args, cwd=str(root), text=True, capture_output=True, check=False)
-    return (result.stdout or "").strip() if result.returncode == 0 else ""
-
-commit = run(["git", "rev-parse", "HEAD"])
-payload = {
-    "app_version": app_version,
-    "build_datetime": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
-    "build_system": build_system,
-    "git_commit": commit,
-    "git_commit_datetime": run(["git", "log", "-1", "--format=%cI"]),
-    "git_commit_short": commit[:7] if commit else "",
-    "git_commit_title": run(["git", "log", "-1", "--format=%s"]),
-    "platform": platform_name,
-    "uv_version": run(["uv", "--version"]),
-}
-output.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-PY_BUILD_INFO
-
+print(version)
+PY_VERSION
+)"; then
+  echo "Erro: falha ao extrair version_short de config/version.json" >&2
+  exit 1
+fi
+if [[ -z "${APP_VERSION}" ]]; then
+  echo "Erro: version_short vazio em config/version.json" >&2
+  exit 1
+fi
+uv run --python 3.13 "${REPO_ROOT}/dev_env/build/write_build_info.py" \
+  --repo-root "${REPO_ROOT}" \
+  --output "${BUILD_INFO_FILE}" \
+  --build-system pyoxidizer \
+  --platform debian_amd64 \
+  --app-version "${APP_VERSION}"
+if [[ ! -s "${BUILD_INFO_FILE}" ]]; then
+  echo "Erro: falha ao gerar build_info.json para PyOxidizer debian_amd64" >&2
+  exit 1
+fi
 PYOX_CMD=(
   uv tool run --python 3.13 --from pyoxidizer pyoxidizer build
   --release

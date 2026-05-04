@@ -7,7 +7,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from launchers.build_multiplatform import MultiPlatformBuilder
+from dev_env.build import write_build_info
 
 
 def test_command_stdout_logs_metadata_command_failure(monkeypatch):
@@ -32,6 +35,216 @@ def test_command_stdout_logs_metadata_command_failure(monkeypatch):
     assert warnings
     assert "Metadata command failed" in warnings[0][0]
     assert "stderr detail" in "".join(str(item) for item in warnings[0])
+
+
+def test_build_info_payload_includes_toolchain_versions(monkeypatch):
+    builder = MultiPlatformBuilder()
+
+    outputs: dict[tuple[str, ...], str] = {
+        ("git", "rev-parse", "HEAD"): "abcdef123456",
+        ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
+        ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
+        ("uv", "--version"): "uv 0.9.18",
+        ("cc", "--version"): "gcc 14.2.0",
+        ("rustc", "--version"): "rustc 1.90.0",
+    }
+
+    def fake_run(cmd, cwd, require_success):  # noqa: ANN001, ARG001
+        return outputs.get(tuple(str(item) for item in cmd), "")
+
+    monkeypatch.setattr(write_build_info, "_run_output", fake_run)
+
+    payload = builder._build_info_payload("pyinstaller", "windows_amd64")
+
+    assert payload["c_compiler_version"] == "gcc 14.2.0"
+    assert payload["rustc_version"] == "rustc 1.90.0"
+
+
+def test_build_info_payload_uses_msvc_environment_fallback(monkeypatch):
+    builder = MultiPlatformBuilder()
+    outputs: dict[tuple[str, ...], str] = {
+        ("git", "rev-parse", "HEAD"): "abcdef123456",
+        ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
+        ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
+        ("uv", "--version"): "uv 0.9.18",
+        ("rustc", "--version"): "rustc 1.90.0",
+    }
+
+    def fake_run(cmd, cwd, require_success):  # noqa: ANN001, ARG001
+        return outputs.get(tuple(str(item) for item in cmd), "")
+
+    monkeypatch.setattr(write_build_info, "_run_output", fake_run)
+    monkeypatch.setenv("VCToolsVersion", "14.44.35207")
+
+    payload = builder._build_info_payload("pyinstaller", "windows_amd64")
+
+    assert payload["c_compiler_version"] == "MSVC 14.44.35207"
+
+
+def test_write_build_info_payload_includes_toolchain_versions(monkeypatch, tmp_path):
+    outputs = {
+        ("git", "rev-parse", "HEAD"): "abcdef123456",
+        ("git", "log", "-1", "--format=%cI"): "2026-05-03T22:48:02-03:00",
+        ("git", "log", "-1", "--format=%s"): "STABILITY_PATCH",
+        ("uv", "--version"): "uv 0.9.18",
+        ("cc", "--version"): "gcc 14.2.0",
+        ("rustc", "--version"): "rustc 1.90.0",
+    }
+
+    def fake_run(args, cwd, require_success):  # noqa: ANN001, FBT001
+        return outputs.get(tuple(args), "")
+
+    monkeypatch.setattr(write_build_info, "_run_output", fake_run)
+
+    payload = write_build_info.build_payload(
+        tmp_path,
+        "nuitka",
+        "debian_amd64",
+        "4.37",
+    )
+
+    assert payload["c_compiler_version"] == "gcc 14.2.0"
+    assert payload["rustc_version"] == "rustc 1.90.0"
+
+
+def test_write_build_info_logs_required_metadata_command_failure(
+    capsys,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    def fake_run(*_args, **_kwargs):
+        return subprocess.CompletedProcess(
+            ["git", "rev-parse", "HEAD"],
+            returncode=128,
+            stdout="",
+            stderr="not a git repo",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert write_build_info._run_output(
+        ["git", "rev-parse", "HEAD"],
+        tmp_path,
+        require_success=True,
+    ) == ""
+    assert "Metadata command failed" in capsys.readouterr().err
+
+
+def test_write_build_info_ignores_optional_command_stderr_on_failure(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    def fake_run(*_args, **_kwargs):
+        return subprocess.CompletedProcess(
+            ["cc", "--version"],
+            returncode=1,
+            stdout="",
+            stderr="compiler error detail",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert write_build_info._run_output(
+        ["cc", "--version"],
+        tmp_path,
+        require_success=False,
+    ) == ""
+
+
+def test_write_build_info_main_reports_output_write_errors(
+    capsys,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    output_dir = tmp_path / "output-dir"
+    output_dir.mkdir()
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "write_build_info.py",
+            "--repo-root",
+            str(tmp_path),
+            "--output",
+            str(output_dir),
+            "--build-system",
+            "nuitka",
+            "--platform",
+            "debian_amd64",
+            "--app-version",
+            "4.37",
+        ],
+    )
+    monkeypatch.setattr(
+        write_build_info,
+        "build_payload",
+        lambda *_args: {"app_version": "4.37"},
+    )
+
+    assert write_build_info.main() == 1
+    assert "Failed to write build info" in capsys.readouterr().err
+
+
+def test_write_build_info_main_writes_valid_json(monkeypatch, tmp_path) -> None:
+    output = tmp_path / "build_info.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "write_build_info.py",
+            "--repo-root",
+            str(tmp_path),
+            "--output",
+            str(output),
+            "--build-system",
+            "nuitka",
+            "--platform",
+            "debian_amd64",
+            "--app-version",
+            "4.37",
+        ],
+    )
+    monkeypatch.setattr(
+        write_build_info,
+        "build_payload",
+        lambda *_args: {"app_version": "4.37"},
+    )
+
+    assert write_build_info.main() == 0
+    assert json.loads(output.read_text(encoding="utf-8")) == {"app_version": "4.37"}
+
+
+def test_pyinstaller_build_info_write_logs_before_raising(monkeypatch) -> None:
+    builder = MultiPlatformBuilder()
+    errors = []
+
+    def fail_write(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "write_text", fail_write)
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.logger.error",
+        lambda *args, **_kwargs: errors.append(args),
+    )
+
+    with pytest.raises(OSError):
+        builder._write_build_info_file("pyinstaller", "windows_amd64")
+
+    assert errors
+    assert "Failed to write build info" in errors[0][0]
+
+
+def test_upx_contract_uses_system_binary_not_python_package():
+    repo_root = Path(__file__).resolve().parents[1]
+    build_script = repo_root / "launchers" / "build_multiplatform.py"
+    requirements_files = [
+        repo_root / "requirements_build.txt",
+        repo_root / "launchers" / "platforms" / "windows_amd64" / "requirements_windows_build.txt",
+    ]
+
+    assert "shutil.which(\"upx\")" in build_script.read_text(encoding="utf-8")
+    for requirements_file in requirements_files:
+        assert "upx4py" not in requirements_file.read_text(encoding="utf-8")
 
 
 def test_create_manifest_lists_root_artifacts_and_skips_hidden(tmp_path):

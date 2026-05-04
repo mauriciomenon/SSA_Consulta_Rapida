@@ -1,5 +1,2 @@
-# Dependencias adicionais para build/empacotamento Windows com compressao UPX
-# Instale ALEM de requirements.txt quando quiser reduzir tamanho dos executaveis.
-
-# Compactacao (opcional)
-upx4py>=0.1.0
+# Dependencias Python opcionais de build Windows.
+# UPX e um binario externo; instale pelo gerenciador do sistema, nao via pip.

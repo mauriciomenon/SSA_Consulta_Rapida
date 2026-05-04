@@ -32,20 +32,46 @@ def _resolve_runtime_home() -> Path:
     return runtime_dir
 
 
+def _resolve_executable_path() -> Path:
+    executable = str(getattr(sys, "executable", "") or "").strip()
+    if executable:
+        return Path(executable).resolve()
+    return Path(__file__).resolve()
+
+
+def _resolve_bundle_root() -> Path:
+    meipass = str(getattr(sys, "_MEIPASS", "") or "").strip()
+    if meipass:
+        return Path(meipass).resolve()
+    return _resolve_executable_path().parent
+
+
 def _find_bundled_dir(app_dir: str, folder_name: str) -> Path | None:
     """Localiza pasta embutida em layouts de empacotamento comuns."""
-    exe_path = Path(sys.executable).resolve()
+    exe_path = _resolve_executable_path()
     app_path = Path(app_dir)
-    candidates = (
+    candidates = [
         app_path / folder_name,
         app_path / "_internal" / folder_name,
         exe_path.parent.parent / "Resources" / folder_name,
-        exe_path.parent.parent / folder_name,
-    )
+    ]
+    if folder_name != "data":
+        candidates.append(exe_path.parent.parent / folder_name)
     for candidate in candidates:
         if candidate.is_dir():
             return candidate
     return None
+
+
+def _copy_missing_tree(source_dir: Path, target_dir: Path) -> None:
+    for source in source_dir.rglob("*"):
+        relative = source.relative_to(source_dir)
+        target = target_dir / relative
+        if source.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+        elif source.is_file() and not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
 
 
 def _seed_runtime_config(runtime_dir: Path, bundled_config: Path | None) -> Path:
@@ -59,11 +85,8 @@ def _seed_runtime_config(runtime_dir: Path, bundled_config: Path | None) -> Path
         for source in bundled_config.iterdir():
             target = runtime_config / source.name
             if source.is_dir():
-                try:
-                    shutil.copytree(source, target, dirs_exist_ok=True)
-                except TypeError:
-                    if not target.exists():
-                        shutil.copytree(source, target)
+                target.mkdir(parents=True, exist_ok=True)
+                _copy_missing_tree(source, target)
             elif source.is_file() and not target.exists():
                 shutil.copy2(source, target)
     except Exception:
@@ -143,13 +166,17 @@ def _prepare_frozen_runtime(app_dir: str) -> Path:
 
 
 # Adicionar diretorio raiz ao path CORRETAMENTE
-if getattr(sys, "frozen", False):
-    # Executavel PyInstaller - buscar na raiz dos dados empacotados
-    if hasattr(sys, "_MEIPASS"):
-        # PyInstaller - usar diretorio do executavel, NAO _MEIPASS (pasta temporaria)
-        app_dir = os.path.dirname(os.path.abspath(sys.executable))
-    else:
-        app_dir = os.path.dirname(sys.executable)
+exe_path = _resolve_executable_path()
+is_frozen_runtime = bool(
+    getattr(sys, "frozen", False)
+    or getattr(sys, "oxidized", False)
+    or "__compiled__" in globals()
+    or exe_path.parent.name.endswith(".dist")
+    or exe_path.name.startswith(("SSA_CLI_", "SSA_Consulta_Rapida"))
+)
+if is_frozen_runtime:
+    # Executavel empacotado - buscar na raiz dos dados empacotados.
+    app_dir = str(_resolve_bundle_root())
     _prepare_frozen_runtime(app_dir)
 else:
     # Script Python normal

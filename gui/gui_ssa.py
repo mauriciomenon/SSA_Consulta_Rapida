@@ -1195,6 +1195,12 @@ def build_about_message(app_version: str) -> str:
     build_datetime = str(build_info.get("build_datetime") or "").strip()
     if build_datetime:
         lines.append(f"Build: {build_datetime}")
+    c_compiler_version = str(build_info.get("c_compiler_version") or "").strip()
+    if c_compiler_version:
+        lines.append(f"C/C++: {c_compiler_version}")
+    rustc_version = str(build_info.get("rustc_version") or "").strip()
+    if rustc_version:
+        lines.append(f"Rust: {rustc_version}")
     return "\n".join(lines)
 
 

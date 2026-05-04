@@ -381,28 +381,77 @@ function Invoke-Smoke {
     $smokeDir = Join-Path ([System.IO.Path]::GetTempPath()) ("ssa_release_smoke_" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Force $smokeDir | Out-Null
     try {
+        $appDataDir = Join-Path $smokeDir "appdata"
+        $localAppDataDir = Join-Path $smokeDir "localappdata"
+        $userProfileDir = Join-Path $smokeDir "userprofile"
+        New-Item -ItemType Directory -Force $appDataDir, $localAppDataDir, $userProfileDir | Out-Null
+
         $stdinPath = Join-Path $smokeDir "stdin.txt"
         $stdoutPath = Join-Path $smokeDir "stdout.txt"
         $stderrPath = Join-Path $smokeDir "stderr.txt"
+        $wrapperPath = Join-Path $smokeDir "smoke.cmd"
         Set-Content -LiteralPath $stdinPath -Value "q`n" -NoNewline -Encoding ASCII
-        $process = Start-Process `
-            -FilePath (Resolve-Path $Config.cli_exe).Path `
-            -ArgumentList "--skip-import" `
-            -RedirectStandardInput $stdinPath `
-            -RedirectStandardOutput $stdoutPath `
-            -RedirectStandardError $stderrPath `
-            -NoNewWindow `
-            -Wait `
-            -PassThru
-        if ($process.ExitCode -ne 0) {
-            $stderrText = ""
-            if (Test-Path $stderrPath) {
-                $stderrText = (Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue).Trim()
+        $wrapperLines = @(
+            "@echo off",
+            "set `"APPDATA=$appDataDir`"",
+            "set `"LOCALAPPDATA=$localAppDataDir`"",
+            "set `"USERPROFILE=$userProfileDir`"",
+            "for /f `"tokens=1 delims==`" %%A in ('set SSA_ 2^>nul') do set `"%%A=`"",
+            "cd /d `"$smokeDir`"",
+            "`"$((Resolve-Path $Config.cli_exe).Path)`" --skip-import"
+        )
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllLines($wrapperPath, $wrapperLines, $utf8NoBom)
+
+        $smokeTimeoutSeconds = 60
+        $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $startInfo.FileName = $env:ComSpec
+        $startInfo.Arguments = "/d /c `"`"$wrapperPath`" < `"$stdinPath`" > `"$stdoutPath`" 2> `"$stderrPath`"`""
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $startInfo
+        if (-not $process.Start()) {
+            throw "Smoke CLI falhou para ${BackendName}. Processo nao iniciou."
+        }
+        $completed = $process.WaitForExit($smokeTimeoutSeconds * 1000)
+        $timedOut = -not $completed
+        if ($timedOut) {
+            if (-not $process.HasExited) {
+                & taskkill.exe /PID $process.Id /T /F | Out-Null
+                if ($LASTEXITCODE -ne 0 -and -not $process.HasExited) {
+                    $process.Kill()
+                }
+                [void]$process.WaitForExit(10000)
             }
-            throw "Smoke CLI falhou para ${BackendName}. ExitCode=$($process.ExitCode). $stderrText"
+            $process.Refresh()
+        }
+        $exitCode = 1
+        if (-not $timedOut) {
+            $exitCode = $process.ExitCode
+        }
+        $stderrText = ""
+        if (Test-Path $stderrPath) {
+            $stderrRaw = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
+            if ($null -ne $stderrRaw) {
+                $stderrText = $stderrRaw.Trim()
+            }
+        }
+        if ($timedOut) {
+            throw "Smoke CLI timeout para ${BackendName} depois de ${smokeTimeoutSeconds}s. $stderrText"
+        }
+        if ($exitCode -ne 0) {
+            throw "Smoke CLI falhou para ${BackendName}. ExitCode=${exitCode}. $stderrText"
         }
         if (Test-Path $stdoutPath) {
-            $smokeOutput = (Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue).Trim()
+            $stdoutRaw = Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue
+            if ($null -ne $stdoutRaw) {
+                $smokeOutput = $stdoutRaw.Trim()
+            }
+        }
+        if ($smokeOutput -match "DADOS CARREGADOS:\s+[1-9][0-9.,]*\s+SSAs") {
+            throw "Smoke CLI contaminado por dados locais para ${BackendName}."
         }
     } finally {
         if (Test-Path $smokeDir) {
@@ -507,12 +556,33 @@ function Get-ArtifactHash {
     param([Parameter(Mandatory = $true)] [string[]] $Paths)
 
     $records = @()
+    $hashCommand = Get-Command -Name "Get-FileHash" -ErrorAction SilentlyContinue
     foreach ($path in $Paths) {
         Assert-ExistingFile $path
-        $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $path
+        if ($hashCommand) {
+            $hash = & $hashCommand -Algorithm SHA256 -LiteralPath $path
+            $hashPath = $hash.Path
+            $hashValue = $hash.Hash
+        }
+        else {
+            $stream = [System.IO.File]::OpenRead($path)
+            $sha256 = $null
+            try {
+                $sha256 = [System.Security.Cryptography.SHA256]::Create()
+                $hashBytes = $sha256.ComputeHash($stream)
+                $hashValue = ([System.BitConverter]::ToString($hashBytes) -replace "-", "").ToUpperInvariant()
+            }
+            finally {
+                if ($sha256) {
+                    $sha256.Dispose()
+                }
+                $stream.Dispose()
+            }
+            $hashPath = (Resolve-Path -LiteralPath $path).Path
+        }
         $records += [ordered]@{
-            path = $hash.Path
-            sha256 = $hash.Hash
+            path = $hashPath
+            sha256 = $hashValue
             length = (Get-Item -LiteralPath $path).Length
         }
     }

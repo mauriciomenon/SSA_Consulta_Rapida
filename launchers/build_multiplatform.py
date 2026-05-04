@@ -26,6 +26,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 robust_logging = importlib.import_module("utils.robust_logging")
 logger = robust_logging.get_robust_logger().get_logger(__name__, "maintenance")
+write_build_info = importlib.import_module("dev_env.build.write_build_info")
 
 
 class MultiPlatformBuilder:
@@ -135,36 +136,31 @@ class MultiPlatformBuilder:
         return str(result.stdout or "").strip()
 
     def _build_info_payload(self, build_system: str, platform_name: str) -> dict:
-        git_commit = self._command_stdout(["git", "rev-parse", "HEAD"])
-        git_commit_datetime = self._command_stdout(["git", "log", "-1", "--format=%cI"])
-        git_commit_title = self._command_stdout(["git", "log", "-1", "--format=%s"])
-        uv_version = self._command_stdout([self.uv_cmd, "--version"])
-        return {
-            "app_version": self.version,
-            "build_datetime": datetime.now().astimezone().isoformat(timespec="seconds"),
-            "build_system": build_system,
-            "git_commit": git_commit,
-            "git_commit_datetime": git_commit_datetime,
-            "git_commit_short": git_commit[:7] if git_commit else "",
-            "git_commit_title": git_commit_title,
-            "platform": platform_name,
-            "uv_version": uv_version,
-        }
+        return write_build_info.build_payload(
+            self.base_dir,
+            build_system,
+            platform_name,
+            self.version,
+        )
 
     def _write_build_info_file(self, build_system: str, platform_name: str) -> Path:
         metadata_dir = self.platforms_dir / platform_name / "temp"
         metadata_dir.mkdir(parents=True, exist_ok=True)
         build_info_path = metadata_dir / "build_info.json"
-        build_info_path.write_text(
-            json.dumps(
-                self._build_info_payload(build_system, platform_name),
-                ensure_ascii=True,
-                indent=2,
-                sort_keys=True,
+        try:
+            build_info_path.write_text(
+                json.dumps(
+                    self._build_info_payload(build_system, platform_name),
+                    ensure_ascii=True,
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
             )
-            + "\n",
-            encoding="utf-8",
-        )
+        except OSError:
+            logger.error("Failed to write build info to %s", build_info_path)
+            raise
         return build_info_path
 
     @staticmethod
@@ -466,19 +462,6 @@ VSVersionInfo(
         # Configuracao base
         app_config = config[f"{app_type}_config"]
         pyinstaller_args = config["pyinstaller_args"]
-
-        # Aviso amigavel sobre compressao UPX opcional (nao bloqueante)
-        if platform_name.startswith("windows"):
-            # Heuristica: se config pyinstaller_args contiver algo indicando compressao futura
-            # (ex.: flag custom que adicionaremos no futuro) ou simplesmente sempre avisar se upx ausente
-            try:
-                __import__("upx4py")  # noqa: F401
-            except Exception:
-                logger.warning(
-                    "UPX nao detectado (pacote 'upx4py' ausente). Build seguira sem compressao. "
-                    "Para habilitar instale: uv pip install --python %s -r launchers/platforms/windows_amd64/requirements_windows_build.txt",
-                    str(python_exe),
-                )
 
         # Comando base
         cmd = [

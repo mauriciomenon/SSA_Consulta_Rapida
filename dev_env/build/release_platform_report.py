@@ -299,6 +299,45 @@ def _asset_payload(path: pathlib.Path) -> dict[str, object]:
         raise ReleaseReportError(f"falha lendo asset {path}: {exc}") from exc
 
 
+def _expected_debian_asset_names(
+    backends: list[str],
+    packages: list[str],
+    app_version: str,
+) -> set[str]:
+    names: set[str] = set()
+    for backend in backends:
+        if "deb" in packages:
+            names.add(f"ssa-consulta-rapida-{backend}-amd64_{app_version}_amd64.deb")
+        if "appimage" in packages and backend != "pyoxidizer":
+            names.add(
+                f"SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}.AppImage"
+            )
+        if "tar" in packages:
+            if backend in {"pyinstaller", "nuitka"}:
+                names.add(
+                    f"SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}_cli.tar.gz"
+                )
+                names.add(
+                    f"SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}_gui.tar.gz"
+                )
+            else:
+                names.add(
+                    f"SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}.tar.gz"
+                )
+    return names
+
+
+def _expected_asset_names(
+    platform_name: str,
+    backends: list[str],
+    packages: list[str],
+    app_version: str,
+) -> set[str] | None:
+    if platform_name == "debian_amd64":
+        return _expected_debian_asset_names(backends, packages, app_version)
+    return None
+
+
 def cmd_print_app_version(args: argparse.Namespace) -> int:
     payload = _read_json(args.version_file)
     version = str(payload.get("version_short") or "").strip()
@@ -353,23 +392,43 @@ def _asset_suffixes_for_platform(platform_name: str) -> tuple[str, ...]:
     return tuple(suffix.lower() for suffix in suffixes)
 
 
+def _split_csv(value: str) -> list[str]:
+    return [item.strip().lower() for item in value.split(",") if item.strip()]
+
+
+def _asset_suffixes_for_packages(packages: list[str]) -> tuple[str, ...]:
+    suffixes: list[str] = []
+    for package in packages:
+        suffixes.extend(PACKAGE_ASSET_SUFFIXES.get(package, (f".{package}",)))
+    return tuple(suffix.lower() for suffix in suffixes)
+
+
 def write_report(args: argparse.Namespace) -> int:
+    backends = _split_csv(args.backends)
+    packages = _split_csv(args.packages)
     package_dir = args.repo_root / "builds" / "packages" / args.platform
     assets = []
-    if package_dir.is_dir():
-        asset_suffixes = _asset_suffixes_for_platform(args.platform)
-        asset_paths = [
-            path
-            for path in sorted(package_dir.iterdir())
-            if path.is_file() and path.name.lower().endswith(asset_suffixes)
-        ]
-        if asset_paths:
-            workers = min(4, len(asset_paths))
-            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-                assets = list(executor.map(_asset_payload, asset_paths))
+    if not package_dir.is_dir():
+        raise ReleaseReportError(f"diretorio de pacotes ausente: {package_dir}")
 
-    backends = [item for item in args.backends.split(",") if item]
-    packages = [item for item in args.packages.split(",") if item]
+    asset_suffixes = _asset_suffixes_for_packages(packages)
+    expected_asset_names = _expected_asset_names(
+        args.platform,
+        backends,
+        packages,
+        args.app_version,
+    )
+    asset_paths = [
+        path
+        for path in sorted(package_dir.iterdir())
+        if path.is_file() and path.name.lower().endswith(asset_suffixes)
+        and (expected_asset_names is None or path.name in expected_asset_names)
+    ]
+    if asset_paths:
+        workers = min(4, len(asset_paths))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            assets = list(executor.map(_asset_payload, asset_paths))
+
     scorecards = _load_scorecards()
     unknown_backends = [backend for backend in backends if backend not in scorecards]
     if unknown_backends:

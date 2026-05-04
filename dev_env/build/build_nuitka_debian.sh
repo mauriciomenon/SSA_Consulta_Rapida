@@ -93,7 +93,7 @@ if [[ ! -f "${VERSION_FILE}" ]]; then
   echo "Erro: version.json nao encontrado: ${VERSION_FILE}"
   exit 1
 fi
-APP_VERSION="$(
+if ! APP_VERSION="$(
   uv run --python 3.13 python - "${VERSION_FILE}" <<'PY_VERSION'
 import json
 import pathlib
@@ -106,43 +106,28 @@ if not version:
     raise SystemExit("version_short ausente em config/version.json")
 print(version)
 PY_VERSION
-)"
+)"; then
+  echo "Erro: falha ao extrair version_short de config/version.json" >&2
+  exit 1
+fi
+if [[ -z "${APP_VERSION}" ]]; then
+  echo "Erro: version_short vazio em config/version.json" >&2
+  exit 1
+fi
 
 BUILD_INFO_FILE="${REPO_ROOT}/builds/metadata/build_info_debian_amd64_nuitka.json"
 mkdir -p "$(dirname "${BUILD_INFO_FILE}")"
 LAST_STEP="write_build_info"
-uv run --python 3.13 python - "${REPO_ROOT}" "${BUILD_INFO_FILE}" "nuitka" "debian_amd64" "${APP_VERSION}" <<'PY_BUILD_INFO'
-import datetime
-import json
-import pathlib
-import subprocess
-import sys
-
-root = pathlib.Path(sys.argv[1])
-output = pathlib.Path(sys.argv[2])
-build_system = sys.argv[3]
-platform_name = sys.argv[4]
-app_version = sys.argv[5]
-
-def run(args):
-    result = subprocess.run(args, cwd=str(root), text=True, capture_output=True, check=False)
-    return (result.stdout or "").strip() if result.returncode == 0 else ""
-
-commit = run(["git", "rev-parse", "HEAD"])
-payload = {
-    "app_version": app_version,
-    "build_datetime": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
-    "build_system": build_system,
-    "git_commit": commit,
-    "git_commit_datetime": run(["git", "log", "-1", "--format=%cI"]),
-    "git_commit_short": commit[:7] if commit else "",
-    "git_commit_title": run(["git", "log", "-1", "--format=%s"]),
-    "platform": platform_name,
-    "uv_version": run(["uv", "--version"]),
-}
-output.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-PY_BUILD_INFO
-
+uv run --python 3.13 "${REPO_ROOT}/dev_env/build/write_build_info.py" \
+  --repo-root "${REPO_ROOT}" \
+  --output "${BUILD_INFO_FILE}" \
+  --build-system nuitka \
+  --platform debian_amd64 \
+  --app-version "${APP_VERSION}"
+if [[ ! -s "${BUILD_INFO_FILE}" ]]; then
+  echo "Erro: falha ao gerar build_info_debian_amd64_nuitka.json" >&2
+  exit 1
+fi
 GUI_DIST="${FINAL_BUILD_DIR}/gui_entry.dist"
 CLI_DIST="${FINAL_BUILD_DIR}/cli_entry.dist"
 rm -rf "${GUI_DIST}" "${CLI_DIST}"
