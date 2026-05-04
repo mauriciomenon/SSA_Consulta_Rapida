@@ -392,13 +392,24 @@ def _asset_suffixes_for_platform(platform_name: str) -> tuple[str, ...]:
     return tuple(suffix.lower() for suffix in suffixes)
 
 
+def _split_csv(value: str) -> list[str]:
+    return [item.strip().lower() for item in value.split(",") if item.strip()]
+
+
+def _asset_suffixes_for_packages(packages: list[str]) -> tuple[str, ...]:
+    suffixes: list[str] = []
+    for package in packages:
+        suffixes.extend(PACKAGE_ASSET_SUFFIXES.get(package, (f".{package}",)))
+    return tuple(suffix.lower() for suffix in suffixes)
+
+
 def write_report(args: argparse.Namespace) -> int:
-    backends = [item for item in args.backends.split(",") if item]
-    packages = [item for item in args.packages.split(",") if item]
+    backends = _split_csv(args.backends)
+    packages = _split_csv(args.packages)
     package_dir = args.repo_root / "builds" / "packages" / args.platform
     assets = []
     if package_dir.is_dir():
-        asset_suffixes = _asset_suffixes_for_platform(args.platform)
+        asset_suffixes = _asset_suffixes_for_packages(packages)
         expected_asset_names = _expected_asset_names(
             args.platform,
             backends,

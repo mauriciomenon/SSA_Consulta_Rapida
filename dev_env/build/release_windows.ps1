@@ -400,7 +400,8 @@ function Invoke-Smoke {
             "cd /d `"$smokeDir`"",
             "`"$((Resolve-Path $Config.cli_exe).Path)`" --skip-import"
         )
-        Set-Content -LiteralPath $wrapperPath -Value $wrapperLines -Encoding ASCII
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllLines($wrapperPath, $wrapperLines, $utf8NoBom)
 
         $smokeTimeoutSeconds = 60
         $startInfo = New-Object System.Diagnostics.ProcessStartInfo
@@ -418,7 +419,10 @@ function Invoke-Smoke {
         $timedOut = -not $completed
         if ($timedOut) {
             if (-not $process.HasExited) {
-                $process.Kill()
+                & taskkill.exe /PID $process.Id /T /F | Out-Null
+                if ($LASTEXITCODE -ne 0 -and -not $process.HasExited) {
+                    $process.Kill()
+                }
                 [void]$process.WaitForExit(10000)
             }
             $process.Refresh()

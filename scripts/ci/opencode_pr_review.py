@@ -65,8 +65,8 @@ def run_checked(command: list[str], *, stdout_path: Path | None = None, timeout:
     stdout_path.parent.mkdir(parents=True, exist_ok=True)
     stdout_path.write_text(result.stdout or "", encoding="utf-8", newline="\n")
     if result.returncode != 0:
-        print(result.stdout or "", end="")
-        print(result.stderr or "", end="")
+        print(f"Command failed with exit code {result.returncode}: {command[0]}")
+        print(f"stdout captured in: {stdout_path}")
         raise subprocess.CalledProcessError(
             result.returncode,
             command,
@@ -131,10 +131,17 @@ def post_pr_comment(pr_number: int, body_file: Path) -> None:
     run_checked(["gh", "pr", "comment", str(pr_number), "--body-file", str(body_file)])
 
 
+def required_env(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"Required environment variable is missing: {name}")
+    return value
+
+
 def main() -> int:
-    event_path = Path(os.environ["GITHUB_EVENT_PATH"])
-    runner_temp = Path(os.environ["RUNNER_TEMP"])
-    model = os.environ["MODEL"]
+    event_path = Path(required_env("GITHUB_EVENT_PATH"))
+    runner_temp = Path(required_env("RUNNER_TEMP"))
+    model = required_env("MODEL")
     agent = os.environ.get("AGENT") or "plan"
     workflow = os.environ.get("GITHUB_WORKFLOW", "opencode")
     job = os.environ.get("GITHUB_JOB", "opencode")

@@ -26,11 +26,11 @@ readonly EXCLUDED_FILES=(
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scan_secrets.sh <workspace|pr-diff|history> [base-ref]
+Usage: scan_secrets.sh <workspace|pr-diff|history> [base-commit-or-ref]
 
 Modes:
   workspace        Scan the checked-out workspace, excluding generated caches.
-  pr-diff BASE_REF Scan added lines in the PR diff against BASE_REF.
+  pr-diff BASE    Scan added lines in the PR diff against BASE.
   history          Advisory scan of recent Git history; never blocks.
 EOF
 }
@@ -103,21 +103,25 @@ scan_workspace() {
 scan_pr_diff() {
   local base_ref="${1:-}"
   if [[ -z "$base_ref" ]]; then
-    echo '[ERROR] pr-diff mode requires a base ref' >&2
+    echo '[ERROR] pr-diff mode requires a base commit or ref' >&2
     return 2
   fi
 
   validate_pattern
 
   echo '[INFO] Scanning PR diff'
-  git fetch --no-tags origin "$base_ref"
+  local diff_base="$base_ref"
+  if ! git cat-file -e "${diff_base}^{commit}" 2>/dev/null; then
+    git fetch --no-tags --depth=1 origin "$base_ref"
+    diff_base="FETCH_HEAD"
+  fi
 
   local pathspec_args=(-- .)
   append_git_pathspec_excludes
 
   local added_lines
   added_lines="$(mktemp)"
-  if ! git diff --unified=0 FETCH_HEAD...HEAD "${pathspec_args[@]}" \
+  if ! git diff --unified=0 "${diff_base}...HEAD" "${pathspec_args[@]}" \
     | awk '/^\+\+\+ (b\/|\/dev\/null)/ { next } /^\+/ { sub(/^\+/, ""); print }' \
     >"$added_lines"; then
     echo '[ERROR] PR diff scan failed' >&2
@@ -128,7 +132,7 @@ scan_pr_diff() {
   if grep -E -q "$SENSITIVE_PATTERN" "$added_lines"; then
     echo '[ERROR] Possible secret in diff'
     echo '[INFO] Changed files in scanned diff:'
-    git diff --name-only FETCH_HEAD...HEAD "${pathspec_args[@]}" | sed 's/^/[INFO] /'
+    git diff --name-only "${diff_base}...HEAD" "${pathspec_args[@]}" | sed 's/^/[INFO] /'
     rm -f "$added_lines"
     return 1
   fi

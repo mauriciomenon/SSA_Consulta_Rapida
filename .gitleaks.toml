@@ -8,4 +8,4 @@ description = "Allow detect-secrets baseline hash metadata only"
 condition = "AND"
 regexTarget = "line"
 paths = ['''^\.secrets\.baseline$''']
-regexes = ['''"hashed_secret": "[a-f0-9]{40}"''']
+regexes = ['''^\s*"hashed_secret": "[a-f0-9]{40}",?\s*$''']

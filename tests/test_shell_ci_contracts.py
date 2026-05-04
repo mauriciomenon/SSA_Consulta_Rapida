@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -100,8 +102,9 @@ def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
 
     assert "git fetch origin ${{ github.base_ref }}" not in workflow
     assert "origin/${{ github.base_ref }}" not in workflow
-    assert "BASE_REF: ${{ github.base_ref }}" in workflow
-    assert 'bash scripts/security/scan_secrets.sh pr-diff "$BASE_REF"' in workflow
+    assert "BASE_REF: ${{ github.base_ref }}" not in workflow
+    assert "BASE_SHA: ${{ github.event.pull_request.base.sha }}" in workflow
+    assert 'bash scripts/security/scan_secrets.sh pr-diff "$BASE_SHA"' in workflow
     assert 'git fetch origin "$BASE_REF" --depth=1' not in workflow
     assert 'git fetch origin "$BASE_REF" || true' not in workflow
     assert 'git diff --unified=0 "origin/${BASE_REF}...HEAD"' not in workflow
@@ -181,11 +184,13 @@ def test_secret_scan_script_blocks_untracked_git_workspace_matches(tmp_path: Pat
 def test_secret_scan_script_uses_fetch_head_pr_diff_and_configurable_history() -> None:
     script = _read_repo_text("scripts", "security", "scan_secrets.sh")
 
-    assert 'git fetch --no-tags origin "$base_ref"' in script
-    assert "git diff --unified=0 FETCH_HEAD...HEAD" in script
+    assert 'git cat-file -e "${diff_base}^{commit}"' in script
+    assert 'git fetch --no-tags --depth=1 origin "$base_ref"' in script
+    assert 'diff_base="FETCH_HEAD"' in script
+    assert 'git diff --unified=0 "${diff_base}...HEAD"' in script
     assert "git grep --untracked" in script
     assert '>"$added_lines"' in script
-    assert "if ! git diff --unified=0 FETCH_HEAD...HEAD" in script
+    assert 'if ! git diff --unified=0 "${diff_base}...HEAD"' in script
     assert 'grep -E -q "$SENSITIVE_PATTERN" "$added_lines"' in script
     assert "PR diff scan failed" in script
     assert "trap - RETURN" not in script
@@ -220,6 +225,7 @@ def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     assert "push:" not in workflow
     assert "pull_request:" in workflow
     assert "opencode-pr-review:" in workflow
+    assert "github.event.pull_request.head.repo.fork == false" in workflow
     assert "opencode-push-review:" not in workflow
     assert workflow.count("environment: SECRETS") == 4
     assert "noop:" in workflow
@@ -253,6 +259,37 @@ def test_opencode_review_script_extracts_pr_number() -> None:
     assert module.extract_pr_number({"issue": {"number": 59, "pull_request": {"url": "x"}}}) == 59
     with pytest.raises(ValueError, match="pull request"):
         module.extract_pr_number({"issue": {"number": 60}})
+
+
+def test_opencode_review_script_requires_clear_environment(monkeypatch) -> None:
+    module = _load_opencode_review_module()
+
+    monkeypatch.delenv("MODEL", raising=False)
+
+    with pytest.raises(RuntimeError, match="MODEL"):
+        module.required_env("MODEL")
+
+
+def test_opencode_review_script_does_not_print_failed_command_output(tmp_path: Path, capsys) -> None:
+    module = _load_opencode_review_module()
+    output_path = tmp_path / "captured.txt"
+
+    with pytest.raises(subprocess.CalledProcessError):
+        module.run_checked(
+            [
+                sys.executable,
+                "-c",
+                "import sys; print('SECRET_STDOUT'); print('SECRET_STDERR', file=sys.stderr); sys.exit(3)",
+            ],
+            stdout_path=output_path,
+        )
+
+    captured = capsys.readouterr()
+    assert "SECRET_STDOUT" not in captured.out
+    assert "SECRET_STDERR" not in captured.out
+    assert "SECRET_STDERR" not in captured.err
+    assert "stdout captured in:" in captured.out
+    assert "SECRET_STDOUT" in output_path.read_text(encoding="utf-8")
 
 
 def test_opencode_review_script_truncates_large_diff(tmp_path: Path) -> None:
@@ -312,6 +349,21 @@ def test_shell_doctor_does_not_print_sensitive_value_prefixes() -> None:
     assert 'echo "$matches"' not in script
     assert "grep -REl" in script
     assert "suspect+=(\"${name}\")" in script
+
+
+def test_secret_baseline_paths_are_posix_style() -> None:
+    payload = json.loads(_read_repo_text(".secrets.baseline"))
+
+    for path in payload["results"]:
+        assert "\\" not in path
+
+
+def test_gitleaks_baseline_hash_allowlist_is_line_anchored() -> None:
+    config = _read_repo_text(".gitleaks.toml")
+
+    assert 'regexTarget = "line"' in config
+    assert '^\\s*"hashed_secret": "[a-f0-9]{40}",?\\s*$' in config
+    assert '"hashed_secret": "[a-f0-9]{40}"\'\'\']' not in config
 
 
 def test_shell_doctor_help_describes_all_history_as_git_history() -> None:

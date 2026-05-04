@@ -128,7 +128,11 @@ def test_release_windows_smoke_uses_isolated_user_environment() -> None:
     assert "$completed = $process.WaitForExit($smokeTimeoutSeconds * 1000)" in smoke_body
     assert "            -Wait" not in smoke_body
     assert "$smokeTimeoutSeconds = 60" in smoke_body
+    assert "& taskkill.exe /PID $process.Id /T /F | Out-Null" in smoke_body
     assert "$process.Kill()" in smoke_body
+    assert "New-Object System.Text.UTF8Encoding($false)" in smoke_body
+    assert "[System.IO.File]::WriteAllLines($wrapperPath, $wrapperLines, $utf8NoBom)" in smoke_body
+    assert "Set-Content -LiteralPath $wrapperPath -Value $wrapperLines -Encoding ASCII" not in smoke_body
     assert "Smoke CLI timeout para" in smoke_body
     assert "$stderrRaw = Get-Content -LiteralPath $stderrPath -Raw" in smoke_body
     assert "if ($null -ne $stderrRaw)" in smoke_body

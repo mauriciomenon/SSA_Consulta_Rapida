@@ -54,7 +54,7 @@ jobs:
         run: echo "No opencode command in comment; skipping."
 
   opencode-pr-review:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: SECRETS
