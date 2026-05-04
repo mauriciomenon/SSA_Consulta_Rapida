@@ -467,13 +467,6 @@ VSVersionInfo(
         app_config = config[f"{app_type}_config"]
         pyinstaller_args = config["pyinstaller_args"]
 
-        if platform_name.startswith("windows"):
-            if not shutil.which("upx"):
-                logger.warning(
-                    "UPX nao detectado no PATH. Build seguira sem compressao. "
-                    "Para habilitar, instale o binario UPX pelo gerenciador do sistema."
-                )
-
         # Comando base
         cmd = [
             self.uv_cmd,

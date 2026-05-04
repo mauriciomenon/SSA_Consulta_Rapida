@@ -556,9 +556,9 @@ function Get-ArtifactHash {
     param([Parameter(Mandatory = $true)] [string[]] $Paths)
 
     $records = @()
+    $hashCommand = Get-Command -Name "Get-FileHash" -ErrorAction SilentlyContinue
     foreach ($path in $Paths) {
         Assert-ExistingFile $path
-        $hashCommand = Get-Command -Name "Get-FileHash" -ErrorAction SilentlyContinue
         if ($hashCommand) {
             $hash = & $hashCommand -Algorithm SHA256 -LiteralPath $path
             $hashPath = $hash.Path
