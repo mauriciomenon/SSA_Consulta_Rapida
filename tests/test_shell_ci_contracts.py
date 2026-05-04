@@ -97,6 +97,7 @@ def test_minimal_ci_runs_for_any_workflow_change() -> None:
     assert "Detect quality gate scope" in workflow
     assert "run_python=false" in workflow
     assert "required status will pass without expensive gates" in workflow
+    assert "|^scripts/|^dev_env/build/" in workflow
 
 
 def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
