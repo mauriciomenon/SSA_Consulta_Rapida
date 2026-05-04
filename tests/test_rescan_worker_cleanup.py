@@ -55,6 +55,26 @@ def test_rescan_worker_cleanup_does_not_hang_when_logger_cleanup_fails(monkeypat
     assert current_snapshot == baseline_snapshot
 
 
+def test_rescan_worker_error_includes_root_cause(monkeypatch):
+    worker = RescanWorker("main.py", project_root)
+    emitted = []
+    worker.finished_error.connect(emitted.append)
+
+    def _boom(**_kwargs):
+        try:
+            raise PermissionError("access denied")
+        except PermissionError as exc:
+            raise RuntimeError("wrapped failure") from exc
+
+    monkeypatch.setattr(rescan_worker_mod, "run_importer_logic", _boom)
+
+    worker.run()
+
+    assert emitted
+    assert "wrapped failure" in emitted[0]
+    assert "Causa raiz: PermissionError: access denied" in emitted[0]
+
+
 def test_rescan_worker_cleanup_releases_logger_on_success(monkeypatch):
     worker = RescanWorker("main.py", project_root)
     success_emitted = []

@@ -1446,6 +1446,25 @@ def test_write_import_run_report_returns_none_on_open_value_error(
     assert app_logic._write_import_run_report(payload) is None
 
 
+def test_write_import_run_report_uses_runtime_root_logs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    monkeypatch.setenv("SSA_RUNTIME_ROOT", str(runtime_root))
+    payload = {
+        "run_id": "runtime_run",
+        "started_at": "2026-04-16T00:00:00",
+        "finished_at": "2026-04-16T00:00:01",
+    }
+
+    report_path = app_logic._write_import_run_report(payload)
+
+    assert report_path is not None
+    assert Path(report_path) == runtime_root / "logs" / "import_run_runtime_run.json"
+    assert Path(report_path).is_file()
+
+
 def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

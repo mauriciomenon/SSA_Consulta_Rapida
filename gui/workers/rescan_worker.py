@@ -358,22 +358,26 @@ class RescanWorker(QThread):
         return True, summary
 
     def _run_import_operation(self) -> bool:
-        data_dir = "data"
+        project_root_path = Path(self.project_root).expanduser().resolve()
+        docs_dir = str(project_root_path / "docs_entrada")
+        data_dir = str(project_root_path / "data")
         db_name = "ssas.db"
-        extra_allowed_roots = None
+        extra_allowed_roots = [str(project_root_path)]
         if self.db_path:
             db_path = Path(self.db_path).expanduser().resolve()
             data_dir = str(db_path.parent)
             db_name = db_path.name
-            extra_allowed_roots = (str(db_path.parent),)
+            db_parent = str(db_path.parent)
+            if db_parent not in extra_allowed_roots:
+                extra_allowed_roots.append(db_parent)
         return run_importer_logic(
-            docs_dir="docs_entrada",
+            docs_dir=docs_dir,
             data_dir=data_dir,
             db_name=db_name,
             table_name="ssa_table",
             force_import=self.force_import,
             explicit_files=self.explicit_files,
-            extra_allowed_roots=extra_allowed_roots,
+            extra_allowed_roots=tuple(extra_allowed_roots),
             should_cancel=lambda: self._should_stop,
             progress_callback=self._progress_callback,
         )
@@ -540,7 +544,14 @@ class RescanWorker(QThread):
         except Exception as exc:
             self.last_outcome = RescanOutcome.ERROR
             logger.exception("Erro inesperado na operacao de importacao")
-            message = f"Erro ao executar operacao de importacao: {exc}"
+            details = str(exc).strip() or exc.__class__.__name__
+            cause = exc.__cause__
+            if cause is not None:
+                cause_text = str(cause).strip() or cause.__class__.__name__
+                cause_details = f"{cause.__class__.__name__}: {cause_text}"
+                if cause_text not in details:
+                    details = f"{details} | Causa raiz: {cause_details}"
+            message = f"Erro ao executar operacao de importacao: {details}"
             self.error_line.emit(message)
             self.finished_error.emit(message)
         finally:

@@ -620,7 +620,11 @@ class TestRescanWorkerIntegration:
 
                 assert call_kwargs["data_dir"] == str(active_db.parent)
                 assert call_kwargs["db_name"] == active_db.name
-                assert call_kwargs["extra_allowed_roots"] == (str(active_db.parent),)
+                assert call_kwargs["docs_dir"] == str(tmp_path / "docs_entrada")
+                assert call_kwargs["extra_allowed_roots"] == (
+                    str(tmp_path.resolve()),
+                    str(active_db.parent),
+                )
         finally:
             if worker._logger_attached:
                 worker._detach_logger()
@@ -646,7 +650,11 @@ class TestRescanWorkerIntegration:
 
                 assert call_kwargs["data_dir"] == str(active_db.parent)
                 assert call_kwargs["db_name"] == active_db.name
-                assert call_kwargs["extra_allowed_roots"] == (str(active_db.parent),)
+                assert call_kwargs["docs_dir"] == str(project_root / "docs_entrada")
+                assert call_kwargs["extra_allowed_roots"] == (
+                    str(project_root.resolve()),
+                    str(active_db.parent),
+                )
         finally:
             if worker._logger_attached:
                 worker._detach_logger()
@@ -675,6 +683,7 @@ class TestRescanWorkerIntegration:
                 call_kwargs = mock_importer.call_args[1]
 
                 assert call_kwargs["force_import"] is False
+                assert call_kwargs["docs_dir"] == str(docs_dir)
                 assert call_kwargs["explicit_files"] == (
                     str(file_a.resolve()),
                     str(file_b.resolve()),
@@ -711,6 +720,7 @@ class TestRescanWorkerIntegration:
                 assert staged_legacy.exists()
                 assert worker.last_outcome == RescanOutcome.NO_CHANGES
                 call_kwargs = mock_importer.call_args[1]
+                assert call_kwargs["docs_dir"] == str(docs_dir)
                 assert call_kwargs["explicit_files"] == (
                     str(staged_file),
                     str(staged_legacy),
