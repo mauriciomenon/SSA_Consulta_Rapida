@@ -35,6 +35,16 @@ Modes:
 EOF
 }
 
+require_commands() {
+  local command
+  for command in git grep awk mktemp; do
+    if ! command -v "$command" >/dev/null 2>&1; then
+      echo "[ERROR] Required command not found: ${command}" >&2
+      return 127
+    fi
+  done
+}
+
 validate_pattern() {
   local status
   set +e
@@ -83,7 +93,7 @@ scan_workspace() {
   if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     git grep --untracked -I -E -l "$SENSITIVE_PATTERN" "${pathspec_args[@]}"
   else
-    grep -R -E -l "${grep_args[@]}" "$SENSITIVE_PATTERN" .
+    grep -r -E -l "${grep_args[@]}" "$SENSITIVE_PATTERN" .
   fi
   status=$?
   set -e
@@ -158,12 +168,15 @@ main() {
   local mode="${1:-}"
   case "$mode" in
     workspace)
+      require_commands
       scan_workspace
       ;;
     pr-diff)
+      require_commands
       scan_pr_diff "${2:-}"
       ;;
     history)
+      require_commands
       scan_history
       ;;
     -h|--help|help)

@@ -298,6 +298,47 @@ def test_release_debian_report_filters_stale_assets_from_other_backends(
     assert [asset["name"] for asset in payload["assets"]] == [current.name]
 
 
+def test_release_debian_report_fails_when_package_dir_is_missing(tmp_path) -> None:
+    report_file = tmp_path / "report.json"
+
+    with pytest.raises(
+        REPORT_MODULE.ReleaseReportError,
+        match="diretorio de pacotes ausente",
+    ):
+        REPORT_MODULE.write_report(
+            argparse.Namespace(
+                repo_root=tmp_path,
+                report_file=report_file,
+                platform="debian_amd64",
+                backends="nuitka",
+                packages="tar",
+                app_version="4.37",
+                git_commit="abc",
+            )
+        )
+
+
+def test_release_debian_expected_asset_names_cover_supported_package_matrix() -> None:
+    names = REPORT_MODULE._expected_debian_asset_names(
+        ["pyinstaller", "nuitka", "pyoxidizer"],
+        ["deb", "appimage", "tar"],
+        "4.37",
+    )
+
+    assert names == {
+        "ssa-consulta-rapida-pyinstaller-amd64_4.37_amd64.deb",
+        "ssa-consulta-rapida-nuitka-amd64_4.37_amd64.deb",
+        "ssa-consulta-rapida-pyoxidizer-amd64_4.37_amd64.deb",
+        "SSA_Consulta_Rapida_v4.37_debian_amd64_pyinstaller.AppImage",
+        "SSA_Consulta_Rapida_v4.37_debian_amd64_nuitka.AppImage",
+        "SSA_Consulta_Rapida_v4.37_debian_amd64_pyinstaller_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.37_debian_amd64_pyinstaller_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.37_debian_amd64_nuitka_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.37_debian_amd64_nuitka_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.37_debian_amd64_pyoxidizer.tar.gz",
+    }
+
+
 def test_release_report_normalizes_csv_arguments() -> None:
     assert REPORT_MODULE._split_csv(" nuitka, pyinstaller,,PYoxidizer ") == [
         "nuitka",
