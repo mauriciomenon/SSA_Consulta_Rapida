@@ -321,3 +321,49 @@ def test_cli_entry_pyoxidizer_runtime_uses_executable_dir_as_bundle_root(
     finally:
         os.chdir(original_cwd)
         sys.path[:] = original_sys_path
+
+
+def test_cli_seed_runtime_config_does_not_overwrite_user_files(tmp_path: Path) -> None:
+    namespace = runpy.run_path(
+        str(REPO_ROOT / "launchers" / "cli_entry.py"),
+        run_name="test_cli_seed_config",
+    )
+    seed_config = namespace["_seed_runtime_config"]
+    runtime_dir = tmp_path / "runtime"
+    bundled_config = tmp_path / "bundle" / "config"
+    bundled_config_nested = bundled_config / "nested"
+    user_config_nested = runtime_dir / "config" / "nested"
+    bundled_config_nested.mkdir(parents=True)
+    user_config_nested.mkdir(parents=True)
+    (bundled_config_nested / "settings.json").write_text("bundle", encoding="utf-8")
+    (bundled_config_nested / "new.json").write_text("new", encoding="utf-8")
+    (user_config_nested / "settings.json").write_text("user", encoding="utf-8")
+
+    seed_config(runtime_dir, bundled_config)
+
+    assert (user_config_nested / "settings.json").read_text(encoding="utf-8") == "user"
+    assert (user_config_nested / "new.json").read_text(encoding="utf-8") == "new"
+
+
+def test_gui_seed_runtime_resources_does_not_overwrite_user_files(
+    tmp_path: Path,
+) -> None:
+    namespace = runpy.run_path(
+        str(REPO_ROOT / "launchers" / "gui_entry.py"),
+        run_name="test_gui_seed_resources",
+    )
+    seed_resources = namespace["_seed_runtime_resources"]
+    runtime_dir = tmp_path / "runtime"
+    bundled_resources = tmp_path / "bundle" / "resources"
+    bundled_resources_nested = bundled_resources / "icons"
+    user_resources_nested = runtime_dir / "resources" / "icons"
+    bundled_resources_nested.mkdir(parents=True)
+    user_resources_nested.mkdir(parents=True)
+    (bundled_resources_nested / "theme.txt").write_text("bundle", encoding="utf-8")
+    (bundled_resources_nested / "new.txt").write_text("new", encoding="utf-8")
+    (user_resources_nested / "theme.txt").write_text("user", encoding="utf-8")
+
+    seed_resources(runtime_dir, bundled_resources)
+
+    assert (user_resources_nested / "theme.txt").read_text(encoding="utf-8") == "user"
+    assert (user_resources_nested / "new.txt").read_text(encoding="utf-8") == "new"
