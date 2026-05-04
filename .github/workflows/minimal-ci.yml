@@ -3,18 +3,8 @@ name: minimal-ci
 on:
   push:
     branches: [main, dev]
-    paths:
-      - "**/*.py"
-      - "pyproject.toml"
-      - "requirements*.txt"
-      - ".github/workflows/*.yml"
   pull_request:
     branches: [main, dev]
-    paths:
-      - "**/*.py"
-      - "pyproject.toml"
-      - "requirements*.txt"
-      - ".github/workflows/*.yml"
 
 permissions:
   contents: read
@@ -41,28 +31,8 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.13"
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
-
-      - name: Install Qt runtime libraries
-        run: |
-          set -euo pipefail
-          sudo apt-get install -y libegl1 || {
-            sudo apt-get update
-            sudo apt-get install -y libegl1
-          }
-
-      - name: Sync dev dependencies
-        run: |
-          set -euo pipefail
-          uv sync --extra dev
-
-      - name: Detect changed Python files
+      - name: Detect quality gate scope
+        id: changed-scope
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -76,24 +46,62 @@ jobs:
           else
             BASE_SHA="${BEFORE_SHA}"
           fi
-          if [ "$BASE_SHA" = "$ZERO_SHA" ]; then
-            git ls-files "*.py" > .changed_python_files
+          if [ -z "${BASE_SHA}" ] || [ "$BASE_SHA" = "$ZERO_SHA" ]; then
+            git ls-files > .changed_quality_scope
           else
-            git diff --name-only -z "$BASE_SHA" "$HEAD_SHA" -- "*.py" \
-              | while IFS= read -r -d '' file_path; do
-                  if [ -f "$file_path" ]; then
-                    printf '%s\n' "$file_path"
-                  fi
-                done > .changed_python_files
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA" > .changed_quality_scope
           fi
-          if [ ! -s .changed_python_files ]; then
-            echo "No changed Python files detected for scoped static checks."
+          : > .changed_python_files
+          while IFS= read -r file_path; do
+            case "$file_path" in
+              *.py)
+                if [ -f "$file_path" ]; then
+                  printf '%s\n' "$file_path" >> .changed_python_files
+                fi
+                ;;
+            esac
+          done < .changed_quality_scope
+          if grep -Eq '(^|/)[^/]+\.py$|^pyproject\.toml$|^requirements[^/]*\.txt$|^uv\.lock$|^\.github/workflows/[^/]+\.ya?ml$' .changed_quality_scope; then
+            echo "run_python=true" >> "$GITHUB_OUTPUT"
+            echo "Python or CI config changes detected."
+            if [ -s .changed_python_files ]; then
+              echo "Changed Python files:"
+              cat .changed_python_files
+            else
+              echo "No changed Python files detected for scoped static checks."
+            fi
           else
-            echo "Changed Python files:"
-            cat .changed_python_files
+            echo "run_python=false" >> "$GITHUB_OUTPUT"
+            echo "No Python or CI config changes detected; required status will pass without expensive gates."
           fi
 
+      - name: Setup Python
+        if: steps.changed-scope.outputs.run_python == 'true'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+
+      - name: Setup uv
+        if: steps.changed-scope.outputs.run_python == 'true'
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+
+      - name: Install Qt runtime libraries
+        if: steps.changed-scope.outputs.run_python == 'true'
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y libegl1 || {
+            sudo apt-get update
+            sudo apt-get install -y libegl1
+          }
+
+      - name: Sync dev dependencies
+        if: steps.changed-scope.outputs.run_python == 'true'
+        run: |
+          set -euo pipefail
+          uv sync --extra dev
+
       - name: Py compile changed Python paths
+        if: steps.changed-scope.outputs.run_python == 'true'
         run: |
           set -euo pipefail
           uv run --python 3.13 python - <<'PY'
@@ -111,6 +119,7 @@ jobs:
           PY
 
       - name: Ruff (changed files)
+        if: steps.changed-scope.outputs.run_python == 'true'
         run: |
           set -euo pipefail
           mapfile -t files < .changed_python_files
@@ -121,6 +130,7 @@ jobs:
           fi
 
       - name: Ty (changed files)
+        if: steps.changed-scope.outputs.run_python == 'true'
         run: |
           set -euo pipefail
           mapfile -t files < .changed_python_files
@@ -131,6 +141,7 @@ jobs:
           fi
 
       - name: Pytest suite
+        if: steps.changed-scope.outputs.run_python == 'true'
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
