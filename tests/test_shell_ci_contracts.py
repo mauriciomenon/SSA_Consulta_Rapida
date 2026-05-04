@@ -93,8 +93,10 @@ def test_ci_quality_gates_does_not_expand_arg_string_unquoted() -> None:
 def test_minimal_ci_runs_for_any_workflow_change() -> None:
     workflow = _read_repo_text(".github", "workflows", "minimal-ci.yml")
 
-    assert workflow.count('".github/workflows/*.yml"') == 2
-    assert '".github/workflows/minimal-ci.yml"' not in workflow
+    assert "paths:" not in workflow
+    assert "Detect quality gate scope" in workflow
+    assert "run_python=false" in workflow
+    assert "required status will pass without expensive gates" in workflow
 
 
 def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
