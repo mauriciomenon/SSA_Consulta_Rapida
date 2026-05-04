@@ -167,7 +167,7 @@ if errorlevel 1 (
 )
 if not exist "%STAGE_DIR%\config" mkdir "%STAGE_DIR%\config"
 set "BUILD_INFO_FILE=%STAGE_DIR%\config\build_info.json"
-uv run --python 3.13 python -c "import datetime,json,os,pathlib,subprocess; root=pathlib.Path(os.environ['REPO_ROOT']); run=lambda args: subprocess.run(args,cwd=str(root),text=True,capture_output=True,check=False).stdout.strip(); commit=run(['git','rev-parse','HEAD']); payload={'app_version':os.environ.get('APP_VERSION',''),'build_datetime':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),'build_system':'pyoxidizer','git_commit':commit,'git_commit_datetime':run(['git','log','-1','--format=%%cI']),'git_commit_short':commit[:7] if commit else '','git_commit_title':run(['git','log','-1','--format=%%s']),'platform':'windows_amd64','uv_version':run(['uv','--version'])}; pathlib.Path(os.environ['BUILD_INFO_FILE']).write_text(json.dumps(payload,ensure_ascii=True,indent=2,sort_keys=True)+'\n',encoding='utf-8')"
+uv run --python 3.13 "%REPO_ROOT%\dev_env\build\write_build_info.py" --repo-root "%REPO_ROOT%" --output "%BUILD_INFO_FILE%" --build-system pyoxidizer --platform windows_amd64 --app-version "%APP_VERSION%"
 if errorlevel 1 (
     echo Erro ao gerar build_info.json para staging.
     exit /b 1

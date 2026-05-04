@@ -111,37 +111,12 @@ PY_VERSION
 BUILD_INFO_FILE="${REPO_ROOT}/builds/metadata/build_info_debian_arm64_nuitka.json"
 mkdir -p "$(dirname "${BUILD_INFO_FILE}")"
 LAST_STEP="write_build_info"
-uv run --python 3.13 python - "${REPO_ROOT}" "${BUILD_INFO_FILE}" "nuitka" "debian_arm64" "${APP_VERSION}" <<'PY_BUILD_INFO'
-import datetime
-import json
-import pathlib
-import subprocess
-import sys
-
-root = pathlib.Path(sys.argv[1])
-output = pathlib.Path(sys.argv[2])
-build_system = sys.argv[3]
-platform_name = sys.argv[4]
-app_version = sys.argv[5]
-
-def run(args):
-    result = subprocess.run(args, cwd=str(root), text=True, capture_output=True, check=False)
-    return (result.stdout or "").strip() if result.returncode == 0 else ""
-
-commit = run(["git", "rev-parse", "HEAD"])
-payload = {
-    "app_version": app_version,
-    "build_datetime": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
-    "build_system": build_system,
-    "git_commit": commit,
-    "git_commit_datetime": run(["git", "log", "-1", "--format=%cI"]),
-    "git_commit_short": commit[:7] if commit else "",
-    "git_commit_title": run(["git", "log", "-1", "--format=%s"]),
-    "platform": platform_name,
-    "uv_version": run(["uv", "--version"]),
-}
-output.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-PY_BUILD_INFO
+uv run --python 3.13 "${REPO_ROOT}/dev_env/build/write_build_info.py" \
+  --repo-root "${REPO_ROOT}" \
+  --output "${BUILD_INFO_FILE}" \
+  --build-system nuitka \
+  --platform debian_arm64 \
+  --app-version "${APP_VERSION}"
 
 GUI_DIST="${FINAL_BUILD_DIR}/gui_entry.dist"
 CLI_DIST="${FINAL_BUILD_DIR}/cli_entry.dist"

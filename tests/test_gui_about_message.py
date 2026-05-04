@@ -20,7 +20,7 @@ def test_build_about_message_includes_commit_hash(monkeypatch) -> None:
 def test_build_about_message_uses_embedded_build_info(monkeypatch, tmp_path) -> None:
     build_info = tmp_path / "build_info.json"
     build_info.write_text(
-        '{"git_commit_short":"def5678","build_datetime":"2026-04-28T06:30:00-03:00","uv_version":"uv 0.9.18"}',
+        '{"git_commit_short":"def5678","build_datetime":"2026-04-28T06:30:00-03:00","uv_version":"uv 0.9.18","c_compiler_version":"gcc 14.2.0","rustc_version":"rustc 1.90.0"}',
         encoding="utf-8",
     )
     monkeypatch.setattr(
@@ -39,6 +39,8 @@ def test_build_about_message_uses_embedded_build_info(monkeypatch, tmp_path) -> 
     assert "uv: uv 0.9.18" in message
     assert "Commit: def5678" in message
     assert "Build: 2026-04-28T06:30:00-03:00" in message
+    assert "C/C++: gcc 14.2.0" in message
+    assert "Rust: rustc 1.90.0" in message
 
 
 def test_resolve_uv_version_uses_resolved_executable(monkeypatch) -> None:
