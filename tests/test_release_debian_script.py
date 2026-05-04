@@ -298,6 +298,14 @@ def test_release_debian_report_filters_stale_assets_from_other_backends(
     assert [asset["name"] for asset in payload["assets"]] == [current.name]
 
 
+def test_release_report_normalizes_csv_arguments() -> None:
+    assert REPORT_MODULE._split_csv(" nuitka, pyinstaller,,PYoxidizer ") == [
+        "nuitka",
+        "pyinstaller",
+        "pyoxidizer",
+    ]
+
+
 def test_release_debian_tests_use_guarded_string_positions() -> None:
     test_source = Path(__file__).read_text(encoding="utf-8")
 

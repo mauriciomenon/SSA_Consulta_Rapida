@@ -83,3 +83,13 @@
 - Kluster MCP auto review: `kluster_code_review_auto` failed with `Transport closed`.
 - Kluster CLI fallback: `C:\Users\mauri\.pnpm\bin\pnpm.CMD dlx kluster-verify --help` failed with `ERR_PNPM_FETCH_404` for `https://registry.npmjs.org/kluster-verify`.
 - Status: external Kluster verification blocked by environment/tool availability; classic validation still required before commit.
+
+## 2026-05-03T22:06:00-03:00 PR58 remaining review hardening slice
+
+- Scope: remaining valid PR review comments for workflow hardening, secret scan robustness, opencode review wrapper, Windows smoke process cleanup, and release report CSV normalization.
+- Kluster MCP auto review attempt 1: `kluster_code_review_auto` failed with `Transport closed`.
+- Kluster MCP auto review attempt 2: `kluster_code_review_auto` failed with `Transport closed`.
+- Kluster CLI local command check: no `kluster-verify` executable was found by `Get-Command`.
+- Kluster CLI fallback: `C:\Users\mauri\.pnpm\bin\pnpm.CMD dlx kluster-verify --help` failed with `ERR_PNPM_FETCH_404` for `https://registry.npmjs.org/kluster-verify`.
+- Local config evidence: `C:\Users\mauri\.config\opencode\opencode.json` points to MCP package `@klusterai/kluster-verify-code-mcp@latest` with `--server=https://api.kluster.ai`, not to a standalone `kluster-verify` CLI package.
+- Status: external Kluster verification blocked by MCP transport failure; classic validation remains mandatory before commit.
