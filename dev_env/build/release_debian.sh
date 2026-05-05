@@ -392,6 +392,123 @@ validate_build_payload() {
   done
 }
 
+resolve_cli_smoke_executable() {
+  local root="$1"
+  local backend="$2"
+  local app_version="$3"
+  local cli_exe=""
+  case "${backend}" in
+    pyinstaller)
+      cli_exe="${root}/launchers/dist/debian_amd64/SSA_CLI_v${app_version}_debian_amd64/SSA_CLI_v${app_version}_debian_amd64"
+      if [[ ! -x "${cli_exe}" ]]; then
+        cli_exe="${root}/builds/pyinstaller/debian_amd64/SSA_CLI_v${app_version}_debian_amd64/SSA_CLI_v${app_version}_debian_amd64"
+      fi
+      ;;
+    nuitka)
+      cli_exe="${root}/builds/nuitka/debian_amd64/cli_entry.dist/SSA_CLI_v${app_version}_debian_amd64"
+      ;;
+    *)
+      die "backend sem CLI para smoke de importacao: ${backend}"
+      ;;
+  esac
+  [[ -x "${cli_exe}" ]] || die "CLI ausente para smoke ${backend}: ${cli_exe}"
+  printf '%s\n' "${cli_exe}"
+}
+
+run_functional_import_smoke() {
+  local root="$1"
+  local backend="$2"
+  local app_version="$3"
+  if [[ "${backend}" == "pyoxidizer" ]]; then
+    log "smoke importacao ignorado ${backend}: sem CLI dedicada"
+    return 0
+  fi
+
+  local cli_exe
+  cli_exe="$(resolve_cli_smoke_executable "${root}" "${backend}" "${app_version}")"
+  local smoke_dir
+  smoke_dir="$(mktemp -d)"
+  local sample_number="202699001"
+  local runtime_root="${smoke_dir}/xdg/SSA_Consulta_Rapida"
+  local sample_path="${runtime_root}/docs_entrada/SSA_Smoke_01-01-2026_0100AM.xlsx"
+  local db_path="${runtime_root}/data/ssas.db"
+  local stdout_path="${smoke_dir}/stdout.txt"
+  local stderr_path="${smoke_dir}/stderr.txt"
+  local stdin_path="${smoke_dir}/stdin.txt"
+  mkdir -p -- "${runtime_root}/docs_entrada" "${smoke_dir}/home" "${smoke_dir}/xdg"
+
+  if ! (
+    export SSA_SMOKE_XLSX="${sample_path}"
+    export SSA_SMOKE_NUMERO="${sample_number}"
+    export SSA_SMOKE_DB="${db_path}"
+    export SSA_SMOKE_STDOUT="${stdout_path}"
+    uv run --python 3.13 python - <<'PY'
+import os
+from pathlib import Path
+
+import pandas as pd
+
+path = Path(os.environ["SSA_SMOKE_XLSX"])
+path.parent.mkdir(parents=True, exist_ok=True)
+pd.DataFrame(
+    [
+        {
+            "Numero SSA": os.environ["SSA_SMOKE_NUMERO"],
+            "Situacao": "ABERTA",
+            "Setor Executor": "SMOKE",
+            "Emitida Em": "01/01/2026",
+            "Descricao": "Smoke import release",
+        }
+    ]
+).to_excel(path, index=False)
+PY
+    printf 'q\n' >"${stdin_path}"
+    timeout 120s env \
+      -u SSA_BUNDLED_ROOT \
+      -u SSA_CONFIG_DIR \
+      -u SSA_DB_PATH \
+      -u SSA_EXTRA_ALLOWED_PATHS \
+      -u SSA_RUNTIME_ROOT \
+      HOME="${smoke_dir}/home" \
+      XDG_DATA_HOME="${smoke_dir}/xdg" \
+      "${cli_exe}" --force-rescan <"${stdin_path}" >"${stdout_path}" 2>"${stderr_path}"
+    uv run --python 3.13 python - <<'PY'
+import os
+import sqlite3
+from pathlib import Path
+
+db_path = Path(os.environ["SSA_SMOKE_DB"])
+expected = os.environ["SSA_SMOKE_NUMERO"]
+stdout_path = Path(os.environ["SSA_SMOKE_STDOUT"])
+stdout_text = stdout_path.read_text(encoding="utf-8", errors="replace")
+if "Importacao concluida" not in stdout_text:
+    raise SystemExit("saida nao confirmou importacao")
+if not db_path.is_file():
+    raise SystemExit(f"db ausente: {db_path}")
+conn = sqlite3.connect(db_path)
+try:
+    row = conn.execute(
+        "SELECT COUNT(*) FROM ssa_table WHERE CAST(numero_ssa AS TEXT) = ?",
+        (expected,),
+    ).fetchone()
+finally:
+    conn.close()
+count = int(row[0] if row else 0)
+if count < 1:
+    raise SystemExit(f"ssa smoke ausente no db: {expected}")
+PY
+  ); then
+    local stdout_text=""
+    local stderr_text=""
+    [[ -f "${stdout_path}" ]] && stdout_text="$(cat -- "${stdout_path}")"
+    [[ -f "${stderr_path}" ]] && stderr_text="$(cat -- "${stderr_path}")"
+    rm -rf -- "${smoke_dir}"
+    die "smoke importacao falhou ${backend}. stdout=${stdout_text} stderr=${stderr_text}"
+  fi
+  rm -rf -- "${smoke_dir}"
+  log "smoke importacao ${backend}: ${sample_number}"
+}
+
 validate_source_protection() {
   local root="$1"
   local artifact="$2"
@@ -705,6 +822,13 @@ run_build_phase() {
   done
 }
 
+run_validation_phase() {
+  local backend
+  for backend in "${BACKENDS[@]}"; do
+    run_functional_import_smoke "${REPO_ROOT}" "${backend}" "${APP_VERSION}"
+  done
+}
+
 run_package_phase() {
   local backend
   local package_kind
@@ -740,6 +864,7 @@ run_local_release() {
     return 0
   fi
 
+  run_validation_phase
   run_package_phase
 
   write_release_report "${REPO_ROOT}" "${REPORT_FILE}" "${BACKENDS_CSV}" "${PACKAGES_CSV}" "${APP_VERSION}" "${GIT_COMMIT}"

@@ -7,6 +7,7 @@ Separado do main.py principal
 import os
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 APP_RUNTIME_NAME = "SSA_Consulta_Rapida"
@@ -162,7 +163,24 @@ def _seed_runtime_resources(runtime_dir: Path, bundled_resources: Path | None) -
 
 def _prepare_frozen_runtime(app_dir: str) -> Path:
     """Configura ambiente de runtime gravavel para execucao frozen."""
-    runtime_dir = _resolve_runtime_home()
+    if app_dir not in sys.path:
+        sys.path.insert(0, app_dir)
+    from utils.path_safety import ensure_path_is_allowed
+
+    runtime_dir = Path(
+        os.environ.get("SSA_RUNTIME_ROOT") or _resolve_runtime_home()
+    ).expanduser()
+    trusted_runtime_roots = [Path.home(), Path(tempfile.gettempdir())]
+    for env_key in ("APPDATA", "LOCALAPPDATA", "XDG_DATA_HOME"):
+        raw_root = os.environ.get(env_key)
+        if raw_root:
+            trusted_runtime_roots.append(Path(raw_root).expanduser())
+    runtime_dir = ensure_path_is_allowed(
+        runtime_dir,
+        purpose="runtime root",
+        expect_directory=True,
+        extra_allowed_roots=trusted_runtime_roots,
+    )
     runtime_logs = runtime_dir / "logs"
     runtime_docs_in = runtime_dir / "docs_entrada"
     runtime_docs_out = runtime_dir / "docs_saida"
@@ -185,7 +203,7 @@ def _prepare_frozen_runtime(app_dir: str) -> Path:
     runtime_data = _seed_runtime_data(runtime_dir, bundled_data)
     _seed_runtime_resources(runtime_dir, bundled_resources)
     os.environ.setdefault("SSA_BUNDLED_ROOT", app_dir)
-    os.environ.setdefault("SSA_RUNTIME_ROOT", str(runtime_dir))
+    os.environ["SSA_RUNTIME_ROOT"] = str(runtime_dir)
     os.environ.setdefault("SSA_CONFIG_DIR", str(runtime_config))
     os.environ.setdefault("SSA_DB_PATH", str(runtime_data / "ssas.db"))
     allowed_roots = [
@@ -229,7 +247,8 @@ else:
     # Script Python normal
     app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-sys.path.insert(0, app_dir)
+if app_dir not in sys.path:
+    sys.path.insert(0, app_dir)
 
 
 def main():
@@ -241,7 +260,8 @@ def main():
         from gui.gui_ssa import SSAMainWindow
         from utils import setup_project_structure
 
-        setup_project_structure.setup_dirs()
+        setup_base_path = os.environ.get("SSA_RUNTIME_ROOT") if is_frozen_runtime else None
+        setup_project_structure.setup_dirs(base_path=setup_base_path)
         ensure_default_settings(fail_fast=False)
 
         app = QApplication(sys.argv)

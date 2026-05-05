@@ -346,6 +346,81 @@ function Assert-ExeMetadata {
     return $records
 }
 
+function New-SmokeImportExcel {
+    param(
+        [Parameter(Mandatory = $true)] [string] $SmokeDir,
+        [Parameter(Mandatory = $true)] [string] $SamplePath,
+        [Parameter(Mandatory = $true)] [string] $SampleNumber
+    )
+
+    $createExcelPath = Join-Path $SmokeDir "create_smoke_excel.py"
+    $env:SSA_SMOKE_XLSX = $SamplePath
+    $env:SSA_SMOKE_NUMERO = $SampleNumber
+    $createExcelScript = @'
+import os
+from pathlib import Path
+
+import pandas as pd
+
+path = Path(os.environ["SSA_SMOKE_XLSX"])
+path.parent.mkdir(parents=True, exist_ok=True)
+pd.DataFrame(
+    [
+        {
+            "Numero SSA": os.environ["SSA_SMOKE_NUMERO"],
+            "Situacao": "ABERTA",
+            "Setor Executor": "SMOKE",
+            "Emitida Em": "01/01/2026",
+            "Descricao": "Smoke import release",
+        }
+    ]
+).to_excel(path, index=False)
+'@
+    Set-Content -LiteralPath $createExcelPath -Value $createExcelScript -Encoding UTF8
+    & uv run --python 3.13 python $createExcelPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Smoke CLI nao conseguiu gerar Excel de importacao."
+    }
+}
+
+function Assert-SmokeImportDb {
+    param(
+        [Parameter(Mandatory = $true)] [string] $SmokeDir,
+        [Parameter(Mandatory = $true)] [string] $RuntimeDb,
+        [Parameter(Mandatory = $true)] [string] $SampleNumber
+    )
+
+    $validateDbPath = Join-Path $SmokeDir "validate_smoke_db.py"
+    $env:SSA_SMOKE_DB = $RuntimeDb
+    $env:SSA_SMOKE_NUMERO = $SampleNumber
+    $validateDbScript = @'
+import os
+import sqlite3
+from pathlib import Path
+
+db_path = Path(os.environ["SSA_SMOKE_DB"])
+expected = os.environ["SSA_SMOKE_NUMERO"]
+if not db_path.is_file():
+    raise SystemExit(f"db ausente: {db_path}")
+conn = sqlite3.connect(db_path)
+try:
+    row = conn.execute(
+        "SELECT COUNT(*) FROM ssa_table WHERE CAST(numero_ssa AS TEXT) = ?",
+        (expected,),
+    ).fetchone()
+finally:
+    conn.close()
+count = int(row[0] if row else 0)
+if count < 1:
+    raise SystemExit(f"ssa smoke ausente no db: {expected}")
+'@
+    Set-Content -LiteralPath $validateDbPath -Value $validateDbScript -Encoding UTF8
+    & uv run --python 3.13 python $validateDbPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Smoke CLI nao gravou SSA importada."
+    }
+}
+
 function Invoke-Smoke {
     param(
         [Parameter(Mandatory = $true)] [string] $BackendName,
@@ -385,11 +460,18 @@ function Invoke-Smoke {
         $localAppDataDir = Join-Path $smokeDir "localappdata"
         $userProfileDir = Join-Path $smokeDir "userprofile"
         New-Item -ItemType Directory -Force $appDataDir, $localAppDataDir, $userProfileDir | Out-Null
+        $runtimeRoot = Join-Path $appDataDir "SSA_Consulta_Rapida"
+        $inputDir = Join-Path $runtimeRoot "docs_entrada"
+        $runtimeDb = Join-Path $runtimeRoot "data\ssas.db"
+        $samplePath = Join-Path $inputDir "SSA_Smoke_01-01-2026_0100AM.xlsx"
+        $sampleNumber = "202699001"
+        New-Item -ItemType Directory -Force $inputDir | Out-Null
 
         $stdinPath = Join-Path $smokeDir "stdin.txt"
         $stdoutPath = Join-Path $smokeDir "stdout.txt"
         $stderrPath = Join-Path $smokeDir "stderr.txt"
         $wrapperPath = Join-Path $smokeDir "smoke.cmd"
+        New-SmokeImportExcel -SmokeDir $smokeDir -SamplePath $samplePath -SampleNumber $sampleNumber
         Set-Content -LiteralPath $stdinPath -Value "q`n" -NoNewline -Encoding ASCII
         $wrapperLines = @(
             "@echo off",
@@ -398,7 +480,7 @@ function Invoke-Smoke {
             "set `"USERPROFILE=$userProfileDir`"",
             "for /f `"tokens=1 delims==`" %%A in ('set SSA_ 2^>nul') do set `"%%A=`"",
             "cd /d `"$smokeDir`"",
-            "`"$((Resolve-Path $Config.cli_exe).Path)`" --skip-import"
+            "`"$((Resolve-Path $Config.cli_exe).Path)`" --force-rescan"
         )
         $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
         [System.IO.File]::WriteAllLines($wrapperPath, $wrapperLines, $utf8NoBom)
@@ -450,17 +532,21 @@ function Invoke-Smoke {
                 $smokeOutput = $stdoutRaw.Trim()
             }
         }
-        if ($smokeOutput -match "DADOS CARREGADOS:\s+[1-9][0-9.,]*\s+SSAs") {
-            throw "Smoke CLI contaminado por dados locais para ${BackendName}."
+        if ($smokeOutput -notmatch "Importacao concluida") {
+            throw "Smoke CLI nao confirmou importacao para ${BackendName}."
         }
+        Assert-SmokeImportDb -SmokeDir $smokeDir -RuntimeDb $runtimeDb -SampleNumber $sampleNumber
     } finally {
+        Remove-Item Env:SSA_SMOKE_XLSX -ErrorAction SilentlyContinue
+        Remove-Item Env:SSA_SMOKE_NUMERO -ErrorAction SilentlyContinue
+        Remove-Item Env:SSA_SMOKE_DB -ErrorAction SilentlyContinue
         if (Test-Path $smokeDir) {
             Remove-Item -LiteralPath $smokeDir -Recurse -Force
         }
     }
     return [ordered]@{
-        verification_type = "functional_cli_check"
-        command = "CLI --skip-import"
+        verification_type = "functional_import_check"
+        command = "CLI --force-rescan"
         exit_code = 0
         output = $smokeOutput
     }

@@ -4,10 +4,35 @@ import os
 import runpy
 import sys
 from pathlib import Path
-from typing import cast
+from types import ModuleType
+from typing import Callable, cast
+
+import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+SSA_ENV_KEYS = (
+    "SSA_BUNDLED_ROOT",
+    "SSA_CONFIG_DIR",
+    "SSA_DB_PATH",
+    "SSA_EXTRA_ALLOWED_PATHS",
+    "SSA_RUNTIME_ROOT",
+)
+
+
+def _prepare_isolated_runtime_env(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "appdata"))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg_data"))
+    for key in SSA_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+
+
+def _bootstrap_entry_namespace(namespace: dict[str, object]) -> None:
+    bootstrap_runtime = namespace.get("_bootstrap_runtime")
+    if callable(bootstrap_runtime):
+        cast(Callable[[], object], bootstrap_runtime)()
 
 
 def _run_entry_as_nuitka(
@@ -22,37 +47,12 @@ def _run_entry_as_nuitka(
     exe_dir.mkdir()
     executable = exe_dir / executable_name
     executable.write_text("", encoding="utf-8")
-    appdata = tmp_path / "appdata"
-    home_dir = tmp_path / "home"
-    xdg_data_home = tmp_path / "xdg_data"
-    appdata.mkdir()
-    home_dir.mkdir()
-    xdg_data_home.mkdir()
-
     monkeypatch.setattr(sys, "executable", str(executable))
-    monkeypatch.setenv("APPDATA", str(appdata))
-    monkeypatch.setenv("LOCALAPPDATA", str(appdata))
-    monkeypatch.setenv("HOME", str(home_dir))
-    monkeypatch.setenv("XDG_DATA_HOME", str(xdg_data_home))
-    for key in (
-        "SSA_BUNDLED_ROOT",
-        "SSA_CONFIG_DIR",
-        "SSA_DB_PATH",
-        "SSA_EXTRA_ALLOWED_PATHS",
-        "SSA_RUNTIME_ROOT",
-    ):
-        monkeypatch.delenv(key, raising=False)
+    _prepare_isolated_runtime_env(monkeypatch, tmp_path)
 
     original_cwd = Path.cwd()
     original_sys_path = list(sys.path)
-    ssa_keys = (
-        "SSA_BUNDLED_ROOT",
-        "SSA_CONFIG_DIR",
-        "SSA_DB_PATH",
-        "SSA_EXTRA_ALLOWED_PATHS",
-        "SSA_RUNTIME_ROOT",
-    )
-    original_env = {key: os.environ.get(key) for key in ssa_keys}
+    original_env = {key: os.environ.get(key) for key in SSA_ENV_KEYS}
     try:
         init_globals = {"__compiled__": True} if compiled_global else None
         namespace = runpy.run_path(
@@ -60,15 +60,10 @@ def _run_entry_as_nuitka(
             init_globals=init_globals,
             run_name=f"test_{entry_name}",
         )
+        _bootstrap_entry_namespace(namespace)
         namespace["_runtime_env"] = {
             key: os.environ[key]
-            for key in (
-                "SSA_BUNDLED_ROOT",
-                "SSA_CONFIG_DIR",
-                "SSA_DB_PATH",
-                "SSA_EXTRA_ALLOWED_PATHS",
-                "SSA_RUNTIME_ROOT",
-            )
+            for key in SSA_ENV_KEYS
             if key in os.environ
         }
         return namespace
@@ -167,13 +162,7 @@ def test_launcher_runtime_helper_does_not_leak_ssa_environment(
     runtime_env = cast(dict[str, str], namespace["_runtime_env"])
 
     assert "SSA_RUNTIME_ROOT" in runtime_env
-    for key in (
-        "SSA_BUNDLED_ROOT",
-        "SSA_CONFIG_DIR",
-        "SSA_DB_PATH",
-        "SSA_EXTRA_ALLOWED_PATHS",
-        "SSA_RUNTIME_ROOT",
-    ):
+    for key in SSA_ENV_KEYS:
         assert key not in os.environ
 
 
@@ -196,15 +185,7 @@ def test_cli_entry_pyinstaller_runtime_uses_meipass_bundle_root(
     monkeypatch.setattr(sys, "executable", str(executable))
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "_MEIPASS", str(bundle_root), raising=False)
-    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
-    for key in (
-        "SSA_BUNDLED_ROOT",
-        "SSA_CONFIG_DIR",
-        "SSA_DB_PATH",
-        "SSA_EXTRA_ALLOWED_PATHS",
-        "SSA_RUNTIME_ROOT",
-    ):
-        monkeypatch.delenv(key, raising=False)
+    _prepare_isolated_runtime_env(monkeypatch, tmp_path)
 
     original_cwd = Path.cwd()
     original_sys_path = list(sys.path)
@@ -213,6 +194,7 @@ def test_cli_entry_pyinstaller_runtime_uses_meipass_bundle_root(
             str(REPO_ROOT / "launchers" / "cli_entry.py"),
             run_name="test_cli_entry_pyinstaller",
         )
+        _bootstrap_entry_namespace(namespace)
         runtime_root = Path(os.environ["SSA_RUNTIME_ROOT"])
         assert namespace["app_dir"] == str(bundle_root)
         assert Path(os.environ["SSA_CONFIG_DIR"]) == runtime_root / "config"
@@ -245,15 +227,7 @@ def test_gui_entry_pyinstaller_runtime_uses_meipass_bundle_root(
     monkeypatch.setattr(sys, "executable", str(executable))
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "_MEIPASS", str(bundle_root), raising=False)
-    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
-    for key in (
-        "SSA_BUNDLED_ROOT",
-        "SSA_CONFIG_DIR",
-        "SSA_DB_PATH",
-        "SSA_EXTRA_ALLOWED_PATHS",
-        "SSA_RUNTIME_ROOT",
-    ):
-        monkeypatch.delenv(key, raising=False)
+    _prepare_isolated_runtime_env(monkeypatch, tmp_path)
 
     original_cwd = Path.cwd()
     original_sys_path = list(sys.path)
@@ -262,6 +236,7 @@ def test_gui_entry_pyinstaller_runtime_uses_meipass_bundle_root(
             str(REPO_ROOT / "launchers" / "gui_entry.py"),
             run_name="test_gui_entry_pyinstaller",
         )
+        _bootstrap_entry_namespace(namespace)
         runtime_root = Path(os.environ["SSA_RUNTIME_ROOT"])
         assert namespace["app_dir"] == str(bundle_root)
         assert Path(os.environ["SSA_CONFIG_DIR"]) == runtime_root / "config"
@@ -294,15 +269,7 @@ def test_cli_entry_pyoxidizer_runtime_uses_executable_dir_as_bundle_root(
     monkeypatch.setattr(sys, "executable", str(executable))
     monkeypatch.setattr(sys, "oxidized", True, raising=False)
     monkeypatch.delattr(sys, "_MEIPASS", raising=False)
-    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
-    for key in (
-        "SSA_BUNDLED_ROOT",
-        "SSA_CONFIG_DIR",
-        "SSA_DB_PATH",
-        "SSA_EXTRA_ALLOWED_PATHS",
-        "SSA_RUNTIME_ROOT",
-    ):
-        monkeypatch.delenv(key, raising=False)
+    _prepare_isolated_runtime_env(monkeypatch, tmp_path)
 
     original_cwd = Path.cwd()
     original_sys_path = list(sys.path)
@@ -311,6 +278,7 @@ def test_cli_entry_pyoxidizer_runtime_uses_executable_dir_as_bundle_root(
             str(REPO_ROOT / "launchers" / "cli_entry.py"),
             run_name="test_cli_entry_pyoxidizer",
         )
+        _bootstrap_entry_namespace(namespace)
         runtime_root = Path(os.environ["SSA_RUNTIME_ROOT"])
         assert namespace["app_dir"] == str(bundle_root)
         assert Path(os.environ["SSA_CONFIG_DIR"]) == runtime_root / "config"
@@ -367,3 +335,78 @@ def test_gui_seed_runtime_resources_does_not_overwrite_user_files(
 
     assert (user_resources_nested / "theme.txt").read_text(encoding="utf-8") == "user"
     assert (user_resources_nested / "new.txt").read_text(encoding="utf-8") == "new"
+
+
+def test_cli_entry_force_rescan_runs_importer_without_interactive_cli(
+    monkeypatch,
+) -> None:
+    calls: list[tuple[str, object]] = []
+
+    config_manager = ModuleType("core.config_manager")
+    setattr(
+        config_manager,
+        "ensure_default_settings",
+        lambda fail_fast: calls.append(("ensure", fail_fast)),
+    )
+    app_logic = ModuleType("core.app_logic")
+
+    def fake_run_importer_logic(**kwargs: object) -> dict[str, str]:
+        calls.append(("import", kwargs))
+        return {"status": "success"}
+
+    setattr(app_logic, "run_importer_logic", fake_run_importer_logic)
+    cli_module = ModuleType("interface.cli")
+
+    def fail_start_cli_loop(*_args: object) -> None:
+        raise AssertionError("start_cli_loop nao deve rodar em --force-rescan")
+
+    setattr(cli_module, "start_cli_loop", fail_start_cli_loop)
+    setup_project_structure = ModuleType("utils.setup_project_structure")
+    setattr(
+        setup_project_structure,
+        "setup_dirs",
+        lambda base_path=None: calls.append(("setup", base_path)),
+    )
+    import utils
+
+    monkeypatch.setitem(sys.modules, "core.config_manager", config_manager)
+    monkeypatch.setitem(sys.modules, "core.app_logic", app_logic)
+    monkeypatch.setitem(sys.modules, "interface.cli", cli_module)
+    monkeypatch.setitem(
+        sys.modules,
+        "utils.setup_project_structure",
+        setup_project_structure,
+    )
+    monkeypatch.setattr(
+        utils,
+        "setup_project_structure",
+        setup_project_structure,
+        raising=False,
+    )
+    monkeypatch.setattr(sys, "argv", ["SSA_CLI", "--force-rescan"])
+    monkeypatch.delenv("SSA_DB_PATH", raising=False)
+
+    namespace = runpy.run_path(
+        str(REPO_ROOT / "launchers" / "cli_entry.py"),
+        run_name="test_cli_force_rescan",
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        namespace["main"]()
+
+    assert exc_info.value.code == 0
+    assert calls[0:2] == [("setup", None), ("ensure", False)]
+    assert calls[2][0] == "import"
+    import_kwargs = cast(dict[str, object], calls[2][1])
+    assert import_kwargs["force_import"] is True
+    assert str(import_kwargs["docs_dir"]).endswith("docs_entrada")
+    assert str(import_kwargs["data_dir"]).endswith("data")
+    assert os.environ["SSA_DB_PATH"].endswith(os.path.join("data", "ssas.db"))
+
+
+def test_gui_ssa_keeps_runtime_root_out_of_import_path_contract() -> None:
+    source = (REPO_ROOT / "gui" / "gui_ssa.py").read_text(encoding="utf-8")
+
+    assert "code_root = os.path.abspath" in source
+    assert "sys.path.insert(0, code_root)" in source
+    assert "sys.path.insert(0, project_root)" not in source

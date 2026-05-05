@@ -46,12 +46,13 @@ except ImportError:
 
 # --- Configuração do Path do Projeto (precisa vir antes das importações internas) ---
 runtime_root_override = os.environ.get("SSA_RUNTIME_ROOT")
+code_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if runtime_root_override:
     project_root = os.path.abspath(runtime_root_override)
 else:
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+    project_root = code_root
+if code_root not in sys.path:
+    sys.path.insert(0, code_root)
 
 from core.config_manager import COLUMN_AFFINITY_SCORES  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file

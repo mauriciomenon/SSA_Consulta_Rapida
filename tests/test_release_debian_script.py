@@ -105,6 +105,15 @@ def test_release_debian_script_writes_report_and_validates_payloads() -> None:
     assert "build_info.json" in script
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in script
     assert "validate_source_protection" in script
+    assert "resolve_cli_smoke_executable" in script
+    assert "run_functional_import_smoke" in script
+    assert "run_validation_phase" in script
+    assert "SSA_SMOKE_XLSX" in script
+    assert "SSA_SMOKE_DB" in script
+    assert "SSA_Smoke_01-01-2026_0100AM.xlsx" in script
+    assert "SELECT COUNT(*) FROM ssa_table" in script
+    assert "CAST(numero_ssa AS TEXT)" in script
+    assert "--force-rescan" in script
     assert "source-protection" in REPORT_SCRIPT.read_text(encoding="utf-8")
     assert '--repo-root "${root}"' in script
     assert "bundle_roots" in script
@@ -118,6 +127,7 @@ def test_release_debian_script_writes_report_and_validates_payloads() -> None:
 
 def test_release_debian_script_checks_dry_run_before_package_phase() -> None:
     script = _script_text()
+    local_release_body = section_between(script, "run_local_release()", "\nmain()")
 
     assert 'if [[ "${DRY_RUN}" == "1" ]]; then' in script
     assert_before(
@@ -126,6 +136,11 @@ def test_release_debian_script_checks_dry_run_before_package_phase() -> None:
         "run_package_phase()",
     )
     assert_before(script, 'if [[ "${DRY_RUN}" == "1" ]]; then', "run_package_phase")
+    assert_before(
+        local_release_body,
+        'if [[ "${DRY_RUN}" == "1" ]]; then',
+        "run_validation_phase",
+    )
 
 
 def test_release_debian_script_normalizes_csv_tokens() -> None:

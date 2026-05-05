@@ -54,6 +54,7 @@ SENSITIVE_LOCAL_EXTENSIONS: set[str] = {
 SAMPLE_DB_ASSET_DIR = Path("dist_assets") / "sample_db"
 SAMPLE_DB_ASSET_NAME = "ssas_example.db"
 SAMPLE_DB_ASSET_README_NAME = "LEIA-ME.txt"
+APP_RUNTIME_DIR = "SSA_Consulta_Rapida"
 PACKAGE_SAMPLE_DB_DIR = "BancoExemplo"
 INSTALLER_SAMPLE_DB_DIR_SPEC = r"{userdocs}\SSA Consulta Rapida\BancoExemplo"
 PACKAGE_LOCAL_DB_DIR = "BancoLocal"
@@ -661,19 +662,26 @@ INSTALACAO E USO
    - A estrutura basica de diretorios ja vem no pacote
 
 2. IMPORTAR DADOS
-   - Coloque arquivos Excel na pasta: docs_entrada/
-   - Execute o programa
-   - Os dados serao importados automaticamente
+   - Na GUI, use Importacao externa ou Abrir pasta de entrada
+   - Em app instalado, a pasta tecnica de runtime e: {APP_RUNTIME_DIR}
+   - A pasta real de entrada fica no perfil do usuario:
+     Windows: %APPDATA%\\{APP_RUNTIME_DIR}\\docs_entrada
+     macOS: ~/Library/Application Support/{APP_RUNTIME_DIR}/docs_entrada
+     Linux: ${{XDG_DATA_HOME:-~/.local/share}}/{APP_RUNTIME_DIR}/docs_entrada
+   - Nao use a pasta de instalacao como area de trabalho
 
 3. BANCOS DE DADOS
-   - Arquivo principal: data/ssas.db
-   - Backups automaticos em: data/historico_backups/
+   - Banco principal no app instalado:
+     Windows: %APPDATA%\\{APP_RUNTIME_DIR}\\data\\ssas.db
+     macOS: ~/Library/Application Support/{APP_RUNTIME_DIR}/data/ssas.db
+     Linux: ${{XDG_DATA_HOME:-~/.local/share}}/{APP_RUNTIME_DIR}/data/ssas.db
+   - Backups automaticos ficam em data/historico_backups dentro da pasta de runtime
 
 4. EXPORTACOES
-   - Arquivos CSV/Excel exportados vao para: docs_saida/
+   - Arquivos CSV/Excel exportados vao para docs_saida dentro da pasta de runtime
 
 5. LOGS
-   - Logs de execucao em: logs/ssa.log
+   - Logs de execucao ficam em logs/ssa.log dentro da pasta de runtime
 {sample_db_block}
 {local_db_block}
 
@@ -702,10 +710,11 @@ SUPORTE
 
 ATUALIZACAO
 
-Para atualizar, substitua apenas o executavel principal mantendo:
-- Pasta data/ (seus bancos de dados)
-- Pasta config/ (suas configuracoes personalizadas)
-- Pastas docs_entrada/ e docs_saida/ (seus arquivos)
+Para atualizar o pacote instalado, substitua apenas os executaveis do pacote.
+Em app instalado, dados e configuracoes de runtime ficam no perfil do usuario
+na pasta tecnica {APP_RUNTIME_DIR}; nao precisam ser copiados da pasta de
+instalacao.
+Preserve manualmente apenas arquivos que voce colocou dentro da pasta extraida.
 """
 
     readme_path = target_dir / "LEIA-ME-USUARIO.txt"

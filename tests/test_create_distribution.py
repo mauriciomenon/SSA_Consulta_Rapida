@@ -37,6 +37,23 @@ def test_create_zip_package_returns_none_when_exe_missing(
     assert "Executavel primario ausente no diretorio" in caplog.text
 
 
+def test_create_readme_usuario_points_to_user_runtime_dir(tmp_path: Path) -> None:
+    create_distribution.create_readme_usuario(
+        tmp_path,
+        "pyinstaller",
+        "1.0.0",
+        "SSA_GUI.exe",
+        include_sample_db=False,
+    )
+
+    content = (tmp_path / "LEIA-ME-USUARIO.txt").read_text(encoding="utf-8")
+    assert r"%APPDATA%\SSA_Consulta_Rapida\docs_entrada" in content
+    assert "~/Library/Application Support/SSA_Consulta_Rapida/docs_entrada" in content
+    assert "${XDG_DATA_HOME:-~/.local/share}/SSA_Consulta_Rapida/docs_entrada" in content
+    assert "Nao use a pasta de instalacao como area de trabalho" in content
+    assert "na pasta tecnica SSA_Consulta_Rapida" in content
+
+
 def test_create_zip_package_uses_canonical_pyinstaller_dir(
     tmp_path: Path,
     monkeypatch,

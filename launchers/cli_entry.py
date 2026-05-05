@@ -7,6 +7,7 @@ Separado do main.py principal
 import os
 import shutil
 import sys
+import tempfile
 import traceback
 from pathlib import Path
 
@@ -89,8 +90,14 @@ def _seed_runtime_config(runtime_dir: Path, bundled_config: Path | None) -> Path
                 _copy_missing_tree(source, target)
             elif source.is_file() and not target.exists():
                 shutil.copy2(source, target)
-    except Exception:
-        pass
+    except Exception as exc:
+        try:
+            from utils.robust_logging import get_robust_logger
+
+            logger = get_robust_logger().get_logger("ssa.launcher", "cli_entry")
+            logger.warning("Falha ao preparar config de runtime: %s", exc)
+        except Exception:
+            sys.stderr.write(f"AVISO: falha ao preparar config de runtime: {exc}\n")
 
     return runtime_config
 
@@ -102,34 +109,45 @@ def _seed_runtime_data(runtime_dir: Path, bundled_data: Path | None) -> Path:
     if bundled_data is None:
         return runtime_data
 
-    source_db = bundled_data / "ssas.db"
-    target_db = runtime_data / "ssas.db"
-    if source_db.is_file() and not target_db.exists():
+    try:
+        _copy_missing_tree(bundled_data, runtime_data)
+    except Exception as exc:
         try:
-            shutil.copy2(source_db, target_db)
+            from utils.robust_logging import get_robust_logger
+
+            logger = get_robust_logger().get_logger("ssa.launcher", "cli_entry")
+            logger.warning("Falha ao preparar data de runtime: %s", exc)
         except Exception:
-            pass
+            sys.stderr.write(f"AVISO: falha ao preparar data de runtime: {exc}\n")
     return runtime_data
 
 
 def _prepare_frozen_runtime(app_dir: str) -> Path:
     """Configura runtime gravavel para execucao frozen."""
-    runtime_dir = _resolve_runtime_home()
+    if app_dir not in sys.path:
+        sys.path.insert(0, app_dir)
+    from utils.path_safety import ensure_path_is_allowed
+
+    runtime_dir = Path(
+        os.environ.get("SSA_RUNTIME_ROOT") or _resolve_runtime_home()
+    ).expanduser()
+    trusted_runtime_roots = [Path.home(), Path(tempfile.gettempdir())]
+    for env_key in ("APPDATA", "LOCALAPPDATA", "XDG_DATA_HOME"):
+        raw_root = os.environ.get(env_key)
+        if raw_root:
+            trusted_runtime_roots.append(Path(raw_root).expanduser())
+    runtime_dir = ensure_path_is_allowed(
+        runtime_dir,
+        purpose="runtime root",
+        expect_directory=True,
+        extra_allowed_roots=trusted_runtime_roots,
+    )
+    runtime_dir.mkdir(parents=True, exist_ok=True)
     runtime_logs = runtime_dir / "logs"
     runtime_docs_in = runtime_dir / "docs_entrada"
     runtime_docs_out = runtime_dir / "docs_saida"
     runtime_reports = runtime_dir / "reports"
     runtime_exportacao = runtime_dir / "exportacao"
-    runtime_data_backups = runtime_dir / "data" / "historico_backups"
-    for folder in (
-        runtime_logs,
-        runtime_docs_in,
-        runtime_docs_out,
-        runtime_reports,
-        runtime_exportacao,
-        runtime_data_backups,
-    ):
-        folder.mkdir(parents=True, exist_ok=True)
 
     bundled_config = _find_bundled_dir(app_dir, "config")
     bundled_data = _find_bundled_dir(app_dir, "data")
@@ -137,7 +155,7 @@ def _prepare_frozen_runtime(app_dir: str) -> Path:
     runtime_data = _seed_runtime_data(runtime_dir, bundled_data)
 
     os.environ.setdefault("SSA_BUNDLED_ROOT", app_dir)
-    os.environ.setdefault("SSA_RUNTIME_ROOT", str(runtime_dir))
+    os.environ["SSA_RUNTIME_ROOT"] = str(runtime_dir)
     os.environ.setdefault("SSA_CONFIG_DIR", str(runtime_config))
     os.environ.setdefault("SSA_DB_PATH", str(runtime_data / "ssas.db"))
 
@@ -177,12 +195,21 @@ is_frozen_runtime = bool(
 if is_frozen_runtime:
     # Executavel empacotado - buscar na raiz dos dados empacotados.
     app_dir = str(_resolve_bundle_root())
-    _prepare_frozen_runtime(app_dir)
 else:
     # Script Python normal
     app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-sys.path.insert(0, app_dir)
+_runtime_prepared = False
+
+
+def _bootstrap_runtime() -> str:
+    global _runtime_prepared
+    if is_frozen_runtime and not _runtime_prepared:
+        _prepare_frozen_runtime(app_dir)
+    if app_dir not in sys.path:
+        sys.path.insert(0, app_dir)
+    _runtime_prepared = True
+    return app_dir
 
 
 def main():
@@ -204,29 +231,72 @@ def main():
             print(f"SMOKE_CLI_FAIL {exc}")
             sys.exit(1)
 
+    logger = None
     try:
+        _bootstrap_runtime()
+        from core.app_logic import run_importer_logic
         from core.config_manager import ensure_default_settings
         from interface.cli import start_cli_loop
+        from utils import setup_project_structure
+        from utils.path_safety import ensure_path_is_allowed
+        from utils.robust_logging import get_robust_logger
 
-        ensure_default_settings(fail_fast=False)
-        db_path = os.environ.get("SSA_DB_PATH") or os.path.join(
-            app_dir, "data", "ssas.db"
+        logger = get_robust_logger().get_logger("ssa.launcher", "cli_entry")
+
+        setup_base_path = (
+            os.environ.get("SSA_RUNTIME_ROOT") if is_frozen_runtime else None
         )
+        setup_project_structure.setup_dirs(base_path=setup_base_path)
+        ensure_default_settings(fail_fast=False)
+        runtime_base = str(
+            (os.environ.get("SSA_RUNTIME_ROOT") if is_frozen_runtime else None)
+            or app_dir
+        )
+        docs_dir = os.path.join(runtime_base, "docs_entrada")
+        data_dir = os.path.join(runtime_base, "data")
+        db_path = os.environ.get("SSA_DB_PATH") or os.path.join(
+            data_dir, "ssas.db"
+        )
+        db_path = str(
+            ensure_path_is_allowed(
+                db_path,
+                purpose="cli db path",
+                expect_directory=False,
+                extra_allowed_roots=[runtime_base],
+            )
+        )
+        os.environ.setdefault("SSA_DB_PATH", db_path)
         table_name = os.environ.get("SSA_TABLE_NAME") or "ssa_table"
+        if any(arg in ("--force-rescan", "--rescan") for arg in sys.argv[1:]):
+            updated = run_importer_logic(
+                docs_dir=docs_dir,
+                data_dir=data_dir,
+                force_import=True,
+                extra_allowed_roots=[runtime_base],
+            )
+            logger.info("Importacao concluida. resultado=%r", updated)
+            sys.stdout.write(f"Importacao concluida. resultado={updated!r}\n")
+            sys.exit(0)
+
         start_cli_loop(db_path, table_name)
     except ImportError as e:
-        print(f"ERRO: Nao foi possivel importar interface.cli: {e}")
-        print(f"Path atual: {sys.path}")
-        print(f"App dir: {app_dir}")
-        print(
-            f"Arquivos em app_dir: {os.listdir(app_dir) if os.path.exists(app_dir) else 'N/A'}"
+        if logger is not None:
+            logger.error("Nao foi possivel importar interface.cli: %s", e)
+        sys.stderr.write(f"ERRO: Nao foi possivel importar interface.cli: {e}\n")
+        sys.stderr.write(f"Path atual: {sys.path}\n")
+        sys.stderr.write(f"App dir: {app_dir}\n")
+        sys.stderr.write(
+            "Arquivos em app_dir: "
+            f"{os.listdir(app_dir) if os.path.exists(app_dir) else 'N/A'}\n"
         )
         sys.exit(1)
     except Exception as e:
-        print(f"ERRO: Falha inesperada ao iniciar CLI: {e}")
-        traceback.print_exc()
-        print(f"Path atual: {sys.path}")
-        print(f"App dir: {app_dir}")
+        if logger is not None:
+            logger.error("Falha inesperada ao iniciar CLI: %s", e, exc_info=True)
+        sys.stderr.write(f"ERRO: Falha inesperada ao iniciar CLI: {e}\n")
+        sys.stderr.write(traceback.format_exc())
+        sys.stderr.write(f"Path atual: {sys.path}\n")
+        sys.stderr.write(f"App dir: {app_dir}\n")
         sys.exit(1)
 
 
