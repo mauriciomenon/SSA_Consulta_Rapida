@@ -6,7 +6,9 @@ Separado do main.py principal
 
 import os
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Callable, cast
 
 try:
     from launchers.runtime_entry_helpers import (
@@ -30,6 +32,13 @@ exe_path: Path | None = None
 is_frozen_runtime = False
 app_dir = ""
 _runtime_prepared = False
+
+
+@dataclass
+class ImportProgressSummary:
+    total_candidates: int = 0
+    processed_files: int = 0
+    errors: list[object] = field(default_factory=list)
 
 
 def _seed_runtime_config(runtime_dir: Path, bundled_config: Path | None) -> Path:
@@ -59,6 +68,75 @@ def _bootstrap_runtime() -> str:
         copy_all_data=True,
         create_common_dirs=False,
     )
+
+
+def _run_force_rescan_import(
+    run_importer_logic: Callable[..., object],
+    *,
+    docs_dir: str,
+    data_dir: str,
+    runtime_base: str,
+    logger: Any,
+) -> int:
+    summary = ImportProgressSummary()
+
+    def _summary_count(value: object) -> int:
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, int | float):
+            return int(value)
+        if isinstance(value, str) and value.strip().isdigit():
+            return int(value.strip())
+        return 0
+
+    def _capture_import_progress(event_type: str, data: dict[str, object]) -> None:
+        if not isinstance(data, dict):
+            return
+        if event_type == "start":
+            summary.total_candidates = _summary_count(data.get("total"))
+        elif event_type == "file_error":
+            summary.errors.append(
+                str(data.get("error") or data.get("filename") or "erro")
+            )
+        elif event_type == "finish":
+            summary.total_candidates = _summary_count(
+                data.get("total", summary.total_candidates)
+            )
+            summary.processed_files = _summary_count(data.get("processed"))
+            reported_errors = data.get("errors")
+            if isinstance(reported_errors, list):
+                summary.errors = cast(list[object], reported_errors)
+
+    updated = run_importer_logic(
+        docs_dir=docs_dir,
+        data_dir=data_dir,
+        force_import=True,
+        extra_allowed_roots=[runtime_base],
+        progress_callback=_capture_import_progress,
+    )
+    if updated:
+        logger.info("Importacao concluida. resultado=%r", updated)
+        sys.stdout.write(f"Importacao concluida. resultado={updated!r}\n")
+        return 0
+
+    has_errors = bool(summary.errors)
+    if summary.total_candidates == 0 and not has_errors:
+        logger.info("Importacao concluida sem atualizacoes. resultado=%r", updated)
+        sys.stdout.write("Importacao concluida sem atualizacoes.\n")
+        return 0
+
+    logger.error(
+        "Importacao nao gravou atualizacoes. resultado=%r total=%s processados=%s erros=%s",
+        updated,
+        summary.total_candidates,
+        summary.processed_files,
+        len(summary.errors),
+    )
+    sys.stderr.write(
+        "ERRO: Importacao nao gravou atualizacoes para arquivos candidatos. "
+        "Consulte os logs da aplicacao.\n"
+    )
+    return 1
 
 
 def main():
@@ -131,15 +209,15 @@ def main():
         os.environ.setdefault("SSA_DB_PATH", db_path)
         table_name = os.environ.get("SSA_TABLE_NAME") or "ssa_table"
         if any(arg in ("--force-rescan", "--rescan") for arg in sys.argv[1:]):
-            updated = run_importer_logic(
-                docs_dir=docs_dir,
-                data_dir=data_dir,
-                force_import=True,
-                extra_allowed_roots=[runtime_base],
+            sys.exit(
+                _run_force_rescan_import(
+                    run_importer_logic,
+                    docs_dir=docs_dir,
+                    data_dir=data_dir,
+                    runtime_base=runtime_base,
+                    logger=logger,
+                )
             )
-            logger.info("Importacao concluida. resultado=%r", updated)
-            sys.stdout.write(f"Importacao concluida. resultado={updated!r}\n")
-            sys.exit(0)
 
         start_cli_loop(db_path, table_name)
     except ImportError as e:
