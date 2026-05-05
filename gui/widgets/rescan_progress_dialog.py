@@ -155,12 +155,14 @@ class RescanProgressDialog(QDialog):
             if not final_message:
                 final_message = "Erro nao detalhado pelo processo da operacao."
             self.status_label.setText(
-                f"Operacao falhou ({self._operation_label}): {final_message}"
+                f"Operacao falhou ({self._operation_label}). Veja detalhes abaixo."
             )
+            self.status_label.setToolTip(final_message)
             self.status_label.setStyleSheet(
                 "font-weight: bold; font-size: 12pt; color: red;"
             )
-            self.append_error(f"\nERRO FINAL: {final_message}")
+            if final_message not in self.error_text.toPlainText():
+                self.append_error(f"\nERRO FINAL: {final_message}")
 
     def reject(self) -> None:
         """Request cancel while running; only close after process finishes."""

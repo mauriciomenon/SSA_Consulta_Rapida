@@ -79,9 +79,45 @@ def test_rescan_progress_dialog_set_finished_failure_without_message_shows_defau
         lambda: "Operacao falhou (Reescaneamento)" in dlg.status_label.text()
     )
 
-    assert "Operacao falhou (Reescaneamento)" in dlg.status_label.text()
-    assert "Erro nao detalhado" in dlg.status_label.text()
+    assert dlg.status_label.text() == (
+        "Operacao falhou (Reescaneamento). Veja detalhes abaixo."
+    )
+    assert "Erro nao detalhado" not in dlg.status_label.text()
     assert "ERRO FINAL" in dlg.error_text.toPlainText()
+    assert "Erro nao detalhado" in dlg.error_text.toPlainText()
+    assert "Erro nao detalhado" in dlg.status_label.toolTip()
+
+
+def test_rescan_progress_dialog_failure_keeps_long_detail_out_of_status_label():
+    from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
+
+    dlg = RescanProgressDialog()
+    long_message = (
+        "Erro ao executar operacao de importacao: "
+        "Erro critico no processo de importacao. "
+        "Causa raiz: PermissionError: acesso negado ao banco de runtime"
+    )
+
+    dlg.set_finished(False, long_message)
+
+    assert dlg.status_label.text() == (
+        "Operacao falhou (Reescaneamento). Veja detalhes abaixo."
+    )
+    assert long_message not in dlg.status_label.text()
+    assert long_message in dlg.error_text.toPlainText()
+    assert dlg.status_label.toolTip() == long_message
+
+
+def test_rescan_progress_dialog_failure_does_not_duplicate_existing_error_detail():
+    from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
+
+    dlg = RescanProgressDialog()
+    message = "Erro ao executar operacao de importacao: falha real"
+    dlg.append_error(message)
+
+    dlg.set_finished(False, message)
+
+    assert dlg.error_text.toPlainText().count(message) == 1
 
 
 def test_rescan_progress_dialog_set_finished_is_idempotent():
