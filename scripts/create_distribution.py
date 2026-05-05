@@ -13,20 +13,17 @@ Uso:
 
 import argparse
 import json
-import logging
 import os
 import shutil
 import subprocess
 import zipfile
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-# Configuracao de logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+from shared.date_utils import format_current_timestamp
+from utils.robust_logging import get_robust_logger
+
+logger = get_robust_logger().get_logger(__name__, "distribution")
 
 # Configuracoes
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -137,30 +134,7 @@ def _has_primary_executable(build_dir: Path, build_system: str) -> bool:
         return False
 
     if build_system == "pyinstaller":
-        for item in build_dir.iterdir():
-            if item.is_file():
-                if item.suffix.lower() == ".exe":
-                    return True
-                if item.suffix == "" and os.access(item, os.X_OK):
-                    return True
-            elif item.is_dir():
-                if item.suffix.lower() == ".app":
-                    contents_candidate = item / "Contents" / "MacOS"
-                    if contents_candidate.is_dir():
-                        for child in contents_candidate.iterdir():
-                            if child.is_file() and os.access(child, os.X_OK):
-                                return True
-                embedded_candidates = [
-                    item / item.name,
-                    item / f"{item.name}.exe",
-                ]
-                for embedded in embedded_candidates:
-                    if embedded.is_file():
-                        if embedded.suffix.lower() == ".exe" or os.access(
-                            embedded, os.X_OK
-                        ):
-                            return True
-        return False
+        return _resolve_primary_executable_name(build_dir, prefer_gui=True) is not None
 
     if build_system == "nuitka":
         return _resolve_primary_executable_name(build_dir, prefer_gui=True) is not None
@@ -179,6 +153,69 @@ def _has_primary_executable(build_dir: Path, build_system: str) -> bool:
     return False
 
 
+PRIMARY_EXECUTABLE_NAMES = (
+    "SSA_Consulta_Rapida.exe",
+    "SSA_GUI.exe",
+    "main.exe",
+)
+
+
+def _preferred_file_candidates(_source_dir: Path, file_entries: list[Path]) -> list[str]:
+    existing = {p.name for p in file_entries}
+    return [name for name in PRIMARY_EXECUTABLE_NAMES if name in existing]
+
+
+def _gui_dir_candidates(source_dir: Path, _file_entries: list[Path]) -> list[str]:
+    candidates: list[str] = []
+    for gui_dir in sorted(p for p in source_dir.glob("*GUI*") if p.is_dir()):
+        canonical_exe = gui_dir / f"{gui_dir.name}.exe"
+        if canonical_exe.is_file():
+            candidates.append(f"{gui_dir.name}\\{canonical_exe.name}")
+            continue
+        nested_exes = sorted(p for p in gui_dir.glob("*.exe") if p.is_file())
+        if nested_exes:
+            candidates.append(f"{gui_dir.name}\\{nested_exes[0].name}")
+    return candidates
+
+
+def _exe_file_candidates(
+    _source_dir: Path, file_entries: list[Path], prefer_gui: bool
+) -> list[str]:
+    gui_matches = [
+        p.name for p in sorted(file_entries) if prefer_gui and "GUI" in p.name
+    ]
+    exe_matches = [p.name for p in sorted(file_entries) if p.suffix.lower() == ".exe"]
+    return gui_matches + [name for name in exe_matches if name not in gui_matches]
+
+
+def _posix_executable_candidates(
+    _source_dir: Path, file_entries: list[Path]
+) -> list[str]:
+    return [p.name for p in sorted(file_entries) if os.access(p, os.X_OK)]
+
+
+def _app_bundle_candidates(source_dir: Path, _file_entries: list[Path]) -> list[str]:
+    return sorted(
+        p.name for p in source_dir.iterdir() if p.is_dir() and p.name.lower().endswith(".app")
+    )
+
+
+def _embedded_executable_candidates(source_dir: Path, _file_entries: list[Path]) -> list[str]:
+    return sorted(
+        f"{p.name}/{p.name}"
+        for p in source_dir.iterdir()
+        if p.is_dir() and (p / p.name).is_file() and os.access(p / p.name, os.X_OK)
+    )
+
+
+def _embedded_exe_candidates(source_dir: Path, _file_entries: list[Path]) -> list[str]:
+    return sorted(
+        f"{p.name}/{p.name}.exe"
+        for p in source_dir.iterdir()
+        if p.is_dir() and (p / f"{p.name}.exe").is_file()
+    )
+
+
 def _resolve_primary_executable_name(
     source_dir: Path, prefer_gui: bool = False
 ) -> Optional[str]:
@@ -186,29 +223,27 @@ def _resolve_primary_executable_name(
     if not source_dir.exists() or not source_dir.is_dir():
         return None
 
+    file_entries = [p for p in source_dir.iterdir() if p.is_file()]
+    candidates = _preferred_file_candidates(source_dir, file_entries)
+    if candidates:
+        return candidates[0]
+
     if prefer_gui:
-        gui_dirs = sorted(p for p in source_dir.glob("*GUI*") if p.is_dir())
-        for gui_dir in gui_dirs:
-            canonical_exe = gui_dir / f"{gui_dir.name}.exe"
-            if canonical_exe.is_file():
-                return f"{gui_dir.name}\\{canonical_exe.name}"
-            nested_exes = sorted(p for p in gui_dir.glob("*.exe") if p.is_file())
-            if nested_exes:
-                return f"{gui_dir.name}\\{nested_exes[0].name}"
+        candidates = _gui_dir_candidates(source_dir, file_entries)
+        if candidates:
+            return candidates[0]
 
-    candidates: list[Path] = []
-    if prefer_gui:
-        candidates.extend(sorted(source_dir.glob("*GUI*.exe")))
-    candidates.extend(sorted(source_dir.glob("*.exe")))
-
-    if not candidates:
-        candidates = sorted(
-            p for p in source_dir.iterdir() if p.is_file() and os.access(p, os.X_OK)
-        )
-
-    if not candidates:
-        return None
-    return candidates[0].name
+    probe_results = (
+        _exe_file_candidates(source_dir, file_entries, prefer_gui),
+        _posix_executable_candidates(source_dir, file_entries),
+        _app_bundle_candidates(source_dir, file_entries),
+        _embedded_executable_candidates(source_dir, file_entries),
+        _embedded_exe_candidates(source_dir, file_entries),
+    )
+    for candidates in probe_results:
+        if candidates:
+            return candidates[0]
+    return None
 
 
 def _resolve_nuitka_bundle_dir() -> Optional[Path]:
@@ -263,30 +298,25 @@ def _build_dir_status(build_dir: Path, build_system: str) -> str:
     return "ok"
 
 
-def _resolve_build_directory(build_system: str) -> Optional[Path]:
-    """Resolve diretorio de build. PyInstaller usa canonical com fallback legacy."""
-    build_info = BUILD_SYSTEMS[build_system]
+def _build_directory_candidates(build_system: str) -> list[Path]:
+    build_info = BUILD_SYSTEMS.get(build_system, {})
     base_dir_value = build_info.get("base_dir")
-    if not isinstance(base_dir_value, str):
-        return None
-
+    candidates: list[Path] = []
     if build_system == "nuitka":
         bundle_dir = _resolve_nuitka_bundle_dir()
-        if bundle_dir is not None and _build_dir_status(bundle_dir, "nuitka") == "ok":
-            return bundle_dir
-        return None
-
+        return [bundle_dir] if bundle_dir is not None else []
     if build_system == "pyinstaller":
-        candidates = [PROJECT_ROOT / rel for rel in _get_pyinstaller_canonical_dirs()]
-        for path in candidates:
-            if _build_dir_status(path, "pyinstaller") == "ok":
-                return path
-        # Fallback intencional: se nenhum canonical for valido, tentar base_dir legacy.
+        candidates.extend(PROJECT_ROOT / rel for rel in _get_pyinstaller_canonical_dirs())
+    if isinstance(base_dir_value, str):
+        candidates.append(PROJECT_ROOT / base_dir_value)
+    return candidates
 
-    legacy_dir = PROJECT_ROOT / base_dir_value
-    legacy_status = _build_dir_status(legacy_dir, build_system)
-    if legacy_status == "ok":
-        return legacy_dir
+
+def _resolve_build_directory(build_system: str) -> Optional[Path]:
+    """Resolve diretorio de build. PyInstaller usa canonical com fallback legacy."""
+    for build_dir in _build_directory_candidates(build_system):
+        if _build_dir_status(build_dir, build_system) == "ok":
+            return build_dir
     return None
 
 
@@ -303,10 +333,11 @@ def _resolve_build_directory_failure_reason(build_system: str) -> str:
         return "Bundle Nuitka encontrado, mas sem executavel primario"
 
     if build_system == "pyinstaller":
-        candidates = [PROJECT_ROOT / rel for rel in _get_pyinstaller_canonical_dirs()]
-        for path in candidates:
+        for path in _build_directory_candidates("pyinstaller"):
             if _build_dir_status(path, "pyinstaller") == "no_primary":
-                return f"Executavel primario ausente em diretorio canonico: {path}"
+                if _is_canonical_pyinstaller_directory(path):
+                    return f"Executavel primario ausente em diretorio canonico: {path}"
+                return f"Executavel primario ausente no diretorio: {path}"
 
     base_dir_value = build_info.get("base_dir")
     if not isinstance(base_dir_value, str):
@@ -452,53 +483,7 @@ def _copy_local_db_asset(target_dir: Path, local_db_path: str) -> bool:
 
 def _detect_primary_executable_name(package_dir: Path) -> Optional[str]:
     """Escolhe executavel principal para instrucoes do usuario."""
-    preferred = (
-        "SSA_Consulta_Rapida.exe",
-        "SSA_GUI.exe",
-        "main.exe",
-    )
-    entries = list(package_dir.iterdir())
-    file_entries = [p for p in entries if p.is_file()]
-    existing = [p.name for p in file_entries]
-    for name in preferred:
-        if name in existing:
-            return name
-
-    gui_like = sorted(name for name in existing if "GUI" in name.upper())
-    if gui_like:
-        return gui_like[0]
-
-    exe_like = sorted(
-        p.name
-        for p in file_entries
-        if p.name.lower().endswith(".exe") or (p.suffix == "" and os.access(p, os.X_OK))
-    )
-    if exe_like:
-        return exe_like[0]
-
-    app_like = sorted(
-        p.name for p in entries if p.is_dir() and p.name.lower().endswith(".app")
-    )
-    if app_like:
-        return app_like[0]
-
-    embedded_exec_like = sorted(
-        f"{p.name}/{p.name}"
-        for p in entries
-        if p.is_dir() and (p / p.name).is_file() and os.access(p / p.name, os.X_OK)
-    )
-    if embedded_exec_like:
-        return embedded_exec_like[0]
-
-    embedded_exec_like_exe = sorted(
-        f"{p.name}/{p.name}.exe"
-        for p in entries
-        if p.is_dir() and (p / f"{p.name}.exe").is_file()
-    )
-    if embedded_exec_like_exe:
-        return embedded_exec_like_exe[0]
-
-    return None
+    return _resolve_primary_executable_name(package_dir, prefer_gui=True)
 
 
 def _resolve_inno_source(build_system: str) -> Optional[tuple[Path, str]]:
@@ -561,19 +546,26 @@ def _is_canonical_pyinstaller_directory(build_dir: Path) -> bool:
 
 
 def get_version() -> str:
-    """Le o numero de versao do arquivo VERSION ou retorna default."""
+    """Le o numero de versao sem aceitar fallback silencioso."""
+    if VERSION_FILE.is_file():
+        version = VERSION_FILE.read_text(encoding="utf-8").strip()
+        if version:
+            return version
+        raise RuntimeError(f"VERSION vazio: {VERSION_FILE}")
+
+    version_json = PROJECT_ROOT / "config" / "version.json"
+    if not version_json.is_file():
+        raise RuntimeError(f"Arquivo de versao ausente: {version_json}")
+
     try:
-        with open(VERSION_FILE, "r", encoding="utf-8") as f:
-            return f.read().strip()
-    except Exception:
-        try:
-            with open(
-                PROJECT_ROOT / "config" / "version.json", "r", encoding="utf-8"
-            ) as f:
-                data = json.load(f)
-                return str(data.get("version_short") or data.get("version") or "0.0.0")
-        except Exception:
-            return "0.0.0"
+        data = json.loads(version_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Arquivo de versao invalido: {version_json}: {exc}") from exc
+
+    version = str(data.get("version_short") or data.get("version") or "").strip()
+    if not version:
+        raise RuntimeError(f"version_short ausente em {version_json}")
+    return version
 
 
 def create_user_structure(target_dir: Path):
@@ -790,7 +782,7 @@ def _write_package_version_file(
     with open(package_dir / "VERSION.txt", "w") as f:
         f.write(f"{version}\n")
         f.write(f"Build System: {build_name}\n")
-        f.write(f"Data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"Data: {format_current_timestamp()}\n")
 
 
 def _create_package_zip(package_dir: Path, package_name: str, zip_path: Path) -> None:
@@ -869,7 +861,7 @@ def create_zip_package(
         return None
 
     # Criar diretorio temporario para montagem
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = format_current_timestamp("%Y%m%d_%H%M%S")
     temp_dir = DIST_OUTPUT / f"temp_{build_system}_{timestamp}"
     temp_dir.mkdir(parents=True, exist_ok=True)
 

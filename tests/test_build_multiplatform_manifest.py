@@ -13,6 +13,25 @@ from launchers.build_multiplatform import MultiPlatformBuilder
 from dev_env.build import write_build_info
 
 
+def test_load_version_rejects_missing_version_json(tmp_path: Path) -> None:
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    builder.base_dir = tmp_path
+
+    with pytest.raises(RuntimeError, match="Arquivo de versao ausente"):
+        builder._load_version()
+
+
+def test_load_version_rejects_empty_release_version(tmp_path: Path) -> None:
+    version_file = tmp_path / "config" / "version.json"
+    version_file.parent.mkdir()
+    version_file.write_text('{"version_short": ""}', encoding="utf-8")
+    builder = MultiPlatformBuilder.__new__(MultiPlatformBuilder)
+    builder.base_dir = tmp_path
+
+    with pytest.raises(RuntimeError, match="version_short ausente"):
+        builder._load_version()
+
+
 def test_command_stdout_logs_metadata_command_failure(monkeypatch):
     builder = MultiPlatformBuilder()
     warnings = []

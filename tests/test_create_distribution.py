@@ -3,6 +3,8 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
+import pytest
+
 from scripts import create_distribution
 
 
@@ -52,6 +54,57 @@ def test_create_readme_usuario_points_to_user_runtime_dir(tmp_path: Path) -> Non
     assert "${XDG_DATA_HOME:-~/.local/share}/SSA_Consulta_Rapida/docs_entrada" in content
     assert "Nao use a pasta de instalacao como area de trabalho" in content
     assert "na pasta tecnica SSA_Consulta_Rapida" in content
+
+
+def test_get_version_reads_config_version_without_default(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    config_dir = project_root / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "version.json").write_text(
+        '{"version_short": "4.37"}',
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "VERSION_FILE", project_root / "VERSION")
+
+    assert create_distribution.get_version() == "4.37"
+
+
+def test_get_version_rejects_missing_release_version(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "VERSION_FILE", project_root / "VERSION")
+
+    with pytest.raises(RuntimeError, match="Arquivo de versao ausente"):
+        create_distribution.get_version()
+
+
+def test_get_version_rejects_empty_config_version(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    config_dir = project_root / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "version.json").write_text(
+        '{"version_short": ""}',
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "VERSION_FILE", project_root / "VERSION")
+
+    with pytest.raises(RuntimeError, match="version_short ausente"):
+        create_distribution.get_version()
 
 
 def test_create_zip_package_uses_canonical_pyinstaller_dir(

@@ -26,12 +26,18 @@ set "PYOX_RUNTIME_PYTHON=3.10"
 set "UV_MANAGED_PYTHON=true"
 set "UV_PROJECT_ENVIRONMENT=.venv-win"
 
-for /f "tokens=1,2 delims=|" %%A in ('uv run --python 3.13 python -c "import json,pathlib,re; v=str(json.loads(pathlib.Path('config/version.json').read_text(encoding='utf-8')).get('version_short','0.0')); parts=[int(p) for p in re.findall(r'\d+', v)[:4]]; parts=(parts+[0,0,0,0])[:4]; print(v+'|'+'.'.join(str(p) for p in parts))"') do (
+for /f "tokens=1,2 delims=|" %%A in ('uv run --python 3.13 python -c "import json,pathlib,re; v=str(json.loads(pathlib.Path('config/version.json').read_text(encoding='utf-8')).get('version_short','')).strip(); assert v, 'version_short ausente'; parts=[int(p) for p in re.findall(r'\d+', v)[:4]]; parts=(parts+[0,0,0,0])[:4]; print(v+'|'+'.'.join(str(p) for p in parts))"') do (
     set "APP_VERSION=%%A"
     set "APP_VERSION_PE=%%B"
 )
-if not defined APP_VERSION set "APP_VERSION=0.0"
-if not defined APP_VERSION_PE set "APP_VERSION_PE=0.0.0.0"
+if not defined APP_VERSION (
+    echo Erro ao carregar versao de config\version.json.
+    exit /b 1
+)
+if not defined APP_VERSION_PE (
+    echo Erro ao calcular product version de config\version.json.
+    exit /b 1
+)
 
 set "MSVC_LINK="
 set "VCVARS="

@@ -242,15 +242,18 @@ VSVersionInfo(
             return ""
 
     def _load_version(self):
-        """Carrega versao do arquivo config/version.json"""
+        """Carrega versao do arquivo config/version.json sem fallback silencioso."""
+        version_file = self.base_dir / "config" / "version.json"
+        if not version_file.is_file():
+            raise RuntimeError(f"Arquivo de versao ausente: {version_file}")
         try:
-            version_file = self.base_dir / "config" / "version.json"
-            with open(version_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                return data.get("version_short", "3.10")
-        except Exception as e:
-            logger.warning(f"Nao foi possivel carregar versao: {e}")
-            return "3.10"
+            data = json.loads(version_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"Arquivo de versao invalido: {version_file}: {exc}") from exc
+        version = str(data.get("version_short") or data.get("version") or "").strip()
+        if not version:
+            raise RuntimeError(f"version_short ausente em {version_file}")
+        return version
 
     def detect_current_platform(self):
         """Detecta plataforma atual"""

@@ -24,12 +24,18 @@ set "UV_PROJECT_ENVIRONMENT=.venv-win"
 if not defined PROCESSOR_ARCHITECTURE set "PROCESSOR_ARCHITECTURE=AMD64"
 if not defined PROCESSOR_ARCHITEW6432 set "PROCESSOR_ARCHITEW6432=AMD64"
 
-for /f "tokens=1,2 delims=|" %%A in ('uv run --python 3.13 python -c "import json,pathlib; v=json.loads(pathlib.Path('config/version.json').read_text(encoding='utf-8')).get('version_short','0.0'); f='.'.join((v.split('.')+['0','0','0'])[:4]); print(v+'|'+f)"') do (
+for /f "tokens=1,2 delims=|" %%A in ('uv run --python 3.13 python -c "import json,pathlib; v=str(json.loads(pathlib.Path('config/version.json').read_text(encoding='utf-8')).get('version_short','')).strip(); assert v, 'version_short ausente'; f='.'.join((v.split('.')+['0','0','0'])[:4]); print(v+'|'+f)"') do (
     set "APP_VERSION=%%A"
     set "FILE_VERSION=%%B"
 )
-if not defined APP_VERSION set "APP_VERSION=0.0"
-if not defined FILE_VERSION set "FILE_VERSION=0.0.0.0"
+if not defined APP_VERSION (
+    echo Erro ao carregar versao de config\version.json.
+    exit /b 1
+)
+if not defined FILE_VERSION (
+    echo Erro ao calcular file version de config\version.json.
+    exit /b 1
+)
 
 set "BUILD_METADATA_DIR=%REPO_ROOT%\builds\metadata"
 if not exist "%BUILD_METADATA_DIR%" mkdir "%BUILD_METADATA_DIR%"

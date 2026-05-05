@@ -140,10 +140,16 @@ def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> No
     assert "write_build_info.py" in nuitka_script
     assert "--build-system nuitka" in nuitka_script
     assert "--platform windows_amd64" in nuitka_script
+    assert "version_short ausente" in nuitka_script
+    assert 'if not defined APP_VERSION set "APP_VERSION=0.0"' not in nuitka_script
+    assert 'if not defined FILE_VERSION set "FILE_VERSION=0.0.0.0"' not in nuitka_script
     assert 'set "MSVC_LINK="' in pyoxidizer_script
     assert "if not defined MSVC_LINK" in pyoxidizer_script
     assert "where link.exe" in pyoxidizer_script
     assert 'set "APP_VERSION=%%A"' in pyoxidizer_script
+    assert "version_short ausente" in pyoxidizer_script
+    assert 'if not defined APP_VERSION set "APP_VERSION=0.0"' not in pyoxidizer_script
+    assert 'if not defined APP_VERSION_PE set "APP_VERSION_PE=0.0.0.0"' not in pyoxidizer_script
     assert 'set "PYOX_RUNTIME_PYTHON=3.10"' in pyoxidizer_script
     assert "uv run --python %PYOX_RUNTIME_PYTHON%" in pyoxidizer_script
     assert "SSA_PYOXIDIZER_SMOKE_LOG" in pyoxidizer_script
