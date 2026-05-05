@@ -1,0 +1,47 @@
+shared/date_utils.py
+  082d1ff7d55d96ca 15,25,29-30,35-39,41-45,62,84-111,123-140,142-145
+utils/ascii_sanitizer.py
+  082d1ff7d55d96ca 1-41
+tests/test_main_frozen_runtime.py
+  082d1ff7d55d96ca 1-217
+tests/test_date_utils_serial_and_text.py
+  082d1ff7d55d96ca 7,32-42
+tests/test_ascii_logging_filter.py
+  082d1ff7d55d96ca 25,44-63
+tests/test_main_backfill_integration.py
+  082d1ff7d55d96ca 30-37
+interface/streamlit_launcher.py
+  082d1ff7d55d96ca 1-90
+main.py
+  082d1ff7d55d96ca 11,16,20-27,29-31,34,40,44-48,57,60-61,63-64,66,79,85,87-88,91,97,126,137-144,165-168,171-175,192-194,202,206-223,226-236,238-251,253,256-317,320-322,325-339,342-347,349-365,368-371,373-374,376-386,388-404,407-433,435-436,438-447,449-452,454-481,484-486,488-499,502-510,512-540,542-544,546-547,550-552,554-571,573,575-581,588-589,614,617,623-632,634-640
+interface/cli_args.py
+  082d1ff7d55d96ca 1-187
+launchers/main_runtime.py
+  082d1ff7d55d96ca 1-340
+gui/launcher.py
+  082d1ff7d55d96ca 1-58
+tests/test_main_import_fallback.py
+  082d1ff7d55d96ca 3-5,38-106
+tests/test_main_streamlit_launcher.py
+  082d1ff7d55d96ca 4,6,13,23-28,32,41-43,45,47-49,56-57,59,69-87,109,113,115,141-143,146,162,164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "1354c3ed60f4cbf1e89c6976b701317d1e875cf1",
+  "prompts": {
+    "082d1ff7d55d96ca": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 1801,
+      "total_deletions": 1205,
+      "accepted_lines": 1754,
+      "overriden_lines": 0
+    }
+  }
+}
