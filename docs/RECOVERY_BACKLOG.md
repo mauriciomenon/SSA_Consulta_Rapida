@@ -1,31 +1,55 @@
 # Recovery Backlog
 
-## CURRENT TRUTH 2026-05-04 01h14
+## CURRENT TRUTH 2026-05-05 12h37
 
-- Branch alvo operacional: `dev` e `main` sincronizados.
-- Base minima sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`; usar este commit ou sucessor sincronizado em `main`/`dev`.
-- PR #58 e PR #59: merged.
-- PR #56 e PR #57: merged anteriormente; o estado ativo agora e pos-merge do PR #59.
-- `main`, `dev`, `origin/main` e `origin/dev` apontam para o mesmo HEAD.
-- Artefatos v4.37 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` seguem stale e nao devem ser usados para publicacao final.
+- Branch alvo operacional desta rodada: `dev`.
+- `dev` avancou alem da base antiga `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`; nao assumir `main` sincronizado sem nova checagem explicita.
+- Base funcional local validada antes deste DOC_SYNC: `3f9d6701d798a04e8b42b6c4f7bf7711f1e68dc3 2026-05-05T12:37:11-03:00 test(launchers): Fail executable smoke on timeout`.
+- Commits funcionais desta rodada:
+  - `6495fc8694069d3078002f4b98cca089639a30a3 2026-05-05T12:22:43-03:00 fix(launchers): Fail force rescan on candidate import errors`
+  - `17084dbdeabf21e63625a5fd3c7462eeb66ed08f 2026-05-05T12:26:36-03:00 fix(gui): Include import failure detail in worker status`
+  - `b659b43b6af466c13289b49905193e04e2c1430a 2026-05-05T12:29:05-03:00 fix(build): Reject stale macOS app bundles for DMG`
+  - `3f9d6701d798a04e8b42b6c4f7bf7711f1e68dc3 2026-05-05T12:37:11-03:00 test(launchers): Fail executable smoke on timeout`
+- Artefatos v4.37 anteriores a esta base funcional seguem stale e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
 - Orquestradores ativos:
   - Windows AMD64: `dev_env/build/release_windows.ps1`.
   - Debian AMD64: `dev_env/build/release_debian.sh`.
   - Orquestrador local Windows+WSL: `dev_env/build/release_local.ps1`.
-- Checks GitHub do merge PR #58:
-  - Pass: `minimal-ci`, `Secret Scan`, `codeql-security-scan`, `opencode-pr-review`, `semgrep-cloud-platform/scan`, `security/snyk`, `GitGuardian`, `Socket`, `CodeFactor`, `DeepScan`, `CodeQL`.
-  - Externos/advisory: `code/snyk (mauriciomenon)` falhou por limite `Code test limit reached`; `DeepSource: Python` falhou no dashboard externo.
+- Checks GitHub ainda devem ser confirmados apos push desta rodada.
 - Protecao de codigo:
   - Nuitka continua backend preferencial para release protegido.
   - PyInstaller tem protecao parcial.
   - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
-- Proximo passo operacional: rebuildar Windows AMD64 e Debian AMD64 a partir deste HEAD, validar artefatos e atualizar release v4.37 somente com pacotes novos.
+- Proximo passo operacional: apos push e CI verde, rebuildar Windows AMD64, Debian AMD64 e macOS ARM64 a partir deste HEAD, validar artefatos e atualizar release v4.37 somente com pacotes novos.
 
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
 ## ACTIVE PRIORITIES
+
+## Update 2026-05-05 12:37 - hardening release/import frozen
+
+Escopo deste slice:
+1. corrigir contrato de `launchers/cli_entry.py --force-rescan` para nao retornar sucesso quando havia arquivo candidato e nenhuma gravacao.
+2. manter sucesso para importacao sem trabalho real, evitando falso erro em automacao periodica.
+3. propagar a causa objetiva do erro de importacao no `RescanWorker` sem alterar layout.
+4. impedir que DMG macOS use fallback para `.app` stale quando o bundle da versao atual nao existe.
+5. endurecer smoke legado de executaveis para nao tratar timeout como OK.
+
+Validacoes parciais executadas:
+1. `uv run --python 3.13 python -m py_compile` nos arquivos alterados por bloco.
+2. `uv run --python 3.13 ruff check` nos arquivos alterados por bloco.
+3. `uv run --python 3.13 ty check` nos arquivos alterados por bloco.
+4. `uv run --python 3.13 pytest` focado:
+   - `tests/test_launcher_entry_runtime.py -q`
+   - `tests/test_rescan_worker_advanced.py -q`
+   - `tests/test_build_multiplatform_manifest.py -q`
+   - `tests/test_launcher_executable_smoke.py -q`
+
+Pendente operacional:
+1. executar push e confirmar CI remoto.
+2. rebuildar e publicar instaladores apenas apos CI verde.
 
 ## Update 2026-05-03 - security scan follow-ups
 
@@ -152,10 +176,12 @@ Artefatos stale:
 
 Pendencias Kluster fora do slice atual:
 1. `launchers/build_multiplatform.py`: revisar `git_add_commit_push` e glob/pathspec em slice proprio
-2. `launchers/build_multiplatform.py`: revisar fallback de DMG macOS para evitar bundle stale
-3. `launchers/build_multiplatform.py`: revisar contrato de retorno de `setup_virtual_environment`
-4. `launchers/build_multiplatform.py`: revisar riscos de `include_local_data` antes de qualquer build publico que ative esse flag
-5. `launchers/build_multiplatform.py`: reduzir cleanup amplo e responsabilidades misturadas em slice proprio, sem refatorar junto com hotfix
+2. `launchers/build_multiplatform.py`: revisar contrato de retorno de `setup_virtual_environment`
+3. `launchers/build_multiplatform.py`: revisar riscos de `include_local_data` antes de qualquer build publico que ative esse flag
+4. `launchers/build_multiplatform.py`: reduzir cleanup amplo e responsabilidades misturadas em slice proprio, sem refatorar junto com hotfix
+
+Pendencia encerrada nesta rodada:
+1. `launchers/build_multiplatform.py`: fallback de DMG macOS para evitar bundle stale corrigido em `b659b43b6af466c13289b49905193e04e2c1430a`.
 
 Arquivos locais intocados:
 1. `docs_saida/ANALISE_SUPERFICIAL_MIGRACAO_MULTILINGUAGEM_2026_04_28.md` pertence ao usuario e nao deve ser incluido neste ciclo
