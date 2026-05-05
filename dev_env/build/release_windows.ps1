@@ -346,207 +346,49 @@ function Assert-ExeMetadata {
     return $records
 }
 
-function New-SmokeImportExcel {
-    param(
-        [Parameter(Mandatory = $true)] [string] $SmokeDir,
-        [Parameter(Mandatory = $true)] [string] $SamplePath,
-        [Parameter(Mandatory = $true)] [string] $SampleNumber
-    )
-
-    $createExcelPath = Join-Path $SmokeDir "create_smoke_excel.py"
-    $env:SSA_SMOKE_XLSX = $SamplePath
-    $env:SSA_SMOKE_NUMERO = $SampleNumber
-    $createExcelScript = @'
-import os
-from pathlib import Path
-
-import pandas as pd
-
-path = Path(os.environ["SSA_SMOKE_XLSX"])
-path.parent.mkdir(parents=True, exist_ok=True)
-pd.DataFrame(
-    [
-        {
-            "Numero SSA": os.environ["SSA_SMOKE_NUMERO"],
-            "Situacao": "ABERTA",
-            "Setor Executor": "SMOKE",
-            "Emitida Em": "01/01/2026",
-            "Descricao": "Smoke import release",
-        }
-    ]
-).to_excel(path, index=False)
-'@
-    Set-Content -LiteralPath $createExcelPath -Value $createExcelScript -Encoding UTF8
-    & uv run --python 3.13 python $createExcelPath
-    if ($LASTEXITCODE -ne 0) {
-        throw "Smoke CLI nao conseguiu gerar Excel de importacao."
-    }
-}
-
-function Assert-SmokeImportDb {
-    param(
-        [Parameter(Mandatory = $true)] [string] $SmokeDir,
-        [Parameter(Mandatory = $true)] [string] $RuntimeDb,
-        [Parameter(Mandatory = $true)] [string] $SampleNumber
-    )
-
-    $validateDbPath = Join-Path $SmokeDir "validate_smoke_db.py"
-    $env:SSA_SMOKE_DB = $RuntimeDb
-    $env:SSA_SMOKE_NUMERO = $SampleNumber
-    $validateDbScript = @'
-import os
-import sqlite3
-from pathlib import Path
-
-db_path = Path(os.environ["SSA_SMOKE_DB"])
-expected = os.environ["SSA_SMOKE_NUMERO"]
-if not db_path.is_file():
-    raise SystemExit(f"db ausente: {db_path}")
-conn = sqlite3.connect(db_path)
-try:
-    row = conn.execute(
-        "SELECT COUNT(*) FROM ssa_table WHERE CAST(numero_ssa AS TEXT) = ?",
-        (expected,),
-    ).fetchone()
-finally:
-    conn.close()
-count = int(row[0] if row else 0)
-if count < 1:
-    raise SystemExit(f"ssa smoke ausente no db: {expected}")
-'@
-    Set-Content -LiteralPath $validateDbPath -Value $validateDbScript -Encoding UTF8
-    & uv run --python 3.13 python $validateDbPath
-    if ($LASTEXITCODE -ne 0) {
-        throw "Smoke CLI nao gravou SSA importada."
-    }
-}
-
 function Invoke-Smoke {
     param(
         [Parameter(Mandatory = $true)] [string] $BackendName,
         [Parameter(Mandatory = $true)] [hashtable] $Config
     )
 
-    if ($BackendName -eq "pyoxidizer") {
-        $versionOutput = (& $Config.gui_exe --version 2>&1)
-        if ($LASTEXITCODE -ne 0) {
-            throw "Smoke PyOxidizer --version falhou."
-        }
-        $versionText = ($versionOutput | Out-String).Trim()
-        $verificationType = "gui_version_check_stdout"
-        $commandText = "GUI --version"
-        if ([string]::IsNullOrWhiteSpace($versionText)) {
-            $versionInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $Config.gui_exe).Path)
-            $versionText = [string] $versionInfo.ProductVersion
-            $verificationType = "gui_version_check_metadata"
-            $commandText = "GUI --version + FileVersionInfo"
-        }
-        if ([string]::IsNullOrWhiteSpace($versionText)) {
-            throw "Smoke PyOxidizer nao conseguiu confirmar versao por stdout nem FileVersionInfo."
-        }
-        return [ordered]@{
-            verification_type = $verificationType
-            command = $commandText
-            exit_code = 0
-            output = $versionText
-        }
+    $smokeExe = $Config.cli_exe
+    if ([string]::IsNullOrWhiteSpace($smokeExe)) {
+        $smokeExe = $Config.gui_exe
+    }
+    if ([string]::IsNullOrWhiteSpace($smokeExe)) {
+        throw "Smoke importacao sem executavel para ${BackendName}."
     }
 
-    $smokeOutput = ""
-    $smokeDir = Join-Path ([System.IO.Path]::GetTempPath()) ("ssa_release_smoke_" + [guid]::NewGuid().ToString("N"))
-    New-Item -ItemType Directory -Force $smokeDir | Out-Null
+    $smokeJsonPath = Join-Path ([System.IO.Path]::GetTempPath()) ("ssa_release_smoke_" + [guid]::NewGuid().ToString("N") + ".json")
+    $smokeErrPath = Join-Path ([System.IO.Path]::GetTempPath()) ("ssa_release_smoke_" + [guid]::NewGuid().ToString("N") + ".err")
     try {
-        $appDataDir = Join-Path $smokeDir "appdata"
-        $localAppDataDir = Join-Path $smokeDir "localappdata"
-        $userProfileDir = Join-Path $smokeDir "userprofile"
-        New-Item -ItemType Directory -Force $appDataDir, $localAppDataDir, $userProfileDir | Out-Null
-        $runtimeRoot = Join-Path $appDataDir "SSA_Consulta_Rapida"
-        $inputDir = Join-Path $runtimeRoot "docs_entrada"
-        $runtimeDb = Join-Path $runtimeRoot "data\ssas.db"
-        $samplePath = Join-Path $inputDir "SSA_Smoke_01-01-2026_0100AM.xlsx"
-        $sampleNumber = "202699001"
-        New-Item -ItemType Directory -Force $inputDir | Out-Null
-
-        $stdinPath = Join-Path $smokeDir "stdin.txt"
-        $stdoutPath = Join-Path $smokeDir "stdout.txt"
-        $stderrPath = Join-Path $smokeDir "stderr.txt"
-        $wrapperPath = Join-Path $smokeDir "smoke.cmd"
-        New-SmokeImportExcel -SmokeDir $smokeDir -SamplePath $samplePath -SampleNumber $sampleNumber
-        Set-Content -LiteralPath $stdinPath -Value "q`n" -NoNewline -Encoding ASCII
-        $wrapperLines = @(
-            "@echo off",
-            "set `"APPDATA=$appDataDir`"",
-            "set `"LOCALAPPDATA=$localAppDataDir`"",
-            "set `"USERPROFILE=$userProfileDir`"",
-            "for /f `"tokens=1 delims==`" %%A in ('set SSA_ 2^>nul') do set `"%%A=`"",
-            "cd /d `"$smokeDir`"",
-            "`"$((Resolve-Path $Config.cli_exe).Path)`" --force-rescan"
-        )
-        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-        [System.IO.File]::WriteAllLines($wrapperPath, $wrapperLines, $utf8NoBom)
-
-        $smokeTimeoutSeconds = 60
-        $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-        $startInfo.FileName = $env:ComSpec
-        $startInfo.Arguments = "/d /c `"`"$wrapperPath`" < `"$stdinPath`" > `"$stdoutPath`" 2> `"$stderrPath`"`""
-        $startInfo.UseShellExecute = $false
-        $startInfo.CreateNoWindow = $true
-
-        $process = New-Object System.Diagnostics.Process
-        $process.StartInfo = $startInfo
-        if (-not $process.Start()) {
-            throw "Smoke CLI falhou para ${BackendName}. Processo nao iniciou."
-        }
-        $completed = $process.WaitForExit($smokeTimeoutSeconds * 1000)
-        $timedOut = -not $completed
-        if ($timedOut) {
-            if (-not $process.HasExited) {
-                & taskkill.exe /PID $process.Id /T /F | Out-Null
-                if ($LASTEXITCODE -ne 0 -and -not $process.HasExited) {
-                    $process.Kill()
-                }
-                [void]$process.WaitForExit(10000)
+        $smokeScript = (Resolve-Path (Join-Path $PSScriptRoot "..\..\scripts\smoke_cli.py")).Path
+        $smokeExePath = (Resolve-Path $smokeExe).Path
+        & uv run --python 3.13 python $smokeScript --executable $smokeExePath --json > $smokeJsonPath 2> $smokeErrPath
+        if ($LASTEXITCODE -ne 0) {
+            $stderrText = ""
+            if (Test-Path $smokeErrPath) {
+                $stderrText = (Get-Content -LiteralPath $smokeErrPath -Raw -ErrorAction SilentlyContinue).Trim()
             }
-            $process.Refresh()
-        }
-        $exitCode = 1
-        if (-not $timedOut) {
-            $exitCode = $process.ExitCode
-        }
-        $stderrText = ""
-        if (Test-Path $stderrPath) {
-            $stderrRaw = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
-            if ($null -ne $stderrRaw) {
-                $stderrText = $stderrRaw.Trim()
+            $stdoutText = ""
+            if (Test-Path $smokeJsonPath) {
+                $stdoutText = (Get-Content -LiteralPath $smokeJsonPath -Raw -ErrorAction SilentlyContinue).Trim()
             }
+            throw "Smoke importacao falhou para ${BackendName}. stdout=${stdoutText} stderr=${stderrText}"
         }
-        if ($timedOut) {
-            throw "Smoke CLI timeout para ${BackendName} depois de ${smokeTimeoutSeconds}s. $stderrText"
+        $payload = Get-Content -LiteralPath $smokeJsonPath -Raw | ConvertFrom-Json
+        if (-not $payload.summary.ok -or [int] $payload.summary.imported_rows -lt 1) {
+            throw "Smoke importacao nao validou SQLite para ${BackendName}."
         }
-        if ($exitCode -ne 0) {
-            throw "Smoke CLI falhou para ${BackendName}. ExitCode=${exitCode}. $stderrText"
-        }
-        if (Test-Path $stdoutPath) {
-            $stdoutRaw = Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue
-            if ($null -ne $stdoutRaw) {
-                $smokeOutput = $stdoutRaw.Trim()
-            }
-        }
-        if ($smokeOutput -notmatch "Importacao concluida") {
-            throw "Smoke CLI nao confirmou importacao para ${BackendName}."
-        }
-        Assert-SmokeImportDb -SmokeDir $smokeDir -RuntimeDb $runtimeDb -SampleNumber $sampleNumber
+        $smokeOutput = [string] $payload.summary.output
     } finally {
-        Remove-Item Env:SSA_SMOKE_XLSX -ErrorAction SilentlyContinue
-        Remove-Item Env:SSA_SMOKE_NUMERO -ErrorAction SilentlyContinue
-        Remove-Item Env:SSA_SMOKE_DB -ErrorAction SilentlyContinue
-        if (Test-Path $smokeDir) {
-            Remove-Item -LiteralPath $smokeDir -Recurse -Force
-        }
+        Remove-Item -LiteralPath $smokeJsonPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $smokeErrPath -Force -ErrorAction SilentlyContinue
     }
     return [ordered]@{
         verification_type = "functional_import_check"
-        command = "CLI --force-rescan"
+        command = "app --force-rescan"
         exit_code = 0
         output = $smokeOutput
     }

@@ -104,7 +104,7 @@ def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
     assert "$sha256 = $null" in script
     assert "ComputeHash($stream)" in script
     assert "functional_import_check" in script
-    assert "gui_version_check" in script
+    assert "gui_version_check" not in script
     assert "Assert-SourceProtection" in script
     assert "dev_env\\build\\release_platform_report.py" in script
     assert "source-protection" in script
@@ -119,43 +119,16 @@ def test_release_windows_smoke_uses_isolated_user_environment() -> None:
         "function Write-BackendReleaseZips",
     )
 
-    assert "function New-SmokeImportExcel" in script
-    assert "function Assert-SmokeImportDb" in script
-    assert "SSA_SMOKE_XLSX" in script
-    assert "SSA_SMOKE_DB" in script
-    assert "SSA_Smoke_01-01-2026_0100AM.xlsx" in script
-    assert '"Numero SSA": os.environ["SSA_SMOKE_NUMERO"]' in script
-    assert "SELECT COUNT(*) FROM ssa_table" in script
-    assert "CAST(numero_ssa AS TEXT)" in script
-    assert '$wrapperPath = Join-Path $smokeDir "smoke.cmd"' in smoke_body
-    assert 'set `"APPDATA=$appDataDir`"' in smoke_body
-    assert 'set `"LOCALAPPDATA=$localAppDataDir`"' in smoke_body
-    assert 'set `"USERPROFILE=$userProfileDir`"' in smoke_body
-    assert "set SSA_ 2^>nul" in smoke_body
-    assert 'cd /d `"$smokeDir`"' in smoke_body
-    assert "New-SmokeImportExcel" in smoke_body
-    assert "Assert-SmokeImportDb" in smoke_body
+    assert "function New-SmokeImportExcel" not in script
+    assert "function Assert-SmokeImportDb" not in script
+    assert "scripts\\smoke_cli.py" in smoke_body
+    assert "--executable" in smoke_body
     assert "--force-rescan" in smoke_body
-    assert "$startInfo = New-Object System.Diagnostics.ProcessStartInfo" in smoke_body
-    assert "$startInfo.FileName = $env:ComSpec" in smoke_body
-    assert '< `"$stdinPath`" > `"$stdoutPath`" 2> `"$stderrPath`"' in smoke_body
-    assert "$process = New-Object System.Diagnostics.Process" in smoke_body
-    assert "$process.StartInfo = $startInfo" in smoke_body
-    assert "$completed = $process.WaitForExit($smokeTimeoutSeconds * 1000)" in smoke_body
-    assert "            -Wait" not in smoke_body
-    assert "$smokeTimeoutSeconds = 60" in smoke_body
-    assert "& taskkill.exe /PID $process.Id /T /F | Out-Null" in smoke_body
-    assert "$process.Kill()" in smoke_body
-    assert "New-Object System.Text.UTF8Encoding($false)" in smoke_body
-    assert "[System.IO.File]::WriteAllLines($wrapperPath, $wrapperLines, $utf8NoBom)" in smoke_body
-    assert "Set-Content -LiteralPath $wrapperPath -Value $wrapperLines -Encoding ASCII" not in smoke_body
-    assert "Smoke CLI timeout para" in smoke_body
-    assert "$stderrRaw = Get-Content -LiteralPath $stderrPath -Raw" in smoke_body
-    assert "if ($null -ne $stderrRaw)" in smoke_body
-    assert "$stdoutRaw = Get-Content -LiteralPath $stdoutPath -Raw" in smoke_body
-    assert "if ($null -ne $stdoutRaw)" in smoke_body
-    assert "Importacao concluida" in smoke_body
-    assert "Smoke CLI nao gravou SSA importada" in script
+    assert "ConvertFrom-Json" in smoke_body
+    assert "imported_rows" in smoke_body
+    assert "$smokeExe = $Config.cli_exe" in smoke_body
+    assert "$smokeExe = $Config.gui_exe" in smoke_body
+    assert "Smoke importacao falhou" in smoke_body
 
 
 def test_release_windows_script_exposes_backend_scorecard() -> None:

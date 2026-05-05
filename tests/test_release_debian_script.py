@@ -105,15 +105,13 @@ def test_release_debian_script_writes_report_and_validates_payloads() -> None:
     assert "build_info.json" in script
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in script
     assert "validate_source_protection" in script
-    assert "resolve_cli_smoke_executable" in script
+    assert "resolve_import_smoke_executable" in script
     assert "run_functional_import_smoke" in script
     assert "run_validation_phase" in script
-    assert "SSA_SMOKE_XLSX" in script
-    assert "SSA_SMOKE_DB" in script
-    assert "SSA_Smoke_01-01-2026_0100AM.xlsx" in script
-    assert "SELECT COUNT(*) FROM ssa_table" in script
-    assert "CAST(numero_ssa AS TEXT)" in script
-    assert "--force-rescan" in script
+    assert "scripts/smoke_cli.py" in script
+    assert "--executable" in script
+    assert "builds/pyoxidizer/debian_amd64/SSA_Consulta_Rapida" in script
+    assert "smoke importacao ignorado" not in script
     assert "source-protection" in REPORT_SCRIPT.read_text(encoding="utf-8")
     assert '--repo-root "${root}"' in script
     assert "bundle_roots" in script

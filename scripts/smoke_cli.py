@@ -66,6 +66,7 @@ def _run_cli_entry(
     runtime_config: Path,
     db_path: Path,
     table_name: str,
+    executable: Path | None,
 ) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env.pop("SSA_BUNDLED_ROOT", None)
@@ -74,11 +75,15 @@ def _run_cli_entry(
     env["SSA_DB_PATH"] = str(db_path)
     env["SSA_RUNTIME_ROOT"] = str(runtime_root)
     env["SSA_TABLE_NAME"] = table_name
-    env["PYTHONPATH"] = os.pathsep.join(
-        [str(REPO_ROOT), env["PYTHONPATH"]]
-        if env.get("PYTHONPATH")
-        else [str(REPO_ROOT)]
-    )
+    command = [sys.executable, "-m", "launchers.cli_entry", "--force-rescan"]
+    if executable is None:
+        env["PYTHONPATH"] = os.pathsep.join(
+            [str(REPO_ROOT), env["PYTHONPATH"]]
+            if env.get("PYTHONPATH")
+            else [str(REPO_ROOT)]
+        )
+    else:
+        command = [str(executable), "--force-rescan"]
     env["HOME"] = str(smoke_dir / "home")
     env["APPDATA"] = str(smoke_dir / "appdata")
     env["LOCALAPPDATA"] = str(smoke_dir / "localappdata")
@@ -87,7 +92,7 @@ def _run_cli_entry(
         (smoke_dir / key).mkdir(parents=True, exist_ok=True)
 
     return subprocess.run(
-        [sys.executable, "-m", "launchers.cli_entry", "--force-rescan"],
+        command,
         input="q\n",
         capture_output=True,
         text=True,
@@ -111,7 +116,15 @@ def _count_imported_rows(db_path: Path, table_name: str) -> int:
     return int(row[0] if row else 0)
 
 
-def run_smoke() -> dict[str, Any]:
+def run_smoke(executable: Path | None = None) -> dict[str, Any]:
+    if executable is not None and not executable.is_file():
+        return {
+            "ok": False,
+            "mode": "functional-import",
+            "returncode": 1,
+            "error": f"executavel ausente: {executable}",
+        }
+
     with tempfile.TemporaryDirectory(prefix="ssa_cli_smoke_") as raw_tmp:
         smoke_dir = Path(raw_tmp)
         runtime_root = _runtime_root(smoke_dir)
@@ -128,6 +141,7 @@ def run_smoke() -> dict[str, Any]:
             runtime_config,
             db_path,
             table_name,
+            executable,
         )
         output = (proc.stdout + proc.stderr).strip()
         if proc.returncode != 0:
@@ -157,18 +171,25 @@ def run_smoke() -> dict[str, Any]:
             "runtime_root": str(runtime_root),
             "db_path": str(db_path),
             "imported_rows": rows,
+            "executable": str(executable) if executable is not None else None,
         }
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Smoke test funcional da CLI")
     parser.add_argument("--json", action="store_true", help="Saida em JSON")
+    parser.add_argument(
+        "--executable",
+        type=Path,
+        default=None,
+        help="Executavel de release a validar; se omitido, usa launchers.cli_entry.",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
-    result = run_smoke()
+    result = run_smoke(args.executable)
     exit_code = 0 if result.get("ok") else 1
     if args.json:
         print(

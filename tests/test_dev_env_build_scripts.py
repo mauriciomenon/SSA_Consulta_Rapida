@@ -147,8 +147,8 @@ def test_nuitka_windows_and_pyoxidizer_stage_include_docs_and_build_info() -> No
     assert 'set "PYOX_RUNTIME_PYTHON=3.10"' in pyoxidizer_script
     assert "uv run --python %PYOX_RUNTIME_PYTHON%" in pyoxidizer_script
     assert "SSA_PYOXIDIZER_SMOKE_LOG" in pyoxidizer_script
-    assert "Falha critica nas importacoes" in pyoxidizer_script
-    assert "Error importing numpy" in pyoxidizer_script
+    assert "scripts\\smoke_cli.py" in pyoxidizer_script
+    assert "--executable" in pyoxidizer_script
     assert "rcedit.exe" in pyoxidizer_script
     assert "--set-icon" in pyoxidizer_script
     assert "--set-file-version" in pyoxidizer_script

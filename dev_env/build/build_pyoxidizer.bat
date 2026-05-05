@@ -302,17 +302,9 @@ if "%WITH_LOCAL_DATA%"=="1" (
 
 set "SSA_PYOXIDIZER_SMOKE_LOG=%TEMP%\ssa_pyoxidizer_windows_amd64_smoke.log"
 set "PYOXIDIZER_EXE=%TARGET_BUILD_DIR%\SSA_Consulta_Rapida.exe"
-pushd "%TARGET_BUILD_DIR%" >nul
-echo q | "%PYOXIDIZER_EXE%" > "%SSA_PYOXIDIZER_SMOKE_LOG%" 2>&1
-set "PYOX_SMOKE_RC=!ERRORLEVEL!"
-popd >nul
-if not "%PYOX_SMOKE_RC%"=="0" (
+uv run --python 3.13 python "%REPO_ROOT%\scripts\smoke_cli.py" --executable "%PYOXIDIZER_EXE%" --json > "%SSA_PYOXIDIZER_SMOKE_LOG%" 2>&1
+if errorlevel 1 (
     echo Smoke PyOxidizer falhou. Veja: "%SSA_PYOXIDIZER_SMOKE_LOG%"
-    exit /b 1
-)
-findstr /C:"Falha critica nas importacoes" /C:"Error importing numpy" /C:"modo limitado" "%SSA_PYOXIDIZER_SMOKE_LOG%" >nul 2>&1
-if not errorlevel 1 (
-    echo Smoke PyOxidizer detectou runtime quebrado. Veja: "%SSA_PYOXIDIZER_SMOKE_LOG%"
     exit /b 1
 )
 
