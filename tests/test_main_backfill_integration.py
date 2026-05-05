@@ -27,3 +27,11 @@ def test_main_backfill_generates_report(tmp_path):
     assert report_path.exists()
     data = json.loads(report_path.read_text())
     assert data["summary"]["files_processed"] == 0
+
+
+def test_main_backfill_propagates_failure_exit_code(tmp_path):
+    missing_dir = tmp_path / "missing"
+
+    res = run_main(["--dir", str(missing_dir), "--dry-run"])
+
+    assert res.returncode != 0
