@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import runpy
+import shutil
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -32,7 +33,9 @@ def _prepare_isolated_runtime_env(monkeypatch, tmp_path: Path) -> None:
 def _bootstrap_entry_namespace(namespace: dict[str, object]) -> None:
     bootstrap_runtime = namespace.get("_bootstrap_runtime")
     if callable(bootstrap_runtime):
-        cast(Callable[[], object], bootstrap_runtime)()
+        app_dir = cast(Callable[[], object], bootstrap_runtime)()
+        if isinstance(app_dir, str):
+            namespace["app_dir"] = app_dir
 
 
 def _run_entry_as_nuitka(
@@ -335,6 +338,101 @@ def test_gui_seed_runtime_resources_does_not_overwrite_user_files(
 
     assert (user_resources_nested / "theme.txt").read_text(encoding="utf-8") == "user"
     assert (user_resources_nested / "new.txt").read_text(encoding="utf-8") == "new"
+
+
+def test_gui_seed_runtime_resources_reports_copy_failure(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    from launchers.runtime_entry_helpers import seed_runtime_resources
+
+    runtime_dir = tmp_path / "runtime"
+    bundled_resources = tmp_path / "bundle" / "resources"
+    bundled_resources.mkdir(parents=True)
+    (bundled_resources / "icon.txt").write_text("icon", encoding="utf-8")
+
+    robust_logging = ModuleType("utils.robust_logging")
+
+    def fail_get_logger():
+        raise RuntimeError("logger unavailable")
+
+    setattr(robust_logging, "get_robust_logger", fail_get_logger)
+    monkeypatch.setitem(sys.modules, "utils.robust_logging", robust_logging)
+
+    def fail_copy2(*_args: object, **_kwargs: object) -> None:
+        raise PermissionError("read only target")
+
+    monkeypatch.setattr(shutil, "copy2", fail_copy2)
+
+    result = seed_runtime_resources(
+        runtime_dir,
+        bundled_resources,
+        logger_name="gui_entry",
+    )
+
+    captured = capsys.readouterr()
+    assert result == runtime_dir / "resources"
+    assert "Falha ao preparar resources de runtime: read only target" in captured.err
+
+
+def test_runtime_copy_missing_tree_uses_marker_to_skip_repeated_scan(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from launchers import runtime_entry_helpers
+
+    source_dir = tmp_path / "bundle" / "config"
+    target_dir = tmp_path / "runtime" / "config"
+    nested = source_dir / "nested"
+    nested.mkdir(parents=True)
+    target_dir.mkdir(parents=True)
+    (nested / "settings.json").write_text("bundle", encoding="utf-8")
+
+    runtime_entry_helpers.copy_missing_tree(
+        source_dir,
+        target_dir,
+        marker_name=".ssa_seed_config",
+    )
+    assert (target_dir / "nested" / "settings.json").is_file()
+
+    def fail_rglob(_pattern: str):
+        raise AssertionError("rglob nao deve rodar quando marcador esta valido")
+
+    monkeypatch.setattr(Path, "rglob", fail_rglob)
+
+    runtime_entry_helpers.copy_missing_tree(
+        source_dir,
+        target_dir,
+        marker_name=".ssa_seed_config",
+    )
+
+
+def test_runtime_copy_missing_tree_restores_missing_top_level_entry(
+    tmp_path: Path,
+) -> None:
+    from launchers import runtime_entry_helpers
+
+    source_dir = tmp_path / "bundle" / "config"
+    target_dir = tmp_path / "runtime" / "config"
+    source_dir.mkdir(parents=True)
+    target_dir.mkdir(parents=True)
+    (source_dir / "root.txt").write_text("bundle", encoding="utf-8")
+
+    runtime_entry_helpers.copy_missing_tree(
+        source_dir,
+        target_dir,
+        marker_name=".ssa_seed_config",
+    )
+    (target_dir / "root.txt").unlink()
+
+    runtime_entry_helpers.copy_missing_tree(
+        source_dir,
+        target_dir,
+        marker_name=".ssa_seed_config",
+    )
+
+    assert (target_dir / "root.txt").read_text(encoding="utf-8") == "bundle"
 
 
 def test_cli_entry_force_rescan_runs_importer_without_interactive_cli(
