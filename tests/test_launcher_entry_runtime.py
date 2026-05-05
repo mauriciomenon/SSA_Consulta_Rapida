@@ -482,7 +482,8 @@ def test_cli_entry_force_rescan_runs_importer_without_interactive_cli(
         raising=False,
     )
     monkeypatch.setattr(sys, "argv", ["SSA_CLI", "--force-rescan"])
-    monkeypatch.delenv("SSA_DB_PATH", raising=False)
+    for key in SSA_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
 
     namespace = runpy.run_path(
         str(REPO_ROOT / "launchers" / "cli_entry.py"),
@@ -493,12 +494,13 @@ def test_cli_entry_force_rescan_runs_importer_without_interactive_cli(
         namespace["main"]()
 
     assert exc_info.value.code == 0
-    assert calls[0:2] == [("setup", None), ("ensure", False)]
+    assert calls[0:2] == [("setup", str(REPO_ROOT)), ("ensure", False)]
     assert calls[2][0] == "import"
     import_kwargs = cast(dict[str, object], calls[2][1])
     assert import_kwargs["force_import"] is True
-    assert str(import_kwargs["docs_dir"]).endswith("docs_entrada")
-    assert str(import_kwargs["data_dir"]).endswith("data")
+    assert import_kwargs["docs_dir"] == os.path.join(str(REPO_ROOT), "docs_entrada")
+    assert import_kwargs["data_dir"] == os.path.join(str(REPO_ROOT), "data")
+    assert import_kwargs["extra_allowed_roots"] == [str(REPO_ROOT)]
     assert os.environ["SSA_DB_PATH"].endswith(os.path.join("data", "ssas.db"))
 
 
@@ -561,7 +563,8 @@ def test_cli_entry_force_rescan_returns_error_when_import_reports_candidate_fail
         raising=False,
     )
     monkeypatch.setattr(sys, "argv", ["SSA_CLI", "--force-rescan"])
-    monkeypatch.delenv("SSA_DB_PATH", raising=False)
+    for key in SSA_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
 
     namespace = runpy.run_path(
         str(REPO_ROOT / "launchers" / "cli_entry.py"),
@@ -573,7 +576,7 @@ def test_cli_entry_force_rescan_returns_error_when_import_reports_candidate_fail
 
     captured = capsys.readouterr()
     assert exc_info.value.code == 1
-    assert calls[0:2] == [("setup", None), ("ensure", False)]
+    assert calls[0:2] == [("setup", str(REPO_ROOT)), ("ensure", False)]
     assert calls[2][0] == "import"
     assert "Importacao nao gravou atualizacoes" in captured.err
     assert "Importacao concluida" not in captured.out
@@ -630,7 +633,8 @@ def test_cli_entry_force_rescan_no_work_keeps_success_exit(
         raising=False,
     )
     monkeypatch.setattr(sys, "argv", ["SSA_CLI", "--force-rescan"])
-    monkeypatch.delenv("SSA_DB_PATH", raising=False)
+    for key in SSA_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
 
     namespace = runpy.run_path(
         str(REPO_ROOT / "launchers" / "cli_entry.py"),
@@ -642,7 +646,7 @@ def test_cli_entry_force_rescan_no_work_keeps_success_exit(
 
     captured = capsys.readouterr()
     assert exc_info.value.code == 0
-    assert calls[0:2] == [("setup", None), ("ensure", False)]
+    assert calls[0:2] == [("setup", str(REPO_ROOT)), ("ensure", False)]
     assert calls[2][0] == "import"
     assert "Importacao concluida sem atualizacoes" in captured.out
     assert "ERRO:" not in captured.err

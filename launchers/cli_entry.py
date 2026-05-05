@@ -150,7 +150,7 @@ def main():
     global app_dir, is_frozen_runtime
     logger = None
     try:
-        _bootstrap_runtime()
+        app_dir = _bootstrap_runtime()
     except Exception as e:
         log_launcher_failure(
             "cli_entry",
@@ -184,15 +184,10 @@ def main():
 
         logger = get_robust_logger().get_logger("ssa.launcher", "cli_entry")
 
-        setup_base_path = (
-            os.environ.get("SSA_RUNTIME_ROOT") if is_frozen_runtime else None
-        )
-        setup_project_structure.setup_dirs(base_path=setup_base_path)
+        runtime_root_override = os.environ.get("SSA_RUNTIME_ROOT")
+        runtime_base = str(runtime_root_override or app_dir)
+        setup_project_structure.setup_dirs(base_path=runtime_base)
         ensure_default_settings(fail_fast=False)
-        runtime_base = str(
-            (os.environ.get("SSA_RUNTIME_ROOT") if is_frozen_runtime else None)
-            or app_dir
-        )
         docs_dir = os.path.join(runtime_base, "docs_entrada")
         data_dir = os.path.join(runtime_base, "data")
         db_path = os.environ.get("SSA_DB_PATH") or os.path.join(

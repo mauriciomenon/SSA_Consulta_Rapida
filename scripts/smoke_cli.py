@@ -1,89 +1,197 @@
 #!/usr/bin/env python3
-"""Smoke test simples para a CLI.
+"""Functional smoke test for the CLI entrypoint.
 
-Objetivo: validar rapidamente que o entrypoint de CLI inicia sem falhas graves
-(tipos de import / path) e expõe --help ou marcador de versão. Não substitui
-testes funcionais.
-
-Saída / Convenções:
-  * Código 0: sucesso
-  * Código 1: falha
-  * Com --json: imprime objeto JSON com campos summary / output / exit_code
-
-Estratégia:
-  1. Executa entrypoint via módulo launchers.cli_entry com variável SSA_SMOKE_TEST=1
-     para caminho rápido (evita interface interativa bloqueante).
-  2. Caso falhe, tenta fallback executando `python launchers/cli_entry.py --help`.
-  3. Valida presença de marcador "SMOKE_CLI_OK" ou palavra-chave conhecida ("CONSULTA RÁPIDA", "Ajuda").
-
-Uso:
-  python scripts/smoke_cli.py
-  python scripts/smoke_cli.py --json
+This smoke intentionally imports a synthetic XLSX file through the normal CLI
+entrypoint with `--force-rescan` and verifies the row in SQLite. It is a gate
+for import behavior, not a help/version check.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
+import sqlite3
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
-from typing import List
+from typing import Any
+
+import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+APP_RUNTIME_NAME = "SSA_Consulta_Rapida"
+SAMPLE_NUMBER = "202699001"
+SAMPLE_FILE_NAME = "SSA_Smoke_01-01-2026_0100AM.xlsx"
 
 
-def run_smoke() -> dict:
+def _runtime_root(smoke_dir: Path) -> Path:
+    if sys.platform == "darwin":
+        return smoke_dir / "home" / "Library" / "Application Support" / APP_RUNTIME_NAME
+    if sys.platform.startswith("win"):
+        return smoke_dir / "appdata" / APP_RUNTIME_NAME
+    return smoke_dir / "xdg" / APP_RUNTIME_NAME
+
+
+def _write_smoke_workbook(sample_path: Path) -> None:
+    sample_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        [
+            {
+                "Numero SSA": SAMPLE_NUMBER,
+                "Situacao": "ABERTA",
+                "Setor Executor": "SMOKE",
+                "Emitida Em": "01/01/2026",
+                "Descricao": "Smoke import CLI",
+            }
+        ]
+    ).to_excel(sample_path, index=False)
+
+
+def _copy_runtime_config(runtime_root: Path) -> Path:
+    config_source = REPO_ROOT / "config"
+    config_target = runtime_root / "config"
+    config_target.mkdir(parents=True, exist_ok=True)
+    for source in config_source.iterdir():
+        if source.is_file():
+            target = config_target / source.name
+            target.write_bytes(source.read_bytes())
+    (runtime_root / "data").mkdir(parents=True, exist_ok=True)
+    return config_target
+
+
+def _run_cli_entry(
+    smoke_dir: Path,
+    runtime_root: Path,
+    runtime_config: Path,
+    db_path: Path,
+    table_name: str,
+) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
-    env["SSA_SMOKE_TEST"] = "1"
-    cmd = [sys.executable, "-m", "launchers.cli_entry"]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT, env=env, timeout=25)
+    env.pop("SSA_BUNDLED_ROOT", None)
+    env.pop("SSA_SMOKE_TEST", None)
+    env["SSA_CONFIG_DIR"] = str(runtime_config)
+    env["SSA_DB_PATH"] = str(db_path)
+    env["SSA_RUNTIME_ROOT"] = str(runtime_root)
+    env["SSA_TABLE_NAME"] = table_name
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(REPO_ROOT), env["PYTHONPATH"]]
+        if env.get("PYTHONPATH")
+        else [str(REPO_ROOT)]
+    )
+    env["HOME"] = str(smoke_dir / "home")
+    env["APPDATA"] = str(smoke_dir / "appdata")
+    env["LOCALAPPDATA"] = str(smoke_dir / "localappdata")
+    env["XDG_DATA_HOME"] = str(smoke_dir / "xdg")
+    for key in ("home", "appdata", "localappdata", "xdg"):
+        (smoke_dir / key).mkdir(parents=True, exist_ok=True)
+
+    return subprocess.run(
+        [sys.executable, "-m", "launchers.cli_entry", "--force-rescan"],
+        input="q\n",
+        capture_output=True,
+        text=True,
+        cwd=smoke_dir,
+        env=env,
+        timeout=90,
+        check=False,
+    )
+
+
+def _count_imported_rows(db_path: Path, table_name: str) -> int:
+    if not db_path.is_file():
+        raise RuntimeError(f"db ausente: {db_path}")
+    if not table_name.replace("_", "").isalnum():
+        raise RuntimeError(f"tabela invalida: {table_name}")
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(
+            f'SELECT COUNT(*) FROM "{table_name}" WHERE CAST(numero_ssa AS TEXT) = ?',
+            (SAMPLE_NUMBER,),
+        ).fetchone()
+    return int(row[0] if row else 0)
+
+
+def run_smoke() -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="ssa_cli_smoke_") as raw_tmp:
+        smoke_dir = Path(raw_tmp)
+        runtime_root = _runtime_root(smoke_dir)
+        sample_path = runtime_root / "docs_entrada" / SAMPLE_FILE_NAME
+        db_path = runtime_root / "data" / "ssas.db"
+        table_name = "ssa_table"
+
+        runtime_config = _copy_runtime_config(runtime_root)
+        _write_smoke_workbook(sample_path)
+
+        proc = _run_cli_entry(
+            smoke_dir,
+            runtime_root,
+            runtime_config,
+            db_path,
+            table_name,
+        )
         output = (proc.stdout + proc.stderr).strip()
-        if proc.returncode == 0 and "SMOKE_CLI_OK" in output:
-            return {"ok": True, "mode": "fast", "output": output, "returncode": proc.returncode}
-    except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "mode": "fast-exception", "output": str(exc), "returncode": 1}
+        if proc.returncode != 0:
+            return {
+                "ok": False,
+                "mode": "functional-import",
+                "output": output,
+                "returncode": proc.returncode,
+                "runtime_root": str(runtime_root),
+            }
+        if "Importacao concluida" not in output:
+            return {
+                "ok": False,
+                "mode": "functional-import",
+                "output": output,
+                "returncode": proc.returncode,
+                "runtime_root": str(runtime_root),
+                "error": "stdout nao confirmou importacao",
+            }
 
-    # Fallback: tentar help direto do script (pode abrir UI interativa se não protegido)
-    try:
-        cmd2 = [sys.executable, "launchers/cli_entry.py", "--help"]
-        proc2 = subprocess.run(cmd2, capture_output=True, text=True, cwd=REPO_ROOT, timeout=25)
-        output2 = (proc2.stdout + proc2.stderr).strip()
-        markers = ["Ajuda", "CONSULTA", "Entry point", "SSA"]
-        marker_hit = any(m.lower() in output2.lower() for m in markers)
+        rows = _count_imported_rows(db_path, table_name)
         return {
-            "ok": proc2.returncode == 0 and marker_hit,
-            "mode": "help-fallback",
-            "output": output2,
-            "returncode": proc2.returncode,
-            "marker_hit": marker_hit,
+            "ok": rows >= 1,
+            "mode": "functional-import",
+            "output": output,
+            "returncode": proc.returncode,
+            "runtime_root": str(runtime_root),
+            "db_path": str(db_path),
+            "imported_rows": rows,
         }
-    except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "mode": "help-exception", "output": str(exc), "returncode": 1}
 
 
-def parse_args(argv: List[str]) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Smoke test da CLI")
-    p.add_argument("--json", action="store_true", help="Saída em JSON")
-    return p.parse_args(argv)
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Smoke test funcional da CLI")
+    parser.add_argument("--json", action="store_true", help="Saida em JSON")
+    return parser.parse_args(argv)
 
 
-def main(argv: List[str]) -> int:  # pragma: no cover - simples
+def main(argv: list[str]) -> int:
     args = parse_args(argv)
     result = run_smoke()
+    exit_code = 0 if result.get("ok") else 1
     if args.json:
-        print(json.dumps({"summary": result, "exit_code": 0 if result.get("ok") else 1}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {"summary": result, "exit_code": exit_code},
+                ensure_ascii=True,
+                indent=2,
+            )
+        )
     else:
         status = "OK" if result.get("ok") else "FAIL"
-        print(f"[SMOKE_CLI] Status: {status} | mode={result.get('mode')} | returncode={result.get('returncode')}")
-        # Limita tamanho do output para visual rápido
-        out_preview = result.get("output", "")[:800]
-        if out_preview:
+        print(
+            "[SMOKE_CLI] "
+            f"Status: {status} | mode={result.get('mode')} | "
+            f"returncode={result.get('returncode')} | "
+            f"imported_rows={result.get('imported_rows', 0)}"
+        )
+        output = str(result.get("output", ""))[:1200]
+        if output:
             print("--- Output (preview) ---")
-            print(out_preview)
+            print(output)
             print("-------------------------")
-    return 0 if result.get("ok") else 1
+    return exit_code
 
 
 if __name__ == "__main__":  # pragma: no cover
