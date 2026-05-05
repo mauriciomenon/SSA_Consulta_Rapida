@@ -73,6 +73,29 @@ def test_backup_artifacts_are_not_tracked():
     )
 
 
+def test_sensitive_input_spreadsheets_are_not_tracked():
+    _require_git()
+    tracked_result = subprocess.run(
+        ["git", "ls-files", "docs_entrada"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert tracked_result.returncode == 0, (
+        f"git ls-files falhou: {tracked_result.stderr}"
+    )
+
+    tracked_spreadsheets = [
+        line.strip()
+        for line in tracked_result.stdout.splitlines()
+        if line.strip().lower().endswith((".xls", ".xlsx"))
+    ]
+    assert tracked_spreadsheets == [], (
+        "Planilhas reais de docs_entrada nao devem ser versionadas: "
+        f"{tracked_spreadsheets[:10]}"
+    )
+
+
 def test_source_protection_rejects_app_py_in_zip(tmp_path: Path) -> None:
     package = tmp_path / "artifact.zip"
     with zipfile.ZipFile(package, "w") as archive:
