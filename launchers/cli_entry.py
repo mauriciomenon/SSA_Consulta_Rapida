@@ -8,12 +8,22 @@ import os
 import sys
 from pathlib import Path
 
-from launchers.runtime_entry_helpers import (
-    bootstrap_entry_runtime,
-    log_launcher_failure,
-    seed_runtime_config,
-    seed_runtime_data,
-)
+try:
+    from launchers.runtime_entry_helpers import (
+        bootstrap_entry_runtime,
+        log_launcher_failure,
+        seed_runtime_config,
+        seed_runtime_data,
+    )
+except ModuleNotFoundError as exc:
+    if exc.name != "launchers":
+        raise
+    from runtime_entry_helpers import (  # type: ignore[no-redef]
+        bootstrap_entry_runtime,
+        log_launcher_failure,
+        seed_runtime_config,
+        seed_runtime_data,
+    )
 
 
 exe_path: Path | None = None
