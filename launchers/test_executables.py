@@ -59,16 +59,16 @@ def _check_executable(exe_path: Path, name: str) -> bool:
         )
         if result.stdout:
             print(f"Tipo: {result.stdout.strip()}")
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"WARN Nao foi possivel identificar tipo: {exc}")
     # Verificar tamanho da pasta base
     try:
         size_mb = sum(
             p.stat().st_size for p in exe_path.parent.rglob("*") if p.is_file()
         ) / (1024 * 1024)
         print(f"Tamanho estimado pasta: {size_mb:.1f}M")
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"WARN Nao foi possivel calcular tamanho: {exc}")
     # Teste simples - executar sem argumentos
     print("Testando execucao...")
     try:
@@ -84,8 +84,8 @@ def _check_executable(exe_path: Path, name: str) -> bool:
             return True
         return False
     except subprocess.TimeoutExpired:
-        print("WARN Timeout - assumindo OK (pode estar aguardando input)")
-        return True
+        print("ERR Timeout ao executar - teste considerado falho")
+        return False
     except Exception as e:
         print(f"ERR Erro ao executar: {e}")
         return False
@@ -93,7 +93,6 @@ def _check_executable(exe_path: Path, name: str) -> bool:
 
 # --- Tests --------------------------------------------------------------------
 @pytest.mark.smoke
-@pytest.mark.cli
 def test_executable(exe_path, name):
     ok = _check_executable(exe_path, name)
     if not ok:
