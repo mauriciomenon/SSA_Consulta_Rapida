@@ -286,6 +286,25 @@ origem da regra, arquivo onde ela fica, testes de regressao;
 - Textos de ajuda, tooltip e placeholder sao parte do contrato. Se o comportamento mudar, eles devem ser revisados no mesmo slice.
 - Timeout de ferramenta de review nao autoriza esconder o risco nem prosseguir como se a verificacao estivesse limpa; o bloqueio deve ser declarado com escopo exato.
 
+## Regra De Entrega De Binarios E Instaladores
+
+Antes de publicar qualquer binario, instalador, DMG, DEB, ZIP ou asset de release:
+
+1. Validar fluxo funcional real no artefato gerado, nao apenas startup, `--help` ou `--version`.
+2. Para importacao XLSX, o smoke deve:
+   - gerar ou usar XLSX real;
+   - executar o entrypoint/CLI empacotado;
+   - usar runtime isolado e gravavel;
+   - validar linha esperada no SQLite;
+   - falhar com exit code nao-zero se havia arquivo candidato e nada foi gravado.
+3. Nenhum smoke pode tratar timeout como sucesso.
+4. Nenhum erro de release pode terminar apenas como mensagem generica; deve haver stdout/stderr/log com causa objetiva.
+5. Build frozen deve provar que nao escreve em bundle read-only e nao depende de caminho relativo do repo.
+6. Instalador/DMG nao pode reutilizar artefato stale de versao anterior.
+7. Teste que valida apenas abertura do processo nao cobre entrega de producao.
+8. Falha em smoke funcional bloqueia upload/tag/release.
+9. Qualquer excecao usada como fallback deve registrar causa clara; proibido `pass`, `suppress` ou fallback silencioso em fluxo de entrega.
+
 
 ## Kluster Rules (Auto-generated)
 <kluster.ai mandaroty rules>
