@@ -505,6 +505,8 @@ class TestRescanWorkerIntegration:
         assert signal_collector.finished_error is not None
         assert worker.last_outcome == "error"
         assert "diferencial falhou com erros" in signal_collector.finished_error.lower()
+        assert "bad.xlsx" in signal_collector.finished_error
+        assert "bad cols" in signal_collector.finished_error
         assert any(
             "Reescaneamento Diferencial Falhou" in line
             for line in signal_collector.output_lines

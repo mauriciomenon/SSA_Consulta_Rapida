@@ -201,6 +201,7 @@ class RescanWorker(QThread):
         self._last_processed_files = 0
         self._last_deterministic_failure_count = 0
         self._last_rejection_only = False
+        self._last_runtime_error_detail = ""
         self.last_outcome = RescanOutcome.NO_CHANGES
 
         # Set up logging to capture import messages
@@ -222,6 +223,20 @@ class RescanWorker(QThread):
             return
         _LoggerAttachmentManager.detach(self.logger, self.log_handler)
         self._logger_attached = False
+
+    def _remember_runtime_error(self, filename: object, error: object) -> None:
+        filename_text = str(filename or "").strip()
+        error_text = str(error or "").strip() or "erro desconhecido"
+        if filename_text:
+            self._last_runtime_error_detail = f"{filename_text}: {error_text}"
+        else:
+            self._last_runtime_error_detail = error_text
+
+    def _runtime_failure_message(self, base_message: str) -> str:
+        detail = self._last_runtime_error_detail.strip()
+        if not detail or detail in base_message:
+            return base_message
+        return f"{base_message}. Causa: {detail}"
 
     def _progress_callback(self, event_type, data):
         """Handle progress callbacks from run_importer_logic."""
@@ -252,6 +267,7 @@ class RescanWorker(QThread):
             filename = data.get("filename", "")
             error = data.get("error", "Unknown error")
             self._mark_runtime_error()
+            self._remember_runtime_error(filename, error)
             self.error_line.emit(f"[ERRO] {filename}: {error}")
 
         elif event_type == "finish":
@@ -270,6 +286,12 @@ class RescanWorker(QThread):
             )
             if errors:
                 self.output_line.emit(f"Erros: {len(errors)} arquivos falharam")
+                if not self._last_runtime_error_detail:
+                    first_error = errors[0]
+                    if isinstance(first_error, (tuple, list)) and len(first_error) >= 3:
+                        self._remember_runtime_error(first_error[1], first_error[2])
+                    else:
+                        self._remember_runtime_error("", first_error)
             self.progress.emit(90, "Finalizando...")
 
     def _reset_run_state(self) -> None:
@@ -279,6 +301,7 @@ class RescanWorker(QThread):
         self._last_processed_files = 0
         self._last_deterministic_failure_count = 0
         self._last_rejection_only = False
+        self._last_runtime_error_detail = ""
 
     def _resolve_source_files(self) -> tuple[str, ...] | None:
         if not self.source_files:
@@ -496,7 +519,9 @@ class RescanWorker(QThread):
                             "Importacao diferencial falhou com erros durante o processamento."
                         )
                         self.finished_error.emit(
-                            "Importacao diferencial falhou com erros"
+                            self._runtime_failure_message(
+                                "Importacao diferencial falhou com erros"
+                            )
                         )
                         return
                     self.last_outcome = RescanOutcome.NO_CHANGES
@@ -520,7 +545,9 @@ class RescanWorker(QThread):
                                 "Importacao falhou com erros durante o processamento."
                             )
                             self.finished_error.emit(
-                                "Importacao completa falhou com erros"
+                                self._runtime_failure_message(
+                                    "Importacao completa falhou com erros"
+                                )
                             )
                         else:
                             self.output_line.emit(
