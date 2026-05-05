@@ -463,6 +463,33 @@ def test_post_process_macos_dmg_fails_when_gui_app_missing(tmp_path, monkeypatch
     assert ok is False
 
 
+def test_post_process_macos_dmg_rejects_stale_gui_app_fallback(tmp_path, monkeypatch):
+    builder = MultiPlatformBuilder()
+    builder.dist_dir = tmp_path / "dist"
+    platform_dir = builder.dist_dir / "macos_arm64"
+    platform_dir.mkdir(parents=True)
+
+    stale_app = platform_dir / "SSA_GUI_v0.00_macos_arm64.app"
+    stale_plist = stale_app / "Contents" / "Info.plist"
+    stale_plist.parent.mkdir(parents=True)
+    with open(stale_plist, "wb") as plist_file:
+        plistlib.dump(
+            {"CFBundleName": "stale", "CFBundleDisplayName": "stale"}, plist_file
+        )
+
+    def _fail_if_called(_name):
+        raise AssertionError("hdiutil lookup nao deve ocorrer com app stale")
+
+    monkeypatch.setattr("launchers.build_multiplatform.shutil.which", _fail_if_called)
+
+    ok = builder.post_process(
+        "macos_arm64", {"post_build": {"compress": False, "package": "dmg"}}
+    )
+
+    assert ok is False
+    assert not (platform_dir / builder._get_macos_dmg_name()).exists()
+
+
 def test_post_process_macos_dmg_cli_only_skips_when_gui_not_requested(
     tmp_path, monkeypatch
 ):

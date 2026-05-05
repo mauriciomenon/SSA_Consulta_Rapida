@@ -601,11 +601,14 @@ VSVersionInfo(
 
         return True
 
-    def _find_macos_gui_app(self, dist_dir):
+    def _find_macos_gui_app(self, dist_dir, *, allow_fallback=True):
         """Localiza o bundle .app principal da GUI para empacotamento DMG."""
         expected = dist_dir / f"SSA_GUI_v{self.version}_macos_arm64.app"
         if expected.exists() and expected.is_dir():
             return expected
+
+        if not allow_fallback:
+            return None
 
         candidates = sorted(
             (path for path in dist_dir.glob("SSA_GUI_*.app") if path.is_dir()),
@@ -618,10 +621,11 @@ VSVersionInfo(
 
     def _sync_macos_gui_display_name(self, dist_dir):
         """Atualiza CFBundleName e CFBundleDisplayName do app GUI no macOS."""
-        app_bundle = self._find_macos_gui_app(dist_dir)
+        app_bundle = self._find_macos_gui_app(dist_dir, allow_fallback=False)
         if app_bundle is None:
             logger.error(
-                "Bundle .app da GUI nao encontrado para atualizar nome em %s", dist_dir
+                "Bundle .app da GUI da versao atual nao encontrado para atualizar nome em %s",
+                dist_dir,
             )
             return False
 
@@ -660,9 +664,9 @@ VSVersionInfo(
             logger.error("hdiutil nao encontrado; nao foi possivel gerar DMG")
             return False
 
-        app_bundle = self._find_macos_gui_app(dist_dir)
+        app_bundle = self._find_macos_gui_app(dist_dir, allow_fallback=False)
         if app_bundle is None:
-            logger.error("Bundle .app da GUI nao encontrado em %s", dist_dir)
+            logger.error("Bundle .app da GUI da versao atual nao encontrado em %s", dist_dir)
             return False
 
         dmg_name = self._get_macos_dmg_name()
