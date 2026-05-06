@@ -7,7 +7,7 @@ Uso básico:
 
 Opções:
   --dry-run        Apenas processa a planilha e mostra estatísticas (não insere)
-  --reset-db       Recria schema antes de inserir (usa config/schema.sql)
+  --reset-db       Recria schema antes de inserir (usa config/schema_unified.sql)
   --smart-upsert   Usa caminho de upsert inteligente (numero_ssa) ao invés de insert simples
   --verbose        Aumenta log
 """
@@ -19,16 +19,29 @@ import json
 import logging
 import os
 import sys
+from pathlib import Path
 
-# Garantir que raiz do projeto esteja no sys.path quando script executado diretamente
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+# Bootstrap repo root when this script runs outside the project cwd.
+try:
+    from launchers.main_runtime import _get_project_root  # noqa: E402
+except ModuleNotFoundError as exc:
+    if exc.name != "launchers":
+        raise
+    BOOTSTRAP_ROOT = Path(__file__).resolve().parent.parent
+    if str(BOOTSTRAP_ROOT) not in sys.path:
+        sys.path.insert(0, str(BOOTSTRAP_ROOT))
+    from launchers.main_runtime import _get_project_root  # noqa: E402
+
+PROJECT_ROOT = Path(_get_project_root())
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from armazenamento import database  # noqa: E402
 from utils.robust_importer import import_excel_robust  # noqa: E402
 
 logger = logging.getLogger("import_excel_file")
+SCHEMA_PATH = PROJECT_ROOT / "config" / "schema_unified.sql"
+DEFAULT_MAPPINGS_PATH = PROJECT_ROOT / "config" / "column_mappings.json"
 
 
 def _configure_logging(verbose: bool):
@@ -59,7 +72,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     p.add_argument(
         "--mappings",
-        default="config/column_mappings.json",
+        default=str(DEFAULT_MAPPINGS_PATH),
         help="Arquivo de mapeamento de colunas",
     )
     p.add_argument("--verbose", action="store_true", help="Modo verboso")
@@ -72,6 +85,10 @@ def main(argv: list[str]) -> int:
 
     if not os.path.exists(args.file):
         logger.error("Arquivo não encontrado: %s", args.file)
+        return 2
+
+    if not database.is_valid_identifier(args.table):
+        logger.error("Nome de tabela invalido: %s", args.table)
         return 2
 
     logger.info("Importando planilha: %s", args.file)
@@ -89,11 +106,11 @@ def main(argv: list[str]) -> int:
     if args.reset_db:
         logger.info("Recriando schema do banco: %s", args.db)
         database.reset_database(args.db, mode="file")
-        database.initialize_database(args.db, "schema.sql")
+        database.initialize_database(args.db, str(SCHEMA_PATH))
 
     if df.empty:
-        logger.warning("DataFrame resultante vazio – nada a inserir.")
-        return 0
+        logger.error("DataFrame resultante vazio; nada a inserir.")
+        return 4
 
     logger.info(
         "Inserindo %s linhas normalizadas (smart=%s)", len(df), args.smart_upsert
@@ -111,8 +128,8 @@ def main(argv: list[str]) -> int:
 
     # Pequena verificação após inserção
     try:
-        loaded = database.query_db(args.db, args.table)
-        logger.info("Banco agora contém %s linhas (tabela=%s)", len(loaded), args.table)
+        row_count = database.count_table_rows(args.db, args.table)
+        logger.info("Banco agora contém %s linhas (tabela=%s)", row_count, args.table)
     except Exception as e:  # pragma: no cover
         logger.warning("Não foi possível contar linhas após inserção: %s", e)
 

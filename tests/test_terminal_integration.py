@@ -305,19 +305,15 @@ def test_spawn_shell_and_invoke_python():
     cmd_python = [shell, "-NoLogo", "-NoProfile", "-Command", py_cmd]
     proc2 = _try_spawn(cmd_python, timeout=7)
 
-    # Accept both success (0) and non-zero if python not found; but ensure timeout didn't occur
-    assert proc2.returncode == 0 or proc2.returncode == 1, (
-        f"Invocação python via shell retornou código inesperado {proc2.returncode}; stderr: {proc2.stderr}"
+    assert proc2.returncode == 0, (
+        f"Invocação python via shell falhou com código {proc2.returncode}; stderr: {proc2.stderr}"
     )
-
-    # If python executed successfully, stdout should contain 'python' path
-    if proc2.returncode == 0:
-        assert proc2.stdout.strip(), "Python via shell retornou stdout vazio"
-        # Basic sanity: printed path contains 'python' or endswith .exe on Windows
-        out = proc2.stdout.strip().lower()
-        assert "python" in out or out.endswith(".exe"), (
-            f"Saída python inesperada: {proc2.stdout!r}"
-        )
+    assert proc2.stdout.strip(), "Python via shell retornou stdout vazio"
+    # Basic sanity: printed path contains 'python' or endswith .exe on Windows
+    out = proc2.stdout.strip().lower()
+    assert "python" in out or out.endswith(".exe"), (
+        f"Saída python inesperada: {proc2.stdout!r}"
+    )
 
 
 def test_workspace_vscode_settings_env_vars():

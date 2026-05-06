@@ -19,6 +19,7 @@ sys.path.insert(0, project_root)
 
 # Importa as funções a serem testadas
 # Assumindo que database.py esteja em armazenamento/database.py
+from armazenamento.database import count_table_rows  # noqa: E402
 from armazenamento.database import get_db_connection  # noqa: E402
 from armazenamento.database import initialize_database  # noqa: E402
 from armazenamento.database import insert_dataframe_to_db  # noqa: E402
@@ -228,6 +229,28 @@ def test_query_db_empty_result(temp_db_path, sample_dataframe):
     assert df_result.empty
     # Verifica se as colunas estão corretas mesmo com resultado vazio
     assert list(df_result.columns) == ["id", "nome", "idade"]
+
+
+def test_count_table_rows_counts_resolved_table_and_rejects_invalid_identifier(
+    temp_db_path,
+    sample_dataframe,
+):
+    table_name = "teste_contagem"
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS teste_contagem (
+                id INTEGER,
+                nome TEXT,
+                idade INTEGER
+            );
+        """)
+        conn.commit()
+
+    assert insert_dataframe_to_db(sample_dataframe, temp_db_path, table_name) is True
+
+    assert count_table_rows(temp_db_path, table_name) == len(sample_dataframe)
+    with pytest.raises(ValueError, match="Invalid SQL identifier"):
+        count_table_rows(temp_db_path, "teste;drop")
 
 
 def test_query_db_keeps_nullable_integer_columns_without_float_promotion(temp_db_path):

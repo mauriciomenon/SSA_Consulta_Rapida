@@ -75,8 +75,8 @@ def _clear_resolved_table_cache(db_path: str | None = None) -> None:
 
 # --- Gerenciamento de Conexao ---
 
-# Nome do arquivo de schema (exposto para testes)
-schema_file = "schema.sql"
+# Nome do arquivo de schema padrao
+DEFAULT_SCHEMA_FILE = "schema.sql"
 
 
 @contextmanager
@@ -122,7 +122,7 @@ def get_db_connection(db_path: str):
 
 
 def initialize_database(
-    db_path: str | sqlite3.Connection, schema_file: str = "schema.sql"
+    db_path: str | sqlite3.Connection, schema_file: str = DEFAULT_SCHEMA_FILE
 ):  # pylint: disable=redefined-outer-name  # skipcq: PYL-W0621
     """
     Inicializa o banco de dados aplicando o schema SQL informado.
@@ -457,6 +457,15 @@ def resolve_target_table(conn: sqlite3.Connection, table_name: str) -> str:
     return _resolve_target_table(conn, table_name)
 
 
+def count_table_rows(db_path: str, table_name: str) -> int:
+    """Count rows in a resolved runtime table."""
+    with get_db_connection(db_path) as conn:
+        resolved_table_name = resolve_target_table(conn, table_name)
+        query = f"SELECT COUNT(*) FROM {_quote_identifier(resolved_table_name)}"
+        row = conn.execute(query).fetchone()
+    return int(row[0] if row else 0)
+
+
 def count_distinct_derivada_edges(
     conn: sqlite3.Connection,
     table_name: str,
@@ -639,7 +648,7 @@ def reset_database(
             # Reaplica o schema
             if schema_path is None:
                 schema_path = (
-                    schema_file  # usa padrao e resolucao em initialize_database
+                    DEFAULT_SCHEMA_FILE  # usa padrao e resolucao em initialize_database
                 )
             initialize_database(db_path, schema_path)
             _clear_resolved_table_cache(db_path)
