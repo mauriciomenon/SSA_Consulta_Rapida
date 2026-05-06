@@ -115,11 +115,11 @@ def main():  # pragma: no cover
     log_launcher_status("=== RESUMO ===")
     for n, r in results:
         log_launcher_status(f"{n}: {'OK OK' if r else 'ERR ERRO'}")
-    ok_any = any(r for _, r in results)
-    if ok_any:
-        log_launcher_status("DONE Pelo menos um executavel funcionando!")
+    ok_all = all(r for _, r in results)
+    if ok_all:
+        log_launcher_status("DONE Todos os executaveis esperados funcionaram!")
         return 0
-    log_launcher_status("Nenhum executavel funcionando!", "ERROR")
+    log_launcher_status("Um ou mais executaveis falharam!", "ERROR")
     return 1
 
 

@@ -25,6 +25,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from armazenamento.database import get_db_connection, initialize_database
 from core.app_logic import get_filtered_data, import_files_to_database
 from extracao.extractor import extract_data_from_excel as extract_data_from_file
+from launchers.smoke_validation import run_cli_import_smoke
 from utils.db_maintenance import DatabaseAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -265,24 +266,22 @@ class AutomatedSystemTester:
 
             cli_tests = []
 
-            # Teste 1: Ajuda
+            # Teste 1: importacao funcional via entrypoint CLI
             try:
-                cmd_result = subprocess.run(
-                    [sys.executable, "main.py", "--help"],
-                    cwd=self.base_dir,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
+                smoke_result = run_cli_import_smoke(repo_root=Path(self.base_dir))
                 cli_tests.append(
                     {
-                        "test": "help",
-                        "success": cmd_result.returncode == 0,
-                        "output_length": len(cmd_result.stdout),
+                        "test": "functional_import",
+                        "success": smoke_result.ok,
+                        "imported_rows": smoke_result.imported_rows,
+                        "return_code": smoke_result.returncode,
+                        "details": smoke_result.details(),
                     }
                 )
             except Exception as e:
-                cli_tests.append({"test": "help", "success": False, "error": str(e)})
+                cli_tests.append(
+                    {"test": "functional_import", "success": False, "error": str(e)}
+                )
 
             # Teste 2: Verificar se aceita parâmetros
             try:
@@ -302,9 +301,10 @@ class AutomatedSystemTester:
                 cli_tests.append(
                     {
                         "test": "parameters",
-                        "success": cmd_result.returncode == 0
-                        or "SSA Consulta" in cmd_result.stdout,
+                        "success": cmd_result.returncode == 0,
+                        "return_code": cmd_result.returncode,
                         "had_output": len(cmd_result.stdout) > 0,
+                        "stderr": cmd_result.stderr[:500],
                     }
                 )
             except Exception as e:
@@ -317,7 +317,7 @@ class AutomatedSystemTester:
             )
 
             result.complete(
-                successful_tests > 0,
+                successful_tests == len(cli_tests),
                 total_tests=len(cli_tests),
                 successful_tests=successful_tests,
                 test_details=cli_tests,
@@ -675,7 +675,21 @@ class AutomatedSystemTester:
             print(f"   Taxa de Sucesso: {success_rate:.1%}")
             print(f"   Duração Total: {total_duration.total_seconds():.2f}s")
 
-            overall_success = success_rate >= 0.75  # 75% dos testes devem passar
+            critical_test_names = {
+                "database_creation",
+                "full_import_process",
+                "cli_functionality",
+                "configuration_integrity",
+            }
+            critical_failures = [
+                test_result.test_name
+                for test_result in self.test_results
+                if test_result.test_name in critical_test_names
+                and not test_result.success
+            ]
+            overall_success = (
+                not critical_failures and success_rate >= 0.75
+            )  # 75% dos testes devem passar sem falha critica
             status_final = (
                 "OK SISTEMA APROVADO"
                 if overall_success
@@ -688,6 +702,7 @@ class AutomatedSystemTester:
                 "total_tests": total_tests,
                 "successful_tests": successful_tests,
                 "success_rate": success_rate,
+                "critical_failures": critical_failures,
                 "duration_seconds": total_duration.total_seconds(),
                 "start_time": start_time.isoformat(),
                 "end_time": end_time.isoformat(),

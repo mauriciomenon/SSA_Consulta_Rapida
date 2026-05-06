@@ -5,11 +5,17 @@ IMPORTANTE: Este script usa dist_simple que e temporario e NAO deve ir para o gi
 """
 
 import atexit
+from pathlib import Path
 import shutil
 import subprocess
 import sys
 
-from version_info import REPO_ROOT, get_current_version
+if __package__ != "launchers":
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    __package__ = "launchers"
+
+from .smoke_validation import cli_executable_path, run_cli_import_smoke  # noqa: E402
+from .version_info import REPO_ROOT, get_current_version  # noqa: E402
 
 APP_VERSION = get_current_version()
 
@@ -81,28 +87,24 @@ def main():
         )
         print("OK Build CLI concluído com sucesso!")
 
-        # Testar executável
-        exe_path = (
-            dist_dir
-            / f"SSA_CLI_v{APP_VERSION}_SIMPLES"
-            / f"SSA_CLI_v{APP_VERSION}_SIMPLES"
-        )
+        # Testar executavel com importacao XLSX real.
+        exe_path = cli_executable_path(REPO_ROOT, APP_VERSION, simple=True)
         if exe_path.exists():
-            print(f"OK Executável gerado: {exe_path}")
+            print(f"OK Executavel gerado: {exe_path}")
 
-            # Teste básico
-            test_cmd = [str(exe_path), "--help"]
-            test_result = subprocess.run(
-                test_cmd, capture_output=True, text=True, timeout=10
+            smoke_result = run_cli_import_smoke(executable=exe_path, repo_root=REPO_ROOT)
+
+            if not smoke_result.ok:
+                print(f"ERR Smoke funcional falhou: {smoke_result.details()}")
+                return 1
+            print(
+                "OK Smoke funcional importou "
+                f"{smoke_result.imported_rows} linha(s)"
             )
-
-            if test_result.returncode == 0:
-                print("OK Executável testado e FUNCIONANDO!")
-                print(f"Tamanho: {exe_path.parent.stat().st_size / (1024 * 1024):.1f}M")
-            else:
-                print(f"ERR Teste falhou: {test_result.stderr}")
+            print(f"Tamanho: {exe_path.stat().st_size / (1024 * 1024):.1f}M")
         else:
-            print(f"ERR Executável não encontrado em: {exe_path}")
+            print(f"ERR Executavel nao encontrado em: {exe_path}")
+            return 1
 
     except subprocess.CalledProcessError as e:
         print(f"ERR Erro no build: {e}")
