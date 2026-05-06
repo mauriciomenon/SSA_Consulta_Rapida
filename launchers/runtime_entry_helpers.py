@@ -9,6 +9,9 @@ from types import ModuleType
 
 
 APP_RUNTIME_NAME = "SSA_Consulta_Rapida"
+SMOKE_TEST_ENV = "SSA_SMOKE_TEST"
+CLI_SMOKE_OK_MARKER = "SMOKE_CLI_OK"
+GUI_SMOKE_OK_MARKER = "SMOKE_GUI_OK"
 
 
 def resolve_runtime_home() -> Path:
@@ -407,10 +410,10 @@ def _apply_runtime_environment(
     runtime_config: Path,
     runtime_data: Path,
 ) -> None:
-    os.environ.setdefault("SSA_BUNDLED_ROOT", app_dir)
+    os.environ["SSA_BUNDLED_ROOT"] = app_dir
     os.environ["SSA_RUNTIME_ROOT"] = str(runtime_dir)
-    os.environ.setdefault("SSA_CONFIG_DIR", str(runtime_config))
-    os.environ.setdefault("SSA_DB_PATH", str(runtime_data / "ssas.db"))
+    os.environ["SSA_CONFIG_DIR"] = str(runtime_config)
+    os.environ["SSA_DB_PATH"] = str(runtime_data / "ssas.db")
     allowed_roots = _runtime_allowed_roots(runtime_dir, runtime_config, runtime_data)
     os.environ["SSA_EXTRA_ALLOWED_PATHS"] = os.pathsep.join(_dedup_paths(allowed_roots))
 

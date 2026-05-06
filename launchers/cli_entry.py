@@ -6,27 +6,23 @@ Separado do main.py principal
 
 import os
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, Callable, TypedDict
 
-try:
-    from launchers.runtime_entry_helpers import (
-        bootstrap_entry_runtime,
-        log_launcher_failure,
-        seed_runtime_config,
-        seed_runtime_data,
-    )
-except ModuleNotFoundError as exc:
-    if exc.name != "launchers":
-        raise
-    from runtime_entry_helpers import (  # type: ignore[no-redef]
-        bootstrap_entry_runtime,
-        log_launcher_failure,
-        seed_runtime_config,
-        seed_runtime_data,
-    )
+if __package__ != "launchers":
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    __package__ = "launchers"
 
+from .runtime_entry_helpers import (
+    CLI_SMOKE_OK_MARKER,
+    SMOKE_TEST_ENV,
+    bootstrap_entry_runtime,
+    log_launcher_failure,
+    resolve_runtime_home,
+    seed_runtime_config,
+    seed_runtime_data,
+)
 
 exe_path: Path | None = None
 is_frozen_runtime = False
@@ -34,11 +30,21 @@ app_dir = ""
 _runtime_prepared = False
 
 
-@dataclass
-class ImportProgressSummary:
-    total_candidates: int = 0
-    processed_files: int = 0
-    errors: list[object] = field(default_factory=list)
+@dataclass(frozen=True)
+class CliRuntimePaths:
+    runtime_base: str
+    docs_dir: str
+    data_dir: str
+    db_path: str
+
+
+class ImportExecutionStats(TypedDict):
+    exit_code: int
+    status: str
+    updated: object
+    total_candidates: int
+    processed_files: int
+    error_count: int
 
 
 def _seed_runtime_config(runtime_dir: Path, bundled_config: Path | None) -> Path:
@@ -70,60 +76,65 @@ def _bootstrap_runtime() -> str:
     )
 
 
-def _run_force_rescan_import(
+def _execute_import_and_report(
     run_importer_logic: Callable[..., object],
     *,
     docs_dir: str,
     data_dir: str,
     runtime_base: str,
     logger: Any,
-) -> int:
+) -> ImportExecutionStats:
+    from core.import_progress import ImportProgressSummary
+
     summary = ImportProgressSummary()
-
-    def _summary_count(value: object) -> int:
-        if isinstance(value, bool):
-            return int(value)
-        if isinstance(value, int | float):
-            return int(value)
-        if isinstance(value, str) and value.strip().isdigit():
-            return int(value.strip())
-        return 0
-
-    def _capture_import_progress(event_type: str, data: dict[str, object]) -> None:
-        if not isinstance(data, dict):
-            return
-        if event_type == "start":
-            summary.total_candidates = _summary_count(data.get("total"))
-        elif event_type == "file_error":
-            summary.errors.append(
-                str(data.get("error") or data.get("filename") or "erro")
-            )
-        elif event_type == "finish":
-            summary.total_candidates = _summary_count(
-                data.get("total", summary.total_candidates)
-            )
-            summary.processed_files = _summary_count(data.get("processed"))
-            reported_errors = data.get("errors")
-            if isinstance(reported_errors, list):
-                summary.errors = cast(list[object], reported_errors)
 
     updated = run_importer_logic(
         docs_dir=docs_dir,
         data_dir=data_dir,
         force_import=True,
         extra_allowed_roots=[runtime_base],
-        progress_callback=_capture_import_progress,
+        progress_callback=summary.capture,
     )
-    if updated:
+    has_errors = bool(summary.errors)
+    stats = ImportExecutionStats(
+        exit_code=1,
+        status="failed",
+        updated=updated,
+        total_candidates=summary.total_candidates,
+        processed_files=summary.processed_files,
+        error_count=len(summary.errors),
+    )
+    if updated and not has_errors:
         logger.info("Importacao concluida. resultado=%r", updated)
         sys.stdout.write(f"Importacao concluida. resultado={updated!r}\n")
-        return 0
+        stats["exit_code"] = 0
+        stats["status"] = "success"
+        return stats
+    if updated and has_errors:
+        logger.error(
+            "Importacao parcial com erros. resultado=%r total=%s processados=%s erros=%s",
+            updated,
+            summary.total_candidates,
+            summary.processed_files,
+            len(summary.errors),
+        )
+        sys.stderr.write(
+            "ERRO: Importacao parcial encontrou falhas em arquivos candidatos. "
+            "Consulte os logs da aplicacao.\n"
+        )
+        stats["status"] = "partial_error"
+        return stats
 
-    has_errors = bool(summary.errors)
-    if summary.total_candidates == 0 and not has_errors:
-        logger.info("Importacao concluida sem atualizacoes. resultado=%r", updated)
-        sys.stdout.write("Importacao concluida sem atualizacoes.\n")
-        return 0
+    observed_candidate_work = (
+        summary.total_candidates > 0 or summary.processed_files > 0
+    )
+    if not observed_candidate_work and not has_errors:
+        message = f"Importacao concluida sem atualizacoes. resultado={updated!r}"
+        logger.info(message)
+        sys.stdout.write(f"{message}\n")
+        stats["exit_code"] = 0
+        stats["status"] = "no_work"
+        return stats
 
     logger.error(
         "Importacao nao gravou atualizacoes. resultado=%r total=%s processados=%s erros=%s",
@@ -136,14 +147,68 @@ def _run_force_rescan_import(
         "ERRO: Importacao nao gravou atualizacoes para arquivos candidatos. "
         "Consulte os logs da aplicacao.\n"
     )
-    return 1
+    return stats
+
+
+def _smoke_test_exit_code() -> int | None:
+    if os.environ.get(SMOKE_TEST_ENV) != "1":
+        return None
+    try:
+        from utils.version import get_app_version
+
+        version = get_app_version()
+        print(f"{CLI_SMOKE_OK_MARKER} v{version}")
+        return 0
+    except Exception as exc:  # pragma: no cover - rare smoke diagnostic
+        print(f"SMOKE_CLI_FAIL {exc}")
+        return 1
+
+
+def _prepare_cli_runtime_paths(
+    *,
+    app_directory: str,
+    is_frozen: bool,
+    setup_project_structure: Any,
+    ensure_default_settings: Callable[..., object],
+    ensure_path_is_allowed: Callable[..., object],
+) -> CliRuntimePaths:
+    runtime_root_override = os.environ.get("SSA_RUNTIME_ROOT")
+    default_runtime_base = resolve_runtime_home() if is_frozen else Path(app_directory)
+    runtime_base = str(runtime_root_override or default_runtime_base)
+    setup_project_structure.setup_dirs(base_path=runtime_base)
+    ensure_default_settings(fail_fast=False)
+    docs_dir = os.path.join(runtime_base, "docs_entrada")
+    data_dir = os.path.join(runtime_base, "data")
+    db_path_candidate = os.environ.get("SSA_DB_PATH") or os.path.join(
+        data_dir,
+        "ssas.db",
+    )
+    db_path = str(
+        ensure_path_is_allowed(
+            db_path_candidate,
+            purpose="cli db path",
+            expect_directory=False,
+            extra_allowed_roots=[runtime_base],
+        )
+    )
+    os.environ["SSA_DB_PATH"] = db_path
+    return CliRuntimePaths(
+        runtime_base=runtime_base,
+        docs_dir=docs_dir,
+        data_dir=data_dir,
+        db_path=db_path,
+    )
+
+
+def _should_run_import(argv: list[str]) -> bool:
+    return any(arg in ("--force-rescan", "--rescan") for arg in argv[1:])
 
 
 def main():
     """Entry point CLI v3.10.
 
-    Comportamento especial para smoke test automático: se a variável de ambiente
-    SSA_SMOKE_TEST=1 estiver presente, imprime um marcador simples e sai sem
+    Comportamento especial para smoke test automatico: se a variavel de ambiente
+    de smoke estiver presente, imprime um marcador simples e sai sem
     iniciar a interface interativa. Isso permite que scripts de CI validem
     rapidamente a integridade do carregamento sem bloquear esperando input.
     """
@@ -163,16 +228,9 @@ def main():
         )
         sys.exit(1)
 
-    if os.environ.get("SSA_SMOKE_TEST") == "1":
-        try:
-            from utils.version import get_app_version  # import leve
-
-            version = get_app_version()
-            print(f"SMOKE_CLI_OK v{version}")
-            sys.exit(0)
-        except Exception as exc:  # pragma: no cover - raríssimo
-            print(f"SMOKE_CLI_FAIL {exc}")
-            sys.exit(1)
+    smoke_exit_code = _smoke_test_exit_code()
+    if smoke_exit_code is not None:
+        sys.exit(smoke_exit_code)
 
     try:
         from core.app_logic import run_importer_logic
@@ -184,40 +242,32 @@ def main():
 
         logger = get_robust_logger().get_logger("ssa.launcher", "cli_entry")
 
-        runtime_root_override = os.environ.get("SSA_RUNTIME_ROOT")
-        runtime_base = str(runtime_root_override or app_dir)
-        setup_project_structure.setup_dirs(base_path=runtime_base)
-        ensure_default_settings(fail_fast=False)
-        docs_dir = os.path.join(runtime_base, "docs_entrada")
-        data_dir = os.path.join(runtime_base, "data")
-        db_path = os.environ.get("SSA_DB_PATH") or os.path.join(
-            data_dir, "ssas.db"
+        runtime_paths = _prepare_cli_runtime_paths(
+            app_directory=app_dir,
+            is_frozen=is_frozen_runtime,
+            setup_project_structure=setup_project_structure,
+            ensure_default_settings=ensure_default_settings,
+            ensure_path_is_allowed=ensure_path_is_allowed,
         )
-        db_path = str(
-            ensure_path_is_allowed(
-                db_path,
-                purpose="cli db path",
-                expect_directory=False,
-                extra_allowed_roots=[runtime_base],
-            )
-        )
-        os.environ.setdefault("SSA_DB_PATH", db_path)
         table_name = os.environ.get("SSA_TABLE_NAME") or "ssa_table"
-        if any(arg in ("--force-rescan", "--rescan") for arg in sys.argv[1:]):
-            sys.exit(
-                _run_force_rescan_import(
-                    run_importer_logic,
-                    docs_dir=docs_dir,
-                    data_dir=data_dir,
-                    runtime_base=runtime_base,
-                    logger=logger,
-                )
+        if _should_run_import(sys.argv):
+            import_stats = _execute_import_and_report(
+                run_importer_logic,
+                docs_dir=runtime_paths.docs_dir,
+                data_dir=runtime_paths.data_dir,
+                runtime_base=runtime_paths.runtime_base,
+                logger=logger,
             )
+            sys.exit(import_stats["exit_code"])
 
-        start_cli_loop(db_path, table_name)
+        start_cli_loop(runtime_paths.db_path, table_name)
     except ImportError as e:
         if logger is not None:
-            logger.error("Nao foi possivel importar interface.cli: %s", e, exc_info=True)
+            logger.error(
+                "Nao foi possivel importar modulos centrais da CLI: %s",
+                e,
+                exc_info=True,
+            )
         sys.stderr.write(
             "ERRO: Nao foi possivel iniciar a CLI. Consulte os logs da aplicacao.\n"
         )

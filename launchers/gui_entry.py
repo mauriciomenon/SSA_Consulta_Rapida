@@ -11,20 +11,24 @@ from pathlib import Path
 try:
     from launchers.runtime_entry_helpers import (
         bootstrap_entry_runtime,
+        GUI_SMOKE_OK_MARKER,
         log_launcher_failure,
         seed_runtime_config,
         seed_runtime_data,
         seed_runtime_resources,
+        SMOKE_TEST_ENV,
     )
 except ModuleNotFoundError as exc:
     if exc.name != "launchers":
         raise
     from runtime_entry_helpers import (  # type: ignore[no-redef]
         bootstrap_entry_runtime,
+        GUI_SMOKE_OK_MARKER,
         log_launcher_failure,
         seed_runtime_config,
         seed_runtime_data,
         seed_runtime_resources,
+        SMOKE_TEST_ENV,
     )
 
 
@@ -71,10 +75,28 @@ def _bootstrap_runtime() -> str:
     )
 
 
+def _smoke_test_exit_code() -> int | None:
+    if os.environ.get(SMOKE_TEST_ENV) != "1":
+        return None
+    try:
+        from utils.version import get_app_version
+
+        version = get_app_version()
+        print(f"{GUI_SMOKE_OK_MARKER} v{version}")
+        return 0
+    except Exception as exc:  # pragma: no cover - smoke diagnostic
+        print(f"SMOKE_GUI_FAIL {exc}")
+        return 1
+
+
 def main():
     """Entry point GUI v3.10"""
     try:
         _bootstrap_runtime()
+        smoke_exit_code = _smoke_test_exit_code()
+        if smoke_exit_code is not None:
+            sys.exit(smoke_exit_code)
+
         from PyQt6.QtWidgets import QApplication
 
         from core.config_manager import ensure_default_settings

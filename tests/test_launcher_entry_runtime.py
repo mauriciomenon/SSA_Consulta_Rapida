@@ -108,6 +108,43 @@ def test_cli_entry_nuitka_runtime_does_not_use_build_repo_db(
     assert not db_path.exists()
 
 
+def test_cli_entry_nuitka_runtime_overwrites_stale_ssa_environment(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    exe_dir = tmp_path / "entry.dist"
+    exe_dir.mkdir()
+    executable = exe_dir / "SSA_CLI_v4.37_windows_amd64.exe"
+    executable.write_text("", encoding="utf-8")
+    stale_root = tmp_path / "stale"
+    stale_root.mkdir()
+
+    monkeypatch.setattr(sys, "executable", str(executable))
+    _prepare_isolated_runtime_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("SSA_BUNDLED_ROOT", str(stale_root))
+    monkeypatch.setenv("SSA_RUNTIME_ROOT", str(tmp_path / "runtime"))
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(stale_root / "config"))
+    monkeypatch.setenv("SSA_DB_PATH", str(stale_root / "data" / "ssas.db"))
+
+    original_cwd = Path.cwd()
+    original_sys_path = list(sys.path)
+    try:
+        namespace = runpy.run_path(
+            str(REPO_ROOT / "launchers" / "cli_entry.py"),
+            init_globals={"__compiled__": True},
+            run_name="test_cli_entry_stale_env",
+        )
+        _bootstrap_entry_namespace(namespace)
+        runtime_root = Path(os.environ["SSA_RUNTIME_ROOT"])
+        assert os.environ["SSA_BUNDLED_ROOT"] == str(exe_dir)
+        assert Path(os.environ["SSA_CONFIG_DIR"]) == runtime_root / "config"
+        assert Path(os.environ["SSA_DB_PATH"]) == runtime_root / "data" / "ssas.db"
+        assert stale_root not in Path(os.environ["SSA_DB_PATH"]).parents
+    finally:
+        os.chdir(original_cwd)
+        sys.path[:] = original_sys_path
+
+
 def test_cli_entry_nuitka_runtime_uses_executable_layout_without_compiled_global(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -652,7 +689,148 @@ def test_cli_entry_force_rescan_no_work_keeps_success_exit(
     assert "ERRO:" not in captured.err
 
 
-def test_gui_ssa_keeps_runtime_root_out_of_import_path_contract() -> None:
+def test_cli_entry_force_rescan_candidate_without_update_is_failure(
+    monkeypatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[tuple[str, object]] = []
+
+    config_manager = ModuleType("core.config_manager")
+    setattr(
+        config_manager,
+        "ensure_default_settings",
+        lambda fail_fast: calls.append(("ensure", fail_fast)),
+    )
+    app_logic = ModuleType("core.app_logic")
+
+    def fake_run_importer_logic(**kwargs: object) -> bool:
+        calls.append(("import", kwargs))
+        callback = cast(Callable[[str, dict[str, object]], None], kwargs["progress_callback"])
+        callback("start", {"total": 2})
+        callback("finish", {"total": 2, "processed": 2, "errors": []})
+        return False
+
+    setattr(app_logic, "run_importer_logic", fake_run_importer_logic)
+    cli_module = ModuleType("interface.cli")
+    setattr(
+        cli_module,
+        "start_cli_loop",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("start_cli_loop nao deve rodar em --force-rescan")
+        ),
+    )
+    setup_project_structure = ModuleType("utils.setup_project_structure")
+    setattr(
+        setup_project_structure,
+        "setup_dirs",
+        lambda base_path=None: calls.append(("setup", base_path)),
+    )
+    import utils
+
+    monkeypatch.setitem(sys.modules, "core.config_manager", config_manager)
+    monkeypatch.setitem(sys.modules, "core.app_logic", app_logic)
+    monkeypatch.setitem(sys.modules, "interface.cli", cli_module)
+    monkeypatch.setitem(
+        sys.modules,
+        "utils.setup_project_structure",
+        setup_project_structure,
+    )
+    monkeypatch.setattr(
+        utils,
+        "setup_project_structure",
+        setup_project_structure,
+        raising=False,
+    )
+    monkeypatch.setattr(sys, "argv", ["SSA_CLI", "--force-rescan"])
+    for key in SSA_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+
+    namespace = runpy.run_path(
+        str(REPO_ROOT / "launchers" / "cli_entry.py"),
+        run_name="test_cli_force_rescan_no_update",
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        namespace["main"]()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "Importacao nao gravou atualizacoes" in captured.err
+    assert "Importacao concluida" not in captured.out
+
+
+def test_cli_entry_force_rescan_partial_errors_fail_exit(
+    monkeypatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[tuple[str, object]] = []
+
+    config_manager = ModuleType("core.config_manager")
+    setattr(
+        config_manager,
+        "ensure_default_settings",
+        lambda fail_fast: calls.append(("ensure", fail_fast)),
+    )
+    app_logic = ModuleType("core.app_logic")
+
+    def fake_run_importer_logic(**kwargs: object) -> bool:
+        calls.append(("import", kwargs))
+        callback = cast(Callable[[str, dict[str, object]], None], kwargs["progress_callback"])
+        callback("start", {"total": 2})
+        callback("file_error", {"filename": "bad.xlsx", "error": "bad cols"})
+        callback("finish", {"total": 2, "processed": 1, "errors": ["bad.xlsx"]})
+        return True
+
+    setattr(app_logic, "run_importer_logic", fake_run_importer_logic)
+    cli_module = ModuleType("interface.cli")
+    setattr(
+        cli_module,
+        "start_cli_loop",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("start_cli_loop nao deve rodar em --force-rescan")
+        ),
+    )
+    setup_project_structure = ModuleType("utils.setup_project_structure")
+    setattr(
+        setup_project_structure,
+        "setup_dirs",
+        lambda base_path=None: calls.append(("setup", base_path)),
+    )
+    import utils
+
+    monkeypatch.setitem(sys.modules, "core.config_manager", config_manager)
+    monkeypatch.setitem(sys.modules, "core.app_logic", app_logic)
+    monkeypatch.setitem(sys.modules, "interface.cli", cli_module)
+    monkeypatch.setitem(
+        sys.modules,
+        "utils.setup_project_structure",
+        setup_project_structure,
+    )
+    monkeypatch.setattr(
+        utils,
+        "setup_project_structure",
+        setup_project_structure,
+        raising=False,
+    )
+    monkeypatch.setattr(sys, "argv", ["SSA_CLI", "--force-rescan"])
+    for key in SSA_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+
+    namespace = runpy.run_path(
+        str(REPO_ROOT / "launchers" / "cli_entry.py"),
+        run_name="test_cli_force_rescan_partial",
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        namespace["main"]()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "Importacao parcial encontrou falhas" in captured.err
+    assert "Importacao concluida" not in captured.out
+
+
+def test_gui_ssa_keeps_project_root_out_of_import_path_contract() -> None:
     source = (REPO_ROOT / "gui" / "gui_ssa.py").read_text(encoding="utf-8")
 
     assert "code_root = os.path.abspath" in source

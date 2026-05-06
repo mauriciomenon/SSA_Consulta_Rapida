@@ -1,125 +1,118 @@
 #!/usr/bin/env python3
-"""
-Teste rápido dos executáveis existentes
-"""
+"""Teste rapido dos executaveis existentes."""
 
-import subprocess
-import time
+from __future__ import annotations
 
-from version_info import REPO_ROOT, get_current_version
+from pathlib import Path
+import sys
 
-from utils.robust_logging import get_robust_logger
+if __package__ != "launchers":
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    __package__ = "launchers"
+
+from .logging_helpers import log_launcher_status  # noqa: E402
+from .smoke_validation import (  # noqa: E402
+    cli_executable_path,
+    detect_build_platform,
+    gui_executable_path,
+    run_cli_import_smoke,
+    run_gui_startup_smoke,
+)
+from .version_info import REPO_ROOT, get_current_version  # noqa: E402
 
 APP_VERSION = get_current_version()
 DIST_BASE = REPO_ROOT / "launchers" / "dist"
-logger = get_robust_logger().get_logger(__name__, "maintenance")
 
 
-def log(msg, level="INFO"):
-    text = f"[{time.strftime('%H:%M:%S')}] {msg}"
-    level_norm = str(level or "INFO").upper()
-    if level_norm in {"ERR", "ERROR"}:
-        logger.error(text)
-    elif level_norm in {"WARN", "WARNING"}:
-        logger.warning(text)
-    elif level_norm in {"DEBUG"}:
-        logger.debug(text)
-    else:
-        logger.info(text)
-
-
-def test_existing_executables():
-    """Testa executáveis já construídos"""
-    log("=== TESTE EXECUTÁVEIS EXISTENTES ===")
-
-    platform = "macos_arm64"
-    base_path = DIST_BASE / platform
-
-    # Verificar CLI
-    cli_dir = base_path / f"SSA_CLI_v{APP_VERSION}_{platform}"
-    cli_path = cli_dir / f"SSA_CLI_v{APP_VERSION}_{platform}"
-    log(f"Verificando CLI: {cli_path}")
-
-    if cli_path.exists():
-        log("OK CLI encontrado")
-        # Testar execução
-        try:
-            result = subprocess.run(
-                [str(cli_path), "--help"], capture_output=True, text=True, timeout=5
-            )
-            if result.returncode == 0:
-                log("OK CLI executa corretamente")
-            else:
-                log(f"ERR CLI erro: {result.stderr}")
-        except Exception as e:
-            log(f"ERR CLI erro execução: {e}")
-    else:
-        log("ERR CLI não encontrado")
-
-    # Verificar GUI
-    gui_path = (
-        base_path
-        / f"SSA_GUI_v{APP_VERSION}_{platform}.app"
-        / "Contents"
-        / "MacOS"
-        / f"SSA_GUI_v{APP_VERSION}_{platform}"
+def run_functional_cli_smoke(cli_path: Path) -> bool:
+    result = run_cli_import_smoke(executable=cli_path, repo_root=REPO_ROOT)
+    if not result.ok:
+        log_launcher_status(
+            f"ERR CLI smoke funcional falhou: {result.details()}",
+            "ERROR",
+            timestamp=True,
+        )
+        return False
+    log_launcher_status(
+        f"OK CLI smoke funcional importou {result.imported_rows} linha(s)",
+        timestamp=True,
     )
-    log(f"Verificando GUI: {gui_path}")
+    return True
 
-    if gui_path.exists():
-        log("OK GUI encontrada")
-        # Testar se não dá erro de import
-        try:
-            result = subprocess.run(
-                [str(gui_path)], capture_output=True, text=True, timeout=2
-            )
-            # Se não deu erro de módulo, está funcionando
-            if "No module named" not in result.stderr:
-                log("OK GUI imports OK")
-            else:
-                log(f"ERR GUI erro módulo: {result.stderr}")
-        except subprocess.TimeoutExpired:
-            log("OK GUI iniciou (timeout normal para GUI)")
-        except Exception as e:
-            log(f"ERR GUI erro: {e}")
+
+def test_existing_executables() -> bool:
+    log_launcher_status("=== TESTE EXECUTAVEIS EXISTENTES ===", timestamp=True)
+    platform_id = detect_build_platform()
+
+    cli_path = cli_executable_path(REPO_ROOT, APP_VERSION, platform_id)
+    log_launcher_status(f"Verificando CLI: {cli_path}", timestamp=True)
+    if cli_path.exists():
+        log_launcher_status("OK CLI encontrado", timestamp=True)
+        cli_ok = run_functional_cli_smoke(cli_path)
     else:
-        log("ERR GUI não encontrada")
+        log_launcher_status("ERR CLI nao encontrado", "ERROR", timestamp=True)
+        cli_ok = False
+
+    gui_path = gui_executable_path(REPO_ROOT, APP_VERSION, platform_id)
+    log_launcher_status(f"Verificando GUI: {gui_path}", timestamp=True)
+    gui_ok = gui_path.exists()
+    if gui_ok:
+        log_launcher_status("OK GUI encontrada", timestamp=True)
+        gui_result = run_gui_startup_smoke(executable=gui_path, repo_root=REPO_ROOT)
+        gui_ok = gui_result.ok
+        if not gui_ok:
+            log_launcher_status(
+                f"ERR Smoke GUI falhou: {gui_result.details()}",
+                "ERROR",
+                timestamp=True,
+            )
+    else:
+        log_launcher_status("ERR GUI nao encontrada", "ERROR", timestamp=True)
+    return cli_ok and gui_ok
 
 
-def test_imports():
-    """Testa imports críticos"""
-    log("=== TESTE IMPORTS ===")
-
-    # PoC GUI removida – somente verifica GUI principal se ainda existir
+def test_imports() -> bool:
+    log_launcher_status("=== TESTE IMPORTS ===", timestamp=True)
     try:
         from gui.gui_ssa import SSAMainWindow
 
-        log(f"OK GUI principal importa OK (classe: {SSAMainWindow.__name__})")
-    except ImportError as e:  # pragma: no cover - diagnostico
-        log(f"INFO GUI principal nao disponivel ou erro de import: {e}")
-    except Exception as e:  # pragma: no cover - diagnostico
-        log(f"ERR Erro inesperado ao importar GUI principal: {e}")
+        log_launcher_status(
+            f"OK GUI principal importa OK (classe: {SSAMainWindow.__name__})",
+            timestamp=True,
+        )
+        return True
+    except ImportError as exc:  # pragma: no cover - diagnostico
+        log_launcher_status(
+            f"INFO GUI principal nao disponivel ou erro de import: {exc}",
+            timestamp=True,
+        )
+    except Exception as exc:  # pragma: no cover - diagnostico
+        log_launcher_status(
+            f"ERR Erro inesperado ao importar GUI principal: {exc}",
+            "ERROR",
+            timestamp=True,
+        )
+    return False
 
 
-def list_dist_contents():
-    """Lista conteúdo da pasta dist"""
-    log("=== CONTEÚDO DIST ===")
+def list_dist_contents() -> bool:
+    log_launcher_status("=== CONTEUDO DIST ===", timestamp=True)
+    dist_path = DIST_BASE / detect_build_platform()
+    if not dist_path.exists():
+        log_launcher_status("ERR Pasta dist nao existe", "ERROR", timestamp=True)
+        return False
 
-    dist_path = DIST_BASE / "macos_arm64"
-    if dist_path.exists():
-        for item in dist_path.iterdir():
-            log(f"DIR {item.name}")
-    else:
-        log("ERR Pasta dist não existe")
+    for item in dist_path.iterdir():
+        log_launcher_status(f"DIR {item.name}", timestamp=True)
+    return True
 
 
-def main():
-    log(f"TESTE RÁPIDO v{APP_VERSION}")
-    list_dist_contents()
-    test_imports()
-    test_existing_executables()
-    log("=== FIM DOS TESTES ===")
+def main() -> int:
+    log_launcher_status(f"TESTE RAPIDO v{APP_VERSION}", timestamp=True)
+    results = [list_dist_contents(), test_imports(), test_existing_executables()]
+    log_launcher_status("=== FIM DOS TESTES ===", timestamp=True)
+    return 0 if all(results) else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

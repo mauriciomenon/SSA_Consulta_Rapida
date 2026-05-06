@@ -1,9 +1,66 @@
 from __future__ import annotations
 
+import importlib.util
+
+import pytest
+
 from launchers.build_complete import _get_project_root
 
 
 PROJECT_ROOT = _get_project_root()
+
+
+def _load_version_info_from_root(tmp_path):
+    module_path = tmp_path / "launchers" / "version_info.py"
+    module_path.parent.mkdir(parents=True)
+    module_path.write_text(
+        (PROJECT_ROOT / "launchers" / "version_info.py").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    spec = importlib.util.spec_from_file_location("version_info_probe", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("falha ao carregar version_info de teste")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_launcher_version_info_rejects_invalid_json(tmp_path) -> None:
+    module = _load_version_info_from_root(tmp_path)
+    version_file = tmp_path / "config" / "version.json"
+    version_file.parent.mkdir()
+    version_file.write_text("{", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="Arquivo de versao invalido"):
+        module.get_current_version()
+
+
+def test_launcher_version_info_explicit_default_handles_invalid_json(tmp_path) -> None:
+    module = _load_version_info_from_root(tmp_path)
+    version_file = tmp_path / "config" / "version.json"
+    version_file.parent.mkdir()
+    version_file.write_text("{", encoding="utf-8")
+
+    assert module.get_current_version("dev-local") == "dev-local"
+
+
+def test_launcher_version_info_uses_explicit_version_fallback(tmp_path) -> None:
+    module = _load_version_info_from_root(tmp_path)
+    version_file = tmp_path / "config" / "version.json"
+    version_file.parent.mkdir()
+    version_file.write_text("{}", encoding="utf-8")
+    (tmp_path / "VERSION").write_text("4.37", encoding="utf-8")
+
+    assert module.get_current_version() == "4.37"
+
+
+def test_launcher_version_info_does_not_return_implicit_zero_version(tmp_path) -> None:
+    module = _load_version_info_from_root(tmp_path)
+
+    with pytest.raises(RuntimeError, match="Arquivo de versao ausente"):
+        module.get_current_version()
+
+    assert module.get_current_version("dev-local") == "dev-local"
 
 
 def test_bootstrap_uses_apt_get_update_without_invalid_yes_flag() -> None:
