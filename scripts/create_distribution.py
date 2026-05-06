@@ -1247,7 +1247,7 @@ def compile_installer(iss_path: Path) -> str:
     return _run_iscc_compile(iscc_path, iss_path)
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(
         description="Criar pacotes de distribuicao do SSA Consulta Rapida"
     )
@@ -1341,25 +1341,34 @@ def main():
     logger.info("RELATORIO FINAL")
     logger.info(f"{'=' * 60}\n")
 
+    exit_code = 0
     for bs, result in results.items():
         logger.info(f"{BUILD_SYSTEMS[bs]['name']}:")
         if result["zip"]:
             logger.info(f"  ZIP: {result['zip'].name}")
         elif not args.installer_only:
             logger.info("  ZIP: Nao criado")
+            exit_code = 1
         installer_status = result["installer"]
         if installer_status == "success":
             logger.info("  Instalador: Criado com sucesso")
         elif installer_status == "missing":
             logger.info("  Instalador: Nao criado (Inno Setup nao disponivel)")
+            if args.installer_only:
+                exit_code = 1
         elif installer_status == "failed":
             logger.info("  Instalador: Falha na compilacao")
+            exit_code = 1
         elif installer_status == "script_failed":
             logger.info("  Instalador: Falha na geracao do script")
+            exit_code = 1
         logger.info("")
 
     logger.info(f"Pacotes salvos em: {DIST_OUTPUT}")
+    if exit_code:
+        logger.error("Distribuicao falhou: artefato esperado nao foi criado.")
+    return exit_code
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

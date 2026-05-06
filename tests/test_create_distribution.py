@@ -1,11 +1,43 @@
 from __future__ import annotations
 
+import sys
 import zipfile
 from pathlib import Path
 
 import pytest
 
 from scripts import create_distribution
+
+
+def _configure_fake_distribution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    project_root = tmp_path / "project"
+    dist_output = project_root / "dist_packages"
+    dist_output.mkdir(parents=True)
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(create_distribution, "get_version", lambda: "1.0.0")
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "fake": {
+                "name": "Fake",
+                "exe_path": "builds/fake/SSA_GUI.exe",
+                "base_dir": "builds/fake",
+                "internal_dir": None,
+            }
+        },
+    )
+    return dist_output
+
+
+def _run_distribution_main(monkeypatch: pytest.MonkeyPatch, *args: str) -> int:
+    monkeypatch.setattr(sys, "argv", ["create_distribution.py", *args])
+    return create_distribution.main()
 
 
 def test_create_zip_package_returns_none_when_exe_missing(
@@ -37,6 +69,138 @@ def test_create_zip_package_returns_none_when_exe_missing(
 
     assert result is None
     assert "Executavel primario ausente no diretorio" in caplog.text
+
+
+def test_main_returns_nonzero_when_expected_zip_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_fake_distribution(tmp_path, monkeypatch)
+    monkeypatch.setattr(create_distribution, "create_zip_package", lambda *_, **__: None)
+
+    assert (
+        _run_distribution_main(
+            monkeypatch,
+            "--build-system",
+            "fake",
+            "--skip-installer",
+        )
+        == 1
+    )
+
+
+def test_main_returns_nonzero_when_installer_script_generation_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dist_output = _configure_fake_distribution(tmp_path, monkeypatch)
+    zip_path = dist_output / "fake.zip"
+    zip_path.write_text("zip", encoding="utf-8")
+    monkeypatch.setattr(create_distribution, "create_zip_package", lambda *_, **__: zip_path)
+    monkeypatch.setattr(
+        create_distribution,
+        "create_inno_setup_script",
+        lambda *_, **__: None,
+    )
+
+    assert _run_distribution_main(monkeypatch, "--build-system", "fake") == 1
+
+
+def test_main_returns_nonzero_when_installer_compile_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dist_output = _configure_fake_distribution(tmp_path, monkeypatch)
+    zip_path = dist_output / "fake.zip"
+    iss_path = dist_output / "fake.iss"
+    zip_path.write_text("zip", encoding="utf-8")
+    iss_path.write_text("iss", encoding="utf-8")
+    monkeypatch.setattr(create_distribution, "create_zip_package", lambda *_, **__: zip_path)
+    monkeypatch.setattr(
+        create_distribution,
+        "create_inno_setup_script",
+        lambda *_, **__: iss_path,
+    )
+    monkeypatch.setattr(
+        create_distribution,
+        "compile_installer",
+        lambda *_: "failed",
+    )
+
+    assert _run_distribution_main(monkeypatch, "--build-system", "fake") == 1
+
+
+def test_main_allows_missing_inno_when_zip_distribution_succeeds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dist_output = _configure_fake_distribution(tmp_path, monkeypatch)
+    zip_path = dist_output / "fake.zip"
+    iss_path = dist_output / "fake.iss"
+    zip_path.write_text("zip", encoding="utf-8")
+    iss_path.write_text("iss", encoding="utf-8")
+    monkeypatch.setattr(create_distribution, "create_zip_package", lambda *_, **__: zip_path)
+    monkeypatch.setattr(
+        create_distribution,
+        "create_inno_setup_script",
+        lambda *_, **__: iss_path,
+    )
+    monkeypatch.setattr(
+        create_distribution,
+        "compile_installer",
+        lambda *_: "missing",
+    )
+
+    assert _run_distribution_main(monkeypatch, "--build-system", "fake") == 0
+
+
+def test_main_returns_nonzero_when_installer_only_is_missing_inno(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dist_output = _configure_fake_distribution(tmp_path, monkeypatch)
+    iss_path = dist_output / "fake.iss"
+    iss_path.write_text("iss", encoding="utf-8")
+    monkeypatch.setattr(
+        create_distribution,
+        "create_inno_setup_script",
+        lambda *_, **__: iss_path,
+    )
+    monkeypatch.setattr(
+        create_distribution,
+        "compile_installer",
+        lambda *_: "missing",
+    )
+
+    assert (
+        _run_distribution_main(
+            monkeypatch,
+            "--build-system",
+            "fake",
+            "--installer-only",
+        )
+        == 1
+    )
+
+
+def test_main_returns_zero_when_zip_succeeds_and_installer_is_skipped(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dist_output = _configure_fake_distribution(tmp_path, monkeypatch)
+    zip_path = dist_output / "fake.zip"
+    zip_path.write_text("zip", encoding="utf-8")
+    monkeypatch.setattr(create_distribution, "create_zip_package", lambda *_, **__: zip_path)
+
+    assert (
+        _run_distribution_main(
+            monkeypatch,
+            "--build-system",
+            "fake",
+            "--skip-installer",
+        )
+        == 0
+    )
 
 
 def test_create_readme_usuario_points_to_user_runtime_dir(tmp_path: Path) -> None:
