@@ -1,0 +1,25 @@
+scripts/create_distribution.py
+  b27e5ab4db7927f8 1250,1344,1351,1357-1358,1361,1364,1368-1370,1374
+tests/test_create_distribution.py
+  b27e5ab4db7927f8 3,12-42,74-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "fff38e74c598a29e65fac0e259d10e743bf66649",
+  "prompts": {
+    "b27e5ab4db7927f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dfd90-2de8-77b2-abe9-33a932122017",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon",
+      "messages": [],
+      "total_additions": 175,
+      "total_deletions": 2,
+      "accepted_lines": 175,
+      "overriden_lines": 0
+    }
+  }
+}
