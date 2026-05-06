@@ -202,7 +202,7 @@ class AutomatedSystemTester:
             )
 
             result.complete(
-                success_rate > 0.5,  # Pelo menos 50% dos arquivos devem ser extraídos
+                successful_extractions == len(excel_files),
                 total_files=len(excel_files),
                 successful_extractions=successful_extractions,
                 success_rate=success_rate,
@@ -448,7 +448,7 @@ class AutomatedSystemTester:
             )
 
             result.complete(
-                successful_tests >= 2,  # Pelo menos 2 de 3 testes devem passar
+                successful_tests == len(filter_tests),
                 total_tests=len(filter_tests),
                 successful_tests=successful_tests,
                 filter_details=filter_tests,
@@ -493,12 +493,12 @@ class AutomatedSystemTester:
                 [summary.get("missing_numero_ssa", 0), summary.get("empty_records", 0)]
             )
 
-            integrity_score = 1.0
+            integrity_score = 0.0
             if total_records > 0:
                 integrity_score = max(0, 1 - (critical_issues / total_records))
 
             result.complete(
-                not has_duplicates and integrity_score > 0.8,
+                total_records > 0 and not has_duplicates and critical_issues == 0,
                 total_records=total_records,
                 duplicated_columns=len(duplicated_groups),
                 critical_issues=critical_issues,
@@ -585,7 +585,7 @@ class AutomatedSystemTester:
             )
 
             result.complete(
-                successful_tests >= 2,  # Pelo menos mappings e schema devem estar OK
+                successful_tests == len(config_tests),
                 total_tests=len(config_tests),
                 successful_tests=successful_tests,
                 config_details=config_tests,
@@ -687,9 +687,7 @@ class AutomatedSystemTester:
                 if test_result.test_name in critical_test_names
                 and not test_result.success
             ]
-            overall_success = (
-                not critical_failures and success_rate >= 0.75
-            )  # 75% dos testes devem passar sem falha critica
+            overall_success = successful_tests == total_tests
             status_final = (
                 "OK SISTEMA APROVADO"
                 if overall_success

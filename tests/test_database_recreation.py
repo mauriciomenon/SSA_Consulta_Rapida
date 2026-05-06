@@ -19,6 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from armazenamento.database import initialize_database
 from core.app_logic import import_files_to_database
+from tests._helpers.fake_analyzer import fake_database_analyzer_type
 from utils.db_maintenance import DatabaseAnalyzer
 
 
@@ -309,10 +310,9 @@ class DatabaseRecreationTester:
                 else 0
             )
 
-            # Considerar sucesso se recuperou pelo menos 80% dos dados
             success = (
                 new_record_count > 0
-                and recovery_rate >= 0.8
+                and new_record_count == original_record_count
                 and integrity_result == "ok"
             )
 
@@ -383,7 +383,7 @@ class DatabaseRecreationTester:
                 [summary.get("missing_numero_ssa", 0), summary.get("empty_records", 0)]
             )
 
-            integrity_score = 1.0
+            integrity_score = 0.0
             if total_records > 0:
                 integrity_score = max(0, 1 - (critical_issues / total_records))
 
@@ -393,7 +393,7 @@ class DatabaseRecreationTester:
 
             success = (
                 total_records > 0
-                and integrity_score > 0.9
+                and critical_issues == 0
                 and not has_duplicates
                 and structure_info.get("column_count", 0) > 0
             )
@@ -486,8 +486,7 @@ class DatabaseRecreationTester:
                 avg_original_time / avg_new_time if avg_new_time > 0 else 1
             )
 
-            # Performance é considerada boa se nova versão não é mais que 50% mais lenta
-            performance_acceptable = performance_ratio >= 0.5
+            performance_acceptable = performance_ratio >= 0.9
 
             result = {
                 "test_name": "performance_comparison",
@@ -568,8 +567,7 @@ class DatabaseRecreationTester:
             total_tests = len(test_results)
             success_rate = successful_tests / total_tests if total_tests > 0 else 0
 
-            # Considerar sucesso se pelo menos 80% dos testes passaram
-            overall_success = success_rate >= 0.8
+            overall_success = successful_tests == total_tests
 
             final_result = {
                 "test_name": "complete_database_recreation",
@@ -770,11 +768,11 @@ Alguns problemas foram identificados no processo:
 **Schema Usado:** `config/schema.sql`
 **Arquivos de Dados:** `docs_entrada/*.xlsx`
 
-**Critérios de Aprovação:**
-- Taxa de sucesso ≥ 80%
-- Taxa de recuperação de dados ≥ 80%
-- Score de integridade ≥ 90%
-- Performance ≥ 50% da original
+**Criterios de Aprovacao:**
+- Todos os testes obrigatorios devem passar
+- Recuperacao de dados deve preservar 100% dos registros
+- Integridade nao pode ter issues criticos
+- Performance deve manter performance_ratio minimo de 0.9
 
 ---
 *Relatório gerado automaticamente pelo sistema de testes de recriação do SSA Consulta Rápida.*
@@ -790,6 +788,224 @@ Alguns problemas foram identificados no processo:
             json.dump(test_result, f, indent=2, ensure_ascii=False, default=str)
 
         return output_file
+
+
+def _recreation_result(test_name: str, success: bool) -> dict:
+    return {"test_name": test_name, "success": success}
+
+
+def test_run_complete_recreation_requires_every_step_to_pass(monkeypatch) -> None:
+    tester = DatabaseRecreationTester()
+    monkeypatch.setattr(tester, "setup_test_environment", lambda: True)
+    monkeypatch.setattr(tester, "cleanup", lambda: None)
+    monkeypatch.setattr(
+        tester,
+        "test_backup_creation",
+        lambda: _recreation_result("backup_creation", True),
+    )
+    monkeypatch.setattr(
+        tester,
+        "test_clean_database_creation",
+        lambda: _recreation_result("clean_database_creation", True),
+    )
+    monkeypatch.setattr(
+        tester,
+        "test_data_reimport",
+        lambda: _recreation_result("data_reimport", True),
+    )
+    monkeypatch.setattr(
+        tester,
+        "test_database_integrity_after_recreation",
+        lambda: _recreation_result("database_integrity_after_recreation", True),
+    )
+    monkeypatch.setattr(
+        tester,
+        "test_performance_comparison",
+        lambda: _recreation_result("performance_comparison", False),
+    )
+
+    result = tester.run_complete_recreation_test()
+
+    assert result["success"] is False
+    assert result["total_tests"] == 5
+    assert result["successful_tests"] == 4
+    assert result["success_rate"] == 0.8
+
+
+def test_data_reimport_requires_full_record_recovery(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+    docs_entrada = tmp_path / "docs_entrada"
+    docs_entrada.mkdir()
+    backup_path = tmp_path / "backup_ssas.db"
+    new_db_path = tmp_path / "new_ssas.db"
+
+    for db_path in (backup_path, new_db_path):
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE ssas (
+                    numero_ssa TEXT,
+                    situacao TEXT,
+                    setor_executor TEXT
+                )
+                """
+            )
+
+    with sqlite3.connect(backup_path) as conn:
+        conn.executemany(
+            "INSERT INTO ssas VALUES (?, ?, ?)",
+            [(str(index), "ABERTA", "SETOR") for index in range(10)],
+        )
+
+    def _partial_import(_docs_entrada: str, target_db_path: str) -> bool:
+        with sqlite3.connect(target_db_path) as conn:
+            conn.executemany(
+                "INSERT INTO ssas VALUES (?, ?, ?)",
+                [(str(index), "ABERTA", "SETOR") for index in range(8)],
+            )
+        return True
+
+    monkeypatch.setattr(sys.modules[__name__], "import_files_to_database", _partial_import)
+
+    tester = DatabaseRecreationTester()
+    tester.backup_path = str(backup_path)
+    tester.new_db_path = str(new_db_path)
+
+    result = tester.test_data_reimport()
+
+    assert result["success"] is False
+    assert result["original_record_count"] == 10
+    assert result["new_record_count"] == 8
+    assert result["recovery_rate"] == 0.8
+
+
+def test_recreation_report_documents_strict_approval_criteria(tmp_path) -> None:
+    tester = DatabaseRecreationTester()
+    report_path = tmp_path / "report.md"
+
+    tester.generate_recreation_report(
+        {
+            "success": True,
+            "test_results": [],
+            "total_tests": 0,
+            "successful_tests": 0,
+            "success_rate": 0,
+        },
+        str(report_path),
+    )
+
+    content = report_path.read_text(encoding="utf-8")
+
+    assert "Todos os testes obrigatorios devem passar" in content
+    assert "100% dos registros" in content
+    assert "performance_ratio minimo de 0.9" in content
+
+
+def test_performance_comparison_rejects_half_speed_recreation(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    original_db_path = tmp_path / "original.db"
+    new_db_path = tmp_path / "new.db"
+    for db_path in (original_db_path, new_db_path):
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE ssas (
+                    numero_ssa TEXT,
+                    situacao TEXT,
+                    setor_executor TEXT
+                )
+                """
+            )
+            conn.execute("INSERT INTO ssas VALUES ('1', 'ABERTA', 'SETOR')")
+
+    class FakeDateTime:
+        values = iter(
+            [
+                datetime(2026, 1, 1, 0, 0, 0),
+                datetime(2026, 1, 1, 0, 0, 1),
+                datetime(2026, 1, 1, 0, 0, 2),
+                datetime(2026, 1, 1, 0, 0, 3),
+                datetime(2026, 1, 1, 0, 0, 4),
+                datetime(2026, 1, 1, 0, 0, 5),
+                datetime(2026, 1, 1, 0, 0, 6),
+                datetime(2026, 1, 1, 0, 0, 7),
+                datetime(2026, 1, 1, 0, 0, 9),
+                datetime(2026, 1, 1, 0, 0, 10),
+                datetime(2026, 1, 1, 0, 0, 12),
+                datetime(2026, 1, 1, 0, 0, 13),
+                datetime(2026, 1, 1, 0, 0, 15),
+                datetime(2026, 1, 1, 0, 0, 16),
+            ]
+        )
+
+        @classmethod
+        def now(cls):
+            return next(cls.values)
+
+    monkeypatch.setattr(sys.modules[__name__], "datetime", FakeDateTime)
+
+    tester = DatabaseRecreationTester(str(original_db_path))
+    tester.new_db_path = str(new_db_path)
+
+    result = tester.test_performance_comparison()
+
+    assert result["success"] is False
+    assert result["performance_ratio"] == 0.5
+
+
+def test_recreation_integrity_requires_zero_critical_issues(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    tester = DatabaseRecreationTester()
+    tester.new_db_path = str(tmp_path / "new_ssas.db")
+
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "DatabaseAnalyzer",
+        fake_database_analyzer_type(
+            structure={
+                "duplicated_groups": {},
+                "structure_info": {"column_count": 3},
+            },
+            sanity={
+                "total_records": 10,
+                "summary": {"missing_numero_ssa": 1, "empty_records": 0},
+            },
+        ),
+    )
+
+    result = tester.test_database_integrity_after_recreation()
+
+    assert result["success"] is False
+    assert result["critical_issues"] == 1
+
+
+def test_recreation_integrity_reports_zero_score_for_empty_database(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    tester = DatabaseRecreationTester()
+    tester.new_db_path = str(tmp_path / "new_ssas.db")
+
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "DatabaseAnalyzer",
+        fake_database_analyzer_type(
+            structure={
+                "duplicated_groups": {},
+                "structure_info": {"column_count": 3},
+            },
+            sanity={"total_records": 0, "summary": {}},
+        ),
+    )
+
+    result = tester.test_database_integrity_after_recreation()
+
+    assert result["success"] is False
+    assert result["integrity_score"] == 0.0
 
 
 def main():
