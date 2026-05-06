@@ -54,7 +54,7 @@ def test_build_complete_cleanup_only_uses_cleanup_online(monkeypatch):
     assert "--auto-cleanup" not in run_cmd
 
 
-def test_build_complete_treats_none_return_as_success(monkeypatch):
+def test_build_complete_fails_when_builder_return_is_none(monkeypatch):
     calls = []
 
     def fake_execute_builder_script(args):
@@ -68,11 +68,11 @@ def test_build_complete_treats_none_return_as_success(monkeypatch):
     )
     monkeypatch.setattr(sys, "argv", ["build_complete.py"])
 
-    assert build_complete.main() == 0
+    assert build_complete.main() == 1
     assert calls == [["--apps", "cli", "gui", "--auto-cleanup", "--auto-git"]]
 
 
-def test_build_complete_cleanup_only_treats_none_return_as_success(monkeypatch):
+def test_build_complete_cleanup_only_fails_when_builder_return_is_none(monkeypatch):
     calls = []
 
     def fake_execute_builder_script(args):
@@ -86,7 +86,7 @@ def test_build_complete_cleanup_only_treats_none_return_as_success(monkeypatch):
     )
     monkeypatch.setattr(sys, "argv", ["build_complete.py", "--cleanup-only"])
 
-    assert build_complete.main() == 0
+    assert build_complete.main() == 1
     assert calls == [["--cleanup-online"]]
 
 

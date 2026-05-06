@@ -36,6 +36,13 @@ def _execute_builder_script(args):
     return build_multiplatform.main(args)
 
 
+def _coerce_builder_exit_code(result_code):
+    if result_code is None:
+        logger.error("ERR Build wrapper recebeu exit code ausente")
+        return 1
+    return int(result_code)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Build completo com limpeza automatica e git operations"
@@ -74,7 +81,7 @@ def main():
             logger.info("CLEAN Executando limpeza completa...")
             script_args.append("--cleanup-online")
             result_code = _execute_builder_script(script_args)
-            return 0 if result_code is None else int(result_code)
+            return _coerce_builder_exit_code(result_code)
 
         # Build completo
         logger.info("START Iniciando build completo...")
@@ -90,7 +97,7 @@ def main():
                 script_args.extend(["--git-message", args.git_message])
 
         result_code = _execute_builder_script(script_args)
-        exit_code = 0 if result_code is None else int(result_code)
+        exit_code = _coerce_builder_exit_code(result_code)
 
         if exit_code == 0:
             logger.info("OK Build completo concluido com sucesso!")
