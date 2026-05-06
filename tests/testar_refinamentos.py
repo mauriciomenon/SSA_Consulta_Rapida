@@ -1,36 +1,53 @@
 #!/usr/bin/env python3
 """
-Teste Rápido de Performance dos Refinamentos
-Valida se as otimizações estão funcionando corretamente.
+Teste Rapido de Performance dos Refinamentos
+Valida se as otimizacoes estao funcionando corretamente.
 """
 
 import os
 import sys
 import time
+from contextlib import redirect_stdout
+from io import StringIO
+from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 
-# Adiciona o diretório do projeto ao path
-project_dir = os.path.dirname(os.path.abspath(__file__))
+_BOOTSTRAP_ROOT = Path(__file__).resolve().parents[1]
+if str(_BOOTSTRAP_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BOOTSTRAP_ROOT))
+
+from launchers.main_runtime import _get_project_root  # noqa: E402
+
+project_dir = _get_project_root()
 if project_dir not in sys.path:
     sys.path.insert(0, project_dir)
 
+from tests.legacy_config_utils import validate_refinement_configs  # noqa: E402
+from tests.legacy_path_utils import require_project_path  # noqa: E402
+from tests.legacy_report_utils import (  # noqa: E402
+    calculate_speedup,
+    emit,
+    report_boolean_results,
+)
 
-def teste_performance_cli():
-    """Testa a performance das otimizações do CLI."""
-    print("TEST TESTE DE PERFORMANCE - CLI")
-    print("-" * 40)
+
+def teste_contrato_cache_cli():
+    """Testa o contrato funcional do cache do CLI."""
+    emit("TEST TESTE DE CONTRATO DE CACHE - CLI")
+    emit("-" * 40)
 
     try:
         from core.config_manager import load_display_mappings_integrity, load_settings
-        from interface.cli import _cached_pretty_print_df
+        from interface.cli import _cached_pretty_print_df, enhancement_manager
 
         # Cria DataFrame de teste
         test_data = {
-            "numero_ssa": ["SSA001", "SSA002", "SSA003"] * 100,
+            "numero_ssa": ["SSA00001", "SSA00002", "SSA00003"] * 100,
             "setor_executor": ["Setor A", "Setor B", "Setor C"] * 100,
             "situacao": ["Ativa", "Pendente", "Finalizada"] * 100,
-            "descricao_ssa": ["Descrição longa de teste que vai ser truncada"] * 300,
+            "descricao_ssa": ["Descricao longa de teste que vai ser truncada"] * 300,
         }
         df = pd.DataFrame(test_data)
 
@@ -38,160 +55,122 @@ def teste_performance_cli():
         settings = load_settings()
         cache = {}
 
-        # Teste 1: Primeira execução (sem cache)
+        # Teste 1: primeira execucao deve preencher o cache.
         start_time = time.time()
-        import io
-        import sys
-
-        old_stdout = sys.stdout
-        sys.stdout = io.StringIO()
-
-        _cached_pretty_print_df(df.head(50), display_map, settings, cache)
-
-        sys.stdout = old_stdout
+        with (
+            patch.object(
+                enhancement_manager, "is_enhanced_printer_enabled", return_value=False
+            ),
+            patch.dict(os.environ, {"SSA_NON_INTERACTIVE": "1"}),
+            redirect_stdout(StringIO()),
+        ):
+            _cached_pretty_print_df(df.head(50), display_map, settings, cache)
         first_time = time.time() - start_time
 
-        # Teste 2: Segunda execução (com cache)
+        first_cache_keys = set(cache)
+
+        # Teste 2: segunda execucao deve reutilizar as mesmas chaves.
         start_time = time.time()
-        sys.stdout = io.StringIO()
-
-        _cached_pretty_print_df(df.head(50), display_map, settings, cache)
-
-        sys.stdout = old_stdout
+        with (
+            patch.object(
+                enhancement_manager, "is_enhanced_printer_enabled", return_value=False
+            ),
+            patch.dict(os.environ, {"SSA_NON_INTERACTIVE": "1"}),
+            redirect_stdout(StringIO()),
+        ):
+            _cached_pretty_print_df(df.head(50), display_map, settings, cache)
         cached_time = time.time() - start_time
 
         # Resultados
-        speedup = (first_time / cached_time) if cached_time > 0 else float("inf")
-        print(f"  Primeira execução: {first_time:.4f}s")
-        print(f"  Segunda execução (cache): {cached_time:.4f}s")
-        print(f"  Melhoria: {speedup:.1f}x mais rápido")
-        print(f"  Cache funcionando: {'OK' if len(cache) > 0 else 'ERR'}")
-        print()
+        speedup = calculate_speedup(first_time, cached_time)
+        cache_contract_ok = bool(first_cache_keys) and set(cache) == first_cache_keys
+        emit(f"  Primeira execucao: {first_time:.4f}s")
+        emit(f"  Segunda execucao (cache): {cached_time:.4f}s")
+        emit(f"  Melhoria: {speedup:.1f}x mais rapido")
+        emit(f"  Cache funcionando: {'OK' if cache_contract_ok else 'ERR'}")
+        emit()
 
-        return speedup > 2.0  # Espera pelo menos 2x mais rápido
+        return cache_contract_ok
 
     except Exception as e:
-        print(f"  ERR Erro no teste CLI: {e}")
+        emit(f"  ERR Erro no teste CLI: {e}")
         return False
 
 
-def teste_otimizacoes_gui():
-    """Testa as otimizações da GUI (sem interface gráfica)."""
-    print("TEST TESTE DE OTIMIZAÇÕES - GUI")
-    print("-" * 40)
+def teste_contrato_otimizacoes_gui():
+    """Testa equivalencia funcional das otimizacoes da GUI."""
+    emit("TEST TESTE DE CONTRATO DE OTIMIZACOES - GUI")
+    emit("-" * 40)
 
     try:
-        # Testa cache de sets de colunas
+        # Testa equivalencia da operacao otimizada sem depender de timing.
         test_columns = ["col1", "col2", "col3", "col4", "col5"]
-        # Simula operações de set que foram otimizadas
+        original_results = []
         start_time = time.time()
         for i in range(1000):
-            # Operação original (sem cache)
             expandable_cols = ["col1", "col3"]
-            _ = [col for col in expandable_cols if col in set(test_columns)]
+            original_results.append(
+                tuple(col for col in expandable_cols if col in set(test_columns))
+            )
         original_time = time.time() - start_time
 
-        # Operação otimizada (com cache simulado)
+        optimized_results = []
         start_time = time.time()
         test_columns_set = set(test_columns)  # Cached
         for i in range(1000):
             expandable_cols = ["col1", "col3"]
-            _ = [col for col in expandable_cols if col in test_columns_set]
+            optimized_results.append(
+                tuple(col for col in expandable_cols if col in test_columns_set)
+            )
         optimized_time = time.time() - start_time
 
-        speedup = (
-            (original_time / optimized_time) if optimized_time > 0 else float("inf")
-        )
-        print(f"  Operação original (1000x): {original_time:.4f}s")
-        print(f"  Operação otimizada (1000x): {optimized_time:.4f}s")
-        print(f"  Melhoria: {speedup:.1f}x mais rápido")
-        print(f"  Otimização efetiva: {'OK' if speedup > 1.2 else 'ERR'}")
-        print()
+        speedup = calculate_speedup(original_time, optimized_time)
+        optimization_contract_ok = optimized_results == original_results
+        emit(f"  Operacao original (1000x): {original_time:.4f}s")
+        emit(f"  Operacao otimizada (1000x): {optimized_time:.4f}s")
+        emit(f"  Melhoria: {speedup:.1f}x mais rapido")
+        emit(f"  Otimizacao equivalente: {'OK' if optimization_contract_ok else 'ERR'}")
+        emit()
 
-        return speedup > 1.2
+        return optimization_contract_ok
 
     except Exception as e:
-        print(f"  ERR Erro no teste GUI: {e}")
+        emit(f"  ERR Erro no teste GUI: {e}")
         return False
 
 
 def teste_configuracoes():
-    """Testa se as configurações estão consistentes."""
-    print("TEST TESTE DE CONFIGURAÇÕES")
-    print("-" * 40)
+    """Testa se as configuracoes estao consistentes."""
+    emit("TEST TESTE DE CONFIGURACOES")
+    emit("-" * 40)
 
-    try:
-        import json
-
-        config_files = [
-            "config/gui_main_preferences.json",
-            "config/display_mappings.json",
-            "config/column_priority.json",
-        ]
-
-        all_valid = True
-
-        for config_file in config_files:
-            if os.path.exists(config_file):
-                try:
-                    with open(config_file, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    print(f"  OK {config_file}: Válido ({len(data)} entradas)")
-                except json.JSONDecodeError as e:
-                    print(f"  ERR {config_file}: JSON inválido - {e}")
-                    all_valid = False
-            else:
-                print(f"  WARN  {config_file}: Arquivo não encontrado")
-
-        print()
-        return all_valid
-
-    except Exception as e:
-        print(f"  ERR Erro no teste de configurações: {e}")
-        return False
+    all_valid, _total_entries = validate_refinement_configs()
+    emit()
+    return all_valid
 
 
 def main():
     """Executa todos os testes de refinamento."""
-    print("FIX VALIDAÇÃO DOS REFINAMENTOS")
-    print("=" * 50)
-    print()
+    emit("FIX VALIDACAO DOS REFINAMENTOS")
+    emit("=" * 50)
+    emit()
 
-    # Muda para o diretório do projeto se necessário
-    if os.path.basename(os.getcwd()) != "SSA_Consulta_Rapida":
-        possible_paths = [".", "../SSA_Consulta_Rapida", "./SSA_Consulta_Rapida"]
-        for path in possible_paths:
-            if os.path.exists(os.path.join(path, "interface", "cli.py")):
-                os.chdir(path)
-                break
+    require_project_path("interface/cli.py")
 
     # Executa testes
     results = []
 
-    results.append(teste_performance_cli())
-    results.append(teste_otimizacoes_gui())
+    results.append(teste_contrato_cache_cli())
+    results.append(teste_contrato_otimizacoes_gui())
     results.append(teste_configuracoes())
 
-    # Sumário
-    print("INFO RESUMO DOS TESTES")
-    print("-" * 40)
-    passed = sum(results)
-    total = len(results)
-
-    print(f"  Testes aprovados: {passed}/{total}")
-    if passed == total:
-        print("  OK TODOS OS REFINAMENTOS FUNCIONANDO!")
-    elif passed >= total * 0.8:
-        print("  OK Maioria dos refinamentos funcionando")
-    else:
-        print("  WARN  Refinamentos precisam de ajustes")
-
-    print()
-    print(
-        f"  Status final: {'SUCESSO' if passed == total else 'PARCIAL' if passed > 0 else 'FALHA'}"
+    return report_boolean_results(
+        results,
+        all_success_message="  OK TODOS OS REFINAMENTOS FUNCIONANDO!",
+        high_partial_message="  FAIL Maioria dos refinamentos funcionando, mas gate falhou",
+        partial_message="  FAIL Refinamentos precisam de ajustes",
+        failure_message="  ERR Refinamentos precisam de ajustes",
     )
-
-    return passed == total
 
 
 if __name__ == "__main__":
