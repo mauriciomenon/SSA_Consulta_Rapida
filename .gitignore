@@ -332,16 +332,14 @@ docs_saida/temp_*
 exportacao/temp_*
 
 # === BUILDS E DISTRIBUICAO ===
-# Builds directory (keep empty folder with .gitkeep)
+# Builds directory
 builds/*
-!builds/.gitkeep
 dev_env/build/build/
 dev_env/build/build/**
 nuitka-crash-report.xml
 
-# Packaged distributions (keep empty folder with .gitkeep)
+# Packaged distributions
 dist_packages/*
-!dist_packages/.gitkeep
 
 # Builds automaticos
 launchers/dist/
