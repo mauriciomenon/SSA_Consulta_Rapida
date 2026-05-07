@@ -142,9 +142,26 @@ def test_release_windows_smoke_uses_isolated_user_environment() -> None:
     assert "[string]::Join([Environment]::NewLine" in smoke_body
     assert "ConvertFrom-Json" in smoke_body
     assert "imported_rows" in smoke_body
+    assert "imported_rows = $smokeImportedRows" in smoke_body
+    assert "executable = $smokeExePath" in smoke_body
+    assert 'command = "$smokeExePath --force-rescan"' in smoke_body
     assert "$smokeExe = $Config.cli_exe" in smoke_body
     assert "$smokeExe = $Config.gui_exe" in smoke_body
     assert "Smoke importacao falhou" in smoke_body
+
+
+def test_release_windows_report_is_utf8_without_bom() -> None:
+    script = _script_text()
+    report_body = section_between(
+        script,
+        "function Write-ReleaseReport",
+        "Assert-WindowsHost",
+    )
+
+    assert "ConvertTo-Json -Depth 12" in report_body
+    assert "Set-Content -Path $reportPath -Encoding UTF8" not in report_body
+    assert "New-Object System.Text.UTF8Encoding $false" in report_body
+    assert "[System.IO.File]::WriteAllText(" in report_body
 
 
 def test_release_windows_script_exposes_backend_scorecard() -> None:

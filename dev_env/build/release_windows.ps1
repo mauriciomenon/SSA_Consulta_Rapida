@@ -401,14 +401,17 @@ function Invoke-Smoke {
             throw "Smoke importacao nao validou SQLite para ${BackendName}. stdout=${stdoutText} stderr=${stderrText}"
         }
         $smokeOutput = [string] $payload.summary.output
+        $smokeImportedRows = [int] $payload.summary.imported_rows
     } finally {
         Remove-Item -LiteralPath $smokeJsonPath -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $smokeErrPath -Force -ErrorAction SilentlyContinue
     }
     return [ordered]@{
         verification_type = "functional_import_check"
-        command = "app --force-rescan"
+        command = "$smokeExePath --force-rescan"
         exit_code = 0
+        imported_rows = $smokeImportedRows
+        executable = $smokeExePath
         output = $smokeOutput
     }
 }
@@ -568,7 +571,9 @@ function Write-ReleaseReport {
     $reportDir = Join-Path $RepoRoot "builds\reports"
     New-Item -ItemType Directory -Force $reportDir | Out-Null
     $reportPath = Join-Path $reportDir "release_report_windows_amd64.json"
-    $Report | ConvertTo-Json -Depth 12 | Set-Content -Path $reportPath -Encoding UTF8
+    $reportJson = $Report | ConvertTo-Json -Depth 12
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($reportPath, $reportJson + [Environment]::NewLine, $utf8NoBom)
     return $reportPath
 }
 
