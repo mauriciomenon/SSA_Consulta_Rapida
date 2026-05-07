@@ -8,6 +8,9 @@
 - PR #58 e PR #59: merged; `main`, `dev`, `origin/main` e `origin/dev` devem estar sincronizados antes de qualquer rebuild.
 - Artefatos v4.37 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` estao stale e nao devem ser usados para publicacao final.
 - Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
+- Interface operacional primaria:
+  - Windows: `release.ps1`.
+  - Debian/macOS: `release.sh`.
 - Orquestradores ativos:
   - Local Windows + WSL: `dev_env/build/release_local.ps1`.
   - Windows AMD64: `dev_env/build/release_windows.ps1`.
@@ -18,6 +21,41 @@
   - PyInstaller tem protecao parcial.
   - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
 - Proximo passo operacional: rebuildar Windows AMD64 e Debian AMD64 a partir deste HEAD, validar conteudo/metadata/smoke e so entao atualizar release v4.37.
+
+## Comandos Simples De Release
+
+Use estes comandos como entrada primaria. Os scripts em `dev_env/build/` sao
+implementacao interna e devem ser usados diretamente apenas para diagnostico.
+
+Windows AMD64, default Nuitka com instalador:
+
+```powershell
+.\release.ps1 -Yes
+```
+
+Windows + Debian via WSL, default Nuitka e `.deb`:
+
+```powershell
+.\release.ps1 -Target all -Yes
+```
+
+Debian AMD64, default Nuitka e `.deb`:
+
+```bash
+./release.sh
+```
+
+macOS ARM64, default PyInstaller e DMG:
+
+```bash
+./release.sh
+```
+
+VM/host Debian remoto:
+
+```bash
+./release.sh --target debian --ssh-host user@host --ssh-repo /home/user/SSA_Consulta_Rapida --yes
+```
 
 ## HISTORICAL SNAPSHOT (4.37 local automation)
 
