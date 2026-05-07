@@ -88,11 +88,14 @@ function Assert-CleanReleaseWorkspace {
         [Parameter(Mandatory = $true)] [string] $RepoRoot
     )
 
-    $status = @(Invoke-RepoCommand $RepoRoot "git" @("status", "--porcelain=v1"))
-    if ($status.Count -gt 0) {
-        throw "Workspace sujo. Release Windows requer fonte versionada e limpa.`n$($status -join [Environment]::NewLine)"
+    $staged = @(Invoke-RepoCommand $RepoRoot "git" @("diff", "--cached", "--name-only"))
+    $unstaged = @(Invoke-RepoCommand $RepoRoot "git" @("diff", "--ignore-cr-at-eol", "--name-only"))
+    $untracked = @(Invoke-RepoCommand $RepoRoot "git" @("ls-files", "--others", "--exclude-standard"))
+    $dirty = @($staged + $unstaged + $untracked | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($dirty.Count -gt 0) {
+        throw "Workspace sujo. Release Windows requer fonte versionada e limpa.`n$($dirty -join [Environment]::NewLine)"
     }
-    return $status
+    return $dirty
 }
 
 function Get-AppVersion {

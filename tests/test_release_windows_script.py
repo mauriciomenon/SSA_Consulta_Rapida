@@ -52,6 +52,9 @@ def test_release_windows_script_has_deterministic_preflight_and_report() -> None
         'Assert-Tool "rcedit.exe"',
     )
     assert "Assert-CleanReleaseWorkspace" in script
+    assert '"diff", "--cached", "--name-only"' in script
+    assert '"diff", "--ignore-cr-at-eol", "--name-only"' in script
+    assert '"ls-files", "--others", "--exclude-standard"' in script
     assert "AllowDirty" not in script
     assert "Get-GitHead" in script
     assert "Write-ReleaseReport" in script
