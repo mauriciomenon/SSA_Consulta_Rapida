@@ -3,6 +3,8 @@ set -euo pipefail
 
 DEFAULT_DEBIAN_BACKEND="nuitka"
 DEFAULT_DEBIAN_PACKAGE="deb"
+DEFAULT_DEBIAN_ARM64_BACKEND="nuitka"
+DEFAULT_DEBIAN_ARM64_PACKAGE="deb"
 DEFAULT_MACOS_BACKEND="pyinstaller"
 DEFAULT_MACOS_PACKAGE="dmg"
 
@@ -20,11 +22,13 @@ usage() {
 Uso:
   ./release.sh
   ./release.sh --target debian
+  ./release.sh --target debian-arm64
   ./release.sh --target macos
   ./release.sh --target all --yes
 
 Defaults:
-  Debian: backend nuitka, pacote deb
+  Debian amd64: backend nuitka, pacote deb
+  Debian arm64: backend nuitka, pacote deb
   macOS: backend pyinstaller, pacote dmg
 
 Opcoes uteis:
@@ -50,7 +54,13 @@ repo_root() {
 detect_target() {
   case "$(uname -s)" in
     Darwin) printf 'macos\n' ;;
-    Linux) printf 'debian\n' ;;
+    Linux)
+      case "$(uname -m)" in
+        aarch64 | arm64) printf 'debian-arm64\n' ;;
+        x86_64 | amd64) printf 'debian\n' ;;
+        *) die "arquitetura Linux nao suportada por release.sh: $(uname -m)" ;;
+      esac
+      ;;
     *) die "sistema nao suportado por release.sh: $(uname -s)" ;;
   esac
 }
@@ -62,8 +72,8 @@ normalize_target() {
     return 0
   fi
   case "${value}" in
-    debian | macos | all) printf '%s\n' "${value}" ;;
-    *) die "--target invalido: ${value}. Use auto, debian, macos ou all." ;;
+    debian | debian-arm64 | macos | all) printf '%s\n' "${value}" ;;
+    *) die "--target invalido: ${value}. Use auto, debian, debian-arm64, macos ou all." ;;
   esac
 }
 
@@ -88,29 +98,60 @@ run_debian_release() {
   bash "${root}/dev_env/build/release_debian.sh" "${args[@]}"
 }
 
+run_debian_arm64_release() {
+  local root="$1"
+  local backend="${BACKEND:-${DEFAULT_DEBIAN_ARM64_BACKEND}}"
+  local package_kind="${PACKAGE_KIND:-${DEFAULT_DEBIAN_ARM64_PACKAGE}}"
+  local args=(--backend "${backend}" --package "${package_kind}")
+
+  if [[ "${YES}" == "1" ]]; then
+    args+=(-y)
+  fi
+  if [[ "${DRY_RUN}" == "1" ]]; then
+    args+=(--dry-run)
+  fi
+  if [[ -n "${SSH_HOST}" || -n "${SSH_REPO}" ]]; then
+    [[ -n "${SSH_HOST}" ]] || die "--ssh-host e obrigatorio com --ssh-repo"
+    [[ -n "${SSH_REPO}" ]] || die "--ssh-repo e obrigatorio com --ssh-host"
+    args+=(--ssh-host "${SSH_HOST}" --ssh-repo "${SSH_REPO}")
+  fi
+
+  bash "${root}/dev_env/build/release_debian_arm64.sh" "${args[@]}"
+}
+
+detect_macos_platform() {
+  case "$(uname -m)" in
+    arm64 | aarch64) printf 'macos_arm64\n' ;;
+    x86_64 | amd64) die "macOS x86_64 ainda nao tem alvo de release neste wrapper." ;;
+    *) die "arquitetura macOS nao suportada por release.sh: $(uname -m)" ;;
+  esac
+}
+
 run_macos_release() {
   local root="$1"
   local backend="${BACKEND:-${DEFAULT_MACOS_BACKEND}}"
   local package_kind="${PACKAGE_KIND:-${DEFAULT_MACOS_PACKAGE}}"
+  local platform_name
   local version
   local dmg_path
   local cli_exe
 
   [[ "${backend}" == "pyinstaller" ]] || die "macOS hoje suporta backend pyinstaller neste wrapper."
   [[ "${package_kind}" == "dmg" ]] || die "macOS hoje suporta pacote dmg neste wrapper."
+  platform_name="$(detect_macos_platform)"
   version="$(cd "${root}" && uv run --python 3.13 python -c 'import json; print(json.load(open("config/version.json", encoding="utf-8"))["version_short"])')"
-  dmg_path="${root}/launchers/dist/macos_arm64/SSA_Consulta_Rapida_v${version}_macos_arm64.dmg"
-  cli_exe="${root}/launchers/dist/macos_arm64/SSA_CLI_v${version}_macos_arm64/SSA_CLI_v${version}_macos_arm64"
+  dmg_path="${root}/launchers/dist/${platform_name}/SSA_Consulta_Rapida_v${version}_${platform_name}.dmg"
+  cli_exe="${root}/launchers/dist/${platform_name}/SSA_CLI_v${version}_${platform_name}/SSA_CLI_v${version}_${platform_name}"
 
   if [[ "${DRY_RUN}" == "1" ]]; then
-    printf '[release] dry-run macos: uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui\n'
+    printf '[release] dry-run macos: uv run --python 3.13 launchers/build_multiplatform.py --platform %s --apps cli gui\n' "${platform_name}"
     printf '[release] dry-run macos: DMG esperado %s\n' "${dmg_path}"
     printf '[release] dry-run macos: smoke importacao %s\n' "${cli_exe}"
     return 0
   fi
 
-  uv run --python 3.13 "${root}/launchers/build_multiplatform.py" --platform macos_arm64 --clean
-  uv run --python 3.13 "${root}/launchers/build_multiplatform.py" --platform macos_arm64 --apps cli gui
+  uv run --python 3.13 "${root}/launchers/build_multiplatform.py" --platform "${platform_name}" --clean
+  uv run --python 3.13 "${root}/launchers/build_multiplatform.py" --platform "${platform_name}" --apps cli gui
   [[ -s "${dmg_path}" ]] || die "DMG macOS nao foi gerado: ${dmg_path}"
   [[ -x "${cli_exe}" ]] || die "executavel CLI macOS ausente para smoke: ${cli_exe}"
   uv run --python 3.13 python "${root}/scripts/smoke_cli.py" --executable "${cli_exe}" --json
@@ -168,6 +209,9 @@ printf '[release] target=%s\n' "${TARGET}"
 case "${TARGET}" in
   debian)
     run_debian_release "${ROOT}"
+    ;;
+  debian-arm64)
+    run_debian_arm64_release "${ROOT}"
     ;;
   macos)
     run_macos_release "${ROOT}"

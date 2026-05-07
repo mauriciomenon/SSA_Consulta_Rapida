@@ -44,14 +44,37 @@ TARGETS_FILE = pathlib.Path(__file__).with_name("release_targets.json")
 DEFAULT_TARGETS: dict[str, Any] = {
     "schema_version": 1,
     "backends": [
-        {"name": "pyinstaller", "order": 1, "windows_amd64": True, "debian_amd64": True},
-        {"name": "nuitka", "order": 2, "windows_amd64": True, "debian_amd64": True},
-        {"name": "pyoxidizer", "order": 3, "windows_amd64": True, "debian_amd64": True},
+        {
+            "name": "pyinstaller",
+            "order": 1,
+            "windows_amd64": True,
+            "debian_amd64": True,
+            "debian_arm64": True,
+        },
+        {
+            "name": "nuitka",
+            "order": 2,
+            "windows_amd64": True,
+            "debian_amd64": True,
+            "debian_arm64": True,
+        },
+        {
+            "name": "pyoxidizer",
+            "order": 3,
+            "windows_amd64": True,
+            "debian_amd64": True,
+            "debian_arm64": True,
+        },
     ],
     "packages": [
-        {"name": "deb", "order": 1, "debian_amd64": True},
-        {"name": "appimage", "order": 2, "debian_amd64": True},
-        {"name": "tar", "order": 3, "debian_amd64": True},
+        {"name": "deb", "order": 1, "debian_amd64": True, "debian_arm64": True},
+        {
+            "name": "appimage",
+            "order": 2,
+            "debian_amd64": True,
+            "debian_arm64": True,
+        },
+        {"name": "tar", "order": 3, "debian_amd64": True, "debian_arm64": True},
         {"name": "zip", "order": 4, "windows_amd64": True},
     ],
     "unsupported_pairs": [
@@ -60,8 +83,28 @@ DEFAULT_TARGETS: dict[str, Any] = {
             "backend": "pyoxidizer",
             "package": "appimage",
             "reason": "AppImage pyoxidizer nao suportado pelos scripts atuais.",
+        },
+        {
+            "platform": "debian_arm64",
+            "backend": "pyoxidizer",
+            "package": "appimage",
+            "reason": "AppImage pyoxidizer nao suportado pelos scripts atuais.",
         }
     ],
+    "asset_name_templates": {
+        "debian_amd64": {
+            "deb": "ssa-consulta-rapida-{backend}-amd64_{app_version}_amd64.deb",
+            "appimage": "SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}.AppImage",
+            "tar_split": "SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}_{app}.tar.gz",
+            "tar_single": "SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}.tar.gz",
+        },
+        "debian_arm64": {
+            "deb": "ssa-consulta-rapida-{backend}-arm64_{app_version}_arm64.deb",
+            "appimage": "SSA_Consulta_Rapida_v{app_version}_debian_arm64_{backend}.AppImage",
+            "tar_split": "SSA_Consulta_Rapida_v{app_version}_debian_arm64_{backend}_{app}.tar.gz",
+            "tar_single": "SSA_Consulta_Rapida_v{app_version}_debian_arm64_{backend}.tar.gz",
+        },
+    },
 }
 DEFAULT_SCORECARDS: dict[str, dict[str, object]] = {
     "nuitka": {
@@ -177,6 +220,18 @@ def _validate_release_targets_payload(payload: dict[str, Any]) -> None:
             raise ReleaseReportError(
                 f"unsupported_pairs exige platform e reason em {TARGETS_FILE}"
             )
+    templates = payload.get("asset_name_templates", {})
+    if templates and not isinstance(templates, dict):
+        raise ReleaseReportError(f"asset_name_templates invalido em {TARGETS_FILE}")
+    for platform_name, platform_templates in templates.items():
+        if not isinstance(platform_name, str) or not isinstance(platform_templates, dict):
+            raise ReleaseReportError(f"asset_name_templates contem item invalido em {TARGETS_FILE}")
+        for key in ("deb", "appimage", "tar_split", "tar_single"):
+            value = platform_templates.get(key)
+            if not isinstance(value, str) or not value:
+                raise ReleaseReportError(
+                    f"asset_name_templates exige {platform_name}.{key} em {TARGETS_FILE}"
+                )
 
 
 def _load_release_targets() -> dict[str, Any]:
@@ -258,6 +313,12 @@ def check_release_target(args: argparse.Namespace) -> int:
 
 def print_release_target_reason(args: argparse.Namespace) -> int:
     payload = _load_release_targets()
+    backend_names = _enabled_target_names(payload, "backends", args.platform)
+    package_names = _enabled_target_names(payload, "packages", args.platform)
+    if args.backend not in backend_names:
+        raise ReleaseReportError(f"backend invalido para {args.platform}: {args.backend}")
+    if args.package not in package_names:
+        raise ReleaseReportError(f"package invalido para {args.platform}: {args.package}")
     reason = _unsupported_pair_reason(
         payload,
         args.platform,
@@ -303,26 +364,62 @@ def _expected_debian_asset_names(
     backends: list[str],
     packages: list[str],
     app_version: str,
+    platform_name: str = "debian_amd64",
+    package_arch: str = "amd64",
 ) -> set[str]:
+    templates = _load_release_targets().get("asset_name_templates", {}).get(platform_name, {})
+    if not isinstance(templates, dict) or not templates:
+        templates = {
+            "deb": (
+                "ssa-consulta-rapida-{backend}-{package_arch}_"
+                "{app_version}_{package_arch}.deb"
+            ),
+            "appimage": "SSA_Consulta_Rapida_v{app_version}_{platform_name}_{backend}.AppImage",
+            "tar_split": (
+                "SSA_Consulta_Rapida_v{app_version}_{platform_name}_{backend}_{app}.tar.gz"
+            ),
+            "tar_single": "SSA_Consulta_Rapida_v{app_version}_{platform_name}_{backend}.tar.gz",
+        }
     names: set[str] = set()
     for backend in backends:
         if "deb" in packages:
-            names.add(f"ssa-consulta-rapida-{backend}-amd64_{app_version}_amd64.deb")
+            names.add(
+                templates["deb"].format(
+                    app_version=app_version,
+                    backend=backend,
+                    package_arch=package_arch,
+                    platform_name=platform_name,
+                )
+            )
         if "appimage" in packages and backend != "pyoxidizer":
             names.add(
-                f"SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}.AppImage"
+                templates["appimage"].format(
+                    app_version=app_version,
+                    backend=backend,
+                    package_arch=package_arch,
+                    platform_name=platform_name,
+                )
             )
         if "tar" in packages:
             if backend in {"pyinstaller", "nuitka"}:
-                names.add(
-                    f"SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}_cli.tar.gz"
-                )
-                names.add(
-                    f"SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}_gui.tar.gz"
-                )
+                for app in ("cli", "gui"):
+                    names.add(
+                        templates["tar_split"].format(
+                            app=app,
+                            app_version=app_version,
+                            backend=backend,
+                            package_arch=package_arch,
+                            platform_name=platform_name,
+                        )
+                    )
             else:
                 names.add(
-                    f"SSA_Consulta_Rapida_v{app_version}_debian_amd64_{backend}.tar.gz"
+                    templates["tar_single"].format(
+                        app_version=app_version,
+                        backend=backend,
+                        package_arch=package_arch,
+                        platform_name=platform_name,
+                    )
                 )
     return names
 
@@ -334,7 +431,21 @@ def _expected_asset_names(
     app_version: str,
 ) -> set[str] | None:
     if platform_name == "debian_amd64":
-        return _expected_debian_asset_names(backends, packages, app_version)
+        return _expected_debian_asset_names(
+            backends,
+            packages,
+            app_version,
+            "debian_amd64",
+            "amd64",
+        )
+    if platform_name == "debian_arm64":
+        return _expected_debian_asset_names(
+            backends,
+            packages,
+            app_version,
+            "debian_arm64",
+            "arm64",
+        )
     return None
 
 

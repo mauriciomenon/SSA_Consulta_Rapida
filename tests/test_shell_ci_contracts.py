@@ -44,6 +44,9 @@ def test_key_shell_scripts_parse_with_available_bash() -> None:
         "scripts/run_tests.sh",
         "scripts/git_hooks/pre-commit.secret-scan.sh",
         "scripts/security/scan_secrets.sh",
+        "dev_env/build/release_debian_arm64.sh",
+        "dev_env/build/release_debian_arm64_backend.sh",
+        "dev_env/build/package_debian_arm64_tar.sh",
     ]
     for script in scripts:
         script_path = PROJECT_ROOT / script

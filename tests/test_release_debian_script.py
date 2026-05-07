@@ -17,6 +17,7 @@ from tests.release_script_assertions import (
 
 
 SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_debian.sh"
+ARM64_SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_debian_arm64.sh"
 REPORT_SCRIPT = PROJECT_ROOT / "dev_env" / "build" / "release_platform_report.py"
 SCORECARD_FILE = PROJECT_ROOT / "dev_env" / "build" / "backend_scorecards.json"
 TARGETS_FILE = PROJECT_ROOT / "dev_env" / "build" / "release_targets.json"
@@ -25,6 +26,10 @@ REPORT_MODULE = importlib.import_module("dev_env.build.release_platform_report")
 
 def _script_text() -> str:
     return read_repo_text("dev_env", "build", "release_debian.sh")
+
+
+def _arm64_script_text() -> str:
+    return read_repo_text("dev_env", "build", "release_debian_arm64.sh")
 
 
 def test_release_debian_script_is_bash_only() -> None:
@@ -179,6 +184,63 @@ def test_release_debian_script_calls_only_debian_build_wrappers() -> None:
     assert "release_windows.ps1" not in script
 
 
+def test_release_debian_arm64_script_routes_arm64_build_and_package_wrappers() -> None:
+    script = _arm64_script_text()
+    backend_helper = read_repo_text("dev_env", "build", "release_debian_arm64_backend.sh")
+
+    assert script.startswith("#!/usr/bin/env bash")
+    assert "set -euo pipefail" in script
+    assert 'PLATFORM="debian_arm64"' in script
+    assert 'PACKAGE_ARCH="arm64"' in script
+    assert 'DEFAULT_BACKENDS_CSV="nuitka"' in script
+    assert 'DEFAULT_PACKAGES_CSV="deb"' in script
+    assert "assert_debian_arm64" in script
+    assert "release_report_${PLATFORM}.json" in script
+    assert "release_debian_arm64_backend.sh" in script
+    assert "build_pyinstaller_debian_arm64.sh" in backend_helper
+    assert "build_nuitka_debian_arm64.sh" in backend_helper
+    assert "build_pyoxidizer_debian_arm64.sh" in backend_helper
+    assert "package_debian_arm64_deb.sh" in backend_helper
+    assert "package_debian_arm64_appimage.sh" in backend_helper
+    assert "package_debian_arm64_tar.sh" in backend_helper
+    assert "scripts/smoke_cli.py" in backend_helper
+    assert "--executable" in backend_helper
+    assert "builds/nuitka/${PLATFORM}/cli_entry.dist" in backend_helper
+    assert "SSA_CLI_v${app_version}_${PLATFORM}" in backend_helper
+    assert "write_release_report" in script
+    assert 'release-targets --platform "${PLATFORM}"' in script
+    assert "write_tar_archive" not in script
+    assert "write_tar_packages" not in script
+    assert "release_debian.sh" not in script
+    assert "release_windows.ps1" not in script
+
+
+def test_release_debian_arm64_backend_helper_has_single_mandatory_file_contract() -> None:
+    script = read_repo_text("dev_env", "build", "release_debian_arm64_backend.sh")
+
+    assert "MANDATORY_RELEASE_FILES=(" in script
+    assert '"config/build_info.json"' in script
+    assert '"docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md"' in script
+    assert "assert_mandatory_release_files_exist" in script
+    assert "assert_mandatory_release_files_listed" in script
+    assert "grep -F \"build_info.json\"" not in script
+    assert "grep -F \"GUIA_MIGRACAO_NOVA_INSTALACAO.md\"" not in script
+
+
+def test_package_debian_arm64_tar_script_is_dedicated_packager() -> None:
+    script = read_repo_text("dev_env", "build", "package_debian_arm64_tar.sh")
+
+    assert script.startswith("#!/usr/bin/env bash")
+    assert "set -Eeuo pipefail" in script
+    assert 'PLATFORM="debian_arm64"' in script
+    assert "assert_debian_arm64" in script
+    assert "write_tar_archive" in script
+    assert "--sort=name" in script
+    assert '--mtime="UTC 1970-01-01"' in script
+    assert "SSA_Consulta_Rapida_v${APP_VERSION}_${PLATFORM}_nuitka_cli.tar.gz" in script
+    assert "release_debian_arm64.sh" not in script
+
+
 def test_release_debian_script_declares_tar_packages_and_supported_pairs() -> None:
     script = _script_text()
 
@@ -244,14 +306,33 @@ def test_release_targets_json_defines_validated_targets() -> None:
     ) == ["pyinstaller", "nuitka", "pyoxidizer"]
     assert REPORT_MODULE._enabled_target_names(
         REPORT_MODULE._load_release_targets(),
+        "backends",
+        "debian_arm64",
+    ) == ["pyinstaller", "nuitka", "pyoxidizer"]
+    assert REPORT_MODULE._enabled_target_names(
+        REPORT_MODULE._load_release_targets(),
         "packages",
         "debian_amd64",
+    ) == ["deb", "appimage", "tar"]
+    assert REPORT_MODULE._enabled_target_names(
+        REPORT_MODULE._load_release_targets(),
+        "packages",
+        "debian_arm64",
     ) == ["deb", "appimage", "tar"]
     assert REPORT_MODULE._unsupported_pair_reason(
         REPORT_MODULE._load_release_targets(),
         "debian_amd64",
         "pyoxidizer",
         "appimage",
+    )
+    assert REPORT_MODULE._unsupported_pair_reason(
+        REPORT_MODULE._load_release_targets(),
+        "debian_arm64",
+        "pyoxidizer",
+        "appimage",
+    )
+    assert payload["asset_name_templates"]["debian_arm64"]["deb"] == (
+        "ssa-consulta-rapida-{backend}-arm64_{app_version}_arm64.deb"
     )
 
 
@@ -333,6 +414,17 @@ def test_release_debian_report_fails_when_package_dir_is_missing(tmp_path) -> No
         )
 
 
+def test_release_target_reason_rejects_disabled_target_pair() -> None:
+    with pytest.raises(REPORT_MODULE.ReleaseReportError, match="package invalido"):
+        REPORT_MODULE.print_release_target_reason(
+            argparse.Namespace(
+                platform="debian_arm64",
+                backend="nuitka",
+                package="zip",
+            )
+        )
+
+
 def test_release_debian_expected_asset_names_cover_supported_package_matrix() -> None:
     names = REPORT_MODULE._expected_debian_asset_names(
         ["pyinstaller", "nuitka", "pyoxidizer"],
@@ -351,6 +443,29 @@ def test_release_debian_expected_asset_names_cover_supported_package_matrix() ->
         "SSA_Consulta_Rapida_v4.37_debian_amd64_nuitka_cli.tar.gz",
         "SSA_Consulta_Rapida_v4.37_debian_amd64_nuitka_gui.tar.gz",
         "SSA_Consulta_Rapida_v4.37_debian_amd64_pyoxidizer.tar.gz",
+    }
+
+
+def test_release_debian_arm64_expected_asset_names_cover_supported_package_matrix() -> None:
+    names = REPORT_MODULE._expected_debian_asset_names(
+        ["pyinstaller", "nuitka", "pyoxidizer"],
+        ["deb", "appimage", "tar"],
+        "4.37",
+        "debian_arm64",
+        "arm64",
+    )
+
+    assert names == {
+        "ssa-consulta-rapida-pyinstaller-arm64_4.37_arm64.deb",
+        "ssa-consulta-rapida-nuitka-arm64_4.37_arm64.deb",
+        "ssa-consulta-rapida-pyoxidizer-arm64_4.37_arm64.deb",
+        "SSA_Consulta_Rapida_v4.37_debian_arm64_pyinstaller.AppImage",
+        "SSA_Consulta_Rapida_v4.37_debian_arm64_nuitka.AppImage",
+        "SSA_Consulta_Rapida_v4.37_debian_arm64_pyinstaller_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.37_debian_arm64_pyinstaller_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.37_debian_arm64_nuitka_cli.tar.gz",
+        "SSA_Consulta_Rapida_v4.37_debian_arm64_nuitka_gui.tar.gz",
+        "SSA_Consulta_Rapida_v4.37_debian_arm64_pyoxidizer.tar.gz",
     }
 
 

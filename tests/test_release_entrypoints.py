@@ -59,6 +59,8 @@ def test_root_release_bash_exposes_simple_defaults() -> None:
     assert 'TARGET="auto"' in script
     assert 'DEFAULT_DEBIAN_BACKEND="nuitka"' in script
     assert 'DEFAULT_DEBIAN_PACKAGE="deb"' in script
+    assert 'DEFAULT_DEBIAN_ARM64_BACKEND="nuitka"' in script
+    assert 'DEFAULT_DEBIAN_ARM64_PACKAGE="deb"' in script
     assert 'DEFAULT_MACOS_BACKEND="pyinstaller"' in script
     assert 'DEFAULT_MACOS_PACKAGE="dmg"' in script
     assert "DMG esperado" in script
@@ -68,6 +70,7 @@ def test_root_release_bash_exposes_simple_defaults() -> None:
     assert "--executable" in script
     assert "executavel CLI macOS ausente para smoke" in script
     assert "release_debian.sh" in script
+    assert "release_debian_arm64.sh" in script
     assert "build_multiplatform.py" in script
     assert "build_nuitka" not in script
     assert "build_pyinstaller" not in script
@@ -81,10 +84,15 @@ def test_root_release_bash_routes_by_os_and_cleans_macos_before_build() -> None:
 
     assert "detect_target()" in script
     assert "Darwin) printf 'macos" in script
-    assert "Linux) printf 'debian" in script
-    assert "--platform macos_arm64 --clean" in script
-    assert "--platform macos_arm64 --apps cli gui" in script
-    assert "SSA_CLI_v${version}_macos_arm64/SSA_CLI_v${version}_macos_arm64" in script
+    assert "aarch64 | arm64) printf 'debian-arm64" in script
+    assert "x86_64 | amd64) printf 'debian" in script
+    assert "run_debian_arm64_release" in script
+    assert "release_debian_arm64.sh" in script
+    assert "detect_macos_platform" in script
+    assert "macOS x86_64 ainda nao tem alvo de release neste wrapper." in script
+    assert '--platform "${platform_name}" --clean' in script
+    assert '--platform "${platform_name}" --apps cli gui' in script
+    assert "SSA_CLI_v${version}_${platform_name}/SSA_CLI_v${version}_${platform_name}" in script
     assert '--backend "${backend}" --package "${package_kind}"' in script
     assert 'args+=(-y)' in script
     assert "--ssh-host" in script
