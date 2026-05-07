@@ -42,6 +42,7 @@ def test_key_shell_scripts_parse_with_available_bash() -> None:
         "scripts/shell_doctor.sh",
         "scripts/ci_quality_gates.sh",
         "scripts/run_tests.sh",
+        "scripts/git_hooks/pre-commit.secret-scan.sh",
         "scripts/security/scan_secrets.sh",
     ]
     for script in scripts:
@@ -88,6 +89,23 @@ def test_ci_quality_gates_does_not_expand_arg_string_unquoted() -> None:
     assert "run_quality_gates.py $GATES_ARGS" not in script
     assert "read -r -a GATES_ARGS_ARRAY" in script
     assert '"${GATES_ARGS_ARRAY[@]}"' in script
+
+
+def test_run_tests_expands_pytest_addopts_through_array() -> None:
+    script = _read_repo_text("scripts", "run_tests.sh")
+
+    assert '"${base_cmd[@]}" ${PYTEST_ADDOPTS:-}' not in script
+    assert "read -r -a pytest_extra_opts" in script
+    assert '"${base_cmd[@]}" "${pytest_extra_opts[@]}"' in script
+
+
+def test_secret_scan_hook_preserves_blocking_state_outside_api_key_loop() -> None:
+    script = _read_repo_text("scripts", "git_hooks", "pre-commit.secret-scan.sh")
+
+    assert "echo \"$ADDED\" | sed" not in script
+    assert "cut -c2-" in script
+    assert "API_KEY_LINES=" in script
+    assert "done <<< \"$API_KEY_LINES\"" in script
 
 
 def test_minimal_ci_runs_for_any_workflow_change() -> None:

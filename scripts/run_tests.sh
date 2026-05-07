@@ -43,9 +43,11 @@ case "$mode" in
 esac
 
 # Allow user extra opts via PYTEST_ADDOPTS
+pytest_extra_opts=()
 if [[ -n "${PYTEST_ADDOPTS:-}" ]]; then
   echo "[run_tests] Extra opts: $PYTEST_ADDOPTS"
+  read -r -a pytest_extra_opts <<< "$PYTEST_ADDOPTS"
 fi
 
 set -x
-"${base_cmd[@]}" ${PYTEST_ADDOPTS:-}
+"${base_cmd[@]}" "${pytest_extra_opts[@]}"

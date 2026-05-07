@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
 from core.cache_manager import CacheManager
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_width_cache_keeps_zero_width_distinct_from_unspecified_width() -> None:
@@ -63,7 +66,7 @@ def test_dataframe_hash_handles_cyclic_object_cells() -> None:
     assert first != cache.get_dataframe_hash(other_frame)
 
 
-def test_dataframe_hash_handles_unpicklable_bad_repr_object_cells() -> None:
+def test_dataframe_hash_handles_bad_repr_object_cells_without_pickle() -> None:
     class BadObject:
         def __getstate__(self):
             raise TypeError("no pickle")
@@ -78,6 +81,13 @@ def test_dataframe_hash_handles_unpicklable_bad_repr_object_cells() -> None:
 
     assert isinstance(result, str)
     assert len(result) == 32
+
+
+def test_dataframe_hash_fallback_does_not_use_pickle() -> None:
+    source = (PROJECT_ROOT / "core" / "cache_manager.py").read_text(encoding="utf-8")
+
+    assert "import pickle" not in source
+    assert "pickle.dumps" not in source
 
 
 def test_cleanup_old_entries_uses_timedelta_arithmetic() -> None:
@@ -141,8 +151,34 @@ def test_cache_stats_estimates_memory_outside_lock(monkeypatch) -> None:
         assert not tracking_lock.owned
         return original_getsizeof(value)
 
-    monkeypatch.setattr("core.cache_manager.sys.getsizeof", guarded_getsizeof)
+    monkeypatch.setattr("core.cache_stats.sys.getsizeof", guarded_getsizeof)
 
     stats = cache.get_cache_stats()
 
     assert stats["cache_details"]["widths"]["entries"] == 1
+
+
+def test_cache_stats_reuses_memory_estimate_until_cache_changes(monkeypatch) -> None:
+    cache = CacheManager()
+    cache.cache_widths("frame", {"numero_ssa": 120})
+    original_getsizeof = sys.getsizeof
+    calls = 0
+
+    def counting_getsizeof(value):
+        nonlocal calls
+        calls += 1
+        return original_getsizeof(value)
+
+    monkeypatch.setattr("core.cache_stats.sys.getsizeof", counting_getsizeof)
+
+    first = cache.get_cache_stats()
+    calls_after_first = calls
+    second = cache.get_cache_stats()
+
+    assert first["cache_details"] == second["cache_details"]
+    assert calls == calls_after_first
+
+    cache.cache_widths("other", {"descricao_ssa": 320})
+    cache.get_cache_stats()
+
+    assert calls > calls_after_first

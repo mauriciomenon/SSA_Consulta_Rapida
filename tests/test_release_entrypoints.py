@@ -35,6 +35,10 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
     assert 'Join-ReleaseCsv $Backend $DefaultBackend' in script
     assert 'Join-ReleaseCsv $DebianPackage $DefaultDebianPackage' in script
     assert '"-Backend", $BackendCsv' in script
+    assert "$releaseArgs = @(" in script
+    assert "& powershell @releaseArgs" in script
+    assert "$args = @(" not in script
+    assert "& powershell @args" not in script
     assert '$yesFlag = if ($Yes) { " -y" } else { "" }' in script
     assert "--backend $backendQuoted --package $packageQuoted$yesFlag$dryRunFlag" in script
     assert 'Get-Command "wsl"' in script
@@ -45,7 +49,7 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
         "Invoke-WindowsRelease $repoRoot",
         "Invoke-DebianReleaseViaWsl",
     )
-    assert_before(script, "Assert-WindowsReleaseHost", '& powershell @args')
+    assert_before(script, "Assert-WindowsReleaseHost", "& powershell @releaseArgs")
 
 
 def test_root_release_bash_exposes_simple_defaults() -> None:

@@ -24,9 +24,9 @@ info(){ [[ ${GIT_HOOKS_VERBOSE:-0} -eq 1 ]] && echo "[secret-scan] $1" >&2; }
 DIFF=$(git diff --cached --unified=0 --no-color --text || true)
 [[ -z $DIFF ]] && exit 0
 
-ADDED=$(echo "$DIFF" | grep -E '^\+' | grep -vE '^\+\+\+' | grep -vE '^\+Binary files ' || true)
+ADDED=$(printf '%s\n' "$DIFF" | grep -E '^\+' | grep -vE '^\+\+\+' | grep -vE '^\+Binary files ' || true)
 [[ -z $ADDED ]] && exit 0
-ADDED_STRIPPED=$(echo "$ADDED" | sed 's/^+//')
+ADDED_STRIPPED=$(printf '%s\n' "$ADDED" | cut -c2-)
 
 FOUND=0
 
@@ -41,17 +41,18 @@ for rgx in "${TOKEN_REGEXES[@]}"; do
 done
 
 # 2) Linhas com API_KEY=
-echo "$ADDED_STRIPPED" | grep -E '\b[A-Z0-9_]*API_KEY[[:space:]]*=' | while IFS= read -r line; do
+API_KEY_LINES=$(printf '%s\n' "$ADDED_STRIPPED" | grep -E '\b[A-Z0-9_]*API_KEY[[:space:]]*=' || true)
+while IFS= read -r line; do
   [[ -z "${line// }" ]] && continue
   raw_key="${line%%=*}"
-  key=$(echo "$raw_key" | tr -d '"' | tr -d "'" | tr -d '[:space:]')
+  key=$(printf '%s\n' "$raw_key" | tr -d '"' | tr -d "'" | tr -d '[:space:]')
   if [[ ! "$key" =~ ^[A-Z0-9_]+$ ]]; then
     info "Ignorando linha sem chave válida: $line"
     continue
   fi
   val_part="${line#*=}"
-  val_part="$(echo "$val_part" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
-  val_clean="$(echo "$val_part" | sed -E "s/^['\"]//; s/['\"]$//")"
+  val_part="$(printf '%s\n' "$val_part" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+  val_clean="$(printf '%s\n' "$val_part" | sed -E "s/^['\"]//; s/['\"]$//")"
   val_clean="${val_clean//$'\r'/}"
 
   # Allow vazio / placeholders
@@ -70,7 +71,7 @@ echo "$ADDED_STRIPPED" | grep -E '\b[A-Z0-9_]*API_KEY[[:space:]]*=' | while IFS=
 
   err "Valor potencial de API_KEY (redacted)"
   FOUND=1
-done
+done <<< "$API_KEY_LINES"
 
 if [[ $FOUND -eq 1 ]]; then
   cat <<'EOT' >&2

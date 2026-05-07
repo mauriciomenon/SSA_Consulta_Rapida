@@ -110,17 +110,17 @@ function Invoke-WindowsRelease {
 
     Assert-WindowsReleaseHost
     $script = Join-Path $RepoRoot "dev_env\build\release_windows.ps1"
-    $args = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $script, "-Backend", $BackendCsv)
+    $releaseArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $script, "-Backend", $BackendCsv)
     if ($Yes) {
-        $args += "-Yes"
+        $releaseArgs += "-Yes"
     }
     if ($DryRun) {
-        $args += "-DryRun"
+        $releaseArgs += "-DryRun"
     }
     if ($SkipInstaller) {
-        $args += "-SkipInstaller"
+        $releaseArgs += "-SkipInstaller"
     }
-    & powershell @args
+    & powershell @releaseArgs
     if ($LASTEXITCODE -ne 0) {
         throw "Release Windows falhou."
     }

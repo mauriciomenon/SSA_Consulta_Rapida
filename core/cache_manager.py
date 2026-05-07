@@ -5,14 +5,14 @@ Elimina os 4 sistemas de cache independentes.
 
 import hashlib
 import json
-import pickle
-import sys
 import threading
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+from core.cache_hashing import hash_dataframe_object_content
+from core.cache_stats import build_cache_details, copy_cache_details
 from utils.robust_logging import get_robust_logger
 
 
@@ -42,6 +42,9 @@ class CacheManager:
         }
         self._stats: Dict[str, int] = {"hits": 0, "misses": 0, "evictions": 0}
         self._lock = threading.RLock()
+        self._cache_details_version = 0
+        self._cache_details_snapshot_version = -1
+        self._cache_details_snapshot: Optional[Dict[str, Dict[str, Any]]] = None
 
     def get_dataframe_hash(self, df: pd.DataFrame, extra_info: str = "") -> str:
         """
@@ -72,64 +75,7 @@ class CacheManager:
                     "Fallback de hash de DataFrame por objetos nao hashable: %s",
                     hash_exc,
                 )
-                content_payload = {
-                    "index": list(df.index),
-                    "columns": list(df.columns),
-                    "data": df.to_numpy(dtype=object, copy=False).tolist(),
-                }
-                content_bytes = None
-                fallback_strategies = (
-                    (
-                        "pickle",
-                        lambda: pickle.dumps(
-                            content_payload, protocol=pickle.HIGHEST_PROTOCOL
-                        ),
-                    ),
-                    (
-                        "json",
-                        lambda: json.dumps(
-                            content_payload,
-                            sort_keys=True,
-                            default=repr,
-                            separators=(",", ":"),
-                        ).encode(),
-                    ),
-                    (
-                        "repr",
-                        lambda: repr(content_payload).encode(
-                            "utf-8", errors="backslashreplace"
-                        ),
-                    ),
-                )
-                for fallback_name, serialize_payload in fallback_strategies:
-                    try:
-                        content_bytes = serialize_payload()
-                        break
-                    except (
-                        pickle.PickleError,
-                        TypeError,
-                        ValueError,
-                        RecursionError,
-                        AttributeError,
-                        RuntimeError,
-                    ) as fallback_exc:
-                        logger.debug(
-                            "Falha no fallback %s de hash de DataFrame: %s",
-                            fallback_name,
-                            fallback_exc,
-                        )
-
-                if content_bytes is None:
-                    content_repr = (
-                        f"{df.shape}|{list(df.columns)}|{list(df.index)}"
-                    )
-                    content_bytes = content_repr.encode(
-                        "utf-8", errors="backslashreplace"
-                    )
-                df_info["content_hash"] = hashlib.md5(
-                    content_bytes,
-                    usedforsecurity=False,
-                ).hexdigest()
+                df_info["content_hash"] = hash_dataframe_object_content(df)
             else:
                 df_info["content_hash"] = hashlib.md5(
                     row_hashes.to_numpy(dtype="uint64").tobytes(),
@@ -289,6 +235,7 @@ class CacheManager:
 
             cache[key] = value
             access_times[key] = datetime.now()
+            self._cache_details_version += 1
 
     def _evict_oldest(self, cache_name: str) -> None:
         """Remove o item mais antigo do cache."""
@@ -304,6 +251,7 @@ class CacheManager:
         # Remove da cache e dos access_times
         if oldest_key in cache:
             del cache[oldest_key]
+            self._cache_details_version += 1
         if oldest_key in access_times:
             del access_times[oldest_key]
 
@@ -321,11 +269,37 @@ class CacheManager:
                 if cache_name in self._caches:
                     self._caches[cache_name].clear()
                     self._access_times[cache_name].clear()
+                    self._cache_details_version += 1
             else:
                 for cache in self._caches.values():
                     cache.clear()
                 for access_time in self._access_times.values():
                     access_time.clear()
+                self._cache_details_version += 1
+
+    def _load_cache_details_snapshot(
+        self, details_version: int
+    ) -> Optional[Dict[str, Dict[str, Any]]]:
+        if (
+            self._cache_details_snapshot is not None
+            and self._cache_details_snapshot_version == details_version
+        ):
+            return copy_cache_details(self._cache_details_snapshot)
+        return None
+
+    def _snapshot_caches(self) -> Dict[str, List[tuple[str, Any]]]:
+        return {
+            cache_name: list(cache.items())
+            for cache_name, cache in self._caches.items()
+        }
+
+    def _store_cache_details_snapshot(
+        self, details_version: int, cache_details: Dict[str, Dict[str, Any]]
+    ) -> None:
+        with self._lock:
+            if self._cache_details_version == details_version:
+                self._cache_details_snapshot = copy_cache_details(cache_details)
+                self._cache_details_snapshot_version = details_version
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """Retorna estatisticas detalhadas do cache."""
@@ -335,52 +309,22 @@ class CacheManager:
                 "misses": self._stats["misses"],
                 "evictions": self._stats["evictions"],
             }
-            cache_snapshots = {
-                cache_name: list(cache.items())
-                for cache_name, cache in self._caches.items()
-            }
-            total_entries = sum(len(cache) for cache in self._caches.values())
+            details_version = self._cache_details_version
+            cache_details = self._load_cache_details_snapshot(details_version)
+            cache_snapshots = (
+                None if cache_details is not None else self._snapshot_caches()
+            )
 
-        cache_details = {}
-        max_stats_depth = 2
-        max_stats_items = 2048
-        for cache_name, items in cache_snapshots.items():
-            memory_estimate = 0
-            seen: set[int] = set()
-            visited_items = 0
-            for _cache_key, value in items:
-                stack = [(value, 0)]
-                while stack:
-                    if visited_items >= max_stats_items:
-                        break
-                    item, depth = stack.pop()
-                    item_id = id(item)
-                    if item_id in seen:
-                        continue
-                    seen.add(item_id)
-                    visited_items += 1
-
-                    if isinstance(item, pd.DataFrame):
-                        memory_estimate += int(item.memory_usage(deep=False).sum())
-                    else:
-                        memory_estimate += sys.getsizeof(item)
-                        if depth < max_stats_depth:
-                            if isinstance(item, dict):
-                                stack.extend((child, depth + 1) for child in item.keys())
-                                stack.extend(
-                                    (child, depth + 1) for child in item.values()
-                                )
-                            elif isinstance(item, (list, tuple, set, frozenset)):
-                                stack.extend((child, depth + 1) for child in item)
-
-            cache_details[cache_name] = {
-                "entries": len(items),
-                "keys": [key for key, _value in items[:5]],
-                "memory_estimate": memory_estimate,
-            }
+        if cache_details is None:
+            if cache_snapshots is None:
+                raise RuntimeError("Cache snapshot ausente para estatisticas.")
+            cache_details = build_cache_details(cache_snapshots)
+            self._store_cache_details_snapshot(details_version, cache_details)
 
         stats["cache_details"] = cache_details
-        stats["total_entries"] = total_entries
+        stats["total_entries"] = sum(
+            detail["entries"] for detail in cache_details.values()
+        )
         total_requests = stats["hits"] + stats["misses"]
         stats["hit_rate"] = stats["hits"] / total_requests if total_requests > 0 else 0
 
@@ -420,6 +364,9 @@ class CacheManager:
                     if key in access_times:
                         del access_times[key]
                     removed_count += 1
+
+            if removed_count:
+                self._cache_details_version += 1
 
             return removed_count
 
