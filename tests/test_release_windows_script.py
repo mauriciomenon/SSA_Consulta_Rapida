@@ -93,6 +93,10 @@ def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
 
     assert "build_pyinstaller.bat" in script
     assert "build_nuitka.bat" in script
+    nuitka_wrapper = read_repo_text("dev_env", "build", "build_nuitka.bat")
+    assert "build_nuitka_clean.bat" in nuitka_wrapper
+    nuitka_script = read_repo_text("dev_env", "build", "build_nuitka_clean.bat")
+    assert "uv run --python 3.13 --extra build python -m nuitka" in nuitka_script
     assert "build_pyoxidizer.bat" in script
     assert "scripts\\create_distribution.py" in script
     assert "build_info.json" in script
