@@ -552,7 +552,7 @@ function Invoke-DistributionPackage {
         [Parameter(Mandatory = $true)] [bool] $SkipInstallerFlag
     )
 
-    $distributionArgs = @("run", "--python", "3.13", $DistributionScript, "--build-system", $BackendName)
+    $distributionArgs = @("run", "--python", "3.13", "python", $DistributionScript, "--build-system", $BackendName)
     if ($SkipInstallerFlag) {
         $distributionArgs += "--skip-installer"
     }
