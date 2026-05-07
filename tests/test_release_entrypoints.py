@@ -112,17 +112,23 @@ def test_windows_release_workflow_runs_real_wrapper_and_uploads_artifacts() -> N
     assert "branches: [dev]" in workflow
     assert '".github/workflows/release-windows.yml"' in workflow
     assert "runs-on: windows-latest" in workflow
-    assert 'default: "pyinstaller"' in workflow
+    assert 'default: "nuitka"' in workflow
     assert "choco install innosetup --no-progress -y" in workflow
     assert ".\\release.ps1" in workflow
     assert '"windows"' in workflow
-    assert '"-Backend"' in workflow
+    assert "Backend =" in workflow
     assert "${{ inputs.backend }}" in workflow
+    assert '[string]::IsNullOrWhiteSpace($backend)' in workflow
+    assert '$releaseParams = @{' in workflow
+    assert "Backend = @($backend)" in workflow
     assert "builds\\reports\\release_report_windows_amd64.json" in workflow
     assert "builds/packages/windows_amd64" in workflow
+    assert 'Get-ChildItem -LiteralPath "builds\\packages\\windows_amd64" -Filter "*.zip"' in workflow
+    assert 'Get-ChildItem -LiteralPath "dist_packages" -Filter "*.exe"' in workflow
+    assert "Instalador Windows ausente em dist_packages" in workflow
     assert "dist_packages" in workflow
     assert "actions/upload-artifact@" in workflow
     assert "if-no-files-found: error" in workflow
     assert "& powershell @args" not in workflow
-    assert "$releaseArgs = @(" in workflow
-    assert "& .\\release.ps1 @releaseArgs" in workflow
+    assert "$releaseArgs = @(" not in workflow
+    assert "& .\\release.ps1 @releaseParams" in workflow

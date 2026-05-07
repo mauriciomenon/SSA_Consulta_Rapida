@@ -10,7 +10,7 @@ on:
       backend:
         description: "Backend Windows"
         required: true
-        default: "pyinstaller"
+        default: "nuitka"
         type: choice
         options:
           - nuitka
@@ -62,17 +62,19 @@ jobs:
         run: |
           Set-StrictMode -Version 3.0
           $ErrorActionPreference = "Stop"
-          $releaseArgs = @(
-            "-Target",
-            "windows",
-            "-Backend",
-            "${{ inputs.backend }}",
-            "-Yes"
-          )
-          if ("${{ inputs.skip_installer }}" -eq "true") {
-            $releaseArgs += "-SkipInstaller"
+          $backend = "${{ inputs.backend }}"
+          if ([string]::IsNullOrWhiteSpace($backend)) {
+            $backend = "nuitka"
           }
-          & .\release.ps1 @releaseArgs
+          $releaseParams = @{
+            Target = "windows"
+            Backend = @($backend)
+            Yes = $true
+          }
+          if ("${{ inputs.skip_installer }}" -eq "true") {
+            $releaseParams.SkipInstaller = $true
+          }
+          & .\release.ps1 @releaseParams
 
       - name: Assert Windows artifacts
         shell: pwsh
@@ -83,12 +85,22 @@ jobs:
           if (-not (Test-Path -LiteralPath $report -PathType Leaf)) {
             throw "Relatorio Windows ausente: $report"
           }
+          $zipFiles = @(Get-ChildItem -LiteralPath "builds\packages\windows_amd64" -Filter "*.zip" -File -ErrorAction SilentlyContinue)
+          if ($zipFiles.Count -eq 0) {
+            throw "ZIP Windows ausente em builds\packages\windows_amd64"
+          }
+          if ("${{ inputs.skip_installer }}" -ne "true") {
+            $installerFiles = @(Get-ChildItem -LiteralPath "dist_packages" -Filter "*.exe" -File -ErrorAction SilentlyContinue)
+            if ($installerFiles.Count -eq 0) {
+              throw "Instalador Windows ausente em dist_packages"
+            }
+          }
           Get-Content -LiteralPath $report -Raw
 
       - name: Upload Windows release artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: windows-release-${{ inputs.backend }}
+          name: windows-release-${{ inputs.backend || 'nuitka' }}
           if-no-files-found: error
           path: |
             builds/packages/windows_amd64/*.zip
