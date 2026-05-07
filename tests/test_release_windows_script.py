@@ -102,6 +102,8 @@ def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
     assert "build_info.json" in script
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in script
     assert "Get-FileHash" in script
+    assert "Compress-Archive" not in script
+    assert "[System.IO.Compression.ZipFile]::CreateFromDirectory" in script
     assert_before(
         script,
         '$hashCommand = Get-Command -Name "Get-FileHash"',
@@ -136,7 +138,7 @@ def test_release_windows_smoke_uses_isolated_user_environment() -> None:
     assert "-RedirectStandardError $smokeErrPath" in smoke_body
     assert "Smoke importacao gerou JSON invalido" in smoke_body
     assert "Smoke importacao sem summary JSON" in smoke_body
-    assert "([string] (Get-Content" in smoke_body
+    assert "[string]::Join([Environment]::NewLine" in smoke_body
     assert "ConvertFrom-Json" in smoke_body
     assert "imported_rows" in smoke_body
     assert "$smokeExe = $Config.cli_exe" in smoke_body

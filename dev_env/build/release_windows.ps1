@@ -380,11 +380,11 @@ function Invoke-Smoke {
         ) -NoNewWindow -Wait -PassThru -RedirectStandardOutput $smokeJsonPath -RedirectStandardError $smokeErrPath
         $stderrText = ""
         if (Test-Path $smokeErrPath) {
-            $stderrText = ([string] (Get-Content -LiteralPath $smokeErrPath -Raw -ErrorAction SilentlyContinue)).Trim()
+            $stderrText = ([string]::Join([Environment]::NewLine, @(Get-Content -LiteralPath $smokeErrPath -ErrorAction SilentlyContinue))).Trim()
         }
         $stdoutText = ""
         if (Test-Path $smokeJsonPath) {
-            $stdoutText = ([string] (Get-Content -LiteralPath $smokeJsonPath -Raw -ErrorAction SilentlyContinue)).Trim()
+            $stdoutText = ([string]::Join([Environment]::NewLine, @(Get-Content -LiteralPath $smokeJsonPath -ErrorAction SilentlyContinue))).Trim()
         }
         if ($smokeProcess.ExitCode -ne 0) {
             throw "Smoke importacao falhou para ${BackendName}. stdout=${stdoutText} stderr=${stderrText}"
@@ -418,11 +418,20 @@ function Write-BackendReleaseZips {
         [Parameter(Mandatory = $true)] [array] $ReleaseZips
     )
 
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
     foreach ($item in $ReleaseZips) {
         $outDir = Split-Path -Parent $item.zip
         New-Item -ItemType Directory -Force $outDir | Out-Null
         Assert-ExistingDirectory $item.source
-        Compress-Archive -Force -Path $item.source -DestinationPath $item.zip
+        if (Test-Path -LiteralPath $item.zip -PathType Leaf) {
+            Remove-Item -LiteralPath $item.zip -Force
+        }
+        [System.IO.Compression.ZipFile]::CreateFromDirectory(
+            (Resolve-Path $item.source).Path,
+            $item.zip,
+            [System.IO.Compression.CompressionLevel]::Optimal,
+            $false
+        )
     }
 }
 
