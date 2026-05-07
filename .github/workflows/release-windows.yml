@@ -76,6 +76,16 @@ jobs:
           }
           & .\release.ps1 @releaseParams
 
+      - name: Upload Windows release logs on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-release-logs-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: |
+            launchers/logs/*.log
+            builds/reports/*.json
+
       - name: Assert Windows artifacts
         shell: pwsh
         run: |

@@ -129,6 +129,9 @@ def test_windows_release_workflow_runs_real_wrapper_and_uploads_artifacts() -> N
     assert "dist_packages" in workflow
     assert "actions/upload-artifact@" in workflow
     assert "if-no-files-found: error" in workflow
+    assert "Upload Windows release logs on failure" in workflow
+    assert "if: failure()" in workflow
+    assert "launchers/logs/*.log" in workflow
     assert "& powershell @args" not in workflow
     assert "$releaseArgs = @(" not in workflow
     assert "& .\\release.ps1 @releaseParams" in workflow
