@@ -151,7 +151,7 @@ def test_cache_stats_estimates_memory_outside_lock(monkeypatch) -> None:
         assert not tracking_lock.owned
         return original_getsizeof(value)
 
-    monkeypatch.setattr("core.cache_stats.sys.getsizeof", guarded_getsizeof)
+    monkeypatch.setattr("core.cache_manager.sys.getsizeof", guarded_getsizeof)
 
     stats = cache.get_cache_stats()
 
@@ -169,7 +169,7 @@ def test_cache_stats_reuses_memory_estimate_until_cache_changes(monkeypatch) -> 
         calls += 1
         return original_getsizeof(value)
 
-    monkeypatch.setattr("core.cache_stats.sys.getsizeof", counting_getsizeof)
+    monkeypatch.setattr("core.cache_manager.sys.getsizeof", counting_getsizeof)
 
     first = cache.get_cache_stats()
     calls_after_first = calls

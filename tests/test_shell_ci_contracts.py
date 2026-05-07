@@ -91,11 +91,56 @@ def test_ci_quality_gates_does_not_expand_arg_string_unquoted() -> None:
     assert '"${GATES_ARGS_ARRAY[@]}"' in script
 
 
-def test_run_tests_expands_pytest_addopts_through_array() -> None:
+def test_run_tests_parses_pytest_addopts_with_quotes(tmp_path: Path) -> None:
+    bash = shutil.which("bash")
+    assert bash is not None, "bash must be available for shell contract tests"
+
+    capture = tmp_path / "argv.txt"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_python = fake_bin / "python"
+    fake_python.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "if [[ \"${1:-}\" == \"-\" ]]; then\n"
+        "  exec \"$REAL_PYTHON\" \"$@\"\n"
+        "fi\n"
+        "printf '%s\\n' \"$@\" > \"$RUN_TESTS_CAPTURE\"\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+
+    result = subprocess.run(
+        [bash, str(PROJECT_ROOT / "scripts" / "run_tests.sh"), "quiet"],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=_test_env(
+            PATH=f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+            PYTEST_ADDOPTS='--collect-only -k "cache manager"',
+            REAL_PYTHON=sys.executable,
+            RUN_TESTS_CAPTURE=str(capture),
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert capture.read_text(encoding="utf-8").splitlines() == [
+        "-m",
+        "pytest",
+        "--cache-clear",
+        "-q",
+        "--collect-only",
+        "-k",
+        "cache manager",
+    ]
+
+
+def test_run_tests_does_not_expand_pytest_addopts_unquoted() -> None:
     script = _read_repo_text("scripts", "run_tests.sh")
 
     assert '"${base_cmd[@]}" ${PYTEST_ADDOPTS:-}' not in script
-    assert "read -r -a pytest_extra_opts" in script
+    assert "shlex.split" in script
     assert '"${base_cmd[@]}" "${pytest_extra_opts[@]}"' in script
 
 

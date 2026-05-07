@@ -5,14 +5,13 @@ Elimina os 4 sistemas de cache independentes.
 
 import hashlib
 import json
+import sys
 import threading
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from core.cache_hashing import hash_dataframe_object_content
-from core.cache_stats import build_cache_details, copy_cache_details
 from utils.robust_logging import get_robust_logger
 
 
@@ -46,6 +45,62 @@ class CacheManager:
         self._cache_details_snapshot_version = -1
         self._cache_details_snapshot: Optional[Dict[str, Dict[str, Any]]] = None
 
+    @staticmethod
+    def _hash_object_dataframe_content(df: pd.DataFrame, logger: Any) -> str:
+        def safe_json_default(value: Any) -> str:
+            try:
+                return str(value)
+            except (RuntimeError, TypeError, ValueError):
+                return f"<{type(value).__module__}.{type(value).__qualname__}>"
+
+        try:
+            json_text = df.to_json(
+                orient="split",
+                default_handler=safe_json_default,
+            )
+            if json_text is None:
+                raise ValueError("DataFrame.to_json retornou None.")
+            content_bytes = json_text.encode()
+        except (
+            TypeError,
+            ValueError,
+            OverflowError,
+            RuntimeError,
+            RecursionError,
+        ) as json_exc:
+            logger.debug(
+                "Falha no fallback json de hash de DataFrame: %s",
+                json_exc,
+            )
+            try:
+                string_text = df.astype("string").to_json(orient="split")
+                if string_text is None:
+                    raise ValueError("DataFrame.to_json string retornou None.")
+                content_bytes = string_text.encode()
+            except (
+                TypeError,
+                ValueError,
+                OverflowError,
+                RuntimeError,
+                RecursionError,
+            ) as string_exc:
+                logger.debug(
+                    "Falha no fallback string de hash de DataFrame: %s",
+                    string_exc,
+                )
+                content_repr = (
+                    f"{df.shape}|{tuple(df.columns)}|"
+                    f"{type(df.index).__name__}|{len(df.index)}"
+                )
+                content_bytes = content_repr.encode(
+                    "utf-8", errors="backslashreplace"
+                )
+
+        return hashlib.md5(
+            content_bytes,
+            usedforsecurity=False,
+        ).hexdigest()
+
     def get_dataframe_hash(self, df: pd.DataFrame, extra_info: str = "") -> str:
         """
         Gera hash unico para um DataFrame.
@@ -75,7 +130,9 @@ class CacheManager:
                     "Fallback de hash de DataFrame por objetos nao hashable: %s",
                     hash_exc,
                 )
-                df_info["content_hash"] = hash_dataframe_object_content(df)
+                df_info["content_hash"] = self._hash_object_dataframe_content(
+                    df, logger
+                )
             else:
                 df_info["content_hash"] = hashlib.md5(
                     row_hashes.to_numpy(dtype="uint64").tobytes(),
@@ -235,7 +292,7 @@ class CacheManager:
 
             cache[key] = value
             access_times[key] = datetime.now()
-            self._cache_details_version += 1
+            self._mark_cache_details_dirty()
 
     def _evict_oldest(self, cache_name: str) -> None:
         """Remove o item mais antigo do cache."""
@@ -251,11 +308,92 @@ class CacheManager:
         # Remove da cache e dos access_times
         if oldest_key in cache:
             del cache[oldest_key]
-            self._cache_details_version += 1
+            self._mark_cache_details_dirty()
         if oldest_key in access_times:
             del access_times[oldest_key]
 
         self._stats["evictions"] += 1
+
+    def _mark_cache_details_dirty(self) -> None:
+        self._cache_details_version += 1
+
+    @staticmethod
+    def _copy_cache_details(
+        details: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
+        return {
+            cache_name: {
+                "entries": detail["entries"],
+                "keys": list(detail["keys"]),
+                "memory_estimate": detail["memory_estimate"],
+            }
+            for cache_name, detail in details.items()
+        }
+
+    @staticmethod
+    def _estimate_cache_items_memory(items: List[tuple[str, Any]]) -> int:
+        memory_estimate = 0
+        max_stats_depth = 2
+        max_stats_items = 2048
+        seen: set[int] = set()
+        visited_items = 0
+        for _cache_key, value in items:
+            stack = [(value, 0)]
+            while stack:
+                if visited_items >= max_stats_items:
+                    break
+                item, depth = stack.pop()
+                item_id = id(item)
+                if item_id in seen:
+                    continue
+                seen.add(item_id)
+                visited_items += 1
+
+                if isinstance(item, pd.DataFrame):
+                    memory_estimate += int(item.memory_usage(deep=False).sum())
+                    continue
+
+                memory_estimate += sys.getsizeof(item)
+                if depth >= max_stats_depth:
+                    continue
+                if isinstance(item, dict):
+                    stack.extend((child, depth + 1) for child in item.keys())
+                    stack.extend((child, depth + 1) for child in item.values())
+                elif isinstance(item, (list, tuple, set, frozenset)):
+                    stack.extend((child, depth + 1) for child in item)
+
+        return memory_estimate
+
+    @classmethod
+    def _build_cache_details(
+        cls, cache_snapshots: Dict[str, List[tuple[str, Any]]]
+    ) -> Dict[str, Dict[str, Any]]:
+        cache_details = {}
+        for cache_name, items in cache_snapshots.items():
+            cache_details[cache_name] = {
+                "entries": len(items),
+                "keys": [key for key, _value in items[:5]],
+                "memory_estimate": cls._estimate_cache_items_memory(items),
+            }
+        return cache_details
+
+    def _load_cache_details_snapshot(
+        self, details_version: int
+    ) -> Optional[Dict[str, Dict[str, Any]]]:
+        if (
+            self._cache_details_snapshot is not None
+            and self._cache_details_snapshot_version == details_version
+        ):
+            return self._copy_cache_details(self._cache_details_snapshot)
+        return None
+
+    def _store_cache_details_snapshot(
+        self, details_version: int, cache_details: Dict[str, Dict[str, Any]]
+    ) -> None:
+        with self._lock:
+            if self._cache_details_version == details_version:
+                self._cache_details_snapshot = self._copy_cache_details(cache_details)
+                self._cache_details_snapshot_version = details_version
 
     def invalidate_cache(self, cache_name: Optional[str] = None) -> None:
         """
@@ -269,37 +407,13 @@ class CacheManager:
                 if cache_name in self._caches:
                     self._caches[cache_name].clear()
                     self._access_times[cache_name].clear()
-                    self._cache_details_version += 1
+                    self._mark_cache_details_dirty()
             else:
                 for cache in self._caches.values():
                     cache.clear()
                 for access_time in self._access_times.values():
                     access_time.clear()
-                self._cache_details_version += 1
-
-    def _load_cache_details_snapshot(
-        self, details_version: int
-    ) -> Optional[Dict[str, Dict[str, Any]]]:
-        if (
-            self._cache_details_snapshot is not None
-            and self._cache_details_snapshot_version == details_version
-        ):
-            return copy_cache_details(self._cache_details_snapshot)
-        return None
-
-    def _snapshot_caches(self) -> Dict[str, List[tuple[str, Any]]]:
-        return {
-            cache_name: list(cache.items())
-            for cache_name, cache in self._caches.items()
-        }
-
-    def _store_cache_details_snapshot(
-        self, details_version: int, cache_details: Dict[str, Dict[str, Any]]
-    ) -> None:
-        with self._lock:
-            if self._cache_details_version == details_version:
-                self._cache_details_snapshot = copy_cache_details(cache_details)
-                self._cache_details_snapshot_version = details_version
+                self._mark_cache_details_dirty()
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """Retorna estatisticas detalhadas do cache."""
@@ -312,19 +426,23 @@ class CacheManager:
             details_version = self._cache_details_version
             cache_details = self._load_cache_details_snapshot(details_version)
             cache_snapshots = (
-                None if cache_details is not None else self._snapshot_caches()
+                None
+                if cache_details is not None
+                else {
+                    cache_name: list(cache.items())
+                    for cache_name, cache in self._caches.items()
+                }
             )
+            total_entries = sum(len(cache) for cache in self._caches.values())
 
         if cache_details is None:
             if cache_snapshots is None:
                 raise RuntimeError("Cache snapshot ausente para estatisticas.")
-            cache_details = build_cache_details(cache_snapshots)
+            cache_details = self._build_cache_details(cache_snapshots)
             self._store_cache_details_snapshot(details_version, cache_details)
 
         stats["cache_details"] = cache_details
-        stats["total_entries"] = sum(
-            detail["entries"] for detail in cache_details.values()
-        )
+        stats["total_entries"] = total_entries
         total_requests = stats["hits"] + stats["misses"]
         stats["hit_rate"] = stats["hits"] / total_requests if total_requests > 0 else 0
 
@@ -366,7 +484,7 @@ class CacheManager:
                     removed_count += 1
 
             if removed_count:
-                self._cache_details_version += 1
+                self._mark_cache_details_dirty()
 
             return removed_count
 
