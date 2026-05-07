@@ -83,13 +83,18 @@ def test_root_release_bash_routes_by_os_and_cleans_macos_before_build() -> None:
     script = read_repo_text("release.sh")
 
     assert "detect_target()" in script
-    assert "Darwin) printf 'macos" in script
+    assert "Darwin)" in script
+    assert "arm64 | aarch64) printf 'macos-arm64" in script
     assert "aarch64 | arm64) printf 'debian-arm64" in script
     assert "x86_64 | amd64) printf 'debian" in script
     assert "run_debian_arm64_release" in script
     assert "release_debian_arm64.sh" in script
-    assert "detect_macos_platform" in script
+    assert "detect_macos_platform" not in script
     assert "macOS x86_64 ainda nao tem alvo de release neste wrapper." in script
+    assert "release macOS arm64 deve rodar em macOS arm64." in script
+    assert "macos-arm64" in script
+    assert "macos, macos-arm64" in script
+    assert 'case "$(uname -m)" in' in script
     assert '--platform "${platform_name}" --clean' in script
     assert '--platform "${platform_name}" --apps cli gui' in script
     assert "SSA_CLI_v${version}_${platform_name}/SSA_CLI_v${version}_${platform_name}" in script
@@ -99,6 +104,12 @@ def test_root_release_bash_routes_by_os_and_cleans_macos_before_build() -> None:
     assert "--ssh-repo" in script
     assert "--allow-missing-remote" in script
     assert "macOS hoje suporta backend pyinstaller neste wrapper." in script
+    target_case = section_between(script, 'case "${TARGET}" in', "printf '[release] concluido")
+    all_block = section_between(target_case, "all)", ";;\nesac")
+    assert 'if [[ "$(uname -s)" == "Darwin" ]]; then' in all_block
+    assert_before(all_block, 'run_macos_release "${ROOT}"', 'run_debian_release "${ROOT}"')
+    assert 'aarch64 | arm64) run_debian_arm64_release "${ROOT}"' in all_block
+    assert 'x86_64 | amd64) run_debian_release "${ROOT}"' in all_block
 
 
 def test_distribution_doc_prefers_simple_entrypoints() -> None:

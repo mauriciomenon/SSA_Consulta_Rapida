@@ -23,13 +23,13 @@ Uso:
   ./release.sh
   ./release.sh --target debian
   ./release.sh --target debian-arm64
-  ./release.sh --target macos
+  ./release.sh --target macos-arm64
   ./release.sh --target all --yes
 
 Defaults:
   Debian amd64: backend nuitka, pacote deb
   Debian arm64: backend nuitka, pacote deb
-  macOS: backend pyinstaller, pacote dmg
+  macOS arm64: backend pyinstaller, pacote dmg
 
 Opcoes uteis:
   --dry-run                    mostra plano sem build/pacote
@@ -53,7 +53,13 @@ repo_root() {
 
 detect_target() {
   case "$(uname -s)" in
-    Darwin) printf 'macos\n' ;;
+    Darwin)
+      case "$(uname -m)" in
+        arm64 | aarch64) printf 'macos-arm64\n' ;;
+        x86_64 | amd64) die "macOS x86_64 ainda nao tem alvo de release neste wrapper." ;;
+        *) die "arquitetura macOS nao suportada por release.sh: $(uname -m)" ;;
+      esac
+      ;;
     Linux)
       case "$(uname -m)" in
         aarch64 | arm64) printf 'debian-arm64\n' ;;
@@ -72,8 +78,11 @@ normalize_target() {
     return 0
   fi
   case "${value}" in
-    debian | debian-arm64 | macos | all) printf '%s\n' "${value}" ;;
-    *) die "--target invalido: ${value}. Use auto, debian, debian-arm64, macos ou all." ;;
+    debian | debian-arm64 | macos-arm64 | all) printf '%s\n' "${value}" ;;
+    macos)
+      printf 'macos-arm64\n'
+      ;;
+    *) die "--target invalido: ${value}. Use auto, debian, debian-arm64, macos, macos-arm64 ou all." ;;
   esac
 }
 
@@ -119,26 +128,22 @@ run_debian_arm64_release() {
   bash "${root}/dev_env/build/release_debian_arm64.sh" "${args[@]}"
 }
 
-detect_macos_platform() {
-  case "$(uname -m)" in
-    arm64 | aarch64) printf 'macos_arm64\n' ;;
-    x86_64 | amd64) die "macOS x86_64 ainda nao tem alvo de release neste wrapper." ;;
-    *) die "arquitetura macOS nao suportada por release.sh: $(uname -m)" ;;
-  esac
-}
-
 run_macos_release() {
   local root="$1"
   local backend="${BACKEND:-${DEFAULT_MACOS_BACKEND}}"
   local package_kind="${PACKAGE_KIND:-${DEFAULT_MACOS_PACKAGE}}"
-  local platform_name
+  local platform_name="macos_arm64"
   local version
   local dmg_path
   local cli_exe
 
   [[ "${backend}" == "pyinstaller" ]] || die "macOS hoje suporta backend pyinstaller neste wrapper."
   [[ "${package_kind}" == "dmg" ]] || die "macOS hoje suporta pacote dmg neste wrapper."
-  platform_name="$(detect_macos_platform)"
+  [[ "$(uname -s)" == "Darwin" ]] || die "release macOS arm64 deve rodar em macOS arm64."
+  case "$(uname -m)" in
+    arm64 | aarch64) ;;
+    *) die "release macOS arm64 deve rodar em macOS arm64." ;;
+  esac
   version="$(cd "${root}" && uv run --python 3.13 python -c 'import json; print(json.load(open("config/version.json", encoding="utf-8"))["version_short"])')"
   dmg_path="${root}/launchers/dist/${platform_name}/SSA_Consulta_Rapida_v${version}_${platform_name}.dmg"
   cli_exe="${root}/launchers/dist/${platform_name}/SSA_CLI_v${version}_${platform_name}/SSA_CLI_v${version}_${platform_name}"
@@ -213,13 +218,21 @@ case "${TARGET}" in
   debian-arm64)
     run_debian_arm64_release "${ROOT}"
     ;;
-  macos)
+  macos-arm64)
     run_macos_release "${ROOT}"
     ;;
   all)
-    run_macos_release "${ROOT}"
-    if [[ -n "${SSH_HOST}" || -n "${SSH_REPO}" || "$(uname -s)" == "Linux" ]]; then
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+      run_macos_release "${ROOT}"
+    fi
+    if [[ -n "${SSH_HOST}" || -n "${SSH_REPO}" ]]; then
       run_debian_release "${ROOT}"
+    elif [[ "$(uname -s)" == "Linux" ]]; then
+      case "$(uname -m)" in
+        aarch64 | arm64) run_debian_arm64_release "${ROOT}" ;;
+        x86_64 | amd64) run_debian_release "${ROOT}" ;;
+        *) die "arquitetura Linux nao suportada por release.sh: $(uname -m)" ;;
+      esac
     elif [[ "${ALLOW_MISSING_REMOTE}" == "1" ]]; then
       printf '[release] Debian remoto pulado: informe --ssh-host e --ssh-repo para gerar em VM.\n'
     else
