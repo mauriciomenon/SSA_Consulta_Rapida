@@ -378,20 +378,27 @@ function Invoke-Smoke {
             $smokeExePath,
             "--json"
         ) -NoNewWindow -Wait -PassThru -RedirectStandardOutput $smokeJsonPath -RedirectStandardError $smokeErrPath
+        $stderrText = ""
+        if (Test-Path $smokeErrPath) {
+            $stderrText = (Get-Content -LiteralPath $smokeErrPath -Raw -ErrorAction SilentlyContinue).Trim()
+        }
+        $stdoutText = ""
+        if (Test-Path $smokeJsonPath) {
+            $stdoutText = (Get-Content -LiteralPath $smokeJsonPath -Raw -ErrorAction SilentlyContinue).Trim()
+        }
         if ($smokeProcess.ExitCode -ne 0) {
-            $stderrText = ""
-            if (Test-Path $smokeErrPath) {
-                $stderrText = (Get-Content -LiteralPath $smokeErrPath -Raw -ErrorAction SilentlyContinue).Trim()
-            }
-            $stdoutText = ""
-            if (Test-Path $smokeJsonPath) {
-                $stdoutText = (Get-Content -LiteralPath $smokeJsonPath -Raw -ErrorAction SilentlyContinue).Trim()
-            }
             throw "Smoke importacao falhou para ${BackendName}. stdout=${stdoutText} stderr=${stderrText}"
         }
-        $payload = Get-Content -LiteralPath $smokeJsonPath -Raw | ConvertFrom-Json
+        try {
+            $payload = $stdoutText | ConvertFrom-Json -ErrorAction Stop
+        } catch {
+            throw "Smoke importacao gerou JSON invalido para ${BackendName}. stdout=${stdoutText} stderr=${stderrText} erro=$($_.Exception.Message)"
+        }
+        if ($null -eq $payload -or $null -eq $payload.summary) {
+            throw "Smoke importacao sem summary JSON para ${BackendName}. stdout=${stdoutText} stderr=${stderrText}"
+        }
         if (-not $payload.summary.ok -or [int] $payload.summary.imported_rows -lt 1) {
-            throw "Smoke importacao nao validou SQLite para ${BackendName}."
+            throw "Smoke importacao nao validou SQLite para ${BackendName}. stdout=${stdoutText} stderr=${stderrText}"
         }
         $smokeOutput = [string] $payload.summary.output
     } finally {
