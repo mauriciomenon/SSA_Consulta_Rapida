@@ -103,3 +103,24 @@ def test_distribution_doc_prefers_simple_entrypoints() -> None:
 def test_release_entrypoint_files_are_tracked_contract_targets() -> None:
     assert (PROJECT_ROOT / "release.ps1").is_file()
     assert (PROJECT_ROOT / "release.sh").is_file()
+
+
+def test_windows_release_workflow_runs_real_wrapper_and_uploads_artifacts() -> None:
+    workflow = read_repo_text(".github", "workflows", "release-windows.yml")
+
+    assert "workflow_dispatch:" in workflow
+    assert "runs-on: windows-latest" in workflow
+    assert 'default: "pyinstaller"' in workflow
+    assert "choco install innosetup --no-progress -y" in workflow
+    assert ".\\release.ps1" in workflow
+    assert '"windows"' in workflow
+    assert '"-Backend"' in workflow
+    assert "${{ inputs.backend }}" in workflow
+    assert "builds\\reports\\release_report_windows_amd64.json" in workflow
+    assert "builds/packages/windows_amd64" in workflow
+    assert "dist_packages" in workflow
+    assert "actions/upload-artifact@" in workflow
+    assert "if-no-files-found: error" in workflow
+    assert "& powershell @args" not in workflow
+    assert "$releaseArgs = @(" in workflow
+    assert "& .\\release.ps1 @releaseArgs" in workflow
