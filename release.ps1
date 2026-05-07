@@ -76,6 +76,12 @@ function Normalize-Target {
     return $value
 }
 
+function Assert-WindowsReleaseHost {
+    if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
+        throw "Release Windows deve rodar em Windows ou VM Windows. Host atual: $([System.Environment]::OSVersion.Platform)."
+    }
+}
+
 function ConvertTo-WslPath {
     param([Parameter(Mandatory = $true)] [string] $Path)
 
@@ -102,6 +108,7 @@ function Invoke-WindowsRelease {
         [Parameter(Mandatory = $true)] [string] $BackendCsv
     )
 
+    Assert-WindowsReleaseHost
     $script = Join-Path $RepoRoot "dev_env\build\release_windows.ps1"
     $args = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $script, "-Backend", $BackendCsv)
     if ($Yes) {

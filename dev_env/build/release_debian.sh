@@ -288,7 +288,11 @@ assert_clean_release_workspace() {
     printf '%s\n' "${staged}" >&2
     die "workspace sujo. Release deterministico exige git limpo."
   fi
-  unstaged="$(git -C "${root}" diff --ignore-cr-at-eol --name-only)"
+  if git -C "${root}" diff --ignore-cr-at-eol --quiet; then
+    unstaged=""
+  else
+    unstaged="$(git -C "${root}" diff --ignore-cr-at-eol --name-only)"
+  fi
   untracked="$(git -C "${root}" ls-files --others --exclude-standard)"
   if [[ -n "${unstaged}${untracked}" ]]; then
     {

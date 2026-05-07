@@ -30,6 +30,8 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
     script = read_repo_text("release.ps1")
 
     assert 'Normalize-Target $Target' in script
+    assert "Assert-WindowsReleaseHost" in script
+    assert "Release Windows deve rodar em Windows ou VM Windows" in script
     assert 'Join-ReleaseCsv $Backend $DefaultBackend' in script
     assert 'Join-ReleaseCsv $DebianPackage $DefaultDebianPackage' in script
     assert '"-Backend", $BackendCsv' in script
@@ -43,6 +45,7 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
         "Invoke-WindowsRelease $repoRoot",
         "Invoke-DebianReleaseViaWsl",
     )
+    assert_before(script, "Assert-WindowsReleaseHost", '& powershell @args')
 
 
 def test_root_release_bash_exposes_simple_defaults() -> None:

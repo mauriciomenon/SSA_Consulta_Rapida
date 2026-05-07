@@ -81,8 +81,10 @@ def test_release_debian_script_has_deterministic_preflight() -> None:
     assert "AllowDirty" not in script
     assert "rev-parse HEAD" in script
     assert "diff --cached --name-only" in script
+    assert "diff --ignore-cr-at-eol --quiet" in script
     assert "diff --ignore-cr-at-eol --name-only" in script
     assert "ls-files --others --exclude-standard" in script
+    assert_before(script, "diff --ignore-cr-at-eol --quiet", "diff --ignore-cr-at-eol --name-only")
     assert "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" in script
     assert "-NoProfile -NonInteractive" in script
     assert "ps_win_root" in script
