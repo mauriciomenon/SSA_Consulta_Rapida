@@ -109,6 +109,8 @@ def test_windows_release_workflow_runs_real_wrapper_and_uploads_artifacts() -> N
     workflow = read_repo_text(".github", "workflows", "release-windows.yml")
 
     assert "workflow_dispatch:" in workflow
+    assert "branches: [dev]" in workflow
+    assert '".github/workflows/release-windows.yml"' in workflow
     assert "runs-on: windows-latest" in workflow
     assert 'default: "pyinstaller"' in workflow
     assert "choco install innosetup --no-progress -y" in workflow

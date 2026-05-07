@@ -1,6 +1,10 @@
 name: release-windows
 
 on:
+  push:
+    branches: [dev]
+    paths:
+      - ".github/workflows/release-windows.yml"
   workflow_dispatch:
     inputs:
       backend:
