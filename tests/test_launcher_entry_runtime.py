@@ -88,6 +88,59 @@ def _write_parent_data_db(tmp_path: Path) -> Path:
     return parent_db
 
 
+def test_cli_entry_loads_local_helpers_without_launchers_package(
+    monkeypatch, tmp_path: Path
+) -> None:
+    entry_path = tmp_path / "cli_entry.py"
+    helper_path = tmp_path / "runtime_entry_helpers.py"
+    entry_path.write_text((REPO_ROOT / "launchers" / "cli_entry.py").read_text(encoding="utf-8"), encoding="utf-8")
+    helper_path.write_text(
+        "CLI_SMOKE_OK_MARKER = 'ok'\n"
+        "SMOKE_TEST_ENV = 'SSA_SMOKE_TEST'\n"
+        "def bootstrap_entry_runtime(*args, **kwargs): return 'runtime'\n"
+        "def log_launcher_failure(*args, **kwargs): return None\n"
+        "def resolve_runtime_home(*args, **kwargs): return None\n"
+        "def seed_runtime_config(*args, **kwargs): return None\n"
+        "def seed_runtime_data(*args, **kwargs): return None\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.setitem(sys.modules, "launchers", None)
+    monkeypatch.delitem(sys.modules, "runtime_entry_helpers", raising=False)
+
+    namespace = runpy.run_path(str(entry_path), run_name="frozen_cli_entry_test")
+
+    assert callable(namespace["_bootstrap_runtime"])
+
+
+def test_gui_entry_loads_local_helpers_without_launchers_package(
+    monkeypatch, tmp_path: Path
+) -> None:
+    entry_path = tmp_path / "gui_entry.py"
+    helper_path = tmp_path / "runtime_entry_helpers.py"
+    entry_path.write_text(
+        (REPO_ROOT / "launchers" / "gui_entry.py").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    helper_path.write_text(
+        "GUI_SMOKE_OK_MARKER = 'ok'\n"
+        "SMOKE_TEST_ENV = 'SSA_SMOKE_TEST'\n"
+        "def bootstrap_entry_runtime(*args, **kwargs): return 'runtime'\n"
+        "def log_launcher_failure(*args, **kwargs): return None\n"
+        "def seed_runtime_config(*args, **kwargs): return None\n"
+        "def seed_runtime_data(*args, **kwargs): return None\n"
+        "def seed_runtime_resources(*args, **kwargs): return None\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.setitem(sys.modules, "launchers", None)
+    monkeypatch.delitem(sys.modules, "runtime_entry_helpers", raising=False)
+
+    namespace = runpy.run_path(str(entry_path), run_name="frozen_gui_entry_test")
+
+    assert callable(namespace["_bootstrap_runtime"])
+
+
 def test_cli_entry_nuitka_runtime_does_not_use_build_repo_db(
     monkeypatch, tmp_path: Path
 ) -> None:

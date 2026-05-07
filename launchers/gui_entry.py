@@ -19,7 +19,7 @@ try:
         SMOKE_TEST_ENV,
     )
 except ModuleNotFoundError as exc:
-    if exc.name != "launchers":
+    if exc.name != "launchers" and not str(exc.name).startswith("launchers."):
         raise
     from runtime_entry_helpers import (  # type: ignore[no-redef]
         bootstrap_entry_runtime,

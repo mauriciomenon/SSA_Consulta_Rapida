@@ -10,19 +10,28 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, TypedDict
 
-if __package__ != "launchers":
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    __package__ = "launchers"
-
-from .runtime_entry_helpers import (
-    CLI_SMOKE_OK_MARKER,
-    SMOKE_TEST_ENV,
-    bootstrap_entry_runtime,
-    log_launcher_failure,
-    resolve_runtime_home,
-    seed_runtime_config,
-    seed_runtime_data,
-)
+try:
+    from launchers.runtime_entry_helpers import (
+        CLI_SMOKE_OK_MARKER,
+        SMOKE_TEST_ENV,
+        bootstrap_entry_runtime,
+        log_launcher_failure,
+        resolve_runtime_home,
+        seed_runtime_config,
+        seed_runtime_data,
+    )
+except ModuleNotFoundError as exc:
+    if exc.name != "launchers" and not str(exc.name).startswith("launchers."):
+        raise
+    from runtime_entry_helpers import (  # type: ignore[no-redef]
+        CLI_SMOKE_OK_MARKER,
+        SMOKE_TEST_ENV,
+        bootstrap_entry_runtime,
+        log_launcher_failure,
+        resolve_runtime_home,
+        seed_runtime_config,
+        seed_runtime_data,
+    )
 
 exe_path: Path | None = None
 is_frozen_runtime = False
