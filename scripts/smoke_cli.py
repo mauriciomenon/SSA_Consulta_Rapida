@@ -10,10 +10,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -116,6 +118,20 @@ def _count_imported_rows(db_path: Path, table_name: str) -> int:
     return int(row[0] if row else 0)
 
 
+def _cleanup_smoke_dir(smoke_dir: Path) -> str | None:
+    for attempt in range(3):
+        try:
+            shutil.rmtree(smoke_dir)
+            return None
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            cleanup_warning = f"{type(exc).__name__}: {exc}"
+            if attempt < 2:
+                time.sleep(0.25)
+    return cleanup_warning
+
+
 def run_smoke(executable: Path | None = None) -> dict[str, Any]:
     if executable is not None and not executable.is_file():
         return {
@@ -125,8 +141,10 @@ def run_smoke(executable: Path | None = None) -> dict[str, Any]:
             "error": f"executavel ausente: {executable}",
         }
 
-    with tempfile.TemporaryDirectory(prefix="ssa_cli_smoke_") as raw_tmp:
-        smoke_dir = Path(raw_tmp)
+    raw_tmp = tempfile.mkdtemp(prefix="ssa_cli_smoke_")
+    smoke_dir = Path(raw_tmp)
+    result: dict[str, Any] | None = None
+    try:
         runtime_root = _runtime_root(smoke_dir)
         sample_path = runtime_root / "docs_entrada" / SAMPLE_FILE_NAME
         db_path = runtime_root / "data" / "ssas.db"
@@ -145,15 +163,16 @@ def run_smoke(executable: Path | None = None) -> dict[str, Any]:
         )
         output = (proc.stdout + proc.stderr).strip()
         if proc.returncode != 0:
-            return {
+            result = {
                 "ok": False,
                 "mode": "functional-import",
                 "output": output,
                 "returncode": proc.returncode,
                 "runtime_root": str(runtime_root),
             }
+            return result
         if "Importacao concluida" not in output:
-            return {
+            result = {
                 "ok": False,
                 "mode": "functional-import",
                 "output": output,
@@ -161,9 +180,10 @@ def run_smoke(executable: Path | None = None) -> dict[str, Any]:
                 "runtime_root": str(runtime_root),
                 "error": "stdout nao confirmou importacao",
             }
+            return result
 
         rows = _count_imported_rows(db_path, table_name)
-        return {
+        result = {
             "ok": rows >= 1,
             "mode": "functional-import",
             "output": output,
@@ -173,6 +193,11 @@ def run_smoke(executable: Path | None = None) -> dict[str, Any]:
             "imported_rows": rows,
             "executable": str(executable) if executable is not None else None,
         }
+        return result
+    finally:
+        cleanup_warning = _cleanup_smoke_dir(smoke_dir)
+        if cleanup_warning is not None and result is not None:
+            result["cleanup_warning"] = cleanup_warning
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -212,6 +237,9 @@ def main(argv: list[str]) -> int:
             print("--- Output (preview) ---")
             print(output)
             print("-------------------------")
+        cleanup_warning = result.get("cleanup_warning")
+        if cleanup_warning:
+            print(f"[SMOKE_CLI] Aviso cleanup: {cleanup_warning}")
     return exit_code
 
 
