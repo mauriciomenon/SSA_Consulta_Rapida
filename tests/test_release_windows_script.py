@@ -131,6 +131,9 @@ def test_release_windows_smoke_uses_isolated_user_environment() -> None:
     assert "scripts\\smoke_cli.py" in smoke_body
     assert "--executable" in smoke_body
     assert "--force-rescan" in smoke_body
+    assert "Start-Process -FilePath \"uv\"" in smoke_body
+    assert "-RedirectStandardOutput $smokeJsonPath" in smoke_body
+    assert "-RedirectStandardError $smokeErrPath" in smoke_body
     assert "ConvertFrom-Json" in smoke_body
     assert "imported_rows" in smoke_body
     assert "$smokeExe = $Config.cli_exe" in smoke_body

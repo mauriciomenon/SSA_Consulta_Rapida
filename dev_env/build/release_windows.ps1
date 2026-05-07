@@ -368,8 +368,17 @@ function Invoke-Smoke {
     try {
         $smokeScript = (Resolve-Path (Join-Path $PSScriptRoot "..\..\scripts\smoke_cli.py")).Path
         $smokeExePath = (Resolve-Path $smokeExe).Path
-        & uv run --python 3.13 python $smokeScript --executable $smokeExePath --json > $smokeJsonPath 2> $smokeErrPath
-        if ($LASTEXITCODE -ne 0) {
+        $smokeProcess = Start-Process -FilePath "uv" -ArgumentList @(
+            "run",
+            "--python",
+            "3.13",
+            "python",
+            $smokeScript,
+            "--executable",
+            $smokeExePath,
+            "--json"
+        ) -NoNewWindow -Wait -PassThru -RedirectStandardOutput $smokeJsonPath -RedirectStandardError $smokeErrPath
+        if ($smokeProcess.ExitCode -ne 0) {
             $stderrText = ""
             if (Test-Path $smokeErrPath) {
                 $stderrText = (Get-Content -LiteralPath $smokeErrPath -Raw -ErrorAction SilentlyContinue).Trim()
