@@ -1,0 +1,21 @@
+dev_env/build/release_windows.ps1
+  s_082d1ff7d55d96::t_442457f36f4998 383,387
+tests/test_release_windows_script.py
+  s_082d1ff7d55d96::t_69fcf7721ed726 139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "6b109fdf86f6c0af85ff86ea67636f74470b5d16",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
