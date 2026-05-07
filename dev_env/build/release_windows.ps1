@@ -380,11 +380,11 @@ function Invoke-Smoke {
         ) -NoNewWindow -Wait -PassThru -RedirectStandardOutput $smokeJsonPath -RedirectStandardError $smokeErrPath
         $stderrText = ""
         if (Test-Path $smokeErrPath) {
-            $stderrText = (Get-Content -LiteralPath $smokeErrPath -Raw -ErrorAction SilentlyContinue).Trim()
+            $stderrText = ([string] (Get-Content -LiteralPath $smokeErrPath -Raw -ErrorAction SilentlyContinue)).Trim()
         }
         $stdoutText = ""
         if (Test-Path $smokeJsonPath) {
-            $stdoutText = (Get-Content -LiteralPath $smokeJsonPath -Raw -ErrorAction SilentlyContinue).Trim()
+            $stdoutText = ([string] (Get-Content -LiteralPath $smokeJsonPath -Raw -ErrorAction SilentlyContinue)).Trim()
         }
         if ($smokeProcess.ExitCode -ne 0) {
             throw "Smoke importacao falhou para ${BackendName}. stdout=${stdoutText} stderr=${stderrText}"

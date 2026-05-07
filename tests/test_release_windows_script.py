@@ -136,6 +136,7 @@ def test_release_windows_smoke_uses_isolated_user_environment() -> None:
     assert "-RedirectStandardError $smokeErrPath" in smoke_body
     assert "Smoke importacao gerou JSON invalido" in smoke_body
     assert "Smoke importacao sem summary JSON" in smoke_body
+    assert "([string] (Get-Content" in smoke_body
     assert "ConvertFrom-Json" in smoke_body
     assert "imported_rows" in smoke_body
     assert "$smokeExe = $Config.cli_exe" in smoke_body
