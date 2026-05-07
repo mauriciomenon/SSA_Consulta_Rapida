@@ -56,6 +56,10 @@ def test_root_release_bash_exposes_simple_defaults() -> None:
     assert 'DEFAULT_MACOS_PACKAGE="dmg"' in script
     assert "DMG esperado" in script
     assert "DMG macOS nao foi gerado" in script
+    assert "smoke importacao" in script
+    assert "scripts/smoke_cli.py" in script
+    assert "--executable" in script
+    assert "executavel CLI macOS ausente para smoke" in script
     assert "release_debian.sh" in script
     assert "build_multiplatform.py" in script
     assert "build_nuitka" not in script
@@ -73,6 +77,7 @@ def test_root_release_bash_routes_by_os_and_cleans_macos_before_build() -> None:
     assert "Linux) printf 'debian" in script
     assert "--platform macos_arm64 --clean" in script
     assert "--platform macos_arm64 --apps cli gui" in script
+    assert "SSA_CLI_v${version}_macos_arm64/SSA_CLI_v${version}_macos_arm64" in script
     assert '--backend "${backend}" --package "${package_kind}"' in script
     assert 'args+=(-y)' in script
     assert "--ssh-host" in script

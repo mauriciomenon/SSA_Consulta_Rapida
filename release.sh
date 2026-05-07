@@ -94,21 +94,26 @@ run_macos_release() {
   local package_kind="${PACKAGE_KIND:-${DEFAULT_MACOS_PACKAGE}}"
   local version
   local dmg_path
+  local cli_exe
 
   [[ "${backend}" == "pyinstaller" ]] || die "macOS hoje suporta backend pyinstaller neste wrapper."
   [[ "${package_kind}" == "dmg" ]] || die "macOS hoje suporta pacote dmg neste wrapper."
   version="$(cd "${root}" && uv run --python 3.13 python -c 'import json; print(json.load(open("config/version.json", encoding="utf-8"))["version_short"])')"
   dmg_path="${root}/launchers/dist/macos_arm64/SSA_Consulta_Rapida_v${version}_macos_arm64.dmg"
+  cli_exe="${root}/launchers/dist/macos_arm64/SSA_CLI_v${version}_macos_arm64/SSA_CLI_v${version}_macos_arm64"
 
   if [[ "${DRY_RUN}" == "1" ]]; then
     printf '[release] dry-run macos: uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui\n'
     printf '[release] dry-run macos: DMG esperado %s\n' "${dmg_path}"
+    printf '[release] dry-run macos: smoke importacao %s\n' "${cli_exe}"
     return 0
   fi
 
   uv run --python 3.13 "${root}/launchers/build_multiplatform.py" --platform macos_arm64 --clean
   uv run --python 3.13 "${root}/launchers/build_multiplatform.py" --platform macos_arm64 --apps cli gui
   [[ -s "${dmg_path}" ]] || die "DMG macOS nao foi gerado: ${dmg_path}"
+  [[ -x "${cli_exe}" ]] || die "executavel CLI macOS ausente para smoke: ${cli_exe}"
+  uv run --python 3.13 python "${root}/scripts/smoke_cli.py" --executable "${cli_exe}" --json
 }
 
 while [[ $# -gt 0 ]]; do
