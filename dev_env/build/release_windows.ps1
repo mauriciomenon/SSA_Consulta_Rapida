@@ -11,7 +11,7 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = "Stop"
 
 $Platform = "windows_amd64"
-$DistributionScript = "scripts\create_distribution.py"
+$DistributionModule = "scripts.create_distribution"
 $MandatoryGuideName = "GUIA_MIGRACAO_NOVA_INSTALACAO.md"
 
 function Assert-WindowsHost {
@@ -552,7 +552,7 @@ function Invoke-DistributionPackage {
         [Parameter(Mandatory = $true)] [bool] $SkipInstallerFlag
     )
 
-    $distributionArgs = @("run", "--python", "3.13", "python", $DistributionScript, "--build-system", $BackendName)
+    $distributionArgs = @("run", "--python", "3.13", "python", "-m", $DistributionModule, "--build-system", $BackendName)
     if ($SkipInstallerFlag) {
         $distributionArgs += "--skip-installer"
     }

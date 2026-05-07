@@ -64,7 +64,7 @@ def test_release_windows_script_has_deterministic_preflight_and_report() -> None
     assert "Dry-run Windows concluido sem build/pacote." in script
     assert_before(script, "if ($DryRun)", "if (-not $Yes)")
     assert "Invoke-CheckedProcess $repoRoot $config.build_script" in script
-    assert '@("run", "--python", "3.13", "python", $DistributionScript' in script
+    assert '@("run", "--python", "3.13", "python", "-m", $DistributionModule' in script
     assert_before(script, "if ($DryRun)", "foreach ($backendName in $selectedBackends)")
     assert_before(script, "if ($DryRun)", "Invoke-CheckedProcess $repoRoot $config.build_script")
     release_loop = section_between(
@@ -99,7 +99,7 @@ def test_release_windows_script_calls_only_windows_build_wrappers() -> None:
     nuitka_script = read_repo_text("dev_env", "build", "build_nuitka_clean.bat")
     assert "uv run --python 3.13 --extra build python -m nuitka" in nuitka_script
     assert "build_pyoxidizer.bat" in script
-    assert "scripts\\create_distribution.py" in script
+    assert "scripts.create_distribution" in script
     assert "build_info.json" in script
     assert "GUIA_MIGRACAO_NOVA_INSTALACAO.md" in script
     assert "Get-FileHash" in script
