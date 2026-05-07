@@ -32,7 +32,7 @@ FOUND=0
 
 # 1) Tokens diretos
 for rgx in "${TOKEN_REGEXES[@]}"; do
-  if echo "$ADDED_STRIPPED" | grep -E -q "$rgx"; then
+  if printf '%s\n' "$ADDED_STRIPPED" | grep -E -q "$rgx"; then
     err "Token suspeito: $rgx"
     FOUND=1
   else
@@ -47,7 +47,7 @@ while IFS= read -r line; do
   raw_key="${line%%=*}"
   key=$(printf '%s\n' "$raw_key" | tr -d '"' | tr -d "'" | tr -d '[:space:]')
   if [[ ! "$key" =~ ^[A-Z0-9_]+$ ]]; then
-    info "Ignorando linha sem chave válida: $line"
+    info "Ignorando linha API_KEY sem chave valida."
     continue
   fi
   val_part="${line#*=}"
@@ -58,16 +58,16 @@ while IFS= read -r line; do
   # Allow vazio / placeholders
   for av in "${ALLOW_VALUES[@]}"; do
     if [[ "$val_clean" == "$av" ]]; then
-      info "PLACEHOLDER permitido: $line"
+      info "PLACEHOLDER permitido para API_KEY."
       continue 2
     fi
   done
 
   # Se vazio após trim
-  [[ -z "$val_clean" ]] && { info "Vazio permitido: $line"; continue; }
+  [[ -z "$val_clean" ]] && { info "Valor vazio permitido para API_KEY."; continue; }
 
   # Curto demais => permitir
-  (( ${#val_clean} < MIN_LEN )) && { info "Curto permitido: $line"; continue; }
+  (( ${#val_clean} < MIN_LEN )) && { info "Valor curto permitido para API_KEY."; continue; }
 
   err "Valor potencial de API_KEY (redacted)"
   FOUND=1

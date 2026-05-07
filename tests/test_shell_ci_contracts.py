@@ -144,13 +144,17 @@ def test_run_tests_does_not_expand_pytest_addopts_unquoted() -> None:
     assert '"${base_cmd[@]}" "${pytest_extra_opts[@]}"' in script
 
 
-def test_secret_scan_hook_preserves_blocking_state_outside_api_key_loop() -> None:
+def test_secret_scan_hook_loop_safety_and_log_hygiene() -> None:
     script = _read_repo_text("scripts", "git_hooks", "pre-commit.secret-scan.sh")
 
     assert "echo \"$ADDED\" | sed" not in script
+    assert "echo \"$ADDED_STRIPPED\" | grep" not in script
+    assert "printf '%s\\n' \"$ADDED_STRIPPED\" | grep" in script
     assert "cut -c2-" in script
     assert "API_KEY_LINES=" in script
     assert "done <<< \"$API_KEY_LINES\"" in script
+    assert ": $line" not in script
+    assert "Valor potencial de API_KEY (redacted)" in script
 
 
 def test_minimal_ci_runs_for_any_workflow_change() -> None:
