@@ -1,8 +1,15 @@
 # Recovery Backlog
 
-## CURRENT TRUTH 2026-05-05 12h37
+## CURRENT TRUTH 2026-05-08 00h21
 
 - Branch alvo operacional desta rodada: `dev`.
+- HEAD operacional atual validado:
+  - `c32c168f106bafd10646f869f96b4cf1eac6ef4c 2026-05-08T00:21:11-03:00 ci: Handle missing base SHA after history rewrite`.
+- Rewrite de historico executado e publicado em branches/tags do repositorio.
+- Validacao de segredos em branches/tags locais publicados: `gitleaks_findings=0`.
+- GitHub Secret Scan no novo HEAD de `dev`: `success`.
+- Pendencia externa: `refs/pull/*/head` antigas do GitHub ainda retêm achados historicos e sao read-only para push/API. Requer purge pelo GitHub Support.
+- PR refs afetadas pela pendencia externa: `1,2,3,9,10,11,12,13,14,15,16`.
 - `dev` avancou alem da base antiga `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`; nao assumir `main` sincronizado sem nova checagem explicita.
 - Base funcional local validada antes deste DOC_SYNC: `3f9d6701d798a04e8b42b6c4f7bf7711f1e68dc3 2026-05-05T12:37:11-03:00 test(launchers): Fail executable smoke on timeout`.
 - Commits funcionais desta rodada:
@@ -27,6 +34,28 @@ Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
 ## ACTIVE PRIORITIES
+
+## Update 2026-05-08 00:21 - history rewrite and CI recovery
+
+Escopo desta atualizacao:
+1. remover achados historicos de segredos em branches e tags publicaveis.
+2. corrigir `minimal-ci` para nao falhar quando `github.event.before` aponta para commit removido por history rewrite.
+3. registrar a pendencia externa de `refs/pull/*/head`, que o GitHub nao permite atualizar por push ou API.
+
+Validacoes executadas:
+1. `gitleaks detect --source . --config .gitleaks.toml --exit-code 0` em refs locais publicadas: `0` findings.
+2. GitHub `Secret Scan`: `success`.
+3. GitHub `codeql-security-scan`: `success`.
+4. GitHub `release-windows`: `success`.
+5. Local: `uv run --python 3.13 ruff check .`.
+6. Local: `uv run --python 3.13 ty check`.
+7. Local: `uv run --python 3.13 pytest -q` -> `1697 passed, 7 skipped, 11 subtests passed`.
+
+Pendencia externa:
+1. clone mirror do GitHub ainda encontra achados apenas em `refs/pull/*/head`.
+2. `git push origin :refs/pull/1/head` falha com `deny updating a hidden ref`.
+3. `gh api --method DELETE repos/mauriciomenon/SSA_Consulta_Rapida/git/refs/pull/1/head` falha com `refs/pull/* is read-only`.
+4. proxima acao fora do repo: solicitar purge ao GitHub Support para PR refs `1,2,3,9,10,11,12,13,14,15,16`.
 
 ## Update 2026-05-05 12:37 - hardening release/import frozen
 
