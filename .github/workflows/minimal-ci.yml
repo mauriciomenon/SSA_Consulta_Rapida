@@ -48,6 +48,9 @@ jobs:
           fi
           if [ -z "${BASE_SHA}" ] || [ "$BASE_SHA" = "$ZERO_SHA" ]; then
             git ls-files > .changed_quality_scope
+          elif ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            echo "Base SHA ${BASE_SHA} is not available after history rewrite; using full tracked file scope."
+            git ls-files > .changed_quality_scope
           else
             git diff --name-only "$BASE_SHA" "$HEAD_SHA" > .changed_quality_scope
           fi
