@@ -16,7 +16,7 @@ on:
     branches: [ "main", "dev", "protection_pattern_menon" ]
   pull_request:
     # The branches below must be a subset of the branches above
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
   schedule:
     - cron: '43 20 * * 1'
 
