@@ -1,0 +1,23 @@
+.github/dependabot-template.yml
+  s_082d1ff7d55d96::t_af4a383d44b4a8 5-6
+.github/dependabot.yml
+  s_082d1ff7d55d96::t_af4a383d44b4a8 5-6
+tests/test_shell_ci_contracts.py
+  s_082d1ff7d55d96::t_af4a383d44b4a8 6,174-192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "f4774b3129071d5448c959d7f6020118476c138e",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
