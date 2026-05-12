@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -168,6 +169,27 @@ def test_minimal_ci_runs_for_any_workflow_change() -> None:
     assert "run_python=false" in workflow
     assert "required status will pass without expensive gates" in workflow
     assert "|^scripts/|^dev_env/build/" in workflow
+
+
+def test_dependabot_ignores_platform_requirement_snapshots() -> None:
+    config = _read_repo_text(".github", "dependabot.yml")
+    template = _read_repo_text(".github", "dependabot-template.yml")
+
+    assert config == template
+    pip_blocks = re.findall(
+        r'(?ms)^  - package-ecosystem: "pip"\n(?:(?!^  - package-ecosystem:).)*',
+        config,
+    )
+    root_pip_blocks = [
+        block
+        for block in pip_blocks
+        if re.search(r'(?m)^    directory: "/"$', block)
+    ]
+    assert root_pip_blocks, "No root pip Dependabot update found"
+    for block in root_pip_blocks:
+        assert re.search(r'(?m)^      - "launchers/platforms/\*\*"$', block), (
+            "Missing launchers/platforms/** in root pip Dependabot exclude-paths"
+        )
 
 
 def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
