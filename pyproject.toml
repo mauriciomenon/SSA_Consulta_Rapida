@@ -12,6 +12,8 @@ addopts = ["--ignore=tests/legacy_tests"]
 markers = [
   "performance: performance tests",
   "integration: integration tests",
+  "legacy: legacy tests",
+  "slow: slow tests",
   "smoke: smoke tests",
   "stress: stress tests",
 ]
@@ -29,29 +31,53 @@ name = "ssa-consulta-rapida"
 version = "4.37.0"
 requires-python = ">=3.10"
 dependencies = [
-    "pandas",
-    "openpyxl",
-    "defusedxml",
-    "pyqt6",
-    "numpy",
-    "tabulate",
+    "pandas>=2.3.3",
+    "openpyxl>=3.1.5",
+    "defusedxml>=0.7.1",
+    "pyqt6>=6.9.0",
+    "numpy>=2.2.6,<2.4.0; python_version < '3.11'",
+    "numpy>=2.4.2; python_version >= '3.11'",
+    "tabulate>=0.10.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "ruff",
-    "flake8",
-    "pytest",
-    "ty",
-    "black",
-    "pillow",
+    "pytest>=9.0.3",
+    "flake8>=7.3.0",
+    "isort>=5.13.2",
+    "black>=26.3.1",
+    "mypy>=1.20.2",
+    "pytest-cov>=5.0.0",
+    "pre-commit>=4.0.1",
+    "ruff>=0.15.0",
+    "ty>=0.0.32",
+    "pillow>=12.2.0",
+    "codeflash>=0.20.5",
 ]
 build = [
-    "pyinstaller",
-    "nuitka",
+    "pyinstaller>=6.20.0",
+    "nuitka>=4.0.8",
+    "pillow>=12.2.0",
+    "cairosvg>=2.9.0",
+    "pywin32>=311; platform_system == 'Windows'",
+    "dmgbuild>=1.6.7; platform_system == 'Darwin'",
+    "patchelf>=0.17.2.4; platform_system == 'Linux'",
+]
+web = [
+    "streamlit>=1.57.0",
 ]
 
 [dependency-groups]
 dev = [
-    "codeflash>=0.20.1",
+    "pytest>=9.0.3",
+    "flake8>=7.3.0",
+    "isort>=5.13.2",
+    "black>=26.3.1",
+    "mypy>=1.20.2",
+    "pytest-cov>=5.0.0",
+    "pre-commit>=4.0.1",
+    "ruff>=0.15.0",
+    "ty>=0.0.32",
+    "pillow>=12.2.0",
+    "codeflash>=0.20.5",
 ]
