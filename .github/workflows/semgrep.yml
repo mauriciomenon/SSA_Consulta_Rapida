@@ -51,13 +51,14 @@ jobs:
             is_fork_pr="true"
           fi
 
-          if [[ -n "$SEMGREP_APP_TOKEN" && -n "$SEMGREP_DEPLOYMENT_ID" && "$is_fork_pr" != "true" ]]; then
+          if [[ -n "$SEMGREP_APP_TOKEN" && -n "$SEMGREP_DEPLOYMENT_ID" && "$is_fork_pr" == "false" ]]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
 
       # Scan and publish when deployment secrets are available and PR is not from fork
+      # Mutually exclusive with the non-publishing step below via semgrep_mode.publish output.
       - uses: returntocorp/semgrep-action@fcd5ab7459e8d91cb1777481980d1b18b4fc6735
         if: steps.semgrep_mode.outputs.publish == 'true'
         with:
