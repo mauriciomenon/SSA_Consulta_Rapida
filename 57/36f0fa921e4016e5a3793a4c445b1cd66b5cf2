@@ -1,0 +1,33 @@
+tests/test_gui_filter_logic.py
+  s_082d1ff7d55d96::t_8b9231711ffb79 31
+  s_082d1ff7d55d96::t_b9af69ba064a68 281-285,2727-2747
+  s_082d1ff7d55d96::t_92e363fa93b2bf 2749-2780
+gui/gui_ssa.py
+  s_082d1ff7d55d96::t_8b9231711ffb79 1793-1795
+  s_082d1ff7d55d96::t_b9af69ba064a68 1782,1784,1786,1788,1796-1799
+tests/test_shell_ci_contracts.py
+  s_082d1ff7d55d96::t_b9af69ba064a68 10,13,28-33,186-194,196-202,220-227
+dev_env/streamlit_app.py
+  s_082d1ff7d55d96::t_b9af69ba064a68 615-617,1114-1117,1192-1195,1710-1713,1770-1773
+gui/mixins/filter_gui_ssa_mixin.py
+  s_082d1ff7d55d96::t_b9af69ba064a68 4602-4619,4623,4628-4632,4654-4659,4661-4674,4681-4685,4732-4735,4740,4763-4765,4768,4770-4783
+  s_082d1ff7d55d96::t_ace4002048a3af 4784-4787
+dev_env/bootstrap.ps1
+  s_082d1ff7d55d96::t_b9af69ba064a68 4-5,26,32-35,37-41,45,47-51,105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "5736f0fa921e4016e5a3793a4c445b1cd66b5cf2",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
