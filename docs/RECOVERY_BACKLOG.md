@@ -1,13 +1,13 @@
 # Recovery Backlog
 
-## CURRENT TRUTH 2026-05-08 00h21
+## CURRENT TRUTH 2026-05-11 22h10
 
 - Branch alvo operacional desta rodada: `dev`.
 - HEAD operacional atual validado:
-  - `c32c168f106bafd10646f869f96b4cf1eac6ef4c 2026-05-08T00:21:11-03:00 ci: Handle missing base SHA after history rewrite`.
+  - `84f5cf540fcf971f506ba5688d424c460b272d8c 2026-05-08T00:35:03-03:00 docs: Record history rewrite support follow-up`.
 - Rewrite de historico executado e publicado em branches/tags do repositorio.
 - Validacao de segredos em branches/tags locais publicados: `gitleaks_findings=0`.
-- GitHub Secret Scan no novo HEAD de `dev`: `success`.
+- GitHub checks no HEAD atual de `dev`: `minimal-ci`, `Secret Scan`, `codeql-security-scan`, `Automatic Dependency Submission` e `release-windows` em `success`.
 - Pendencia externa: `refs/pull/*/head` antigas do GitHub ainda retêm achados historicos e sao read-only para push/API. Requer purge pelo GitHub Support.
 - PR refs afetadas pela pendencia externa: `1,2,3,9,10,11,12,13,14,15,16`.
 - `dev` avancou alem da base antiga `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`; nao assumir `main` sincronizado sem nova checagem explicita.
@@ -23,12 +23,12 @@
   - Windows AMD64: `dev_env/build/release_windows.ps1`.
   - Debian AMD64: `dev_env/build/release_debian.sh`.
   - Orquestrador local Windows+WSL: `dev_env/build/release_local.ps1`.
-- Checks GitHub ainda devem ser confirmados apos push desta rodada.
+- Merge para `main` ainda nao autorizado. Nao abrir PR nem fazer merge sem comando explicito.
 - Protecao de codigo:
   - Nuitka continua backend preferencial para release protegido.
   - PyInstaller tem protecao parcial.
   - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
-- Proximo passo operacional: apos push e CI verde, rebuildar Windows AMD64, Debian AMD64 e macOS ARM64 a partir deste HEAD, validar artefatos e atualizar release v4.37 somente com pacotes novos.
+- Proximo passo operacional: apos aprovacao explicita, abrir PR `dev` -> `main` ou executar o fluxo de merge definido pelo usuario.
 
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
