@@ -46,7 +46,7 @@ jobs:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
           SEMGREP_DEPLOYMENT_ID: ${{ secrets.SEMGREP_DEPLOYMENT_ID }}
         run: |
-          is_fork_pr="${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork || false) }}"
+          is_fork_pr="${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true && 'true' || 'false' }}"
           can_publish="true"
           if [[ "$is_fork_pr" == "true" ]]; then
             can_publish="false"
@@ -70,7 +70,7 @@ jobs:
       - uses: returntocorp/semgrep-action@fcd5ab7459e8d91cb1777481980d1b18b4fc6735
         if: steps.semgrep_mode.outputs.publish != 'true'
         with:
-          # p/ci keeps baseline Semgrep checks active when publish settings are unavailable.
+          # p/ci keeps baseline Semgrep checks active for fork PRs or when publish settings are unavailable.
           config: p/ci
           generateSarif: "1"
 
