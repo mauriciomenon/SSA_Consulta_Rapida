@@ -2712,8 +2712,6 @@ class TestGUIFilterLogic:
         assert set(self._extract_visible_ssa()) == set(self.base_df["numero_ssa"])
 
     def test_persistent_filters_order(self):
-        from unittest.mock import patch
-
         with patch("gui.gui_ssa.QMessageBox.information", return_value=None):
             self.window.persistent_filters = []
             self.window.search_input.setText("Zebra filtro")
@@ -3548,7 +3546,7 @@ class TestGUIFilterLogic:
         with patch.object(
             self.window,
             "_reorganize_advanced_filters_grid",
-            side_effect=lambda width: captured_widths.append(width),
+            side_effect=captured_widths.append,
         ):
             event = QResizeEvent(QSize(1280, 800), QSize(1200, 760))
             self.window.resizeEvent(event)
@@ -5927,7 +5925,7 @@ class TestGUIFilterLogic:
         source = ["data_programacao", "descricao_execucao", "numero_ssa"]
         captured = {}
         monkeypatch.setattr(
-            self.window, "_get_select_all_columns_from_selector", lambda: source.copy()
+            self.window, "_get_select_all_columns_from_selector", source.copy
         )
         monkeypatch.setattr(
             self.window,

@@ -3856,10 +3856,7 @@ class FilterGUISSAMixin:
             logger.debug("Falha ao atualizar resumo de filtros no refresh: %s", exc)
         self._sync_clear_filter_button_state()
         try:
-            _measure_timing(
-                "status",
-                lambda: self._set_filtered_count_status(),
-            )
+            _measure_timing("status", self._set_filtered_count_status)
         except Exception as exc:
             logger.debug(
                 "Falha ao atualizar status de total filtrado no refresh: %s", exc
@@ -4276,11 +4273,9 @@ class FilterGUISSAMixin:
         if not profile_name or profile_name not in self.filter_profiles:
             # Fallback ad-hoc: permite strings como "IEE3 + MEL3 + MEL4" para grupo Executor/Emissor
             try:
-                import re as _re
-
                 raw = str(profile_name)
                 tokens = [
-                    _t.strip() for _t in _re.split(r"[+,]", raw) if _t and _t.strip()
+                    _t.strip() for _t in re.split(r"[+,]", raw) if _t and _t.strip()
                 ]
                 if tokens:
                     self._reset_or_groups()
@@ -4652,7 +4647,7 @@ class FilterGUISSAMixin:
 
         def _state_json_default(value):
             if isinstance(value, set):
-                return sorted(value, key=lambda item: str(item))
+                return sorted(value, key=str)
             return str(value)
 
         # Verifica se ja existe
