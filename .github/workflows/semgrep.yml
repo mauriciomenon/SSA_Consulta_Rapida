@@ -48,7 +48,12 @@ jobs:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
           SEMGREP_DEPLOYMENT_ID: ${{ secrets.SEMGREP_DEPLOYMENT_ID }}
         run: |
-          if [[ -n "$SEMGREP_APP_TOKEN" && -n "$SEMGREP_DEPLOYMENT_ID" && ( "$EVENT_NAME" != "pull_request" || "$IS_FORK_PR" != "true" ) ]]; then
+          can_publish="true"
+          if [[ "$EVENT_NAME" == "pull_request" && "$IS_FORK_PR" == "true" ]]; then
+            can_publish="false"
+          fi
+
+          if [[ -n "$SEMGREP_APP_TOKEN" && -n "$SEMGREP_DEPLOYMENT_ID" && "$can_publish" == "true" ]]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
@@ -66,6 +71,7 @@ jobs:
       - uses: returntocorp/semgrep-action@fcd5ab7459e8d91cb1777481980d1b18b4fc6735
         if: steps.semgrep_mode.outputs.publish != 'true'
         with:
+          # p/ci keeps baseline Semgrep checks active when publish settings are unavailable.
           config: p/ci
           generateSarif: "1"
 
