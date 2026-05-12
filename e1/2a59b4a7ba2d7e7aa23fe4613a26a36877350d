@@ -1,0 +1,26 @@
+dev_env/bootstrap.ps1
+  s_082d1ff7d55d96::t_799e5182fc0456 8-49,54,56
+  s_082d1ff7d55d96::t_3171e5db6e7a7b 84-87
+config/default_settings.json
+  s_082d1ff7d55d96::t_4f605b6d6214dd 1-4
+dev_env/streamlit_app.py
+  s_082d1ff7d55d96::t_5d54345c63cb43 1164-1193,1708-1767
+  s_082d1ff7d55d96::t_ff6268c90c6f0d 382-672,1688-1707
+  s_082d1ff7d55d96::t_39315913568690 96-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "e12a59b4a7ba2d7e7aa23fe4613a26a36877350d",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
