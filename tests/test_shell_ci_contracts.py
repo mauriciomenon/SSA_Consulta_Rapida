@@ -3,14 +3,13 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
 import pytest
-import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -23,12 +22,6 @@ def _test_env(**overrides: str) -> dict[str, str]:
 
 def _read_repo_text(*parts: str) -> str:
     return (PROJECT_ROOT.joinpath(*parts)).read_text(encoding="utf-8")
-
-
-def _read_repo_yaml(*parts: str) -> dict[str, Any]:
-    data = yaml.safe_load(_read_repo_text(*parts))
-    assert isinstance(data, dict), f"YAML root must be a mapping: {'/'.join(parts)}"
-    return data
 
 
 def _load_opencode_review_module():
@@ -183,23 +176,24 @@ def test_dependabot_ignores_platform_requirement_snapshots() -> None:
     template = _read_repo_text(".github", "dependabot-template.yml")
 
     assert config == template
-    parsed = _read_repo_yaml(".github", "dependabot.yml")
-    updates = parsed.get("updates")
-    assert isinstance(updates, list), "Dependabot updates must be a list"
-    root_pip_updates = [
-        update
-        for update in updates
-        if isinstance(update, dict)
-        and update.get("package-ecosystem") == "pip"
-        and update.get("directory") == "/"
+    pip_blocks = re.findall(
+        r"(?ms)^\s*-\s*package-ecosystem:\s*['\"]?pip['\"]?\s*$"
+        r".*?(?=^\s*-\s*package-ecosystem:|\Z)",
+        config,
+    )
+    root_pip_blocks = [
+        block
+        for block in pip_blocks
+        if re.search(r"(?m)^\s*directory:\s*['\"]?/['\"]?\s*$", block)
     ]
-    assert root_pip_updates, "No root pip Dependabot update found"
-    for update in root_pip_updates:
-        exclude_paths = update.get("exclude-paths")
-        assert isinstance(exclude_paths, list), (
-            "Root pip Dependabot update must declare exclude-paths"
-        )
-        assert "launchers/platforms/**" in exclude_paths, (
+    assert root_pip_blocks, "No root pip Dependabot update found"
+    for block in root_pip_blocks:
+        assert re.search(
+            r"(?ms)^\s*exclude-paths:\s*$"
+            r"(?:(?!^\s*[A-Za-z0-9_-]+:).)*"
+            r"^\s*-\s*['\"]?launchers/platforms/\*\*['\"]?\s*$",
+            block,
+        ), (
             "Missing launchers/platforms/** in root pip Dependabot exclude-paths"
         )
 
@@ -223,6 +217,7 @@ def test_dev_bootstrap_requires_hash_for_remote_pyenv_install() -> None:
     assert "[string]$PyenvInstallerSha256" in script
     assert "Instalacao remota do pyenv-win exige -PyenvInstallerSha256" in script
     assert "Get-FileHash -Algorithm SHA256" in script
+    assert "Unblock-File -LiteralPath $installerPath" in script
     assert "[Net.SecurityProtocolType]::Tls12" in script
     assert "Invoke-Expression" not in script
 
