@@ -16,6 +16,7 @@ Responsibilities
     ``SSA_EXTRA_DIRS=dir1,dir2``
 * Lightweight validation step used by a guard test
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -26,11 +27,25 @@ from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
+
+def _is_within_base(path: str, base: str) -> bool:
+    """Return True when `path` is inside `base` after realpath normalization."""
+    try:
+        path_real = os.path.realpath(path)
+        base_real = os.path.realpath(base)
+        return os.path.commonpath([path_real, base_real]) == base_real
+    except Exception:
+        return False
+
+
 # Base imutável; cópia de trabalho é derivada em runtime
 # para evitar mutação global por chamadas repetidas
 _BASE_REQUIRED_DIRS = [
+    "config",
     "data",
     "data/historico_backups",
+    "docs_entrada",
+    "docs_saida",
     "logs",
     "reports",
     "extracao",
@@ -54,8 +69,19 @@ def _load_legacy_required_dirs() -> list[str]:  # pragma: no cover - caminho opc
 
     Segurança: não lança exceções fatais; falhas geram log DEBUG e retorna [].
     """
-    module_path = os.environ.get("SSA_LEGACY_SETUP_MODULE")
-    if not module_path:
+    module_path_raw = os.environ.get("SSA_LEGACY_SETUP_MODULE")
+    if not module_path_raw:
+        return []
+    module_path = os.path.realpath(os.path.abspath(module_path_raw))
+    project_root = os.path.realpath(
+        os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+    )
+    allow_external = os.environ.get("SSA_ALLOW_EXTERNAL_LEGACY_SETUP_MODULE") == "1"
+    if not allow_external and not _is_within_base(module_path, project_root):
+        logger.warning(
+            "SSA_LEGACY_SETUP_MODULE fora da raiz do projeto foi bloqueado: %s",
+            module_path,
+        )
         return []
     try:
         if not os.path.isfile(module_path):
@@ -65,9 +91,9 @@ def _load_legacy_required_dirs() -> list[str]:  # pragma: no cover - caminho opc
             )
             return []
         spec = importlib.util.spec_from_file_location("_ssa_legacy_setup", module_path)
-        if spec and spec.loader:  # type: ignore[truthy-function]
-            mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-            spec.loader.exec_module(mod)  # type: ignore[attr-defined]
+        if spec and spec.loader:
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
             func = getattr(mod, "legacy_required_dirs", None)
             if callable(func):
                 legacy_raw = func()
@@ -77,9 +103,11 @@ def _load_legacy_required_dirs() -> list[str]:  # pragma: no cover - caminho opc
                     legacy_iter: Iterable = [legacy_raw]
                 elif isinstance(legacy_raw, bytes):  # noqa: SIM101 (separado para evitar regra tuple)
                     legacy_iter = [legacy_raw]
-                elif isinstance(legacy_raw, Iterable):  # type: ignore[arg-type]
+                elif isinstance(legacy_raw, Iterable):
                     try:
-                        legacy_iter = list(legacy_raw)  # materializa para iteração única
+                        legacy_iter = list(
+                            legacy_raw
+                        )  # materializa para iteração única
                     except Exception:  # pragma: no cover
                         legacy_iter = [legacy_raw]
                 else:
@@ -100,7 +128,9 @@ def _load_legacy_required_dirs() -> list[str]:  # pragma: no cover - caminho opc
     return []
 
 
-def setup_dirs(base_path: str | None = None, ensure_permissions: bool = False) -> SetupResult:
+def setup_dirs(
+    base_path: str | None = None, ensure_permissions: bool = False
+) -> SetupResult:
     """Ensure required directories exist.
 
     Parameters
@@ -141,6 +171,7 @@ def setup_dirs(base_path: str | None = None, ensure_permissions: bool = False) -
             if ensure_permissions:
                 # Best effort: rwx for user
                 try:
+                    # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
                     os.chmod(full, 0o700)
                 except Exception as e:  # pragma: no cover
                     logger.debug("Falha ao ajustar permissões %s: %s", full, e)
@@ -149,7 +180,9 @@ def setup_dirs(base_path: str | None = None, ensure_permissions: bool = False) -
 
     logger.debug(
         "setup_dirs concluído: created=%s existing=%s errors=%s",
-        len(result.created), len(result.existing), len(result.errors)
+        len(result.created),
+        len(result.existing),
+        len(result.errors),
     )
     return result
 
@@ -157,14 +190,18 @@ def setup_dirs(base_path: str | None = None, ensure_permissions: bool = False) -
 # Backwards compatibility object-style API expected in main:
 class SetupProjectStructure:  # Renamed to follow CapWords; keep legacy alias below
     @staticmethod
-    def setup_dirs(base_path: str | None = None, ensure_permissions: bool = False) -> SetupResult:
+    def setup_dirs(
+        base_path: str | None = None, ensure_permissions: bool = False
+    ) -> SetupResult:
         return setup_dirs(base_path, ensure_permissions=ensure_permissions)
 
     @staticmethod
     def validate(base_path: str | None = None) -> bool:
         """Quick validation used by tests: all required dirs present."""
         if base_path is None:
-            base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+            base_path = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), os.pardir)
+            )
         # Montar lista coerente (base + possíveis legados + extras env)
         working_required = list(_BASE_REQUIRED_DIRS)
         for add in _load_legacy_required_dirs():
@@ -175,16 +212,19 @@ class SetupProjectStructure:  # Renamed to follow CapWords; keep legacy alias be
             for part in [p.strip() for p in extra_raw.split(",") if p.strip()]:
                 if part not in working_required:
                     working_required.append(part)
-        missing = [d for d in working_required if not os.path.isdir(os.path.join(base_path, d))]
+        missing = [
+            d for d in working_required if not os.path.isdir(os.path.join(base_path, d))
+        ]
         if missing:
             logger.warning("Diretórios faltando: %s", missing)
             return False
         return True
 
+
 # Module-level validate helper for tests/tools expecting validate symbol directly
 def validate(base_path: str | None = None) -> bool:  # pragma: no cover - delega
     return SetupProjectStructure.validate(base_path)
 
-# Backwards compatibility alias (legacy lowercase name still referenced externally)
-setup_project_structure = SetupProjectStructure  # type: ignore
 
+# Backwards compatibility alias (legacy lowercase name still referenced externally)
+setup_project_structure = SetupProjectStructure

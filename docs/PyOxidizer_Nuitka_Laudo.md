@@ -60,3 +60,6 @@
 2. Reexecutar `pyoxidizer.bat build --release` no Developer PowerShell.
 3. Corrigir `build_nuitka.bat` (remover diretórios inexistentes, garantir PATH do GCC) e rodar via perfil MSYS2 UCRT64.
 4. Validar executáveis resultantes apontando o `config/` e `data/` corretos.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

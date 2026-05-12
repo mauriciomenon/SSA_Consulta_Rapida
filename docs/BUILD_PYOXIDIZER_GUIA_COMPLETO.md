@@ -1,4 +1,32 @@
-# Guia Completo - Build com PyOxidizer 0.24.0
+# Guia Completo (Historico/Laboratorio) - Build com PyOxidizer
+
+## CURRENT TRUTH (4.37 local / v4.36 published)
+
+- Sync deste guia: `2026-03-11 22:25 -0300`.
+- PyOxidizer segue como trilha avancada (nao default), mas com fluxo operacional funcional para:
+  - `windows_amd64`
+  - `debian_amd64` (via WSL)
+- Comandos canonicos (sempre via uv):
+  - Windows: `dev_env/build/build_pyoxidizer.bat --silent`
+  - Debian/WSL: `bash dev_env/build/build_pyoxidizer_debian.sh --silent`
+- Artefatos finais:
+  - `builds/pyoxidizer/windows_amd64/SSA_Consulta_Rapida.exe`
+  - `builds/pyoxidizer/debian_amd64/SSA_Consulta_Rapida`
+- Estrutura runtime gerada no bundle:
+  - codigo do projeto em raiz (`core/`, `gui/`, `interface/`, etc.)
+  - runtime Python em `lib/`
+  - dados/config copiados por `scripts/copy_data_to_builds.py`
+- Runtime deps nativas de pandas/numpy:
+  - sincronizadas por `scripts/sync_pyoxidizer_runtime_libs.py`
+  - chamadas automaticamente pelos scripts de build de PyOxidizer
+- Observacao tecnica:
+  - PyOxidizer 0.24.0 usa runtime Python 3.10 embedado.
+  - O toolchain e processo do projeto continuam padronizados em `uv run --python 3.13 ...`.
+
+## HISTORICAL SNAPSHOT NOTICE
+
+Este documento foi mantido para contexto tecnico.
+Nao usar como runbook primario de release em v4.33.
 
 **Data**: 2025-11-14
 **Autor**: Claude Code
@@ -1439,4 +1467,6 @@ parser = argparse.ArgumentParser(
 **Versao do guia**: 1.0
 **Autor**: Claude Code
 **Status**: Completo e testado
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
 

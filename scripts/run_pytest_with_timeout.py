@@ -3,88 +3,50 @@
 Wrapper to run pytest with an external timeout and write stdout/stderr to a log file.
 
 Usage:
-  python scripts/run_pytest_with_timeout.py --test tests/test_terminal_integration.py --timeout 10
+  python scripts/run_pytest_with_timeout.py --test tests/test_terminal_integration.py --timeout 60
 
 This script writes a combined stdout/stderr log to `local_ai_private/pytest_terminal_integration.log`.
 """
 
 import argparse
 import os
-import subprocess
 import sys
-from datetime import datetime
 
-
-def ensure_local_ai_dir():
-    d = os.path.join(os.getcwd(), "local_ai_private")
-    os.makedirs(d, exist_ok=True)
-    return d
+from pytest_stream_common import (
+    DEFAULT_TIMEOUT_WRAPPER_LOG_FILENAME,
+    add_timeout_wrapper_common_args,
+    build_timeout_wrapper_cmd,
+    build_timeout_wrapper_header,
+    ensure_local_ai_dir,
+    run_logged_pytest,
+)
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--test", required=True, help="pytest path or args (e.g. tests/test_terminal_integration.py)")
-    parser.add_argument("--timeout", type=int, default=10, help="timeout in seconds for the pytest run")
-    parser.add_argument("--log", default=None, help="optional log path")
+    add_timeout_wrapper_common_args(parser)
     args, extra = parser.parse_known_args()
 
     logdir = ensure_local_ai_dir()
-    logpath = args.log or os.path.join(logdir, "pytest_terminal_integration.log")
+    logpath = args.log or os.path.join(logdir, DEFAULT_TIMEOUT_WRAPPER_LOG_FILENAME)
+    try:
+        cmd = build_timeout_wrapper_cmd(
+            raw_test=args.test,
+            extra_args=extra,
+            cwd=os.getcwd(),
+        )
+    except ValueError as exc:
+        print(f"[ERR] invalid --test target: {exc}", file=sys.stderr)
+        return 2
 
-    cmd = [sys.executable, "-m", "pytest", args.test]
-    if extra:
-        cmd.extend(extra)
-
-    header = f"=== pytest wrapper run at {datetime.utcnow().isoformat()}Z ===\nCommand: {' '.join(cmd)}\nTimeout: {args.timeout}s\n\n"
-
-    with open(logpath, "w", encoding="utf-8", errors="replace") as logf:
-        logf.write(header)
-        logf.flush()
-        try:
-            proc = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT)
-            try:
-                proc.wait(timeout=args.timeout)
-                logf.write(f"\n=== Process exited with code {proc.returncode} ===\n")
-                print(f"pytest finished with exit code {proc.returncode}; log: {logpath}")
-                return proc.returncode
-            except subprocess.TimeoutExpired:
-                # Timeout: attempt to kill process tree
-                try:
-                    if os.name == 'nt':
-                        res = subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        if res.returncode != 0:
-                            # fallback to PowerShell Stop-Process if taskkill is not available/succeeds
-                            pwsh = shutil.which("pwsh") or shutil.which("powershell")
-                            if pwsh:
-                                try:
-                                    subprocess.run([pwsh, "-NoProfile", "-NonInteractive", "-Command", f"Stop-Process -Id {proc.pid} -Force -ErrorAction SilentlyContinue"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                                except Exception:
-                                    try:
-                                        proc.kill()
-                                    except Exception:
-                                        pass
-                            else:
-                                try:
-                                    proc.kill()
-                                except Exception:
-                                    pass
-                    else:
-                        try:
-                            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-                        except Exception:
-                            proc.kill()
-                except Exception:
-                    try:
-                        proc.kill()
-                    except Exception:
-                        pass
-
-                logf.write(f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n")
-                print(f"TIMEOUT: pytest exceeded {args.timeout}s; log: {logpath}")
-                return 124
-        except Exception as e:
-            logf.write(f"\n=== ERROR: {e} ===\n")
-            raise
+    header = build_timeout_wrapper_header(cmd, args.timeout)
+    return run_logged_pytest(
+        cmd=cmd,
+        timeout_s=args.timeout,
+        logpath=logpath,
+        header=header,
+        kill_process_tree=True,
+    )
 
 
 if __name__ == "__main__":

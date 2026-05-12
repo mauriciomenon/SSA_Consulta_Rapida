@@ -1,6 +1,16 @@
 # Solucoes para Problemas de Ambiente - Build Systems
 
-**Data**: 2025-11-14
+## CURRENT TRUTH 2026-05-04 01h14
+
+- Fonte operacional completa: `docs/GUIA_DISTRIBUICAO.md`, bloco `CURRENT TRUTH`.
+- PR #58 e PR #59: merged; base minima sincronizada `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`, ou sucessor sincronizado em `main`/`dev`.
+- Este documento registra solucoes de ambiente; nao deve duplicar a matriz completa de release.
+- Proximo passo operacional: rebuildar artefatos v4.37 no Windows AMD64 e Debian AMD64 a partir do HEAD sincronizado.
+
+## HISTORICAL SNAPSHOT 2025-11-14
+
+Conteudo legado preservado apenas como referencia historica; o bloco `CURRENT TRUTH` acima e a fonte operacional atual.
+
 **Autor**: Claude Code
 
 ## Problema 1: PyOxidizer - Erro `ntpath.abspath`
@@ -71,7 +81,7 @@ Criado script [build_nuitka_clean.bat](../build_nuitka_clean.bat) que:
 
 ```batch
 REM PATH limpo sem MSYS2
-set "PATH=C:\Windows\System32;C:\Windows;C:\Users\menon\.pyenv\pyenv-win\bin;C:\Users\menon\.pyenv\pyenv-win\shims;C:\Users\menon\scoop\shims"
+set "PATH=C:\Windows\System32;C:\Windows;C:\Users\<usuario>\.pyenv\pyenv-win\bin;C:\Users\<usuario>\.pyenv\pyenv-win\shims;C:\Users\<usuario>\scoop\shims"
 
 REM Build com Nuitka
 python -m nuitka --standalone ...
@@ -89,8 +99,8 @@ set "PATH=%PATH_BACKUP%"
 
 ### Diagnostico
 PyOxidizer instalado em 2 locais:
-- `C:\Users\menon\.pyenv\pyenv-win\shims\pyoxidizer.bat` (via pip)
-- `C:\Users\menon\scoop\shims\pyoxidizer.exe` (via scoop)
+- `C:\Users\<usuario>\.pyenv\pyenv-win\shims\pyoxidizer.bat` (via pip)
+- `C:\Users\<usuario>\scoop\shims\pyoxidizer.exe` (via scoop)
 
 ### Solucao
 Manter ambas instalacoes esta OK porque:
@@ -121,9 +131,9 @@ Manter ambas instalacoes esta OK porque:
 C:\msys64\ucrt64\bin          # GCC e ferramentas Unix
 C:\Windows\System32
 C:\Windows
-C:\Users\menon\.pyenv\pyenv-win\bin
-C:\Users\menon\.pyenv\pyenv-win\shims
-C:\Users\menon\scoop\shims
+C:\Users\<usuario>\.pyenv\pyenv-win\bin
+C:\Users\<usuario>\.pyenv\pyenv-win\shims
+C:\Users\<usuario>\scoop\shims
 ```
 
 ---
@@ -248,3 +258,6 @@ rm -rf *.spec
 ---
 
 **Ultima atualizacao**: 2025-11-14
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

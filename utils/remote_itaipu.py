@@ -10,15 +10,48 @@ Features:
 
 Note: Do not disable SSL verification in production. Pass verify_ssl=True when possible.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Iterable, List, Dict, Any, Optional, Tuple
-import time
+import importlib
 import json
+import os
+import threading
+import time
+from dataclasses import dataclass
+from typing import Any, Dict, Iterable, List, Optional
 
-BASE_PENDING = "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetPendingSSAsByLocalizationRange"
-BASE_DETAIL = "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetSSABySSANumber"
+
+def _import_requests() -> Any:
+    try:
+        return importlib.import_module("requests")
+    except ImportError as exc:
+        raise RuntimeError("requests dependency not installed") from exc
+
+
+def _import_aiohttp() -> Any:
+    try:
+        return importlib.import_module("aiohttp")
+    except ImportError as exc:
+        raise RuntimeError("aiohttp dependency not installed") from exc
+
+
+def _env_url_or_default(name: str, default_url: str) -> str:
+    value = os.getenv(name)
+    if value is None:
+        return default_url
+    normalized = str(value).strip()
+    return normalized or default_url
+
+
+BASE_PENDING = _env_url_or_default(
+    "ITAIPU_BASE_PENDING",
+    "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetPendingSSAsByLocalizationRange",
+)
+BASE_DETAIL = _env_url_or_default(
+    "ITAIPU_BASE_DETAIL",
+    "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetSSABySSANumber",
+)
 
 
 @dataclass
@@ -38,13 +71,13 @@ def fetch_pending_ssas(
     end: str = "Z999Z999",
     years: int = 100000,
     opts: Optional[RequestOptions] = None,
-    cancel_flag: Optional["threading.Event"] = None,
+    cancel_flag: Optional[threading.Event] = None,
 ) -> List[Dict[str, Any]]:
     """Synchronous fetch of pending SSAs by localization range.
 
     cancel_flag: optional threading.Event to allow cooperative cancellation.
     """
-    import requests
+    requests = _import_requests()
 
     if opts is None:
         opts = RequestOptions()
@@ -90,9 +123,9 @@ def fetch_pending_ssas(
 def fetch_ssa_detail(
     ssa_number: str,
     opts: Optional[RequestOptions] = None,
-    cancel_flag: Optional["threading.Event"] = None,
+    cancel_flag: Optional[threading.Event] = None,
 ) -> Dict[str, Any]:
-    import requests
+    requests = _import_requests()
 
     if opts is None:
         opts = RequestOptions()
@@ -121,13 +154,19 @@ def fetch_ssa_detail(
     return {}
 
 
-def filter_by_executors(items: Iterable[Dict[str, Any]], executors: Iterable[str]) -> List[Dict[str, Any]]:
+def filter_by_executors(
+    items: Iterable[Dict[str, Any]], executors: Iterable[str]
+) -> List[Dict[str, Any]]:
     targets = {str(x).strip().lower() for x in executors if str(x).strip()}
     if not targets:
         return list(items)
     out: List[Dict[str, Any]] = []
     for it in items:
-        sector = str(it.get("ExecutorSector") or it.get("setor_executor") or "").strip().lower()
+        sector = (
+            str(it.get("ExecutorSector") or it.get("setor_executor") or "")
+            .strip()
+            .lower()
+        )
         if sector in targets:
             out.append(it)
     return out
@@ -136,6 +175,7 @@ def filter_by_executors(items: Iterable[Dict[str, Any]], executors: Iterable[str
 def map_to_dataframe(items: Iterable[Dict[str, Any]]):
     try:
         import pandas as pd
+
         df = pd.DataFrame(list(items))
         # Normalize common column names used in the app
         rename_map = {
@@ -160,9 +200,9 @@ async def fetch_pending_ssas_async(
     end: str = "Z999Z999",
     years: int = 100000,
     opts: Optional[RequestOptions] = None,
-    session: "aiohttp.ClientSession" | None = None,
+    session: Any = None,
 ):
-    import aiohttp
+    aiohttp = _import_aiohttp()
     import ssl as _ssl
 
     if opts is None:
@@ -187,7 +227,9 @@ async def fetch_pending_ssas_async(
     try:
         for attempt in range(opts.retries + 1):
             try:
-                async with session.get(BASE_PENDING, params=params, ssl=ssl_ctx) as resp:
+                async with session.get(
+                    BASE_PENDING, params=params, ssl=ssl_ctx
+                ) as resp:
                     resp.raise_for_status()
                     data = await resp.json()
                     if isinstance(data, list):
@@ -213,9 +255,9 @@ async def fetch_pending_ssas_async(
 async def fetch_ssa_detail_async(
     ssa_number: str,
     opts: Optional[RequestOptions] = None,
-    session: "aiohttp.ClientSession" | None = None,
+    session: Any = None,
 ):
-    import aiohttp
+    aiohttp = _import_aiohttp()
     import ssl as _ssl
 
     if opts is None:
@@ -254,6 +296,7 @@ async def fetch_ssa_detail_async(
 
 async def _async_sleep_backoff(attempt: int, base: float) -> None:
     import asyncio as _asyncio
+
     await _asyncio.sleep(max(0.0, base * (2 ** max(0, attempt - 1))))
 
 

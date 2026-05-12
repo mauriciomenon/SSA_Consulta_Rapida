@@ -2,6 +2,66 @@
 
 Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Windows, macOS e Linux.
 
+## CURRENT TRUTH (4.37 local / v4.36 published)
+
+- Sync deste guia: `2026-04-27 12:45 -0300`.
+- Relatorio consolidado deste ciclo:
+  - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
+- Runbook operacional 3x3:
+  - `docs/BUILD_3X3_RUNBOOK.md`
+- Fluxo operacional padrao:
+  1. build por backend com scripts em `dev_env/build/`
+  2. distribuicao com `scripts/create_distribution.py`
+- Backends ativos no ciclo:
+  - `pyinstaller` (default de release)
+  - `nuitka` (opcional)
+  - `pyoxidizer` (opcional)
+- Comandos canonicos (sempre via uv):
+  - Windows:
+    - `dev_env/build/build_pyinstaller.bat --silent`
+    - `dev_env/build/build_nuitka.bat --silent`
+    - `dev_env/build/build_pyoxidizer.bat --silent`
+  - Debian AMD64:
+    - `bash dev_env/build/build_pyinstaller_debian.sh --silent`
+    - `bash dev_env/build/build_nuitka_debian.sh --silent`
+    - `bash dev_env/build/build_pyoxidizer_debian.sh --silent`
+  - Debian ARM64:
+    - `bash dev_env/build/build_pyinstaller_debian_arm64.sh --silent`
+    - `bash dev_env/build/build_nuitka_debian_arm64.sh --silent`
+    - `bash dev_env/build/build_pyoxidizer_debian_arm64.sh --silent`
+
+## Local de saida e staging
+
+- Artefatos finais:
+  - PyInstaller:
+    - `launchers/dist/<plataforma>/...`
+    - `builds/pyinstaller/<plataforma>/...`
+  - Nuitka:
+    - `builds/nuitka/<plataforma>/...`
+  - PyOxidizer:
+    - `builds/pyoxidizer/<plataforma>/...`
+- Instaladores e zips:
+  - `dist_packages/`
+- Staging temporario (nao versionar):
+  - `build/pyoxidizer_stage_windows_amd64/`
+  - `build/x86_64-pc-windows-msvc/`
+  - `build/x86_64-unknown-linux-gnu/`
+  - `launchers/platforms/*/temp/`
+
+## Cleanup opcional (pos-build)
+
+- Script canonico:
+  - `uv run --python 3.13 scripts/cleanup_build_artifacts.py --scope temp`
+- Escopo:
+  - `temp`: remove apenas staging/temporarios.
+  - `full`: remove tambem `builds/*`, `launchers/dist/*`, `dist_packages/*`.
+- Scripts de build em modo nao silencioso perguntam no final se deve rodar cleanup `temp`.
+
+## Nota de versao
+
+Exemplos de nomes versionados neste documento (v3.10/v3.11) sao snapshots historicos.
+No fluxo ativo, usar a versao corrente definida em `VERSION` e `config/version.json`.
+
 ## Estrutura de Build
 
 ```
@@ -16,10 +76,14 @@ launchers/
 │   │   ├── venv/               # Ambiente virtual macOS
 │   │   ├── requirements.txt    # Deps especificas macOS
 │   │   └── build_config.json   # Config PyInstaller macOS
-│   └── debian_amd64/
-│       ├── venv/               # Ambiente virtual Linux
-│       ├── requirements.txt    # Deps especificas Linux
-│       └── build_config.json   # Config PyInstaller Linux
+│   ├── debian_amd64/
+│   │   ├── venv/               # Ambiente virtual Linux AMD64
+│   │   ├── requirements.txt    # Deps especificas Linux AMD64
+│   │   └── build_config.json   # Config PyInstaller Linux AMD64
+│   └── debian_arm64/
+│       ├── venv/               # Ambiente virtual Linux ARM64
+│       ├── requirements.txt    # Deps especificas Linux ARM64
+│       └── build_config.json   # Config PyInstaller Linux ARM64
 ├── dist/                       # Executaveis gerados
 │   ├── windows_amd64/
 │   │   ├── SSA_CLI_v3.10_windows_amd64.exe
@@ -40,27 +104,31 @@ launchers/
 
 ### Build Automatico (Detecta OS atual)
 ```bash
-python launchers/build_multiplatform.py
+uv run --python 3.13 launchers/build_multiplatform.py
 ```
 
 ### Build especifico por Plataforma
 ```bash
-python launchers/build_multiplatform.py --platform windows_amd64
-python launchers/build_multiplatform.py --platform macos_arm64
-python launchers/build_multiplatform.py --platform debian_amd64
+uv run --python 3.13 launchers/build_multiplatform.py --platform windows_amd64
+uv run --python 3.13 launchers/build_multiplatform.py --platform macos_arm64
+uv run --python 3.13 launchers/build_multiplatform.py --platform debian_amd64
+uv run --python 3.13 launchers/build_multiplatform.py --platform debian_arm64
 ```
 
-### Build Completo (Todas as plataformas compativeis)
+### Build de todos os apps da plataforma atual
 ```bash
-python launchers/build_multiplatform.py --all
+uv run --python 3.13 launchers/build_multiplatform.py --all
 ```
+
+Observacao:
+- `--all` neste launcher nao faz cross-compilation.
+- O efeito pratico e construir todos os apps (`cli` + `gui`) apenas para a plataforma detectada no host atual.
 
 ### Opcoes Avancadas
 ```bash
-python launchers/build_multiplatform.py --clean          # Limpa builds anteriores
-python launchers/build_multiplatform.py --optimize       # Build otimizado (menor tamanho)
-python launchers/build_multiplatform.py --debug          # Build com debug info
-python launchers/build_multiplatform.py --release        # Build para release com versionamento
+uv run --python 3.13 launchers/build_multiplatform.py --clean          # Limpa builds anteriores
+uv run --python 3.13 launchers/build_multiplatform.py --debug          # Build com debug info
+uv run --python 3.13 launchers/build_multiplatform.py --all            # Todos os apps da plataforma atual
 ```
 
 ## configuracao de Ambiente
@@ -86,8 +154,9 @@ O script automaticamente:
 - Pandas (Apple Silicon)
 - PyQt6 (ARM64)
 
-**Debian AMD64:**
+**Debian AMD64/ARM64:**
 - PyInstaller 6.0+
+- Nuitka 4.0+ para trilha Nuitka
 - Pandas
 - PyQt6
 - Bibliotecas sistema (libGL, libX11)
@@ -96,10 +165,20 @@ O script automaticamente:
 
 ### Tecnicas Aplicadas
 1. **Exclusao de modulos desnecessarios**: Remove bibliotecas nao utilizadas
-2. **Compressao UPX**: Reduz tamanho em 50-70% (Windows/Linux)
+2. **Compressao UPX (quando disponivel)**: Pode reduzir tamanho em 50-70% (principalmente Windows/Linux)
 3. **Strip symbols**: Remove informacoes de debug
 4. **Shared libraries**: Reutiliza bibliotecas do sistema
 5. **Tree shaking**: Inclui apenas codigo usado
+
+### Politica de dados locais no build (v4.33+)
+
+- O build canonico nao inclui `data/` por padrao.
+- Esta regra reduz risco de vazamento de DB local em artefato final.
+- Para laboratorio controlado, use copia explicita apos build:
+
+```bash
+uv run --python 3.13 scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
+```
 
 ### Tamanhos Esperados
 - **CLI**: 15-25 MB por plataforma
@@ -117,6 +196,18 @@ Exemplo:
 - `SSA_CLI_v3.10_windows_amd64.exe`
 - `SSA_GUI_v3.10_macos_arm64.app`
 - `SSA_CLI_v3.10_debian_amd64`
+
+### Empacotamento Debian no baseline atual
+
+- Saida operacional oficial para Debian continua sendo ZIP pelo pipeline canonico.
+- `.deb` e AppImage existem como etapa manual de release por arquitetura, fora do `build_multiplatform.py`.
+- Scripts disponiveis:
+  - `dev_env/build/package_debian_amd64_deb.sh`
+  - `dev_env/build/package_debian_amd64_appimage.sh`
+  - `dev_env/build/package_debian_arm64_deb.sh`
+  - `dev_env/build/package_debian_arm64_appimage.sh`
+- Os scripts removem residuos locais do pacote final: `venv`, `.bak`, bancos locais, planilhas e `.env`.
+- AppImage suporta `--prepare-only` para validar o AppDir quando `appimagetool` nao esta instalado.
 
 ### Manifesto de Release
 Cada build gera um `release_manifest.json`:
@@ -152,12 +243,12 @@ sudo apt-get install python3-dev libgl1-mesa-dev libx11-dev
 
 **PyQt6 nao encontrado (Windows):**
 ```bash
-pip install --upgrade PyQt6 --force-reinstall
+uv pip install --python 3.13 --upgrade PyQt6 --force-reinstall
 ```
 
 ### Limpeza de Ambiente
 ```bash
-python launchers/build_multiplatform.py --clean-all
+uv run --python 3.13 launchers/build_multiplatform.py --clean-all
 ```
 
 Remove todos os ambientes virtuais e builds anteriores.
@@ -169,7 +260,7 @@ O script e compativel com workflows automatizados:
 
 ```yaml
 - name: Build Executables
-  run: python launchers/build_multiplatform.py --release --optimize
+  run: uv run --python 3.13 launchers/build_multiplatform.py --all
   
 - name: Upload Artifacts
   uses: actions/upload-artifact@v3
@@ -187,7 +278,10 @@ O script e compativel com workflows automatizados:
 
 ### Modo Debug
 ```bash
-python launchers/build_multiplatform.py --debug --verbose
+uv run --python 3.13 launchers/build_multiplatform.py --debug
 ```
 
 Gera logs detalhados para diagnostico de problemas.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

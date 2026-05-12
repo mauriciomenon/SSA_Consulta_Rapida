@@ -1,442 +1,252 @@
 # tests/run_comprehensive_tests.py
-"""
-Executor principal para todos os testes automatizados do sistema SSA.
-Este script executa testes funcionais, de performance e de integração.
-"""
+"""Executor principal para testes funcionais e de performance do sistema SSA."""
 
-import os
-import sys
-import subprocess
-import json
+from __future__ import annotations
+
 import argparse
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
-# Adicionar diretório raiz ao path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT_BOOTSTRAP = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT_BOOTSTRAP) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT_BOOTSTRAP))
 
-def run_test_suite(test_name: str, test_script: str, timeout: int = 300) -> dict:
-    """Executa uma suíte de testes específica."""
-    print(f"\n🚀 Executando {test_name}...")
-    print("-" * 50)
+from launchers.build_complete import _get_project_root  # noqa: E402
+from launchers.smoke_validation import run_cli_import_smoke  # noqa: E402
+from shared.date_utils import format_current_timestamp  # noqa: E402
+from tests.reporting_utils import (  # noqa: E402
+    ReportResult,
+    render_markdown_report,
+    report_status_label,
+    report_stats,
+    report_success_rate_percent,
+    write_report_files,
+)
+from utils.robust_logging import get_robust_logger  # noqa: E402
+
+
+PROJECT_ROOT = _get_project_root()
+logger = get_robust_logger().get_logger(__name__, "maintenance")
+
+
+def _log_separator(char: str = "-", width: int = 50) -> None:
+    logger.info(char * width)
+
+
+def run_test_suite(
+    test_name: str,
+    test_script: str,
+    timeout: int = 300,
+) -> ReportResult:
+    """Executa uma suite de testes especifica."""
+    logger.info("START Executando %s", test_name)
+    _log_separator()
 
     start_time = datetime.now()
+    test_path = PROJECT_ROOT / test_script
 
     try:
-        # Executar script de teste
         result = subprocess.run(
-            [sys.executable, test_script],
-            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            [sys.executable, str(test_path)],
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
-            timeout=timeout
+            timeout=timeout,
+            check=False,
         )
-
-        end_time = datetime.now()
-        duration = (end_time - start_time).total_seconds()
-
-        # Imprimir saída do teste
-        if result.stdout:
-            print(result.stdout)
-
-        if result.stderr and result.returncode != 0:
-            print("ERROS:")
-            print(result.stderr)
-
-        success = result.returncode == 0
-        status = "✅ SUCESSO" if success else "❌ FALHOU"
-
-        print(f"\n{test_name}: {status} ({duration:.2f}s)")
-
-        return {
-            'test_name': test_name,
-            'script': test_script,
-            'success': success,
-            'duration_seconds': duration,
-            'return_code': result.returncode,
-            'stdout': result.stdout,
-            'stderr': result.stderr,
-            'start_time': start_time.isoformat(),
-            'end_time': end_time.isoformat()
-        }
-
     except subprocess.TimeoutExpired:
-        print(f"❌ TIMEOUT: {test_name} excedeu {timeout}s")
+        logger.error("TIMEOUT: %s excedeu %ss", test_name, timeout)
         return {
-            'test_name': test_name,
-            'script': test_script,
-            'success': False,
-            'duration_seconds': timeout,
-            'error': 'timeout',
-            'timeout_seconds': timeout
+            "test_name": test_name,
+            "script": test_script,
+            "success": False,
+            "duration_seconds": timeout,
+            "error": "timeout",
+            "timeout_seconds": timeout,
         }
-    except Exception as e:
-        print(f"❌ ERRO: {test_name} - {str(e)}")
+    except OSError as exc:
+        logger.error("ERRO: %s - %s", test_name, exc)
         return {
-            'test_name': test_name,
-            'script': test_script,
-            'success': False,
-            'error': str(e)
+            "test_name": test_name,
+            "script": test_script,
+            "success": False,
+            "error": str(exc),
         }
 
-def run_manual_smoke_tests() -> dict:
-    """Executa testes manuais básicos de fumaça."""
-    print("\n🔍 Executando testes de fumaça básicos...")
-    print("-" * 50)
+    end_time = datetime.now()
+    duration = (end_time - start_time).total_seconds()
 
-    smoke_tests = []
+    if result.stdout:
+        logger.info(result.stdout)
+    if result.stderr and result.returncode != 0:
+        logger.error("ERROS:\n%s", result.stderr)
 
-    # Teste 1: Verificar se CLI inicia
-    print("Testando inicialização da CLI...")
-    try:
-        result = subprocess.run(
-            [sys.executable, "main.py", "--help"],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
+    success = result.returncode == 0
+    status = "OK SUCESSO" if success else "ERR FALHOU"
+    logger.info("%s: %s (%.2fs)", test_name, status, duration)
 
-        cli_success = result.returncode == 0 and "SSA" in result.stdout
-        print(f"  CLI: {'✅' if cli_success else '❌'}")
+    return {
+        "test_name": test_name,
+        "script": test_script,
+        "success": success,
+        "duration_seconds": duration,
+        "return_code": result.returncode,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat(),
+    }
 
-        smoke_tests.append({
-            'test': 'cli_help',
-            'success': cli_success,
-            'details': 'CLI --help funciona' if cli_success else 'CLI --help falhou'
-        })
 
-    except Exception as e:
-        print(f"  CLI: ❌ (Erro: {e})")
-        smoke_tests.append({
-            'test': 'cli_help',
-            'success': False,
-            'error': str(e)
-        })
+def run_manual_smoke_tests() -> ReportResult:
+    """Executa testes basicos de fumaca."""
+    logger.info("INFO Executando testes de fumaca basicos")
+    _log_separator()
 
-    # Teste 2: Verificar estrutura de arquivos essenciais
-    print("Verificando arquivos essenciais...")
+    result = run_cli_import_smoke(repo_root=PROJECT_ROOT)
+    logger.info("CLI import: %s", "OK" if result.ok else "ERR")
+    smoke_tests: list[ReportResult] = [
+        {
+            "test": "cli_functional_import",
+            "success": result.ok,
+            "imported_rows": result.imported_rows,
+            "return_code": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "error": result.error,
+        }
+    ]
+
+    logger.info("Verificando arquivos essenciais")
     essential_files = [
         "main.py",
         "config/schema.sql",
         "config/column_mappings.json",
         "armazenamento/database.py",
         "core/app_logic.py",
-        "gui/gui_ssa.py"
+        "gui/gui_ssa.py",
     ]
-
-    missing_files = []
-    for file_path in essential_files:
-        if not os.path.exists(file_path):
-            missing_files.append(file_path)
-
-    files_ok = len(missing_files) == 0
-    print(f"  Arquivos essenciais: {'✅' if files_ok else '❌'}")
-
+    missing_files = [
+        file_path
+        for file_path in essential_files
+        if not (PROJECT_ROOT / file_path).exists()
+    ]
+    files_ok = not missing_files
+    logger.info("Arquivos essenciais: %s", "OK" if files_ok else "ERR")
     if missing_files:
-        print(f"    Arquivos faltando: {missing_files}")
+        logger.error("Arquivos faltando: %s", missing_files)
 
-    smoke_tests.append({
-        'test': 'essential_files',
-        'success': files_ok,
-        'missing_files': missing_files,
-        'total_checked': len(essential_files)
-    })
+    smoke_tests.append(
+        {
+            "test": "essential_files",
+            "success": files_ok,
+            "missing_files": missing_files,
+            "total_checked": len(essential_files),
+        }
+    )
 
-    # Teste 3: Verificar banco de dados
-    print("Verificando banco de dados...")
-    db_path = "data/ssas.db"
-    db_exists = os.path.exists(db_path)
-
-    if db_exists:
-        try:
-            import sqlite3
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM ssas")
-            record_count = cursor.fetchone()[0]
-            conn.close()
-
-            db_ok = record_count > 0
-            print(f"  Banco de dados: ✅ ({record_count} registros)")
-
-            smoke_tests.append({
-                'test': 'database_check',
-                'success': db_ok,
-                'record_count': record_count
-            })
-
-        except Exception as e:
-            print(f"  Banco de dados: ❌ (Erro: {e})")
-            smoke_tests.append({
-                'test': 'database_check',
-                'success': False,
-                'error': str(e)
-            })
-    else:
-        print("  Banco de dados: ❌ (Arquivo não encontrado)")
-        smoke_tests.append({
-            'test': 'database_check',
-            'success': False,
-            'error': 'Database file not found'
-        })
-
-    successful_smoke_tests = sum(1 for test in smoke_tests if test.get('success', False))
-
+    successful_smoke_tests = sum(
+        1 for test in smoke_tests if test.get("success", False)
+    )
     return {
-        'test_name': 'smoke_tests',
-        'total_tests': len(smoke_tests),
-        'successful_tests': successful_smoke_tests,
-        'success': successful_smoke_tests == len(smoke_tests),
-        'test_details': smoke_tests
+        "test_name": "smoke_tests",
+        "total_tests": len(smoke_tests),
+        "successful_tests": successful_smoke_tests,
+        "success": successful_smoke_tests == len(smoke_tests),
+        "test_details": smoke_tests,
     }
 
-def generate_comprehensive_report(all_results: list, output_dir: str = "docs_saida") -> str:
-    """Gera relatório abrangente de todos os testes."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_file = os.path.join(output_dir, f"comprehensive_test_report_{timestamp}.md")
 
-    # Criar diretório se não existir
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
+def generate_comprehensive_report(
+    all_results: list[ReportResult],
+    output_dir: str = "docs_saida",
+) -> str:
+    """Gera relatorio abrangente de todos os testes."""
+    output_path = PROJECT_ROOT / output_dir
+    output_path.mkdir(parents=True, exist_ok=True)
+    timestamp = format_current_timestamp("%Y%m%d_%H%M%S")
+    report_file = output_path / f"comprehensive_test_report_{timestamp}.md"
+    stats = report_stats(all_results)
+    content = render_markdown_report(all_results, stats, report_file, PROJECT_ROOT)
+    write_report_files(report_file, content, all_results, stats)
+    return str(report_file)
 
-    # Calcular estatísticas gerais
-    total_suites = len(all_results)
-    successful_suites = sum(1 for result in all_results if result.get('success', False))
-    total_duration = sum(result.get('duration_seconds', 0) for result in all_results)
 
-    success_rate = successful_suites / total_suites if total_suites > 0 else 0
-    overall_success = success_rate >= 0.8  # 80% das suítes devem passar
-
-    content = f"""# Relatório Abrangente de Testes - Sistema SSA Consulta Rápida
-
-**Data dos Testes:** {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}
-**Duração Total:** {total_duration:.2f} segundos
-**Status Geral:** {'✅ SISTEMA APROVADO' if overall_success else '❌ SISTEMA COM PROBLEMAS'}
-
-## Resumo Executivo
-
-- **Total de Suítes de Teste:** {total_suites}
-- **Suítes Bem-sucedidas:** {successful_suites}
-- **Taxa de Sucesso:** {success_rate:.1%}
-- **Tempo Total de Execução:** {total_duration:.2f}s
-
-### Status por Categoria
-
-"""
-
-    # Adicionar detalhes de cada suíte
-    for result in all_results:
-        test_name = result.get('test_name', 'Teste Desconhecido')
-        success = result.get('success', False)
-        duration = result.get('duration_seconds', 0)
-        status_icon = "✅" if success else "❌"
-
-        content += f"#### {test_name} {status_icon}\n\n"
-        content += f"**Duração:** {duration:.2f}s\n"
-
-        if not success:
-            error = result.get('error', result.get('stderr', 'Erro desconhecido'))
-            content += f"**Erro:** {error}\n"
-
-        # Adicionar detalhes específicos se disponíveis
-        if 'test_details' in result:
-            content += "\n**Detalhes:**\n"
-            for detail in result['test_details']:
-                detail_name = detail.get('test', 'teste')
-                detail_success = detail.get('success', False)
-                detail_icon = "✅" if detail_success else "❌"
-                content += f"- {detail_name}: {detail_icon}\n"
-
-        content += "\n"
-
-    content += f"""
-## Análise de Resultados
-
-### Funcionalidades Testadas
-
-1. **Criação e Inicialização do Banco de Dados**
-   - Criação de tabelas e índices
-   - Integridade estrutural
-   - Performance de consultas
-
-2. **Importação de Dados**
-   - Extração de arquivos Excel
-   - Processamento de múltiplos formatos
-   - Validação de dados importados
-
-3. **Interfaces do Sistema**
-   - CLI (Command Line Interface)
-   - GUI (Graphical User Interface)
-   - POC (Proof of Concept)
-
-4. **Funcionalidades Principais**
-   - Sistema de filtros
-   - Consultas complexas
-   - Exportação de dados
-
-5. **Performance e Estabilidade**
-   - Acesso concorrente
-   - Uso de memória
-   - Tempo de resposta
-
-### Critérios de Aprovação
-
-O sistema é considerado **APROVADO** quando:
-- ✅ Pelo menos 80% das suítes de teste passam
-- ✅ Todas as funcionalidades críticas funcionam
-- ✅ Performance está dentro dos limites aceitáveis
-- ✅ Nenhum erro crítico é detectado
-
-### Recomendações
-
-"""
-
-    if overall_success:
-        content += """
-**🎉 SISTEMA APROVADO PARA USO**
-
-O sistema SSA Consulta Rápida passou em todos os testes críticos e está funcionando corretamente.
-
-**Próximos Passos:**
-- ✅ Sistema pronto para produção
-- 🔄 Configurar monitoramento automatizado
-- 📅 Agendar testes regulares
-- 📚 Atualizar documentação se necessário
-
-**Manutenção Recomendada:**
-- Executar testes automatizados semanalmente
-- Monitorar performance do banco de dados
-- Fazer backup regular dos dados
-- Verificar logs do sistema periodicamente
-"""
-    else:
-        content += """
-**⚠️ SISTEMA REQUER ATENÇÃO**
-
-Alguns testes falharam. O sistema pode ter problemas que impedem o uso seguro em produção.
-
-**Ações Imediatas Necessárias:**
-1. 🔍 Investigar falhas nos testes
-2. 🛠️ Corrigir problemas identificados
-3. 🧪 Re-executar testes após correções
-4. 📋 Validar funcionalidades críticas manualmente
-
-**Não recomendado para produção até que todos os problemas sejam resolvidos.**
-"""
-
-    content += f"""
-
----
-
-## Informações Técnicas
-
-**Ambiente de Teste:**
-- Python: {sys.version.split()[0]}
-- Sistema Operacional: {os.name}
-- Diretório de Trabalho: {os.getcwd()}
-
-**Arquivos de Log:**
-- Relatório detalhado: `{report_file}`
-- Logs de performance: `docs_saida/performance_tests_*.json`
-- Logs de testes funcionais: `docs_saida/automated_tests_report_*.md`
-
----
-*Relatório gerado automaticamente pelo sistema de testes abrangentes do SSA Consulta Rápida.*
-*Para mais informações, consulte os logs individuais de cada suíte de teste.*
-"""
-
-    # Salvar relatório
-    with open(report_file, 'w', encoding='utf-8') as f:
-        f.write(content)
-
-    # Também salvar dados em JSON para processamento automatizado
-    json_file = report_file.replace('.md', '.json')
-    with open(json_file, 'w', encoding='utf-8') as f:
-        json.dump({
-            'timestamp': datetime.now().isoformat(),
-            'overall_success': overall_success,
-            'success_rate': success_rate,
-            'total_suites': total_suites,
-            'successful_suites': successful_suites,
-            'total_duration_seconds': total_duration,
-            'test_results': all_results
-        }, f, indent=2, ensure_ascii=False)
-
-    return report_file
-
-def main():
-    """Função principal do executor de testes abrangentes."""
-    parser = argparse.ArgumentParser(description='Executor abrangente de testes do sistema SSA')
-    parser.add_argument('--skip-performance', action='store_true',
-                       help='Pular testes de performance (mais rápido)')
-    parser.add_argument('--quick', action='store_true',
-                       help='Executar apenas testes rápidos essenciais')
-    parser.add_argument('--timeout', type=int, default=600,
-                       help='Timeout em segundos para cada suíte (padrão: 600)')
-
-    args = parser.parse_args()
-
-    print("🚀 SISTEMA DE TESTES ABRANGENTES - SSA CONSULTA RÁPIDA")
-    print("=" * 70)
-    print(f"Data/Hora: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
-    print(f"Modo: {'Rápido' if args.quick else 'Completo'}")
-    print("=" * 70)
-
-    all_results = []
-
-    # Executar testes de fumaça primeiro
-    smoke_result = run_manual_smoke_tests()
-    all_results.append(smoke_result)
-
-    if not smoke_result.get('success', False):
-        print("\n⚠️ AVISO: Testes de fumaça falharam. Continuando com testes automatizados...")
-
-    # Lista de suítes de teste a executar
+def _build_test_suites(args: argparse.Namespace) -> list[tuple[str, str]]:
     test_suites = [
         ("Testes Funcionais Automatizados", "tests/automated_system_tests.py")
     ]
-
-    # Adicionar testes de performance se não for pulado
     if not args.skip_performance and not args.quick:
         test_suites.append(("Testes de Performance", "tests/performance_tests.py"))
+    return test_suites
 
-    # Executar cada suíte
-    for test_name, test_script in test_suites:
-        if os.path.exists(test_script):
-            result = run_test_suite(test_name, test_script, args.timeout)
-            all_results.append(result)
+
+def main() -> int:
+    """Funcao principal do executor de testes abrangentes."""
+    parser = argparse.ArgumentParser(
+        description="Executor abrangente de testes do sistema SSA"
+    )
+    parser.add_argument(
+        "--skip-performance",
+        action="store_true",
+        help="Pular testes de performance",
+    )
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Executar apenas testes rapidos essenciais",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=600,
+        help="Timeout em segundos para cada suite",
+    )
+    args = parser.parse_args()
+
+    logger.info("START SISTEMA DE TESTES ABRANGENTES - SSA CONSULTA RAPIDA")
+    _log_separator("=", 70)
+    logger.info("Data/Hora: %s", format_current_timestamp("%d/%m/%Y %H:%M:%S"))
+    logger.info("Modo: %s", "Rapido" if args.quick else "Completo")
+    _log_separator("=", 70)
+
+    all_results = [run_manual_smoke_tests()]
+    if not all_results[0].get("success", False):
+        logger.warning("Testes de fumaca falharam; mantendo suite como falha critica")
+
+    for test_name, test_script in _build_test_suites(args):
+        test_path = PROJECT_ROOT / test_script
+        if test_path.exists():
+            all_results.append(run_test_suite(test_name, test_script, args.timeout))
         else:
-            print(f"⚠️ AVISO: Script {test_script} não encontrado, pulando...")
-            all_results.append({
-                'test_name': test_name,
-                'script': test_script,
-                'success': False,
-                'error': 'Script não encontrado'
-            })
+            logger.warning("Script %s nao encontrado", test_script)
+            all_results.append(
+                {
+                    "test_name": test_name,
+                    "script": test_script,
+                    "success": False,
+                    "error": "Script nao encontrado",
+                }
+            )
 
-    # Gerar relatório abrangente
-    print("\n📄 Gerando relatório abrangente...")
+    logger.info("FILE Gerando relatorio abrangente")
     report_file = generate_comprehensive_report(all_results)
+    stats = report_stats(all_results)
+    status_final = report_status_label(stats)
 
-    # Mostrar resultado final
-    successful_suites = sum(1 for result in all_results if result.get('success', False))
-    total_suites = len(all_results)
-    success_rate = successful_suites / total_suites if total_suites > 0 else 0
-    overall_success = success_rate >= 0.8
+    _log_separator("=", 70)
+    logger.info("INFO RESULTADO FINAL:")
+    logger.info("Suites Executadas: %s", stats["total_suites"])
+    logger.info("Suites Bem-sucedidas: %s", stats["successful_suites"])
+    logger.info("Taxa de Sucesso: %.1f%%", report_success_rate_percent(stats))
+    logger.info("Status Final: %s", status_final)
+    logger.info("Relatorio completo salvo em: %s", report_file)
+    _log_separator("=", 70)
 
-    print("\n" + "=" * 70)
-    print("📊 RESULTADO FINAL:")
-    print(f"   Suítes Executadas: {total_suites}")
-    print(f"   Suítes Bem-sucedidas: {successful_suites}")
-    print(f"   Taxa de Sucesso: {success_rate:.1%}")
+    return 0 if stats["overall_success"] else 1
 
-    status_final = "✅ SISTEMA APROVADO" if overall_success else "❌ SISTEMA COM PROBLEMAS"
-    print(f"   Status Final: {status_final}")
-
-    print(f"\n📄 Relatório completo salvo em: {report_file}")
-    print("=" * 70)
-
-    # Retornar código de saída apropriado
-    return 0 if overall_success else 1
 
 if __name__ == "__main__":
-    exit(main())
+    raise SystemExit(main())

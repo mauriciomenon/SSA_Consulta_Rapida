@@ -59,7 +59,7 @@ Uso: $SCRIPT_NAME [opções]
   --quick          Executa subconjunto rápido (compinit, fpath, zcompdump)
   --full           Executa todos os testes (inclui --secrets e --all-history sugerido)
   --secrets        Procura segredos em repo (grep) e variáveis no ambiente atual
-  --all-history    Analisa histórico completo (~/.zsh_history)
+  --all-history    Analisa historico Git completo do repo
   --json           Saída em JSON
   --self-test      Roda testes internos de sanidade do script
   -h|--help        Esta ajuda
@@ -81,6 +81,9 @@ parse_args(){
       *) abort "Opção desconhecida: $1" ;;
     esac
   done
+  if [[ $JSON_MODE -eq 1 ]] && ! command -v jq >/dev/null 2>&1; then
+    abort "jq required for --json"
+  fi
   if [[ $MODE_QUICK -eq 0 && $MODE_FULL -eq 0 && $CHECK_SECRETS -eq 0 && $CHECK_HISTORY -eq 0 && $SELF_TEST -eq 0 ]]; then
     MODE_QUICK=1
   fi
@@ -102,7 +105,7 @@ self_test(){
 
 check_compinit_mul(){
   local count
-  count=$(grep -E 'compinit' "$ZSHRC_FILE" 2>/dev/null | grep -v '^#' | wc -l | tr -d ' ')
+  count=$(grep -Ec '^[^#]*compinit' "$ZSHRC_FILE" 2>/dev/null || true)
   if [[ -z $count ]]; then
     log_warn "Não foi possível determinar compinit no $ZSHRC_FILE"
     return
@@ -142,8 +145,15 @@ check_fpath(){
 check_zcompdump(){
   if [[ -f $ZCOMPDUMP_FILE ]]; then
     if file "$ZCOMPDUMP_FILE" 2>/dev/null | grep -qi 'text'; then
-      local age
-      age=$(( ( $(date +%s) - $(stat -f %m "$ZCOMPDUMP_FILE" 2>/dev/null || stat -c %Y "$ZCOMPDUMP_FILE" ) ) / 86400 ))
+      local age stat_mtime
+      stat_mtime=$(stat -f %m "$ZCOMPDUMP_FILE" 2>/dev/null || stat -c %Y "$ZCOMPDUMP_FILE" 2>/dev/null || true)
+      case "$stat_mtime" in
+        ''|*[!0-9]*)
+          log_warn "Nao foi possivel determinar idade do .zcompdump"
+          return
+          ;;
+      esac
+      age=$(( ( $(date +%s) - stat_mtime ) / 86400 ))
       if [[ $age -gt 30 ]]; then
         log_warn "Arquivo .zcompdump tem ${age}d; regenerar pode melhorar desempenho"
         log_action "Remover $ZCOMPDUMP_FILE e abrir nova sessão para recriar"
@@ -162,7 +172,7 @@ check_zcompdump(){
 check_repo_secrets(){
   [[ $CHECK_SECRETS -eq 1 ]] || return
   log_info "Procurando padrões de segredo no repo (grep)"
-  local patterns joined
+  local joined
   joined=$(printf '%s|' "${SECRET_REGEXPS[@]}")
   joined=${joined%|}
   local matches
@@ -170,7 +180,7 @@ check_repo_secrets(){
   #  - launchers (contém builds e bundles PyQt)
   #  - dist / build artefacts
   #  - logs (possível ruído, pode conter dados sensíveis; mantenha se quiser inspecionar)
-  matches=$(grep -REn \
+  matches=$(grep -REl \
     --exclude-dir='.*cache' \
     --exclude-dir='.git' \
     --exclude-dir='launchers' \
@@ -181,7 +191,7 @@ check_repo_secrets(){
   if [[ -n $matches ]]; then
     log_issue "Possíveis segredos encontrados em arquivos versionados (dirs principais filtrados)"
     log_action "Avaliar cada ocorrência; revogar / rotacionar chaves se reais"
-    [[ $JSON_MODE -eq 0 ]] && echo "$matches"
+    [[ $JSON_MODE -eq 0 ]] && printf '%s\n' "$matches"
   else
     log_info "Nenhum padrão de segredo encontrado em texto claro nos arquivos escaneados (com exclusões)"
   fi
@@ -194,25 +204,26 @@ check_commit_history(){
     return
   fi
   log_info "Escaneando commits anteriores por padrões de segredos (pode demorar)"
-  local pattern
-  for pattern in "${SECRET_REGEXPS[@]}"; do
-    local shas
-    shas=$(git rev-list --all | while read -r c; do git --no-pager grep -E -F "$pattern" "$c" >/dev/null 2>&1 && echo "$c"; done)
-    if [[ -n $shas ]]; then
-      log_issue "Padrão '${pattern}' presente em commits: $(echo "$shas" | tr '\n' ' ')"
-      log_action "Considerar git filter-repo para remover segredos antigos (após ROTACIONAR)"
-    fi
-  done
+  local joined shas
+  joined=$(printf '%s|' "${SECRET_REGEXPS[@]}")
+  joined=${joined%|}
+  shas=$(git log --all --format='%H' -E -G "$joined" 2>/dev/null | sort -u || true)
+  if [[ -n $shas ]]; then
+    log_issue "Padrao sensivel presente em commits: $(echo "$shas" | tr '\n' ' ')"
+    log_action "Considerar git filter-repo para remover segredos antigos (apos ROTACIONAR)"
+  fi
 }
 
 check_env_vars(){
   [[ $CHECK_SECRETS -eq 1 ]] || return
   log_info "Verificando variáveis de ambiente exportadas com nomes sensíveis"
   local suspect=()
-  while IFS='=' read -r name value; do
-    [[ $name =~ (KEY|TOKEN|SECRET|API) ]] || continue
-    # valor truncado para não exibir completo
-    suspect+=("${name}=${value:0:6}***")
+  while IFS='=' read -r name _value; do
+    case "$name" in
+      *KEY*|*TOKEN*|*SECRET*|*API*) ;;
+      *) continue ;;
+    esac
+    suspect+=("${name}")
   done < <(env)
   if [[ ${#suspect[@]} -gt 0 ]]; then
     log_warn "Variáveis sensíveis ativas: ${suspect[*]} (verifique origem)"

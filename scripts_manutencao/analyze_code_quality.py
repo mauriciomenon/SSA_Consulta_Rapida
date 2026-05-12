@@ -1,11 +1,18 @@
 import ast
 import os
 from pathlib import Path
-from collections import defaultdict
-from typing import Set, Dict, List
 
 ROOT = Path(__file__).resolve().parents[1]
-EXCLUDE_DIRS = {".git", "__pycache__", "LocalTemp", "venv", ".venv", ".idea", ".vscode", "temp"}
+EXCLUDE_DIRS = {
+    ".git",
+    "__pycache__",
+    "LocalTemp",
+    "venv",
+    ".venv",
+    ".idea",
+    ".vscode",
+    "temp",
+}
 
 
 def iter_py_files(root: Path):
@@ -25,21 +32,21 @@ def check_unused_imports():
             tree = ast.parse(code, filename=str(path))
         except Exception:
             continue
-        
+
         imports = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     name = alias.asname if alias.asname else alias.name
-                    imports.add(name.split('.')[0])
+                    imports.add(name.split(".")[0])
             elif isinstance(node, ast.ImportFrom):
                 for alias in node.names:
                     name = alias.asname if alias.asname else alias.name
                     imports.add(name)
-        
+
         # Simple check: is the imported name mentioned elsewhere in code?
         for imp in imports:
-            if imp == '*':
+            if imp == "*":
                 continue
             # Count occurrences (excluding import line itself)
             count = code.count(imp)
@@ -47,7 +54,7 @@ def check_unused_imports():
             if count == 1:
                 rel = path.relative_to(ROOT)
                 issues.append(f"{rel}: possibly unused import '{imp}'")
-    
+
     return issues
 
 
@@ -57,33 +64,41 @@ def check_shared_purity():
     shared_dir = ROOT / "shared"
     if not shared_dir.exists():
         return ["shared/ directory not found"]
-    
-    forbidden = {"core", "gui", "interface", "armazenamento", "extracao", "exportacao", "utils"}
-    
+
+    forbidden = {
+        "core",
+        "gui",
+        "interface",
+        "armazenamento",
+        "extracao",
+        "exportacao",
+        "utils",
+    }
+
     for path in shared_dir.glob("**/*.py"):
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         except Exception:
             continue
-        
+
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    pkg = alias.name.split('.')[0]
+                    pkg = alias.name.split(".")[0]
                     if pkg in forbidden:
                         violations.append(f"{path.name}: imports {pkg}")
             elif isinstance(node, ast.ImportFrom):
-                pkg = (node.module or "").split('.')[0]
+                pkg = (node.module or "").split(".")[0]
                 if pkg in forbidden:
                     violations.append(f"{path.name}: imports from {pkg}")
-    
+
     return violations
 
 
 def check_backward_compat():
     """Verify core.numero_ssa and core.date_utils still export expected symbols"""
     issues = []
-    
+
     # Check core.numero_ssa
     numero_ssa_path = ROOT / "core" / "numero_ssa.py"
     if numero_ssa_path.exists():
@@ -94,14 +109,14 @@ def check_backward_compat():
                 if isinstance(node, ast.ImportFrom):
                     for alias in node.names:
                         exports.add(alias.name)
-            
+
             expected = {"normalize_strict", "is_valid_numero_ssa", "bulk_normalize"}
             missing = expected - exports
             if missing:
                 issues.append(f"core.numero_ssa missing re-exports: {missing}")
         except Exception as e:
             issues.append(f"core.numero_ssa parse error: {e}")
-    
+
     # Check core.date_utils
     date_utils_path = ROOT / "core" / "date_utils.py"
     if date_utils_path.exists():
@@ -112,14 +127,14 @@ def check_backward_compat():
                 if isinstance(node, ast.ImportFrom):
                     for alias in node.names:
                         exports.add(alias.name)
-            
+
             expected = {"parse_any_date", "bulk_parse_dates"}
             missing = expected - exports
             if missing:
                 issues.append(f"core.date_utils missing re-exports: {missing}")
         except Exception as e:
             issues.append(f"core.date_utils parse error: {e}")
-    
+
     return issues
 
 
@@ -129,32 +144,36 @@ def check_armazenamento_independence():
     armazenamento_dir = ROOT / "armazenamento"
     if not armazenamento_dir.exists():
         return []
-    
+
     forbidden = {"core", "gui", "interface", "extracao", "exportacao"}
-    
+
     for path in armazenamento_dir.glob("**/*.py"):
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         except Exception:
             continue
-        
+
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    pkg = alias.name.split('.')[0]
+                    pkg = alias.name.split(".")[0]
                     if pkg in forbidden:
-                        violations.append(f"{path.name}: imports {pkg} (armazenamento should be independent)")
+                        violations.append(
+                            f"{path.name}: imports {pkg} (armazenamento should be independent)"
+                        )
             elif isinstance(node, ast.ImportFrom):
-                pkg = (node.module or "").split('.')[0]
+                pkg = (node.module or "").split(".")[0]
                 if pkg in forbidden:
-                    violations.append(f"{path.name}: imports from {pkg} (armazenamento should be independent)")
-    
+                    violations.append(
+                        f"{path.name}: imports from {pkg} (armazenamento should be independent)"
+                    )
+
     return violations
 
 
 def main():
     print("=== Code Quality Analysis ===\n")
-    
+
     print("1. Shared Module Purity Check")
     shared_issues = check_shared_purity()
     if shared_issues:
@@ -163,7 +182,7 @@ def main():
             print(f"    - {issue}")
     else:
         print("  OK: shared/ doesn't import from app layers")
-    
+
     print("\n2. Backward Compatibility Check")
     compat_issues = check_backward_compat()
     if compat_issues:
@@ -172,7 +191,7 @@ def main():
             print(f"    - {issue}")
     else:
         print("  OK: core re-exports are intact")
-    
+
     print("\n3. Armazenamento Independence Check")
     armazenamento_issues = check_armazenamento_independence()
     if armazenamento_issues:
@@ -181,7 +200,7 @@ def main():
             print(f"    - {issue}")
     else:
         print("  OK: armazenamento is independent")
-    
+
     print("\n4. Potentially Unused Imports (top 20)")
     unused = check_unused_imports()
     if unused:
@@ -191,14 +210,14 @@ def main():
             print(f"  ... and {len(unused) - 20} more")
     else:
         print("  None detected")
-    
+
     print("\n=== Summary ===")
     total_issues = len(shared_issues) + len(compat_issues) + len(armazenamento_issues)
     if total_issues == 0:
         print("All critical checks passed!")
     else:
         print(f"Found {total_issues} critical issues")
-    
+
     return 0
 
 

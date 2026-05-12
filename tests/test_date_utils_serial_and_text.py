@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import math
 import pytest
-from core.date_utils import parse_any_date
+from core.date_utils import bulk_parse_dates, parse_any_date
+from shared.date_utils import format_datetime_series_for_storage
 
 @pytest.mark.parametrize(
     "value,expect_prefix",
@@ -26,3 +27,35 @@ def test_parse_any_date(value, expect_prefix):
 def test_parse_any_date_bad(bad):
     out = parse_any_date(bad)
     assert out is None
+
+
+def test_parse_any_date_rejects_excel_serial_outside_operational_window():
+    assert parse_any_date(1) is None
+
+
+def test_bulk_parse_dates_vectorized_path_preserves_serial_and_text_results():
+    parsed = bulk_parse_dates([45205, "2025-09-10", "12/31/2025", "bad-date"])
+
+    assert parsed[0] is not None and parsed[0].startswith("2023-10-")
+    assert parsed[1] == "2025-09-10 00:00:00"
+    assert parsed[2] == "2025-12-31 00:00:00"
+    assert parsed[3] is None
+
+
+def test_format_datetime_series_for_storage_handles_object_parse(monkeypatch):
+    series = pytest.importorskip("pandas").Series(["bad-date"])
+
+    def _return_object_series(value):
+        return pytest.importorskip("pandas").Series(
+            ["not-a-date"] * len(value),
+            index=value.index,
+        )
+
+    monkeypatch.setattr(
+        "shared.date_utils.parse_datetime_series_mixed",
+        _return_object_series,
+    )
+
+    formatted = format_datetime_series_for_storage(series)
+
+    assert formatted.tolist() == [None]

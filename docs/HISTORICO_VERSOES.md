@@ -2,11 +2,17 @@
 
 Este documento consolida informacoes de todas as versoes e releases do SSA Consulta Rapida.
 
-## **VERSAO ATUAL E ROADMAP**
+## HISTORICAL SNAPSHOT
 
-- **Versao Atual**: v3.10 (Setembro 2025)
-- **Versao em Desenvolvimento**: v3.0.7 (melhorias incrementais)
-- **Proxima Major**: v4.0 (planejada para 2026)
+Este arquivo e um snapshot legado de planejamento antigo (serie v3.x).
+Fonte ativa de release atual: `docs/HISTORICO_RELEASES.md` (baseline `v4.37`).
+Nao usar este arquivo como referencia unica para estado atual.
+
+## **ULTIMA VERSAO DA SERIE v3.x E ROADMAP LEGADO**
+
+- **Ultima versao v3.x**: v3.10 (Setembro 2025)
+- **Plano v3.x na epoca**: v3.0.7 (melhorias incrementais)
+- **Proxima major na epoca**: v4.0 (planejada para 2026)
 
 ---
 
@@ -211,3 +217,6 @@ STATUS:  Identificado, aguardando correcao
 
 **Ultima Atualizacao**: Setembro 2025  
 **Proxima Revisao**: Com release da v3.0.7
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

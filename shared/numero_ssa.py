@@ -14,33 +14,55 @@ Strict policy (canonical key) adopted for cross-layer consistency:
         they are rejected to avoid accidental conflation.
 
 Rationale for the mixed rules:
-    The codebase historically had lenient, CLI-oriented normalization that
+    The codebase previously had lenient, CLI-oriented normalization that
     aggressively stripped characters. Recent unification requires a *predictable*
-    and *auditable* canonical key while keeping backward compatibility for one
-    legacy dash pattern used in tests. The selective dash allowance plus letter
+    and *auditable* canonical key while keeping compatibility for one
+    dash pattern used in tests. The selective dash allowance plus letter
     rejection ensures we do not silently accept values that were intended to be
     flagged as invalid in data quality tests.
 
-Legacy helper functions in other modules should delegate here to avoid drift.
+Compatibility facades in other modules should delegate here to avoid drift.
 """
+
 from __future__ import annotations
 
-from typing import Iterable
 import re
+from typing import Iterable
+
+from utils.robust_logging import get_robust_logger
 
 YEAR_MIN = 1980
 YEAR_MAX = 2050
-LENGTH = 9
+VALID_LENGTHS = {9}
+_CANONICAL_DECIMAL_ARTIFACT = re.compile(r"^\s*(\d+)\.0+\s*$")
+logger = get_robust_logger().get_logger(__name__, "core")
 
 __all__ = [
+    "YEAR_MIN",
+    "YEAR_MAX",
+    "VALID_LENGTHS",
+    "strip_canonical_decimal_artifact",
     "normalize_strict",
+    "normalize_relation_id",
     "is_valid_numero_ssa",
     "bulk_normalize",
-    "normalize_numero_ssa",
+    "bulk_normalize_relation",
 ]
+
 
 def _digits(value) -> str:
     return re.sub(r"\D", "", str(value)) if value is not None else ""
+
+
+def strip_canonical_decimal_artifact(value):
+    if value is None:
+        return None
+    text = str(value).strip()
+    match = _CANONICAL_DECIMAL_ARTIFACT.fullmatch(text)
+    if match is None:
+        return value
+    return match.group(1)
+
 
 def normalize_strict(value) -> str | None:
     """Return canonical 9-digit numero_ssa or ``None`` if invalid.
@@ -59,7 +81,7 @@ def normalize_strict(value) -> str | None:
     """
     if value is None:
         return None
-    text = str(value).strip()
+    text = str(strip_canonical_decimal_artifact(value)).strip()
     if not text:
         return None
     # 1. Remover separadores neutros permitidos ('-' e espacos). Mantem politica rigida contra letras e outros simbolos.
@@ -70,52 +92,74 @@ def normalize_strict(value) -> str | None:
     # Se houver caracteres nao numericos exceto espaco ou hifen, rejeita
     if re.search(r"[^0-9\-\s]", text):
         return None
-    had_dash = '-' in text
+    had_dash = "-" in text
     compact = re.sub(r"[\s-]+", "", text)
     digits = _digits(compact)
-    if len(digits) != LENGTH:
+    if len(digits) > max(VALID_LENGTHS):
+        logger.warning(
+            "numero_ssa descartado por exceder 9 digitos: raw=%r digits=%s",
+            value,
+            digits,
+        )
+        return None
+    if 0 < len(digits) < 5:
+        logger.warning(
+            "numero_ssa descartado por ter menos de 5 digitos: raw=%r digits=%s",
+            value,
+            digits,
+        )
+        return None
+    if len(digits) not in VALID_LENGTHS:
         return None
     # 3. Year validation
-    with suppress(Exception):  # noqa: F821 - defined below
+    try:
         ano = int(digits[:4])
-        if not (YEAR_MIN <= ano <= YEAR_MAX):  # noqa: PLR2004
-            return None
+    except ValueError:
+        return None
+    if not (YEAR_MIN <= ano <= YEAR_MAX):  # noqa: PLR2004
+        return None
     # Rejeitar padrao com hifen quando ultimos 5 digitos todos iguais (ex.: 2025-22222)
-    if had_dash and len(digits) == LENGTH:
+    if had_dash:
         tail = digits[4:]
         if len(set(tail)) == 1:  # todos caracteres identicos
             return None
     return digits
 
-# fallback for Python <3.11 typing of suppress (local import to keep footprint tiny)
-from contextlib import suppress  # noqa: E402  (placed after function docs)
+
+def normalize_relation_id(value) -> str | None:
+    """Return relation-safe numero_ssa or ``None`` if invalid.
+
+    This helper is intentionally stricter than the shared canonical key rule:
+      * accepts only pure numeric text
+      * rejects canonical decimal artifacts like ``121911787.0``
+      * rejects letters, spaces, dashes and any other separator
+      * preserves short numeric relation ids used by current derivadas flows
+
+    A later hardening cycle may require canonical year + length validation here
+    too, after synthetic short ids are migrated out of derivadas tests/fixtures.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    lowered = text.casefold()
+    if lowered in {"", "nan", "none", "null", "nat", "<na>"}:
+        return None
+    if _CANONICAL_DECIMAL_ARTIFACT.fullmatch(text):
+        return None
+    if not text.isdigit():
+        return None
+    return text
+
 
 def is_valid_numero_ssa(value) -> bool:
     return normalize_strict(value) is not None
 
+
 def bulk_normalize(values: Iterable) -> list[str | None]:
     return [normalize_strict(v) for v in values]
 
-def normalize_numero_ssa(value) -> str | None:  # noqa: PLR0911
-    """Replica regra legacy de exibicao (padding / prefixos).
 
-    Mantida aqui para centralizar e permitir que `database.py` apenas reexporte.
-    """
-    if value is None:
-        return None
-    raw = re.sub(r"\D", "", str(value))
-    if not raw:
-        return None
-    trimmed = raw.lstrip('0')
-    if not trimmed:
-        return None
-    n_trim = len(trimmed)
-    if n_trim <= 5:
-        return "2025" + trimmed.zfill(5)
-    if n_trim == 7 and trimmed.startswith(("21", "22", "23", "24", "25")):
-        return "20" + trimmed
-    if len(raw) < 9:
-        return raw.zfill(9)
-    if len(raw) > 9:
-        return raw[:9]
-    return raw
+def bulk_normalize_relation(values: Iterable) -> list[str | None]:
+    return [normalize_relation_id(v) for v in values]

@@ -1,13 +1,15 @@
 # gui/widgets/filter_help_dialog.py
 # Dialog showing filter syntax help
 
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QDialogButtonBox
+from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser, QVBoxLayout
 
 try:
-  from utils.version import get_app_version
+    from utils.version import get_app_version
 except ImportError:  # Centralizacao: fallback minimo
-  def get_app_version():
-    return "0.0.0"
+
+    def get_app_version(project_root: str | None = None) -> str:
+        _ = project_root
+        return "0.0.0"
 
 
 class FilterHelpDialog(QDialog):
@@ -26,8 +28,8 @@ class FilterHelpDialog(QDialog):
             <h3>Como usar os filtros</h3>
             <h4>Separacao de termos</h4>
             <ul>
-              <li><b>Pesquisa Geral</b>: virgulas separam termos (logica E - TODOS os termos obrigatorios)</li>
-              <li><b>Filtros de Coluna</b>: virgulas separam alternativas (logica OU - qualquer termo serve)</li>
+              <li><b>Pesquisa Geral</b>: todos os termos digitados sao obrigatorios no resultado da linha</li>
+              <li><b>Filtros de Coluna</b>: dentro da mesma coluna, virgulas representam alternativas implicitas</li>
             </ul>
             <h4>Modos por termo</h4>
             <ul>
@@ -39,16 +41,23 @@ class FilterHelpDialog(QDialog):
               <li><b>negativo</b>: prefixe <code>!</code> (ex.: <code>!^adm</code>, <code>!$2025</code>)</li>
               <li><b>vazios/nulos</b>: <code>=NULL</code> ou <code>NULL</code> (equivale a campo vazio, nulo ou <code>-</code>)</li>
             </ul>
+            <h4>Colunas == e != nos menus de selecao</h4>
+            <p>Nos menus de filtro avancado (Setor, Divisao, etc.), cada valor tem duas colunas de checkbox:</p>
+            <ul>
+              <li><b>== (Incluir)</b>: Marca valores que DEVEM aparecer nos resultados</li>
+              <li><b>!= (Excluir)</b>: Marca valores que NAO devem aparecer nos resultados</li>
+            </ul>
+            <p><i>Nota:</i> Nao e possivel marcar o mesmo valor em ambas as colunas simultaneamente.</p>
             <h4>Exemplos</h4>
             <ul>
-              <li><code>mel3</code> — procura por MEL3</li>
-              <li><code>pendente, programar</code> — termos combinados</li>
-              <li><code>executada, !mel4</code> — exclui MEL4</li>
-              <li><code>g076, amp</code> — combina setores</li>
-              <li><code>=NULL</code> — somente campos vazios/nulos</li>
+              <li><code>mel3</code> - procura por MEL3</li>
+              <li><code>pendente, programar</code> - linha precisa satisfazer os termos digitados</li>
+              <li><code>executada, !mel4</code> - exclui MEL4</li>
+              <li><code>g076, amp</code> - busca cumulativa na linha</li>
+              <li><code>=NULL</code> - somente campos vazios/nulos</li>
             </ul>
             <h4>Filtro por coluna</h4>
-            <p>Abra o menu com <b>clique direito</b> no titulo da coluna. O painel a direita mostra os filtros por coluna com botoes <b>Aplicar</b> e <b>Limpar</b>. Regras identicas as do filtro geral.</p>
+            <p>Abra o menu com <b>clique direito</b> no titulo da coluna. O painel a direita mostra os filtros por coluna com botoes <b>Aplicar</b>, <b>Limpar</b> e <b>Ocultar</b>. Diferenca importante: dentro da mesma coluna, virgulas representam alternativas implicitas; entre colunas diferentes, as restricoes continuam cumulativas.</p>
             <h4>Dicas</h4>
             <ul>
               <li>Nao diferencia maiusculas/minusculas</li>

@@ -4,11 +4,11 @@
 $ErrorActionPreference = 'Stop'
 $baseDir = Join-Path $PSScriptRoot ".." "local_ai_private"
 
-Write-Host "🗂️  REORGANIZANDO ESTRUTURA LOCAL (NÃO VERSIONADA)" -ForegroundColor Cyan
+Write-Host "  REORGANIZANDO ESTRUTURA LOCAL (NÃO VERSIONADA)" -ForegroundColor Cyan
 Write-Host "=" * 70
 
 # 1. Criar estrutura de diretórios
-Write-Host "`n📁 Criando estrutura de diretórios..." -ForegroundColor Yellow
+Write-Host "`nDIR Criando estrutura de diretórios..." -ForegroundColor Yellow
 
 $estrutura = @(
     "01_ai_sessions/claude",
@@ -37,12 +37,12 @@ foreach ($dir in $estrutura) {
     $fullPath = Join-Path $baseDir $dir
     if (-not (Test-Path $fullPath)) {
         New-Item -ItemType Directory -Path $fullPath -Force | Out-Null
-        Write-Host "  ✓ Criado: $dir" -ForegroundColor Green
+        Write-Host "   Criado: $dir" -ForegroundColor Green
     }
 }
 
 # 2. Criar backup antes de reorganizar
-Write-Host "`n💾 Criando backup pré-reorganização..." -ForegroundColor Yellow
+Write-Host "`n Criando backup pré-reorganização..." -ForegroundColor Yellow
 $backupDir = Join-Path $baseDir "00_backup_pre_reorg"
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $backupSubDir = Join-Path $backupDir "backup_$timestamp"
@@ -50,7 +50,7 @@ New-Item -ItemType Directory -Path $backupSubDir -Force | Out-Null
 
 Get-ChildItem $baseDir -File | ForEach-Object {
     Copy-Item $_.FullName -Destination $backupSubDir -Force
-    Write-Host "  ✓ Backup: $($_.Name)" -ForegroundColor Gray
+    Write-Host "   Backup: $($_.Name)" -ForegroundColor Gray
 }
 
 # 3. Definir regras de categorização
@@ -75,7 +75,7 @@ $regras = @{
 }
 
 # 4. Processar movimentações
-Write-Host "`n🔄 Movendo arquivos para categorias apropriadas..." -ForegroundColor Yellow
+Write-Host "`nRUN Movendo arquivos para categorias apropriadas..." -ForegroundColor Yellow
 $log = @()
 $movedCount = 0
 
@@ -114,14 +114,14 @@ foreach ($categoria in $regras.Keys) {
             Move-Item $arquivo.FullName -Destination $novoLocal -Force
             $logEntry = "$($arquivo.Name) → $categoria"
             $log += $logEntry
-            Write-Host "  ✓ $logEntry" -ForegroundColor Green
+            Write-Host "   $logEntry" -ForegroundColor Green
             $movedCount++
         }
     }
 }
 
 # 5. Mover diretórios especiais
-Write-Host "`n📂 Movendo diretórios especiais..." -ForegroundColor Yellow
+Write-Host "`nIN Movendo diretórios especiais..." -ForegroundColor Yellow
 
 # .claude → 01_ai_sessions/copilot/  (ou manter separado)
 $claudeDir = Join-Path $baseDir ".claude"
@@ -131,7 +131,7 @@ if (Test-Path $claudeDir) {
         New-Item -ItemType Directory -Path (Split-Path $destClaude) -Force | Out-Null
     }
     Move-Item $claudeDir -Destination $destClaude -Force
-    Write-Host "  ✓ .claude → 01_ai_sessions/copilot/" -ForegroundColor Green
+    Write-Host "   .claude → 01_ai_sessions/copilot/" -ForegroundColor Green
     $log += ".claude/ → 01_ai_sessions/copilot/"
 }
 
@@ -143,7 +143,7 @@ if (Test-Path $githubDir) {
         New-Item -ItemType Directory -Path (Split-Path $destGithub) -Force | Out-Null
     }
     Move-Item $githubDir -Destination $destGithub -Force
-    Write-Host "  ✓ .github → 01_ai_sessions/copilot/" -ForegroundColor Green
+    Write-Host "   .github → 01_ai_sessions/copilot/" -ForegroundColor Green
     $log += ".github/ → 01_ai_sessions/copilot/"
 }
 
@@ -173,7 +173,7 @@ if (Test-Path $docsDir) {
                     }
                     
                     Move-Item $arquivo.FullName -Destination $novoLocal -Force
-                    Write-Host "  ✓ docs/$($arquivo.Name) → $categoria" -ForegroundColor Green
+                    Write-Host "   docs/$($arquivo.Name) → $categoria" -ForegroundColor Green
                     $log += "docs/$($arquivo.Name) → $categoria"
                     $moved = $true
                     $movedCount++
@@ -188,7 +188,7 @@ if (Test-Path $docsDir) {
             $destino = Join-Path $baseDir "04_historico_sessions\session_logs"
             $novoLocal = Join-Path $destino $arquivo.Name
             Move-Item $arquivo.FullName -Destination $novoLocal -Force
-            Write-Host "  ✓ docs/$($arquivo.Name) → 04_historico_sessions/session_logs (fallback)" -ForegroundColor Yellow
+            Write-Host "   docs/$($arquivo.Name) → 04_historico_sessions/session_logs (fallback)" -ForegroundColor Yellow
             $log += "docs/$($arquivo.Name) → 04_historico_sessions/session_logs"
             $movedCount++
         }
@@ -197,12 +197,12 @@ if (Test-Path $docsDir) {
     # Remover diretório docs/ se vazio
     if ((Get-ChildItem $docsDir -Recurse).Count -eq 0) {
         Remove-Item $docsDir -Force -Recurse
-        Write-Host "  ✓ Removido diretório docs/ vazio" -ForegroundColor Gray
+        Write-Host "   Removido diretório docs/ vazio" -ForegroundColor Gray
     }
 }
 
 # 6. Gerar log de reorganização
-Write-Host "`n📝 Gerando log de reorganização..." -ForegroundColor Yellow
+Write-Host "`n Gerando log de reorganização..." -ForegroundColor Yellow
 $logPath = Join-Path $baseDir "REORGANIZATION_LOG_$timestamp.txt"
 $logContent = @"
 === LOG DE REORGANIZAÇÃO LOCAL ===
@@ -227,23 +227,23 @@ Estrutura completa documentada em: README_ESTRUTURA.md
 "@
 
 $logContent | Out-File -FilePath $logPath -Encoding UTF8
-Write-Host "  ✓ Log salvo: $logPath" -ForegroundColor Green
+Write-Host "   Log salvo: $logPath" -ForegroundColor Green
 
 # 7. Resumo final
-Write-Host "`n✅ REORGANIZAÇÃO CONCLUÍDA!" -ForegroundColor Green
+Write-Host "`nOK REORGANIZAÇÃO CONCLUÍDA!" -ForegroundColor Green
 Write-Host "=" * 70
-Write-Host "📊 Estatísticas:" -ForegroundColor Cyan
+Write-Host "INFO Estatísticas:" -ForegroundColor Cyan
 Write-Host "  • Arquivos movidos: $movedCount" -ForegroundColor White
 Write-Host "  • Backup criado em: 00_backup_pre_reorg/backup_$timestamp/" -ForegroundColor White
 Write-Host "  • Log detalhado: REORGANIZATION_LOG_$timestamp.txt" -ForegroundColor White
-Write-Host "`n📖 Consulte README_ESTRUTURA.md para detalhes da estrutura" -ForegroundColor Yellow
+Write-Host "`n Consulte README_ESTRUTURA.md para detalhes da estrutura" -ForegroundColor Yellow
 Write-Host ""
 
 # 8. Listar estrutura final
-Write-Host "🗂️  Estrutura Final:" -ForegroundColor Cyan
+Write-Host "  Estrutura Final:" -ForegroundColor Cyan
 Get-ChildItem $baseDir -Directory | Where-Object { $_.Name -match "^\d{2}_" } | ForEach-Object {
     $count = (Get-ChildItem $_.FullName -Recurse -File).Count
     Write-Host "  $($_.Name): $count arquivo(s)" -ForegroundColor White
 }
 
-Write-Host "`n✨ Tudo pronto! Seus arquivos locais agora estão organizados." -ForegroundColor Green
+Write-Host "`n Tudo pronto! Seus arquivos locais agora estão organizados." -ForegroundColor Green

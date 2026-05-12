@@ -1,0 +1,126 @@
+name: codeql-security-scan
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: read
+
+jobs:
+  precheck-default-setup:
+    runs-on: ubuntu-latest
+    outputs:
+      run_advanced: ${{ steps.detect.outputs.run_advanced }}
+      reason: ${{ steps.detect.outputs.reason }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: audit
+
+      - name: Detect CodeQL default setup state
+        id: detect
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          RUN_ADVANCED="true"
+          REASON="advanced_allowed_default_setup_unverified"
+          API_URL="https://api.github.com/repos/${REPO}/code-scanning/default-setup"
+          HTTP_CODE="$(curl -sS --connect-timeout 5 --max-time 10 -o default_setup.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API_URL}" || true)"
+
+          if [ "${HTTP_CODE}" = "200" ]; then
+            if STATE="$(jq -r '.state // .status // "unknown"' default_setup.json 2>/dev/null)"; then
+              :
+            else
+              STATE="unknown"
+              echo "Could not parse CodeQL default setup response; running advanced scan." >&2
+            fi
+            if [ "${STATE}" = "configured" ] || [ "${STATE}" = "enabled" ]; then
+              RUN_ADVANCED="false"
+              REASON="default_setup_active"
+            elif [ "${STATE}" = "not-configured" ] || [ "${STATE}" = "not_configured" ] || [ "${STATE}" = "disabled" ]; then
+              RUN_ADVANCED="true"
+              REASON="advanced_allowed"
+            else
+              echo "Unsupported CodeQL default setup state: ${STATE}; running advanced scan." >&2
+              SAFE_STATE="$(printf '%s' "${STATE}" | tr -c 'A-Za-z0-9_-' '_')"
+              REASON="advanced_allowed_default_setup_unknown_state_${SAFE_STATE}"
+            fi
+          else
+            if [ -z "${HTTP_CODE}" ]; then
+              HTTP_CODE="000"
+            fi
+            echo "Could not verify CodeQL default setup state: HTTP ${HTTP_CODE}; running advanced scan." >&2
+            REASON="advanced_allowed_default_setup_unverified_http_${HTTP_CODE}"
+          fi
+
+          echo "run_advanced=${RUN_ADVANCED}" >> "${GITHUB_OUTPUT}"
+          echo "reason=${REASON}" >> "${GITHUB_OUTPUT}"
+
+  analyze:
+    needs: precheck-default-setup
+    if: ${{ needs.precheck-default-setup.outputs.run_advanced == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["python"]
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@ce64ddcb0d8d890d2df4a9d1c04ff297367dea2a # v3.35.2
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@ce64ddcb0d8d890d2df4a9d1c04ff297367dea2a # v3.35.2
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@ce64ddcb0d8d890d2df4a9d1c04ff297367dea2a # v3.35.2
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  default-setup-skip-note:
+    needs: precheck-default-setup
+    if: ${{ needs.precheck-default-setup.outputs.run_advanced != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: audit
+
+      - name: Report default setup skip
+        env:
+          CODEQL_SKIP_REASON: ${{ needs.precheck-default-setup.outputs.reason }}
+        run: |
+          set -euo pipefail
+          echo "CodeQL advanced workflow skipped because default setup is active."
+          echo "Reason: ${CODEQL_SKIP_REASON}"

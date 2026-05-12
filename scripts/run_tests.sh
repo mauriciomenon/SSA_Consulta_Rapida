@@ -43,9 +43,28 @@ case "$mode" in
 esac
 
 # Allow user extra opts via PYTEST_ADDOPTS
+pytest_extra_opts=()
 if [[ -n "${PYTEST_ADDOPTS:-}" ]]; then
   echo "[run_tests] Extra opts: $PYTEST_ADDOPTS"
+  parsed_pytest_addopts="$(
+    python - "$PYTEST_ADDOPTS" <<'PY'
+import shlex
+import sys
+
+try:
+    args = shlex.split(sys.argv[1])
+except ValueError as exc:
+    print(f"[run_tests] ERROR: invalid PYTEST_ADDOPTS: {exc}", file=sys.stderr)
+    sys.exit(2)
+
+for arg in args:
+    print(arg)
+PY
+  )" || exit 2
+  if [[ -n "$parsed_pytest_addopts" ]]; then
+    mapfile -t pytest_extra_opts <<< "$parsed_pytest_addopts"
+  fi
 fi
 
 set -x
-"${base_cmd[@]}" ${PYTEST_ADDOPTS:-}
+"${base_cmd[@]}" "${pytest_extra_opts[@]}"

@@ -1,22 +1,284 @@
-# SSA Consulta Rapida v4.12.0
+# SSA Consulta Rapida v4.37
 
-Release 4.12.0 consolida a limpeza documental e garante que README, changelog completo e prioridade de colunas estejam sincronizados com os testes automatizados. Esta versao tambem atualiza os metadados de versao, reafirma o escopo de logging robusto e mantem o historico completo das correcões anteriores.
+Release/tag publicada mais recente na branch `dev`: `v4.36`.
 
-## Release v4.12.0 (2025-12)
+## Current Truth (2026-04-11 23:00 -0300)
+
+- Estado operacional:
+  - metadata local ativa: `4.37`
+  - ultima tag publicada em `dev`: `v4.36`
+  - branch `dev` recebeu os slices recentes de auditoria tecnica, hotfix de busca em colunas nao textuais e sincronizacao de filtros avancados
+  - `4.37` segue ativo em metadata local, runtime e docs ativos; a ultima tag publicada permanece `v4.36`
+  - docs centrais de import/upsert seguem alinhados com o contrato runtime atual
+  - o harness de `tests/test_gui_filter_logic.py` agora isola e restaura o lifecycle global de workers aposentados por teste, sem vazar estado entre casos
+  - a continuidade imediata de GUI/filtros agora esta concentrada em `svp-03`, historico `undo/redo`, ajustes pontuais de labels/ordem e drag de cabecalho
+- Contrato de update por SSA (resumo):
+  - `STE` e `SCA` no banco sao imutaveis para update
+  - usa timestamp de snapshot (`data_planilha`/`data_arquivo_origem`/nome do arquivo) antes de olhar `data_cadastro`
+  - se o arquivo novo tem contexto mas nao tem timestamp confiavel, update e bloqueado (insert-only)
+  - importacao explicita e ordenada por data de arquivo (antigo -> novo)
+  - `data_cadastro` fica como criterio auxiliar/tie-break
+- Slices recentes apos o sprint GUI inicial:
+  - `02ec4a30` `DOC_SYNC: add ultra technical audit report`
+    - publicou `docs_saida/ULTRA_AUDITORIA_TECNICA_REPO_20260330.md` para continuidade entre maquinas
+  - `b7af8aef` `STABILITY_PATCH: support non-text search columns`
+    - `filter_dataframe()` passou a aceitar `search_columns` numericas/datetime sem retornar vazio por exclusao precoce de dtype
+  - `d6fbb4fe` `STABILITY_PATCH: unify advanced filter state`
+    - `setor_executor` agora sincroniza estado aplicado entre filtro rapido e painel avancado
+    - materializacao de `solicitante` aceita alias `responsavel_solicitante`
+    - prefixo de area/setor de responsaveis deixou de depender apenas do subconjunto filtrado
+- Sprint GUI entregue nesta frente:
+  - implementacao runtime consolidada nos commits `b343c621` e `07ebfe1d`
+  - `[f]` no cabecalho agora sincroniza filtros por coluna e filtros avancados
+  - resumo `Filtros ativos` deixou de duplicar entradas equivalentes
+  - caixa `Filtros ativos` ganhou borda destacada e texto em negrito quando ha filtro ativo
+  - macro `Baixar` passou a excluir `SAD` alem de `SCA`, `SES` e `STE`
+  - o prompt `Filtrar "nome da coluna"` ganhou hint `Aceita termo, !termo para exclusao` e largura minima padronizada
+  - `update_derivadas_from_sources()` saiu do thread principal em runtime normal
+  - botao `Abrir SAM`
+  - caixa nova `Status: X de Y SSAs` ficou separada da caixa operacional
+  - `Semana Atual` ficou recentralizado entre os controles da barra superior
+  - o `#` da lista abre a SSA no SAM externo
+  - o detalhe da SSA expande `situacao` para `SIGLA - descricao`
+  - o numero da SSA no detalhe copia para a area de transferencia por duplo clique
+  - a area de derivadas ficou mais larga e passou a usar arvore textual com `numero (STATUS)`
+  - `load_other_database()` passou a validar o arquivo em background no runtime normal
+  - dialogo de detalhes agora tem aba dedicada `Arvore`:
+    - metade superior com subabas `Grafo`, `Arvore` e `Mermaid`
+    - `Grafo` renderiza visualmente as relacoes de derivadas (SVG)
+    - metade inferior continua com os detalhes da SSA selecionada
+    - implementacao em codigo: commit `07ebfe1d`
+    - historico: este item estava como refinamento e foi promovido para entrega por comando explicito no ciclo atual
+- Hotfix de banco entregue nesta frente:
+  - upsert nao-complementar preserva `STE` e `SCA` como estados terminais imutaveis
+  - caso real protegido: manter `STE` e bloquear sobrescrita para `ADM`, inclusive quando `data_cadastro` empata
+  - tie-breaker por ranking de `situacao` no merge de mesma data
+  - regressao coberta em testes de upsert e importacao explicita
+- Follow-up apos o sprint GUI:
+  - reproduzir de forma dirigida o caso `svp-03` / SSA `202604849`
+  - desenhar patch minimo para historico de filtros com `undo` e `redo`
+  - agrupar ajustes pontuais de ordem/labels sem reabrir layout geral
+  - confirmar suporte minimo para drag de cabecalho sem refactor amplo
+  - continuar a varredura de chamadas pesadas restantes na thread principal
+- Validacao atual:
+  - baseline amplo registrado em `2026-03-30`:
+    - `uv run --python 3.13 python -m py_compile` em tracked Python -> verde
+    - `uv run --python 3.13 ruff check .` -> verde
+    - `uv run --python 3.13 ty check` -> verde
+    - `uv run --python 3.13 python -m pytest -q tests` -> `993 passed, 4 skipped, 11 subtests passed`
+  - validacao focada do hotfix de busca nao textual:
+    - `py_compile`, `ruff`, `ty` -> verdes
+    - `pytest -q tests/test_app_logic_filter_contract.py` -> `20 passed`
+  - validacao focada do patch de sincronizacao de filtros:
+    - `py_compile`, `ruff`, `ty` -> verdes
+    - `pytest -q tests/test_gui_filter_logic.py -k "...executor...responsavel..."` -> `8 passed`
+- Contrato atual que nao deve ser reaberto:
+  - `numero_ssa`, `derivada_de` e `numero_ssa_relacionada_*` seguem canonicos em texto
+  - strings `"<NA>"`, `"None"`, `"nan"`, `"null"` e equivalentes nao devem ser persistidas como texto literal no banco
+  - a busca textual nao usa nem documenta operadores textuais legados
+- Prioridades reais antes da proxima tag:
+  - `P0`: manter fechado o contrato de `numero_ssa` sem reabrir truncagem, heuristica de exibicao ou teste synthetic
+  - `P0`: manter fechado o contrato anti-downgrade de `situacao` para empate de `data_cadastro`
+  - `P1`: reproduzir o caso `svp-03` / SSA `202604849` com evidencia tecnica
+  - `P1`: definir historico de filtros para `undo` e `redo`
+  - `P1`: fechar ajustes pontuais de ordem/labels sem reabrir layout geral
+  - `P1`: validar habilitacao de drag de cabecalho de colunas
+  - `P2`: revisar hotspots restantes da thread principal apos o sprint GUI
+  - `P2`: decidir a paridade CLI vs GUI para diff/full import e discovery
+  - `P2`: tratar hardening residual de rollback/error boundary em `database*`
+  - `P2`: consolidar a reorganizacao de docs historicos apontada em `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md`
+- Docs vivos para continuidade:
+  - `AGENTS.md` -> regras, proibicoes, processo e politicas obrigatorias
+  - `docs/ARCH_DB_UPSERT.md` -> ordem real de decisao no update por `numero_ssa`
+  - `docs/ARQUITETURA_IMPORTACAO.md` -> discovery/import + metadados de snapshot
+  - `docs/TROUBLESHOOTING_IMPORTACAO.md` -> diagnostico pratico para regressao de estado/import
+  - `docs/NEXT_CHAT_MIGRATION.md` -> roteiro curto para proximo chat
+  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` -> handoff de execucao
+  - `docs/RECOVERY_BACKLOG.md` -> backlog priorizado e historico
+  - `docs/README.md` -> indice da documentacao viva
+  - `docs/archive/LEGACY_DOCS_REORG_STUDY_20260327.md` -> estudo de reorganizacao de docs legados/historicos
+- Estado de review auxiliar:
+  - configuracao MCP local do Kluster foi corrigida para `pnpm.CMD dlx ... --server=https://api.kluster.ai`
+  - timeout eventual de `manualCheck` deve ser tratado como bloqueio do review remoto, nao como bug do repo nem review clean
+- Primeira acao obrigatoria na proxima conversa:
+  - revisar o estado atual do PR `dev -> main` e os checks mais recentes
+  - ler `docs/NEXT_CHAT_MIGRATION.md`, `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` e `docs/RECOVERY_BACKLOG.md` pelo topo vivo
+  - começar por `svp03-targeted-repro` antes de abrir outro patch de filtros
+  - revalidar se existe residuo local antes de abrir frente nova
+  - referencias operacionais:
+    - `.github/instructions/kluster-code-verify.instructions.md`
+    - `docs/CCR_LLM_PROVIDERS_SETUP.md`
+    - `docs/OPENCODE_CONFIG.md`
+
+## Historical Snapshot (2026-03-23 19:01 -0300)
+
+- Baseline ativo mantido em `v4.33` (snapshot historico, nao corrente).
+- Commits mais recentes relevantes para o estado daquele fechamento:
+  - `d5a9e137` `HOTFIX_BLOCKER: fix nullable display and filter contract`
+  - `25c64c58` `STABILITY_PATCH: close residual nullable filter paths`
+- Contrato de dados naquele ponto:
+  - `numero_ssa`, `derivada_de` e `numero_ssa_relacionada_*` sao identificadores canonicos em texto.
+  - semanas e contadores de reprogramacao voltam do banco como nullable ints.
+  - `pd.NA` nao deve mais vazar como `"<NA>"` em exibicao, filtro por coluna, filtros avancados nem no sort de `num_reprogramacoes`.
+- Estado operacional daquele ponto:
+  - branch alvo de estabilizacao: `dev`
+  - working tree local pode continuar sujo por arquivos fora de escopo (`.python-version`, `config/*`, `data/ssas.db`, `docs_entrada/*`, backups locais)
+  - diagnostico local do full rescan fechado sem editar runtime:
+    - discovery atual considera `.xlsx` na raiz de `docs_entrada` e, opcionalmente, em `processadas/`
+    - nesta maquina: `489` `.xlsx` elegiveis na raiz, `0` em `processadas/` e `135` `.xls` fora do pipeline principal
+    - se o desktop de trabalho ficou preso em `439`, a primeira hipotese agora e elegibilidade/discovery, nao cache/hash viciado
+
+## Baseline v4.37 (2026-04)
 
 ### Destaques
-- README revisado com seções obrigatorias (`Instalação`, `Uso`, `Testes`) e alinhamento com a versao atual.
+- Nullable dtypes no readback agora estao estabilizados sem regressao visual:
+  - `pd.NA` tratado como vazio em exibicao
+  - filtros por coluna e filtros avancados sem coercao textual crua nos caminhos centrais
+  - sort de `num_reprogramacoes` alinhado com nullable values
+- Auditoria residual de filtros avancados fechada:
+  - derivadas terminais ignoram `derivada_de` nullable/vazia
+  - subset dependente de setor nao materializa `"<NA>"`
+- Diagnostico de importacao/rescan atualizado:
+  - `full rescan` hoje nao e recursivo sobre qualquer subpasta arbitraria da raiz
+  - `.xls` legado continua contabilizado como ignorado, nao como candidato principal de importacao
+  - regressao ampla de importacao, rescan, GUI lateral e contratos de nullable ficou verde; a limitacao antiga de harness em `tests/test_gui_filter_logic.py` foi fechada com reset/restore explicito do estado global de lifecycle
+- README revisado com secoes obrigatorias (`Instalacao`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.12.0 com foco em limpeza documental e paridade de testes.
+- Baseline de documentacao atualizado para 4.37.
+- Regras de tema aplicadas de forma geral para popups/menus/checks e textos de selecao, sem depender de casos especificos por tema.
+- Lock unico de altura para os 3 blocos inferiores (detalhes, filtros avancados, filtros por coluna), com gatilho em init, troca de aba, resize e rebuild de filtros por coluna.
+- Regressao nova: teste para garantir altura sincronizada unica apos resize.
+- Regressao de filtros por coluna coberta por novos testes focados em:
+  - menu de adicionar filtro de coluna (lista completa + exclusao de aliases legados invalidos);
+  - clear-all restaurando defaults e linhas ocultas;
+  - presenca de botoes Aplicar/Ocultar nas linhas default.
+- Matriz de compatibilidade Python concluida no ciclo atual:
+  - 3.10.18: pass
+  - 3.11.14: pass
+  - 3.12.11: pass
+  - 3.13.12: pass
+
+### Instalar uv (recomendado)
+```bash
+# macOS / Linux (curl)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# macOS / Linux (wget)
+wget -qO- https://astral.sh/uv/install.sh | sh
+```
+
+```powershell
+# Windows PowerShell / pwsh
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+### Execucao rapida com uv (recomendado)
+```bash
+# criar/sincronizar ambiente
+uv venv
+uv sync
+
+# definir runtime (fallback: 3.12 -> 3.11 -> 3.10)
+PY_RUNTIME=3.13
+
+# executar GUI
+uv run --python $PY_RUNTIME main.py --gui
+
+# executar CLI
+uv run --python $PY_RUNTIME main.py
+
+# executar Streamlit
+uv run --extra web --python $PY_RUNTIME main.py --streamlit
+```
+
+Fallback quando 3.13 nao estiver disponivel: 3.12, depois 3.11, depois 3.10.
+`requirements*.txt` permanecem para compatibilidade em ambientes sem uv.
+
+### Windows 11: rodar e gerar instalador
+Execute no PowerShell aberto na raiz do repositorio.
+
+```powershell
+# Instalar ferramentas base
+winget install --id Git.Git -e
+winget install --id JRSoftware.InnoSetup -e
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Rodar a aplicacao
+uv sync
+uv run --python 3.13 main.py --gui
+
+# Validar plano sem compilar
+.\release.ps1 -DryRun -Yes
+
+# Gerar executaveis, ZIP e instalador Windows AMD64
+.\release.ps1 -Yes
+```
+
+Saidas esperadas:
+- pacotes Windows: `builds\packages\windows_amd64\`
+- pacote distribuivel adicional: `dist_packages\`
+- relatorio de release: `builds\reports\release_report_windows_amd64.json`
+
+### Debian: rodar e gerar pacote
+Execute no terminal Bash aberto na raiz do repositorio.
+
+```bash
+# Instalar ferramentas base
+sudo apt-get update
+sudo apt-get install -y git curl build-essential python3 python3-venv python3-dev patchelf dpkg-dev
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+
+# Rodar a aplicacao
+uv sync
+uv run --python 3.13 main.py --gui
+
+# Validar plano sem compilar
+./release.sh --target debian --dry-run --yes
+
+# Gerar executaveis e pacote .deb Debian AMD64
+./release.sh --target debian --yes
+```
+
+Saida esperada:
+- pacotes Debian: `builds/packages/debian_amd64/`
+
+Notas de release:
+- `release.ps1` e `release.sh` sao os wrappers publicos; scripts em `dev_env/build/` sao implementacao interna.
+- O build de release exige workspace limpo para evitar artefato stale.
+- O fluxo de release roda smoke funcional de importacao no executavel gerado e bloqueia falha antes de publicar artefato.
+
+### Ambiente com pyenv/direnv (fallback de compatibilidade, sem substituir uv)
+```bash
+# selecionar versao python do projeto
+pyenv local 3.13.12
+
+# carregar variaveis do direnv (quando configurado)
+direnv allow
+
+# executar no venv local existente (modo manual)
+uv run --python .venv/bin/python main.py --gui
+```
+
+### Documentacao tecnica atual (v4.37)
+- Algoritmo do layout dinamico (4 colunas):
+  - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
+- Regras gerais de GUI em PyQt6:
+  - `docs/GUI_PYQT6_REGRAS_GERAIS.md`
+
+---
+## Historico (versoes anteriores)
+As notas antigas permanecem abaixo para referencia e auditoria tecnica.
 
 ### Otimização de Requirements (2025-12-05)
 - **Objetivo:** Reduzir redundâncias e melhorar manutenção
 - **Ações realizadas:**
   - Consolidado dependências duplicadas entre arquivos
   - Removidas dependências de runtime de arquivos de CI/CD
-  - Mantidos apenas 3 arquivos essenciais (requirements.txt, requirements_dev.txt, requirements_build.txt)
-  - Arquivo requirements_clean.txt mantido apenas para documentação
+  - Estrutura final com 5 arquivos versionados no repositorio
+  - arquivos operacionais: requirements.txt, requirements_dev.txt, requirements_build.txt, requirements_ci.txt
+  - requirements_clean.txt mantido apenas como arquivo documental
 - **Impacto:**
   - Redução de 40% no número de arquivos de requirements
   - Eliminação de dependências duplicadas
@@ -24,23 +286,23 @@ Release 4.12.0 consolida a limpeza documental e garante que README, changelog co
 - **Estrutura de Requirements (Otimizada):**
   - **requirements.txt** - Dependências de runtime essenciais (PyQt6, pandas, openpyxl, tabulate)
   - **requirements_dev.txt** - Ferramentas de desenvolvimento (pytest, flake8, black, mypy, pre-commit)
-  - **requirements_build.txt** - Ferramentas de build (pyinstaller, pillow, cairosvg, pywin32, upx4py)
+  - **requirements_build.txt** - Ferramentas de build (pyinstaller, pillow, cairosvg, pywin32)
   - **requirements_ci.txt** - Ferramentas de CI/CD (pytest, flake8, black, mypy, pre-commit, pyinstaller)
   - **requirements_clean.txt** - Arquivo documental (não utilizado para instalação)
 
 ### Comandos de Instalação (Atualizados)
 ```bash
 # Runtime (Essencial)
-pip install -r requirements.txt
+uv pip install --python 3.13 -r requirements.txt
 
 # Desenvolvimento
-pip install -r requirements.txt -r requirements_dev.txt
+uv pip install --python 3.13 -r requirements.txt -r requirements_dev.txt
 
 # Build/Empacotamento
-pip install -r requirements.txt -r requirements_build.txt
+uv pip install --python 3.13 -r requirements.txt -r requirements_build.txt
 
 # CI/CD
-pip install -r requirements.txt -r requirements_ci.txt
+uv pip install --python 3.13 -r requirements.txt -r requirements_ci.txt
 ```
 
 ### Resultados esperados
@@ -52,18 +314,18 @@ pip install -r requirements.txt -r requirements_ci.txt
 
 ### Contexto historico
 Na serie 4.0 ocorreram falhas em dois pontos principais:
-- Filtros: divergencia entre GUI CLI e streamlit em combinacoes com OU e negativos, alem de substituicao visual que induzia interpretacao incorreta.
+- Filtros: divergencia entre GUI CLI e streamlit em combinacoes de filtros e negativos, alem de substituicao visual que induzia interpretacao incorreta.
 - Temas: papeis de cores para quadros indicadores e tags aplicados de forma inconsistente em alguns sistemas.
 
 ### O que foi corrigido
-- Unificacao do parsing de conectivos OU entre todas as interfaces sem alteracao visual ambigua
-- Invalidacao correta de cache quando entra OU ou negativo
+- Unificacao do parsing de filtros entre todas as interfaces sem alteracao visual ambigua
+- Invalidacao correta de cache quando entram combinacoes de filtros ou negativos
 - Ajuste de ordem de normalizacao evitando estados intermediarios incoerentes
 - Mapeamento central de chaves de tema para quadros indicadores e tags
 
 ### Resultados esperados
 - Mesmos resultados de busca em CLI GUI e streamlit
-- Negativos honrados quando combinados com OU
+- Negativos honrados nas combinacoes suportadas
 - Temas aplicados de forma previsivel em plataformas suportadas
 
 ### Observacoes
@@ -101,12 +363,12 @@ Consulte `docs_saida/CHANGELOG_IMPLEMENTACOES.md` para decisoes e linha do tempo
 
 - **Non-destructive wrappers (v2)**: added under `scripts/` as `run_pytest_with_timeout_v2.py` and `run_pytest_stream_and_log_v2.py`. They are additive (do not replace existing scripts) and contain improved Windows/Unix process-tree termination fallbacks and stable imports.
 - **pwsh detection helper**: `scripts/pwsh_discovery.py` centralizes discovery of `pwsh`/`powershell` executables across common paths, PATH, and workspace `.vscode` settings.
-- **Logs and local docs**: runtime logs and detailed usage notes live in `local_ai_private/` (this directory is gitignored). See `local_ai_private/pytest_instructions.md` for examples and troubleshooting.
+- **Logs and local docs**: runtime logs and notas locais podem existir em `local_ai_private/` (diretorio gitignored, opcional por maquina).
 - **Usage examples**:
 	- Run with a 10s timeout and write log:
-		python scripts/run_pytest_with_timeout_v2.py --test tests/test_terminal_integration.py --timeout 10
+		uv run --python 3.13 scripts/run_pytest_with_timeout_v2.py --test tests/test_terminal_integration.py --timeout 10
 	- Stream live output and save log:
-		python scripts/run_pytest_stream_and_log_v2.py --test tests/test_terminal_integration.py --timeout 10
+		uv run --python 3.13 scripts/run_pytest_stream_and_log_v2.py --test tests/test_terminal_integration.py --timeout 10
 
 If streaming is not available in your shell, the instructions file shows a PowerShell `Tee-Object` alternative to both print and save output.
 ## Previous Release v4.0.0 (2025-09) - Performance Improvements
@@ -149,16 +411,26 @@ If streaming is not available in your shell, the instructions file shows a Power
 Foram aplicadas melhorias recentes de qualidade de codigo:
 
 - Reducao de numeros magicos: constantes adicionadas em `armazenamento/database.py` (`NUMERO_SSA_LEN`, limites de ano, `MAX_TEXT_LEN`, etc.).
-- Normalizacao de `numero_ssa`: funcoes consolidadas e uso consistente das regras (YYYY + 5 digitos) com validacao defensiva.
+- Normalizacao de `numero_ssa`: funcoes consolidadas e uso consistente das regras com validacao defensiva.
 	 - Regra estrita atual (camada core):
-		 * Somente 9 digitos apos remocao de hifens/espacos (`YYYYXXXXX`).
+		 * Referencia operacional atual: 9 digitos (`YYYYXXXXX`) nas planilhas validadas do fluxo principal.
 		 * Ano inicial entre 1980 e 2050.
 		 * Valores com letras ou simbolos fora de `[0-9 -]` sao rejeitados.
-		 * Hifen opcional e aceito apenas em formato `YYYY-XXXXX` quando os 5 digitos finais NAO sao todos identicos.
-			 - Exemplo aceito: `2025-12345` → `202512345`.
-			 - Exemplo rejeitado: `2025-22222` (marcado como invalido e filtrado no importador).
-		 * Strings maiores que 9 digitos nao sao truncadas; sao rejeitadas para evitar colisoes silenciosas.
+			 * Hifen opcional e aceito apenas em formato `YYYY-XXXXX` quando os 5 digitos finais NAO sao todos identicos.
+				 - Exemplo aceito: `2025-12345` → `202512345`.
+				 - Exemplo rejeitado: `2025-22222` (marcado como invalido e filtrado no importador).
+			 * No formato sem hifen, a checagem de repeticao dos 5 ultimos digitos nao e aplicada por compatibilidade historica.
+			 * Valores longos e compatibilidades legadas nao devem ser usados como referencia de export atual sem evidencia de planilha real.
+	 - Fachada publica retrocompativel:
+		 * `normalize_numero_ssa(...)` agora segue o mesmo contrato canonico de 9 digitos.
+		 * Entradas curtas, letras e sobrecomprimento nao viram SSA valida por exibicao.
+		 * A referencia operacional validada nesta rodada continua sendo `202600654` e demais SSAs reais de 9 digitos.
 	 - Testes que cobrem as regras: `tests/test_numero_ssa_normalization_cross.py` e `tests/test_numero_ssa_hyphen_repetition.py`.
+- Importacao externa pela GUI:
+	 - `Importar XLS/XLSX externo` aceita um ou mais `.xlsx` de qualquer pasta escolhida pelo usuario.
+	 - Cada arquivo selecionado e copiado com seguranca para `docs_entrada` quando ainda estiver fora da pasta.
+	 - Se o arquivo ja estiver em `docs_entrada`, ele nao e recopiado.
+	 - A aplicacao no banco ocorre somente para os arquivos explicitamente selecionados nessa acao.
 - Linhas longas (>100 colunas) quebradas para melhorar leitura e conformidade com lint.
 - Sistema de logging robusto com metricas automaticas de performance.
 - Cache systems inteligentes para GUI e Streamlit com ganhos massivos de performance.
@@ -174,12 +446,12 @@ Componentes extraidos (estado atual):
 - `database_upsert_logic.py`: preparacao e logica de upsert (merge condicional, modos complementar vs. simples, normalizacao de datas) – expoe `prepare_dataframe_for_upsert`, `apply_column_whitelist` e `insert_dataframe_with_smart_upsert_impl`.
 - `database_integrity.py`: verificacao e reparo (`verify_database_integrity`, `repair_database_if_needed`).
 - `database_validation.py`: validacao pre-insercao (`validate_dataframe_before_insert`).
-- `numero_ssa_utils.py`: fonte unica para normalizacao de `numero_ssa` (strict, legado inteiro, formato display, batch dataframe).
+- `numero_ssa_utils.py`: fonte unica para normalizacao de `numero_ssa` (strict, storage textual canonico, helper numerico interno legado e batch dataframe).
 
 No arquivo `database.py` permanecem apenas:
 - Conexao (`get_db_connection`) e inicializacao (`initialize_database`).
 - Facades publicas: `insert_dataframe_to_db`, `insert_dataframe_with_smart_upsert`.
-- Reexports simples de normalizacao (`normalize_numero_ssa`, `normalize_numero_ssa_dataframe`).
+- Reexports simples de normalizacao (`normalize_numero_ssa`, `normalize_numero_ssa_dataframe_storage` e alias de nome `normalize_numero_ssa_dataframe`, todos com retorno textual canonico).
 - Delegacoes finas de integridade/validacao (sem wrappers intermediarios de upsert internos removidos na etapa de reducao de complexidade).
 
 Melhorias adicionais nesta etapa:
@@ -193,9 +465,9 @@ Proximos passos sugeridos (nao bloqueantes):
 3. Avaliar medicao de performance (perfil leve) em lotes grandes (>50k linhas) para ajustar `chunksize` dinamicamente.
 
 Essa secao reflete o estado pos-limpeza para orientar futuros mantenedores.
-# SSA_Consulta_Rapida
+# SSA_Consulta_Rapida (snapshot historico legado)
 
-Versao atual: 3.11 (Sistema funcional)
+Versao de referencia deste bloco historico: 3.11
 
 ##  **NOVIDADES v4.0.0 - PERFORMANCE MASSIVAMENTE OTIMIZADA**
 
@@ -231,8 +503,8 @@ Versao atual: 3.11 (Sistema funcional)
 - **Database:** 5-20x queries mais rapidas
 - **Logging:** Sistema robusto com metricas automaticas
 
-###  Sintaxe OU/OR consistente em todas as interfaces
-- Parser de filtros agora entende `OU`/`OR` (alem de `!`, `^`, `$`, `=` e `~`) de forma unificada
+###  Sintaxe de filtros consistente entre interfaces
+- Parser de filtros padronizado entre as interfaces suportadas
 - Cache inteligente acelera drasticamente todas as consultas
 - Performance otimizada automaticamente em todos os componentes
 
@@ -242,7 +514,7 @@ Versao atual: 3.11 (Sistema funcional)
 - Ajustes de contraste automaticos no macOS para manter legibilidade
 
 ###  Dashboard Streamlit com CACHE MASSIVO
-- `python main.py --streamlit` inicia painel **3,977x mais rapido**
+- `uv run --python $PY_RUNTIME main.py --streamlit` inicia painel **3,977x mais rapido**
 - Cache TTL inteligente com metricas automaticas
 - Progress bars e interface otimizada
 - Download de CSV acelerado com cache
@@ -270,7 +542,7 @@ Versao atual: 3.11 (Sistema funcional)
 open launchers/dist/macos_arm64/SSA_GUI_v3.10_macos_arm64.app
 
 # Build proprio rapido
-python launchers/build_simple.py gui && cd launchers/dist_simple && ./gui_entry
+uv run --python 3.13 launchers/build_simple.py gui && cd launchers/dist_simple && ./gui_entry
 ```
 
 ###  Funcionalidades principais v3.11
@@ -279,9 +551,9 @@ Versao: 3.11 - SSA Consulta Rapida v3.11
 
 Novidades v3.11:
 - CLI: paginacao interativa com comando `m`/`m z`, prompt enxuto e resumo dos filtros ativos
-- GUI: parse OU/OR alinhado ao CLI, chips de filtros exibidos com notacao clara e temas extras disponiveis
+- GUI: parse de busca alinhado ao CLI, chips de filtros exibidos com notacao clara e temas extras disponiveis
 - Streamlit: atalho `main.py --streamlit` inicia painel em background, sidebar com ajuda e resumo de filtros
-- Core: `parse_search_terms` suporta grupos OR reais (sem depender de simbolo `v`), mantendo negativos e regex
+- Core: `parse_search_terms` alinhado ao contrato simplificado atual, mantendo previsibilidade de busca
 - Temas: Escala de cinza, Windows 7, KDE e GNOME adicionados sem impactar alteracoes ja feitas para Windows
 
 Resumo do 3.0:
@@ -293,18 +565,28 @@ Resumo do 3.0:
 Ferramenta para consulta rapida de SSAs com CLI e GUI (Python). Foco em previsibilidade, desempenho e paridade de exibicao.
 
 Links uteis:
-- Mapa de Pedidos → Implementacoes: docs_saida/MAPA_PEDIDOS_IMPLEMENTACOES.md
-- Changelog tecnico: docs_saida/CHANGELOG_IMPLEMENTACOES.md
+- Mapa de Documentacao Ativa: docs/INDEX.md
+- Changelog tecnico: docs/CHANGELOG_IMPLEMENTACOES.md
 
 ## Requisitos
-- Python 3.13+
+- Python 3.10+ (preferir 3.13+ quando disponivel)
 - Windows (testado) ou ambiente compativel com PyQt6
 
-## Instalação
+## Instalacao
+```bash
+# preferencial
+uv venv
+uv sync
+PY_RUNTIME=3.13
+uv run --python $PY_RUNTIME main.py --gui
+```
+
 ```pwsh
+# compatibilidade (sem uv)
 python -m venv .venv
 . .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
 ## Activation helpers (cross-platform)
@@ -317,22 +599,24 @@ Usage after cloning:
 
 1. Clone the repo and open a shell for your OS.
 2. On macOS / WSL:
-	- `python -m venv .venv` (if you don't use pyenv)
+	- `uv venv --python 3.13 .venv` (if you don't use pyenv)
 	- `source ./activate_repo.sh`
 3. On Windows PowerShell (pwsh recommended):
-	- `python -m venv .venv` (if you don't use pyenv-win)
+	- `uv venv --python 3.13 .venv` (if you don't use pyenv-win)
 	- `. .\activate_repo.ps1`
 
 Tip: The repository contains a `.gitattributes` entry that enforces LF for `.envrc` and shell scripts so `direnv` will not fail due to CRLF. If you prefer `direnv`, WSL is the recommended environment for evaluating `.envrc`.
 
-**Windows + direnv (scoop):** se `direnv exec` não achar o binário, aponte `DIRENV_BIN` para o caminho retornado por `where direnv` (converta para formato WSL com `cygpath -u` se estiver dentro do bash). Evite hardcode de usuário/caminho; ajuste também `XDG_*` se necessário. Em caso de dúvida, ative o ambiente manualmente com `.venv\\Scripts\\Activate.ps1`.
+**Windows + direnv (scoop):** se `direnv exec` nao achar o binario, aponte `DIRENV_BIN` para o caminho retornado por `where direnv` (converta para formato WSL com `cygpath -u` se estiver dentro do bash). Evite hardcode de usuario/caminho; ajuste tambem `XDG_*` se necessario. Em caso de duvida, ative o ambiente manualmente com `.venv\\Scripts\\Activate.ps1`.
 
 
-Para build Windows com compressao UPX (reducao de tamanho), instale tambem:
+Para build Windows com compressao UPX (reducao de tamanho), instale o binario `upx` pelo gerenciador do sistema.
+
 ```pwsh
-pip install -r launchers/platforms/windows_amd64/requirements_windows_build.txt
+scoop install upx
 ```
-Esse arquivo separado evita alerta de dependencia ausente em ambientes macOS/Linux onde `upx4py` nao e necessario.
+
+O build continua sem compressao se `upx` nao estiver disponivel no `PATH`.
 
 ## Inicializacao automatica de diretorios
 Na primeira execucao o sistema garante a criacao idempotente dos diretorios essenciais (ex.: `data/`, `data/historico_backups/`, `logs/`, `reports/`, `extracao/`, `exportacao/`).
@@ -349,17 +633,17 @@ Validacao:
 
 Exemplo rapido (adicionando diretorios extras temporarios):
 ```bash
-SSA_EXTRA_DIRS="tmp_cache,tmp_export" python main.py --help
+SSA_EXTRA_DIRS="tmp_cache,tmp_export" uv run --python $PY_RUNTIME main.py --help
 ```
 
 ## Uso rapido
 - CLI (padrao):
 ```pwsh
-python main.py
+uv run --python $PY_RUNTIME main.py
 ```
 - GUI:
 ```pwsh
-python main.py --gui
+uv run --python $PY_RUNTIME main.py --gui
 ```
 
 Notas de importacao e versao dos dados:
@@ -367,7 +651,7 @@ Notas de importacao e versao dos dados:
 - Em empates/sem data, a evolucao de situacao desempata (ASE → ADI → APL → APG → SPG → SEE → SAD → STE)
 
 ## Regras de exibicao (CLI/GUI)
-- Numero SSA com 9 digitos (prefixo ano para <=5 digitos; zfill p/ 7–8)
+- Numero SSA exibido conforme normalizacao atual: nao cria prefixo de ano em identificador curto; detalhes na secao `Normalizacao do Numero SSA`.
 - Datas: dd/mm/yyyy (sem horario)
 - Semanas: inteiras (sem “.0”)
 - Valores nulos: nao exibir "nan/NaT/None" (usa “-” quando aplicavel)
@@ -429,10 +713,11 @@ Filtro “5 opcoes” (implementado)
 - Dica de busca (TL;DR) legivel em claro/escuro
 - Persistencia do tema em `config/gui_main_preferences.json`
 
-## GUI – filtros (TL;DR)
+## GUI - filtros (TL;DR)
 - Separe termos por virgulas: `foo, bar`
 - Modos por termo: contem (`foo`), comeca (`^foo`), termina (`foo$`), igual (`=foo`), regex (`~padrao`), excluir (`!termo`)
-- Por coluna: clique direito no cabecalho para abrir o painel; campos exibem a mesma dica TL;DR
+- Por coluna: clique direito no cabecalho para abrir o painel; o dialogo agora exibe hint explicito `Aceita termo, !termo para exclusao`
+- O marcador `[f]` no cabecalho reflete tanto filtro por coluna quanto filtro avancado equivalente
 
 ## Importacao – robustez
 - Ignora arquivos sem colunas obrigatorias (ex.: `numero_ssa`) com log
@@ -451,7 +736,7 @@ Views de compatibilidade:
 
 Script de migracao incremental:
 ```
-python scripts/migracao/migrar_para_unificado.py --db data/ssas.db
+uv run --python $PY_RUNTIME scripts/migracao/migrar_para_unificado.py --db data/ssas.db
 ```
 O script:
 - Faz backup automatico (`data/ssas.db.backup_before_unified_YYYYMMDD_HHMMSS`).
@@ -489,7 +774,7 @@ Metricas adicionais (para diagnostico) agora expostas em `reports/last_import_st
 - `alias_hits`: numero de vezes que um alias foi convertido para nome canonico
 
 Variaveis de ambiente de tuning:
-- `SSA_MAX_HEADER_SCAN`: ajusta o maximo de linhas iniciais avaliadas (ex.: `SSA_MAX_HEADER_SCAN=5 python main.py`)
+- `SSA_MAX_HEADER_SCAN`: ajusta o maximo de linhas iniciais avaliadas (ex.: `SSA_MAX_HEADER_SCAN=5 uv run --python $PY_RUNTIME main.py`)
 
 Teste sintetico: `tests/test_import_novas_colunas.py` garante presenca e persistencia das novas colunas.
 
@@ -497,7 +782,7 @@ Documento tecnico detalhado: `docs/SCHEMA_UNIFICADO_IMPORTACAO.md` (inclui heuri
 
 ### Fluxo recomendado de atualizacao
 1. Atualizar repositorio (`git pull`).
-2. Executar migracao: `python scripts/migracao/migrar_para_unificado.py --db data/ssas.db`.
+2. Executar migracao: `uv run --python $PY_RUNTIME scripts/migracao/migrar_para_unificado.py --db data/ssas.db`.
 3. (Opcional) Rodar teste sintetico: `pytest -q tests/test_import_novas_colunas.py`.
 4. Importar novas planilhas normalmente.
 
@@ -506,11 +791,11 @@ Script disponivel: `scripts/migracao/backfill_reprocessar.py`
 
 Uso basico:
 ```bash
-python scripts/migracao/backfill_reprocessar.py --dir docs_entrada --db data/ssas.db --smart-upsert --dry-run
+uv run --python $PY_RUNTIME scripts/migracao/backfill_reprocessar.py --dir docs_entrada --db data/ssas.db --smart-upsert --dry-run
 ```
 Ou via `main.py` integrado:
 ```bash
-python main.py --acao backfill -- --dir docs_entrada --db data/ssas.db --smart-upsert --dry-run \
+uv run --python $PY_RUNTIME main.py --acao backfill -- --dir docs_entrada --db data/ssas.db --smart-upsert --dry-run \
 	--report-path reports/backfill_manual.json
 ```
 Opcoes principais:
@@ -536,12 +821,12 @@ Se `--report-path` for usado (disponivel no script e via integracao), o relatori
 - CSV/XLSX/JSON em `docs_saida/` com rotulos consistentes (usa `display_mappings`)
 
 ## Hooks de Git (bloqueio de arquivos grandes)
-- Pre-commit (>99MB): `scripts/pre-commit-size-check.ps1`
-- Pre-push (objetos >=99MB no historico): `scripts/pre-push-large-object-check.ps1`
+- Pre-commit (staged >=95MB): `scripts/git_hooks/pre-commit`
+- Pre-push (blobs >=95MB no push): `scripts/git_hooks/pre-push`
 
 Ativacao:
-```pwsh
-pwsh -NoProfile -File scripts/setup-git-hooks.ps1
+```bash
+bash scripts/install_hooks.sh
 ```
 
 ## Testes
@@ -581,7 +866,7 @@ Gates padrao:
 
 Extensoes:
 - `--extra-config-dir <dir>` (pode repetir): cada diretorio gera um gate adicional nomeado `validate_configs_extra_1`, `validate_configs_extra_2`, ... usando `validate_configs` apontado para aquele diretorio via `--config-dir`.
-- `--extra-doc <arquivo.md>` (pode repetir): adiciona arquivos ao escopo de `check_docs`.
+- `--extra-doc <arquivo_markdown>` (pode repetir): adiciona arquivos ao escopo de `check_docs`.
 - `--skip <gate>` / `--only <gate>`: filtram execucao (`validate_configs`, `smoke_cli`, `check_docs`).
 - `--no-fail-on-doc-issues`: torna problemas de documentacao nao-fatais (gate continua reportando issues porem status pode permanecer `ok`).
 
@@ -605,16 +890,16 @@ Regras de severidade:
 Exemplos:
 ```bash
 # Caminho feliz completo
-python scripts/run_quality_gates.py
+uv run --python 3.13 scripts/run_quality_gates.py
 
 # Apenas validar configs + dois diretorios extras
-python scripts/run_quality_gates.py \
+uv run --python 3.13 scripts/run_quality_gates.py \
 	--extra-config-dir caminho/dirA \
 	--extra-config-dir caminho/dirB \
 	--skip smoke_cli --skip check_docs
 
 # Validar docs adicionais sem falhar por issues
-python scripts/run_quality_gates.py --extra-doc README.md --no-fail-on-doc-issues
+uv run --python 3.13 scripts/run_quality_gates.py --extra-doc README.md --no-fail-on-doc-issues
 ```
 
 Teste dedicado: `tests/test_quality_gates_extra_config_dirs.py` assegura criacao dos gates extras. Cenarios de falha controlada: `tests/test_quality_gates_fail_paths.py`.
@@ -705,9 +990,11 @@ Mesclagem de larguras:
 ### Normalizacao do Numero SSA
 Regra (_resumida_):
 - Remove nao-digitos.
-- Menos que 5 digitos ⇒ retorna como esta (sem prefixo artificial nesta versao).
-- 9 digitos comecando com `2025` ⇒ mantido.
-- >=9 digitos sem atender condicao anterior ⇒ ultimos 9.
+- Vazio ou sem digitos ⇒ exibe `-`.
+- Menos que 5 digitos ⇒ preserva os digitos encontrados; nao prefixa ano nem faz padding.
+- 9 digitos comecando com `2025` ⇒ mantem o valor completo.
+- Mais que 9 digitos ⇒ aplica compatibilidade legada da CLI: se comecar com `2025`, usa a janela de 9 digitos validada em teste; nos demais casos, usa os ultimos 9 digitos.
+- `SSA_YEAR_PREFIX` identifica valores completos com ano conhecido; nao autoriza criar prefixo novo em identificador curto.
 
 ### Comportamento de Paginacao
 - Tamanho de pagina = `linhas_terminal - LOW_HEIGHT_MARGIN` (margem = 8).
@@ -739,5 +1026,15 @@ Regra (_resumida_):
 - “Mapeamento ausente/corrompido”: defina `SSA_CONFIG_DIR` e deixe o loader recriar os JSONs
 
 ## Notas
-- Consulte `docs_saida/MAPA_PEDIDOS_IMPLEMENTACOES.md` para pedidos/entregas/validacao
+- Consulte `docs/INDEX.md` para navegacao canonica da documentacao
 - Consulte `docs_saida/CHANGELOG_IMPLEMENTACOES.md` para decisoes e linha do tempo tecnica
+
+## Atualizacao 2026-03-01 (ciclo gui-tema-import)
+- Corrigido tema dos menus de selecao para herdar cores do tema ativo (sem fallback escuro fixo).
+- Reduzido tamanho efetivo dos botoes Aplicar/Limpar dos filtros avancados.
+- Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
+- Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
+- Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
+
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

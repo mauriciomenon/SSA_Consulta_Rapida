@@ -80,3 +80,6 @@ Get-MpThreatDetection | Select-Object -Last 10
 
 **Importante**: Adicionar exclusoes apenas para diretorio de desenvolvimento.
 NAO adicionar exclusoes amplas que possam reduzir seguranca do sistema.
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
+

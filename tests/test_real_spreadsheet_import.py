@@ -23,13 +23,13 @@ def sample_excel_file(tmp_path: Path):
     """
     # numero_ssa must be exactly 9 digits; first 4 digits year 1980-2050.
     rows = [
-        {"Nº SSA": "202512345", "NOME Paciente": "Alice", "Data Cadastro": "2025-09-10", "Valor": 10},
+        {"N\u00ba SSA": "202512345", "NOME Paciente": "Alice", "Data Cadastro": "2025-09-10", "Valor": 10},
         # Duplicate with newer date (should supersede first for numero_ssa)
         {"Numero SSA": "202512345", "nome paciente": "Alice A.", "data_cadastro": "2025-09-12", "Valor": 11},
         # Another distinct record
-        {"Nº SSA Original": "202545678", "Nome Paciente": "Bob", "Data Cadastro": "2025-09-11", "Valor": 5},
+        {"N\u00ba SSA Original": "202545678", "Nome Paciente": "Bob", "Data Cadastro": "2025-09-11", "Valor": 5},
         # Invalid numero_ssa (blank) should be dropped
-        {"Nº SSA": "", "Nome Paciente": "Vazio", "Data Cadastro": "2025-09-09", "Valor": 1},
+        {"N\u00ba SSA": "", "Nome Paciente": "Vazio", "Data Cadastro": "2025-09-09", "Valor": 1},
     ]
     df = pd.DataFrame(rows)
     file_path = tmp_path / "planilha_real.xlsx"
@@ -41,28 +41,23 @@ def temp_db_path(tmp_path: Path):
     return tmp_path / "ssas_test.db"
 
 
-def _count_rows(db_path: Path, table: str = "ssas") -> int:
+def _count_rows(db_path: Path) -> int:
     if not db_path.exists():
         return 0
-    try:
-        with sqlite3.connect(db_path) as conn:
-            cur = conn.cursor()
-            cur.execute(f"SELECT COUNT(*) FROM {table}")
-            return int(cur.fetchone()[0])
-    except Exception:
-        return 0
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM ssa_table")
+        return int(cur.fetchone()[0])
 
 
 def test_fresh_import(sample_excel_file: Path, temp_db_path: Path):
     df, stats = import_excel_robust(str(sample_excel_file))
-    if df.empty:
-        pytest.xfail("Importer returned empty DataFrame in test environment")
-    # Expect 2 valid numero_ssa (123,456) after dedup and cleaning
+    assert not df.empty, "Importer returned empty DataFrame for synthetic workbook"
+    # Expect 2 valid normalized numero_ssa values after dedup and cleaning
     numeros = sorted(df['numero_ssa'].unique().tolist())
     assert numeros == ['202512345', '202545678']
-    # numero_ssa 123 should retain newer row (Valor 11)
-    # numero_ssa 202512345 deve ser a linha mais recente (valor 11)
-    # Coluna 'Valor' é normalizada para 'valor' pelo importador (minúsculas canônicas)
+    # numero_ssa 202512345 should retain newer row (Valor 11)
+    # Coluna 'Valor' e normalizada para 'valor' pelo importador (minusculas canonicas)
     valor_latest = df.loc[df['numero_ssa'] == '202512345', 'valor'].iloc[0]
     assert int(valor_latest) == 11
     # stats validations
@@ -77,8 +72,7 @@ def test_fresh_import(sample_excel_file: Path, temp_db_path: Path):
 
 def test_reimport_idempotent(sample_excel_file: Path, temp_db_path: Path):
     df_first, _ = import_excel_robust(str(sample_excel_file))
-    if df_first.empty:
-        pytest.xfail("Importer returned empty DataFrame in test environment")
+    assert not df_first.empty, "Importer returned empty DataFrame on first import"
     insert_dataframe_with_smart_upsert(df_first, str(temp_db_path))
     count_after_first = _count_rows(temp_db_path)
     df_second, _ = import_excel_robust(str(sample_excel_file))
@@ -91,8 +85,7 @@ def test_reimport_idempotent(sample_excel_file: Path, temp_db_path: Path):
 def test_recreate_db_then_import(sample_excel_file: Path, temp_db_path: Path):
     # First import
     df1, _ = import_excel_robust(str(sample_excel_file))
-    if df1.empty:
-        pytest.xfail("Importer returned empty DataFrame in test environment")
+    assert not df1.empty, "Importer returned empty DataFrame before DB recreation"
     insert_dataframe_with_smart_upsert(df1, str(temp_db_path))
     assert _count_rows(temp_db_path) == 2
     # Simulate recreation: delete DB file

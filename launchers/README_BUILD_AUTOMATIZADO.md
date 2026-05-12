@@ -1,6 +1,26 @@
 # README – PIPELINE DE BUILD AUTOMATIZADO (RASCUNHO)
 
-Este documento descreve como estruturar uma pipeline de build/test/validacao minima para o projeto visando reprodutibilidade e deteccao precoce de problemas.
+## CURRENT TRUTH 2026-05-04 01h14
+
+- Branch alvo operacional: `dev` e `main` sincronizados.
+- Base minima sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`; usar este commit ou sucessor sincronizado em `main`/`dev`.
+- PR #58 e PR #59: merged.
+- PR #56 e PR #57: merged anteriormente; o estado ativo agora e pos-merge do PR #59.
+- `main`, `dev`, `origin/main` e `origin/dev` apontam para o mesmo HEAD.
+- Artefatos v4.37 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` seguem stale e nao devem ser usados para publicacao final.
+- Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
+- Orquestradores ativos:
+  - Windows AMD64: `dev_env/build/release_windows.ps1`.
+  - Debian AMD64: `dev_env/build/release_debian.sh`.
+  - Orquestrador local Windows+WSL: `dev_env/build/release_local.ps1`.
+- Checks GitHub do merge PR #58:
+  - Pass: `minimal-ci`, `Secret Scan`, `codeql-security-scan`, `opencode-pr-review`, `semgrep-cloud-platform/scan`, `security/snyk`, `GitGuardian`, `Socket`, `CodeFactor`, `DeepScan`, `CodeQL`.
+  - Externos/advisory: `code/snyk (mauriciomenon)` falhou por limite `Code test limit reached`; `DeepSource: Python` falhou no dashboard externo.
+- Protecao de codigo:
+  - Nuitka continua backend preferencial para release protegido.
+  - PyInstaller tem protecao parcial.
+  - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
+- Proximo passo operacional: rebuildar Windows AMD64 e Debian AMD64 a partir deste HEAD, validar artefatos e atualizar release v4.37 somente com pacotes novos.
 
 ## 1. Objetivos
 | Objetivo | Beneficio |
@@ -15,7 +35,7 @@ Este documento descreve como estruturar uma pipeline de build/test/validacao min
 | Ordem | Fase | Ferramentas | Saida Esperada |
 |-------|------|------------|----------------|
 | 1 | Setup Python | pyenv / cache CI | Ambiente pronto |
-| 2 | Instalacao deps | pip | Pacotes instalados |
+| 2 | Instalacao deps | uv pip | Pacotes instalados |
 | 3 | Validacao configs | script `scripts/validate_configs.py` | OK ou falha |
 | 4 | Lint rapido (opcional) | flake8/ruff configurado minimo | Relatorio limpo |
 | 5 | Testes smoke | pytest -k smoke | Passando 100% |
@@ -30,7 +50,7 @@ Este documento descreve como estruturar uma pipeline de build/test/validacao min
 | `scripts/validate_configs.py` | Pendente | Validar estrutura basica JSON |
 | `scripts/check_docs.py` | Pendente | Garantir ausencia de docs vazios |
 | `tests/test_smoke_cli.py` | Pendente | Verificar CLI basica |
-| `build/build_all.py` | Presente | Auxiliar build (ajustar logs) |
+| `launchers/build_all.py` | Presente | Compatibilidade legada para fluxo completo de build |
 | `launchers/cleanup_emergency.py` | Feito | Limpeza emergencial (manual) |
 
 ## 4. Criterios de Falha (Gate)
@@ -51,17 +71,17 @@ ci/
 
 ## 6. Exemplo de Sequencia Local
 ```bash
-python scripts/validate_configs.py
-python scripts/check_docs.py
+uv run --python 3.13 scripts/validate_configs.py
+uv run --python 3.13 scripts/check_docs.py
 pytest -k smoke
 pytest -k core
-python build/build_all.py  # se aplicavel
+uv run --python 3.13 launchers/build_all.py  # se aplicavel
 ```
 
 ## 7. Metricas a Registrar
 | Metrica | Descricao |
 |---------|-----------|
-| Tempo instalacao deps | Cronometrar pip install |
+| Tempo instalacao deps | Cronometrar uv pip install |
 | Duracao smoke | Tempo dos testes rapidos |
 | Duracao core unit | Tempo casos core |
 | No docs auditados | Quantidade verificada |
@@ -85,3 +105,5 @@ Documento rascunho: atualizar conforme scripts forem entrando. Evitar inflar com
 ---
 Atualizado em: 2025-09-12
 
+
+<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->

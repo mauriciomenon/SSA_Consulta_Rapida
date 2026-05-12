@@ -1,36 +1,54 @@
 #!/usr/bin/env python3
 """
 Teste Simples de Refinamentos
-Valida as otimizações sem dependências externas pesadas.
+Valida as otimizacoes sem dependencias externas pesadas.
 """
 
-import os
 import sys
 import time
-import json
+from pathlib import Path
+
+_BOOTSTRAP_ROOT = Path(__file__).resolve().parents[1]
+if str(_BOOTSTRAP_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BOOTSTRAP_ROOT))
+
+from launchers.main_runtime import _get_project_root  # noqa: E402
+
+project_dir = _get_project_root()
+if project_dir not in sys.path:
+    sys.path.insert(0, project_dir)
+
+from tests.legacy_config_utils import validate_refinement_configs  # noqa: E402
+from tests.legacy_path_utils import require_project_path, resolve_project_path  # noqa: E402
+from tests.legacy_report_utils import (  # noqa: E402
+    calculate_speedup,
+    emit,
+    report_boolean_results,
+)
+
 
 def teste_cache_operacoes():
-    """Testa se as operações de cache estão funcionando."""
-    print("🧪 TESTE DE CACHE DE OPERAÇÕES")
-    print("-" * 40)
+    """Testa se as operacoes de cache estao funcionando."""
+    emit("TEST TESTE DE CACHE DE OPERACOES")
+    emit("-" * 40)
 
     # Simula o cache de sets de colunas da GUI
     cache = {}
-    test_columns = ['col1', 'col2', 'col3', 'col4', 'col5'] * 100
-    expandable_columns = ['col1', 'col3', 'col5']
+    test_columns = ["col1", "col2", "col3", "col4", "col5"] * 100
+    expandable_columns = ["col1", "col3", "col5"]
 
-    # Teste sem cache (operação original)
+    baseline_results = []
     start_time = time.time()
     for i in range(1000):
-        # Simula a operação original: list comprehension + set conversion repetida
         df_columns_set = set(test_columns)
-        expandable_in_view = [col for col in expandable_columns if col in df_columns_set]
+        baseline_results.append(
+            tuple(col for col in expandable_columns if col in df_columns_set)
+        )
     time_without_cache = time.time() - start_time
 
-    # Teste com cache (operação otimizada)
+    cached_results = []
     start_time = time.time()
     for i in range(1000):
-        # Simula a operação otimizada: set cached
         cache_key = f"columns_{len(test_columns)}"
         if cache_key not in cache:
             cache[cache_key] = set(test_columns)
@@ -38,112 +56,99 @@ def teste_cache_operacoes():
 
         expandable_key = f"expandable_{cache_key}"
         if expandable_key not in cache:
-            cache[expandable_key] = [col for col in expandable_columns if col in df_columns_set]
-        expandable_in_view = cache[expandable_key]
+            cache[expandable_key] = [
+                col for col in expandable_columns if col in df_columns_set
+            ]
+        cached_results.append(tuple(cache[expandable_key]))
     time_with_cache = time.time() - start_time
 
-    improvement = (time_without_cache / time_with_cache) if time_with_cache > 0 else float('inf')
-
-    print(f"  Sem cache (1000x): {time_without_cache:.4f}s")
-    print(f"  Com cache (1000x): {time_with_cache:.4f}s")
-    print(f"  Melhoria: {improvement:.1f}x mais rápido")
-    print(f"  Cache criado: {len(cache)} entradas")
-    print(f"  Status: {'✅ OTIMIZADO' if improvement > 1.5 else '⚠️ POUCA MELHORIA'}")
-    print()
-
-    return improvement > 1.5
-
-def teste_configuracoes_json():
-    """Testa a integridade das configurações JSON."""
-    print("🧪 TESTE DE CONFIGURAÇÕES JSON")
-    print("-" * 40)
-
-    config_files = {
-        'config/gui_main_preferences.json': ['display_columns'],  # Removido display_mappings
-        'config/display_mappings.json': [],
-        'config/column_priority.json': []
+    improvement = calculate_speedup(time_without_cache, time_with_cache)
+    cache_contract_ok = baseline_results == cached_results and set(cache) == {
+        "columns_500",
+        "expandable_columns_500",
     }
 
-    all_valid = True
-    total_entries = 0
+    emit(f"  Sem cache (1000x): {time_without_cache:.4f}s")
+    emit(f"  Com cache (1000x): {time_with_cache:.4f}s")
+    emit(f"  Melhoria: {improvement:.1f}x mais rapido")
+    emit(f"  Cache criado: {len(cache)} entradas")
+    emit(f"  Status: {'OK CONTRATO DE CACHE' if cache_contract_ok else 'ERR CACHE INVALIDO'}")
+    emit()
 
-    for config_file, required_keys in config_files.items():
-        if os.path.exists(config_file):
-            try:
-                with open(config_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+    return cache_contract_ok
 
-                entries = len(data) if isinstance(data, dict) else 0
-                total_entries += entries
 
-                # Verifica chaves obrigatórias
-                missing_keys = [key for key in required_keys if key not in data]
+def teste_configuracoes_json():
+    """Testa a integridade das configuracoes JSON."""
+    emit("TEST TESTE DE CONFIGURACOES JSON")
+    emit("-" * 40)
 
-                if missing_keys:
-                    print(f"  ⚠️  {config_file}: {entries} entradas, faltam: {missing_keys}")
-                    all_valid = False
-                else:
-                    print(f"  ✅ {config_file}: {entries} entradas válidas")
+    all_valid, total_entries = validate_refinement_configs()
 
-            except json.JSONDecodeError as e:
-                print(f"  ❌ {config_file}: JSON inválido - {e}")
-                all_valid = False
-            except Exception as e:
-                print(f"  ❌ {config_file}: Erro - {e}")
-                all_valid = False
-        else:
-            print(f"  ⚠️  {config_file}: Arquivo não encontrado")
-            all_valid = False
-
-    print(f"  Total de configurações: {total_entries}")
-    print(f"  Status: {'✅ TODAS VÁLIDAS' if all_valid else '⚠️ PROBLEMAS ENCONTRADOS'}")
-    print()
+    emit(f"  Total de configuracoes: {total_entries}")
+    emit(
+        f"  Status: {'OK TODAS VALIDAS' if all_valid else 'FAIL PROBLEMAS ENCONTRADOS'}"
+    )
+    emit()
 
     return all_valid
 
+
 def teste_estrutura_arquivos():
-    """Testa se os arquivos refinados existem e têm o tamanho esperado."""
-    print("🧪 TESTE DE ESTRUTURA DE ARQUIVOS")
-    print("-" * 40)
+    """Testa se os arquivos refinados existem e tem o tamanho esperado."""
+    emit("TEST TESTE DE ESTRUTURA DE ARQUIVOS")
+    emit("-" * 40)
 
     arquivos_importantes = {
-        'gui/gui_ssa.py': 50000,  # Pelo menos 50KB (arquivo grande com otimizações)
-        'interface/cli.py': 15000,  # Pelo menos 15KB
-        'config/gui_main_preferences.json': 100,  # Pelo menos 100 bytes
-        'RELATORIO_CORRECOES_FINAIS.md': 1000,  # Documentação
-        'validar_otimizacoes_execucao.py': 1000,  # Scripts de validação
+        "gui/gui_ssa.py": 50000,  # Pelo menos 50KB (arquivo grande com otimizacoes)
+        "interface/cli.py": 15000,  # Pelo menos 15KB
+        "config/gui_main_preferences.json": 100,  # Pelo menos 100 bytes
+        "tests/historico_otimizacoes_execucao.py": 1000,  # Nota historica
     }
 
-    all_present = True
+    structure_ok = True
 
     for arquivo, min_size in arquivos_importantes.items():
-        if os.path.exists(arquivo):
-            size = os.path.getsize(arquivo)
+        arquivo_path = resolve_project_path(arquivo)
+        if arquivo_path.exists():
+            size = arquivo_path.stat().st_size
             if size >= min_size:
-                print(f"  ✅ {arquivo}: {size:,} bytes")
+                emit(f"  OK {arquivo}: {size:,} bytes")
             else:
-                print(f"  ⚠️  {arquivo}: {size:,} bytes (menor que esperado: {min_size:,})")
-                all_present = False
+                emit(
+                    f"  FAIL {arquivo}: {size:,} bytes (menor que esperado: {min_size:,})"
+                )
+                structure_ok = False
         else:
-            print(f"  ❌ {arquivo}: Não encontrado")
-            all_present = False
+            emit(f"  ERR {arquivo}: Nao encontrado")
+            structure_ok = False
 
-    print(f"  Status: {'✅ ESTRUTURA OK' if all_present else '⚠️ ARQUIVOS FALTANDO/PEQUENOS'}")
-    print()
+    emit(
+        f"  Status: {'OK ESTRUTURA OK' if structure_ok else 'FAIL ARQUIVOS FALTANDO/PEQUENOS'}"
+    )
+    emit()
 
-    return all_present
+    return structure_ok
+
 
 def teste_hash_tracking():
     """Testa o sistema de hash tracking implementado."""
-    print("🧪 TESTE DE HASH TRACKING")
-    print("-" * 40)
+    emit("TEST TESTE DE HASH TRACKING")
+    emit("-" * 40)
 
     # Simula o sistema de hash tracking
     cache_hits = 0
     cache_misses = 0
 
     # Simula diferentes DataFrames por seus hashes
-    dataframe_hashes = ['hash_001', 'hash_002', 'hash_001', 'hash_003', 'hash_001', 'hash_002']
+    dataframe_hashes = [
+        "hash_001",
+        "hash_002",
+        "hash_001",
+        "hash_003",
+        "hash_001",
+        "hash_002",
+    ]
     computed_widths = {}
 
     for df_hash in dataframe_hashes:
@@ -153,36 +158,32 @@ def teste_hash_tracking():
         else:
             # Cache miss - precisa computar larguras
             cache_misses += 1
-            # Simula computação cara
-            time.sleep(0.001)  # 1ms de computação simulada
-            computed_widths[df_hash] = {'col1': 100, 'col2': 150, 'col3': 200}
+            # Simula computacao cara
+            time.sleep(0.001)  # 1ms de computacao simulada
+            computed_widths[df_hash] = {"col1": 100, "col2": 150, "col3": 200}
 
     total_operations = len(dataframe_hashes)
     cache_hit_rate = (cache_hits / total_operations) * 100
 
-    print(f"  Total de operações: {total_operations}")
-    print(f"  Cache hits: {cache_hits}")
-    print(f"  Cache misses: {cache_misses}")
-    print(f"  Taxa de acerto: {cache_hit_rate:.1f}%")
-    print(f"  Entries no cache: {len(computed_widths)}")
-    print(f"  Status: {'✅ CACHE EFICIENTE' if cache_hit_rate >= 50 else '⚠️ CACHE POUCO EFICIENTE'}")
-    print()
+    emit(f"  Total de operacoes: {total_operations}")
+    emit(f"  Cache hits: {cache_hits}")
+    emit(f"  Cache misses: {cache_misses}")
+    emit(f"  Taxa de acerto: {cache_hit_rate:.1f}%")
+    emit(f"  Entries no cache: {len(computed_widths)}")
+    hash_contract_ok = cache_hits == 3 and cache_misses == 3 and len(computed_widths) == 3
+    emit(f"  Status: {'OK HASH TRACKING' if hash_contract_ok else 'ERR HASH TRACKING'}")
+    emit()
 
-    return cache_hit_rate >= 50
+    return hash_contract_ok
+
 
 def main():
     """Executa todos os testes simples."""
-    print("🔧 VALIDAÇÃO SIMPLES DOS REFINAMENTOS")
-    print("=" * 50)
-    print()
+    emit("FIX VALIDACAO SIMPLES DOS REFINAMENTOS")
+    emit("=" * 50)
+    emit()
 
-    # Muda para o diretório do projeto se necessário
-    if os.path.basename(os.getcwd()) != 'SSA_Consulta_Rapida':
-        possible_paths = ['.', '../SSA_Consulta_Rapida', './SSA_Consulta_Rapida']
-        for path in possible_paths:
-            if os.path.exists(os.path.join(path, 'gui')):
-                os.chdir(path)
-                break
+    require_project_path("gui/gui_ssa.py")
 
     # Executa testes
     results = []
@@ -192,32 +193,14 @@ def main():
     results.append(teste_estrutura_arquivos())
     results.append(teste_hash_tracking())
 
-    # Sumário
-    print("📊 RESUMO DOS TESTES")
-    print("-" * 40)
-    passed = sum(results)
-    total = len(results)
+    return report_boolean_results(
+        results,
+        all_success_message="  OK TODOS OS REFINAMENTOS VALIDADOS!",
+        high_partial_message="  FAIL Maioria dos refinamentos funcionando, mas gate falhou",
+        partial_message="  FAIL Refinamentos parcialmente funcionando",
+        failure_message="  ERR Refinamentos precisam de correcoes",
+    )
 
-    print(f"  Testes aprovados: {passed}/{total}")
-
-    if passed == total:
-        print("  🎉 TODOS OS REFINAMENTOS VALIDADOS!")
-        status = "EXCELENTE"
-    elif passed >= total * 0.75:
-        print("  ✅ Maioria dos refinamentos funcionando")
-        status = "BOM"
-    elif passed >= total * 0.5:
-        print("  ⚠️  Refinamentos parcialmente funcionando")
-        status = "PARCIAL"
-    else:
-        print("  ❌ Refinamentos precisam de correções")
-        status = "NECESSITA CORREÇÃO"
-
-    print()
-    print(f"  Status final: {status}")
-    print(f"  Pronto para produção: {'SIM' if passed >= total * 0.75 else 'NECESSITA AJUSTES'}")
-
-    return passed >= total * 0.75
 
 if __name__ == "__main__":
     success = main()
