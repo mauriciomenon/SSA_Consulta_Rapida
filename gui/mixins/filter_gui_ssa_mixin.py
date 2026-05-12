@@ -4650,12 +4650,17 @@ class FilterGUISSAMixin:
                 "Falha ao truncar nome de filtro persistente por largura: %s", exc
             )
 
+        def _state_json_default(value):
+            if isinstance(value, set):
+                return sorted(value, key=lambda item: str(item))
+            return str(value)
+
         # Verifica se ja existe
         current_state_key = json.dumps(
             current_state,
             sort_keys=True,
             ensure_ascii=True,
-            default=str,
+            default=_state_json_default,
         )
         for f in self.persistent_filters:
             saved_state = f.get("state")
@@ -4664,7 +4669,7 @@ class FilterGUISSAMixin:
                     saved_state,
                     sort_keys=True,
                     ensure_ascii=True,
-                    default=str,
+                    default=_state_json_default,
                 )
                 if isinstance(saved_state, dict)
                 else ""

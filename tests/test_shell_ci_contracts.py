@@ -215,6 +215,7 @@ def test_dev_bootstrap_requires_hash_for_remote_pyenv_install() -> None:
     script = _read_repo_text("dev_env", "bootstrap.ps1")
 
     assert "[string]$PyenvInstallerSha256" in script
+    assert "[string]::IsNullOrWhiteSpace($InstallerSha256)" in script
     assert "Instalacao remota do pyenv-win exige -PyenvInstallerSha256" in script
     assert "Get-FileHash -Algorithm SHA256" in script
     assert "Unblock-File -LiteralPath $installerPath" in script
