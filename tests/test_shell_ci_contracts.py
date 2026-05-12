@@ -187,7 +187,9 @@ def test_dependabot_ignores_platform_requirement_snapshots() -> None:
     ]
     assert root_pip_blocks, "No root pip Dependabot update found"
     for block in root_pip_blocks:
-        assert '    exclude-paths:\n      - "launchers/platforms/**"' in block
+        assert re.search(r'(?m)^      - "launchers/platforms/\*\*"$', block), (
+            "Missing launchers/platforms/** in root pip Dependabot exclude-paths"
+        )
 
 
 def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
