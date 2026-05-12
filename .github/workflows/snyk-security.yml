@@ -76,7 +76,7 @@ jobs:
       - name: Snyk Container monitor
         run: snyk container monitor your/image-to-test --file=Dockerfile
 
-        # Push the Snyk Code results into GitHub Code Scanning tab
+        uses: github/codeql-action/upload-sarif@c8ee9f4c4c8b1d31d92b4c7d6c8e5b0f4d6e4f2d
       - name: Upload result to GitHub Code Scanning
         if: always()
         continue-on-error: true
