@@ -21,8 +21,7 @@ name: Snyk Security
 on:
   push:
     branches: ["main", "dev", "protection_pattern_menon"]
-  pull_request:
-    branches: ["main"]
+  workflow_dispatch:
 
 permissions:
   contents: read
