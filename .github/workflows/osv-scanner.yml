@@ -26,8 +26,6 @@ permissions:
   security-events: write
   # Read commit contents
   contents: read
-  # Required by google/osv-scanner-action reusable workflows
-  actions: read
   # Read actions for reusable workflows
   actions: read
 
