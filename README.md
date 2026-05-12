@@ -50,8 +50,8 @@ Release/tag publicada mais recente na branch `dev`: `v4.36`.
     - implementacao em codigo: commit `07ebfe1d`
     - historico: este item estava como refinamento e foi promovido para entrega por comando explicito no ciclo atual
 - Hotfix de banco entregue nesta frente:
-  - upsert nao-complementar agora evita downgrade de `situacao` quando `data_cadastro` empata
-  - caso real protegido: manter `STE` e bloquear sobrescrita para `ADM` em empate de data
+  - upsert nao-complementar preserva `STE` e `SCA` como estados terminais imutaveis
+  - caso real protegido: manter `STE` e bloquear sobrescrita para `ADM`, inclusive quando `data_cadastro` empata
   - tie-breaker por ranking de `situacao` no merge de mesma data
   - regressao coberta em testes de upsert e importacao explicita
 - Follow-up apos o sprint GUI:
@@ -189,11 +189,65 @@ uv run --python $PY_RUNTIME main.py --gui
 uv run --python $PY_RUNTIME main.py
 
 # executar Streamlit
-uv run --python $PY_RUNTIME main.py --streamlit
+uv run --extra web --python $PY_RUNTIME main.py --streamlit
 ```
 
 Fallback quando 3.13 nao estiver disponivel: 3.12, depois 3.11, depois 3.10.
 `requirements*.txt` permanecem para compatibilidade em ambientes sem uv.
+
+### Windows 11: rodar e gerar instalador
+Execute no PowerShell aberto na raiz do repositorio.
+
+```powershell
+# Instalar ferramentas base
+winget install --id Git.Git -e
+winget install --id JRSoftware.InnoSetup -e
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Rodar a aplicacao
+uv sync
+uv run --python 3.13 main.py --gui
+
+# Validar plano sem compilar
+.\release.ps1 -DryRun -Yes
+
+# Gerar executaveis, ZIP e instalador Windows AMD64
+.\release.ps1 -Yes
+```
+
+Saidas esperadas:
+- pacotes Windows: `builds\packages\windows_amd64\`
+- pacote distribuivel adicional: `dist_packages\`
+- relatorio de release: `builds\reports\release_report_windows_amd64.json`
+
+### Debian: rodar e gerar pacote
+Execute no terminal Bash aberto na raiz do repositorio.
+
+```bash
+# Instalar ferramentas base
+sudo apt-get update
+sudo apt-get install -y git curl build-essential python3 python3-venv python3-dev patchelf dpkg-dev
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+
+# Rodar a aplicacao
+uv sync
+uv run --python 3.13 main.py --gui
+
+# Validar plano sem compilar
+./release.sh --target debian --dry-run --yes
+
+# Gerar executaveis e pacote .deb Debian AMD64
+./release.sh --target debian --yes
+```
+
+Saida esperada:
+- pacotes Debian: `builds/packages/debian_amd64/`
+
+Notas de release:
+- `release.ps1` e `release.sh` sao os wrappers publicos; scripts em `dev_env/build/` sao implementacao interna.
+- O build de release exige workspace limpo para evitar artefato stale.
+- O fluxo de release roda smoke funcional de importacao no executavel gerado e bloqueia falha antes de publicar artefato.
 
 ### Ambiente com pyenv/direnv (fallback de compatibilidade, sem substituir uv)
 ```bash
@@ -597,7 +651,7 @@ Notas de importacao e versao dos dados:
 - Em empates/sem data, a evolucao de situacao desempata (ASE → ADI → APL → APG → SPG → SEE → SAD → STE)
 
 ## Regras de exibicao (CLI/GUI)
-- Numero SSA com 9 digitos (prefixo ano para <=5 digitos; zfill p/ 7–8)
+- Numero SSA exibido conforme normalizacao atual: nao cria prefixo de ano em identificador curto; detalhes na secao `Normalizacao do Numero SSA`.
 - Datas: dd/mm/yyyy (sem horario)
 - Semanas: inteiras (sem “.0”)
 - Valores nulos: nao exibir "nan/NaT/None" (usa “-” quando aplicavel)
@@ -936,9 +990,11 @@ Mesclagem de larguras:
 ### Normalizacao do Numero SSA
 Regra (_resumida_):
 - Remove nao-digitos.
-- Menos que 5 digitos ⇒ descarta com aviso e log; nao prefixa ano nem faz padding.
-- 9 digitos comecando com `2025` ⇒ mantido.
-- Mais que 9 digitos ⇒ descarta com aviso e log; nao trunca.
+- Vazio ou sem digitos ⇒ exibe `-`.
+- Menos que 5 digitos ⇒ preserva os digitos encontrados; nao prefixa ano nem faz padding.
+- 9 digitos comecando com `2025` ⇒ mantem o valor completo.
+- Mais que 9 digitos ⇒ aplica compatibilidade legada da CLI: se comecar com `2025`, usa a janela de 9 digitos validada em teste; nos demais casos, usa os ultimos 9 digitos.
+- `SSA_YEAR_PREFIX` identifica valores completos com ano conhecido; nao autoriza criar prefixo novo em identificador curto.
 
 ### Comportamento de Paginacao
 - Tamanho de pagina = `linhas_terminal - LOW_HEIGHT_MARGIN` (margem = 8).

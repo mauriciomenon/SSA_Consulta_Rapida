@@ -35,6 +35,16 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-05-11 23:52 - dependency hardening follow-up
+
+Escopo deste registro:
+1. Kluster manteve um achado estrutural sobre duplicacao de dependencias em `pyproject.toml`, requirements raiz e requirements de plataforma.
+2. O hotfix atual corrigiu ranges vulneraveis e inconsistencias funcionais sem remover manifests legados.
+
+Pendente nao bloqueante:
+1. `NAO_BLOQUEANTE_DEFERIDO`: consolidar estrategia de dependencias em uma fonte canonica, ou gerar requirements legados a partir de `pyproject.toml`/`uv export`.
+2. Motivo do deferimento: exige mudanca estrutural em instalacao/build e nao deve ser misturada com hotfix de vulnerabilidades Dependabot.
+
 ## Update 2026-05-08 00:21 - history rewrite and CI recovery
 
 Escopo desta atualizacao:
