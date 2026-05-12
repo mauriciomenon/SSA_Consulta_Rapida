@@ -46,13 +46,12 @@ jobs:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
           SEMGREP_DEPLOYMENT_ID: ${{ secrets.SEMGREP_DEPLOYMENT_ID }}
         run: |
-          is_fork_pr="${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true && 'true' || 'false' }}"
-          can_publish="true"
-          if [[ "$is_fork_pr" == "true" ]]; then
-            can_publish="false"
+          is_fork_pr="false"
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.head.repo.fork }}" == "true" ]]; then
+            is_fork_pr="true"
           fi
 
-          if [[ -n "$SEMGREP_APP_TOKEN" && -n "$SEMGREP_DEPLOYMENT_ID" && "$can_publish" == "true" ]]; then
+          if [[ -n "$SEMGREP_APP_TOKEN" && -n "$SEMGREP_DEPLOYMENT_ID" && "$is_fork_pr" != "true" ]]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
