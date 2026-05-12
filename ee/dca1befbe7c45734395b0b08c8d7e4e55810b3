@@ -1,0 +1,23 @@
+dev_env/bootstrap.ps1
+  s_082d1ff7d55d96::t_c706ecfa0b3bea 25,27,89
+  s_082d1ff7d55d96::t_db084b4531a299 28-29
+  s_082d1ff7d55d96::t_1c4102e2058033 3-4
+config/default_settings.json.backup_20260512T1325
+  s_082d1ff7d55d96::t_fa2f5253312969 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "eedca1befbe7c45734395b0b08c8d7e4e55810b3",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
