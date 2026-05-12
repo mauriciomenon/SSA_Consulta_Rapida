@@ -39,11 +39,19 @@ jobs:
       # Checkout project source
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      # Scan code using project's configuration on https://semgrep.dev/manage
+      # Scan and publish when deployment secrets are available and PR is not from fork
       - uses: returntocorp/semgrep-action@fcd5ab7459e8d91cb1777481980d1b18b4fc6735
+        if: ${{ secrets.SEMGREP_APP_TOKEN != '' && secrets.SEMGREP_DEPLOYMENT_ID != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) }}
         with:
           publishToken: ${{ secrets.SEMGREP_APP_TOKEN }}
           publishDeployment: ${{ secrets.SEMGREP_DEPLOYMENT_ID }}
+          generateSarif: "1"
+
+      # Run non-publishing scan for fork PRs or when deployment secrets are unavailable
+      - uses: returntocorp/semgrep-action@fcd5ab7459e8d91cb1777481980d1b18b4fc6735
+        if: ${{ secrets.SEMGREP_APP_TOKEN == '' || secrets.SEMGREP_DEPLOYMENT_ID == '' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true) }}
+        with:
+          config: p/ci
           generateSarif: "1"
 
       # Upload SARIF file generated in previous step
