@@ -3,13 +3,13 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -172,17 +172,22 @@ def test_minimal_ci_runs_for_any_workflow_change() -> None:
 
 
 def test_dependabot_ignores_platform_requirement_snapshots() -> None:
-    config = yaml.safe_load(_read_repo_text(".github", "dependabot.yml"))
-    template = yaml.safe_load(_read_repo_text(".github", "dependabot-template.yml"))
+    config = _read_repo_text(".github", "dependabot.yml")
+    template = _read_repo_text(".github", "dependabot-template.yml")
 
     assert config == template
-    pip_updates = [
-        update
-        for update in config["updates"]
-        if update["package-ecosystem"] == "pip" and update["directory"] == "/"
+    pip_blocks = re.findall(
+        r'(?ms)^  - package-ecosystem: "pip"\n(?:(?!^  - package-ecosystem:).)*',
+        config,
+    )
+    root_pip_blocks = [
+        block
+        for block in pip_blocks
+        if re.search(r'(?m)^    directory: "/"$', block)
     ]
-    assert len(pip_updates) == 1
-    assert pip_updates[0]["exclude-paths"] == ["launchers/platforms/**"]
+    assert root_pip_blocks, "No root pip Dependabot update found"
+    for block in root_pip_blocks:
+        assert '    exclude-paths:\n      - "launchers/platforms/**"' in block
 
 
 def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
