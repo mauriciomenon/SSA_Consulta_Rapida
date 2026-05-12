@@ -1547,7 +1547,7 @@ def _normalize_cache_value(value: Any) -> Any:
         )
     if isinstance(value, list):
         normalized_items = [_normalize_cache_value(v) for v in value]
-        return tuple(sorted(normalized_items, key=lambda v: str(v)))
+        return tuple(sorted(normalized_items, key=str))
     return str(value)
 
 
@@ -1618,6 +1618,12 @@ def apply_all_filters_cached(
     return filtered_df
 
 
+def _json_if_arrow_cell(value: Any) -> Any:
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, ensure_ascii=False)
+    return value
+
+
 def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
     """
     Normaliza colunas para evitar falhas do Streamlit/Arrow.
@@ -1674,11 +1680,7 @@ def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
                 # Handle list/dict types
                 sample = non_null.iloc[0]
                 if isinstance(sample, (list, dict)):
-                    safe[col] = series.apply(
-                        lambda x: json.dumps(x, ensure_ascii=False)
-                        if isinstance(x, (list, dict))
-                        else x
-                    )
+                    safe[col] = series.apply(_json_if_arrow_cell)
                     conversions_made.append(f"{col}: list/dict->json")
 
         elif pd.api.types.is_integer_dtype(series.dtype):
@@ -1693,15 +1695,15 @@ def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
 def _build_filter_options(df: pd.DataFrame) -> tuple[list[Any], list[Any], list[Any]]:
     situacoes = sorted(
         df.get("situacao", pd.Series(dtype=str)).dropna().unique().tolist(),
-        key=lambda value: str(value),
+        key=str,
     )
     executores = sorted(
         df.get("setor_executor", pd.Series(dtype=str)).dropna().unique().tolist(),
-        key=lambda value: str(value),
+        key=str,
     )
     emissores = sorted(
         df.get("setor_emissor", pd.Series(dtype=str)).dropna().unique().tolist(),
-        key=lambda value: str(value),
+        key=str,
     )
     return situacoes, executores, emissores
 
@@ -1716,7 +1718,7 @@ if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
 def _build_advanced_filter_options(df: pd.DataFrame) -> dict[str, list[Any]]:
     def _sorted_unique(col_name: str) -> list[Any]:
         values = df.get(col_name, pd.Series(dtype=str)).dropna().unique().tolist()
-        return sorted(values, key=lambda value: str(value))
+        return sorted(values, key=str)
 
     ano_emissao = (
         _compute_year_from_date_series(df, "data_cadastro")
