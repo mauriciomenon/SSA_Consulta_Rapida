@@ -29,7 +29,7 @@ function Install-PyenvWin([switch]$AllowRemoteInstall, [string]$InstallerSha256)
     Write-Warning "pyenv-win nao encontrado. Instalacao remota desabilitada; usando fallback com Python do sistema. Use -AllowRemotePyenvInstall para aceitar o instalador remoto oficial."
     return
   }
-  if (-not $InstallerSha256) {
+  if ([string]::IsNullOrWhiteSpace($InstallerSha256)) {
     Write-Warning "Instalacao remota do pyenv-win exige -PyenvInstallerSha256. Usando fallback com Python do sistema."
     return
   }

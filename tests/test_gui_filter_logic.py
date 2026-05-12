@@ -2769,6 +2769,19 @@ class TestGUIFilterLogic:
             assert tag_button is not None
             assert tag_button.maximumWidth() <= 180
 
+    def test_persistent_filter_deduplicates_state_with_set_values(self):
+        with patch.object(QMessageBox, "information") as info_mock:
+            self.window.search_input.clear()
+            self.window._active_column_filters["setor_executor"] = "MEL4"
+            self.window._hidden_column_filter_lines = {"setor_emissor", "situacao"}
+            self.window.save_current_filter()
+
+            self.window._hidden_column_filter_lines = {"situacao", "setor_emissor"}
+            self.window.save_current_filter()
+
+        assert len(self.window.persistent_filters) == 1
+        assert info_mock.call_args_list[-1].args[2] == "Este filtro ja esta salvo."
+
     def test_legacy_persistent_filter_applies_terms_not_raw_dict(self):
         legacy_filter = {"name": "Legado", "terms": "Teste C"}
 
