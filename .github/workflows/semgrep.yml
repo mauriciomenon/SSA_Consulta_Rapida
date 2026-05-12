@@ -43,12 +43,12 @@ jobs:
         id: semgrep_mode
         shell: bash
         env:
-          IS_FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork }}
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
           SEMGREP_DEPLOYMENT_ID: ${{ secrets.SEMGREP_DEPLOYMENT_ID }}
         run: |
+          is_fork_pr="${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork || false) }}"
           can_publish="true"
-          if [[ "$IS_FORK_PR" == "true" ]]; then
+          if [[ "$is_fork_pr" == "true" ]]; then
             can_publish="false"
           fi
 
