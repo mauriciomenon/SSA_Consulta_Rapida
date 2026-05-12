@@ -49,6 +49,13 @@ function Install-PyenvWin([switch]$AllowRemoteInstall, [string]$InstallerSha256)
     if ($actualHash -ne $expectedHash) {
       throw "Hash SHA256 do instalador pyenv-win nao confere. Esperado=$expectedHash Obtido=$actualHash"
     }
+    if (Get-Command -Name Unblock-File -ErrorAction SilentlyContinue) {
+      try {
+        Unblock-File -LiteralPath $installerPath -ErrorAction Stop
+      } catch {
+        Write-Warning "Nao foi possivel remover Mark-of-the-Web do instalador pyenv-win."
+      }
+    }
     & $installerPath
   } finally {
     Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
