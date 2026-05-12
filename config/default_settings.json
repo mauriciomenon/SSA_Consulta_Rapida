@@ -1,4 +1,6 @@
 {
+  "version": "1.0.0",
+  "description": "Default settings for SSA Consulta Rapida",
   "display_settings": {
     "column_visibility": {},
     "column_widths": {

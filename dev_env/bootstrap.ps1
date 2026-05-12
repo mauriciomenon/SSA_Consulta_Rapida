@@ -5,8 +5,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-function Have-Cmd($name) {
-  try { Get-Command $name -ErrorAction Stop | Out-Null; return $true } catch { return $false }
+function Test-CommandAvailable($Name) {
+  try { Get-Command $Name -ErrorAction Stop | Out-Null; return $true } catch { return $false }
 }
 
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -19,25 +19,31 @@ if (-not $VenvName) {
 }
 if (-not $VenvName) { $VenvName = 'ssa_consulta_rapida_py313' }
 
-Write-Host "[info] Virtualenv alvo: $VenvName"
+Write-Output "[info] Virtualenv alvo: $VenvName"
 
-function Ensure-PyenvWin() {
-  if (Have-Cmd pyenv) { Write-Host "[ok] pyenv-win encontrado"; return }
-  Write-Host "[info] Instalando pyenv-win (pode solicitar permissões)"
+function Install-PyenvWin() {
+  if (Test-CommandAvailable pyenv) { Write-Output "[ok] pyenv-win encontrado"; return }
+  Write-Output "[info] Instalando pyenv-win (pode solicitar permissoes)"
   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
-  Invoke-Expression ((Invoke-WebRequest -UseBasicParsing -Uri 'https://pyenv.win/install.ps1').Content)
+  $installerPath = Join-Path ([System.IO.Path]::GetTempPath()) 'pyenv-win-install.ps1'
+  try {
+    Invoke-WebRequest -UseBasicParsing -Uri 'https://pyenv.win/install.ps1' -OutFile $installerPath
+    & $installerPath
+  } finally {
+    Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
+  }
   $env:Path = "$env:USERPROFILE\.pyenv\pyenv-win\bin;$env:USERPROFILE\.pyenv\pyenv-win\shims;" + $env:Path
 }
 
-function Ensure-VirtualEnv() {
-  if (-not (Have-Cmd pyenv)) {
-    Write-Warning "pyenv-win não disponível; criando fallback .venv com python do sistema"
-    if (-not (Have-Cmd python)) { throw "Python não encontrado no PATH." }
+function Initialize-VirtualEnv() {
+  if (-not (Test-CommandAvailable pyenv)) {
+    Write-Warning "pyenv-win nao disponivel; criando fallback .venv com python do sistema"
+    if (-not (Test-CommandAvailable python)) { throw "Python nao encontrado no PATH." }
     python -m venv .venv
     . .\.venv\Scripts\Activate.ps1
     python -m pip install -U pip
     python -m pip install -r requirements.txt
-    Write-Host "[ok] Ambiente .venv criado (fallback)."
+    Write-Output "[ok] Ambiente .venv criado (fallback)."
     return
   }
 
@@ -45,9 +51,9 @@ function Ensure-VirtualEnv() {
   if ($LASTEXITCODE -ne 0) { throw "Falha ao listar virtualenvs do pyenv-win." }
   $existing = $existingRaw -split "`n" | ForEach-Object { $_.Trim() }
   if ($existing -contains $VenvName) {
-    Write-Host "[ok] Virtualenv '$VenvName' já existe"
+    Write-Output "[ok] Virtualenv '$VenvName' ja existe"
   } else {
-    Write-Host "[info] Criando virtualenv '$VenvName'"
+    Write-Output "[info] Criando virtualenv '$VenvName'"
     $listRaw = & pyenv install -l
     if ($LASTEXITCODE -ne 0) { throw "Falha ao listar versoes do pyenv-win." }
     $list = $listRaw -split "`n" | ForEach-Object { $_.Trim() }
@@ -75,8 +81,8 @@ function Ensure-VirtualEnv() {
   if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar requirements.txt no ambiente '$VenvName'." }
 }
 
-Ensure-PyenvWin
-Ensure-VirtualEnv
+Install-PyenvWin
+Initialize-VirtualEnv
 
-Write-Host "[ok] Ambiente pronto. Abra um novo terminal para garantir PATH atualizado (se acabou de instalar pyenv-win)."
+Write-Output "[ok] Ambiente pronto. Abra um novo terminal para garantir PATH atualizado (se acabou de instalar pyenv-win)."
 
