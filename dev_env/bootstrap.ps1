@@ -1,6 +1,7 @@
 # Requires: PowerShell 5+ (Windows 10/11)
 param(
-  [string]$VenvName
+  [string]$VenvName,
+  [switch]$AllowRemotePyenvInstall
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,8 +22,12 @@ if (-not $VenvName) { $VenvName = 'ssa_consulta_rapida_py313' }
 
 Write-Output "[info] Virtualenv alvo: $VenvName"
 
-function Install-PyenvWin() {
+function Install-PyenvWin([switch]$AllowRemoteInstall) {
   if (Test-CommandAvailable pyenv) { Write-Output "[ok] pyenv-win encontrado"; return }
+  if (-not $AllowRemoteInstall) {
+    Write-Warning "pyenv-win nao encontrado. Instalacao remota desabilitada; usando fallback com Python do sistema. Use -AllowRemotePyenvInstall para aceitar o instalador remoto oficial."
+    return
+  }
   Write-Output "[info] Instalando pyenv-win (pode solicitar permissoes)"
   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
   $installerPath = Join-Path ([System.IO.Path]::GetTempPath()) 'pyenv-win-install.ps1'
@@ -81,7 +86,7 @@ function Initialize-VirtualEnv() {
   if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar requirements.txt no ambiente '$VenvName'." }
 }
 
-Install-PyenvWin
+Install-PyenvWin -AllowRemoteInstall:$AllowRemotePyenvInstall
 Initialize-VirtualEnv
 
 Write-Output "[ok] Ambiente pronto. Abra um novo terminal para garantir PATH atualizado (se acabou de instalar pyenv-win)."
