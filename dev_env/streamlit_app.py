@@ -612,6 +612,9 @@ def _compute_df_cache_token(df: pd.DataFrame) -> tuple[Any, ...]:
     return token
 
 
+_STREAMLIT_DF_HASH_FUNCS = {pd.DataFrame: _compute_df_cache_token}
+
+
 def _build_streamlit_column_config(
     page_df: pd.DataFrame,
     rename_map: dict[str, str],
@@ -1108,9 +1111,10 @@ def _compute_sidebar_weekly_kpis_cached(
 
 
 if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
-    _compute_sidebar_weekly_kpis_cached = st.cache_data(show_spinner=False)(
-        _compute_sidebar_weekly_kpis_cached
-    )
+    _compute_sidebar_weekly_kpis_cached = st.cache_data(
+        show_spinner=False,
+        hash_funcs=_STREAMLIT_DF_HASH_FUNCS,
+    )(_compute_sidebar_weekly_kpis_cached)
 
 
 def _compute_year_from_date_series(df: pd.DataFrame, col_name: str) -> pd.Series:
@@ -1185,9 +1189,10 @@ def _build_derivada_context_map(df: pd.DataFrame) -> pd.DataFrame:
 
 
 if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
-    _build_derivada_context_map = st.cache_data(show_spinner=False)(
-        _build_derivada_context_map
-    )
+    _build_derivada_context_map = st.cache_data(
+        show_spinner=False,
+        hash_funcs=_STREAMLIT_DF_HASH_FUNCS,
+    )(_build_derivada_context_map)
 
 
 def _attach_derivada_context(
@@ -1702,7 +1707,10 @@ def _build_filter_options(df: pd.DataFrame) -> tuple[list[Any], list[Any], list[
 
 
 if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
-    _build_filter_options = st.cache_data(show_spinner=False)(_build_filter_options)
+    _build_filter_options = st.cache_data(
+        show_spinner=False,
+        hash_funcs=_STREAMLIT_DF_HASH_FUNCS,
+    )(_build_filter_options)
 
 
 def _build_advanced_filter_options(df: pd.DataFrame) -> dict[str, list[Any]]:
@@ -1759,9 +1767,10 @@ def _build_advanced_filter_options(df: pd.DataFrame) -> dict[str, list[Any]]:
 
 
 if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
-    _build_advanced_filter_options = st.cache_data(show_spinner=False)(
-        _build_advanced_filter_options
-    )
+    _build_advanced_filter_options = st.cache_data(
+        show_spinner=False,
+        hash_funcs=_STREAMLIT_DF_HASH_FUNCS,
+    )(_build_advanced_filter_options)
 
 
 def _build_table_with_derivada_context(

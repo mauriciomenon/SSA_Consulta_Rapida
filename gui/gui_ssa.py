@@ -1779,17 +1779,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             "Filtros de coluna e avancados continuam ativos."
         )
         clear_filter_button.setEnabled(False)
-        save_filter_button = QPushButton("Salvar Filtro")
+        save_filter_button = QPushButton("Salvar filtro -> todos")
         self._set_widget_fixed_height_safe(
-            save_filter_button, 26, "botao Salvar Filtro"
+            save_filter_button, 26, "botao Salvar filtro -> todos"
         )
-        save_filter_button.setMaximumWidth(110)
+        save_filter_button.setMaximumWidth(170)
         save_filter_button.setToolTip(
-            "Salva somente o filtro atual da Pesquisa Geral como filtro persistente."
+            "Salva o estado atual: busca geral, filtros de coluna, filtros avancados e perfil."
         )
         save_filter_button.clicked.connect(self.save_current_filter)
 
         filter_tags_widget = QWidget()
+        self._set_widget_fixed_height_safe(
+            filter_tags_widget, 26, "area de filtros salvos"
+        )
+        filter_tags_widget.setMaximumWidth(280)
+        filter_tags_widget.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
+        )
         filter_tags_layout = QHBoxLayout(cast(Any, filter_tags_widget))
         filter_tags_layout.setContentsMargins(0, 0, 0, 0)
         filter_tags_layout.setSpacing(5)

@@ -1,7 +1,8 @@
 # Requires: PowerShell 5+ (Windows 10/11)
 param(
   [string]$VenvName,
-  [switch]$AllowRemotePyenvInstall
+  [switch]$AllowRemotePyenvInstall,
+  [string]$PyenvInstallerSha256
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,17 +23,32 @@ if (-not $VenvName) { $VenvName = 'ssa_consulta_rapida_py313' }
 
 Write-Output "[info] Virtualenv alvo: $VenvName"
 
-function Install-PyenvWin([switch]$AllowRemoteInstall) {
+function Install-PyenvWin([switch]$AllowRemoteInstall, [string]$InstallerSha256) {
   if (Test-CommandAvailable pyenv) { Write-Output "[ok] pyenv-win encontrado"; return }
   if (-not $AllowRemoteInstall) {
     Write-Warning "pyenv-win nao encontrado. Instalacao remota desabilitada; usando fallback com Python do sistema. Use -AllowRemotePyenvInstall para aceitar o instalador remoto oficial."
     return
   }
+  if (-not $InstallerSha256) {
+    Write-Warning "Instalacao remota do pyenv-win exige -PyenvInstallerSha256. Usando fallback com Python do sistema."
+    return
+  }
   Write-Output "[info] Instalando pyenv-win (pode solicitar permissoes)"
+  try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+  } catch {
+    Write-Warning "Nao foi possivel forcar TLS 1.2 antes do download do pyenv-win."
+  }
   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
   $installerPath = Join-Path ([System.IO.Path]::GetTempPath()) 'pyenv-win-install.ps1'
   try {
+    Write-Output "[info] Baixando instalador pyenv-win: https://pyenv.win/install.ps1"
     Invoke-WebRequest -UseBasicParsing -Uri 'https://pyenv.win/install.ps1' -OutFile $installerPath
+    $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installerPath).Hash.ToLowerInvariant()
+    $expectedHash = $InstallerSha256.Trim().ToLowerInvariant()
+    if ($actualHash -ne $expectedHash) {
+      throw "Hash SHA256 do instalador pyenv-win nao confere. Esperado=$expectedHash Obtido=$actualHash"
+    }
     & $installerPath
   } finally {
     Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
@@ -86,7 +102,7 @@ function Initialize-VirtualEnv() {
   if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar requirements.txt no ambiente '$VenvName'." }
 }
 
-Install-PyenvWin -AllowRemoteInstall:$AllowRemotePyenvInstall
+Install-PyenvWin -AllowRemoteInstall:$AllowRemotePyenvInstall -InstallerSha256 $PyenvInstallerSha256
 Initialize-VirtualEnv
 
 Write-Output "[ok] Ambiente pronto. Abra um novo terminal para garantir PATH atualizado (se acabou de instalar pyenv-win)."
