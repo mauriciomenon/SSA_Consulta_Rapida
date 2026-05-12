@@ -3,13 +3,14 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
+import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -22,6 +23,12 @@ def _test_env(**overrides: str) -> dict[str, str]:
 
 def _read_repo_text(*parts: str) -> str:
     return (PROJECT_ROOT.joinpath(*parts)).read_text(encoding="utf-8")
+
+
+def _read_repo_yaml(*parts: str) -> dict[str, Any]:
+    data = yaml.safe_load(_read_repo_text(*parts))
+    assert isinstance(data, dict), f"YAML root must be a mapping: {'/'.join(parts)}"
+    return data
 
 
 def _load_opencode_review_module():
@@ -176,18 +183,23 @@ def test_dependabot_ignores_platform_requirement_snapshots() -> None:
     template = _read_repo_text(".github", "dependabot-template.yml")
 
     assert config == template
-    pip_blocks = re.findall(
-        r'(?ms)^  - package-ecosystem: "pip"\n(?:(?!^  - package-ecosystem:).)*',
-        config,
-    )
-    root_pip_blocks = [
-        block
-        for block in pip_blocks
-        if re.search(r'(?m)^    directory: "/"$', block)
+    parsed = _read_repo_yaml(".github", "dependabot.yml")
+    updates = parsed.get("updates")
+    assert isinstance(updates, list), "Dependabot updates must be a list"
+    root_pip_updates = [
+        update
+        for update in updates
+        if isinstance(update, dict)
+        and update.get("package-ecosystem") == "pip"
+        and update.get("directory") == "/"
     ]
-    assert root_pip_blocks, "No root pip Dependabot update found"
-    for block in root_pip_blocks:
-        assert re.search(r'(?m)^      - "launchers/platforms/\*\*"$', block), (
+    assert root_pip_updates, "No root pip Dependabot update found"
+    for update in root_pip_updates:
+        exclude_paths = update.get("exclude-paths")
+        assert isinstance(exclude_paths, list), (
+            "Root pip Dependabot update must declare exclude-paths"
+        )
+        assert "launchers/platforms/**" in exclude_paths, (
             "Missing launchers/platforms/** in root pip Dependabot exclude-paths"
         )
 
@@ -203,6 +215,16 @@ def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
     assert 'git fetch origin "$BASE_REF" --depth=1' not in workflow
     assert 'git fetch origin "$BASE_REF" || true' not in workflow
     assert 'git diff --unified=0 "origin/${BASE_REF}...HEAD"' not in workflow
+
+
+def test_dev_bootstrap_requires_hash_for_remote_pyenv_install() -> None:
+    script = _read_repo_text("dev_env", "bootstrap.ps1")
+
+    assert "[string]$PyenvInstallerSha256" in script
+    assert "Instalacao remota do pyenv-win exige -PyenvInstallerSha256" in script
+    assert "Get-FileHash -Algorithm SHA256" in script
+    assert "[Net.SecurityProtocolType]::Tls12" in script
+    assert "Invoke-Expression" not in script
 
 
 def test_secret_scan_workspace_and_pr_diff_are_blocking_on_main_and_dev() -> None:
