@@ -27,28 +27,21 @@
 # or reach out to our community forum if you need some help (https://community.sonarsource.com/c/help/sc/9)
 
 name: SonarCloud analysis
-
 on:
   push:
-    branches: [ "main", "dev" ]
-  pull_request:
-    branches: [ "main", "dev" ]
+    branches: ["main", "dev"]
   workflow_dispatch:
-
 permissions:
   contents: read
   pull-requests: read
-
 jobs:
   Analysis:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
-
       - name: Check SonarCloud configuration
         id: sonar_config
         env:
@@ -69,19 +62,16 @@ jobs:
           else
             echo "run_scan=false" >> "$GITHUB_OUTPUT"
           fi
-
       - name: Analyze with SonarCloud
         if: steps.sonar_config.outputs.run_scan == 'true'
-
         # You can pin the exact commit or the version.
         # uses: SonarSource/sonarcloud-github-action@v2.2.0
         uses: SonarSource/sonarcloud-github-action@4006f663ecaf1f8093e8e4abb9227f6041f52216
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}   # Generate a token on Sonarcloud.io, add it to the secrets of this repo with the name SONAR_TOKEN (Settings > Secrets > Actions > add new repository secret)
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # Generate a token on Sonarcloud.io, add it to the secrets of this repo with the name SONAR_TOKEN (Settings > Secrets > Actions > add new repository secret)
         with:
           # Additional arguments for the SonarScanner CLI
           args: >-
-            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
-            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }} -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
           # When you need the analysis to take place in a directory other than the one from which it was launched, default is .
           projectBaseDir: .
