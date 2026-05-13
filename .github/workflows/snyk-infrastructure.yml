@@ -11,19 +11,13 @@
 # and fail PR checks, see https://github.com/snyk/actions/
 
 name: Snyk Infrastructure as Code
-
 on:
   push:
-    branches: [ "main", "dev", "protection_pattern_menon" ]
-  pull_request:
-    # The branches below must be a subset of the branches above
-    branches: [ "main" ]
+    branches: ["main", "dev", "protection_pattern_menon"]
   schedule:
     - cron: '28 15 * * 0'
-
 permissions:
   contents: read
-
 jobs:
   snyk:
     permissions:
@@ -47,8 +41,9 @@ jobs:
           # Add the path to the configuration file that you would like to test.
           # For example `deployment.yaml` for a Kubernetes deployment manifest
           # or `main.tf` for a Terraform configuration file
-          file: your-file-to-test.yaml
+          file: .
       - name: Upload result to GitHub Code Scanning
+        if: hashFiles('snyk.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk.sarif
