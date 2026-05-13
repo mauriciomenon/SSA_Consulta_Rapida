@@ -184,12 +184,35 @@ def _apply_adaptive_header_labels(window) -> None:
     if not isinstance(previous_signatures, dict):
         previous_signatures = {}
     next_signatures = {}
-    prefix_px = _measure_header_text_px(window, _FILTER_HEADER_PREFIX)
-    padding_px = _measure_header_text_px(window, _HEADER_SIDE_PADDING_TEXT)
     label_width_cache = getattr(window, "_adaptive_header_label_width_cache", {})
     if not isinstance(label_width_cache, dict):
         label_width_cache = {}
+    if _FILTER_HEADER_PREFIX not in label_width_cache:
+        label_width_cache[_FILTER_HEADER_PREFIX] = _measure_header_text_px(
+            window, _FILTER_HEADER_PREFIX
+        )
+    if _HEADER_SIDE_PADDING_TEXT not in label_width_cache:
+        label_width_cache[_HEADER_SIDE_PADDING_TEXT] = _measure_header_text_px(
+            window, _HEADER_SIDE_PADDING_TEXT
+        )
+    prefix_px = label_width_cache[_FILTER_HEADER_PREFIX]
+    padding_px = label_width_cache[_HEADER_SIDE_PADDING_TEXT]
+    table = getattr(window, "table_widget", None)
+    try:
+        column_count = int(table.columnCount()) if table is not None else 0
+    except Exception as exc:
+        logger.debug("Falha ao consultar quantidade de colunas da tabela: %s", exc)
+        column_count = 0
+
     for logical_index, column_name in enumerate(columns):
+        if logical_index >= column_count:
+            logger.debug(
+                "Pulando label adaptativo fora do range da tabela: index=%s column=%s count=%s",
+                logical_index,
+                column_name,
+                column_count,
+            )
+            continue
         try:
             available_px = int(window.table_widget.columnWidth(logical_index))
             has_filter = column_name != "#" and column_name in visual_filter_columns
@@ -200,7 +223,8 @@ def _apply_adaptive_header_labels(window) -> None:
             )
             signature = (available_px, has_filter, runtime_label)
             next_signatures[column_name] = signature
-            if previous_signatures.get(column_name) == signature:
+            header_item = window.table_widget.horizontalHeaderItem(logical_index)
+            if previous_signatures.get(column_name) == signature and header_item is not None:
                 continue
             base_label = _select_adaptive_header_label(
                 window,
@@ -214,7 +238,6 @@ def _apply_adaptive_header_labels(window) -> None:
             final_label = (
                 f"{_FILTER_HEADER_PREFIX}{base_label}" if has_filter else base_label
             )
-            header_item = window.table_widget.horizontalHeaderItem(logical_index)
             if header_item is None:
                 window.table_widget.setHorizontalHeaderItem(
                     logical_index, QTableWidgetItem(final_label)

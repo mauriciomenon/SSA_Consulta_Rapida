@@ -1247,6 +1247,29 @@ class TestGUIFilterLogic:
         )
         assert header_text == "Desc. SSA"
 
+    def test_apply_adaptive_header_labels_handles_missing_header_item_and_stale_column(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_measure_header_text_px",
+            lambda _window, text: len(str(text or "")) * 8,
+        )
+        self.window.visible_columns = ["descricao_ssa"]
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header_index = self.window._current_display_columns.index("descricao_ssa")
+        removed_item = self.window.table_widget.takeHorizontalHeaderItem(header_index)
+        assert removed_item is not None
+        self.window._current_display_columns.append("stale_missing_column")
+
+        ssa_gui_table._apply_adaptive_header_labels(self.window)
+
+        restored_item = self.window.table_widget.horizontalHeaderItem(header_index)
+        assert restored_item is not None
+        assert str(restored_item.text() or "") == "Descricao da SSA"
+
     def test_clear_operations_preserve_group_structure(self):
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
         self.window._clear_single_column_filter("setor_executor", "IEE3, MEL3, MEL4")
@@ -7181,6 +7204,35 @@ class TestGUIFilterLogic:
         assert self.window._derivadas_sync_running is False
         assert self.window._derivadas_sync_thread is None
         assert "Derivadas atualizadas" in self.window.status_label.text()
+
+    def test_update_derivadas_from_sources_rejects_second_start_before_preparation(
+        self, monkeypatch, tmp_path
+    ):
+        db_file = tmp_path / "ssas.db"
+        db_file.write_bytes(b"sqlite-placeholder")
+
+        monkeypatch.setattr(gui_ssa, "DB_PATH", str(db_file))
+        self.window._derivadas_sync_running = True
+        self.window._derivadas_sync_table_name = "ssa_table"
+
+        def _should_not_prepare():
+            raise AssertionError("running guard must happen before job preparation")
+
+        monkeypatch.setattr(
+            self.window,
+            "_list_special_derivadas_sheets",
+            _should_not_prepare,
+        )
+
+        result = self.window.update_derivadas_from_sources()
+
+        assert result == {
+            "ok": False,
+            "reason": "already_running",
+            "db_path": str(db_file),
+            "table_name": "ssa_table",
+        }
+        assert "ja em andamento" in self.window.status_label.text()
 
     def test_resolve_derivadas_table_name_requires_schema_compatibility(self, tmp_path):
         db_file = tmp_path / "resolver.db"

@@ -69,6 +69,27 @@ def test_connect_filter_signal_falls_back_to_keyword_queued(monkeypatch):
     assert second_kwargs == {"type": queued_token}
 
 
+def test_connect_filter_signal_never_uses_python_type_as_connection(monkeypatch):
+    class _SignalDefaultOnly:
+        def __init__(self):
+            self.calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+        def connect(self, _slot, *args, **kwargs):
+            self.calls.append((args, kwargs))
+            if args or kwargs:
+                raise AssertionError("type object must not be used as connection type")
+
+    signal = _SignalDefaultOnly()
+    monkeypatch.setattr(filter_mixin, "_FILTER_QT_QUEUED", type, raising=True)
+
+    connected = filter_mixin._connect_filter_signal(
+        signal, lambda: None, label="test.type-object"
+    )
+
+    assert connected is True
+    assert signal.calls == [((), {})]
+
+
 def test_connect_filter_signal_returns_false_for_missing_signal():
     connected = filter_mixin._connect_filter_signal(
         None, lambda: None, label="test.none"

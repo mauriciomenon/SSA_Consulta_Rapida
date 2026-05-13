@@ -398,12 +398,13 @@ def _connect_filter_signal(signal, slot, *, label: str) -> bool:
         logger.debug("Signal invalido para %s; sem metodo connect.", label)
         return False
     try:
-        if _FILTER_QT_QUEUED is not None:
+        queued_connection = _FILTER_QT_QUEUED
+        if queued_connection is not None and not isinstance(queued_connection, type):
             try:
-                signal.connect(slot, _FILTER_QT_QUEUED)
+                signal.connect(slot, queued_connection)
             except TypeError:
                 try:
-                    signal.connect(slot, type=_FILTER_QT_QUEUED)
+                    signal.connect(slot, type=queued_connection)
                 except TypeError:
                     signal.connect(slot)
         else:

@@ -1430,6 +1430,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self.df_completo = pd.DataFrame()
         self.df_exibido = pd.DataFrame()  # DataFrame filtrado
         self.df_para_tabela = pd.DataFrame()  # DataFrame paginado para exibiçção
+        self._derivadas_sync_lock = threading.Lock()
 
         try:
             base_font = QFont(self.font())
@@ -5415,8 +5416,42 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             QMessageBox.warning(self, "Erro", f"Banco nao encontrado: {db_path}")
             return
 
-        special_files = self._list_special_derivadas_sheets()
-        table_name = self._resolve_derivadas_table_name(db_path)
+        sync_lock = getattr(self, "_derivadas_sync_lock", None)
+        if sync_lock is None:
+            sync_lock = threading.Lock()
+            self._derivadas_sync_lock = sync_lock
+        with sync_lock:
+            if bool(getattr(self, "_derivadas_sync_running", False)):
+                if hasattr(self, "status_label"):
+                    self.status_label.setText(
+                        "Status: Atualizacao de derivadas ja em andamento."
+                    )
+                return {
+                    "ok": False,
+                    "reason": "already_running",
+                    "db_path": db_path,
+                    "table_name": str(
+                        getattr(self, "_derivadas_sync_table_name", "") or ""
+                    ),
+                }
+            self._derivadas_sync_running = True
+            self._derivadas_sync_thread = None
+            self._derivadas_sync_pending_result = None
+            self._derivadas_sync_phase_status = ""
+            self._derivadas_sync_ui_state = {}
+            self._derivadas_sync_table_name = ""
+
+        try:
+            special_files = self._list_special_derivadas_sheets()
+            table_name = self._resolve_derivadas_table_name(db_path)
+            self._derivadas_sync_table_name = table_name
+        except Exception as exc:
+            self._derivadas_sync_running = False
+            error = str(exc)
+            logger.error("Falha ao preparar sync manual de derivadas: %s", error)
+            if hasattr(self, "status_label"):
+                self.status_label.setText("Status: Falha ao preparar derivadas.")
+            return {"ok": False, "error": error, "db_path": db_path}
         previous_status = (
             self.status_label.text() if hasattr(self, "status_label") else ""
         )
@@ -5440,18 +5475,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             "progress_value": previous_progress_value,
         }
 
-        if bool(getattr(self, "_derivadas_sync_running", False)):
-            if hasattr(self, "status_label"):
-                self.status_label.setText(
-                    "Status: Atualizacao de derivadas ja em andamento."
-                )
-            return {
-                "ok": False,
-                "reason": "already_running",
-                "db_path": db_path,
-                "table_name": table_name,
-            }
-
         self._start_derivadas_sync_ui_state(
             previous_ui_state, "Status: Atualizando derivadas via DB..."
         )
@@ -5466,9 +5489,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 self, result, previous_ui_state=previous_ui_state
             )
 
-        self._derivadas_sync_running = True
-        self._derivadas_sync_thread = None
-        self._derivadas_sync_pending_result = None
         self._derivadas_sync_phase_status = "Status: Atualizando derivadas via DB..."
         self._derivadas_sync_ui_state = previous_ui_state
 
@@ -5660,6 +5680,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self._derivadas_sync_thread = None
         self._derivadas_sync_pending_result = None
         self._derivadas_sync_phase_status = ""
+        self._derivadas_sync_table_name = ""
 
         try:
             self.update_derivadas_button.setEnabled(True)
