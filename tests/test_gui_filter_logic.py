@@ -7461,6 +7461,61 @@ class TestGUIFilterLogic:
         assert desc_vals[:6] == ["B", "A", "10", "2", "@", "#"]
         assert desc_vals[-2:] == ["", None]
 
+    def test_on_header_clicked_reuses_generic_mixed_text_sort_cache(self):
+        rows = 200
+        mixed_df = pd.DataFrame(
+            {
+                "numero_ssa": list(range(1000, 1000 + rows)),
+                "situacao": [
+                    ["B", "#", "10", "2", "@", "A", "", None][i % 8]
+                    for i in range(rows)
+                ],
+                "derivada_de": [""] * rows,
+                "localizacao_codigo": [f"LOC{i % 20:02d}" for i in range(rows)],
+                "descricao_localizacao": ["Desc"] * rows,
+                "equipamento": ["EQ"] * rows,
+                "semana_cadastro": [202501] * rows,
+                "semana_programada": [202503] * rows,
+                "data_cadastro": ["2025-01-01"] * rows,
+                "descricao_ssa": [f"Descricao {i}" for i in range(rows)],
+                "setor_executor": ["MEG2"] * rows,
+                "setor_emissor": ["MEG2"] * rows,
+                "descricao_execucao": [f"Execucao {i}" for i in range(rows)],
+                "solicitante": ["User"] * rows,
+            }
+        )
+        self.window.df_completo = mixed_df.copy()
+        self.window.df_exibido = mixed_df.copy()
+        self.window._df_last_search_filtered = mixed_df.copy()
+        self.window.paginator.set_dataframe(mixed_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        logical_index = self.window._current_display_columns.index("situacao")
+
+        with patch.object(
+            self.window,
+            "_build_mixed_text_sort_keys",
+            wraps=self.window._build_mixed_text_sort_keys,
+        ) as build_keys:
+            self.window.on_header_clicked(logical_index)
+            cache_after_first = dict(self.window._mixed_text_sort_cache)
+            assert build_keys.call_count == 1
+            assert cache_after_first["column_name"] == "situacao"
+            assert isinstance(cache_after_first["keys_df"], pd.DataFrame)
+            assert cache_after_first["keys_df"].index.equals(
+                self.window.df_exibido.index
+            )
+
+            self.window.on_header_clicked(logical_index)
+            cache_after_second = dict(self.window._mixed_text_sort_cache)
+            assert build_keys.call_count == 1
+            assert cache_after_second["column_name"] == "situacao"
+            assert isinstance(cache_after_second["keys_df"], pd.DataFrame)
+            assert cache_after_second["keys_df"].index.equals(
+                self.window.df_exibido.index
+            )
+
     def test_on_header_clicked_reuses_num_reprogramacoes_sort_cache(self):
         mixed_df = self.base_df.assign(
             num_reprogramacoes=pd.Series(
@@ -8595,7 +8650,7 @@ class TestGUIFilterLogic:
         assert refresh_mock.call_count >= 1
         assert self.window._adv_options_dirty is False
 
-    def test_on_data_loaded_resets_num_reprogramacoes_sort_cache(self):
+    def test_on_data_loaded_resets_sort_caches(self):
         self.window._active_data_load_request_id = 31
         df = self.base_df.copy()
         df["num_reprogramacoes"] = [2, "Reprogramacao #1", 0, "", None]
@@ -8610,13 +8665,33 @@ class TestGUIFilterLogic:
                 }
             ),
         }
+        self.window._mixed_text_sort_cache = {
+            "column_name": "situacao",
+            "source_id": 999,
+            "source_len": 123,
+            "keys_df": pd.DataFrame(
+                {
+                    "__mixed_is_empty": [False],
+                    "__mixed_bucket_order": [2],
+                    "__mixed_symbol_txt": [None],
+                    "__mixed_num": [None],
+                    "__mixed_alpha_txt": ["apv"],
+                    "__mixed_other_txt": [None],
+                }
+            ),
+        }
 
         self.window.on_data_loaded(df, request_id=31)
 
-        cache = self.window._num_reprog_sort_cache
-        assert cache["source_id"] is None
-        assert cache["source_len"] == 0
-        assert cache["keys_df"] is None
+        num_cache = self.window._num_reprog_sort_cache
+        assert num_cache["source_id"] is None
+        assert num_cache["source_len"] == 0
+        assert num_cache["keys_df"] is None
+        mixed_cache = self.window._mixed_text_sort_cache
+        assert mixed_cache["column_name"] is None
+        assert mixed_cache["source_id"] is None
+        assert mixed_cache["source_len"] == 0
+        assert mixed_cache["keys_df"] is None
 
     def test_on_load_error_ignores_stale_request(self):
         self.window._active_data_load_request_id = 10

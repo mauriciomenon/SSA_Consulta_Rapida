@@ -942,6 +942,11 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     except Exception as exc:
         logger.debug("Falha ao resetar cache de sort de num_reprogramacoes: %s", exc)
     try:
+        if hasattr(window, "_reset_mixed_text_sort_cache"):
+            window._reset_mixed_text_sort_cache()
+    except Exception as exc:
+        logger.debug("Falha ao resetar cache de sort de texto misto: %s", exc)
+    try:
         non_null_cols_attr = (
             attrs.get("ssa_non_null_cols") if preprocessed_for_gui else None
         )

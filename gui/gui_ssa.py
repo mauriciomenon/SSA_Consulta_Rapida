@@ -1708,6 +1708,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             "source_len": 0,
             "keys_df": None,
         }
+        self._mixed_text_sort_cache = {
+            "column_name": None,
+            "source_id": None,
+            "source_len": 0,
+            "keys_df": None,
+        }
         self._pending_resize_recompute_revision = None
         self._resize_recompute_timer = QTimer(self)
         self._resize_recompute_timer.setSingleShot(True)
@@ -3146,9 +3152,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             pd.api.types.is_object_dtype(dtype) or pd.api.types.is_string_dtype(dtype)
         )
 
-    def _build_mixed_text_sort_keys(
-        self, source_series: pd.Series, ascending: bool
-    ) -> pd.DataFrame:
+    def _build_mixed_text_sort_keys(self, source_series: pd.Series) -> pd.DataFrame:
         raw_text = source_series.astype("string").fillna("").str.strip()
         empty_mask = source_series.isna() | raw_text.eq("")
         normalized_numeric_text = raw_text.str.replace(",", ".", regex=False)
@@ -3166,14 +3170,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         symbol_mask = (~empty_mask) & (~is_numeric) & (~starts_alpha) & (~starts_alnum)
         other_text_mask = (~empty_mask) & (~is_numeric) & (~alpha_mask) & (~symbol_mask)
 
-        symbol_rank = 0 if ascending else 3
-        numeric_rank = 1 if ascending else 2
-        alpha_rank = 2 if ascending else 1
-        other_rank = 3 if ascending else 0
-        bucket_order = pd.Series(other_rank, index=raw_text.index, dtype="Int64")
-        bucket_order.loc[symbol_mask] = symbol_rank
-        bucket_order.loc[is_numeric] = numeric_rank
-        bucket_order.loc[alpha_mask] = alpha_rank
+        bucket_order = pd.Series(3, index=raw_text.index, dtype="Int64")
+        bucket_order.loc[symbol_mask] = 0
+        bucket_order.loc[is_numeric] = 1
+        bucket_order.loc[alpha_mask] = 2
+        bucket_order.loc[other_text_mask] = 3
         bucket_order.loc[empty_mask] = 9
 
         normalized_text = raw_text.str.casefold()
@@ -3189,6 +3190,48 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             index=source_series.index,
         )
 
+    def _get_mixed_text_sort_keys(
+        self, source_df: pd.DataFrame, column_name: str
+    ) -> pd.DataFrame:
+        source_id = id(source_df)
+        source_len = len(source_df.index)
+        cache = getattr(self, "_mixed_text_sort_cache", None)
+        keys_df = cache.get("keys_df") if isinstance(cache, dict) else None
+        cache_source_len = (
+            cache.get("source_len", -1) if isinstance(cache, dict) else -1
+        )
+        try:
+            cache_source_len_int = int(cache_source_len)
+        except (TypeError, ValueError):
+            cache_source_len_int = -1
+        cache_is_valid = (
+            isinstance(cache, dict)
+            and cache.get("column_name") == column_name
+            and cache.get("source_id") == source_id
+            and cache_source_len_int == source_len
+            and isinstance(keys_df, pd.DataFrame)
+            and keys_df.index.equals(source_df.index)
+        )
+        if not cache_is_valid:
+            keys_df = self._build_mixed_text_sort_keys(source_df[column_name])
+            self._mixed_text_sort_cache = {
+                "column_name": column_name,
+                "source_id": source_id,
+                "source_len": source_len,
+                "keys_df": keys_df,
+            }
+        if not isinstance(keys_df, pd.DataFrame):
+            keys_df = self._build_mixed_text_sort_keys(source_df[column_name])
+        if not keys_df.index.equals(source_df.index):
+            keys_df = self._build_mixed_text_sort_keys(source_df[column_name])
+            self._mixed_text_sort_cache = {
+                "column_name": column_name,
+                "source_id": source_id,
+                "source_len": source_len,
+                "keys_df": keys_df,
+            }
+        return keys_df
+
     def _sort_mixed_text_column_robust(
         self, column_name: str, ascending: bool
     ) -> pd.DataFrame:
@@ -3198,9 +3241,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         if column_name not in source_df.columns:
             return source_df
 
-        sort_keys = self._build_mixed_text_sort_keys(
-            source_df[column_name], ascending=ascending
-        )
+        sort_keys = self._get_mixed_text_sort_keys(source_df, column_name)
         sort_direction = bool(ascending)
         ordered_index = sort_keys.sort_values(
             by=[
@@ -3213,7 +3254,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             ],
             ascending=[
                 True,
-                True,
+                sort_direction,
                 sort_direction,
                 sort_direction,
                 sort_direction,
@@ -3222,7 +3263,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             na_position="last",
             kind="mergesort",
         ).index
-        return source_df.loc[ordered_index]
+        sorted_df = source_df.loc[ordered_index]
+        self._mixed_text_sort_cache = {
+            "column_name": column_name,
+            "source_id": id(sorted_df),
+            "source_len": len(sorted_df.index),
+            "keys_df": sort_keys.loc[ordered_index],
+        }
+        return sorted_df
+
+    def _reset_mixed_text_sort_cache(self) -> None:
+        self._mixed_text_sort_cache = {
+            "column_name": None,
+            "source_id": None,
+            "source_len": 0,
+            "keys_df": None,
+        }
 
     def _get_num_reprogramacoes_sort_keys(self) -> pd.DataFrame:
         source_df = self.df_exibido
