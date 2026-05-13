@@ -264,7 +264,7 @@ class TestGUIFilterLogic:
         assert filtered_status is not None
         assert str(filtered_status.text() or "") == "Status: 0 de 0 SSAs"
 
-    def test_search_and_pagination_rows_place_controls_in_expected_lines(self):
+    def test_search_and_filter_summary_place_controls_in_expected_order(self):
         main_ctx = self.window._tab_contexts[0]
         search_input = main_ctx["search_input"]
         search_label = main_ctx["search_label"]
@@ -286,6 +286,9 @@ class TestGUIFilterLogic:
         tooltip = str(save_filter_button.toolTip() or "")
         assert str(search_label.text() or "") == "Pesquisa Rapida:"
         assert str(save_filter_button.text() or "") == "Salvar filtro -> todos"
+        assert "color:" in str(search_button.styleSheet() or "")
+        assert "color:" in str(clear_filter_button.styleSheet() or "")
+        assert "color:" in str(save_filter_button.styleSheet() or "")
         assert "pesquisa rapida" in tooltip
         assert "filtros de coluna" in tooltip
         assert "filtros avancados" in tooltip
@@ -341,6 +344,13 @@ class TestGUIFilterLogic:
             filters_ctx["inline_tabs_widget"].parentWidget()
             is filters_ctx["adv_filters_group"]
         )
+        assert main_ctx["col_filters_hint"].text() == (
+            "Virgulas = alternativas; filtros acumulam."
+        )
+        assert len(main_ctx["col_filters_hint"].text()) <= 48
+        assert "QPushButton:checked" in str(
+            main_ctx["tab_selector_ssas_btn"].styleSheet() or ""
+        )
         assert main_ctx["tab_selector_ssas_btn"].isChecked() is True
         assert main_ctx["tab_selector_filters_btn"].isChecked() is False
 
@@ -378,7 +388,7 @@ class TestGUIFilterLogic:
         )
         assert "colunas relevantes da GUI" in tooltip
         assert "condicao E" not in tooltip.casefold()
-        assert "Pesquisa rapida: todos os termos digitados sao obrigatorios." in str(
+        assert "Pesquisa rapida: termos positivos sao obrigatorios;" in str(
             search_help.text() or ""
         )
 

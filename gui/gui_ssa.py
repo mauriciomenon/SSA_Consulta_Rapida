@@ -1899,7 +1899,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         tab_layout.addLayout(cast(Any, search_row))
 
         search_help = QLabel(
-            "Pesquisa rapida: todos os termos digitados sao obrigatorios. Use ! para excluir. A busca vale para qualquer coluna."
+            "Pesquisa rapida: termos positivos sao obrigatorios; use ! para excluir. A busca vale para qualquer coluna."
         )
         search_help.setWordWrap(False)
         try:
@@ -2229,8 +2229,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         inline_tabs_layout.addWidget(cast(Any, tab_selector_ssas_btn), 0)
         inline_tabs_layout.addWidget(cast(Any, tab_selector_filters_btn), 0)
         inline_tabs_layout.addSpacing(10)
-        col_filters_hint = QLabel(
-            "Dentro da mesma coluna, virgulas representam alternativas. Entre colunas e busca superior, o filtro continua cumulativo."
+        col_filters_hint = QLabel("Virgulas = alternativas; filtros acumulam.")
+        col_filters_hint.setToolTip(
+            "Dentro da mesma coluna, virgulas representam alternativas. "
+            "Entre colunas e pesquisa rapida, o filtro continua cumulativo."
         )
         try:
             col_filters_hint.setStyleSheet(

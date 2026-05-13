@@ -614,22 +614,55 @@ def _apply_theme_widget_styles(
                 f" background:{summary_bg}; border:1px solid {summary_border}; border-radius:4px; padding:4px;"
                 " }"
             )
-        if hasattr(window, "clear_all_filters_btn"):
-            window.clear_all_filters_btn.setStyleSheet(highlight_style)
-        if hasattr(window, "export_list_btn"):
-            try:
-                window.export_list_btn.setStyleSheet(highlight_style)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar estilo no botao export_list_btn: %s", exc
-                )
-        if hasattr(window, "undo_filter_btn"):
-            try:
-                window.undo_filter_btn.setStyleSheet(highlight_style)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar estilo no botao undo_filter_btn: %s", exc
-                )
+        highlight_button_names = (
+            "clear_all_filters_btn",
+            "export_list_btn",
+            "undo_filter_btn",
+            "save_filter_button",
+            "search_button",
+            "clear_filter_button",
+        )
+        for name in highlight_button_names:
+            button = getattr(window, name, None)
+            if button is not None:
+                try:
+                    button.setStyleSheet(highlight_style)
+                except Exception as exc:
+                    logger.debug("Falha ao aplicar estilo no botao %s: %s", name, exc)
+        for ctx in getattr(window, "_tab_contexts", []) or []:
+            if not isinstance(ctx, dict):
+                continue
+            for name in highlight_button_names:
+                button = ctx.get(name)
+                if button is not None:
+                    try:
+                        button.setStyleSheet(highlight_style)
+                    except Exception as exc:
+                        logger.debug(
+                            "Falha ao aplicar estilo no botao %s do contexto: %s",
+                            name,
+                            exc,
+                        )
+            tab_selector_style = (
+                "QPushButton {"
+                f"font-weight:600; color:{accent}; background:{panel_bg}; "
+                f"border:1px solid {panel_border}; border-radius:4px; padding:1px 8px;"
+                "}"
+                "QPushButton:checked {"
+                f"background:{accent}; color:{panel_bg}; border:1px solid {accent};"
+                "}"
+            )
+            for name in ("tab_selector_ssas_btn", "tab_selector_filters_btn"):
+                button = ctx.get(name)
+                if button is not None:
+                    try:
+                        button.setStyleSheet(tab_selector_style)
+                    except Exception as exc:
+                        logger.debug(
+                            "Falha ao aplicar estilo no seletor de aba %s: %s",
+                            name,
+                            exc,
+                        )
         if hasattr(window, "add_column_filter_btn") and hasattr(
             window, "clear_all_btn"
         ):
