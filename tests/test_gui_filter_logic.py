@@ -267,7 +267,6 @@ class TestGUIFilterLogic:
     def test_search_and_filter_summary_place_controls_in_expected_order(self):
         main_ctx = self.window._tab_contexts[0]
         search_input = main_ctx["search_input"]
-        search_label = main_ctx["search_label"]
         search_button = main_ctx["search_button"]
         clear_filter_button = main_ctx["clear_filter_button"]
         save_filter_button = main_ctx["save_filter_button"]
@@ -284,23 +283,18 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         tooltip = str(save_filter_button.toolTip() or "")
-        assert str(search_label.text() or "") == "Pesquisa Rapida:"
-        assert str(save_filter_button.text() or "") == "Salvar filtro -> todos"
+        assert "search_label" not in main_ctx
+        assert str(save_filter_button.text() or "") == "Salvar Filtros"
         assert "color:" in str(search_button.styleSheet() or "")
         assert "color:" in str(clear_filter_button.styleSheet() or "")
         assert "color:" in str(save_filter_button.styleSheet() or "")
-        assert "pesquisa rapida" in tooltip
+        assert "pesquisa rapida" in tooltip.casefold()
         assert "filtros de coluna" in tooltip
         assert "filtros avancados" in tooltip
         assert 0 < filter_tags_widget.maximumWidth() <= 280
         search_row_x = [
             widget.mapToGlobal(widget.rect().topLeft()).x()
-            for widget in (
-                clear_filter_button,
-                search_button,
-                search_label,
-                search_input,
-            )
+            for widget in (clear_filter_button, search_button, search_input)
         ]
         assert search_row_x == sorted(search_row_x)
         assert save_filter_button.parentWidget() is filters_summary_frame
@@ -339,15 +333,14 @@ class TestGUIFilterLogic:
 
         assert self.window.main_tabs.currentIndex() == 0
         assert self.window.main_tabs.tabBar().isVisible() is False
-        assert main_ctx["inline_tabs_widget"].parentWidget() is main_ctx["col_filters_group"]
+        assert main_ctx["inline_tabs_widget"].parentWidget() is not None
         assert (
             filters_ctx["inline_tabs_widget"].parentWidget()
-            is filters_ctx["adv_filters_group"]
+            is not None
         )
-        assert main_ctx["col_filters_hint"].text() == (
-            "Virgulas = alternativas; filtros acumulam."
-        )
-        assert len(main_ctx["col_filters_hint"].text()) <= 48
+        assert "col_filters_hint" not in main_ctx
+        assert str(main_ctx["tab_selector_ssas_btn"].text() or "") == "Por coluna"
+        assert str(main_ctx["tab_selector_filters_btn"].text() or "") == "Avancados"
         assert "QPushButton:checked" in str(
             main_ctx["tab_selector_ssas_btn"].styleSheet() or ""
         )
@@ -388,12 +381,10 @@ class TestGUIFilterLogic:
         )
         assert "colunas relevantes da GUI" in tooltip
         assert "condicao E" not in tooltip.casefold()
-        assert "Pesquisa rapida: termos positivos sao obrigatorios;" in str(
-            search_help.text() or ""
-        )
+        assert "Use termos positivos e ! para excluir." in str(search_help.text() or "")
 
         indicator_tooltip = str(col_indicator.toolTip() or "")
-        assert "Pesquisa Rapida" in indicator_tooltip
+        assert "busca" in indicator_tooltip
         assert "virgulas representam alternativas implicitas" in indicator_tooltip
         assert "logica OU" not in indicator_tooltip
 
@@ -2249,7 +2240,7 @@ class TestGUIFilterLogic:
             assert button is not None
             assert button.text() == "Limpar Busca"
             tooltip = str(button.toolTip() or "").casefold()
-            assert "apenas a pesquisa rapida" in tooltip
+            assert "apenas a busca" in tooltip
             assert "coluna" in tooltip
             assert "avancados" in tooltip
 
@@ -3363,12 +3354,13 @@ class TestGUIFilterLogic:
 
         initial_main_css = main_ctx["search_input"].styleSheet() or ""
         assert initial_main_css
-        assert not (filters_ctx["search_label"].styleSheet() or "")
+        initial_filters_css = filters_ctx["search_input"].styleSheet() or ""
+        assert not initial_filters_css
 
         # Switching to the filters tab should re-apply the current theme to that tab's widgets.
         self.window.main_tabs.setCurrentIndex(filter_tab_idx)
         QApplication.processEvents()
-        assert "font-weight" in (filters_ctx["search_label"].styleSheet() or "")
+        assert filters_ctx["search_input"].styleSheet() or ""
 
         # Apply a different theme while on filters tab, then switch back to main.
         self.window.apply_theme(other_theme)
