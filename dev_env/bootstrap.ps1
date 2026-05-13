@@ -39,7 +39,6 @@ function Install-PyenvWin([switch]$AllowRemoteInstall, [string]$InstallerSha256)
   } catch {
     Write-Warning "Nao foi possivel forcar TLS 1.2 antes do download do pyenv-win."
   }
-  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
   $installerPath = Join-Path ([System.IO.Path]::GetTempPath()) 'pyenv-win-install.ps1'
   try {
     Write-Output "[info] Baixando instalador pyenv-win: https://pyenv.win/install.ps1"
@@ -56,7 +55,11 @@ function Install-PyenvWin([switch]$AllowRemoteInstall, [string]$InstallerSha256)
         Write-Warning "Nao foi possivel remover Mark-of-the-Web do instalador pyenv-win."
       }
     }
-    & $installerPath
+    $powershellExe = (Get-Command -Name powershell.exe -ErrorAction Stop).Source
+    & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $installerPath
+    if ($LASTEXITCODE -ne 0) {
+      throw "Instalador pyenv-win terminou com codigo $LASTEXITCODE."
+    }
   } finally {
     Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
   }

@@ -220,6 +220,8 @@ def test_dev_bootstrap_requires_hash_for_remote_pyenv_install() -> None:
     assert "Get-FileHash -Algorithm SHA256" in script
     assert "Unblock-File -LiteralPath $installerPath" in script
     assert "[Net.SecurityProtocolType]::Tls12" in script
+    assert "Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser" not in script
+    assert "-ExecutionPolicy Bypass -File $installerPath" in script
     assert "Invoke-Expression" not in script
 
 
