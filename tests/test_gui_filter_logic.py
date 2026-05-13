@@ -1,6 +1,7 @@
 """Testes específicos para filtros combinados (AND/OU) da GUI principal."""
 
 import copy
+import builtins
 import json
 import os
 import re
@@ -7489,6 +7490,23 @@ class TestGUIFilterLogic:
 
         assert filtered["numero_ssa"].tolist() == [1]
 
+    def test_column_filter_date_display_exclusion_wins_across_raw_and_display(
+        self,
+    ):
+        dated_df = pd.DataFrame(
+            {
+                "numero_ssa": [1, 2],
+                "data_cadastro": ["2026-05-13", "2026-05-14"],
+            }
+        )
+        self.window._active_column_filters = {
+            "data_cadastro": "13/05/2026,!2026-05-13"
+        }
+
+        filtered = self.window._apply_column_filters(dated_df)
+
+        assert filtered.empty
+
     def test_column_filter_date_display_series_reuses_cache_on_same_revision(self):
         dated_df = self.base_df.assign(
             data_programacao=pd.Series(
@@ -7585,6 +7603,26 @@ class TestGUIFilterLogic:
         assert executor_calls == [len(self.base_df)]
         assert descricao_calls == [1]
 
+    def test_apply_column_filters_caches_second_column_from_base_dataframe(self):
+        repeated_df = self.base_df.copy()
+        self.window._data_revision = 91
+        self.window._column_filter_series_cache_revision = None
+        self.window._column_filter_series_cache = {}
+        self.window._active_column_filters = OrderedDict(
+            [
+                ("setor_executor", "MEL4"),
+                ("descricao_ssa", "Teste C"),
+            ]
+        )
+
+        filtered = self.window._apply_column_filters(repeated_df)
+
+        assert filtered["numero_ssa"].tolist() == [3]
+        assert set(self.window._column_filter_series_cache) == {
+            (id(repeated_df), "setor_executor"),
+            (id(repeated_df), "descricao_ssa"),
+        }
+
     def test_apply_column_filters_reuses_normalized_series_on_same_revision(self):
         repeated_df = self.base_df.copy()
         self.window._data_revision = 33
@@ -7646,6 +7684,30 @@ class TestGUIFilterLogic:
             self.window._column_filter_series_cache[first_key]
             is not self.window._column_filter_series_cache[second_key]
         )
+
+    def test_filter_alias_map_reuses_module_cache_between_instances(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(filter_mixin, "_FILTER_ALIAS_MAP_CACHE", None)
+        monkeypatch.setattr(filter_mixin, "_FILTER_ALIAS_MAP_CACHE_SIGNATURE", None)
+        opened_paths: list[str] = []
+        real_open = builtins.open
+
+        def _counted_open(path, *args, **kwargs):
+            if str(path).endswith("filter_aliases.json"):
+                opened_paths.append(str(path))
+            return real_open(path, *args, **kwargs)
+
+        class _AliasConsumer(filter_mixin.FilterGUISSAMixin):
+            pass
+
+        monkeypatch.setattr(builtins, "open", _counted_open)
+
+        first_map = _AliasConsumer()._get_filter_alias_map()
+        second_map = _AliasConsumer()._get_filter_alias_map()
+
+        assert first_map == second_map
+        assert len(opened_paths) == 1
 
     def test_advanced_filter_include_ignores_nullable_text_instead_of_na_literal(self):
         nullable_df = self.base_df.assign(

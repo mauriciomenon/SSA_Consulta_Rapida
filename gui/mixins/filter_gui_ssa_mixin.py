@@ -78,6 +78,8 @@ from utils.themes import get_theme_roles
 
 # Module logger
 logger = get_robust_logger().get_logger(__name__, "gui")
+_FILTER_ALIAS_MAP_CACHE: dict[str, Any] | None = None
+_FILTER_ALIAS_MAP_CACHE_SIGNATURE: tuple[str, int | None] | None = None
 
 
 def get_gui_saved_filters_path() -> str:
@@ -3415,24 +3417,34 @@ class FilterGUISSAMixin:
         ):
             return self._filter_alias_map
         try:
-            # Resolve config path relative to repository root, avoiding reliance on project_root
-            # Walk up three levels from this file: gui/mixins/ -> gui/ -> repo root
+            global _FILTER_ALIAS_MAP_CACHE, _FILTER_ALIAS_MAP_CACHE_SIGNATURE
             repo_root = os.path.dirname(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             )
             cfg_path = os.path.join(repo_root, "config", "filter_aliases.json")
+            mtime_ns = os.stat(cfg_path).st_mtime_ns if os.path.exists(cfg_path) else None
+            signature = (cfg_path, mtime_ns)
+            if (
+                _FILTER_ALIAS_MAP_CACHE_SIGNATURE == signature
+                and isinstance(_FILTER_ALIAS_MAP_CACHE, dict)
+            ):
+                self._filter_alias_map = _FILTER_ALIAS_MAP_CACHE
+                return self._filter_alias_map
             if os.path.exists(cfg_path):
                 with open(cfg_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                # Normaliza apenas para dict
                 if isinstance(data, dict):
+                    _FILTER_ALIAS_MAP_CACHE = data
+                    _FILTER_ALIAS_MAP_CACHE_SIGNATURE = signature
                     self._filter_alias_map = data
                     return self._filter_alias_map
         except Exception as exc:
             logger.debug(
                 "Falha ao carregar aliases de filtro em arquivo local: %s", exc
             )
-        self._filter_alias_map = {}
+        _FILTER_ALIAS_MAP_CACHE = {}
+        _FILTER_ALIAS_MAP_CACHE_SIGNATURE = None
+        self._filter_alias_map = _FILTER_ALIAS_MAP_CACHE
         return self._filter_alias_map
 
     def _update_col_filter_indicator(self):
@@ -3593,13 +3605,17 @@ class FilterGUISSAMixin:
             raw_str = str(raw).strip()
             if not raw_str:
                 continue
-            cache_key = (id(working_df), str(col))
+            cache_key = (id(df), str(col))
             cached_series = series_cache.get(cache_key)
             if isinstance(cached_series, pd.Series):
                 col_series = cached_series
+                if working_df is not df:
+                    col_series = col_series.reindex(working_df.index)
             else:
-                col_series = working_df[col].astype("string").fillna("")
+                col_series = df[col].astype("string").fillna("")
                 series_cache[cache_key] = col_series
+                if working_df is not df:
+                    col_series = col_series.reindex(working_df.index)
             col_mask = self._build_column_mask(col_series, raw_str)
             display_dates = None
             if self._should_match_date_display_filter(col, raw_str):
@@ -3615,15 +3631,23 @@ class FilterGUISSAMixin:
 
                 if include_tokens:
                     include_expr = ", ".join(include_tokens)
-                    col_mask = col_mask | self._build_column_mask(
-                        display_dates, include_expr
-                    )
+                    col_mask = self._build_column_mask(
+                        col_series, include_expr
+                    ) | self._build_column_mask(display_dates, include_expr)
+                else:
+                    col_mask = pd.Series([True] * len(col_series), index=col_series.index)
 
                 if exclude_tokens:
-                    exclude_expr = ", ".join(exclude_tokens)
-                    col_mask = col_mask & self._build_column_mask(
-                        display_dates, exclude_expr
+                    exclude_expr = ", ".join(
+                        token[1:].strip()
+                        for token in exclude_tokens
+                        if token[1:].strip()
                     )
+                    if exclude_expr:
+                        excluded_mask = self._build_column_mask(
+                            col_series, exclude_expr
+                        ) | self._build_column_mask(display_dates, exclude_expr)
+                        col_mask = col_mask & ~excluded_mask
             if not col_mask.all():
                 working_df = working_df[col_mask]
         return working_df
