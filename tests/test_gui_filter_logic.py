@@ -305,6 +305,13 @@ class TestGUIFilterLogic:
         assert "filtros de coluna" in tooltip
         assert "filtros avancados" in tooltip
         assert 0 < filter_tags_widget.maximumWidth() <= 280
+        summary_button_widths = {
+            clear_all_filters_btn.width(),
+            save_filter_button.width(),
+            export_list_btn.width(),
+            undo_filter_btn.width(),
+        }
+        assert summary_button_widths == {save_filter_button.width()}
         search_row_x = [
             widget.mapToGlobal(widget.rect().topLeft()).x()
             for widget in (clear_filter_button, search_button, search_input)
@@ -354,6 +361,8 @@ class TestGUIFilterLogic:
         assert "col_filters_hint" not in main_ctx
         assert str(main_ctx["tab_selector_ssas_btn"].text() or "") == "Por coluna"
         assert str(main_ctx["tab_selector_filters_btn"].text() or "") == "Avancados"
+        assert main_ctx["tab_selector_ssas_btn"].width() > 78
+        assert main_ctx["tab_selector_filters_btn"].width() > 78
         assert "QPushButton:checked" in str(
             main_ctx["tab_selector_ssas_btn"].styleSheet() or ""
         )
@@ -592,8 +601,15 @@ class TestGUIFilterLogic:
             assert self.window._active_column_filters[col] == "IEE3, MEL3, MEL4"
         summary = getattr(self.window, "filters_summary_label", None)
         if summary is not None:
-            # Nova logica: apenas virgulas, sem operadores OU
-            assert "IEE3, MEL3, MEL4" in summary.text() or "Executor" in summary.text()
+            summary_text = str(summary.toolTip() or "")
+            summary_buttons = [
+                str(button.text() or "")
+                for button in self.window.filters_summary_items_widget.findChildren(
+                    QPushButton
+                )
+            ]
+            assert "IEE3, MEL3, MEL4" in summary_text
+            assert any("Executor" in text for text in summary_buttons)
             assert col in self.window._column_to_or_group
 
         # Ajuste manual em um campo deve repercutir no par
@@ -771,8 +787,14 @@ class TestGUIFilterLogic:
         self.window._update_filters_summary()
         QApplication.processEvents()
 
-        summary_text = str(self.window.filters_summary_label.text() or "")
-        assert summary_text.count("Executor: IEE3") == 1
+        summary_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
+        assert str(self.window.filters_summary_label.text() or "") == "Filtros ativos:"
+        assert summary_buttons.count("Executor: IEE3") == 1
 
     def test_filters_summary_buttons_remove_search_with_confirmation(self):
         self.window.search_input.setText("Teste A")
@@ -816,7 +838,7 @@ class TestGUIFilterLogic:
 
         assert self.window._exclude_ste_sca is False
 
-    def test_filters_summary_buttons_use_smaller_remove_bubble_font(self):
+    def test_filters_summary_buttons_use_single_line_theme_chip_style(self):
         self.window.search_input.setText("Teste A")
         self.window._update_filters_summary()
         QApplication.processEvents()
@@ -830,8 +852,9 @@ class TestGUIFilterLogic:
 
         css = str(search_button.styleSheet() or "")
         assert str(search_button.text() or "") == "Busca: 'Teste A'"
-        assert "font-size:10px" in css
-        assert "font-weight:500" in css
+        assert "font-size:10px" not in css
+        assert "font-weight:600" in css
+        assert search_button.height() == 22
 
     def test_header_reorder_updates_visible_columns_order(self):
         if "solicitante" not in self.window.visible_columns:
@@ -2253,6 +2276,26 @@ class TestGUIFilterLogic:
         assert {height for height, _summary_y, _table_y in measurements} == {44}
         assert len({table_y for _height, _summary_y, table_y in measurements}) == 1
 
+    def test_filter_summary_active_items_stay_in_horizontal_scroll_area(self):
+        self.window.resize(980, 760)
+        self.window.search_input.setText("Texto muito longo " * 20)
+        self.window._active_column_filters["descricao_ssa"] = "Filtro longo " * 30
+        self.window._update_filters_summary()
+        QApplication.processEvents()
+
+        scroll = self.window.filters_summary_scroll
+        items_widget = self.window.filters_summary_items_widget
+        buttons = items_widget.findChildren(QPushButton)
+
+        assert str(self.window.filters_summary_label.text() or "") == "Filtros ativos:"
+        assert isinstance(scroll, QtWidgets.QScrollArea)
+        assert scroll.isVisible() is True
+        assert scroll.height() <= 36
+        assert scroll.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        assert items_widget.sizeHint().width() > scroll.viewport().width()
+        assert scroll.horizontalScrollBar().maximum() > 0
+        assert {button.y() for button in buttons} == {0}
+
     def test_clear_filter_button_reflects_active_filters(self):
         self.window.search_input.setText("")
         self.window.initiate_filtering()
@@ -2639,9 +2682,13 @@ class TestGUIFilterLogic:
         self.window._on_exclude_ste_sca_toggled(True)
         QApplication.processEvents()
 
-        summary_text = str(self.window.filters_summary_label.text() or "")
-
-        assert "situacao!=SCA/SES/STE" in summary_text
+        summary_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
+        assert "situacao!=SCA/SES/STE" in summary_buttons
 
     def test_column_filter_row_clear_button_clears_value_without_hiding_row(self):
         self.window._active_column_filters = {
@@ -2904,9 +2951,13 @@ class TestGUIFilterLogic:
         self.window.initiate_filtering()
         QApplication.processEvents()
         assert self.window.df_exibido["numero_ssa"].tolist() == [3]
-        assert "Busca: 'Teste C'" in str(
-            self.window.filters_summary_label.text() or ""
-        )
+        assert str(self.window.filters_summary_label.text() or "") == "Filtros ativos:"
+        assert "Busca: 'Teste C'" in [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
         assert self.window._get_visual_filter_columns() == set()
 
         self.window.persistent_filters = [
@@ -2956,8 +3007,6 @@ class TestGUIFilterLogic:
 
         assert self.window.search_input.text().strip() == "Teste C"
         assert self.window.df_exibido["numero_ssa"].tolist() == [3]
-        summary_text = str(self.window.filters_summary_label.text() or "")
-        assert "Busca: 'Teste C'" in summary_text
         summary_buttons = [
             str(button.text() or "")
             for button in self.window.filters_summary_items_widget.findChildren(
@@ -3483,9 +3532,17 @@ class TestGUIFilterLogic:
         self.window._refresh_after_filter_change()
         QApplication.processEvents()
 
-        main_summary = str(self.window.filters_summary_label.text() or "")
+        main_summary = str(self.window.filters_summary_label.toolTip() or "")
+        main_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
         assert "Busca: 'Teste A'" in main_summary
         assert "Descricao da SSA: Teste" in main_summary
+        assert "Busca: 'Teste A'" in main_buttons
+        assert "Descricao da SSA: Teste" in main_buttons
 
         filter_tab_idx = next(
             idx
@@ -3495,9 +3552,17 @@ class TestGUIFilterLogic:
         self.window.main_tabs.setCurrentIndex(filter_tab_idx)
         QApplication.processEvents()
 
-        filters_summary = str(self.window.filters_summary_label.text() or "")
+        filters_summary = str(self.window.filters_summary_label.toolTip() or "")
+        filters_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
         assert "Busca: 'Teste A'" in filters_summary
         assert "Descricao da SSA: Teste" in filters_summary
+        assert "Busca: 'Teste A'" in filters_buttons
+        assert "Descricao da SSA: Teste" in filters_buttons
 
     def test_on_filter_finished_uses_pending_search_display_for_status(self):
         self.window._active_filter_request_id = 31
@@ -5556,8 +5621,7 @@ class TestGUIFilterLogic:
 
         assert self.window._active_column_filters["derivada_de"] == "202500100"
         assert self.window._last_filter_state is not None
-        summary_text = str(self.window.filters_summary_label.text() or "")
-        assert "Derivada de: 202500100" in summary_text
+        assert str(self.window.filters_summary_label.text() or "") == "Filtros ativos:"
         summary_buttons = [
             str(button.text() or "")
             for button in self.window.filters_summary_items_widget.findChildren(
@@ -9465,9 +9529,12 @@ class TestGUIFilterLogic:
             else self.window._resolve_column_display_name("descricao_ssa")
         )
         assert label in self._get_column_filter_controls()
-        assert "situacao!=SCA/SES/STE" in str(
-            self.window.filters_summary_label.text() or ""
-        )
+        assert "situacao!=SCA/SES/STE" in [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
 
     def test_clear_all_filters_global_stops_pending_debounce(self):
         self.window.search_input.setText("Teste")

@@ -1978,11 +1978,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         filters_summary_label = None
         filters_summary_items_widget = None
         filters_summary_items_layout = None
+        filters_summary_scroll = None
         clear_all_filters_btn = None
         export_list_btn = None
         undo_filter_btn = None
         try:
             filters_summary_frame = QFrame()
+            filters_summary_frame.setObjectName("filtersSummaryFrame")
             filters_summary_frame.setFrameShape(QFrame.Shape.StyledPanel)
             self._set_widget_fixed_height_safe(
                 filters_summary_frame, 44, "barra de filtros ativos"
@@ -1991,11 +1993,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             summary_layout.setContentsMargins(6, 4, 6, 4)
             summary_layout.setSpacing(8)
             try:
-                align_top = cast(Any, Qt).AlignmentFlag.AlignTop
-                cast(Any, summary_layout).setAlignment(align_top)
+                align_middle = cast(Any, Qt).AlignmentFlag.AlignVCenter
+                cast(Any, summary_layout).setAlignment(align_middle)
             except Exception as exc:
-                logger.debug("Falha ao alinhar resumo de filtros no topo: %s", exc)
-                align_top = None
+                logger.debug("Falha ao centralizar resumo de filtros: %s", exc)
+                align_middle = None
             filters_summary_label = QLabel("Nenhum filtro ativo")
             if self._info_font is not None:
                 try:
@@ -2008,8 +2010,38 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             )
             filters_summary_items_layout.setContentsMargins(0, 0, 0, 0)
             filters_summary_items_layout.setSpacing(6)
+            filters_summary_scroll = QScrollArea()
+            filters_summary_scroll.setWidgetResizable(False)
+            filters_summary_scroll.setWidget(cast(Any, filters_summary_items_widget))
+            filters_summary_scroll.setFrameShape(QFrame.Shape.NoFrame)
+            self._set_widget_fixed_height_safe(
+                filters_summary_scroll, 36, "area rolavel de filtros ativos"
+            )
+            try:
+                scroll_policy = cast(Any, Qt).ScrollBarPolicy
+                filters_summary_scroll.setHorizontalScrollBarPolicy(
+                    scroll_policy.ScrollBarAsNeeded
+                )
+                filters_summary_scroll.setVerticalScrollBarPolicy(
+                    scroll_policy.ScrollBarAlwaysOff
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao configurar scroll horizontal de filtros ativos: %s", exc
+                )
+            try:
+                filters_summary_scroll.setStyleSheet(
+                    "QScrollArea { border:0; background:transparent; }"
+                    "QScrollArea > QWidget > QWidget { background:transparent; }"
+                )
+                filters_summary_viewport = filters_summary_scroll.viewport()
+                if filters_summary_viewport is not None:
+                    filters_summary_viewport.setAutoFillBackground(False)
+            except Exception as exc:
+                logger.debug("Falha ao aplicar estilo no scroll de filtros ativos: %s", exc)
+            summary_button_width = 170
             clear_all_filters_btn = QPushButton("Limpar todos os filtros")
-            clear_all_filters_btn.setMaximumWidth(200)
+            clear_all_filters_btn.setFixedWidth(summary_button_width)
             clear_all_filters_btn.clicked.connect(self._on_clear_all_filters_clicked)
             try:
                 clear_all_filters_btn.setStyleSheet(self._week_label_style)
@@ -2018,7 +2050,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     "Falha ao aplicar estilo no botao limpar todos os filtros: %s", exc
                 )
             export_list_btn = QPushButton("Exportar lista")
-            export_list_btn.setMaximumWidth(160)
+            export_list_btn.setFixedWidth(summary_button_width)
             export_list_btn.setToolTip("Exportar lista atual para arquivo txt")
             export_list_btn.clicked.connect(self._export_current_list_txt)
             try:
@@ -2026,7 +2058,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             except Exception as exc:
                 logger.debug("Falha ao aplicar estilo no botao exportar lista: %s", exc)
             undo_filter_btn = QPushButton("Undo")
-            undo_filter_btn.setMaximumWidth(160)
+            undo_filter_btn.setFixedWidth(summary_button_width)
             undo_filter_btn.setToolTip("Desfaz o ultimo filtro aplicado")
             undo_filter_btn.clicked.connect(self._restore_last_filter_state)
             try:
@@ -2035,21 +2067,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 logger.debug(
                     "Falha ao aplicar estilo no botao undo de filtros: %s", exc
                 )
-            summary_text_layout = QVBoxLayout()
+            save_filter_button.setFixedWidth(summary_button_width)
+            summary_text_layout = QHBoxLayout()
             summary_text_layout.setContentsMargins(0, 0, 0, 0)
-            summary_text_layout.setSpacing(4)
+            summary_text_layout.setSpacing(8)
             summary_text_layout.addWidget(cast(Any, filters_summary_label), 0)
-            summary_text_layout.addWidget(cast(Any, filters_summary_items_widget), 0)
-            if align_top is None:
+            summary_text_layout.addWidget(cast(Any, filters_summary_scroll), 1)
+            if align_middle is None:
                 summary_layout.addWidget(cast(Any, clear_all_filters_btn), 0)
                 summary_layout.addWidget(cast(Any, save_filter_button), 0)
                 summary_layout.addWidget(cast(Any, export_list_btn), 0)
                 summary_layout.addWidget(cast(Any, undo_filter_btn), 0)
             else:
-                summary_layout.addWidget(cast(Any, clear_all_filters_btn), 0, align_top)
-                summary_layout.addWidget(cast(Any, save_filter_button), 0, align_top)
-                summary_layout.addWidget(cast(Any, export_list_btn), 0, align_top)
-                summary_layout.addWidget(cast(Any, undo_filter_btn), 0, align_top)
+                summary_layout.addWidget(cast(Any, clear_all_filters_btn), 0, align_middle)
+                summary_layout.addWidget(cast(Any, save_filter_button), 0, align_middle)
+                summary_layout.addWidget(cast(Any, export_list_btn), 0, align_middle)
+                summary_layout.addWidget(cast(Any, undo_filter_btn), 0, align_middle)
             summary_layout.addLayout(cast(Any, summary_text_layout), 1)
             tab_layout.addWidget(cast(Any, filters_summary_frame))
             filters_summary_frame.setVisible(True)
@@ -2207,9 +2240,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         ):
             try:
                 button.setCheckable(True)
-                button.setMaximumWidth(78)
+                button.setFixedWidth(112)
                 self._set_widget_fixed_height_safe(
-                    button, 22, f"seletor compacto de aba {target_index}"
+                    button, 24, f"seletor compacto de aba {target_index}"
                 )
                 button.setToolTip(tooltip)
                 button.setStyleSheet(inline_tab_style)
@@ -2325,6 +2358,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "filters_summary_label": filters_summary_label,
                 "filters_summary_items_widget": filters_summary_items_widget,
                 "filters_summary_items_layout": filters_summary_items_layout,
+                "filters_summary_scroll": filters_summary_scroll,
                 "clear_all_filters_btn": clear_all_filters_btn,
                 "export_list_btn": export_list_btn,
                 "undo_filter_btn": undo_filter_btn,

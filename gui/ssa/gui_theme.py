@@ -610,10 +610,20 @@ def _apply_theme_widget_styles(
 
         if hasattr(window, "filters_summary_frame"):
             window.filters_summary_frame.setStyleSheet(
-                "QFrame {"
-                f" background:{summary_bg}; border:1px solid {summary_border}; border-radius:4px; padding:4px;"
+                "QFrame#filtersSummaryFrame {"
+                f" background:{summary_bg}; border:1px solid {summary_border}; border-radius:4px;"
                 " }"
             )
+        if hasattr(window, "filters_summary_scroll"):
+            try:
+                window.filters_summary_scroll.setStyleSheet(
+                    "QScrollArea { border:0; background:transparent; }"
+                    "QScrollArea > QWidget > QWidget { background:transparent; }"
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao aplicar estilo no scroll de filtros ativos: %s", exc
+                )
         highlight_button_names = (
             "clear_all_filters_btn",
             "export_list_btn",
@@ -646,7 +656,7 @@ def _apply_theme_widget_styles(
             tab_selector_style = (
                 "QPushButton {"
                 f"font-weight:600; color:{accent}; background:{panel_bg}; "
-                f"border:1px solid {panel_border}; border-radius:4px; padding:1px 8px;"
+                f"border:1px solid {panel_border}; border-radius:4px; padding:2px 12px;"
                 "}"
                 "QPushButton:checked {"
                 f"background:{accent}; color:{panel_bg}; border:1px solid {accent};"
@@ -663,6 +673,12 @@ def _apply_theme_widget_styles(
                             name,
                             exc,
                         )
+        try:
+            update_summary = getattr(window, "_update_filters_summary", None)
+            if callable(update_summary):
+                update_summary()
+        except Exception as exc:
+            logger.debug("Falha ao atualizar resumo de filtros apos tema: %s", exc)
         if hasattr(window, "add_column_filter_btn") and hasattr(
             window, "clear_all_btn"
         ):

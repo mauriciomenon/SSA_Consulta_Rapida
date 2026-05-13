@@ -3004,11 +3004,20 @@ class FilterGUISSAMixin:
             summary_text = "Nenhum filtro ativo"
 
         active_state = bool(active_filters)
+        roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
+        summary_color = (
+            roles.get("summary_text_color")
+            or roles.get("panel_text")
+            or roles.get("label_color")
+            or "palette(windowText)"
+        )
         if (
             hasattr(self, "filters_summary_frame")
             and self.filters_summary_frame is not None
         ):
-            roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
+            summary_bg = (
+                roles.get("summary_frame_bg") or roles.get("panel_bg") or "transparent"
+            )
             active_border = (
                 roles.get("accent")
                 or roles.get("input_border_focus")
@@ -3020,13 +3029,30 @@ class FilterGUISSAMixin:
             )
             frame_border = active_border if active_state else idle_border
             self.filters_summary_frame.setStyleSheet(
-                f"QFrame {{border:1px solid {frame_border};border-radius:4px;}}"
+                "QFrame#filtersSummaryFrame {"
+                f"background:{summary_bg};"
+                f"border:1px solid {frame_border};"
+                "border-radius:4px;"
+                "}"
             )
         if hasattr(self, "filters_summary_label"):
-            self.filters_summary_label.setText(summary_text)
-            self.filters_summary_label.setStyleSheet(
-                "font-weight:700;" if active_state else "font-weight:400;"
+            self.filters_summary_label.setText(
+                "Filtros ativos:" if active_state else "Nenhum filtro ativo"
             )
+            self.filters_summary_label.setToolTip(summary_text if active_state else "")
+            self.filters_summary_label.setStyleSheet(
+                f"color:{summary_color};"
+                + ("font-weight:700;" if active_state else "font-weight:400;")
+            )
+        scroll = getattr(self, "filters_summary_scroll", None)
+        if scroll is not None:
+            try:
+                scroll.setVisible(active_state)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao atualizar visibilidade do scroll de filtros ativos: %s",
+                    exc,
+                )
         try:
             self._rebuild_filters_summary_buttons(list(summary_entries.values()))
         except Exception as exc:
@@ -3055,6 +3081,19 @@ class FilterGUISSAMixin:
         border = roles.get("input_border") or roles.get("panel_border") or accent
         text_color = roles.get("panel_text") or roles.get("label_color") or "inherit"
         background = roles.get("input_bg") or "transparent"
+        try:
+            container.setFixedHeight(22)
+            container.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao configurar tamanho do container de filtros ativos: %s", exc
+            )
+        content_width = 1
+        spacing = 0
+        try:
+            spacing = int(layout.spacing() or 0)
+        except Exception as exc:
+            logger.debug("Falha ao obter espacamento dos filtros ativos: %s", exc)
         for entry in entries:
             text = str(entry.get("text") or "").strip()
             raw_actions = entry.get("actions")
@@ -3070,13 +3109,16 @@ class FilterGUISSAMixin:
             button = QPushButton(text)
             button.setToolTip(f"Clique para remover este filtro: {text}")
             try:
+                button.setFixedHeight(22)
+                button.setSizePolicy(
+                    QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed
+                )
                 button.setStyleSheet(
                     "QPushButton {"
                     f"border:1px solid {border};"
-                    "border-radius:8px;"
-                    "padding:1px 6px;"
-                    "font-size:10px;"
-                    "font-weight:500;"
+                    "border-radius:4px;"
+                    "padding:2px 8px;"
+                    "font-weight:600;"
                     f"background:{background};"
                     f"color:{text_color};"
                     "text-align:left;"
@@ -3096,7 +3138,19 @@ class FilterGUISSAMixin:
                 self._build_filters_summary_click_handler(text, actions)
             )
             layout.addWidget(button, 0)
-        layout.addStretch(1)
+            try:
+                content_width += int(button.sizeHint().width()) + spacing
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao medir largura do botao de filtro ativo '%s': %s",
+                    text,
+                    exc,
+                )
+        try:
+            layout.activate()
+            container.setFixedSize(max(1, content_width), 22)
+        except Exception as exc:
+            logger.debug("Falha ao ajustar largura dos filtros ativos: %s", exc)
         try:
             container.setVisible(bool(entries))
         except Exception as exc:
