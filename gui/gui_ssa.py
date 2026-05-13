@@ -1668,6 +1668,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         tab_filters = QWidget()
         ctx_filters = self._build_tab_content(tab_filters, "filters")
         self.main_tabs.addTab(cast(Any, tab_filters), "Filtros")
+        try:
+            tab_bar = self.main_tabs.tabBar()
+            if tab_bar is not None:
+                tab_bar.setVisible(False)
+                tab_bar.setMaximumHeight(0)
+        except Exception as exc:
+            logger.debug("Falha ao ocultar barra nativa de abas: %s", exc)
         self._tab_contexts = [ctx_main, ctx_filters]
         self._sync_inline_tab_selector_state(0)
         main_layout.addWidget(cast(Any, self.main_tabs))
@@ -1746,7 +1753,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         search_input.setPlaceholderText("Termos separados por virgula; ! exclui termo")
         search_input.setToolTip(
             "Todos os termos digitados devem ser satisfeitos na mesma linha.\n\n"
-            "A busca geral pesquisa nas colunas relevantes da GUI; datas puras ficam nos filtros especificos.\n\n"
+            "A pesquisa rapida pesquisa nas colunas relevantes da GUI; datas puras ficam nos filtros especificos.\n\n"
             "Modos por termo: \n"
             "- contem (padrao): foo\n- comeca com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex: ~foo.*bar\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
         )
@@ -1788,7 +1795,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             )
         )
         clear_filter_button.setToolTip(
-            "Limpa apenas a busca geral e cancela a busca em andamento. "
+            "Limpa apenas a pesquisa rapida e cancela a busca em andamento. "
             "Filtros de coluna e avancados continuam ativos."
         )
         clear_filter_button.setEnabled(False)
@@ -1798,7 +1805,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         )
         save_filter_button.setMaximumWidth(170)
         save_filter_button.setToolTip(
-            "Salva o estado atual: busca geral, filtros de coluna, filtros avancados e perfil."
+            "Salva o estado atual: pesquisa rapida, filtros de coluna, filtros avancados e perfil."
         )
         try:
             save_filter_button.setStyleSheet(self._week_label_style)
@@ -1892,7 +1899,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         tab_layout.addLayout(cast(Any, search_row))
 
         search_help = QLabel(
-            "Busca superior: todos os termos digitados sao obrigatorios. Use ! para excluir. A busca vale para qualquer coluna."
+            "Pesquisa rapida: todos os termos digitados sao obrigatorios. Use ! para excluir. A busca vale para qualquer coluna."
         )
         search_help.setWordWrap(False)
         try:
@@ -1959,7 +1966,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "Falha ao aplicar fonte no indicador de filtro por coluna: %s", exc
             )
         col_filter_indicator.setToolTip(
-            "Filtros por coluna acumulam com a Pesquisa Geral (logica E entre filtros). "
+            "Filtros por coluna acumulam com a Pesquisa Rapida (logica E entre filtros). "
             "Dentro da mesma coluna, virgulas representam alternativas implicitas. Consulte a ajuda para outros atalhos."
         )
         try:
@@ -2167,8 +2174,61 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         details_layout.addWidget(cast(Any, details_text))
         bottom_layout.addWidget(cast(Any, details_group), 2)
 
-        col_filters_group = QGroupBox("Filtros por Coluna")
+        col_filters_group = QGroupBox("")
         col_filters_outer = QVBoxLayout(cast(Any, col_filters_group))
+        tab_selector_ssas_btn = QPushButton("SSAs")
+        tab_selector_filters_btn = QPushButton("Filtros")
+        inline_tab_style = (
+            "QPushButton {"
+            "font-weight:600; border:1px solid palette(mid); border-radius:4px;"
+            "padding:1px 8px; background: transparent;"
+            "}"
+            "QPushButton:checked {"
+            "background: palette(highlight); color: palette(highlighted-text);"
+            "}"
+        )
+        for button, target_index, tooltip in (
+            (tab_selector_ssas_btn, 0, "Mostrar a aba principal de SSAs"),
+            (tab_selector_filters_btn, 1, "Mostrar a aba de filtros avancados"),
+        ):
+            try:
+                button.setCheckable(True)
+                button.setMaximumWidth(78)
+                self._set_widget_fixed_height_safe(
+                    button, 22, f"seletor compacto de aba {target_index}"
+                )
+                button.setToolTip(tooltip)
+                button.setStyleSheet(inline_tab_style)
+                if hasattr(button, "setFlat"):
+                    button.setFlat(True)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao configurar seletor compacto de aba %s: %s",
+                    target_index,
+                    exc,
+                )
+            button.clicked.connect(
+                lambda _checked=False, index=target_index: self.main_tabs.setCurrentIndex(
+                    index
+                )
+            )
+
+        inline_tabs_widget = QWidget()
+        inline_tabs_layout = QHBoxLayout(cast(Any, inline_tabs_widget))
+        inline_tabs_layout.setContentsMargins(0, 0, 0, 0)
+        inline_tabs_layout.setSpacing(6)
+        inline_title_label = QLabel(
+            "Filtros Avancados" if tab_kind == "filters" else "Filtros por Coluna"
+        )
+        try:
+            inline_title_label.setStyleSheet("font-weight:600;")
+        except Exception as exc:
+            logger.debug("Falha ao aplicar estilo no titulo inline de filtros: %s", exc)
+        inline_tabs_layout.addWidget(cast(Any, inline_title_label), 0)
+        inline_tabs_layout.addSpacing(8)
+        inline_tabs_layout.addWidget(cast(Any, tab_selector_ssas_btn), 0)
+        inline_tabs_layout.addWidget(cast(Any, tab_selector_filters_btn), 0)
+        inline_tabs_layout.addSpacing(10)
         col_filters_hint = QLabel(
             "Dentro da mesma coluna, virgulas representam alternativas. Entre colunas e busca superior, o filtro continua cumulativo."
         )
@@ -2180,7 +2240,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             logger.debug(
                 "Falha ao aplicar estilo da dica de filtros por coluna: %s", exc
             )
-        col_filters_outer.addWidget(cast(Any, col_filters_hint))
+        if tab_kind == "filters":
+            inline_tabs_layout.addStretch(1)
+        else:
+            inline_tabs_layout.addWidget(cast(Any, col_filters_hint), 1)
+            col_filters_outer.addWidget(cast(Any, inline_tabs_widget), 0)
         col_filters_scroll = QScrollArea()
         col_filters_scroll.setWidgetResizable(True)
         col_filters_container = QWidget()
@@ -2207,49 +2271,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         right_col_widget = QWidget()
         right_col = QVBoxLayout(cast(Any, right_col_widget))
         right_col.setContentsMargins(0, 0, 0, 0)
-        inline_tabs_widget = QWidget()
-        inline_tabs_layout = QHBoxLayout(cast(Any, inline_tabs_widget))
-        inline_tabs_layout.setContentsMargins(0, 0, 0, 2)
-        inline_tabs_layout.setSpacing(6)
-        inline_tabs_label = QLabel("Aba:")
-        tab_selector_ssas_btn = QPushButton("SSAs")
-        tab_selector_filters_btn = QPushButton("Filtros")
-        for button, target_index, tooltip in (
-            (tab_selector_ssas_btn, 0, "Mostrar a aba principal de SSAs"),
-            (tab_selector_filters_btn, 1, "Mostrar a aba de filtros avancados"),
-        ):
-            try:
-                button.setCheckable(True)
-                button.setMaximumWidth(90)
-                self._set_widget_fixed_height_safe(
-                    button, 26, f"botao seletor de aba {target_index}"
-                )
-                button.setToolTip(tooltip)
-                button.setStyleSheet(self._week_label_style)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao configurar botao visual de aba %s: %s",
-                    target_index,
-                    exc,
-                )
-            button.clicked.connect(
-                lambda _checked=False, index=target_index: (
-                    self.main_tabs.setCurrentIndex(index),
-                    self._sync_inline_tab_selector_state(index),
-                )
-            )
-        try:
-            tab_selector_ssas_btn.setChecked(tab_kind == "main")
-            tab_selector_filters_btn.setChecked(tab_kind == "filters")
-        except Exception as exc:
-            logger.debug("Falha ao definir estado inicial do seletor de abas: %s", exc)
-        inline_tabs_layout.addWidget(cast(Any, inline_tabs_label), 0)
-        inline_tabs_layout.addWidget(cast(Any, tab_selector_ssas_btn), 0)
-        inline_tabs_layout.addWidget(cast(Any, tab_selector_filters_btn), 0)
-        inline_tabs_layout.addStretch(1)
-        right_col.addWidget(cast(Any, inline_tabs_widget), 0)
         if tab_kind == "filters":
             adv_group, adv_ctx = self._build_advanced_filters_panel()
+            try:
+                adv_group.setTitle("")
+                adv_layout = adv_group.layout()
+                adv_layout.insertWidget(0, cast(Any, inline_tabs_widget), 0)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao inserir seletor compacto no titulo de filtros avancados: %s",
+                    exc,
+                )
             right_col.addWidget(cast(Any, adv_group), 1)
             col_filters_group.setVisible(False)
             right_col.addWidget(cast(Any, col_filters_group))
@@ -2470,10 +2502,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def _sync_inline_tab_selector_state(self, active_index: int) -> None:
         contexts = list(getattr(self, "_tab_contexts", []) or [])
-        selected_style = (
-            f"{self._week_label_style} "
-            "background: palette(highlight); color: palette(highlighted-text);"
-        )
         for ctx in contexts:
             if not isinstance(ctx, dict):
                 continue
@@ -2489,11 +2517,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     button.blockSignals(True)
                     signals_blocked = True
                     button.setChecked(button_index == active_index)
-                    button.setStyleSheet(
-                        selected_style
-                        if button_index == active_index
-                        else self._week_label_style
-                    )
                 except Exception as exc:
                     logger.debug(
                         "Falha ao sincronizar seletor visual de aba %s: %s",

@@ -286,7 +286,7 @@ class TestGUIFilterLogic:
         tooltip = str(save_filter_button.toolTip() or "")
         assert str(search_label.text() or "") == "Pesquisa Rapida:"
         assert str(save_filter_button.text() or "") == "Salvar filtro -> todos"
-        assert "busca geral" in tooltip
+        assert "pesquisa rapida" in tooltip
         assert "filtros de coluna" in tooltip
         assert "filtros avancados" in tooltip
         assert 0 < filter_tags_widget.maximumWidth() <= 280
@@ -335,6 +335,12 @@ class TestGUIFilterLogic:
         )
 
         assert self.window.main_tabs.currentIndex() == 0
+        assert self.window.main_tabs.tabBar().isVisible() is False
+        assert main_ctx["inline_tabs_widget"].parentWidget() is main_ctx["col_filters_group"]
+        assert (
+            filters_ctx["inline_tabs_widget"].parentWidget()
+            is filters_ctx["adv_filters_group"]
+        )
         assert main_ctx["tab_selector_ssas_btn"].isChecked() is True
         assert main_ctx["tab_selector_filters_btn"].isChecked() is False
 
@@ -372,11 +378,12 @@ class TestGUIFilterLogic:
         )
         assert "colunas relevantes da GUI" in tooltip
         assert "condicao E" not in tooltip.casefold()
-        assert "Busca superior: todos os termos digitados sao obrigatorios." in str(
+        assert "Pesquisa rapida: todos os termos digitados sao obrigatorios." in str(
             search_help.text() or ""
         )
 
         indicator_tooltip = str(col_indicator.toolTip() or "")
+        assert "Pesquisa Rapida" in indicator_tooltip
         assert "virgulas representam alternativas implicitas" in indicator_tooltip
         assert "logica OU" not in indicator_tooltip
 
@@ -388,7 +395,7 @@ class TestGUIFilterLogic:
         assert browser is not None
         html = str(browser.toHtml() or "")
 
-        assert "Pesquisa Geral" in html
+        assert "Pesquisa Rapida" in html
         assert "todos os termos digitados sao obrigatorios" in html
         assert "virgulas representam alternativas implicitas" in html
         assert "logica OU - qualquer termo serve" not in html
@@ -2232,7 +2239,7 @@ class TestGUIFilterLogic:
             assert button is not None
             assert button.text() == "Limpar Busca"
             tooltip = str(button.toolTip() or "").casefold()
-            assert "apenas a busca geral" in tooltip
+            assert "apenas a pesquisa rapida" in tooltip
             assert "coluna" in tooltip
             assert "avancados" in tooltip
 
