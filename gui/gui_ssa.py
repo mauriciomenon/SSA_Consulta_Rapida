@@ -1261,6 +1261,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _log_tsm_debug(self, event_name: str, *, widget_role: str, obj) -> None:
         if not TSM_DEBUG_ENABLED:
             return
+        if not logger.isEnabledFor(logging.WARNING):
+            return
         try:
             tab_index = (
                 int(self.main_tabs.currentIndex())
@@ -1596,7 +1598,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         # Botões de ações
         self.rescan_button = QPushButton("Reescanear")
         self.rescan_button.setToolTip(
-            "Reprocessar arquivos Excel da pasta docs_entrada"
+            "Abrir opcoes de reescaneamento/importacao da pasta docs_entrada"
         )
         self.rescan_button.clicked.connect(self.rescan_data)
         toolbar_layout.addWidget(cast(Any, self.rescan_button))
@@ -3540,7 +3542,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def toggle_theme_menu(self):
         if TSM_DEBUG_ENABLED:
             logger.warning("[TSM_DEBUG] open_theme_dialog")
-        return ssa_gui_theme.toggle_theme_menu(
+        return ssa_gui_theme.show_theme_selection_dialog(
             self,
             gui_prefs=GUI_MAIN_PREFERENCES,
             project_root=project_root,
@@ -4520,14 +4522,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         opcoes_menu = menu_bar.addMenu("Opcoes")
         ajuda_menu = menu_bar.addMenu("Ajuda")
 
-        load_action = QAction("Recarregar Dados", self)
-        load_action.triggered.connect(self.load_data)
-        arquivo_menu.addAction(load_action)
-
-        rescan_diff_action = QAction("Atualizar Dados", self)
-        rescan_diff_action.triggered.connect(self.rescan_diff_data)
-        arquivo_menu.addAction(rescan_diff_action)
-
         export_action = QAction("Exportar lista", self)
         export_action.triggered.connect(self._export_current_list_txt)
         arquivo_menu.addAction(export_action)
@@ -5030,7 +5024,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         }
 
     def rescan_data(self):
-        """Reprocessa os arquivos Excel com feedback visual em tempo real."""
+        """Abre o fluxo de reescaneamento/importacao com feedback visual."""
         from gui.widgets import RescanProgressDialog
         from gui.workers import RescanWorker
 

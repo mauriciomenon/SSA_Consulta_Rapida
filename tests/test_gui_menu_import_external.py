@@ -140,7 +140,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert "Database" in window._menu_bar.menus
     assert "Opcoes" in window._menu_bar.menus
     assert "Ajuda" in window._menu_bar.menus
-    assert len(window._menu_bar.menus["Arquivo"].actions) == 4
+    assert len(window._menu_bar.menus["Arquivo"].actions) == 2
     assert len(window._menu_bar.menus["Importacao"].actions) == 7
     assert len(window._menu_bar.menus["Database"].actions) == 4
     assert len(window._menu_bar.menus["Opcoes"].actions) == 4
@@ -168,8 +168,6 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     ]
 
     assert arquivo_labels == [
-        "Recarregar Dados",
-        "Atualizar Dados",
         "Exportar lista",
         "Sair",
     ]

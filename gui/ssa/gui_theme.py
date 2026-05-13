@@ -84,7 +84,7 @@ def persist_gui_preferences(
     return False
 
 
-def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
+def show_theme_selection_dialog(window, *, gui_prefs: dict, project_root: str) -> None:
     from PyQt6.QtWidgets import (
         QCheckBox,
         QComboBox,
@@ -151,11 +151,18 @@ def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
         return
 
     gui_settings = gui_prefs.setdefault("gui_settings", {})
+    default_changed = False
     if default_checkbox.isChecked():
-        gui_settings["theme_default"] = selected_theme_key
-    else:
+        default_changed = normalize_theme(
+            str(gui_settings.get("theme_default") or "")
+        ) != selected_theme_key
+        if default_changed:
+            gui_settings["theme_default"] = selected_theme_key
+    elif "theme_default" in gui_settings:
         gui_settings.pop("theme_default", None)
-    persist_gui_preferences(gui_prefs, project_root)
+        default_changed = True
+    if default_changed:
+        persist_gui_preferences(gui_prefs, project_root)
 
 
 def _apply_global_palette(window, normalized: str, same_theme: bool):
