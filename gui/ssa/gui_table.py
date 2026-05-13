@@ -170,11 +170,17 @@ def _apply_adaptive_header_labels(window) -> None:
         except Exception as exc:
             logger.debug("Falha ao ler assinatura da fonte do header: %s", exc)
 
+    measure_signature = (font_signature, id(_measure_header_text_px))
     if (
-        getattr(window, "_adaptive_header_label_width_cache_font", None)
-        != font_signature
+        getattr(window, "_adaptive_header_label_width_cache_signature", None)
+        != measure_signature
     ):
         setattr(window, "_adaptive_header_label_width_cache", {})
+        setattr(
+            window,
+            "_adaptive_header_label_width_cache_signature",
+            measure_signature,
+        )
         setattr(window, "_adaptive_header_label_width_cache_font", font_signature)
 
     visual_filter_columns = _get_visual_filter_columns(
