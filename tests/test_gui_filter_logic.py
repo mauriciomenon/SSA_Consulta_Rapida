@@ -267,28 +267,50 @@ class TestGUIFilterLogic:
     def test_search_and_pagination_rows_place_controls_in_expected_lines(self):
         main_ctx = self.window._tab_contexts[0]
         search_input = main_ctx["search_input"]
+        search_label = main_ctx["search_label"]
         search_button = main_ctx["search_button"]
+        clear_filter_button = main_ctx["clear_filter_button"]
         save_filter_button = main_ctx["save_filter_button"]
         filter_tags_widget = main_ctx["filter_tags_widget"]
         paginator = main_ctx["paginator"]
         column_selector = main_ctx["column_selector"]
         quick_label = main_ctx["quick_setor_executor_label"]
         quick_combo = main_ctx["quick_setor_executor_combo"]
+        filters_summary_frame = main_ctx["filters_summary_frame"]
+        clear_all_filters_btn = main_ctx["clear_all_filters_btn"]
+        export_list_btn = main_ctx["export_list_btn"]
+        undo_filter_btn = main_ctx["undo_filter_btn"]
 
         QApplication.processEvents()
 
         tooltip = str(save_filter_button.toolTip() or "")
+        assert str(search_label.text() or "") == "Pesquisa Rapida:"
         assert str(save_filter_button.text() or "") == "Salvar filtro -> todos"
         assert "busca geral" in tooltip
         assert "filtros de coluna" in tooltip
         assert "filtros avancados" in tooltip
         assert 0 < filter_tags_widget.maximumWidth() <= 280
-        assert abs(save_filter_button.geometry().y() - search_input.geometry().y()) <= 8
+        search_row_x = [
+            widget.mapToGlobal(widget.rect().topLeft()).x()
+            for widget in (
+                clear_filter_button,
+                search_button,
+                search_label,
+                search_input,
+            )
+        ]
+        assert search_row_x == sorted(search_row_x)
+        assert save_filter_button.parentWidget() is filters_summary_frame
+        summary_layout = filters_summary_frame.layout()
+        assert summary_layout is not None
+        assert summary_layout.itemAt(0).widget() is clear_all_filters_btn
+        assert summary_layout.itemAt(1).widget() is save_filter_button
+        assert summary_layout.itemAt(2).widget() is export_list_btn
+        assert summary_layout.itemAt(3).widget() is undo_filter_btn
         assert (
-            abs(filter_tags_widget.geometry().y() - save_filter_button.geometry().y())
-            <= 8
+            filter_tags_widget.mapToGlobal(filter_tags_widget.rect().topLeft()).x()
+            > search_input.mapToGlobal(search_input.rect().topLeft()).x()
         )
-        assert filter_tags_widget.geometry().x() > save_filter_button.geometry().x()
         assert column_selector.geometry().y() > search_input.geometry().y()
         assert abs(column_selector.geometry().y() - paginator.geometry().y()) <= 10
         assert column_selector.geometry().x() > paginator.geometry().x()
@@ -303,6 +325,36 @@ class TestGUIFilterLogic:
         assert parent_widget is not None
         right_gap = parent_widget.rect().right() - quick_combo.geometry().right()
         assert right_gap <= 24
+
+    def test_inline_tab_selector_buttons_switch_main_tabs(self):
+        main_ctx = next(
+            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "main"
+        )
+        filters_ctx = next(
+            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "filters"
+        )
+
+        assert self.window.main_tabs.currentIndex() == 0
+        assert main_ctx["tab_selector_ssas_btn"].isChecked() is True
+        assert main_ctx["tab_selector_filters_btn"].isChecked() is False
+
+        cast(Any, QTest).mouseClick(
+            main_ctx["tab_selector_filters_btn"], Qt.MouseButton.LeftButton
+        )
+        QApplication.processEvents()
+
+        assert self.window.main_tabs.currentIndex() == 1
+        assert filters_ctx["tab_selector_ssas_btn"].isChecked() is False
+        assert filters_ctx["tab_selector_filters_btn"].isChecked() is True
+
+        cast(Any, QTest).mouseClick(
+            filters_ctx["tab_selector_ssas_btn"], Qt.MouseButton.LeftButton
+        )
+        QApplication.processEvents()
+
+        assert self.window.main_tabs.currentIndex() == 0
+        assert main_ctx["tab_selector_ssas_btn"].isChecked() is True
+        assert main_ctx["tab_selector_filters_btn"].isChecked() is False
 
     def test_search_help_texts_reflect_current_general_search_contract(self):
         main_ctx = self.window._tab_contexts[0]
