@@ -4593,7 +4593,7 @@ class FilterGUISSAMixin:
         self.persistent_filters = []
         self.update_filter_tags()
 
-    def save_current_filter(self):
+    def save_current_filter(self):  # skipcq: PY-R1000
         """Salva o estado atual de filtros como persistente."""
         current_state = self._snapshot_filter_state()
         current_text = str(current_state.get("search_text", "") or "").strip()
