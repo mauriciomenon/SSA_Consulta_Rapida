@@ -20,7 +20,7 @@ name: Snyk Security
 
 on:
   push:
-    branches: ["main", "dev", "protection_pattern_menon"]
+    branches: ["main", "dev"]
   workflow_dispatch:
 
 permissions:
@@ -58,16 +58,17 @@ jobs:
             exit 0
           fi
           snyk code test --sarif > snyk-code.sarif || true
-          snyk monitor --all-projects
+          snyk monitor --all-projects || true
           snyk iac test --report || true
           if [ -f Dockerfile ]; then
-            docker build -t your/image-to-test .
-            snyk container monitor your/image-to-test --file=Dockerfile
+            image_tag="ssa-consulta-rapida:${GITHUB_SHA}"
+            docker build -t "$image_tag" .
+            snyk container monitor "$image_tag" --file=Dockerfile || true
           fi
 
       - name: Upload result to GitHub Code Scanning
-        if: always()
+        if: always() && hashFiles('snyk-code.sarif') != ''
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@7fd177fa680c9881b53cdab4d346d32574c9f7f4 # v3
         with:
           sarif_file: snyk-code.sarif
