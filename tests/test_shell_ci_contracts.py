@@ -385,13 +385,72 @@ def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     assert "GH_TOKEN: ${{ github.token }}" in local_action
     assert "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830" in local_action
     assert "actions/cache@v4" not in local_action
-    assert "opencode-ai@${{ inputs.opencode_version }}" in local_action
+    assert "npm install" not in local_action
+    assert "Dynamic npm package installation is disabled for this repository" in local_action
+    assert "exit 1" in local_action
+    assert "if: steps.cache.outputs.cache-hit == 'true'" in local_action
     assert "curl -fsSL https://opencode.ai/install | bash" not in local_action
     assert "releases/latest" not in local_action
     assert "id-token: write" not in workflow
     qwen_action = _read_repo_text(".github", "actions", "configure-qwen-opencode", "action.yml")
     assert "umask 077" in qwen_action
     assert 'chmod 600 "${HOME}/.config/opencode/opencode.json"' in qwen_action
+
+
+def test_github_actions_do_not_install_python_or_npm_packages_dynamically() -> None:
+    checked_paths = [
+        ".github/actions/opencode-github/action.yml",
+        ".github/actions/configure-qwen-opencode/action.yml",
+        ".github/workflows/codeql.yml",
+        ".github/workflows/dependency-review.yml",
+        ".github/workflows/minimal-ci.yml",
+        ".github/workflows/opencode.yml",
+        ".github/workflows/release-windows.yml",
+        ".github/workflows/secret_scan.yml",
+    ]
+    forbidden_patterns = [
+        r"\bpip\s+install\b",
+        r"\bpython\s+-m\s+pip\b",
+        r"\buv\s+pip\b",
+        r"\bpipx\b",
+        r"\bnpm\s+install\b",
+        r"\bpnpm\s+install\b",
+        r"\byarn\s+install\b",
+        r"\bbun\s+install\b",
+    ]
+
+    findings: list[str] = []
+    for relative_path in checked_paths:
+        text = _read_repo_text(*relative_path.split("/"))
+        for pattern in forbidden_patterns:
+            if re.search(pattern, text):
+                findings.append(f"{relative_path}: {pattern}")
+
+    assert findings == []
+
+
+def test_code_quality_documents_dynamic_dependency_submission_status() -> None:
+    docs = _read_repo_text(".github", "CODE_QUALITY.md")
+
+    assert "Automatic Dependency Submission is a dynamic GitHub-managed workflow" in docs
+    assert "GH_DEPENDENCY_SUBMISSION_SKIP_CACHE=true" in docs
+    assert "HTTP 422" in docs
+
+
+def test_release_windows_workflow_uses_env_for_dispatch_inputs() -> None:
+    workflow = _read_repo_text(".github", "workflows", "release-windows.yml")
+
+    assert '$backend = "${{ inputs.backend }}"' not in workflow
+    assert 'if ("${{ inputs.skip_installer }}" -eq "true")' not in workflow
+    assert 'if ("${{ inputs.skip_installer }}" -ne "true")' not in workflow
+    assert "RELEASE_BACKEND: ${{ inputs.backend || 'nuitka' }}" in workflow
+    assert "RELEASE_INSTALLER_REQUIRED: ${{ !inputs.skip_installer }}" in workflow
+    assert "RELEASE_SKIP_INSTALLER: ${{ inputs.skip_installer }}" not in workflow
+    assert "$backend = $env:RELEASE_BACKEND" in workflow
+    assert 'if ($env:RELEASE_INSTALLER_REQUIRED -ne "true")' in workflow
+    assert 'if ($env:RELEASE_INSTALLER_REQUIRED -eq "true")' in workflow
+    assert "if: ${{ env.RELEASE_INSTALLER_REQUIRED == 'true' }}" in workflow
+    assert "windows-release-${{ env.RELEASE_BACKEND }}" in workflow
 
 
 def test_opencode_review_script_extracts_pr_number() -> None:
