@@ -1,0 +1,26 @@
+tests/test_config_manager_atomic_save.py
+  s_082d1ff7d55d96::t_d0d06440820573 225-242
+dev_env/bootstrap.ps1
+  s_082d1ff7d55d96::t_d0d06440820573 58-61
+core/config_manager.py
+  s_082d1ff7d55d96::t_63ae2387430103 687
+  s_082d1ff7d55d96::t_d0d06440820573 559-560,577-585
+tests/test_shell_ci_contracts.py
+  s_082d1ff7d55d96::t_d0d06440820573 223-224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "28a2282fe0c16f9bfa8c0dea197967255665eac1",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
