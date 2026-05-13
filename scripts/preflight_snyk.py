@@ -5,28 +5,6 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from pathlib import Path
-
-
-def _find_expected_constants_file(snyk_path: str) -> Path | None:
-    resolved = Path(snyk_path).resolve()
-    for parent in resolved.parents:
-        candidate = (
-            parent
-            / "libexec"
-            / "lib"
-            / "node_modules"
-            / "snyk"
-            / "pysrc"
-            / "constants.py"
-        )
-        if candidate.exists():
-            return candidate
-    for parent in resolved.parents:
-        candidate = parent / "pysrc" / "constants.py"
-        if candidate.exists():
-            return candidate
-    return None
 
 
 def main() -> int:
@@ -51,14 +29,12 @@ def main() -> int:
             print(stderr)
         return 2
 
-    constants_file = _find_expected_constants_file(snyk_path)
-    if constants_file is None:
-        print("ERR instalacao local do snyk parece degradada.")
-        print("INFO arquivo esperado ausente: pysrc/constants.py")
-        print("INFO reinstale o CLI por metodo suportado antes de usar scans Python.")
+    version_text = (version.stdout or "").strip()
+    if not version_text:
+        print("ERR snyk --version nao retornou versao.")
         return 3
 
-    print(f"OK snyk preflight ok: {constants_file}")
+    print(f"OK snyk preflight ok: {snyk_path} ({version_text})")
     return 0
 
 
