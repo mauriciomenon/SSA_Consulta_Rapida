@@ -31,7 +31,8 @@ try:
     QBrush = getattr(qt_gui, "QBrush", None)
     QColor = getattr(qt_gui, "QColor", None)
 except Exception:
-    pass
+    QBrush = None
+    QColor = None
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 

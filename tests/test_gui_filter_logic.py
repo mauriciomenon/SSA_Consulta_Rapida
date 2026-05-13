@@ -396,9 +396,10 @@ class TestGUIFilterLogic:
 
         assert (
             str(search_input.placeholderText() or "")
-            == "Todos os termos separados por virgula; ! exclui termo"
+            == "Termos cumulativos separados por virgula; ! exclui termo"
         )
         tooltip = str(search_input.toolTip() or "")
+        assert "virgulas separam termos cumulativos" in tooltip
         assert (
             "Todos os termos digitados devem ser satisfeitos na mesma linha." in tooltip
         )

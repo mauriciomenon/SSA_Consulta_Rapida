@@ -25,7 +25,7 @@ import posixpath
 import re
 import shutil
 import sqlite3
-import subprocess
+import subprocess  # nosec B404
 import sys
 import threading
 from collections import OrderedDict
@@ -1075,7 +1075,7 @@ def resolve_uv_version_text() -> str:
     if not uv_exe:
         return "indisponivel"
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             [uv_exe, "--version"],
             capture_output=True,
             text=True,
@@ -1149,7 +1149,7 @@ def resolve_git_commit_hash_text() -> str:
     if not git_exe:
         return "indisponivel"
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             [git_exe, "rev-parse", "--short", "HEAD"],
             capture_output=True,
             text=True,
@@ -1753,9 +1753,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         left.setContentsMargins(0, 0, 0, 0)
         search_input = QLineEdit()
         search_input.setPlaceholderText(
-            "Todos os termos separados por virgula; ! exclui termo"
+            "Termos cumulativos separados por virgula; ! exclui termo"
         )
         search_input.setToolTip(
+            "Na busca rapida, virgulas separam termos cumulativos (logica E).\n"
             "Todos os termos digitados devem ser satisfeitos na mesma linha.\n\n"
             "A busca pesquisa nas colunas relevantes da GUI; datas puras ficam nos filtros especificos.\n\n"
             "Modos por termo: \n"
@@ -4880,7 +4881,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 )
             if not opened:
                 resolved = SSAMainWindow._resolve_platform_open_command()
-                subprocess.Popen([resolved, safe_settings_path], shell=False)
+                subprocess.Popen(  # nosec B603
+                    [resolved, safe_settings_path], shell=False
+                )
                 opened = True
         except Exception as exc:
             logger.warning("Falha ao abrir settings para edicao: %s", exc)
@@ -5156,7 +5159,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 opened = bool(QDesktopServices.openUrl(safe_doc_url))
             if not opened:
                 resolved = SSAMainWindow._resolve_platform_open_command()
-                subprocess.Popen([resolved, safe_doc_path], shell=False)
+                subprocess.Popen(  # nosec B603
+                    [resolved, safe_doc_path], shell=False
+                )
                 opened = True
             if hasattr(self, "status_label"):
                 self.status_label.setText("Status: Guia de instalacao aberto.")
@@ -5339,7 +5344,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             try:
                 # Best-effort fallback, non-blocking.
                 resolved = SSAMainWindow._resolve_platform_open_command()
-                subprocess.Popen([resolved, safe_folder_path], shell=False)
+                subprocess.Popen(  # nosec B603
+                    [resolved, safe_folder_path], shell=False
+                )
                 return
             except Exception as fallback_exc:
                 logger.warning("Fallback para abrir pasta falhou: %s", fallback_exc)

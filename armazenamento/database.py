@@ -275,7 +275,8 @@ def get_ssa_query(table_name: str = CANONICAL_SSA_TABLE) -> str:
         table_name = CANONICAL_SSA_TABLE
     elif table_name != CANONICAL_SSA_TABLE:
         raise ValueError(f"Unsupported table for CLI query: {table_name!r}")
-    return f"""
+    quoted_table_name = _quote_identifier(table_name)
+    query_template = """
     SELECT
         numero_ssa,
         situacao,
@@ -316,6 +317,7 @@ def get_ssa_query(table_name: str = CANONICAL_SSA_TABLE) -> str:
         num_reprogramacoes
     FROM {table_name}
     """
+    return query_template.format(table_name=quoted_table_name)  # nosec B608
 
 
 def _validate_insert_policy(table_name: str, if_exists: IfExistsPolicy) -> None:
@@ -474,7 +476,7 @@ def count_table_rows(db_path: str, table_name: str) -> int:
     """Count rows in a resolved runtime table."""
     with get_db_connection(db_path) as conn:
         resolved_table_name = resolve_target_table(conn, table_name)
-        query = f"SELECT COUNT(*) FROM {_quote_identifier(resolved_table_name)}"
+        query = f"SELECT COUNT(*) FROM {_quote_identifier(resolved_table_name)}"  # nosec B608
         row = conn.execute(query).fetchone()
     return int(row[0] if row else 0)
 
@@ -486,15 +488,16 @@ def count_distinct_derivada_edges(
     """Count distinct derivada edges on the resolved runtime table/view."""
     resolved_table_name = resolve_target_table(conn, table_name)
     quoted_table_name = _quote_identifier(resolved_table_name)
-    query = f"""
+    query_template = """
         SELECT COUNT(*)
         FROM (
             SELECT numero_ssa, derivada_de
-            FROM {quoted_table_name}
+            FROM {table_name}
             WHERE derivada_de IS NOT NULL
             GROUP BY numero_ssa, derivada_de
         ) AS db_edges
     """
+    query = query_template.format(table_name=quoted_table_name)  # nosec B608
     return int(
         conn.execute(query).fetchone()[0] or 0
     )  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
