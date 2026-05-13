@@ -60,8 +60,8 @@ except ImportError:
 # Imports do core
 from core.app_logic import FILTER_SEARCH_CACHE_ATTR, FILTER_SEARCH_TOKEN_ATTR
 from core.app_logic import filter_dataframe, parse_search_terms
-from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
-from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS
+from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file
+from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS, get_gui_main_preferences_path
 
 # Imports de gui helpers
 from gui.helpers.formatting_helpers import (
@@ -78,6 +78,11 @@ from utils.themes import get_theme_roles
 
 # Module logger
 logger = get_robust_logger().get_logger(__name__, "gui")
+
+
+def get_gui_saved_filters_path() -> str:
+    config_dir = os.path.dirname(get_gui_main_preferences_path())
+    return os.path.join(config_dir, "gui_saved_filters.json")
 _NESTED_QUANTIFIER_RE = re.compile(r"\((?:[^()]*[+*][^()]*)\)\s*[+*{]")
 _HEAVY_QUANTIFIER_CHAIN_RE = re.compile(r"(?:[+*]|\{[^}]*\}){3,}")
 _REGEX_META_CHAR_RE = re.compile(r"[*+?{}|()[\]]")
@@ -4589,9 +4594,60 @@ class FilterGUISSAMixin:
             )
 
     def load_persistent_filters(self):
-        """Carrega filtros persistentes salvos (inicia vazio)."""
+        """Carrega filtros persistentes salvos."""
         self.persistent_filters = []
+        path = get_gui_saved_filters_path()
+        if os.path.exists(path):
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    payload = json.load(handle)
+                filters = payload.get("filters") if isinstance(payload, dict) else payload
+                if isinstance(filters, list):
+                    loaded_filters = []
+                    for item in filters:
+                        if not isinstance(item, dict):
+                            continue
+                        name = str(item.get("name") or "").strip()
+                        terms = str(item.get("terms") or "").strip()
+                        state = item.get("state")
+                        if not name or not isinstance(state, dict):
+                            continue
+                        loaded_filters.append(
+                            {
+                                "name": name,
+                                "terms": terms,
+                                "state": copy.deepcopy(state),
+                            }
+                        )
+                    self.persistent_filters = sorted(
+                        loaded_filters, key=lambda f: f["name"].casefold()
+                    )
+            except (OSError, json.JSONDecodeError) as exc:
+                logger.warning("Falha ao carregar filtros salvos: %s", exc)
         self.update_filter_tags()
+
+    def _save_persistent_filters_file(self) -> None:
+        path = get_gui_saved_filters_path()
+
+        def _json_safe(value):
+            if isinstance(value, dict):
+                return {str(key): _json_safe(val) for key, val in value.items()}
+            if isinstance(value, set):
+                return [_json_safe(item) for item in sorted(value, key=str)]
+            if isinstance(value, (list, tuple)):
+                return [_json_safe(item) for item in value]
+            if value is None or isinstance(value, (str, int, float, bool)):
+                return value
+            return str(value)
+
+        payload = {
+            "version": 1,
+            "filters": _json_safe(getattr(self, "persistent_filters", []) or []),
+        }
+        try:
+            atomic_write_json_file(path, payload, indent=2, ensure_ascii=False)
+        except Exception as exc:
+            logger.warning("Falha ao salvar filtros persistentes: %s", exc)
 
     def save_current_filter(self):  # skipcq: PY-R1000
         """Salva o estado atual de filtros como persistente."""
@@ -4685,6 +4741,7 @@ class FilterGUISSAMixin:
         }
         self.persistent_filters.append(new_filter)
         self.persistent_filters.sort(key=lambda f: f["name"].casefold())
+        self._save_persistent_filters_file()
         self.update_filter_tags()
 
         QMessageBox.information(

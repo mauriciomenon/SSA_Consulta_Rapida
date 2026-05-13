@@ -1804,7 +1804,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         )
         save_filter_button.setMaximumWidth(170)
         save_filter_button.setToolTip(
-            "Salva o estado atual: pesquisa rapida, filtros de coluna, filtros avancados e perfil."
+            "Salva o estado atual: busca, filtros de coluna, filtros avancados e perfil."
         )
         try:
             save_filter_button.setStyleSheet(self._week_label_style)
@@ -1984,9 +1984,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         try:
             filters_summary_frame = QFrame()
             filters_summary_frame.setFrameShape(QFrame.Shape.StyledPanel)
+            self._set_widget_fixed_height_safe(
+                filters_summary_frame, 44, "barra de filtros ativos"
+            )
             summary_layout = QHBoxLayout(cast(Any, filters_summary_frame))
             summary_layout.setContentsMargins(6, 4, 6, 4)
             summary_layout.setSpacing(8)
+            try:
+                align_top = cast(Any, Qt).AlignmentFlag.AlignTop
+                cast(Any, summary_layout).setAlignment(align_top)
+            except Exception as exc:
+                logger.debug("Falha ao alinhar resumo de filtros no topo: %s", exc)
+                align_top = None
             filters_summary_label = QLabel("Nenhum filtro ativo")
             if self._info_font is not None:
                 try:
@@ -2031,11 +2040,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             summary_text_layout.setSpacing(4)
             summary_text_layout.addWidget(cast(Any, filters_summary_label), 0)
             summary_text_layout.addWidget(cast(Any, filters_summary_items_widget), 0)
-            summary_text_layout.addStretch(1)
-            summary_layout.addWidget(cast(Any, clear_all_filters_btn), 0)
-            summary_layout.addWidget(cast(Any, save_filter_button), 0)
-            summary_layout.addWidget(cast(Any, export_list_btn), 0)
-            summary_layout.addWidget(cast(Any, undo_filter_btn), 0)
+            if align_top is None:
+                summary_layout.addWidget(cast(Any, clear_all_filters_btn), 0)
+                summary_layout.addWidget(cast(Any, save_filter_button), 0)
+                summary_layout.addWidget(cast(Any, export_list_btn), 0)
+                summary_layout.addWidget(cast(Any, undo_filter_btn), 0)
+            else:
+                summary_layout.addWidget(cast(Any, clear_all_filters_btn), 0, align_top)
+                summary_layout.addWidget(cast(Any, save_filter_button), 0, align_top)
+                summary_layout.addWidget(cast(Any, export_list_btn), 0, align_top)
+                summary_layout.addWidget(cast(Any, undo_filter_btn), 0, align_top)
             summary_layout.addLayout(cast(Any, summary_text_layout), 1)
             tab_layout.addWidget(cast(Any, filters_summary_frame))
             filters_summary_frame.setVisible(True)
@@ -2174,6 +2188,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         col_filters_group = QGroupBox("")
         col_filters_outer = QVBoxLayout(cast(Any, col_filters_group))
+        col_filters_outer.setContentsMargins(1, 1, 1, 1)
+        col_filters_outer.setSpacing(1)
         tab_selector_ssas_btn = QPushButton("Por coluna")
         tab_selector_filters_btn = QPushButton("Avancados")
         inline_tab_style = (
@@ -2213,6 +2229,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         def _build_inline_filter_tabs_header() -> QWidget:
             inline_tabs_widget = QWidget()
+            self._set_widget_fixed_height_safe(
+                inline_tabs_widget, 26, "cabecalho compacto de abas de filtros"
+            )
             inline_tabs_layout = QHBoxLayout(cast(Any, inline_tabs_widget))
             inline_tabs_layout.setContentsMargins(0, 0, 0, 0)
             inline_tabs_layout.setSpacing(6)
@@ -2231,6 +2250,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             inline_tabs_layout.addWidget(cast(Any, tab_selector_filters_btn), 0)
             inline_tabs_layout.addStretch(1)
             return inline_tabs_widget
+        inline_tabs_widget = _build_inline_filter_tabs_header()
+        col_filters_outer.addWidget(cast(Any, inline_tabs_widget), 0)
         col_filters_scroll = QScrollArea()
         col_filters_scroll.setWidgetResizable(True)
         col_filters_container = QWidget()
@@ -2262,26 +2283,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             try:
                 adv_group.setTitle("")
                 adv_layout = adv_group.layout()
+                if adv_layout is not None:
+                    inline_tabs_widget = _build_inline_filter_tabs_header()
+                    adv_layout.insertWidget(0, cast(Any, inline_tabs_widget), 0)
             except Exception as exc:
                 logger.debug(
                     "Falha ao atualizar titulo de grupo de filtros avancados: %s",
                     exc,
                 )
-            inline_tabs_widget = _build_inline_filter_tabs_header()
-            right_col.addWidget(cast(Any, inline_tabs_widget), 0)
             right_col.addWidget(cast(Any, adv_group), 1)
             col_filters_group.setVisible(False)
             right_col.addWidget(cast(Any, col_filters_group))
             # APENAS na aba Filtros: Detalhes max 40% (2) vs Filtros 60% (3)
             bottom_layout.addWidget(cast(Any, right_col_widget), 3)
         else:
-            inline_tabs_widget = _build_inline_filter_tabs_header()
-            right_col.addWidget(cast(Any, inline_tabs_widget), 0)
             right_col.addWidget(cast(Any, col_filters_group), 1)
             # Aba SSAs: manter Detalhes em 40% (2) e painel da direita em 60% (3).
             bottom_layout.addWidget(cast(Any, right_col_widget), 3)
 
-        tab_layout.addSpacing(12)
+        tab_layout.addSpacing(4)
         tab_layout.addLayout(cast(Any, bottom_layout), 4)
 
         ctx.update(
@@ -2618,10 +2638,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             base_font_pt = 10
         if base_font_pt <= 0:
             base_font_pt = 10
-        base_height = int(window_height * 0.28)
+        base_height = int(window_height * 0.26)
         font_adjust = max(0, base_font_pt - 10) * 8
         target = base_height + font_adjust
-        return max(180, min(360, target))
+        return max(200, min(280, target))
 
     def _queue_bottom_panel_height_sync(self) -> None:
         try:
@@ -5780,6 +5800,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                         exc,
                     )
             self.persistent_filters.remove(filter_data)
+            try:
+                self._save_persistent_filters_file()
+            except Exception as exc:
+                logger.warning("Falha ao persistir remocao de filtro salvo: %s", exc)
             self.update_filter_tags()
             # Atualiza imediatamente se o filtro removido estava ativo
             if removed_active_filter:

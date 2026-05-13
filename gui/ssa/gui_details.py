@@ -36,7 +36,7 @@ HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
 DERIVADAS_DETAILS_TOP_N = 5
 DERIVADAS_DIALOG_RATIO_LEFT = 24
 DERIVADAS_DIALOG_RATIO_RIGHT = 76
-DERIVADAS_DIALOG_MIN_HEIGHT = 730
+DERIVADAS_DIALOG_MIN_HEIGHT = 640
 DERIVADAS_DIALOG_DETAILS_FONT_PT = 12.0
 DERIVADAS_DIALOG_TREE_FONT_PT = 12.0
 DERIVADAS_DIALOG_LABEL_FONT_PT = 11.0
@@ -52,7 +52,7 @@ DERIVADAS_GRAPH_MARGIN = 8
 DERIVADAS_GRAPH_MAX_DESCENDANTS = 120
 DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT = 120
 DERIVADAS_SPLITTER_HANDLE_WIDTH = 10
-DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT = 260
+DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT = 180
 
 
 def _init_readonly_text_browser(
@@ -2685,7 +2685,10 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
             logger.debug("Falha ao ler altura da janela principal: %s", exc)
         desired_height = safe_height
         if window_height > 0:
-            desired_height = min(max(window_height, 480), safe_height)
+            desired_height = min(
+                max(int(window_height * 0.72), DERIVADAS_DIALOG_MIN_HEIGHT),
+                safe_height,
+            )
         dialog.setMinimumSize(
             min(DERIVADAS_DIALOG_MIN_WIDTH, safe_width),
             min(DERIVADAS_DIALOG_MIN_HEIGHT, safe_height),
@@ -2704,7 +2707,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
         bottom_height = min(
             max(
                 DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT,
-                int(target_height * 0.32),
+                int(target_height * 0.26),
             ),
             max(0, target_height - 240),
         )

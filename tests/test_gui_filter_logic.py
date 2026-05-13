@@ -6,6 +6,7 @@ import os
 import re
 import sqlite3
 import sys
+import tempfile
 import time
 from collections import Counter, OrderedDict
 from typing import Any, Literal, TypedDict, cast
@@ -84,6 +85,16 @@ class TestGUIFilterLogic:
         gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.clear()
         gui_ssa.GLOBAL_RETIRED_RESCAN_META.clear()
         filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS.clear()
+        self._saved_filters_tmpdir = tempfile.TemporaryDirectory()
+        self._saved_filters_path = os.path.join(
+            self._saved_filters_tmpdir.name, "gui_saved_filters.json"
+        )
+        self._saved_filters_path_patch = patch.object(
+            filter_mixin,
+            "get_gui_saved_filters_path",
+            lambda: self._saved_filters_path,
+        )
+        self._saved_filters_path_patch.start()
         self._load_patch = patch.object(SSAMainWindow, "load_data", lambda self: None)
         self._load_patch.start()
         self.window = SSAMainWindow()
@@ -130,8 +141,10 @@ class TestGUIFilterLogic:
     def teardown_method(self):
         try:
             self._load_patch.stop()
+            self._saved_filters_path_patch.stop()
             self.window.close()
         finally:
+            self._saved_filters_tmpdir.cleanup()
             gui_ssa.GUI_MAIN_PREFERENCES.clear()
             gui_ssa.GUI_MAIN_PREFERENCES.update(self._gui_main_preferences_snapshot)
             gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = (
@@ -288,7 +301,7 @@ class TestGUIFilterLogic:
         assert "color:" in str(search_button.styleSheet() or "")
         assert "color:" in str(clear_filter_button.styleSheet() or "")
         assert "color:" in str(save_filter_button.styleSheet() or "")
-        assert "pesquisa rapida" in tooltip.casefold()
+        assert "busca" in tooltip.casefold()
         assert "filtros de coluna" in tooltip
         assert "filtros avancados" in tooltip
         assert 0 < filter_tags_widget.maximumWidth() <= 280
@@ -333,10 +346,10 @@ class TestGUIFilterLogic:
 
         assert self.window.main_tabs.currentIndex() == 0
         assert self.window.main_tabs.tabBar().isVisible() is False
-        assert main_ctx["inline_tabs_widget"].parentWidget() is not None
+        assert main_ctx["inline_tabs_widget"].parentWidget() is main_ctx["col_filters_group"]
         assert (
             filters_ctx["inline_tabs_widget"].parentWidget()
-            is not None
+            is filters_ctx["adv_filters_group"]
         )
         assert "col_filters_hint" not in main_ctx
         assert str(main_ctx["tab_selector_ssas_btn"].text() or "") == "Por coluna"
@@ -396,7 +409,7 @@ class TestGUIFilterLogic:
         assert browser is not None
         html = str(browser.toHtml() or "")
 
-        assert "Pesquisa Rapida" in html
+        assert "Busca" in html
         assert "todos os termos digitados sao obrigatorios" in html
         assert "virgulas representam alternativas implicitas" in html
         assert "logica OU - qualquer termo serve" not in html
@@ -2216,7 +2229,29 @@ class TestGUIFilterLogic:
         assert len(max_heights) == 1
         synced_height = next(iter(min_heights))
         assert synced_height == next(iter(max_heights))
-        assert 180 <= synced_height <= 360
+        assert 200 <= synced_height <= 280
+
+    def test_filter_summary_bar_keeps_geometry_when_switching_filter_tabs(self):
+        self.window.resize(1280, 880)
+        QApplication.processEvents()
+
+        measurements = []
+        for index in (0, 1, 0, 1):
+            self.window.main_tabs.setCurrentIndex(index)
+            QApplication.processEvents()
+            ctx = self.window._tab_contexts[index]
+            summary = ctx["filters_summary_frame"]
+            table = ctx["table_widget"]
+            measurements.append(
+                (
+                    int(summary.height()),
+                    int(summary.mapToGlobal(QPoint(0, 0)).y()),
+                    int(table.mapToGlobal(QPoint(0, 0)).y()),
+                )
+            )
+
+        assert {height for height, _summary_y, _table_y in measurements} == {44}
+        assert len({table_y for _height, _summary_y, table_y in measurements}) == 1
 
     def test_clear_filter_button_reflects_active_filters(self):
         self.window.search_input.setText("")
@@ -2804,6 +2839,21 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters["setor_executor"] == "MEL4"
         assert self.window._exclude_ste_sca is True
 
+    def test_persistent_filters_reload_from_saved_file(self):
+        with patch.object(QMessageBox, "information"):
+            self.window.search_input.clear()
+            self.window._active_column_filters["setor_executor"] = "MEL4"
+            self.window.save_current_filter()
+
+        assert os.path.exists(self._saved_filters_path)
+
+        self.window.persistent_filters = []
+        self.window.load_persistent_filters()
+
+        assert len(self.window.persistent_filters) == 1
+        saved = self.window.persistent_filters[0]
+        assert saved["state"]["active_column_filters"]["setor_executor"] == "MEL4"
+
     def test_persistent_filter_tags_do_not_expand_search_row_width(self):
         long_name = "Filtro salvo com nome grande para testar largura " * 3
         self.window.persistent_filters = [
@@ -2886,6 +2936,8 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         assert self.window.persistent_filters == []
+        with open(self._saved_filters_path, encoding="utf-8") as handle:
+            assert json.load(handle)["filters"] == []
         assert self.window.search_input.text() == ""
         assert "Nenhum filtro ativo" in str(
             self.window.filters_summary_label.text() or ""
@@ -4622,7 +4674,9 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
         self.window._open_details_dialog_for_ssa("1")
 
-        assert captured["size"].height() == 880
+        assert captured["size"].height() == max(
+            int(880 * 0.72), ssa_gui_details.DERIVADAS_DIALOG_MIN_HEIGHT
+        )
         assert (
             captured["minimum_size"].height()
             == ssa_gui_details.DERIVADAS_DIALOG_MIN_HEIGHT
