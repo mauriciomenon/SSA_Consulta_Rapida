@@ -313,6 +313,7 @@ class TestGUIFilterLogic:
             undo_filter_btn.width(),
         }
         assert summary_button_widths == {save_filter_button.width()}
+        assert 118 <= save_filter_button.width() <= 150
         search_row_x = [
             widget.mapToGlobal(widget.rect().topLeft()).x()
             for widget in (clear_filter_button, search_button, search_input)
@@ -329,6 +330,12 @@ class TestGUIFilterLogic:
             filter_tags_widget.mapToGlobal(filter_tags_widget.rect().topLeft()).x()
             > search_input.mapToGlobal(search_input.rect().topLeft()).x()
         )
+        search_y = search_input.mapToGlobal(search_input.rect().topLeft()).y()
+        summary_y = filters_summary_frame.mapToGlobal(
+            filters_summary_frame.rect().topLeft()
+        ).y()
+        paginator_y = paginator.mapToGlobal(paginator.rect().topLeft()).y()
+        assert search_y < summary_y < paginator_y
         assert column_selector.geometry().y() > search_input.geometry().y()
         assert abs(column_selector.geometry().y() - paginator.geometry().y()) <= 10
         assert column_selector.geometry().x() > paginator.geometry().x()
@@ -364,6 +371,8 @@ class TestGUIFilterLogic:
         assert str(main_ctx["tab_selector_filters_btn"].text() or "") == "Avancados"
         assert main_ctx["tab_selector_ssas_btn"].width() > 78
         assert main_ctx["tab_selector_filters_btn"].width() > 78
+        assert main_ctx["tab_selector_ssas_btn"].height() <= 22
+        assert main_ctx["tab_selector_filters_btn"].height() <= 22
         assert "QPushButton:checked" in str(
             main_ctx["tab_selector_ssas_btn"].styleSheet() or ""
         )
@@ -408,9 +417,10 @@ class TestGUIFilterLogic:
         assert "Use termos positivos e ! para excluir." in str(search_help.text() or "")
 
         indicator_tooltip = str(col_indicator.toolTip() or "")
-        assert "busca" in indicator_tooltip
-        assert "virgulas representam alternativas implicitas" in indicator_tooltip
-        assert "logica OU" not in indicator_tooltip
+        assert "Busca rapida" in indicator_tooltip
+        assert "termos cumulativos" in indicator_tooltip
+        assert "Filtros por coluna" in indicator_tooltip
+        assert "alternativas dentro da mesma coluna" in indicator_tooltip
 
     def test_filter_help_dialog_texts_separate_general_search_from_column_alternatives(
         self,
@@ -590,8 +600,8 @@ class TestGUIFilterLogic:
         assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
         assert str(combo.currentText() or "") == "Todos"
 
-    def test_profile_or_filters_executor_or_emissor(self):
-        """Perfil OR deve considerar executor ou emissor e refletir na UI."""
+    def test_profile_filters_executor_and_emissor(self):
+        """Perfil com executor e emissor deve aplicar filtros cumulativos na UI."""
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
 
         # Com OR restrito por coluna e AND entre colunas, apenas quem atende ambos entra (aqui só o 3)
@@ -1744,6 +1754,7 @@ class TestGUIFilterLogic:
         label_css = str(self.window.filters_summary_label.styleSheet() or "")
         assert "border:1px solid" in frame_css
         assert "font-weight:700" in label_css
+        assert "background:transparent" in label_css
 
     def test_find_unmapped_alias_columns_reports_only_unmapped(self):
         self.window.internal_to_display["numero_ssa"] = "Numero SSA"

@@ -1383,7 +1383,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             logger.debug("Failed to set WA_DeleteOnClose on main window: %s", exc)
         self._app_version = resolve_app_version_text()
         self.setWindowTitle(f"Consulta Rapida de SSAs v{self._app_version}")
-        self.setGeometry(100, 100, 1200, 800)
+        self.setGeometry(100, 100, 1200, 850)
         self._last_window_width = self.width()
         # Icone da janela (prioriza .ico no Windows)
         try:
@@ -1739,6 +1739,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def _build_tab_content(self, page: QWidget, tab_kind: str = "main") -> dict:
         tab_layout = QVBoxLayout(page)
+        tab_layout.setSpacing(4)
         ctx = {}
 
         # Top spacing for search row
@@ -1970,15 +1971,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "Falha ao aplicar fonte no indicador de filtro por coluna: %s", exc
             )
         col_filter_indicator.setToolTip(
-            "Filtros por coluna acumulam com a busca (logica E entre filtros). "
-            "Dentro da mesma coluna, virgulas representam alternativas implicitas. Consulte a ajuda para outros atalhos."
+            "Busca rapida: virgulas separam termos cumulativos (logica E). "
+            "Filtros por coluna: virgulas representam alternativas dentro da mesma coluna. "
+            "Entre filtros diferentes, as restricoes continuam cumulativas."
         )
         try:
             col_filter_indicator.setVisible(False)
         except Exception as exc:
             logger.debug("Falha ao ocultar indicador de filtro por coluna: %s", exc)
-
-        tab_layout.addLayout(cast(Any, pagination_filters_layout))
 
         filters_summary_frame = None
         filters_summary_label = None
@@ -2005,6 +2005,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 logger.debug("Falha ao centralizar resumo de filtros: %s", exc)
                 align_middle = None
             filters_summary_label = QLabel("Nenhum filtro ativo")
+            filters_summary_label.setAutoFillBackground(False)
             if self._info_font is not None:
                 try:
                     filters_summary_label.setFont(cast(Any, QFont(self._info_font)))
@@ -2045,7 +2046,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     filters_summary_viewport.setAutoFillBackground(False)
             except Exception as exc:
                 logger.debug("Falha ao aplicar estilo no scroll de filtros ativos: %s", exc)
-            summary_button_width = 170
+            summary_button_labels = (
+                "Limpar todos os filtros",
+                "Salvar Filtros",
+                "Exportar lista",
+                "Undo",
+            )
+            try:
+                metrics = self.fontMetrics()
+                widest_summary_label = max(
+                    int(metrics.horizontalAdvance(label))
+                    for label in summary_button_labels
+                )
+            except Exception as exc:
+                logger.debug("Falha ao calcular largura dos botoes de filtros: %s", exc)
+                widest_summary_label = 112
+            summary_button_width = max(118, min(150, widest_summary_label + 28))
             clear_all_filters_btn = QPushButton("Limpar todos os filtros")
             clear_all_filters_btn.setFixedWidth(summary_button_width)
             clear_all_filters_btn.clicked.connect(self._on_clear_all_filters_clicked)
@@ -2100,6 +2116,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             logger.warning(
                 "Falha ao construir painel de resumo de filtros da aba: %s", exc
             )
+
+        tab_layout.addLayout(cast(Any, pagination_filters_layout))
 
         if (
             isinstance(self._restored_page_size, int)
@@ -2248,7 +2266,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 button.setCheckable(True)
                 button.setFixedWidth(112)
                 self._set_widget_fixed_height_safe(
-                    button, 24, f"seletor compacto de aba {target_index}"
+                    button, 22, f"seletor compacto de aba {target_index}"
                 )
                 button.setToolTip(tooltip)
                 button.setStyleSheet(inline_tab_style)
@@ -2340,7 +2358,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             # Aba SSAs: manter Detalhes em 40% (2) e painel da direita em 60% (3).
             bottom_layout.addWidget(cast(Any, right_col_widget), 3)
 
-        tab_layout.addSpacing(4)
+        tab_layout.addSpacing(0)
         tab_layout.addLayout(cast(Any, bottom_layout), 4)
 
         ctx.update(
@@ -2678,10 +2696,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             base_font_pt = 10
         if base_font_pt <= 0:
             base_font_pt = 10
-        base_height = int(window_height * 0.26)
+        base_height = int(window_height * 0.27)
         font_adjust = max(0, base_font_pt - 10) * 8
         target = base_height + font_adjust
-        return max(200, min(280, target))
+        return max(220, min(280, target))
 
     def _queue_bottom_panel_height_sync(self) -> None:
         try:

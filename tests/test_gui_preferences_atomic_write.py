@@ -229,3 +229,19 @@ def test_theme_dialog_skips_default_preference_write_when_unchanged(monkeypatch)
 
     assert window.applied == ["gruvbox"]
     assert persist_calls == []
+
+    temporary_window = _Window()
+    temporary_window._current_theme = "windows7"
+    temporary_prefs = {
+        "gui_settings": {"theme": "windows7", "theme_default": "gruvbox"}
+    }
+
+    gui_theme.show_theme_selection_dialog(
+        temporary_window,
+        gui_prefs=temporary_prefs,
+        project_root="/tmp/ignored-project-root",
+    )
+
+    assert temporary_window.applied == ["windows7"]
+    assert temporary_prefs["gui_settings"]["theme_default"] == "gruvbox"
+    assert persist_calls == []

@@ -3045,6 +3045,8 @@ class FilterGUISSAMixin:
             self.filters_summary_label.setToolTip(summary_text if active_state else "")
             self.filters_summary_label.setStyleSheet(
                 f"color:{summary_color};"
+                "background:transparent;"
+                "padding:0 2px;"
                 + ("font-weight:700;" if active_state else "font-weight:400;")
             )
         scroll = getattr(self, "filters_summary_scroll", None)

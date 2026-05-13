@@ -158,9 +158,6 @@ def show_theme_selection_dialog(window, *, gui_prefs: dict, project_root: str) -
         ) != selected_theme_key
         if default_changed:
             gui_settings["theme_default"] = selected_theme_key
-    elif "theme_default" in gui_settings:
-        gui_settings.pop("theme_default", None)
-        default_changed = True
     if default_changed:
         persist_gui_preferences(gui_prefs, project_root)
 
@@ -626,7 +623,8 @@ def _apply_theme_widget_styles(
 
         if hasattr(window, "filters_summary_label"):
             _set_stylesheet_if_changed(
-                window.filters_summary_label, f"color:{summary_color};"
+                window.filters_summary_label,
+                f"color:{summary_color}; background:transparent; padding:0 2px;",
             )
 
         if hasattr(window, "filters_summary_frame"):
