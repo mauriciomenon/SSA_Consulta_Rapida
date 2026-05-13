@@ -37,7 +37,7 @@ class FilterHelpDialog(QDialog):
               <li><b>comeca com</b>: <code>^foo</code></li>
               <li><b>termina com</b>: <code>foo$</code></li>
               <li><b>igual</b>: <code>=foo</code></li>
-              <li><b>regex</b>: <code>~foo.*bar</code></li>
+              <li><b>regex seguro</b>: <code>~^foo</code> ou <code>~foo$</code></li>
               <li><b>negativo</b>: prefixe <code>!</code> (ex.: <code>!^adm</code>, <code>!$2025</code>)</li>
               <li><b>vazios/nulos</b>: <code>=NULL</code> ou <code>NULL</code> (equivale a campo vazio, nulo ou <code>-</code>)</li>
             </ul>

@@ -87,6 +87,7 @@ def get_gui_saved_filters_path() -> str:
     return os.path.join(config_dir, "gui_saved_filters.json")
 _NESTED_QUANTIFIER_RE = re.compile(r"\((?:[^()]*[+*][^()]*)\)\s*[+*{]")
 _HEAVY_QUANTIFIER_CHAIN_RE = re.compile(r"(?:[+*]|\{[^}]*\}){3,}")
+_UNSAFE_REGEX_QUANTIFIER_RE = re.compile(r"(?<!\\)[+*?{]")
 _REGEX_META_CHAR_RE = re.compile(r"[*+?{}|()[\]]")
 _EXCLUDED_TERMINAL_STATUSES = frozenset({"SCA", "SES", "STE"})
 _EXCLUDED_TERMINAL_SUMMARY = "situacao!=SCA/SES/STE"
@@ -1903,7 +1904,7 @@ class FilterGUISSAMixin:
             self._column_filter_inputs[col] = term_box
             # Placeholder sem conectivos OU/AND - OR agora e dedicado
             term_box.setPlaceholderText(
-                "Separe termos por vírgulas. Modos: foo, ^pre, suf$, =exato, ~regex, !neg"
+                "Separe termos por virgulas. Modos: foo, ^pre, suf$, =exato, ~^regex, !neg"
             )
             # Reduzido para garantir visibilidade dos botões em telas estreitas
             term_box.setMinimumWidth(220)
@@ -2795,10 +2796,9 @@ class FilterGUISSAMixin:
                 txt = str(values).strip()
             if not txt:
                 return
+            text = f"{label}: {txt}"
             if op:
                 text = f"{label} {op} {txt}"
-            else:
-                text = f"{label}: {txt}"
             keys = [str(key) for key in (action_keys or []) if str(key).strip()]
             if not keys:
                 return
@@ -3361,9 +3361,9 @@ class FilterGUISSAMixin:
     ) -> str:
         """Normaliza um valor de filtro de coluna para exibicao consistente.
 
-        SIMPLIFIED: No logical operators - just comma-separated terms.
+        SIMPLIFIED: No logical operators; comma-separated terms are normalized.
         - Splits by commas only
-        - Removes extra spaces
+        - Collapses repeated whitespace before splitting
         - Maintains markers (^, $, =, ~, !) in tokens
         - Applies optional column aliases for display
         - Returns comma-separated terms (OR logic implicit)
@@ -4204,13 +4204,11 @@ class FilterGUISSAMixin:
                 self.initiate_filtering()
             else:
                 self._refresh_after_filter_change()
-                try:
-                    self._update_filters_summary()
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao atualizar resumo de filtros no restore: %s", exc
-                    )
-                self._sync_clear_filter_button_state()
+            try:
+                self._update_filters_summary()
+            except Exception as exc:
+                logger.debug("Falha ao atualizar resumo de filtros no restore: %s", exc)
+            self._sync_clear_filter_button_state()
         finally:
             self._restoring_filter_state = False
             self._update_undo_button_state()
@@ -4578,6 +4576,7 @@ class FilterGUISSAMixin:
                 or "(?<!" in pattern_text
             )
             has_backref = bool(re.search(r"\\[1-9]", pattern_text))
+            has_quantifier = bool(_UNSAFE_REGEX_QUANTIFIER_RE.search(pattern_text))
             meta_char_count = len(_REGEX_META_CHAR_RE.findall(pattern_text))
             has_alternation_with_quantifier = "|" in pattern_text and bool(
                 re.search(r"[+*?{]", pattern_text)
@@ -4588,6 +4587,7 @@ class FilterGUISSAMixin:
                 or _HEAVY_QUANTIFIER_CHAIN_RE.search(pattern_text)
                 or has_lookaround
                 or has_backref
+                or has_quantifier
                 or meta_char_count > 16
                 or has_alternation_with_quantifier
             ):

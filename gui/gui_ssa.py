@@ -1750,12 +1750,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         left = QHBoxLayout()
         left.setContentsMargins(0, 0, 0, 0)
         search_input = QLineEdit()
-        search_input.setPlaceholderText("Termos separados por virgula; ! exclui termo")
+        search_input.setPlaceholderText(
+            "Todos os termos separados por virgula; ! exclui termo"
+        )
         search_input.setToolTip(
             "Todos os termos digitados devem ser satisfeitos na mesma linha.\n\n"
             "A busca pesquisa nas colunas relevantes da GUI; datas puras ficam nos filtros especificos.\n\n"
             "Modos por termo: \n"
-            "- contem (padrao): foo\n- comeca com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex: ~foo.*bar\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
+            "- contem (padrao): foo\n- comeca com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex seguro: ~^foo ou ~foo$\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
         )
         search_input.setMinimumWidth(425)
         search_input.setMaximumWidth(950)

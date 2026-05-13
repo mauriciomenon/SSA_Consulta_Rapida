@@ -396,7 +396,7 @@ class TestGUIFilterLogic:
 
         assert (
             str(search_input.placeholderText() or "")
-            == "Termos separados por virgula; ! exclui termo"
+            == "Todos os termos separados por virgula; ! exclui termo"
         )
         tooltip = str(search_input.toolTip() or "")
         assert (
@@ -2590,7 +2590,7 @@ class TestGUIFilterLogic:
         assert all(button.isEnabled() is False for button in undo_buttons)
 
     def test_restore_last_filter_state_recomputes_general_search_without_snapshot_df(
-        self,
+        self, monkeypatch
     ):
         realistic_df = self._build_realistic_base_df_50()
         self.window._sync_filtering = True
@@ -2612,6 +2612,18 @@ class TestGUIFilterLogic:
 
         assert self.window._last_filter_state is not None
         assert "df_last_search_filtered" not in self.window._last_filter_state
+        summary_updates = []
+        original_update_summary = self.window._update_filters_summary
+
+        def _tracked_update_summary():
+            summary_updates.append(1)
+            return original_update_summary()
+
+        monkeypatch.setattr(
+            self.window,
+            "_update_filters_summary",
+            _tracked_update_summary,
+        )
 
         self.window._restore_last_filter_state()
         QApplication.processEvents()
@@ -2621,6 +2633,14 @@ class TestGUIFilterLogic:
         assert Counter(self.window.df_exibido["numero_ssa"]) == Counter(
             filtered_before["numero_ssa"]
         )
+        summary_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
+        assert "Busca: 'Exec 1'" in summary_buttons
+        assert summary_updates
 
     def test_column_filter_buttons_flow(self):
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
@@ -2814,6 +2834,16 @@ class TestGUIFilterLogic:
         series = pd.Series(["aaaaaaaaaaaa", "bbb"], dtype="string")
         mask = self.window._build_column_mask(series, "~(a+)+$")
         assert list(mask) == [False, False]
+
+    def test_build_column_mask_allows_safe_anchor_regex(self):
+        series = pd.Series(["foo start", "prefix foo"], dtype="string")
+        mask = self.window._build_column_mask(series, "~^foo")
+        assert list(mask) == [True, False]
+
+    def test_build_column_mask_treats_quantified_regex_as_literal(self):
+        series = pd.Series(["foo123bar", "foo.*bar"], dtype="string")
+        mask = self.window._build_column_mask(series, "~foo.*bar")
+        assert list(mask) == [False, True]
 
     def test_activate_column_filter_stores_undo_snapshot(self):
         self.window._last_filter_state = None
