@@ -6,7 +6,7 @@ Modulo para exportar DataFrames para diferentes formatos de arquivo.
 import pandas as pd
 import os
 import logging
-from typing import Dict
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
