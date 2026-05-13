@@ -67,7 +67,7 @@ def _clear_resolved_table_cache(db_path: str | None = None) -> None:
         _resolved_table_cache.clear()
         return
 
-    normalized_path = os.path.abspath(db_path)
+    normalized_path = ":memory:" if db_path == ":memory:" else os.path.abspath(db_path)
     stale_keys = [key for key in _resolved_table_cache if key[0] == normalized_path]
     for key in stale_keys:
         _resolved_table_cache.pop(key, None)
@@ -182,7 +182,7 @@ def initialize_database(
         conn = db_path
         conn.executescript(schema_sql)
         conn.commit()
-        _clear_resolved_table_cache()
+        _clear_resolved_table_cache(_get_connection_db_path(conn))
         return True
 
     with get_db_connection(db_path) as conn:  # caminho normal (string)
@@ -247,6 +247,19 @@ def query_db(
             "Ative raise_on_error para falhar explicitamente."
         )
         return pd.DataFrame()
+
+
+def vacuum_analyze_database(db_path: str, *, timeout: float = 30.0) -> dict[str, Any]:
+    """Run SQLite VACUUM and ANALYZE for a local database file."""
+    try:
+        with sqlite3.connect(db_path, timeout=float(timeout)) as conn:
+            conn.execute("VACUUM")
+            conn.execute("ANALYZE")
+        _clear_resolved_table_cache(str(db_path))
+        return {"ok": True, "db_path": db_path}
+    except sqlite3.Error as exc:
+        logger.exception("Falha ao compactar DB e atualizar estatisticas: %s", exc)
+        return {"ok": False, "error": str(exc), "db_path": db_path}
 
 
 IfExistsPolicy = Literal["fail", "replace", "append"]
@@ -472,11 +485,12 @@ def count_distinct_derivada_edges(
 ) -> int:
     """Count distinct derivada edges on the resolved runtime table/view."""
     resolved_table_name = resolve_target_table(conn, table_name)
+    quoted_table_name = _quote_identifier(resolved_table_name)
     query = f"""
         SELECT COUNT(*)
         FROM (
             SELECT numero_ssa, derivada_de
-            FROM {_quote_identifier(resolved_table_name)}
+            FROM {quoted_table_name}
             WHERE derivada_de IS NOT NULL
             GROUP BY numero_ssa, derivada_de
         ) AS db_edges

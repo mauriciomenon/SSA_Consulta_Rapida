@@ -20,10 +20,12 @@ sys.path.insert(0, project_root)
 # Importa as funções a serem testadas
 # Assumindo que database.py esteja em armazenamento/database.py
 from armazenamento.database import count_table_rows  # noqa: E402
+from armazenamento.database import count_distinct_derivada_edges  # noqa: E402
 from armazenamento.database import get_db_connection  # noqa: E402
 from armazenamento.database import initialize_database  # noqa: E402
 from armazenamento.database import insert_dataframe_to_db  # noqa: E402
 from armazenamento.database import query_db  # noqa: E402
+from armazenamento.database import vacuum_analyze_database  # noqa: E402
 
 # --- Fixtures ---
 
@@ -134,6 +136,26 @@ def test_initialize_database_success(temp_db_path, sample_schema_file, monkeypat
         ).fetchall()
 
     assert tables == [("usuarios",)]
+
+
+def test_initialize_database_connection_clears_only_current_db_cache(
+    temp_db_path, sample_schema_file
+):
+    from armazenamento import database as database_module
+
+    try:
+        with sqlite3.connect(temp_db_path) as conn:
+            current_key = (database_module._get_connection_db_path(conn), "usuarios")
+            other_key = (os.path.abspath(temp_db_path + ".other"), "usuarios")
+            database_module._resolved_table_cache.clear()
+            database_module._resolved_table_cache[current_key] = "stale_current"
+            database_module._resolved_table_cache[other_key] = "other_db"
+            assert initialize_database(conn, schema_file=sample_schema_file) is True
+
+        assert current_key not in database_module._resolved_table_cache
+        assert database_module._resolved_table_cache[other_key] == "other_db"
+    finally:
+        database_module._resolved_table_cache.clear()
 
 
 def test_insert_dataframe_to_db_success(temp_db_path, sample_dataframe):
@@ -371,6 +393,25 @@ def test_query_db_unexpected_error_is_not_suppressed(temp_db_path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="falha inesperada"):
         query_db(temp_db_path, "teste_erro_runtime", raise_on_error=False)
+
+
+def test_vacuum_analyze_database_runs_sqlite_maintenance(temp_db_path):
+    with sqlite3.connect(temp_db_path) as conn:
+        conn.execute("CREATE TABLE maint(a INTEGER)")
+        conn.execute("INSERT INTO maint(a) VALUES (1)")
+
+    result = vacuum_analyze_database(temp_db_path)
+
+    assert result == {"ok": True, "db_path": temp_db_path}
+    with sqlite3.connect(temp_db_path) as conn:
+        rows = conn.execute("SELECT a FROM maint").fetchall()
+    assert rows == [(1,)]
+
+
+def test_count_distinct_derivada_edges_rejects_invalid_table_identifier(temp_db_path):
+    with get_db_connection(temp_db_path) as conn:
+        with pytest.raises(ValueError):
+            count_distinct_derivada_edges(conn, 'ssas"; DROP TABLE maint; --')
 
 
 def test_insert_dataframe_to_db_empty_df(temp_db_path):

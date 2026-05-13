@@ -586,6 +586,27 @@ def test_run_vacuum_analyze_success_updates_status(monkeypatch, tmp_path: Path) 
     assert "DB compactado" in window.status_label.text
 
 
+def test_run_vacuum_analyze_uses_database_layer(monkeypatch, tmp_path: Path) -> None:
+    db_path = tmp_path / "ssas.db"
+    db_path.write_bytes(b"placeholder")
+    monkeypatch.setattr(gui_ssa, "DB_PATH", str(db_path))
+    calls: list[str] = []
+    monkeypatch.setattr(
+        gui_ssa,
+        "vacuum_analyze_database",
+        lambda path: calls.append(path) or {"ok": True, "db_path": path},
+    )
+
+    class _Window:
+        def __init__(self) -> None:
+            self.status_label = _DummyLabel()
+
+    result = gui_ssa.SSAMainWindow.run_vacuum_analyze(cast(Any, _Window()))
+
+    assert result == {"ok": True, "db_path": str(db_path)}
+    assert calls == [str(db_path)]
+
+
 def test_run_vacuum_analyze_missing_db(monkeypatch, tmp_path: Path) -> None:
     missing_path = tmp_path / "data" / "missing.db"
     monkeypatch.setattr(gui_ssa, "DB_PATH", str(missing_path))

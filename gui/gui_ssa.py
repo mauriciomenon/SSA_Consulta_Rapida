@@ -165,7 +165,7 @@ EXCLUDED_CANONICAL_UI_COLUMNS = {
 
 import hashlib
 
-from armazenamento.database import query_db  # noqa: E402
+from armazenamento.database import query_db, vacuum_analyze_database  # noqa: E402
 from armazenamento.derivadas_sync import (  # noqa: E402
     scan_derivadas_consistency,
     sync_derivadas,
@@ -5249,13 +5249,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     @staticmethod
     def _execute_vacuum_analyze(db_path: str) -> dict[str, Any]:
-        try:
-            with sqlite3.connect(db_path, timeout=30.0) as conn:
-                conn.execute("VACUUM")
-                conn.execute("ANALYZE")
-            return {"ok": True, "db_path": db_path}
-        except Exception as exc:
-            return {"ok": False, "error": str(exc)}
+        return vacuum_analyze_database(db_path)
 
     def _finalize_vacuum_analyze_result(self, result: dict[str, Any]) -> dict[str, Any]:
         self._vacuum_analyze_running = False
