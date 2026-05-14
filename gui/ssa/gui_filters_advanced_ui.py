@@ -48,7 +48,7 @@ LAYOUT_GRID_MAX_COLS = 4
 LAYOUT_GRID_PREF_COLS = 4
 LAYOUT_ADV_PANEL_MIN_HEIGHT = 82
 LAYOUT_ADV_PANEL_MAX_HEIGHT = 230
-LAYOUT_ADV_CONTROL_HEIGHT = 26
+LAYOUT_ADV_CONTROL_HEIGHT = 24
 LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 40
 LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 50
 
@@ -190,7 +190,7 @@ def _safe_len(value: Any) -> int:
 
 
 def _resolve_adv_layout_baseline(self) -> tuple[int, int, int]:
-    cell_min = 228
+    cell_min = 212
     action_min = 88
     action_max = 134
     width_manager = getattr(self, "width_manager", None)
@@ -233,7 +233,7 @@ def _resolve_adv_layout_baseline(self) -> tuple[int, int, int]:
             + (setor_exec_w // 2)
             + (setor_emis_w // 2)
         )
-        cell_min = max(186, min(320, cell_candidate))
+        cell_min = max(174, min(284, cell_candidate))
 
         action_candidate = numero_w + situacao_w
         action_min = max(84, min(118, action_candidate))
@@ -266,7 +266,7 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
         grid_cols = LAYOUT_GRID_PREF_COLS
     grid_cols = max(1, min(LAYOUT_GRID_MAX_COLS, grid_cols))
     if width > 0:
-        cell_width = max(120, int(width // grid_cols))
+        cell_width = max(112, int(width // grid_cols))
         pair_budget = max(116, cell_width - 10)
         per_button_budget = max(56, int((pair_budget - 6) // 2))
         max_width = min(max_width, per_button_budget)
@@ -323,6 +323,11 @@ def _enforce_advanced_filters_compact_metrics(self) -> None:
         if control is None:
             continue
         try:
+            if bool(control.property("ssa_inline_tab_selector")):
+                continue
+        except Exception as exc:
+            logger.debug("Falha ao ler propriedade de seletor inline: %s", exc)
+        try:
             control.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
             control.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         except Exception as exc:
@@ -349,7 +354,7 @@ def _compute_adv_grid_cell_min_width(self, visible_widgets) -> int:
     p75 = widths[p75_idx]
     avg = sum(widths) // len(widths)
     dynamic_baseline = max(p75, avg) + 22
-    return max(186, min(340, max(base_cell_min, dynamic_baseline)))
+    return max(174, min(300, max(base_cell_min, dynamic_baseline)))
 
 
 def _make_multiselect_box(
@@ -1722,14 +1727,14 @@ def _build_advanced_filters_panel(self):
     reprog_min = max(70, min(108, reprog_base_min - 8))
     reprog_max = max(reprog_min + 40, min(196, reprog_base_max + 46))
     try:
-        mode_min = max(104, min(136, reprog_min + 24))
-        mode_max = max(mode_min + 20, min(184, reprog_max + 48))
+        mode_min = max(82, min(110, reprog_min + 6))
+        mode_max = max(mode_min + 12, min(126, reprog_max + 10))
         reprog_mode.setMinimumWidth(mode_min)
         reprog_mode.setMaximumWidth(mode_max)
-        reprog_mode.setMinimumHeight(32)
+        reprog_mode.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         reprog_mode.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         reprog_mode.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
         )
     except Exception as exc:
         logger.debug(
@@ -1738,18 +1743,19 @@ def _build_advanced_filters_panel(self):
     reprog_layout.addWidget(reprog_mode, 0, 0)
     reprog_menu_box, reprog_button, reprog_menu, _ = self._make_multiselect_box(
         "Valores",
+        placeholder="No.",
         with_exclude=False,
         layout_baseline=layout_baseline,
     )
     try:
-        btn_min = max(68, min(90, reprog_min - 4))
-        btn_max = max(btn_min + 18, min(124, reprog_max - 6))
+        btn_min = max(54, min(68, reprog_min - 24))
+        btn_max = max(btn_min + 8, min(82, reprog_max - 34))
         reprog_button.setMinimumWidth(btn_min)
         reprog_button.setMaximumWidth(btn_max)
-        reprog_button.setMinimumHeight(32)
+        reprog_button.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         reprog_button.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         reprog_button.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
         )
     except Exception as exc:
         logger.debug(
@@ -1758,7 +1764,7 @@ def _build_advanced_filters_panel(self):
     reprog_layout.addWidget(reprog_button, 0, 1)
     try:
         reprog_layout.setColumnStretch(0, 1)
-        reprog_layout.setColumnStretch(1, 1)
+        reprog_layout.setColumnStretch(1, 0)
     except Exception as exc:
         logger.debug("Falha ao ajustar colunas 50/50 de Reprogramacoes: %s", exc)
     self.adv_reprog_mode = reprog_mode

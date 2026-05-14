@@ -144,6 +144,6 @@ def build_line_edit_qss(
         f" color: {input_placeholder};"
         " }"
         "QLineEdit:focus {"
-        f" border:2px solid {input_focus};"
+        f" border:1px solid {input_focus};"
         " }"
     )

@@ -385,13 +385,23 @@ def _apply_theme_widget_styles(
                 window.search_label, f"color: {label_color}; font-weight: 600;"
             )
 
-        if hasattr(window, "search_input") and window.search_input is not None:
-            _set_stylesheet_if_changed(
-                window.search_input,
-                build_line_edit_qss(
-                    input_text, input_bg, input_border, input_focus, input_placeholder
-                ),
-            )
+        search_input_style = build_line_edit_qss(
+            input_text, input_bg, input_border, input_focus, input_placeholder
+        )
+        seen_search_inputs = set()
+        for search_widget in (getattr(window, "search_input", None),):
+            if search_widget is None or id(search_widget) in seen_search_inputs:
+                continue
+            seen_search_inputs.add(id(search_widget))
+            _set_stylesheet_if_changed(search_widget, search_input_style)
+        for ctx in getattr(window, "_tab_contexts", []) or []:
+            if not isinstance(ctx, dict):
+                continue
+            search_widget = ctx.get("search_input")
+            if search_widget is None or id(search_widget) in seen_search_inputs:
+                continue
+            seen_search_inputs.add(id(search_widget))
+            _set_stylesheet_if_changed(search_widget, search_input_style)
 
         tool_btn_css = (
             "QToolButton {"

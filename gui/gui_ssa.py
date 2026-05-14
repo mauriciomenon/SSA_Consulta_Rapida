@@ -1505,6 +1505,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self._advanced_filters_active = False
         self._adv_options_dirty = True
         self._adv_cache_token = -1
+        self._adv_values_cache = {}
         self._last_derivada_origem = None
         self._adv_sector_syncing = False
         self._adv_sector_handler_running = False
@@ -2052,23 +2053,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     filters_summary_viewport.setAutoFillBackground(False)
             except Exception as exc:
                 logger.debug("Falha ao aplicar estilo no scroll de filtros ativos: %s", exc)
-            summary_button_labels = (
-                "Limpar todos os filtros",
-                "Salvar Filtros",
-                "Exportar lista",
-                "Undo",
-            )
-            try:
-                metrics = self.fontMetrics()
-                widest_summary_label = max(
-                    int(metrics.horizontalAdvance(label))
-                    for label in summary_button_labels
-                )
-            except Exception as exc:
-                logger.debug("Falha ao calcular largura dos botoes de filtros: %s", exc)
-                widest_summary_label = 112
-            summary_button_width = max(118, min(150, widest_summary_label + 28))
-            clear_all_filters_btn = QPushButton("Limpar todos os filtros")
+            summary_button_width = 118
+            clear_all_filters_btn = QPushButton("Limpar Filtros")
             clear_all_filters_btn.setFixedWidth(summary_button_width)
             clear_all_filters_btn.clicked.connect(self._on_clear_all_filters_clicked)
             try:
@@ -2257,8 +2243,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         tab_selector_filters_btn = QPushButton("Avancados")
         inline_tab_style = (
             "QPushButton {"
-            "font-weight:600; border:1px solid palette(mid); border-radius:4px;"
-            "padding:1px 8px; background: transparent;"
+            "font-weight:600; border:1px solid palette(mid); border-radius:0;"
+            "padding:0 8px; background: transparent;"
             "}"
             "QPushButton:checked {"
             "background: palette(highlight); color: palette(highlighted-text);"
@@ -2270,9 +2256,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         ):
             try:
                 button.setCheckable(True)
-                button.setFixedWidth(112)
+                button.setProperty("ssa_inline_tab_selector", True)
+                button.setFixedWidth(106)
                 self._set_widget_fixed_height_safe(
-                    button, 22, f"seletor compacto de aba {target_index}"
+                    button, 20, f"seletor compacto de aba {target_index}"
                 )
                 button.setToolTip(tooltip)
                 button.setStyleSheet(inline_tab_style)
@@ -2293,11 +2280,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         def _build_inline_filter_tabs_header() -> QWidget:
             inline_tabs_widget = QWidget()
             self._set_widget_fixed_height_safe(
-                inline_tabs_widget, 26, "cabecalho compacto de abas de filtros"
+                inline_tabs_widget, 24, "cabecalho compacto de abas de filtros"
             )
             inline_tabs_layout = QHBoxLayout(cast(Any, inline_tabs_widget))
             inline_tabs_layout.setContentsMargins(0, 0, 0, 0)
-            inline_tabs_layout.setSpacing(6)
+            inline_tabs_layout.setSpacing(4)
             inline_title_label = QLabel(
                 "Filtros Avancados" if tab_kind == "filters" else "Filtros por Coluna"
             )
@@ -2305,13 +2292,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 inline_title_label.setStyleSheet(
                     "font-weight:600; color: palette(windowText);"
                 )
+                inline_title_label.setAlignment(
+                    cast(Any, Qt).AlignmentFlag.AlignCenter
+                )
+                inline_title_label.setSizePolicy(
+                    QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+                )
             except Exception as exc:
                 logger.debug("Falha ao aplicar estilo no titulo inline de filtros: %s", exc)
-            inline_tabs_layout.addWidget(cast(Any, inline_title_label), 0)
-            inline_tabs_layout.addSpacing(8)
             inline_tabs_layout.addWidget(cast(Any, tab_selector_ssas_btn), 0)
             inline_tabs_layout.addWidget(cast(Any, tab_selector_filters_btn), 0)
-            inline_tabs_layout.addStretch(1)
+            inline_tabs_layout.addWidget(cast(Any, inline_title_label), 1)
+            right_balance = QWidget()
+            try:
+                right_balance.setFixedWidth(216)
+            except Exception as exc:
+                logger.debug("Falha ao criar balanceador do titulo de filtros: %s", exc)
+            inline_tabs_layout.addWidget(cast(Any, right_balance), 0)
             return inline_tabs_widget
         inline_tabs_widget = _build_inline_filter_tabs_header()
         col_filters_outer.addWidget(cast(Any, inline_tabs_widget), 0)

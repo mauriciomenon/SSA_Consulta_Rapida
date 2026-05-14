@@ -306,6 +306,7 @@ class TestGUIFilterLogic:
         assert "filtros de coluna" in tooltip
         assert "filtros avancados" in tooltip
         assert 0 < filter_tags_widget.maximumWidth() <= 280
+        assert str(clear_all_filters_btn.text() or "") == "Limpar Filtros"
         summary_button_widths = {
             clear_all_filters_btn.width(),
             save_filter_button.width(),
@@ -313,7 +314,7 @@ class TestGUIFilterLogic:
             undo_filter_btn.width(),
         }
         assert summary_button_widths == {save_filter_button.width()}
-        assert 118 <= save_filter_button.width() <= 150
+        assert save_filter_button.width() == 118
         search_row_x = [
             widget.mapToGlobal(widget.rect().topLeft()).x()
             for widget in (clear_filter_button, search_button, search_input)
@@ -369,12 +370,22 @@ class TestGUIFilterLogic:
         assert "col_filters_hint" not in main_ctx
         assert str(main_ctx["tab_selector_ssas_btn"].text() or "") == "Por coluna"
         assert str(main_ctx["tab_selector_filters_btn"].text() or "") == "Avancados"
-        assert main_ctx["tab_selector_ssas_btn"].width() > 78
-        assert main_ctx["tab_selector_filters_btn"].width() > 78
-        assert main_ctx["tab_selector_ssas_btn"].height() <= 22
-        assert main_ctx["tab_selector_filters_btn"].height() <= 22
+        assert main_ctx["tab_selector_ssas_btn"].width() == 106
+        assert main_ctx["tab_selector_filters_btn"].width() == 106
+        assert main_ctx["tab_selector_ssas_btn"].height() <= 20
+        assert main_ctx["tab_selector_filters_btn"].height() <= 20
         assert "QPushButton:checked" in str(
             main_ctx["tab_selector_ssas_btn"].styleSheet() or ""
+        )
+        title_labels = [
+            label
+            for label in main_ctx["inline_tabs_widget"].findChildren(QLabel)
+            if str(label.text() or "") == "Filtros por Coluna"
+        ]
+        assert title_labels
+        assert (
+            main_ctx["tab_selector_filters_btn"].geometry().right()
+            < title_labels[0].geometry().left()
         )
         assert main_ctx["tab_selector_ssas_btn"].isChecked() is True
         assert main_ctx["tab_selector_filters_btn"].isChecked() is False
@@ -396,6 +407,24 @@ class TestGUIFilterLogic:
         assert self.window.main_tabs.currentIndex() == 0
         assert main_ctx["tab_selector_ssas_btn"].isChecked() is True
         assert main_ctx["tab_selector_filters_btn"].isChecked() is False
+
+    def test_advanced_filters_reprogramacoes_controls_are_compact(self):
+        filter_tab_idx = next(
+            idx
+            for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        reprog_mode = self.window.adv_reprog_mode
+        reprog_button = self.window.adv_reprog_button
+
+        assert reprog_mode.maximumWidth() <= 126
+        assert reprog_button.maximumWidth() <= 82
+        assert reprog_mode.maximumHeight() <= 24
+        assert reprog_button.maximumHeight() <= 24
+        assert str(reprog_button.toolTip() or "") in {"No.", "Nenhum dado disponivel"}
 
     def test_search_help_texts_reflect_current_general_search_contract(self):
         main_ctx = self.window._tab_contexts[0]
@@ -3522,22 +3551,28 @@ class TestGUIFilterLogic:
         initial_main_css = main_ctx["search_input"].styleSheet() or ""
         assert initial_main_css
         initial_filters_css = filters_ctx["search_input"].styleSheet() or ""
-        assert not initial_filters_css
+        assert initial_filters_css == initial_main_css
+        assert "QLineEdit:focus" in initial_main_css
+        assert "border:1px solid" in initial_main_css
 
-        # Switching to the filters tab should re-apply the current theme to that tab's widgets.
         self.window.main_tabs.setCurrentIndex(filter_tab_idx)
         QApplication.processEvents()
-        assert filters_ctx["search_input"].styleSheet() or ""
+        assert (filters_ctx["search_input"].styleSheet() or "") == initial_main_css
 
         # Apply a different theme while on filters tab, then switch back to main.
         self.window.apply_theme(other_theme)
         QApplication.processEvents()
+        updated_filters_css = filters_ctx["search_input"].styleSheet() or ""
+        assert updated_filters_css
+        assert updated_filters_css != initial_main_css
+        assert "QLineEdit:focus" in updated_filters_css
+        assert "border:1px solid" in updated_filters_css
         self.window.main_tabs.setCurrentIndex(main_tab_idx)
         QApplication.processEvents()
 
-        # The main tab widgets must get re-themed on bind (previously could keep stale QSS).
+        # Both tab search boxes must be themed together, not only after binding.
         assert getattr(self.window, "_current_theme", None) == other_theme
-        assert (main_ctx["search_input"].styleSheet() or "") != initial_main_css
+        assert (main_ctx["search_input"].styleSheet() or "") == updated_filters_css
 
     def test_switch_to_filters_tab_cancels_pending_search_debounce(self):
         self.window.search_input.setText("Teste A")
