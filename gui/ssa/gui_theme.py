@@ -310,6 +310,233 @@ def _update_filter_panel_context(window, normalized: str) -> None:
         logger.debug("Falha ao registrar tema atual no contexto de filtros: %s", exc)
 
 
+def _apply_style_to_window_widgets(window, names: tuple[str, ...], css: str) -> None:
+    for name in names:
+        widget = getattr(window, name, None)
+        if widget is not None:
+            _set_stylesheet_if_changed(widget, css)
+
+
+def _apply_style_to_context_widgets(
+    context: dict, names: tuple[str, ...], css: str
+) -> None:
+    for name in names:
+        widget = context.get(name)
+        if widget is not None:
+            _set_stylesheet_if_changed(widget, css)
+
+
+def _apply_group_style(
+    window, name: str, normalized: str, light_themes: set[str], css: str
+) -> None:
+    widget = getattr(window, name, None)
+    if widget is None:
+        return
+    _set_stylesheet_if_changed(widget, "" if normalized in light_themes else css)
+
+
+def _apply_search_widget_styles(window, context: dict | None, style: dict) -> None:
+    if hasattr(window, "search_label"):
+        _set_stylesheet_if_changed(
+            window.search_label,
+            f"color: {style['label_color']}; font-weight: 600;",
+        )
+
+    seen_search_inputs = set()
+    for search_widget in (getattr(window, "search_input", None),):
+        if search_widget is None or id(search_widget) in seen_search_inputs:
+            continue
+        seen_search_inputs.add(id(search_widget))
+        _set_stylesheet_if_changed(search_widget, style["line_edit_css"])
+    if isinstance(context, dict):
+        search_widget = context.get("search_input")
+        if search_widget is None or id(search_widget) in seen_search_inputs:
+            search_widget = None
+        if search_widget is not None:
+            _set_stylesheet_if_changed(search_widget, style["line_edit_css"])
+
+
+def _apply_advanced_filter_control_styles(window, style: dict) -> None:
+    adv_buttons = (
+        "adv_executor_button",
+        "adv_emissor_button",
+        "adv_divisao_button",
+        "adv_status_button",
+        "adv_year_emissao_button",
+        "adv_year_execucao_button",
+        "adv_prioridade_emissao_button",
+        "adv_prioridade_planejamento_button",
+        "adv_reprog_button",
+        "adv_derivada_button",
+        "adv_responsavel_solicitante_button",
+        "adv_responsavel_programacao_button",
+        "adv_responsavel_execucao_button",
+        "adv_responsavel_emissor_button",
+    )
+    try:
+        _apply_style_to_window_widgets(window, adv_buttons, style["tool_btn_css"])
+        _apply_style_to_window_widgets(
+            window,
+            ("_adv_filters_apply_btn", "_adv_filters_clear_btn"),
+            style["action_btn_css"],
+        )
+        _apply_style_to_window_widgets(
+            window, ("adv_macro_combo", "adv_reprog_mode"), style["combo_css"]
+        )
+        _apply_style_to_window_widgets(
+            window,
+            (
+                "adv_week_emissao_start",
+                "adv_week_emissao_end",
+                "adv_week_execucao_start",
+                "adv_week_execucao_end",
+            ),
+            style["line_edit_css"],
+        )
+    except Exception as exc:
+        logger.debug("Falha ao aplicar estilos dos controles avancados: %s", exc)
+
+
+def _apply_details_and_group_styles(
+    window,
+    *,
+    normalized: str,
+    light_themes: set[str],
+    group_css: str,
+    panel_text: str,
+    panel_bg: str,
+) -> None:
+    if hasattr(window, "details_text"):
+        if hasattr(window, "details_group"):
+            try:
+                from PyQt6.QtGui import QFont
+
+                base_font = window.details_group.font()
+                size = base_font.pointSizeF()
+                if size <= 0:
+                    size = float(base_font.pointSize())
+                if size > 0:
+                    cached_font = getattr(window, "_details_text_small_font_cached", None)
+                    cached_size = getattr(
+                        window, "_details_text_small_font_base_size", None
+                    )
+                    cached_family = getattr(
+                        window, "_details_text_small_font_base_family", None
+                    )
+                    cached_weight = getattr(
+                        window, "_details_text_small_font_base_weight", None
+                    )
+                    should_rebuild = (
+                        not isinstance(cached_font, QFont)
+                        or not isinstance(cached_size, (int, float))
+                        or abs(float(cached_size) - float(size)) > 0.01
+                        or cached_family != base_font.family()
+                        or cached_weight != int(base_font.weight())
+                    )
+                    if should_rebuild:
+                        small_font = QFont(base_font)
+                        small_font.setPointSizeF(max(size - 1.5, 1.0))
+                        window._details_text_small_font_cached = small_font
+                        window._details_text_small_font_base_size = float(size)
+                        window._details_text_small_font_base_family = base_font.family()
+                        window._details_text_small_font_base_weight = int(
+                            base_font.weight()
+                        )
+                    active_small_font = getattr(
+                        window, "_details_text_small_font_cached", None
+                    )
+                    if isinstance(active_small_font, QFont):
+                        window.details_text.setFont(active_small_font)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao ajustar fonte reduzida no painel de detalhes: %s", exc
+                )
+        if normalized in light_themes:
+            _set_stylesheet_if_changed(window.details_text, "")
+        else:
+            _set_stylesheet_if_changed(
+                window.details_text,
+                "QTextEdit {"
+                f" color: {panel_text}; background: {panel_bg}; border: none; padding:4px;"
+                " }",
+            )
+
+    for group_name in ("details_group", "col_filters_group", "adv_filters_group"):
+        _apply_group_style(window, group_name, normalized, light_themes, group_css)
+    action_widget = getattr(window, "_adv_filters_action_widget", None)
+    if action_widget is not None:
+        _set_stylesheet_if_changed(
+            action_widget, "" if normalized in light_themes else group_css
+        )
+
+
+def _apply_status_summary_styles(window, selector, context: dict | None, style: dict) -> None:
+    highlight_style = style["highlight_style"]
+    window._week_label_style = highlight_style
+    if hasattr(window, "week_label"):
+        _set_stylesheet_if_changed(window.week_label, highlight_style)
+
+    if hasattr(window, "status_label"):
+        _set_stylesheet_if_changed(window.status_label, style["status_label_css"])
+
+    if hasattr(window, "search_help"):
+        if hasattr(window, "status_label"):
+            try:
+                window.search_help.setFont(window.status_label.font())
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao sincronizar fonte de search_help com status_label: %s",
+                    exc,
+                )
+        _set_stylesheet_if_changed(window.search_help, style["search_help_css"])
+
+    if hasattr(window, "col_filter_indicator"):
+        _set_stylesheet_if_changed(
+            window.col_filter_indicator, style["indicator_css"]
+        )
+    if hasattr(window, "filters_summary_label"):
+        _set_stylesheet_if_changed(
+            window.filters_summary_label, style["filters_summary_label_css"]
+        )
+    if hasattr(window, "filters_summary_frame"):
+        _set_stylesheet_if_changed(
+            window.filters_summary_frame, style["filters_summary_frame_css"]
+        )
+    if hasattr(window, "filters_summary_scroll"):
+        _set_stylesheet_if_changed(
+            window.filters_summary_scroll, style["filters_summary_scroll_css"]
+        )
+
+    highlight_button_names = (
+        "clear_all_filters_btn",
+        "export_list_btn",
+        "undo_filter_btn",
+        "save_filter_button",
+        "search_button",
+        "clear_filter_button",
+    )
+    _apply_style_to_window_widgets(window, highlight_button_names, highlight_style)
+    if isinstance(context, dict):
+        _apply_style_to_context_widgets(context, highlight_button_names, highlight_style)
+        filter_tab_bar = context.get("filter_panel_tab_bar")
+        if filter_tab_bar is not None:
+            _set_stylesheet_if_changed(filter_tab_bar, style["tab_bar_css"])
+
+    update_summary = getattr(window, "_update_filters_summary", None)
+    if callable(update_summary):
+        update_summary()
+
+    if hasattr(window, "add_column_filter_btn") and hasattr(window, "clear_all_btn"):
+        _set_stylesheet_if_changed(window.add_column_filter_btn, style["footer_btn_css"])
+        _set_stylesheet_if_changed(window.clear_all_btn, style["footer_btn_css"])
+
+    if selector is not None and hasattr(selector, "summary_label"):
+        _set_stylesheet_if_changed(selector.summary_label, style["indicator_css"])
+
+    if hasattr(window, "col_filters_hint"):
+        _set_stylesheet_if_changed(window.col_filters_hint, style["hint_css"])
+
+
 def _apply_theme_widget_styles(
     window,
     normalized: str,
@@ -367,30 +594,14 @@ def _apply_theme_widget_styles(
         window._highlight_text_color = highlight_fg or None
         window._highlight_font_weight = highlight_weight_default
 
-        if hasattr(window, "search_label"):
-            _set_stylesheet_if_changed(
-                window.search_label, f"color: {label_color}; font-weight: 600;"
-            )
-
-        search_input_style = build_line_edit_qss(
+        line_edit_css = build_line_edit_qss(
             input_text, input_bg, input_border, input_focus, input_placeholder
         )
-        seen_search_inputs = set()
-        for search_widget in (getattr(window, "search_input", None),):
-            if search_widget is None or id(search_widget) in seen_search_inputs:
-                continue
-            seen_search_inputs.add(id(search_widget))
-            _set_stylesheet_if_changed(search_widget, search_input_style)
         context = getattr(window, "_filter_panel_context", None)
-        if isinstance(context, dict):
-            search_widget = context.get("search_input")
-            if search_widget is None or id(search_widget) in seen_search_inputs:
-                search_widget = None
-            if search_widget is not None:
-                seen_search_inputs.add(id(search_widget))
-                _set_stylesheet_if_changed(search_widget, search_input_style)
-
-        tool_btn_css = (
+        style = {
+            "label_color": label_color,
+            "line_edit_css": line_edit_css,
+            "tool_btn_css": (
             "QToolButton {"
             f" color: {input_text}; background: {input_bg}; border:1px solid {input_border};"
             " border-radius:4px; padding:2px 6px; }"
@@ -403,33 +614,8 @@ def _apply_theme_widget_styles(
             "QToolButton:checked {"
             f" border:1px solid {accent}; background: {accent_soft};"
             "}"
-        )
-        adv_buttons = [
-            "adv_executor_button",
-            "adv_emissor_button",
-            "adv_divisao_button",
-            "adv_status_button",
-            "adv_year_emissao_button",
-            "adv_year_execucao_button",
-            "adv_prioridade_emissao_button",
-            "adv_prioridade_planejamento_button",
-            "adv_reprog_button",
-            "adv_derivada_button",
-            "adv_responsavel_solicitante_button",
-            "adv_responsavel_programacao_button",
-            "adv_responsavel_execucao_button",
-            "adv_responsavel_emissor_button",
-        ]
-        for name in adv_buttons:
-            btn = getattr(window, name, None)
-            if btn is not None:
-                try:
-                    _set_stylesheet_if_changed(btn, tool_btn_css)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao aplicar estilo no botao avancado %s: %s", name, exc
-                    )
-        action_btn_css = (
+            ),
+            "action_btn_css": (
             "QPushButton {"
             f" color: {panel_text}; background: {panel_bg}; border:1px solid {panel_border};"
             " border-radius:4px; padding:2px 8px; }"
@@ -439,17 +625,8 @@ def _apply_theme_widget_styles(
             "QPushButton:pressed {"
             f" background: {accent_soft};"
             "}"
-        )
-        for name in ("_adv_filters_apply_btn", "_adv_filters_clear_btn"):
-            btn = getattr(window, name, None)
-            if btn is not None:
-                try:
-                    _set_stylesheet_if_changed(btn, action_btn_css)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao aplicar estilo no botao de acao %s: %s", name, exc
-                    )
-        combo_css = (
+            ),
+            "combo_css": (
             "QComboBox {"
             f" color: {input_text}; background: {input_bg}; border:1px solid {input_border};"
             " border-radius:4px; padding:2px 6px; }"
@@ -462,264 +639,63 @@ def _apply_theme_widget_styles(
             f" selection-background-color: {accent_soft}; selection-color: {panel_text};"
             f" border:1px solid {panel_border};"
             "}"
-        )
-        for name in ("adv_macro_combo", "adv_reprog_mode"):
-            combo = getattr(window, name, None)
-            if combo is not None:
-                try:
-                    _set_stylesheet_if_changed(combo, combo_css)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao aplicar estilo no combo avancado %s: %s", name, exc
-                    )
-        adv_line_edits = [
-            "adv_week_emissao_start",
-            "adv_week_emissao_end",
-            "adv_week_execucao_start",
-            "adv_week_execucao_end",
-        ]
-        for name in adv_line_edits:
-            widget = getattr(window, name, None)
-            if widget is not None:
-                try:
-                    _set_stylesheet_if_changed(
-                        widget,
-                        build_line_edit_qss(
-                            input_text,
-                            input_bg,
-                            input_border,
-                            input_focus,
-                            input_placeholder,
-                        ),
-                    )
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao aplicar estilo no campo avancado %s: %s", name, exc
-                    )
-
-        if hasattr(window, "details_text"):
-            if hasattr(window, "details_group"):
-                try:
-                    from PyQt6.QtGui import QFont
-
-                    base_font = window.details_group.font()
-                    size = base_font.pointSizeF()
-                    if size <= 0:
-                        size = float(base_font.pointSize())
-                    if size > 0:
-                        cached_font = getattr(
-                            window, "_details_text_small_font_cached", None
-                        )
-                        cached_size = getattr(
-                            window, "_details_text_small_font_base_size", None
-                        )
-                        cached_family = getattr(
-                            window, "_details_text_small_font_base_family", None
-                        )
-                        cached_weight = getattr(
-                            window, "_details_text_small_font_base_weight", None
-                        )
-                        should_rebuild = (
-                            not isinstance(cached_font, QFont)
-                            or not isinstance(cached_size, (int, float))
-                            or abs(float(cached_size) - float(size)) > 0.01
-                            or cached_family != base_font.family()
-                            or cached_weight != int(base_font.weight())
-                        )
-                        if should_rebuild:
-                            small_font = QFont(base_font)
-                            small_font.setPointSizeF(max(size - 1.5, 1.0))
-                            window._details_text_small_font_cached = small_font
-                            window._details_text_small_font_base_size = float(size)
-                            window._details_text_small_font_base_family = (
-                                base_font.family()
-                            )
-                            window._details_text_small_font_base_weight = int(
-                                base_font.weight()
-                            )
-                        active_small_font = getattr(
-                            window, "_details_text_small_font_cached", None
-                        )
-                        if isinstance(active_small_font, QFont):
-                            window.details_text.setFont(active_small_font)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao ajustar fonte reduzida no painel de detalhes: %s", exc
-                    )
-            if normalized in light_themes:
-                _set_stylesheet_if_changed(window.details_text, "")
-            else:
-                _set_stylesheet_if_changed(
-                    window.details_text,
-                    "QTextEdit {"
-                    f" color: {panel_text}; background: {panel_bg}; border: none; padding:4px;"
-                    " }",
-                )
-
-        group_css = build_group_box_qss(panel_text, panel_border, panel_bg)
-
-        if hasattr(window, "details_group"):
-            if normalized in light_themes:
-                _set_stylesheet_if_changed(window.details_group, "")
-            else:
-                _set_stylesheet_if_changed(window.details_group, group_css)
-
-        if hasattr(window, "col_filters_group"):
-            if normalized in light_themes:
-                _set_stylesheet_if_changed(window.col_filters_group, "")
-            else:
-                _set_stylesheet_if_changed(window.col_filters_group, group_css)
-        if hasattr(window, "adv_filters_group"):
-            if normalized in light_themes:
-                _set_stylesheet_if_changed(window.adv_filters_group, "")
-            else:
-                _set_stylesheet_if_changed(window.adv_filters_group, group_css)
-        action_widget = getattr(window, "_adv_filters_action_widget", None)
-        if action_widget is not None:
-            try:
-                if normalized in light_themes:
-                    _set_stylesheet_if_changed(action_widget, "")
-                else:
-                    _set_stylesheet_if_changed(action_widget, group_css)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar estilo no action box dos filtros avancados: %s",
-                    exc,
-                )
-
-        highlight_style = (
+            ),
+        }
+        style["highlight_style"] = (
             f"font-weight:600; color:{accent}; background:{panel_bg}; "
             f"border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
         )
-        window._week_label_style = highlight_style
-        if hasattr(window, "week_label"):
-            _set_stylesheet_if_changed(window.week_label, highlight_style)
-
-        if hasattr(window, "status_label"):
-            _set_stylesheet_if_changed(
-                window.status_label,
-                f"color:{accent}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;",
-            )
-
-        if hasattr(window, "search_help"):
-            css = f"font-size:10px; color:{support_color}; margin:0; padding:0;"
-            if hasattr(window, "status_label"):
-                try:
-                    window.search_help.setFont(window.status_label.font())
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao sincronizar fonte de search_help com status_label: %s",
-                        exc,
-                    )
-            _set_stylesheet_if_changed(window.search_help, css)
-
-        if hasattr(window, "col_filter_indicator"):
-            _set_stylesheet_if_changed(
-                window.col_filter_indicator, f"color:{indicator_color};"
-            )
-
-        if hasattr(window, "filters_summary_label"):
-            _set_stylesheet_if_changed(
-                window.filters_summary_label,
-                f"color:{summary_color}; background:transparent; padding:0 2px;",
-            )
-
-        if hasattr(window, "filters_summary_frame"):
-            _set_stylesheet_if_changed(
-                window.filters_summary_frame,
-                "QFrame#filtersSummaryFrame {"
-                f" background:{summary_bg}; border:1px solid {summary_border}; border-radius:4px;"
-                " }",
-            )
-        if hasattr(window, "filters_summary_scroll"):
-            try:
-                _set_stylesheet_if_changed(
-                    window.filters_summary_scroll,
-                    "QScrollArea { border:0; background:transparent; }"
-                    "QScrollArea > QWidget > QWidget { background:transparent; }",
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar estilo no scroll de filtros ativos: %s", exc
-                )
-        highlight_button_names = (
-            "clear_all_filters_btn",
-            "export_list_btn",
-            "undo_filter_btn",
-            "save_filter_button",
-            "search_button",
-            "clear_filter_button",
+        style["status_label_css"] = (
+            f"color:{accent}; background:{panel_bg}; border:1px solid {panel_border}; "
+            "border-radius:4px; padding:2px 6px;"
         )
-        for name in highlight_button_names:
-            button = getattr(window, name, None)
-            if button is not None:
-                try:
-                    _set_stylesheet_if_changed(button, highlight_style)
-                except Exception as exc:
-                    logger.debug("Falha ao aplicar estilo no botao %s: %s", name, exc)
-        context = getattr(window, "_filter_panel_context", None)
-        if isinstance(context, dict):
-            for name in highlight_button_names:
-                button = context.get(name)
-                if button is not None:
-                    try:
-                        _set_stylesheet_if_changed(button, highlight_style)
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao aplicar estilo no botao %s do contexto: %s",
-                            name,
-                            exc,
-                        )
-            filter_tab_bar = context.get("filter_panel_tab_bar")
-            if filter_tab_bar is not None:
-                tab_bar_style = (
-                    "QTabBar::tab {"
-                    f"font-weight:600; color:{panel_text}; background:{panel_bg}; "
-                    f"border:1px solid {panel_border}; border-bottom:0; "
-                    "min-width:96px; padding:1px 10px; margin-right:1px;"
-                    "}"
-                    "QTabBar::tab:selected {"
-                    f"background:{accent}; color:{panel_bg}; border:1px solid {accent};"
-                    "border-bottom:0;"
-                    "}"
-                )
-                try:
-                    _set_stylesheet_if_changed(filter_tab_bar, tab_bar_style)
-                except Exception as exc:
-                    logger.debug("Falha ao aplicar estilo na aba local de filtros: %s", exc)
-        try:
-            update_summary = getattr(window, "_update_filters_summary", None)
-            if callable(update_summary):
-                update_summary()
-        except Exception as exc:
-            logger.debug("Falha ao atualizar resumo de filtros apos tema: %s", exc)
-        if hasattr(window, "add_column_filter_btn") and hasattr(
-            window, "clear_all_btn"
-        ):
-            footer_btn_style = (
-                f"QPushButton {{ color:{panel_text}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:4px 10px; }}\n"
-                f"QPushButton:hover {{ border:1px solid {accent}; }}\n"
-            )
-            try:
-                _set_stylesheet_if_changed(
-                    window.add_column_filter_btn, footer_btn_style
-                )
-                _set_stylesheet_if_changed(window.clear_all_btn, footer_btn_style)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar estilo consistente para botoes de filtros por coluna: %s",
-                    exc,
-                )
+        style["search_help_css"] = (
+            f"font-size:10px; color:{support_color}; margin:0; padding:0;"
+        )
+        style["indicator_css"] = f"color:{indicator_color};"
+        style["filters_summary_label_css"] = (
+            f"color:{summary_color}; background:transparent; padding:0 2px;"
+        )
+        style["filters_summary_frame_css"] = (
+            "QFrame#filtersSummaryFrame {"
+            f" background:{summary_bg}; border:1px solid {summary_border}; border-radius:4px;"
+            " }"
+        )
+        style["filters_summary_scroll_css"] = (
+            "QScrollArea { border:0; background:transparent; }"
+            "QScrollArea > QWidget > QWidget { background:transparent; }"
+        )
+        style["tab_bar_css"] = (
+            "QTabBar::tab {"
+            f"font-weight:600; color:{panel_text}; background:{panel_bg}; "
+            f"border:1px solid {panel_border}; border-bottom:0; "
+            "min-width:96px; padding:1px 10px; margin-right:1px;"
+            "}"
+            "QTabBar::tab:selected {"
+            f"background:{accent}; color:{panel_bg}; border:1px solid {accent};"
+            "border-bottom:0;"
+            "}"
+        )
+        style["footer_btn_css"] = (
+            f"QPushButton {{ color:{panel_text}; background:{panel_bg}; "
+            f"border:1px solid {panel_border}; border-radius:4px; padding:4px 10px; }}\n"
+            f"QPushButton:hover {{ border:1px solid {accent}; }}\n"
+        )
+        style["hint_css"] = f"color:{support_color}; font-size: 11px;"
 
-        if selector is not None and hasattr(selector, "summary_label"):
-            _set_stylesheet_if_changed(
-                selector.summary_label, f"color:{indicator_color};"
-            )
+        _apply_search_widget_styles(window, context, style)
+        _apply_advanced_filter_control_styles(window, style)
 
-        if hasattr(window, "col_filters_hint"):
-            _set_stylesheet_if_changed(
-                window.col_filters_hint, f"color:{support_color}; font-size: 11px;"
-            )
+        group_css = build_group_box_qss(panel_text, panel_border, panel_bg)
+        _apply_details_and_group_styles(
+            window,
+            normalized=normalized,
+            light_themes=light_themes,
+            group_css=group_css,
+            panel_text=panel_text,
+            panel_bg=panel_bg,
+        )
+        _apply_status_summary_styles(window, selector, context, style)
     except Exception as exc:
         logger.warning("Falha no bloco principal de estilizacao do tema: %s", exc)
 
@@ -814,27 +790,6 @@ def apply_theme(
         window.update_details_from_selection()
     except Exception as exc:
         logger.debug("Falha ao atualizar painel de detalhes apos apply_theme: %s", exc)
-
-
-def reapply_current_theme_widget_styles(
-    window,
-    *,
-    highlight_defaults: tuple[str, str] | None = None,
-) -> None:
-    """Reaplica estilos de widgets do tema atual sem persistir configuracao."""
-    highlight_defaults = highlight_defaults or ("yellow", "bold")
-    highlight_bg_default, highlight_weight_default = highlight_defaults
-    normalized = normalize_theme(getattr(window, "_current_theme", "") or "")
-    roles = get_theme_roles(normalized)
-    pal = window.palette()
-    _apply_theme_widget_styles(
-        window,
-        normalized,
-        pal,
-        roles,
-        highlight_bg_default=highlight_bg_default,
-        highlight_weight_default=highlight_weight_default,
-    )
 
 
 def apply_macos_contrast(window, theme_name: str) -> None:

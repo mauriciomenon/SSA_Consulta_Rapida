@@ -1839,7 +1839,7 @@ class FilterGUISSAMixin:
             self._column_filter_inputs[col] = term_box
             # Placeholder sem conectivos OU/AND - OR agora e dedicado
             term_box.setPlaceholderText(
-                "Separe termos por virgulas. Modos: foo, ^pre, suf$, =exato, ~^regex, !neg"
+                "Termos com virgula usam OU. Modos: foo, ^pre, suf$, =exato, ~^regex, !neg"
             )
             # Reduzido para garantir visibilidade dos botões em telas estreitas
             term_box.setMinimumWidth(220)
@@ -2167,11 +2167,29 @@ class FilterGUISSAMixin:
             search_text=resolved_search_text,
             suffix=suffix,
         )
-        return FilterStatusManager.apply(
-            payload=payload,
-            filtered_status_label=getattr(self, "filtered_status_label", None),
-            status_label=getattr(self, "status_label", None),
+        filtered_status_label = getattr(self, "filtered_status_label", None)
+        status_label = getattr(self, "status_label", None)
+        shares_single_status_label = (
+            filtered_status_label is None
+            or status_label is None
+            or filtered_status_label is status_label
         )
+        count_status_text, notice_status_text = FilterStatusManager.build_status_texts(
+            payload=payload,
+            split_labels=not shares_single_status_label,
+        )
+        if shares_single_status_label:
+            target_label = (
+                status_label if status_label is not None else filtered_status_label
+            )
+            if target_label is not None:
+                target_label.setText(count_status_text)
+            return count_status_text, notice_status_text
+        if filtered_status_label is not None:
+            filtered_status_label.setText(count_status_text)
+        if status_label is not None:
+            status_label.setText(notice_status_text)
+        return count_status_text, notice_status_text
 
     def _resolve_status_search_text(self, search_text: str | None = None) -> str:
         if search_text is not None:
@@ -3639,67 +3657,51 @@ class FilterGUISSAMixin:
         hidden_lines.add(column_name)
         self._build_column_filters_panel()
 
-    def _refresh_after_filter_change(self):
-        """Reaplica filtros de coluna, atualiza tabela e indicadores."""
-        refresh_started = perf_counter()
-        current_details_ssa = getattr(self, "_details_current_ssa", None)
-        timings: dict[str, float] = {
-            "advanced": 0.0,
-            "column": 0.0,
-            "exclude": 0.0,
-            "sort": 0.0,
-            "paginate": 0.0,
-            "render": 0.0,
-            "indicator": 0.0,
-            "summary": 0.0,
-            "status": 0.0,
-            "sync": 0.0,
-        }
-
-        def _measure_timing(name: str, callback):
-            started = perf_counter()
-            result = callback()
-            timings[name] = (perf_counter() - started) * 1000.0
-            return result
-
-        has_general_search = False
+    def _filter_refresh_has_general_search(self) -> bool:
         try:
             for widget in self._iter_search_inputs():
                 if widget.text().strip():
-                    has_general_search = True
-                    break
-        except Exception:
-            has_general_search = False
-        if not has_general_search:
-            active_search_display = str(
-                getattr(self, "_active_filter_search_display", "") or ""
-            ).strip()
-            pending_search_display = str(
-                getattr(self, "_pending_search_display", "") or ""
-            ).strip()
-            has_general_search = bool(active_search_display or pending_search_display)
+                    return True
+        except Exception as exc:
+            logger.debug("Falha ao ler campos de busca no refresh de filtros: %s", exc)
+        active_search_display = str(
+            getattr(self, "_active_filter_search_display", "") or ""
+        ).strip()
+        pending_search_display = str(
+            getattr(self, "_pending_search_display", "") or ""
+        ).strip()
+        return bool(active_search_display or pending_search_display)
 
-        base = (
-            self._df_last_search_filtered
-            if has_general_search or not self._df_last_search_filtered.empty
-            else self.df_completo
-        )
-        filtered = base
+    def _filter_refresh_base_dataframe(self, has_general_search: bool) -> pd.DataFrame:
+        if has_general_search or not self._df_last_search_filtered.empty:
+            return self._df_last_search_filtered
+        return self.df_completo
+
+    def _filter_refresh_flags(self) -> tuple[bool, bool, bool]:
         try:
             column_filters = getattr(self, "_active_column_filters", {}) or {}
-            has_column_filters = any(str(value).strip() for value in column_filters.values())
+            has_column_filters = any(
+                str(value).strip() for value in column_filters.values()
+            )
         except Exception:
             has_column_filters = False
-        has_advanced_filters = bool(getattr(self, "_advanced_filters_active", False))
-        has_excluded_terminal_status = bool(getattr(self, "_exclude_ste_sca", False))
-        has_post_search_filters = (
-            has_column_filters
-            or has_advanced_filters
-            or has_excluded_terminal_status
+        return (
+            has_column_filters,
+            bool(getattr(self, "_advanced_filters_active", False)),
+            bool(getattr(self, "_exclude_ste_sca", False)),
         )
+
+    def _apply_filter_refresh_filters(
+        self,
+        filtered: pd.DataFrame,
+        *,
+        has_post_search_filters: bool,
+        has_excluded_terminal_status: bool,
+        measure_timing,
+    ) -> pd.DataFrame:
         if has_post_search_filters and hasattr(self, "_apply_advanced_filters"):
             try:
-                filtered = _measure_timing(
+                filtered = measure_timing(
                     "advanced", lambda: self._apply_advanced_filters(filtered)
                 )
             except Exception as exc:
@@ -3707,7 +3709,7 @@ class FilterGUISSAMixin:
                     "Falha ao aplicar filtros avancados no refresh de filtros: %s", exc
                 )
         if has_post_search_filters:
-            filtered = _measure_timing(
+            filtered = measure_timing(
                 "column", lambda: self._apply_column_filters(filtered)
             )
         if (
@@ -3717,9 +3719,7 @@ class FilterGUISSAMixin:
             and "situacao" in filtered.columns
         ):
             try:
-                # Compatibilidade: o nome legado _exclude_ste_sca permanece por
-                # contrato interno, mas SES entrou no mesmo grupo terminal.
-                filtered = _measure_timing(
+                filtered = measure_timing(
                     "exclude",
                     lambda: filtered[
                         ~filtered["situacao"]
@@ -3733,7 +3733,18 @@ class FilterGUISSAMixin:
                     "Falha ao aplicar exclusao SCA/SES/STE no refresh de filtros: %s",
                     exc,
                 )
-        # CORRECAO 2026-01-08: Ordenar por numero_ssa decrescente apos filtro
+        return filtered
+
+    def _sort_filter_refresh_result(
+        self,
+        filtered: pd.DataFrame,
+        *,
+        has_general_search: bool,
+        has_column_filters: bool,
+        has_advanced_filters: bool,
+        has_excluded_terminal_status: bool,
+        measure_timing,
+    ) -> pd.DataFrame:
         can_reuse_preprocessed_load_result = (
             not has_general_search
             and not has_column_filters
@@ -3757,14 +3768,16 @@ class FilterGUISSAMixin:
             and "numero_ssa" in filtered.columns
         ):
             try:
-                filtered = _measure_timing(
+                return measure_timing(
                     "sort", lambda: filtered.sort_values("numero_ssa", ascending=False)
                 )
             except Exception as exc:
                 logger.warning(
                     "Falha ao ordenar numero_ssa no refresh de filtros: %s", exc
                 )
-        self.df_exibido = filtered
+        return filtered
+
+    def _bump_filter_refresh_revision(self) -> None:
         try:
             if hasattr(self, "_bump_data_revision"):
                 self._bump_data_revision("filter_refresh")
@@ -3779,9 +3792,8 @@ class FilterGUISSAMixin:
             logger.debug(
                 "Falha ao garantir data revision no refresh de filtros: %s", exc
             )
-        _measure_timing(
-            "paginate", lambda: self.paginator.set_dataframe(self.df_exibido)
-        )
+
+    def _render_filter_refresh_page(self, current_details_ssa, measure_timing) -> None:
         try:
             current = max(
                 1, min(self.paginator.current_page, self.paginator.total_pages)
@@ -3819,7 +3831,7 @@ class FilterGUISSAMixin:
                     current_details_series = None
 
             if preserve_current_details and current_details_series is not None:
-                _measure_timing(
+                measure_timing(
                     "render",
                     lambda: self.display_current_page(current, update_details=False),
                 )
@@ -3832,13 +3844,13 @@ class FilterGUISSAMixin:
                         "Falha ao restaurar detalhes apos refresh de filtros: %s", exc
                     )
             else:
-                _measure_timing("render", lambda: self.display_current_page(current))
+                measure_timing("render", lambda: self.display_current_page(current))
         except Exception as exc:
             logger.debug(
                 "Falha ao renderizar pagina atual diretamente no refresh; usando fallback: %s",
                 exc,
             )
-            _measure_timing(
+            measure_timing(
                 "render",
                 lambda cp=max(
                     1,
@@ -3848,14 +3860,16 @@ class FilterGUISSAMixin:
                     ),
                 ): self.display_current_page(cp),
             )
-        _measure_timing("indicator", self._update_col_filter_indicator)
+
+    def _finish_filter_refresh_ui(self, measure_timing) -> None:
+        measure_timing("indicator", self._update_col_filter_indicator)
         try:
-            _measure_timing("summary", self._update_filters_summary)
+            measure_timing("summary", self._update_filters_summary)
         except Exception as exc:
             logger.debug("Falha ao atualizar resumo de filtros no refresh: %s", exc)
         self._sync_clear_filter_button_state()
         try:
-            _measure_timing("status", self._set_filtered_count_status)
+            measure_timing("status", self._set_filtered_count_status)
         except Exception as exc:
             logger.debug(
                 "Falha ao atualizar status de total filtrado no refresh: %s", exc
@@ -3865,12 +3879,21 @@ class FilterGUISSAMixin:
                 self, "_sync_quick_setor_executor_combo_from_filters", None
             )
             if callable(sync_combo):
-                _measure_timing("sync", sync_combo)
+                measure_timing("sync", sync_combo)
         except Exception as exc:
             logger.debug(
                 "Falha ao sincronizar combo rapido de setor executor no refresh de filtros: %s",
                 exc,
             )
+
+    def _log_filter_refresh_timings(
+        self,
+        *,
+        refresh_started: float,
+        timings: dict[str, float],
+        base,
+        filtered,
+    ) -> None:
         total_ms = (perf_counter() - refresh_started) * 1000.0
         logger.debug(
             (
@@ -3891,6 +3914,70 @@ class FilterGUISSAMixin:
             timings["sync"],
             len(base) if isinstance(base, pd.DataFrame) else "na",
             len(filtered) if isinstance(filtered, pd.DataFrame) else "na",
+        )
+
+    def _refresh_after_filter_change(self):
+        """Reaplica filtros de coluna, atualiza tabela e indicadores."""
+        refresh_started = perf_counter()
+        current_details_ssa = getattr(self, "_details_current_ssa", None)
+        timings: dict[str, float] = {
+            "advanced": 0.0,
+            "column": 0.0,
+            "exclude": 0.0,
+            "sort": 0.0,
+            "paginate": 0.0,
+            "render": 0.0,
+            "indicator": 0.0,
+            "summary": 0.0,
+            "status": 0.0,
+            "sync": 0.0,
+        }
+
+        def measure_timing(name: str, callback):
+            started = perf_counter()
+            result = callback()
+            timings[name] = (perf_counter() - started) * 1000.0
+            return result
+
+        has_general_search = self._filter_refresh_has_general_search()
+        base = self._filter_refresh_base_dataframe(has_general_search)
+        filtered = base
+        (
+            has_column_filters,
+            has_advanced_filters,
+            has_excluded_terminal_status,
+        ) = self._filter_refresh_flags()
+        has_post_search_filters = (
+            has_column_filters
+            or has_advanced_filters
+            or has_excluded_terminal_status
+        )
+        filtered = self._apply_filter_refresh_filters(
+            filtered,
+            has_post_search_filters=has_post_search_filters,
+            has_excluded_terminal_status=has_excluded_terminal_status,
+            measure_timing=measure_timing,
+        )
+        filtered = self._sort_filter_refresh_result(
+            filtered,
+            has_general_search=has_general_search,
+            has_column_filters=has_column_filters,
+            has_advanced_filters=has_advanced_filters,
+            has_excluded_terminal_status=has_excluded_terminal_status,
+            measure_timing=measure_timing,
+        )
+        self.df_exibido = filtered
+        self._bump_filter_refresh_revision()
+        measure_timing(
+            "paginate", lambda: self.paginator.set_dataframe(self.df_exibido)
+        )
+        self._render_filter_refresh_page(current_details_ssa, measure_timing)
+        self._finish_filter_refresh_ui(measure_timing)
+        self._log_filter_refresh_timings(
+            refresh_started=refresh_started,
+            timings=timings,
+            base=base,
+            filtered=filtered,
         )
 
     def _build_filter_cache_context(self) -> str:
@@ -4208,12 +4295,12 @@ class FilterGUISSAMixin:
                     cols_raw = group.get("columns", ())
                     vals_raw = group.get("values", ())
                     cols = (
-                        tuple(cols_raw)
+                        tuple(str(item).strip() for item in cols_raw if str(item).strip())
                         if isinstance(cols_raw, (list, tuple))
                         else tuple()
                     )
                     vals = (
-                        tuple(vals_raw)
+                        tuple(str(item).strip() for item in vals_raw if str(item).strip())
                         if isinstance(vals_raw, (list, tuple))
                         else tuple()
                     )
@@ -4603,6 +4690,11 @@ class FilterGUISSAMixin:
         }
         try:
             atomic_write_json_file(path, payload, indent=2, ensure_ascii=False)
+            os.chmod(path, 0o600)
+        except OSError as exc:
+            logger.warning(
+                "Falha ao restringir permissoes de filtros persistentes: %s", exc
+            )
         except Exception as exc:
             logger.warning("Falha ao salvar filtros persistentes: %s", exc)
 

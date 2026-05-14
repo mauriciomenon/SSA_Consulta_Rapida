@@ -8148,6 +8148,38 @@ class TestGUIFilterLogic:
         assert worker.deleted is True
         assert self.window.filter_thread is None
 
+    def test_close_event_cancels_filter_worker_when_running_check_fails(self):
+        class _BrokenRunningWorker:
+            def __init__(self):
+                self.quit_called = False
+                self.wait_called_ms = None
+
+            def isRunning(self):
+                raise RuntimeError("state unavailable")
+
+            def quit(self):
+                self.quit_called = True
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return True
+
+        worker = _BrokenRunningWorker()
+        self.window.filter_thread = worker
+
+        with patch.object(
+            self.window,
+            "_cancel_active_filter_worker",
+            side_effect=RuntimeError("cancel unavailable"),
+        ) as cancel_mock:
+            event = QCloseEvent()
+            self.window.closeEvent(event)
+
+        assert event.isAccepted() is True
+        cancel_mock.assert_called_once_with("closeEvent", wait_ms=3000)
+        assert worker.quit_called is True
+        assert worker.wait_called_ms == 3000
+
     def test_initiate_filtering_keeps_slow_previous_worker_retained_until_finished(
         self,
     ):
@@ -9736,7 +9768,15 @@ class TestGUIFilterLogic:
 
             # Simula finalização silenciosa sem emissao de finished().
             worker._running = False
-            self.window._prune_retired_data_loader_workers()
+            ssa_gui_workers.prune_retired_data_loader_workers(
+                self.window,
+                global_workers=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+                global_meta=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META,
+                max_global_workers=gui_ssa.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+                retired_ttl_sec=gui_ssa.RETIRED_WORKER_TTL_SEC,
+                retired_force_wait_ms=gui_ssa.RETIRED_WORKER_FORCE_WAIT_MS,
+                sip_module=gui_ssa.sip,
+            )
 
             assert worker not in self.window._retired_data_loader_workers
             assert worker not in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS

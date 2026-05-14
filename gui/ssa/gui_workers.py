@@ -659,6 +659,91 @@ def cleanup_rescan_worker_on_close(
         window._active_rescan_worker = None
 
 
+def cleanup_window_workers_on_close(
+    window,
+    *,
+    data_loader_workers: list,
+    data_loader_meta: dict,
+    max_data_loader_workers: int,
+    rescan_workers: list,
+    rescan_meta: dict,
+    max_rescan_workers: int,
+    retired_ttl_sec: float,
+    retired_force_wait_ms: int,
+    sip_module,
+) -> None:
+    data_worker = getattr(window, "data_loader_thread", None)
+    if data_worker is not None:
+        try:
+            cleanup_data_loader_worker(
+                window,
+                data_worker,
+                wait_ms=3000,
+                global_workers=data_loader_workers,
+                global_meta=data_loader_meta,
+                max_global_workers=max_data_loader_workers,
+                retired_ttl_sec=retired_ttl_sec,
+                retired_force_wait_ms=retired_force_wait_ms,
+                sip_module=sip_module,
+            )
+        except Exception as exc:
+            logger.debug("Falha no cleanup do data loader durante closeEvent: %s", exc)
+        finally:
+            if getattr(window, "data_loader_thread", None) is data_worker:
+                window.data_loader_thread = None
+
+    filter_worker = getattr(window, "filter_thread", None)
+    filter_worker_running = False
+    if filter_worker is not None and hasattr(filter_worker, "isRunning"):
+        try:
+            filter_worker_running = bool(filter_worker.isRunning())
+        except Exception as exc:
+            filter_worker_running = True
+            logger.debug(
+                "Falha ao consultar estado do filter worker no closeEvent: %s",
+                exc,
+            )
+    if filter_worker_running:
+        try:
+            window._cancel_active_filter_worker("closeEvent", wait_ms=3000)
+        except Exception as exc:
+            logger.debug("Filter cleanup fallback in closeEvent: %s", exc)
+            try:
+                worker_for_fallback = filter_worker
+                if worker_for_fallback is not None:
+                    worker_for_fallback.quit()
+                    worker_for_fallback.wait(3000)
+            except Exception as fallback_exc:
+                logger.debug(
+                    "Falha no fallback de encerramento do filter worker: %s",
+                    fallback_exc,
+                )
+
+    try:
+        prune_retired_data_loader_workers(
+            window,
+            global_workers=data_loader_workers,
+            global_meta=data_loader_meta,
+            max_global_workers=max_data_loader_workers,
+            retired_ttl_sec=retired_ttl_sec,
+            retired_force_wait_ms=retired_force_wait_ms,
+            sip_module=sip_module,
+        )
+    except Exception as exc:
+        logger.debug("Falha ao podar workers aposentados no closeEvent: %s", exc)
+
+    cleanup_rescan_worker_on_close(
+        window,
+        getattr(window, "_active_rescan_worker", None),
+        global_workers=rescan_workers,
+        global_meta=rescan_meta,
+        max_global_workers=max_rescan_workers,
+        retired_ttl_sec=retired_ttl_sec,
+        retired_force_wait_ms=retired_force_wait_ms,
+        sip_module=sip_module,
+    )
+
+
 def prune_retired_rescan_workers(
     window,
     *,

@@ -35,6 +35,20 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-05-14 13:39 - GUI cleanup residuals after dead-code refactor
+
+Escopo deste registro:
+1. Slice atual removeu o pacote morto `gui/tabs`, moveu cleanup de workers para `gui/ssa/gui_workers.py`, desacoplou formatacao de status da mutacao de labels e decompos `gui/ssa/gui_theme.py`.
+2. Slice atual tambem decompos `_refresh_after_filter_change` em passos internos e manteve a estrategia antiga de `_apply_column_filters` porque medicao local mostrou que mascara unica piorava o caso seletivo comum.
+3. Kluster ainda manteve achados estruturais de longo prazo em `FilterGUISSAMixin`.
+
+Pendente nao bloqueante:
+1. `NAO_BLOQUEANTE_DEFERIDO`: extrair storage de filtros persistentes para objeto/repositorio proprio, mantendo `gui_saved_filters.json` e chmod `0600`.
+2. `NAO_BLOQUEANTE_DEFERIDO`: extrair `_build_column_mask` e regex safety para modulo de logica pura, com testes positivos/negativos antes de trocar engine ou contrato de regex.
+3. `NAO_BLOQUEANTE_DEFERIDO`: medir fallback sincrono de `initiate_filtering` com dataset real; se passar do limite de UX, bloquear fallback pesado ou mover para worker.
+4. `NAO_BLOQUEANTE_DEFERIDO`: reduzir rebuild completo de `_build_column_filters_panel` usando widgets persistentes somente apos smoke visual de troca de abas/filtros.
+5. Motivo do deferimento: todos exigem novo contrato interno ou medicao visual/performance propria; misturar agora aumentaria risco sobre filtros ja estabilizados.
+
 ## Update 2026-05-14 03:00 - GUI filter panel structural residuals
 
 Escopo deste registro:

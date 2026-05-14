@@ -931,8 +931,6 @@ TSM_DEBUG_ENABLED = str(os.environ.get("SSA_TSM_DEBUG", "")).strip().lower() in 
 DETAILS_DIALOG_FONT_SIZE = 10  # pt
 DETAILS_DIALOG_TABLE_PADDING = 8  # px
 DETAILS_DIALOG_BORDER_COLOR = "#ccc"
-DETAILS_DIALOG_MIN_WIDTH = 700  # px
-DETAILS_DIALOG_MIN_HEIGHT = 500  # px
 HIGHLIGHT_BACKGROUND_COLOR = "yellow"
 HIGHLIGHT_FONT_WEIGHT = "bold"
 
@@ -2861,30 +2859,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             cache_token=cache_token,
             normalize_ssa_series=self._normalize_ssa_series,
             notice_callback=notice_callback,
-        )
-
-    def _prune_retired_data_loader_workers(self) -> None:
-        ssa_gui_workers.prune_retired_data_loader_workers(
-            self,
-            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
-            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
-            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
-            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
-            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
-            sip_module=sip,
-        )
-
-    def _cleanup_data_loader_worker(self, worker, wait_ms: int = 1500) -> bool:
-        return ssa_gui_workers.cleanup_data_loader_worker(
-            self,
-            worker,
-            wait_ms=wait_ms,
-            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
-            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
-            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
-            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
-            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
-            sip_module=sip,
         )
 
     def load_data(self):
@@ -5872,47 +5846,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         Garante cleanup adequado dos QThreads para evitar o erro:
         'QThread: Destroyed while thread is still running'
         """
-        # Aguarda finalizacao do data loader thread se estiver rodando
-        data_worker = getattr(self, "data_loader_thread", None)
-        if data_worker is not None:
-            try:
-                self._cleanup_data_loader_worker(data_worker, wait_ms=3000)
-            except Exception as exc:
-                logger.debug(
-                    "Falha no cleanup do data loader durante closeEvent: %s", exc
-                )
-            finally:
-                if getattr(self, "data_loader_thread", None) is data_worker:
-                    self.data_loader_thread = None
-
-        # Aguarda finalizacao do filter thread se estiver rodando
-        worker = getattr(self, "filter_thread", None)
-        if worker and hasattr(worker, "isRunning") and worker.isRunning():
-            try:
-                # Usa cleanup centralizado (desconecta todos os callbacks, inclusive lambdas)
-                self._cancel_active_filter_worker("closeEvent", wait_ms=3000)
-            except Exception as exc:
-                logger.debug("Filter cleanup fallback in closeEvent: %s", exc)
-                try:
-                    worker.quit()
-                    worker.wait(3000)  # Aguarda ate 3 segundos
-                except Exception as fallback_exc:
-                    logger.debug(
-                        "Falha no fallback de encerramento do filter worker: %s",
-                        fallback_exc,
-                    )
-
-        try:
-            self._prune_retired_data_loader_workers()
-        except Exception as exc:
-            logger.debug("Falha ao podar workers aposentados no closeEvent: %s", exc)
-
-        ssa_gui_workers.cleanup_rescan_worker_on_close(
+        ssa_gui_workers.cleanup_window_workers_on_close(
             self,
-            getattr(self, "_active_rescan_worker", None),
-            global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
-            global_meta=GLOBAL_RETIRED_RESCAN_META,
-            max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
+            data_loader_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            data_loader_meta=GLOBAL_RETIRED_DATA_LOADER_META,
+            max_data_loader_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            rescan_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
+            rescan_meta=GLOBAL_RETIRED_RESCAN_META,
+            max_rescan_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
             retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
             retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
             sip_module=sip,
