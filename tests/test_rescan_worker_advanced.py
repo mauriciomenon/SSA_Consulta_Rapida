@@ -45,7 +45,7 @@ def qapp():
 
 
 @pytest.fixture
-def rescan_worker(qapp):
+def rescan_worker():
     """Cria instância de RescanWorker para testes."""
     worker = RescanWorker(
         main_py_path="/fake/path/main.py", project_root="/fake/project"
@@ -57,7 +57,6 @@ def rescan_worker(qapp):
 
 
 def test_rescan_worker_accepts_explicit_external_source_file(
-    qapp,
     tmp_path,
     monkeypatch,
 ):
@@ -79,7 +78,6 @@ def test_rescan_worker_accepts_explicit_external_source_file(
 
 
 def test_rescan_worker_normalizes_explicit_allowlist_once(
-    qapp,
     tmp_path,
     monkeypatch,
 ):

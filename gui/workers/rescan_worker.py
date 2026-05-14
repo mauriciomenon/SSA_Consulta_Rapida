@@ -27,10 +27,10 @@ except Exception:
                 slot(*args, **kwargs)
 
     class _SignalDescriptor:
-        def __set_name__(self, owner, name):
+        def __set_name__(self, _owner, name):
             self._name = name
 
-        def __get__(self, instance, owner):
+        def __get__(self, instance, _owner):
             if instance is None:
                 return self
             signal = instance.__dict__.get(self._name)

@@ -19,7 +19,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="module", autouse=True)
 def qapp():
     """Garante QApplication única para evitar aborts de Qt no pytest."""
     app = QApplication.instance() or QApplication([])
@@ -27,7 +27,7 @@ def qapp():
 
 
 @pytest.fixture
-def window(qapp):  # noqa: ARG001
+def window():
     """Instancia janela sem auto-load assíncrono para smoke determinístico."""
     from gui.gui_ssa import SSAMainWindow  # noqa: E402
 

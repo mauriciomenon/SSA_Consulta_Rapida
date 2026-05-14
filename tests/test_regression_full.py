@@ -23,7 +23,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="module", autouse=True)
 def qt_app():
     """Cria QApplication para testes."""
     from PyQt6.QtWidgets import QApplication
@@ -32,7 +32,7 @@ def qt_app():
 
 
 @pytest.fixture(scope="module")
-def window(qt_app):
+def window():
     """Instancia janela principal em ambiente headless e garante descarte."""
     from gui.gui_ssa import SSAMainWindow
     w = SSAMainWindow()

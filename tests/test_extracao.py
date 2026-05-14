@@ -78,7 +78,8 @@ def setup_test_config(monkeypatch):
 # --- Testes ---
 
 
-def test_read_report_success(temp_excel_file, setup_test_config):
+@pytest.mark.usefixtures("setup_test_config")
+def test_read_report_success(temp_excel_file):
     """
     Testa o caminho feliz: ler um relatório, renomear colunas e normalizar tipos.
     Note que passamos as fixtures como argumentos para o teste.

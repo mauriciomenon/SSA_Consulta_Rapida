@@ -241,7 +241,7 @@ class TestDataLoaderWorkerUnit:
 class TestDataLoaderWorkerIntegration:
     """Testes de integracao para DataLoaderWorker com signals."""
 
-    def test_worker_emits_data_loaded(self, temp_db, qapp):
+    def test_worker_emits_data_loaded(self, temp_db):
         """Testa emissao de signal data_loaded com dados reais."""
         emitted_data = []
         emitted_errors = []
@@ -263,7 +263,7 @@ class TestDataLoaderWorkerIntegration:
         assert len(emitted_data[0]) == 100
         assert "numero_ssa" in emitted_data[0].columns
 
-    def test_worker_emits_error_on_db_failure(self, qapp):
+    def test_worker_emits_error_on_db_failure(self):
         """Testa emissao de signal error_occurred em falha de DB."""
         emitted_errors = []
         emitted_data = []
@@ -282,7 +282,7 @@ class TestDataLoaderWorkerIntegration:
         assert len(emitted_data) == 0
         assert "Falha ao carregar" in emitted_errors[0]
 
-    def test_worker_respects_limit_and_offset(self, temp_db, qapp):
+    def test_worker_respects_limit_and_offset(self, temp_db):
         """Testa que worker respeita parametros de paginacao."""
         captured_query = {}
 
@@ -297,7 +297,7 @@ class TestDataLoaderWorkerIntegration:
         assert "LIMIT 10" in captured_query["sql"]
         assert "OFFSET 20" in captured_query["sql"]
 
-    def test_worker_cancellation_before_start(self, qapp):
+    def test_worker_cancellation_before_start(self):
         """Testa cancelamento antes do inicio da execucao."""
         emitted_data = []
         emitted_errors = []
@@ -316,7 +316,7 @@ class TestDataLoaderWorkerIntegration:
         assert len(emitted_data) == 0
         assert len(emitted_errors) == 0
 
-    def test_worker_cancellation_during_execution(self, qapp):
+    def test_worker_cancellation_during_execution(self):
         """Testa cancelamento durante execucao."""
         emitted_data = []
 
@@ -445,7 +445,7 @@ class TestFilterWorkerIntegration:
         if cache and hasattr(cache, "clear"):
             cache.clear()
 
-    def test_worker_emits_filter_finished(self, sample_dataframe, qapp):
+    def test_worker_emits_filter_finished(self, sample_dataframe):
         """Testa emissao de signal filter_finished com dados filtrados."""
         emitted = []
         errors = []
@@ -467,7 +467,7 @@ class TestFilterWorkerIntegration:
         assert len(errors) == 0
         assert len(emitted[0]) == 25  # Metade e APV
 
-    def test_worker_uses_cache_for_same_query(self, sample_dataframe, qapp):
+    def test_worker_uses_cache_for_same_query(self, sample_dataframe):
         """Testa que worker usa cache para queries identicas."""
         call_count = [0]
 
@@ -492,7 +492,7 @@ class TestFilterWorkerIntegration:
         # Deve usar cache na segunda vez
         assert call_count[0] == 1
 
-    def test_worker_different_cache_context_misses_cache(self, sample_dataframe, qapp):
+    def test_worker_different_cache_context_misses_cache(self, sample_dataframe):
         """Testa que contextos diferentes nao compartilham cache."""
         call_count = [0]
 
@@ -517,7 +517,7 @@ class TestFilterWorkerIntegration:
         # Deve executar filtro duas vezes (cache miss)
         assert call_count[0] == 2
 
-    def test_worker_emits_empty_for_none_dataframe(self, qapp):
+    def test_worker_emits_empty_for_none_dataframe(self):
         """Testa comportamento quando df_completo e None."""
         emitted = []
         errors = []
@@ -532,7 +532,7 @@ class TestFilterWorkerIntegration:
         assert emitted[0].empty
         assert len(errors) == 0
 
-    def test_worker_handles_empty_chunks(self, sample_dataframe, qapp):
+    def test_worker_handles_empty_chunks(self, sample_dataframe):
         """Testa comportamento com chunks vazios."""
         emitted = []
 
@@ -545,7 +545,7 @@ class TestFilterWorkerIntegration:
         # Deve retornar copia completa quando chunk esta vazio
         assert len(emitted[0]) == len(sample_dataframe)
 
-    def test_worker_cancellation_before_processing(self, sample_dataframe, qapp):
+    def test_worker_cancellation_before_processing(self, sample_dataframe):
         """Testa cancelamento antes do processamento."""
         emitted = []
 
@@ -560,7 +560,7 @@ class TestFilterWorkerIntegration:
 
         assert len(emitted) == 0
 
-    def test_worker_cancellation_between_chunks(self, sample_dataframe, qapp):
+    def test_worker_cancellation_between_chunks(self, sample_dataframe):
         """Testa cancelamento entre chunks."""
         call_count = [0]
         emitted = []
@@ -583,7 +583,7 @@ class TestFilterWorkerIntegration:
         assert call_count[0] == 1
         assert len(emitted) == 0  # Nao deve emitir se cancelado
 
-    def test_worker_emits_error_on_exception(self, sample_dataframe, qapp):
+    def test_worker_emits_error_on_exception(self, sample_dataframe):
         """Testa emissao de erro em excecao."""
         emitted = []
         errors = []
@@ -611,7 +611,7 @@ class TestFilterWorkerIntegration:
 class TestWorkerPerformance:
     """Testes de performance para workers."""
 
-    def test_filter_worker_cache_performance(self, qapp):
+    def test_filter_worker_cache_performance(self):
         """Testa que cache melhora performance significativamente."""
         # Criar DataFrame grande
         df = pd.DataFrame(
@@ -694,7 +694,7 @@ class TestWorkerRegression:
             with pytest.raises(ValueError):
                 worker._normalize_order_by(malicious)
 
-    def test_filter_worker_handles_special_characters_in_data(self, qapp):
+    def test_filter_worker_handles_special_characters_in_data(self):
         """Testa que worker lida com caracteres especiais nos dados."""
         df = pd.DataFrame(
             {
@@ -724,7 +724,7 @@ class TestWorkerRegression:
 
         assert len(emitted) == 1
 
-    def test_workers_handle_concurrent_access(self, qapp):
+    def test_workers_handle_concurrent_access(self):
         """Testa comportamento com acesso concorrente ao cache."""
         import threading
 
