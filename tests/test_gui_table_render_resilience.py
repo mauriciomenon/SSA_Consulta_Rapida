@@ -465,7 +465,7 @@ class TestGUITableRenderResilience:
         QApplication.processEvents()
         initial_ssa = self.window._details_current_ssa
 
-        self.window.main_tabs.setCurrentIndex(1)
+        self.window._filter_panel_context["filter_panel_tab_bar"].setCurrentIndex(1)
         QApplication.processEvents()
         QApplication.processEvents()
         assert self.window._details_current_ssa == initial_ssa
@@ -588,7 +588,7 @@ class TestGUITableRenderResilience:
         self,
     ):
         self.window._data_uuid = "stable-data"
-        self.window._ensure_data_revision = lambda: None
+        self.window.__dict__["_ensure_data_revision"] = lambda: None
 
         with patch.object(
             gui_table,
@@ -601,7 +601,7 @@ class TestGUITableRenderResilience:
 
             self._set_window_dataframe(self.base_df.copy(), page_size=10)
             self.window._data_uuid = "stable-data"
-            self.window._ensure_data_revision = lambda: None
+            self.window.__dict__["_ensure_data_revision"] = lambda: None
             self.window.display_current_page(1)
             QApplication.processEvents()
 
@@ -611,7 +611,7 @@ class TestGUITableRenderResilience:
         self,
     ):
         self.window._data_uuid = "stable-data"
-        self.window._ensure_data_revision = lambda: None
+        self.window.__dict__["_ensure_data_revision"] = lambda: None
         self.window.display_current_page(1)
         QApplication.processEvents()
 
@@ -619,7 +619,7 @@ class TestGUITableRenderResilience:
         mutated_df.loc[1, "descricao_ssa"] = "Teste B alterado"
         self._set_window_dataframe(mutated_df, page_size=10)
         self.window._data_uuid = "stable-data"
-        self.window._ensure_data_revision = lambda: None
+        self.window.__dict__["_ensure_data_revision"] = lambda: None
         self.window.display_current_page(1)
         QApplication.processEvents()
 

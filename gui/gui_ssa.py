@@ -190,10 +190,8 @@ try:
         QPoint,
         QSignalBlocker,
         Qt,
-        QThread,
         QTimer,
         QUrl,
-        pyqtSignal,
     )
     from PyQt6.QtGui import QAction, QDesktopServices, QFont
     from PyQt6.QtWidgets import (
@@ -212,7 +210,6 @@ try:
         QLabel,
         QLineEdit,
         QListWidget,
-        QListWidgetItem,
         QMainWindow,
         QMenu,
         QMessageBox,
@@ -221,7 +218,6 @@ try:
         QScrollArea,
         QSizePolicy,
         QSpacerItem,
-        QSpinBox,
         QStackedWidget,
         QTabBar,
         QTableWidget,
@@ -241,7 +237,6 @@ try:
 
     # Import mixins for code organization
     from gui.mixins import FilterGUISSAMixin  # noqa: E402
-    from gui.mixins import TabContextGUISSAMixin
     from gui.widgets import ColumnSelector  # noqa: E402
     from gui.widgets import (
         ColumnFilterDialog,
@@ -903,11 +898,6 @@ except ImportError as exc:
 
         pass
 
-    class TabContextGUISSAMixin:
-        """Stub mixin for headless testing."""
-
-        pass
-
     # Type-checking bridge: fallback stubs are runtime-safe but too strict for static unions.
     QWidget = cast(Any, QWidget)
     QApplication = cast(Any, QApplication)
@@ -930,7 +920,6 @@ except ImportError as exc:
     QTimer = cast(Any, QTimer)
     Qt = cast(Any, Qt)
     FilterGUISSAMixin = cast(Any, FilterGUISSAMixin)
-    TabContextGUISSAMixin = cast(Any, TabContextGUISSAMixin)
 
 
 def _is_widget_valid(widget) -> bool:
@@ -1232,7 +1221,7 @@ def build_about_message(app_version: str) -> str:
 
 
 # --- Janela Principal da Aplicacao ---
-class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
+class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     """
     Janela principal da aplicação GUI.
 
@@ -1279,6 +1268,42 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         return ssa_gui_theme.resolve_startup_theme(gui_settings)
 
+    def _bump_data_revision(self, reason: str = "") -> int:
+        try:
+            next_rev = int(self._data_revision or 0) + 1
+        except (AttributeError, TypeError, ValueError):
+            next_rev = 1
+        self._data_revision = next_rev
+        try:
+            self._data_revision_df_ids = (id(self.df_completo), id(self.df_exibido))
+        except AttributeError:
+            self._data_revision_df_ids = None
+        if reason:
+            logger.debug("Data revision bump (%s): %s", reason, next_rev)
+        return next_rev
+
+    def _ensure_data_revision(self) -> None:
+        try:
+            current_ids = (id(self.df_completo), id(self.df_exibido))
+        except AttributeError:
+            return
+        if getattr(self, "_data_revision_df_ids", None) != current_ids:
+            self._bump_data_revision("df_identity_change")
+
+    def _sync_checks_to_tab_context(self) -> None:
+        context = getattr(self, "_filter_panel_context", None)
+        if not isinstance(context, dict):
+            return
+        synced = 0
+        for attr, value in vars(self).items():
+            if not attr.startswith("adv_") or not attr.endswith("_checks"):
+                continue
+            if value is None:
+                continue
+            context[attr] = value
+            synced += 1
+        logger.debug("Advanced filter checks synced to panel context: %s", synced)
+
     def _log_tsm_debug(self, event_name: str, *, widget_role: str, obj) -> None:
         if not TSM_DEBUG_ENABLED:
             return
@@ -1323,18 +1348,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return
         try:
             self._register_tsm_debug_widget(getattr(self, "main_tabs", None), "tabs")
-            contexts = list(getattr(self, "_tab_contexts", []) or [])
-            for idx, ctx in enumerate(contexts):
-                if not isinstance(ctx, dict):
-                    continue
-                prefix = f"tab{idx}"
+            context = getattr(self, "_filter_panel_context", None)
+            if isinstance(context, dict):
                 for key in (
                     "search_input",
                     "quick_setor_executor_combo",
                     "adv_week_emissao_start",
                     "adv_week_execucao_start",
                 ):
-                    self._register_tsm_debug_widget(ctx.get(key), f"{prefix}.{key}")
+                    self._register_tsm_debug_widget(context.get(key), f"filter.{key}")
         except Exception as exc:
             logger.debug("Falha ao instalar probes de TSM debug: %s", exc)
 
@@ -1688,11 +1710,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         main_layout.addLayout(cast(Any, toolbar_layout))
         self.main_tabs = QTabWidget()
         tab_main = QWidget()
-        ctx_main = self._build_tab_content(tab_main, "main")
+        ctx_main = self._build_tab_content(tab_main)
         self.main_tabs.addTab(cast(Any, tab_main), "SSAs")
-        ctx_filters = ctx_main.pop("_filters_ctx", None)
-        if not isinstance(ctx_filters, dict):
-            ctx_filters = ctx_main
         try:
             tab_bar = self.main_tabs.tabBar()
             if tab_bar is not None:
@@ -1700,10 +1719,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 tab_bar.setMaximumHeight(0)
         except Exception as exc:
             logger.debug("Falha ao ocultar barra nativa de abas: %s", exc)
-        self._tab_contexts = [ctx_main, ctx_filters]
+        self._filter_panel_context = ctx_main
+        self._active_filter_panel_kind = "columns"
+        for name, value in ctx_main.items():
+            if name.startswith("_"):
+                continue
+            setattr(self, name, value)
         main_layout.addWidget(cast(Any, self.main_tabs))
-        self.main_tabs.currentChanged.connect(self._on_tab_changed)
-        self._bind_tab_context(ctx_main)
         self._setup_tsm_debug_probes()
         try:
             QTimer.singleShot(0, self._sync_bottom_panel_heights)
@@ -1764,7 +1786,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "FilterWorker/FilterCache indisponivel; cache de filtro nao inicializado"
             )
 
-    def _build_tab_content(self, page: QWidget, tab_kind: str = "main") -> dict:
+    def _build_tab_content(self, page: QWidget) -> dict:
         tab_layout = QVBoxLayout(page)
         tab_layout.setSpacing(4)
         ctx = {}
@@ -1793,9 +1815,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         search_input.setMinimumWidth(425)
         search_input.setMaximumWidth(950)
         self._set_widget_min_height_safe(search_input, 26, "campo de pesquisa")
-        search_input.returnPressed.connect(
-            lambda tab=tab_kind: self._on_general_search_apply_clicked(tab)
-        )
+        search_input.returnPressed.connect(self._on_general_search_apply_clicked)
         search_input.textChanged.connect(self._on_search_text_changed)
         search_button = QPushButton("Aplicar")
         self._set_widget_fixed_height_safe(
@@ -1806,11 +1826,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             search_button.setMaximumWidth(110)
         except Exception as exc:
             logger.debug("Falha ao aplicar estilo no botao Aplicar da pesquisa: %s", exc)
-        search_button.clicked.connect(
-            lambda _checked=False, tab=tab_kind: self._on_general_search_apply_clicked(
-                tab
-            )
-        )
+        search_button.clicked.connect(self._on_general_search_apply_clicked)
         clear_filter_button = QPushButton("Limpar Busca")
         self._set_widget_fixed_height_safe(
             clear_filter_button, 26, "botao Limpar Busca"
@@ -1822,11 +1838,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             logger.debug(
                 "Falha ao aplicar estilo no botao Limpar Busca da pesquisa: %s", exc
             )
-        clear_filter_button.clicked.connect(
-            lambda _checked=False, tab=tab_kind: self._on_general_search_clear_clicked(
-                tab
-            )
-        )
+        clear_filter_button.clicked.connect(self._on_general_search_clear_clicked)
         clear_filter_button.setToolTip(
             "Limpa apenas a busca e cancela a busca em andamento. "
             "Filtros de coluna e avancados continuam ativos."
@@ -2392,18 +2404,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "col_filters_scroll": col_filters_scroll,
                 "col_filters_container": col_filters_container,
                 "col_filters_list_layout": col_filters_list_layout,
-                "tab_kind": tab_kind,
                 "add_column_filter_btn": add_column_filter_btn,
                 "clear_all_btn": clear_all_btn,
             }
         )
-        filters_ctx = dict(ctx)
-        filters_ctx["tab_kind"] = "filters"
-        filters_ctx.update(adv_ctx)
+        ctx.update(adv_ctx)
         self._adv_ctx = adv_ctx
 
         def _activate_filter_panel(index: int) -> None:
             active_index = 1 if int(index) == 1 else 0
+            self._active_filter_panel_kind = "advanced" if active_index == 1 else "columns"
             try:
                 filters_panel_stack.setCurrentIndex(active_index)
                 filter_panel_title.setText(
@@ -2411,11 +2421,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 )
             except Exception as exc:
                 logger.debug("Falha ao trocar painel local de filtros: %s", exc)
-            target_ctx = filters_ctx if active_index == 1 else ctx
-            try:
-                self._bind_tab_context(target_ctx)
-            except Exception as exc:
-                logger.debug("Falha ao vincular contexto local de filtros: %s", exc)
             if active_index == 1:
                 try:
                     self._adv_options_dirty = True
@@ -2432,7 +2437,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             filter_panel_tab_bar.currentChanged.connect(_activate_filter_panel)
         except Exception as exc:
             logger.debug("Falha ao conectar aba local de filtros: %s", exc)
-        ctx["_filters_ctx"] = filters_ctx
         return ctx
 
     def _get_canonical_available_columns(self) -> list[str]:
@@ -2583,7 +2587,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def _run_adv_options_refresh(self):
         self._adv_options_scheduled = False
-        if getattr(self, "_current_tab_kind", None) != "filters":
+        if getattr(self, "_active_filter_panel_kind", None) != "advanced":
             return
         if not getattr(self, "_adv_options_dirty", False):
             return
@@ -2593,90 +2597,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             self._adv_options_dirty = False
         except Exception as exc:
             logger.warning("Falha ao executar refresh de filtros avancados: %s", exc)
-
-    def _on_tab_changed(self, index: int) -> None:
-        if not hasattr(self, "_tab_contexts"):
-            return
-        if index < 0 or index >= len(self._tab_contexts):
-            return
-        ctx = self._tab_contexts[index]
-        if TSM_DEBUG_ENABLED:
-            logger.warning(
-                "[TSM_DEBUG] tab_changed index=%s kind=%s",
-                index,
-                str(ctx.get("tab_kind") or ""),
-            )
-        self._bind_tab_context(ctx)
-        try:
-            self._refresh_quick_setor_executor_options()
-            self._sync_quick_setor_executor_combo_from_filters()
-            self._sync_advanced_executor_ui_from_active_filter()
-        except Exception as exc:
-            logger.debug(
-                "Falha ao sincronizar combo rapido de setor executor na troca de aba: %s",
-                exc,
-            )
-        if ctx.get("tab_kind") == "filters":
-            try:
-                ssa_gui_theme.reapply_current_theme_widget_styles(
-                    self,
-                    highlight_defaults=(
-                        HIGHLIGHT_BACKGROUND_COLOR,
-                        HIGHLIGHT_FONT_WEIGHT,
-                    ),
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao reaplicar estilos do tema na aba de filtros: %s", exc
-                )
-            pending_theme = getattr(self, "_pending_theme_refresh_column_filters", None)
-            if pending_theme:
-                try:
-                    self._adv_options_dirty = True
-                    if hasattr(self, "_schedule_adv_options_refresh"):
-                        self._schedule_adv_options_refresh()
-                    elif hasattr(self, "_refresh_advanced_filter_options"):
-                        self._refresh_advanced_filter_options()
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao atualizar filtros avancados pendentes na troca de aba: %s",
-                        exc,
-                    )
-                finally:
-                    self._pending_theme_refresh_column_filters = None
-            try:
-                if bool(getattr(self, "_adv_options_dirty", False)):
-                    self._schedule_adv_options_refresh()
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao agendar refresh de filtros avancados na troca de aba: %s",
-                    exc,
-                )
-            try:
-                self._reorganize_advanced_filters_grid(
-                    getattr(self, "adv_filters_group").width()
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao reorganizar filtros avancados apos troca de aba: %s", exc
-                )
-            try:
-                QTimer.singleShot(
-                    0,
-                    lambda: self._reorganize_advanced_filters_grid(
-                        getattr(self, "adv_filters_group").width()
-                    ),
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao agendar reorganizacao deferida apos troca de aba: %s", exc
-                )
-        try:
-            self._queue_bottom_panel_height_sync()
-        except Exception as exc:
-            logger.debug(
-                "Falha ao enfileirar sincronizacao de altura apos troca de aba: %s", exc
-            )
 
     def _compute_bottom_panel_target_height(self) -> int:
         try:
@@ -2707,16 +2627,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             self._sync_bottom_panel_heights()
 
     def _sync_bottom_panel_heights(self) -> None:
-        if not hasattr(self, "_tab_contexts"):
-            return
         target = self._compute_bottom_panel_target_height()
         seen = set()
         groups = []
-        for ctx in self._tab_contexts:
-            if not isinstance(ctx, dict):
-                continue
+        context = getattr(self, "_filter_panel_context", None)
+        if isinstance(context, dict):
             for key in ("details_group", "col_filters_group", "adv_filters_group"):
-                widget = ctx.get(key)
+                widget = context.get(key)
                 if widget is None:
                     continue
                 wid = id(widget)
@@ -2729,9 +2646,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 widget, target, f"painel inferior {type(widget).__name__}"
             )
         try:
-            current_kind = getattr(self, "_current_tab_kind", None)
+            current_kind = getattr(self, "_active_filter_panel_kind", None)
             if (
-                current_kind == "filters"
+                current_kind == "advanced"
                 and hasattr(self, "adv_filters_group")
                 and self.adv_filters_group is not None
             ):
@@ -2801,7 +2718,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         values,
         selected_set,
         on_toggle=None,
-        on_apply=None,
+        show_footer=None,
         exclude_selected_set=None,
         on_exclude_toggle=None,
     ):
@@ -2812,7 +2729,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             values,
             selected_set,
             on_toggle,
-            on_apply,
+            show_footer,
             exclude_selected_set,
             on_exclude_toggle,
         )
@@ -2829,13 +2746,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def _build_advanced_filters_panel(self):
         return ssa_gui_filters._build_advanced_filters_panel(self)
-
-    def _on_derivada_has_toggled(self, checked: bool):
-        return ssa_gui_filters._on_derivada_has_toggled(self, checked)
-
-    def _on_derivada_all_ste_toggled(self, checked: bool):
-        _ = checked
-        return None
 
     def _show_derivadas_popup(self):
         return ssa_gui_filters._show_derivadas_popup(self)
@@ -3346,30 +3256,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         current_columns = list(getattr(self, "_current_display_columns", []) or [])
         if not current_columns or logical_index >= len(current_columns):
             return None
-
-        header = self.table_widget.horizontalHeader()
-        if header is not None:
-            try:
-                visual_index = int(header.visualIndex(logical_index))
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao consultar visualIndex para logical_index=%s: %s",
-                    logical_index,
-                    exc,
-                )
-                visual_index = logical_index
-
-            try:
-                visual_order = ssa_gui_table._get_header_visual_column_order(self)
-            except Exception as exc:
-                logger.debug("Falha ao resolver ordem visual atual do header: %s", exc)
-                visual_order = current_columns
-
-            if 0 <= visual_index < len(visual_order):
-                resolved = str(visual_order[visual_index] or "").strip()
-                if resolved and resolved != "#":
-                    return resolved
-
         resolved = str(current_columns[logical_index] or "").strip()
         if not resolved or resolved == "#":
             return None
@@ -3946,121 +3832,117 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         if not selected_values and not exclude_values:
             selected_raw = str(active_filters.get("setor_executor", "") or "").strip()
             selected_values = self._split_filter_csv_values(selected_raw)
-        tab_contexts = getattr(self, "_tab_contexts", None)
-        if not isinstance(tab_contexts, list):
+        button = getattr(self, "adv_executor_button", None)
+        checks = getattr(self, "adv_executor_checks", None)
+        exclude_checks = getattr(self, "adv_executor_exclude_checks", None)
+        if button is None:
             return
-        for ctx in tab_contexts:
-            if not isinstance(ctx, dict):
-                continue
-            if ctx.get("tab_kind") != "filters":
-                continue
-            button = ctx.get("adv_executor_button")
-            checks = ctx.get("adv_executor_checks")
-            exclude_checks = ctx.get("adv_executor_exclude_checks")
-            if button is None:
-                continue
-            if checks:
-                self._sync_multiselect_checks(
-                    button,
-                    checks,
-                    selected_values,
-                    exclude_checks,
-                    exclude_values,
-                )
-            else:
-                if selected_values and exclude_values:
-                    button.setText(
-                        f"Incluir: {', '.join(selected_values)} | Diferente: {', '.join(exclude_values)}"
+        if checks:
+            self._sync_multiselect_checks(
+                button,
+                checks,
+                selected_values,
+                exclude_checks,
+                exclude_values,
+            )
+            return
+        if selected_values and exclude_values:
+            button.setText(
+                f"Incluir: {', '.join(selected_values)} | Diferente: {', '.join(exclude_values)}"
+            )
+        elif selected_values:
+            button.setText(f"Incluir: {', '.join(selected_values)}")
+        elif exclude_values:
+            button.setText(f"Diferente: {', '.join(exclude_values)}")
+        else:
+            button.setText("Selecionar")
+
+    def _sync_profile_selector(self) -> None:
+        selector = getattr(self, "profile_selector", None)
+        if selector is None:
+            return
+        signals_blocked = False
+        try:
+            idx = (
+                selector.findData(self.current_filter_profile)
+                if self.current_filter_profile
+                else 0
+            )
+            if idx >= 0:
+                selector.blockSignals(True)
+                signals_blocked = True
+                selector.setCurrentIndex(idx)
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar seletor de perfil: %s", exc)
+        finally:
+            if signals_blocked:
+                try:
+                    selector.blockSignals(False)
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao reativar sinais do seletor de perfil: %s", exc
                     )
-                elif selected_values:
-                    button.setText(f"Incluir: {', '.join(selected_values)}")
-                elif exclude_values:
-                    button.setText(f"Diferente: {', '.join(exclude_values)}")
-                else:
-                    button.setText("Selecionar")
+
+    def _resolve_quick_setor_executor_value(self) -> str:
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        selected_value = str(active_filters.get("setor_executor", "") or "").strip()
+        advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
+        advanced_values = self._normalize_filter_sequence_values(
+            advanced_filters.get("setor_executor")
+        )
+        advanced_excludes = self._normalize_filter_sequence_values(
+            advanced_filters.get("setor_executor_exclude_values")
+        )
+        if not selected_value and len(advanced_values) == 1 and not advanced_excludes:
+            selected_value = advanced_values[0]
+        if "," in selected_value:
+            return ""
+        return selected_value
 
     def _sync_quick_setor_executor_combo_from_filters(self) -> None:
-        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
-        selected_value = str(active_filters.get("setor_executor", "") or "").strip()
-        advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
-        advanced_values = self._normalize_filter_sequence_values(
-            advanced_filters.get("setor_executor")
-        )
-        advanced_excludes = self._normalize_filter_sequence_values(
-            advanced_filters.get("setor_executor_exclude_values")
-        )
-        if not selected_value and len(advanced_values) == 1 and not advanced_excludes:
-            selected_value = advanced_values[0]
-        if "," in selected_value:
-            selected_value = ""
-        tab_contexts = getattr(self, "_tab_contexts", None)
-        if not isinstance(tab_contexts, list):
+        selected_value = self._resolve_quick_setor_executor_value()
+        combo = getattr(self, "quick_setor_executor_combo", None)
+        if combo is None:
             return
-        for ctx in tab_contexts:
-            if not isinstance(ctx, dict):
-                continue
-            combo = ctx.get("quick_setor_executor_combo")
-            if combo is None:
-                continue
+        try:
+            has_existing_options = combo.count() > 0
+        except Exception:
+            has_existing_options = False
+        if has_existing_options:
             try:
-                has_existing_options = combo.count() > 0
+                idx = combo.findData(selected_value)
             except Exception:
-                has_existing_options = False
-            if has_existing_options:
+                idx = -1
+            if idx >= 0:
+                self._quick_setor_executor_syncing = True
                 try:
-                    idx = combo.findData(selected_value)
-                except Exception:
-                    idx = -1
-                if idx >= 0:
-                    self._quick_setor_executor_syncing = True
+                    combo.blockSignals(True)
+                    combo.setCurrentIndex(idx)
+                    self._update_quick_setor_executor_combo_display(combo)
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao sincronizar selecao do combo rapido de setor executor: %s",
+                        exc,
+                    )
+                finally:
                     try:
-                        combo.blockSignals(True)
-                        combo.setCurrentIndex(idx)
-                        self._update_quick_setor_executor_combo_display(combo)
+                        combo.blockSignals(False)
                     except Exception as exc:
                         logger.debug(
-                            "Falha ao sincronizar selecao do combo rapido de setor executor: %s",
+                            "Falha ao reativar sinais na sincronizacao do combo rapido de setor executor: %s",
                             exc,
                         )
-                    finally:
-                        try:
-                            combo.blockSignals(False)
-                        except Exception as exc:
-                            logger.debug(
-                                "Falha ao reativar sinais na sincronizacao do combo rapido de setor executor: %s",
-                                exc,
-                            )
-                        self._quick_setor_executor_syncing = False
-                    continue
-            self._populate_quick_setor_executor_combo(
-                combo, selected_value=selected_value
-            )
+                    self._quick_setor_executor_syncing = False
+                return
+        self._populate_quick_setor_executor_combo(
+            combo, selected_value=selected_value
+        )
 
     def _refresh_quick_setor_executor_options(self) -> None:
-        tab_contexts = getattr(self, "_tab_contexts", None)
-        if not isinstance(tab_contexts, list):
-            return
-        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
-        selected_value = str(active_filters.get("setor_executor", "") or "").strip()
-        advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
-        advanced_values = self._normalize_filter_sequence_values(
-            advanced_filters.get("setor_executor")
-        )
-        advanced_excludes = self._normalize_filter_sequence_values(
-            advanced_filters.get("setor_executor_exclude_values")
-        )
-        if not selected_value and len(advanced_values) == 1 and not advanced_excludes:
-            selected_value = advanced_values[0]
-        if "," in selected_value:
-            selected_value = ""
-        for ctx in tab_contexts:
-            if not isinstance(ctx, dict):
-                continue
-            combo = ctx.get("quick_setor_executor_combo")
-            if combo is None:
-                continue
+        combo = getattr(self, "quick_setor_executor_combo", None)
+        if combo is not None:
             self._populate_quick_setor_executor_combo(
-                combo, selected_value=selected_value
+                combo, selected_value=self._resolve_quick_setor_executor_value()
             )
 
     def _on_quick_setor_executor_changed(self, combo) -> None:
@@ -4320,10 +4202,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self._open_details_dialog_for_ssa(numero_ssa, series=series)
 
     def _save_page_size_pref(self, new_size: int):
-        """Persiste o tamanho da pãgina no settings."""
-        # Nota: Persistencia removida para isolamento do CLI
-        # O tamanho da pãgina fica configurado no arquivo gui_main_preferences.json
-        pass
+        """Persiste o tamanho da pagina no settings da GUI."""
+        try:
+            page_size = int(new_size)
+        except (TypeError, ValueError):
+            logger.warning("Page size invalido ignorado: %r", new_size)
+            return False
+        if page_size < 10 or page_size > 500:
+            logger.warning("Page size fora do intervalo permitido: %s", page_size)
+            return False
+        gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+        if gui_settings.get("page_size") == page_size:
+            self._restored_page_size = page_size
+            return True
+        gui_settings["page_size"] = page_size
+        self._restored_page_size = page_size
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            return True
+        return self._persist_gui_preferences()
 
     def _get_series_from_row(self, row: int):
         try:
@@ -5940,7 +5836,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         # Mantem grid da aba Filtros responsivo durante resize.
         try:
-            if getattr(self, "_current_tab_kind", None) == "filters":
+            if getattr(self, "_active_filter_panel_kind", None) == "advanced":
                 if hasattr(self, "adv_filters_group") and self.adv_filters_group:
                     width = self.adv_filters_group.width()
                     self._reorganize_advanced_filters_grid(width)

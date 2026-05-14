@@ -301,26 +301,13 @@ def _apply_table_header_theme(window) -> None:
         )
 
 
-def _update_tab_contexts(window, normalized: str) -> None:
+def _update_filter_panel_context(window, normalized: str) -> None:
     try:
-        tab_contexts = getattr(window, "_tab_contexts", None)
-        if isinstance(tab_contexts, list):
-            active_kind = getattr(window, "_current_tab_kind", None)
-            active_search = getattr(window, "search_input", None)
-            for ctx in tab_contexts:
-                if not isinstance(ctx, dict):
-                    continue
-                if active_kind and ctx.get("tab_kind") == active_kind:
-                    ctx["_theme_name"] = normalized
-                    break
-                if (
-                    active_search is not None
-                    and ctx.get("search_input") is active_search
-                ):
-                    ctx["_theme_name"] = normalized
-                    break
+        context = getattr(window, "_filter_panel_context", None)
+        if isinstance(context, dict):
+            context["_theme_name"] = normalized
     except Exception as exc:
-        logger.debug("Falha ao registrar tema atual nos contextos de aba: %s", exc)
+        logger.debug("Falha ao registrar tema atual no contexto de filtros: %s", exc)
 
 
 def _apply_theme_widget_styles(
@@ -394,14 +381,14 @@ def _apply_theme_widget_styles(
                 continue
             seen_search_inputs.add(id(search_widget))
             _set_stylesheet_if_changed(search_widget, search_input_style)
-        for ctx in getattr(window, "_tab_contexts", []) or []:
-            if not isinstance(ctx, dict):
-                continue
-            search_widget = ctx.get("search_input")
+        context = getattr(window, "_filter_panel_context", None)
+        if isinstance(context, dict):
+            search_widget = context.get("search_input")
             if search_widget is None or id(search_widget) in seen_search_inputs:
-                continue
-            seen_search_inputs.add(id(search_widget))
-            _set_stylesheet_if_changed(search_widget, search_input_style)
+                search_widget = None
+            if search_widget is not None:
+                seen_search_inputs.add(id(search_widget))
+                _set_stylesheet_if_changed(search_widget, search_input_style)
 
         tool_btn_css = (
             "QToolButton {"
@@ -670,11 +657,10 @@ def _apply_theme_widget_styles(
                     _set_stylesheet_if_changed(button, highlight_style)
                 except Exception as exc:
                     logger.debug("Falha ao aplicar estilo no botao %s: %s", name, exc)
-        for ctx in getattr(window, "_tab_contexts", []) or []:
-            if not isinstance(ctx, dict):
-                continue
+        context = getattr(window, "_filter_panel_context", None)
+        if isinstance(context, dict):
             for name in highlight_button_names:
-                button = ctx.get(name)
+                button = context.get(name)
                 if button is not None:
                     try:
                         _set_stylesheet_if_changed(button, highlight_style)
@@ -684,7 +670,7 @@ def _apply_theme_widget_styles(
                             name,
                             exc,
                         )
-            filter_tab_bar = ctx.get("filter_panel_tab_bar")
+            filter_tab_bar = context.get("filter_panel_tab_bar")
             if filter_tab_bar is not None:
                 tab_bar_style = (
                     "QTabBar::tab {"
@@ -748,7 +734,7 @@ def _refresh_filter_widgets_for_theme(window, normalized: str) -> None:
                 "Falha ao marcar opcoes avancadas como dirty apos troca de tema: %s",
                 exc,
             )
-        if getattr(window, "_current_tab_kind", None) == "filters":
+        if getattr(window, "_active_filter_panel_kind", None) == "advanced":
             window._pending_theme_refresh_column_filters = normalized
             try:
                 if hasattr(window, "_schedule_adv_options_refresh"):
@@ -812,7 +798,7 @@ def apply_theme(
     _apply_table_header_theme(window)
 
     window._current_theme = normalized
-    _update_tab_contexts(window, normalized)
+    _update_filter_panel_context(window, normalized)
     _apply_theme_widget_styles(
         window,
         normalized,

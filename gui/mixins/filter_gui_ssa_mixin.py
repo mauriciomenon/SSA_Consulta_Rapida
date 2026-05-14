@@ -452,30 +452,13 @@ class FilterGUISSAMixin:
                 logger.warning("Falha ao salvar historico de filtros: %s", exc)
 
     def _iter_search_inputs(self):
-        """Itera por todos os campos de busca das abas sem duplicar referências."""
-        seen = set()
+        """Itera pelo campo de busca vivo."""
         try:
             current = getattr(self, "search_input", None)
             if current is not None:
-                seen.add(id(current))
                 yield current
         except Exception as exc:
             logger.debug("Falha ao obter campo de busca principal: %s", exc)
-
-        tab_contexts = getattr(self, "_tab_contexts", None)
-        if not isinstance(tab_contexts, list):
-            return
-        for ctx in tab_contexts:
-            if not isinstance(ctx, dict):
-                continue
-            widget = ctx.get("search_input")
-            if widget is None:
-                continue
-            widget_id = id(widget)
-            if widget_id in seen:
-                continue
-            seen.add(widget_id)
-            yield widget
 
     def _get_live_search_inputs_snapshot(self) -> list[Any]:
         widgets: list[Any] = []
@@ -494,7 +477,7 @@ class FilterGUISSAMixin:
         return widgets
 
     def _set_search_text_across_tabs(self, text: str) -> None:
-        """Aplica o mesmo texto em todos os campos de busca para evitar divergência entre abas."""
+        """Aplica texto no campo de busca vivo."""
         normalized_text = str(text or "")
         for widget in self._get_live_search_inputs_snapshot():
             blocked = False
@@ -510,8 +493,10 @@ class FilterGUISSAMixin:
                 if blocked:
                     try:
                         widget.blockSignals(False)
-                    except RuntimeError:
-                        pass
+                    except RuntimeError as exc:
+                        logger.debug(
+                            "Widget de busca destruido ao reativar sinais: %s", exc
+                        )
                     except Exception as exc:
                         logger.debug(
                             "Falha ao reativar sinais do campo de busca sincronizado: %s",
@@ -580,25 +565,9 @@ class FilterGUISSAMixin:
         return columns
 
     def _iter_clear_filter_buttons(self):
-        seen_ids = set()
         direct_button = getattr(self, "clear_filter_button", None)
         if direct_button is not None:
-            seen_ids.add(id(direct_button))
             yield direct_button
-        tab_contexts = getattr(self, "_tab_contexts", None)
-        if not isinstance(tab_contexts, list):
-            return
-        for ctx in tab_contexts:
-            if not isinstance(ctx, dict):
-                continue
-            button = ctx.get("clear_filter_button")
-            if button is None:
-                continue
-            button_id = id(button)
-            if button_id in seen_ids:
-                continue
-            seen_ids.add(button_id)
-            yield button
 
     def _set_clear_filter_buttons_enabled(self, enabled: bool) -> None:
         target_state = bool(enabled)
@@ -615,25 +584,9 @@ class FilterGUISSAMixin:
         self._set_clear_filter_buttons_enabled(self._has_any_active_filters())
 
     def _iter_undo_filter_buttons(self):
-        seen_ids = set()
         direct_button = getattr(self, "undo_filter_btn", None)
         if direct_button is not None:
-            seen_ids.add(id(direct_button))
             yield direct_button
-        tab_contexts = getattr(self, "_tab_contexts", None)
-        if not isinstance(tab_contexts, list):
-            return
-        for ctx in tab_contexts:
-            if not isinstance(ctx, dict):
-                continue
-            button = ctx.get("undo_filter_btn")
-            if button is None:
-                continue
-            button_id = id(button)
-            if button_id in seen_ids:
-                continue
-            seen_ids.add(button_id)
-            yield button
 
     def _set_undo_filter_buttons_enabled(self, enabled: bool) -> None:
         target_state = bool(enabled)
@@ -701,12 +654,12 @@ class FilterGUISSAMixin:
         if reason:
             logger.debug("Worker anterior cancelado (%s)", reason)
 
-    def _on_general_search_apply_clicked(self, tab_kind: str) -> None:
-        logger.debug("Acao aplicar busca geral acionada (tab_kind=%s)", tab_kind)
+    def _on_general_search_apply_clicked(self) -> None:
+        logger.debug("Acao aplicar busca geral acionada")
         self.initiate_filtering()
 
-    def _on_general_search_clear_clicked(self, tab_kind: str) -> None:
-        logger.debug("Acao limpar busca geral acionada (tab_kind=%s)", tab_kind)
+    def _on_general_search_clear_clicked(self) -> None:
+        logger.debug("Acao limpar busca geral acionada")
         self.clear_filter()
         self._maybe_offer_hard_reset_after_repeated_clear_click()
 
@@ -1575,8 +1528,10 @@ class FilterGUISSAMixin:
                     if blocked:
                         try:
                             widget.blockSignals(False)
-                        except RuntimeError:
-                            pass
+                        except RuntimeError as exc:
+                            logger.debug(
+                                "Widget de busca destruido ao reativar sinais: %s", exc
+                            )
                         except Exception as exc:
                             logger.debug(
                                 "Falha ao reativar sinais do campo de busca sincronizado: %s",
@@ -2328,27 +2283,7 @@ class FilterGUISSAMixin:
         checked_bool = bool(checked)
         self._exclude_ste_sca = checked_bool
         try:
-            tab_contexts = getattr(self, "_tab_contexts", None)
-            if isinstance(tab_contexts, list):
-                for ctx in tab_contexts:
-                    if not isinstance(ctx, dict):
-                        continue
-                    checkbox = ctx.get("exclude_ste_checkbox")
-                    if checkbox is None:
-                        continue
-                    try:
-                        if checkbox.isChecked() != checked_bool:
-                            checkbox.blockSignals(True)
-                            checkbox.setChecked(checked_bool)
-                    finally:
-                        try:
-                            checkbox.blockSignals(False)
-                        except Exception as exc:
-                            logger.debug(
-                                "Falha ao reativar sinais de checkbox exclude_ste por aba: %s",
-                                exc,
-                            )
-            elif (
+            if (
                 hasattr(self, "exclude_ste_checkbox")
                 and self.exclude_ste_checkbox is not None
             ):
@@ -2367,7 +2302,7 @@ class FilterGUISSAMixin:
                         )
         except Exception as exc:
             logger.warning(
-                "Falha ao sincronizar toggle de excluir STE/SCA entre abas: %s", exc
+                "Falha ao sincronizar toggle de excluir STE/SCA: %s", exc
             )
         self._mark_profile_as_custom()
         self._refresh_after_filter_change()
@@ -2425,30 +2360,24 @@ class FilterGUISSAMixin:
         self._exclude_ste_sca = False
         self._advanced_filters = {}
         self._advanced_filters_active = False
-        tab_contexts = getattr(self, "_tab_contexts", None)
-        if isinstance(tab_contexts, list):
-            for ctx in tab_contexts:
-                if not isinstance(ctx, dict):
-                    continue
-                checkbox = ctx.get("exclude_ste_checkbox")
-                if checkbox is None:
-                    continue
+        checkbox = getattr(self, "exclude_ste_checkbox", None)
+        if checkbox is not None:
+            try:
+                checkbox.blockSignals(True)
+                checkbox.setChecked(False)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao limpar checkbox exclude_ste em clear_all_filters_global: %s",
+                    exc,
+                )
+            finally:
                 try:
-                    checkbox.blockSignals(True)
-                    checkbox.setChecked(False)
+                    checkbox.blockSignals(False)
                 except Exception as exc:
                     logger.debug(
-                        "Falha ao limpar checkbox exclude_ste em contexto de aba: %s",
+                        "Falha ao reativar sinais de checkbox exclude_ste em clear_all_filters_global: %s",
                         exc,
                     )
-                finally:
-                    try:
-                        checkbox.blockSignals(False)
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao reativar sinais de checkbox exclude_ste em clear_all_filters_global: %s",
-                            exc,
-                        )
         try:
             if hasattr(self, "_sync_advanced_filter_ui"):
                 self._sync_advanced_filter_ui()
@@ -2554,86 +2483,6 @@ class FilterGUISSAMixin:
         self._hidden_column_filter_lines = set()
         self._dedicated_or_text = ""
 
-        tab_contexts = getattr(self, "_tab_contexts", None)
-        if isinstance(tab_contexts, list):
-            for ctx in tab_contexts:
-                if not isinstance(ctx, dict):
-                    continue
-                search_input = ctx.get("search_input")
-                if search_input is not None:
-                    try:
-                        search_input.blockSignals(True)
-                        search_input.clear()
-                        search_input.setText("")
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao limpar search_input em hard_reset_filters_state: %s",
-                            exc,
-                        )
-                    finally:
-                        try:
-                            search_input.blockSignals(False)
-                        except Exception as exc:
-                            logger.debug(
-                                "Falha ao reativar sinais de search_input em hard_reset_filters_state: %s",
-                                exc,
-                            )
-                selector = ctx.get("profile_selector")
-                checkbox = ctx.get("exclude_ste_checkbox")
-                if checkbox is None:
-                    try:
-                        if selector is not None:
-                            selector.blockSignals(True)
-                            selector.setCurrentIndex(0)
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao limpar seletor de perfil em hard_reset_filters_state: %s",
-                            exc,
-                        )
-                    finally:
-                        try:
-                            if selector is not None:
-                                selector.blockSignals(False)
-                        except Exception as exc:
-                            logger.debug(
-                                "Falha ao reativar sinais do seletor de perfil em hard_reset_filters_state: %s",
-                                exc,
-                            )
-                    continue
-                try:
-                    checkbox.blockSignals(True)
-                    checkbox.setChecked(False)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao limpar checkbox exclude_ste em hard_reset_filters_state: %s",
-                        exc,
-                    )
-                finally:
-                    try:
-                        checkbox.blockSignals(False)
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao reativar sinais de checkbox exclude_ste em hard_reset_filters_state: %s",
-                            exc,
-                        )
-                try:
-                    if selector is not None:
-                        selector.blockSignals(True)
-                        selector.setCurrentIndex(0)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao limpar seletor de perfil em hard_reset_filters_state: %s",
-                        exc,
-                    )
-                finally:
-                    try:
-                        if selector is not None:
-                            selector.blockSignals(False)
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao reativar sinais do seletor de perfil em hard_reset_filters_state: %s",
-                            exc,
-                        )
         selector = getattr(self, "profile_selector", None)
         if selector is not None:
             try:
@@ -2650,6 +2499,24 @@ class FilterGUISSAMixin:
                 except Exception as exc:
                     logger.debug(
                         "Falha ao reativar sinais do seletor de perfil principal em hard_reset_filters_state: %s",
+                        exc,
+                    )
+        checkbox = getattr(self, "exclude_ste_checkbox", None)
+        if checkbox is not None:
+            try:
+                checkbox.blockSignals(True)
+                checkbox.setChecked(False)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao limpar checkbox exclude_ste em hard_reset_filters_state: %s",
+                    exc,
+                )
+            finally:
+                try:
+                    checkbox.blockSignals(False)
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao reativar sinais de checkbox exclude_ste em hard_reset_filters_state: %s",
                         exc,
                     )
 
@@ -3271,26 +3138,6 @@ class FilterGUISSAMixin:
 
     def _sync_exclude_ste_checkbox_state(self, checked: bool) -> None:
         checked_bool = bool(checked)
-        tab_contexts = getattr(self, "_tab_contexts", None)
-        if isinstance(tab_contexts, list):
-            for ctx in tab_contexts:
-                if not isinstance(ctx, dict):
-                    continue
-                checkbox = ctx.get("exclude_ste_checkbox")
-                if checkbox is None:
-                    continue
-                try:
-                    checkbox.blockSignals(True)
-                    checkbox.setChecked(checked_bool)
-                finally:
-                    try:
-                        checkbox.blockSignals(False)
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao reativar sinais de checkbox exclude_ste no resumo de filtros: %s",
-                            exc,
-                        )
-            return
         checkbox = getattr(self, "exclude_ste_checkbox", None)
         if checkbox is None:
             return
@@ -3628,7 +3475,7 @@ class FilterGUISSAMixin:
         if not tokens:
             group["values"] = []
             for col in group["columns"]:
-                self._active_column_filters.pop(col, None)
+                self._active_column_filters[col] = ""
             return
         group["values"] = tokens
         # Store internally as comma-separated list (OR logic)
@@ -3650,14 +3497,8 @@ class FilterGUISSAMixin:
             series_cache = {}
             self._column_filter_series_cache = series_cache
         working_df = df
-        for col, raw in self._active_column_filters.items():
-            if working_df.empty:
-                return working_df
-            if col not in working_df.columns:
-                continue
-            raw_str = str(raw).strip()
-            if not raw_str:
-                continue
+
+        def _build_effective_column_mask(col: str, raw_str: str) -> pd.Series:
             cache_key = (id(df), str(col))
             cached_series = series_cache.get(cache_key)
             if isinstance(cached_series, pd.Series):
@@ -3706,7 +3547,42 @@ class FilterGUISSAMixin:
                             col_mask.index, fill_value=False
                         )
                         col_mask = col_mask & ~excluded_mask
-            col_mask = col_mask.reindex(working_df.index, fill_value=False)
+            return col_mask.reindex(working_df.index, fill_value=False)
+
+        processed_or_groups: set[int] = set()
+        for col, raw in self._active_column_filters.items():
+            if working_df.empty:
+                return working_df
+            raw_str = str(raw).strip()
+            group = self._column_to_or_group.get(col)
+            if isinstance(group, dict):
+                group_key = id(group)
+                if group_key in processed_or_groups:
+                    continue
+                processed_or_groups.add(group_key)
+                group_values = [
+                    str(value).strip()
+                    for value in group.get("values", [])
+                    if str(value).strip()
+                ]
+                group_raw = ", ".join(group_values) or raw_str
+                if not group_raw:
+                    continue
+                group_mask = pd.Series(False, index=working_df.index)
+                has_group_column = False
+                for group_col in group.get("columns", []):
+                    if group_col not in working_df.columns:
+                        continue
+                    has_group_column = True
+                    group_mask = group_mask | _build_effective_column_mask(
+                        str(group_col), group_raw
+                    )
+                if has_group_column and not group_mask.all():
+                    working_df = working_df[group_mask]
+                continue
+            if col not in working_df.columns or not raw_str:
+                continue
+            col_mask = _build_effective_column_mask(col, raw_str)
             if not col_mask.all():
                 working_df = working_df[col_mask]
         return working_df
@@ -4180,42 +4056,18 @@ class FilterGUISSAMixin:
                     list(group.get("columns") or []), list(group.get("values") or [])
                 )
             self._exclude_ste_sca = bool(state.get("exclude_ste_sca"))
-            tab_contexts = getattr(self, "_tab_contexts", None)
-            if isinstance(tab_contexts, list):
-                for ctx in tab_contexts:
-                    checkbox = (
-                        ctx.get("exclude_ste_checkbox")
-                        if isinstance(ctx, dict)
-                        else None
-                    )
-                    if checkbox is None:
-                        continue
-                    try:
-                        checkbox.blockSignals(True)
-                        checkbox.setChecked(self._exclude_ste_sca)
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao restaurar checkbox exclude_ste em aba: %s", exc
-                        )
-                    finally:
-                        try:
-                            checkbox.blockSignals(False)
-                        except Exception as exc:
-                            logger.debug(
-                                "Falha ao reativar sinais de checkbox exclude_ste em aba: %s",
-                                exc,
-                            )
-            else:
+            checkbox = getattr(self, "exclude_ste_checkbox", None)
+            if checkbox is not None:
                 try:
-                    self.exclude_ste_checkbox.blockSignals(True)
-                    self.exclude_ste_checkbox.setChecked(self._exclude_ste_sca)
+                    checkbox.blockSignals(True)
+                    checkbox.setChecked(self._exclude_ste_sca)
                 except Exception as exc:
                     logger.debug(
                         "Falha ao restaurar checkbox exclude_ste principal: %s", exc
                     )
                 finally:
                     try:
-                        self.exclude_ste_checkbox.blockSignals(False)
+                        checkbox.blockSignals(False)
                     except Exception as exc:
                         logger.debug(
                             "Falha ao reativar sinais do checkbox exclude_ste principal: %s",
@@ -4309,8 +4161,10 @@ class FilterGUISSAMixin:
                 if blocked:
                     try:
                         widget.blockSignals(False)
-                    except RuntimeError:
-                        pass
+                    except RuntimeError as exc:
+                        logger.debug(
+                            "Widget de busca destruido ao reativar sinais: %s", exc
+                        )
                     except Exception as exc:
                         logger.debug(
                             "Falha ao reativar sinais do campo em apply_search_display: %s",

@@ -43,7 +43,7 @@ _MACRO_BAIXAR_EXCLUDED_STATUSES = ["SAD", "SCA", "SES", "STE"]
 
 # Layout constants
 LAYOUT_MIN_VALID_WIDTH = 1
-LAYOUT_GRID_MIN_COLS = 4
+LAYOUT_GRID_MIN_COLS = 1
 LAYOUT_GRID_MAX_COLS = 4
 LAYOUT_GRID_PREF_COLS = 4
 LAYOUT_ADV_PANEL_MIN_HEIGHT = 82
@@ -592,9 +592,9 @@ def _sync_responsavel_button_summaries(self, only_prefixes=None) -> None:
         if include_values and exclude_values:
             candidates = [
                 f"Incluir: {include_text} | Diferente: {exclude_text}",
+                f"{len(include_values)} incluir, {len(exclude_values)} diferente",
                 f"Incluir: {include_text}",
                 f"Diferente: {exclude_text}",
-                f"{len(include_values)} incluir, {len(exclude_values)} diferente",
             ]
         elif include_values:
             candidates = [
@@ -723,9 +723,9 @@ def _update_multiselect_button(
     elif selected and excluded:
         candidates = [
             f"Incluir: {include_text} | Diferente: {exclude_text}",
+            f"{len(selected)} incluir, {len(excluded)} diferente",
             f"Incluir: {include_text}",
             f"Diferente: {exclude_text}",
-            f"{len(selected)} incluir, {len(excluded)} diferente",
         ]
     elif selected:
         candidates = [
@@ -1251,7 +1251,7 @@ def _rebuild_multiselect_menu(
     values,
     selected_set,
     on_toggle=None,
-    on_apply=None,
+    show_footer=None,
     exclude_selected_set=None,
     on_exclude_toggle=None,
 ):
@@ -1587,32 +1587,23 @@ def _rebuild_multiselect_menu(
     except Exception as exc:
         logger.debug("Falha ao adicionar scroll action no menu multiselect: %s", exc)
 
-    # Botoes Fechar e Cancelar.
-    # A aplicacao fica para o botao "Aplicar" geral (evita recalculagens por toggle).
-    if on_apply is not None:
-        cancel_btn = QPushButton("Cancelar")
-        cancel_btn.setFixedWidth(88)
-        cancel_btn.setToolTip("Fechar sem aplicar")
-        ok_btn = QPushButton("Fechar")
-        ok_btn.setFixedWidth(88)
-        ok_btn.setToolTip("Fechar e manter selecao para aplicar no botao Aplicar")
+    # Botoes de fechamento. A aplicacao fica no botao "Aplicar" geral.
+    if show_footer is not None:
+        close_btn = QPushButton("Fechar")
+        close_btn.setFixedWidth(88)
+        close_btn.setToolTip("Fechar menu")
         try:
-            cancel_btn.clicked.connect(menu.close)
+            close_btn.clicked.connect(menu.close)
         except Exception as exc:
             logger.debug(
-                "Falha ao conectar botao Cancelar no menu multiselect: %s", exc
+                "Falha ao conectar botao Fechar no menu multiselect: %s", exc
             )
-        try:
-            ok_btn.clicked.connect(menu.close)
-        except Exception as exc:
-            logger.debug("Falha ao conectar botao Fechar no menu multiselect: %s", exc)
         ok_row = QWidget()
         ok_layout = QHBoxLayout(ok_row)
         ok_layout.setContentsMargins(8, 4, 8, 6)
         ok_layout.setSpacing(6)
         ok_layout.addStretch()
-        ok_layout.addWidget(cancel_btn)
-        ok_layout.addWidget(ok_btn)
+        ok_layout.addWidget(close_btn)
         ok_layout.addStretch()
         ok_act = QWidgetAction(menu)
         ok_act.setDefaultWidget(ok_row)
@@ -1670,6 +1661,7 @@ def _sync_multiselect_checks(
 
 def _build_advanced_filters_panel(self):
     group = QGroupBox("Filtros Avancados")
+    self._menu_pre_show_hooks = {}
     try:
         group.setObjectName("adv_filters_group")
     except Exception as exc:
@@ -2077,10 +2069,6 @@ def _build_advanced_filters_panel(self):
     return group, ctx
 
 
-def _on_derivada_has_toggled(self, checked: bool):
-    _ = checked
-
-
 def _show_derivadas_popup(self):
     """Compatibilidade de facade. Popup de derivadas foi removido."""
     return
@@ -2122,12 +2110,6 @@ def _on_macro_filter_changed(self):
             )
         except Exception as exc:
             logger.warning("Falha ao aplicar preset de status no macro filtro: %s", exc)
-        try:
-            if hasattr(self, "adv_executor_button"):
-                self.adv_executor_button.showMenu()
-        except Exception as exc:
-            logger.debug("Falha ao abrir menu de executor apos macro filtro: %s", exc)
-
 
 def _reorganize_advanced_filters_grid(self, width: int):
     """Reorganiza grid de filtros avancados em distribuicao continua por colunas."""
@@ -2190,7 +2172,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
         "exec_resp_box",
         "action_box",
     ]
-    visible = [(name, w.get(name)) for name in order if w.get(name) is not None]
+    visible = [(name, widget) for name in order if (widget := w.get(name)) is not None]
     if not visible:
         return
 
@@ -2605,17 +2587,23 @@ def _refresh_responsavel_options(self, target_prefixes=None):
             menu,
             values,
             selected,
-            lambda *_: self._update_multiselect_button(
-                button,
-                getattr(self, checks_attr, []),
-                exclude_checks=getattr(self, exclude_checks_attr, None),
+            lambda *_,
+            current_button=button,
+            current_checks_attr=checks_attr,
+            current_exclude_checks_attr=exclude_checks_attr: self._update_multiselect_button(
+                current_button,
+                getattr(self, current_checks_attr, []),
+                exclude_checks=getattr(self, current_exclude_checks_attr, None),
             ),
-            apply_cb,
+            True,
             excluded,
-            lambda *_: self._update_multiselect_button(
-                button,
-                getattr(self, checks_attr, []),
-                exclude_checks=getattr(self, exclude_checks_attr, None),
+            lambda *_,
+            current_button=button,
+            current_checks_attr=checks_attr,
+            current_exclude_checks_attr=exclude_checks_attr: self._update_multiselect_button(
+                current_button,
+                getattr(self, current_checks_attr, []),
+                exclude_checks=getattr(self, current_exclude_checks_attr, None),
             ),
         )
         setattr(self, checks_attr, include_checks)
@@ -2669,7 +2657,7 @@ def _clear_advanced_filters(self):
         logger.warning("Falha ao sincronizar UI apos limpar filtros avancados: %s", exc)
     try:
         if (
-            getattr(self, "_current_tab_kind", None) == "filters"
+            getattr(self, "_active_filter_panel_kind", None) == "advanced"
             and bool(getattr(self, "_adv_options_dirty", False))
             and hasattr(self, "_refresh_advanced_filter_options")
         ):
@@ -3215,7 +3203,7 @@ def _refresh_sector_menus(self, exec_vals, emis_vals, status_vals, filters, appl
             exec_vals,
             set(filters.get("setor_executor") or []),
             self._on_adv_sector_selection_changed,
-            apply_cb,
+            True,
             set(filters.get("setor_executor_exclude_values") or []),
             self._on_adv_sector_exclude_changed,
         )
@@ -3228,7 +3216,7 @@ def _refresh_sector_menus(self, exec_vals, emis_vals, status_vals, filters, appl
             emis_vals,
             set(filters.get("setor_emissor") or []),
             self._on_adv_sector_selection_changed,
-            apply_cb,
+            True,
             set(filters.get("setor_emissor_exclude_values") or []),
             self._on_adv_sector_exclude_changed,
         )
@@ -3245,7 +3233,7 @@ def _refresh_sector_menus(self, exec_vals, emis_vals, status_vals, filters, appl
                 getattr(self, "adv_status_checks", None),
                 exclude_checks=getattr(self, "adv_status_exclude_checks", None),
             ),
-            apply_cb,
+            True,
             set(filters.get("situacao_exclude_values") or []),
             lambda *_: self._update_multiselect_button(
                 self.adv_status_button,
@@ -3282,7 +3270,7 @@ def _refresh_year_menus(self, emissao_years, execucao_years, filters, apply_cb):
                 getattr(self, "adv_year_emissao_checks", None),
                 exclude_checks=getattr(self, "adv_year_emissao_exclude_checks", None),
             ),
-            apply_cb,
+            True,
             exc_set,
             lambda *_: self._update_multiselect_button(
                 self.adv_year_emissao_button,
@@ -3316,7 +3304,7 @@ def _refresh_year_menus(self, emissao_years, execucao_years, filters, apply_cb):
                 getattr(self, "adv_year_execucao_checks", None),
                 exclude_checks=getattr(self, "adv_year_execucao_exclude_checks", None),
             ),
-            apply_cb,
+            True,
             exc_set,
             lambda *_: self._update_multiselect_button(
                 self.adv_year_execucao_button,
@@ -3343,7 +3331,7 @@ def _refresh_reprogramacoes_menu(self, reprog_vals, filters, apply_cb):
                 getattr(self, "adv_reprog_button", None),
                 getattr(self, "adv_reprog_checks", None),
             ),
-            apply_cb,
+            True,
             None,
             None,
         )
@@ -3409,7 +3397,7 @@ def _refresh_derivadas_menu(self, filters, apply_cb, selected_override=None):
                 getattr(self, "adv_derivada_button", None),
                 getattr(self, "adv_derivada_checks", None),
             ),
-            apply_cb,
+            True,
             None,
             None,
         )
@@ -3435,7 +3423,7 @@ def _refresh_priority_menus(
                     self, "adv_prioridade_emissao_exclude_checks", None
                 ),
             ),
-            apply_cb,
+            True,
             set(filters.get("prioridade_emissao_exclude_values") or []),
             lambda *_: self._update_multiselect_button(
                 self.adv_prioridade_emissao_button,
@@ -3460,7 +3448,7 @@ def _refresh_priority_menus(
                     self, "adv_prioridade_planejamento_exclude_checks", None
                 ),
             ),
-            apply_cb,
+            True,
             set(filters.get("prioridade_planejamento_exclude_values") or []),
             lambda *_: self._update_multiselect_button(
                 self.adv_prioridade_planejamento_button,
@@ -3553,3 +3541,4 @@ def _refresh_advanced_filter_options(self):
         logger.debug("Advanced filter options refresh: %.1fms", elapsed_ms)
     except Exception as exc:
         logger.debug("Failed to log advanced filter options refresh timing: %s", exc)
+    self._adv_options_scheduled = False

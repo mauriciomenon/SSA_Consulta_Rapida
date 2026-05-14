@@ -351,7 +351,8 @@ def _format_details_html(
     allow_global_index = ssa_index is None
     if allow_global_index:
         ssa_index = _get_window_ssa_series_index(window)
-    assert ssa_index is not None
+    if ssa_index is None:
+        ssa_index = {}
 
     try:
         derived_list = _get_derivadas_for_ssa(window, series.get("numero_ssa"))
@@ -502,7 +503,18 @@ def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
 
 
 def _normalize_ssa_relation_value(value) -> str:
-    return str(normalize_numero_ssa_relation(value) or "").strip()
+    normalized = str(normalize_numero_ssa_relation(value) or "").strip()
+    if normalized:
+        return normalized
+    text = str(value or "").strip()
+    if text.isdigit():
+        return text
+    if "." not in text:
+        return ""
+    whole, fractional = text.split(".", 1)
+    if whole.isdigit() and fractional and set(fractional) <= {"0"}:
+        return whole
+    return ""
 
 
 def _normalize_ssa_relation_series(series: pd.Series) -> pd.Series:
@@ -1473,7 +1485,8 @@ def _build_derivadas_tree_html(
     allow_global_index = ssa_index is None
     if allow_global_index:
         ssa_index = _get_window_ssa_series_index(window)
-    assert ssa_index is not None
+    if ssa_index is None:
+        ssa_index = {}
     target_status = str(data.get("target_status", "") or "").strip().upper()
     fallback_ssa_index: dict[str, pd.Series] | None = None
     candidate_ssas: set[str] = {target}

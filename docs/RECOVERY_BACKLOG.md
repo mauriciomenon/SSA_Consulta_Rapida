@@ -35,6 +35,23 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-05-14 03:00 - GUI filter panel structural residuals
+
+Escopo deste registro:
+1. Slice atual removeu a segunda aba fisica de filtros e o sincronismo visual legado.
+2. Kluster manteve achados estruturais fora do patch curto:
+   - `TestGUIFilterLogic` monolitico.
+   - `SSAMainWindow` monolitica.
+   - `_rebuild_multiselect_menu` mistura UI, normalizacao e regras de dados.
+   - refresh de `Responsavel` ainda pode varrer `df_completo` no caminho quente.
+   - macro `Baixar` aplica preset antes do botao `Aplicar`, comportamento historico que exige decisao de produto antes de mudar.
+
+Pendente nao bloqueante:
+1. `NAO_BLOQUEANTE_DEFERIDO`: dividir testes GUI por dominio em slice proprio.
+2. `NAO_BLOQUEANTE_DEFERIDO`: medir e redesenhar multiselect/responsavel com lazy loading ou view-model antes de qualquer refatoracao.
+3. `NAO_BLOQUEANTE_DEFERIDO`: decidir contrato de produto da macro `Baixar` antes de mover preset para fluxo `Aplicar`.
+4. Motivo do deferimento: todos exigem refatoracao ou alteracao de comportamento maior que a limpeza de legado de abas aprovada.
+
 ## Update 2026-05-13 00:37 - PR99 DeepSource follow-up
 
 Escopo deste registro:

@@ -991,7 +991,7 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         window.clear_filter_button.setEnabled(True)
     window._refresh_after_filter_change()
     try:
-        if getattr(window, "_current_tab_kind", None) == "filters":
+        if getattr(window, "_active_filter_panel_kind", None) == "advanced":
             window._refresh_advanced_filter_options()
             window._adv_options_dirty = False
     except Exception as e:
@@ -1256,6 +1256,7 @@ def rescan_data(
     explicit_files_tuple = tuple(str(path) for path in explicit_files or ())
     source_files_tuple = tuple(str(path) for path in source_files or ())
     normalized_kind = str(operation_kind or "import").strip().lower() or "import"
+    _ = reload_on_success
     is_explicit_import = bool(explicit_files_tuple or source_files_tuple)
     if is_explicit_import:
         normalized_mode = "explicit"
