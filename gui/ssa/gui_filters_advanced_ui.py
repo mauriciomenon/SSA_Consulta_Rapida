@@ -77,22 +77,22 @@ def _get_widget_screen_geometry(widget):
                 screen = handle.screen()
                 if screen is not None:
                     return screen.availableGeometry()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to get screen geometry from window handle: %s", exc)
         try:
             screen = QApplication.screenAt(
                 candidate.mapToGlobal(candidate.rect().center())
             )
             if screen is not None:
                 return screen.availableGeometry()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to get screen geometry from widget center: %s", exc)
     try:
         screen = QApplication.primaryScreen()
         if screen is not None:
             return screen.availableGeometry()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Failed to get primary screen geometry: %s", exc)
     return None
 
 
@@ -314,27 +314,25 @@ def _enforce_advanced_filters_compact_metrics(self) -> None:
             logger.debug(
                 "Falha ao aplicar metrica compacta em box de filtro avancado: %s", exc
             )
-    control_types = (QToolButton, QComboBox, QLineEdit, QPushButton)
-    try:
-        controls = group.findChildren(control_types)
-    except Exception:
-        controls = []
-    for control in controls:
-        if control is None:
-            continue
+        control_types = (QToolButton, QComboBox, QLineEdit, QPushButton)
         try:
-            if bool(control.property("ssa_inline_tab_selector")):
-                continue
-        except Exception as exc:
-            logger.debug("Falha ao ler propriedade de seletor inline: %s", exc)
-        try:
-            control.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-            control.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+            controls = field_box.findChildren(control_types)
         except Exception as exc:
             logger.debug(
-                "Falha ao aplicar metrica compacta em controle de filtro avancado: %s",
-                exc,
+                "Falha ao listar controles compactos do filtro avancado: %s", exc
             )
+            controls = []
+        for control in controls:
+            if control is None:
+                continue
+            try:
+                control.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+                control.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao aplicar metrica compacta em controle de filtro avancado: %s",
+                    exc,
+                )
 
 
 def _compute_adv_grid_cell_min_width(self, visible_widgets) -> int:
@@ -345,7 +343,8 @@ def _compute_adv_grid_cell_min_width(self, visible_widgets) -> int:
             continue
         try:
             widths.append(int(widget.minimumSizeHint().width()))
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao medir largura minima de filtro avancado: %s", exc)
             continue
     if not widths:
         return base_cell_min
@@ -780,7 +779,8 @@ def _fit_button_text(button, candidates, fallback: str) -> str:
         while trimmed and fm.horizontalAdvance(trimmed + ellipsis) > available:
             trimmed = trimmed[:-1]
         return (trimmed + ellipsis) if trimmed else ellipsis
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao ajustar texto de botao ao espaco disponivel: %s", exc)
         return str(fallback)
 
 
@@ -793,8 +793,8 @@ def _safe_widget_width(widget) -> int:
             value = int(width_fn() or 0)
             if value > 0:
                 return value
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Falha ao medir largura atual de widget: %s", exc)
     try:
         size_hint_fn = getattr(widget, "sizeHint", None)
         if callable(size_hint_fn):
@@ -803,14 +803,14 @@ def _safe_widget_width(widget) -> int:
                 value = int(hint.width() or 0)
                 if value > 0:
                     return value
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Falha ao medir sizeHint de widget: %s", exc)
     try:
         minimum_width_fn = getattr(widget, "minimumWidth", None)
         if callable(minimum_width_fn):
             return max(0, int(minimum_width_fn() or 0))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Falha ao medir largura minima de widget: %s", exc)
     return 0
 
 
@@ -887,8 +887,8 @@ def _detect_filter_name_from_button(button) -> str:
             filter_name = prop_value.strip()
             if filter_name:
                 return filter_name
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Falha ao ler propriedade filter_name do botao: %s", exc)
     filter_name = ""
     try:
         parent = button.parent() if button is not None else None
@@ -1743,7 +1743,7 @@ def _build_advanced_filters_panel(self):
     reprog_layout.addWidget(reprog_mode, 0, 0)
     reprog_menu_box, reprog_button, reprog_menu, _ = self._make_multiselect_box(
         "Valores",
-        placeholder="No.",
+        placeholder="Nº",
         with_exclude=False,
         layout_baseline=layout_baseline,
     )
@@ -1766,7 +1766,7 @@ def _build_advanced_filters_panel(self):
         reprog_layout.setColumnStretch(0, 1)
         reprog_layout.setColumnStretch(1, 0)
     except Exception as exc:
-        logger.debug("Falha ao ajustar colunas 50/50 de Reprogramacoes: %s", exc)
+        logger.debug("Falha ao ajustar colunas de Reprogramacoes: %s", exc)
     self.adv_reprog_mode = reprog_mode
     self.adv_reprog_button = reprog_button
     self.adv_reprog_menu = reprog_menu
@@ -2580,7 +2580,6 @@ def _refresh_responsavel_options(self, target_prefixes=None):
             setattr(self, exclude_checks_attr, [])
             processed_prefixes.add(prefix)
             continue
-        assert source_col is not None
         values = _unique_sorted(source_col)
         try:
             values = self._sort_responsavel_values(

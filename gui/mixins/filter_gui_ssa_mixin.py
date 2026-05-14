@@ -3040,9 +3040,16 @@ class FilterGUISSAMixin:
             )
         if hasattr(self, "filters_summary_label"):
             self.filters_summary_label.setText(
-                "Filtros ativos:" if active_state else "Nenhum filtro ativo"
+                "" if active_state else "Nenhum filtro ativo"
             )
             self.filters_summary_label.setToolTip(summary_text if active_state else "")
+            try:
+                self.filters_summary_label.setVisible(not active_state)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao atualizar visibilidade do texto de filtros ativos: %s",
+                    exc,
+                )
             self.filters_summary_label.setStyleSheet(
                 f"color:{summary_color};"
                 "background:transparent;"
@@ -3053,6 +3060,18 @@ class FilterGUISSAMixin:
         if scroll is not None:
             try:
                 scroll.setVisible(active_state)
+                scroll.setStyleSheet(
+                    "QScrollArea {"
+                    "border:0;"
+                    f"background:{summary_bg};"
+                    "}"
+                    "QScrollArea > QWidget > QWidget {"
+                    f"background:{summary_bg};"
+                    "}"
+                )
+                viewport = scroll.viewport()
+                if viewport is not None:
+                    viewport.setAutoFillBackground(False)
             except Exception as exc:
                 logger.debug(
                     "Falha ao atualizar visibilidade do scroll de filtros ativos: %s",
@@ -3111,7 +3130,22 @@ class FilterGUISSAMixin:
             ]
             if not actions:
                 continue
-            button = QPushButton(text)
+            display_text = text
+            for full_label, short_label in (
+                ("Executor", "Exec"),
+                ("Emissor", "Emis"),
+                ("Prio Emissao", "Prio"),
+                ("Prio Planejamento", "Plan"),
+                ("Ano Emissao", "Ano Emis"),
+                ("Ano Execucao", "Ano Exec"),
+                ("Reprogramacoes", "Nº Reprog"),
+                ("Derivada de", "Deriv"),
+            ):
+                prefix = f"{full_label}:"
+                if display_text.startswith(prefix):
+                    display_text = f"{short_label}:{display_text[len(prefix):]}"
+                    break
+            button = QPushButton(display_text)
             button.setToolTip(f"Clique para remover este filtro: {text}")
             try:
                 button.setFixedHeight(22)
@@ -3122,7 +3156,7 @@ class FilterGUISSAMixin:
                     "QPushButton {"
                     f"border:1px solid {border};"
                     "border-radius:4px;"
-                    "padding:2px 8px;"
+                    "padding:2px 6px;"
                     "font-weight:600;"
                     f"background:{background};"
                     f"color:{text_color};"
@@ -3153,7 +3187,24 @@ class FilterGUISSAMixin:
                 )
         try:
             layout.activate()
-            container.setFixedSize(max(1, content_width), 22)
+            scroll = getattr(self, "filters_summary_scroll", None)
+            viewport_width = 0
+            if scroll is not None and scroll.viewport() is not None:
+                viewport_width = int(scroll.viewport().width() or 0)
+                try:
+                    scroll_policy = getattr(_Qt, "ScrollBarPolicy", None)
+                    if scroll_policy is not None:
+                        policy = (
+                            scroll_policy.ScrollBarAsNeeded
+                            if content_width > viewport_width
+                            else scroll_policy.ScrollBarAlwaysOff
+                        )
+                        scroll.setHorizontalScrollBarPolicy(policy)
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao ajustar politica do scroll de filtros ativos: %s", exc
+                    )
+            container.setFixedSize(max(1, content_width, viewport_width), 22)
         except Exception as exc:
             logger.debug("Falha ao ajustar largura dos filtros ativos: %s", exc)
         try:
@@ -3632,24 +3683,30 @@ class FilterGUISSAMixin:
                 exclude_tokens = [token for token in tokens if token.startswith("!")]
 
                 if include_tokens:
-                    include_expr = ", ".join(include_tokens)
-                    col_mask = self._build_column_mask(
-                        col_series, include_expr
-                    ) | self._build_column_mask(display_dates, include_expr)
-                else:
-                    col_mask = pd.Series([True] * len(col_series), index=col_series.index)
-
-                if exclude_tokens:
-                    exclude_expr = ", ".join(
-                        token[1:].strip()
-                        for token in exclude_tokens
-                        if token[1:].strip()
+                    include_mask = pd.Series(
+                        [False] * len(col_series), index=col_series.index
                     )
-                    if exclude_expr:
+                    for include_expr in include_tokens:
+                        include_mask = include_mask | self._build_column_mask(
+                            col_series, include_expr
+                        )
+                        include_mask = include_mask | self._build_column_mask(
+                            display_dates, include_expr
+                        )
+                    col_mask = include_mask
+                if exclude_tokens:
+                    for exclude_token in exclude_tokens:
+                        exclude_expr = exclude_token[1:].strip()
+                        if not exclude_expr:
+                            continue
                         excluded_mask = self._build_column_mask(
                             col_series, exclude_expr
                         ) | self._build_column_mask(display_dates, exclude_expr)
+                        excluded_mask = excluded_mask.reindex(
+                            col_mask.index, fill_value=False
+                        )
                         col_mask = col_mask & ~excluded_mask
+            col_mask = col_mask.reindex(working_df.index, fill_value=False)
             if not col_mask.all():
                 working_df = working_df[col_mask]
         return working_df

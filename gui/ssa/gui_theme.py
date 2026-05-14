@@ -684,26 +684,23 @@ def _apply_theme_widget_styles(
                             name,
                             exc,
                         )
-            tab_selector_style = (
-                "QPushButton {"
-                f"font-weight:600; color:{accent}; background:{panel_bg}; "
-                f"border:1px solid {panel_border}; border-radius:4px; padding:2px 12px;"
-                "}"
-                "QPushButton:checked {"
-                f"background:{accent}; color:{panel_bg}; border:1px solid {accent};"
-                "}"
-            )
-            for name in ("tab_selector_ssas_btn", "tab_selector_filters_btn"):
-                button = ctx.get(name)
-                if button is not None:
-                    try:
-                        _set_stylesheet_if_changed(button, tab_selector_style)
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao aplicar estilo no seletor de aba %s: %s",
-                            name,
-                            exc,
-                        )
+            filter_tab_bar = ctx.get("filter_panel_tab_bar")
+            if filter_tab_bar is not None:
+                tab_bar_style = (
+                    "QTabBar::tab {"
+                    f"font-weight:600; color:{panel_text}; background:{panel_bg}; "
+                    f"border:1px solid {panel_border}; border-bottom:0; "
+                    "min-width:96px; padding:1px 10px; margin-right:1px;"
+                    "}"
+                    "QTabBar::tab:selected {"
+                    f"background:{accent}; color:{panel_bg}; border:1px solid {accent};"
+                    "border-bottom:0;"
+                    "}"
+                )
+                try:
+                    _set_stylesheet_if_changed(filter_tab_bar, tab_bar_style)
+                except Exception as exc:
+                    logger.debug("Falha ao aplicar estilo na aba local de filtros: %s", exc)
         try:
             update_summary = getattr(window, "_update_filters_summary", None)
             if callable(update_summary):

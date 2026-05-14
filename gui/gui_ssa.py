@@ -222,6 +222,8 @@ try:
         QSizePolicy,
         QSpacerItem,
         QSpinBox,
+        QStackedWidget,
+        QTabBar,
         QTableWidget,
         QTableWidgetItem,
         QTabWidget,
@@ -371,6 +373,23 @@ except ImportError as exc:
             pass
 
         def setStyleSheet(self, *a, **k):
+            pass
+
+    class QTabBar(QWidget):
+        def __init__(self, *a, **k):
+            self.currentChanged = _Sig()
+
+        def addTab(self, *a, **k):
+            return 0
+
+        def setCurrentIndex(self, *a, **k):
+            pass
+
+    class QStackedWidget(QWidget):
+        def addWidget(self, *a, **k):
+            pass
+
+        def setCurrentIndex(self, *a, **k):
             pass
 
     class QLabel(QWidget):
@@ -901,6 +920,8 @@ except ImportError as exc:
     QLineEdit = cast(Any, QLineEdit)
     QTableWidget = cast(Any, QTableWidget)
     QProgressBar = cast(Any, QProgressBar)
+    QStackedWidget = cast(Any, QStackedWidget)
+    QTabBar = cast(Any, QTabBar)
     QTabWidget = cast(Any, QTabWidget)
     QMessageBox = cast(Any, QMessageBox)
     QFileDialog = cast(Any, QFileDialog)
@@ -1669,9 +1690,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         tab_main = QWidget()
         ctx_main = self._build_tab_content(tab_main, "main")
         self.main_tabs.addTab(cast(Any, tab_main), "SSAs")
-        tab_filters = QWidget()
-        ctx_filters = self._build_tab_content(tab_filters, "filters")
-        self.main_tabs.addTab(cast(Any, tab_filters), "Filtros")
+        ctx_filters = ctx_main.pop("_filters_ctx", None)
+        if not isinstance(ctx_filters, dict):
+            ctx_filters = ctx_main
         try:
             tab_bar = self.main_tabs.tabBar()
             if tab_bar is not None:
@@ -1680,7 +1701,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao ocultar barra nativa de abas: %s", exc)
         self._tab_contexts = [ctx_main, ctx_filters]
-        self._sync_inline_tab_selector_state(0)
         main_layout.addWidget(cast(Any, self.main_tabs))
         self.main_tabs.currentChanged.connect(self._on_tab_changed)
         self._bind_tab_context(ctx_main)
@@ -2053,7 +2073,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     filters_summary_viewport.setAutoFillBackground(False)
             except Exception as exc:
                 logger.debug("Falha ao aplicar estilo no scroll de filtros ativos: %s", exc)
-            summary_button_width = 118
+            summary_button_width = 104
             clear_all_filters_btn = QPushButton("Limpar Filtros")
             clear_all_filters_btn.setFixedWidth(summary_button_width)
             clear_all_filters_btn.clicked.connect(self._on_clear_all_filters_clicked)
@@ -2239,79 +2259,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         col_filters_outer = QVBoxLayout(cast(Any, col_filters_group))
         col_filters_outer.setContentsMargins(1, 1, 1, 1)
         col_filters_outer.setSpacing(1)
-        tab_selector_ssas_btn = QPushButton("Por coluna")
-        tab_selector_filters_btn = QPushButton("Avancados")
-        inline_tab_style = (
-            "QPushButton {"
-            "font-weight:600; border:1px solid palette(mid); border-radius:0;"
-            "padding:0 8px; background: transparent;"
-            "}"
-            "QPushButton:checked {"
-            "background: palette(highlight); color: palette(highlighted-text);"
-            "}"
-        )
-        for button, target_index, tooltip in (
-            (tab_selector_ssas_btn, 0, "Mostrar aba por coluna"),
-            (tab_selector_filters_btn, 1, "Mostrar aba de filtros avancados"),
-        ):
-            try:
-                button.setCheckable(True)
-                button.setProperty("ssa_inline_tab_selector", True)
-                button.setFixedWidth(106)
-                self._set_widget_fixed_height_safe(
-                    button, 20, f"seletor compacto de aba {target_index}"
-                )
-                button.setToolTip(tooltip)
-                button.setStyleSheet(inline_tab_style)
-                if hasattr(button, "setFlat"):
-                    button.setFlat(True)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao configurar seletor compacto de aba %s: %s",
-                    target_index,
-                    exc,
-                )
-            button.clicked.connect(
-                lambda _checked=False, index=target_index: self.main_tabs.setCurrentIndex(
-                    index
-                )
-            )
-
-        def _build_inline_filter_tabs_header() -> QWidget:
-            inline_tabs_widget = QWidget()
-            self._set_widget_fixed_height_safe(
-                inline_tabs_widget, 24, "cabecalho compacto de abas de filtros"
-            )
-            inline_tabs_layout = QHBoxLayout(cast(Any, inline_tabs_widget))
-            inline_tabs_layout.setContentsMargins(0, 0, 0, 0)
-            inline_tabs_layout.setSpacing(4)
-            inline_title_label = QLabel(
-                "Filtros Avancados" if tab_kind == "filters" else "Filtros por Coluna"
-            )
-            try:
-                inline_title_label.setStyleSheet(
-                    "font-weight:600; color: palette(windowText);"
-                )
-                inline_title_label.setAlignment(
-                    cast(Any, Qt).AlignmentFlag.AlignCenter
-                )
-                inline_title_label.setSizePolicy(
-                    QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-                )
-            except Exception as exc:
-                logger.debug("Falha ao aplicar estilo no titulo inline de filtros: %s", exc)
-            inline_tabs_layout.addWidget(cast(Any, tab_selector_ssas_btn), 0)
-            inline_tabs_layout.addWidget(cast(Any, tab_selector_filters_btn), 0)
-            inline_tabs_layout.addWidget(cast(Any, inline_title_label), 1)
-            right_balance = QWidget()
-            try:
-                right_balance.setFixedWidth(216)
-            except Exception as exc:
-                logger.debug("Falha ao criar balanceador do titulo de filtros: %s", exc)
-            inline_tabs_layout.addWidget(cast(Any, right_balance), 0)
-            return inline_tabs_widget
-        inline_tabs_widget = _build_inline_filter_tabs_header()
-        col_filters_outer.addWidget(cast(Any, inline_tabs_widget), 0)
         col_filters_scroll = QScrollArea()
         col_filters_scroll.setWidgetResizable(True)
         col_filters_container = QWidget()
@@ -2338,28 +2285,73 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         right_col_widget = QWidget()
         right_col = QVBoxLayout(cast(Any, right_col_widget))
         right_col.setContentsMargins(0, 0, 0, 0)
-        if tab_kind == "filters":
-            adv_group, adv_ctx = self._build_advanced_filters_panel()
-            try:
-                adv_group.setTitle("")
-                adv_layout = adv_group.layout()
-                if adv_layout is not None:
-                    inline_tabs_widget = _build_inline_filter_tabs_header()
-                    adv_layout.insertWidget(0, cast(Any, inline_tabs_widget), 0)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao atualizar titulo de grupo de filtros avancados: %s",
-                    exc,
-                )
-            right_col.addWidget(cast(Any, adv_group), 1)
-            col_filters_group.setVisible(False)
-            right_col.addWidget(cast(Any, col_filters_group))
-            # APENAS na aba Filtros: Detalhes max 40% (2) vs Filtros 60% (3)
-            bottom_layout.addWidget(cast(Any, right_col_widget), 3)
-        else:
-            right_col.addWidget(cast(Any, col_filters_group), 1)
-            # Aba SSAs: manter Detalhes em 40% (2) e painel da direita em 60% (3).
-            bottom_layout.addWidget(cast(Any, right_col_widget), 3)
+        filters_panel_group = QGroupBox("")
+        filters_panel_layout = QVBoxLayout(cast(Any, filters_panel_group))
+        filters_panel_layout.setContentsMargins(4, 2, 4, 4)
+        filters_panel_layout.setSpacing(2)
+        filter_panel_header = QWidget()
+        self._set_widget_fixed_height_safe(
+            filter_panel_header, 24, "cabecalho de abas de filtros"
+        )
+        filter_panel_header_layout = QHBoxLayout(cast(Any, filter_panel_header))
+        filter_panel_header_layout.setContentsMargins(0, 0, 0, 0)
+        filter_panel_header_layout.setSpacing(6)
+        filter_panel_tab_bar = QTabBar()
+        filter_panel_tab_bar.addTab("Por coluna")
+        filter_panel_tab_bar.addTab("Avancados")
+        filter_panel_tab_bar.setToolTip("Alternar entre filtros por coluna e avancados")
+        try:
+            filter_panel_tab_bar.setExpanding(False)
+            filter_panel_tab_bar.setDrawBase(False)
+            filter_panel_tab_bar.setFixedHeight(22)
+            filter_panel_tab_bar.setStyleSheet(
+                "QTabBar::tab {"
+                "min-width:96px; padding:1px 10px;"
+                "border:1px solid palette(mid);"
+                "border-bottom:0;"
+                "margin-right:1px;"
+                "}"
+                "QTabBar::tab:selected {"
+                "background:palette(highlight);"
+                "color:palette(highlighted-text);"
+                "}"
+                "QTabBar::tab:!selected {"
+                "background:palette(window);"
+                "color:palette(windowText);"
+                "}"
+            )
+        except Exception as exc:
+            logger.debug("Falha ao configurar barra local de abas de filtros: %s", exc)
+        filter_panel_title = QLabel("Filtros por Coluna")
+        try:
+            filter_panel_title.setAlignment(cast(Any, Qt).AlignmentFlag.AlignCenter)
+            filter_panel_title.setStyleSheet("font-weight:600; color:palette(windowText);")
+            filter_panel_title.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            )
+        except Exception as exc:
+            logger.debug("Falha ao configurar titulo da area de filtros: %s", exc)
+        filter_panel_header_layout.addWidget(cast(Any, filter_panel_tab_bar), 0)
+        filter_panel_header_layout.addWidget(cast(Any, filter_panel_title), 1)
+        right_balance = QWidget()
+        try:
+            right_balance.setFixedWidth(202)
+        except Exception as exc:
+            logger.debug("Falha ao configurar balanceador da area de filtros: %s", exc)
+        filter_panel_header_layout.addWidget(cast(Any, right_balance), 0)
+        filters_panel_layout.addWidget(cast(Any, filter_panel_header), 0)
+
+        adv_group, adv_ctx = self._build_advanced_filters_panel()
+        try:
+            adv_group.setTitle("")
+        except Exception as exc:
+            logger.debug("Falha ao limpar titulo do grupo de filtros avancados: %s", exc)
+        filters_panel_stack = QStackedWidget()
+        filters_panel_stack.addWidget(cast(Any, col_filters_group))
+        filters_panel_stack.addWidget(cast(Any, adv_group))
+        filters_panel_layout.addWidget(cast(Any, filters_panel_stack), 1)
+        right_col.addWidget(cast(Any, filters_panel_group), 1)
+        bottom_layout.addWidget(cast(Any, right_col_widget), 3)
 
         tab_layout.addSpacing(0)
         tab_layout.addLayout(cast(Any, bottom_layout), 4)
@@ -2392,21 +2384,55 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "table_widget": table_widget,
                 "details_group": details_group,
                 "details_text": details_text,
+                "filters_panel_group": filters_panel_group,
+                "filter_panel_tab_bar": filter_panel_tab_bar,
+                "filter_panel_title": filter_panel_title,
+                "filters_panel_stack": filters_panel_stack,
                 "col_filters_group": col_filters_group,
                 "col_filters_scroll": col_filters_scroll,
                 "col_filters_container": col_filters_container,
                 "col_filters_list_layout": col_filters_list_layout,
                 "tab_kind": tab_kind,
-                "inline_tabs_widget": inline_tabs_widget,
-                "tab_selector_ssas_btn": tab_selector_ssas_btn,
-                "tab_selector_filters_btn": tab_selector_filters_btn,
                 "add_column_filter_btn": add_column_filter_btn,
                 "clear_all_btn": clear_all_btn,
             }
         )
-        if tab_kind == "filters":
-            self._adv_ctx = adv_ctx
-            ctx.update(adv_ctx)
+        filters_ctx = dict(ctx)
+        filters_ctx["tab_kind"] = "filters"
+        filters_ctx.update(adv_ctx)
+        self._adv_ctx = adv_ctx
+
+        def _activate_filter_panel(index: int) -> None:
+            active_index = 1 if int(index) == 1 else 0
+            try:
+                filters_panel_stack.setCurrentIndex(active_index)
+                filter_panel_title.setText(
+                    "Filtros Avancados" if active_index == 1 else "Filtros por Coluna"
+                )
+            except Exception as exc:
+                logger.debug("Falha ao trocar painel local de filtros: %s", exc)
+            target_ctx = filters_ctx if active_index == 1 else ctx
+            try:
+                self._bind_tab_context(target_ctx)
+            except Exception as exc:
+                logger.debug("Falha ao vincular contexto local de filtros: %s", exc)
+            if active_index == 1:
+                try:
+                    self._adv_options_dirty = True
+                    self._schedule_adv_options_refresh()
+                    self._reorganize_advanced_filters_grid(self.adv_filters_group.width())
+                except Exception as exc:
+                    logger.debug("Falha ao atualizar filtros avancados locais: %s", exc)
+            try:
+                self._queue_bottom_panel_height_sync()
+            except Exception as exc:
+                logger.debug("Falha ao sincronizar altura apos troca local de filtro: %s", exc)
+
+        try:
+            filter_panel_tab_bar.currentChanged.connect(_activate_filter_panel)
+        except Exception as exc:
+            logger.debug("Falha ao conectar aba local de filtros: %s", exc)
+        ctx["_filters_ctx"] = filters_ctx
         return ctx
 
     def _get_canonical_available_columns(self) -> list[str]:
@@ -2568,39 +2594,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         except Exception as exc:
             logger.warning("Falha ao executar refresh de filtros avancados: %s", exc)
 
-    def _sync_inline_tab_selector_state(self, active_index: int) -> None:
-        contexts = list(getattr(self, "_tab_contexts", []) or [])
-        for ctx in contexts:
-            if not isinstance(ctx, dict):
-                continue
-            for button_index, key in (
-                (0, "tab_selector_ssas_btn"),
-                (1, "tab_selector_filters_btn"),
-            ):
-                button = ctx.get(key)
-                if button is None:
-                    continue
-                signals_blocked = False
-                try:
-                    button.blockSignals(True)
-                    signals_blocked = True
-                    button.setChecked(button_index == active_index)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao sincronizar seletor visual de aba %s: %s",
-                        button_index,
-                        exc,
-                    )
-                finally:
-                    if signals_blocked:
-                        try:
-                            button.blockSignals(False)
-                        except Exception as exc:
-                            logger.debug(
-                                "Falha ao reativar sinais do seletor visual de aba: %s",
-                                exc,
-                            )
-
     def _on_tab_changed(self, index: int) -> None:
         if not hasattr(self, "_tab_contexts"):
             return
@@ -2613,7 +2606,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 index,
                 str(ctx.get("tab_kind") or ""),
             )
-        self._sync_inline_tab_selector_state(index)
         self._bind_tab_context(ctx)
         try:
             self._refresh_quick_setor_executor_options()
