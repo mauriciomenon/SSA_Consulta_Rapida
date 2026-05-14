@@ -165,13 +165,6 @@ def _is_widget_valid(widget) -> bool:
         return False
 
 
-def _safe_is_checked(widget: Any) -> bool:
-    try:
-        return bool(widget is not None and widget.isChecked())
-    except Exception:
-        return False
-
-
 def _safe_combo_item_data(combo: Any):
     try:
         if combo is None:
@@ -1733,7 +1726,7 @@ def _build_advanced_filters_panel(self):
             "Falha ao definir largura minima do seletor de reprogramacoes: %s", exc
         )
     reprog_layout.addWidget(reprog_mode, 0, 0)
-    reprog_menu_box, reprog_button, reprog_menu, _ = self._make_multiselect_box(
+    _reprog_menu_box, reprog_button, reprog_menu, _ = self._make_multiselect_box(
         "Valores",
         placeholder="Nº",
         with_exclude=False,

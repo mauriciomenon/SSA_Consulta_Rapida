@@ -41,6 +41,7 @@ from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from gui.ssa import gui_filters_advanced_ui as advanced_ui  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
+from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
 from gui.widgets.column_filter_dialog import ColumnFilterDialog  # noqa: E402
 from gui.widgets.column_manager_dialog import ColumnManagerDialog  # noqa: E402
 from gui.widgets.filter_help_dialog import FilterHelpDialog  # noqa: E402
@@ -3769,29 +3770,6 @@ class TestGUIFilterLogic:
         assert details_text.openExternalLinks() is False
         assert details_text.openLinks() is False
 
-    def test_details_html_omits_derivadas_relations_block(self):
-        series = self.base_df.iloc[0].copy()
-        with patch(
-            "gui.ssa.gui_details._get_derivadas_relations_info",
-            return_value={
-                "has_data": True,
-                "parents": ["9000"],
-                "children": ["1001", "1002", "1003"],
-                "descendants_count": 5,
-            },
-        ):
-            html = self.window._format_details_html(
-                series, highlight_search_terms=False, linkify=True
-            )
-
-        assert "Relacoes de Derivadas" not in html
-        assert "Mae direta" not in html
-        assert "Filhas diretas" not in html
-        assert "Descendentes (" not in html
-        assert "Abrir arvore completa" not in html
-        assert "derivadas:tree" not in html
-        assert "ssa-details:9000" not in html
-
     def test_details_html_renders_related_ssa_links(self):
         series = self.base_df.iloc[0].copy()
         series["numero_ssa"] = "202600023"
@@ -3906,26 +3884,6 @@ class TestGUIFilterLogic:
 
         assert "APG - Aguardando Programacao" in html
         assert "copy-ssa:202600023" in html
-
-    def test_details_html_ignores_derivadas_override_without_rendering_block(
-        self, monkeypatch
-    ):
-        series = self.base_df.iloc[0].copy()
-        monkeypatch.setattr(
-            ssa_gui_details,
-            "_get_derivadas_relations_info",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                AssertionError("nao deveria consultar derivadas sem override")
-            ),
-        )
-        html = ssa_gui_details._format_details_html(
-            self.window,
-            series,
-            highlight_search_terms=False,
-            linkify=True,
-        )
-        assert "Relacoes de Derivadas" not in html
-        assert "Filhas diretas" not in html
 
     def test_derivadas_tree_html_includes_status_codes(self, monkeypatch):
         monkeypatch.setattr(
@@ -6718,25 +6676,6 @@ class TestGUIFilterLogic:
         summary_text = str(self.window.filters_summary_label.text() or "").casefold()
         assert "executor ou emissor (ou)" not in summary_text
 
-    def test_clear_all_filters_global_does_not_reapply_profile_on_selector_rebind(self):
-        self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
-        QApplication.processEvents()
-        filtered_before_clear = Counter(self._extract_visible_ssa())
-
-        self.window._clear_all_filters_global()
-        QApplication.processEvents()
-
-        cleared_once = Counter(self._extract_visible_ssa())
-        assert cleared_once == Counter([1, 2, 3, 4, 5])
-        assert filtered_before_clear != cleared_once
-
-        self.window._sync_profile_selector()
-        QApplication.processEvents()
-
-        cleared_after_rebind = Counter(self._extract_visible_ssa())
-        assert cleared_after_rebind == Counter([1, 2, 3, 4, 5])
-        assert self.window.df_exibido.equals(self.base_df)
-
     def test_hard_reset_filters_state_resets_visual_and_internal_filter_state(self):
         self.window.search_input.setText("Teste A")
         self.window._active_column_filters["descricao_ssa"] = "Teste A"
@@ -8956,14 +8895,14 @@ class TestGUIFilterLogic:
         gui_ssa.GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
         self.window._active_rescan_worker = worker
         call_counter = {"count": 0}
-        original_running_helper = self.window._is_rescan_worker_running
+        original_running_helper = ssa_gui_workers.is_rescan_worker_running
 
-        def _tracked_running_helper(target):
+        def _tracked_running_helper(target, sip_module):
             call_counter["count"] += 1
-            return original_running_helper(target)
+            return original_running_helper(target, sip_module)
 
         monkeypatch.setattr(
-            self.window, "_is_rescan_worker_running", _tracked_running_helper
+            ssa_gui_workers, "is_rescan_worker_running", _tracked_running_helper
         )
 
         try:
@@ -9444,7 +9383,16 @@ class TestGUIFilterLogic:
 
         worker = _Worker()
 
-        self.window._retain_data_loader_worker_until_finished(worker)
+        ssa_gui_workers.retain_data_loader_worker_until_finished(
+            self.window,
+            worker,
+            global_workers=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            global_meta=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META,
+            max_global_workers=gui_ssa.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            retired_ttl_sec=gui_ssa.RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=gui_ssa.RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=gui_ssa.sip,
+        )
 
         assert worker.quit_called is True
         assert worker.wait_called_ms == gui_ssa.RETIRED_WORKER_FORCE_WAIT_MS
@@ -9773,7 +9721,16 @@ class TestGUIFilterLogic:
             gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(worker)
 
         try:
-            self.window._retain_data_loader_worker_until_finished(worker)
+            ssa_gui_workers.retain_data_loader_worker_until_finished(
+                self.window,
+                worker,
+                global_workers=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+                global_meta=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META,
+                max_global_workers=gui_ssa.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+                retired_ttl_sec=gui_ssa.RETIRED_WORKER_TTL_SEC,
+                retired_force_wait_ms=gui_ssa.RETIRED_WORKER_FORCE_WAIT_MS,
+                sip_module=gui_ssa.sip,
+            )
             assert worker in self.window._retired_data_loader_workers
             assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
 
@@ -9830,7 +9787,16 @@ class TestGUIFilterLogic:
         gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META.pop(worker, None)
 
         try:
-            self.window._retain_data_loader_worker_until_finished(worker)
+            ssa_gui_workers.retain_data_loader_worker_until_finished(
+                self.window,
+                worker,
+                global_workers=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+                global_meta=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META,
+                max_global_workers=gui_ssa.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+                retired_ttl_sec=gui_ssa.RETIRED_WORKER_TTL_SEC,
+                retired_force_wait_ms=gui_ssa.RETIRED_WORKER_FORCE_WAIT_MS,
+                sip_module=gui_ssa.sip,
+            )
 
             assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
             assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META

@@ -33,7 +33,6 @@ HIGHLIGHT_BACKGROUND_COLOR = "yellow"
 HIGHLIGHT_FONT_WEIGHT = "bold"
 MONO_FONT_FAMILY = "monospace"
 HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
-DERIVADAS_DETAILS_TOP_N = 5
 DERIVADAS_DIALOG_RATIO_LEFT = 24
 DERIVADAS_DIALOG_RATIO_RIGHT = 76
 DERIVADAS_DIALOG_MIN_HEIGHT = 640
@@ -175,24 +174,6 @@ def _highlight_text(window, text, terms):
             return highlight_text(text, terms, bg, weight)
         except TypeError:
             return highlight_text(text, terms)
-
-
-def _get_situacao_for_ssa(window, numero_ssa) -> str:
-    try:
-        series = _get_series_for_ssa(window, numero_ssa)
-    except Exception as exc:
-        logger.debug("Falha ao resolver situacao para SSA %s: %s", numero_ssa, exc)
-        return ""
-    if series is None:
-        return ""
-    try:
-        value = series.get("situacao")
-    except Exception as exc:
-        logger.debug(
-            "Falha ao obter campo situacao para SSA %s: %s", numero_ssa, exc
-        )
-        value = ""
-    return get_status_code(value)
 
 
 def _build_ssa_href(numero_ssa: str, *, panel_mode: bool) -> str:
@@ -1102,59 +1083,6 @@ def _resolve_current_db_path():
     if isinstance(db_path, str) and db_path.strip():
         return db_path
     return None
-
-
-def _get_derivadas_relations_info(window, numero_ssa):
-    empty = {"has_data": False, "parents": [], "children": [], "descendants_count": 0}
-    num_norm = _normalize_ssa_relation_value(numero_ssa)
-    if not num_norm:
-        return empty
-
-    parents = []
-    children = []
-    descendants_count = 0
-
-    db_path = _resolve_current_db_path()
-    if db_path and os.path.exists(db_path):
-        try:
-            from armazenamento import derivadas_queries
-
-            parents = derivadas_queries.get_parents(db_path, num_norm)
-            children = derivadas_queries.get_children(db_path, num_norm)
-            profile = derivadas_queries.get_hierarchy_profile(db_path, num_norm) or {}
-            descendants_count = int(profile.get("descendants_count") or 0)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao ler relacoes de derivadas no DB para %s: %s", num_norm, exc
-            )
-
-    if not children:
-        children = _get_derivadas_for_ssa(window, num_norm)
-    else:
-        children = [
-            value
-            for value in (_normalize_ssa_relation_value(raw) for raw in children)
-            if value
-        ]
-    parents = [
-        value
-        for value in (_normalize_ssa_relation_value(raw) for raw in parents)
-        if value
-    ]
-    if not parents:
-        direct_parent = _get_direct_parent_for_series(_get_series_for_ssa(window, num_norm))
-        if direct_parent:
-            parents = [direct_parent]
-    if descendants_count <= 0:
-        descendants_count = len(children)
-
-    has_data = bool(parents or children or descendants_count > 0)
-    return {
-        "has_data": has_data,
-        "parents": parents,
-        "children": children,
-        "descendants_count": descendants_count,
-    }
 
 
 def _show_derivadas_tree_for_ssa(window, numero_ssa):
@@ -2496,9 +2424,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
         export_state["svg"] = graph_svg
         export_state["mermaid"] = mermaid_text
         if tree_graph_label is not None:
-            if graph_svg and _render_graph_pixmap(graph_svg):
-                pass
-            else:
+            if not graph_svg or not _render_graph_pixmap(graph_svg):
                 tree_graph_label.setText("Grafo de derivadas indisponivel.")
                 tree_graph_label.setPixmap(QPixmap())
                 tree_graph_label.setToolTip("Grafo de derivadas indisponivel.")

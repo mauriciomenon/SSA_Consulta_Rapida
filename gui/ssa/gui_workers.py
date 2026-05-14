@@ -509,6 +509,156 @@ def is_rescan_worker_running(worker, sip_module) -> bool:
     return True
 
 
+def _enforce_global_worker_cap(
+    global_workers: list, global_meta: dict, max_global_workers: int
+) -> None:
+    if len(global_workers) <= max_global_workers:
+        return
+    overflow = len(global_workers) - max_global_workers
+    dropped_workers = global_workers[:overflow]
+    global_workers[:] = global_workers[overflow:]
+    for dropped_worker in dropped_workers:
+        global_meta.pop(dropped_worker, None)
+
+
+def retain_rescan_worker_global(
+    worker,
+    *,
+    reason: str,
+    global_workers: list,
+    global_meta: dict,
+    max_global_workers: int,
+    sip_module,
+) -> bool:
+    try:
+        if not is_data_loader_worker_alive(worker, sip_module):
+            logger.debug(
+                "RescanWorker invalido no closeEvent (%s); retencao global ignorada.",
+                reason,
+            )
+            return False
+        timestamp = perf_counter()
+        with _GLOBAL_WORKERS_LOCK:
+            if worker not in global_workers:
+                global_workers.append(worker)
+            global_meta[worker] = timestamp
+            _enforce_global_worker_cap(global_workers, global_meta, max_global_workers)
+        logger.debug(
+            "RescanWorker retido globalmente durante closeEvent (%s).",
+            reason,
+        )
+        return True
+    except Exception as exc:
+        logger.debug(
+            "Falha ao reter RescanWorker globalmente no closeEvent (%s): %s",
+            reason,
+            exc,
+        )
+        return False
+
+
+def cleanup_rescan_worker_on_close(
+    window,
+    worker,
+    *,
+    global_workers: list,
+    global_meta: dict,
+    max_global_workers: int,
+    retired_ttl_sec: float,
+    retired_force_wait_ms: int,
+    sip_module,
+) -> None:
+    if worker is None:
+        return
+    retained_globally = retain_rescan_worker_global(
+        worker,
+        reason="pre-shutdown-transfer",
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=max_global_workers,
+        sip_module=sip_module,
+    )
+    try:
+        prune_retired_rescan_workers(
+            window,
+            global_workers=global_workers,
+            global_meta=global_meta,
+            max_global_workers=max_global_workers,
+            retired_ttl_sec=retired_ttl_sec,
+            retired_force_wait_ms=retired_force_wait_ms,
+            sip_module=sip_module,
+        )
+    except Exception as exc:
+        logger.debug("Falha ao podar rescan workers apos retencao global: %s", exc)
+    try:
+        try:
+            running_now = is_rescan_worker_running(worker, sip_module)
+        except Exception as exc:
+            running_now = True
+            logger.debug(
+                "Falha ao consultar estado inicial do RescanWorker no closeEvent (%s). Assumindo ativo para shutdown defensivo.",
+                exc,
+            )
+        if running_now or retained_globally:
+            try:
+                if hasattr(worker, "stop"):
+                    worker.stop()
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao solicitar stop do RescanWorker no closeEvent: %s",
+                    exc,
+                )
+            try:
+                if hasattr(worker, "quit"):
+                    worker.quit()
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao solicitar quit do RescanWorker no closeEvent: %s",
+                    exc,
+                )
+            try:
+                worker.wait(1500)
+            except Exception as exc:
+                logger.debug("Falha ao aguardar RescanWorker no closeEvent: %s", exc)
+            try:
+                if is_rescan_worker_running(worker, sip_module):
+                    try:
+                        if hasattr(worker, "terminate"):
+                            worker.terminate()
+                            worker.wait(1500)
+                    except Exception as exc:
+                        logger.debug(
+                            "Falha no fallback terminate do RescanWorker no closeEvent: %s",
+                            exc,
+                        )
+                if is_rescan_worker_running(worker, sip_module):
+                    retained_globally = retain_rescan_worker_global(
+                        worker,
+                        reason="still-running-after-shutdown",
+                        global_workers=global_workers,
+                        global_meta=global_meta,
+                        max_global_workers=max_global_workers,
+                        sip_module=sip_module,
+                    )
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao checar/reter RescanWorker no closeEvent: %s", exc
+                )
+    except Exception as exc:
+        logger.debug("Falha ao encerrar RescanWorker durante closeEvent: %s", exc)
+    finally:
+        if not retained_globally:
+            retain_rescan_worker_global(
+                worker,
+                reason="fallback-finally",
+                global_workers=global_workers,
+                global_meta=global_meta,
+                max_global_workers=max_global_workers,
+                sip_module=sip_module,
+            )
+        window._active_rescan_worker = None
+
+
 def prune_retired_rescan_workers(
     window,
     *,

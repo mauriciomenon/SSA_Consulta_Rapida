@@ -325,13 +325,6 @@ def build_gui_general_search_columns(df: pd.DataFrame | None) -> list[str]:
     return selected_columns
 
 
-def _append_unique_text(target: list[str], value: str) -> None:
-    text = str(value or "").strip()
-    if not text or text in target:
-        return
-    target.append(text)
-
-
 def _summary_week_range(start: Any, end: Any) -> str | None:
     if start is None and end is None:
         return None
@@ -1556,19 +1549,6 @@ class FilterGUISSAMixin:
                 logger.debug("Falha ao limpar cache de filtros: %s", e)
         else:
             logger.debug("FilterWorker indisponivel; cache nao limpo")
-
-    def get_filter_cache_stats(self) -> dict:
-        """Retorna estatísticas do cache de filtros."""
-        if (
-            FilterWorker is not None
-            and hasattr(FilterWorker, "_cache")
-            and hasattr(FilterWorker._cache, "get_stats")
-        ):
-            try:
-                return FilterWorker._cache.get_stats()
-            except Exception:  # pragma: no cover
-                return {}
-        return {}
 
     # --- Slots e Handlers ---
 
@@ -4445,21 +4425,6 @@ class FilterGUISSAMixin:
                     self._profile_lock = False
         self._build_column_filters_panel()
         self._refresh_after_filter_change()
-
-    def on_profile_changed(self, index):
-        """Callback ao trocar o perfil de filtros por setor."""
-        if getattr(self, "_profile_lock", False):
-            return
-        selector = getattr(self, "profile_selector", None)
-        if selector is None:
-            return
-        self._safe_store_last_filter_state("on_profile_changed")
-        profile_name = selector.itemData(index)
-        if profile_name:
-            self._apply_filter_profile(profile_name, update_selector=False)
-        else:
-            self.current_filter_profile = None
-            self._profile_base_filters = {}
 
     def _build_column_mask(self, series: pd.Series, raw: str) -> pd.Series:
         # Divide SOMENTE por vírgulas; não há conectivos especiais aqui.
