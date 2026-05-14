@@ -1,0 +1,39 @@
+gui/gui_ssa.py
+  s_082d1ff7d55d96::t_88256083f78ddf 5849,5851-5856
+docs/RECOVERY_BACKLOG.md
+  s_082d1ff7d55d96::t_7ec9b1a7814278 38-51
+gui/mixins/filter_gui_ssa_mixin.py
+  s_082d1ff7d55d96::t_89d1311ee11edc 2170-2177,2179,2181-2192
+  s_082d1ff7d55d96::t_564956b08a686a 3660,3664,3667-3673,3675-3680,3683-3685,3688-3691,3693-3701,3704,3712,3722,3736-3747,3771,3778-3780,3795-3796,3834,3847,3853,3863-3865,3867,3872,3882,3888-3896,3919-3980
+  s_082d1ff7d55d96::t_2738285a562f1c 1842,4298,4303,4693-4697
+  s_082d1ff7d55d96::t_e90e279f7318d2 3665-3666
+gui/ssa/filter_status_manager.py
+  s_082d1ff7d55d96::t_89d1311ee11edc 1,17,43,46-47,65
+tests/test_gui_filter_logic.py
+  s_082d1ff7d55d96::t_7a352703726c9c 9771-9779
+  s_082d1ff7d55d96::t_5181cc493ceb07 8151-8182
+gui/ssa/gui_workers.py
+  s_082d1ff7d55d96::t_150cd26154fdad 696-706
+  s_082d1ff7d55d96::t_daba4f54d32b40 662-695,707-711,716-746
+  s_082d1ff7d55d96::t_8ac479b3174837 712-715
+gui/ssa/gui_theme.py
+  s_082d1ff7d55d96::t_5503f2ffc4fa07 320-322,329-331,336-537
+  s_082d1ff7d55d96::t_7ed6c9f44d9005 597,601-604,617-618,628-629,642-644,648-650,652-684,686-687,689-698
+  s_082d1ff7d55d96::t_9ba0e8394f7df7 313-319,323-328,332-335,538-539
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "d5f4cabf71ab6f0247dfd1e4be371a0e7133219c",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
