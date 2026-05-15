@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import html as html_module
-import hashlib
+import math
 from typing import Any, Mapping, cast
 
 import pandas as pd
@@ -15,7 +15,7 @@ from gui.helpers.formatting_helpers import highlight_text
 from gui.helpers.theme_helpers import pick_css_color
 from gui.qt_stubs import QTimer
 from gui.ssa import details_data_provider
-from shared.numero_ssa import normalize_relation_id as normalize_numero_ssa_relation
+from gui.ssa import details_derivadas_model
 from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 from shared.ssa_status import format_status_display, get_status_code
 from utils.formatting import format_cell
@@ -434,7 +434,7 @@ def _normalize_ssa_value(window, value):
     # Handle float artifacts from DataFrame/object conversion (e.g. 121911787.0).
     try:
         if isinstance(raw, float):
-            if pd.isna(raw):
+            if pd.isna(raw) or not math.isfinite(raw):
                 return ""
             if raw.is_integer():
                 raw = int(raw)
@@ -480,24 +480,13 @@ def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
             return series.map(lambda value: _normalize_ssa_value(window, value))
         except Exception as fallback_exc:
             logger.debug("Falha no fallback de normalizacao SSA series: %s", fallback_exc)
-            return pd.Series([""] * len(series), index=getattr(series, "index", None))
+            return pd.Series([""] * len(series), index=series.index)
 
 
 def _normalize_ssa_relation_value(value) -> str:
     if _is_missing_scalar(value):
         return ""
-    normalized = str(normalize_numero_ssa_relation(value) or "").strip()
-    if normalized:
-        return normalized
-    text = str(value).strip()
-    if text.isdigit():
-        return text
-    if "." not in text:
-        return ""
-    whole, fractional = text.split(".", 1)
-    if whole.isdigit() and fractional and set(fractional) <= {"0"}:
-        return whole
-    return ""
+    return details_derivadas_model.normalize_relation_value(value)
 
 
 def _is_missing_scalar(value) -> bool:
@@ -824,14 +813,7 @@ def _get_derivadas_for_ssa(window, numero_ssa):
     if not num_norm:
         return []
     try:
-        derived = []
-        seen = set()
-        for parent_value, child_value in _get_cached_derivadas_family_edges(window):
-            if parent_value != num_norm or not child_value or child_value in seen:
-                continue
-            seen.add(child_value)
-            derived.append(child_value)
-        return derived
+        return _get_cached_derivadas_children_by_parent(window).get(num_norm, [])
     except Exception as exc:
         logger.debug("Falha ao coletar derivadas para SSA %s: %s", numero_ssa, exc)
         return []
@@ -1129,11 +1111,10 @@ def _get_cached_derivadas_family_edges(window) -> list[tuple[str, str]]:
             pair_df["child"].astype(str).str.strip().ne("")
             & pair_df["parent"].astype(str).str.strip().ne("")
         ]
-        for parent_value, child_value in pair_df[["parent", "child"]].itertuples(
-            index=False, name=None
-        ):
-            parent_text = str(parent_value).strip()
-            child_text = str(child_value).strip()
+        ordered_pairs = pair_df[["parent", "child"]]
+        for row in ordered_pairs.itertuples(index=False):
+            parent_text = str(row.parent).strip()
+            child_text = str(row.child).strip()
             if not parent_text or not child_text:
                 continue
             edge = (parent_text, child_text)
@@ -1153,32 +1134,48 @@ def _get_cached_derivadas_family_edges(window) -> list[tuple[str, str]]:
         return []
 
 
+def _get_cached_derivadas_children_by_parent(window) -> dict[str, list[str]]:
+    try:
+        edges = _get_cached_derivadas_family_edges(window)
+        cache_owner = getattr(window, "cache_manager", None)
+        cache_get = getattr(cache_owner, "get_cached_value", None)
+        cache_put = getattr(cache_owner, "cache_value", None)
+        has_cache_manager = callable(cache_get) and callable(cache_put)
+        cache_key = (id(edges), len(edges))
+        if has_cache_manager:
+            cached_map = cast(Any, cache_get)(
+                "details_derivadas_children_by_parent", cache_key
+            )
+            if isinstance(cached_map, dict):
+                return cast(dict[str, list[str]], cached_map)
+
+        children_by_parent: dict[str, list[str]] = {}
+        seen_by_parent: dict[str, set[str]] = {}
+        for parent_value, child_value in edges:
+            if not parent_value or not child_value:
+                continue
+            seen = seen_by_parent.setdefault(parent_value, set())
+            if child_value in seen:
+                continue
+            seen.add(child_value)
+            children_by_parent.setdefault(parent_value, []).append(child_value)
+        if has_cache_manager:
+            cast(Any, cache_put)(
+                "details_derivadas_children_by_parent",
+                cache_key,
+                children_by_parent,
+                max_entries=SSA_NORM_CACHE_MAX_ENTRIES,
+            )
+        return children_by_parent
+    except Exception as exc:
+        logger.debug("Falha ao montar mapa local de derivadas por pai: %s", exc)
+        return {}
+
+
 def _collect_derivadas_tree_data(window, numero_ssa):
     target = _normalize_ssa_relation_value(numero_ssa)
-    empty = {
-        "target": "",
-        "parents": [],
-        "children": [],
-        "descendants": [],
-        "ancestors": [],
-        "family_roots": [],
-        "target_status": "",
-        "descendants_partial": False,
-        "related": [],
-        "direct_children_count": 0,
-        "descendants_count": 0,
-    }
     if not target:
-        return empty
-
-    parents = []
-    children = []
-    descendants = []
-    ancestors = []
-    profile = {}
-    family_roots: list[str] = []
-    family_descendants: list[dict[str, object]] = []
-    descendants_partial = False
+        return details_derivadas_model.empty_tree_data()
 
     db_path = _resolve_current_db_path()
     snapshot = details_data_provider.load_derivadas_snapshot(
@@ -1186,195 +1183,116 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         target,
         max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
     )
-    if snapshot:
-        try:
-            parents = list(snapshot.get("parents", []) or [])
-            children = list(snapshot.get("children", []) or [])
-            descendants = list(snapshot.get("descendants", []) or [])
-            ancestors = list(snapshot.get("ancestors", []) or [])
-            profile = cast(dict[str, object], snapshot.get("hierarchy_profile", {}) or {})
-            family_roots = [
-                value
-                for value in (
-                    _normalize_ssa_relation_value(raw)
-                    for raw in cast(list[object], snapshot.get("family_roots", []) or [])
-                )
-                if value
-            ]
-            family_descendants = [
-                cast(dict[str, object], raw)
-                for raw in cast(
-                    list[object], snapshot.get("family_descendants", []) or []
-                )
-                if isinstance(raw, dict)
-            ]
-            descendants_partial = bool(snapshot.get("family_truncated"))
-        except Exception as exc:
-            logger.debug(
-                "Falha ao normalizar snapshot de derivadas para %s: %s", target, exc
-            )
-
-    if not children:
-        children = _get_derivadas_for_ssa(window, target)
-    else:
-        children = [
-            value
-            for value in (_normalize_ssa_relation_value(raw) for raw in children)
-            if value
-        ]
-    parents = [
-        value
-        for value in (_normalize_ssa_relation_value(raw) for raw in parents)
-        if value
-    ]
     series_target = _get_series_for_ssa(window, target)
-    if not parents:
-        direct_parent = _get_direct_parent_for_series(series_target)
-        if direct_parent:
-            parents = [direct_parent]
-    normalized_descendants = []
-    for raw in descendants:
-        if not isinstance(raw, dict):
-            continue
-        raw_map = cast(dict[str, object], raw)
-        child = _normalize_ssa_relation_value(raw_map.get("ssa"))
-        parent = _normalize_ssa_relation_value(raw_map.get("parent"))
-        if not child:
-            continue
-        normalized_descendants.append(
-            {
-                **raw_map,
-                "ssa": child,
-                "parent": parent,
-            }
-        )
-    descendants = normalized_descendants
-    normalized_ancestors = []
-    for raw in ancestors:
-        if isinstance(raw, dict):
-            raw_map = cast(dict[str, object], raw)
-            ancestor_value = _normalize_ssa_relation_value(raw_map.get("ssa"))
-            if not ancestor_value:
-                continue
-            normalized_ancestors.append({**raw_map, "ssa": ancestor_value})
-            continue
-        ancestor_value = _normalize_ssa_relation_value(raw)
-        if ancestor_value:
-            normalized_ancestors.append(ancestor_value)
-    ancestors = normalized_ancestors
-    def _ancestor_sort_key(entry):
-        if not isinstance(entry, dict):
-            return (0, _normalize_ssa_relation_value(entry))
-        raw_map = cast(dict[str, object], entry)
-        try:
-            raw_distance = raw_map.get("min_distance")
-            distance = raw_distance if isinstance(raw_distance, int) else 0
-        except (TypeError, ValueError):
-            distance = 0
-        return (-distance, _normalize_ssa_relation_value(raw_map.get("ssa")))
-
-    ancestors.sort(key=_ancestor_sort_key)
-    if not family_roots and ancestors:
-        root_distance = None
-        for raw in ancestors:
-            if not isinstance(raw, dict):
-                continue
-            raw_map = cast(dict[str, object], raw)
-            try:
-                raw_distance = raw_map.get("min_distance")
-                distance = raw_distance if isinstance(raw_distance, int) else 0
-            except (TypeError, ValueError):
-                distance = 0
-            if root_distance is None:
-                root_distance = distance
-            if distance == root_distance:
-                root_value = _normalize_ssa_relation_value(raw_map.get("ssa"))
-                if root_value and root_value not in family_roots:
-                    family_roots.append(root_value)
-    if not family_roots:
-        family_roots = list(dict.fromkeys(parents or [target]))
-
-    if not family_descendants:
+    local_payload = None
+    if not snapshot or not snapshot.get("family_descendants"):
         local_edges = _get_cached_derivadas_family_edges(window)
         local_payload = details_data_provider.build_local_family_payload(
             target,
             local_edges,
             max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
         )
-        if local_payload:
-            if not parents:
-                parents = list(local_payload.get("parents", []) or [])
-            if not children:
-                children = list(local_payload.get("children", []) or [])
-            family_roots = [
-                value
-                for value in (
-                    _normalize_ssa_relation_value(raw)
-                    for raw in cast(
-                        list[object], local_payload.get("family_roots", []) or []
-                    )
-                )
-                if value
-            ] or family_roots
-            family_descendants = [
-                cast(dict[str, object], raw)
-                for raw in cast(
-                    list[object],
-                    local_payload.get("family_descendants", []) or [],
-                )
-                if isinstance(raw, dict)
-            ]
-            descendants_partial = bool(local_payload.get("family_truncated"))
-    if family_descendants:
-        descendants = family_descendants
-    family_child_values = {
-        _normalize_ssa_relation_value(raw.get("ssa"))
-        for raw in family_descendants
-        if isinstance(raw, dict)
-    }
-    render_family = bool(
-        family_descendants
-        and family_roots
-        and (target in family_roots or target in family_child_values)
-    )
-    raw_direct_children_count = profile.get("direct_children_count")
-    direct_children_count = (
-        raw_direct_children_count
-        if isinstance(raw_direct_children_count, int)
-        else len(children)
-    )
-    raw_profile_descendants_count = profile.get("descendants_count")
-    profile_descendants_count = (
-        raw_profile_descendants_count
-        if isinstance(raw_profile_descendants_count, int)
-        else 0
-    )
-    if profile_descendants_count > 0:
-        descendants_count = profile_descendants_count
-    elif descendants_partial:
-        descendants_count = len(descendants) + 1
-    else:
-        descendants_count = len(descendants) or len(children)
     related = _get_related_ssas_for_series(window, series_target)
     try:
         target_status = get_status_code(series_target.get("situacao"))
     except Exception as exc:
         logger.debug("Falha ao obter situacao alvo da arvore %s: %s", target, exc)
         target_status = ""
-    return {
-        "target": target,
-        "parents": parents,
-        "children": children,
-        "descendants": descendants,
-        "ancestors": ancestors,
-        "family_roots": family_roots,
-        "target_status": target_status,
-        "descendants_partial": descendants_partial,
-        "render_family": render_family,
-        "related": related,
-        "direct_children_count": direct_children_count,
-        "descendants_count": descendants_count,
-    }
+    return details_derivadas_model.normalize_tree_data(
+        target=target,
+        snapshot=snapshot,
+        fallback_children=_get_derivadas_for_ssa(window, target),
+        direct_parent=_get_direct_parent_for_series(series_target),
+        local_payload=local_payload,
+        related=related,
+        target_status=target_status,
+    )
+
+
+def _build_derivadas_link_state(window, data: Mapping[str, object], target: str):
+    target_status = str(data.get("target_status", "") or "").strip().upper()
+    candidate_ssas: set[str] = {target}
+    existing_tree_ssas: set[str] = set()
+    status_by_ssa: dict[str, str] = {}
+    if target_status:
+        status_by_ssa[target] = target_status
+
+    def remember_candidate(raw) -> None:
+        if isinstance(raw, dict):
+            raw_map = cast(dict[str, object], raw)
+            ssa = _normalize_ssa_relation_value(raw_map.get("ssa"))
+            parent = _normalize_ssa_relation_value(raw_map.get("parent"))
+            if parent:
+                candidate_ssas.add(parent)
+            status_hint = str(raw_map.get("situacao", "") or "").strip().upper()
+        else:
+            ssa = _normalize_ssa_relation_value(raw)
+            status_hint = ""
+        if not ssa:
+            return
+        candidate_ssas.add(ssa)
+        if status_hint and ssa not in status_by_ssa:
+            status_by_ssa[ssa] = status_hint
+
+    for candidate_key in (
+        "parents",
+        "children",
+        "descendants",
+        "ancestors",
+        "family_roots",
+        "related",
+    ):
+        raw_candidates = data.get(candidate_key, [])
+        if isinstance(raw_candidates, list):
+            for raw_candidate in raw_candidates:
+                remember_candidate(raw_candidate)
+
+    def hydrate_from_df(df) -> None:
+        remaining = candidate_ssas - existing_tree_ssas
+        if (
+            not remaining
+            or df is None
+            or df.empty
+            or "numero_ssa" not in getattr(df, "columns", [])
+        ):
+            return
+        try:
+            normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
+            if normalized_series.empty:
+                return
+            matches = normalized_series.isin(remaining)
+            if not bool(matches.any()):
+                return
+            matched_norm = normalized_series[matches]
+            matched_status = None
+            if "situacao" in df.columns:
+                matched_status = df.loc[matched_norm.index, "situacao"]
+            for idx_label, normalized in matched_norm.items():
+                normalized_text = str(normalized or "").strip()
+                if not normalized_text:
+                    continue
+                existing_tree_ssas.add(normalized_text)
+                if normalized_text in status_by_ssa or matched_status is None:
+                    continue
+                try:
+                    status_code = get_status_code(matched_status.loc[idx_label])
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao obter situacao da SSA %s no mapa local da arvore: %s",
+                        normalized_text,
+                        exc,
+                    )
+                    status_code = ""
+                if status_code:
+                    status_by_ssa[normalized_text] = status_code
+                if len(existing_tree_ssas) >= len(candidate_ssas):
+                    return
+        except Exception as exc:
+            logger.debug("Falha ao hidratar candidatos da arvore de derivadas: %s", exc)
+
+    hydrate_from_df(getattr(window, "df_exibido", None))
+    hydrate_from_df(getattr(window, "df_completo", None))
+    return status_by_ssa, existing_tree_ssas
 
 
 def _build_derivadas_tree_html(
@@ -1408,86 +1326,9 @@ def _build_derivadas_tree_html(
         ssa_index = {}
     target_status = str(data.get("target_status", "") or "").strip().upper()
     fallback_ssa_index: dict[str, pd.Series] | None = None
-    candidate_ssas: set[str] = {target}
-    existing_tree_ssas: set[str] = set()
-    status_by_ssa: dict[str, str] = {}
-    if target_status:
-        status_by_ssa[target] = target_status
-
-    def _remember_tree_candidate(raw) -> None:
-        if isinstance(raw, dict):
-            raw_map = cast(dict[str, object], raw)
-            ssa = _normalize_ssa_relation_value(raw_map.get("ssa"))
-            parent = _normalize_ssa_relation_value(raw_map.get("parent"))
-            if parent:
-                candidate_ssas.add(parent)
-            status_hint = str(raw_map.get("situacao", "") or "").strip().upper()
-        else:
-            ssa = _normalize_ssa_relation_value(raw)
-            status_hint = ""
-        if not ssa:
-            return
-        candidate_ssas.add(ssa)
-        if status_hint and ssa not in status_by_ssa:
-            status_by_ssa[ssa] = status_hint
-
-    for candidate_key in (
-        "parents",
-        "children",
-        "descendants",
-        "ancestors",
-        "family_roots",
-        "related",
-    ):
-        raw_candidates = data.get(candidate_key, [])
-        if isinstance(raw_candidates, list):
-            for raw_candidate in raw_candidates:
-                _remember_tree_candidate(raw_candidate)
-
-    def _hydrate_tree_candidates_from_df(df) -> None:
-        remaining = candidate_ssas - existing_tree_ssas
-        if (
-            not remaining
-            or df is None
-            or df.empty
-            or "numero_ssa" not in getattr(df, "columns", [])
-        ):
-            return
-        try:
-            normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
-            if normalized_series.empty:
-                return
-            matches = normalized_series.isin(remaining)
-            if not bool(matches.any()):
-                return
-            for idx_label, normalized in normalized_series[matches].items():
-                normalized_text = str(normalized or "").strip()
-                if not normalized_text:
-                    continue
-                existing_tree_ssas.add(normalized_text)
-                if normalized_text in status_by_ssa or "situacao" not in df.columns:
-                    continue
-                matched = df.loc[idx_label]
-                if isinstance(matched, pd.DataFrame):
-                    matched = matched.iloc[0]
-                try:
-                    status_code = get_status_code(matched.get("situacao"))
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao obter situacao da SSA %s no mapa local da arvore: %s",
-                        normalized_text,
-                        exc,
-                    )
-                    status_code = ""
-                if status_code:
-                    status_by_ssa[normalized_text] = status_code
-                if len(existing_tree_ssas) >= len(candidate_ssas):
-                    return
-        except Exception as exc:
-            logger.debug("Falha ao hidratar candidatos da arvore de derivadas: %s", exc)
-
-    _hydrate_tree_candidates_from_df(getattr(window, "df_exibido", None))
-    _hydrate_tree_candidates_from_df(getattr(window, "df_completo", None))
+    status_by_ssa, existing_tree_ssas = _build_derivadas_link_state(
+        window, data, target
+    )
 
     def _ssa_link(value, *, status_hint: str | None = None):
         nonlocal fallback_ssa_index
@@ -1556,125 +1397,57 @@ def _build_derivadas_tree_html(
     if not font_family:
         font_family = MONO_FONT_FAMILY
 
-    raw_ancestors_entries = data.get("ancestors", [])
-    ancestors_entries = (
-        list(cast(list[object], raw_ancestors_entries))
-        if isinstance(raw_ancestors_entries, list)
-        else []
-    )
-    if not ancestors_entries:
-        raw_parent_entries = data.get("parents", [])
-        ancestors_entries = (
-            list(cast(list[object], raw_parent_entries))
-            if isinstance(raw_parent_entries, list)
-            else []
-        )
-    lineage: list[object] = []
-    lineage_seen: set[str] = set()
-    for raw in ancestors_entries:
-        rendered = _render_entry(raw)
-        normalized = _normalize_ssa_relation_value(
-            cast(dict[str, object], raw).get("ssa") if isinstance(raw, dict) else raw
-        )
-        if not rendered or not normalized or normalized in lineage_seen:
-            continue
-        lineage_seen.add(normalized)
-        lineage.append(raw)
-
-    raw_descendants_entries = data.get("descendants", [])
-    descendants_entries = (
-        list(cast(list[object], raw_descendants_entries))
-        if isinstance(raw_descendants_entries, list)
-        else []
-    )
-    child_map: dict[str, list[object]] = {}
-    descendants_entries_list = (
-        list(cast(list[object], descendants_entries))
-        if isinstance(descendants_entries, list)
-        else []
-    )
-    for raw in descendants_entries_list:
-        if not isinstance(raw, dict):
-            continue
-        raw_map = cast(dict[str, object], raw)
-        child_value = _normalize_ssa_relation_value(raw_map.get("ssa"))
-        parent_value = _normalize_ssa_relation_value(raw_map.get("parent"))
-        if not child_value or not parent_value:
-            continue
-        child_map.setdefault(parent_value, []).append(raw)
-    for child_values in child_map.values():
-        child_values.sort(
-            key=lambda entry: _normalize_ssa_relation_value(
-                cast(dict[str, object], entry).get("ssa")
-            )
-            or ""
-        )
-
-    direct_children = list(data.get("children", []) or [])
-    entry_by_ssa: dict[str, object] = {}
-    for raw in [*lineage, *descendants_entries_list, *direct_children]:
-        normalized = _normalize_ssa_relation_value(
-            cast(dict[str, object], raw).get("ssa") if isinstance(raw, dict) else raw
-        )
-        if normalized and normalized not in entry_by_ssa:
-            entry_by_ssa[normalized] = raw
+    tree_model = details_derivadas_model.build_tree_render_model(data)
+    if tree_model is None:
+        return ""
 
     lines.append(
         f'<div style="font-family:{font_family}; font-size:{tree_font_pt:.2f}pt; line-height:1.85;">'
     )
     lines.append("<b>Derivadas:</b><br/>")
-    raw_family_roots = data.get("family_roots", [])
-    family_roots = (
-        [
-            value
-            for value in (
-                _normalize_ssa_relation_value(raw)
-                for raw in cast(list[object], raw_family_roots)
-            )
-            if value
-        ]
-        if isinstance(raw_family_roots, list)
-        else []
-    )
-    render_family = bool(data.get("render_family")) and bool(child_map) and bool(family_roots)
 
-    if render_family:
+    if tree_model.render_family:
         seen_family_nodes: set[str] = set()
-        stack = [(root, 0) for root in reversed(family_roots)]
+        stack = [(root, 0) for root in reversed(tree_model.family_roots)]
         while stack:
             raw_node, depth = stack.pop()
             safe_node = _normalize_ssa_relation_value(raw_node)
             if not safe_node or safe_node in seen_family_nodes:
                 continue
             seen_family_nodes.add(safe_node)
-            rendered = _render_entry(entry_by_ssa.get(safe_node, safe_node))
+            rendered = _render_entry(tree_model.entry_by_ssa.get(safe_node, safe_node))
             if rendered:
                 _append_line(lines, depth, rendered, current=safe_node == target)
-            for raw_child in reversed(child_map.get(safe_node, [])):
+            for raw_child in reversed(tree_model.child_map.get(safe_node, [])):
                 child_value = _normalize_ssa_relation_value(
                     cast(dict[str, object], raw_child).get("ssa")
+                    if isinstance(raw_child, dict)
+                    else raw_child
                 )
                 if child_value and child_value not in seen_family_nodes:
                     stack.append((child_value, depth + 1))
     else:
-        for raw in lineage:
+        for raw in tree_model.lineage:
             rendered = _render_entry(raw)
             if rendered:
                 _append_line(lines, 0, rendered)
-        _append_line(lines, len(lineage), _ssa_link(target), current=True)
-        if direct_children:
-            for raw in direct_children:
+        _append_line(lines, len(tree_model.lineage), _ssa_link(target), current=True)
+        if tree_model.direct_children:
+            seen_descendants: set[str] = set()
+            for raw in tree_model.direct_children:
                 rendered = _render_entry(raw)
                 child_value = _normalize_ssa_relation_value(
-                    raw.get("ssa") if isinstance(raw, dict) else raw
+                    cast(dict[str, object], raw).get("ssa")
+                    if isinstance(raw, dict)
+                    else raw
                 )
-                if not rendered or not child_value:
+                if not rendered or not child_value or child_value in seen_descendants:
                     continue
-                _append_line(lines, len(lineage) + 1, rendered)
-                seen_child_descendants = {child_value}
+                seen_descendants.add(child_value)
+                _append_line(lines, len(tree_model.lineage) + 1, rendered)
                 stack = [
-                    (raw_child, len(lineage) + 2)
-                    for raw_child in reversed(child_map.get(child_value, []))
+                    (raw_child, len(tree_model.lineage) + 2)
+                    for raw_child in reversed(tree_model.child_map.get(child_value, []))
                 ]
                 while stack:
                     raw_descendant, depth = stack.pop()
@@ -1687,33 +1460,28 @@ def _build_derivadas_tree_html(
                     rendered_descendant = _render_entry(raw_descendant)
                     if (
                         not descendant_value
-                        or descendant_value in seen_child_descendants
+                        or descendant_value in seen_descendants
                         or not rendered_descendant
                     ):
                         continue
-                    seen_child_descendants.add(descendant_value)
+                    seen_descendants.add(descendant_value)
                     _append_line(lines, depth, rendered_descendant)
-                    for raw_child in reversed(child_map.get(descendant_value, [])):
+                    for raw_child in reversed(tree_model.child_map.get(descendant_value, [])):
                         stack.append((raw_child, depth + 1))
         else:
             _append_line(
                 lines,
-                len(lineage) + 1,
+                len(tree_model.lineage) + 1,
                 '<span style="opacity:0.82;">Sem Derivadas</span>',
             )
 
-    descendants_count = int(data.get("descendants_count", 0) or 0)
-    hidden_descendants = max(0, descendants_count - len(descendants_entries))
-    if bool(data.get("descendants_partial")) and hidden_descendants == 0:
-        hidden_descendants = 1
-    if hidden_descendants > 0:
+    if tree_model.hidden_descendants > 0:
         lines.append(
-            f"{'&nbsp;' * ((len(lineage) + 1) * 4)}... (+{hidden_descendants})<br/>"
+            f"{'&nbsp;' * ((len(tree_model.lineage) + 1) * 4)}... (+{tree_model.hidden_descendants})<br/>"
         )
-    related_entries = data.get("related", [])
-    if isinstance(related_entries, list) and related_entries:
+    if tree_model.related_entries:
         lines.append("<br/><b>Relacionadas:</b><br/>")
-        for raw in related_entries:
+        for raw in tree_model.related_entries:
             rendered = _render_entry(raw)
             if rendered:
                 _append_line(lines, 1, rendered)
@@ -1723,98 +1491,10 @@ def _build_derivadas_tree_html(
 
 
 def _build_derivadas_mermaid_text(data: Mapping[str, object]) -> str:
-    target = _normalize_ssa_relation_value(data.get("target", ""))
-    if not target:
-        return ""
-
-    def _node_id(value: str) -> str:
-        if value.isdigit():
-            return f"N{value}"
-        stable_hash = hashlib.md5(
-            value.encode("utf-8"),
-            usedforsecurity=False,
-        ).hexdigest()[:12]
-        return f"N_{stable_hash}"
-
-    def _label(value: str) -> str:
-        clean = str(value).replace('"', "'")
-        return clean
-
-    lines = ["flowchart LR"]
-    lines.append(f'  {_node_id(target)}["{_label(target)}"]')
-    edge_seen: set[tuple[str, str, bool]] = set()
-
-    parents = data.get("parents", [])
-    if isinstance(parents, list):
-        for raw in parents:
-            parent = _normalize_ssa_relation_value(raw)
-            if not parent:
-                continue
-            edge = (parent, target, False)
-            if edge in edge_seen:
-                continue
-            edge_seen.add(edge)
-            lines.append(
-                f'  {_node_id(parent)}["{_label(parent)}"] --> {_node_id(target)}'
-            )
-
-    children = data.get("children", [])
-    if isinstance(children, list):
-        for raw in children:
-            child = _normalize_ssa_relation_value(raw)
-            if not child:
-                continue
-            edge = (target, child, False)
-            if edge in edge_seen:
-                continue
-            edge_seen.add(edge)
-            lines.append(
-                f'  {_node_id(target)} --> {_node_id(child)}["{_label(child)}"]'
-            )
-
-    descendants = data.get("descendants", [])
-    if isinstance(descendants, list):
-        for raw in descendants:
-            if not isinstance(raw, dict):
-                continue
-            raw_map = cast(dict[str, object], raw)
-            ssa = _normalize_ssa_relation_value(raw_map.get("ssa", ""))
-            parent = _normalize_ssa_relation_value(raw_map.get("parent", ""))
-            if not ssa:
-                continue
-            if parent:
-                edge = (parent, ssa, False)
-                if edge in edge_seen:
-                    continue
-                edge_seen.add(edge)
-                lines.append(
-                    f'  {_node_id(parent)} --> {_node_id(ssa)}["{_label(ssa)}"]'
-                )
-            else:
-                edge = (target, ssa, True)
-                if edge in edge_seen:
-                    continue
-                edge_seen.add(edge)
-                lines.append(
-                    f'  {_node_id(target)} -.-> {_node_id(ssa)}["{_label(ssa)}"]'
-                )
-    related = data.get("related", [])
-    if isinstance(related, list):
-        for raw in related:
-            if not isinstance(raw, dict):
-                continue
-            raw_map = cast(dict[str, object], raw)
-            related_ssa = _normalize_ssa_relation_value(raw_map.get("ssa", ""))
-            if not related_ssa:
-                continue
-            edge = (target, related_ssa, True)
-            if edge in edge_seen:
-                continue
-            edge_seen.add(edge)
-            lines.append(
-                f'  {_node_id(target)} -.-> {_node_id(related_ssa)}["{_label(related_ssa)}"]'
-            )
-    return "\n".join(lines)
+    return details_derivadas_model.build_mermaid_text(
+        data,
+        normalizer=_normalize_ssa_relation_value,
+    )
 
 
 def _build_derivadas_graph_html(
@@ -1824,237 +1504,19 @@ def _build_derivadas_graph_html(
     link_color: str,
     font_family: str,
 ) -> str:
-    target = _normalize_ssa_relation_value(data.get("target"))
-    if not target:
+    graph_model = details_derivadas_model.build_graph_model(
+        data,
+        max_descendants=DERIVADAS_GRAPH_MAX_DESCENDANTS,
+        node_width=DERIVADAS_GRAPH_NODE_WIDTH,
+        node_height=DERIVADAS_GRAPH_NODE_HEIGHT,
+        x_gap=DERIVADAS_GRAPH_X_GAP,
+        y_gap=DERIVADAS_GRAPH_Y_GAP,
+        margin=DERIVADAS_GRAPH_MARGIN,
+    )
+    if graph_model is None:
         return ""
-
-    def _normalize_list(entries) -> list[str]:
-        if not isinstance(entries, list):
-            return []
-        normalized: list[str] = []
-        seen: set[str] = set()
-        for raw in entries:
-            value = _normalize_ssa_relation_value(raw)
-            if not value or value in seen:
-                continue
-            seen.add(value)
-            normalized.append(value)
-        return normalized
-
-    parents = _normalize_list(data.get("parents", []))
-    children = _normalize_list(data.get("children", []))
-    descendants_entries = data.get("descendants", [])
-    descendants: list[dict[str, object]] = []
-    if isinstance(descendants_entries, list):
-        for raw in descendants_entries[:DERIVADAS_GRAPH_MAX_DESCENDANTS]:
-            if not isinstance(raw, dict):
-                continue
-            raw_map = cast(dict[str, object], raw)
-            child = _normalize_ssa_relation_value(raw_map.get("ssa"))
-            parent = _normalize_ssa_relation_value(raw_map.get("parent"))
-            if not child:
-                continue
-            row: dict[str, object] = {"ssa": child, "parent": parent}
-            if raw_map.get("relation_type") is not None:
-                row["relation_type"] = raw_map.get("relation_type")
-            if raw_map.get("relation_raw_label"):
-                row["relation_raw_label"] = raw_map.get("relation_raw_label")
-            descendants.append(row)
-
-    nodes: set[str] = {target}
-    edges: list[tuple[str, str]] = []
-    dashed_edges: set[tuple[str, str]] = set()
-    edge_seen: set[tuple[str, str]] = set()
-
-    def _add_edge(source: str, target_node: str, *, dashed: bool = False) -> None:
-        if not source or not target_node:
-            return
-        edge = (source, target_node)
-        if edge in edge_seen:
-            if dashed:
-                dashed_edges.add(edge)
-            return
-        edge_seen.add(edge)
-        edges.append(edge)
-        nodes.add(source)
-        nodes.add(target_node)
-        if dashed:
-            dashed_edges.add(edge)
-
-    def _is_related_edge(row: Mapping[str, object]) -> bool:
-        raw_label = str(row.get("relation_raw_label") or row.get("relacao") or "")
-        label = raw_label.strip().casefold()
-        if "derivad" in label:
-            return False
-        if label:
-            return True
-        raw_type = row.get("relation_type")
-        if raw_type is None:
-            return False
-        try:
-            return int(cast(Any, raw_type)) not in (0, 1)
-        except (TypeError, ValueError):
-            return False
-
-    for parent in parents:
-        _add_edge(parent, target)
-    for child in children:
-        _add_edge(target, child)
-    for row in descendants:
-        descendant = str(row.get("ssa", "") or "")
-        parent = str(row.get("parent", "") or "")
-        dashed = _is_related_edge(row)
-        if parent:
-            _add_edge(parent, descendant, dashed=dashed)
-        else:
-            _add_edge(target, descendant, dashed=True)
-    related_entries = data.get("related", [])
-    if isinstance(related_entries, list):
-        for raw in related_entries:
-            if not isinstance(raw, dict):
-                continue
-            raw_map = cast(dict[str, object], raw)
-            related_ssa = _normalize_ssa_relation_value(raw_map.get("ssa"))
-            if related_ssa:
-                _add_edge(target, related_ssa, dashed=True)
-
-    positions: dict[str, tuple[float, float]] = {}
     node_w = DERIVADAS_GRAPH_NODE_WIDTH
     node_h = DERIVADAS_GRAPH_NODE_HEIGHT
-    x_gap = DERIVADAS_GRAPH_X_GAP
-    y_gap = DERIVADAS_GRAPH_Y_GAP
-    margin = DERIVADAS_GRAPH_MARGIN
-    raw_ancestors_entries = data.get("ancestors", [])
-    ancestors_entries = (
-        list(cast(list[object], raw_ancestors_entries))
-        if isinstance(raw_ancestors_entries, list)
-        else []
-    )
-    if not ancestors_entries:
-        raw_parent_entries = data.get("parents", [])
-        ancestors_entries = (
-            list(cast(list[object], raw_parent_entries))
-            if isinstance(raw_parent_entries, list)
-            else []
-        )
-    lineage: list[str] = []
-    lineage_seen: set[str] = set()
-    for raw in ancestors_entries:
-        normalized = _normalize_ssa_relation_value(
-            cast(dict[str, object], raw).get("ssa") if isinstance(raw, dict) else raw
-        )
-        if not normalized or normalized in lineage_seen:
-            continue
-        lineage_seen.add(normalized)
-        lineage.append(normalized)
-
-    child_map: dict[str, list[str]] = {}
-    descendants_entries_list = (
-        list(cast(list[object], descendants_entries))
-        if isinstance(descendants_entries, list)
-        else []
-    )
-    for raw in descendants_entries_list:
-        if not isinstance(raw, dict):
-            continue
-        raw_map = cast(dict[str, object], raw)
-        child_value = _normalize_ssa_relation_value(raw_map.get("ssa"))
-        parent_value = _normalize_ssa_relation_value(raw_map.get("parent"))
-        if not child_value or not parent_value:
-            continue
-        child_map.setdefault(parent_value, []).append(child_value)
-    for child_values in child_map.values():
-        child_values.sort()
-
-    ordered_nodes: list[tuple[str, int]] = []
-    raw_family_roots = data.get("family_roots", [])
-    family_roots = (
-        [
-            value
-            for value in (
-                _normalize_ssa_relation_value(raw)
-                for raw in cast(list[object], raw_family_roots)
-            )
-            if value
-        ]
-        if isinstance(raw_family_roots, list)
-        else []
-    )
-    render_family = bool(data.get("render_family")) and bool(child_map) and bool(family_roots)
-    target_depth = len(lineage)
-
-    def _append_family_graph_node(node: str, depth: int, seen: set[str]) -> None:
-        if not node or node in seen:
-            return
-        seen.add(node)
-        ordered_nodes.append((node, depth))
-        for child_ssa in child_map.get(node, []):
-            _append_family_graph_node(child_ssa, depth + 1, seen)
-
-    if render_family:
-        seen_family_nodes: set[str] = set()
-        for root in family_roots:
-            _append_family_graph_node(root, 0, seen_family_nodes)
-        for node, depth in ordered_nodes:
-            if node == target:
-                target_depth = depth
-                break
-    else:
-        for depth, node in enumerate(lineage):
-            ordered_nodes.append((node, depth))
-        target_depth = len(lineage)
-        ordered_nodes.append((target, target_depth))
-
-        seen_children: set[str] = set()
-
-        def _append_descendant_nodes(parent_ssa: str, depth: int) -> None:
-            for child_ssa in child_map.get(parent_ssa, []):
-                if child_ssa in seen_children:
-                    continue
-                seen_children.add(child_ssa)
-                ordered_nodes.append((child_ssa, depth))
-                _append_descendant_nodes(child_ssa, depth + 1)
-
-        for raw in children:
-            child_ssa = _normalize_ssa_relation_value(
-                raw.get("ssa") if isinstance(raw, dict) else raw
-            )
-            if not child_ssa or child_ssa in seen_children:
-                continue
-            seen_children.add(child_ssa)
-            ordered_nodes.append((child_ssa, target_depth + 1))
-            _append_descendant_nodes(child_ssa, target_depth + 2)
-
-    if isinstance(related_entries, list):
-        related_seen: set[str] = set()
-        for raw in related_entries:
-            if not isinstance(raw, dict):
-                continue
-            raw_map = cast(dict[str, object], raw)
-            related_ssa = _normalize_ssa_relation_value(raw_map.get("ssa"))
-            if not related_ssa or related_ssa in related_seen:
-                continue
-            related_seen.add(related_ssa)
-            ordered_nodes.append((related_ssa, target_depth + 1))
-
-    for index, (node, depth) in enumerate(ordered_nodes):
-        x = margin + depth * x_gap
-        y = margin + index * y_gap
-        positions[node] = (x, y)
-
-    if not positions:
-        return ""
-
-    min_x = min(x - node_w / 2.0 for x, _ in positions.values())
-    max_x = max(x + node_w / 2.0 for x, _ in positions.values())
-    min_y = min(y - node_h / 2.0 for _, y in positions.values())
-    max_y = max(y + node_h / 2.0 for _, y in positions.values())
-
-    offset_x = margin - min_x
-    offset_y = margin - min_y
-    svg_width = int(max_x - min_x + margin * 2)
-    svg_height = int(max_y - min_y + margin * 2)
-
     theme_roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
     text_color = pick_css_color(
         theme_roles.get("panel_text"),
@@ -2080,8 +1542,8 @@ def _build_derivadas_graph_html(
         return max(11.0, min(by_width, by_height, 15.5))
 
     svg_lines = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_width}" '
-        f'height="{svg_height}" viewBox="0 0 {svg_width} {svg_height}">',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{graph_model.svg_width}" '
+        f'height="{graph_model.svg_height}" viewBox="0 0 {graph_model.svg_width} {graph_model.svg_height}">',
         "<defs>",
         '<marker id="arrow" markerWidth="4" markerHeight="4" refX="3.5" refY="1.7" orient="auto">',
         f'<polygon points="0 0, 4 1.7, 0 3.4" fill="{node_stroke}" />',
@@ -2097,24 +1559,29 @@ def _build_derivadas_graph_html(
         lane_index = lane_counters.get(lane_key, 0)
         lane_counters[lane_key] = lane_index + 1
         span = x2 - x1 if direction > 0 else x1 - x2
-        max_offset = max(2.0, span - 2.0)
-        lane_offset = min(max(2.0, float(lane_index + 1) * 3.0), max_offset)
-        return x1 + lane_offset if direction > 0 else x1 - lane_offset
+        if span <= 0:
+            return x1
+        min_offset = min(2.0, span / 2.0)
+        max_offset = max(min_offset, span - min_offset)
+        lane_offset = min(max(min_offset, float(lane_index + 1) * 3.0), max_offset)
+        return x1 + (direction * lane_offset)
 
-    for source, target_node in edges:
-        source_pos = positions.get(source)
-        target_pos = positions.get(target_node)
+    for source, target_node in graph_model.edges:
+        source_pos = graph_model.positions.get(source)
+        target_pos = graph_model.positions.get(target_node)
         if source_pos is None or target_pos is None:
             continue
         sx, sy = source_pos
         tx, ty = target_pos
-        x1 = sx + node_w / 2.0 + offset_x
-        x2 = tx - node_w / 2.0 + offset_x
-        y1 = sy + offset_y
-        y2 = ty + offset_y
+        x1 = sx + node_w / 2.0 + graph_model.offset_x
+        x2 = tx - node_w / 2.0 + graph_model.offset_x
+        y1 = sy + graph_model.offset_y
+        y2 = ty + graph_model.offset_y
         mid_x = _compute_lane_x(source, x1, x2)
         dash_attr = (
-            ' stroke-dasharray="7 6"' if (source, target_node) in dashed_edges else ""
+            ' stroke-dasharray="7 6"'
+            if (source, target_node) in graph_model.dashed_edges
+            else ""
         )
         safe_source = html_module.escape(source, quote=True)
         safe_target_node = html_module.escape(target_node, quote=True)
@@ -2126,43 +1593,29 @@ def _build_derivadas_graph_html(
             f'marker-end="url(#arrow)"{dash_attr} />'
         )
 
-    for node, (x, y) in positions.items():
-        x0 = x - node_w / 2.0 + offset_x
-        y0 = y - node_h / 2.0 + offset_y
-        fill = node_target_fill if node == target else node_fill
+    for node, (x, y) in graph_model.positions.items():
+        x0 = x - node_w / 2.0 + graph_model.offset_x
+        y0 = y - node_h / 2.0 + graph_model.offset_y
+        fill = node_target_fill if node == graph_model.target else node_fill
         safe_node = html_module.escape(node)
         svg_lines.append(
             f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{node_w}" height="{node_h}" '
             f'rx="5" ry="5" fill="{fill}" stroke="{node_stroke}" stroke-width="0.8" />'
         )
         svg_lines.append(
-            f'<text x="{(x + offset_x):.1f}" y="{(y + offset_y + 5):.1f}" text-anchor="middle" '
+            f'<text x="{(x0 + node_w / 2.0):.1f}" y="{(y0 + node_h / 2.0 + 5):.1f}" text-anchor="middle" '
             f'font-family="{html_module.escape(font_family)}" font-size="{_node_font_size(node):.1f}" fill="{text_color}">{safe_node}</text>'
         )
     svg_lines.append("</svg>")
 
-    raw_descendants_count = data.get("descendants_count", 0)
-    if isinstance(raw_descendants_count, bool):
-        descendants_count = int(raw_descendants_count)
-    elif isinstance(raw_descendants_count, int):
-        descendants_count = raw_descendants_count
-    elif isinstance(raw_descendants_count, float):
-        descendants_count = int(raw_descendants_count)
-    elif isinstance(raw_descendants_count, str):
-        try:
-            descendants_count = int(raw_descendants_count.strip() or "0")
-        except Exception:
-            descendants_count = 0
-    else:
-        descendants_count = 0
-    truncated = 0
-    if isinstance(descendants_entries, list):
-        truncated = max(0, descendants_count - len(descendants))
-    if bool(data.get("descendants_partial")) and truncated == 0:
-        truncated = 1
-    summary = f"Nos: {len(nodes)} | Relacoes: {len(edges)} | Descendentes: {descendants_count}"
-    if truncated > 0:
-        summary = f"{summary} | Exibicao parcial de descendentes: +{truncated}"
+    summary = (
+        f"Nos: {len(graph_model.nodes)} | Relacoes: {len(graph_model.edges)} | "
+        f"Descendentes: {graph_model.descendants_count}"
+    )
+    if graph_model.truncated > 0:
+        summary = (
+            f"{summary} | Exibicao parcial de descendentes: +{graph_model.truncated}"
+        )
     return (
         "<html><body style="
         f'"font-family:{html_module.escape(font_family)}; margin:6px;">'
@@ -2362,6 +1815,8 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
         return True
 
     def _render_target(ssa_target, resolved_series=None):
+        export_state["svg"] = ""
+        export_state["mermaid"] = ""
         normalized = _normalize_ssa_value(window, ssa_target)
         if not normalized:
             return False
