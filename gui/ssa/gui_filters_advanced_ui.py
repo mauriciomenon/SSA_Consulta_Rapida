@@ -165,8 +165,11 @@ def _is_widget_valid(widget) -> bool:
     if sip is None:
         return True
     try:
+        wrapper_type = getattr(sip, "wrapper", None)
+        if wrapper_type is not None and not isinstance(widget, wrapper_type):
+            return False
         return not sip.isdeleted(widget)
-    except Exception:
+    except (RuntimeError, TypeError):
         return False
 
 
@@ -477,7 +480,7 @@ def _set_checkbox_checked_quietly(self, checkbox, checked: bool) -> bool:
             )
             changed = False
         finally:
-            if manual_blocked and _is_widget_valid(checkbox):
+            if manual_blocked:
                 try:
                     checkbox.blockSignals(False)
                 except Exception as exc:
@@ -494,7 +497,7 @@ def _sync_responsavel_flags(self) -> None:
     built = set(getattr(self, "_responsavel_materialized_prefixes", set()))
     self._responsavel_filters_materialized = bool(
         all_prefixes
-    ) and all_prefixes.issubset(built)
+    ) and all_prefixes.issubset(built) and not bool(dirty)
     self._responsavel_options_dirty = bool(dirty)
 
 
@@ -585,31 +588,11 @@ def _sync_responsavel_button_summaries(self, only_prefixes=None) -> None:
         exclude_values = [
             str(v) for v in (filters.get(exclude_key) or []) if str(v).strip()
         ]
-        include_text = ", ".join(include_values) if include_values else ""
-        exclude_text = ", ".join(exclude_values) if exclude_values else ""
-        if include_values and exclude_values:
-            candidates = [
-                f"Incluir: {include_text} | Diferente: {exclude_text}",
-                f"{len(include_values)} incluir, {len(exclude_values)} diferente",
-                f"Incluir: {include_text}",
-                f"Diferente: {exclude_text}",
-            ]
-        elif include_values:
-            candidates = [
-                f"Incluir: {include_text}",
-                "1 incluir"
-                if len(include_values) == 1
-                else f"{len(include_values)} incluir",
-            ]
-        elif exclude_values:
-            candidates = [
-                f"Diferente: {exclude_text}",
-                "1 diferente"
-                if len(exclude_values) == 1
-                else f"{len(exclude_values)} diferente",
-            ]
-        else:
-            candidates = ["Selecionar"]
+        candidates = _build_multiselect_summary_candidates(
+            include_values,
+            exclude_values,
+            "Selecionar",
+        )
         text = _fit_button_text(button, candidates, candidates[-1])
         try:
             button.setText(text)
@@ -629,6 +612,40 @@ def _sync_responsavel_button_summaries(self, only_prefixes=None) -> None:
             )
 
 
+def _build_multiselect_summary_candidates(
+    selected_values,
+    excluded_values,
+    placeholder: str,
+    total: int | None = None,
+) -> list[str]:
+    selected = [str(v) for v in (selected_values or []) if str(v).strip()]
+    excluded = [str(v) for v in (excluded_values or []) if str(v).strip()]
+    include_text = ", ".join(selected) if selected else ""
+    exclude_text = ", ".join(excluded) if excluded else ""
+    if total == 0:
+        return ["Sem dados"]
+    if not selected and not excluded:
+        return [placeholder]
+    if total is not None and len(selected) == total and not excluded:
+        return ["Todos", f"Incluir: {include_text}"]
+    if selected and excluded:
+        return [
+            f"Incluir: {include_text} | Diferente: {exclude_text}",
+            f"{len(selected)} incluir, {len(excluded)} diferente",
+            f"Incluir: {include_text}",
+            f"Diferente: {exclude_text}",
+        ]
+    if selected:
+        return [
+            f"Incluir: {include_text}",
+            "1 incluir" if len(selected) == 1 else f"{len(selected)} incluir",
+        ]
+    return [
+        f"Diferente: {exclude_text}",
+        "1 diferente" if len(excluded) == 1 else f"{len(excluded)} diferente",
+    ]
+
+
 def _attach_multiselect_menu(self, button, menu):
     if button is None or menu is None:
         return
@@ -646,23 +663,18 @@ def _attach_multiselect_menu(self, button, menu):
             try:
                 menu_size = menu.sizeHint()
                 screen = _get_widget_screen_geometry(button)
-                if (
-                    menu_size
-                    and screen
-                    and pos.y() + menu_size.height() > screen.bottom()
-                ):
-                    pos = button.mapToGlobal(rect.topLeft())
-                    pos.setY(pos.y() - menu_size.height())
-                if (
-                    menu_size
-                    and screen
-                    and pos.x() + menu_size.width() > screen.right()
-                ):
-                    pos.setX(max(screen.left(), screen.right() - menu_size.width() - 4))
-                if screen and pos.x() < screen.left():
-                    pos.setX(screen.left() + 2)
-                if screen and pos.y() < screen.top():
-                    pos.setY(screen.top() + 2)
+                if screen is not None:
+                    if menu_size and pos.y() + menu_size.height() > screen.bottom():
+                        pos = button.mapToGlobal(rect.topLeft())
+                        pos.setY(pos.y() - menu_size.height())
+                    if menu_size and pos.x() + menu_size.width() > screen.right():
+                        pos.setX(
+                            max(screen.left(), screen.right() - menu_size.width() - 4)
+                        )
+                    if pos.x() < screen.left():
+                        pos.setX(screen.left() + 2)
+                    if pos.y() < screen.top():
+                        pos.setY(screen.top() + 2)
             except Exception as exc:
                 logger.debug(
                     "Falha ao ajustar posicao do menu multiselect na tela: %s", exc
@@ -710,33 +722,12 @@ def _update_multiselect_button(
                 "Failed to read exclude checkbox state in multiselect summary: %s", exc
             )
     total = len(checks or [])
-    include_text = ", ".join(selected) if selected else ""
-    exclude_text = ", ".join(excluded) if excluded else ""
-    if total == 0:
-        candidates = ["Sem dados"]
-    elif not selected and not excluded:
-        candidates = [placeholder]
-    elif len(selected) == total and not excluded:
-        candidates = ["Todos", f"Incluir: {include_text}"]
-    elif selected and excluded:
-        candidates = [
-            f"Incluir: {include_text} | Diferente: {exclude_text}",
-            f"{len(selected)} incluir, {len(excluded)} diferente",
-            f"Incluir: {include_text}",
-            f"Diferente: {exclude_text}",
-        ]
-    elif selected:
-        candidates = [
-            f"Incluir: {include_text}",
-            "1 incluir" if len(selected) == 1 else f"{len(selected)} incluir",
-        ]
-    elif excluded:
-        candidates = [
-            f"Diferente: {exclude_text}",
-            "1 diferente" if len(excluded) == 1 else f"{len(excluded)} diferente",
-        ]
-    else:
-        candidates = [f"{len(selected)} selecionados"]
+    candidates = _build_multiselect_summary_candidates(
+        selected,
+        excluded,
+        placeholder,
+        total=total,
+    )
     text = _fit_button_text(button, candidates, candidates[-1])
     try:
         button.setText(text)
@@ -770,13 +761,8 @@ def _fit_button_text(button, candidates, fallback: str) -> str:
         primary = next((str(item) for item in candidates if item), str(fallback))
         if fm.horizontalAdvance(primary) <= available:
             return primary
-        ellipsis = "..."
-        if fm.horizontalAdvance(ellipsis) >= available:
-            return ellipsis
-        trimmed = primary
-        while trimmed and fm.horizontalAdvance(trimmed + ellipsis) > available:
-            trimmed = trimmed[:-1]
-        return (trimmed + ellipsis) if trimmed else ellipsis
+        elided = fm.elidedText(primary, Qt.TextElideMode.ElideRight, available)
+        return elided or str(fallback)
     except Exception as exc:
         logger.debug("Falha ao ajustar texto de botao ao espaco disponivel: %s", exc)
         return str(fallback)
@@ -1172,7 +1158,11 @@ def _collect_years_from_weeks(series):
     """Extrai anos de semanas no formato YYYYWW em modo vetorizado."""
     try:
         nums = pd.to_numeric(series, errors="coerce").dropna().astype(int)
-        years = (nums // 100).unique()
+        weeks = nums % 100
+        years_series = nums // 100
+        years = years_series[
+            years_series.between(1990, 2100) & weeks.between(1, 53)
+        ].unique()
         return sorted(years, reverse=True)
     except Exception:
         return []
@@ -1382,6 +1372,14 @@ def _rebuild_multiselect_menu(
         cb_style_exclude = cb_style_include
     except Exception as exc:
         logger.debug("Falha ao gerar estilo de checkbox do menu multiselect: %s", exc)
+    if apply_checkbox_styles and cb_style_include:
+        try:
+            container.setStyleSheet(cb_style_include)
+            apply_checkbox_styles = False
+        except Exception as exc:
+            logger.debug(
+                "Falha ao aplicar estilo de checkbox no container multiselect: %s", exc
+            )
 
     for val in valid_values:
         label_text = (
@@ -1656,52 +1654,7 @@ def _sync_multiselect_checks(
     self._update_multiselect_button(button, checks, exclude_checks=exclude_checks)
 
 
-def _build_advanced_filters_panel(self):
-    group = QGroupBox("Filtros Avancados")
-    self._menu_pre_show_hooks = {}
-    try:
-        group.setObjectName("adv_filters_group")
-    except Exception as exc:
-        logger.debug(
-            "Falha ao configurar objectName do painel de filtros avancados: %s", exc
-        )
-    outer = QVBoxLayout(group)
-    outer.setContentsMargins(1, 1, 1, 1)
-    outer.setSpacing(1)
-
-    grid_container = QWidget()
-    grid_container_layout = QVBoxLayout(grid_container)
-    grid_container_layout.setContentsMargins(0, 0, 0, 0)
-    grid_container_layout.setSpacing(0)
-
-    layout_baseline = _resolve_adv_layout_baseline(self)
-    emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box(
-        "Emissor",
-        layout_baseline=layout_baseline,
-    )
-    exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box(
-        "Executor",
-        layout_baseline=layout_baseline,
-    )
-    status_box, status_button, status_menu, status_exclude = self._make_multiselect_box(
-        "Situacao",
-        layout_baseline=layout_baseline,
-    )
-    year_emissao_box, year_emissao_button, year_emissao_menu, _ = (
-        self._make_multiselect_box(
-            "Ano Emissao",
-            with_exclude=False,
-            layout_baseline=layout_baseline,
-        )
-    )
-    year_execucao_box, year_execucao_button, year_execucao_menu, _ = (
-        self._make_multiselect_box(
-            "Ano Execucao",
-            with_exclude=False,
-            layout_baseline=layout_baseline,
-        )
-    )
-
+def _make_reprogramacoes_controls(self, layout_baseline):
     reprog_box = QGroupBox("Reprogramacoes")
     _flatten_field_box(reprog_box)
     reprog_layout = QGridLayout(reprog_box)
@@ -1756,6 +1709,112 @@ def _build_advanced_filters_panel(self):
         reprog_layout.setColumnStretch(1, 0)
     except Exception as exc:
         logger.debug("Falha ao ajustar colunas de Reprogramacoes: %s", exc)
+    return reprog_box, reprog_mode, reprog_button, reprog_menu
+
+def _make_week_range_box(title: str):
+    week_box = QGroupBox(title)
+    _flatten_field_box(week_box)
+    week_layout = QHBoxLayout(week_box)
+    week_layout.setContentsMargins(0, 0, 0, 0)
+    week_layout.setSpacing(2)
+    week_start = QLineEdit()
+    week_start.setPlaceholderText("Ini")
+    try:
+        week_start.setMaxLength(6)
+        week_start.setMinimumWidth(64)
+        week_start.setMaximumWidth(108)
+        week_start.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+    except Exception as exc:
+        logger.debug("Falha ao configurar campo de semana inicial %s: %s", title, exc)
+    week_end = QLineEdit()
+    week_end.setPlaceholderText("Fim")
+    try:
+        week_end.setMaxLength(6)
+        week_end.setMinimumWidth(64)
+        week_end.setMaximumWidth(108)
+        week_end.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    except Exception as exc:
+        logger.debug("Falha ao configurar campo de semana final %s: %s", title, exc)
+    week_layout.addWidget(week_start)
+    week_layout.addWidget(week_end)
+    return week_box, week_start, week_end
+
+
+def _make_advanced_action_box(self):
+    apply_btn = QPushButton("Aplicar")
+    clear_btn = QPushButton("Limpar")
+    try:
+        apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        apply_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        clear_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    except Exception as exc:
+        logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
+    apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
+    clear_btn.clicked.connect(self._clear_advanced_filters)
+    action_box = QGroupBox(" ")
+    _flatten_field_box(action_box)
+    action_layout = QHBoxLayout(action_box)
+    action_layout.setContentsMargins(0, 0, 0, 0)
+    action_layout.setSpacing(4)
+    action_layout.addWidget(apply_btn)
+    action_layout.addWidget(clear_btn)
+    return action_box, apply_btn, clear_btn
+
+
+def _build_advanced_filters_panel(self):
+    group = QGroupBox("Filtros Avancados")
+    self._menu_pre_show_hooks = {}
+    try:
+        group.setObjectName("adv_filters_group")
+    except Exception as exc:
+        logger.debug(
+            "Falha ao configurar objectName do painel de filtros avancados: %s", exc
+        )
+    outer = QVBoxLayout(group)
+    outer.setContentsMargins(1, 1, 1, 1)
+    outer.setSpacing(1)
+
+    grid_container = QWidget()
+    grid_container_layout = QVBoxLayout(grid_container)
+    grid_container_layout.setContentsMargins(0, 0, 0, 0)
+    grid_container_layout.setSpacing(0)
+
+    layout_baseline = _resolve_adv_layout_baseline(self)
+    emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box(
+        "Emissor",
+        layout_baseline=layout_baseline,
+    )
+    exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box(
+        "Executor",
+        layout_baseline=layout_baseline,
+    )
+    status_box, status_button, status_menu, status_exclude = self._make_multiselect_box(
+        "Situacao",
+        layout_baseline=layout_baseline,
+    )
+    year_emissao_box, year_emissao_button, year_emissao_menu, _ = (
+        self._make_multiselect_box(
+            "Ano Emissao",
+            with_exclude=False,
+            layout_baseline=layout_baseline,
+        )
+    )
+    year_execucao_box, year_execucao_button, year_execucao_menu, _ = (
+        self._make_multiselect_box(
+            "Ano Execucao",
+            with_exclude=False,
+            layout_baseline=layout_baseline,
+        )
+    )
+
+    reprog_box, reprog_mode, reprog_button, reprog_menu = (
+        _make_reprogramacoes_controls(self, layout_baseline)
+    )
     self.adv_reprog_mode = reprog_mode
     self.adv_reprog_button = reprog_button
     self.adv_reprog_menu = reprog_menu
@@ -1788,6 +1847,7 @@ def _build_advanced_filters_panel(self):
         deriv_selected.add("all_ste")
     if bool(current_adv.get("derivada_is")):
         deriv_selected.add("is")
+    self.adv_derivada_checks = []
     deriv_checks, _ = self._rebuild_multiselect_menu(
         deriv_button,
         deriv_menu,
@@ -1814,67 +1874,14 @@ def _build_advanced_filters_panel(self):
         ),
     )
 
-    week_emis_box = QGroupBox("Emissao (AnoSemana)")
-    _flatten_field_box(week_emis_box)
-    week_emis_layout = QHBoxLayout(week_emis_box)
-    week_emis_layout.setContentsMargins(0, 0, 0, 0)
-    week_emis_layout.setSpacing(2)
-    week_emissao_start = QLineEdit()
-    week_emissao_start.setPlaceholderText("Ini")
-    try:
-        week_emissao_start.setMaxLength(6)
-        week_emissao_start.setMinimumWidth(64)
-        week_emissao_start.setMaximumWidth(108)
-        week_emissao_start.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-    except Exception as exc:
-        logger.debug("Falha ao configurar campo de semana inicial de emissao: %s", exc)
-    week_emissao_end = QLineEdit()
-    week_emissao_end.setPlaceholderText("Fim")
-    try:
-        week_emissao_end.setMaxLength(6)
-        week_emissao_end.setMinimumWidth(64)
-        week_emissao_end.setMaximumWidth(108)
-        week_emissao_end.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-    except Exception as exc:
-        logger.debug("Falha ao configurar campo de semana final de emissao: %s", exc)
+    week_emis_box, week_emissao_start, week_emissao_end = _make_week_range_box(
+        "Emissao (AnoSemana)"
+    )
     week_emissao_exclude = None
-    week_emis_layout.addWidget(week_emissao_start)
-    week_emis_layout.addWidget(week_emissao_end)
-
-    week_exec_box = QGroupBox("Execucao (AnoSemana)")
-    _flatten_field_box(week_exec_box)
-    week_exec_layout = QHBoxLayout(week_exec_box)
-    week_exec_layout.setContentsMargins(0, 0, 0, 0)
-    week_exec_layout.setSpacing(2)
-    week_exec_start = QLineEdit()
-    week_exec_start.setPlaceholderText("Ini")
-    try:
-        week_exec_start.setMaxLength(6)
-        week_exec_start.setMinimumWidth(64)
-        week_exec_start.setMaximumWidth(108)
-        week_exec_start.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-    except Exception as exc:
-        logger.debug("Falha ao configurar campo de semana inicial de execucao: %s", exc)
-    week_exec_end = QLineEdit()
-    week_exec_end.setPlaceholderText("Fim")
-    try:
-        week_exec_end.setMaxLength(6)
-        week_exec_end.setMinimumWidth(64)
-        week_exec_end.setMaximumWidth(108)
-        week_exec_end.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-    except Exception as exc:
-        logger.debug("Falha ao configurar campo de semana final de execucao: %s", exc)
+    week_exec_box, week_exec_start, week_exec_end = _make_week_range_box(
+        "Execucao (AnoSemana)"
+    )
     week_exec_exclude = None
-    week_exec_layout.addWidget(week_exec_start)
-    week_exec_layout.addWidget(week_exec_end)
 
     macro_box = QGroupBox("Macro")
     _flatten_field_box(macro_box)
@@ -1927,26 +1934,7 @@ def _build_advanced_filters_panel(self):
     main_grid.setContentsMargins(0, 0, 0, 0)
     main_grid.setHorizontalSpacing(4)
     main_grid.setVerticalSpacing(3)
-    apply_btn = QPushButton("Aplicar")
-    clear_btn = QPushButton("Limpar")
-    try:
-        apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        clear_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-    except Exception as exc:
-        logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
-    apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
-    clear_btn.clicked.connect(self._clear_advanced_filters)
-    action_box = QGroupBox(" ")
-    _flatten_field_box(action_box)
-    action_layout = QHBoxLayout(action_box)
-    action_layout.setContentsMargins(0, 0, 0, 0)
-    action_layout.setSpacing(4)
-    action_layout.addWidget(apply_btn)
-    action_layout.addWidget(clear_btn)
+    action_box, apply_btn, clear_btn = _make_advanced_action_box(self)
     grid_container_layout.addLayout(main_grid)
     controls_scroll = QScrollArea()
     controls_scroll.setWidgetResizable(True)
@@ -1985,6 +1973,7 @@ def _build_advanced_filters_panel(self):
         "exec_resp_box": exec_resp_box,
         "action_box": action_box,
     }
+    self._adv_filters_grid_order = tuple(self._adv_filters_grid_widgets)
 
     self._adv_filters_apply_btn = apply_btn
     self._adv_filters_clear_btn = clear_btn
@@ -2148,27 +2137,18 @@ def _reorganize_advanced_filters_grid(self, width: int):
 
     if effective_width < LAYOUT_MIN_VALID_WIDTH:
         return
+    previous_effective_width = getattr(self, "_adv_filters_last_effective_width", None)
+    if (
+        previous_effective_width is not None
+        and abs(int(effective_width) - int(previous_effective_width)) < 8
+        and getattr(self, "_adv_filters_grid_cols", None) is not None
+    ):
+        return
+    self._adv_filters_last_effective_width = int(effective_width)
 
     grid = self._adv_filters_main_grid
     w = self._adv_filters_grid_widgets
-    order = [
-        "emis_box",
-        "exec_box",
-        "status_box",
-        "year_emissao_box",
-        "year_execucao_box",
-        "reprog_box",
-        "prio_emis_box",
-        "prio_plan_box",
-        "macro_box",
-        "deriv_box",
-        "week_emis_box",
-        "week_exec_box",
-        "sol_box",
-        "prog_box",
-        "exec_resp_box",
-        "action_box",
-    ]
+    order = getattr(self, "_adv_filters_grid_order", tuple(w))
     visible = [(name, widget) for name in order if (widget := w.get(name)) is not None]
     if not visible:
         return
@@ -2232,20 +2212,12 @@ def _reorganize_advanced_filters_grid(self, width: int):
     self._adv_filters_last_widget_count = len(visible)
     self._adv_filters_layout_mode = f"cols_{cols}"
 
-    # Remove todos os widgets do grid
-    while grid.count():
-        item = grid.takeAt(0)
-        widget = item.widget()
-        if widget is not None:
-            grid.removeWidget(widget)
-            widget.hide()
-        del item
-
     for idx, (_, widget) in enumerate(visible):
         row = idx // cols
         col = idx % cols
         grid.addWidget(widget, row, col)
-        widget.show()
+        if not widget.isVisible():
+            widget.show()
     for col in range(0, LAYOUT_GRID_MAX_COLS + 3):
         try:
             grid.setColumnStretch(col, 0)
@@ -2366,36 +2338,46 @@ def _sort_responsavel_values(self, df_subset, values, resp_col: str, df_source=N
     if not values:
         return []
     source_df = df_source if isinstance(df_source, pd.DataFrame) else df_subset
-    sector_cols = [
-        c for c in ["setor_executor", "setor_emissor"] if c in source_df.columns
-    ]
-    sector_counts = {}
-    for col in sector_cols:
-        try:
-            pairs = source_df[[col, resp_col]].dropna().copy()
-            pairs[col] = pairs[col].astype("string").fillna("").str.strip()
-            pairs[resp_col] = pairs[resp_col].astype("string").fillna("").str.strip()
-            pairs = pairs[(pairs[col] != "") & (pairs[resp_col] != "")]
-            if pairs.empty:
+    cache = getattr(self, "_responsavel_sector_rank_cache", None)
+    if not isinstance(cache, dict):
+        cache = {}
+        self._responsavel_sector_rank_cache = cache
+    cache_key = (id(source_df), len(source_df), resp_col)
+    sector_counts = cache.get(cache_key)
+    if not isinstance(sector_counts, dict):
+        sector_counts = {}
+        sector_cols = [
+            c for c in ["setor_executor", "setor_emissor"] if c in source_df.columns
+        ]
+        for col in sector_cols:
+            try:
+                pairs = source_df[[col, resp_col]].dropna().copy()
+                pairs[col] = pairs[col].astype("string").fillna("").str.strip()
+                pairs[resp_col] = (
+                    pairs[resp_col].astype("string").fillna("").str.strip()
+                )
+                pairs = pairs[(pairs[col] != "") & (pairs[resp_col] != "")]
+                if pairs.empty:
+                    continue
+                grouped = (
+                    pairs.groupby([resp_col, col], dropna=False)
+                    .size()
+                    .reset_index(name="count")
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao montar pares responsavel/setor (%s, %s): %s",
+                    col,
+                    resp_col,
+                    exc,
+                )
                 continue
-            grouped = (
-                pairs.groupby([resp_col, col], dropna=False)
-                .size()
-                .reset_index(name="count")
-            )
-        except Exception as exc:
-            logger.debug(
-                "Falha ao montar pares responsavel/setor (%s, %s): %s",
-                col,
-                resp_col,
-                exc,
-            )
-            continue
-        for person_str, sec_str, count in grouped.itertuples(index=False):
-            sector_counts.setdefault(person_str, {})
-            sector_counts[person_str][sec_str] = sector_counts[person_str].get(
-                sec_str, 0
-            ) + int(count)
+            for person_str, sec_str, count in grouped.itertuples(index=False):
+                sector_counts.setdefault(person_str, {})
+                sector_counts[person_str][sec_str] = sector_counts[person_str].get(
+                    sec_str, 0
+                ) + int(count)
+        cache[cache_key] = sector_counts
 
     def _best_sector(person):
         counts = sector_counts.get(person, {})
