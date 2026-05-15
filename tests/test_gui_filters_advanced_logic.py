@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from gui.ssa import gui_filters_advanced_logic as adv_logic
+from gui.ssa import gui_filters_advanced_state_reader as adv_state_reader
 from gui.ssa import gui_filters_advanced_ui as adv_ui
 from gui.ssa.filter_domain_rules import (
     build_responsavel_sector_counts,
@@ -68,10 +69,8 @@ def _literal_string(node: ast.AST | None) -> str | None:
     return None
 
 
-def _extract_produced_filter_keys(source: str) -> set[str]:
-    module = ast.parse(source)
+def _extract_data_assignment_keys(module: ast.Module) -> set[str]:
     keys: set[str] = set()
-
     for node in ast.walk(module):
         if isinstance(node, ast.Assign):
             for target in node.targets:
@@ -83,7 +82,11 @@ def _extract_produced_filter_keys(source: str) -> set[str]:
                     key = _literal_string(target.slice)
                     if key is not None:
                         keys.add(key)
+    return keys
 
+
+def _extract_state_reader_dict_keys(module: ast.Module) -> set[str]:
+    keys: set[str] = set()
     for node in module.body:
         if isinstance(node, ast.ClassDef) and node.name == "AdvancedFilterStateReader":
             for child in ast.walk(node):
@@ -92,12 +95,23 @@ def _extract_produced_filter_keys(source: str) -> set[str]:
                         key = _literal_string(key_node)
                         if key is not None:
                             keys.add(key)
-
     return keys
 
 
+def _extract_produced_filter_keys(source: str) -> set[str]:
+    module = ast.parse(source)
+    return _extract_data_assignment_keys(module) | _extract_state_reader_dict_keys(
+        module
+    )
+
+
 def _read_advanced_filter_sources() -> tuple[str, str]:
-    ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
+    ui_source = "\n".join(
+        (
+            Path(adv_ui.__file__).read_text(encoding="utf-8"),
+            Path(adv_state_reader.__file__).read_text(encoding="utf-8"),
+        )
+    )
     logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(
         encoding="utf-8"
     )
@@ -146,7 +160,7 @@ def test_subset_by_sector_filters_applies_include_and_exclude_once():
 
 def test_advanced_filter_state_reader_preserves_unmaterialized_responsaveis():
     window = _DummyStateReaderWindow()
-    reader = adv_ui.AdvancedFilterStateReader(window)
+    reader = adv_state_reader.AdvancedFilterStateReader(window)
 
     data = reader.collect()
 
@@ -159,40 +173,36 @@ def test_advanced_filter_state_reader_preserves_unmaterialized_responsaveis():
     assert data["macro_filter"] == "macro_x"
 
 
-def _extract_assigned_literal_dict(source: str, variable_name: str) -> dict:
+def _extract_assigned_literal(source: str, variable_name: str):
     module = ast.parse(source)
     for node in ast.walk(module):
         if not isinstance(node, ast.Assign):
             continue
         for target in node.targets:
             if isinstance(target, ast.Name) and target.id == variable_name:
-                value = ast.literal_eval(node.value)
-                if isinstance(value, dict):
-                    return value
-    return {}
+                return ast.literal_eval(node.value)
+    return None
+
+
+def _extract_assigned_literal_dict(source: str, variable_name: str) -> dict:
+    value = _extract_assigned_literal(source, variable_name)
+    return value if isinstance(value, dict) else {}
 
 
 def _extract_column_group_filter_keys(source: str) -> set[str]:
-    module = ast.parse(source)
-    for node in ast.walk(module):
-        if not isinstance(node, ast.Assign):
+    value = _extract_assigned_literal(source, "column_groups")
+    if not isinstance(value, list):
+        return set()
+    keys: set[str] = set()
+    for item in value:
+        if not isinstance(item, tuple) or len(item) != 3:
             continue
-        for target in node.targets:
-            if isinstance(target, ast.Name) and target.id == "column_groups":
-                value = ast.literal_eval(node.value)
-                if not isinstance(value, list):
-                    return set()
-                keys: set[str] = set()
-                for item in value:
-                    if not isinstance(item, tuple) or len(item) != 3:
-                        continue
-                    _, include_key, exclude_key = item
-                    if isinstance(include_key, str):
-                        keys.add(include_key)
-                    if isinstance(exclude_key, str):
-                        keys.add(exclude_key)
-                return keys
-    return set()
+        _, include_key, exclude_key = item
+        if isinstance(include_key, str):
+            keys.add(include_key)
+        if isinstance(exclude_key, str):
+            keys.add(exclude_key)
+    return keys
 
 
 def test_apply_advanced_filters_applies_solicitante_filter_key():

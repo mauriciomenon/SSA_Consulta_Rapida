@@ -44,11 +44,13 @@ from .filter_domain_rules import (
     subset_by_sector_filters,
 )
 from .gui_filters_advanced_logic import RESPONSAVEL_FILTER_COLUMN_CANDIDATES
+from .gui_filters_advanced_state_reader import AdvancedFilterStateReader
 from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 _DERIVADA_ALL_STE_LABEL = "Derivadas em STE/SES"
-_MACRO_BAIXAR_EXCLUDED_STATUSES = ["SAD", "SCA", "SES", "STE"]
+# Macro Baixar intentionally keeps actionable rows by excluding terminal states.
+_MACRO_BAIXAR_STATUS_EXCLUSIONS = ["SAD", "SCA", "SES", "STE"]
 
 # Layout constants
 LAYOUT_MIN_VALID_WIDTH = 1
@@ -189,16 +191,6 @@ def _is_widget_valid(widget) -> bool:
         return not sip.isdeleted(widget)
     except (RuntimeError, TypeError):
         return False
-
-
-def _safe_combo_item_data(combo: Any):
-    try:
-        if combo is None:
-            return None
-        mode_idx = combo.currentIndex()
-        return combo.itemData(mode_idx)
-    except Exception:
-        return None
 
 
 def _safe_len(value: Any) -> int:
@@ -1264,6 +1256,35 @@ def _notify_multiselect_batch_change(
         on_exclude_toggle()
 
 
+def _make_multiselect_batch_button(
+    label: str,
+    *,
+    checkbox_bg: str,
+    checkbox_border: str,
+    checked_bg: str,
+):
+    button = QPushButton()
+    try:
+        button.setText("")
+        button.setAccessibleName(label)
+        button.setToolTip(label)
+        button.setFixedSize(14, 14)
+        button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        button.setStyleSheet(
+            "QPushButton {"
+            " min-width:14px; max-width:14px; min-height:14px; max-height:14px;"
+            f" border:1px solid {checkbox_border}; background:{checkbox_bg};"
+            " border-radius:2px; padding:0px;"
+            "}"
+            "QPushButton:pressed {"
+            f" border:1px solid {checked_bg}; background:{checked_bg};"
+            "}"
+        )
+    except Exception as exc:
+        logger.debug("Falha ao configurar botao batch do multiselect: %s", exc)
+    return button
+
+
 def _append_multiselect_batch_controls(
     self,
     *,
@@ -1271,9 +1292,9 @@ def _append_multiselect_batch_controls(
     row_idx,
     checks,
     exclude_checks,
-    cb_style_include: str,
-    cb_style_exclude: str,
-    apply_checkbox_styles: bool,
+    checkbox_bg: str,
+    checkbox_border: str,
+    checked_bg: str,
     popup_text: str,
     on_toggle,
     on_exclude_toggle,
@@ -1285,16 +1306,30 @@ def _append_multiselect_batch_controls(
     grid.addWidget(separator, row_idx, 0, 1, 3)
     row_idx += 1
 
-    batch_mark_include = QCheckBox()
-    batch_clear_include = QCheckBox()
-    batch_mark_exclude = QCheckBox()
-    batch_clear_exclude = QCheckBox()
-
-    if apply_checkbox_styles:
-        for cb in [batch_mark_include, batch_clear_include]:
-            cb.setStyleSheet(cb_style_include)
-        for cb in [batch_mark_exclude, batch_clear_exclude]:
-            cb.setStyleSheet(cb_style_exclude)
+    batch_mark_include = _make_multiselect_batch_button(
+        "Selecionar incluir em lote",
+        checkbox_bg=checkbox_bg,
+        checkbox_border=checkbox_border,
+        checked_bg=checked_bg,
+    )
+    batch_clear_include = _make_multiselect_batch_button(
+        "Limpar incluir em lote",
+        checkbox_bg=checkbox_bg,
+        checkbox_border=checkbox_border,
+        checked_bg=checked_bg,
+    )
+    batch_mark_exclude = _make_multiselect_batch_button(
+        "Selecionar excluir em lote",
+        checkbox_bg=checkbox_bg,
+        checkbox_border=checkbox_border,
+        checked_bg=checked_bg,
+    )
+    batch_clear_exclude = _make_multiselect_batch_button(
+        "Limpar excluir em lote",
+        checkbox_bg=checkbox_bg,
+        checkbox_border=checkbox_border,
+        checked_bg=checked_bg,
+    )
 
     label_mark = QLabel("Selecionar em lote")
     label_clear = QLabel("Limpar selecao em lote")
@@ -1368,47 +1403,11 @@ def _append_multiselect_batch_controls(
             exclude_changed=True,
         )
 
-    def _reset_batch_toggle(toggle_cb):
-        try:
-            toggle_cb.blockSignals(True)
-            toggle_cb.setChecked(False)
-            toggle_cb.blockSignals(False)
-        except Exception as exc:
-            logger.debug("Falha ao resetar toggle de marcacao em lote: %s", exc)
-
     try:
-        batch_mark_include.toggled.connect(
-            lambda checked: (
-                _batch_set_include(True),
-                _reset_batch_toggle(batch_mark_include),
-            )
-            if checked
-            else None
-        )
-        batch_clear_include.toggled.connect(
-            lambda checked: (
-                _batch_set_include(False),
-                _reset_batch_toggle(batch_clear_include),
-            )
-            if checked
-            else None
-        )
-        batch_mark_exclude.toggled.connect(
-            lambda checked: (
-                _batch_set_exclude(True),
-                _reset_batch_toggle(batch_mark_exclude),
-            )
-            if checked
-            else None
-        )
-        batch_clear_exclude.toggled.connect(
-            lambda checked: (
-                _batch_set_exclude(False),
-                _reset_batch_toggle(batch_clear_exclude),
-            )
-            if checked
-            else None
-        )
+        batch_mark_include.clicked.connect(lambda: _batch_set_include(True))
+        batch_clear_include.clicked.connect(lambda: _batch_set_include(False))
+        batch_mark_exclude.clicked.connect(lambda: _batch_set_exclude(True))
+        batch_clear_exclude.clicked.connect(lambda: _batch_set_exclude(False))
     except Exception as exc:
         logger.debug(
             "Falha ao conectar acoes de marcacao em lote no menu multiselect: %s", exc
@@ -1727,9 +1726,9 @@ def _rebuild_multiselect_menu(
             row_idx=row_idx,
             checks=checks,
             exclude_checks=exclude_checks,
-            cb_style_include=cb_style_include,
-            cb_style_exclude=cb_style_exclude,
-            apply_checkbox_styles=apply_checkbox_styles,
+            checkbox_bg=checkbox_bg,
+            checkbox_border=checkbox_border,
+            checked_bg=checked_bg,
             popup_text=popup_text,
             on_toggle=on_toggle,
             on_exclude_toggle=on_exclude_toggle,
@@ -1989,126 +1988,54 @@ def _make_advanced_action_box(self):
     return action_box, apply_btn, clear_btn
 
 
-def _build_advanced_filters_panel(self):
-    group = QGroupBox("Filtros Avancados")
+def _reset_advanced_menu_hooks(self) -> None:
     hooks = getattr(self, "_menu_pre_show_hooks", None)
     if isinstance(hooks, dict):
         hooks.clear()
     self._menu_pre_show_hooks = {}
-    try:
-        group.setObjectName("adv_filters_group")
-    except Exception as exc:
-        logger.debug(
-            "Falha ao configurar objectName do painel de filtros avancados: %s", exc
-        )
-    outer = QVBoxLayout(group)
-    outer.setContentsMargins(1, 1, 1, 1)
-    outer.setSpacing(1)
 
-    grid_container = QWidget()
-    grid_container_layout = QVBoxLayout(grid_container)
-    grid_container_layout.setContentsMargins(0, 0, 0, 0)
-    grid_container_layout.setSpacing(0)
 
-    layout_baseline = _resolve_adv_layout_baseline(self)
-    emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box(
-        "Emissor",
-        layout_baseline=layout_baseline,
-    )
-    exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box(
-        "Executor",
-        layout_baseline=layout_baseline,
-    )
-    status_box, status_button, status_menu, status_exclude = self._make_multiselect_box(
-        "Situacao",
-        layout_baseline=layout_baseline,
-    )
-    year_emissao_box, year_emissao_button, year_emissao_menu, _ = (
-        self._make_multiselect_box(
+def _make_advanced_multiselect_fields(self, layout_baseline) -> dict[str, tuple]:
+    return {
+        "emis": self._make_multiselect_box(
+            "Emissor",
+            layout_baseline=layout_baseline,
+        ),
+        "exec": self._make_multiselect_box(
+            "Executor",
+            layout_baseline=layout_baseline,
+        ),
+        "status": self._make_multiselect_box(
+            "Situacao",
+            layout_baseline=layout_baseline,
+        ),
+        "year_emissao": self._make_multiselect_box(
             "Ano Emissao",
             with_exclude=False,
             layout_baseline=layout_baseline,
-        )
-    )
-    year_execucao_box, year_execucao_button, year_execucao_menu, _ = (
-        self._make_multiselect_box(
+        ),
+        "year_execucao": self._make_multiselect_box(
             "Ano Execucao",
             with_exclude=False,
             layout_baseline=layout_baseline,
-        )
-    )
-
-    reprog_box, reprog_mode, reprog_button, reprog_menu = (
-        _make_reprogramacoes_controls(self, layout_baseline)
-    )
-    self.adv_reprog_mode = reprog_mode
-    self.adv_reprog_button = reprog_button
-    self.adv_reprog_menu = reprog_menu
-    self.adv_reprog_checks = []
-
-    prio_emis_box, prio_emis_button, prio_emis_menu, _ = self._make_multiselect_box(
-        "Prio. Emissao",
-        layout_baseline=layout_baseline,
-    )
-    prio_plan_box, prio_plan_button, prio_plan_menu, _ = self._make_multiselect_box(
-        "Prio. Planejamento",
-        layout_baseline=layout_baseline,
-    )
-
-    deriv_box, deriv_button, deriv_menu, _ = self._make_multiselect_box(
-        "Derivadas",
-        with_exclude=False,
-        layout_baseline=layout_baseline,
-    )
-    deriv_values = [
-        ("has", "Possui Derivadas"),
-        ("all_ste", _DERIVADA_ALL_STE_LABEL),
-        ("is", "Sou Derivada"),
-    ]
-    deriv_selected = set()
-    current_adv = getattr(self, "_advanced_filters", None) or {}
-    if bool(current_adv.get("derivada_has")):
-        deriv_selected.add("has")
-    if bool(current_adv.get("derivada_all_ste")):
-        deriv_selected.add("all_ste")
-    if bool(current_adv.get("derivada_is")):
-        deriv_selected.add("is")
-    self.adv_derivada_checks = []
-    deriv_checks, _ = self._rebuild_multiselect_menu(
-        deriv_button,
-        deriv_menu,
-        deriv_values,
-        deriv_selected,
-        lambda *_: self._update_multiselect_button(
-            deriv_button,
-            getattr(self, "adv_derivada_checks", None),
         ),
-        self._apply_advanced_filters_from_ui,
-        None,
-        None,
-    )
-    self.adv_derivada_button = deriv_button
-    self.adv_derivada_menu = deriv_menu
-    self.adv_derivada_checks = deriv_checks
-    self._set_menu_pre_show_hook(
-        deriv_button,
-        lambda: _refresh_derivadas_menu(
-            self,
-            getattr(self, "_advanced_filters", None) or {},
-            lambda: self._apply_advanced_filters_from_ui(),
-            selected_override=_collect_derivadas_selected_from_checks(self),
+        "prio_emis": self._make_multiselect_box(
+            "Prio. Emissao",
+            layout_baseline=layout_baseline,
         ),
-    )
+        "prio_plan": self._make_multiselect_box(
+            "Prio. Planejamento",
+            layout_baseline=layout_baseline,
+        ),
+        "deriv": self._make_multiselect_box(
+            "Derivadas",
+            with_exclude=False,
+            layout_baseline=layout_baseline,
+        ),
+    }
 
-    week_emis_box, week_emissao_start, week_emissao_end = _make_week_range_box(
-        "Emissao (AnoSemana)"
-    )
-    week_emissao_exclude = None
-    week_exec_box, week_exec_start, week_exec_end = _make_week_range_box(
-        "Execucao (AnoSemana)"
-    )
-    week_exec_exclude = None
 
+def _make_advanced_macro_box(self):
     macro_box = QGroupBox("Macro")
     _flatten_field_box(macro_box)
     macro_layout = QHBoxLayout(macro_box)
@@ -2122,46 +2049,80 @@ def _build_advanced_filters_panel(self):
     macro_combo.addItem("Baixar", "ssas_para_baixar")
     macro_combo.currentIndexChanged.connect(self._on_macro_filter_changed)
     macro_layout.addWidget(macro_combo)
+    return macro_box, macro_combo
 
-    sol_box, sol_button, sol_menu, sol_exclude = self._make_multiselect_box(
-        "Solicitante",
-        layout_baseline=layout_baseline,
-    )
-    prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box(
-        "Resp Prog",
-        layout_baseline=layout_baseline,
-    )
-    exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = (
-        self._make_multiselect_box(
+
+def _make_advanced_responsavel_fields(self, layout_baseline) -> dict[str, tuple]:
+    fields = {
+        "sol": self._make_multiselect_box(
+            "Solicitante",
+            layout_baseline=layout_baseline,
+        ),
+        "prog": self._make_multiselect_box(
+            "Resp Prog",
+            layout_baseline=layout_baseline,
+        ),
+        "exec_resp": self._make_multiselect_box(
             "Resp Exec",
             layout_baseline=layout_baseline,
+        ),
+    }
+    hook_specs = (
+        ("sol", "adv_responsavel_solicitante"),
+        ("prog", "adv_responsavel_programacao"),
+        ("exec_resp", "adv_responsavel_execucao"),
+    )
+    for field_key, prefix in hook_specs:
+        button = fields[field_key][1]
+        self._set_menu_pre_show_hook(
+            button,
+            lambda prefix=prefix: self._ensure_responsavel_options_materialized(
+                target_prefix=prefix
+            ),
         )
-    )
-    self._set_menu_pre_show_hook(
-        sol_button,
-        lambda prefix="adv_responsavel_solicitante": self._ensure_responsavel_options_materialized(
-            target_prefix=prefix
-        ),
-    )
-    self._set_menu_pre_show_hook(
-        prog_button,
-        lambda prefix="adv_responsavel_programacao": self._ensure_responsavel_options_materialized(
-            target_prefix=prefix
-        ),
-    )
-    self._set_menu_pre_show_hook(
-        exec_resp_button,
-        lambda prefix="adv_responsavel_execucao": self._ensure_responsavel_options_materialized(
-            target_prefix=prefix
-        ),
-    )
+    return fields
 
-    main_grid = QGridLayout()
-    main_grid.setContentsMargins(0, 0, 0, 0)
-    main_grid.setHorizontalSpacing(4)
-    main_grid.setVerticalSpacing(3)
-    action_box, apply_btn, clear_btn = _make_advanced_action_box(self)
-    grid_container_layout.addLayout(main_grid)
+
+def _build_advanced_derivada_field(self, deriv_button, deriv_menu):
+    deriv_values = [
+        ("has", "Possui Derivadas"),
+        ("all_ste", _DERIVADA_ALL_STE_LABEL),
+        ("is", "Sou Derivada"),
+    ]
+    deriv_selected = set()
+    current_adv = getattr(self, "_advanced_filters", None) or {}
+    if bool(current_adv.get("derivada_has")):
+        deriv_selected.add("has")
+    if bool(current_adv.get("derivada_all_ste")):
+        deriv_selected.add("all_ste")
+    if bool(current_adv.get("derivada_is")):
+        deriv_selected.add("is")
+    deriv_checks, _ = self._rebuild_multiselect_menu(
+        deriv_button,
+        deriv_menu,
+        deriv_values,
+        deriv_selected,
+        lambda *_: self._update_multiselect_button(
+            deriv_button,
+            getattr(self, "adv_derivada_checks", None),
+        ),
+        self._apply_advanced_filters_from_ui,
+        None,
+        None,
+    )
+    self._set_menu_pre_show_hook(
+        deriv_button,
+        lambda: _refresh_derivadas_menu(
+            self,
+            getattr(self, "_advanced_filters", None) or {},
+            lambda: self._apply_advanced_filters_from_ui(),
+            selected_override=_collect_derivadas_selected_from_checks(self),
+        ),
+    )
+    return deriv_checks
+
+
+def _configure_advanced_panel_scroll(self, outer, grid_container):
     controls_scroll = QScrollArea()
     controls_scroll.setWidgetResizable(True)
     controls_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -2179,6 +2140,81 @@ def _build_advanced_filters_panel(self):
             "Falha ao aplicar limites de altura no painel de filtros avancados: %s", exc
         )
     outer.addWidget(controls_scroll, 0)
+    return controls_scroll
+
+
+def _build_advanced_filters_panel(self):
+    group = QGroupBox("Filtros Avancados")
+    _reset_advanced_menu_hooks(self)
+    try:
+        group.setObjectName("adv_filters_group")
+    except Exception as exc:
+        logger.debug(
+            "Falha ao configurar objectName do painel de filtros avancados: %s", exc
+        )
+    outer = QVBoxLayout(group)
+    outer.setContentsMargins(1, 1, 1, 1)
+    outer.setSpacing(1)
+
+    grid_container = QWidget()
+    grid_container_layout = QVBoxLayout(grid_container)
+    grid_container_layout.setContentsMargins(0, 0, 0, 0)
+    grid_container_layout.setSpacing(0)
+
+    layout_baseline = _resolve_adv_layout_baseline(self)
+    fields = _make_advanced_multiselect_fields(self, layout_baseline)
+    emis_box, emis_button, emis_menu, emis_exclude = fields["emis"]
+    exec_box, exec_button, exec_menu, exec_exclude = fields["exec"]
+    status_box, status_button, status_menu, status_exclude = fields["status"]
+    year_emissao_box, year_emissao_button, year_emissao_menu, _ = fields[
+        "year_emissao"
+    ]
+    year_execucao_box, year_execucao_button, year_execucao_menu, _ = fields[
+        "year_execucao"
+    ]
+
+    reprog_box, reprog_mode, reprog_button, reprog_menu = (
+        _make_reprogramacoes_controls(self, layout_baseline)
+    )
+    self.adv_reprog_mode = reprog_mode
+    self.adv_reprog_button = reprog_button
+    self.adv_reprog_menu = reprog_menu
+    self.adv_reprog_checks = []
+
+    prio_emis_box, prio_emis_button, prio_emis_menu, _ = fields["prio_emis"]
+    prio_plan_box, prio_plan_button, prio_plan_menu, _ = fields["prio_plan"]
+    deriv_box, deriv_button, deriv_menu, _ = fields["deriv"]
+    self.adv_derivada_checks = []
+    deriv_checks = _build_advanced_derivada_field(self, deriv_button, deriv_menu)
+    self.adv_derivada_button = deriv_button
+    self.adv_derivada_menu = deriv_menu
+    self.adv_derivada_checks = deriv_checks
+
+    week_emis_box, week_emissao_start, week_emissao_end = _make_week_range_box(
+        "Emissao (AnoSemana)"
+    )
+    week_emissao_exclude = None
+    week_exec_box, week_exec_start, week_exec_end = _make_week_range_box(
+        "Execucao (AnoSemana)"
+    )
+    week_exec_exclude = None
+
+    macro_box, macro_combo = _make_advanced_macro_box(self)
+
+    responsavel_fields = _make_advanced_responsavel_fields(self, layout_baseline)
+    sol_box, sol_button, sol_menu, sol_exclude = responsavel_fields["sol"]
+    prog_box, prog_button, prog_menu, prog_exclude = responsavel_fields["prog"]
+    exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = (
+        responsavel_fields["exec_resp"]
+    )
+
+    main_grid = QGridLayout()
+    main_grid.setContentsMargins(0, 0, 0, 0)
+    main_grid.setHorizontalSpacing(4)
+    main_grid.setVerticalSpacing(3)
+    action_box, apply_btn, clear_btn = _make_advanced_action_box(self)
+    grid_container_layout.addLayout(main_grid)
+    controls_scroll = _configure_advanced_panel_scroll(self, outer, grid_container)
 
     self._adv_filters_main_grid = main_grid
     self._adv_filters_grid_widgets = {
@@ -2318,7 +2354,7 @@ def _on_macro_filter_changed(self):
                 getattr(self, "adv_status_checks", None),
                 [],
                 getattr(self, "adv_status_exclude_checks", None),
-                _MACRO_BAIXAR_EXCLUDED_STATUSES,
+                _MACRO_BAIXAR_STATUS_EXCLUSIONS,
             )
         except Exception as exc:
             logger.warning("Falha ao aplicar preset de status no macro filtro: %s", exc)
@@ -2406,7 +2442,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
             cols = candidate_cols
             break
     cols = max(LAYOUT_GRID_MIN_COLS, cols)
-    cols = min(cols, len(visible))
+    cols = max(1, min(cols, len(visible)))
     rows_for_height = max(1, (len(visible) + cols - 1) // cols)
     try:
         vertical_spacing = int(grid.verticalSpacing())
@@ -2827,168 +2863,6 @@ def _has_active_advanced_filters(self, data: dict) -> bool:
     if data.get("macro_filter"):
         return True
     return False
-
-
-class AdvancedFilterStateReader:
-    def __init__(self, window) -> None:
-        self.window = window
-        self.current_filters = getattr(window, "_advanced_filters", None) or {}
-        self.built_prefixes = set(
-            getattr(window, "_responsavel_materialized_prefixes", set())
-        )
-
-    def checked_values(self, checks_attr: str) -> list[str]:
-        try:
-            return self.window._get_checked_values(
-                getattr(self.window, checks_attr, None)
-            )
-        except Exception as exc:
-            logger.debug("Falha ao coletar valores (%s): %s", checks_attr, exc)
-            return []
-
-    def week_range(self, start_attr: str, end_attr: str) -> tuple[int | None, int | None]:
-        try:
-            start_widget = getattr(self.window, start_attr, None)
-            end_widget = getattr(self.window, end_attr, None)
-            start_text = start_widget.text() if start_widget is not None else ""
-            end_text = end_widget.text() if end_widget is not None else ""
-            return self.window._parse_week(start_text), self.window._parse_week(
-                end_text
-            )
-        except Exception as exc:
-            logger.debug(
-                "Falha ao coletar faixa de semana (%s/%s): %s",
-                start_attr,
-                end_attr,
-                exc,
-            )
-            return None, None
-
-    def responsavel_values(
-        self,
-        checks_attr: str,
-        key_name: str,
-        prefix: str,
-    ) -> list[str]:
-        if prefix not in self.built_prefixes:
-            return list(self.current_filters.get(key_name) or [])
-        try:
-            return self.window._get_checked_values(
-                getattr(self.window, checks_attr, None)
-            )
-        except Exception as exc:
-            logger.debug(
-                "Falha ao coletar responsavel (%s/%s): %s",
-                key_name,
-                checks_attr,
-                exc,
-            )
-            return []
-
-    def derivada_flags(self) -> dict[str, bool]:
-        selected = {
-            str(v).casefold()
-            for v in self.window._get_checked_values(
-                getattr(self.window, "adv_derivada_checks", None)
-            )
-        }
-        return {
-            "derivada_has": "has" in selected,
-            "derivada_all_ste": "all_ste" in selected,
-            "derivada_is": "is" in selected,
-        }
-
-    def macro_filter(self):
-        try:
-            return self.window.adv_macro_combo.currentData()
-        except Exception as exc:
-            logger.debug("Falha ao coletar macro_filter: %s", exc)
-            return None
-
-    def collect(self) -> dict:
-        data = {
-            "setor_executor": self.checked_values("adv_executor_checks"),
-            "setor_executor_exclude_values": self.checked_values(
-                "adv_executor_exclude_checks"
-            ),
-            "setor_emissor": self.checked_values("adv_emissor_checks"),
-            "setor_emissor_exclude_values": self.checked_values(
-                "adv_emissor_exclude_checks"
-            ),
-            "situacao": self.checked_values("adv_status_checks"),
-            "situacao_exclude_values": self.checked_values("adv_status_exclude_checks"),
-            "ano_emissao_values": self.checked_values("adv_year_emissao_checks"),
-            "ano_emissao_exclude_values": self.checked_values(
-                "adv_year_emissao_exclude_checks"
-            ),
-            "ano_execucao_values": self.checked_values("adv_year_execucao_checks"),
-            "ano_execucao_exclude_values": self.checked_values(
-                "adv_year_execucao_exclude_checks"
-            ),
-            "semana_emissao_exclude": False,
-            "semana_execucao_exclude": False,
-            "solicitante": self.responsavel_values(
-                "adv_responsavel_solicitante_checks",
-                "solicitante",
-                "adv_responsavel_solicitante",
-            ),
-            "solicitante_exclude_values": self.responsavel_values(
-                "adv_responsavel_solicitante_exclude_checks",
-                "solicitante_exclude_values",
-                "adv_responsavel_solicitante",
-            ),
-            "responsavel_programacao": self.responsavel_values(
-                "adv_responsavel_programacao_checks",
-                "responsavel_programacao",
-                "adv_responsavel_programacao",
-            ),
-            "responsavel_programacao_exclude_values": self.responsavel_values(
-                "adv_responsavel_programacao_exclude_checks",
-                "responsavel_programacao_exclude_values",
-                "adv_responsavel_programacao",
-            ),
-            "responsavel_execucao": self.responsavel_values(
-                "adv_responsavel_execucao_checks",
-                "responsavel_execucao",
-                "adv_responsavel_execucao",
-            ),
-            "responsavel_execucao_exclude_values": self.responsavel_values(
-                "adv_responsavel_execucao_exclude_checks",
-                "responsavel_execucao_exclude_values",
-                "adv_responsavel_execucao",
-            ),
-            "num_reprogramacoes_values": self.checked_values("adv_reprog_checks"),
-            "num_reprogramacoes_mode": _safe_combo_item_data(
-                getattr(self.window, "adv_reprog_mode", None)
-            ),
-            "prioridade_emissao_values": self.checked_values(
-                "adv_prioridade_emissao_checks"
-            ),
-            "prioridade_emissao_exclude_values": self.checked_values(
-                "adv_prioridade_emissao_exclude_checks"
-            ),
-            "prioridade_planejamento_values": self.checked_values(
-                "adv_prioridade_planejamento_checks"
-            ),
-            "prioridade_planejamento_exclude_values": self.checked_values(
-                "adv_prioridade_planejamento_exclude_checks"
-            ),
-            "macro_filter": self.macro_filter(),
-        }
-        semana_emissao_inicio, semana_emissao_fim = self.week_range(
-            "adv_week_emissao_start",
-            "adv_week_emissao_end",
-        )
-        data["semana_emissao_inicio"] = semana_emissao_inicio
-        data["semana_emissao_fim"] = semana_emissao_fim
-        semana_execucao_inicio, semana_execucao_fim = self.week_range(
-            "adv_week_execucao_start",
-            "adv_week_execucao_end",
-        )
-        data["semana_execucao_inicio"] = semana_execucao_inicio
-        data["semana_execucao_fim"] = semana_execucao_fim
-        data.update(self.derivada_flags())
-        return data
 
 
 def _apply_advanced_filters_from_ui(self, store_only: bool = False):
