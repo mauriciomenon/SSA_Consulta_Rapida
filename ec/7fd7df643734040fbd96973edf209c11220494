@@ -1,0 +1,49 @@
+VERSION
+  s_082d1ff7d55d96::t_e726bcf4650b21 1
+gui/ssa/filter_domain_rules.py
+  s_082d1ff7d55d96::t_83334c169b491f 256
+  s_082d1ff7d55d96::t_16ecd311ef2b77 117-123,126-136,138,141-142
+  s_082d1ff7d55d96::t_4a5dbc18fd8dc3 12
+  s_082d1ff7d55d96::t_ade4ad8c6e55fa 114-115,157-172,248
+  s_082d1ff7d55d96::t_c81b29c04e9075 247,249-255,257-284
+gui/ssa/gui_filters_advanced_state_reader.py
+  s_082d1ff7d55d96::t_aa3a8e5d87c568 41-64
+gui/ssa/gui_filters_advanced_ui.py
+  s_082d1ff7d55d96::t_4a5dbc18fd8dc3 39,178,287-289,291-292,295-296,2317,3507-3509,3521-3523,3525,3535-3586
+  s_082d1ff7d55d96::t_9bac9854b88455 56,3512,3514
+  s_082d1ff7d55d96::t_c2a8f7b524c490 86
+  s_082d1ff7d55d96::t_1f5255694493e8 2354,2356-2358,2364,2373-2375,2411
+  s_082d1ff7d55d96::t_0a970e81e243aa 1207-1233,1499-1502,1506-1507
+  s_082d1ff7d55d96::t_6d14d46a5f4f2b 2066-2208,2305-2316,2334-2349
+  s_082d1ff7d55d96::t_5806b5cc951739 1369-1378,1391-1400,2677
+  s_082d1ff7d55d96::t_ade4ad8c6e55fa 40,43,519,2670-2676
+  s_082d1ff7d55d96::t_aaa2e51db38422 54-55,57-58,507-518,526-531,534-537,539-540
+  s_082d1ff7d55d96::t_d29182c5e54230 3519-3520
+  s_082d1ff7d55d96::t_c81b29c04e9075 42,521-525,532,2352-2353,2355,2360-2363,2365-2372
+  s_082d1ff7d55d96::t_aa3a8e5d87c568 59-62
+  s_082d1ff7d55d96::t_533fa64b16213e 1363,1385
+  s_082d1ff7d55d96::t_0047e9181a9c39 2401,2412-2413,2415-2420
+  s_082d1ff7d55d96::t_247e2a8fd04577 3357
+config/version.json
+  s_082d1ff7d55d96::t_e726bcf4650b21 2-3
+gui/ssa/gui_filters_advanced_refresh.py
+  s_082d1ff7d55d96::t_c81b29c04e9075 72
+  s_082d1ff7d55d96::t_b66fd23dc3ca13 1-9,11-56,60-67,73-146
+  s_082d1ff7d55d96::t_ade4ad8c6e55fa 10,57-59,68-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "ec7fd7df643734040fbd96973edf209c11220494",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
