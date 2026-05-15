@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
 
@@ -67,6 +68,19 @@ SIMPLE_POPUP_LABEL_MAX_PX = 300
 SIMPLE_POPUP_RIGHT_GUTTER_PX = 10
 SIMPLE_POPUP_SCROLLBAR_GUARD_PX = 18
 HIGH_CARDINALITY_MENU_LIMIT = 300
+
+
+@dataclass(frozen=True)
+class MultiselectMenuModel:
+    filter_name: str
+    has_exclude_column: bool
+    popup_width: int
+    include_col_min: int
+    exclude_col_min: int
+    values: list[Any]
+    total_values: int
+    selected_norm: set[str]
+    exclude_norm: set[str]
 
 
 def _get_widget_screen_geometry(widget):
@@ -1062,6 +1076,171 @@ def _compute_multiselect_popup_metrics(
     return popup_width, include_col_min, exclude_col_min, valid_values
 
 
+def _limit_multiselect_values(
+    valid_values: list[Any],
+    selected_norm: set[str],
+    exclude_norm: set[str],
+) -> list[Any]:
+    if len(valid_values) <= HIGH_CARDINALITY_MENU_LIMIT:
+        return valid_values
+    selected_keys = selected_norm | exclude_norm
+    selected_values = [
+        value
+        for value in valid_values
+        if _multiselect_value_key_label(value)[0].casefold() in selected_keys
+    ]
+    remaining = [
+        value
+        for value in valid_values
+        if _multiselect_value_key_label(value)[0].casefold() not in selected_keys
+    ]
+    return selected_values + remaining[
+        : max(0, HIGH_CARDINALITY_MENU_LIMIT - len(selected_values))
+    ]
+
+
+def _build_multiselect_menu_model(
+    button,
+    values,
+    selected_set,
+    exclude_selected_set,
+) -> MultiselectMenuModel:
+    selected_norm = {str(v).casefold() for v in (selected_set or [])}
+    exclude_norm = {str(v).casefold() for v in (exclude_selected_set or [])}
+    filter_name = _detect_filter_name_from_button(button)
+    has_exclude_column = exclude_selected_set is not None
+    popup_width, include_col_min, exclude_col_min, valid_values = (
+        _compute_multiselect_popup_metrics(
+            button,
+            values,
+            filter_name,
+            has_exclude_column,
+        )
+    )
+    total_values = len(valid_values)
+    limited_values = _limit_multiselect_values(
+        valid_values,
+        selected_norm,
+        exclude_norm,
+    )
+    return MultiselectMenuModel(
+        filter_name=filter_name,
+        has_exclude_column=has_exclude_column,
+        popup_width=popup_width,
+        include_col_min=include_col_min,
+        exclude_col_min=exclude_col_min,
+        values=limited_values,
+        total_values=total_values,
+        selected_norm=selected_norm,
+        exclude_norm=exclude_norm,
+    )
+
+
+def _configure_multiselect_grid(
+    grid,
+    has_exclude_column: bool,
+    include_col_min: int,
+    exclude_col_min: int,
+) -> None:
+    grid.setContentsMargins(6, 4, 14 + SIMPLE_POPUP_RIGHT_GUTTER_PX, 4)
+    grid.setHorizontalSpacing(6)
+    grid.setVerticalSpacing(4)
+    try:
+        grid.setAlignment(Qt.AlignmentFlag.AlignTop)
+    except Exception as exc:
+        logger.debug("Falha ao alinhar grid do menu multiselect no topo: %s", exc)
+    if has_exclude_column:
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 0)
+        grid.setColumnStretch(2, 0)
+        grid.setColumnMinimumWidth(1, include_col_min)
+        grid.setColumnMinimumWidth(2, exclude_col_min)
+    else:
+        grid.setColumnStretch(0, 1)
+
+
+def _append_multiselect_header(
+    grid,
+    row_idx: int,
+    *,
+    filter_name: str,
+    has_exclude_column: bool,
+    popup_text: str,
+    popup_border: str,
+) -> int:
+    if not filter_name:
+        return row_idx
+    label_filter = QLabel(filter_name)
+    try:
+        label_filter.setStyleSheet("font-weight: bold; font-size: 11px;")
+    except Exception as exc:
+        logger.debug("Failed to style multiselect menu header label: %s", exc)
+    grid.addWidget(label_filter, row_idx, 0)
+
+    if has_exclude_column:
+        label_inc = QLabel("Conter")
+        label_exc = QLabel("Nao conter")
+        try:
+            label_style_inc = (
+                "font-size: 10px;"
+                f" color: {popup_text};"
+                f" border: 1px solid {popup_border};"
+                " border-radius: 2px;"
+                " padding: 1px 3px;"
+            )
+            label_style_exc = (
+                "font-size: 10px;"
+                f" color: {popup_text};"
+                f" border: 1px solid {popup_border};"
+                " border-radius: 2px;"
+                " padding: 1px 7px 1px 3px;"
+            )
+            label_inc.setStyleSheet(label_style_inc)
+            label_exc.setStyleSheet(label_style_exc)
+            label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao estilizar header include/exclude do menu multiselect: %s",
+                exc,
+            )
+        grid.addWidget(label_inc, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
+        grid.addWidget(label_exc, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
+    return row_idx + 1
+
+
+def _append_multiselect_limit_notice(
+    grid,
+    row_idx: int,
+    *,
+    displayed_count: int,
+    total_values: int,
+    has_exclude_column: bool,
+    popup_text: str,
+) -> int:
+    if total_values <= displayed_count:
+        return row_idx
+    limited_label = QLabel(
+        f"Mostrando {displayed_count} de {total_values}. Refine o filtro."
+    )
+    try:
+        limited_label.setStyleSheet(f"font-size: 10px; color: {popup_text};")
+        limited_label.setToolTip(
+            "A lista completa tem muitos itens; valores ja selecionados foram preservados."
+        )
+    except Exception as exc:
+        logger.debug("Falha ao estilizar aviso de lista limitada: %s", exc)
+    col_span = 3 if has_exclude_column else 1
+    grid.addWidget(limited_label, row_idx, 0, 1, col_span)
+    row_idx += 1
+
+    header_sep = QFrame()
+    header_sep.setFrameShape(QFrame.Shape.HLine)
+    header_sep.setFrameShadow(QFrame.Shadow.Sunken)
+    grid.addWidget(header_sep, row_idx, 0, 1, col_span)
+    return row_idx + 1
+
+
 def _notify_multiselect_batch_change(
     self,
     button,
@@ -1339,41 +1518,17 @@ def _rebuild_multiselect_menu(
         menu.clear()
     except Exception as exc:
         logger.debug("Falha ao limpar menu multiselect antes de reconstruir: %s", exc)
-    selected_norm = {str(v).casefold() for v in (selected_set or [])}
-    exclude_norm = {str(v).casefold() for v in (exclude_selected_set or [])}
     checks = []
     exclude_checks = []
-
-    # Obter nome do filtro do titulo do GroupBox pai (subindo na hierarquia)
-    filter_name = _detect_filter_name_from_button(button)
-    has_exclude_column = exclude_selected_set is not None
-    popup_width, include_col_min, exclude_col_min, valid_values = (
-        _compute_multiselect_popup_metrics(
-            button,
-            values,
-            filter_name,
-            has_exclude_column,
-        )
+    model = _build_multiselect_menu_model(
+        button,
+        values,
+        selected_set,
+        exclude_selected_set,
     )
-    total_values = len(valid_values)
-    if total_values > HIGH_CARDINALITY_MENU_LIMIT:
-        selected_keys = selected_norm | exclude_norm
-        selected_values = [
-            value
-            for value in valid_values
-            if _multiselect_value_key_label(value)[0].casefold() in selected_keys
-        ]
-        remaining = [
-            value
-            for value in valid_values
-            if _multiselect_value_key_label(value)[0].casefold() not in selected_keys
-        ]
-        valid_values = selected_values + remaining[
-            : max(0, HIGH_CARDINALITY_MENU_LIMIT - len(selected_values))
-        ]
     try:
-        menu.setMinimumWidth(popup_width)
-        menu.setMaximumWidth(popup_width)
+        menu.setMinimumWidth(model.popup_width)
+        menu.setMaximumWidth(model.popup_width)
     except Exception as exc:
         logger.debug("Falha ao ajustar largura do menu multiselect: %s", exc)
 
@@ -1387,93 +1542,34 @@ def _rebuild_multiselect_menu(
 
     container = QWidget()
     grid = QGridLayout(container)
-    grid.setContentsMargins(6, 4, 14 + SIMPLE_POPUP_RIGHT_GUTTER_PX, 4)
-    grid.setHorizontalSpacing(6)
-    grid.setVerticalSpacing(4)
-    try:
-        grid.setAlignment(Qt.AlignmentFlag.AlignTop)
-    except Exception as exc:
-        logger.debug("Falha ao alinhar grid do menu multiselect no topo: %s", exc)
-    if has_exclude_column:
-        grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(1, 0)
-        grid.setColumnStretch(2, 0)
-        grid.setColumnMinimumWidth(1, include_col_min)
-        grid.setColumnMinimumWidth(2, exclude_col_min)
-    else:
-        grid.setColumnStretch(0, 1)
+    _configure_multiselect_grid(
+        grid,
+        model.has_exclude_column,
+        model.include_col_min,
+        model.exclude_col_min,
+    )
     row_idx = 0
 
-    # Header com nome do filtro (sempre) e colunas == / != (so quando tem exclude)
-    if filter_name:
-        label_filter = QLabel(filter_name)
-        try:
-            label_filter.setStyleSheet("font-weight: bold; font-size: 11px;")
-        except Exception as exc:
-            logger.debug("Failed to style multiselect menu header label: %s", exc)
-        grid.addWidget(label_filter, row_idx, 0)
-
-        if exclude_selected_set is not None:
-            label_inc = QLabel("Conter")
-            label_exc = QLabel("Nao conter")
-            try:
-                label_style_inc = (
-                    "font-size: 10px;"
-                    f" color: {popup_text};"
-                    f" border: 1px solid {popup_border};"
-                    " border-radius: 2px;"
-                    " padding: 1px 3px;"
-                )
-                label_style_exc = (
-                    "font-size: 10px;"
-                    f" color: {popup_text};"
-                    f" border: 1px solid {popup_border};"
-                    " border-radius: 2px;"
-                    " padding: 1px 7px 1px 3px;"
-                )
-                label_inc.setStyleSheet(label_style_inc)
-                label_exc.setStyleSheet(label_style_exc)
-                label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-                label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao estilizar header include/exclude do menu multiselect: %s",
-                    exc,
-                )
-            grid.addWidget(
-                label_inc, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter
-            )
-            grid.addWidget(
-                label_exc, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter
-            )
-        row_idx += 1
-
-    if total_values > len(valid_values):
-        limited_label = QLabel(
-            f"Mostrando {len(valid_values)} de {total_values}. Refine o filtro."
-        )
-        try:
-            limited_label.setStyleSheet(f"font-size: 10px; color: {popup_text};")
-            limited_label.setToolTip(
-                "A lista completa tem muitos itens; valores ja selecionados foram preservados."
-            )
-        except Exception as exc:
-            logger.debug("Falha ao estilizar aviso de lista limitada: %s", exc)
-        col_span = 3 if exclude_selected_set is not None else 1
-        grid.addWidget(limited_label, row_idx, 0, 1, col_span)
-        row_idx += 1
-
-        # Separador entre header e conteudo
-        header_sep = QFrame()
-        header_sep.setFrameShape(QFrame.Shape.HLine)
-        header_sep.setFrameShadow(QFrame.Shadow.Sunken)
-        col_span = 3 if exclude_selected_set is not None else 1
-        grid.addWidget(header_sep, row_idx, 0, 1, col_span)
-        row_idx += 1
+    row_idx = _append_multiselect_header(
+        grid,
+        row_idx,
+        filter_name=model.filter_name,
+        has_exclude_column=model.has_exclude_column,
+        popup_text=popup_text,
+        popup_border=popup_border,
+    )
+    row_idx = _append_multiselect_limit_notice(
+        grid,
+        row_idx,
+        displayed_count=len(model.values),
+        total_values=model.total_values,
+        has_exclude_column=model.has_exclude_column,
+        popup_text=popup_text,
+    )
 
     cb_style_include = ""
     cb_style_exclude = ""
-    apply_checkbox_styles = len(valid_values) <= HIGH_CARDINALITY_MENU_LIMIT
+    apply_checkbox_styles = len(model.values) <= HIGH_CARDINALITY_MENU_LIMIT
     try:
         cb_style_include = (
             "QCheckBox::indicator {"
@@ -1505,7 +1601,7 @@ def _rebuild_multiselect_menu(
                 "Falha ao aplicar estilo de checkbox no container multiselect: %s", exc
             )
 
-    for val in valid_values:
+    for val in model.values:
         cb_value, label_text = _multiselect_value_key_label(val)
         label_text_display = label_text
         if SIMPLE_POPUP_TEXT_CLAMP:
@@ -1550,12 +1646,12 @@ def _rebuild_multiselect_menu(
                     "Falha ao configurar checkbox exclude do menu multiselect: %s", exc
                 )
         try:
-            include_cb.setChecked(str(cb_value).casefold() in selected_norm)
+            include_cb.setChecked(str(cb_value).casefold() in model.selected_norm)
         except Exception as exc:
             logger.debug("Falha ao aplicar estado inicial do checkbox include: %s", exc)
         if exclude_cb is not None:
             try:
-                exclude_cb.setChecked(str(cb_value).casefold() in exclude_norm)
+                exclude_cb.setChecked(str(cb_value).casefold() in model.exclude_norm)
             except Exception as exc:
                 logger.debug(
                     "Falha ao aplicar estado inicial do checkbox exclude: %s", exc
@@ -1688,12 +1784,12 @@ def _rebuild_multiselect_menu(
             "Falha ao aplicar estilo visual do scroll/menu multiselect: %s", exc
         )
     try:
-        base_rows = len(valid_values)
-        if filter_name:
+        base_rows = len(model.values)
+        if model.filter_name:
             base_rows += 2
-        if total_values > len(valid_values):
+        if model.total_values > len(model.values):
             base_rows += 1
-        if exclude_selected_set is not None:
+        if model.has_exclude_column:
             base_rows += 2
         visible_rows = max(1, min(9, base_rows))
         target_height = 12 + (visible_rows * 22)
