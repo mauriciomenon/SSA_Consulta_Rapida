@@ -16,6 +16,11 @@ from gui.helpers.theme_helpers import pick_css_color
 from gui.qt_stubs import QTimer
 from gui.ssa import details_data_provider
 from gui.ssa import details_derivadas_model
+from gui.ssa.details_graph_export import (
+    DetailsGraphExportController,
+    load_svg_render_dependencies,
+    render_graph_svg_pixmap,
+)
 from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 from shared.ssa_status import format_status_display, get_status_code
 from utils.formatting import format_cell
@@ -437,7 +442,7 @@ def _normalize_ssa_value(window, value):
             if pd.isna(raw) or not math.isfinite(raw):
                 return ""
             if raw.is_integer():
-                raw = int(raw)
+                raw = f"{raw:.0f}"
     except Exception as exc:
         logger.debug("Falha ao normalizar artefato float de SSA %r: %s", value, exc)
     text = str(raw).strip()
@@ -1660,6 +1665,43 @@ def _get_dialog_screen_geometry(widget):
     return None
 
 
+def _apply_details_dialog_geometry(window, dialog, details_tab_splitter) -> None:
+    screen_geometry = _get_dialog_screen_geometry(window)
+    if screen_geometry is None:
+        return
+    safe_width = max(640, screen_geometry.width() - 24)
+    safe_height = max(480, screen_geometry.height() - 24)
+    window_height = 0
+    try:
+        window_height = int(window.height())
+    except Exception as exc:
+        logger.debug("Falha ao ler altura da janela principal: %s", exc)
+    desired_height = safe_height
+    if window_height > 0:
+        desired_height = min(
+            max(int(window_height * 0.72), DERIVADAS_DIALOG_MIN_HEIGHT),
+            safe_height,
+        )
+    dialog.setMinimumSize(
+        min(DERIVADAS_DIALOG_MIN_WIDTH, safe_width),
+        min(DERIVADAS_DIALOG_MIN_HEIGHT, safe_height),
+    )
+    dialog.setMaximumSize(safe_width, safe_height)
+    current_size = dialog.sizeHint()
+    target_width = min(max(current_size.width(), DERIVADAS_DIALOG_MIN_WIDTH), safe_width)
+    target_height = desired_height
+    if target_width != current_size.width() or target_height != current_size.height():
+        dialog.resize(target_width, target_height)
+    bottom_height = min(
+        max(
+            DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT,
+            int(target_height * 0.26),
+        ),
+        max(0, target_height - 240),
+    )
+    details_tab_splitter.setSizes([max(0, target_height - bottom_height), bottom_height])
+
+
 def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
     target = _normalize_ssa_value(window, numero_ssa)
     if not target:
@@ -1679,7 +1721,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
         return
 
     try:
-        from PyQt6.QtCore import QByteArray, Qt
+        from PyQt6.QtCore import Qt
         from PyQt6.QtGui import QPalette
         from PyQt6.QtWidgets import (
             QDialog,
@@ -1698,15 +1740,9 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
         )
     except Exception:
         return
-    qsvg_renderer_cls: type[object] | None
-    try:
-        from PyQt6.QtGui import QPainter, QPixmap
-        from PyQt6.QtSvg import QSvgRenderer as _QSvgRenderer
-
-        qsvg_renderer_cls = _QSvgRenderer
-    except Exception as exc:
-        qsvg_renderer_cls = None
-        logger.debug("QSvgRenderer unavailable for derivadas graph rendering: %s", exc)
+    svg_render_deps = load_svg_render_dependencies()
+    if svg_render_deps is None:
+        logger.debug("QSvgRenderer unavailable for derivadas graph rendering")
 
     dialog = QDialog(window)
     dialog.setWindowTitle(f"Detalhes da SSA #{target}")
@@ -1730,7 +1766,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
     )
     tree_graph_label = None
     tree_graph_text_browser = None
-    if qsvg_renderer_cls is not None:
+    if svg_render_deps is not None:
         tree_graph_label = QLabel(dialog)
         tree_graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         tree_graph_label.setStyleSheet("border:none; background:transparent;")
@@ -1793,26 +1829,14 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
         )
 
     def _render_graph_pixmap(graph_svg: str) -> bool:
-        if tree_graph_label is None or qsvg_renderer_cls is None or not graph_svg:
+        if tree_graph_label is None or svg_render_deps is None:
             return False
-        renderer = qsvg_renderer_cls(QByteArray(graph_svg.encode("utf-8")))
-        default_size = renderer.defaultSize()
-        natural_w = max(1, int(default_size.width()))
-        natural_h = max(1, int(default_size.height()))
-        available_w = max(120, tree_graph_panel.width() - 24)
-        available_h = max(120, tree_graph_panel.height() - 24)
-        scale = min(1.0, available_w / natural_w, available_h / natural_h)
-        render_w = max(1, int(natural_w * scale))
-        render_h = max(1, int(natural_h * scale))
-        pixmap = QPixmap(render_w, render_h)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        renderer.render(painter)
-        painter.end()
-        tree_graph_label.setPixmap(pixmap)
-        tree_graph_label.setFixedSize(pixmap.size())
-        tree_graph_label.setToolTip("")
-        return True
+        return render_graph_svg_pixmap(
+            graph_svg=graph_svg,
+            graph_label=tree_graph_label,
+            graph_panel=tree_graph_panel,
+            dependencies=svg_render_deps,
+        )
 
     def _render_target(ssa_target, resolved_series=None):
         export_state["svg"] = ""
@@ -1872,7 +1896,8 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
         if tree_graph_label is not None:
             if not graph_svg or not _render_graph_pixmap(graph_svg):
                 tree_graph_label.setText("Grafo de derivadas indisponivel.")
-                tree_graph_label.setPixmap(QPixmap())
+                if svg_render_deps is not None:
+                    tree_graph_label.setPixmap(svg_render_deps.pixmap_cls())
                 tree_graph_label.setToolTip("Grafo de derivadas indisponivel.")
         elif graph_html and tree_graph_text_browser is not None:
             tree_graph_text_browser.setHtml(graph_html)
@@ -1889,99 +1914,15 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
             tree_tab_browser.setPlainText("Arvore de derivadas indisponivel.")
         return True
 
-    def _export_target_basename() -> str:
-        safe_target = str(export_state["target"]).strip() or "desconhecida"
-        return f"derivadas_{safe_target}"
-
-    def _export_graph_png() -> None:
-        default_name = f"{_export_target_basename()}.png"
-        path, _ = QFileDialog.getSaveFileName(
-            dialog,
-            "Exportar grafo em PNG",
-            default_name,
-            "PNG (*.png)",
-        )
-        if not path:
-            return
-        pixmap = tree_graph_browser.grab()
-        if pixmap.isNull():
-            QMessageBox.warning(
-                dialog,
-                "Exportacao",
-                "Grafo indisponivel para exportacao em PNG.",
-            )
-            return
-        if not pixmap.save(path, "PNG"):
-            QMessageBox.warning(
-                dialog,
-                "Exportacao",
-                "Falha ao salvar o arquivo PNG.",
-            )
-
-    def _export_graph_svg() -> None:
-        graph_svg = str(export_state["svg"] or "")
-        if not graph_svg:
-            QMessageBox.warning(
-                dialog,
-                "Exportacao",
-                "Grafo indisponivel para exportacao em SVG.",
-            )
-            return
-        default_name = f"{_export_target_basename()}.svg"
-        path, _ = QFileDialog.getSaveFileName(
-            dialog,
-            "Exportar grafo em SVG",
-            default_name,
-            "SVG (*.svg)",
-        )
-        if not path:
-            return
-        try:
-            with open(path, "w", encoding="utf-8") as handle:
-                handle.write(graph_svg)
-        except OSError as exc:
-            logger.warning("Falha ao exportar grafo SVG: %s", exc)
-            QMessageBox.warning(
-                dialog,
-                "Exportacao",
-                "Falha ao salvar o arquivo SVG.",
-            )
-
-    def _export_graph_mermaid() -> None:
-        mermaid_text = str(export_state["mermaid"] or "")
-        if not mermaid_text:
-            QMessageBox.warning(
-                dialog,
-                "Exportacao",
-                "Mermaid indisponivel para exportacao.",
-            )
-            return
-        default_name = f"{_export_target_basename()}.mmd"
-        path, _ = QFileDialog.getSaveFileName(
-            dialog,
-            "Exportar Mermaid",
-            default_name,
-            "Mermaid (*.mmd);;Texto (*.txt)",
-        )
-        if not path:
-            return
-        try:
-            with open(path, "w", encoding="utf-8") as handle:
-                handle.write(mermaid_text)
-        except OSError as exc:
-            logger.warning("Falha ao exportar Mermaid: %s", exc)
-            QMessageBox.warning(
-                dialog,
-                "Exportacao",
-                "Falha ao salvar o arquivo Mermaid.",
-            )
-
-    def _show_graph_export_menu(global_pos) -> None:
-        menu = QMenu(dialog)
-        menu.addAction("Exportar PNG", _export_graph_png)
-        menu.addAction("Exportar SVG", _export_graph_svg)
-        menu.addAction("Exportar Mermaid", _export_graph_mermaid)
-        menu.exec(global_pos)
+    export_controller = DetailsGraphExportController(
+        dialog=dialog,
+        graph_widget=tree_graph_browser,
+        export_state=export_state,
+        file_dialog_cls=QFileDialog,
+        message_box_cls=QMessageBox,
+        menu_cls=QMenu,
+        logger=logger,
+    )
 
     def _refresh_graph_after_resize() -> None:
         graph_svg = str(export_state["svg"] or "")
@@ -2025,10 +1966,10 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
         tree_graph_text_browser.anchorClicked.connect(_handle_dialog_anchor)
     tree_graph_browser.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
     tree_graph_browser.customContextMenuRequested.connect(
-        lambda pos: _show_graph_export_menu(tree_graph_browser.mapToGlobal(pos))
+        lambda pos: export_controller.show_menu(tree_graph_browser.mapToGlobal(pos))
     )
     export_button.clicked.connect(
-        lambda: _show_graph_export_menu(
+        lambda: export_controller.show_menu(
             export_button.mapToGlobal(export_button.rect().bottomRight())
         )
     )
@@ -2059,46 +2000,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
     close_row.addWidget(close_button)
     close_row.addStretch(1)
     root_layout.addLayout(close_row)
-    screen_geometry = _get_dialog_screen_geometry(window)
-    if screen_geometry is not None:
-        safe_width = max(640, screen_geometry.width() - 24)
-        safe_height = max(480, screen_geometry.height() - 24)
-        window_height = 0
-        try:
-            window_height = int(window.height())
-        except Exception as exc:
-            logger.debug("Falha ao ler altura da janela principal: %s", exc)
-        desired_height = safe_height
-        if window_height > 0:
-            desired_height = min(
-                max(int(window_height * 0.72), DERIVADAS_DIALOG_MIN_HEIGHT),
-                safe_height,
-            )
-        dialog.setMinimumSize(
-            min(DERIVADAS_DIALOG_MIN_WIDTH, safe_width),
-            min(DERIVADAS_DIALOG_MIN_HEIGHT, safe_height),
-        )
-        dialog.setMaximumSize(safe_width, safe_height)
-        current_size = dialog.sizeHint()
-        target_width = min(
-            max(current_size.width(), DERIVADAS_DIALOG_MIN_WIDTH), safe_width
-        )
-        target_height = desired_height
-        if (
-            target_width != current_size.width()
-            or target_height != current_size.height()
-        ):
-            dialog.resize(target_width, target_height)
-        bottom_height = min(
-            max(
-                DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT,
-                int(target_height * 0.26),
-            ),
-            max(0, target_height - 240),
-        )
-        details_tab_splitter.setSizes(
-            [max(0, target_height - bottom_height), bottom_height]
-        )
+    _apply_details_dialog_geometry(window, dialog, details_tab_splitter)
     if tree_graph_label is not None:
         QTimer.singleShot(0, _refresh_graph_after_resize)
     dialog.exec()

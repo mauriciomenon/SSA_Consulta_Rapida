@@ -35,6 +35,25 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-05-15 13:08 - Details dialog export/render extraction residuals
+
+Escopo deste registro:
+1. Slice atual extraiu exportacao PNG/SVG/Mermaid e render SVG do dialogo de detalhes para `gui/ssa/details_graph_export.py`.
+2. Slice atual extraiu aplicacao de geometria do dialogo para `_apply_details_dialog_geometry`, preservando constantes e comportamento visual.
+3. Kluster manteve achados estruturais fora do patch de export/render:
+   - `gui/ssa/gui_details.py` ainda centraliza HTML, navegacao, cache e orquestracao Qt.
+   - `_format_details_html` ainda mistura resolucao de tema, dados e HTML.
+   - cache de series/indices de SSA ainda pode ter custo O(N) em miss ou troca de revisao.
+   - assinatura de render de detalhes ainda itera a serie selecionada.
+   - roteamento de lanes estreitas no grafo pode sobrepor arestas em casos visuais extremos.
+
+Pendente nao bloqueante:
+1. `NAO_BLOQUEANTE_DEFERIDO`: extrair formatacao HTML de detalhes para modulo proprio, mantendo contrato visual e links atuais.
+2. `NAO_BLOQUEANTE_DEFERIDO`: extrair navegacao/anchor handling do dialogo de detalhes para controller testavel.
+3. `NAO_BLOQUEANTE_DEFERIDO`: medir custo real de cache/index de SSA em navegacao por teclado e so entao trocar estrategia de materializacao.
+4. `NAO_BLOQUEANTE_DEFERIDO`: avaliar roteamento de lanes estreitas com evidencia visual antes de alterar o desenho do grafo.
+5. Motivo do deferimento: todos mudam area sensivel de renderizacao ou estrategia de cache; misturar com export/render aumentaria risco de regressao visual.
+
 ## Update 2026-05-14 13:39 - GUI cleanup residuals after dead-code refactor
 
 Escopo deste registro:

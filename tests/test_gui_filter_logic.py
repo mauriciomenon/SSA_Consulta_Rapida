@@ -5138,6 +5138,7 @@ class TestGUIFilterLogic:
     def test_normalize_ssa_value_handles_decimal_float_artifact(self):
         assert self.window._normalize_ssa_value("121911787.0") == "121911787"
         assert self.window._normalize_ssa_value(121911787.0) == "121911787"
+        assert self.window._normalize_ssa_value(1e20) == "100000000000000000000"
 
     def test_get_derivadas_for_ssa_accepts_excel_decimal_relation_id_artifact(self):
         df = pd.DataFrame(
