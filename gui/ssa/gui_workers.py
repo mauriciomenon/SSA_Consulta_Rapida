@@ -62,10 +62,7 @@ def _connect_signal(signal, slot, *, label: str) -> bool:
             try:
                 signal.connect(slot, _QT_QUEUED)
             except TypeError:
-                try:
-                    signal.connect(slot, type=_QT_QUEUED)
-                except TypeError:
-                    signal.connect(slot)
+                signal.connect(slot)
         else:
             signal.connect(slot)
         return True
@@ -705,7 +702,7 @@ def cleanup_window_workers_on_close(
             )
     if filter_worker_running:
         try:
-            window._cancel_active_filter_worker("closeEvent", wait_ms=3000)
+            window._cancel_active_filter_worker("closeEvent")
         except Exception as exc:
             logger.debug("Filter cleanup fallback in closeEvent: %s", exc)
             try:
@@ -918,7 +915,7 @@ def load_data(
         logger.warning("Falha ao invalidar request de filtro antes do load: %s", exc)
     try:
         if hasattr(window, "_cancel_active_filter_worker"):
-            window._cancel_active_filter_worker("load_data_new_dataset", wait_ms=0)
+            window._cancel_active_filter_worker("load_data_new_dataset")
     except Exception as exc:
         logger.warning("Falha ao cancelar worker de filtro antes do load: %s", exc)
     try:

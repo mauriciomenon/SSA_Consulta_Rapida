@@ -77,7 +77,7 @@ def test_mixin_methods_callable(window):
 
     filter_methods = [
         "initiate_filtering",
-        "_split_search_expression",
+        "_prepare_search_chunks",
         "_apply_column_filters",
         "clear_filter",
     ]

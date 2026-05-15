@@ -12,6 +12,7 @@ from armazenamento import database
 from core import app_logic
 from core.app_logic import filter_dataframe, get_filtered_data, parse_search_terms
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin
+from gui.ssa.search_refinement import can_reuse_refined_search
 from interface.table_printer import pretty_print_df
 
 
@@ -55,7 +56,8 @@ def _build_import_df(
     )
 
 
-def _fake_extract_transition(file_path: str, should_cancel=None):  # noqa: ARG001
+def _fake_extract_transition(file_path: str, should_cancel=None):
+    _ = should_cancel
     marker = Path(file_path).read_text(encoding="utf-8")
     if marker == "old":
         return _build_import_df(
@@ -72,6 +74,15 @@ def _fake_extract_transition(file_path: str, should_cancel=None):  # noqa: ARG00
         data_cadastro="2025-01-02 00:00:00",
         descricao_ssa="SSA atualizada",
     )
+
+
+def test_search_refinement_reuses_only_safe_simple_terms() -> None:
+    assert can_reuse_refined_search(["abc"], ["abcd"]) is True
+    assert can_reuse_refined_search(["abc"], ["abc", "extra"]) is True
+    assert can_reuse_refined_search(["=abc"], ["=abc"]) is True
+    assert can_reuse_refined_search(["=abc"], ["abcd"]) is False
+    assert can_reuse_refined_search(["abc"], ["!abcd"]) is False
+    assert can_reuse_refined_search(["~abc"], ["~abcd"]) is False
 
 
 def test_run_importer_logic_accepts_explicit_external_db_root(

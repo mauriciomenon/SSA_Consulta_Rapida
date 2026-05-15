@@ -74,8 +74,8 @@ def test_mixin_methods(window):
     assert hasattr(window, '_apply_column_filters'), "Falta _apply_column_filters"
     assert callable(window._apply_column_filters), "nao e callable"
 
-    assert hasattr(window, '_split_search_expression'), "Falta _split_search_expression"
-    assert callable(window._split_search_expression), "nao e callable"
+    assert hasattr(window, '_prepare_search_chunks'), "Falta _prepare_search_chunks"
+    assert callable(window._prepare_search_chunks), "nao e callable"
 
 
 def test_data_loading(window):
@@ -104,9 +104,9 @@ def test_filter_functionality(window):
 
     window.df_completo = test_data
 
-    # Testa _split_search_expression
-    result = window._split_search_expression("teste OU exemplo")
-    assert isinstance(result, list), "_split_search_expression deve retornar lista"
+    # Testa _prepare_search_chunks
+    result = window._prepare_search_chunks("teste OU exemplo")
+    assert isinstance(result, list), "_prepare_search_chunks deve retornar lista"
 
     # Testa _apply_column_filters
     filtered = window._apply_column_filters(test_data)

@@ -1716,7 +1716,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.data_loader_thread = None
         self._retired_data_loader_workers = []
         self.filter_thread = None
-        self._retired_filter_workers = []
         self._data_load_request_seq = 0
         self._active_data_load_request_id = 0
         self._data_revision = 0
@@ -5687,6 +5686,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         exc,
                     )
             self.persistent_filters.remove(filter_data)
+            if hasattr(self, "_invalidate_persistent_filter_index"):
+                self._invalidate_persistent_filter_index()
             try:
                 self._save_persistent_filters_file()
             except Exception as exc:
@@ -5790,7 +5791,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 hasattr(self, "_resize_recompute_timer")
                 and self._resize_recompute_timer is not None
             ):
-                self._resize_recompute_timer.start(300)
+                self._resize_recompute_timer.setInterval(300)
+                self._resize_recompute_timer.start()
             else:
                 QTimer.singleShot(
                     300,

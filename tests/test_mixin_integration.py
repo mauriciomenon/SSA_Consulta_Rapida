@@ -51,7 +51,7 @@ def test_mixin_methods():
         'clear_filter',
         '_apply_column_filters',
         '_build_column_filters_panel',
-        '_split_search_expression',
+        '_prepare_search_chunks',
         '_normalize_chunk_for_parse',
         '_format_search_display',
     ]

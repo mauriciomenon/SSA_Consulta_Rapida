@@ -97,8 +97,10 @@ class ColumnSelector(QWidget):
             fm = self.manage_button.fontMetrics()
             text_width = fm.horizontalAdvance(button_text)
             self.manage_button.setMinimumWidth(text_width + 36)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger(__name__).debug(
+                "Falha ao ajustar largura do resumo de colunas: %s", exc
+            )
 
     def get_selected_columns(self):
         return self.selected_internal_columns

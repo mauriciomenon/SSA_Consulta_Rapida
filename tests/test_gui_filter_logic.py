@@ -77,7 +77,7 @@ class TestGUIFilterLogic:
             "data_loader_meta": dict(gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META),
             "rescan_workers": list(gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS),
             "rescan_meta": dict(gui_ssa.GLOBAL_RETIRED_RESCAN_META),
-            "filter_workers": list(filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS),
+            "filter_workers": [],
             "max_data_loader_workers": gui_ssa.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
             "max_rescan_workers": gui_ssa.MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
             "max_filter_workers": filter_mixin.MAX_GLOBAL_RETIRED_FILTER_WORKERS,
@@ -86,7 +86,6 @@ class TestGUIFilterLogic:
         gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META.clear()
         gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.clear()
         gui_ssa.GLOBAL_RETIRED_RESCAN_META.clear()
-        filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS.clear()
         self._saved_filters_tmpdir = tempfile.TemporaryDirectory()
         self._saved_filters_path = os.path.join(
             self._saved_filters_tmpdir.name, "gui_saved_filters.json"
@@ -100,6 +99,7 @@ class TestGUIFilterLogic:
         self._load_patch = patch.object(SSAMainWindow, "load_data", lambda self: None)
         self._load_patch.start()
         self.window = SSAMainWindow()
+        self.window._filter_worker_registry = filter_mixin.DeferredFilterWorkerRegistry()
         # Mantém o patch ativo para impedir agendamento de carregamentos reais
         self.window.show()
 
@@ -146,6 +146,12 @@ class TestGUIFilterLogic:
     def _iter_panel_contexts(self):
         yield self._panel_context()
 
+    def _column_filter_cache_token(self, df: pd.DataFrame) -> str:
+        cached = self.window._column_filter_frame_tokens[id(df)]
+        cached_ref, cache_token = cached
+        assert cached_ref() is df
+        return cache_token
+
     def _set_filter_panel_tab(self, panel: str) -> dict[str, Any]:
         target_index = 1 if panel in {"filters", "advanced"} else 0
         ctx = self._panel_context()
@@ -177,17 +183,11 @@ class TestGUIFilterLogic:
             gui_ssa.GLOBAL_RETIRED_RESCAN_META.update(
                 self._retired_worker_globals_snapshot["rescan_meta"]
             )
-            filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS[:] = (
-                self._retired_worker_globals_snapshot["filter_workers"]
-            )
             gui_ssa.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS = (
                 self._retired_worker_globals_snapshot["max_data_loader_workers"]
             )
             gui_ssa.MAX_GLOBAL_RETIRED_RESCAN_WORKERS = (
                 self._retired_worker_globals_snapshot["max_rescan_workers"]
-            )
-            filter_mixin.MAX_GLOBAL_RETIRED_FILTER_WORKERS = (
-                self._retired_worker_globals_snapshot["max_filter_workers"]
             )
 
     def _extract_visible_ssa(self):
@@ -598,16 +598,14 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         first_context = self.window._build_filter_cache_context()
-        assert '"setor_executor": "MEL4"' in first_context
-        assert '"exclude_ste_sca": false' in first_context
+        assert first_context.startswith("sha256:")
 
         self.window._on_exclude_ste_sca_toggled(True)
         QApplication.processEvents()
 
         second_context = self.window._build_filter_cache_context()
         assert second_context != first_context
-        assert '"setor_executor": "MEL4"' in second_context
-        assert '"exclude_ste_sca": true' in second_context
+        assert second_context.startswith("sha256:")
 
         self.window._clear_all_filters_global()
         QApplication.processEvents()
@@ -1635,7 +1633,7 @@ class TestGUIFilterLogic:
             _, apply_btn, clear_btn, hide_btn = controls[label]
             assert apply_btn.text() == "Aplicar"
             assert clear_btn.text() == "Limpar"
-            assert hide_btn.text() == "Ocultar"
+            assert hide_btn.text() == "Ocultar vazio"
             assert not apply_btn.isHidden()
             assert not clear_btn.isHidden()
             assert not hide_btn.isHidden()
@@ -2661,7 +2659,7 @@ class TestGUIFilterLogic:
         executor_edit, executor_apply, _, _ = controls[executor_label]
         assert emissor_clear.text() == "Limpar"
         assert "limpa o valor" in (emissor_clear.toolTip() or "").casefold()
-        assert emissor_hide.text() == "Ocultar"
+        assert emissor_hide.text() == "Ocultar vazio"
         assert (
             "somente quando o filtro da coluna estiver vazio"
             in (emissor_hide.toolTip() or "").casefold()
@@ -2709,13 +2707,12 @@ class TestGUIFilterLogic:
 
         self.window._active_column_filters["descricao_ssa"] = "Teste"
         first_context = self.window._build_filter_cache_context()
-        assert '"descricao_ssa": "Teste"' in first_context
-        assert '"exclude_ste_sca": false' in first_context
+        assert first_context.startswith("sha256:")
 
         self.window._on_exclude_ste_sca_toggled(True)
         second_context = self.window._build_filter_cache_context()
         assert second_context != first_context
-        assert '"exclude_ste_sca": true' in second_context
+        assert second_context.startswith("sha256:")
 
         self.window._clear_all_filters_global()
         QApplication.processEvents()
@@ -2953,6 +2950,21 @@ class TestGUIFilterLogic:
         assert len(self.window.persistent_filters) == 1
         saved = self.window.persistent_filters[0]
         assert saved["state"]["active_column_filters"]["setor_executor"] == "MEL4"
+
+    def test_persistent_filters_reload_legacy_terms_without_state(self):
+        payload = {
+            "version": 1,
+            "filters": [{"name": "Legado", "terms": "Teste C"}],
+        }
+        with open(self._saved_filters_path, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle)
+
+        self.window.persistent_filters = []
+        self.window.load_persistent_filters()
+
+        assert self.window.persistent_filters == [
+            {"name": "Legado", "terms": "Teste C"}
+        ]
 
     def test_persistent_filter_tags_do_not_expand_search_row_width(self):
         long_name = "Filtro salvo com nome grande para testar largura " * 3
@@ -7399,6 +7411,15 @@ class TestGUIFilterLogic:
 
         assert filtered["numero_ssa"].tolist() == [1]
 
+    def test_column_filter_date_display_guard_accepts_iso_date_text(self):
+        assert (
+            self.window._should_match_date_display_filter(
+                "data_cadastro",
+                "2026-05-13",
+            )
+            is True
+        )
+
     def test_column_filter_date_display_exclusion_wins_across_raw_and_display(
         self,
     ):
@@ -7469,9 +7490,10 @@ class TestGUIFilterLogic:
         )
 
         assert first_series is second_series
+        cache_token = self._column_filter_cache_token(dated_df)
         assert getattr(self.window, "_column_filter_date_cache_scope", None) == (
             71,
-            id(dated_df),
+            cache_token,
         )
 
     def test_column_filter_date_display_series_invalidates_cache_on_revision_change(
@@ -7502,20 +7524,25 @@ class TestGUIFilterLogic:
 
         assert first_series is not second_series
         assert second_series.iloc[0] == "05/03/2025"
+        cache_token = self._column_filter_cache_token(dated_df)
         assert getattr(self.window, "_column_filter_date_cache_scope", None) == (
             82,
-            id(dated_df),
+            cache_token,
         )
 
-    def test_apply_column_filters_reduces_working_dataframe_between_columns(
+    def test_apply_column_filters_combines_masks_before_slicing_dataframe(
         self, monkeypatch
     ):
         tracked_lengths: list[tuple[str, int, str]] = []
         original_build_column_mask = self.window._build_column_mask
 
-        def _tracked_build_column_mask(series: pd.Series, raw: str):
+        def _tracked_build_column_mask(
+            series: pd.Series,
+            raw: str,
+            **kwargs,
+        ):
             tracked_lengths.append((str(series.name), len(series), str(raw)))
-            return original_build_column_mask(series, raw)
+            return original_build_column_mask(series, raw, **kwargs)
 
         monkeypatch.setattr(
             self.window,
@@ -7540,7 +7567,7 @@ class TestGUIFilterLogic:
             length for name, length, raw in tracked_lengths if name == "descricao_ssa"
         ]
         assert executor_calls == [len(self.base_df)]
-        assert descricao_calls == [1]
+        assert descricao_calls == [len(self.base_df)]
 
     def test_apply_column_filters_caches_second_column_from_base_dataframe(self):
         repeated_df = self.base_df.copy()
@@ -7557,9 +7584,10 @@ class TestGUIFilterLogic:
         filtered = self.window._apply_column_filters(repeated_df)
 
         assert filtered["numero_ssa"].tolist() == [3]
+        cache_token = self._column_filter_cache_token(repeated_df)
         assert set(self.window._column_filter_series_cache) == {
-            (id(repeated_df), "setor_executor"),
-            (id(repeated_df), "descricao_ssa"),
+            ((91, cache_token), "setor_executor"),
+            ((91, cache_token), "descricao_ssa"),
         }
 
     def test_apply_column_filters_reuses_normalized_series_on_same_revision(self):
@@ -7570,7 +7598,8 @@ class TestGUIFilterLogic:
         self.window._active_column_filters = {"setor_executor": "MEL4"}
 
         first_filtered = self.window._apply_column_filters(repeated_df)
-        first_key = (id(repeated_df), "setor_executor")
+        cache_token = self._column_filter_cache_token(repeated_df)
+        first_key = ((33, cache_token), "setor_executor")
         first_series = self.window._column_filter_series_cache[first_key]
 
         second_filtered = self.window._apply_column_filters(repeated_df)
@@ -7590,12 +7619,13 @@ class TestGUIFilterLogic:
         self.window._active_column_filters = {"setor_executor": "MEL4"}
 
         self.window._apply_column_filters(repeated_df)
-        first_key = (id(repeated_df), "setor_executor")
+        cache_token = self._column_filter_cache_token(repeated_df)
+        first_key = ((40, cache_token), "setor_executor")
         first_series = self.window._column_filter_series_cache[first_key]
 
         self.window._data_revision = 41
         self.window._apply_column_filters(repeated_df)
-        second_key = (id(repeated_df), "setor_executor")
+        second_key = ((41, cache_token), "setor_executor")
         second_series = self.window._column_filter_series_cache[second_key]
 
         assert first_series is not second_series
@@ -7614,8 +7644,10 @@ class TestGUIFilterLogic:
         self.window._apply_column_filters(first_df)
         self.window._apply_column_filters(second_df)
 
-        first_key = (id(first_df), "setor_executor")
-        second_key = (id(second_df), "setor_executor")
+        first_token = self._column_filter_cache_token(first_df)
+        second_token = self._column_filter_cache_token(second_df)
+        first_key = ((52, first_token), "setor_executor")
+        second_key = ((52, second_token), "setor_executor")
 
         assert first_key in self.window._column_filter_series_cache
         assert second_key in self.window._column_filter_series_cache
@@ -7628,7 +7660,7 @@ class TestGUIFilterLogic:
         self, monkeypatch
     ):
         monkeypatch.setattr(filter_mixin, "_FILTER_ALIAS_MAP_CACHE", None)
-        monkeypatch.setattr(filter_mixin, "_FILTER_ALIAS_MAP_CACHE_SIGNATURE", None)
+        monkeypatch.setattr(filter_mixin, "_FILTER_ALIAS_MAP_CACHE_LOADED", False)
         opened_paths: list[str] = []
         real_open = builtins.open
 
@@ -7740,13 +7772,16 @@ class TestGUIFilterLogic:
 
         assert "para 'Busca nova'" in self.window.status_label.text()
 
-    def test_on_filter_finished_reuses_filtered_dataframe_reference(self):
+    def test_on_filter_finished_uses_filtered_dataframe_result(self):
         self.window._active_filter_request_id = 22
         filtered = self.base_df.iloc[:1].copy()
 
         self.window.on_filter_finished(filtered, request_id=22)
 
-        assert self.window._df_last_search_filtered is filtered
+        pd.testing.assert_frame_equal(
+            self.window._df_last_search_filtered.reset_index(drop=True),
+            filtered.reset_index(drop=True),
+        )
 
     def test_clear_filter_invalidates_pending_async_result(self):
         self.window._filter_request_seq = 20
@@ -7831,7 +7866,7 @@ class TestGUIFilterLogic:
         assert self.window.load_button.isEnabled() is True
         assert self.window.search_button.isEnabled() is True
 
-    def test_initiate_filtering_sync_single_chunk_reuses_filtered_reference(
+    def test_initiate_filtering_sync_single_chunk_uses_filtered_result(
         self, monkeypatch
     ):
         self.window._sync_filtering = True
@@ -7847,9 +7882,12 @@ class TestGUIFilterLogic:
         self.window.initiate_filtering()
         QApplication.processEvents()
 
-        assert self.window._df_last_search_filtered is filtered
+        pd.testing.assert_frame_equal(
+            self.window._df_last_search_filtered.reset_index(drop=True),
+            filtered.reset_index(drop=True),
+        )
 
-    def test_initiate_filtering_fallback_reuses_filtered_reference(
+    def test_initiate_filtering_fallback_uses_filtered_result(
         self, monkeypatch
     ):
         self.window._sync_filtering = False
@@ -7866,7 +7904,10 @@ class TestGUIFilterLogic:
             self.window.initiate_filtering()
             QApplication.processEvents()
 
-        assert self.window._df_last_search_filtered is filtered
+        pd.testing.assert_frame_equal(
+            self.window._df_last_search_filtered.reset_index(drop=True),
+            filtered.reset_index(drop=True),
+        )
 
     def test_initiate_filtering_sync_deduplicates_identical_chunks(
         self, monkeypatch
@@ -7886,7 +7927,10 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         assert len(calls) == 1
-        assert self.window._df_last_search_filtered is filtered
+        pd.testing.assert_frame_equal(
+            self.window._df_last_search_filtered.reset_index(drop=True),
+            filtered.reset_index(drop=True),
+        )
 
     def test_initiate_filtering_fallback_deduplicates_identical_chunks(
         self, monkeypatch
@@ -7907,7 +7951,10 @@ class TestGUIFilterLogic:
             QApplication.processEvents()
 
         assert len(calls) == 1
-        assert self.window._df_last_search_filtered is filtered
+        pd.testing.assert_frame_equal(
+            self.window._df_last_search_filtered.reset_index(drop=True),
+            filtered.reset_index(drop=True),
+        )
 
     def test_initiate_filtering_sync_multi_chunk_deduplicates_overlaps_by_index(
         self, monkeypatch
@@ -7917,7 +7964,7 @@ class TestGUIFilterLogic:
 
         monkeypatch.setattr(
             self.window,
-            "_split_search_expression",
+            "_prepare_search_chunks",
             lambda _text: ["chunk-a", "chunk-b"],
         )
 
@@ -7941,10 +7988,13 @@ class TestGUIFilterLogic:
         self.window.search_input.setText("Teste A")
         repeated_df = self.base_df.iloc[[0, 0]].copy()
         repeated_df.index = [0, 1]
+        self.window.df_completo = repeated_df.copy()
+        self.window.df_exibido = repeated_df.copy()
+        self.window._df_last_search_filtered = repeated_df.copy()
 
         monkeypatch.setattr(
             self.window,
-            "_split_search_expression",
+            "_prepare_search_chunks",
             lambda _text: ["chunk-a", "chunk-b"],
         )
 
@@ -8090,8 +8140,7 @@ class TestGUIFilterLogic:
                 return None
 
         worker = _FakeWorker()
-        self.window._retired_filter_workers = []
-        filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS[:] = []
+        self.window._filter_worker_registry.clear()
 
         def _connect_side_effect(_signal, _slot, *, label):
             if label == "filter_worker.finished.release":
@@ -8104,8 +8153,7 @@ class TestGUIFilterLogic:
         ):
             self.window._retain_filter_worker_until_finished(worker)
 
-        assert worker not in self.window._retired_filter_workers
-        assert worker not in filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS
+        assert not self.window._filter_worker_registry.contains(worker)
 
     def test_close_event_cleans_filter_worker_with_centralized_cleanup(self):
         class _FakeSignal:
@@ -8144,7 +8192,7 @@ class TestGUIFilterLogic:
 
         assert event.isAccepted() is True
         assert worker.quit_called is True
-        assert worker.wait_called_ms == 3000
+        assert worker.wait_called_ms is None
         assert worker.deleted is True
         assert self.window.filter_thread is None
 
@@ -8176,7 +8224,7 @@ class TestGUIFilterLogic:
             self.window.closeEvent(event)
 
         assert event.isAccepted() is True
-        cancel_mock.assert_called_once_with("closeEvent", wait_ms=3000)
+        cancel_mock.assert_called_once_with("closeEvent")
         assert worker.quit_called is True
         assert worker.wait_called_ms == 3000
 
@@ -8260,18 +8308,18 @@ class TestGUIFilterLogic:
 
         previous_worker = _SlowWorker()
         self.window.filter_thread = previous_worker
-        self.window._retired_filter_workers = []
+        self.window._filter_worker_registry.clear()
 
         with patch("gui.mixins.filter_gui_ssa_mixin.FilterWorker", _NewWorker):
             self.window.initiate_filtering()
 
         assert previous_worker.quit_called is True
         assert previous_worker.wait_called_ms is None
-        assert previous_worker in self.window._retired_filter_workers
+        assert self.window._filter_worker_registry.contains(previous_worker)
 
         previous_worker.finish_now()
         assert previous_worker.deleted is True
-        assert previous_worker not in self.window._retired_filter_workers
+        assert not self.window._filter_worker_registry.contains(previous_worker)
 
     def test_close_event_cleans_data_loader_worker(self):
         class _FakeSignal:
@@ -8730,8 +8778,8 @@ class TestGUIFilterLogic:
                 self.finished.emit()
 
         worker = _SlowFilterWorker()
-        if worker in filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS:
-            filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS.remove(worker)
+        if self.window._filter_worker_registry.contains(worker):
+            self.window._filter_worker_registry.remove(worker)
         self.window.filter_thread = worker
 
         event = QCloseEvent()
@@ -8739,12 +8787,12 @@ class TestGUIFilterLogic:
 
         assert event.isAccepted() is True
         assert worker.quit_called is True
-        assert worker.wait_called_ms == 3000
-        assert worker in filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS
+        assert worker.wait_called_ms is None
+        assert self.window._filter_worker_registry.contains(worker)
 
         worker.finish_now()
         assert worker.deleted is True
-        assert worker not in filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS
+        assert not self.window._filter_worker_registry.contains(worker)
 
     def test_close_event_retains_slow_rescan_worker_globally_and_clears_active_ref(
         self,
@@ -9270,7 +9318,7 @@ class TestGUIFilterLogic:
 
         previous_filter_worker = _SlowFilterWorker()
         self.window.filter_thread = previous_filter_worker
-        self.window._retired_filter_workers = []
+        self.window._filter_worker_registry.clear()
 
         with (
             patch("gui.gui_ssa.os.path.exists", return_value=True),
@@ -9283,7 +9331,7 @@ class TestGUIFilterLogic:
         assert self.window._debounce_timer.isActive() is False
         assert previous_filter_worker.quit_called is True
         assert previous_filter_worker.wait_called_ms is None
-        assert previous_filter_worker in self.window._retired_filter_workers
+        assert self.window._filter_worker_registry.contains(previous_filter_worker)
 
     def test_load_data_keeps_slow_previous_worker_retained_until_finished(self):
         class _FakeSignal:
@@ -9578,7 +9626,7 @@ class TestGUIFilterLogic:
             def deleteLater(self):
                 return None
 
-        self.window._retired_filter_workers = []
+        self.window._filter_worker_registry.clear()
         self.window._filter_request_seq = 0
         slow_workers = []
 
@@ -9588,10 +9636,10 @@ class TestGUIFilterLogic:
                 slow_workers.append(slow)
                 self.window.filter_thread = slow
                 self.window.initiate_filtering()
-                assert slow in self.window._retired_filter_workers
+                assert self.window._filter_worker_registry.contains(slow)
                 slow.finish_now()
 
-        assert self.window._retired_filter_workers == []
+        assert self.window._filter_worker_registry.snapshot() == []
         assert self.window._active_filter_request_id == 10
         assert all(worker.quit_called for worker in slow_workers)
 
@@ -9655,13 +9703,13 @@ class TestGUIFilterLogic:
         with patch.object(self.window, "_cancel_active_filter_worker") as cancel_mock:
             self.window.clear_filter()
 
-        cancel_mock.assert_called_once_with("clear_filter", wait_ms=0)
+        cancel_mock.assert_called_once_with("clear_filter")
 
     def test_clear_all_filters_global_cancels_active_filter_worker(self):
         with patch.object(self.window, "_cancel_active_filter_worker") as cancel_mock:
             self.window._clear_all_filters_global()
 
-        cancel_mock.assert_called_once_with("clear_all_filters_global", wait_ms=0)
+        cancel_mock.assert_called_once_with("clear_all_filters_global")
 
     def test_schedule_sector_refresh_stops_pending_timer_when_not_materialized(self):
         self.window._responsavel_filters_materialized = False

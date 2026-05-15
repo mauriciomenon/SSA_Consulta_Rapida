@@ -9,12 +9,12 @@ Padrao de nomenclatura: funcao_pai_mixin.py
 """
 
 # Imports necessarios
-import copy
 import json
 import os
 import re
 from collections import OrderedDict
-from collections.abc import Callable
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -48,11 +48,6 @@ except ImportError:
     FilterWorker = cast(Any, None)
 
 try:
-    from gui.cache import FilterCache
-except ImportError:
-    FilterCache = cast(Any, None)
-
-try:
     from gui.widgets import FilterHelpDialog
 except ImportError:
     FilterHelpDialog = cast(Any, None)
@@ -60,8 +55,8 @@ except ImportError:
 # Imports do core
 from core.app_logic import FILTER_SEARCH_CACHE_ATTR, FILTER_SEARCH_TOKEN_ATTR
 from core.app_logic import filter_dataframe, parse_search_terms
-from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file
-from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS, get_gui_main_preferences_path
+from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
+from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS
 
 # Imports de gui helpers
 from gui.helpers.formatting_helpers import (
@@ -69,8 +64,58 @@ from gui.helpers.formatting_helpers import (
     normalize_chunk_for_parse,
 )
 from gui.ssa import gui_details as ssa_gui_details
+from gui.ssa.column_filter_engine import (
+    ColumnFilterCaches,
+    apply_column_filters,
+    get_column_filter_date_display_series,
+    should_match_date_display_filter,
+)
+from gui.ssa.filter_cache_context import (
+    build_filter_cache_context_from_parts,
+    build_filter_cache_parts,
+)
+from gui.ssa.filter_domain_rules import (
+    ADVANCED_FILTER_VISUAL_COLUMN_MAP as _ADVANCED_FILTER_VISUAL_COLUMN_MAP,
+)
+from gui.ssa.filter_domain_rules import (
+    EXCLUDED_TERMINAL_SUMMARY as _EXCLUDED_TERMINAL_SUMMARY,
+)
+from gui.ssa.filter_mask_logic import build_column_mask
+from gui.ssa.filter_profile_logic import (
+    NormalizedFilterProfile,
+    normalize_inline_executor_emissor_profile,
+    normalize_named_filter_profile,
+)
+from gui.ssa.filter_refresh_pipeline import apply_filter_refresh_pipeline
+from gui.ssa.filter_worker_lifecycle import (
+    MAX_GLOBAL_RETIRED_FILTER_WORKERS,
+    DeferredFilterWorkerRegistry,
+    FilterWorkerLifecycle,
+)
+from gui.ssa.filter_ui_state import FilterUiStatePresenter
+from gui.ssa.general_search_columns import build_gui_general_search_columns
+from gui.ssa.filter_saved_names import build_persistent_filter_name
+from gui.ssa.persistent_filters import (
+    PersistentFilterIndex,
+    build_persistent_filter_index,
+    get_gui_saved_filters_path,
+    load_persistent_filters_file,
+    persistent_filter_state_key,
+    save_persistent_filters_file,
+    sort_persistent_filters,
+)
 from gui.ssa.filter_status_manager import FilterStatusManager, FilterStatusPayload
-from shared.date_utils import parse_datetime_series_mixed
+from gui.ssa.filter_summary_entries import (
+    SummaryAction,
+    SummaryEntry,
+    build_advanced_summary_entries,
+    merge_summary_actions as _merge_summary_actions,
+    shorten_summary_label,
+)
+from gui.ssa.filter_summary_style import (
+    build_summary_button_stylesheet,
+)
+from gui.ssa.search_refinement import can_reuse_refined_search
 from utils.robust_logging import get_robust_logger
 
 # Imports de utils
@@ -79,289 +124,79 @@ from utils.themes import get_theme_roles
 # Module logger
 logger = get_robust_logger().get_logger(__name__, "gui")
 _FILTER_ALIAS_MAP_CACHE: dict[str, Any] | None = None
-_FILTER_ALIAS_MAP_CACHE_SIGNATURE: tuple[str, int | None] | None = None
+_FILTER_ALIAS_MAP_CACHE_LOADED = False
+_WHITESPACE_RE = re.compile(r"\s+")
+__all__ = [
+    "FilterGUISSAMixin",
+    "MAX_GLOBAL_RETIRED_FILTER_WORKERS",
+    "DeferredFilterWorkerRegistry",
+]
 
 
-def get_gui_saved_filters_path() -> str:
-    config_dir = os.path.dirname(get_gui_main_preferences_path())
-    return os.path.join(config_dir, "gui_saved_filters.json")
-_NESTED_QUANTIFIER_RE = re.compile(r"\((?:[^()]*[+*][^()]*)\)\s*[+*{]")
-_HEAVY_QUANTIFIER_CHAIN_RE = re.compile(r"(?:[+*]|\{[^}]*\}){3,}")
-_UNSAFE_REGEX_QUANTIFIER_RE = re.compile(r"(?<!\\)[+*?{]")
-_REGEX_META_CHAR_RE = re.compile(r"[*+?{}|()[\]]")
-_EXCLUDED_TERMINAL_STATUSES = frozenset({"SCA", "SES", "STE"})
-_EXCLUDED_TERMINAL_SUMMARY = "situacao!=SCA/SES/STE"
 _CLEAR_FILTER_HARD_RESET_CLICK_TARGET = 3
 _CLEAR_FILTER_HARD_RESET_WINDOW_SEC = 3.0
-_GUI_GENERAL_SEARCH_PRIORITY_COLUMNS = (
-    "numero_ssa",
-    "situacao",
-    "derivada_de",
-    "localizacao_codigo",
-    "descricao_localizacao",
-    "equipamento",
-    "descricao_ssa",
-    "descricao_execucao",
-    "setor_emissor",
-    "setor_executor",
-    "solicitante",
-    "responsavel_solicitante",
-    "responsavel_programacao",
-    "responsavel_execucao",
-    "responsavel_emissor",
-    "servico_origem",
-    "sistema_origem",
-    "arquivo_origem",
-    "justificativa",
-    "anomalia",
-    "situacao_espera",
-    "situacao_reprogramacao",
-    "situacao_de_desvio",
-    "atividade_especial",
-    "destino",
-    "origem",
-    "numero_ssa_relacionada_1",
-    "numero_ssa_relacionada_2",
-    "numero_ssa_relacionada_3",
-    "setor_emissor_relacionado_1",
-    "setor_emissor_relacionado_2",
-    "setor_executor_relacionado_1",
-    "setor_executor_relacionado_2",
-    "situacao_relacionada_1",
-    "situacao_relacionada_2",
-    "relacao",
-    "grau_prioridade",
-    "grau_prioridade_emissao",
-    "grau_prioridade_planejamento",
-    "prioridade_emissao",
-    "prioridade_planejamento",
-    "semana_cadastro",
-    "semana_programada",
-    "semana_executada",
-)
-_GUI_GENERAL_SEARCH_EXCLUDED_COLUMNS = frozenset(
-    {
-        "id",
-        "data_cadastro",
-        "data_planilha",
-        "execucao_simples",
-        "prazo_limite",
-        "prazo_limite_str",
-        "status_execucao_prazo",
-        "tempo_disponivel",
-        "data_limite",
-        "tempo_excedido",
-        "desde",
-        "tempo_total",
-        "desde_1",
-        "total_tempo_tpe_planejado",
-        "total_tempo_tex_planejado",
-        "total_tempo_tpo_planejado",
-        "total_horas_programadas",
-        "total_tempo_tpe_executada",
-        "num_reprogramacoes",
-        "execucao_parcial",
-        "registros_espera",
-        "num_reprobaciones",
-        "numero_desvios",
-        "ate",
-        "total_tempo_tex_executada",
-        "parciais",
-        "situacao_da_parcial",
-        "ate_1",
-        "ate_2",
-        "desde_2",
-        "total_tempo_tpo_executada",
-        "equipamento_retirado",
-        "sn_retirado",
-        "equipamento_instalado",
-        "sn_instalado",
-        "sn_extra",
-        "desativacao_da_localizacao",
-        "instalacao_estimada",
-        "executado",
-        "concluido",
-        "data_inicio_programada",
-        "data_programacao",
-        "data_inicio_reprogramada",
-        "data_reprogramacao",
-        "total_de_reprogramacoes",
-        "data_arquivo_origem",
-        "data_cadastro_str",
-    }
-)
-_GUI_GENERAL_SEARCH_AUTO_EXCLUDE_PREFIXES = (
-    "_",
-    "data_",
-    "tempo_",
-    "total_",
-    "sn_",
-)
-_GUI_GENERAL_SEARCH_AUTO_EXCLUDE_SUFFIXES = (
-    "_ts",
-    "_timestamp",
-    "_str",
-)
-_ADVANCED_FILTER_VISUAL_COLUMN_MAP = {
-    "setor_executor": ("setor_executor",),
-    "setor_executor_exclude_values": ("setor_executor",),
-    "setor_emissor": ("setor_emissor",),
-    "setor_emissor_exclude_values": ("setor_emissor",),
-    "divisao": ("divisao",),
-    "divisao_exclude_values": ("divisao",),
-    "situacao": ("situacao",),
-    "situacao_exclude_values": ("situacao",),
-    "solicitante": ("solicitante", "responsavel_solicitante"),
-    "solicitante_exclude_values": ("solicitante", "responsavel_solicitante"),
-    "responsavel_programacao": ("responsavel_programacao",),
-    "responsavel_programacao_exclude_values": ("responsavel_programacao",),
-    "responsavel_execucao": ("responsavel_execucao",),
-    "responsavel_execucao_exclude_values": ("responsavel_execucao",),
-    "prioridade_emissao_values": ("prioridade_emissao", "grau_prioridade_emissao"),
-    "prioridade_emissao_exclude_values": (
-        "prioridade_emissao",
-        "grau_prioridade_emissao",
-    ),
-    "prioridade_planejamento_values": (
-        "prioridade_planejamento",
-        "grau_prioridade_planejamento",
-    ),
-    "prioridade_planejamento_exclude_values": (
-        "prioridade_planejamento",
-        "grau_prioridade_planejamento",
-    ),
-    "ano_emissao": ("data_cadastro",),
-    "ano_emissao_values": ("data_cadastro",),
-    "ano_emissao_exclude_values": ("data_cadastro",),
-    "ano_execucao": ("data_programada",),
-    "ano_execucao_values": ("data_programada",),
-    "ano_execucao_exclude_values": ("data_programada",),
-    "semana_emissao_inicio": ("semana_cadastro",),
-    "semana_emissao_fim": ("semana_cadastro",),
-    "semana_execucao_inicio": ("semana_programada",),
-    "semana_execucao_fim": ("semana_programada",),
-    "derivada_has": ("derivada_de",),
-    "derivada_all_ste": ("derivada_de",),
-    "derivada_is": ("derivada_de",),
-}
-
-SummaryAction = dict[str, Any]
-SummaryEntry = dict[str, Any]
 
 
-def _is_gui_general_search_auto_excluded(column_name: str) -> bool:
-    normalized_name = str(column_name or "").strip()
-    if not normalized_name:
-        return True
-    if normalized_name in _GUI_GENERAL_SEARCH_EXCLUDED_COLUMNS:
-        return True
-    if normalized_name.startswith("semana_") or normalized_name.startswith(
-        "grau_prioridade"
-    ):
-        return False
-    if normalized_name.startswith("prioridade_"):
-        return False
-    for prefix in _GUI_GENERAL_SEARCH_AUTO_EXCLUDE_PREFIXES:
-        if normalized_name.startswith(prefix):
-            return True
-    for suffix in _GUI_GENERAL_SEARCH_AUTO_EXCLUDE_SUFFIXES:
-        if normalized_name.endswith(suffix):
-            return True
-    return False
+def _copy_filter_value(value: Any, *, depth: int = 0) -> Any:
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    if depth > 4:
+        return str(value)
+    if isinstance(value, dict):
+        return {
+            key: _copy_filter_value(item, depth=depth + 1)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_copy_filter_value(item, depth=depth + 1) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_copy_filter_value(item, depth=depth + 1) for item in value)
+    if isinstance(value, set):
+        return {
+            _copy_filter_value(item, depth=depth + 1)
+            for item in sorted(value, key=lambda item: str(item))
+        }
+    return value
 
 
-def _is_gui_general_search_auto_includable(series: pd.Series) -> bool:
-    return bool(
-        pd.api.types.is_string_dtype(series)
-        or pd.api.types.is_object_dtype(series)
-        or pd.api.types.is_categorical_dtype(series)
-    )
+def _copy_filter_mapping(value: Any) -> dict:
+    if not isinstance(value, dict):
+        return {}
+    return {key: _copy_filter_value(item) for key, item in value.items()}
 
 
-def build_gui_general_search_columns(df: pd.DataFrame | None) -> list[str]:
-    """
-    Build the GUI-owned general search contract from the current DataFrame.
-
-    The GUI keeps an explicit ordered base list for core business columns and
-    then appends additional textual columns that are eligible by rule. Date/time,
-    totals, timers, serials, cache fields, and other technical columns stay out
-    of the free-text search by default.
-    """
-    if not isinstance(df, pd.DataFrame) or df.empty and len(df.columns) == 0:
-        return []
-
-    non_null_columns: set[str] | None = None
-    try:
-        non_null_attr = df.attrs.get("ssa_non_null_cols")
-        if isinstance(non_null_attr, (list, tuple, set, frozenset)):
-            non_null_columns = {str(col) for col in non_null_attr if str(col)}
-    except Exception as exc:
-        logger.debug(
-            "Falha ao ler attrs de colunas nao nulas para busca geral: %s", exc
-        )
-
-    selected_columns: list[str] = []
-    seen_columns: set[str] = set()
-
-    for column_name in _GUI_GENERAL_SEARCH_PRIORITY_COLUMNS:
-        if non_null_columns is not None and column_name not in non_null_columns:
-            continue
-        if column_name in df.columns and column_name not in seen_columns:
-            selected_columns.append(column_name)
-            seen_columns.add(column_name)
-
-    for column_name in df.columns:
-        if column_name in seen_columns:
-            continue
-        if non_null_columns is not None and column_name not in non_null_columns:
-            continue
-        if _is_gui_general_search_auto_excluded(column_name):
-            continue
-        series = df[column_name]
-        if _is_gui_general_search_auto_includable(series):
-            selected_columns.append(column_name)
-            seen_columns.add(column_name)
-
-    return selected_columns
+@dataclass
+class SummaryRemovalPlan:
+    clear_search: bool = False
+    refresh_needed: bool = False
+    sync_advanced_ui: bool = False
+    sync_quick_combo: bool = False
+    global_status_reset_requested: bool = False
+    removal_column_names: list[str] = field(default_factory=list)
+    removal_advanced_keys: list[str] = field(default_factory=list)
 
 
-def _summary_week_range(start: Any, end: Any) -> str | None:
-    if start is None and end is None:
-        return None
-    if start is None:
-        return f"<= {end}"
-    if end is None:
-        return f">= {start}"
-    return f"{start}-{end}"
+class FilterRefreshTimer:
+    def __init__(self) -> None:
+        self.started = perf_counter()
+        self.timings = {
+            "advanced": 0.0,
+            "column": 0.0,
+            "exclude": 0.0,
+            "sort": 0.0,
+            "paginate": 0.0,
+            "render": 0.0,
+            "status_indicator": 0.0,
+            "summary": 0.0,
+            "status": 0.0,
+            "sync": 0.0,
+        }
 
-
-def _merge_summary_actions(
-    target: dict[str, SummaryEntry],
-    *,
-    text: str,
-    actions: list[SummaryAction],
-) -> None:
-    normalized_text = str(text or "").strip()
-    if not normalized_text:
-        return
-    entry = target.get(normalized_text)
-    if entry is None:
-        target[normalized_text] = {"text": normalized_text, "actions": list(actions)}
-        return
-    existing_actions = entry.setdefault("actions", [])
-    seen_signatures = {
-        json.dumps(action, sort_keys=True, ensure_ascii=True, default=str)
-        for action in existing_actions
-        if isinstance(action, dict)
-    }
-    for action in actions:
-        if not isinstance(action, dict):
-            continue
-        signature = json.dumps(action, sort_keys=True, ensure_ascii=True, default=str)
-        if signature in seen_signatures:
-            continue
-        existing_actions.append(action)
-        seen_signatures.add(signature)
+    def measure(self, name: str, callback):
+        started = perf_counter()
+        result = callback()
+        self.timings[name] = (perf_counter() - started) * 1000.0
+        return result
 
 
 def _qt_parent(obj: Any) -> QWidget | None:
@@ -399,10 +234,7 @@ def _connect_filter_signal(signal, slot, *, label: str) -> bool:
             try:
                 signal.connect(slot, queued_connection)
             except TypeError:
-                try:
-                    signal.connect(slot, type=queued_connection)
-                except TypeError:
-                    signal.connect(slot)
+                signal.connect(slot)
         else:
             signal.connect(slot)
         return True
@@ -411,9 +243,16 @@ def _connect_filter_signal(signal, slot, *, label: str) -> bool:
         return False
 
 
-# Retencao global defensiva para workers de filtro que sobreviverem ao ciclo da janela.
-GLOBAL_RETIRED_FILTER_WORKERS = []
-MAX_GLOBAL_RETIRED_FILTER_WORKERS = 64
+@contextmanager
+def _blocked_widget_signals(widget: Any, *, log_context: str):
+    try:
+        widget.blockSignals(True)
+        yield
+    finally:
+        try:
+            widget.blockSignals(False)
+        except Exception as exc:
+            logger.debug("Falha ao reativar sinais em %s: %s", log_context, exc)
 
 
 class FilterGUISSAMixin:
@@ -429,6 +268,7 @@ class FilterGUISSAMixin:
 
     def _safe_store_last_filter_state(self, reason: str = "") -> None:
         """Armazena snapshot do estado de filtros sem quebrar o fluxo da UI."""
+        self._filter_cache_context_dirty = True
         try:
             self._store_last_filter_state()
         except AttributeError as exc:
@@ -445,56 +285,62 @@ class FilterGUISSAMixin:
                 logger.warning("Falha ao salvar historico de filtros: %s", exc)
 
     def _iter_search_inputs(self):
-        """Itera pelo campo de busca vivo."""
-        try:
-            current = getattr(self, "search_input", None)
-            if current is not None:
-                yield current
-        except Exception as exc:
-            logger.debug("Falha ao obter campo de busca principal: %s", exc)
+        current = getattr(self, "search_input", None)
+        if _is_search_widget_valid(current):
+            yield current
 
     def _get_live_search_inputs_snapshot(self) -> list[Any]:
-        widgets: list[Any] = []
-        for widget in self._iter_search_inputs():
-            if not _is_search_widget_valid(widget):
+        return list(self._iter_search_inputs())
+
+    def _sync_search_inputs(
+        self,
+        text: str,
+        *,
+        exclude_widget: Any | None = None,
+        skip_if_any_focused: bool = False,
+        log_context: str = "sync_search_inputs",
+    ) -> bool:
+        normalized_text = str(text or "")
+        try:
+            debounce_timer = getattr(self, "_debounce_timer", None)
+            if debounce_timer is not None:
+                debounce_timer.stop()
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce durante %s: %s", log_context, exc)
+        widgets = self._get_live_search_inputs_snapshot()
+        skipped_focused = False
+        for widget in widgets:
+            if widget is exclude_widget:
                 continue
+            if skip_if_any_focused:
+                try:
+                    if widget.hasFocus():
+                        skipped_focused = True
+                        continue
+                except RuntimeError as exc:
+                    logger.debug(
+                        "Widget de busca invalido durante verificacao de foco: %s", exc
+                    )
+                    continue
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao verificar foco durante %s: %s", log_context, exc
+                    )
+                    continue
             try:
-                widget.objectName()
-            except RuntimeError:
-                continue
-            except Exception as exc:
+                if not _is_search_widget_valid(widget):
+                    continue
+                with _blocked_widget_signals(widget, log_context=log_context):
+                    widget.setText(normalized_text)
+            except RuntimeError as exc:
                 logger.debug(
-                    "Falha ao validar widget de busca ao montar snapshot: %s", exc
+                    "Widget de busca invalido durante %s: %s", log_context, exc
                 )
-            widgets.append(widget)
-        return widgets
+        return not skipped_focused
 
     def _set_search_text_across_tabs(self, text: str) -> None:
         """Aplica texto no campo de busca vivo."""
-        normalized_text = str(text or "")
-        for widget in self._get_live_search_inputs_snapshot():
-            blocked = False
-            try:
-                widget.blockSignals(True)
-                blocked = True
-                widget.setText(normalized_text)
-            except RuntimeError as exc:
-                logger.debug(
-                    "Widget de busca invalido durante sync global entre abas: %s", exc
-                )
-            finally:
-                if blocked:
-                    try:
-                        widget.blockSignals(False)
-                    except RuntimeError as exc:
-                        logger.debug(
-                            "Widget de busca destruido ao reativar sinais: %s", exc
-                        )
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao reativar sinais do campo de busca sincronizado: %s",
-                            exc,
-                        )
+        self._sync_search_inputs(text, log_context="set_search_text_across_tabs")
 
     def _has_any_active_filters(self) -> bool:
         has_search = False
@@ -594,25 +440,54 @@ class FilterGUISSAMixin:
 
     def _set_filter_ui_idle(self) -> None:
         """Garante estado visual de ociosidade após abortar/limpar filtros."""
+        self._filter_ui_state().set_idle()
+
+    def _set_checked_without_signal(
+        self,
+        widget: Any,
+        checked: bool,
+        *,
+        log_context: str,
+    ) -> None:
         try:
-            progress_bar = getattr(self, "progress_bar", None)
-            if progress_bar is not None:
-                progress_bar.setVisible(False)
+            with _blocked_widget_signals(widget, log_context=log_context):
+                widget.setChecked(bool(checked))
         except Exception as exc:
-            logger.debug(
-                "Falha ao ocultar progress bar em estado idle de filtro: %s", exc
+            logger.debug("Falha ao alterar checked em %s: %s", log_context, exc)
+
+    def _ask_yes_no(
+        self,
+        *,
+        title: str,
+        message: str,
+        default_no: bool = True,
+    ) -> bool:
+        buttons = getattr(QMessageBox, "StandardButton", None)
+        if buttons is not None:
+            yes_button = buttons.Yes
+            reply = QMessageBox.question(
+                _qt_parent(self),
+                title,
+                message,
+                yes_button | buttons.No,
+                buttons.No if default_no else buttons.Yes,
             )
-        for btn_attr in ("load_button", "search_button"):
-            try:
-                button = getattr(self, btn_attr, None)
-                if button is not None:
-                    button.setEnabled(True)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao habilitar botao %s em estado idle de filtro: %s",
-                    btn_attr,
-                    exc,
-                )
+            return reply == yes_button
+        reply = QMessageBox.question(_qt_parent(self), title, message)
+        return reply == getattr(QMessageBox, "Yes", reply)
+
+    def _filter_ui_state(self) -> FilterUiStatePresenter:
+        presenter = getattr(self, "_filter_ui_state_presenter", None)
+        if not isinstance(presenter, FilterUiStatePresenter):
+            presenter = FilterUiStatePresenter(
+                progress_bar=getattr(self, "progress_bar", None),
+                load_button=getattr(self, "load_button", None),
+                search_button=getattr(self, "search_button", None),
+                status_label=getattr(self, "status_label", None),
+                logger=logger,
+            )
+            self._filter_ui_state_presenter = presenter
+        return presenter
 
     def _invalidate_active_filter_request(self, reason: str = "") -> int:
         """Invalida resultados assíncronos pendentes para evitar sobrescrita tardia."""
@@ -628,24 +503,43 @@ class FilterGUISSAMixin:
             )
         return next_request_id
 
-    def _cancel_active_filter_worker(
-        self, reason: str = "", wait_ms: int = 1500
-    ) -> None:
-        """Cancela worker anterior antes de iniciar uma nova filtragem assíncrona."""
-        worker = getattr(self, "filter_thread", None)
-        if worker is None:
-            return
-        try:
-            self._cleanup_filter_worker(worker, wait_ms=wait_ms)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao cancelar worker ativo (%s): %s", reason or "sem_motivo", exc
+    def _filter_worker_lifecycle(self) -> FilterWorkerLifecycle:
+        controller = getattr(self, "_filter_worker_lifecycle_controller", None)
+        if not isinstance(controller, FilterWorkerLifecycle):
+            registry = getattr(self, "_filter_worker_registry", None)
+            if not isinstance(registry, DeferredFilterWorkerRegistry):
+                registry = DeferredFilterWorkerRegistry()
+                self._filter_worker_registry = registry
+            controller = FilterWorkerLifecycle(
+                logger,
+                _connect_filter_signal,
+                registry,
+                self._get_active_filter_worker,
+                self._clear_active_filter_worker_reference,
             )
-        finally:
-            if getattr(self, "filter_thread", None) is worker:
-                self.filter_thread = None
-        if reason:
-            logger.debug("Worker anterior cancelado (%s)", reason)
+            self._filter_worker_lifecycle_controller = controller
+        return controller
+
+    def _get_active_filter_worker(self):
+        return getattr(self, "filter_thread", None)
+
+    def _clear_active_filter_worker_reference(self, worker) -> None:
+        if getattr(self, "filter_thread", None) is worker:
+            self.filter_thread = None
+
+    def _cancel_active_filter_worker(self, reason: str = "") -> None:
+        """Cancela worker anterior antes de iniciar uma nova filtragem assíncrona."""
+        self._filter_worker_lifecycle().deactivate_active(reason)
+
+    def _abort_active_filtering(self, reason: str) -> int:
+        request_id = self._invalidate_active_filter_request(reason)
+        self._cancel_active_filter_worker(reason)
+        self._set_filter_ui_idle()
+        try:
+            self._debounce_timer.stop()
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce em %s: %s", reason, exc)
+        return request_id
 
     def _on_general_search_apply_clicked(self) -> None:
         logger.debug("Acao aplicar busca geral acionada")
@@ -653,7 +547,7 @@ class FilterGUISSAMixin:
 
     def _on_general_search_clear_clicked(self) -> None:
         logger.debug("Acao limpar busca geral acionada")
-        self.clear_filter()
+        self.clear_general_search()
         self._maybe_offer_hard_reset_after_repeated_clear_click()
 
     def _on_clear_all_filters_clicked(self) -> None:
@@ -713,7 +607,7 @@ class FilterGUISSAMixin:
         self._clear_filter_click_count = 0
         self._clear_filter_last_click_ts = 0.0
 
-    def _register_repeated_clear_click(self) -> bool:
+    def _update_and_check_repeated_clear_click(self) -> bool:
         now = perf_counter()
         try:
             last_click = float(getattr(self, "_clear_filter_last_click_ts", 0.0) or 0.0)
@@ -734,7 +628,7 @@ class FilterGUISSAMixin:
         return True
 
     def _maybe_offer_hard_reset_after_repeated_clear_click(self) -> None:
-        if not self._register_repeated_clear_click():
+        if not self._update_and_check_repeated_clear_click():
             return
         if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get(
             "SSA_NON_INTERACTIVE"
@@ -743,24 +637,11 @@ class FilterGUISSAMixin:
                 "Confirmacao de hard reset suprimida em ambiente nao interativo."
             )
             return
-        buttons = getattr(QMessageBox, "StandardButton", None)
         try:
-            if buttons is not None:
-                reply = QMessageBox.question(
-                    _qt_parent(self),
-                    "Limpar Filtros",
-                    "Voce clicou varias vezes em limpar filtros. Deseja resetar todos os filtros?",
-                    buttons.Yes | buttons.No,
-                    buttons.No,
-                )
-                accepted = reply == buttons.Yes
-            else:
-                reply = QMessageBox.question(
-                    _qt_parent(self),
-                    "Limpar Filtros",
-                    "Voce clicou varias vezes em limpar filtros. Deseja resetar todos os filtros?",
-                )
-                accepted = reply == getattr(QMessageBox, "Yes", reply)
+            accepted = self._ask_yes_no(
+                title="Limpar Filtros",
+                message="Voce clicou varias vezes em limpar filtros. Deseja resetar todos os filtros?",
+            )
         except Exception as exc:
             logger.debug(
                 "Falha ao exibir confirmacao de hard reset apos cliques repetidos: %s",
@@ -770,8 +651,49 @@ class FilterGUISSAMixin:
         if accepted:
             self._hard_reset_filters_state()
 
+    def _apply_general_search_terms(
+        self,
+        filter_source: pd.DataFrame,
+        unique_chunk_terms_lists: list[list[str]],
+        *,
+        default_mode: str,
+        general_search_columns: list[str],
+    ) -> pd.DataFrame:
+        if not unique_chunk_terms_lists:
+            return filter_source.copy(deep=False)
+
+        combined_mask = pd.Series(False, index=filter_source.index)
+        matched_any = False
+        for terms in unique_chunk_terms_lists:
+            parsed = parse_search_terms(terms, default_mode=default_mode)
+            chunk_df = filter_dataframe(
+                filter_source,
+                parsed,
+                search_columns=general_search_columns,
+            )
+            if chunk_df.empty:
+                continue
+            matched_any = True
+            combined_mask.loc[chunk_df.index] = True
+        if not matched_any:
+            return filter_source.iloc[0:0].copy()
+        if len(unique_chunk_terms_lists) == 1:
+            return filter_source.loc[combined_mask]
+        return filter_source.loc[combined_mask].reset_index(drop=True)
+
+    def _get_default_filter_mode(self) -> str:
+        if not hasattr(self, "_cached_default_mode"):
+            from gui.gui_config import GUI_MAIN_PREFERENCES
+
+            gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
+            self._cached_default_mode = gui_settings.get(
+                "default_filter_mode", "contains"
+            )
+        return str(self._cached_default_mode or "contains")
+
     def initiate_filtering(self):
         if self.df_completo.empty:
+            self._set_filter_ui_idle()
             QMessageBox.information(
                 _qt_parent(self), "Aviso", "Nenhum dado carregado para filtrar."
             )
@@ -784,8 +706,12 @@ class FilterGUISSAMixin:
             logger.debug("Falha ao parar debounce antes de iniciar filtragem: %s", exc)
         request_id = self._invalidate_active_filter_request("initiate_filtering")
 
-        search_text = self.search_input.text().strip()
-        raw_chunks = self._split_search_expression(search_text) if search_text else []
+        search_widget = getattr(self, "search_input", None)
+        if _is_search_widget_valid(search_widget):
+            search_text = str(cast(Any, search_widget).text() or "").strip()
+        else:
+            search_text = ""
+        raw_chunks = self._prepare_search_chunks(search_text) if search_text else []
         chunk_terms_lists = (
             [self._normalize_chunk_for_parse(chunk) for chunk in raw_chunks]
             if raw_chunks
@@ -839,30 +765,7 @@ class FilterGUISSAMixin:
                 and not getattr(self, "_exclude_ste_sca", False)
                 and not has_active_worker
             ):
-                remaining_current_terms = [
-                    str(term).strip().casefold()
-                    for term in current_terms
-                    if str(term).strip()
-                ]
-                refinement_ok = True
-                for previous_term in previous_terms:
-                    normalized_previous = str(previous_term).strip()
-                    if not normalized_previous:
-                        continue
-                    previous_key = normalized_previous.casefold()
-                    exact_only = normalized_previous[:1] in {"!", "=", "~"}
-                    matched_index = None
-                    for index, current_key in enumerate(remaining_current_terms):
-                        if current_key == previous_key or (
-                            not exact_only and current_key.startswith(previous_key)
-                        ):
-                            matched_index = index
-                            break
-                    if matched_index is None:
-                        refinement_ok = False
-                        break
-                    remaining_current_terms.pop(matched_index)
-                if refinement_ok:
+                if can_reuse_refined_search(previous_terms, current_terms):
                     filter_source_candidate = last_search_filtered
         except Exception as exc:
             logger.debug(
@@ -873,70 +776,23 @@ class FilterGUISSAMixin:
         self._active_filter_search_display = display_text
         self._active_filter_search_request_id = request_id
 
-        self.status_label.setText("Status: Filtrando dados...")
-        self.progress_bar.setVisible(True)
-        self.load_button.setEnabled(False)
-        self.search_button.setEnabled(False)
+        self._filter_ui_state().set_busy()
 
-        # Descobre default_mode nas configuracoes JSON (OTIMIZACAO: usando cache)
-        if not hasattr(self, "_cached_default_mode"):
-            from gui.gui_config import GUI_MAIN_PREFERENCES
-
-            gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
-            self._cached_default_mode = gui_settings.get(
-                "default_filter_mode", "contains"
-            )
-        default_mode = self._cached_default_mode
+        default_mode = self._get_default_filter_mode()
         filter_source = self._get_filter_source_dataframe(filter_source_candidate)
         general_search_columns = build_gui_general_search_columns(filter_source)
 
         # Modo síncrono (sem QThread) opcional para testes
         if getattr(self, "_sync_filtering", False):
             try:
-                if unique_chunk_terms_lists:
-                    frames = []
-                    for terms in unique_chunk_terms_lists:
-                        parsed = parse_search_terms(terms, default_mode=default_mode)
-                        frames.append(
-                            filter_dataframe(
-                                filter_source,
-                                parsed,
-                                search_columns=general_search_columns,
-                            )
-                        )
-                    if frames:
-                        if len(frames) == 1:
-                            df_filtrado = frames[0]
-                        else:
-                            merged_frames = pd.concat(
-                                frames, axis=0, ignore_index=False
-                            )
-                            df_filtrado = merged_frames.loc[
-                                ~merged_frames.index.duplicated(keep="first")
-                            ].reset_index(drop=True)
-                    else:
-                        df_filtrado = filter_source.copy(deep=False)
-                else:
-                    df_filtrado = filter_source.copy(deep=False)
+                df_filtrado = self._apply_general_search_terms(
+                    filter_source,
+                    unique_chunk_terms_lists,
+                    default_mode=default_mode,
+                    general_search_columns=general_search_columns,
+                )
                 self.on_filter_finished(df_filtrado, request_id=request_id)
-                # Em modo síncrono, garanta larguras válidas imediatamente após aplicar o filtro
-                try:
-                    self._ensure_nonzero_column_widths()
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao reforcar largura minima no filtro sincrono: %s", exc
-                    )
-                try:
-                    if (
-                        self.table_widget.columnCount() > 1
-                        and self.table_widget.columnWidth(1) == 0
-                    ):
-                        self.table_widget.setColumnWidth(1, 80)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao ajustar largura da coluna principal no filtro sincrono: %s",
-                        exc,
-                    )
+                self._apply_filter_result_width_safety("sync_filtering")
             except Exception as e:  # noqa: BLE001
                 self.on_filter_error(
                     f"Erro ao filtrar dados: {e}", request_id=request_id
@@ -945,7 +801,7 @@ class FilterGUISSAMixin:
                 self.on_filter_finished_cleanup(None, request_id=request_id)
             return
 
-        self._cancel_active_filter_worker("initiate_filtering_new_request", wait_ms=0)
+        self._cancel_active_filter_worker("initiate_filtering_new_request")
 
         # Fallback defensivo para ambientes sem worker assíncrono disponível
         if FilterWorker is None:
@@ -953,31 +809,12 @@ class FilterGUISSAMixin:
                 "FilterWorker indisponivel; aplicando filtro em modo sincrono"
             )
             try:
-                if unique_chunk_terms_lists:
-                    frames = []
-                    for terms in unique_chunk_terms_lists:
-                        parsed = parse_search_terms(terms, default_mode=default_mode)
-                        frames.append(
-                            filter_dataframe(
-                                filter_source,
-                                parsed,
-                                search_columns=general_search_columns,
-                            )
-                        )
-                    if frames:
-                        if len(frames) == 1:
-                            df_filtrado = frames[0]
-                        else:
-                            merged_frames = pd.concat(
-                                frames, axis=0, ignore_index=False
-                            )
-                            df_filtrado = merged_frames.loc[
-                                ~merged_frames.index.duplicated(keep="first")
-                            ].reset_index(drop=True)
-                    else:
-                        df_filtrado = filter_source.copy(deep=False)
-                else:
-                    df_filtrado = filter_source.copy(deep=False)
+                df_filtrado = self._apply_general_search_terms(
+                    filter_source,
+                    unique_chunk_terms_lists,
+                    default_mode=default_mode,
+                    general_search_columns=general_search_columns,
+                )
                 self.on_filter_finished(df_filtrado, request_id=request_id)
             except Exception as e:  # noqa: BLE001
                 self.on_filter_error(
@@ -1018,19 +855,13 @@ class FilterGUISSAMixin:
             logger.warning(
                 "Falha ao conectar sinais criticos de filtro; abortando inicio do worker."
             )
+            self._cleanup_filter_worker(worker)
+            self._clear_active_filter_worker_reference(worker)
             self.on_filter_error(
                 "Falha ao iniciar filtro: conexoes de sinais indisponiveis.",
                 request_id=request_id,
             )
-            self.on_filter_finished_cleanup(worker, request_id=request_id)
             return
-        # Garante destruição segura do objeto thread após terminar
-        if not _connect_filter_signal(
-            worker.finished,
-            worker.deleteLater,
-            label="filter_worker.finished.deleteLater",
-        ):
-            logger.debug("Falha ao conectar deleteLater no worker de filtro atual.")
         worker.start()
 
     def on_filter_finished(
@@ -1047,7 +878,9 @@ class FilterGUISSAMixin:
             return
         try:
             if not df_filtrado.empty and "numero_ssa" in df_filtrado.columns:
-                df_filtrado.sort_values("numero_ssa", ascending=False, inplace=True)
+                df_filtrado = df_filtrado.sort_values(
+                    "numero_ssa", ascending=False
+                )
                 df_filtrado.attrs["ssa_sorted_for_display"] = True
         except Exception as exc:
             logger.warning(
@@ -1067,6 +900,10 @@ class FilterGUISSAMixin:
             effective_request_id is not None
             and effective_request_id == current_search_request_id
         ):
+            pending_display = getattr(self, "_pending_search_display", None)
+            pending_display_text = str(pending_display or "").strip()
+            if pending_display_text:
+                self._active_filter_search_display = pending_display_text
             search_text = str(
                 getattr(self, "_active_filter_search_display", "") or ""
             ).strip()
@@ -1111,11 +948,7 @@ class FilterGUISSAMixin:
                 "table_widget indisponivel no fim de on_filter_finished; pulando ajustes de largura."
             )
             return
-        # Reforça reaplicação de larguras após busca para evitar colunas zeradas em headless/CI
-        try:
-            self._ensure_nonzero_column_widths()
-        except Exception as exc:
-            logger.debug("Falha ao reforcar largura minima apos filtro: %s", exc)
+        self._apply_filter_result_width_safety("filter_finished", deferred=True)
         # Recalcula e aplica larguras com base no slice atual exibido para garantir consistência imediata
         try:
             if hasattr(self, "df_para_tabela") and not self.df_para_tabela.empty:
@@ -1123,25 +956,6 @@ class FilterGUISSAMixin:
                 self._apply_computed_widths_only()
         except Exception as exc:
             logger.debug("Falha ao recalcular/aplicar larguras apos filtro: %s", exc)
-        # Garantia específica: coluna 1 (primeira após '#') nunca deve ficar com largura 0
-        try:
-            if (
-                self.table_widget.columnCount() > 1
-                and self.table_widget.columnWidth(1) == 0
-            ):
-                self.table_widget.setColumnWidth(1, 80)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao aplicar largura de seguranca na coluna principal: %s", exc
-            )
-        # Agenda um ajuste seguro pós-loop de eventos
-        try:
-            QTimer.singleShot(0, lambda: self._set_safe_width_for_col_index(1, 80))
-        except Exception as exc:
-            logger.debug(
-                "Falha ao agendar ajuste deferido de largura da coluna principal: %s",
-                exc,
-            )
         self._consume_pending_jump_to_ssa(effective_request_id)
 
     def on_filter_error(self, error_msg: str, request_id: int | None = None):
@@ -1169,7 +983,7 @@ class FilterGUISSAMixin:
             logger.debug("PYTEST_CURRENT_TEST set; skipping modal filter error dialog.")
         else:
             QMessageBox.critical(_qt_parent(self), "Erro de Filtro", error_msg)
-        self.status_label.setText("Status: Erro ao aplicar filtro.")
+        self._filter_ui_state().set_error()
 
     def _recover_pending_jump_after_filter_error(
         self, pending_jump: dict[str, Any], error_msg: str, request_id: int | None
@@ -1189,13 +1003,7 @@ class FilterGUISSAMixin:
             return False
         try:
             filter_source = self._get_filter_source_dataframe()
-            default_mode = getattr(self, "_cached_default_mode", None)
-            if not default_mode:
-                from gui.gui_config import GUI_MAIN_PREFERENCES
-
-                gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
-                default_mode = gui_settings.get("default_filter_mode", "contains")
-                self._cached_default_mode = default_mode
+            default_mode = self._get_default_filter_mode()
             parsed = parse_search_terms([f"={numero_ssa}"], default_mode=default_mode)
             general_search_columns = build_gui_general_search_columns(filter_source)
             df_filtrado = filter_dataframe(
@@ -1247,148 +1055,70 @@ class FilterGUISSAMixin:
                 exc,
             )
 
-    def _retain_filter_worker_until_finished(self, worker) -> None:
-        if worker is None:
-            return
-        retired = getattr(self, "_retired_filter_workers", None)
-        if retired is None:
-            retired = []
-            self._retired_filter_workers = retired
-        if worker in retired:
-            return
-        retired.append(worker)
-        if worker not in GLOBAL_RETIRED_FILTER_WORKERS:
-            GLOBAL_RETIRED_FILTER_WORKERS.append(worker)
+    def _apply_filter_result_width_safety(
+        self, context: str, *, deferred: bool = False
+    ) -> None:
         try:
-            self._prune_retired_filter_workers()
+            self._ensure_nonzero_column_widths()
+        except Exception as exc:
+            logger.debug("Falha ao reforcar largura minima em %s: %s", context, exc)
+        try:
+            self._apply_safe_width_for_main_column()
         except Exception as exc:
             logger.debug(
-                "Falha ao podar lista de workers de filtro aposentados: %s", exc
+                "Falha ao aplicar largura de seguranca em %s: %s",
+                context,
+                exc,
             )
-
-        def _release_worker_ref(w=worker):
-            try:
-                if w in self._retired_filter_workers:
-                    self._retired_filter_workers.remove(w)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao remover worker da lista local de aposentados: %s", exc
-                )
-            try:
-                if w in GLOBAL_RETIRED_FILTER_WORKERS:
-                    GLOBAL_RETIRED_FILTER_WORKERS.remove(w)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao remover worker da lista global de aposentados: %s", exc
-                )
-            try:
-                self._prune_retired_filter_workers()
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao podar lista de workers de filtro apos release: %s", exc
-                )
-
-        if not _connect_filter_signal(
-            worker.finished,
-            _release_worker_ref,
-            label="filter_worker.finished.release",
-        ):
+        if not deferred:
+            return
+        try:
+            QTimer.singleShot(0, lambda: self._apply_safe_width_deferred(context))
+        except Exception as exc:
             logger.debug(
-                "Falha ao conectar release de worker finalizado; liberando referencia imediato."
+                "Falha ao agendar largura de seguranca em %s: %s",
+                context,
+                exc,
             )
-            _release_worker_ref()
-        if not _connect_filter_signal(
-            worker.finished,
-            worker.deleteLater,
-            label="filter_worker.finished.deleteLater",
-        ):
-            logger.debug("Falha ao conectar deleteLater do worker de filtro.")
+
+    def _apply_safe_width_deferred(self, context: str) -> None:
+        try:
+            if sip is not None and sip.isdeleted(cast(Any, self)):
+                return
+        except Exception as exc:
+            logger.debug(
+                "Falha ao verificar janela antes da largura deferida em %s: %s",
+                context,
+                exc,
+            )
+            return
+        try:
+            self._apply_safe_width_for_main_column()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao aplicar largura deferida em %s: %s",
+                context,
+                exc,
+            )
+
+    def _apply_safe_width_for_main_column(self) -> None:
+        table_widget = getattr(self, "table_widget", None)
+        if table_widget is None or table_widget.columnCount() <= 1:
+            return
+        if table_widget.columnWidth(1) == 0:
+            self._set_safe_width_for_col_index(1, 80)
+
+    def _retain_filter_worker_until_finished(self, worker) -> None:
+        self._filter_worker_lifecycle().retain_until_finished(worker)
 
     def _is_filter_worker_running(self, worker) -> bool:
-        if worker is None:
-            return False
-        is_running = False
-        try:
-            if hasattr(worker, "isRunning"):
-                is_running = bool(worker.isRunning())
-        except Exception as exc:
-            logger.debug("Falha ao verificar estado do worker de filtro: %s", exc)
-            return False
-        return is_running
+        return self._filter_worker_lifecycle().is_running(worker)
 
     def _prune_retired_filter_workers(self) -> None:
-        retired_local = list(getattr(self, "_retired_filter_workers", []) or [])
-        if retired_local:
-            self._retired_filter_workers = [
-                w for w in retired_local if self._is_filter_worker_running(w)
-            ]
-        else:
-            self._retired_filter_workers = []
+        self._filter_worker_lifecycle().prune()
 
-        running_global = [
-            w
-            for w in GLOBAL_RETIRED_FILTER_WORKERS
-            if self._is_filter_worker_running(w)
-        ]
-        if len(running_global) > MAX_GLOBAL_RETIRED_FILTER_WORKERS:
-            running_global = running_global[-MAX_GLOBAL_RETIRED_FILTER_WORKERS:]
-        GLOBAL_RETIRED_FILTER_WORKERS[:] = running_global
-
-    def _cleanup_filter_worker(self, worker, wait_ms: int = 1500) -> bool:
-        if worker is None:
-            return True
-        try:
-            try:
-                worker.filter_finished.disconnect()
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao desconectar filter_finished do worker de filtro: %s", exc
-                )
-            try:
-                worker.error_occurred.disconnect()
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao desconectar error_occurred do worker de filtro: %s", exc
-                )
-            try:
-                worker.finished.disconnect()
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao desconectar finished do worker de filtro: %s", exc
-                )
-            still_running = False
-            try:
-                if hasattr(worker, "cancel"):
-                    worker.cancel()
-                elif hasattr(worker, "requestInterruption"):
-                    worker.requestInterruption()
-                if hasattr(worker, "isRunning") and worker.isRunning():
-                    worker.quit()
-                    if int(wait_ms or 0) > 0:
-                        worker.wait(int(wait_ms))
-                still_running = bool(
-                    hasattr(worker, "isRunning") and worker.isRunning()
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao solicitar encerramento do worker de filtro: %s", exc
-                )
-                still_running = True
-            if still_running:
-                self._retain_filter_worker_until_finished(worker)
-                return False
-            try:
-                worker.deleteLater()
-            except Exception as exc:
-                logger.debug("Falha ao chamar deleteLater no worker de filtro: %s", exc)
-            try:
-                self._prune_retired_filter_workers()
-            except Exception as exc:
-                logger.debug("Falha ao podar workers de filtro apos cleanup: %s", exc)
-        except Exception as exc:
-            logger.warning("Falha durante cleanup do worker de filtro: %s", exc)
-            return False
-        return True
+    def _cleanup_filter_worker(self, worker) -> bool:
+        return self._filter_worker_lifecycle().cleanup(worker)
 
     def on_filter_finished_cleanup(self, worker=None, request_id: int | None = None):
         """Limpa estado pós-thread de filtragem com checagens defensivas.
@@ -1404,45 +1134,19 @@ class FilterGUISSAMixin:
         )
         if is_stale:
             self._cleanup_filter_worker(worker)
-            if worker is not None and getattr(self, "filter_thread", None) is worker:
-                self.filter_thread = None
             try:
                 self._prune_retired_filter_workers()
             except Exception as exc:
                 logger.debug(
                     "Falha ao podar workers de filtro em cleanup obsoleto: %s", exc
-                )
+            )
             return
-        # Debug trace para investigação de estabilidade em testes headless
         try:
-            progress_bar = getattr(self, "progress_bar", None)
-            if progress_bar is not None:
-                try:
-                    progress_bar.setVisible(False)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao ocultar progress bar em cleanup de filtro: %s", exc
-                    )
-            for btn_attr in ("load_button", "search_button"):
-                btn = getattr(self, btn_attr, None)
-                if btn is not None:
-                    try:
-                        btn.setEnabled(True)
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao habilitar botao %s em cleanup de filtro: %s",
-                            btn_attr,
-                            exc,
-                        )
             target_worker = (
                 worker if worker is not None else getattr(self, "filter_thread", None)
             )
             self._cleanup_filter_worker(target_worker)
-            if (
-                target_worker is not None
-                and getattr(self, "filter_thread", None) is target_worker
-            ):
-                self.filter_thread = None
+            self._filter_ui_state().set_cleanup()
             try:
                 self._prune_retired_filter_workers()
             except Exception as exc:
@@ -1450,36 +1154,25 @@ class FilterGUISSAMixin:
         except Exception as exc:
             # Nunca propagar exceção daqui; log mínimo opcional futuro
             logger.warning("Falha inesperada no cleanup final de filtro: %s", exc)
-            self.filter_thread = None
+            self._clear_active_filter_worker_reference(
+                worker if worker is not None else getattr(self, "filter_thread", None)
+            )
 
-    def clear_filter(self):
+    def clear_general_search(self, *, reason: str = "clear_general_search"):
         """Limpa apenas a busca geral e reaplica filtros ativos."""
-        self._safe_store_last_filter_state("clear_filter")
-        self._invalidate_active_filter_request("clear_filter")
-        self._cancel_active_filter_worker("clear_filter", wait_ms=0)
-        self._set_filter_ui_idle()
-        try:
-            self._debounce_timer.stop()
-        except Exception as exc:
-            logger.debug("Falha ao parar debounce em clear_filter: %s", exc)
+        self._safe_store_last_filter_state(reason)
+        self._abort_active_filtering(reason)
         try:
             self._set_search_text_across_tabs("")
         except Exception as exc:
             logger.warning(
-                "Falha ao sincronizar campos de busca no clear_filter: %s", exc
+                "Falha ao sincronizar campos de busca em clear_general_search: %s", exc
             )
-            try:
-                self.search_input.blockSignals(True)
+            with _blocked_widget_signals(
+                self.search_input, log_context="clear_general_search"
+            ):
                 self.search_input.clear()
                 self.search_input.setText("")
-            finally:
-                try:
-                    self.search_input.blockSignals(False)
-                except Exception as unblock_exc:
-                    logger.debug(
-                        "Falha ao reativar sinais do campo de busca apos clear_filter: %s",
-                        unblock_exc,
-                    )
         self._pending_search_display = None
         self._active_filter_search_display = ""
         self._active_filter_search_request_id = None
@@ -1497,41 +1190,14 @@ class FilterGUISSAMixin:
                 "Falha ao atualizar resumo de filtros em clear_filter: %s", exc
             )
 
+    def clear_filter(self):
+        """Compatibility alias for callers that clear only the general search."""
+        self.clear_general_search(reason="clear_filter")
+
     # --- Ordenaçção por clique no cabeçalho ---
 
     def _on_search_text_changed(self, _text: str):
         """Reinicia o temporizador de debounce ao digitar na busca."""
-        try:
-            current_widget = getattr(self, "search_input", None)
-            normalized_text = str(_text or "")
-            for widget in self._get_live_search_inputs_snapshot():
-                if widget is current_widget:
-                    continue
-                blocked = False
-                try:
-                    widget.blockSignals(True)
-                    blocked = True
-                    widget.setText(normalized_text)
-                except RuntimeError as exc:
-                    logger.debug(
-                        "Widget de busca invalido durante sincronizacao entre abas: %s",
-                        exc,
-                    )
-                finally:
-                    if blocked:
-                        try:
-                            widget.blockSignals(False)
-                        except RuntimeError as exc:
-                            logger.debug(
-                                "Widget de busca destruido ao reativar sinais: %s", exc
-                            )
-                        except Exception as exc:
-                            logger.debug(
-                                "Falha ao reativar sinais do campo de busca sincronizado: %s",
-                                exc,
-                            )
-        except Exception as exc:
-            logger.debug("Falha ao sincronizar texto de busca entre abas: %s", exc)
         # Chamar start() novamente reinicia o QTimer automaticamente
         try:
             self._debounce_timer.start()
@@ -1675,8 +1341,8 @@ class FilterGUISSAMixin:
             "Prog.": "Semana programada",
             "Sem. Cad.": "Semana cadastro",
             "Prio.": "Prioridade",
-            "Prio. Emissao": "Prioridade emissao",
-            "Prio. Planej.": "Prioridade planejamento",
+            "Prio. Emissao": "Prioridade Emissao",
+            "Prio. Planej.": "Prioridade Planejamento",
             "Resp. Prog.": "Responsavel programacao",
             "Resp. Exec.": "Responsavel execucao",
         }
@@ -1751,6 +1417,232 @@ class FilterGUISSAMixin:
         self._build_column_filters_panel()
         self._refresh_after_filter_change()
 
+    def _build_column_filter_row_widget(
+        self,
+        col: str,
+        term: Any,
+        min_label_column_width: int,
+    ) -> QWidget:
+        row_pool = getattr(self, "_column_filter_row_pool", None)
+        if not isinstance(row_pool, dict):
+            row_pool = {}
+            self._column_filter_row_pool = row_pool
+        full_name = self._expand_column_alias_for_filter(col)
+        try:
+            display_text = self._format_column_filter_display_value(
+                str(term), column=col
+            )
+        except Exception:
+            display_text = str(term)
+        pooled = row_pool.get(col)
+        if isinstance(pooled, dict):
+            row_w = pooled.get("row_widget")
+            name_lbl = pooled.get("label")
+            term_box = pooled.get("input")
+            if (
+                isinstance(row_w, QWidget)
+                and isinstance(name_lbl, QLabel)
+                and isinstance(term_box, QLineEdit)
+            ):
+                name_lbl.setText(full_name)
+                self._configure_column_filter_label(
+                    name_lbl, col, full_name, min_label_column_width
+                )
+                with _blocked_widget_signals(
+                    term_box, log_context=f"reuse_column_filter_{col}"
+                ):
+                    term_box.setText(display_text)
+                self._column_filter_labels[col] = name_lbl
+                self._column_filter_inputs[col] = term_box
+                row_w.setVisible(True)
+                return row_w
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(4)
+        name_lbl = QLabel(full_name)
+        self._column_filter_labels[col] = name_lbl
+        self._configure_column_filter_label(name_lbl, col, full_name, min_label_column_width)
+        term_box = QLineEdit(display_text)
+        self._column_filter_inputs[col] = term_box
+        self._configure_column_filter_input(term_box, col)
+        self._apply_filter_widget_theme(name_lbl, term_box)
+        apply_btn = self._build_column_filter_button("Aplicar", col)
+        clear_btn = self._build_column_filter_button(
+            "Limpar",
+            col,
+            tooltip="Limpa o valor desta coluna e reaplica os filtros.",
+        )
+        hide_btn = self._build_column_filter_button(
+            "Ocultar vazio",
+            col,
+            tooltip="Oculta a linha somente quando o filtro da coluna estiver vazio.",
+        )
+        self._connect_column_filter_row_actions(col, term_box, apply_btn, clear_btn, hide_btn)
+        row.addWidget(name_lbl)
+        row.addWidget(term_box, 1)
+        row.addWidget(apply_btn)
+        row.addWidget(clear_btn)
+        row.addWidget(hide_btn)
+        row_w = QWidget()
+        row_w.setLayout(row)
+        row_pool[col] = {
+            "row_widget": row_w,
+            "label": name_lbl,
+            "input": term_box,
+            "apply": apply_btn,
+            "clear": clear_btn,
+            "hide": hide_btn,
+        }
+        return row_w
+
+    def _configure_column_filter_label(
+        self,
+        label: QLabel,
+        col: str,
+        full_name: str,
+        min_label_column_width: int,
+    ) -> None:
+        try:
+            width_cache = getattr(self, "_column_filter_label_width_cache", None)
+            if not isinstance(width_cache, dict):
+                width_cache = {}
+                self._column_filter_label_width_cache = width_cache
+            label_font = label.font()
+            cache_key = (
+                str(full_name),
+                int(min_label_column_width),
+                label_font.family(),
+                int(label_font.pointSize()),
+                int(label_font.weight()),
+            )
+            dynamic_width = width_cache.get(cache_key)
+            if not isinstance(dynamic_width, int):
+                label_metrics = label.fontMetrics()
+                desired_width = int(label_metrics.horizontalAdvance(full_name) + 16)
+                dynamic_width = max(90, min(260, desired_width))
+                width_cache[cache_key] = dynamic_width
+            label.setMinimumWidth(max(min_label_column_width, dynamic_width))
+        except Exception as exc:
+            logger.debug(
+                "Falha ao ajustar largura do label do filtro de coluna %s: %s",
+                col,
+                exc,
+            )
+            label.setMinimumWidth(min_label_column_width)
+        try:
+            label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao aplicar size policy no label do filtro de coluna %s: %s",
+                col,
+                exc,
+            )
+
+    def _configure_column_filter_input(self, term_box: QLineEdit, col: str) -> None:
+        term_box.setPlaceholderText(
+            "Termos separados por virgula sao alternativas. Modos: foo, ^pre, suf$, =exato, ~^regex, !neg"
+        )
+        term_box.setMinimumWidth(220)
+        try:
+            term_box.setMinimumHeight(26)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao aplicar altura minima no input do filtro de coluna %s: %s",
+                col,
+                exc,
+            )
+        try:
+            term_box.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            )
+        except Exception as exc:
+            logger.debug(
+                "Falha ao aplicar size policy no input do filtro de coluna %s: %s",
+                col,
+                exc,
+            )
+
+    def _build_column_filter_button(
+        self,
+        text: str,
+        col: str,
+        *,
+        tooltip: str | None = None,
+    ) -> QPushButton:
+        button = QPushButton(text)
+        try:
+            button.setMinimumHeight(26)
+            button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            button.setFixedWidth(66)
+            if tooltip:
+                button.setToolTip(tooltip)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao configurar botao %s do filtro de coluna %s: %s",
+                text,
+                col,
+                exc,
+            )
+        return button
+
+    def _connect_column_filter_row_actions(
+        self,
+        col: str,
+        term_box: QLineEdit,
+        apply_btn: QPushButton,
+        clear_btn: QPushButton,
+        hide_btn: QPushButton,
+    ) -> None:
+        def apply_current_text() -> None:
+            new_text = str(term_box.text()).strip()
+            current_text = str(self._active_column_filters.get(col, "")).strip()
+            if new_text == current_text:
+                self._sync_or_group_values(col, new_text)
+                self._build_column_filters_panel()
+                self._refresh_after_filter_change()
+                self._sync_clear_filter_button_state()
+                return
+            self._safe_store_last_filter_state("apply_column_filter")
+            self._active_column_filters[col] = new_text
+            self._sync_or_group_values(col, new_text)
+            self._mark_profile_as_custom()
+            self._build_column_filters_panel()
+            self._refresh_after_filter_change()
+            self._sync_clear_filter_button_state()
+
+        def clear_current_text() -> None:
+            current_text = str(self._active_column_filters.get(col, "")).strip()
+            typed_text = str(term_box.text()).strip()
+            if not current_text and not typed_text:
+                return
+            self._safe_store_last_filter_state("clear_column_filter_value")
+            self._active_column_filters[col] = ""
+            self._sync_or_group_values(col, "")
+            with _blocked_widget_signals(
+                term_box, log_context=f"clear_column_filter_{col}"
+            ):
+                term_box.setText("")
+            self._mark_profile_as_custom()
+            self._build_column_filters_panel()
+            self._refresh_after_filter_change()
+            self._sync_clear_filter_button_state()
+
+        try:
+            term_box.returnPressed.connect(apply_current_text)
+            apply_btn.clicked.connect(apply_current_text)
+            clear_btn.clicked.connect(clear_current_text)
+            hide_btn.clicked.connect(
+                lambda _checked=False, column=col: self._try_hide_column_filter_line(
+                    column
+                )
+            )
+        except Exception as exc:
+            logger.debug(
+                "Falha ao conectar controles do filtro de coluna %s: %s",
+                col,
+                exc,
+            )
+
     def _build_column_filters_panel(self):
         # Escolhe layout de lista (compatável com versões antigas e novas)
         target_layout = None
@@ -1761,12 +1653,17 @@ class FilterGUISSAMixin:
         else:
             return
 
-        # Limpa layout
+        row_pool = getattr(self, "_column_filter_row_pool", None)
+        if not isinstance(row_pool, dict):
+            row_pool = {}
+            self._column_filter_row_pool = row_pool
+        pending_focused_text = self._capture_focused_column_filter_text()
         while target_layout.count():
             item = target_layout.takeAt(0)
             w = item.widget()
             if w:
-                w.deleteLater()
+                w.setVisible(False)
+                w.setParent(None)
         self._column_filter_inputs = {}
         self._column_filter_labels = {}
         # Controle de linhas ocultas (somente exibição)
@@ -1780,280 +1677,34 @@ class FilterGUISSAMixin:
 
         # Keep a minimum label column aligned with "Descricao Execucao".
         # If a label is longer, current behavior still pushes the input right.
-        min_label_column_width = 100
-        try:
-            ref_name = self._expand_column_alias_for_filter("descricao_execucao")
-            ref_probe = QLabel(ref_name)
-            ref_metrics = ref_probe.fontMetrics()
-            ref_width = int(ref_metrics.horizontalAdvance(ref_name) + 16)
-            min_label_column_width = max(100, min(260, ref_width))
-        except Exception as exc:
-            logger.debug(
-                "Falha ao calcular largura minima de alinhamento dos labels de filtro: %s",
-                exc,
-            )
+        min_label_column_width = getattr(self, "_column_filter_label_width", None)
+        if not isinstance(min_label_column_width, int):
+            min_label_column_width = 100
+            try:
+                ref_name = self._expand_column_alias_for_filter("descricao_execucao")
+                ref_probe = QLabel(ref_name)
+                ref_metrics = ref_probe.fontMetrics()
+                ref_width = int(ref_metrics.horizontalAdvance(ref_name) + 16)
+                min_label_column_width = max(100, min(260, ref_width))
+                self._column_filter_label_width = min_label_column_width
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao calcular largura minima de alinhamento dos labels de filtro: %s",
+                    exc,
+                )
 
         for col, term in self._active_column_filters.items():
-            # Pula linhas ocultas (removidas da exibição)
             if (
                 hasattr(self, "_hidden_column_filter_lines")
                 and col in self._hidden_column_filter_lines
             ):
                 continue
-            row = QHBoxLayout()
-            row.setContentsMargins(0, 0, 0, 0)
-            row.setSpacing(4)
-            full_name = self._expand_column_alias_for_filter(col)
-            name_lbl = QLabel(full_name)
-            self._column_filter_labels[col] = name_lbl
-            try:
-                label_metrics = name_lbl.fontMetrics()
-                desired_width = int(label_metrics.horizontalAdvance(full_name) + 16)
-                dynamic_width = max(90, min(260, desired_width))
-                name_lbl.setMinimumWidth(max(min_label_column_width, dynamic_width))
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao ajustar largura do label do filtro de coluna %s: %s",
-                    col,
-                    exc,
+            display_term = pending_focused_text.get(col, term)
+            target_layout.addWidget(
+                self._build_column_filter_row_widget(
+                    col, display_term, min_label_column_width
                 )
-                name_lbl.setMinimumWidth(min_label_column_width)
-            try:
-                name_lbl.setSizePolicy(
-                    QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar size policy no label do filtro de coluna %s: %s",
-                    col,
-                    exc,
-                )
-            # Exibe 'OU' no campo (apenas visual). Internamente continuamos usando vírgulas.
-            try:
-                display_text = self._format_column_filter_display_value(
-                    str(term), column=col
-                )
-            except Exception:
-                display_text = str(term)
-            term_box = QLineEdit(display_text)
-            self._column_filter_inputs[col] = term_box
-            # Placeholder sem conectivos OU/AND - OR agora e dedicado
-            term_box.setPlaceholderText(
-                "Termos com virgula usam OU. Modos: foo, ^pre, suf$, =exato, ~^regex, !neg"
             )
-            # Reduzido para garantir visibilidade dos botões em telas estreitas
-            term_box.setMinimumWidth(220)
-            try:
-                term_box.setMinimumHeight(26)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar altura minima no input do filtro de coluna %s: %s",
-                    col,
-                    exc,
-                )
-            try:
-                term_box.setSizePolicy(
-                    QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar size policy no input do filtro de coluna %s: %s",
-                    col,
-                    exc,
-                )
-            self._apply_filter_widget_theme(name_lbl, term_box)
-            # Enter aplica o filtro desta coluna
-            try:
-                term_box.returnPressed.connect(
-                    lambda c=col, tb=term_box: _mk_apply(c, tb)()
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao conectar Enter no filtro de coluna %s: %s", col, exc
-                )
-            # Botao Aplicar atualiza o filtro com o texto da caixa
-            apply_btn = QPushButton("Aplicar")
-            try:
-                apply_btn.setMinimumHeight(26)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar altura minima no botao Aplicar da coluna %s: %s",
-                    col,
-                    exc,
-                )
-            try:
-                apply_btn.setSizePolicy(
-                    QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar size policy no botao Aplicar da coluna %s: %s",
-                    col,
-                    exc,
-                )
-            try:
-                apply_btn.setFixedWidth(66)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar largura fixa no botao Aplicar da coluna %s: %s",
-                    col,
-                    exc,
-                )
-
-            def _mk_apply(c=col, tb=term_box):
-                def _inner():
-                    # Simplified: use text directly (comma-separated terms = OR logic)
-                    new_text = str(tb.text()).strip()
-                    self._safe_store_last_filter_state("apply_column_filter")
-                    self._active_column_filters[c] = new_text
-                    self._sync_or_group_values(c, new_text)
-                    self._mark_profile_as_custom()
-                    self._build_column_filters_panel()
-                    self._refresh_after_filter_change()
-                    self._sync_clear_filter_button_state()
-
-                return _inner
-
-            apply_btn.clicked.connect(_mk_apply())
-            # Botao Limpar remove o valor do filtro, mas mantem a linha visivel.
-            clear_btn = QPushButton("Limpar")
-            try:
-                clear_btn.setMinimumHeight(26)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar altura minima no botao Limpar da coluna %s: %s",
-                    col,
-                    exc,
-                )
-            try:
-                clear_btn.setSizePolicy(
-                    QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar size policy no botao Limpar da coluna %s: %s",
-                    col,
-                    exc,
-                )
-            try:
-                clear_btn.setFixedWidth(66)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar largura fixa no botao Limpar da coluna %s: %s",
-                    col,
-                    exc,
-                )
-            try:
-                clear_btn.setToolTip(
-                    "Limpa o valor desta coluna e reaplica os filtros."
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar tooltip no botao Limpar da coluna %s: %s",
-                    col,
-                    exc,
-                )
-
-            def _mk_clear_value(c=col, tb=term_box):
-                def _inner():
-                    current_text = str(self._active_column_filters.get(c, "")).strip()
-                    typed_text = str(tb.text()).strip()
-                    if not current_text and not typed_text:
-                        return
-                    self._safe_store_last_filter_state("clear_column_filter_value")
-                    self._active_column_filters[c] = ""
-                    self._sync_or_group_values(c, "")
-                    try:
-                        tb.blockSignals(True)
-                        tb.setText("")
-                    finally:
-                        try:
-                            tb.blockSignals(False)
-                        except Exception as exc:
-                            logger.debug(
-                                "Falha ao reativar sinais no input apos limpar coluna %s: %s",
-                                c,
-                                exc,
-                            )
-                    self._mark_profile_as_custom()
-                    self._build_column_filters_panel()
-                    self._refresh_after_filter_change()
-                    self._sync_clear_filter_button_state()
-
-                return _inner
-
-            try:
-                clear_btn.clicked.connect(_mk_clear_value())
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao conectar botao limpar para filtro de coluna %s: %s",
-                    col,
-                    exc,
-                )
-
-            # Botao para ocultar a linha da exibicao quando nao houver filtro ativo
-            hide_btn = QPushButton("Ocultar")
-            try:
-                hide_btn.setMinimumHeight(26)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar altura minima no botao Ocultar da coluna %s: %s",
-                    col,
-                    exc,
-                )
-            try:
-                hide_btn.setSizePolicy(
-                    QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar size policy no botao Ocultar da coluna %s: %s",
-                    col,
-                    exc,
-                )
-            try:
-                hide_btn.setFixedWidth(66)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar largura fixa no botao Ocultar da coluna %s: %s",
-                    col,
-                    exc,
-                )
-            try:
-                hide_btn.setToolTip(
-                    "Oculta a linha somente quando o filtro da coluna estiver vazio."
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar tooltip no botao Ocultar da coluna %s: %s",
-                    col,
-                    exc,
-                )
-
-            def _mk_remove_line(c=col):
-                def _inner():
-                    self._handle_hide_column_filter_line(c)
-
-                return _inner
-
-            try:
-                hide_btn.clicked.connect(_mk_remove_line())
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao conectar botao ocultar para filtro de coluna %s: %s",
-                    col,
-                    exc,
-                )
-
-            row.addWidget(name_lbl)
-            row.addWidget(term_box, 1)
-            row.addWidget(apply_btn)
-            row.addWidget(clear_btn)
-            row.addWidget(hide_btn)
-            # Layout order: label, input, Aplicar, Limpar, Ocultar
-            row_w = QWidget()
-            row_w.setLayout(row)
-            target_layout.addWidget(row_w)
 
         self._update_col_filter_indicator()
         focus_col = self._pending_filter_focus
@@ -2090,6 +1741,20 @@ class FilterGUISSAMixin:
                 "Falha ao sincronizar altura dos paineis inferiores apos rebuild de filtros por coluna: %s",
                 exc,
             )
+
+    def _capture_focused_column_filter_text(self) -> dict[str, str]:
+        pending: dict[str, str] = {}
+        for col, widget in (getattr(self, "_column_filter_inputs", {}) or {}).items():
+            if not isinstance(widget, QLineEdit):
+                continue
+            try:
+                if widget.hasFocus():
+                    pending[str(col)] = str(widget.text() or "")
+            except RuntimeError as exc:
+                logger.debug("Filtro de coluna destruido ao capturar texto: %s", exc)
+            except Exception as exc:
+                logger.debug("Falha ao capturar texto pendente do filtro %s: %s", col, exc)
+        return pending
 
     def _apply_filter_widget_theme(self, label_widget=None, input_widget=None):
         theme = getattr(self, "_current_theme", "") or "dark"
@@ -2182,8 +1847,9 @@ class FilterGUISSAMixin:
             target_label = (
                 status_label if status_label is not None else filtered_status_label
             )
-            if target_label is not None:
-                target_label.setText(count_status_text)
+            if target_label is None:
+                return count_status_text, notice_status_text
+            target_label.setText(count_status_text)
             return count_status_text, notice_status_text
         if filtered_status_label is not None:
             filtered_status_label.setText(count_status_text)
@@ -2205,14 +1871,13 @@ class FilterGUISSAMixin:
         self,
         filtered_total: int | None = None,
         original_total: int | None = None,
-    ) -> str:
-        count_status_text, _ = self._update_filter_status_display(
+    ) -> None:
+        self._update_filter_status_display(
             filtered_total=filtered_total,
             original_total=original_total,
             search_text=None,
             suffix="",
         )
-        return count_status_text
 
     def _refresh_column_filter_widgets(self):
         labels = getattr(self, "_column_filter_labels", {}) or {}
@@ -2278,6 +1943,7 @@ class FilterGUISSAMixin:
 
     def _on_exclude_ste_sca_toggled(self, checked: bool):
         self._safe_store_last_filter_state("toggle_exclude_ste")
+        self._abort_active_filtering("toggle_exclude_ste")
         checked_bool = bool(checked)
         self._exclude_ste_sca = checked_bool
         try:
@@ -2288,16 +1954,16 @@ class FilterGUISSAMixin:
                 checkbox = self.exclude_ste_checkbox
                 try:
                     if checkbox.isChecked() != checked_bool:
-                        checkbox.blockSignals(True)
-                        checkbox.setChecked(checked_bool)
-                finally:
-                    try:
-                        checkbox.blockSignals(False)
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao reativar sinais de checkbox exclude_ste principal: %s",
-                            exc,
+                        self._set_checked_without_signal(
+                            checkbox,
+                            checked_bool,
+                            log_context="exclude_ste_checkbox",
                         )
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao sincronizar checkbox exclude_ste principal: %s",
+                        exc,
+                    )
         except Exception as exc:
             logger.warning(
                 "Falha ao sincronizar toggle de excluir STE/SCA: %s", exc
@@ -2308,16 +1974,8 @@ class FilterGUISSAMixin:
     def _clear_all_filters_global(self):
         """Limpa todos os filtros: busca geral + filtros de coluna"""
         self._safe_store_last_filter_state("clear_all_filters_global")
-        self._invalidate_active_filter_request("clear_all_filters_global")
-        self._cancel_active_filter_worker("clear_all_filters_global", wait_ms=0)
-        self._set_filter_ui_idle()
+        self._abort_active_filtering("clear_all_filters_global")
         # Limpar filtro de busca geral
-        try:
-            self._debounce_timer.stop()
-        except Exception as exc:
-            logger.debug(
-                "Falha ao parar debounce principal em clear_all_filters_global: %s", exc
-            )
         try:
             sector_timer = getattr(self, "_sector_debounce_timer", None)
             if sector_timer is not None:
@@ -2333,18 +1991,11 @@ class FilterGUISSAMixin:
                 "Falha ao limpar busca em todas as abas em clear_all_filters_global: %s",
                 exc,
             )
-            try:
-                self.search_input.blockSignals(True)
+            with _blocked_widget_signals(
+                self.search_input, log_context="clear_all_filters_global"
+            ):
                 self.search_input.clear()
                 self.search_input.setText("")
-            finally:
-                try:
-                    self.search_input.blockSignals(False)
-                except Exception as unblock_exc:
-                    logger.debug(
-                        "Falha ao reativar sinais do campo principal em clear_all_filters_global: %s",
-                        unblock_exc,
-                    )
         self._pending_search_display = None
         self._df_last_search_filtered = pd.DataFrame()
 
@@ -2358,24 +2009,32 @@ class FilterGUISSAMixin:
         self._exclude_ste_sca = False
         self._advanced_filters = {}
         self._advanced_filters_active = False
+        self.current_filter_profile = None
+        self._profile_base_filters = {}
+        selector = getattr(self, "profile_selector", None)
+        if selector is not None:
+            try:
+                with _blocked_widget_signals(
+                    selector, log_context="clear_all_filters_profile_selector"
+                ):
+                    selector.setCurrentIndex(0)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao limpar seletor de perfil em clear_all_filters_global: %s",
+                    exc,
+                )
         checkbox = getattr(self, "exclude_ste_checkbox", None)
         if checkbox is not None:
             try:
-                checkbox.blockSignals(True)
-                checkbox.setChecked(False)
+                with _blocked_widget_signals(
+                    checkbox, log_context="clear_all_filters_exclude_checkbox"
+                ):
+                    checkbox.setChecked(False)
             except Exception as exc:
                 logger.debug(
                     "Falha ao limpar checkbox exclude_ste em clear_all_filters_global: %s",
                     exc,
                 )
-            finally:
-                try:
-                    checkbox.blockSignals(False)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao reativar sinais de checkbox exclude_ste em clear_all_filters_global: %s",
-                        exc,
-                    )
         try:
             if hasattr(self, "_sync_advanced_filter_ui"):
                 self._sync_advanced_filter_ui()
@@ -2426,16 +2085,7 @@ class FilterGUISSAMixin:
     def _hard_reset_filters_state(self):
         """Reseta agressivamente estado interno e visual dos filtros sem tocar nos botoes atuais."""
         self._reset_repeated_clear_click_tracking()
-        self._invalidate_active_filter_request("hard_reset_filters_state")
-        self._cancel_active_filter_worker("hard_reset_filters_state", wait_ms=0)
-        self._set_filter_ui_idle()
-
-        try:
-            self._debounce_timer.stop()
-        except Exception as exc:
-            logger.debug(
-                "Falha ao parar debounce principal em hard_reset_filters_state: %s", exc
-            )
+        self._abort_active_filtering("hard_reset_filters_state")
         try:
             sector_timer = getattr(self, "_sector_debounce_timer", None)
             if sector_timer is not None:
@@ -2452,18 +2102,11 @@ class FilterGUISSAMixin:
                 "Falha ao limpar busca em todas as abas em hard_reset_filters_state: %s",
                 exc,
             )
-            try:
-                self.search_input.blockSignals(True)
+            with _blocked_widget_signals(
+                self.search_input, log_context="hard_reset_filters_state"
+            ):
                 self.search_input.clear()
                 self.search_input.setText("")
-            finally:
-                try:
-                    self.search_input.blockSignals(False)
-                except Exception as unblock_exc:
-                    logger.debug(
-                        "Falha ao reativar sinais do campo principal em hard_reset_filters_state: %s",
-                        unblock_exc,
-                    )
 
         self._pending_search_display = None
         self._pending_filter_focus = None
@@ -2484,39 +2127,27 @@ class FilterGUISSAMixin:
         selector = getattr(self, "profile_selector", None)
         if selector is not None:
             try:
-                selector.blockSignals(True)
-                selector.setCurrentIndex(0)
+                with _blocked_widget_signals(
+                    selector, log_context="hard_reset_profile_selector"
+                ):
+                    selector.setCurrentIndex(0)
             except Exception as exc:
                 logger.debug(
                     "Falha ao limpar seletor de perfil principal em hard_reset_filters_state: %s",
                     exc,
                 )
-            finally:
-                try:
-                    selector.blockSignals(False)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao reativar sinais do seletor de perfil principal em hard_reset_filters_state: %s",
-                        exc,
-                    )
         checkbox = getattr(self, "exclude_ste_checkbox", None)
         if checkbox is not None:
             try:
-                checkbox.blockSignals(True)
-                checkbox.setChecked(False)
+                with _blocked_widget_signals(
+                    checkbox, log_context="hard_reset_exclude_checkbox"
+                ):
+                    checkbox.setChecked(False)
             except Exception as exc:
                 logger.debug(
                     "Falha ao limpar checkbox exclude_ste em hard_reset_filters_state: %s",
                     exc,
                 )
-            finally:
-                try:
-                    checkbox.blockSignals(False)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao reativar sinais de checkbox exclude_ste em hard_reset_filters_state: %s",
-                        exc,
-                    )
 
         try:
             if hasattr(self, "_sync_advanced_filter_ui"):
@@ -2645,215 +2276,26 @@ class FilterGUISSAMixin:
 
         adv = getattr(self, "_advanced_filters", None) or {}
         adv_active = bool(getattr(self, "_advanced_filters_active", False))
-
-        def _add_adv(
-            label,
-            values,
-            op: str | None = None,
-            *,
-            action_keys: list[str] | None = None,
-        ):
-            if not values:
-                return
-            if isinstance(values, list):
-                txt = ", ".join(str(v) for v in values if str(v).strip())
-            else:
-                txt = str(values).strip()
-            if not txt:
-                return
-            text = f"{label}: {txt}"
-            if op:
-                text = f"{label} {op} {txt}"
-            keys = [str(key) for key in (action_keys or []) if str(key).strip()]
-            if not keys:
-                return
-            _merge_summary_actions(
-                summary_entries,
-                text=text,
-                actions=[{"kind": "advanced_keys", "keys": keys}],
-            )
+        raw_summary_signature = (
+            search_text,
+            tuple((str(k), str(v)) for k, v in active_column_filters.items()),
+            repr(getattr(self, "_column_or_groups", []) or []),
+            repr(adv),
+            adv_active,
+            bool(getattr(self, "_exclude_ste_sca", False)),
+            str(getattr(self, "_dedicated_or_text", "") or ""),
+            str(getattr(self, "_current_theme", "") or "dark"),
+        )
+        if raw_summary_signature == getattr(self, "_filters_summary_raw_signature", None):
+            return
+        self._filters_summary_raw_signature = raw_summary_signature
 
         if adv_active:
-            _add_adv(
-                "Executor",
-                adv.get("setor_executor"),
-                action_keys=["setor_executor"],
-            )
-            _add_adv(
-                "Executor",
-                adv.get("setor_executor_exclude_values"),
-                "!=",
-                action_keys=["setor_executor_exclude_values"],
-            )
-            _add_adv("Emissor", adv.get("setor_emissor"), action_keys=["setor_emissor"])
-            _add_adv(
-                "Emissor",
-                adv.get("setor_emissor_exclude_values"),
-                "!=",
-                action_keys=["setor_emissor_exclude_values"],
-            )
-            _add_adv("Divisao", adv.get("divisao"), action_keys=["divisao"])
-            _add_adv(
-                "Divisao",
-                adv.get("divisao_exclude_values"),
-                "!=",
-                action_keys=["divisao_exclude_values"],
-            )
-            _add_adv("Situacao", adv.get("situacao"), action_keys=["situacao"])
-            _add_adv(
-                "Situacao",
-                adv.get("situacao_exclude_values"),
-                "!=",
-                action_keys=["situacao_exclude_values"],
-            )
-            _add_adv("Solicitante", adv.get("solicitante"), action_keys=["solicitante"])
-            _add_adv(
-                "Solicitante",
-                adv.get("solicitante_exclude_values"),
-                "!=",
-                action_keys=["solicitante_exclude_values"],
-            )
-            _add_adv(
-                "Resp Programacao",
-                adv.get("responsavel_programacao"),
-                action_keys=["responsavel_programacao"],
-            )
-            _add_adv(
-                "Resp Programacao",
-                adv.get("responsavel_programacao_exclude_values"),
-                "!=",
-                action_keys=["responsavel_programacao_exclude_values"],
-            )
-            _add_adv(
-                "Resp Execucao",
-                adv.get("responsavel_execucao"),
-                action_keys=["responsavel_execucao"],
-            )
-            _add_adv(
-                "Resp Execucao",
-                adv.get("responsavel_execucao_exclude_values"),
-                "!=",
-                action_keys=["responsavel_execucao_exclude_values"],
-            )
-            _add_adv(
-                "Prio Emissao",
-                adv.get("prioridade_emissao_values"),
-                action_keys=["prioridade_emissao_values"],
-            )
-            _add_adv(
-                "Prio Emissao",
-                adv.get("prioridade_emissao_exclude_values"),
-                "!=",
-                action_keys=["prioridade_emissao_exclude_values"],
-            )
-            _add_adv(
-                "Prio Planejamento",
-                adv.get("prioridade_planejamento_values"),
-                action_keys=["prioridade_planejamento_values"],
-            )
-            _add_adv(
-                "Prio Planejamento",
-                adv.get("prioridade_planejamento_exclude_values"),
-                "!=",
-                action_keys=["prioridade_planejamento_exclude_values"],
-            )
-
-            ano_emissao_vals = adv.get("ano_emissao_values")
-            ano_emissao_exc = adv.get("ano_emissao_exclude_values")
-            if ano_emissao_vals is None and adv.get("ano_emissao") is not None:
-                ano_emissao_vals = [adv.get("ano_emissao")]
-            if (
-                ano_emissao_exc is None
-                and adv.get("ano_emissao_exclude")
-                and adv.get("ano_emissao") is not None
-            ):
-                ano_emissao_exc = [adv.get("ano_emissao")]
-            _add_adv(
-                "Ano Emissao",
-                ano_emissao_vals,
-                action_keys=["ano_emissao", "ano_emissao_values"],
-            )
-            _add_adv(
-                "Ano Emissao",
-                ano_emissao_exc,
-                "!=",
-                action_keys=["ano_emissao_exclude", "ano_emissao_exclude_values"],
-            )
-
-            ano_execucao_vals = adv.get("ano_execucao_values")
-            ano_execucao_exc = adv.get("ano_execucao_exclude_values")
-            if ano_execucao_vals is None and adv.get("ano_execucao") is not None:
-                ano_execucao_vals = [adv.get("ano_execucao")]
-            if (
-                ano_execucao_exc is None
-                and adv.get("ano_execucao_exclude")
-                and adv.get("ano_execucao") is not None
-            ):
-                ano_execucao_exc = [adv.get("ano_execucao")]
-            _add_adv(
-                "Ano Execucao",
-                ano_execucao_vals,
-                action_keys=["ano_execucao", "ano_execucao_values"],
-            )
-            _add_adv(
-                "Ano Execucao",
-                ano_execucao_exc,
-                "!=",
-                action_keys=["ano_execucao_exclude", "ano_execucao_exclude_values"],
-            )
-
-            em_range = _summary_week_range(
-                adv.get("semana_emissao_inicio"), adv.get("semana_emissao_fim")
-            )
-            if em_range:
-                label = "Semana Emissao"
-                op = "!=" if adv.get("semana_emissao_exclude") else None
-                action_keys = ["semana_emissao_inicio", "semana_emissao_fim"]
-                if adv.get("semana_emissao_exclude"):
-                    action_keys.append("semana_emissao_exclude")
-                _add_adv(label, [em_range], op, action_keys=action_keys)
-            ex_range = _summary_week_range(
-                adv.get("semana_execucao_inicio"), adv.get("semana_execucao_fim")
-            )
-            if ex_range:
-                label = "Semana Execucao"
-                op = "!=" if adv.get("semana_execucao_exclude") else None
-                action_keys = ["semana_execucao_inicio", "semana_execucao_fim"]
-                if adv.get("semana_execucao_exclude"):
-                    action_keys.append("semana_execucao_exclude")
-                _add_adv(label, [ex_range], op, action_keys=action_keys)
-
-            if adv.get("derivada_has"):
+            for text, entry in build_advanced_summary_entries(adv).items():
                 _merge_summary_actions(
                     summary_entries,
-                    text="Possui derivada",
-                    actions=[{"kind": "advanced_keys", "keys": ["derivada_has"]}],
-                )
-            # Compatibilidade: mantemos a chave legada "derivada_all_ste",
-            # mas o comportamento funcional agora considera STE e SES.
-            if adv.get("derivada_all_ste"):
-                _merge_summary_actions(
-                    summary_entries,
-                    text="Derivadas em STE/SES",
-                    actions=[{"kind": "advanced_keys", "keys": ["derivada_all_ste"]}],
-                )
-            if adv.get("derivada_is"):
-                _merge_summary_actions(
-                    summary_entries,
-                    text="SSA derivada",
-                    actions=[{"kind": "advanced_keys", "keys": ["derivada_is"]}],
-                )
-            if adv.get("macro_filter"):
-                macro_val = adv.get("macro_filter")
-                macro_label = (
-                    "SSAs para baixar"
-                    if macro_val == "ssas_para_baixar"
-                    else str(macro_val)
-                )
-                _merge_summary_actions(
-                    summary_entries,
-                    text=f"Macro: {macro_label}",
-                    actions=[{"kind": "advanced_keys", "keys": ["macro_filter"]}],
+                    text=text,
+                    actions=list(entry.get("actions") or []),
                 )
 
         if getattr(self, "_exclude_ste_sca", False):
@@ -2943,7 +2385,20 @@ class FilterGUISSAMixin:
                     exc,
                 )
         try:
-            self._rebuild_filters_summary_buttons(list(summary_entries.values()))
+            summary_signature = tuple(
+                (
+                    str(entry.get("text") or ""),
+                    tuple(
+                        repr(action)
+                        for action in entry.get("actions", [])
+                        if isinstance(action, dict)
+                    ),
+                )
+                for entry in summary_entries.values()
+            )
+            if summary_signature != getattr(self, "_filters_summary_signature", None):
+                self._rebuild_filters_summary_buttons(list(summary_entries.values()))
+                self._filters_summary_signature = summary_signature
         except Exception as exc:
             logger.warning(
                 "Falha ao reconstruir botoes clicaveis do resumo de filtros: %s", exc
@@ -2958,9 +2413,9 @@ class FilterGUISSAMixin:
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+        self._filters_summary_button_pool = []
 
     def _rebuild_filters_summary_buttons(self, entries: list[SummaryEntry]) -> None:
-        self._clear_filters_summary_buttons()
         layout = getattr(self, "filters_summary_items_layout", None)
         container = getattr(self, "filters_summary_items_widget", None)
         if layout is None or container is None:
@@ -2977,13 +2432,26 @@ class FilterGUISSAMixin:
             logger.debug(
                 "Falha ao configurar tamanho do container de filtros ativos: %s", exc
             )
-        content_width = 1
+        pool = getattr(self, "_filters_summary_button_pool", None)
+        if not isinstance(pool, list):
+            pool = []
+            self._filters_summary_button_pool = pool
+        width_cache = getattr(self, "_filters_summary_button_width_cache", None)
+        if not isinstance(width_cache, dict):
+            width_cache = {}
+            self._filters_summary_button_width_cache = width_cache
+        stylesheet_cache = getattr(self, "_filters_summary_stylesheet_cache", None)
+        if not isinstance(stylesheet_cache, dict):
+            stylesheet_cache = {}
+            self._filters_summary_stylesheet_cache = stylesheet_cache
+        content_width = 0
         spacing = 0
         try:
             spacing = int(layout.spacing() or 0)
         except Exception as exc:
             logger.debug("Falha ao obter espacamento dos filtros ativos: %s", exc)
-        for entry in entries:
+        visible_button_count = 0
+        for index, entry in enumerate(entries):
             text = str(entry.get("text") or "").strip()
             raw_actions = entry.get("actions")
             if not text or not isinstance(raw_actions, list) or not raw_actions:
@@ -2995,60 +2463,70 @@ class FilterGUISSAMixin:
             ]
             if not actions:
                 continue
-            display_text = text
-            for full_label, short_label in (
-                ("Executor", "Exec"),
-                ("Emissor", "Emis"),
-                ("Prio Emissao", "Prio"),
-                ("Prio Planejamento", "Plan"),
-                ("Ano Emissao", "Ano Emis"),
-                ("Ano Execucao", "Ano Exec"),
-                ("Reprogramacoes", "Nº Reprog"),
-                ("Derivada de", "Deriv"),
-            ):
-                prefix = f"{full_label}:"
-                if display_text.startswith(prefix):
-                    display_text = f"{short_label}:{display_text[len(prefix):]}"
-                    break
-            button = QPushButton(display_text)
+            display_text = shorten_summary_label(text)
+            if index < len(pool) and isinstance(pool[index], QPushButton):
+                button = pool[index]
+            else:
+                button = QPushButton(container)
+                button.clicked.connect(self._handle_filters_summary_button_clicked)
+                pool.append(button)
+                layout.addWidget(button, 0)
+            button.setText(display_text)
             button.setToolTip(f"Clique para remover este filtro: {text}")
+            button.setProperty("filter_summary_text", text)
+            button.setProperty("filter_summary_actions", actions)
+            style_signature = (border, accent, background, text_color)
             try:
+                button.setVisible(True)
                 button.setFixedHeight(22)
                 button.setSizePolicy(
                     QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed
                 )
-                button.setStyleSheet(
-                    "QPushButton {"
-                    f"border:1px solid {border};"
-                    "border-radius:4px;"
-                    "padding:2px 6px;"
-                    "font-weight:600;"
-                    f"background:{background};"
-                    f"color:{text_color};"
-                    "text-align:left;"
-                    "}"
-                    "QPushButton:hover {"
-                    f"border-color:{accent};"
-                    "font-weight:600;"
-                    "}"
-                )
+                if button.property("filter_summary_style") != style_signature:
+                    stylesheet = stylesheet_cache.get(style_signature)
+                    if not isinstance(stylesheet, str):
+                        stylesheet = build_summary_button_stylesheet(
+                            border=border,
+                            accent=accent,
+                            background=background,
+                            text_color=text_color,
+                        )
+                        stylesheet_cache[style_signature] = stylesheet
+                    button.setStyleSheet(stylesheet)
+                    button.setProperty("filter_summary_style", style_signature)
             except Exception as exc:
                 logger.debug(
                     "Falha ao aplicar estilo em botao do resumo de filtros '%s': %s",
                     text,
                     exc,
                 )
-            button.clicked.connect(
-                self._build_filters_summary_click_handler(text, actions)
-            )
-            layout.addWidget(button, 0)
+            visible_button_count += 1
             try:
-                content_width += int(button.sizeHint().width()) + spacing
+                width_key = (display_text, style_signature)
+                button_width = width_cache.get(width_key)
+                if not isinstance(button_width, int):
+                    button_width = int(button.sizeHint().width())
+                    width_cache[width_key] = button_width
+                content_width += button_width + spacing
             except Exception as exc:
                 logger.debug(
                     "Falha ao medir largura do botao de filtro ativo '%s': %s",
                     text,
                     exc,
+                )
+        for button in pool[visible_button_count:]:
+            try:
+                if isinstance(button, QPushButton):
+                    button.setVisible(False)
+                    button.setProperty("filter_summary_text", "")
+                    button.setProperty("filter_summary_actions", [])
+            except TypeError:
+                logger.debug(
+                    "Botao excedente de filtro ativo ja estava sem handler de clique."
+                )
+            except RuntimeError as exc:
+                logger.debug(
+                    "Falha ao ocultar botao excedente do resumo de filtros: %s", exc
                 )
         try:
             layout.activate()
@@ -3061,7 +2539,8 @@ class FilterGUISSAMixin:
                     if scroll_policy is not None:
                         policy = (
                             scroll_policy.ScrollBarAsNeeded
-                            if content_width > viewport_width
+                            if visible_button_count > 0
+                            and content_width > viewport_width
                             else scroll_policy.ScrollBarAlwaysOff
                         )
                         scroll.setHorizontalScrollBarPolicy(policy)
@@ -3080,18 +2559,16 @@ class FilterGUISSAMixin:
                 exc,
             )
 
-    def _build_filters_summary_click_handler(
-        self, item_text: str, actions: list[SummaryAction]
-    ) -> Callable[[bool], None]:
-        captured_actions = list(actions)
-
-        def _handler(_checked: bool = False) -> None:
-            self._on_filters_summary_item_clicked(item_text, captured_actions)
-
-        return _handler
+    def _handle_filters_summary_button_clicked(self, _checked: bool = False) -> None:
+        button = self.sender()
+        if not isinstance(button, QPushButton):
+            return
+        item_text = str(button.property("filter_summary_text") or "")
+        raw_actions = button.property("filter_summary_actions")
+        actions = raw_actions if isinstance(raw_actions, list) else []
+        self._on_filters_summary_item_clicked(item_text, actions)
 
     def _confirm_filter_summary_item_removal(self, item_text: str) -> bool:
-        buttons = getattr(QMessageBox, "StandardButton", None)
         title = "Remover filtro"
         message = f"Deseja remover este filtro ativo?\n\n{item_text}"
         if os.environ.get("PYTEST_CURRENT_TEST"):
@@ -3099,17 +2576,7 @@ class FilterGUISSAMixin:
                 "PYTEST_CURRENT_TEST set; mantendo confirmacao de remocao ativa."
             )
         try:
-            if buttons is not None:
-                reply = QMessageBox.question(
-                    _qt_parent(self),
-                    title,
-                    message,
-                    buttons.Yes | buttons.No,
-                    buttons.No,
-                )
-                return reply == buttons.Yes
-            reply = QMessageBox.question(_qt_parent(self), title, message)
-            return reply == getattr(QMessageBox, "Yes", reply)
+            return self._ask_yes_no(title=title, message=message)
         except Exception as exc:
             logger.warning(
                 "Falha ao solicitar confirmacao para remocao de filtro '%s': %s",
@@ -3119,15 +2586,7 @@ class FilterGUISSAMixin:
             raise
 
     def _clear_general_search_state(self) -> None:
-        self._invalidate_active_filter_request("clear_general_search_state")
-        self._cancel_active_filter_worker("clear_general_search_state", wait_ms=0)
-        self._set_filter_ui_idle()
-        try:
-            self._debounce_timer.stop()
-        except Exception as exc:
-            logger.debug(
-                "Falha ao parar debounce ao limpar busca via resumo de filtros: %s", exc
-            )
+        self._abort_active_filtering("clear_general_search_state")
         self._set_search_text_across_tabs("")
         self._pending_search_display = None
         self._active_filter_search_display = ""
@@ -3140,16 +2599,16 @@ class FilterGUISSAMixin:
         if checkbox is None:
             return
         try:
-            checkbox.blockSignals(True)
-            checkbox.setChecked(checked_bool)
-        finally:
-            try:
-                checkbox.blockSignals(False)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao reativar sinais de checkbox exclude_ste principal no resumo de filtros: %s",
-                    exc,
-                )
+            self._set_checked_without_signal(
+                checkbox,
+                checked_bool,
+                log_context="exclude_ste_checkbox_summary",
+            )
+        except Exception as exc:
+            logger.debug(
+                "Falha ao sincronizar checkbox exclude_ste principal no resumo: %s",
+                exc,
+            )
 
     def _remove_filters_summary_actions(
         self, item_text: str, actions: list[SummaryAction]
@@ -3159,95 +2618,127 @@ class FilterGUISSAMixin:
         if not self._confirm_filter_summary_item_removal(item_text):
             return
         self._safe_store_last_filter_state("remove_filters_summary_item")
-        refresh_needed = False
-        sync_advanced_ui = False
-        sync_quick_combo = False
-        status_reset_needed = False
-        pending_column_clears: list[str] = []
-        pending_advanced_keys: list[str] = []
+        plan = SummaryRemovalPlan()
         for action in actions:
-            if not isinstance(action, dict):
-                continue
-            kind = str(action.get("kind") or "").strip()
-            if kind == "search":
-                self._clear_general_search_state()
-                refresh_needed = True
-                status_reset_needed = True
-                continue
-            if kind == "dedicated_or":
-                self._dedicated_or_text = ""
-                continue
-            if kind == "exclude_ste_sca":
-                self._exclude_ste_sca = False
-                self._sync_exclude_ste_checkbox_state(False)
-                sync_advanced_ui = True
-                refresh_needed = True
-                continue
-            if kind in {"column", "column_or_group"}:
-                column_name = str(action.get("column") or "").strip()
-                if not column_name:
-                    raise ValueError(
-                        f"Resumo de filtros recebeu acao sem coluna valida: {action!r}"
-                    )
-                if column_name not in pending_column_clears:
-                    pending_column_clears.append(column_name)
-                continue
-            if kind == "advanced_keys":
-                raw_keys = action.get("keys")
-                keys = [
-                    str(key).strip()
-                    for key in (raw_keys if isinstance(raw_keys, list) else [])
-                    if str(key).strip()
-                ]
-                if not keys:
-                    raise ValueError(
-                        f"Resumo de filtros recebeu advanced_keys sem chaves: {action!r}"
-                    )
-                for key in keys:
-                    if key not in pending_advanced_keys:
-                        pending_advanced_keys.append(key)
-                continue
-            raise ValueError(f"Acao de resumo de filtros nao suportada: {action!r}")
-        for key in pending_advanced_keys:
+            self._collect_filters_summary_removal_action(action, plan)
+        self._apply_filters_summary_advanced_removals(plan)
+        self._apply_filters_summary_column_removals(plan)
+        self._finish_filters_summary_removal(plan)
+
+    def _collect_filters_summary_removal_action(
+        self, action: SummaryAction, plan: SummaryRemovalPlan
+    ) -> None:
+        if not isinstance(action, dict):
+            return
+        kind = str(action.get("kind") or "").strip()
+        if kind == "search":
+            plan.clear_search = True
+            plan.refresh_needed = True
+            plan.global_status_reset_requested = True
+            return
+        if kind == "dedicated_or":
+            self._dedicated_or_text = ""
+            return
+        if kind == "exclude_ste_sca":
+            self._exclude_ste_sca = False
+            self._sync_exclude_ste_checkbox_state(False)
+            plan.sync_advanced_ui = True
+            plan.refresh_needed = True
+            return
+        if kind in {"column", "column_or_group"}:
+            column_name = str(action.get("column") or "").strip()
+            if not column_name:
+                logger.warning(
+                    "Resumo de filtros recebeu acao sem coluna valida: %r",
+                    action,
+                )
+                return
+            if column_name not in plan.removal_column_names:
+                plan.removal_column_names.append(column_name)
+            return
+        if kind == "advanced_keys":
+            self._collect_filters_summary_advanced_keys(action, plan)
+            return
+        raise ValueError(f"Acao de resumo de filtros nao suportada: {action!r}")
+
+    def _collect_filters_summary_advanced_keys(
+        self, action: SummaryAction, plan: SummaryRemovalPlan
+    ) -> None:
+        raw_keys = action.get("keys")
+        if isinstance(raw_keys, str):
+            raw_key_values = [raw_keys]
+        elif isinstance(raw_keys, (list, tuple, set)):
+            raw_key_values = list(raw_keys)
+        else:
+            raw_key_values = []
+        keys = [str(key).strip() for key in raw_key_values if str(key).strip()]
+        if not keys:
+            logger.warning(
+                "Resumo de filtros recebeu advanced_keys sem chaves: %r",
+                action,
+            )
+            return
+        for key in keys:
+            if key not in plan.removal_advanced_keys:
+                plan.removal_advanced_keys.append(key)
+
+    def _apply_filters_summary_advanced_removals(
+        self, plan: SummaryRemovalPlan
+    ) -> None:
+        for key in plan.removal_advanced_keys:
             self._advanced_filters.pop(key, None)
-        if pending_advanced_keys:
+        if plan.removal_advanced_keys:
             self._advanced_filters_active = bool(
                 self._has_active_advanced_filters(self._advanced_filters)
             )
-            sync_advanced_ui = True
-            refresh_needed = True
+            plan.sync_advanced_ui = True
+            plan.refresh_needed = True
             if any(
                 key.startswith("setor_executor") or key == "macro_filter"
-                for key in pending_advanced_keys
+                for key in plan.removal_advanced_keys
             ):
-                sync_quick_combo = True
-        if pending_column_clears:
-            for column_name in pending_column_clears:
-                if column_name in self._active_column_filters or column_name in getattr(
-                    self, "_column_to_or_group", {}
-                ):
-                    if column_name in self._column_to_or_group:
-                        group = self._column_to_or_group.get(column_name)
-                        if group:
-                            group["values"] = []
-                            for member in group.get("columns", []):
-                                self._active_column_filters[member] = ""
-                    else:
-                        self._active_column_filters[column_name] = ""
-            self._build_column_filters_panel()
-            refresh_needed = True
-        if sync_advanced_ui:
+                plan.sync_quick_combo = True
+
+    def _apply_filters_summary_column_removals(self, plan: SummaryRemovalPlan) -> None:
+        if not plan.removal_column_names:
+            return
+        for column_name in plan.removal_column_names:
+            if column_name in self._active_column_filters or column_name in getattr(
+                self, "_column_to_or_group", {}
+            ):
+                self._clear_single_filters_summary_column(column_name)
+        self._build_column_filters_panel()
+        plan.refresh_needed = True
+
+    def _clear_single_filters_summary_column(self, column_name: str) -> None:
+        if column_name in self._column_to_or_group:
+            group = self._column_to_or_group.get(column_name)
+            if group:
+                group["values"] = []
+                for member in group.get("columns", []):
+                    self._active_column_filters[member] = ""
+            return
+        self._active_column_filters[column_name] = ""
+
+    def _finish_filters_summary_removal(self, plan: SummaryRemovalPlan) -> None:
+        if plan.clear_search:
+            self._clear_general_search_state()
+        if plan.sync_advanced_ui:
             self._sync_advanced_filter_ui()
-        if refresh_needed:
+        if plan.refresh_needed:
             self._mark_profile_as_custom()
             self._refresh_after_filter_change()
         else:
             self._update_filters_summary()
-        if status_reset_needed and not self._has_any_active_filters():
+        if plan.global_status_reset_requested and not self._has_any_active_filters():
             self._set_filtered_count_status()
         self._sync_clear_filter_button_state()
-        if sync_quick_combo:
-            self._sync_quick_setor_executor_combo_from_filters()
+        if plan.sync_quick_combo:
+            sync_quick_setor = getattr(
+                self, "_sync_quick_setor_executor_combo_from_filters", None
+            )
+            if callable(sync_quick_setor):
+                sync_quick_setor()
 
     def _on_filters_summary_item_clicked(
         self, item_text: str, actions: list[SummaryAction]
@@ -3257,21 +2748,13 @@ class FilterGUISSAMixin:
     def _format_column_filter_display_value(
         self, raw: str, *, column: str | None = None
     ) -> str:
-        """Normaliza um valor de filtro de coluna para exibicao consistente.
-
-        SIMPLIFIED: No logical operators; comma-separated terms are normalized.
-        - Splits by commas only
-        - Collapses repeated whitespace before splitting
-        - Maintains markers (^, $, =, ~, !) in tokens
-        - Applies optional column aliases for display
-        - Returns comma-separated terms (OR logic implicit)
-        """
+        """Normaliza um valor de filtro de coluna para exibicao consistente."""
         if not raw:
             return ""
         try:
             text = str(raw).strip()
             # Remove extra spaces
-            text = re.sub(r"\s+", " ", text).strip()
+            text = _WHITESPACE_RE.sub(" ", text).strip()
             # Split by commas only
             tokens = [t.strip() for t in text.split(",") if t.strip()]
             # Apply optional display aliases per column
@@ -3315,25 +2798,20 @@ class FilterGUISSAMixin:
         ):
             return self._filter_alias_map
         try:
-            global _FILTER_ALIAS_MAP_CACHE, _FILTER_ALIAS_MAP_CACHE_SIGNATURE
+            global _FILTER_ALIAS_MAP_CACHE, _FILTER_ALIAS_MAP_CACHE_LOADED
+            if _FILTER_ALIAS_MAP_CACHE_LOADED:
+                self._filter_alias_map = _FILTER_ALIAS_MAP_CACHE or {}
+                return self._filter_alias_map
             repo_root = os.path.dirname(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             )
             cfg_path = os.path.join(repo_root, "config", "filter_aliases.json")
-            mtime_ns = os.stat(cfg_path).st_mtime_ns if os.path.exists(cfg_path) else None
-            signature = (cfg_path, mtime_ns)
-            if (
-                _FILTER_ALIAS_MAP_CACHE_SIGNATURE == signature
-                and isinstance(_FILTER_ALIAS_MAP_CACHE, dict)
-            ):
-                self._filter_alias_map = _FILTER_ALIAS_MAP_CACHE
-                return self._filter_alias_map
             if os.path.exists(cfg_path):
                 with open(cfg_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, dict):
                     _FILTER_ALIAS_MAP_CACHE = data
-                    _FILTER_ALIAS_MAP_CACHE_SIGNATURE = signature
+                    _FILTER_ALIAS_MAP_CACHE_LOADED = True
                     self._filter_alias_map = data
                     return self._filter_alias_map
         except Exception as exc:
@@ -3341,7 +2819,7 @@ class FilterGUISSAMixin:
                 "Falha ao carregar aliases de filtro em arquivo local: %s", exc
             )
         _FILTER_ALIAS_MAP_CACHE = {}
-        _FILTER_ALIAS_MAP_CACHE_SIGNATURE = None
+        _FILTER_ALIAS_MAP_CACHE_LOADED = True
         self._filter_alias_map = _FILTER_ALIAS_MAP_CACHE
         return self._filter_alias_map
 
@@ -3356,12 +2834,14 @@ class FilterGUISSAMixin:
                 "Falha ao consultar visibilidade do indicador de filtro de coluna: %s",
                 exc,
             )
-        # O label textual segue refletindo apenas o painel de filtros por coluna.
-        active = any(
+        column_active = any(
             str(value).strip()
             for value in (getattr(self, "_active_column_filters", {}) or {}).values()
         )
-        txt = "Filtros por coluna: Ativo" if active else "Filtros por coluna: Nao ativo"
+        if column_active:
+            txt = "Filtros por coluna: Ativo"
+        else:
+            txt = "Filtros por coluna: Nao ativo"
         try:
             self.col_filter_indicator.setText(txt)
         except Exception as exc:
@@ -3459,7 +2939,7 @@ class FilterGUISSAMixin:
     def _sync_or_group_values(self, column: str, text: str):
         """Syncs filter values across columns in same OR group.
 
-        SIMPLIFIED: No logical operators - just comma-separated terms.
+        SIMPLIFIED: No logical operators - commas and semicolons separate terms.
         """
         group = self._column_to_or_group.get(column)
         if not group:
@@ -3467,7 +2947,7 @@ class FilterGUISSAMixin:
         normalized = str(text or "").strip()
         # Remove extra spaces, semicolons
         normalized = normalized.replace(";", ",")
-        normalized = re.sub(r"\s+", " ", normalized).strip()
+        normalized = _WHITESPACE_RE.sub(" ", normalized).strip()
         # Split by commas only
         tokens = [token.strip() for token in normalized.split(",") if token.strip()]
         if not tokens:
@@ -3480,141 +2960,94 @@ class FilterGUISSAMixin:
         common_text = ", ".join(tokens)
         for col in group["columns"]:
             self._active_column_filters[col] = common_text
+        self._filter_cache_context_dirty = True
 
     def _apply_column_filters(self, df: pd.DataFrame) -> pd.DataFrame:
         """Aplica todos os filtros por coluna com as mesmas regras de busca (prefixo ^, sufixo $, =exato, ~regex, !neg)."""
-        if df is None or df.empty or not self._active_column_filters:
-            return df
-        current_revision = getattr(self, "_data_revision", 0)
-        cache_revision = getattr(self, "_column_filter_series_cache_revision", None)
-        if cache_revision != current_revision:
-            self._column_filter_series_cache_revision = current_revision
-            self._column_filter_series_cache = {}
-        series_cache = getattr(self, "_column_filter_series_cache", None)
-        if not isinstance(series_cache, dict):
-            series_cache = {}
-            self._column_filter_series_cache = series_cache
-        working_df = df
-
-        def _build_effective_column_mask(col: str, raw_str: str) -> pd.Series:
-            cache_key = (id(df), str(col))
-            cached_series = series_cache.get(cache_key)
-            if isinstance(cached_series, pd.Series):
-                col_series = cached_series
-                if working_df is not df:
-                    col_series = col_series.reindex(working_df.index)
-            else:
-                col_series = df[col].astype("string").fillna("")
-                series_cache[cache_key] = col_series
-                if working_df is not df:
-                    col_series = col_series.reindex(working_df.index)
-            col_mask = self._build_column_mask(col_series, raw_str)
-            display_dates = None
-            if self._should_match_date_display_filter(col, raw_str):
-                display_dates = self._get_column_filter_date_display_series(
-                    working_df, col
-                )
-            if isinstance(display_dates, pd.Series) and not display_dates.empty:
-                tokens = [token.strip() for token in raw_str.split(",") if token.strip()]
-                include_tokens = [
-                    token for token in tokens if not token.startswith("!")
-                ]
-                exclude_tokens = [token for token in tokens if token.startswith("!")]
-
-                if include_tokens:
-                    include_mask = pd.Series(
-                        [False] * len(col_series), index=col_series.index
-                    )
-                    for include_expr in include_tokens:
-                        include_mask = include_mask | self._build_column_mask(
-                            col_series, include_expr
-                        )
-                        include_mask = include_mask | self._build_column_mask(
-                            display_dates, include_expr
-                        )
-                    col_mask = include_mask
-                if exclude_tokens:
-                    for exclude_token in exclude_tokens:
-                        exclude_expr = exclude_token[1:].strip()
-                        if not exclude_expr:
-                            continue
-                        excluded_mask = self._build_column_mask(
-                            col_series, exclude_expr
-                        ) | self._build_column_mask(display_dates, exclude_expr)
-                        excluded_mask = excluded_mask.reindex(
-                            col_mask.index, fill_value=False
-                        )
-                        col_mask = col_mask & ~excluded_mask
-            return col_mask.reindex(working_df.index, fill_value=False)
-
-        processed_or_groups: set[int] = set()
-        for col, raw in self._active_column_filters.items():
-            if working_df.empty:
-                return working_df
-            raw_str = str(raw).strip()
-            group = self._column_to_or_group.get(col)
-            if isinstance(group, dict):
-                group_key = id(group)
-                if group_key in processed_or_groups:
-                    continue
-                processed_or_groups.add(group_key)
-                group_values = [
-                    str(value).strip()
-                    for value in group.get("values", [])
-                    if str(value).strip()
-                ]
-                group_raw = ", ".join(group_values) or raw_str
-                if not group_raw:
-                    continue
-                group_mask = pd.Series(False, index=working_df.index)
-                has_group_column = False
-                for group_col in group.get("columns", []):
-                    if group_col not in working_df.columns:
-                        continue
-                    has_group_column = True
-                    group_mask = group_mask | _build_effective_column_mask(
-                        str(group_col), group_raw
-                    )
-                if has_group_column and not group_mask.all():
-                    working_df = working_df[group_mask]
-                continue
-            if col not in working_df.columns or not raw_str:
-                continue
-            col_mask = _build_effective_column_mask(col, raw_str)
-            if not col_mask.all():
-                working_df = working_df[col_mask]
-        return working_df
+        caches = ColumnFilterCaches(
+            revision=getattr(self, "_column_filter_series_cache_revision", None),
+            series=getattr(self, "_column_filter_series_cache", {}) or {},
+            casefold=getattr(self, "_column_filter_casefold_cache", {}) or {},
+            mask=getattr(self, "_column_filter_mask_cache", {}) or {},
+            date_scope=getattr(self, "_column_filter_date_cache_scope", None),
+            date_parsed=getattr(self, "_column_filter_date_parsed_cache", {}) or {},
+            date=getattr(self, "_column_filter_date_cache", {}) or {},
+            frame_tokens=getattr(self, "_column_filter_frame_tokens", {}) or {},
+        )
+        filtered = apply_column_filters(
+            df,
+            self._active_column_filters,
+            self._column_to_or_group,
+            revision=getattr(self, "_data_revision", 0),
+            caches=caches,
+            build_column_mask=self._build_column_mask,
+            date_display_columns=self._get_column_filter_date_display_columns(df),
+        )
+        self._column_filter_series_cache_revision = caches.revision
+        self._column_filter_series_cache = caches.series
+        self._column_filter_casefold_cache = caches.casefold
+        self._column_filter_mask_cache = caches.mask
+        self._column_filter_date_cache_scope = caches.date_scope
+        self._column_filter_date_parsed_cache = caches.date_parsed
+        self._column_filter_date_cache = caches.date
+        self._column_filter_frame_tokens = caches.frame_tokens
+        return filtered
 
     def _should_match_date_display_filter(self, col: str, raw_filter: str) -> bool:
+        return should_match_date_display_filter(
+            raw_filter,
+            is_date_column=self._is_column_filter_date_display_column(col),
+        )
+
+    def _is_column_filter_date_display_column(self, col: str) -> bool:
         col_lower = str(col or "").casefold()
-        if "data" not in col_lower and not col_lower.startswith("dt_"):
-            return False
-        return "/" in str(raw_filter or "")
+        return (
+            "data" in col_lower
+            or "date" in col_lower
+            or col_lower.startswith("dt_")
+        )
+
+    def _get_column_filter_date_display_columns(
+        self, df: pd.DataFrame
+    ) -> frozenset[str]:
+        if df is None or df.empty:
+            return frozenset()
+        date_columns: set[str] = set()
+        for col in df.columns:
+            if self._is_column_filter_date_display_column(str(col)) or (
+                col in df
+                and pd.api.types.is_datetime64_any_dtype(df[col])
+            ):
+                date_columns.add(str(col))
+        return frozenset(date_columns)
 
     def _get_column_filter_date_display_series(
         self, df: pd.DataFrame, col: str
     ) -> pd.Series | None:
-        if df is None or col not in df.columns:
-            return None
         current_revision = getattr(self, "_data_revision", 0)
-        cache_scope = getattr(self, "_column_filter_date_cache_scope", None)
-        next_scope = (current_revision, id(df))
-        if cache_scope != next_scope:
-            self._column_filter_date_cache_scope = next_scope
-            self._column_filter_date_cache = {}
-        cache = getattr(self, "_column_filter_date_cache", None)
-        if not isinstance(cache, dict):
-            cache = {}
-            self._column_filter_date_cache = cache
-        cached = cache.get(col)
-        if isinstance(cached, pd.Series):
-            return cached
-        parsed_dates = parse_datetime_series_mixed(df[col])
-        display_dates = parsed_dates.dt.strftime("%d/%m/%Y").fillna("").astype(str)
-        cache[col] = display_dates
+        caches = ColumnFilterCaches(
+            revision=getattr(self, "_column_filter_series_cache_revision", None),
+            series=getattr(self, "_column_filter_series_cache", {}) or {},
+            casefold=getattr(self, "_column_filter_casefold_cache", {}) or {},
+            mask=getattr(self, "_column_filter_mask_cache", {}) or {},
+            date_scope=getattr(self, "_column_filter_date_cache_scope", None),
+            date_parsed=getattr(self, "_column_filter_date_parsed_cache", {}) or {},
+            date=getattr(self, "_column_filter_date_cache", {}) or {},
+            frame_tokens=getattr(self, "_column_filter_frame_tokens", {}) or {},
+        )
+        display_dates = get_column_filter_date_display_series(
+            df,
+            col,
+            revision=current_revision,
+            caches=caches,
+        )
+        self._column_filter_date_cache_scope = caches.date_scope
+        self._column_filter_date_parsed_cache = caches.date_parsed
+        self._column_filter_date_cache = caches.date
+        self._column_filter_frame_tokens = caches.frame_tokens
         return display_dates
 
-    def _handle_hide_column_filter_line(self, column_name: str) -> None:
+    def _try_hide_column_filter_line(self, column_name: str) -> None:
         current_value = ""
         try:
             current_value = str(
@@ -3699,40 +3132,30 @@ class FilterGUISSAMixin:
         has_excluded_terminal_status: bool,
         measure_timing,
     ) -> pd.DataFrame:
-        if has_post_search_filters and hasattr(self, "_apply_advanced_filters"):
-            try:
-                filtered = measure_timing(
-                    "advanced", lambda: self._apply_advanced_filters(filtered)
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao aplicar filtros avancados no refresh de filtros: %s", exc
-                )
+        cache_key = None
         if has_post_search_filters:
-            filtered = measure_timing(
-                "column", lambda: self._apply_column_filters(filtered)
+            cache_context = self._build_filter_cache_context()
+            cache_key = (
+                id(getattr(self, "df_completo", None)),
+                id(filtered),
+                len(filtered) if isinstance(filtered, pd.DataFrame) else -1,
+                tuple(filtered.columns) if isinstance(filtered, pd.DataFrame) else (),
+                cache_context,
+                bool(has_excluded_terminal_status),
             )
-        if (
-            has_post_search_filters
-            and has_excluded_terminal_status
-            and not filtered.empty
-            and "situacao" in filtered.columns
-        ):
-            try:
-                filtered = measure_timing(
-                    "exclude",
-                    lambda: filtered[
-                        ~filtered["situacao"]
-                        .astype(str)
-                        .str.upper()
-                        .isin(_EXCLUDED_TERMINAL_STATUSES)
-                    ],
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao aplicar exclusao SCA/SES/STE no refresh de filtros: %s",
-                    exc,
-                )
+        filtered, cache_update = apply_filter_refresh_pipeline(
+            filtered,
+            has_post_search_filters=has_post_search_filters,
+            has_excluded_terminal_status=has_excluded_terminal_status,
+            cache_key=cache_key,
+            cached=getattr(self, "_filter_refresh_result_cache", None),
+            apply_advanced_filters=getattr(self, "_apply_advanced_filters", None),
+            apply_column_filters=self._apply_column_filters,
+            measure_timing=measure_timing,
+            logger=logger,
+        )
+        if cache_update is not None:
+            self._filter_refresh_result_cache = cache_update
         return filtered
 
     def _sort_filter_refresh_result(
@@ -3862,7 +3285,7 @@ class FilterGUISSAMixin:
             )
 
     def _finish_filter_refresh_ui(self, measure_timing) -> None:
-        measure_timing("indicator", self._update_col_filter_indicator)
+        measure_timing("status_indicator", self._update_col_filter_indicator)
         try:
             measure_timing("summary", self._update_filters_summary)
         except Exception as exc:
@@ -3895,10 +3318,12 @@ class FilterGUISSAMixin:
         filtered,
     ) -> None:
         total_ms = (perf_counter() - refresh_started) * 1000.0
+        base_rows = len(base) if isinstance(base, pd.DataFrame) else "na"
+        filtered_rows = len(filtered) if isinstance(filtered, pd.DataFrame) else "na"
         logger.debug(
             (
                 "Filter refresh timings ms: total=%.2f advanced=%.2f column=%.2f "
-                "exclude=%.2f sort=%.2f paginate=%.2f render=%.2f indicator=%.2f "
+                "exclude=%.2f sort=%.2f paginate=%.2f render=%.2f status_indicator=%.2f "
                 "summary=%.2f status=%.2f sync=%.2f rows=%s->%s"
             ),
             total_ms,
@@ -3908,37 +3333,18 @@ class FilterGUISSAMixin:
             timings["sort"],
             timings["paginate"],
             timings["render"],
-            timings["indicator"],
+            timings["status_indicator"],
             timings["summary"],
             timings["status"],
             timings["sync"],
-            len(base) if isinstance(base, pd.DataFrame) else "na",
-            len(filtered) if isinstance(filtered, pd.DataFrame) else "na",
+            base_rows,
+            filtered_rows,
         )
 
     def _refresh_after_filter_change(self):
         """Reaplica filtros de coluna, atualiza tabela e indicadores."""
-        refresh_started = perf_counter()
+        timer = FilterRefreshTimer()
         current_details_ssa = getattr(self, "_details_current_ssa", None)
-        timings: dict[str, float] = {
-            "advanced": 0.0,
-            "column": 0.0,
-            "exclude": 0.0,
-            "sort": 0.0,
-            "paginate": 0.0,
-            "render": 0.0,
-            "indicator": 0.0,
-            "summary": 0.0,
-            "status": 0.0,
-            "sync": 0.0,
-        }
-
-        def measure_timing(name: str, callback):
-            started = perf_counter()
-            result = callback()
-            timings[name] = (perf_counter() - started) * 1000.0
-            return result
-
         has_general_search = self._filter_refresh_has_general_search()
         base = self._filter_refresh_base_dataframe(has_general_search)
         filtered = base
@@ -3956,7 +3362,7 @@ class FilterGUISSAMixin:
             filtered,
             has_post_search_filters=has_post_search_filters,
             has_excluded_terminal_status=has_excluded_terminal_status,
-            measure_timing=measure_timing,
+            measure_timing=timer.measure,
         )
         filtered = self._sort_filter_refresh_result(
             filtered,
@@ -3964,59 +3370,51 @@ class FilterGUISSAMixin:
             has_column_filters=has_column_filters,
             has_advanced_filters=has_advanced_filters,
             has_excluded_terminal_status=has_excluded_terminal_status,
-            measure_timing=measure_timing,
+            measure_timing=timer.measure,
         )
         self.df_exibido = filtered
         self._bump_filter_refresh_revision()
-        measure_timing(
+        timer.measure(
             "paginate", lambda: self.paginator.set_dataframe(self.df_exibido)
         )
-        self._render_filter_refresh_page(current_details_ssa, measure_timing)
-        self._finish_filter_refresh_ui(measure_timing)
+        self._render_filter_refresh_page(current_details_ssa, timer.measure)
+        self._finish_filter_refresh_ui(timer.measure)
         self._log_filter_refresh_timings(
-            refresh_started=refresh_started,
-            timings=timings,
+            refresh_started=timer.started,
+            timings=timer.timings,
             base=base,
             filtered=filtered,
         )
 
     def _build_filter_cache_context(self) -> str:
         """Gera contexto deterministico do estado efetivo de filtros para o cache."""
+        raw_column_filters = getattr(self, "_active_column_filters", {}) or {}
+        raw_advanced_filters = getattr(self, "_advanced_filters", None) or {}
+        advanced_filters_active = bool(
+            getattr(self, "_advanced_filters_active", False)
+        )
+        exclude_terminal_statuses = bool(getattr(self, "_exclude_ste_sca", False))
         try:
-            active_filters = OrderedDict()
-            for column_name, filter_value in sorted(
-                (getattr(self, "_active_column_filters", {}) or {}).items()
+            cache_parts = build_filter_cache_parts(
+                raw_column_filters,
+                raw_advanced_filters,
+                advanced_filters_active=advanced_filters_active,
+                exclude_terminal_statuses=exclude_terminal_statuses,
+            )
+            current_fingerprint = cache_parts.fingerprint()
+            if (
+                not bool(getattr(self, "_filter_cache_context_dirty", True))
+                and current_fingerprint
+                == getattr(self, "_filter_cache_context_fingerprint", None)
             ):
-                normalized_value = str(filter_value).strip()
-                if normalized_value:
-                    active_filters[column_name] = normalized_value
-
-            advanced_filters_active = bool(
-                getattr(self, "_advanced_filters_active", False)
-            )
-            raw_advanced_filters = getattr(self, "_advanced_filters", None) or {}
-            advanced_filters = (
-                copy.deepcopy(raw_advanced_filters) if advanced_filters_active else {}
-            )
-
-            cache_payload = {
-                "active_column_filters": active_filters,
-                "advanced_filters": advanced_filters,
-                "advanced_filters_active": advanced_filters_active,
-                "exclude_ste_sca": bool(getattr(self, "_exclude_ste_sca", False)),
-            }
-            if not (
-                cache_payload["active_column_filters"]
-                or cache_payload["advanced_filters"]
-                or cache_payload["exclude_ste_sca"]
-            ):
-                return ""
-            return json.dumps(
-                cache_payload,
-                sort_keys=True,
-                ensure_ascii=True,
-                default=str,
-            )
+                cached_context = getattr(self, "_filter_cache_context_value", None)
+                if isinstance(cached_context, str):
+                    return cached_context
+            context = build_filter_cache_context_from_parts(cache_parts)
+            self._filter_cache_context_value = context
+            self._filter_cache_context_dirty = False
+            self._filter_cache_context_fingerprint = current_fingerprint
+            return context
         except Exception as exc:
             logger.debug("Falha ao montar contexto de cache para FilterWorker: %s", exc)
             return ""
@@ -4040,6 +3438,12 @@ class FilterGUISSAMixin:
         }
 
     def _snapshot_filter_state(self) -> dict:
+        """Capture undo state.
+
+        Hidden column-filter lines are captured as UI preference, but restore
+        sanitizes active-filter lines so a non-empty filter cannot become
+        invisible.
+        """
         try:
             search_text = self.search_input.text()
         except Exception:
@@ -4050,6 +3454,8 @@ class FilterGUISSAMixin:
             active_filters = OrderedDict()
         groups_snapshot = []
         for group in getattr(self, "_column_or_groups", []) or []:
+            if not isinstance(group, dict):
+                continue
             groups_snapshot.append(
                 {
                     "columns": tuple(group.get("columns", ())),
@@ -4062,18 +3468,18 @@ class FilterGUISSAMixin:
             "active_column_filters": active_filters,
             "column_or_groups": groups_snapshot,
             "exclude_ste_sca": bool(getattr(self, "_exclude_ste_sca", False)),
-            "advanced_filters": copy.deepcopy(
-                getattr(self, "_advanced_filters", None) or {}
+            "advanced_filters": _copy_filter_mapping(
+                getattr(self, "_advanced_filters", None)
             ),
             "advanced_filters_active": bool(
                 getattr(self, "_advanced_filters_active", False)
             ),
             "current_filter_profile": getattr(self, "current_filter_profile", None),
-            "profile_base_filters": copy.deepcopy(
-                getattr(self, "_profile_base_filters", {}) or {}
+            "profile_base_filters": _copy_filter_mapping(
+                getattr(self, "_profile_base_filters", None)
             ),
             "hidden_column_filter_lines": set(
-                getattr(self, "_hidden_column_filter_lines", set())
+                getattr(self, "_hidden_column_filter_lines", None) or set()
             ),
             "dedicated_or_text": str(getattr(self, "_dedicated_or_text", "")),
         }
@@ -4088,37 +3494,34 @@ class FilterGUISSAMixin:
             self._last_filter_state = None
         self._update_undo_button_state()
 
-    def _restore_last_filter_state(self) -> None:
-        state = getattr(self, "_last_filter_state", None)
-        if not state:
+    def _restore_last_filter_state(
+        self,
+        state: dict | None = None,
+        *,
+        consume_undo: bool = True,
+    ) -> None:
+        if state is not None and not isinstance(state, dict):
+            state = None
+        if state is None:
+            state = getattr(self, "_last_filter_state", None)
+        if state is None:
             return
         self._invalidate_active_filter_request("restore_last_filter_state")
         self._set_filter_ui_idle()
         self._restoring_filter_state = True
         try:
-            self._last_filter_state = None
+            if consume_undo:
+                self._last_filter_state = None
             restored_search_text = str(state.get("search_text", "") or "")
-            try:
-                self._set_search_text_across_tabs(restored_search_text)
-            except Exception as exc:
-                logger.warning("Falha ao restaurar texto de busca entre abas: %s", exc)
-                try:
-                    self.search_input.blockSignals(True)
-                    self.search_input.setText(restored_search_text)
-                finally:
-                    try:
-                        self.search_input.blockSignals(False)
-                    except Exception as unblock_exc:
-                        logger.debug(
-                            "Falha ao reativar sinais do campo de busca ao restaurar estado: %s",
-                            unblock_exc,
-                        )
+            self._set_search_text_across_tabs(restored_search_text)
             self._pending_search_display = state.get("pending_search_display")
             self._active_column_filters = OrderedDict(
                 state.get("active_column_filters") or {}
             )
             self._reset_or_groups()
             for group in state.get("column_or_groups") or []:
+                if not isinstance(group, dict):
+                    continue
                 self._register_or_group(
                     list(group.get("columns") or []), list(group.get("values") or [])
                 )
@@ -4126,20 +3529,15 @@ class FilterGUISSAMixin:
             checkbox = getattr(self, "exclude_ste_checkbox", None)
             if checkbox is not None:
                 try:
-                    checkbox.blockSignals(True)
-                    checkbox.setChecked(self._exclude_ste_sca)
+                    self._set_checked_without_signal(
+                        checkbox,
+                        self._exclude_ste_sca,
+                        log_context="restore_exclude_ste_checkbox",
+                    )
                 except Exception as exc:
                     logger.debug(
                         "Falha ao restaurar checkbox exclude_ste principal: %s", exc
                     )
-                finally:
-                    try:
-                        checkbox.blockSignals(False)
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao reativar sinais do checkbox exclude_ste principal: %s",
-                            exc,
-                        )
             self._advanced_filters = state.get("advanced_filters") or {}
             self._advanced_filters_active = bool(state.get("advanced_filters_active"))
             self._df_last_search_filtered = (
@@ -4193,7 +3591,7 @@ class FilterGUISSAMixin:
 
     def _update_undo_button_state(self) -> None:
         self._set_undo_filter_buttons_enabled(
-            bool(getattr(self, "_last_filter_state", None))
+            getattr(self, "_last_filter_state", None) is not None
         )
 
     def _apply_search_display(self):
@@ -4201,43 +3599,12 @@ class FilterGUISSAMixin:
         if display_text is None:
             return
 
-        widgets = self._get_live_search_inputs_snapshot()
-        for widget in widgets:
-            try:
-                if widget.hasFocus():
-                    return
-            except RuntimeError as exc:
-                logger.debug(
-                    "Widget de busca invalido durante verificacao de foco: %s", exc
-                )
-                continue
-            except Exception as exc:
-                logger.debug("Falha ao verificar foco durante sync de busca: %s", exc)
-                continue
-        for widget in widgets:
-            blocked = False
-            try:
-                widget.blockSignals(True)
-                blocked = True
-                widget.setText(display_text)
-            except RuntimeError as exc:
-                logger.debug(
-                    "Widget de busca invalido durante apply_search_display: %s", exc
-                )
-            finally:
-                if blocked:
-                    try:
-                        widget.blockSignals(False)
-                    except RuntimeError as exc:
-                        logger.debug(
-                            "Widget de busca destruido ao reativar sinais: %s", exc
-                        )
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao reativar sinais do campo em apply_search_display: %s",
-                            exc,
-                        )
-        self._pending_search_display = None
+        if self._sync_search_inputs(
+            display_text,
+            skip_if_any_focused=True,
+            log_context="apply_search_display",
+        ):
+            self._pending_search_display = None
 
     def _mark_profile_as_custom(self):
         """Marca o perfil atual como personalizado quando filtros divergem."""
@@ -4264,11 +3631,14 @@ class FilterGUISSAMixin:
             referenced_columns = set(base_columns.keys()) | set(
                 self._active_column_filters.keys()
             )
+            column_to_or_group = getattr(self, "_column_to_or_group", {}) or {}
             for col in referenced_columns:
-                if col in self._column_to_or_group:
-                    group = self._column_to_or_group.get(col)
-                    current_columns[col] = (
-                        ", ".join(group.get("values", [])) if group else ""
+                group = column_to_or_group.get(col)
+                if isinstance(group, dict):
+                    current_columns[col] = ", ".join(
+                        str(value).strip()
+                        for value in group.get("values", [])
+                        if str(value).strip()
                     )
                 else:
                     current_columns[col] = str(
@@ -4331,119 +3701,59 @@ class FilterGUISSAMixin:
                     self._profile_lock = False
 
     def _apply_filter_profile(self, profile_name, update_selector=True, refresh=True):
-        """Aplica filtros pré-configurados de setor."""
+        """Aplica filtros pre-configurados de setor."""
         if not profile_name or profile_name not in self.filter_profiles:
-            # Fallback ad-hoc: permite strings como "IEE3 + MEL3 + MEL4" para grupo Executor/Emissor
-            try:
-                raw = str(profile_name)
-                tokens = [
-                    _t.strip() for _t in re.split(r"[+,]", raw) if _t and _t.strip()
-                ]
-                if tokens:
-                    self._reset_or_groups()
-                    self._register_or_group(["setor_executor", "setor_emissor"], tokens)
-                    # Garante colunas monitoradas
-                    for _col in ("setor_executor", "setor_emissor"):
-                        if _col not in self._profile_columns:
-                            self._profile_columns.append(_col)
-                    # Define filtros subjacentes separados por vírgulas (lógica)
-                    new_filters = OrderedDict(self._active_column_filters or {})
-                    for _col in ("setor_executor", "setor_emissor"):
-                        new_filters[_col] = ", ".join(tokens)
-                    self._active_column_filters = new_filters
-                    # Base do perfil para marcação de personalizado
-                    self._profile_base_filters = {
-                        "columns": {
-                            c: new_filters.get(c, "")
-                            for c in ("setor_executor", "setor_emissor")
-                        },
-                        "or_groups": [
-                            {
-                                "columns": ("setor_executor", "setor_emissor"),
-                                "values": tuple(tokens),
-                            }
-                        ],
-                        "exclude_ste_sca": bool(self._exclude_ste_sca),
-                    }
-                    self._build_column_filters_panel()
-                    if refresh:
-                        self._refresh_after_filter_change()
-                return
-            except Exception:
-                return
-        profile_def = self.filter_profiles.get(profile_name) or {}
+            fallback = normalize_inline_executor_emissor_profile(profile_name)
+            if fallback.columns:
+                self._apply_normalized_filter_profile(
+                    profile_name=None,
+                    normalized=fallback,
+                    update_selector=False,
+                    refresh=refresh,
+                    base_profile_name=None,
+                )
+            return
 
-        def normalize_values(value) -> list:
-            if isinstance(value, list):
-                return [str(v).strip() for v in value if str(v).strip()]
-            if isinstance(value, str):
-                return [value.strip()] if value.strip() else []
-            if value is None:
-                return []
-            text = str(value).strip()
-            return [text] if text else []
+        normalized = normalize_named_filter_profile(
+            self.filter_profiles.get(profile_name) or {}
+        )
+        self._apply_normalized_filter_profile(
+            profile_name=profile_name,
+            normalized=normalized,
+            update_selector=update_selector,
+            refresh=refresh,
+            base_profile_name=profile_name,
+        )
 
-        normalized_columns = OrderedDict()
+    def _apply_normalized_filter_profile(
+        self,
+        *,
+        profile_name,
+        normalized: NormalizedFilterProfile,
+        update_selector: bool,
+        refresh: bool,
+        base_profile_name,
+    ) -> None:
+        normalized_columns = OrderedDict(normalized.columns)
         normalized_groups = []
         self._reset_or_groups()
-
-        if isinstance(profile_def, dict):
-            all_section = (
-                profile_def.get("all")
-                if isinstance(profile_def.get("all"), dict)
-                else None
+        for group in normalized.or_groups:
+            registered = self._register_or_group(
+                list(group.columns),
+                list(group.values),
             )
-            if all_section:
-                for col, value in all_section.items():
-                    values_list = normalize_values(value)
-                    normalized_columns[col] = (
-                        ", ".join(values_list) if values_list else ""
-                    )
-                    if col not in self._profile_columns:
-                        self._profile_columns.append(col)
-            any_section = (
-                profile_def.get("any")
-                if isinstance(profile_def.get("any"), list)
-                else None
+            if not registered:
+                continue
+            display_values = ", ".join(registered["values"])
+            for col in registered["columns"]:
+                normalized_columns[col] = display_values
+            normalized_groups.append(
+                {
+                    "columns": tuple(registered["columns"]),
+                    "values": tuple(registered["values"]),
+                }
             )
-            if any_section:
-                for group in any_section:
-                    if not isinstance(group, dict):
-                        continue
-                    columns = (
-                        group.get("columns")
-                        if isinstance(group.get("columns"), list)
-                        else []
-                    )
-                    values_list = normalize_values(group.get("values"))
-                    registered = self._register_or_group(columns, values_list)
-                    if registered:
-                        display_values = ", ".join(registered["values"])
-                        for col in registered["columns"]:
-                            normalized_columns[col] = display_values
-                        for col in registered["columns"]:
-                            if col not in self._profile_columns:
-                                self._profile_columns.append(col)
-                        normalized_groups.append(
-                            {
-                                "columns": tuple(registered["columns"]),
-                                "values": tuple(registered["values"]),
-                            }
-                        )
-            if not all_section and "any" not in profile_def:
-                for col, value in profile_def.items():
-                    values_list = normalize_values(value)
-                    normalized_columns[col] = (
-                        ", ".join(values_list) if values_list else ""
-                    )
-                    if col not in self._profile_columns:
-                        self._profile_columns.append(col)
-        else:
-            values_list = normalize_values(profile_def)
-            if values_list:
-                normalized_columns["situacao"] = ", ".join(values_list)
-                if "situacao" not in self._profile_columns:
-                    self._profile_columns.append("situacao")
+        self._ensure_profile_columns(normalized.profile_columns)
 
         self._profile_lock = True
         try:
@@ -4476,15 +3786,26 @@ class FilterGUISSAMixin:
                 "or_groups": normalized_groups,
                 "exclude_ste_sca": bool(self._exclude_ste_sca),
             }
-            if update_selector and getattr(self, "profile_selector", None) is not None:
-                idx = self.profile_selector.findData(profile_name)
-                if idx >= 0 and self.profile_selector.currentIndex() != idx:
-                    self.profile_selector.setCurrentIndex(idx)
+            if update_selector and base_profile_name is not None:
+                self._select_filter_profile(base_profile_name)
         finally:
             self._profile_lock = False
         self._build_column_filters_panel()
         if refresh:
             self._refresh_after_filter_change()
+
+    def _ensure_profile_columns(self, columns: tuple[str, ...]) -> None:
+        for column_name in columns:
+            if column_name not in self._profile_columns:
+                self._profile_columns.append(column_name)
+
+    def _select_filter_profile(self, profile_name) -> None:
+        selector = getattr(self, "profile_selector", None)
+        if selector is None:
+            return
+        idx = selector.findData(profile_name)
+        if idx >= 0 and selector.currentIndex() != idx:
+            selector.setCurrentIndex(idx)
 
     def _apply_initial_filter_profile(self):
         """Seleciona e aplica o perfil inicial definido em configuração."""
@@ -4511,114 +3832,34 @@ class FilterGUISSAMixin:
                 finally:
                     self._profile_lock = False
         self._build_column_filters_panel()
-        self._refresh_after_filter_change()
+        if (
+            isinstance(getattr(self, "df_completo", None), pd.DataFrame)
+            and not self.df_completo.empty
+        ):
+            self._refresh_after_filter_change()
 
-    def _build_column_mask(self, series: pd.Series, raw: str) -> pd.Series:
-        # Divide SOMENTE por vírgulas; não há conectivos especiais aqui.
-        normalized = str(raw)
-        tokens = [t.strip() for t in normalized.split(",") if t.strip()]
-        if not tokens:
-            return pd.Series([True] * len(series), index=series.index)
-
-        # Determina modo padrao a partir das preferencias
-        if not hasattr(self, "_cached_default_mode"):
-            from gui.gui_config import GUI_MAIN_PREFERENCES
-
-            gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
-            self._cached_default_mode = gui_settings.get(
-                "default_filter_mode", "contains"
-            )
-        default_mode = self._cached_default_mode
-
-        def _safe_regex_contains(s: pd.Series, pattern: str) -> pd.Series:
-            pattern_text = str(pattern or "")
-            if not pattern_text:
-                return pd.Series([True] * len(s), index=s.index)
-            has_lookaround = (
-                "(?=" in pattern_text
-                or "(?!" in pattern_text
-                or "(?<=" in pattern_text
-                or "(?<!" in pattern_text
-            )
-            has_backref = bool(re.search(r"\\[1-9]", pattern_text))
-            has_quantifier = bool(_UNSAFE_REGEX_QUANTIFIER_RE.search(pattern_text))
-            meta_char_count = len(_REGEX_META_CHAR_RE.findall(pattern_text))
-            has_alternation_with_quantifier = "|" in pattern_text and bool(
-                re.search(r"[+*?{]", pattern_text)
-            )
-            if (
-                len(pattern_text) > 120
-                or _NESTED_QUANTIFIER_RE.search(pattern_text)
-                or _HEAVY_QUANTIFIER_CHAIN_RE.search(pattern_text)
-                or has_lookaround
-                or has_backref
-                or has_quantifier
-                or meta_char_count > 16
-                or has_alternation_with_quantifier
-            ):
-                logger.warning(
-                    "Regex de filtro bloqueado por seguranca; usando busca literal."
-                )
-                return s.str.contains(pattern_text, case=False, na=False, regex=False)
-            try:
-                pat = re.compile(pattern_text, re.IGNORECASE)
-                return s.str.contains(pat, na=False)
-            except re.error:
-                return s.str.contains(pattern_text, case=False, na=False, regex=False)
-
-        def match_token(s: pd.Series, token: str) -> pd.Series:
-            neg = token.startswith("!")
-            t = token[1:] if neg else token
-            # VAZIOS/NULL: aceita NULL ou =NULL (case-insensitive)
-            if t.upper() in ("NULL", "=NULL"):
-                # Considera nulos, strings vazias e '-'
-                stripped = s.str.strip()
-                res = s.isna() | stripped.fillna("").eq("") | (s == "-")
-                return ~res if neg else res
-            # Regex explácito
-            if t.startswith("~") and len(t) > 1:
-                res = _safe_regex_contains(s, t[1:])
-            elif t.startswith("="):
-                res = s.str.casefold().eq(t[1:].casefold())
-            elif t.startswith("^"):
-                res = s.str.casefold().str.startswith(t[1:].casefold())
-            elif t.endswith("$"):
-                res = s.str.casefold().str.endswith(t[:-1].casefold())
-            else:
-                if default_mode == "prefix":
-                    res = s.str.casefold().str.startswith(t.casefold())
-                elif default_mode == "suffix":
-                    res = s.str.casefold().str.endswith(t.casefold())
-                elif default_mode == "exact":
-                    res = s.str.casefold().eq(t.casefold())
-                elif default_mode == "regex":
-                    res = _safe_regex_contains(s, t)
-                else:  # contains
-                    res = s.str.contains(t, case=False, na=False, regex=False)
-            return ~res if neg else res
-
-        # OR entre inclusões no MESMO CAMPO; exclusões (com !) removem
-        includes = [tok for tok in tokens if not tok.startswith("!")]
-        excludes = [tok for tok in tokens if tok.startswith("!")]
-
-        if includes:
-            m = match_token(series, includes[0])
-            for tok in includes[1:]:
-                m = m | match_token(series, tok)
-        else:
-            m = pd.Series([True] * len(series), index=series.index)
-        for tok in excludes:
-            m = m & match_token(series, tok)
-        return m
+    def _build_column_mask(
+        self,
+        series: pd.Series,
+        raw: str,
+        *,
+        casefolded_series: pd.Series | None = None,
+    ) -> pd.Series:
+        return build_column_mask(
+            series,
+            raw,
+            default_mode=self._get_default_filter_mode(),
+            casefolded_series=casefolded_series,
+        )
 
     # --- Helpers: Busca Geral com suporte a OR/AND amigável ---
 
-    def _split_search_expression(self, text: str) -> list[str]:
-        # Simplified: General search uses ONLY AND logic (commas separate terms)
-        # No OR/OU splitting - returns single chunk containing all terms
+    def _prepare_search_chunks(self, text: str) -> list[str]:
+        # General search keeps comma-separated terms in one chunk; parse_search_terms
+        # applies the cumulative quick-search contract. Column filters use a
+        # separate parser where commas mean alternatives within that column.
         if not text:
             return []
-        # Return text as single chunk - will be split by commas in _normalize_chunk_for_parse
         return [text.strip()] if text.strip() else []
 
     def _normalize_chunk_for_parse(self, chunk: str) -> list[str]:
@@ -4639,64 +3880,36 @@ class FilterGUISSAMixin:
 
     def load_persistent_filters(self):
         """Carrega filtros persistentes salvos."""
-        self.persistent_filters = []
-        path = get_gui_saved_filters_path()
-        if os.path.exists(path):
-            try:
-                with open(path, encoding="utf-8") as handle:
-                    payload = json.load(handle)
-                filters = payload.get("filters") if isinstance(payload, dict) else payload
-                if isinstance(filters, list):
-                    loaded_filters = []
-                    for item in filters:
-                        if not isinstance(item, dict):
-                            continue
-                        name = str(item.get("name") or "").strip()
-                        terms = str(item.get("terms") or "").strip()
-                        state = item.get("state")
-                        if not name or not isinstance(state, dict):
-                            continue
-                        loaded_filters.append(
-                            {
-                                "name": name,
-                                "terms": terms,
-                                "state": copy.deepcopy(state),
-                            }
-                        )
-                    self.persistent_filters = sorted(
-                        loaded_filters, key=lambda f: f["name"].casefold()
-                    )
-            except (OSError, json.JSONDecodeError) as exc:
-                logger.warning("Falha ao carregar filtros salvos: %s", exc)
+        self.persistent_filters = load_persistent_filters_file(
+            get_gui_saved_filters_path()
+        )
+        self._persistent_filter_index = build_persistent_filter_index(
+            self.persistent_filters
+        )
+        self._persistent_filter_index_count = len(self.persistent_filters)
         self.update_filter_tags()
 
-    def _save_persistent_filters_file(self) -> None:
-        path = get_gui_saved_filters_path()
+    def _save_persistent_filters_file(self) -> bool:
+        return save_persistent_filters_file(
+            get_gui_saved_filters_path(),
+            getattr(self, "persistent_filters", []) or [],
+        )
 
-        def _json_safe(value):
-            if isinstance(value, dict):
-                return {str(key): _json_safe(val) for key, val in value.items()}
-            if isinstance(value, set):
-                return [_json_safe(item) for item in sorted(value, key=str)]
-            if isinstance(value, (list, tuple)):
-                return [_json_safe(item) for item in value]
-            if value is None or isinstance(value, (str, int, float, bool)):
-                return value
-            return str(value)
+    def _invalidate_persistent_filter_index(self) -> None:
+        self._persistent_filter_index = None
+        self._persistent_filter_index_count = None
 
-        payload = {
-            "version": 1,
-            "filters": _json_safe(getattr(self, "persistent_filters", []) or []),
-        }
-        try:
-            atomic_write_json_file(path, payload, indent=2, ensure_ascii=False)
-            os.chmod(path, 0o600)
-        except OSError as exc:
-            logger.warning(
-                "Falha ao restringir permissoes de filtros persistentes: %s", exc
-            )
-        except Exception as exc:
-            logger.warning("Falha ao salvar filtros persistentes: %s", exc)
+    def _get_persistent_filter_index(self) -> PersistentFilterIndex:
+        filters = getattr(self, "persistent_filters", []) or []
+        index = getattr(self, "_persistent_filter_index", None)
+        indexed_count = getattr(self, "_persistent_filter_index_count", None)
+        if not isinstance(index, PersistentFilterIndex):
+            index = build_persistent_filter_index(filters)
+        elif indexed_count != len(filters):
+            index = build_persistent_filter_index(filters)
+        self._persistent_filter_index = index
+        self._persistent_filter_index_count = len(filters)
+        return index
 
     def save_current_filter(self):  # skipcq: PY-R1000
         """Salva o estado atual de filtros como persistente."""
@@ -4724,12 +3937,10 @@ class FilterGUISSAMixin:
             )
             return
 
-        # Cria um nome baseado no filtro com truncamento por largura disponivel.
-        filter_name = current_text or str(
-            current_state.get("current_filter_profile") or ""
-        ).strip()
-        if not filter_name:
-            filter_name = f"Filtro combinado {len(self.persistent_filters) + 1}"
+        filter_name = build_persistent_filter_name(
+            current_state,
+            existing_count=len(self.persistent_filters),
+        )
         try:
             metrics = self.search_input.fontMetrics()
             width_px = int(
@@ -4744,53 +3955,47 @@ class FilterGUISSAMixin:
                     and metrics.horizontalAdvance(trimmed + ellipsis) > available
                 ):
                     trimmed = trimmed[:-1]
-                filter_name = (trimmed + ellipsis) if trimmed else ellipsis
+                if len(trimmed) < 3:
+                    trimmed = filter_name[:3]
+                filter_name = trimmed + ellipsis
         except Exception as exc:
             logger.debug(
                 "Falha ao truncar nome de filtro persistente por largura: %s", exc
             )
 
-        def _state_json_default(value):
-            if isinstance(value, set):
-                return sorted(value, key=str)
-            return str(value)
-
-        # Verifica se ja existe
-        current_state_key = json.dumps(
-            current_state,
-            sort_keys=True,
-            ensure_ascii=True,
-            default=_state_json_default,
-        )
-        for f in self.persistent_filters:
-            saved_state = f.get("state")
-            saved_state_key = (
-                json.dumps(
-                    saved_state,
-                    sort_keys=True,
-                    ensure_ascii=True,
-                    default=_state_json_default,
-                )
-                if isinstance(saved_state, dict)
-                else ""
+        current_state_key = persistent_filter_state_key(current_state)
+        index = self._get_persistent_filter_index()
+        if current_state_key in index.state_keys or (
+            not current_state_key and current_text in index.legacy_terms
+        ):
+            QMessageBox.information(
+                _qt_parent(self), "Aviso", "Este filtro ja esta salvo."
             )
-            if saved_state_key == current_state_key or (
-                not saved_state_key and f.get("terms") == current_text
-            ):
-                QMessageBox.information(
-                    _qt_parent(self), "Aviso", "Este filtro ja esta salvo."
-                )
-                return
+            return
 
-        # Adiciona novo filtro
         new_filter = {
             "name": filter_name,
             "terms": current_text,
-            "state": copy.deepcopy(current_state),
+            "state": _copy_filter_mapping(current_state),
         }
         self.persistent_filters.append(new_filter)
-        self.persistent_filters.sort(key=lambda f: f["name"].casefold())
-        self._save_persistent_filters_file()
+        self.persistent_filters = sort_persistent_filters(self.persistent_filters)
+        self._invalidate_persistent_filter_index()
+        if not self._save_persistent_filters_file():
+            self.persistent_filters = [
+                item for item in self.persistent_filters if item is not new_filter
+            ]
+            self._invalidate_persistent_filter_index()
+            QMessageBox.warning(
+                _qt_parent(self),
+                "Erro",
+                "Nao foi possivel salvar o filtro persistente.",
+            )
+            return
+        self._persistent_filter_index = build_persistent_filter_index(
+            self.persistent_filters
+        )
+        self._persistent_filter_index_count = len(self.persistent_filters)
         self.update_filter_tags()
 
         QMessageBox.information(
@@ -4830,9 +4035,7 @@ class FilterGUISSAMixin:
         """
 
         # Adiciona novas tags
-        for filter_data in sorted(
-            self.persistent_filters, key=lambda f: f["name"].casefold()
-        ):
+        for filter_data in sort_persistent_filters(self.persistent_filters):
             tag_button = QPushButton(filter_data["name"])
             tag_button.setMaximumHeight(25)
             tag_button.setMaximumWidth(180)
@@ -4882,10 +4085,14 @@ class FilterGUISSAMixin:
                     exc,
                 )
                 previous_state = None
-            self._last_filter_state = copy.deepcopy(filter_data["state"])
-            self._restore_last_filter_state()
-            self._last_filter_state = previous_state
-            self._update_undo_button_state()
+            try:
+                self._restore_last_filter_state(
+                    _copy_filter_mapping(filter_data["state"]),
+                    consume_undo=False,
+                )
+            finally:
+                self._last_filter_state = previous_state
+                self._update_undo_button_state()
             return
         if isinstance(filter_data, dict):
             terms = str(filter_data.get("terms", "") or "")

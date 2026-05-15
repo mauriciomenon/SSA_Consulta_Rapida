@@ -37,6 +37,7 @@ class TestGUITableRenderResilience:
         self._load_patch = patch.object(SSAMainWindow, "load_data", lambda self: None)
         self._load_patch.start()
         self.window = SSAMainWindow()
+        self.window._filter_worker_registry = filter_mixin.DeferredFilterWorkerRegistry()
         self.window.show()
 
         self.base_df = pd.DataFrame(
@@ -114,9 +115,9 @@ class TestGUITableRenderResilience:
         except Exception:
             gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = []
         try:
-            filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS.clear()
+            self.window._filter_worker_registry.clear()
         except Exception:
-            filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS[:] = []
+            self.window._filter_worker_registry = filter_mixin.DeferredFilterWorkerRegistry()
 
     def test_display_current_page_continues_when_first_cell_item_creation_fails(self):
         from gui.ssa import gui_table
