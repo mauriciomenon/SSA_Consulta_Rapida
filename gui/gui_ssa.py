@@ -1410,7 +1410,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.debug("Failed to set WA_DeleteOnClose on main window: %s", exc)
         self._app_version = resolve_app_version_text()
         self.setWindowTitle(f"Consulta Rapida de SSAs v{self._app_version}")
-        self.setGeometry(100, 100, 1200, 850)
+        self.setGeometry(100, 100, 1200, 890)
         self._last_window_width = self.width()
         # Icone da janela (prioriza .ico no Windows)
         try:
@@ -1507,7 +1507,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Configurações de GUI (independentes do CLI)
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         self._restored_page_size = gui_settings.get("page_size", 50)
-        self._quick_setor_executor_syncing = False
 
         # Inicializa managers unificados (substitui codigo frankenstein)
         self.width_manager = SimpleWidthManager()
@@ -1705,6 +1704,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if name.startswith("_"):
                 continue
             setattr(self, name, value)
+        try:
+            self._build_column_filters_panel()
+        except Exception as exc:
+            logger.warning("Falha ao construir filtros por coluna iniciais: %s", exc)
         main_layout.addWidget(cast(Any, self.main_tabs))
         self._setup_tsm_debug_probes()
         try:
@@ -1791,28 +1794,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "Modos por termo: \n"
             "- contem (padrao): foo\n- comeca com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex seguro: ~^foo ou ~foo$\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
         )
-        search_input.setMinimumWidth(425)
-        search_input.setMaximumWidth(950)
+        search_input.setMinimumWidth(360)
         self._set_widget_min_height_safe(search_input, 26, "campo de pesquisa")
+        try:
+            search_input.setFrame(False)
+        except Exception as exc:
+            logger.debug("Falha ao remover frame interno da pesquisa: %s", exc)
         search_input.returnPressed.connect(self._on_general_search_apply_clicked)
         search_input.textChanged.connect(self._on_search_text_changed)
-        search_button = QPushButton("Aplicar")
+        search_button = QPushButton("↵")
         self._set_widget_fixed_height_safe(
             search_button, 26, "botao Aplicar da pesquisa geral"
         )
         try:
-            search_button.setStyleSheet(self._week_label_style)
-            search_button.setMaximumWidth(110)
+            search_button.setFixedWidth(28)
         except Exception as exc:
             logger.debug("Falha ao aplicar estilo no botao Aplicar da pesquisa: %s", exc)
+        search_button.setToolTip("Aplicar busca (Enter)")
         search_button.clicked.connect(self._on_general_search_apply_clicked)
-        clear_filter_button = QPushButton("Limpar Busca")
+        clear_filter_button = QPushButton("⌫")
         self._set_widget_fixed_height_safe(
             clear_filter_button, 26, "botao Limpar Busca"
         )
         try:
-            clear_filter_button.setStyleSheet(self._week_label_style)
-            clear_filter_button.setMaximumWidth(130)
+            clear_filter_button.setFixedWidth(28)
         except Exception as exc:
             logger.debug(
                 "Falha ao aplicar estilo no botao Limpar Busca da pesquisa: %s", exc
@@ -1823,11 +1828,33 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "Filtros de coluna e avancados continuam ativos."
         )
         clear_filter_button.setEnabled(False)
+        undo_filter_btn = QPushButton("↺")
+        self._set_widget_fixed_height_safe(
+            undo_filter_btn, 26, "botao desfazer filtros"
+        )
+        try:
+            undo_filter_btn.setFixedWidth(34)
+            undo_filter_btn.setStyleSheet(self._week_label_style)
+        except Exception as exc:
+            logger.debug("Falha ao configurar botao undo de filtros: %s", exc)
+        undo_filter_btn.setToolTip("Desfaz o ultimo filtro aplicado")
+        undo_filter_btn.clicked.connect(self._restore_last_filter_state)
+        export_list_btn = QPushButton("Exportar Filtros")
+        self._set_widget_fixed_height_safe(
+            export_list_btn, 26, "botao Exportar Filtros"
+        )
+        export_list_btn.setMaximumWidth(150)
+        export_list_btn.setToolTip("Exportar a lista filtrada atual para arquivo txt")
+        export_list_btn.clicked.connect(self._export_current_list_txt)
+        try:
+            export_list_btn.setStyleSheet(self._week_label_style)
+        except Exception as exc:
+            logger.debug("Falha ao aplicar estilo no botao exportar filtros: %s", exc)
         save_filter_button = QPushButton("Salvar Filtros")
         self._set_widget_fixed_height_safe(
             save_filter_button, 26, "botao Salvar Filtros"
         )
-        save_filter_button.setMaximumWidth(170)
+        save_filter_button.setMaximumWidth(140)
         save_filter_button.setToolTip(
             "Salva o estado atual: busca, filtros de coluna, filtros avancados e perfil."
         )
@@ -1851,9 +1878,41 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         filter_tags_layout.setContentsMargins(0, 0, 0, 0)
         filter_tags_layout.setSpacing(5)
 
-        left.addWidget(cast(Any, clear_filter_button))
-        left.addWidget(cast(Any, search_button))
-        left.addWidget(cast(Any, search_input))
+        search_box = QFrame()
+        search_box.setObjectName("quickSearchBox")
+        self._set_widget_fixed_height_safe(search_box, 26, "caixa de pesquisa rapida")
+        search_box.setMinimumWidth(425)
+        search_box.setMaximumWidth(950)
+        search_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        search_box_layout = QHBoxLayout(cast(Any, search_box))
+        search_box_layout.setContentsMargins(2, 0, 2, 0)
+        search_box_layout.setSpacing(2)
+        search_box_layout.addWidget(cast(Any, clear_filter_button), 0)
+        search_box_layout.addWidget(cast(Any, search_input), 1)
+        search_box_layout.addWidget(cast(Any, search_button), 0)
+        try:
+            search_box.setStyleSheet(
+                "QFrame#quickSearchBox {"
+                "border:1px solid palette(mid);"
+                "border-radius:4px;"
+                "background:palette(base);"
+                "}"
+                "QFrame#quickSearchBox QPushButton {"
+                "border:0;"
+                "background:transparent;"
+                "padding:0;"
+                "font-weight:700;"
+                "}"
+                "QFrame#quickSearchBox QPushButton:hover {"
+                "background:palette(alternate-base);"
+                "}"
+            )
+        except Exception as exc:
+            logger.debug("Falha ao aplicar estilo inicial da caixa de pesquisa: %s", exc)
+        left.addWidget(cast(Any, undo_filter_btn))
+        left.addWidget(cast(Any, search_box))
+        left.addWidget(cast(Any, export_list_btn))
+        left.addWidget(cast(Any, save_filter_button))
         left.addSpacing(8)
         left.addWidget(cast(Any, filter_tags_widget))
         column_selector = ColumnSelector(
@@ -2004,8 +2063,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         filters_summary_items_layout = None
         filters_summary_scroll = None
         clear_all_filters_btn = None
-        export_list_btn = None
-        undo_filter_btn = None
         try:
             filters_summary_frame = QFrame()
             filters_summary_frame.setObjectName("filtersSummaryFrame")
@@ -2064,9 +2121,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     filters_summary_viewport.setAutoFillBackground(False)
             except Exception as exc:
                 logger.debug("Falha ao aplicar estilo no scroll de filtros ativos: %s", exc)
-            summary_button_width = 104
-            clear_all_filters_btn = QPushButton("Limpar Filtros")
-            clear_all_filters_btn.setFixedWidth(summary_button_width)
+            clear_all_filters_btn = QPushButton("⌫")
+            clear_all_filters_btn.setFixedWidth(34)
+            clear_all_filters_btn.setToolTip("Limpar Filtros")
             clear_all_filters_btn.clicked.connect(self._on_clear_all_filters_clicked)
             try:
                 clear_all_filters_btn.setStyleSheet(self._week_label_style)
@@ -2074,25 +2131,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.debug(
                     "Falha ao aplicar estilo no botao limpar todos os filtros: %s", exc
                 )
-            export_list_btn = QPushButton("Exportar lista")
-            export_list_btn.setFixedWidth(summary_button_width)
-            export_list_btn.setToolTip("Exportar lista atual para arquivo txt")
-            export_list_btn.clicked.connect(self._export_current_list_txt)
-            try:
-                export_list_btn.setStyleSheet(self._week_label_style)
-            except Exception as exc:
-                logger.debug("Falha ao aplicar estilo no botao exportar lista: %s", exc)
-            undo_filter_btn = QPushButton("Undo")
-            undo_filter_btn.setFixedWidth(summary_button_width)
-            undo_filter_btn.setToolTip("Desfaz o ultimo filtro aplicado")
-            undo_filter_btn.clicked.connect(self._restore_last_filter_state)
-            try:
-                undo_filter_btn.setStyleSheet(self._week_label_style)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar estilo no botao undo de filtros: %s", exc
-                )
-            save_filter_button.setFixedWidth(summary_button_width)
             summary_text_layout = QHBoxLayout()
             summary_text_layout.setContentsMargins(0, 0, 0, 0)
             summary_text_layout.setSpacing(8)
@@ -2100,14 +2138,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             summary_text_layout.addWidget(cast(Any, filters_summary_scroll), 1)
             if align_middle is None:
                 summary_layout.addWidget(cast(Any, clear_all_filters_btn), 0)
-                summary_layout.addWidget(cast(Any, save_filter_button), 0)
-                summary_layout.addWidget(cast(Any, export_list_btn), 0)
-                summary_layout.addWidget(cast(Any, undo_filter_btn), 0)
             else:
                 summary_layout.addWidget(cast(Any, clear_all_filters_btn), 0, align_middle)
-                summary_layout.addWidget(cast(Any, save_filter_button), 0, align_middle)
-                summary_layout.addWidget(cast(Any, export_list_btn), 0, align_middle)
-                summary_layout.addWidget(cast(Any, undo_filter_btn), 0, align_middle)
             summary_layout.addLayout(cast(Any, summary_text_layout), 1)
             tab_layout.addWidget(cast(Any, filters_summary_frame))
             filters_summary_frame.setVisible(True)
@@ -2350,6 +2382,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         ctx.update(
             {
                 "search_input": search_input,
+                "quick_search_box": search_box,
                 "search_button": search_button,
                 "clear_filter_button": clear_filter_button,
                 "save_filter_button": save_filter_button,
@@ -2590,10 +2623,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             base_font_pt = 10
         if base_font_pt <= 0:
             base_font_pt = 10
-        base_height = int(window_height * 0.27)
+        base_height = int(window_height * 0.31)
         font_adjust = max(0, base_font_pt - 10) * 8
         target = base_height + font_adjust
-        return max(220, min(280, target))
+        return max(250, min(320, target))
 
     def _queue_bottom_panel_height_sync(self) -> None:
         try:
@@ -3597,7 +3630,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return
         options = self._collect_setor_executor_values_for_combo()
         selected = str(selected_value or "").strip()
-        self._quick_setor_executor_syncing = True
         try:
             combo.blockSignals(True)
             combo.clear()
@@ -3619,7 +3651,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     "Falha ao reativar sinais do combo rapido de setor executor: %s",
                     exc,
                 )
-            self._quick_setor_executor_syncing = False
 
     def _update_quick_setor_executor_combo_display(self, combo) -> None:
         if combo is None:
@@ -3778,7 +3809,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             except Exception:
                 idx = -1
             if idx >= 0:
-                self._quick_setor_executor_syncing = True
                 try:
                     combo.blockSignals(True)
                     combo.setCurrentIndex(idx)
@@ -3796,7 +3826,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                             "Falha ao reativar sinais na sincronizacao do combo rapido de setor executor: %s",
                             exc,
                         )
-                    self._quick_setor_executor_syncing = False
                 return
         self._populate_quick_setor_executor_combo(
             combo, selected_value=selected_value
@@ -3810,8 +3839,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
 
     def _on_quick_setor_executor_changed(self, combo) -> None:
-        if bool(getattr(self, "_quick_setor_executor_syncing", False)):
-            return
         selected = ""
         try:
             selected = str(combo.currentData() or "").strip()

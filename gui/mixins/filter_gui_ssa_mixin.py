@@ -1470,14 +1470,18 @@ class FilterGUISSAMixin:
         self._column_filter_inputs[col] = term_box
         self._configure_column_filter_input(term_box, col)
         self._apply_filter_widget_theme(name_lbl, term_box)
-        apply_btn = self._build_column_filter_button("Aplicar", col)
+        apply_btn = self._build_column_filter_button(
+            "↵",
+            col,
+            tooltip="Aplicar filtro desta coluna.",
+        )
         clear_btn = self._build_column_filter_button(
-            "Limpar",
+            "⌫",
             col,
             tooltip="Limpa o valor desta coluna e reaplica os filtros.",
         )
         hide_btn = self._build_column_filter_button(
-            "Ocultar vazio",
+            "Ocultar",
             col,
             tooltip="Oculta a linha somente quando o filtro da coluna estiver vazio.",
         )
@@ -1577,7 +1581,7 @@ class FilterGUISSAMixin:
         try:
             button.setMinimumHeight(26)
             button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            button.setFixedWidth(66)
+            button.setFixedWidth(42 if len(text) <= 2 else 70)
             if tooltip:
                 button.setToolTip(tooltip)
         except Exception as exc:

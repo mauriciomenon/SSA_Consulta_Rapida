@@ -11,12 +11,18 @@ SummaryEntry = dict[str, Any]
 SUMMARY_LABEL_SHORTENINGS = (
     ("Executor", "Exec"),
     ("Emissor", "Emis"),
+    ("Situacao", "Sit"),
     ("Prio Emissao", "Prio"),
     ("Prio Planejamento", "Plan"),
     ("Ano Emissao", "Ano Emis"),
     ("Ano Execucao", "Ano Exec"),
     ("Reprogramacoes", "No. Reprog"),
     ("Derivada de", "Deriv"),
+    ("Solicitante", "Solic"),
+    ("Resp Programacao", "Resp Prog"),
+    ("Resp Execucao", "Resp Exec"),
+    ("Semana Emissao", "Sem Emis"),
+    ("Semana Execucao", "Sem Exec"),
 )
 
 ADVANCED_SECTOR_SPECS = (

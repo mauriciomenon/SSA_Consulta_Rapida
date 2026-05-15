@@ -303,6 +303,7 @@ class TestGUIFilterLogic:
     def test_search_and_filter_summary_place_controls_in_expected_order(self):
         main_ctx = self._panel_context()
         search_input = main_ctx["search_input"]
+        quick_search_box = main_ctx["quick_search_box"]
         search_button = main_ctx["search_button"]
         clear_filter_button = main_ctx["clear_filter_button"]
         save_filter_button = main_ctx["save_filter_button"]
@@ -321,6 +322,10 @@ class TestGUIFilterLogic:
         tooltip = str(save_filter_button.toolTip() or "")
         assert "search_label" not in main_ctx
         assert str(save_filter_button.text() or "") == "Salvar Filtros"
+        assert str(export_list_btn.text() or "") == "Exportar Filtros"
+        assert str(search_button.text() or "") == "↵"
+        assert str(clear_filter_button.text() or "") == "⌫"
+        assert str(undo_filter_btn.text() or "") == "↺"
         assert "color:" in str(search_button.styleSheet() or "")
         assert "color:" in str(clear_filter_button.styleSheet() or "")
         assert "color:" in str(save_filter_button.styleSheet() or "")
@@ -328,27 +333,30 @@ class TestGUIFilterLogic:
         assert "filtros de coluna" in tooltip
         assert "filtros avancados" in tooltip
         assert 0 < filter_tags_widget.maximumWidth() <= 280
-        assert str(clear_all_filters_btn.text() or "") == "Limpar Filtros"
-        summary_button_widths = {
-            clear_all_filters_btn.width(),
-            save_filter_button.width(),
-            export_list_btn.width(),
-            undo_filter_btn.width(),
+        assert str(clear_all_filters_btn.text() or "") == "⌫"
+        assert save_filter_button.parentWidget() is not filters_summary_frame
+        assert export_list_btn.parentWidget() is not filters_summary_frame
+        assert undo_filter_btn.parentWidget() is not filters_summary_frame
+        search_row_x = {
+            "undo": undo_filter_btn.mapToGlobal(undo_filter_btn.rect().topLeft()).x(),
+            "box": quick_search_box.mapToGlobal(quick_search_box.rect().topLeft()).x(),
+            "clear": clear_filter_button.mapToGlobal(
+                clear_filter_button.rect().topLeft()
+            ).x(),
+            "input": search_input.mapToGlobal(search_input.rect().topLeft()).x(),
+            "apply": search_button.mapToGlobal(search_button.rect().topLeft()).x(),
+            "export": export_list_btn.mapToGlobal(export_list_btn.rect().topLeft()).x(),
+            "save": save_filter_button.mapToGlobal(
+                save_filter_button.rect().topLeft()
+            ).x(),
         }
-        assert summary_button_widths == {save_filter_button.width()}
-        assert save_filter_button.width() == 104
-        search_row_x = [
-            widget.mapToGlobal(widget.rect().topLeft()).x()
-            for widget in (clear_filter_button, search_button, search_input)
-        ]
-        assert search_row_x == sorted(search_row_x)
-        assert save_filter_button.parentWidget() is filters_summary_frame
+        assert search_row_x["undo"] < search_row_x["box"]
+        assert search_row_x["clear"] < search_row_x["input"] < search_row_x["apply"]
+        assert search_row_x["box"] < search_row_x["export"] < search_row_x["save"]
         summary_layout = filters_summary_frame.layout()
         assert summary_layout is not None
         assert summary_layout.itemAt(0).widget() is clear_all_filters_btn
-        assert summary_layout.itemAt(1).widget() is save_filter_button
-        assert summary_layout.itemAt(2).widget() is export_list_btn
-        assert summary_layout.itemAt(3).widget() is undo_filter_btn
+        assert summary_layout.itemAt(1).layout() is not None
         assert (
             filter_tags_widget.mapToGlobal(filter_tags_widget.rect().topLeft()).x()
             > search_input.mapToGlobal(search_input.rect().topLeft()).x()
@@ -411,6 +419,20 @@ class TestGUIFilterLogic:
         assert stack.currentIndex() == 0
         assert str(title.text() or "") == "Filtros por Coluna"
         assert getattr(self.window, "_active_filter_panel_kind", None) == "columns"
+
+    def test_column_filters_panel_is_populated_on_startup(self):
+        main_ctx = self._panel_context()
+        container = main_ctx["col_filters_container"]
+
+        labels = [
+            str(label.text() or "")
+            for label in container.findChildren(QLabel)
+            if str(label.text() or "").strip()
+        ]
+
+        assert "Descricao da SSA" in labels
+        assert "Set. Exec." in labels
+        assert "Set. Emis." in labels
 
     def test_advanced_filters_reprogramacoes_controls_are_compact(self):
         self._set_filter_panel_tab("filters")
@@ -1672,9 +1694,9 @@ class TestGUIFilterLogic:
                 label = self.window._resolve_column_display_name(col)
             assert label in controls
             _, apply_btn, clear_btn, hide_btn = controls[label]
-            assert apply_btn.text() == "Aplicar"
-            assert clear_btn.text() == "Limpar"
-            assert hide_btn.text() == "Ocultar vazio"
+            assert apply_btn.text() == "↵"
+            assert clear_btn.text() == "⌫"
+            assert hide_btn.text() == "Ocultar"
             assert not apply_btn.isHidden()
             assert not clear_btn.isHidden()
             assert not hide_btn.isHidden()
@@ -2339,7 +2361,7 @@ class TestGUIFilterLogic:
         assert len(max_heights) == 1
         synced_height = next(iter(min_heights))
         assert synced_height == next(iter(max_heights))
-        assert 200 <= synced_height <= 280
+        assert 250 <= synced_height <= 320
 
     def test_filter_summary_bar_keeps_geometry_when_switching_filter_tabs(self):
         self.window.resize(1280, 880)
@@ -2404,7 +2426,7 @@ class TestGUIFilterLogic:
         for ctx in self._iter_panel_contexts():
             button = ctx.get("clear_filter_button")
             assert button is not None
-            assert button.text() == "Limpar Busca"
+            assert button.text() == "⌫"
             tooltip = str(button.toolTip() or "").casefold()
             assert "apenas a busca" in tooltip
             assert "coluna" in tooltip
@@ -2703,9 +2725,9 @@ class TestGUIFilterLogic:
             emissor_label
         ]
         executor_edit, executor_apply, _, _ = controls[executor_label]
-        assert emissor_clear.text() == "Limpar"
+        assert emissor_clear.text() == "⌫"
         assert "limpa o valor" in (emissor_clear.toolTip() or "").casefold()
-        assert emissor_hide.text() == "Ocultar vazio"
+        assert emissor_hide.text() == "Ocultar"
         assert (
             "somente quando o filtro da coluna estiver vazio"
             in (emissor_hide.toolTip() or "").casefold()
@@ -3494,30 +3516,41 @@ class TestGUIFilterLogic:
         other_theme = "windows7" if current_theme != "windows7" else "gruvbox"
 
         initial_main_css = main_ctx["search_input"].styleSheet() or ""
+        initial_main_box_css = main_ctx["quick_search_box"].styleSheet() or ""
         assert initial_main_css
+        assert initial_main_box_css
         initial_filters_css = filters_ctx["search_input"].styleSheet() or ""
+        initial_filters_box_css = filters_ctx["quick_search_box"].styleSheet() or ""
         assert initial_filters_css == initial_main_css
+        assert initial_filters_box_css == initial_main_box_css
         assert "QLineEdit:focus" in initial_main_css
-        assert "border:1px solid" in initial_main_css
+        assert "border:0" in initial_main_css
+        assert "border:1px solid" in initial_main_box_css
 
         self._set_filter_panel_tab("filters")
         QApplication.processEvents()
         assert (filters_ctx["search_input"].styleSheet() or "") == initial_main_css
+        assert (filters_ctx["quick_search_box"].styleSheet() or "") == initial_main_box_css
 
         # Apply a different theme while on filters tab, then switch back to main.
         self.window.apply_theme(other_theme)
         QApplication.processEvents()
         updated_filters_css = filters_ctx["search_input"].styleSheet() or ""
+        updated_filters_box_css = filters_ctx["quick_search_box"].styleSheet() or ""
         assert updated_filters_css
+        assert updated_filters_box_css
         assert updated_filters_css != initial_main_css
+        assert updated_filters_box_css != initial_main_box_css
         assert "QLineEdit:focus" in updated_filters_css
-        assert "border:1px solid" in updated_filters_css
+        assert "border:0" in updated_filters_css
+        assert "border:1px solid" in updated_filters_box_css
         self._set_filter_panel_tab("main")
         QApplication.processEvents()
 
         # Both tab search boxes must be themed together, not only after binding.
         assert getattr(self.window, "_current_theme", None) == other_theme
         assert (main_ctx["search_input"].styleSheet() or "") == updated_filters_css
+        assert (main_ctx["quick_search_box"].styleSheet() or "") == updated_filters_box_css
 
     def test_switch_to_advanced_filter_panel_keeps_pending_search_live(self):
         self.window.search_input.setText("Teste A")

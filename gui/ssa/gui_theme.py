@@ -342,18 +342,30 @@ def _apply_search_widget_styles(window, context: dict | None, style: dict) -> No
             f"color: {style['label_color']}; font-weight: 600;",
         )
 
+    search_input_style = style.get("line_edit_css", "")
+    if isinstance(context, dict) and context.get("quick_search_box") is not None:
+        quick_box = context.get("quick_search_box")
+        _set_stylesheet_if_changed(quick_box, style.get("quick_search_box_css", ""))
+        search_input_style = style.get("quick_search_input_css", search_input_style)
+        for button_name in ("clear_filter_button", "search_button"):
+            button = context.get(button_name)
+            if button is not None:
+                _set_stylesheet_if_changed(
+                    button, style.get("quick_search_button_css", "")
+                )
+
     seen_search_inputs = set()
     for search_widget in (getattr(window, "search_input", None),):
         if search_widget is None or id(search_widget) in seen_search_inputs:
             continue
         seen_search_inputs.add(id(search_widget))
-        _set_stylesheet_if_changed(search_widget, style["line_edit_css"])
+        _set_stylesheet_if_changed(search_widget, search_input_style)
     if isinstance(context, dict):
         search_widget = context.get("search_input")
         if search_widget is None or id(search_widget) in seen_search_inputs:
             search_widget = None
         if search_widget is not None:
-            _set_stylesheet_if_changed(search_widget, style["line_edit_css"])
+            _set_stylesheet_if_changed(search_widget, search_input_style)
 
 
 def _apply_advanced_filter_control_styles(window, style: dict) -> None:
@@ -601,6 +613,40 @@ def _apply_theme_widget_styles(
         style = {
             "label_color": label_color,
             "line_edit_css": line_edit_css,
+            "quick_search_box_css": (
+                "QFrame#quickSearchBox {"
+                f" color:{input_text}; background:{input_bg};"
+                f" border:1px solid {input_border}; border-radius:4px;"
+                "}"
+                "QFrame#quickSearchBox:hover {"
+                f" border:1px solid {input_focus};"
+                "}"
+            ),
+            "quick_search_input_css": (
+                "QLineEdit {"
+                f" color:{input_text}; background:transparent; border:0;"
+                f" selection-background-color:{accent_soft};"
+                f" selection-color:{input_text};"
+                " padding:2px 4px;"
+                "}"
+                "QLineEdit:focus { border:0; }"
+                "QLineEdit:disabled {"
+                f" color:{support_color}; background:transparent;"
+                "}"
+            ),
+            "quick_search_button_css": (
+                "QPushButton {"
+                f" color:{input_text}; background:transparent; border:0;"
+                " border-radius:3px; padding:0;"
+                " font-weight:700;"
+                "}"
+                "QPushButton:hover {"
+                f" background:{accent_soft};"
+                "}"
+                "QPushButton:disabled {"
+                f" color:{support_color}; background:transparent;"
+                "}"
+            ),
             "tool_btn_css": (
             "QToolButton {"
             f" color: {input_text}; background: {input_bg}; border:1px solid {input_border};"
