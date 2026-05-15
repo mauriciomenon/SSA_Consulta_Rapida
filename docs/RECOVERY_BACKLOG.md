@@ -35,6 +35,26 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-05-15 14:39 - Advanced filters manager residuals
+
+Escopo deste registro:
+1. Slice atual moveu ranking/preparacao de responsaveis para dominio puro em `gui/ssa/filter_domain_rules.py`.
+2. Slice atual introduziu `AdvancedFilterManager` em `gui/ssa/gui_filters_advanced_ui.py` para centralizar estado/materializacao dos filtros de responsaveis sem alterar layout.
+3. Slice atual limitou materializacao de menus de alta cardinalidade, preservando valores ja selecionados/excluidos.
+4. Kluster manteve achados estruturais fora do patch estabilizado:
+   - `_rebuild_multiselect_menu` ainda e funcao grande e recria widgets em vez de usar model-view/pool.
+   - `_apply_advanced_filters_from_ui` ainda mistura coleta de estado e sincronizacao de UI.
+   - `_refresh_responsavel_options` ainda faz coleta pandas no main thread durante materializacao.
+   - `_resolve_adv_layout_baseline` ainda depende de amostra de DataFrame de dominio para layout.
+   - testes de filtros ainda possuem contrato estrutural por regex e `TestGUIFilterLogic` ainda e monolitico.
+
+Pendente nao bloqueante:
+1. `NAO_BLOQUEANTE_DEFERIDO`: extrair builder/modelo de menu multiselect para reduzir `_rebuild_multiselect_menu` e permitir widget pool ou model-view real.
+2. `NAO_BLOQUEANTE_DEFERIDO`: extrair coletor de estado de filtros avancados para objeto testavel, mantendo o contrato atual de chaves.
+3. `NAO_BLOQUEANTE_DEFERIDO`: medir materializacao de responsaveis em smoke GUI real antes de mover coleta pandas para worker.
+4. `NAO_BLOQUEANTE_DEFERIDO`: trocar testes estruturais por registry compartilhado de chaves de filtro.
+5. Motivo do deferimento: esses pontos mudam ownership e fluxo de UI alem do ranking/preparacao aprovado neste commit; misturar agora aumentaria risco sobre filtros ja estabilizados.
+
 ## Update 2026-05-15 13:08 - Details dialog export/render extraction residuals
 
 Escopo deste registro:

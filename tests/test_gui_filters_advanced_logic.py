@@ -7,6 +7,11 @@ import pandas as pd
 
 from gui.ssa import gui_filters_advanced_logic as adv_logic
 from gui.ssa import gui_filters_advanced_ui as adv_ui
+from gui.ssa.filter_domain_rules import (
+    build_responsavel_sector_counts,
+    order_responsavel_values,
+    subset_by_sector_filters,
+)
 from gui.ssa.gui_filters_advanced_logic import (
     _apply_advanced_filters,
     _compute_years_from_data_cadastro,
@@ -30,6 +35,46 @@ def _get_has_active_block(ui_source: str) -> str:
     )
     assert has_active_block_match is not None
     return has_active_block_match.group("body")
+
+
+def test_order_responsavel_values_uses_domain_sector_rank():
+    df = pd.DataFrame(
+        {
+            "solicitante": ["Andre", "Andre", "Bruna", "Caio"],
+            "setor_executor": ["IEE1", "IEE1", "MEL4", "Z999"],
+            "setor_emissor": ["", "", "", ""],
+        }
+    )
+    counts = build_responsavel_sector_counts(df, "solicitante")
+
+    ordered = order_responsavel_values(
+        ["Caio", "Bruna", "Andre"],
+        counts,
+        sector_to_div={"IEE1": "SMIN", "MEL4": "SMME"},
+    )
+
+    assert ordered[0] == ("Andre", "SMIN / IEE1 - Andre")
+    assert ordered[1] == ("Bruna", "SMME / MEL4 - Bruna")
+    assert ordered[2] == ("Caio", "Z999 - Caio")
+
+
+def test_subset_by_sector_filters_applies_include_and_exclude_once():
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["1", "2", "3", "4"],
+            "setor_executor": ["IEE1", "IEE2", "MEL4", "IEE1"],
+            "setor_emissor": ["MEL4", "IEE3", "MEL4", "IEE3"],
+        }
+    )
+
+    filtered = subset_by_sector_filters(
+        df,
+        executor_include=["IEE1", "IEE2"],
+        executor_exclude=["IEE2"],
+        emissor_exclude=["MEL4"],
+    )
+
+    assert filtered["numero_ssa"].tolist() == ["4"]
 
 
 def _extract_assigned_literal_dict(source: str, variable_name: str) -> dict:

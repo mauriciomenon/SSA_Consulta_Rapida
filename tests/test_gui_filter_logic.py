@@ -6056,6 +6056,29 @@ class TestGUIFilterLogic:
         assert captured["pos"].x() >= 1000
         assert captured["pos"].y() >= 40
 
+    def test_multiselect_menu_limits_high_cardinality_items(self):
+        button = QPushButton("Selecionar")
+        menu = QtWidgets.QMenu()
+        values = [f"Resp {idx:04d}" for idx in range(450)]
+
+        checks, exclude_checks = advanced_ui._rebuild_multiselect_menu(
+            self.window,
+            button,
+            menu,
+            values,
+            {"Resp 0449"},
+            None,
+            True,
+            {"Resp 0448"},
+            None,
+        )
+
+        include_values = [str(check.property("value") or "") for check in checks]
+        exclude_values = [str(check.property("value") or "") for check in exclude_checks]
+        assert len(checks) == advanced_ui.HIGH_CARDINALITY_MENU_LIMIT
+        assert "Resp 0449" in include_values
+        assert "Resp 0448" in exclude_values
+
     def test_show_all_columns_by_affinity_reorders_same_select_all_set(
         self, monkeypatch
     ):

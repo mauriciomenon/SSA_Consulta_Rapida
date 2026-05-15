@@ -35,9 +35,12 @@ from gui.qt_stubs import (
 from utils.robust_logging import get_robust_logger
 
 from .filter_domain_rules import (
+    build_responsavel_sector_counts,
     collect_nonempty_column_values,
     order_sector_values,
+    order_responsavel_values,
     sector_sort_key,
+    subset_by_sector_filters,
 )
 from .gui_filters_advanced_logic import RESPONSAVEL_FILTER_COLUMN_CANDIDATES
 from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
@@ -63,6 +66,7 @@ SIMPLE_POPUP_TEXT_CLAMP = True
 SIMPLE_POPUP_LABEL_MAX_PX = 300
 SIMPLE_POPUP_RIGHT_GUTTER_PX = 10
 SIMPLE_POPUP_SCROLLBAR_GUARD_PX = 18
+HIGH_CARDINALITY_MENU_LIMIT = 300
 
 
 def _get_widget_screen_geometry(widget):
@@ -491,25 +495,115 @@ def _set_checkbox_checked_quietly(self, checkbox, checked: bool) -> bool:
         return changed
 
 
+class AdvancedFilterManager:
+    def __init__(self, window) -> None:
+        self.window = window
+
+    @property
+    def all_responsavel_prefixes(self) -> set[str]:
+        return set(getattr(self.window, "_responsavel_all_prefixes", ()))
+
+    @property
+    def dirty_responsavel_prefixes(self) -> set[str]:
+        return set(getattr(self.window, "_responsavel_dirty_prefixes", set()))
+
+    @property
+    def built_responsavel_prefixes(self) -> set[str]:
+        return set(getattr(self.window, "_responsavel_materialized_prefixes", set()))
+
+    def sync_responsavel_flags(self) -> None:
+        all_prefixes = self.all_responsavel_prefixes
+        dirty = self.dirty_responsavel_prefixes
+        built = self.built_responsavel_prefixes
+        self.window._responsavel_filters_materialized = bool(
+            all_prefixes
+        ) and all_prefixes.issubset(built) and not bool(dirty)
+        self.window._responsavel_options_dirty = bool(dirty)
+
+    def mark_responsavel_dirty(self, prefixes=None) -> None:
+        dirty = self.dirty_responsavel_prefixes
+        all_prefixes = self.all_responsavel_prefixes
+        if prefixes is None:
+            dirty |= all_prefixes
+        else:
+            dirty |= {prefix for prefix in prefixes if prefix in all_prefixes}
+        self.window._responsavel_dirty_prefixes = dirty
+        self.sync_responsavel_flags()
+
+    def ensure_responsavel_options_materialized(
+        self,
+        target_prefix: str | None = None,
+        force: bool = False,
+    ) -> None:
+        all_prefixes = self.all_responsavel_prefixes
+        if target_prefix:
+            if target_prefix not in all_prefixes:
+                return
+            target_prefixes = {target_prefix}
+        else:
+            target_prefixes = set(all_prefixes)
+        dirty = self.dirty_responsavel_prefixes
+        built = self.built_responsavel_prefixes
+        if not force and target_prefixes.issubset(built) and not (
+            target_prefixes & dirty
+        ):
+            return
+        if getattr(self.window, "_responsavel_refreshing", False):
+            return
+        self.window._responsavel_refreshing = True
+        try:
+            self.window._refresh_responsavel_options(target_prefixes=target_prefixes)
+        finally:
+            self.window._responsavel_refreshing = False
+
+    def filtered_responsavel_frame(self, frame: pd.DataFrame) -> pd.DataFrame:
+        window = self.window
+        return subset_by_sector_filters(
+            frame,
+            executor_include=window._get_checked_values(
+                getattr(window, "adv_executor_checks", None)
+            ),
+            executor_exclude=window._get_checked_values(
+                getattr(window, "adv_executor_exclude_checks", None)
+            ),
+            emissor_include=window._get_checked_values(
+                getattr(window, "adv_emissor_checks", None)
+            ),
+            emissor_exclude=window._get_checked_values(
+                getattr(window, "adv_emissor_exclude_checks", None)
+            ),
+        )
+
+    def responsavel_option_values(
+        self, frame: pd.DataFrame, source_col: str
+    ) -> list[tuple[str, str]]:
+        try:
+            vals = collect_nonempty_column_values(frame, source_col)
+            unique_values = sorted(set(vals), key=lambda value: value.casefold())
+        except Exception:
+            unique_values = []
+        return self.window._sort_responsavel_values(
+            frame,
+            unique_values,
+            source_col,
+            df_source=getattr(self.window, "df_completo", frame),
+        )
+
+
+def _advanced_filter_manager(self) -> AdvancedFilterManager:
+    manager = getattr(self, "_advanced_filter_manager", None)
+    if not isinstance(manager, AdvancedFilterManager):
+        manager = AdvancedFilterManager(self)
+        self._advanced_filter_manager = manager
+    return manager
+
+
 def _sync_responsavel_flags(self) -> None:
-    all_prefixes = set(getattr(self, "_responsavel_all_prefixes", ()))
-    dirty = set(getattr(self, "_responsavel_dirty_prefixes", set()))
-    built = set(getattr(self, "_responsavel_materialized_prefixes", set()))
-    self._responsavel_filters_materialized = bool(
-        all_prefixes
-    ) and all_prefixes.issubset(built) and not bool(dirty)
-    self._responsavel_options_dirty = bool(dirty)
+    _advanced_filter_manager(self).sync_responsavel_flags()
 
 
 def _mark_responsavel_dirty(self, prefixes=None) -> None:
-    all_prefixes = set(getattr(self, "_responsavel_all_prefixes", ()))
-    dirty = set(getattr(self, "_responsavel_dirty_prefixes", set()))
-    if prefixes is None:
-        dirty |= all_prefixes
-    else:
-        dirty |= {p for p in prefixes if p in all_prefixes}
-    self._responsavel_dirty_prefixes = dirty
-    self._sync_responsavel_flags()
+    _advanced_filter_manager(self).mark_responsavel_dirty(prefixes=prefixes)
 
 
 def _on_sector_debounce_timeout(self) -> None:
@@ -530,24 +624,10 @@ def _ensure_responsavel_options_materialized(
     self, target_prefix: str | None = None, force: bool = False
 ) -> None:
     """Materializa menus de responsaveis sob demanda para reduzir freeze da aba."""
-    all_prefixes = set(getattr(self, "_responsavel_all_prefixes", ()))
-    if target_prefix:
-        if target_prefix not in all_prefixes:
-            return
-        target_prefixes = {target_prefix}
-    else:
-        target_prefixes = set(all_prefixes)
-    dirty = set(getattr(self, "_responsavel_dirty_prefixes", set()))
-    built = set(getattr(self, "_responsavel_materialized_prefixes", set()))
-    if not force and target_prefixes.issubset(built) and not (target_prefixes & dirty):
-        return
-    if getattr(self, "_responsavel_refreshing", False):
-        return
-    self._responsavel_refreshing = True
-    try:
-        self._refresh_responsavel_options(target_prefixes=target_prefixes)
-    finally:
-        self._responsavel_refreshing = False
+    _advanced_filter_manager(self).ensure_responsavel_options_materialized(
+        target_prefix=target_prefix,
+        force=force,
+    )
 
 
 def _sync_responsavel_button_summaries(self, only_prefixes=None) -> None:
@@ -892,11 +972,20 @@ def _detect_filter_name_from_button(button) -> str:
                 if candidate and candidate not in ("Valores", ""):
                     filter_name = candidate
                     break
-            next_parent = getattr(parent, "parent", None)
-            parent = next_parent() if callable(next_parent) else None
+            parent = parent.parent() if hasattr(parent, "parent") else None
     except Exception as exc:
         logger.debug("Falha ao detectar nome do filtro para menu multiselect: %s", exc)
     return filter_name
+
+
+def _multiselect_value_key_label(value) -> tuple[str, str]:
+    if isinstance(value, (list, tuple)):
+        key = value[0] if len(value) > 0 else ""
+        label = value[1] if len(value) > 1 else key
+    else:
+        key = value
+        label = value
+    return str(key), str(label)
 
 
 def _compute_multiselect_popup_metrics(
@@ -904,11 +993,7 @@ def _compute_multiselect_popup_metrics(
 ):
     valid_values = []
     for raw_val in values or []:
-        label_text = (
-            str(raw_val[1])
-            if isinstance(raw_val, (list, tuple)) and len(raw_val) > 1
-            else str(raw_val)
-        )
+        _, label_text = _multiselect_value_key_label(raw_val)
         if label_text and label_text.strip():
             valid_values.append(raw_val)
     try:
@@ -1061,12 +1146,16 @@ def _append_multiselect_batch_controls(
     row_idx += 1
 
     def _batch_set_include(target_state: bool):
-        for cb in checks:
-            if not _is_widget_valid(cb):
-                continue
-            cb.blockSignals(True)
-            cb.setChecked(target_state)
-            cb.blockSignals(False)
+        self._multiselect_batch_updating = True
+        try:
+            for cb in checks:
+                if not _is_widget_valid(cb):
+                    continue
+                cb.blockSignals(True)
+                cb.setChecked(target_state)
+                cb.blockSignals(False)
+        finally:
+            self._multiselect_batch_updating = False
         _notify_multiselect_batch_change(
             self,
             button,
@@ -1079,12 +1168,16 @@ def _append_multiselect_batch_controls(
         )
 
     def _batch_set_exclude(target_state: bool):
-        for cb in exclude_checks:
-            if not _is_widget_valid(cb):
-                continue
-            cb.blockSignals(True)
-            cb.setChecked(target_state)
-            cb.blockSignals(False)
+        self._multiselect_batch_updating = True
+        try:
+            for cb in exclude_checks:
+                if not _is_widget_valid(cb):
+                    continue
+                cb.blockSignals(True)
+                cb.setChecked(target_state)
+                cb.blockSignals(False)
+        finally:
+            self._multiselect_batch_updating = False
         _notify_multiselect_batch_change(
             self,
             button,
@@ -1262,6 +1355,22 @@ def _rebuild_multiselect_menu(
             has_exclude_column,
         )
     )
+    total_values = len(valid_values)
+    if total_values > HIGH_CARDINALITY_MENU_LIMIT:
+        selected_keys = selected_norm | exclude_norm
+        selected_values = [
+            value
+            for value in valid_values
+            if _multiselect_value_key_label(value)[0].casefold() in selected_keys
+        ]
+        remaining = [
+            value
+            for value in valid_values
+            if _multiselect_value_key_label(value)[0].casefold() not in selected_keys
+        ]
+        valid_values = selected_values + remaining[
+            : max(0, HIGH_CARDINALITY_MENU_LIMIT - len(selected_values))
+        ]
     try:
         menu.setMinimumWidth(popup_width)
         menu.setMaximumWidth(popup_width)
@@ -1339,6 +1448,21 @@ def _rebuild_multiselect_menu(
             )
         row_idx += 1
 
+    if total_values > len(valid_values):
+        limited_label = QLabel(
+            f"Mostrando {len(valid_values)} de {total_values}. Refine o filtro."
+        )
+        try:
+            limited_label.setStyleSheet(f"font-size: 10px; color: {popup_text};")
+            limited_label.setToolTip(
+                "A lista completa tem muitos itens; valores ja selecionados foram preservados."
+            )
+        except Exception as exc:
+            logger.debug("Falha ao estilizar aviso de lista limitada: %s", exc)
+        col_span = 3 if exclude_selected_set is not None else 1
+        grid.addWidget(limited_label, row_idx, 0, 1, col_span)
+        row_idx += 1
+
         # Separador entre header e conteudo
         header_sep = QFrame()
         header_sep.setFrameShape(QFrame.Shape.HLine)
@@ -1349,7 +1473,7 @@ def _rebuild_multiselect_menu(
 
     cb_style_include = ""
     cb_style_exclude = ""
-    apply_checkbox_styles = len(valid_values) <= 300
+    apply_checkbox_styles = len(valid_values) <= HIGH_CARDINALITY_MENU_LIMIT
     try:
         cb_style_include = (
             "QCheckBox::indicator {"
@@ -1382,11 +1506,8 @@ def _rebuild_multiselect_menu(
             )
 
     for val in valid_values:
-        label_text = (
-            str(val[1]) if isinstance(val, (list, tuple)) and len(val) > 1 else str(val)
-        )
+        cb_value, label_text = _multiselect_value_key_label(val)
         label_text_display = label_text
-        cb_value = val[0] if isinstance(val, (list, tuple)) and len(val) > 0 else val
         if SIMPLE_POPUP_TEXT_CLAMP:
             try:
                 fm_label = button.fontMetrics() if button is not None else None
@@ -1452,6 +1573,8 @@ def _rebuild_multiselect_menu(
         if exclude_cb is not None:
 
             def _toggle_include(checked, other=exclude_cb):
+                if getattr(self, "_multiselect_batch_updating", False):
+                    return
                 if not checked or not _is_widget_valid(other):
                     return
                 try:
@@ -1464,6 +1587,8 @@ def _rebuild_multiselect_menu(
                         other.blockSignals(False)
 
             def _toggle_exclude(checked, other=include_cb):
+                if getattr(self, "_multiselect_batch_updating", False):
+                    return
                 if not checked or not _is_widget_valid(other):
                     return
                 try:
@@ -1566,6 +1691,8 @@ def _rebuild_multiselect_menu(
         base_rows = len(valid_values)
         if filter_name:
             base_rows += 2
+        if total_values > len(valid_values):
+            base_rows += 1
         if exclude_selected_set is not None:
             base_rows += 2
         visible_rows = max(1, min(9, base_rows))
@@ -1768,6 +1895,9 @@ def _make_advanced_action_box(self):
 
 def _build_advanced_filters_panel(self):
     group = QGroupBox("Filtros Avancados")
+    hooks = getattr(self, "_menu_pre_show_hooks", None)
+    if isinstance(hooks, dict):
+        hooks.clear()
     self._menu_pre_show_hooks = {}
     try:
         group.setObjectName("adv_filters_group")
@@ -2342,68 +2472,14 @@ def _sort_responsavel_values(self, df_subset, values, resp_col: str, df_source=N
     if not isinstance(cache, dict):
         cache = {}
         self._responsavel_sector_rank_cache = cache
-    cache_key = (id(source_df), len(source_df), resp_col)
+    data_token = getattr(self, "_data_load_token", None)
+    source_key = data_token if data_token is not None else id(source_df)
+    cache_key = (source_key, len(source_df), tuple(source_df.columns), resp_col)
     sector_counts = cache.get(cache_key)
     if not isinstance(sector_counts, dict):
-        sector_counts = {}
-        sector_cols = [
-            c for c in ["setor_executor", "setor_emissor"] if c in source_df.columns
-        ]
-        for col in sector_cols:
-            try:
-                pairs = source_df[[col, resp_col]].dropna().copy()
-                pairs[col] = pairs[col].astype("string").fillna("").str.strip()
-                pairs[resp_col] = (
-                    pairs[resp_col].astype("string").fillna("").str.strip()
-                )
-                pairs = pairs[(pairs[col] != "") & (pairs[resp_col] != "")]
-                if pairs.empty:
-                    continue
-                grouped = (
-                    pairs.groupby([resp_col, col], dropna=False)
-                    .size()
-                    .reset_index(name="count")
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao montar pares responsavel/setor (%s, %s): %s",
-                    col,
-                    resp_col,
-                    exc,
-                )
-                continue
-            for person_str, sec_str, count in grouped.itertuples(index=False):
-                sector_counts.setdefault(person_str, {})
-                sector_counts[person_str][sec_str] = sector_counts[person_str].get(
-                    sec_str, 0
-                ) + int(count)
+        sector_counts = build_responsavel_sector_counts(source_df, resp_col)
         cache[cache_key] = sector_counts
-
-    def _best_sector(person):
-        counts = sector_counts.get(person, {})
-        if not counts:
-            return ""
-        return max(counts.items(), key=lambda t: (t[1], -len(t[0]), t[0].casefold()))[0]
-
-    def _key(person):
-        sec = _best_sector(person)
-        div = SECTOR_TO_DIV.get(sec, "")
-        div_rank = 0 if div == "SMIN" else 1 if div else 2
-        return (div_rank, div.casefold(), sec.casefold(), person.casefold())
-
-    ordered = sorted(values, key=_key)
-    decorated = []
-    for person in ordered:
-        sec = _best_sector(person)
-        div = SECTOR_TO_DIV.get(sec, "")
-        prefix = ""
-        if div and sec:
-            prefix = f"{div} / {sec} - "
-        elif sec:
-            prefix = f"{sec} - "
-        display = f"{prefix}{person}"
-        decorated.append((person, display))
-    return decorated
+    return order_responsavel_values(values, sector_counts, sector_to_div=SECTOR_TO_DIV)
 
 
 def _apply_divisao_to_setor_checks(self):
@@ -2422,15 +2498,6 @@ def _refresh_responsavel_options(self, target_prefixes=None):
     if self.df_completo is None or self.df_completo.empty:
         self._mark_responsavel_dirty(prefixes=requested_prefixes)
         return
-    exec_values = self._get_checked_values(getattr(self, "adv_executor_checks", None))
-    emis_values = self._get_checked_values(getattr(self, "adv_emissor_checks", None))
-    exec_excluded = self._get_checked_values(
-        getattr(self, "adv_executor_exclude_checks", None)
-    )
-    emis_excluded = self._get_checked_values(
-        getattr(self, "adv_emissor_exclude_checks", None)
-    )
-    has_sector = bool(exec_values or emis_values or exec_excluded or emis_excluded)
 
     def apply_cb():
         return self._apply_advanced_filters_from_ui()
@@ -2453,43 +2520,8 @@ def _refresh_responsavel_options(self, target_prefixes=None):
         except Exception as exc:
             logger.debug("Falha ao ajustar visibilidade de widget %r: %s", widget, exc)
 
-    df = self.df_completo
-    exec_col = "setor_executor"
-    emis_col = "setor_emissor"
-    selected_exec = set(exec_values)
-    selected_emis = set(emis_values)
-    selected_exec_excluded = set(exec_excluded)
-    selected_emis_excluded = set(emis_excluded)
-
-    def _apply_sector_subset(frame):
-        subset = frame
-        if exec_col in subset.columns:
-            allowed = set(selected_exec)
-            excluded = set(selected_exec_excluded)
-            exec_series = subset[exec_col].astype("string").fillna("")
-            if allowed:
-                subset = subset[exec_series.isin(allowed)]
-            if excluded:
-                subset = subset[~exec_series.isin(excluded)]
-        if emis_col in subset.columns and selected_emis:
-            emis_series = subset[emis_col].astype("string").fillna("")
-            subset = subset[emis_series.isin(selected_emis)]
-        if emis_col in subset.columns and selected_emis_excluded:
-            emis_series = subset[emis_col].astype("string").fillna("")
-            subset = subset[~emis_series.isin(selected_emis_excluded)]
-        return subset
-
-    if has_sector:
-        df = _apply_sector_subset(df)
-
-    def _unique_sorted(col):
-        try:
-            vals = df[col].dropna().astype(str).str.strip()
-            vals = vals[vals != ""]
-            vals = [v for v in set(vals) if v]
-            return sorted(vals, key=lambda v: v.casefold())
-        except Exception:
-            return []
+    manager = _advanced_filter_manager(self)
+    df = manager.filtered_responsavel_frame(self.df_completo)
 
     resp_cols = [
         (
@@ -2531,20 +2563,16 @@ def _refresh_responsavel_options(self, target_prefixes=None):
             setattr(self, exclude_checks_attr, [])
             processed_prefixes.add(prefix)
             continue
-        values = _unique_sorted(source_col)
+        values = manager.responsavel_option_values(df, source_col)
         try:
-            values = self._sort_responsavel_values(
-                df,
-                values,
-                source_col,
-                df_source=self.df_completo,
-            )
+            values = list(values)
         except Exception as exc:
             logger.debug(
-                "Failed to sort responsavel values for column '%s': %s",
+                "Failed to prepare responsavel values for column '%s': %s",
                 source_col,
                 exc,
             )
+            values = []
         _set_enabled(button, True)
         _set_enabled(exclude, True)
         selected = set((self._advanced_filters or {}).get(key_name) or [])
@@ -2886,7 +2914,7 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
     notice = notice_box["value"]
     if notice:
         try:
-            if hasattr(self, "_set_filtered_count_status"):
+            if hasattr(self, "update_filter_status_display"):
                 notice_suffix = ""
                 if notice == "derivada_all_ste_empty":
                     notice_suffix = (
@@ -2941,7 +2969,7 @@ def _get_checked_values(self, source):
                         values.append(value)
             except Exception as exc:
                 logger.debug(
-                    "Failed to read checkbox from list source in _get_checked_values: %s",
+                    "Failed to read checkbox from provided checkbox list in _get_checked_values: %s",
                     exc,
                 )
         return values
@@ -3214,21 +3242,40 @@ def _refresh_sector_menus(self, exec_vals, emis_vals, status_vals, filters, appl
         self.adv_status_exclude_checks = status_exclude
 
 
+def _resolve_year_selection_sets(
+    filters,
+    *,
+    values_key: str,
+    exclude_values_key: str,
+    legacy_value_key: str,
+    legacy_exclude_key: str,
+) -> tuple[set[str], set[str]]:
+    include_values = filters.get(values_key)
+    exclude_values = filters.get(exclude_values_key)
+    legacy_value = filters.get(legacy_value_key)
+    if include_values is None and legacy_value is not None:
+        include_values = [legacy_value]
+    if (
+        exclude_values is None
+        and filters.get(legacy_exclude_key)
+        and legacy_value is not None
+    ):
+        exclude_values = [legacy_value]
+    return {str(v) for v in (include_values or [])}, {
+        str(v) for v in (exclude_values or [])
+    }
+
+
 def _refresh_year_menus(self, emissao_years, execucao_years, filters, apply_cb):
     if hasattr(self, "adv_year_emissao_menu"):
-        inc_vals = filters.get("ano_emissao_values")
-        exc_vals = filters.get("ano_emissao_exclude_values")
-        if inc_vals is None and filters.get("ano_emissao") is not None:
-            inc_vals = [filters.get("ano_emissao")]
-        if (
-            exc_vals is None
-            and filters.get("ano_emissao_exclude")
-            and filters.get("ano_emissao") is not None
-        ):
-            exc_vals = [filters.get("ano_emissao")]
         year_values = [str(y) for y in emissao_years if y and str(y).strip()]
-        inc_set = {str(v) for v in (inc_vals or [])}
-        exc_set = {str(v) for v in (exc_vals or [])}
+        inc_set, exc_set = _resolve_year_selection_sets(
+            filters,
+            values_key="ano_emissao_values",
+            exclude_values_key="ano_emissao_exclude_values",
+            legacy_value_key="ano_emissao",
+            legacy_exclude_key="ano_emissao_exclude",
+        )
         year_include, year_exclude = self._rebuild_multiselect_menu(
             self.adv_year_emissao_button,
             self.adv_year_emissao_menu,
@@ -3250,19 +3297,14 @@ def _refresh_year_menus(self, emissao_years, execucao_years, filters, apply_cb):
         self.adv_year_emissao_checks = year_include
         self.adv_year_emissao_exclude_checks = year_exclude
     if hasattr(self, "adv_year_execucao_menu"):
-        inc_vals = filters.get("ano_execucao_values")
-        exc_vals = filters.get("ano_execucao_exclude_values")
-        if inc_vals is None and filters.get("ano_execucao") is not None:
-            inc_vals = [filters.get("ano_execucao")]
-        if (
-            exc_vals is None
-            and filters.get("ano_execucao_exclude")
-            and filters.get("ano_execucao") is not None
-        ):
-            exc_vals = [filters.get("ano_execucao")]
         year_values = [str(y) for y in execucao_years if y and str(y).strip()]
-        inc_set = {str(v) for v in (inc_vals or [])}
-        exc_set = {str(v) for v in (exc_vals or [])}
+        inc_set, exc_set = _resolve_year_selection_sets(
+            filters,
+            values_key="ano_execucao_values",
+            exclude_values_key="ano_execucao_exclude_values",
+            legacy_value_key="ano_execucao",
+            legacy_exclude_key="ano_execucao_exclude",
+        )
         year_include, year_exclude = self._rebuild_multiselect_menu(
             self.adv_year_execucao_button,
             self.adv_year_execucao_menu,
@@ -3433,81 +3475,83 @@ def _refresh_priority_menus(
 
 def _refresh_advanced_filter_options(self):
     """Atualiza opcoes de filtros avancados com cache granular otimizado."""
-    if self.df_completo is None or self.df_completo.empty:
-        logger.debug("_refresh_advanced_filter_options: df_completo vazio ou None")
-        return
-    start = perf_counter()
-    df = self.df_completo
-    logger.debug(
-        "_refresh_advanced_filter_options: iniciando com %s registros", len(df)
-    )
-    filters = self._advanced_filters or {}
-
-    def apply_cb():
-        return self._apply_advanced_filters_from_ui()
-
-    # Cache granular: permite invalidacao parcial por tipo de filtro
-    cache = getattr(self, "_adv_values_cache", None)
-    df_key = (
-        len(df),
-        tuple(df.columns),
-        getattr(self, "_data_load_token", None),
-    )
-
-    # Verifica se pode reutilizar cache completo
-    if (
-        cache
-        and cache.get("df_key") == df_key
-        and not getattr(self, "_adv_options_dirty", False)
-    ):
-        _refresh_derivadas_menu(self, filters, apply_cb)
-        self._adv_options_scheduled = False
-        return
-
-    df_id = id(df)
-
-    # Inicializa cache granular se necessário
-    if not isinstance(cache, dict) or cache.get("df_id") != df_id:
-        cache = {"df_id": df_id, "df_key": df_key}
-        self._adv_values_cache = cache
-
-    # Popula cache se necessário (bloco único consolidado) - CORRIGIDO: removida duplicação
-    if cache.get("exec_vals") is None:
-        _populate_advanced_values_cache(self, df, cache)
-        self._adv_values_cache = cache
+    try:
+        if self.df_completo is None or self.df_completo.empty:
+            logger.debug("_refresh_advanced_filter_options: df_completo vazio ou None")
+            return
+        start = perf_counter()
+        df = self.df_completo
         logger.debug(
-            "_refresh_advanced_filter_options: cache populado - exec=%s, emis=%s, status=%s",
-            _safe_len(cache.get("exec_vals", [])),
-            _safe_len(cache.get("emis_vals", [])),
-            _safe_len(cache.get("status_vals", [])),
+            "_refresh_advanced_filter_options: iniciando com %s registros", len(df)
+        )
+        filters = self._advanced_filters or {}
+
+        def apply_cb():
+            return self._apply_advanced_filters_from_ui()
+
+        # Granular cache allows partial invalidation by filter type.
+        cache = getattr(self, "_adv_values_cache", None)
+        df_key = (
+            len(df),
+            tuple(df.columns),
+            getattr(self, "_data_load_token", None),
         )
 
-    exec_vals = cache.get("exec_vals", [])
-    emis_vals = cache.get("emis_vals", [])
-    status_vals = cache.get("status_vals", [])
-    emissao_years = cache.get("emissao_years", [])
-    execucao_years = cache.get("execucao_years", [])
-    prio_emissao_vals = cache.get("prio_emissao_vals", [])
-    prio_planejamento_vals = cache.get("prio_planejamento_vals", [])
-    self._refresh_sector_menus(exec_vals, emis_vals, status_vals, filters, apply_cb)
-    self._refresh_year_menus(emissao_years, execucao_years, filters, apply_cb)
-    self._refresh_priority_menus(
-        prio_emissao_vals, prio_planejamento_vals, filters, apply_cb
-    )
-    self._refresh_reprogramacoes_menu(cache.get("reprog_vals", []), filters, apply_cb)
-    _refresh_derivadas_menu(self, filters, apply_cb)
+        if (
+            cache
+            and cache.get("df_key") == df_key
+            and not getattr(self, "_adv_options_dirty", False)
+        ):
+            _refresh_derivadas_menu(self, filters, apply_cb)
+            return
 
-    self._mark_responsavel_dirty()
-    built_prefixes = set(getattr(self, "_responsavel_materialized_prefixes", set()))
-    if built_prefixes:
-        self._refresh_responsavel_options(target_prefixes=built_prefixes)
-    else:
-        self._sync_responsavel_button_summaries()
-    self._sync_checks_to_tab_context()
-    self._sync_advanced_filter_ui()
-    try:
-        elapsed_ms = (perf_counter() - start) * 1000.0
-        logger.debug("Advanced filter options refresh: %.1fms", elapsed_ms)
-    except Exception as exc:
-        logger.debug("Failed to log advanced filter options refresh timing: %s", exc)
-    self._adv_options_scheduled = False
+        df_id = id(df)
+
+        if not isinstance(cache, dict) or cache.get("df_id") != df_id:
+            cache = {"df_id": df_id, "df_key": df_key}
+            self._adv_values_cache = cache
+
+        if cache.get("exec_vals") is None:
+            _populate_advanced_values_cache(self, df, cache)
+            self._adv_values_cache = cache
+            logger.debug(
+                "_refresh_advanced_filter_options: cache populado - exec=%s, emis=%s, status=%s",
+                _safe_len(cache.get("exec_vals", [])),
+                _safe_len(cache.get("emis_vals", [])),
+                _safe_len(cache.get("status_vals", [])),
+            )
+
+        exec_vals = cache.get("exec_vals", [])
+        emis_vals = cache.get("emis_vals", [])
+        status_vals = cache.get("status_vals", [])
+        emissao_years = cache.get("emissao_years", [])
+        execucao_years = cache.get("execucao_years", [])
+        prio_emissao_vals = cache.get("prio_emissao_vals", [])
+        prio_planejamento_vals = cache.get("prio_planejamento_vals", [])
+        self._refresh_sector_menus(exec_vals, emis_vals, status_vals, filters, apply_cb)
+        self._refresh_year_menus(emissao_years, execucao_years, filters, apply_cb)
+        self._refresh_priority_menus(
+            prio_emissao_vals, prio_planejamento_vals, filters, apply_cb
+        )
+        self._refresh_reprogramacoes_menu(
+            cache.get("reprog_vals", []), filters, apply_cb
+        )
+        _refresh_derivadas_menu(self, filters, apply_cb)
+
+        self._mark_responsavel_dirty()
+        built_prefixes = set(getattr(self, "_responsavel_materialized_prefixes", set()))
+        if built_prefixes:
+            self._refresh_responsavel_options(target_prefixes=built_prefixes)
+        else:
+            self._sync_responsavel_button_summaries()
+        self._sync_checks_to_tab_context()
+        self._sync_advanced_filter_ui()
+        try:
+            elapsed_ms = (perf_counter() - start) * 1000.0
+            logger.debug("Advanced filter options refresh: %.1fms", elapsed_ms)
+        except Exception as exc:
+            logger.debug(
+                "Failed to log advanced filter options refresh timing: %s", exc
+            )
+    finally:
+        self._adv_options_scheduled = False
