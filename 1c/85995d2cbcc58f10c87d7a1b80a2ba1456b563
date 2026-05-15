@@ -1,0 +1,23 @@
+gui/ssa/gui_details.py
+  s_082d1ff7d55d96::t_cc2d9c96ed9a36 17,648,1088,1184-1189,1214,1298-1304
+gui/ssa/details_data_provider.py
+  s_082d1ff7d55d96::t_f4026484412373 1-84
+tests/test_gui_details_data_provider.py
+  s_082d1ff7d55d96::t_2407839370acc7 1-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "1c85995d2cbcc58f10c87d7a1b80a2ba1456b563",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
