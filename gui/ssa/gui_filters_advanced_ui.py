@@ -2829,33 +2829,32 @@ def _has_active_advanced_filters(self, data: dict) -> bool:
     return False
 
 
-def _apply_advanced_filters_from_ui(self, store_only: bool = False):
-    previous_filters = dict(getattr(self, "_advanced_filters", None) or {})
-    if not store_only:
-        try:
-            self._store_last_filter_state()
-        except Exception as exc:
-            logger.warning(
-                "Falha ao salvar estado antes de aplicar filtros avancados: %s", exc
-            )
-    data = {}
+class AdvancedFilterStateReader:
+    def __init__(self, window) -> None:
+        self.window = window
+        self.current_filters = getattr(window, "_advanced_filters", None) or {}
+        self.built_prefixes = set(
+            getattr(window, "_responsavel_materialized_prefixes", set())
+        )
 
-    def _safe_checked(checks_attr: str) -> list[str]:
+    def checked_values(self, checks_attr: str) -> list[str]:
         try:
-            return self._get_checked_values(getattr(self, checks_attr, None))
+            return self.window._get_checked_values(
+                getattr(self.window, checks_attr, None)
+            )
         except Exception as exc:
             logger.debug("Falha ao coletar valores (%s): %s", checks_attr, exc)
             return []
 
-    def _safe_week_range(
-        start_attr: str, end_attr: str
-    ) -> tuple[int | None, int | None]:
+    def week_range(self, start_attr: str, end_attr: str) -> tuple[int | None, int | None]:
         try:
-            start_widget = getattr(self, start_attr, None)
-            end_widget = getattr(self, end_attr, None)
+            start_widget = getattr(self.window, start_attr, None)
+            end_widget = getattr(self.window, end_attr, None)
             start_text = start_widget.text() if start_widget is not None else ""
             end_text = end_widget.text() if end_widget is not None else ""
-            return self._parse_week(start_text), self._parse_week(end_text)
+            return self.window._parse_week(start_text), self.window._parse_week(
+                end_text
+            )
         except Exception as exc:
             logger.debug(
                 "Falha ao coletar faixa de semana (%s/%s): %s",
@@ -2865,105 +2864,143 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
             )
             return None, None
 
-    data["setor_executor"] = _safe_checked("adv_executor_checks")
-    data["setor_executor_exclude_values"] = _safe_checked("adv_executor_exclude_checks")
-    data["setor_emissor"] = _safe_checked("adv_emissor_checks")
-    data["setor_emissor_exclude_values"] = _safe_checked("adv_emissor_exclude_checks")
-    data["situacao"] = _safe_checked("adv_status_checks")
-    data["situacao_exclude_values"] = _safe_checked("adv_status_exclude_checks")
-    data["ano_emissao_values"] = _safe_checked("adv_year_emissao_checks")
-    data["ano_emissao_exclude_values"] = _safe_checked(
-        "adv_year_emissao_exclude_checks"
-    )
-    data["ano_execucao_values"] = _safe_checked("adv_year_execucao_checks")
-    data["ano_execucao_exclude_values"] = _safe_checked(
-        "adv_year_execucao_exclude_checks"
-    )
-    semana_emissao_inicio, semana_emissao_fim = _safe_week_range(
-        "adv_week_emissao_start", "adv_week_emissao_end"
-    )
-    data["semana_emissao_inicio"] = semana_emissao_inicio
-    data["semana_emissao_fim"] = semana_emissao_fim
-    semana_execucao_inicio, semana_execucao_fim = _safe_week_range(
-        "adv_week_execucao_start", "adv_week_execucao_end"
-    )
-    data["semana_execucao_inicio"] = semana_execucao_inicio
-    data["semana_execucao_fim"] = semana_execucao_fim
-    data["semana_emissao_exclude"] = False
-    data["semana_execucao_exclude"] = False
-    derivada_selected = {
-        str(v).casefold()
-        for v in self._get_checked_values(getattr(self, "adv_derivada_checks", None))
-    }
-    data["derivada_has"] = "has" in derivada_selected
-    data["derivada_all_ste"] = "all_ste" in derivada_selected
-    data["derivada_is"] = "is" in derivada_selected
-    # derivadas_especificas_values removido - botao Especificas agora e apenas visualizacao
-    adv_current = getattr(self, "_advanced_filters", None) or {}
-    built_prefixes = set(getattr(self, "_responsavel_materialized_prefixes", set()))
-
-    def _collect_responsavel_values(
-        checks_attr: str, key_name: str, prefix: str
+    def responsavel_values(
+        self,
+        checks_attr: str,
+        key_name: str,
+        prefix: str,
     ) -> list[str]:
-        if prefix not in built_prefixes:
-            return list(adv_current.get(key_name) or [])
+        if prefix not in self.built_prefixes:
+            return list(self.current_filters.get(key_name) or [])
         try:
-            return self._get_checked_values(getattr(self, checks_attr, None))
+            return self.window._get_checked_values(
+                getattr(self.window, checks_attr, None)
+            )
         except Exception as exc:
             logger.debug(
-                "Falha ao coletar responsavel (%s/%s): %s", key_name, checks_attr, exc
+                "Falha ao coletar responsavel (%s/%s): %s",
+                key_name,
+                checks_attr,
+                exc,
             )
             return []
 
-    data["solicitante"] = _collect_responsavel_values(
-        "adv_responsavel_solicitante_checks",
-        "solicitante",
-        "adv_responsavel_solicitante",
-    )
-    data["solicitante_exclude_values"] = _collect_responsavel_values(
-        "adv_responsavel_solicitante_exclude_checks",
-        "solicitante_exclude_values",
-        "adv_responsavel_solicitante",
-    )
-    data["responsavel_programacao"] = _collect_responsavel_values(
-        "adv_responsavel_programacao_checks",
-        "responsavel_programacao",
-        "adv_responsavel_programacao",
-    )
-    data["responsavel_programacao_exclude_values"] = _collect_responsavel_values(
-        "adv_responsavel_programacao_exclude_checks",
-        "responsavel_programacao_exclude_values",
-        "adv_responsavel_programacao",
-    )
-    data["responsavel_execucao"] = _collect_responsavel_values(
-        "adv_responsavel_execucao_checks",
-        "responsavel_execucao",
-        "adv_responsavel_execucao",
-    )
-    data["responsavel_execucao_exclude_values"] = _collect_responsavel_values(
-        "adv_responsavel_execucao_exclude_checks",
-        "responsavel_execucao_exclude_values",
-        "adv_responsavel_execucao",
-    )
-    data["num_reprogramacoes_values"] = _safe_checked("adv_reprog_checks")
-    data["num_reprogramacoes_mode"] = _safe_combo_item_data(
-        getattr(self, "adv_reprog_mode", None)
-    )
-    data["prioridade_emissao_values"] = _safe_checked("adv_prioridade_emissao_checks")
-    data["prioridade_emissao_exclude_values"] = _safe_checked(
-        "adv_prioridade_emissao_exclude_checks"
-    )
-    data["prioridade_planejamento_values"] = _safe_checked(
-        "adv_prioridade_planejamento_checks"
-    )
-    data["prioridade_planejamento_exclude_values"] = _safe_checked(
-        "adv_prioridade_planejamento_exclude_checks"
-    )
-    try:
-        data["macro_filter"] = self.adv_macro_combo.currentData()
-    except Exception as exc:
-        logger.debug("Falha ao coletar macro_filter: %s", exc)
-        data["macro_filter"] = None
+    def derivada_flags(self) -> dict[str, bool]:
+        selected = {
+            str(v).casefold()
+            for v in self.window._get_checked_values(
+                getattr(self.window, "adv_derivada_checks", None)
+            )
+        }
+        return {
+            "derivada_has": "has" in selected,
+            "derivada_all_ste": "all_ste" in selected,
+            "derivada_is": "is" in selected,
+        }
+
+    def macro_filter(self):
+        try:
+            return self.window.adv_macro_combo.currentData()
+        except Exception as exc:
+            logger.debug("Falha ao coletar macro_filter: %s", exc)
+            return None
+
+    def collect(self) -> dict:
+        data = {
+            "setor_executor": self.checked_values("adv_executor_checks"),
+            "setor_executor_exclude_values": self.checked_values(
+                "adv_executor_exclude_checks"
+            ),
+            "setor_emissor": self.checked_values("adv_emissor_checks"),
+            "setor_emissor_exclude_values": self.checked_values(
+                "adv_emissor_exclude_checks"
+            ),
+            "situacao": self.checked_values("adv_status_checks"),
+            "situacao_exclude_values": self.checked_values("adv_status_exclude_checks"),
+            "ano_emissao_values": self.checked_values("adv_year_emissao_checks"),
+            "ano_emissao_exclude_values": self.checked_values(
+                "adv_year_emissao_exclude_checks"
+            ),
+            "ano_execucao_values": self.checked_values("adv_year_execucao_checks"),
+            "ano_execucao_exclude_values": self.checked_values(
+                "adv_year_execucao_exclude_checks"
+            ),
+            "semana_emissao_exclude": False,
+            "semana_execucao_exclude": False,
+            "solicitante": self.responsavel_values(
+                "adv_responsavel_solicitante_checks",
+                "solicitante",
+                "adv_responsavel_solicitante",
+            ),
+            "solicitante_exclude_values": self.responsavel_values(
+                "adv_responsavel_solicitante_exclude_checks",
+                "solicitante_exclude_values",
+                "adv_responsavel_solicitante",
+            ),
+            "responsavel_programacao": self.responsavel_values(
+                "adv_responsavel_programacao_checks",
+                "responsavel_programacao",
+                "adv_responsavel_programacao",
+            ),
+            "responsavel_programacao_exclude_values": self.responsavel_values(
+                "adv_responsavel_programacao_exclude_checks",
+                "responsavel_programacao_exclude_values",
+                "adv_responsavel_programacao",
+            ),
+            "responsavel_execucao": self.responsavel_values(
+                "adv_responsavel_execucao_checks",
+                "responsavel_execucao",
+                "adv_responsavel_execucao",
+            ),
+            "responsavel_execucao_exclude_values": self.responsavel_values(
+                "adv_responsavel_execucao_exclude_checks",
+                "responsavel_execucao_exclude_values",
+                "adv_responsavel_execucao",
+            ),
+            "num_reprogramacoes_values": self.checked_values("adv_reprog_checks"),
+            "num_reprogramacoes_mode": _safe_combo_item_data(
+                getattr(self.window, "adv_reprog_mode", None)
+            ),
+            "prioridade_emissao_values": self.checked_values(
+                "adv_prioridade_emissao_checks"
+            ),
+            "prioridade_emissao_exclude_values": self.checked_values(
+                "adv_prioridade_emissao_exclude_checks"
+            ),
+            "prioridade_planejamento_values": self.checked_values(
+                "adv_prioridade_planejamento_checks"
+            ),
+            "prioridade_planejamento_exclude_values": self.checked_values(
+                "adv_prioridade_planejamento_exclude_checks"
+            ),
+            "macro_filter": self.macro_filter(),
+        }
+        semana_emissao_inicio, semana_emissao_fim = self.week_range(
+            "adv_week_emissao_start",
+            "adv_week_emissao_end",
+        )
+        data["semana_emissao_inicio"] = semana_emissao_inicio
+        data["semana_emissao_fim"] = semana_emissao_fim
+        semana_execucao_inicio, semana_execucao_fim = self.week_range(
+            "adv_week_execucao_start",
+            "adv_week_execucao_end",
+        )
+        data["semana_execucao_inicio"] = semana_execucao_inicio
+        data["semana_execucao_fim"] = semana_execucao_fim
+        data.update(self.derivada_flags())
+        return data
+
+
+def _apply_advanced_filters_from_ui(self, store_only: bool = False):
+    previous_filters = dict(getattr(self, "_advanced_filters", None) or {})
+    if not store_only:
+        try:
+            self._store_last_filter_state()
+        except Exception as exc:
+            logger.warning(
+                "Falha ao salvar estado antes de aplicar filtros avancados: %s", exc
+            )
+    data = AdvancedFilterStateReader(self).collect()
 
     self._advanced_filters = data
     executor_filters_were_active = bool(

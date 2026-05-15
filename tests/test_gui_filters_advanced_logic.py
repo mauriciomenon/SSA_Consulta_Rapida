@@ -23,6 +23,31 @@ class _DummyWindow:
         self._advanced_filters = filters
 
 
+class _DummyCombo:
+    def currentData(self):
+        return "macro_x"
+
+
+class _DummyStateReaderWindow:
+    def __init__(self):
+        self._advanced_filters = {
+            "solicitante": ["Alice"],
+            "solicitante_exclude_values": ["Bob"],
+            "responsavel_programacao": ["Carol"],
+            "responsavel_programacao_exclude_values": ["Dan"],
+            "responsavel_execucao": ["Eve"],
+            "responsavel_execucao_exclude_values": ["Frank"],
+        }
+        self._responsavel_materialized_prefixes = set()
+        self.adv_macro_combo = _DummyCombo()
+
+    def _get_checked_values(self, source):
+        return list(source or [])
+
+    def _parse_week(self, raw: str):
+        return int(raw) if raw else None
+
+
 def _normalize_ssa_series(series: pd.Series) -> pd.Series:
     return series.astype(str).fillna("").str.strip()
 
@@ -35,6 +60,48 @@ def _get_has_active_block(ui_source: str) -> str:
     )
     assert has_active_block_match is not None
     return has_active_block_match.group("body")
+
+
+def _literal_string(node: ast.AST | None) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return None
+
+
+def _extract_produced_filter_keys(source: str) -> set[str]:
+    module = ast.parse(source)
+    keys: set[str] = set()
+
+    for node in ast.walk(module):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if (
+                    isinstance(target, ast.Subscript)
+                    and isinstance(target.value, ast.Name)
+                    and target.value.id == "data"
+                ):
+                    key = _literal_string(target.slice)
+                    if key is not None:
+                        keys.add(key)
+
+    for node in module.body:
+        if isinstance(node, ast.ClassDef) and node.name == "AdvancedFilterStateReader":
+            for child in ast.walk(node):
+                if isinstance(child, ast.Dict):
+                    for key_node in child.keys:
+                        key = _literal_string(key_node)
+                        if key is not None:
+                            keys.add(key)
+
+    return keys
+
+
+def _read_advanced_filter_sources() -> tuple[str, str]:
+    ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
+    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(
+        encoding="utf-8"
+    )
+    return ui_source, logic_source
 
 
 def test_order_responsavel_values_uses_domain_sector_rank():
@@ -75,6 +142,21 @@ def test_subset_by_sector_filters_applies_include_and_exclude_once():
     )
 
     assert filtered["numero_ssa"].tolist() == ["4"]
+
+
+def test_advanced_filter_state_reader_preserves_unmaterialized_responsaveis():
+    window = _DummyStateReaderWindow()
+    reader = adv_ui.AdvancedFilterStateReader(window)
+
+    data = reader.collect()
+
+    assert data["solicitante"] == ["Alice"]
+    assert data["solicitante_exclude_values"] == ["Bob"]
+    assert data["responsavel_programacao"] == ["Carol"]
+    assert data["responsavel_programacao_exclude_values"] == ["Dan"]
+    assert data["responsavel_execucao"] == ["Eve"]
+    assert data["responsavel_execucao_exclude_values"] == ["Frank"]
+    assert data["macro_filter"] == "macro_x"
 
 
 def _extract_assigned_literal_dict(source: str, variable_name: str) -> dict:
@@ -159,7 +241,7 @@ def test_has_active_advanced_filters_detects_reprogramacoes_filter():
     assert adv_ui._has_active_advanced_filters(None, data) is True
 
 
-def test_apply_advanced_filters_applies_week_range_filter():
+def test_apply_advanced_filters_applies_semana_cadastro_range_filter():
     window = _DummyWindow(
         {"semana_emissao_inicio": 202501, "semana_emissao_fim": 202502}
     )
@@ -398,12 +480,9 @@ def test_apply_advanced_filters_derives_divisao_from_setor_columns(monkeypatch):
 
 
 def test_advanced_filter_keys_from_ui_are_covered_by_logic_or_active_detector():
-    ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
-    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(
-        encoding="utf-8"
-    )
+    ui_source, logic_source = _read_advanced_filter_sources()
 
-    produced_keys = set(re.findall(r'data\["([^"]+)"\]\s*=', ui_source))
+    produced_keys = _extract_produced_filter_keys(ui_source)
     has_active_block = _get_has_active_block(ui_source)
 
     uncovered = sorted(
@@ -417,12 +496,9 @@ def test_advanced_filter_keys_from_ui_are_covered_by_logic_or_active_detector():
 
 
 def test_logic_and_detector_keys_are_produced_by_ui_or_marked_legacy():
-    ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
-    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(
-        encoding="utf-8"
-    )
+    ui_source, logic_source = _read_advanced_filter_sources()
 
-    produced_keys = set(re.findall(r'data\["([^"]+)"\]\s*=', ui_source))
+    produced_keys = _extract_produced_filter_keys(ui_source)
     has_active_block = _get_has_active_block(ui_source)
     detector_keys = set(re.findall(r'data\.get\("([^"]+)"\)', has_active_block))
     direct_logic_keys = set(re.findall(r'filters\.get\("([^"]+)"\)', logic_source))
@@ -454,11 +530,8 @@ def test_logic_and_detector_keys_are_produced_by_ui_or_marked_legacy():
 
 
 def test_week_exclude_contract_keys_are_explicit_noop_allowlist_only():
-    ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
-    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(
-        encoding="utf-8"
-    )
-    produced_keys = set(re.findall(r'data\["([^"]+)"\]\s*=', ui_source))
+    ui_source, logic_source = _read_advanced_filter_sources()
+    produced_keys = _extract_produced_filter_keys(ui_source)
     has_active_block = _get_has_active_block(ui_source)
     detector_keys = set(re.findall(r'data\.get\("([^"]+)"\)', has_active_block))
 
