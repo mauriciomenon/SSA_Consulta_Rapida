@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import html as html_module
 import hashlib
-import os
 from typing import Any, Mapping, cast
 
 import pandas as pd
@@ -15,6 +14,7 @@ import pandas as pd
 from gui.helpers.formatting_helpers import highlight_text
 from gui.helpers.theme_helpers import pick_css_color
 from gui.qt_stubs import QTimer
+from gui.ssa import details_data_provider
 from shared.numero_ssa import normalize_relation_id as normalize_numero_ssa_relation
 from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 from shared.ssa_status import format_status_display, get_status_code
@@ -645,13 +645,7 @@ def _get_window_ssa_series_index(window) -> dict[str, pd.Series]:
 
 def _get_details_db_signature():
     db_path = _resolve_current_db_path()
-    if not db_path:
-        return None
-    try:
-        return os.path.getmtime(db_path)
-    except Exception as exc:
-        logger.debug("Falha ao ler mtime do banco de detalhes %s: %s", db_path, exc)
-        return None
+    return details_data_provider.get_db_mtime(db_path)
 
 
 def _get_details_render_signature(window, series):
@@ -1091,14 +1085,7 @@ def _on_details_anchor_clicked(window, url):
 
 
 def _resolve_current_db_path():
-    try:
-        from gui import gui_ssa as gui_ssa_module
-    except Exception:
-        return None
-    db_path = getattr(gui_ssa_module, "DB_PATH", None)
-    if isinstance(db_path, str) and db_path.strip():
-        return db_path
-    return None
+    return details_data_provider.resolve_current_db_path()
 
 
 def _show_derivadas_tree_for_ssa(window, numero_ssa):
@@ -1194,16 +1181,13 @@ def _collect_derivadas_tree_data(window, numero_ssa):
     descendants_partial = False
 
     db_path = _resolve_current_db_path()
-    if db_path and os.path.exists(db_path):
+    snapshot = details_data_provider.load_derivadas_snapshot(
+        db_path,
+        target,
+        max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
+    )
+    if snapshot:
         try:
-            from armazenamento import derivadas_queries
-
-            snapshot = derivadas_queries.get_ssa_hierarchy_snapshot(
-                db_path,
-                target,
-                max_distance=None,
-                max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
-            )
             parents = list(snapshot.get("parents", []) or [])
             children = list(snapshot.get("children", []) or [])
             descendants = list(snapshot.get("descendants", []) or [])
@@ -1227,7 +1211,7 @@ def _collect_derivadas_tree_data(window, numero_ssa):
             descendants_partial = bool(snapshot.get("family_truncated"))
         except Exception as exc:
             logger.debug(
-                "Falha ao coletar arvore de derivadas no DB para %s: %s", target, exc
+                "Falha ao normalizar snapshot de derivadas para %s: %s", target, exc
             )
 
     if not children:
@@ -1311,16 +1295,13 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         family_roots = list(dict.fromkeys(parents or [target]))
 
     if not family_descendants:
-        try:
-            from armazenamento.derivadas_queries import build_family_payload_from_edges
-
-            local_edges = _get_cached_derivadas_family_edges(window)
-            local_payload = build_family_payload_from_edges(
-                target,
-                local_edges,
-                max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
-                allow_relation_ids=normalize_numero_ssa_strict(target) is None,
-            )
+        local_edges = _get_cached_derivadas_family_edges(window)
+        local_payload = details_data_provider.build_local_family_payload(
+            target,
+            local_edges,
+            max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
+        )
+        if local_payload:
             if not parents:
                 parents = list(local_payload.get("parents", []) or [])
             if not children:
@@ -1344,12 +1325,6 @@ def _collect_derivadas_tree_data(window, numero_ssa):
                 if isinstance(raw, dict)
             ]
             descendants_partial = bool(local_payload.get("family_truncated"))
-        except Exception as exc:
-            logger.debug(
-                "Falha ao montar payload local de familia de derivadas para %s: %s",
-                target,
-                exc,
-            )
     if family_descendants:
         descendants = family_descendants
     family_child_values = {
