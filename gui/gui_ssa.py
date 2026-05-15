@@ -69,6 +69,10 @@ from gui.ssa import gui_filters_advanced as ssa_gui_filters  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
 from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
+from gui.ssa.filter_domain_rules import (  # noqa: E402
+    collect_nonempty_column_values,
+    order_sector_values,
+)
 from shared.db_names import ALL_SSA_TABLE_NAMES  # noqa: E402
 from shared.db_names import CANONICAL_SSA_TABLE
 from utils.themes import get_theme_roles, normalize_theme  # noqa: E402
@@ -3573,33 +3577,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     @staticmethod
     def _order_setor_executor_values(values: list[str]) -> list[str]:
-        priority = ["IEE1", "IEE2", "IEE3", "IEE4", "MEL1", "MEL2", "MEL3", "MEL4"]
-        normalized = []
-        seen = set()
-        for raw in values or []:
-            value = str(raw or "").strip()
-            if not value:
-                continue
-            key = value.casefold()
-            if key in seen:
-                continue
-            seen.add(key)
-            normalized.append(value)
-        upper_map = {item.upper(): item for item in normalized}
-        ordered = []
-        used_upper = set()
-        for item in priority:
-            if item in upper_map:
-                ordered.append(item)
-                used_upper.add(item)
-        remaining = []
-        for item in normalized:
-            upper_item = item.upper()
-            if upper_item in used_upper:
-                continue
-            remaining.append(item)
-        remaining = sorted(remaining, key=lambda x: x.casefold())
-        return ordered + remaining
+        return order_sector_values(values, sector_to_div=SECTOR_TO_DIV)
 
     def _collect_setor_executor_values_for_combo(self) -> list[str]:
         base_df = getattr(self, "df_completo", None)
@@ -3609,11 +3587,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return []
         if "setor_executor" not in base_df.columns:
             return []
-        raw_values = []
-        for value in base_df["setor_executor"].dropna().astype(str):
-            cleaned = str(value or "").strip()
-            if cleaned:
-                raw_values.append(cleaned)
+        raw_values = collect_nonempty_column_values(base_df, "setor_executor")
         return self._order_setor_executor_values(raw_values)
 
     def _populate_quick_setor_executor_combo(

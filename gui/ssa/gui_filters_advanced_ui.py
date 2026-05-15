@@ -34,6 +34,11 @@ from gui.qt_stubs import (
 )
 from utils.robust_logging import get_robust_logger
 
+from .filter_domain_rules import (
+    collect_nonempty_column_values,
+    order_sector_values,
+    sector_sort_key,
+)
 from .gui_filters_advanced_logic import RESPONSAVEL_FILTER_COLUMN_CANDIDATES
 from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
 
@@ -1176,15 +1181,14 @@ def _collect_years_from_weeks(series):
 def _populate_advanced_values_cache(self, df, cache) -> None:
     def _unique_sorted(col):
         try:
-            vals = df[col].dropna().astype(str).str.strip()
-            vals = vals[vals != ""]
+            vals = collect_nonempty_column_values(df, col)
             return sorted(set(vals), key=lambda v: v.casefold())
         except Exception:
             return []
 
     def _sort_sector_values(values):
         try:
-            return self._sort_sectors(set(values))
+            return self._sort_sectors(values)
         except Exception:
             return sorted(set(values), key=lambda v: str(v).casefold())
 
@@ -2351,21 +2355,11 @@ def _collect_divisao_setores(self, divisao_values):
 
 
 def _sector_sort_key(self, sector: str):
-    div = SECTOR_TO_DIV.get(sector, "")
-    # Ordem: SMIN primeiro (0), SMME segundo (1), outras divisoes alfabeticamente (2+)
-    if div == "SMIN":
-        div_rank = 0
-    elif div == "SMME":
-        div_rank = 1
-    elif div:
-        div_rank = 2
-    else:
-        div_rank = 3
-    return (div_rank, div.casefold(), sector.casefold())
+    return sector_sort_key(sector, SECTOR_TO_DIV)
 
 
 def _sort_sectors(self, values):
-    return sorted(values, key=self._sector_sort_key)
+    return order_sector_values(values, sector_to_div=SECTOR_TO_DIV)
 
 
 def _sort_responsavel_values(self, df_subset, values, resp_col: str, df_source=None):

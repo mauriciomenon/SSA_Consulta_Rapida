@@ -2,10 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
+from typing import Any
+
 import pandas as pd
 
 EXCLUDED_TERMINAL_STATUSES = frozenset({"SCA", "SES", "STE"})
 EXCLUDED_TERMINAL_SUMMARY = "situacao!=SCA/SES/STE"
+SECTOR_EXECUTOR_PRIORITY = (
+    "IEE1",
+    "IEE2",
+    "IEE3",
+    "IEE4",
+    "MEL1",
+    "MEL2",
+    "MEL3",
+    "MEL4",
+)
 
 
 def exclude_terminal_status_rows(df: pd.DataFrame) -> pd.DataFrame:
@@ -14,6 +27,71 @@ def exclude_terminal_status_rows(df: pd.DataFrame) -> pd.DataFrame:
     return df[
         ~df["situacao"].astype(str).str.upper().isin(EXCLUDED_TERMINAL_STATUSES)
     ]
+
+
+def collect_nonempty_column_values(df: pd.DataFrame, column: str) -> list[str]:
+    if not isinstance(df, pd.DataFrame) or df.empty or column not in df.columns:
+        return []
+    values: list[str] = []
+    for raw in df[column].dropna().astype(str):
+        value = str(raw).strip()
+        if value:
+            values.append(value)
+    return values
+
+
+def dedupe_nonempty_strings(values: Iterable[Any] | None) -> list[str]:
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    iterable = () if values is None else values
+    for raw in iterable:
+        value = str(raw).strip()
+        if not value:
+            continue
+        key = value.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(value)
+    return cleaned
+
+
+def sector_sort_key(
+    sector: str,
+    sector_to_div: Mapping[str, str] | None = None,
+) -> tuple[int, str, str]:
+    value = str(sector or "").strip()
+    sector_to_div = sector_to_div or {}
+    div = sector_to_div.get(value) or sector_to_div.get(value.upper(), "")
+    if div == "SMIN":
+        div_rank = 0
+    elif div == "SMME":
+        div_rank = 1
+    elif div:
+        div_rank = 2
+    else:
+        div_rank = 3
+    return (div_rank, str(div).casefold(), value.casefold())
+
+
+def order_sector_values(
+    values: Iterable[Any] | None,
+    *,
+    sector_to_div: Mapping[str, str] | None = None,
+    priority: Iterable[str] = SECTOR_EXECUTOR_PRIORITY,
+) -> list[str]:
+    cleaned = dedupe_nonempty_strings(values)
+    by_upper = {item.upper(): item for item in cleaned}
+    ordered: list[str] = []
+    used_upper: set[str] = set()
+    for raw_priority in priority:
+        item = str(raw_priority).strip().upper()
+        if item in by_upper:
+            ordered.append(item)
+            used_upper.add(item)
+    remaining = [item for item in cleaned if item.upper() not in used_upper]
+    remaining.sort(key=lambda item: sector_sort_key(item, sector_to_div))
+    return ordered + remaining
 
 ADVANCED_FILTER_VISUAL_COLUMN_MAP = {
     "setor_executor": ("setor_executor",),

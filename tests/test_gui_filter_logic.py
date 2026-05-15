@@ -462,6 +462,15 @@ class TestGUIFilterLogic:
         )
         assert ordered == ["IEE1", "IEE4", "MEL1", "MEL3", "AAA", "ABC", "ZZZ"]
 
+    def test_setor_order_is_shared_between_quick_and_advanced_filters(self):
+        values = ["MEG2", "IEE4", "MEL3", "ILA2", "IEE1", "MEL1"]
+
+        quick_order = SSAMainWindow._order_setor_executor_values(values)
+        advanced_order = self.window._sort_sectors(values)
+
+        assert quick_order == advanced_order
+        assert quick_order == ["IEE1", "IEE4", "MEL1", "MEL3", "ILA2", "MEG2"]
+
     def test_quick_setor_executor_combo_applies_executor_filter_only(self):
         self.window._register_or_group(
             ["setor_executor", "setor_emissor"], ["IEE3", "MEL3"]
@@ -3811,7 +3820,9 @@ class TestGUIFilterLogic:
         series = self.base_df.iloc[0].copy()
         series["numero_ssa"] = "202600023"
         series["numero_ssa_relacionada_1"] = "202500777"
+        series["numero_ssa_relacionada_2"] = pd.NA
         series["situacao_relacionada_1"] = pd.NA
+        series["situacao_relacionada_2"] = pd.NA
         series["relacao"] = pd.NA
 
         with patch(
@@ -3828,6 +3839,7 @@ class TestGUIFilterLogic:
 
         assert "SSAs relacionadas (1)" in html
         assert 'href="ssa:202500777"' in html
+        assert ssa_gui_details._normalize_ssa_relation_value(pd.NA) == ""
 
     def test_update_details_from_series_avoids_eager_global_ssa_index_build(self):
         series = self.base_df.iloc[0].copy()

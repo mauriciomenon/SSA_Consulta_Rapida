@@ -484,10 +484,12 @@ def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
 
 
 def _normalize_ssa_relation_value(value) -> str:
+    if _is_missing_scalar(value):
+        return ""
     normalized = str(normalize_numero_ssa_relation(value) or "").strip()
     if normalized:
         return normalized
-    text = str(value or "").strip()
+    text = str(value).strip()
     if text.isdigit():
         return text
     if "." not in text:
@@ -496,6 +498,18 @@ def _normalize_ssa_relation_value(value) -> str:
     if whole.isdigit() and fractional and set(fractional) <= {"0"}:
         return whole
     return ""
+
+
+def _is_missing_scalar(value) -> bool:
+    if value is None:
+        return True
+    try:
+        if not pd.api.types.is_scalar(value):
+            return False
+        return bool(pd.isna(value))
+    except Exception as exc:
+        logger.debug("Falha ao avaliar valor escalar ausente: %s", exc)
+        return False
 
 
 def _normalize_ssa_relation_series(series: pd.Series) -> pd.Series:
@@ -835,7 +849,9 @@ def _get_related_ssas_for_series(
     if series is None:
         return []
     relation_value = series.get("relacao", "")
-    relation_label = "" if pd.isna(relation_value) else str(relation_value).strip()
+    relation_label = (
+        "" if _is_missing_scalar(relation_value) else str(relation_value).strip()
+    )
     related_specs = (
         ("numero_ssa_relacionada_1", "situacao_relacionada_1"),
         ("numero_ssa_relacionada_2", "situacao_relacionada_2"),
@@ -851,7 +867,7 @@ def _get_related_ssas_for_series(
         status_hint = ""
         if situacao_col:
             status_value = series.get(situacao_col, "")
-            if not pd.isna(status_value):
+            if not _is_missing_scalar(status_value):
                 status_hint = str(status_value).strip().upper()
         resolved_series = None
         if isinstance(ssa_index, Mapping):
