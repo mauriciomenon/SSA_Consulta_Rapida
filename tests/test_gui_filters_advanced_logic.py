@@ -17,6 +17,9 @@ from gui.ssa.gui_filters_advanced_logic import (
     _apply_advanced_filters,
     _compute_years_from_data_cadastro,
 )
+from gui.ssa.gui_filters_responsavel_state import (
+    ResponsavelMaterializationState,
+)
 
 
 class _DummyWindow:
@@ -39,7 +42,7 @@ class _DummyStateReaderWindow:
             "responsavel_execucao": ["Eve"],
             "responsavel_execucao_exclude_values": ["Frank"],
         }
-        self._responsavel_materialized_prefixes = set()
+        self.responsavel_materialization_state = ResponsavelMaterializationState()
         self.adv_macro_combo = _DummyCombo()
 
     def _get_checked_values(self, source):
@@ -160,7 +163,16 @@ def test_subset_by_sector_filters_applies_include_and_exclude_once():
 
 def test_advanced_filter_state_reader_preserves_unmaterialized_responsaveis():
     window = _DummyStateReaderWindow()
-    reader = adv_state_reader.AdvancedFilterStateReader(window)
+    reader = adv_state_reader.AdvancedFilterStateReader(
+        widget_context={"adv_macro_combo": window.adv_macro_combo},
+        current_filters=window._advanced_filters,
+        responsavel_state=type(
+            "State",
+            (),
+            {"is_materialized": lambda _self, _prefix: False},
+        )(),
+        parse_week=window._parse_week,
+    )
 
     data = reader.collect()
 

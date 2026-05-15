@@ -241,17 +241,20 @@ class TestGUIFilterLogic:
             return controls
         for i in range(layout.count()):
             item = layout.itemAt(i)
+            if item is None:
+                continue
             row_widget = item.widget()
             if row_widget is None:
                 continue
             row_layout = row_widget.layout()
             if row_layout is None or row_layout.count() < 5:
                 continue
-            label_widget = row_layout.itemAt(0).widget()
-            edit_widget = row_layout.itemAt(1).widget()
-            apply_widget = row_layout.itemAt(2).widget()
-            clear_widget = row_layout.itemAt(3).widget()
-            hide_widget = row_layout.itemAt(4).widget()
+            row_items = [row_layout.itemAt(index) for index in range(5)]
+            if any(row_item is None for row_item in row_items):
+                continue
+            label_widget, edit_widget, apply_widget, clear_widget, hide_widget = [
+                row_item.widget() for row_item in row_items if row_item is not None
+            ]
             if not isinstance(label_widget, QLabel):
                 continue
             if not isinstance(edit_widget, QLineEdit):
@@ -769,6 +772,8 @@ class TestGUIFilterLogic:
         self.window.adv_macro_combo.setCurrentIndex(macro_idx)
         self.window._on_macro_filter_changed()
         QApplication.processEvents()
+
+        assert "Diferente: SAD, SCA, SES, STE" in self.window.adv_status_button.toolTip()
 
         self.window._apply_advanced_filters_from_ui()
         QApplication.processEvents()
@@ -2586,6 +2591,9 @@ class TestGUIFilterLogic:
         self.window._advanced_filters_active = True
         self.window._adv_options_dirty = False
         self.window._adv_options_scheduled = True
+        responsavel_state = self.window.responsavel_materialization_state
+        responsavel_state.mark_materialized(responsavel_state.all_prefixes)
+        assert responsavel_state.status_flags() == (True, False)
 
         with patch.object(
             self.window, "_refresh_advanced_filter_options", return_value=None
@@ -2596,6 +2604,8 @@ class TestGUIFilterLogic:
         assert self.window._advanced_filters == {}
         assert self.window._advanced_filters_active is False
         assert self.window._adv_options_dirty is False
+        assert responsavel_state.built_prefixes == set()
+        assert responsavel_state.dirty_prefixes == responsavel_state.all_prefixes
         refresh_mock.assert_called_once()
 
     def test_undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore(self):
@@ -3145,8 +3155,9 @@ class TestGUIFilterLogic:
         }
         self.window._adv_options_dirty = True
         self.window._adv_values_cache = None
-        self.window._responsavel_filters_materialized = False
-        self.window._responsavel_options_dirty = True
+        responsavel_state = self.window.responsavel_materialization_state
+        responsavel_state.built_prefixes.clear()
+        responsavel_state.dirty_prefixes = set(responsavel_state.all_prefixes)
 
         with patch.object(
             self.window,
@@ -3157,15 +3168,15 @@ class TestGUIFilterLogic:
             QApplication.processEvents()
 
         assert refresh_mock.call_count == 0
-        assert self.window._responsavel_filters_materialized is False
-        assert self.window._responsavel_options_dirty is True
+        assert responsavel_state.status_flags() == (False, True)
         button = getattr(self.window, "adv_responsavel_solicitante_button", None)
         if button is None:
             button = getattr(self.window, "_adv_ctx", {}).get(
                 "adv_responsavel_solicitante_button"
             )
         assert button is not None
-        assert button.text().startswith(("Incluir:", "Diferente:"))
+        assert "Incluir: User1, User2" in button.toolTip()
+        assert "Diferente: User5" in button.toolTip()
 
     def test_responsavel_solicitante_alias_materializes_values_in_advanced_panel(self):
         alias_df = self.base_df.drop(columns=["solicitante"]).assign(
@@ -3223,8 +3234,9 @@ class TestGUIFilterLogic:
             "responsavel_execucao": ["ExecA"],
             "responsavel_execucao_exclude_values": ["ExecB"],
         }
-        self.window._responsavel_materialized_prefixes = set()
-        self.window._responsavel_filters_materialized = False
+        responsavel_state = self.window.responsavel_materialization_state
+        responsavel_state.built_prefixes.clear()
+        responsavel_state.dirty_prefixes = set(responsavel_state.all_prefixes)
 
         self.window._apply_advanced_filters_from_ui(store_only=True)
 
@@ -3248,8 +3260,9 @@ class TestGUIFilterLogic:
         assert getattr(self.window, "adv_responsavel_emissor_exclude", None) is None
 
     def test_ensure_responsavel_options_materialized_runs_once_when_dirty(self):
-        self.window._responsavel_filters_materialized = False
-        self.window._responsavel_options_dirty = True
+        responsavel_state = self.window.responsavel_materialization_state
+        responsavel_state.built_prefixes.clear()
+        responsavel_state.dirty_prefixes = set(responsavel_state.all_prefixes)
 
         with patch.object(
             self.window,
@@ -3260,14 +3273,23 @@ class TestGUIFilterLogic:
             self.window._ensure_responsavel_options_materialized()
 
         assert refresh_mock.call_count == 1
-        assert self.window._responsavel_filters_materialized is True
-        assert self.window._responsavel_options_dirty is False
+        assert responsavel_state.status_flags() == (True, False)
+
+    def test_responsavel_state_marks_built_prefix_stale_after_sector_change(self):
+        responsavel_state = self.window.responsavel_materialization_state
+        target_prefix = "adv_responsavel_solicitante"
+
+        responsavel_state.mark_materialized({target_prefix})
+        responsavel_state.mark_dirty({target_prefix})
+
+        assert responsavel_state.stale_built_prefixes() == {target_prefix}
 
     def test_switch_to_filters_tab_does_not_materialize_responsavel_eagerly(self):
         self.window._adv_options_dirty = True
         self.window._adv_values_cache = None
-        self.window._responsavel_filters_materialized = False
-        self.window._responsavel_options_dirty = True
+        responsavel_state = self.window.responsavel_materialization_state
+        responsavel_state.built_prefixes.clear()
+        responsavel_state.dirty_prefixes = set(responsavel_state.all_prefixes)
 
         with patch.object(
             self.window,
@@ -3278,8 +3300,7 @@ class TestGUIFilterLogic:
             QApplication.processEvents()
 
         assert refresh_mock.call_count == 0
-        assert self.window._responsavel_filters_materialized is False
-        assert self.window._responsavel_options_dirty is True
+        assert responsavel_state.status_flags() == (False, True)
 
     def test_switch_to_filters_tab_coalesces_advanced_refresh_triggers(self):
         self.window._adv_options_dirty = True
@@ -3356,7 +3377,8 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         switch_ms = (time.perf_counter() - t0) * 1000.0
 
-        assert self.window._responsavel_filters_materialized is False
+        responsavel_state = self.window.responsavel_materialization_state
+        assert responsavel_state.status_flags()[0] is False
         assert switch_ms < 3000.0
 
         target_prefix = "adv_responsavel_solicitante"
@@ -3367,11 +3389,8 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         materialize_ms = (time.perf_counter() - t1) * 1000.0
 
-        assert target_prefix in getattr(
-            self.window, "_responsavel_materialized_prefixes", set()
-        )
-        assert self.window._responsavel_filters_materialized is False
-        assert self.window._responsavel_options_dirty is True
+        assert target_prefix in responsavel_state.built_prefixes
+        assert responsavel_state.status_flags() == (False, True)
         assert materialize_ms < 5000.0
 
     def test_theme_cycle_smoke_latency_on_filters_tab(self):
@@ -6079,6 +6098,39 @@ class TestGUIFilterLogic:
         assert "Resp 0449" in include_values
         assert "Resp 0448" in exclude_values
 
+    def test_multiselect_menu_reuses_cached_widgets_when_model_is_unchanged(self):
+        button = QPushButton("Selecionar")
+        menu = QtWidgets.QMenu()
+        values = ["Resp A", "Resp B", "Resp C"]
+
+        first_checks, first_exclude_checks = advanced_ui._rebuild_multiselect_menu(
+            self.window,
+            button,
+            menu,
+            values,
+            {"Resp A"},
+            None,
+            True,
+            {"Resp B"},
+            None,
+        )
+        first_action_count = len(menu.actions())
+        second_checks, second_exclude_checks = advanced_ui._rebuild_multiselect_menu(
+            self.window,
+            button,
+            menu,
+            values,
+            {"Resp A"},
+            None,
+            True,
+            {"Resp B"},
+            None,
+        )
+
+        assert second_checks == first_checks
+        assert second_exclude_checks == first_exclude_checks
+        assert len(menu.actions()) == first_action_count
+
     def test_show_all_columns_by_affinity_reorders_same_select_all_set(
         self, monkeypatch
     ):
@@ -7207,6 +7259,31 @@ class TestGUIFilterLogic:
         assert exec_resp_item is not None
         assert exec_resp_item.widget() is widgets["exec_resp_box"]
 
+    def test_advanced_grid_layout_plan_is_calculated_outside_qt_application(self):
+        plan = advanced_ui.build_advanced_grid_layout_plan(
+            visible_count=14,
+            metrics=advanced_ui.AdvancedGridLayoutMetrics(
+                effective_width=900,
+                cell_min_width=190,
+                spacing=6,
+                horizontal_padding=12,
+                vertical_spacing=4,
+                vertical_padding=8,
+            ),
+            constraints=advanced_ui.AdvancedGridLayoutConstraints(
+                min_cols=1,
+                max_cols=4,
+                preferred_cols=4,
+                field_box_min_height=40,
+                field_box_max_height=50,
+                max_scroll_height=230,
+            ),
+        )
+
+        assert plan is not None
+        assert plan.cols == 4
+        assert plan.layout_mode == "cols_4"
+
     def test_reorganize_advanced_filters_grid_ignores_non_positive_width_and_recomputes(
         self,
     ):
@@ -7228,7 +7305,7 @@ class TestGUIFilterLogic:
             num_reprogramacoes=[0, 1, 2, 2, 3]
         ).copy()
         self.window._adv_values_cache = {}
-        self.window._responsavel_materialized_prefixes = set()
+        self.window.responsavel_materialization_state.built_prefixes.clear()
         self.window._advanced_filters = {
             "num_reprogramacoes_mode": "eq",
             "num_reprogramacoes_values": ["2"],
@@ -9775,8 +9852,9 @@ class TestGUIFilterLogic:
         cancel_mock.assert_called_once_with("clear_all_filters_global")
 
     def test_schedule_sector_refresh_stops_pending_timer_when_not_materialized(self):
-        self.window._responsavel_filters_materialized = False
-        self.window._responsavel_options_dirty = False
+        responsavel_state = self.window.responsavel_materialization_state
+        responsavel_state.built_prefixes.clear()
+        responsavel_state.dirty_prefixes.clear()
         self.window._sector_debounce_timer.start()
         assert self.window._sector_debounce_timer.isActive() is True
 
@@ -9791,7 +9869,7 @@ class TestGUIFilterLogic:
             )
             QApplication.processEvents()
 
-        assert self.window._responsavel_options_dirty is True
+        assert responsavel_state.status_flags()[1] is True
         assert self.window._sector_debounce_timer.isActive() is False
         assert refresh_mock.call_count == 0
 

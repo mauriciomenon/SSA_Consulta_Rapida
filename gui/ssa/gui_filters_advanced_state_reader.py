@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 from utils.robust_logging import get_robust_logger
 
@@ -11,49 +11,110 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 
 
 def _combo_item_data(combo: Any):
-    try:
-        if combo is None:
-            return None
-        mode_idx = combo.currentIndex()
-        return combo.itemData(mode_idx)
-    except Exception:
+    if combo is None:
         return None
+    current_data = getattr(combo, "currentData", None)
+    if callable(current_data):
+        return current_data()
+    current_index = getattr(combo, "currentIndex", None)
+    item_data = getattr(combo, "itemData", None)
+    if not callable(current_index) or not callable(item_data):
+        return None
+    mode_idx = current_index()
+    if mode_idx < 0:
+        return None
+    return item_data(mode_idx)
+
+
+def _widget_value(widget: Any):
+    property_getter = getattr(widget, "property", None)
+    if callable(property_getter):
+        value = property_getter("value")
+        if value is not None:
+            return value
+    text_getter = getattr(widget, "text", None)
+    if callable(text_getter):
+        return text_getter()
+    return None
 
 
 class AdvancedFilterStateReader:
-    def __init__(self, window) -> None:
-        self.window = window
-        self.current_filters = getattr(window, "_advanced_filters", None) or {}
-        self.built_prefixes = set(
-            getattr(window, "_responsavel_materialized_prefixes", set())
-        )
+    RESPONSAVEL_OUTPUT_KEYS = {
+        "solicitante": "solicitante_exclude_values",
+        "responsavel_programacao": "responsavel_programacao_exclude_values",
+        "responsavel_execucao": "responsavel_execucao_exclude_values",
+    }
+    RESPONSAVEL_EXCLUDE_OUTPUT_KEYS = {
+        "solicitante_exclude_values": "solicitante",
+        "responsavel_programacao_exclude_values": "responsavel_programacao",
+        "responsavel_execucao_exclude_values": "responsavel_execucao",
+    }
+    RESPONSAVEL_PREFIXES = {
+        "solicitante": "adv_responsavel_solicitante",
+        "responsavel_programacao": "adv_responsavel_programacao",
+        "responsavel_execucao": "adv_responsavel_execucao",
+    }
+    RESPONSAVEL_WIDGET_BINDINGS = {
+        "solicitante": (
+            "adv_responsavel_solicitante",
+            "adv_responsavel_solicitante_checks",
+            "solicitante_exclude_values",
+            "adv_responsavel_solicitante_exclude_checks",
+        ),
+        "responsavel_programacao": (
+            "adv_responsavel_programacao",
+            "adv_responsavel_programacao_checks",
+            "responsavel_programacao_exclude_values",
+            "adv_responsavel_programacao_exclude_checks",
+        ),
+        "responsavel_execucao": (
+            "adv_responsavel_execucao",
+            "adv_responsavel_execucao_checks",
+            "responsavel_execucao_exclude_values",
+            "adv_responsavel_execucao_exclude_checks",
+        ),
+    }
+
+    def __init__(
+        self,
+        *,
+        widget_context: dict[str, Any],
+        current_filters: dict,
+        responsavel_state,
+        parse_week: Callable[[str], int | None],
+    ) -> None:
+        self.current_filters = current_filters or {}
+        self.responsavel_state = responsavel_state
+        self.widgets = widget_context if isinstance(widget_context, dict) else {}
+        self.parse_week = parse_week
+
+    def widget(self, name: str):
+        return self.widgets.get(name)
 
     def checked_values(self, checks_attr: str) -> list[str]:
-        try:
-            return self.window._get_checked_values(
-                getattr(self.window, checks_attr, None)
-            )
-        except Exception as exc:
-            logger.debug("Failed to collect advanced values (%s): %s", checks_attr, exc)
-            return []
+        values = []
+        for item in self.widget(checks_attr) or []:
+            is_checked = getattr(item, "isChecked", None)
+            if callable(is_checked) and not is_checked():
+                continue
+            raw_value = _widget_value(item)
+            if raw_value is None:
+                continue
+            text = str(raw_value).strip()
+            if text:
+                values.append(text)
+        return values
 
     def week_range(self, start_attr: str, end_attr: str) -> tuple[int | None, int | None]:
-        try:
-            start_widget = getattr(self.window, start_attr, None)
-            end_widget = getattr(self.window, end_attr, None)
-            start_text = start_widget.text() if start_widget is not None else ""
-            end_text = end_widget.text() if end_widget is not None else ""
-            return self.window._parse_week(start_text), self.window._parse_week(
-                end_text
-            )
-        except Exception as exc:
-            logger.debug(
-                "Failed to collect advanced week range (%s/%s): %s",
-                start_attr,
-                end_attr,
-                exc,
-            )
+        start_widget = self.widget(start_attr)
+        end_widget = self.widget(end_attr)
+        if start_widget is None and end_widget is None:
             return None, None
+        start_text_getter = getattr(start_widget, "text", None)
+        end_text_getter = getattr(end_widget, "text", None)
+        start_text = start_text_getter() if callable(start_text_getter) else ""
+        end_text = end_text_getter() if callable(end_text_getter) else ""
+        return self.parse_week(start_text), self.parse_week(end_text)
 
     def responsavel_values(
         self,
@@ -61,20 +122,9 @@ class AdvancedFilterStateReader:
         key_name: str,
         prefix: str,
     ) -> list[str]:
-        if prefix not in self.built_prefixes:
+        if not self.responsavel_state.is_materialized(prefix):
             return list(self.current_filters.get(key_name) or [])
-        try:
-            return self.window._get_checked_values(
-                getattr(self.window, checks_attr, None)
-            )
-        except Exception as exc:
-            logger.debug(
-                "Failed to collect advanced responsible values (%s/%s): %s",
-                key_name,
-                checks_attr,
-                exc,
-            )
-            return []
+        return self.checked_values(checks_attr)
 
     def derivada_flags(self) -> dict[str, bool]:
         selected = {str(v).casefold() for v in self.checked_values("adv_derivada_checks")}
@@ -85,14 +135,17 @@ class AdvancedFilterStateReader:
         }
 
     def macro_filter(self):
-        try:
-            return self.window.adv_macro_combo.currentData()
-        except Exception as exc:
-            logger.debug("Failed to collect advanced macro_filter: %s", exc)
-            return None
+        return _combo_item_data(self.widget("adv_macro_combo"))
 
-    def collect(self) -> dict:
-        data = {
+    def checked_flag(self, widget_attr: str) -> bool:
+        widget = self.widget(widget_attr)
+        if widget is None:
+            return False
+        is_checked = getattr(widget, "isChecked", None)
+        return bool(is_checked()) if callable(is_checked) else False
+
+    def _collect_sector_status_filters(self) -> dict:
+        return {
             "setor_executor": self.checked_values("adv_executor_checks"),
             "setor_executor_exclude_values": self.checked_values(
                 "adv_executor_exclude_checks"
@@ -103,6 +156,10 @@ class AdvancedFilterStateReader:
             ),
             "situacao": self.checked_values("adv_status_checks"),
             "situacao_exclude_values": self.checked_values("adv_status_exclude_checks"),
+        }
+
+    def _collect_year_priority_filters(self) -> dict:
+        return {
             "ano_emissao_values": self.checked_values("adv_year_emissao_checks"),
             "ano_emissao_exclude_values": self.checked_values(
                 "adv_year_emissao_exclude_checks"
@@ -111,41 +168,11 @@ class AdvancedFilterStateReader:
             "ano_execucao_exclude_values": self.checked_values(
                 "adv_year_execucao_exclude_checks"
             ),
-            "semana_emissao_exclude": False,
-            "semana_execucao_exclude": False,
-            "solicitante": self.responsavel_values(
-                "adv_responsavel_solicitante_checks",
-                "solicitante",
-                "adv_responsavel_solicitante",
-            ),
-            "solicitante_exclude_values": self.responsavel_values(
-                "adv_responsavel_solicitante_exclude_checks",
-                "solicitante_exclude_values",
-                "adv_responsavel_solicitante",
-            ),
-            "responsavel_programacao": self.responsavel_values(
-                "adv_responsavel_programacao_checks",
-                "responsavel_programacao",
-                "adv_responsavel_programacao",
-            ),
-            "responsavel_programacao_exclude_values": self.responsavel_values(
-                "adv_responsavel_programacao_exclude_checks",
-                "responsavel_programacao_exclude_values",
-                "adv_responsavel_programacao",
-            ),
-            "responsavel_execucao": self.responsavel_values(
-                "adv_responsavel_execucao_checks",
-                "responsavel_execucao",
-                "adv_responsavel_execucao",
-            ),
-            "responsavel_execucao_exclude_values": self.responsavel_values(
-                "adv_responsavel_execucao_exclude_checks",
-                "responsavel_execucao_exclude_values",
-                "adv_responsavel_execucao",
-            ),
+            "semana_emissao_exclude": self.checked_flag("adv_week_emissao_exclude"),
+            "semana_execucao_exclude": self.checked_flag("adv_week_execucao_exclude"),
             "num_reprogramacoes_values": self.checked_values("adv_reprog_checks"),
             "num_reprogramacoes_mode": _combo_item_data(
-                getattr(self.window, "adv_reprog_mode", None)
+                self.widget("adv_reprog_mode")
             ),
             "prioridade_emissao_values": self.checked_values(
                 "adv_prioridade_emissao_checks"
@@ -159,8 +186,34 @@ class AdvancedFilterStateReader:
             "prioridade_planejamento_exclude_values": self.checked_values(
                 "adv_prioridade_planejamento_exclude_checks"
             ),
+        }
+
+    def _collect_misc_filters(self) -> dict:
+        return {
             "macro_filter": self.macro_filter(),
         }
+
+    def _collect_responsavel_filters(self) -> dict:
+        data = {}
+        for include_key, binding in self.RESPONSAVEL_WIDGET_BINDINGS.items():
+            prefix, include_checks_attr, exclude_key, exclude_checks_attr = binding
+            data[include_key] = self.responsavel_values(
+                include_checks_attr,
+                include_key,
+                prefix,
+            )
+            data[exclude_key] = self.responsavel_values(
+                exclude_checks_attr,
+                exclude_key,
+                prefix,
+            )
+        return data
+
+    def collect(self) -> dict:
+        data = self._collect_sector_status_filters()
+        data.update(self._collect_year_priority_filters())
+        data.update(self._collect_responsavel_filters())
+        data.update(self._collect_misc_filters())
         semana_emissao_inicio, semana_emissao_fim = self.week_range(
             "adv_week_emissao_start",
             "adv_week_emissao_end",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 from typing import Any, MutableMapping
 
@@ -39,9 +40,19 @@ def render_graph_svg_pixmap(
 ) -> bool:
     if not graph_svg:
         return False
-    renderer = dependencies.renderer_cls(
-        dependencies.byte_array_cls(graph_svg.encode("utf-8"))
-    )
+    renderer = None
+    svg_payload = graph_svg.encode("utf-8")
+    cache_key = hashlib.blake2b(svg_payload, digest_size=12).hexdigest()
+    cached_key = getattr(graph_label, "_ssa_graph_svg_cache_key", None)
+    cached_renderer = getattr(graph_label, "_ssa_graph_svg_renderer", None)
+    if cached_key == cache_key and cached_renderer is not None:
+        renderer = cached_renderer
+    if renderer is None:
+        renderer = dependencies.renderer_cls(
+            dependencies.byte_array_cls(svg_payload)
+        )
+        graph_label._ssa_graph_svg_cache_key = cache_key
+        graph_label._ssa_graph_svg_renderer = renderer
     default_size = renderer.defaultSize()
     natural_w = max(1, int(default_size.width()))
     natural_h = max(1, int(default_size.height()))
@@ -65,7 +76,7 @@ def render_graph_svg_pixmap(
     renderer.render(painter)
     painter.end()
     graph_label.setPixmap(pixmap)
-    graph_label.setFixedSize(pixmap.size())
+    graph_label.setFixedSize(render_w, render_h)
     graph_label.setToolTip("")
     return True
 

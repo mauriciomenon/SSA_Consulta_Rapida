@@ -16,6 +16,7 @@ import pandas as pd
 
 from gui.workers.data_loader_worker import DataLoaderWorker
 from gui.workers.rescan_worker import RescanOutcome
+from gui.ssa.gui_filters_responsavel_state import responsavel_materialization_state
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
@@ -1157,7 +1158,8 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         logger.debug("Falha ao limpar cache de filtros apos recarga de dados: %s", exc)
     window._adv_options_dirty = True
     window._adv_values_cache = None
-    window._responsavel_materialized_prefixes = set()
+    responsavel_state = responsavel_materialization_state(window)
+    responsavel_state.built_prefixes.clear()
     window._mark_responsavel_dirty()
     try:
         timer = getattr(window, "_sector_debounce_timer", None)

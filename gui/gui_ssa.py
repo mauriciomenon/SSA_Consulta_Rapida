@@ -73,6 +73,10 @@ from gui.ssa.filter_domain_rules import (  # noqa: E402
     collect_nonempty_column_values,
     order_sector_values,
 )
+from gui.ssa.gui_filters_responsavel_state import (  # noqa: E402
+    RESPONSAVEL_FILTER_PREFIXES,
+    ResponsavelMaterializationState,
+)
 from shared.db_names import ALL_SSA_TABLE_NAMES  # noqa: E402
 from shared.db_names import CANONICAL_SSA_TABLE
 from utils.themes import get_theme_roles, normalize_theme  # noqa: E402
@@ -1532,15 +1536,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._last_derivada_origem = None
         self._adv_sector_syncing = False
         self._adv_sector_handler_running = False
-        self._responsavel_options_dirty = True
-        self._responsavel_filters_materialized = False
-        self._responsavel_all_prefixes = (
-            "adv_responsavel_solicitante",
-            "adv_responsavel_programacao",
-            "adv_responsavel_execucao",
+        self.responsavel_materialization_state = ResponsavelMaterializationState(
+            all_prefixes=set(RESPONSAVEL_FILTER_PREFIXES),
+            dirty_prefixes=set(RESPONSAVEL_FILTER_PREFIXES),
+            built_prefixes=set(),
         )
-        self._responsavel_materialized_prefixes = set()
-        self._responsavel_dirty_prefixes = set(self._responsavel_all_prefixes)
         self._menu_pre_show_hooks = {}
 
         # Timer de debounce para otimização de filtros de setor (evita rebuilds excessivos)
