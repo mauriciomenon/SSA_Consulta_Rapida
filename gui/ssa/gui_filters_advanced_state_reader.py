@@ -38,6 +38,30 @@ def _widget_value(widget: Any):
     return None
 
 
+def resolve_year_selection_sets(
+    filters,
+    *,
+    values_key: str,
+    exclude_values_key: str,
+    legacy_value_key: str,
+    legacy_exclude_key: str,
+) -> tuple[set[str], set[str]]:
+    include_values = filters.get(values_key)
+    exclude_values = filters.get(exclude_values_key)
+    legacy_value = filters.get(legacy_value_key)
+    if include_values is None and legacy_value is not None:
+        include_values = [legacy_value]
+    if (
+        exclude_values is None
+        and filters.get(legacy_exclude_key)
+        and legacy_value is not None
+    ):
+        exclude_values = [legacy_value]
+    return {str(v) for v in (include_values or [])}, {
+        str(v) for v in (exclude_values or [])
+    }
+
+
 class AdvancedFilterStateReader:
     RESPONSAVEL_OUTPUT_KEYS = {
         "solicitante": "solicitante_exclude_values",

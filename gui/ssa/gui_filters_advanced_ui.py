@@ -36,12 +36,14 @@ from gui.qt_stubs import (
 from utils.robust_logging import get_robust_logger
 
 from .filter_domain_rules import (
-    build_responsavel_sector_counts,
+    MACRO_BAIXAR_STATUS_EXCLUSIONS,
+    build_responsavel_sector_counts_by_column,
     collect_nonempty_column_values,
+    filter_responsavel_frame_by_sector_selection,
+    generate_responsavel_sector_filter_cache_signature,
     order_sector_values,
     order_responsavel_values,
     sector_sort_key,
-    subset_by_sector_filters,
 )
 from .gui_filters_advanced_layout import (
     AdvancedGridLayoutConstraints,
@@ -49,14 +51,20 @@ from .gui_filters_advanced_layout import (
     build_advanced_grid_layout_plan,
 )
 from .gui_filters_advanced_logic import RESPONSAVEL_FILTER_COLUMN_CANDIDATES
-from .gui_filters_advanced_state_reader import AdvancedFilterStateReader
+from .gui_filters_advanced_refresh import (
+    AdvancedFilterUIState,
+    build_advanced_values_cache_key,
+    get_cached_advanced_filter_option_values,
+)
+from .gui_filters_advanced_state_reader import (
+    AdvancedFilterStateReader,
+    resolve_year_selection_sets,
+)
 from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
 from .gui_filters_responsavel_state import responsavel_materialization_state
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 _DERIVADA_ALL_STE_LABEL = "Derivadas em STE/SES"
-# Macro Baixar intentionally keeps actionable rows by excluding terminal states.
-_MACRO_BAIXAR_STATUS_EXCLUSIONS = ["SAD", "SCA", "SES", "STE"]
 
 # Layout constants
 LAYOUT_MIN_VALID_WIDTH = 1
@@ -75,7 +83,7 @@ SIMPLE_POPUP_TEXT_CLAMP = True
 SIMPLE_POPUP_LABEL_MAX_PX = 300
 SIMPLE_POPUP_RIGHT_GUTTER_PX = 10
 SIMPLE_POPUP_SCROLLBAR_GUARD_PX = 18
-HIGH_CARDINALITY_MENU_LIMIT = 300
+HIGH_CARDINALITY_MENU_LIMIT = 160
 
 
 @dataclass(frozen=True)
@@ -167,11 +175,7 @@ def _apply_advanced_filters_font_policy(self, width: int) -> None:
             box.setFont(bf)
         except Exception as exc:
             logger.debug("Falha ao ajustar fonte do box de filtro avancado: %s", exc)
-    control_types = (QToolButton, QComboBox, QLineEdit)
-    try:
-        controls = group.findChildren(control_types)
-    except Exception:
-        controls = []
+    controls = getattr(self, "_adv_filters_metric_controls", ()) or ()
     for control in controls:
         if control is None:
             continue
@@ -280,25 +284,17 @@ def _enforce_advanced_filters_compact_metrics(self) -> None:
             logger.debug(
                 "Falha ao aplicar metrica compacta em box de filtro avancado: %s", exc
             )
-        control_types = (QToolButton, QComboBox, QLineEdit, QPushButton)
+    for control in getattr(self, "_adv_filters_metric_controls", ()) or ():
+        if control is None:
+            continue
         try:
-            controls = field_box.findChildren(control_types)
+            control.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+            control.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         except Exception as exc:
             logger.debug(
-                "Falha ao listar controles compactos do filtro avancado: %s", exc
+                "Falha ao aplicar metrica compacta em controle de filtro avancado: %s",
+                exc,
             )
-            controls = []
-        for control in controls:
-            if control is None:
-                continue
-            try:
-                control.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-                control.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar metrica compacta em controle de filtro avancado: %s",
-                    exc,
-                )
 
 
 def _compute_adv_grid_cell_min_width(self, visible_widgets) -> int:
@@ -508,21 +504,40 @@ class AdvancedFilterManager:
 
     def filtered_responsavel_frame(self, frame: pd.DataFrame) -> pd.DataFrame:
         window = self.window
-        return subset_by_sector_filters(
-            frame,
-            executor_include=window._get_checked_values(
-                getattr(window, "adv_executor_checks", None)
-            ),
-            executor_exclude=window._get_checked_values(
-                getattr(window, "adv_executor_exclude_checks", None)
-            ),
-            emissor_include=window._get_checked_values(
-                getattr(window, "adv_emissor_checks", None)
-            ),
-            emissor_exclude=window._get_checked_values(
-                getattr(window, "adv_emissor_exclude_checks", None)
-            ),
+        executor_include = window._get_checked_values(
+            getattr(window, "adv_executor_checks", None)
         )
+        executor_exclude = window._get_checked_values(
+            getattr(window, "adv_executor_exclude_checks", None)
+        )
+        emissor_include = window._get_checked_values(
+            getattr(window, "adv_emissor_checks", None)
+        )
+        emissor_exclude = window._get_checked_values(
+            getattr(window, "adv_emissor_exclude_checks", None)
+        )
+        cache_key = generate_responsavel_sector_filter_cache_signature(
+            frame,
+            data_load_token=getattr(window, "_data_load_token", None),
+            executor_include=executor_include,
+            executor_exclude=executor_exclude,
+            emissor_include=emissor_include,
+            emissor_exclude=emissor_exclude,
+        )
+        cache = getattr(window, "_responsavel_filtered_frame_cache", None)
+        if isinstance(cache, dict) and cache.get("key") == cache_key:
+            cached_frame = cache.get("frame")
+            if isinstance(cached_frame, pd.DataFrame):
+                return cached_frame
+        filtered = filter_responsavel_frame_by_sector_selection(
+            frame,
+            executor_include=executor_include,
+            executor_exclude=executor_exclude,
+            emissor_include=emissor_include,
+            emissor_exclude=emissor_exclude,
+        )
+        window._responsavel_filtered_frame_cache = {"key": cache_key, "frame": filtered}
+        return filtered
 
     def responsavel_option_values(
         self, frame: pd.DataFrame, source_col: str
@@ -1189,6 +1204,33 @@ def _append_multiselect_limit_notice(
     return row_idx + 1
 
 
+def _build_multiselect_checkbox_styles(
+    *,
+    checkbox_bg: str,
+    checkbox_border: str,
+    checked_bg: str,
+) -> tuple[str, str]:
+    checkbox_style = (
+        "QCheckBox::indicator {"
+        " width:14px; height:14px;"
+        f" border:1px solid {checkbox_border};"
+        f" background:{checkbox_bg};"
+        "}"
+        "QCheckBox::indicator:checked {"
+        f" border:1px solid {checked_bg};"
+        f" background:{checked_bg};"
+        "}"
+        "QCheckBox::indicator:checked:hover {"
+        f" background:{checked_bg};"
+        "}"
+        "QCheckBox::indicator:disabled {"
+        f" border:1px solid {checkbox_border};"
+        f" background:{checkbox_bg};"
+        "}"
+    )
+    return checkbox_style, checkbox_style
+
+
 def _notify_multiselect_batch_change(
     self,
     button,
@@ -1318,46 +1360,46 @@ def _append_multiselect_batch_controls(
     def _batch_set_include(target_state: bool):
         self._multiselect_batch_updating = True
         try:
-            for cb in checks:
+            for cb in checks or ():
                 if not _is_widget_valid(cb):
                     continue
                 cb.blockSignals(True)
                 cb.setChecked(target_state)
                 cb.blockSignals(False)
+            _notify_multiselect_batch_change(
+                self,
+                button,
+                checks,
+                exclude_checks,
+                on_toggle,
+                on_exclude_toggle,
+                include_changed=True,
+                exclude_changed=False,
+            )
         finally:
             self._multiselect_batch_updating = False
-        _notify_multiselect_batch_change(
-            self,
-            button,
-            checks,
-            exclude_checks,
-            on_toggle,
-            on_exclude_toggle,
-            include_changed=True,
-            exclude_changed=False,
-        )
 
     def _batch_set_exclude(target_state: bool):
         self._multiselect_batch_updating = True
         try:
-            for cb in exclude_checks:
+            for cb in exclude_checks or ():
                 if not _is_widget_valid(cb):
                     continue
                 cb.blockSignals(True)
                 cb.setChecked(target_state)
                 cb.blockSignals(False)
+            _notify_multiselect_batch_change(
+                self,
+                button,
+                checks,
+                exclude_checks,
+                on_toggle,
+                on_exclude_toggle,
+                include_changed=False,
+                exclude_changed=True,
+            )
         finally:
             self._multiselect_batch_updating = False
-        _notify_multiselect_batch_change(
-            self,
-            button,
-            checks,
-            exclude_checks,
-            on_toggle,
-            on_exclude_toggle,
-            include_changed=False,
-            exclude_changed=True,
-        )
 
     try:
         batch_mark_include.clicked.connect(lambda: _batch_set_include(True))
@@ -1369,93 +1411,6 @@ def _append_multiselect_batch_controls(
             "Falha ao conectar acoes de marcacao em lote no menu multiselect: %s", exc
         )
     return row_idx
-
-
-def _collect_years_from_dates(series):
-    """Extrai anos de datas usando operacoes vetorizadas."""
-    try:
-        ts = pd.to_datetime(series, errors="coerce")
-        years = ts.dt.year.dropna().astype(int).unique()
-        return sorted(years, reverse=True)
-    except Exception:
-        return []
-
-
-def _collect_years_from_weeks(series):
-    """Extrai anos de semanas no formato YYYYWW em modo vetorizado."""
-    try:
-        nums = pd.to_numeric(series, errors="coerce").dropna().astype(int)
-        weeks = nums % 100
-        years_series = nums // 100
-        years = years_series[
-            years_series.between(1990, 2100) & weeks.between(1, 53)
-        ].unique()
-        return sorted(years, reverse=True)
-    except Exception:
-        return []
-
-
-def _populate_advanced_values_cache(self, df, cache) -> None:
-    def _unique_sorted(col):
-        try:
-            vals = collect_nonempty_column_values(df, col)
-            return sorted(set(vals), key=lambda v: v.casefold())
-        except Exception:
-            return []
-
-    def _sort_sector_values(values):
-        try:
-            return self._sort_sectors(values)
-        except Exception:
-            return sorted(set(values), key=lambda v: str(v).casefold())
-
-    cache["exec_vals"] = (
-        _sort_sector_values(_unique_sorted("setor_executor"))
-        if "setor_executor" in df.columns
-        else []
-    )
-    cache["emis_vals"] = (
-        _sort_sector_values(_unique_sorted("setor_emissor"))
-        if "setor_emissor" in df.columns
-        else []
-    )
-    cache["status_vals"] = (
-        _unique_sorted("situacao") if "situacao" in df.columns else []
-    )
-
-    emissao_years = []
-    if "data_cadastro" in df.columns:
-        emissao_years = _collect_years_from_dates(df["data_cadastro"])
-    elif "semana_cadastro" in df.columns:
-        emissao_years = _collect_years_from_weeks(df["semana_cadastro"])
-    cache["emissao_years"] = emissao_years
-
-    execucao_years = []
-    if "semana_executada" in df.columns:
-        execucao_years = _collect_years_from_weeks(df["semana_executada"])
-    cache["execucao_years"] = execucao_years
-
-    cache["prio_emissao_vals"] = (
-        _unique_sorted("grau_prioridade_emissao")
-        if "grau_prioridade_emissao" in df.columns
-        else []
-    )
-    cache["prio_planejamento_vals"] = (
-        _unique_sorted("grau_prioridade_planejamento")
-        if "grau_prioridade_planejamento" in df.columns
-        else []
-    )
-    if "num_reprogramacoes" in df.columns:
-        try:
-            reprog_series = pd.to_numeric(
-                df["num_reprogramacoes"], errors="coerce"
-            ).dropna()
-            reprog_vals = reprog_series.astype(int).unique()
-            cache["reprog_vals"] = sorted(reprog_vals, reverse=True)
-        except Exception:
-            cache["reprog_vals"] = []
-    else:
-        cache["reprog_vals"] = []
 
 
 def _rebuild_multiselect_menu(
@@ -1539,31 +1494,17 @@ def _rebuild_multiselect_menu(
         popup_text=popup_text,
     )
 
-    cb_style_include = ""
-    cb_style_exclude = ""
     apply_checkbox_styles = len(model.values) <= HIGH_CARDINALITY_MENU_LIMIT
     try:
-        cb_style_include = (
-            "QCheckBox::indicator {"
-            " width:14px; height:14px;"
-            f" border:1px solid {checkbox_border};"
-            f" background:{checkbox_bg};"
-            "}"
-            "QCheckBox::indicator:checked {"
-            f" border:1px solid {checked_bg};"
-            f" background:{checked_bg};"
-            "}"
-            "QCheckBox::indicator:checked:hover {"
-            f" background:{checked_bg};"
-            "}"
-            "QCheckBox::indicator:disabled {"
-            f" border:1px solid {checkbox_border};"
-            f" background:{checkbox_bg};"
-            "}"
+        cb_style_include, cb_style_exclude = _build_multiselect_checkbox_styles(
+            checkbox_bg=checkbox_bg,
+            checkbox_border=checkbox_border,
+            checked_bg=checked_bg,
         )
-        cb_style_exclude = cb_style_include
     except Exception as exc:
         logger.debug("Falha ao gerar estilo de checkbox do menu multiselect: %s", exc)
+        cb_style_include = ""
+        cb_style_exclude = ""
     if apply_checkbox_styles and cb_style_include:
         try:
             container.setStyleSheet(cb_style_include)
@@ -2122,6 +2063,149 @@ def _configure_advanced_panel_scroll(self, outer, grid_container):
     return controls_scroll
 
 
+def _advanced_filter_metric_controls(
+    fields,
+    responsavel_fields,
+    *,
+    reprog_mode,
+    reprog_button,
+    week_emissao_start,
+    week_emissao_end,
+    week_exec_start,
+    week_exec_end,
+    macro_combo,
+    apply_btn,
+    clear_btn,
+):
+    return (
+        fields["emis"][1],
+        fields["exec"][1],
+        fields["status"][1],
+        fields["year_emissao"][1],
+        fields["year_execucao"][1],
+        reprog_mode,
+        reprog_button,
+        fields["prio_emis"][1],
+        fields["prio_plan"][1],
+        fields["deriv"][1],
+        week_emissao_start,
+        week_emissao_end,
+        week_exec_start,
+        week_exec_end,
+        macro_combo,
+        responsavel_fields["sol"][1],
+        responsavel_fields["prog"][1],
+        responsavel_fields["exec_resp"][1],
+        apply_btn,
+        clear_btn,
+    )
+
+
+def _build_advanced_filters_context(
+    group,
+    fields,
+    *,
+    reprog_box,
+    reprog_mode,
+    reprog_button,
+    reprog_menu,
+    week_emissao_start,
+    week_emissao_end,
+    week_emissao_exclude,
+    week_exec_start,
+    week_exec_end,
+    week_exec_exclude,
+    macro_combo,
+    deriv_checks,
+    responsavel_fields,
+):
+    ctx = {"adv_filters_group": group}
+    for prefix, field_key in (
+        ("adv_executor", "exec"),
+        ("adv_emissor", "emis"),
+        ("adv_status", "status"),
+    ):
+        _, button, menu, exclude = fields[field_key]
+        ctx.update(
+            {
+                f"{prefix}_button": button,
+                f"{prefix}_menu": menu,
+                f"{prefix}_checks": [],
+                f"{prefix}_exclude": exclude,
+                f"{prefix}_exclude_checks": [],
+            }
+        )
+    for prefix, field_key in (
+        ("adv_year_emissao", "year_emissao"),
+        ("adv_year_execucao", "year_execucao"),
+    ):
+        _, button, menu, _ = fields[field_key]
+        ctx.update(
+            {
+                f"{prefix}_button": button,
+                f"{prefix}_menu": menu,
+                f"{prefix}_checks": [],
+                f"{prefix}_exclude_checks": [],
+            }
+        )
+    ctx.update(
+        {
+            "adv_reprog_box": reprog_box,
+            "adv_reprog_mode": reprog_mode,
+            "adv_reprog_button": reprog_button,
+            "adv_reprog_menu": reprog_menu,
+            "adv_reprog_checks": [],
+            "adv_week_emissao_start": week_emissao_start,
+            "adv_week_emissao_end": week_emissao_end,
+            "adv_week_emissao_exclude": week_emissao_exclude,
+            "adv_week_execucao_start": week_exec_start,
+            "adv_week_execucao_end": week_exec_end,
+            "adv_week_execucao_exclude": week_exec_exclude,
+            "adv_macro_combo": macro_combo,
+        }
+    )
+    for prefix, field_key in (
+        ("adv_prioridade_emissao", "prio_emis"),
+        ("adv_prioridade_planejamento", "prio_plan"),
+    ):
+        _, button, menu, _ = fields[field_key]
+        ctx.update(
+            {
+                f"{prefix}_button": button,
+                f"{prefix}_menu": menu,
+                f"{prefix}_checks": [],
+                f"{prefix}_exclude_checks": [],
+            }
+        )
+    _, deriv_button, deriv_menu, _ = fields["deriv"]
+    ctx.update(
+        {
+            "adv_derivada_button": deriv_button,
+            "adv_derivada_menu": deriv_menu,
+            "adv_derivada_checks": deriv_checks,
+            "adv_derivada_has": None,
+            "adv_derivada_is": None,
+        }
+    )
+    for prefix, field_key in (
+        ("adv_responsavel_solicitante", "sol"),
+        ("adv_responsavel_programacao", "prog"),
+        ("adv_responsavel_execucao", "exec_resp"),
+    ):
+        box, button, menu, exclude = responsavel_fields[field_key]
+        ctx.update(
+            {
+                f"{prefix}_button": button,
+                f"{prefix}_menu": menu,
+                f"{prefix}_checks": [],
+                f"{prefix}_exclude": exclude,
+                f"{prefix}_exclude_checks": [],
+                f"{prefix}_box": box,
+            }
+        )
+    return ctx
+
+
 def _build_advanced_filters_panel(self):
     group = QGroupBox("Filtros Avancados")
     _reset_advanced_menu_hooks(self)
@@ -2218,6 +2302,19 @@ def _build_advanced_filters_panel(self):
 
     self._adv_filters_apply_btn = apply_btn
     self._adv_filters_clear_btn = clear_btn
+    self._adv_filters_metric_controls = _advanced_filter_metric_controls(
+        fields,
+        responsavel_fields,
+        reprog_mode=reprog_mode,
+        reprog_button=reprog_button,
+        week_emissao_start=week_emissao_start,
+        week_emissao_end=week_emissao_end,
+        week_exec_start=week_exec_start,
+        week_exec_end=week_exec_end,
+        macro_combo=macro_combo,
+        apply_btn=apply_btn,
+        clear_btn=clear_btn,
+    )
     self._adv_filters_action_widget = action_box
     self._adv_filters_action_btn_dims = None
     self._adv_filters_controls_scroll = controls_scroll
@@ -2234,92 +2331,49 @@ def _build_advanced_filters_panel(self):
     except Exception as exc:
         logger.debug("Falha no relayout inicial dos filtros avancados: %s", exc)
 
-    ctx = {"adv_filters_group": group}
-    for prefix, button, menu, exclude in (
-        ("adv_executor", exec_button, exec_menu, exec_exclude),
-        ("adv_emissor", emis_button, emis_menu, emis_exclude),
-        ("adv_status", status_button, status_menu, status_exclude),
-    ):
-        ctx.update(
-            {
-                f"{prefix}_button": button,
-                f"{prefix}_menu": menu,
-                f"{prefix}_checks": [],
-                f"{prefix}_exclude": exclude,
-                f"{prefix}_exclude_checks": [],
-            }
-        )
-    for prefix, button, menu in (
-        ("adv_year_emissao", year_emissao_button, year_emissao_menu),
-        ("adv_year_execucao", year_execucao_button, year_execucao_menu),
-    ):
-        ctx.update(
-            {
-                f"{prefix}_button": button,
-                f"{prefix}_menu": menu,
-                f"{prefix}_checks": [],
-                f"{prefix}_exclude_checks": [],
-            }
-        )
-    ctx.update(
-        {
-        "adv_reprog_box": reprog_box,
-        "adv_reprog_mode": reprog_mode,
-        "adv_reprog_button": reprog_button,
-        "adv_reprog_menu": reprog_menu,
-        "adv_reprog_checks": [],
-        "adv_week_emissao_start": week_emissao_start,
-        "adv_week_emissao_end": week_emissao_end,
-        "adv_week_emissao_exclude": week_emissao_exclude,
-        "adv_week_execucao_start": week_exec_start,
-        "adv_week_execucao_end": week_exec_end,
-        "adv_week_execucao_exclude": week_exec_exclude,
-        "adv_macro_combo": macro_combo,
-        }
+    ctx = _build_advanced_filters_context(
+        group,
+        fields,
+        reprog_box=reprog_box,
+        reprog_mode=reprog_mode,
+        reprog_button=reprog_button,
+        reprog_menu=reprog_menu,
+        week_emissao_start=week_emissao_start,
+        week_emissao_end=week_emissao_end,
+        week_emissao_exclude=week_emissao_exclude,
+        week_exec_start=week_exec_start,
+        week_exec_end=week_exec_end,
+        week_exec_exclude=week_exec_exclude,
+        macro_combo=macro_combo,
+        deriv_checks=deriv_checks,
+        responsavel_fields=responsavel_fields,
     )
-    for prefix, button, menu in (
-        ("adv_prioridade_emissao", prio_emis_button, prio_emis_menu),
-        ("adv_prioridade_planejamento", prio_plan_button, prio_plan_menu),
-    ):
-        ctx.update(
-            {
-                f"{prefix}_button": button,
-                f"{prefix}_menu": menu,
-                f"{prefix}_checks": [],
-                f"{prefix}_exclude_checks": [],
-            }
-        )
-    ctx.update(
-        {
-            "adv_derivada_button": deriv_button,
-            "adv_derivada_menu": deriv_menu,
-            "adv_derivada_checks": deriv_checks,
-            "adv_derivada_has": None,
-            "adv_derivada_is": None,
-        }
-    )
-    for prefix, button, menu, exclude, box in (
-        ("adv_responsavel_solicitante", sol_button, sol_menu, sol_exclude, sol_box),
-        ("adv_responsavel_programacao", prog_button, prog_menu, prog_exclude, prog_box),
-        (
-            "adv_responsavel_execucao",
-            exec_resp_button,
-            exec_resp_menu,
-            exec_resp_exclude,
-            exec_resp_box,
-        ),
-    ):
-        ctx.update(
-            {
-                f"{prefix}_button": button,
-                f"{prefix}_menu": menu,
-                f"{prefix}_checks": [],
-                f"{prefix}_exclude": exclude,
-                f"{prefix}_exclude_checks": [],
-                f"{prefix}_box": box,
-            }
-        )
     return group, ctx
+
+
+def _ensure_macro_status_menu_ready(self) -> tuple[list[Any], list[Any]]:
+    if getattr(self, "adv_status_checks", None):
+        return (
+            list(getattr(self, "adv_status_checks", None) or []),
+            list(getattr(self, "adv_status_exclude_checks", None) or []),
+        )
+    cache = getattr(self, "_adv_values_cache", None)
+    values = cache.get("values") if isinstance(cache, dict) else None
+    status_values = getattr(values, "status_vals", None)
+    if not status_values:
+        return [], []
+    filters = self._advanced_filters or {}
+    _refresh_include_exclude_multiselect(
+        self,
+        prefix="adv_status",
+        values=status_values,
+        include_values=filters.get("status_values"),
+        exclude_values=filters.get("status_exclude_values"),
+    )
+    return (
+        list(getattr(self, "adv_status_checks", None) or []),
+        list(getattr(self, "adv_status_exclude_checks", None) or []),
+    )
 
 
 def _show_derivadas_popup(self):
@@ -2344,7 +2398,7 @@ def _on_macro_filter_changed(self):
         choice = None
     if choice == "ssas_para_baixar":
         try:
-            self.adv_derivada_checks, _ = self._sync_multiselect_checks(
+            self._sync_multiselect_checks(
                 getattr(self, "adv_derivada_button", None),
                 getattr(self, "adv_derivada_checks", None),
                 ["all_ste"],
@@ -2354,15 +2408,16 @@ def _on_macro_filter_changed(self):
                 "Falha ao aplicar preset de derivadas no macro filtro: %s", exc
             )
         try:
+            status_checks, status_exclude_checks = _ensure_macro_status_menu_ready(self)
+            self.adv_status_checks = status_checks
+            self.adv_status_exclude_checks = status_exclude_checks
             # Baixar keeps active rows by excluding terminal statuses.
-            self.adv_status_checks, self.adv_status_exclude_checks = (
-                self._sync_multiselect_checks(
-                    getattr(self, "adv_status_button", None),
-                    getattr(self, "adv_status_checks", None),
-                    [],
-                    getattr(self, "adv_status_exclude_checks", None),
-                    _MACRO_BAIXAR_STATUS_EXCLUSIONS,
-                )
+            self._sync_multiselect_checks(
+                getattr(self, "adv_status_button", None),
+                self.adv_status_checks,
+                [],
+                self.adv_status_exclude_checks,
+                MACRO_BAIXAR_STATUS_EXCLUSIONS,
             )
             self._update_multiselect_button(
                 getattr(self, "adv_status_button", None),
@@ -2612,11 +2667,14 @@ def _sort_responsavel_values(self, df_subset, values, resp_col: str, df_source=N
         self._responsavel_sector_rank_cache = cache
     data_token = getattr(self, "_data_load_token", None)
     source_key = data_token if data_token is not None else id(source_df)
-    cache_key = (source_key, len(source_df), tuple(source_df.columns), resp_col)
-    sector_counts = cache.get(cache_key)
-    if not isinstance(sector_counts, dict):
-        sector_counts = build_responsavel_sector_counts(source_df, resp_col)
-        cache[cache_key] = sector_counts
+    cache_key = (source_key, len(source_df), tuple(source_df.columns))
+    counts_by_column = cache.get(cache_key)
+    if not isinstance(counts_by_column, dict):
+        counts_by_column = build_responsavel_sector_counts_by_column(
+            source_df, RESPONSAVEL_FILTER_COLUMN_CANDIDATES
+        )
+        cache[cache_key] = counts_by_column
+    sector_counts = counts_by_column.get(resp_col, {})
     return order_responsavel_values(values, sector_counts, sector_to_div=SECTOR_TO_DIV)
 
 
@@ -3236,30 +3294,6 @@ def _refresh_sector_menus(self, exec_vals, emis_vals, status_vals, filters, appl
     )
 
 
-def _resolve_year_selection_sets(
-    filters,
-    *,
-    values_key: str,
-    exclude_values_key: str,
-    legacy_value_key: str,
-    legacy_exclude_key: str,
-) -> tuple[set[str], set[str]]:
-    include_values = filters.get(values_key)
-    exclude_values = filters.get(exclude_values_key)
-    legacy_value = filters.get(legacy_value_key)
-    if include_values is None and legacy_value is not None:
-        include_values = [legacy_value]
-    if (
-        exclude_values is None
-        and filters.get(legacy_exclude_key)
-        and legacy_value is not None
-    ):
-        exclude_values = [legacy_value]
-    return {str(v) for v in (include_values or [])}, {
-        str(v) for v in (exclude_values or [])
-    }
-
-
 def _refresh_include_exclude_multiselect(
     self,
     *,
@@ -3320,7 +3354,7 @@ def _refresh_year_menus(self, emissao_years, execucao_years, filters, apply_cb):
         ),
     ):
         year_values = [str(y) for y in years if y and str(y).strip()]
-        inc_set, exc_set = _resolve_year_selection_sets(
+        inc_set, exc_set = resolve_year_selection_sets(
             filters,
             values_key=values_key,
             exclude_values_key=exclude_key,
@@ -3470,63 +3504,25 @@ def _refresh_advanced_filter_options(self):
         def apply_cb():
             return self._apply_advanced_filters_from_ui()
 
-        # Granular cache allows partial invalidation by filter type.
-        cache = getattr(self, "_adv_values_cache", None)
-        df_key = (
-            len(df),
-            tuple(df.columns),
-            getattr(self, "_data_load_token", None),
-        )
+        ui_state = _read_advanced_filter_ui_state(self, df, filters)
+        cache = getattr(self, "_adv_values_cache", {})
+        df_key = build_advanced_values_cache_key(df, getattr(self, "_data_load_token", None))
 
         if (
-            cache
-            and cache.get("df_key") == df_key
+            cache.get("df_key") == df_key
             and not getattr(self, "_adv_options_dirty", False)
+            and cache.get("values") is not None
         ):
             _refresh_derivadas_menu(self, filters, apply_cb)
             return
 
-        df_id = id(df)
-
-        if not isinstance(cache, dict) or cache.get("df_id") != df_id:
-            cache = {"df_id": df_id, "df_key": df_key}
-            self._adv_values_cache = cache
-
-        if cache.get("exec_vals") is None:
-            _populate_advanced_values_cache(self, df, cache)
-            self._adv_values_cache = cache
-            logger.debug(
-                "_refresh_advanced_filter_options: cache populado - exec=%s, emis=%s, status=%s",
-                _safe_len(cache.get("exec_vals", [])),
-                _safe_len(cache.get("emis_vals", [])),
-                _safe_len(cache.get("status_vals", [])),
-            )
-
-        exec_vals = cache.get("exec_vals", [])
-        emis_vals = cache.get("emis_vals", [])
-        status_vals = cache.get("status_vals", [])
-        emissao_years = cache.get("emissao_years", [])
-        execucao_years = cache.get("execucao_years", [])
-        prio_emissao_vals = cache.get("prio_emissao_vals", [])
-        prio_planejamento_vals = cache.get("prio_planejamento_vals", [])
-        self._refresh_sector_menus(exec_vals, emis_vals, status_vals, filters, apply_cb)
-        self._refresh_year_menus(emissao_years, execucao_years, filters, apply_cb)
-        self._refresh_priority_menus(
-            prio_emissao_vals, prio_planejamento_vals, filters, apply_cb
+        logger.debug(
+            "_refresh_advanced_filter_options: cache pronto - exec=%s, emis=%s, status=%s",
+            _safe_len(ui_state.values.exec_vals),
+            _safe_len(ui_state.values.emis_vals),
+            _safe_len(ui_state.values.status_vals),
         )
-        self._refresh_reprogramacoes_menu(
-            cache.get("reprog_vals", []), filters, apply_cb
-        )
-        _refresh_derivadas_menu(self, filters, apply_cb)
-
-        self._mark_responsavel_dirty()
-        built_prefixes = responsavel_materialization_state(self).built_prefixes
-        if built_prefixes:
-            self._refresh_responsavel_options(target_prefixes=built_prefixes)
-        else:
-            self._sync_responsavel_button_summaries()
-        self._sync_checks_to_tab_context()
-        self._sync_advanced_filter_ui()
+        _apply_advanced_filter_ui_state(self, ui_state, apply_cb)
         try:
             elapsed_ms = (perf_counter() - start) * 1000.0
             logger.debug("Advanced filter options refresh: %.1fms", elapsed_ms)
@@ -3536,3 +3532,55 @@ def _refresh_advanced_filter_options(self):
             )
     finally:
         self._adv_options_scheduled = False
+
+
+def _read_advanced_filter_ui_state(
+    self, df: pd.DataFrame, filters: dict[str, Any]
+) -> AdvancedFilterUIState:
+    cache = getattr(self, "_adv_values_cache", None)
+    if not isinstance(cache, dict):
+        cache = {}
+        self._adv_values_cache = cache
+    values = get_cached_advanced_filter_option_values(
+        cache,
+        df,
+        data_load_token=getattr(self, "_data_load_token", None),
+        sort_sectors=self._sort_sectors,
+    )
+    self._adv_values_cache = cache
+    return AdvancedFilterUIState(filters=filters, values=values)
+
+
+def _apply_advanced_filter_ui_state(self, ui_state, apply_cb) -> None:
+    values = ui_state.values
+    filters = ui_state.filters
+    self._refresh_sector_menus(
+        values.exec_vals,
+        values.emis_vals,
+        values.status_vals,
+        filters,
+        apply_cb,
+    )
+    self._refresh_year_menus(
+        values.emissao_years,
+        values.execucao_years,
+        filters,
+        apply_cb,
+    )
+    self._refresh_priority_menus(
+        values.prio_emissao_vals,
+        values.prio_planejamento_vals,
+        filters,
+        apply_cb,
+    )
+    self._refresh_reprogramacoes_menu(values.reprog_vals, filters, apply_cb)
+    _refresh_derivadas_menu(self, filters, apply_cb)
+
+    self._mark_responsavel_dirty()
+    built_prefixes = responsavel_materialization_state(self).built_prefixes
+    if built_prefixes:
+        self._refresh_responsavel_options(target_prefixes=built_prefixes)
+    else:
+        self._sync_responsavel_button_summaries()
+    self._sync_checks_to_tab_context()
+    self._sync_advanced_filter_ui()

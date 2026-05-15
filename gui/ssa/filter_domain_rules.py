@@ -9,6 +9,7 @@ import pandas as pd
 
 EXCLUDED_TERMINAL_STATUSES = frozenset({"SCA", "SES", "STE"})
 EXCLUDED_TERMINAL_SUMMARY = "situacao!=SCA/SES/STE"
+MACRO_BAIXAR_STATUS_EXCLUSIONS = ("SAD", "SCA", "SES", "STE")
 SECTOR_EXECUTOR_PRIORITY = (
     "IEE1",
     "IEE2",
@@ -110,33 +111,35 @@ def _best_sector_from_counts(counts: Mapping[str, int] | None) -> str:
     return best_sector
 
 
-def _responsavel_sector_long_frame(
-    df: pd.DataFrame,
-    resp_col: str,
-    sector_cols: list[str],
-) -> pd.DataFrame:
-    resp_series = normalize_nonempty_string_series(df[resp_col])
-    wide = pd.DataFrame({resp_col: resp_series}, index=df.index)
+def _sector_counts_for_responsavel_column(
+    df: pd.DataFrame, resp_col: str, sector_cols: list[str]
+) -> dict[str, dict[str, int]]:
+    wide = pd.DataFrame(
+        {
+            "row_id": df.index,
+            "person": normalize_nonempty_string_series(df[resp_col]),
+        },
+        index=df.index,
+    )
     for sector_col in sector_cols:
         wide[sector_col] = normalize_nonempty_string_series(df[sector_col])
-    long = wide.melt(id_vars=resp_col, value_vars=sector_cols, value_name="sector")
-    return long[(long[resp_col] != "") & (long["sector"] != "")]
-
-
-def _sector_counts_from_long_frame(
-    long: pd.DataFrame,
-    resp_col: str,
-) -> dict[str, dict[str, int]]:
-    pivot = (
-        long.groupby([resp_col, "sector"], dropna=False)
-        .size()
-        .unstack(fill_value=0)
+    long = wide.melt(
+        id_vars=("row_id", "person"),
+        value_vars=sector_cols,
+        value_name="sector",
     )
-    stacked = pivot.stack()
-    stacked = stacked[stacked > 0]
+    long = long[(long["person"] != "") & (long["sector"] != "")]
+    if long.empty:
+        return {}
+    grouped = (
+        long.drop_duplicates(["row_id", "person", "sector"])
+        .groupby(["person", "sector"], dropna=False)
+        .size()
+        .reset_index(name="count")
+    )
     sector_counts: dict[str, dict[str, int]] = {}
-    for (person, sector), count in stacked.items():
-        sector_counts.setdefault(str(person), {})[str(sector)] = int(count)
+    for row in grouped.itertuples(index=False):
+        sector_counts.setdefault(str(row.person), {})[str(row.sector)] = int(row.count)
     return sector_counts
 
 
@@ -151,10 +154,22 @@ def build_responsavel_sector_counts(
     sector_cols = [column for column in sector_columns if column in df.columns]
     if not sector_cols:
         return {}
-    long = _responsavel_sector_long_frame(df, resp_col, sector_cols)
-    if long.empty:
-        return {}
-    return _sector_counts_from_long_frame(long, resp_col)
+    return _sector_counts_for_responsavel_column(df, resp_col, sector_cols)
+
+
+def build_responsavel_sector_counts_by_column(
+    df: pd.DataFrame,
+    resp_columns: Iterable[str],
+    *,
+    sector_columns: Iterable[str] = ("setor_executor", "setor_emissor"),
+) -> dict[str, dict[str, dict[str, int]]]:
+    return {
+        resp_col: build_responsavel_sector_counts(
+            df, resp_col, sector_columns=sector_columns
+        )
+        for resp_col in resp_columns
+        if isinstance(df, pd.DataFrame) and resp_col in df.columns
+    }
 
 
 def order_responsavel_values(
@@ -228,6 +243,44 @@ def subset_by_sector_filters(
         current_mask = series.isin(values)
         mask &= current_mask if include else ~current_mask
     return df[mask]
+
+
+def generate_responsavel_sector_filter_cache_signature(
+    df: pd.DataFrame,
+    *,
+    data_load_token: Any,
+    executor_include: Iterable[Any] | None = None,
+    executor_exclude: Iterable[Any] | None = None,
+    emissor_include: Iterable[Any] | None = None,
+    emissor_exclude: Iterable[Any] | None = None,
+) -> tuple[Any, ...]:
+    return (
+        data_load_token,
+        id(df),
+        len(df),
+        tuple(str(column) for column in df.columns),
+        tuple(executor_include or ()),
+        tuple(executor_exclude or ()),
+        tuple(emissor_include or ()),
+        tuple(emissor_exclude or ()),
+    )
+
+
+def filter_responsavel_frame_by_sector_selection(
+    df: pd.DataFrame,
+    *,
+    executor_include: Iterable[Any] | None = None,
+    executor_exclude: Iterable[Any] | None = None,
+    emissor_include: Iterable[Any] | None = None,
+    emissor_exclude: Iterable[Any] | None = None,
+) -> pd.DataFrame:
+    return subset_by_sector_filters(
+        df,
+        executor_include=executor_include,
+        executor_exclude=executor_exclude,
+        emissor_include=emissor_include,
+        emissor_exclude=emissor_exclude,
+    )
 
 ADVANCED_FILTER_VISUAL_COLUMN_MAP = {
     "setor_executor": ("setor_executor",),
