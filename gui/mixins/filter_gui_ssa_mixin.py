@@ -234,7 +234,10 @@ def _connect_filter_signal(signal, slot, *, label: str) -> bool:
             try:
                 signal.connect(slot, queued_connection)
             except TypeError:
-                signal.connect(slot)
+                try:
+                    signal.connect(slot, type=queued_connection)
+                except TypeError:
+                    signal.connect(slot)
         else:
             signal.connect(slot)
         return True
@@ -1103,10 +1106,11 @@ class FilterGUISSAMixin:
 
     def _apply_safe_width_for_main_column(self) -> None:
         table_widget = getattr(self, "table_widget", None)
-        if table_widget is None or table_widget.columnCount() <= 1:
+        main_column_index = 1
+        if table_widget is None or table_widget.columnCount() <= main_column_index:
             return
-        if table_widget.columnWidth(1) == 0:
-            self._set_safe_width_for_col_index(1, 80)
+        if table_widget.columnWidth(main_column_index) == 0:
+            self._set_safe_width_for_col_index(main_column_index, 80)
 
     def _retain_filter_worker_until_finished(self, worker) -> None:
         self._filter_worker_lifecycle().retain_until_finished(worker)
@@ -3745,8 +3749,9 @@ class FilterGUISSAMixin:
             if not registered:
                 continue
             display_values = ", ".join(registered["values"])
-            for col in registered["columns"]:
-                normalized_columns[col] = display_values
+            if display_values:
+                for col in registered["columns"]:
+                    normalized_columns[col] = display_values
             normalized_groups.append(
                 {
                     "columns": tuple(registered["columns"]),
@@ -3768,17 +3773,14 @@ class FilterGUISSAMixin:
                     new_filters[col] = text
             for group in self._column_or_groups:
                 group_text = ", ".join(group.get("values", []))
+                if not group_text:
+                    continue
                 for col in group.get("columns", []):
                     if col not in new_filters:
                         new_filters[col] = group_text
                     else:
                         new_filters[col] = group_text
             self._active_column_filters = new_filters
-            # Garante consistência das strings dos grupos OR (subjacente em vírgulas)
-            for group in self._column_or_groups:
-                display_group = ", ".join(group.get("values", []))
-                for col in group.get("columns", []):
-                    self._active_column_filters[col] = display_group
             self._profile_base_filters = {
                 "columns": {
                     col: new_filters.get(col, "").strip() for col in new_filters

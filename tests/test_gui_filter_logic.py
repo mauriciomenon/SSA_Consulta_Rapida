@@ -42,6 +42,10 @@ from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from gui.ssa import gui_filters_advanced_ui as advanced_ui  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
+from gui.ssa.filter_profile_logic import (  # noqa: E402
+    NormalizedFilterProfile,
+    NormalizedOrGroup,
+)
 from gui.widgets.column_filter_dialog import ColumnFilterDialog  # noqa: E402
 from gui.widgets.column_manager_dialog import ColumnManagerDialog  # noqa: E402
 from gui.widgets.filter_help_dialog import FilterHelpDialog  # noqa: E402
@@ -653,6 +657,29 @@ class TestGUIFilterLogic:
         self.window._refresh_after_filter_change()
         assert self.window._active_column_filters["setor_emissor"] == "MEL4"
         assert Counter(self._extract_visible_ssa()) == Counter([3])
+
+    def test_profile_empty_or_group_keeps_specific_column_value(self):
+        normalized = NormalizedFilterProfile(
+            columns=OrderedDict([("setor_executor", "IEE3")]),
+            or_groups=(
+                NormalizedOrGroup(
+                    columns=("setor_executor", "setor_emissor"),
+                    values=(),
+                ),
+            ),
+            profile_columns=("setor_executor", "setor_emissor"),
+        )
+
+        self.window._apply_normalized_filter_profile(
+            profile_name="empty-or-group",
+            normalized=normalized,
+            update_selector=False,
+            refresh=False,
+            base_profile_name=None,
+        )
+
+        assert self.window._active_column_filters["setor_executor"] == "IEE3"
+        assert self.window._active_column_filters["setor_emissor"] == ""
 
     def test_exclude_ste_sca_combined_with_or_group(self):
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
