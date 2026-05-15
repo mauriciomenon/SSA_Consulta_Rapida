@@ -2199,29 +2199,31 @@ class FilterGUISSAMixin:
                 "Falha ao atualizar status em hard_reset_filters_state: %s", exc
             )
 
-    def _update_filters_summary(self):
-        """Atualiza o resumo de filtros ativos na interface"""
+    def _filters_summary_display_name(self, col: str) -> str:
+        if col == "setor_executor":
+            return "Executor"
+        if col == "setor_emissor":
+            return "Emissor"
+        if col == "descricao_ssa":
+            return "Descricao da SSA"
+        if col == "situacao":
+            return "Situacao"
+        return self._resolve_column_display_name(col)
+
+    def _read_filters_summary_search_text(self) -> str:
+        if not hasattr(self, "search_input"):
+            return ""
+        try:
+            return str(self.search_input.text() or "").strip()
+        except Exception as exc:
+            logger.debug("Falha ao obter busca atual para resumo de filtros: %s", exc)
+            return ""
+
+    def _build_filters_summary_base_entries(
+        self,
+    ) -> tuple[OrderedDict[str, SummaryEntry], tuple, dict, bool]:
         summary_entries: OrderedDict[str, SummaryEntry] = OrderedDict()
-
-        def _display_name(col: str) -> str:
-            if col == "setor_executor":
-                return "Executor"
-            if col == "setor_emissor":
-                return "Emissor"
-            if col == "descricao_ssa":
-                return "Descricao da SSA"
-            if col == "situacao":
-                return "Situacao"
-            return self._resolve_column_display_name(col)
-
-        search_text = ""
-        if hasattr(self, "search_input"):
-            try:
-                search_text = str(self.search_input.text() or "").strip()
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao obter busca atual para resumo de filtros: %s", exc
-                )
+        search_text = self._read_filters_summary_search_text()
         if search_text:
             _merge_summary_actions(
                 summary_entries,
@@ -2247,7 +2249,10 @@ class FilterGUISSAMixin:
                 if set(columns) == {"setor_executor", "setor_emissor"}:
                     label = "Executor ou Emissor (OU)"
                 else:
-                    label = f"{' ou '.join(_display_name(c) for c in columns)} (OU)"
+                    label = (
+                        f"{' ou '.join(self._filters_summary_display_name(c) for c in columns)} "
+                        "(OU)"
+                    )
                 values_txt = self._format_column_filter_display_value(", ".join(values))
                 if not values_txt:
                     continue
@@ -2274,7 +2279,10 @@ class FilterGUISSAMixin:
                     continue
                 _merge_summary_actions(
                     summary_entries,
-                    text=f"{_display_name(col_name)}: {normalized_value}",
+                    text=(
+                        f"{self._filters_summary_display_name(col_name)}: "
+                        f"{normalized_value}"
+                    ),
                     actions=[{"kind": "column", "column": str(col_name)}],
                 )
 
@@ -2290,10 +2298,11 @@ class FilterGUISSAMixin:
             str(getattr(self, "_dedicated_or_text", "") or ""),
             str(getattr(self, "_current_theme", "") or "dark"),
         )
-        if raw_summary_signature == getattr(self, "_filters_summary_raw_signature", None):
-            return
-        self._filters_summary_raw_signature = raw_summary_signature
+        return summary_entries, raw_summary_signature, adv, adv_active
 
+    def _append_filters_summary_advanced_entries(
+        self, summary_entries: OrderedDict[str, SummaryEntry], adv: dict, adv_active: bool
+    ) -> None:
         if adv_active:
             for text, entry in build_advanced_summary_entries(adv).items():
                 _merge_summary_actions(
@@ -2309,29 +2318,14 @@ class FilterGUISSAMixin:
                 actions=[{"kind": "exclude_ste_sca"}],
             )
 
-        active_filters = [entry["text"] for entry in summary_entries.values()]
-
-        # Monta texto do resumo
-        if active_filters:
-            summary_text = "Filtros ativos: " + "; ".join(active_filters)
-        else:
-            summary_text = "Nenhum filtro ativo"
-
-        active_state = bool(active_filters)
-        roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
-        summary_color = (
-            roles.get("summary_text_color")
-            or roles.get("panel_text")
-            or roles.get("label_color")
-            or "palette(windowText)"
-        )
+    def _apply_filters_summary_frame_style(
+        self, *, active_state: bool, roles: dict[str, str]
+    ) -> str:
+        summary_bg = roles.get("summary_frame_bg") or roles.get("panel_bg") or "transparent"
         if (
             hasattr(self, "filters_summary_frame")
             and self.filters_summary_frame is not None
         ):
-            summary_bg = (
-                roles.get("summary_frame_bg") or roles.get("panel_bg") or "transparent"
-            )
             active_border = (
                 roles.get("accent")
                 or roles.get("input_border_focus")
@@ -2349,45 +2343,80 @@ class FilterGUISSAMixin:
                 "border-radius:4px;"
                 "}"
             )
-        if hasattr(self, "filters_summary_label"):
-            self.filters_summary_label.setText(
-                "" if active_state else "Nenhum filtro ativo"
+        return summary_bg
+
+    def _apply_filters_summary_label_style(
+        self, *, summary_text: str, active_state: bool, summary_color: str
+    ) -> None:
+        if not hasattr(self, "filters_summary_label"):
+            return
+        self.filters_summary_label.setText("" if active_state else "Nenhum filtro ativo")
+        self.filters_summary_label.setToolTip(summary_text if active_state else "")
+        try:
+            self.filters_summary_label.setVisible(not active_state)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao atualizar visibilidade do texto de filtros ativos: %s",
+                exc,
             )
-            self.filters_summary_label.setToolTip(summary_text if active_state else "")
-            try:
-                self.filters_summary_label.setVisible(not active_state)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao atualizar visibilidade do texto de filtros ativos: %s",
-                    exc,
-                )
-            self.filters_summary_label.setStyleSheet(
-                f"color:{summary_color};"
-                "background:transparent;"
-                "padding:0 2px;"
-                + ("font-weight:700;" if active_state else "font-weight:400;")
-            )
+        self.filters_summary_label.setStyleSheet(
+            f"color:{summary_color};"
+            "background:transparent;"
+            "padding:0 2px;"
+            + ("font-weight:700;" if active_state else "font-weight:400;")
+        )
+
+    def _apply_filters_summary_scroll_style(
+        self, *, active_state: bool, summary_bg: str
+    ) -> None:
         scroll = getattr(self, "filters_summary_scroll", None)
-        if scroll is not None:
-            try:
-                scroll.setVisible(active_state)
-                scroll.setStyleSheet(
-                    "QScrollArea {"
-                    "border:0;"
-                    f"background:{summary_bg};"
-                    "}"
-                    "QScrollArea > QWidget > QWidget {"
-                    f"background:{summary_bg};"
-                    "}"
-                )
-                viewport = scroll.viewport()
-                if viewport is not None:
-                    viewport.setAutoFillBackground(False)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao atualizar visibilidade do scroll de filtros ativos: %s",
-                    exc,
-                )
+        if scroll is None:
+            return
+        try:
+            scroll.setVisible(active_state)
+            scroll.setStyleSheet(
+                "QScrollArea {"
+                "border:0;"
+                f"background:{summary_bg};"
+                "}"
+                "QScrollArea > QWidget > QWidget {"
+                f"background:{summary_bg};"
+                "}"
+            )
+            viewport = scroll.viewport()
+            if viewport is not None:
+                viewport.setAutoFillBackground(False)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao atualizar visibilidade do scroll de filtros ativos: %s",
+                exc,
+            )
+
+    def _apply_filters_summary_visual_state(
+        self, *, summary_text: str, active_state: bool
+    ) -> None:
+        roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
+        summary_color = (
+            roles.get("summary_text_color")
+            or roles.get("panel_text")
+            or roles.get("label_color")
+            or "palette(windowText)"
+        )
+        summary_bg = self._apply_filters_summary_frame_style(
+            active_state=active_state, roles=roles
+        )
+        self._apply_filters_summary_label_style(
+            summary_text=summary_text,
+            active_state=active_state,
+            summary_color=summary_color,
+        )
+        self._apply_filters_summary_scroll_style(
+            active_state=active_state, summary_bg=summary_bg
+        )
+
+    def _sync_filters_summary_buttons(
+        self, summary_entries: OrderedDict[str, SummaryEntry]
+    ) -> None:
         try:
             summary_signature = tuple(
                 (
@@ -2407,6 +2436,32 @@ class FilterGUISSAMixin:
             logger.warning(
                 "Falha ao reconstruir botoes clicaveis do resumo de filtros: %s", exc
             )
+
+    def _update_filters_summary(self):
+        """Atualiza o resumo de filtros ativos na interface"""
+        summary_entries, raw_summary_signature, adv, adv_active = (
+            self._build_filters_summary_base_entries()
+        )
+        if raw_summary_signature == getattr(self, "_filters_summary_raw_signature", None):
+            return
+        self._filters_summary_raw_signature = raw_summary_signature
+
+        self._append_filters_summary_advanced_entries(
+            summary_entries, adv=adv, adv_active=adv_active
+        )
+
+        active_filters = [entry["text"] for entry in summary_entries.values()]
+
+        if active_filters:
+            summary_text = "Filtros ativos: " + "; ".join(active_filters)
+        else:
+            summary_text = "Nenhum filtro ativo"
+
+        active_state = bool(active_filters)
+        self._apply_filters_summary_visual_state(
+            summary_text=summary_text, active_state=active_state
+        )
+        self._sync_filters_summary_buttons(summary_entries)
 
     def _clear_filters_summary_buttons(self) -> None:
         layout = getattr(self, "filters_summary_items_layout", None)
