@@ -401,12 +401,13 @@ def _format_details_html(
             if not related_ssa or related_ssa in seen_related:
                 continue
             seen_related.add(related_ssa)
+            related_exists = bool(item.get("exists", False))
             rendered_items.append(
                 _render_ssa_navigation_link(
                     related_ssa,
                     link_color=link_color,
                     panel_mode=False,
-                    exists=bool(item.get("exists", False)) if linkify else False,
+                    exists=related_exists,
                     status_hint="",
                 )
                 if linkify
@@ -577,9 +578,12 @@ def _get_df_ssa_series_index(window, df) -> dict[str, pd.Series]:
     lookup: dict[str, pd.Series] = {}
     normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
     try:
-        for idx_label, normalized in zip(df.index, normalized_series.tolist()):
+        valid_series = normalized_series.astype("string").fillna("").str.strip()
+        valid_series = valid_series[valid_series.ne("")]
+        unique_series = valid_series[~valid_series.duplicated()]
+        for idx_label, normalized in unique_series.items():
             normalized_text = str(normalized or "").strip()
-            if not normalized_text or normalized_text in lookup:
+            if not normalized_text:
                 continue
             matched = df.loc[idx_label]
             if isinstance(matched, pd.DataFrame):
@@ -881,25 +885,38 @@ def _get_direct_parent_for_series(series: pd.Series | None) -> str:
     return _normalize_ssa_relation_value(series.get("derivada_de"))
 
 
+def _find_series_position_by_ssa(window, df, target: str):
+    if df is None or df.empty or "numero_ssa" not in df.columns:
+        return None, None
+    try:
+        normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
+        if normalized_series.empty:
+            return None, None
+        matches = normalized_series.eq(target)
+        if not bool(matches.any()):
+            return None, None
+        positions = matches.to_numpy().nonzero()[0]
+        if len(positions) == 0:
+            return None, None
+        position = int(positions[0])
+        matched = df.iloc[position]
+        if isinstance(matched, pd.DataFrame):
+            matched = matched.iloc[0]
+        return position, matched
+    except Exception as exc:
+        logger.debug("Falha ao localizar SSA %s em dataframe: %s", target, exc)
+        return None, None
+
+
 def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
     num_norm = _normalize_ssa_value(window, numero_ssa)
     if not num_norm:
         return
     try:
         pos = None
-        if (
-            window.df_exibido is not None
-            and not window.df_exibido.empty
-            and "numero_ssa" in window.df_exibido.columns
-        ):
-            series_norm = _get_cached_normalized_series(
-                window, window.df_exibido, "numero_ssa"
-            )
-            mask = series_norm.eq(num_norm)
-            if mask.any():
-                positions = mask.to_numpy().nonzero()[0]
-                if len(positions) > 0:
-                    pos = int(positions[0])
+        pos, _matched_series = _find_series_position_by_ssa(
+            window, getattr(window, "df_exibido", None), num_norm
+        )
         if pos is None and _allow_refilter:
             window.search_input.setText(f"={num_norm}")
             window.initiate_filtering()
@@ -925,19 +942,9 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
                     "request_id": request_id,
                 }
                 return
-            if (
-                window.df_exibido is not None
-                and not window.df_exibido.empty
-                and "numero_ssa" in window.df_exibido.columns
-            ):
-                series_norm = _get_cached_normalized_series(
-                    window, window.df_exibido, "numero_ssa"
-                )
-                mask = series_norm.eq(num_norm)
-                if mask.any():
-                    positions = mask.to_numpy().nonzero()[0]
-                    if len(positions) > 0:
-                        pos = int(positions[0])
+            pos, _matched_series = _find_series_position_by_ssa(
+                window, getattr(window, "df_exibido", None), num_norm
+            )
         if pos is None and not _allow_refilter:
             _update_details_from_series(window, _get_series_for_ssa(window, num_norm))
             return
@@ -1007,31 +1014,15 @@ def _get_series_for_ssa(window, numero_ssa):
     if not target:
         return None
 
-    def _find_in_df(df):
-        if df is None or df.empty or "numero_ssa" not in df.columns:
-            return None
-        try:
-            normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
-            if normalized_series.empty:
-                return None
-            matches = normalized_series.eq(target)
-            if not bool(matches.any()):
-                return None
-            positions = matches.to_numpy().nonzero()[0]
-            if len(positions) == 0:
-                return None
-            matched = df.iloc[int(positions[0])]
-            if isinstance(matched, pd.DataFrame):
-                matched = matched.iloc[0]
-            return matched
-        except Exception as exc:
-            logger.debug("Falha ao localizar SSA %s em dataframe: %s", target, exc)
-            return None
-
-    match = _find_in_df(getattr(window, "df_exibido", None))
+    _position, match = _find_series_position_by_ssa(
+        window, getattr(window, "df_exibido", None), target
+    )
     if match is not None:
         return match
-    return _find_in_df(getattr(window, "df_completo", None))
+    _position, match = _find_series_position_by_ssa(
+        window, getattr(window, "df_completo", None), target
+    )
+    return match
 
 
 def _on_details_anchor_clicked(window, url):
@@ -1177,12 +1168,43 @@ def _get_cached_derivadas_children_by_parent(window) -> dict[str, list[str]]:
         return {}
 
 
+def _derivadas_frame_cache_token(window) -> object:
+    df = getattr(window, "df_completo", None)
+    if df is None or getattr(df, "empty", True):
+        return ("empty", 0)
+    columns = [
+        column
+        for column in ("numero_ssa", "derivada_de", "situacao")
+        if column in getattr(df, "columns", [])
+    ]
+    if not columns:
+        return ("shape", tuple(getattr(df, "shape", (0, 0))))
+    try:
+        frame_hash = pd.util.hash_pandas_object(df.loc[:, columns], index=True).sum()
+        return ("df", tuple(df.shape), tuple(columns), int(frame_hash))
+    except Exception as exc:
+        logger.debug("Falha ao calcular assinatura local de derivadas: %s", exc)
+        return ("identity", id(df), tuple(getattr(df, "shape", (0, 0))))
+
+
 def _collect_derivadas_tree_data(window, numero_ssa):
     target = _normalize_ssa_relation_value(numero_ssa)
     if not target:
         return details_derivadas_model.empty_tree_data()
 
     db_path = _resolve_current_db_path()
+    db_mtime = details_data_provider.get_db_mtime(db_path)
+    data_uuid = getattr(window, "_data_uuid", None)
+    cache_owner = getattr(window, "cache_manager", None)
+    cache_get = getattr(cache_owner, "get_cached_value", None)
+    cache_put = getattr(cache_owner, "cache_value", None)
+    data_token = data_uuid if data_uuid is not None else _derivadas_frame_cache_token(window)
+    cache_key = (db_path, db_mtime, data_token, target)
+    if callable(cache_get):
+        cached = cast(Any, cache_get)("details_derivadas_tree_data", cache_key)
+        if isinstance(cached, dict):
+            return cached
+
     snapshot = details_data_provider.load_derivadas_snapshot(
         db_path,
         target,
@@ -1203,7 +1225,7 @@ def _collect_derivadas_tree_data(window, numero_ssa):
     except Exception as exc:
         logger.debug("Falha ao obter situacao alvo da arvore %s: %s", target, exc)
         target_status = ""
-    return details_derivadas_model.normalize_tree_data(
+    tree_data = details_derivadas_model.normalize_tree_data(
         target=target,
         snapshot=snapshot,
         fallback_children=_get_derivadas_for_ssa(window, target),
@@ -1212,9 +1234,18 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         related=related,
         target_status=target_status,
     )
+    if callable(cache_put):
+        cast(Any, cache_put)("details_derivadas_tree_data", cache_key, tree_data)
+    return tree_data
 
 
-def _build_derivadas_link_state(window, data: Mapping[str, object], target: str):
+def _build_derivadas_link_state(
+    window,
+    data: Mapping[str, object],
+    target: str,
+    *,
+    ssa_index: Mapping[str, pd.Series] | None = None,
+):
     target_status = str(data.get("target_status", "") or "").strip().upper()
     candidate_ssas: set[str] = {target}
     existing_tree_ssas: set[str] = set()
@@ -1295,8 +1326,28 @@ def _build_derivadas_link_state(window, data: Mapping[str, object], target: str)
         except Exception as exc:
             logger.debug("Falha ao hidratar candidatos da arvore de derivadas: %s", exc)
 
-    hydrate_from_df(getattr(window, "df_exibido", None))
-    hydrate_from_df(getattr(window, "df_completo", None))
+    if ssa_index:
+        for candidate in list(candidate_ssas):
+            resolved_series = ssa_index.get(candidate)
+            if resolved_series is None:
+                continue
+            existing_tree_ssas.add(candidate)
+            if candidate in status_by_ssa:
+                continue
+            try:
+                status_code = get_status_code(resolved_series.get("situacao"))
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao obter situacao da SSA %s pelo indice de detalhes: %s",
+                    candidate,
+                    exc,
+                )
+                status_code = ""
+            if status_code:
+                status_by_ssa[candidate] = status_code
+    else:
+        hydrate_from_df(getattr(window, "df_exibido", None))
+        hydrate_from_df(getattr(window, "df_completo", None))
     return status_by_ssa, existing_tree_ssas
 
 
@@ -1332,7 +1383,7 @@ def _build_derivadas_tree_html(
     target_status = str(data.get("target_status", "") or "").strip().upper()
     fallback_ssa_index: dict[str, pd.Series] | None = None
     status_by_ssa, existing_tree_ssas = _build_derivadas_link_state(
-        window, data, target
+        window, data, target, ssa_index=ssa_index
     )
 
     def _ssa_link(value, *, status_hint: str | None = None):
@@ -1517,6 +1568,7 @@ def _build_derivadas_graph_html(
         x_gap=DERIVADAS_GRAPH_X_GAP,
         y_gap=DERIVADAS_GRAPH_Y_GAP,
         margin=DERIVADAS_GRAPH_MARGIN,
+        normalizer=_normalize_ssa_relation_value,
     )
     if graph_model is None:
         return ""
@@ -1542,7 +1594,8 @@ def _build_derivadas_graph_html(
 
     def _node_font_size(value: str) -> float:
         usable_w = max(18.0, float(node_w) - 18.0)
-        by_width = usable_w / max(1.0, len(value) * 0.56)
+        text_len = max(1, len(str(value or "")))
+        by_width = usable_w / (text_len * 0.56)
         by_height = max(10.0, float(node_h) * 0.56)
         return max(11.0, min(by_width, by_height, 15.5))
 

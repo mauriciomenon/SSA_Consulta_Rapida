@@ -70,6 +70,10 @@ from gui.ssa import gui_filters_advanced as ssa_gui_filters  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
 from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
+from gui.ssa.main_window_filter_bar import (  # noqa: E402
+    build_filters_summary_bar,
+    build_search_bar,
+)
 from gui.ssa.filter_domain_rules import (  # noqa: E402
     collect_nonempty_column_values,
     order_sector_values,
@@ -1762,146 +1766,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Top spacing for search row
         tab_layout.addSpacing(6)
 
-        # Search row
-        search_row = QHBoxLayout()
-        search_row.setContentsMargins(0, 0, 0, 0)
-        search_row.setSpacing(6)
-
-        left = QHBoxLayout()
-        left.setContentsMargins(0, 0, 0, 0)
-        search_input = QLineEdit()
-        search_input.setPlaceholderText(
-            "Termos cumulativos separados por virgula; ! exclui termo"
+        search_context = build_search_bar(
+            self, tab_layout, action_button_style=self._week_label_style
         )
-        search_input.setToolTip(
-            "Na busca rapida, virgulas separam termos cumulativos (logica E).\n"
-            "Todos os termos digitados devem ser satisfeitos na mesma linha.\n\n"
-            "A busca pesquisa nas colunas relevantes da GUI; datas puras ficam nos filtros especificos.\n\n"
-            "Modos por termo: \n"
-            "- contem (padrao): foo\n- comeca com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex seguro: ~^foo ou ~foo$\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
-        )
-        search_input.setMinimumWidth(360)
-        self._set_widget_min_height_safe(search_input, 26, "campo de pesquisa")
-        try:
-            search_input.setFrame(False)
-        except Exception as exc:
-            logger.debug("Falha ao remover frame interno da pesquisa: %s", exc)
-        search_input.returnPressed.connect(self._on_general_search_apply_clicked)
-        search_input.textChanged.connect(self._on_search_text_changed)
-        search_button = QPushButton("↵")
-        self._set_widget_fixed_height_safe(
-            search_button, 22, "botao Aplicar da pesquisa geral"
-        )
-        try:
-            search_button.setFixedWidth(26)
-        except Exception as exc:
-            logger.debug("Falha ao aplicar estilo no botao Aplicar da pesquisa: %s", exc)
-        search_button.setToolTip("Aplicar busca (Enter)")
-        search_button.clicked.connect(self._on_general_search_apply_clicked)
-        clear_filter_button = QPushButton("⌫")
-        self._set_widget_fixed_height_safe(
-            clear_filter_button, 22, "botao Limpar Busca"
-        )
-        try:
-            clear_filter_button.setFixedWidth(26)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao aplicar estilo no botao Limpar Busca da pesquisa: %s", exc
-            )
-        clear_filter_button.clicked.connect(self._on_general_search_clear_clicked)
-        clear_filter_button.setToolTip(
-            "Limpa apenas a busca e cancela a busca em andamento. "
-            "Filtros de coluna e avancados continuam ativos."
-        )
-        clear_filter_button.setEnabled(False)
-        undo_filter_btn = QPushButton("↺")
-        self._set_widget_fixed_height_safe(
-            undo_filter_btn, 26, "botao desfazer filtros"
-        )
-        try:
-            undo_filter_btn.setFixedWidth(34)
-            undo_filter_btn.setStyleSheet(self._week_label_style)
-        except Exception as exc:
-            logger.debug("Falha ao configurar botao undo de filtros: %s", exc)
-        undo_filter_btn.setToolTip("Desfaz o ultimo filtro aplicado")
-        undo_filter_btn.clicked.connect(self._restore_last_filter_state)
-        export_list_btn = QPushButton("Exportar Filtros")
-        self._set_widget_fixed_height_safe(
-            export_list_btn, 26, "botao Exportar Filtros"
-        )
-        export_list_btn.setMaximumWidth(150)
-        export_list_btn.setToolTip("Exportar a lista filtrada atual para arquivo txt")
-        export_list_btn.clicked.connect(self._export_current_list_txt)
-        try:
-            export_list_btn.setStyleSheet(self._week_label_style)
-        except Exception as exc:
-            logger.debug("Falha ao aplicar estilo no botao exportar filtros: %s", exc)
-        save_filter_button = QPushButton("Salvar Filtros")
-        self._set_widget_fixed_height_safe(
-            save_filter_button, 26, "botao Salvar Filtros"
-        )
-        save_filter_button.setMaximumWidth(140)
-        save_filter_button.setToolTip(
-            "Salva o estado atual: busca, filtros de coluna, filtros avancados e perfil."
-        )
-        try:
-            save_filter_button.setStyleSheet(self._week_label_style)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao aplicar estilo no botao Salvar Filtros: %s", exc
-            )
-        save_filter_button.clicked.connect(self.save_current_filter)
-
-        filter_tags_widget = QWidget()
-        self._set_widget_fixed_height_safe(
-            filter_tags_widget, 26, "area de filtros salvos"
-        )
-        filter_tags_widget.setMaximumWidth(280)
-        filter_tags_widget.setSizePolicy(
-            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
-        )
-        filter_tags_layout = QHBoxLayout(cast(Any, filter_tags_widget))
-        filter_tags_layout.setContentsMargins(0, 0, 0, 0)
-        filter_tags_layout.setSpacing(5)
-
-        search_box = QFrame()
-        search_box.setObjectName("quickSearchBox")
-        self._set_widget_fixed_height_safe(search_box, 26, "caixa de pesquisa rapida")
-        search_box.setMinimumWidth(425)
-        search_box.setMaximumWidth(950)
-        search_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        search_box_layout = QHBoxLayout(cast(Any, search_box))
-        search_box_layout.setContentsMargins(3, 2, 3, 2)
-        search_box_layout.setSpacing(2)
-        search_box_layout.addWidget(cast(Any, clear_filter_button), 0)
-        search_box_layout.addWidget(cast(Any, search_input), 1)
-        search_box_layout.addWidget(cast(Any, search_button), 0)
-        try:
-            search_box.setStyleSheet(
-                "QFrame#quickSearchBox {"
-                "border:1px solid palette(mid);"
-                "border-radius:4px;"
-                "background:palette(base);"
-                "}"
-                "QFrame#quickSearchBox QPushButton {"
-                "border:0;"
-                "background:transparent;"
-                "padding:0;"
-                "font-weight:700;"
-                "font-size:12px;"
-                "}"
-                "QFrame#quickSearchBox QPushButton:hover {"
-                "background:palette(alternate-base);"
-                "}"
-            )
-        except Exception as exc:
-            logger.debug("Falha ao aplicar estilo inicial da caixa de pesquisa: %s", exc)
-        left.addWidget(cast(Any, undo_filter_btn))
-        left.addWidget(cast(Any, search_box))
-        left.addWidget(cast(Any, export_list_btn))
-        left.addWidget(cast(Any, save_filter_button))
-        left.addSpacing(8)
-        left.addWidget(cast(Any, filter_tags_widget))
+        search_input = search_context["search_input"]
+        search_box = search_context["quick_search_box"]
+        search_button = search_context["search_button"]
+        clear_filter_button = search_context["clear_filter_button"]
+        undo_filter_btn = search_context["undo_filter_btn"]
+        export_list_btn = search_context["export_list_btn"]
+        save_filter_button = search_context["save_filter_button"]
+        filter_tags_widget = search_context["filter_tags_widget"]
+        filter_tags_layout = search_context["filter_tags_layout"]
+        search_help = search_context["search_help"]
         column_selector = ColumnSelector(
             self.display_map,
             self.visible_columns,
@@ -1960,29 +1837,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 combo
             )
         )
-
-        search_row.addLayout(cast(Any, left))
-        search_row.addItem(
-            QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        )
-        tab_layout.addLayout(cast(Any, search_row))
-
-        search_help = QLabel(
-            "Use termos positivos e ! para excluir. A busca vale para qualquer coluna."
-        )
-        search_help.setWordWrap(False)
-        try:
-            search_help.setSizePolicy(
-                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-            )
-        except Exception as exc:
-            logger.debug("Falha ao aplicar size policy na ajuda de pesquisa: %s", exc)
-        search_help.setStyleSheet("color: palette(mid); margin:0; padding:0;")
-        try:
-            search_help.setVisible(False)
-        except Exception as exc:
-            logger.debug("Falha ao ocultar texto de ajuda da pesquisa: %s", exc)
-        tab_layout.addSpacing(4)
 
         # Pagination and persistent filters
         pagination_filters_layout = QHBoxLayout()
@@ -2044,100 +1898,28 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao ocultar indicador de filtro por coluna: %s", exc)
 
-        filters_summary_frame = None
-        filters_summary_label = None
-        filters_summary_items_widget = None
-        filters_summary_items_layout = None
-        filters_summary_scroll = None
-        clear_all_filters_btn = None
         try:
-            filters_summary_frame = QFrame()
-            filters_summary_frame.setObjectName("filtersSummaryFrame")
-            filters_summary_frame.setFrameShape(QFrame.Shape.StyledPanel)
-            self._set_widget_fixed_height_safe(
-                filters_summary_frame, 44, "barra de filtros ativos"
+            summary_context = build_filters_summary_bar(
+                self, tab_layout, action_button_style=self._week_label_style
             )
-            summary_layout = QHBoxLayout(cast(Any, filters_summary_frame))
-            summary_layout.setContentsMargins(6, 4, 6, 4)
-            summary_layout.setSpacing(8)
-            try:
-                align_middle = cast(Any, Qt).AlignmentFlag.AlignVCenter
-                cast(Any, summary_layout).setAlignment(align_middle)
-            except Exception as exc:
-                logger.debug("Falha ao centralizar resumo de filtros: %s", exc)
-                align_middle = None
-            filters_summary_label = QLabel("Nenhum filtro ativo")
-            filters_summary_label.setAutoFillBackground(False)
-            if self._info_font is not None:
-                try:
-                    filters_summary_label.setFont(cast(Any, QFont(self._info_font)))
-                except Exception as exc:
-                    logger.debug("Falha ao aplicar fonte no resumo de filtros: %s", exc)
-            filters_summary_items_widget = QWidget()
-            filters_summary_items_layout = QHBoxLayout(
-                cast(Any, filters_summary_items_widget)
-            )
-            filters_summary_items_layout.setContentsMargins(0, 0, 0, 0)
-            filters_summary_items_layout.setSpacing(6)
-            filters_summary_scroll = QScrollArea()
-            filters_summary_scroll.setWidgetResizable(False)
-            filters_summary_scroll.setWidget(cast(Any, filters_summary_items_widget))
-            filters_summary_scroll.setFrameShape(QFrame.Shape.NoFrame)
-            self._set_widget_fixed_height_safe(
-                filters_summary_scroll, 36, "area rolavel de filtros ativos"
-            )
-            try:
-                scroll_policy = cast(Any, Qt).ScrollBarPolicy
-                filters_summary_scroll.setHorizontalScrollBarPolicy(
-                    scroll_policy.ScrollBarAsNeeded
-                )
-                filters_summary_scroll.setVerticalScrollBarPolicy(
-                    scroll_policy.ScrollBarAlwaysOff
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao configurar scroll horizontal de filtros ativos: %s", exc
-                )
-            try:
-                filters_summary_scroll.setStyleSheet(
-                    "QScrollArea { border:0; background:transparent; }"
-                    "QScrollArea > QWidget > QWidget { background:transparent; }"
-                )
-                filters_summary_viewport = filters_summary_scroll.viewport()
-                if filters_summary_viewport is not None:
-                    filters_summary_viewport.setAutoFillBackground(False)
-            except Exception as exc:
-                logger.debug("Falha ao aplicar estilo no scroll de filtros ativos: %s", exc)
-            clear_all_filters_btn = QPushButton("⌫")
-            clear_all_filters_btn.setFixedWidth(34)
-            clear_all_filters_btn.setToolTip("Limpar Filtros")
-            clear_all_filters_btn.clicked.connect(self._on_clear_all_filters_clicked)
-            try:
-                clear_all_filters_btn.setStyleSheet(self._week_label_style)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar estilo no botao limpar todos os filtros: %s", exc
-                )
-            summary_text_layout = QHBoxLayout()
-            summary_text_layout.setContentsMargins(0, 0, 0, 0)
-            summary_text_layout.setSpacing(8)
-            summary_text_layout.addWidget(cast(Any, filters_summary_label), 0)
-            summary_text_layout.addWidget(cast(Any, filters_summary_scroll), 1)
-            if align_middle is None:
-                summary_layout.addWidget(cast(Any, clear_all_filters_btn), 0)
-            else:
-                summary_layout.addWidget(cast(Any, clear_all_filters_btn), 0, align_middle)
-            summary_layout.addLayout(cast(Any, summary_text_layout), 1)
-            tab_layout.addWidget(cast(Any, filters_summary_frame))
-            filters_summary_frame.setVisible(True)
-            try:
-                self._update_undo_button_state()
-            except Exception as exc:
-                logger.debug("Falha ao atualizar estado inicial do botao undo: %s", exc)
         except Exception as exc:
             logger.warning(
                 "Falha ao construir painel de resumo de filtros da aba: %s", exc
             )
+            summary_context = {
+                "filters_summary_frame": None,
+                "filters_summary_label": None,
+                "filters_summary_items_widget": None,
+                "filters_summary_items_layout": None,
+                "filters_summary_scroll": None,
+                "clear_all_filters_btn": None,
+            }
+        filters_summary_frame = summary_context["filters_summary_frame"]
+        filters_summary_label = summary_context["filters_summary_label"]
+        filters_summary_items_widget = summary_context["filters_summary_items_widget"]
+        filters_summary_items_layout = summary_context["filters_summary_items_layout"]
+        filters_summary_scroll = summary_context["filters_summary_scroll"]
+        clear_all_filters_btn = summary_context["clear_all_filters_btn"]
 
         tab_layout.addLayout(cast(Any, pagination_filters_layout))
 
@@ -4602,6 +4384,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         *,
         must_exist: bool,
         expect_dir: bool | None,
+        allowed_base: str | list[str] | tuple[str, ...] | None = None,
     ) -> str:
         raw = str(target_path or "")
         if not raw.strip():
@@ -4612,6 +4395,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if ".." in raw_parts:
             raise ValueError("Caminho com parent traversal nao permitido.")
         normalized = os.path.abspath(os.path.normpath(raw))
+        if allowed_base:
+            raw_bases = (
+                [allowed_base]
+                if isinstance(allowed_base, str)
+                else list(allowed_base)
+            )
+            allowed = False
+            for raw_base in raw_bases:
+                normalized_base = os.path.abspath(os.path.normpath(str(raw_base)))
+                try:
+                    common_path = os.path.commonpath([normalized, normalized_base])
+                except ValueError:
+                    continue
+                if common_path == normalized_base:
+                    allowed = True
+                    break
+            if not allowed:
+                raise ValueError("Caminho fora da base permitida.")
         if os.path.basename(normalized).startswith("-"):
             raise ValueError(
                 "Caminho inicia com '-' e pode ser interpretado como opcao de comando."
@@ -4693,6 +4494,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 settings_path,
                 must_exist=True,
                 expect_dir=False,
+                allowed_base=(
+                    os.path.join(project_root, "config"),
+                    os.path.dirname(settings_path),
+                ),
             )
         except Exception as exc:
             logger.warning("Caminho de settings invalido para abertura: %s", exc)
@@ -4983,6 +4788,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 doc_path,
                 must_exist=True,
                 expect_dir=False,
+                allowed_base=tuple(
+                    os.path.dirname(path)
+                    for path in _iter_installation_guide_candidates()
+                ),
             )
             opened = False
             if QT_AVAILABLE:
@@ -5274,7 +5083,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             table_name = self._resolve_derivadas_table_name(db_path)
             self._derivadas_sync_table_name = table_name
         except Exception as exc:
-            self._derivadas_sync_running = False
+            with sync_lock:
+                self._derivadas_sync_running = False
             error = str(exc)
             logger.error("Falha ao preparar sync manual de derivadas: %s", error)
             if hasattr(self, "status_label"):
@@ -5317,8 +5127,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self, result, previous_ui_state=previous_ui_state
             )
 
-        self._derivadas_sync_phase_status = "Status: Atualizando derivadas via DB..."
-        self._derivadas_sync_ui_state = previous_ui_state
+        with sync_lock:
+            self._derivadas_sync_phase_status = "Status: Atualizando derivadas via DB..."
+            self._derivadas_sync_ui_state = previous_ui_state
 
         def _window_alive() -> bool:
             if self is None:
@@ -5351,7 +5162,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if not _window_alive():
                 self._derivadas_sync_pending_result = None
                 self._derivadas_sync_thread = None
-                self._derivadas_sync_running = False
+                with sync_lock:
+                    self._derivadas_sync_running = False
                 return
             phase_status = str(getattr(self, "_derivadas_sync_phase_status", "") or "")
             if phase_status and hasattr(self, "status_label"):
@@ -5365,8 +5177,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             SSAMainWindow._finalize_derivadas_sync_result(self, pending)
 
         worker = threading.Thread(target=_work, daemon=True)
-        self._derivadas_sync_thread = worker
-        worker.start()
+        with sync_lock:
+            if not bool(getattr(self, "_derivadas_sync_running", False)):
+                return {
+                    "ok": False,
+                    "reason": "not_running",
+                    "db_path": db_path,
+                    "table_name": table_name,
+                }
+            self._derivadas_sync_thread = worker
+            worker.start()
         QTimer.singleShot(100, _poll_delivery)
         return {
             "ok": True,

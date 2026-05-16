@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from itertools import chain
 from typing import Any, Callable, Mapping, cast
 
+from gui.ssa.details_relation_rules import is_secondary_relation
 from shared.numero_ssa import normalize_relation_id as normalize_numero_ssa_relation
 
 
@@ -165,7 +166,7 @@ def build_tree_render_model(data: Mapping[str, object]) -> DerivadasTreeRenderMo
     hidden_descendants = _hidden_count(
         data.get("descendants_count"),
         len(descendants_entries),
-        bool(data.get("descendants_partial")),
+        partial=bool(data.get("descendants_partial")),
     )
     related_entries = _list_entries(data.get("related", []))
     return DerivadasTreeRenderModel(
@@ -275,15 +276,18 @@ def build_graph_model(
     x_gap: float,
     y_gap: float,
     margin: float,
+    normalizer: Callable[[object], str] = normalize_relation_value,
 ) -> DerivadasGraphModel | None:
-    target = normalize_relation_value(data.get("target"))
+    target = normalizer(data.get("target"))
     if not target:
         return None
 
-    parents = _normalize_values(data.get("parents", []))
-    children = _normalize_values(data.get("children", []))
+    parents = _normalize_values(data.get("parents", []), normalizer=normalizer)
+    children = _normalize_values(data.get("children", []), normalizer=normalizer)
     descendants_entries = _list_entries(data.get("descendants", []))
-    descendants = _normalize_graph_descendants(descendants_entries, max_descendants)
+    descendants = _normalize_graph_descendants(
+        descendants_entries, max_descendants, normalizer=normalizer
+    )
     nodes: set[str] = {target}
     edges: list[tuple[str, str]] = []
     dashed_edges: set[tuple[str, str]] = set()
@@ -311,13 +315,13 @@ def build_graph_model(
     for row in descendants:
         descendant = str(row.get("ssa", "") or "")
         parent = str(row.get("parent", "") or "")
-        dashed = _is_related_edge(row)
+        dashed = is_secondary_relation(row)
         if parent:
             add_edge(parent, descendant, dashed=dashed)
         else:
             add_edge(target, descendant, dashed=True)
     for raw in _dict_entries(data.get("related", [])):
-        related_ssa = normalize_relation_value(raw.get("ssa"))
+        related_ssa = normalizer(raw.get("ssa"))
         if related_ssa:
             add_edge(target, related_ssa, dashed=True)
 
@@ -325,8 +329,27 @@ def build_graph_model(
         data,
         target=target,
         children=children,
-        descendants_entries=descendants_entries,
+        descendants_entries=cast(list[object], descendants),
+        normalizer=normalizer,
     )
+    positioned_nodes = {node for node, _depth in ordered_nodes}
+    if missing_nodes := nodes - positioned_nodes:
+        depth_by_node = dict(ordered_nodes)
+        fallback_depth = max(depth_by_node.values(), default=0) + 1
+        for missing_node in sorted(missing_nodes):
+            missing_depth = fallback_depth
+            if missing_node == target:
+                parent_depths = [
+                    depth_by_node[parent]
+                    for parent in parents
+                    if parent in depth_by_node
+                ]
+                if parent_depths:
+                    missing_depth = min(parent_depths) + 1
+                else:
+                    missing_depth = min(fallback_depth, len(parents))
+            ordered_nodes.append((missing_node, missing_depth))
+            depth_by_node[missing_node] = missing_depth
     positions = {
         node: (margin + depth * x_gap, margin + index * y_gap)
         for index, (node, depth) in enumerate(ordered_nodes)
@@ -344,7 +367,7 @@ def build_graph_model(
     truncated = _hidden_count(
         data.get("descendants_count"),
         len(descendants),
-        bool(data.get("descendants_partial")),
+        partial=bool(data.get("descendants_partial")),
     )
     return DerivadasGraphModel(
         target=target,
@@ -472,7 +495,9 @@ def _family_roots_from_ancestors(ancestors: list[object]) -> list[str]:
             continue
         raw_map = cast(dict[str, object], raw)
         raw_distance = raw_map.get("min_distance")
-        distance = raw_distance if isinstance(raw_distance, int) else 0
+        if not isinstance(raw_distance, int):
+            continue
+        distance = raw_distance
         if root_distance is None:
             root_distance = distance
         if distance == root_distance:
@@ -500,17 +525,21 @@ def _int_or_default(value: object, default: int) -> int:
     return default
 
 
-def _hidden_count(total: object, visible_count: int, partial: bool) -> int:
+def _hidden_count(total: object, visible_count: int, *, partial: bool = False) -> int:
     hidden = max(0, _int_or_default(total, 0) - visible_count)
     if partial and hidden == 0:
-        hidden = 1
+        return 1
     return hidden
 
 
-def _entry_ssa(entry: object) -> str:
+def _entry_ssa(
+    entry: object,
+    *,
+    normalizer: Callable[[object], str] = normalize_relation_value,
+) -> str:
     if isinstance(entry, dict):
-        return normalize_relation_value(cast(dict[str, object], entry).get("ssa"))
-    return normalize_relation_value(entry)
+        return normalizer(cast(dict[str, object], entry).get("ssa"))
+    return normalizer(entry)
 
 
 def _lineage_entries(data: Mapping[str, object]) -> list[object]:
@@ -528,18 +557,26 @@ def _lineage_entries(data: Mapping[str, object]) -> list[object]:
     return lineage
 
 
-def _child_entry_map(entries: list[object]) -> dict[str, list[object]]:
+def _child_entry_map(
+    entries: list[object],
+    *,
+    normalizer: Callable[[object], str] = normalize_relation_value,
+) -> dict[str, list[object]]:
     child_map: dict[str, list[object]] = {}
     for raw in entries:
         if not isinstance(raw, dict):
             continue
         raw_map = cast(dict[str, object], raw)
-        child_value, parent_value = _normalized_child_parent(raw_map)
+        child_value, parent_value = _normalized_child_parent(
+            raw_map, normalizer=normalizer
+        )
         if not child_value or not parent_value:
             continue
         child_map.setdefault(parent_value, []).append(raw)
     for child_values in child_map.values():
-        child_values.sort(key=lambda entry: _entry_ssa(entry) or "")
+        child_values.sort(
+            key=lambda entry: _entry_ssa(entry, normalizer=normalizer) or ""
+        )
     return child_map
 
 
@@ -556,10 +593,12 @@ def _entry_lookup_by_ssa(
     return entry_by_ssa
 
 
-def _normalized_child_parent(raw_map: Mapping[str, object]) -> tuple[str, str]:
-    return normalize_relation_value(raw_map.get("ssa")), normalize_relation_value(
-        raw_map.get("parent")
-    )
+def _normalized_child_parent(
+    raw_map: Mapping[str, object],
+    *,
+    normalizer: Callable[[object], str] = normalize_relation_value,
+) -> tuple[str, str]:
+    return normalizer(raw_map.get("ssa")), normalizer(raw_map.get("parent"))
 
 
 def _node_id(value: str) -> str:
@@ -577,14 +616,17 @@ def _label(value: str) -> str:
 
 
 def _normalize_graph_descendants(
-    entries: list[object], max_descendants: int
+    entries: list[object],
+    max_descendants: int,
+    *,
+    normalizer: Callable[[object], str] = normalize_relation_value,
 ) -> list[dict[str, object]]:
     descendants: list[dict[str, object]] = []
     for raw in entries[:max_descendants]:
         if not isinstance(raw, dict):
             continue
         raw_map = cast(dict[str, object], raw)
-        child, parent = _normalized_child_parent(raw_map)
+        child, parent = _normalized_child_parent(raw_map, normalizer=normalizer)
         if not child:
             continue
         row: dict[str, object] = {"ssa": child, "parent": parent}
@@ -596,37 +638,36 @@ def _normalize_graph_descendants(
     return descendants
 
 
-def _is_related_edge(row: Mapping[str, object]) -> bool:
-    raw_label = str(row.get("relation_raw_label") or row.get("relacao") or "")
-    label = raw_label.strip().casefold()
-    if "derivad" in label:
-        return False
-    if label:
-        return True
-    raw_type = row.get("relation_type")
-    if raw_type is None:
-        return False
-    try:
-        return int(cast(Any, raw_type)) not in (0, 1)
-    except (TypeError, ValueError):
-        return False
-
-
 def _ordered_graph_nodes(
     data: Mapping[str, object],
     *,
     target: str,
     children: list[str],
     descendants_entries: list[object],
+    normalizer: Callable[[object], str] = normalize_relation_value,
 ) -> list[tuple[str, int]]:
-    lineage = [_entry_ssa(raw) for raw in _lineage_entries(data)]
+    lineage = [
+        node
+        for raw in _lineage_entries(data)
+        if (node := _entry_ssa(raw, normalizer=normalizer))
+    ]
     child_map = {
-        parent: [_entry_ssa(child) for child in child_entries if _entry_ssa(child)]
-        for parent, child_entries in _child_entry_map(descendants_entries).items()
+        parent: [
+            child_ssa
+            for child in child_entries
+            if (child_ssa := _entry_ssa(child, normalizer=normalizer))
+        ]
+        for parent, child_entries in _child_entry_map(
+            descendants_entries, normalizer=normalizer
+        ).items()
+    }
+    reversed_child_map = {
+        parent: tuple(reversed(child_values))
+        for parent, child_values in child_map.items()
     }
 
     ordered_nodes: list[tuple[str, int]] = []
-    family_roots = _normalize_values(data.get("family_roots", []))
+    family_roots = _normalize_values(data.get("family_roots", []), normalizer=normalizer)
     render_family = bool(data.get("render_family")) and bool(child_map) and bool(family_roots)
     target_depth = len(lineage)
     seen_nodes: set[str] = set()
@@ -638,6 +679,10 @@ def _ordered_graph_nodes(
         ordered_nodes.append((node, depth))
 
     if render_family:
+        if target not in family_roots and not any(
+            target in child_values for child_values in child_map.values()
+        ):
+            append_node(target, target_depth)
         for root in family_roots:
             stack = [(root, 0)]
             while stack:
@@ -645,7 +690,7 @@ def _ordered_graph_nodes(
                 if not node or node in seen_nodes:
                     continue
                 append_node(node, depth)
-                for child_ssa in reversed(child_map.get(node, [])):
+                for child_ssa in reversed_child_map.get(node, ()):
                     if child_ssa not in seen_nodes:
                         stack.append((child_ssa, depth + 1))
     else:
@@ -656,14 +701,14 @@ def _ordered_graph_nodes(
         def append_descendant_nodes(parent_ssa: str, depth: int) -> None:
             stack = [
                 (child_ssa, depth)
-                for child_ssa in reversed(child_map.get(parent_ssa, []))
+                for child_ssa in reversed_child_map.get(parent_ssa, ())
             ]
             while stack:
                 child_ssa, child_depth = stack.pop()
                 if child_ssa in seen_nodes:
                     continue
                 append_node(child_ssa, child_depth)
-                for nested_child in reversed(child_map.get(child_ssa, [])):
+                for nested_child in reversed_child_map.get(child_ssa, ()):
                     if nested_child not in seen_nodes:
                         stack.append((nested_child, child_depth + 1))
 
@@ -678,7 +723,7 @@ def _ordered_graph_nodes(
         for raw in related_entries:
             if not isinstance(raw, dict):
                 continue
-            related_ssa = normalize_relation_value(cast(dict[str, object], raw).get("ssa"))
+            related_ssa = normalizer(cast(dict[str, object], raw).get("ssa"))
             if not related_ssa or related_ssa in seen_nodes:
                 continue
             append_node(related_ssa, target_depth + 1)
