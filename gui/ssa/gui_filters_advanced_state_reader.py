@@ -13,17 +13,22 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 def _combo_item_data(combo: Any):
     if combo is None:
         return None
-    current_data = getattr(combo, "currentData", None)
-    if callable(current_data):
-        return current_data()
-    current_index = getattr(combo, "currentIndex", None)
-    item_data = getattr(combo, "itemData", None)
-    if not callable(current_index) or not callable(item_data):
-        return None
-    mode_idx = current_index()
-    if mode_idx < 0:
-        return None
-    return item_data(mode_idx)
+    try:
+        current_data = getattr(combo, "currentData", None)
+        if callable(current_data):
+            return current_data()
+        current_index = getattr(combo, "currentIndex", None)
+        item_data = getattr(combo, "itemData", None)
+        if not callable(current_index) or not callable(item_data):
+            return None
+        mode_idx = current_index()
+        if mode_idx < 0:
+            return None
+        return item_data(mode_idx)
+    except RuntimeError as exc:
+        if _is_deleted_qt_wrapper_error(exc):
+            return None
+        raise
 
 
 def _widget_value(widget: Any):
@@ -32,10 +37,38 @@ def _widget_value(widget: Any):
         value = property_getter("value")
         if value is not None:
             return value
-    text_getter = getattr(widget, "text", None)
-    if callable(text_getter):
-        return text_getter()
     return None
+
+
+def _is_deleted_qt_wrapper_error(exc: RuntimeError) -> bool:
+    text = str(exc)
+    return "wrapped C/C++ object" in text and "has been deleted" in text
+
+
+def _call_widget_bool(widget: Any, method_name: str, default: bool = False) -> bool:
+    method = getattr(widget, method_name, None)
+    if not callable(method):
+        return default
+    try:
+        return bool(method())
+    except RuntimeError as exc:
+        if _is_deleted_qt_wrapper_error(exc):
+            return default
+        raise
+
+
+def _widget_text(widget: Any) -> str:
+    if widget is None:
+        return ""
+    text_getter = getattr(widget, "text", None)
+    if not callable(text_getter):
+        return ""
+    try:
+        return str(text_getter() or "")
+    except RuntimeError as exc:
+        if _is_deleted_qt_wrapper_error(exc):
+            return ""
+        raise
 
 
 def resolve_year_selection_sets(
@@ -49,30 +82,18 @@ def resolve_year_selection_sets(
     include_values = filters.get(values_key)
     exclude_values = filters.get(exclude_values_key)
     legacy_value = filters.get(legacy_value_key)
-    if include_values is None and legacy_value is not None:
-        include_values = [legacy_value]
-    if (
-        exclude_values is None
-        and filters.get(legacy_exclude_key)
-        and legacy_value is not None
-    ):
-        exclude_values = [legacy_value]
+    legacy_exclude = bool(filters.get(legacy_exclude_key))
+    if not include_values and not exclude_values and legacy_value is not None:
+        if legacy_exclude:
+            exclude_values = [legacy_value]
+        else:
+            include_values = [legacy_value]
     return {str(v) for v in (include_values or [])}, {
         str(v) for v in (exclude_values or [])
     }
 
 
 class AdvancedFilterStateReader:
-    RESPONSAVEL_OUTPUT_KEYS = {
-        "solicitante": "solicitante_exclude_values",
-        "responsavel_programacao": "responsavel_programacao_exclude_values",
-        "responsavel_execucao": "responsavel_execucao_exclude_values",
-    }
-    RESPONSAVEL_EXCLUDE_OUTPUT_KEYS = {
-        "solicitante_exclude_values": "solicitante",
-        "responsavel_programacao_exclude_values": "responsavel_programacao",
-        "responsavel_execucao_exclude_values": "responsavel_execucao",
-    }
     RESPONSAVEL_PREFIXES = {
         "solicitante": "adv_responsavel_solicitante",
         "responsavel_programacao": "adv_responsavel_programacao",
@@ -118,10 +139,23 @@ class AdvancedFilterStateReader:
     def checked_values(self, checks_attr: str) -> list[str]:
         values = []
         for item in self.widget(checks_attr) or []:
-            is_checked = getattr(item, "isChecked", None)
-            if callable(is_checked) and not is_checked():
-                continue
-            raw_value = _widget_value(item)
+            try:
+                is_checked = getattr(item, "isChecked", None)
+                if is_checked is None:
+                    continue
+                if callable(is_checked):
+                    checked = bool(is_checked())
+                elif isinstance(is_checked, bool):
+                    checked = bool(is_checked)
+                else:
+                    continue
+                if not checked:
+                    continue
+                raw_value = _widget_value(item)
+            except RuntimeError as exc:
+                if _is_deleted_qt_wrapper_error(exc):
+                    continue
+                raise
             if raw_value is None:
                 continue
             text = str(raw_value).strip()
@@ -134,11 +168,9 @@ class AdvancedFilterStateReader:
         end_widget = self.widget(end_attr)
         if start_widget is None and end_widget is None:
             return None, None
-        start_text_getter = getattr(start_widget, "text", None)
-        end_text_getter = getattr(end_widget, "text", None)
-        start_text = start_text_getter() if callable(start_text_getter) else ""
-        end_text = end_text_getter() if callable(end_text_getter) else ""
-        return self.parse_week(start_text), self.parse_week(end_text)
+        return self.parse_week(_widget_text(start_widget)), self.parse_week(
+            _widget_text(end_widget)
+        )
 
     def responsavel_values(
         self,
@@ -165,52 +197,57 @@ class AdvancedFilterStateReader:
         widget = self.widget(widget_attr)
         if widget is None:
             return False
-        is_checked = getattr(widget, "isChecked", None)
-        return bool(is_checked()) if callable(is_checked) else False
+        return _call_widget_bool(widget, "isChecked")
 
     def _collect_sector_status_filters(self) -> dict:
-        return {
-            "setor_executor": self.checked_values("adv_executor_checks"),
-            "setor_executor_exclude_values": self.checked_values(
-                "adv_executor_exclude_checks"
-            ),
-            "setor_emissor": self.checked_values("adv_emissor_checks"),
-            "setor_emissor_exclude_values": self.checked_values(
-                "adv_emissor_exclude_checks"
-            ),
-            "situacao": self.checked_values("adv_status_checks"),
-            "situacao_exclude_values": self.checked_values("adv_status_exclude_checks"),
-        }
+        bindings = (
+            ("setor_executor", "adv_executor_checks"),
+            ("setor_executor_exclude_values", "adv_executor_exclude_checks"),
+            ("setor_emissor", "adv_emissor_checks"),
+            ("setor_emissor_exclude_values", "adv_emissor_exclude_checks"),
+            ("situacao", "adv_status_checks"),
+            ("situacao_exclude_values", "adv_status_exclude_checks"),
+        )
+        return {key: self.checked_values(attr) for key, attr in bindings}
 
     def _collect_year_priority_filters(self) -> dict:
-        return {
-            "ano_emissao_values": self.checked_values("adv_year_emissao_checks"),
-            "ano_emissao_exclude_values": self.checked_values(
-                "adv_year_emissao_exclude_checks"
+        multiselect_bindings = (
+            ("ano_emissao_values", "adv_year_emissao_checks"),
+            ("ano_emissao_exclude_values", "adv_year_emissao_exclude_checks"),
+            ("ano_execucao_values", "adv_year_execucao_checks"),
+            ("ano_execucao_exclude_values", "adv_year_execucao_exclude_checks"),
+            ("num_reprogramacoes_values", "adv_reprog_checks"),
+            ("prioridade_emissao_values", "adv_prioridade_emissao_checks"),
+            (
+                "prioridade_emissao_exclude_values",
+                "adv_prioridade_emissao_exclude_checks",
             ),
-            "ano_execucao_values": self.checked_values("adv_year_execucao_checks"),
-            "ano_execucao_exclude_values": self.checked_values(
-                "adv_year_execucao_exclude_checks"
+            (
+                "prioridade_planejamento_values",
+                "adv_prioridade_planejamento_checks",
             ),
-            "semana_emissao_exclude": self.checked_flag("adv_week_emissao_exclude"),
-            "semana_execucao_exclude": self.checked_flag("adv_week_execucao_exclude"),
-            "num_reprogramacoes_values": self.checked_values("adv_reprog_checks"),
-            "num_reprogramacoes_mode": _combo_item_data(
-                self.widget("adv_reprog_mode")
+            (
+                "prioridade_planejamento_exclude_values",
+                "adv_prioridade_planejamento_exclude_checks",
             ),
-            "prioridade_emissao_values": self.checked_values(
-                "adv_prioridade_emissao_checks"
-            ),
-            "prioridade_emissao_exclude_values": self.checked_values(
-                "adv_prioridade_emissao_exclude_checks"
-            ),
-            "prioridade_planejamento_values": self.checked_values(
-                "adv_prioridade_planejamento_checks"
-            ),
-            "prioridade_planejamento_exclude_values": self.checked_values(
-                "adv_prioridade_planejamento_exclude_checks"
-            ),
+        )
+        data: dict[str, object] = {
+            key: self.checked_values(attr) for key, attr in multiselect_bindings
         }
+        data.update(
+            {
+                "semana_emissao_exclude": self.checked_flag(
+                    "adv_week_emissao_exclude"
+                ),
+                "semana_execucao_exclude": self.checked_flag(
+                    "adv_week_execucao_exclude"
+                ),
+                "num_reprogramacoes_mode": _combo_item_data(
+                    self.widget("adv_reprog_mode")
+                ),
+            }
+        )
+        return data
 
     def _collect_misc_filters(self) -> dict:
         return {

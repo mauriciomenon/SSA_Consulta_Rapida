@@ -10,6 +10,7 @@ import pandas as pd
 EXCLUDED_TERMINAL_STATUSES = frozenset({"SCA", "SES", "STE"})
 EXCLUDED_TERMINAL_SUMMARY = "situacao!=SCA/SES/STE"
 MACRO_BAIXAR_FILTER_KEY = "ssas_para_baixar"
+# SAD is macro-specific here; global terminal filtering stays SCA/SES/STE.
 MACRO_BAIXAR_STATUS_EXCLUSIONS = ("SAD", "SCA", "SES", "STE")
 MACRO_BAIXAR_DERIVADA_SELECTION = ("all_ste",)
 SECTOR_EXECUTOR_PRIORITY = (
@@ -60,11 +61,12 @@ def dedupe_nonempty_strings(values: Iterable[Any] | None) -> list[str]:
 
 
 def known_division_rank(div: str) -> int:
-    if div == "SMIN":
+    normalized = str(div or "").upper()
+    if normalized == "SMIN":
         return 0
-    if div == "SMME":
+    if normalized == "SMME":
         return 1
-    if div:
+    if normalized:
         return 2
     return 3
 
@@ -129,25 +131,6 @@ def _best_sector_from_counts(counts: Mapping[str, int] | None) -> str:
     return best_sector
 
 
-def _sector_counts_for_responsavel_column(
-    df: pd.DataFrame,
-    resp_col: str,
-    sector_cols: list[str],
-    *,
-    normalized_sectors: Mapping[str, pd.Series] | None = None,
-) -> dict[str, dict[str, int]]:
-    person_series = normalize_nonempty_string_series(df[resp_col])
-    normalized_sectors = normalized_sectors or {
-        sector_col: normalize_nonempty_string_series(df[sector_col])
-        for sector_col in sector_cols
-    }
-    return _count_responsavel_sector_pairs(
-        df.index,
-        {"": person_series},
-        normalized_sectors,
-    ).get("", {})
-
-
 def _count_responsavel_sector_pairs(
     row_index,
     responsavel_series: Mapping[str, pd.Series],
@@ -157,33 +140,61 @@ def _count_responsavel_sector_pairs(
         return {}
     result: dict[str, dict[str, dict[str, int]]] = {}
     for resp_col, person_series in responsavel_series.items():
-        sector_columns = []
-        wide = pd.DataFrame(
-            {"row_id": row_index, "person": person_series},
-            index=row_index,
+        column_result = _count_single_responsavel_sector_pairs(
+            row_index,
+            person_series,
+            sector_series,
         )
-        for index, sector_values in enumerate(sector_series.values()):
-            sector_column = f"sector_{index}"
-            wide[sector_column] = sector_values.to_numpy()
-            sector_columns.append(sector_column)
-        pairs = wide.melt(
-            id_vars=("row_id", "person"),
-            value_vars=sector_columns,
-            value_name="sector",
-        )
-        pairs = pairs[(pairs["person"] != "") & (pairs["sector"] != "")]
-        if pairs.empty:
-            continue
-        grouped = (
-            pairs.drop_duplicates(["row_id", "person", "sector"])
-            .groupby(["person", "sector"], dropna=False)
-            .size()
-        )
-        resp_result: dict[str, dict[str, int]] = {}
-        for (person, sector), count in grouped.items():
-            resp_result.setdefault(str(person), {})[str(sector)] = int(count)
-        if resp_result:
-            result[str(resp_col)] = resp_result
+        if column_result:
+            result[str(resp_col)] = column_result
+    return result
+
+
+def _count_single_responsavel_sector_pairs(
+    row_index,
+    person_series: pd.Series,
+    sector_series: Mapping[str, pd.Series],
+) -> dict[str, dict[str, int]]:
+    indexes = _person_sector_indexes(row_index, person_series, sector_series)
+    if not indexes:
+        return {}
+    combined_index = indexes[0].append(indexes[1:])
+    return _count_person_sector_index(combined_index.drop_duplicates())
+
+
+def _person_sector_indexes(
+    row_index,
+    person_series: pd.Series,
+    sector_series: Mapping[str, pd.Series],
+) -> list[pd.MultiIndex]:
+    # The current domain contract uses two sector columns: executor and emissor.
+    row_values = pd.Index(row_index).to_numpy()
+    person_values = person_series.to_numpy()
+    indexes: list[pd.MultiIndex] = []
+    for sector_values in sector_series.values():
+        sector_array = sector_values.to_numpy()
+        valid = (person_values != "") & (sector_array != "")
+        if valid.any():
+            indexes.append(
+                pd.MultiIndex.from_arrays(
+                    (
+                        row_values[valid],
+                        person_values[valid],
+                        sector_array[valid],
+                    ),
+                    names=("row_id", "person", "sector"),
+                )
+            )
+    return indexes
+
+
+def _count_person_sector_index(
+    unique_pairs: pd.MultiIndex,
+) -> dict[str, dict[str, int]]:
+    counts = unique_pairs.droplevel("row_id").value_counts()
+    result: dict[str, dict[str, int]] = {}
+    for (person, sector), count in counts.items():
+        result.setdefault(str(person), {})[str(sector)] = int(count)
     return result
 
 
@@ -193,12 +204,11 @@ def build_responsavel_sector_counts(
     *,
     sector_columns: Iterable[str] = ("setor_executor", "setor_emissor"),
 ) -> dict[str, dict[str, int]]:
-    if not isinstance(df, pd.DataFrame) or df.empty or resp_col not in df.columns:
-        return {}
-    sector_cols = [column for column in sector_columns if column in df.columns]
-    if not sector_cols:
-        return {}
-    return _sector_counts_for_responsavel_column(df, resp_col, sector_cols)
+    return build_responsavel_sector_counts_by_column(
+        df,
+        (resp_col,),
+        sector_columns=sector_columns,
+    ).get(resp_col, {})
 
 
 def build_responsavel_sector_counts_by_column(
@@ -294,12 +304,9 @@ def subset_by_sector_filters(
         values = {
             str(value).strip() for value in (raw_values or []) if str(value).strip()
         }
-        if not values or column not in df.columns:
-            continue
         series = normalized.get(column)
-        if series is None:
-            series = normalize_nonempty_string_series(df[column])
-            normalized[column] = series
+        if not values or series is None:
+            continue
         current_mask = series.isin(values)
         mask &= current_mask if include else ~current_mask
     return df[mask]
@@ -331,6 +338,7 @@ def generate_responsavel_sector_filter_cache_signature(
 
 
 def _responsavel_sector_frame_fingerprint(df: pd.DataFrame) -> int:
+    # Fallback for callers without a data version token; structure-level only.
     try:
         first_index = df.index[0] if len(df.index) else None
         last_index = df.index[-1] if len(df.index) else None
@@ -339,7 +347,7 @@ def _responsavel_sector_frame_fingerprint(df: pd.DataFrame) -> int:
                 len(df),
                 first_index,
                 last_index,
-                id(df.columns),
+                tuple(str(column) for column in df.columns),
             )
         )
     except Exception:
