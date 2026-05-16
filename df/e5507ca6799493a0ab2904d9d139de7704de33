@@ -1,0 +1,64 @@
+gui/mixins/filter_gui_ssa_mixin.py
+  s_082d1ff7d55d96::t_0d08cae5be6862 1338,1340-1347,1349
+  s_082d1ff7d55d96::t_7b94f2eab8dc4d 2985-2988
+  s_082d1ff7d55d96::t_cb862284e82990 2203-2217
+  s_082d1ff7d55d96::t_2da7d2ed2e8a76 1526
+gui/ssa/gui_filters_advanced_ui.py
+  s_082d1ff7d55d96::t_47a99caeeae62e 2516,2520-2521,2526
+  s_082d1ff7d55d96::t_101c67864c1bbb 118-122,425-428
+gui/gui_ssa.py
+  s_082d1ff7d55d96::t_ccf11fd87468ee 58,3322-3329,3339
+  s_082d1ff7d55d96::t_734512a9ade94d 1793,1796,1803,1806,1874,1891,2240,2242
+gui/ssa/filter_summary_entries.py
+  s_082d1ff7d55d96::t_6e9d3be36677aa 12-15,21-22
+  s_082d1ff7d55d96::t_5ee7088b1db602 159
+gui/ssa/gui_details.py
+  s_082d1ff7d55d96::t_f4e01dee4502d7 1785-1788
+gui/ssa/filter_worker_lifecycle.py
+  s_082d1ff7d55d96::t_c58da85943194e 215-217
+  s_082d1ff7d55d96::t_5efe0a454e9257 17-25,214
+  s_082d1ff7d55d96::t_4d5d8ff98c1941 185,189-191
+  s_082d1ff7d55d96::t_50a586c24ae8a1 12-16,198-200,213,218
+tests/test_gui_filter_logic.py
+  s_082d1ff7d55d96::t_5ee7088b1db602 329,7864-7871,7879
+  s_082d1ff7d55d96::t_456469661ff617 436,439-443,3622,3624,3636,3638
+  s_082d1ff7d55d96::t_7037542b3e2067 7845-7863,7872-7878,7880-7885
+  s_082d1ff7d55d96::t_c34bdfd257e428 8427-8444
+  s_082d1ff7d55d96::t_1267ca36e9507d 684,694-697
+  s_082d1ff7d55d96::t_ccf11fd87468ee 330-333
+  s_082d1ff7d55d96::t_c031ca267c8461 381
+tests/test_gui_details_derivadas_model.py
+  s_082d1ff7d55d96::t_c638d3eb8fd7dd 91,102-104
+  s_082d1ff7d55d96::t_81f34ae55fe838 92-101,105-106
+gui/ssa/details_derivadas_model.py
+  s_082d1ff7d55d96::t_d14c9489d9f52b 624-625
+  s_082d1ff7d55d96::t_e2b3e2970a7255 632-638,645,647,649,682,684
+  s_082d1ff7d55d96::t_7fe41449a640e7 651-668,670-671,673-674
+  s_082d1ff7d55d96::t_30a1700409ccfd 7,552
+gui/ssa/column_filter_engine.py
+  s_082d1ff7d55d96::t_4c082ec3f1b045 87,324-339
+  s_082d1ff7d55d96::t_09a12d268b9c3d 184-192,199-211,213-227,229-230,233-234
+  s_082d1ff7d55d96::t_0c020933993e8d 35,56,286,312-313,317-323
+  s_082d1ff7d55d96::t_0465adb3eb224c 34,212,228,266-267,340-358
+  s_082d1ff7d55d96::t_8a5211e0055ba2 133-135
+gui/ssa/details_graph_export.py
+  s_082d1ff7d55d96::t_f5e4c2856273c5 45,48,50-54,60
+  s_082d1ff7d55d96::t_62699c576f54fb 55
+  s_082d1ff7d55d96::t_147af7b57c4692 68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "dfe5507ca6799493a0ab2904d9d139de7704de33",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
