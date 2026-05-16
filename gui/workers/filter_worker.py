@@ -25,10 +25,11 @@ class FilterWorker(QThread):
     def __init__(
         self,
         df_completo,
-        search_chunks,
+        search_chunks: list[list[str]],
         search_columns: list[str] | None = None,
         default_mode: str = "contains",
         cache_context: str | None = None,
+        df_hash: str | None = None,
     ):
         super().__init__()
         self.df_completo = df_completo
@@ -48,8 +49,7 @@ class FilterWorker(QThread):
         self.cache_context = cache_context or ""
         self._cancel_requested = False
 
-        # Gera fingerprint estrutural+amostral para reduzir colisões de cache
-        self.df_hash = self._build_df_hash(df_completo)
+        self.df_hash = df_hash
 
     def cancel(self) -> None:
         self._cancel_requested = True
@@ -116,14 +116,12 @@ class FilterWorker(QThread):
             ).to_numpy(dtype="uint64", copy=False)
             hasher = hashlib.blake2b(digest_size=8)
             hasher.update(repr(tuple(df_completo.shape)).encode("utf-8"))
-            hasher.update(
-                repr(tuple(str(column) for column in df_completo.columns)).encode(
-                    "utf-8"
-                )
-            )
-            hasher.update(
-                repr(tuple(str(dtype) for dtype in df_completo.dtypes)).encode("utf-8")
-            )
+            for column in df_completo.columns:
+                hasher.update(b"\x00col:")
+                hasher.update(str(column).encode("utf-8", errors="replace"))
+            for dtype in df_completo.dtypes:
+                hasher.update(b"\x00dtype:")
+                hasher.update(str(dtype).encode("utf-8", errors="replace"))
             hasher.update(sample_hashes.tobytes())
             return hasher.hexdigest()
         except Exception as exc:
@@ -147,6 +145,8 @@ class FilterWorker(QThread):
                 )
                 self.filter_finished.emit(pd.DataFrame())
                 return
+            if self.df_hash is None:
+                self.df_hash = self._build_df_hash(self.df_completo)
             # Verifica cache primeiro
             cached_result = self._cache.get(
                 self.df_hash,
@@ -162,8 +162,8 @@ class FilterWorker(QThread):
 
             # Cache miss - executa filtro
             if self.search_chunks:
-                frames = []
-                for terms in self.search_chunks:
+                if len(self.search_chunks) == 1:
+                    terms = self.search_chunks[0]
                     if self._is_cancelled():
                         return
                     if terms:
@@ -173,31 +173,55 @@ class FilterWorker(QThread):
                         if self._is_cancelled():
                             return
                         if self.search_columns is None:
-                            frames.append(filter_dataframe(self.df_completo, parsed))
+                            df_filtrado = filter_dataframe(self.df_completo, parsed)
                         else:
-                            frames.append(
-                                filter_dataframe(
+                            df_filtrado = filter_dataframe(
+                                self.df_completo,
+                                parsed,
+                                search_columns=self.search_columns,
+                            )
+                    else:
+                        df_filtrado = self.df_completo
+                    if self._is_cancelled():
+                        return
+                else:
+                    matched_indices: list[pd.Index] = []
+                    include_all_rows = False
+                    for terms in self.search_chunks:
+                        if self._is_cancelled():
+                            return
+                        if terms:
+                            parsed = parse_search_terms(
+                                terms, default_mode=self.default_mode
+                            )
+                            if self._is_cancelled():
+                                return
+                            if self.search_columns is None:
+                                filtered = filter_dataframe(self.df_completo, parsed)
+                            else:
+                                filtered = filter_dataframe(
                                     self.df_completo,
                                     parsed,
                                     search_columns=self.search_columns,
                                 )
-                            )
+                            if not filtered.empty:
+                                matched_indices.append(filtered.index)
+                        else:
+                            include_all_rows = True
+                            break
+                        if self._is_cancelled():
+                            return
+                    if include_all_rows:
+                        df_filtrado = self.df_completo
+                    elif matched_indices:
+                        matched_index = matched_indices[0]
+                        for index in matched_indices[1:]:
+                            matched_index = matched_index.union(index)
+                        df_filtrado = self.df_completo.loc[
+                            self.df_completo.index.isin(matched_index)
+                        ]
                     else:
-                        frames.append(self.df_completo)
-                    if self._is_cancelled():
-                        return
-                if frames:
-                    if len(frames) == 1:
-                        df_filtrado = frames[0]
-                    else:
-                        merged_frames = pd.concat(
-                            frames, axis=0, ignore_index=False
-                        )
-                        df_filtrado = merged_frames.loc[
-                            ~merged_frames.index.duplicated(keep="first")
-                        ].reset_index(drop=True)
-                else:
-                    df_filtrado = self.df_completo.copy(deep=False)
+                        df_filtrado = self.df_completo.iloc[0:0]
             else:
                 df_filtrado = self.df_completo.copy(deep=False)
 

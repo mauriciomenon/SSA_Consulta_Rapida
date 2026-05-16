@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import html as html_module
 import math
+import os
 from typing import Any, Mapping, cast
 
 import pandas as pd
@@ -16,6 +17,7 @@ from gui.helpers.theme_helpers import pick_css_color
 from gui.qt_stubs import QTimer
 from gui.ssa import details_data_provider
 from gui.ssa import details_derivadas_model
+from gui.ssa.details_display_config import DetailsDisplayConfig
 from gui.ssa.details_graph_export import (
     DetailsGraphExportController,
     load_svg_render_dependencies,
@@ -29,14 +31,8 @@ from utils.themes import get_theme_roles
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
-DETAILS_DIALOG_FONT_SIZE = 10
-DETAILS_DIALOG_TABLE_PADDING = 8
-DETAILS_DIALOG_BORDER_COLOR = "#ccc"
-DETAIL_FIELD_PRIORITY = []
-DETAIL_DISPLAY_OVERRIDES = {}
-HIGHLIGHT_BACKGROUND_COLOR = "yellow"
-HIGHLIGHT_FONT_WEIGHT = "bold"
-MONO_FONT_FAMILY = "monospace"
+
+DETAILS_CONFIG = DetailsDisplayConfig()
 HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
 DERIVADAS_DIALOG_RATIO_LEFT = 24
 DERIVADAS_DIALOG_RATIO_RIGHT = 76
@@ -82,31 +78,16 @@ def configure_details_constants(
     highlight_font_weight,
     mono_font_family,
 ) -> None:
-    global DETAILS_DIALOG_FONT_SIZE
-    global DETAILS_DIALOG_TABLE_PADDING
-    global DETAILS_DIALOG_BORDER_COLOR
-    global DETAIL_FIELD_PRIORITY
-    global DETAIL_DISPLAY_OVERRIDES
-    global HIGHLIGHT_BACKGROUND_COLOR
-    global HIGHLIGHT_FONT_WEIGHT
-    global MONO_FONT_FAMILY
-
-    if details_dialog_font_size is not None:
-        DETAILS_DIALOG_FONT_SIZE = details_dialog_font_size
-    if details_dialog_table_padding is not None:
-        DETAILS_DIALOG_TABLE_PADDING = details_dialog_table_padding
-    if details_dialog_border_color is not None:
-        DETAILS_DIALOG_BORDER_COLOR = details_dialog_border_color
-    if detail_field_priority is not None:
-        DETAIL_FIELD_PRIORITY = list(detail_field_priority)
-    if detail_display_overrides is not None:
-        DETAIL_DISPLAY_OVERRIDES = dict(detail_display_overrides)
-    if highlight_background_color is not None:
-        HIGHLIGHT_BACKGROUND_COLOR = highlight_background_color
-    if highlight_font_weight is not None:
-        HIGHLIGHT_FONT_WEIGHT = highlight_font_weight
-    if mono_font_family is not None:
-        MONO_FONT_FAMILY = mono_font_family
+    DETAILS_CONFIG.update(
+        details_dialog_font_size=details_dialog_font_size,
+        details_dialog_table_padding=details_dialog_table_padding,
+        details_dialog_border_color=details_dialog_border_color,
+        detail_field_priority=detail_field_priority,
+        detail_display_overrides=detail_display_overrides,
+        highlight_background_color=highlight_background_color,
+        highlight_font_weight=highlight_font_weight,
+        mono_font_family=mono_font_family,
+    )
 
 
 def _normalize_highlight_term(window, term):
@@ -162,9 +143,9 @@ def _collect_highlight_terms(window):
 
 def _highlight_text(window, text, terms):
     """Delegate to helper function."""
-    bg = getattr(window, "_highlight_bg_color", HIGHLIGHT_BACKGROUND_COLOR)
-    fg = getattr(window, "_highlight_text_color", None)
-    weight = getattr(window, "_highlight_font_weight", HIGHLIGHT_FONT_WEIGHT)
+    bg = getattr(window, "_highlight_bg_color", DETAILS_CONFIG.highlight_background_color)
+    fg = getattr(window, "_highlight_text_color", DETAILS_CONFIG.highlight_text_color)
+    weight = getattr(window, "_highlight_font_weight", DETAILS_CONFIG.highlight_font_weight)
     try:
         return highlight_text(
             text,
@@ -226,7 +207,7 @@ def _format_details_html(
 ):
     """Formata dados da SSA como HTML com highlight opcional."""
     if font_size_pt is None:
-        font_size_pt = DETAILS_DIALOG_FONT_SIZE
+        font_size_pt = DETAILS_CONFIG.details_dialog_font_size
     if label_font_size_pt is None:
         label_font_size_pt = font_size_pt
     if not font_family:
@@ -284,7 +265,7 @@ def _format_details_html(
     def field_sort_key(item):
         col, _ = item
         try:
-            return (0, DETAIL_FIELD_PRIORITY.index(col))
+            return (0, DETAILS_CONFIG.field_priority.index(col))
         except ValueError:
             return (1, col)
 
@@ -298,7 +279,7 @@ def _format_details_html(
             continue
         if col == "situacao":
             formatted_value = format_status_display(formatted_value)
-        display_name = DETAIL_DISPLAY_OVERRIDES.get(
+        display_name = DETAILS_CONFIG.display_overrides.get(
             col, window.internal_to_display.get(col, col)
         )
         if col == "numero_ssa" and linkify:
@@ -323,12 +304,12 @@ def _format_details_html(
 
         html_lines.append(
             f"<tr>"
-            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+            f'<td style="padding: {DETAILS_CONFIG.table_padding}px; '
+            f"border-bottom: 1px solid {DETAILS_CONFIG.border_color}; "
             f'font-weight: bold; font-size: {label_font_size_pt}pt; vertical-align: top;">'
             f"{display_name_html}:</td>"
-            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+            f'<td style="padding: {DETAILS_CONFIG.table_padding}px; '
+            f"border-bottom: 1px solid {DETAILS_CONFIG.border_color}; "
             f'overflow-wrap: anywhere; word-break: break-word;">'
             f"{formatted_value}</td>"
             f"</tr>"
@@ -351,6 +332,12 @@ def _format_details_html(
         if linkify:
             items = []
             derived_exists_cache: dict[str, bool] = {}
+            if isinstance(ssa_index, dict):
+                _hydrate_ssa_index_candidates(
+                    window,
+                    cast(dict[str, pd.Series], ssa_index),
+                    derived_list,
+                )
             for item in derived_list:
                 href = _normalize_ssa_value(window, item)
                 exists = False
@@ -358,7 +345,7 @@ def _format_details_html(
                     cached_exists = derived_exists_cache.get(href)
                     if cached_exists is None:
                         resolved_series = ssa_index.get(href)
-                        if resolved_series is None:
+                        if resolved_series is None and allow_global_index:
                             resolved_series = _get_series_for_ssa(window, href)
                         cached_exists = resolved_series is not None
                         derived_exists_cache[href] = cached_exists
@@ -381,12 +368,12 @@ def _format_details_html(
         label = f"SSAs derivadas ({len(derived_list)})"
         html_lines.append(
             f"<tr>"
-            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+            f'<td style="padding: {DETAILS_CONFIG.table_padding}px; '
+            f"border-bottom: 1px solid {DETAILS_CONFIG.border_color}; "
             f'font-weight: bold; font-size: {label_font_size_pt}pt; vertical-align: top;">'
             f"{html_module.escape(label)}:</td>"
-            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-            f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+            f'<td style="padding: {DETAILS_CONFIG.table_padding}px; '
+            f"border-bottom: 1px solid {DETAILS_CONFIG.border_color}; "
             f'overflow-wrap: anywhere; word-break: break-word;">'
             f"{derived_text}</td>"
             f"</tr>"
@@ -418,12 +405,12 @@ def _format_details_html(
             related_text = ", ".join(rendered_items)
             html_lines.append(
                 f"<tr>"
-                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-                f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+                f'<td style="padding: {DETAILS_CONFIG.table_padding}px; '
+                f"border-bottom: 1px solid {DETAILS_CONFIG.border_color}; "
                 f'font-weight: bold; font-size: {label_font_size_pt}pt; vertical-align: top;">'
                 f"{html_module.escape(label)}:</td>"
-                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
-                f"border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; "
+                f'<td style="padding: {DETAILS_CONFIG.table_padding}px; '
+                f"border-bottom: 1px solid {DETAILS_CONFIG.border_color}; "
                 f'overflow-wrap: anywhere; word-break: break-word;">'
                 f"{related_text}</td>"
                 f"</tr>"
@@ -456,8 +443,7 @@ def _normalize_ssa_value(window, value):
         whole, fractional = text.split(".", 1)
         if whole.isdigit() and fractional and set(fractional) <= {"0"}:
             text = whole
-    lowered = text.casefold()
-    if lowered in ("nan", "none", "nat", "<na>"):
+    if text.casefold() in ("nan", "none", "nat", "<na>"):
         return ""
     if text.isdigit():
         # Compat branch: GUI tests and local temporary IDs can still be short numeric.
@@ -466,7 +452,7 @@ def _normalize_ssa_value(window, value):
         digits = "".join(ch for ch in text if ch.isdigit())
         if digits:
             return digits
-    return lowered
+    return ""
 
 
 def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
@@ -482,11 +468,7 @@ def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
         return pd.Series(resolved, index=series_obj.index, dtype="object")
     except Exception as exc:
         logger.debug("Falha ao normalizar SSA series; fallback apply: %s", exc)
-        try:
-            return series.map(lambda value: _normalize_ssa_value(window, value))
-        except Exception as fallback_exc:
-            logger.debug("Falha no fallback de normalizacao SSA series: %s", fallback_exc)
-            return pd.Series([""] * len(series), index=series.index)
+        return pd.Series([""] * len(series), index=series.index, dtype="object")
 
 
 def _normalize_ssa_relation_value(value) -> str:
@@ -581,13 +563,15 @@ def _get_df_ssa_series_index(window, df) -> dict[str, pd.Series]:
         valid_series = normalized_series.astype("string").fillna("").str.strip()
         valid_series = valid_series[valid_series.ne("")]
         unique_series = valid_series[~valid_series.duplicated()]
-        for idx_label, normalized in unique_series.items():
+        if unique_series.empty:
+            return lookup
+        first_rows = df.loc[unique_series.index]
+        if isinstance(first_rows, pd.Series):
+            first_rows = first_rows.to_frame().T
+        for normalized, (_, matched) in zip(unique_series.to_list(), first_rows.iterrows()):
             normalized_text = str(normalized or "").strip()
             if not normalized_text:
                 continue
-            matched = df.loc[idx_label]
-            if isinstance(matched, pd.DataFrame):
-                matched = matched.iloc[0]
             lookup[normalized_text] = matched
     except Exception as exc:
         logger.debug("Falha ao montar indice SSA por DataFrame: %s", exc)
@@ -639,6 +623,74 @@ def _get_window_ssa_series_index(window) -> dict[str, pd.Series]:
         )
         window._details_ssa_series_index = merged
     return merged
+
+
+def _hydrate_ssa_index_candidates(
+    window,
+    ssa_index: dict[str, pd.Series],
+    candidates: list[str],
+) -> None:
+    resolved = _resolve_ssa_series_candidates(window, candidates, existing=ssa_index)
+    ssa_index.update(resolved)
+
+
+def _resolve_ssa_series_candidates(
+    window,
+    candidates,
+    *,
+    existing: Mapping[str, pd.Series] | None = None,
+) -> dict[str, pd.Series]:
+    resolved: dict[str, pd.Series] = {}
+    remaining = {
+        normalized
+        for normalized in (
+            _normalize_ssa_relation_value(candidate) for candidate in candidates
+        )
+        if normalized
+    }
+    if existing:
+        resolved.update(
+            {
+                key: value
+                for key, value in existing.items()
+                if key in remaining and value is not None
+            }
+        )
+        remaining.difference_update(resolved.keys())
+    if not remaining:
+        return resolved
+
+    def hydrate_from_df(df) -> None:
+        nonlocal remaining
+        if (
+            not remaining
+            or df is None
+            or df.empty
+            or "numero_ssa" not in getattr(df, "columns", [])
+        ):
+            return
+        normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
+        if normalized_series.empty:
+            return
+        matches = normalized_series.isin(remaining)
+        if not bool(matches.any()):
+            return
+        matched_normalized = normalized_series[matches]
+        matched_rows = df.loc[matched_normalized.index]
+        if isinstance(matched_rows, pd.Series):
+            matched_rows = matched_rows.to_frame().T
+        for normalized_value, (_, matched) in zip(
+            matched_normalized.to_list(), matched_rows.iterrows()
+        ):
+            key = str(normalized_value or "").strip()
+            if not key or key in resolved:
+                continue
+            resolved[key] = matched
+        remaining.difference_update(resolved.keys())
+
+    hydrate_from_df(getattr(window, "df_exibido", None))
+    hydrate_from_df(getattr(window, "df_completo", None))
+    return resolved
 
 
 def _get_details_db_signature():
@@ -726,9 +778,30 @@ def update_details_from_selection(window):
         if (
             window.details_text.toPlainText().strip()
             and render_signature == current_signature
-        ):
-            return
-    _update_details_from_series(window, series)
+            ):
+                return
+    _schedule_details_update(window, series)
+
+
+def _schedule_details_update(window, series) -> None:
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        _update_details_from_series(window, series)
+        return
+    timer = getattr(window, "_details_update_timer", None)
+    if timer is None:
+        timer = QTimer(window)
+        timer.setSingleShot(True)
+        timer.setInterval(80)
+        window._details_update_timer = timer
+
+        def _flush_pending_details_update() -> None:
+            pending_series = getattr(window, "_pending_details_series", None)
+            window._pending_details_series = None
+            _update_details_from_series(window, pending_series)
+
+        timer.timeout.connect(_flush_pending_details_update)
+    window._pending_details_series = series
+    timer.start()
 
 
 def _update_details_from_series(window, series):
@@ -768,10 +841,6 @@ def _update_details_from_series(window, series):
             font_size_pt=font_size_pt,
             linkify=True,
             font_family=font_family,
-            # Evita construir o indice SSA global no primeiro paint do painel.
-            # Para o painel lateral, os poucos lookups adicionais sao mais baratos
-            # que materializar o indice completo no startup.
-            ssa_index={},
         )
         window.details_text.setHtml(html_content)
         window.details_text.setProperty("details_render_signature", render_signature)
@@ -784,7 +853,7 @@ def _update_details_from_series(window, series):
     def field_sort_key(item):
         col, _ = item
         try:
-            return (0, DETAIL_FIELD_PRIORITY.index(col))
+            return (0, DETAILS_CONFIG.field_priority.index(col))
         except ValueError:
             return (1, col)
 
@@ -798,7 +867,7 @@ def _update_details_from_series(window, series):
             continue
         if col == "situacao":
             formatted_value = format_status_display(formatted_value)
-        display_name = DETAIL_DISPLAY_OVERRIDES.get(
+        display_name = DETAILS_CONFIG.display_overrides.get(
             col, window.internal_to_display.get(col, col)
         )
         lines.append(f"{display_name}: {formatted_value}")
@@ -1172,19 +1241,27 @@ def _derivadas_frame_cache_token(window) -> object:
     df = getattr(window, "df_completo", None)
     if df is None or getattr(df, "empty", True):
         return ("empty", 0)
+    data_uuid = getattr(window, "_data_uuid", None)
+    revision = getattr(window, "_data_revision", None)
+    if data_uuid is not None and revision is not None:
+        return ("revision", revision, tuple(getattr(df, "shape", (0, 0))))
     columns = [
         column
         for column in ("numero_ssa", "derivada_de", "situacao")
         if column in getattr(df, "columns", [])
     ]
-    if not columns:
-        return ("shape", tuple(getattr(df, "shape", (0, 0))))
-    try:
-        frame_hash = pd.util.hash_pandas_object(df.loc[:, columns], index=True).sum()
-        return ("df", tuple(df.shape), tuple(columns), int(frame_hash))
-    except Exception as exc:
-        logger.debug("Falha ao calcular assinatura local de derivadas: %s", exc)
-        return ("identity", id(df), tuple(getattr(df, "shape", (0, 0))))
+    if columns:
+        try:
+            relation_hash = int(
+                pd.util.hash_pandas_object(
+                    df.loc[:, columns].astype("string").fillna(""),
+                    index=False,
+                ).sum()
+            )
+            return ("content", tuple(getattr(df, "shape", (0, 0))), relation_hash)
+        except Exception as exc:
+            logger.debug("Falha ao calcular assinatura local de derivadas: %s", exc)
+    return ("identity", id(df), tuple(getattr(df, "shape", (0, 0))))
 
 
 def _collect_derivadas_tree_data(window, numero_ssa):
@@ -1283,71 +1360,24 @@ def _build_derivadas_link_state(
             for raw_candidate in raw_candidates:
                 remember_candidate(raw_candidate)
 
-    def hydrate_from_df(df) -> None:
-        remaining = candidate_ssas - existing_tree_ssas
-        if (
-            not remaining
-            or df is None
-            or df.empty
-            or "numero_ssa" not in getattr(df, "columns", [])
-        ):
-            return
+    resolved_candidates = _resolve_ssa_series_candidates(
+        window, candidate_ssas, existing=ssa_index
+    )
+    for candidate, resolved_series in resolved_candidates.items():
+        existing_tree_ssas.add(candidate)
+        if candidate in status_by_ssa:
+            continue
         try:
-            normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
-            if normalized_series.empty:
-                return
-            matches = normalized_series.isin(remaining)
-            if not bool(matches.any()):
-                return
-            matched_norm = normalized_series[matches]
-            matched_status = None
-            if "situacao" in df.columns:
-                matched_status = df.loc[matched_norm.index, "situacao"]
-            for idx_label, normalized in matched_norm.items():
-                normalized_text = str(normalized or "").strip()
-                if not normalized_text:
-                    continue
-                existing_tree_ssas.add(normalized_text)
-                if normalized_text in status_by_ssa or matched_status is None:
-                    continue
-                try:
-                    status_code = get_status_code(matched_status.loc[idx_label])
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao obter situacao da SSA %s no mapa local da arvore: %s",
-                        normalized_text,
-                        exc,
-                    )
-                    status_code = ""
-                if status_code:
-                    status_by_ssa[normalized_text] = status_code
-                if len(existing_tree_ssas) >= len(candidate_ssas):
-                    return
+            status_code = get_status_code(resolved_series.get("situacao"))
         except Exception as exc:
-            logger.debug("Falha ao hidratar candidatos da arvore de derivadas: %s", exc)
-
-    if ssa_index:
-        for candidate in list(candidate_ssas):
-            resolved_series = ssa_index.get(candidate)
-            if resolved_series is None:
-                continue
-            existing_tree_ssas.add(candidate)
-            if candidate in status_by_ssa:
-                continue
-            try:
-                status_code = get_status_code(resolved_series.get("situacao"))
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao obter situacao da SSA %s pelo indice de detalhes: %s",
-                    candidate,
-                    exc,
-                )
-                status_code = ""
-            if status_code:
-                status_by_ssa[candidate] = status_code
-    else:
-        hydrate_from_df(getattr(window, "df_exibido", None))
-        hydrate_from_df(getattr(window, "df_completo", None))
+            logger.debug(
+                "Falha ao obter situacao da SSA %s pelo indice de detalhes: %s",
+                candidate,
+                exc,
+            )
+            status_code = ""
+        if status_code:
+            status_by_ssa[candidate] = status_code
     return status_by_ssa, existing_tree_ssas
 
 
@@ -1451,7 +1481,7 @@ def _build_derivadas_tree_html(
     if tree_font_pt is None:
         tree_font_pt = DERIVADAS_DIALOG_TREE_FONT_PT
     if not font_family:
-        font_family = MONO_FONT_FAMILY
+        font_family = DETAILS_CONFIG.mono_font_family
 
     tree_model = details_derivadas_model.build_tree_render_model(data)
     if tree_model is None:
@@ -1866,7 +1896,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
     dialog_font_pt = DERIVADAS_DIALOG_DETAILS_FONT_PT
     dialog_label_font_pt = DERIVADAS_DIALOG_LABEL_FONT_PT
     dialog_tree_font_pt = DERIVADAS_DIALOG_TREE_FONT_PT
-    dialog_font_family = MONO_FONT_FAMILY
+    dialog_font_family = DETAILS_CONFIG.mono_font_family
     try:
         base_font = window.font()
         size = base_font.pointSizeF()

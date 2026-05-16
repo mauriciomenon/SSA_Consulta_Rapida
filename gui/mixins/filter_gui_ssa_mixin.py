@@ -171,7 +171,6 @@ class SummaryRemovalPlan:
     refresh_needed: bool = False
     sync_advanced_ui: bool = False
     sync_quick_combo: bool = False
-    global_status_reset_requested: bool = False
     removal_column_names: list[str] = field(default_factory=list)
     removal_advanced_keys: list[str] = field(default_factory=list)
 
@@ -606,6 +605,20 @@ class FilterGUISSAMixin:
             )
         return safe_source
 
+    def _build_filter_worker_df_token(self, source: pd.DataFrame) -> str:
+        shape = tuple(getattr(source, "shape", (0, 0)))
+        columns = tuple(str(column) for column in getattr(source, "columns", ()))
+        return repr(
+            (
+                "gui-filter-source",
+                id(source),
+                shape,
+                columns,
+                getattr(self, "_data_revision", None),
+                getattr(self, "_data_uuid", None),
+            )
+        )
+
     def _reset_repeated_clear_click_tracking(self) -> None:
         self._clear_filter_click_count = 0
         self._clear_filter_last_click_ts = 0.0
@@ -734,6 +747,7 @@ class FilterGUISSAMixin:
                 continue
             seen_chunk_terms.add(chunk_key)
             unique_chunk_terms_lists.append(list(terms))
+        search_chunks_for_worker = unique_chunk_terms_lists
 
         self._sync_clear_filter_button_state()
 
@@ -790,7 +804,7 @@ class FilterGUISSAMixin:
             try:
                 df_filtrado = self._apply_general_search_terms(
                     filter_source,
-                    unique_chunk_terms_lists,
+                    search_chunks_for_worker,
                     default_mode=default_mode,
                     general_search_columns=general_search_columns,
                 )
@@ -814,7 +828,7 @@ class FilterGUISSAMixin:
             try:
                 df_filtrado = self._apply_general_search_terms(
                     filter_source,
-                    unique_chunk_terms_lists,
+                    search_chunks_for_worker,
                     default_mode=default_mode,
                     general_search_columns=general_search_columns,
                 )
@@ -831,10 +845,11 @@ class FilterGUISSAMixin:
         filter_cache_context = self._build_filter_cache_context()
         worker = FilterWorker(
             filter_source,
-            unique_chunk_terms_lists,
+            search_chunks_for_worker,
             search_columns=general_search_columns,
             default_mode=default_mode,
             cache_context=filter_cache_context,
+            df_hash=self._build_filter_worker_df_token(filter_source),
         )
         self.filter_thread = worker
         filter_finished_connected = _connect_filter_signal(
@@ -945,8 +960,7 @@ class FilterGUISSAMixin:
         self._sync_clear_filter_button_state()
         self._apply_search_display()
         table_widget = getattr(self, "table_widget", None)
-        table_widget_valid = _is_search_widget_valid(table_widget)
-        if not table_widget_valid:
+        if not _is_search_widget_valid(table_widget):
             logger.debug(
                 "table_widget indisponivel no fim de on_filter_finished; pulando ajustes de largura."
             )
@@ -1095,6 +1109,14 @@ class FilterGUISSAMixin:
                 exc,
             )
             return
+        try:
+            self._ensure_nonzero_column_widths()
+        except Exception as exc:
+            logger.debug(
+                "Falha ao reforcar largura minima deferida em %s: %s",
+                context,
+                exc,
+            )
         try:
             self._apply_safe_width_for_main_column()
         except Exception as exc:
@@ -2700,7 +2722,6 @@ class FilterGUISSAMixin:
         if kind == "search":
             plan.clear_search = True
             plan.refresh_needed = True
-            plan.global_status_reset_requested = True
             return
         if kind == "dedicated_or":
             self._dedicated_or_text = ""
@@ -2796,7 +2817,7 @@ class FilterGUISSAMixin:
             self._refresh_after_filter_change()
         else:
             self._update_filters_summary()
-        if plan.global_status_reset_requested and not self._has_any_active_filters():
+        if plan.clear_search and not self._has_any_active_filters():
             self._set_filtered_count_status()
         self._sync_clear_filter_button_state()
         if plan.sync_quick_combo:
@@ -2982,7 +3003,6 @@ class FilterGUISSAMixin:
             "setor_emissor",
             "setor_executor",
             "descricao_execucao",
-            "localizacao_codigo",
             "semana_cadastro",
             "semana_programada",
             "semana_executada",

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
 from typing import Any, cast
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QFrame,
+    QCheckBox,
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -338,3 +341,137 @@ def build_filters_summary_bar(
         "filters_summary_scroll": filters_summary_scroll,
         "clear_all_filters_btn": clear_all_filters_btn,
     }
+
+
+def build_pagination_filter_bar(
+    window: Any,
+    tab_layout: Any,
+    *,
+    column_selector_cls: Any,
+    paginator_cls: Any,
+) -> dict[str, Any]:
+    column_selector = column_selector_cls(
+        window.display_map,
+        window.visible_columns,
+        default_columns=window.default_columns,
+        available_columns=window._get_canonical_available_columns(),
+        info_font=window._info_font,
+    )
+    column_selector.columns_changed.connect(window.on_columns_changed)
+
+    quick_setor_executor_label = QLabel("Setor Executor:")
+    quick_setor_executor_combo = QComboBox()
+    quick_setor_executor_combo.setToolTip(
+        "Filtro rapido de Setor Executor (aplica junto com os demais filtros)."
+    )
+    _configure_quick_setor_combo(window, quick_setor_executor_combo)
+    selected_setor = str(
+        OrderedDict(window._active_column_filters or {}).get("setor_executor", "")
+    ).strip()
+    window._populate_quick_setor_executor_combo(
+        quick_setor_executor_combo,
+        selected_value=selected_setor,
+    )
+    quick_setor_executor_combo.currentIndexChanged.connect(
+        lambda _idx, combo=quick_setor_executor_combo: (
+            window._on_quick_setor_executor_changed(combo)
+        )
+    )
+
+    pagination_filters_layout = QHBoxLayout()
+    pagination_filters_layout.setContentsMargins(0, 0, 0, 0)
+
+    paginator = paginator_cls(window.df_para_tabela)
+    paginator.page_changed.connect(window.display_current_page)
+    pagination_filters_layout.addWidget(paginator)
+    pagination_filters_layout.addSpacing(8)
+    pagination_filters_layout.addWidget(column_selector)
+
+    profile_selector = None
+    pagination_filters_layout.addSpacing(12)
+
+    persistent_filters_layout = QHBoxLayout()
+    persistent_filters_layout.setContentsMargins(0, 0, 0, 0)
+
+    exclude_ste_checkbox = _build_exclude_ste_checkbox(window)
+    persistent_filters_layout.addWidget(cast(Any, exclude_ste_checkbox))
+
+    pagination_filters_layout.addLayout(cast(Any, persistent_filters_layout))
+    pagination_filters_layout.addStretch()
+    pagination_filters_layout.addWidget(cast(Any, quick_setor_executor_label))
+    pagination_filters_layout.addSpacing(8)
+    pagination_filters_layout.addWidget(cast(Any, quick_setor_executor_combo))
+
+    col_filter_indicator = _build_column_filter_indicator(window)
+
+    tab_layout.addLayout(cast(Any, pagination_filters_layout))
+
+    return {
+        "column_selector": column_selector,
+        "quick_setor_executor_label": quick_setor_executor_label,
+        "quick_setor_executor_combo": quick_setor_executor_combo,
+        "paginator": paginator,
+        "profile_selector": profile_selector,
+        "persistent_filters_layout": persistent_filters_layout,
+        "exclude_ste_checkbox": exclude_ste_checkbox,
+        "col_filter_indicator": col_filter_indicator,
+    }
+
+
+def _configure_quick_setor_combo(window: Any, combo: QComboBox) -> None:
+    try:
+        combo.setMinimumWidth(138)
+        combo.setMaximumWidth(188)
+        combo.setMinimumContentsLength(9)
+        combo.setMaxVisibleItems(14)
+        _set_fixed_height(window, combo, 26, "combo rapido de setor executor")
+        adjust_policy = getattr(
+            QComboBox.SizeAdjustPolicy,
+            "AdjustToMinimumContentsLengthWithIcon",
+            None,
+        )
+        if adjust_policy is None:
+            adjust_policy = getattr(QComboBox.SizeAdjustPolicy, "AdjustToContents", None)
+        if adjust_policy is not None:
+            combo.setSizeAdjustPolicy(cast(Any, adjust_policy))
+        combo.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        combo_view = combo.view()
+        if combo_view is not None:
+            scroll_policy = getattr(
+                getattr(Qt, "ScrollBarPolicy", None), "ScrollBarAsNeeded", None
+            )
+            if scroll_policy is not None:
+                combo_view.setVerticalScrollBarPolicy(cast(Any, scroll_policy))
+    except Exception as exc:
+        logger.debug("Falha ao configurar combo rapido de setor executor: %s", exc)
+
+
+def _build_exclude_ste_checkbox(window: Any) -> QCheckBox:
+    checkbox = QCheckBox("Nao esta em SCA/SES/STE")
+    checkbox.setToolTip("Oculta SSAs com situacao SCA, SES ou STE")
+    try:
+        checkbox.setChecked(False)
+        checkbox.setVisible(False)
+        checkbox.toggled.connect(window._on_exclude_ste_sca_toggled)
+    except Exception as exc:
+        logger.warning("Falha ao configurar checkbox excluir STE/SCA: %s", exc)
+    return checkbox
+
+
+def _build_column_filter_indicator(window: Any) -> QLabel:
+    indicator = QLabel("")
+    try:
+        if window._info_font is not None:
+            indicator.setFont(cast(Any, QFont(window._info_font)))
+    except Exception as exc:
+        logger.debug("Falha ao aplicar fonte no indicador de filtro por coluna: %s", exc)
+    indicator.setToolTip(
+        "Busca rapida: virgulas separam termos cumulativos (logica E). "
+        "Filtros por coluna: virgulas representam alternativas dentro da mesma coluna. "
+        "Entre filtros diferentes, as restricoes continuam cumulativas."
+    )
+    try:
+        indicator.setVisible(False)
+    except Exception as exc:
+        logger.debug("Falha ao ocultar indicador de filtro por coluna: %s", exc)
+    return indicator

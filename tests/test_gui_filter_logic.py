@@ -437,7 +437,7 @@ class TestGUIFilterLogic:
         assert "Set. Exec." in labels
         assert "Set. Emis." in labels
         assert "Desc. Exec." in labels
-        assert "Loc." in labels
+        assert "Loc." not in labels
         assert "Sem. Cad." in labels
         assert "Sem. Prog." in labels
         assert "Sem. Exec." in labels

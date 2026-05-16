@@ -24,7 +24,6 @@ import os
 import posixpath
 import re
 import shutil
-import sqlite3
 import subprocess  # nosec B404
 import sys
 import threading
@@ -70,8 +69,10 @@ from gui.ssa import gui_filters_advanced as ssa_gui_filters  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
 from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
+from gui.ssa.derivadas_table_resolver import resolve_derivadas_table_name  # noqa: E402
 from gui.ssa.main_window_filter_bar import (  # noqa: E402
     build_filters_summary_bar,
+    build_pagination_filter_bar,
     build_search_bar,
 )
 from gui.ssa.filter_domain_rules import (  # noqa: E402
@@ -1252,6 +1253,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._data_revision_df_ids = (id(self.df_completo), id(self.df_exibido))
         except AttributeError:
             self._data_revision_df_ids = None
+        self._details_ssa_index_sources = None
+        self._details_ssa_series_index = None
         if reason:
             logger.debug("Data revision bump (%s): %s", reason, next_rev)
         return next_rev
@@ -1779,125 +1782,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         filter_tags_widget = search_context["filter_tags_widget"]
         filter_tags_layout = search_context["filter_tags_layout"]
         search_help = search_context["search_help"]
-        column_selector = ColumnSelector(
-            self.display_map,
-            self.visible_columns,
-            default_columns=self.default_columns,
-            available_columns=self._get_canonical_available_columns(),
-            info_font=self._info_font,
-        )
-        column_selector.columns_changed.connect(self.on_columns_changed)
-
-        quick_setor_executor_label = QLabel("Setor Executor:")
-        quick_setor_executor_combo = QComboBox()
-        quick_setor_executor_combo.setToolTip(
-            "Filtro rapido de Setor Executor (aplica junto com os demais filtros)."
-        )
-        try:
-            quick_setor_executor_combo.setMinimumWidth(138)
-            quick_setor_executor_combo.setMaximumWidth(188)
-            quick_setor_executor_combo.setMinimumContentsLength(9)
-            quick_setor_executor_combo.setMaxVisibleItems(14)
-            control_height = 26
-            self._set_widget_fixed_height_safe(
-                quick_setor_executor_combo,
-                control_height,
-                "combo rapido de setor executor",
-            )
-            adjust_policy = getattr(
-                QComboBox.SizeAdjustPolicy,
-                "AdjustToMinimumContentsLengthWithIcon",
-                None,
-            )
-            if adjust_policy is None:
-                adjust_policy = getattr(
-                    QComboBox.SizeAdjustPolicy, "AdjustToContents", None
-                )
-            if adjust_policy is not None:
-                quick_setor_executor_combo.setSizeAdjustPolicy(cast(Any, adjust_policy))
-            quick_setor_executor_combo.setStyleSheet("QComboBox { combobox-popup: 0; }")
-            combo_view = quick_setor_executor_combo.view()
-            if combo_view is not None:
-                scroll_bar_policy = getattr(
-                    getattr(Qt, "ScrollBarPolicy", None), "ScrollBarAsNeeded", None
-                )
-                if scroll_bar_policy is not None:
-                    combo_view.setVerticalScrollBarPolicy(cast(Any, scroll_bar_policy))
-        except Exception as exc:
-            logger.debug("Falha ao configurar combo rapido de setor executor: %s", exc)
-        self._populate_quick_setor_executor_combo(
-            quick_setor_executor_combo,
-            selected_value=str(
-                OrderedDict(self._active_column_filters or {}).get("setor_executor", "")
-            ).strip(),
-        )
-        quick_setor_executor_combo.currentIndexChanged.connect(
-            lambda _idx,
-            combo=quick_setor_executor_combo: self._on_quick_setor_executor_changed(
-                combo
-            )
-        )
-
-        # Pagination and persistent filters
-        pagination_filters_layout = QHBoxLayout()
-        pagination_filters_layout.setContentsMargins(0, 0, 0, 0)
-
-        paginator = DataPaginator(self.df_para_tabela)
-        paginator.page_changed.connect(self.display_current_page)
-        pagination_filters_layout.addWidget(paginator)
-        pagination_filters_layout.addSpacing(8)
-        pagination_filters_layout.addWidget(cast(Any, column_selector))
-
-        profile_selector = None
-        pagination_filters_layout.addSpacing(12)
-
-        persistent_filters_layout = QHBoxLayout()
-        persistent_filters_layout.setContentsMargins(0, 0, 0, 0)
-
-        exclude_ste_checkbox = QCheckBox("Nao esta em SCA/SES/STE")
-        exclude_ste_checkbox.setToolTip("Oculta SSAs com situacao SCA, SES ou STE")
-        try:
-            exclude_ste_checkbox.setChecked(False)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao inicializar estado do checkbox excluir STE/SCA: %s", exc
-            )
-        try:
-            exclude_ste_checkbox.setVisible(False)
-        except Exception as exc:
-            logger.debug("Falha ao ocultar checkbox excluir STE/SCA na aba: %s", exc)
-        try:
-            exclude_ste_checkbox.toggled.connect(self._on_exclude_ste_sca_toggled)
-        except Exception as exc:
-            logger.warning(
-                "Falha ao conectar toggle do checkbox excluir STE/SCA: %s", exc
-            )
-        persistent_filters_layout.addWidget(cast(Any, exclude_ste_checkbox))
-
-        pagination_filters_layout.addLayout(cast(Any, persistent_filters_layout))
-        pagination_filters_layout.addStretch()
-        pagination_filters_layout.addWidget(cast(Any, quick_setor_executor_label))
-        pagination_filters_layout.addSpacing(8)
-        pagination_filters_layout.addWidget(cast(Any, quick_setor_executor_combo))
-
-        col_filter_indicator = QLabel("")
-        try:
-            if self._info_font is not None:
-                col_filter_indicator.setFont(cast(Any, QFont(self._info_font)))
-        except Exception as exc:
-            logger.debug(
-                "Falha ao aplicar fonte no indicador de filtro por coluna: %s", exc
-            )
-        col_filter_indicator.setToolTip(
-            "Busca rapida: virgulas separam termos cumulativos (logica E). "
-            "Filtros por coluna: virgulas representam alternativas dentro da mesma coluna. "
-            "Entre filtros diferentes, as restricoes continuam cumulativas."
-        )
-        try:
-            col_filter_indicator.setVisible(False)
-        except Exception as exc:
-            logger.debug("Falha ao ocultar indicador de filtro por coluna: %s", exc)
-
         try:
             summary_context = build_filters_summary_bar(
                 self, tab_layout, action_button_style=self._week_label_style
@@ -1921,7 +1805,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         filters_summary_scroll = summary_context["filters_summary_scroll"]
         clear_all_filters_btn = summary_context["clear_all_filters_btn"]
 
-        tab_layout.addLayout(cast(Any, pagination_filters_layout))
+        pagination_context = build_pagination_filter_bar(
+            self,
+            tab_layout,
+            column_selector_cls=ColumnSelector,
+            paginator_cls=DataPaginator,
+        )
+        column_selector = pagination_context["column_selector"]
+        quick_setor_executor_label = pagination_context["quick_setor_executor_label"]
+        quick_setor_executor_combo = pagination_context["quick_setor_executor_combo"]
+        paginator = pagination_context["paginator"]
+        profile_selector = pagination_context["profile_selector"]
+        persistent_filters_layout = pagination_context["persistent_filters_layout"]
+        exclude_ste_checkbox = pagination_context["exclude_ste_checkbox"]
+        col_filter_indicator = pagination_context["col_filter_indicator"]
 
         if (
             isinstance(self._restored_page_size, int)
@@ -2324,6 +2221,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         def _is_canonical_column(col_name: str) -> bool:
             if not col_name or col_name == "#":
                 return False
+            if col_name in always_allow:
+                return True
             if col_name in COMPATIBILITY_NULL_UI_COLUMNS:
                 return False
             if col_name in legacy_invalid_columns:
@@ -3347,9 +3246,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         ):
             return
         if current_columns[0] == "#" and header.visualIndex(0) != 0:
-            self._skip_width_recompute_once = True
-            self.display_current_page(self.paginator.current_page, update_details=False)
-            return
+            try:
+                self._header_order_sync_suspended = True
+                header.moveSection(header.visualIndex(0), 0)
+            except Exception as exc:
+                logger.debug("Falha ao restaurar coluna # apos drag: %s", exc)
+            finally:
+                self._header_order_sync_suspended = False
         ordered_columns = ssa_gui_table._get_header_visual_column_order(self)
         if not ordered_columns:
             return
@@ -3851,11 +3754,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             clicked_column_name = ""
 
         row = index.row()
-        index_item = self.table_widget.item(row, 0)
-        if not index_item:
-            return
-        original_index = index_item.data(Qt.ItemDataRole.UserRole)
-        if original_index is None or not (0 <= original_index < len(self.df_exibido)):
+        series = self._get_series_from_row(row)
+        if series is None:
             QMessageBox.information(
                 self,
                 "Info",
@@ -3863,7 +3763,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
             return
 
-        series = self.df_exibido.iloc[int(original_index)]
         numero_ssa = series.get("numero_ssa")
         if clicked_column_name == "numero_ssa":
             self._copy_ssa_to_clipboard(numero_ssa)
@@ -3891,22 +3790,47 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return self._persist_gui_preferences()
 
     def _get_series_from_row(self, row: int):
+        visible_numero = self._get_visible_numero_ssa_from_row(row)
         try:
             index_item = self.table_widget.item(row, 0)
         except Exception:
-            return None
-        if not index_item:
-            return None
+            index_item = None
+        original_index = None
+        if index_item:
+            try:
+                original_index = index_item.data(Qt.ItemDataRole.UserRole)
+            except Exception:
+                original_index = None
+        if original_index is not None and 0 <= original_index < len(self.df_exibido):
+            try:
+                candidate = self.df_exibido.iloc[int(original_index)]
+                if visible_numero:
+                    candidate_numero = self._normalize_ssa_value(
+                        candidate.get("numero_ssa")
+                    )
+                    if candidate_numero != visible_numero:
+                        candidate = None
+                if candidate is not None:
+                    return candidate
+            except Exception as exc:
+                logger.debug("Falha ao resolver serie da linha visivel %s: %s", row, exc)
+        if visible_numero:
+            return ssa_gui_details._get_series_for_ssa(self, visible_numero)
+        return None
+
+    def _get_visible_numero_ssa_from_row(self, row: int) -> str:
         try:
-            original_index = index_item.data(Qt.ItemDataRole.UserRole)
-        except Exception:
-            original_index = None
-        if original_index is None or not (0 <= original_index < len(self.df_exibido)):
-            return None
+            display_columns = list(getattr(self, "_current_display_columns", []) or [])
+            numero_col = display_columns.index("numero_ssa")
+        except (ValueError, TypeError):
+            return ""
         try:
-            return self.df_exibido.iloc[int(original_index)]
+            item = self.table_widget.item(row, numero_col)
         except Exception:
-            return None
+            return ""
+        if not item:
+            return ""
+        return self._normalize_ssa_value(item.text())
 
     def _normalize_ssa_value(self, value):
         return ssa_gui_details._normalize_ssa_value(self, value)
@@ -4236,8 +4160,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             cast(Any, alignment_action).setCheckable(True)
             cast(Any, alignment_action).setChecked(alignment_name == current_alignment)
             cast(Any, alignment_action).triggered.connect(
-                lambda _checked=False,
-                name=alignment_name: self._apply_table_cell_alignment_preference(name)
+                lambda _checked, name=alignment_name: (
+                    self._apply_table_cell_alignment_preference(name)
+                )
             )
             alignment_menu.addAction(alignment_action)
             self._table_cell_alignment_actions[alignment_name] = alignment_action
@@ -4454,13 +4379,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             preferred_abs = path_module.abspath(preferred)
             if path_module.isabs(preferred_abs) and os.path.isfile(preferred_abs):
                 return preferred_abs
-        resolved = shutil.which(cmd)
-        if not resolved:
-            raise RuntimeError(f"Comando indisponivel para abrir recurso: {cmd}")
-        resolved_abs = path_module.abspath(resolved)
-        if not path_module.isabs(resolved_abs):
-            raise RuntimeError(f"Comando de abertura invalido: {resolved}")
-        return resolved_abs
+        raise RuntimeError(f"Comando indisponivel para abrir recurso: {cmd}")
 
     def open_settings_file_with_backup(self):
         """Abre settings.json para edicao apos criar backup failsafe com timestamp."""
@@ -5010,40 +4929,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return sorted(files, key=lambda path: os.path.basename(path).casefold())
 
     def _resolve_derivadas_table_name(self, db_path: str) -> str:
-        candidates: list[str] = []
-        for name in (TABLE_NAME, *ALL_SSA_TABLE_NAMES):
-            if isinstance(name, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
-                if name not in candidates:
-                    candidates.append(name)
-        if not candidates:
-            return CANONICAL_SSA_TABLE
-        try:
-            with sqlite3.connect(db_path) as conn:
-                existing = {
-                    row[0]
-                    for row in conn.execute(
-                        "SELECT name FROM sqlite_master WHERE type='table'"
-                    ).fetchall()
-                }
-                required_cols = {"numero_ssa", "derivada_de"}
-                compatible: set[str] = set()
-                for name in candidates:
-                    if name not in existing:
-                        continue
-                    cols = {
-                        str(row[1]).strip()
-                        for row in conn.execute(
-                            f'PRAGMA table_info("{name}")'
-                        ).fetchall()
-                    }
-                    if required_cols.issubset(cols):
-                        compatible.add(name)
-            for name in candidates:
-                if name in compatible:
-                    return name
-        except Exception as exc:
-            logger.warning("Falha ao resolver tabela para sync de derivadas: %s", exc)
-        return CANONICAL_SSA_TABLE
+        return resolve_derivadas_table_name(
+            db_path,
+            (TABLE_NAME, *ALL_SSA_TABLE_NAMES),
+            CANONICAL_SSA_TABLE,
+        )
 
     def update_derivadas_from_sources(self):
         db_path = DB_PATH
