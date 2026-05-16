@@ -75,8 +75,18 @@ def sector_sort_key(
 ) -> tuple[int, str, str]:
     value = str(sector or "").strip()
     sector_to_div = sector_to_div or {}
-    div = sector_to_div.get(value) or sector_to_div.get(value.upper(), "")
-    return (known_division_rank(str(div)), str(div).casefold(), value.casefold())
+    div = (
+        sector_to_div.get(value)
+        or sector_to_div.get(value.upper())
+        or sector_to_div.get(value.lower())
+        or ""
+    )
+    div_text = str(div)
+    return (
+        known_division_rank(div_text.upper()),
+        div_text.casefold(),
+        value.casefold(),
+    )
 
 
 def order_sector_values(
@@ -104,13 +114,14 @@ def _best_sector_from_counts(counts: Mapping[str, int] | None) -> str:
         return ""
     best_sector = ""
     best_count = -1
-    best_name_key = ""
+    best_name_key: str | None = None
     for raw_sector, raw_count in counts.items():
         sector = str(raw_sector)
         count = int(raw_count)
         name_key = sector.casefold()
         if count > best_count or (
-            count == best_count and (not best_sector or name_key < best_name_key)
+            count == best_count
+            and (best_name_key is None or name_key < best_name_key)
         ):
             best_sector = sector
             best_count = count
@@ -119,38 +130,61 @@ def _best_sector_from_counts(counts: Mapping[str, int] | None) -> str:
 
 
 def _sector_counts_for_responsavel_column(
-    df: pd.DataFrame, resp_col: str, sector_cols: list[str]
+    df: pd.DataFrame,
+    resp_col: str,
+    sector_cols: list[str],
+    *,
+    normalized_sectors: Mapping[str, pd.Series] | None = None,
 ) -> dict[str, dict[str, int]]:
     person_series = normalize_nonempty_string_series(df[resp_col])
-    normalized = pd.DataFrame(
-        {
-            "row_id": df.index,
-            "person": person_series,
-            **{
-                sector_col: normalize_nonempty_string_series(df[sector_col])
-                for sector_col in sector_cols
-            },
-        },
-        index=df.index,
-    )
-    long = normalized.melt(
-        id_vars=("row_id", "person"),
-        value_vars=sector_cols,
-        value_name="sector",
-    )
-    long = long[(long["person"] != "") & (long["sector"] != "")]
-    if long.empty:
+    normalized_sectors = normalized_sectors or {
+        sector_col: normalize_nonempty_string_series(df[sector_col])
+        for sector_col in sector_cols
+    }
+    return _count_responsavel_sector_pairs(
+        df.index,
+        {"": person_series},
+        normalized_sectors,
+    ).get("", {})
+
+
+def _count_responsavel_sector_pairs(
+    row_index,
+    responsavel_series: Mapping[str, pd.Series],
+    sector_series: Mapping[str, pd.Series],
+) -> dict[str, dict[str, dict[str, int]]]:
+    if not responsavel_series or not sector_series:
         return {}
-    grouped = (
-        long.drop_duplicates(["row_id", "person", "sector"])
-        .groupby(["person", "sector"], dropna=False)
-        .size()
-        .reset_index(name="count")
-    )
-    sector_counts: dict[str, dict[str, int]] = {}
-    for row in grouped.itertuples(index=False):
-        sector_counts.setdefault(str(row.person), {})[str(row.sector)] = int(row.count)
-    return sector_counts
+    result: dict[str, dict[str, dict[str, int]]] = {}
+    for resp_col, person_series in responsavel_series.items():
+        sector_columns = []
+        wide = pd.DataFrame(
+            {"row_id": row_index, "person": person_series},
+            index=row_index,
+        )
+        for index, sector_values in enumerate(sector_series.values()):
+            sector_column = f"sector_{index}"
+            wide[sector_column] = sector_values.to_numpy()
+            sector_columns.append(sector_column)
+        pairs = wide.melt(
+            id_vars=("row_id", "person"),
+            value_vars=sector_columns,
+            value_name="sector",
+        )
+        pairs = pairs[(pairs["person"] != "") & (pairs["sector"] != "")]
+        if pairs.empty:
+            continue
+        grouped = (
+            pairs.drop_duplicates(["row_id", "person", "sector"])
+            .groupby(["person", "sector"], dropna=False)
+            .size()
+        )
+        resp_result: dict[str, dict[str, int]] = {}
+        for (person, sector), count in grouped.items():
+            resp_result.setdefault(str(person), {})[str(sector)] = int(count)
+        if resp_result:
+            result[str(resp_col)] = resp_result
+    return result
 
 
 def build_responsavel_sector_counts(
@@ -173,13 +207,27 @@ def build_responsavel_sector_counts_by_column(
     *,
     sector_columns: Iterable[str] = ("setor_executor", "setor_emissor"),
 ) -> dict[str, dict[str, dict[str, int]]]:
-    return {
-        resp_col: build_responsavel_sector_counts(
-            df, resp_col, sector_columns=sector_columns
-        )
-        for resp_col in resp_columns
-        if isinstance(df, pd.DataFrame) and resp_col in df.columns
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        return {}
+    sector_cols = [column for column in sector_columns if column in df.columns]
+    if not sector_cols:
+        return {}
+    normalized_sectors = {
+        sector_col: normalize_nonempty_string_series(df[sector_col])
+        for sector_col in sector_cols
     }
+    resp_cols = [resp_col for resp_col in resp_columns if resp_col in df.columns]
+    if not resp_cols:
+        return {}
+    normalized_responsaveis = {
+        resp_col: normalize_nonempty_string_series(df[resp_col])
+        for resp_col in resp_cols
+    }
+    return _count_responsavel_sector_pairs(
+        df.index,
+        normalized_responsaveis,
+        normalized_sectors,
+    )
 
 
 def order_responsavel_values(
@@ -192,7 +240,7 @@ def order_responsavel_values(
     sector_counts = sector_counts or {}
     sector_to_div = sector_to_div or {}
 
-    person_meta = {}
+    decorated_meta = []
     for person in cleaned:
         sector = _best_sector_from_counts(sector_counts.get(person))
         div = sector_to_div.get(sector, "")
@@ -202,21 +250,23 @@ def order_responsavel_values(
             prefix = f"{sector} - "
         else:
             prefix = ""
-        person_meta[person] = (
+        decorated_meta.append(
             (
-                known_division_rank(str(div)),
-                div.casefold(),
-                sector.casefold(),
-                person.casefold(),
+                (
+                    known_division_rank(str(div)),
+                    div.casefold(),
+                    sector.casefold(),
+                    person.casefold(),
+                ),
+                person,
+                prefix,
             ),
-            prefix,
         )
 
-    decorated: list[tuple[str, str]] = []
-    for person in sorted(cleaned, key=lambda value: person_meta[value][0]):
-        prefix = person_meta[person][1]
-        decorated.append((person, f"{prefix}{person}"))
-    return decorated
+    return [
+        (person, f"{prefix}{person}")
+        for _, person, prefix in sorted(decorated_meta, key=lambda item: item[0])
+    ]
 
 
 def subset_by_sector_filters(
@@ -264,9 +314,13 @@ def generate_responsavel_sector_filter_cache_signature(
     emissor_include: Iterable[Any] | None = None,
     emissor_exclude: Iterable[Any] | None = None,
 ) -> tuple[Any, ...]:
+    frame_token = (
+        data_load_token
+        if data_load_token is not None
+        else _responsavel_sector_frame_fingerprint(df)
+    )
     return (
-        data_load_token,
-        id(df),
+        frame_token,
         len(df),
         tuple(str(column) for column in df.columns),
         tuple(executor_include or ()),
@@ -274,6 +328,22 @@ def generate_responsavel_sector_filter_cache_signature(
         tuple(emissor_include or ()),
         tuple(emissor_exclude or ()),
     )
+
+
+def _responsavel_sector_frame_fingerprint(df: pd.DataFrame) -> int:
+    try:
+        first_index = df.index[0] if len(df.index) else None
+        last_index = df.index[-1] if len(df.index) else None
+        return hash(
+            (
+                len(df),
+                first_index,
+                last_index,
+                id(df.columns),
+            )
+        )
+    except Exception:
+        return hash(len(df))
 
 
 def filter_responsavel_frame_by_sector_selection(
@@ -296,7 +366,7 @@ def filter_responsavel_frame_by_sector_selection(
 def macro_baixar_filter_preset() -> dict[str, tuple[str, ...]]:
     return {
         "derivada_include_values": MACRO_BAIXAR_DERIVADA_SELECTION,
-        "status_exclude_values": MACRO_BAIXAR_STATUS_EXCLUSIONS,
+        "situacao_exclude_values": MACRO_BAIXAR_STATUS_EXCLUSIONS,
     }
 
 

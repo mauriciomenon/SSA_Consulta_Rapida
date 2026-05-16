@@ -37,12 +37,7 @@ from utils.robust_logging import get_robust_logger
 
 from .filter_domain_rules import (
     advanced_macro_filter_preset,
-    build_responsavel_sector_counts_by_column,
-    collect_nonempty_column_values,
-    filter_responsavel_frame_by_sector_selection,
-    generate_responsavel_sector_filter_cache_signature,
     order_sector_values,
-    order_responsavel_values,
     sector_sort_key,
 )
 from .gui_filters_advanced_layout import (
@@ -50,7 +45,6 @@ from .gui_filters_advanced_layout import (
     AdvancedGridLayoutMetrics,
     build_advanced_grid_layout_plan,
 )
-from .gui_filters_advanced_logic import RESPONSAVEL_FILTER_COLUMN_CANDIDATES
 from .gui_filters_advanced_refresh import (
     AdvancedFilterUIState,
     build_advanced_values_cache_key,
@@ -61,6 +55,7 @@ from .gui_filters_advanced_state_reader import (
     resolve_year_selection_sets,
 )
 from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
+from .gui_filters_responsavel_refresh import responsavel_options_refresher
 from .gui_filters_responsavel_state import responsavel_materialization_state
 
 logger = get_robust_logger().get_logger(__name__, "gui")
@@ -97,6 +92,7 @@ class MultiselectMenuModel:
     total_values: int
     selected_norm: set[str]
     exclude_norm: set[str]
+    label_display_by_key: dict[str, str]
 
 
 def _get_widget_screen_geometry(widget):
@@ -423,6 +419,7 @@ def _set_checkbox_checked_quietly(self, checkbox, checked: bool) -> None:
             exc,
         )
         desired = bool(checked)
+    previous_signal_state = False
     manual_blocked = False
     try:
         with QSignalBlocker(checkbox):
@@ -430,7 +427,7 @@ def _set_checkbox_checked_quietly(self, checkbox, checked: bool) -> None:
             return
     except Exception:
         try:
-            checkbox.blockSignals(True)
+            previous_signal_state = bool(checkbox.blockSignals(True))
             manual_blocked = True
             checkbox.setChecked(desired)
         except Exception as exc:
@@ -440,7 +437,7 @@ def _set_checkbox_checked_quietly(self, checkbox, checked: bool) -> None:
         finally:
             if manual_blocked:
                 try:
-                    checkbox.blockSignals(False)
+                    checkbox.blockSignals(previous_signal_state)
                 except Exception as exc:
                     logger.debug(
                         "Falha ao restaurar sinais de checkbox sem QSignalBlocker: %s",
@@ -448,122 +445,12 @@ def _set_checkbox_checked_quietly(self, checkbox, checked: bool) -> None:
                     )
 
 
-class AdvancedFilterManager:
-    def __init__(self, window) -> None:
-        self.window = window
-        self.responsavel_state = responsavel_materialization_state(window)
-
-    @property
-    def all_responsavel_prefixes(self) -> set[str]:
-        return self.responsavel_state.all_prefixes
-
-    @property
-    def dirty_responsavel_prefixes(self) -> set[str]:
-        return self.responsavel_state.dirty_prefixes
-
-    @property
-    def built_responsavel_prefixes(self) -> set[str]:
-        return self.responsavel_state.built_prefixes
-
-    def sync_responsavel_flags(self) -> None:
-        return
-
-    def mark_responsavel_dirty(self, prefixes=None) -> None:
-        self.responsavel_state.mark_dirty(prefixes)
-
-    def ensure_responsavel_options_materialized(
-        self,
-        target_prefix: str | None = None,
-        force: bool = False,
-    ) -> None:
-        all_prefixes = self.all_responsavel_prefixes
-        if target_prefix:
-            if target_prefix not in all_prefixes:
-                return
-            target_prefixes = {target_prefix}
-        else:
-            target_prefixes = set(all_prefixes)
-        dirty = self.dirty_responsavel_prefixes
-        built = self.built_responsavel_prefixes
-        if not force and target_prefixes.issubset(built) and not (
-            target_prefixes & dirty
-        ):
-            return
-        if getattr(self.window, "_responsavel_refreshing", False):
-            return
-        self.window._responsavel_refreshing = True
-        try:
-            self.window._refresh_responsavel_options(target_prefixes=target_prefixes)
-        finally:
-            self.window._responsavel_refreshing = False
-
-    def filtered_responsavel_frame(self, frame: pd.DataFrame) -> pd.DataFrame:
-        window = self.window
-        executor_include = window._get_checked_values(
-            getattr(window, "adv_executor_checks", None)
-        )
-        executor_exclude = window._get_checked_values(
-            getattr(window, "adv_executor_exclude_checks", None)
-        )
-        emissor_include = window._get_checked_values(
-            getattr(window, "adv_emissor_checks", None)
-        )
-        emissor_exclude = window._get_checked_values(
-            getattr(window, "adv_emissor_exclude_checks", None)
-        )
-        cache_key = generate_responsavel_sector_filter_cache_signature(
-            frame,
-            data_load_token=getattr(window, "_data_load_token", None),
-            executor_include=executor_include,
-            executor_exclude=executor_exclude,
-            emissor_include=emissor_include,
-            emissor_exclude=emissor_exclude,
-        )
-        cache = getattr(window, "_responsavel_filtered_frame_cache", None)
-        if isinstance(cache, dict) and cache.get("key") == cache_key:
-            cached_frame = cache.get("frame")
-            if isinstance(cached_frame, pd.DataFrame):
-                return cached_frame
-        filtered = filter_responsavel_frame_by_sector_selection(
-            frame,
-            executor_include=executor_include,
-            executor_exclude=executor_exclude,
-            emissor_include=emissor_include,
-            emissor_exclude=emissor_exclude,
-        )
-        window._responsavel_filtered_frame_cache = {"key": cache_key, "frame": filtered}
-        return filtered
-
-    def responsavel_option_values(
-        self, frame: pd.DataFrame, source_col: str
-    ) -> list[tuple[str, str]]:
-        try:
-            vals = collect_nonempty_column_values(frame, source_col)
-            unique_values = sorted(set(vals), key=lambda value: value.casefold())
-        except Exception:
-            unique_values = []
-        return self.window._sort_responsavel_values(
-            frame,
-            unique_values,
-            source_col,
-            df_source=getattr(self.window, "df_completo", frame),
-        )
-
-
-def _advanced_filter_manager(self) -> AdvancedFilterManager:
-    manager = getattr(self, "_advanced_filter_manager", None)
-    if not isinstance(manager, AdvancedFilterManager):
-        manager = AdvancedFilterManager(self)
-        self._advanced_filter_manager = manager
-    return manager
-
-
 def _sync_responsavel_flags(self) -> None:
-    _advanced_filter_manager(self).sync_responsavel_flags()
+    responsavel_options_refresher(self)
 
 
 def _mark_responsavel_dirty(self, prefixes=None) -> None:
-    _advanced_filter_manager(self).mark_responsavel_dirty(prefixes=prefixes)
+    responsavel_options_refresher(self).mark_dirty(prefixes=prefixes)
 
 
 def _on_sector_debounce_timeout(self) -> None:
@@ -582,7 +469,7 @@ def _ensure_responsavel_options_materialized(
     self, target_prefix: str | None = None, force: bool = False
 ) -> None:
     """Materializa menus de responsaveis sob demanda para reduzir freeze da aba."""
-    _advanced_filter_manager(self).ensure_responsavel_options_materialized(
+    responsavel_options_refresher(self).ensure_materialized(
         target_prefix=target_prefix,
         force=force,
     )
@@ -959,27 +846,14 @@ def _compute_multiselect_popup_metrics(
     except Exception:
         fm = None
     try:
+        measured_values = valid_values[:HIGH_CARDINALITY_MENU_LIMIT]
+        max_label_chars = max(
+            len(_multiselect_value_key_label(value)[1]) for value in measured_values
+        )
+        avg_char_px = 8
         if fm is not None:
-            measured_values = valid_values[:HIGH_CARDINALITY_MENU_LIMIT]
-            max_label_px = max(
-                (
-                    fm.horizontalAdvance(str(v[1]))
-                    if isinstance(v, (list, tuple)) and len(v) > 1
-                    else fm.horizontalAdvance(str(v))
-                )
-                for v in measured_values
-            )
-        else:
-            measured_values = valid_values[:HIGH_CARDINALITY_MENU_LIMIT]
-            max_label_px = (
-                max(
-                    len(str(v[1]))
-                    if isinstance(v, (list, tuple)) and len(v) > 1
-                    else len(str(v))
-                    for v in measured_values
-                )
-                * 8
-            )
+            avg_char_px = max(7, min(10, fm.horizontalAdvance("MMMMmmmm") // 8))
+        max_label_px = max_label_chars * avg_char_px
     except Exception:
         max_label_px = 64
     # Simple clamp for very long names in responsavel menus.
@@ -1074,6 +948,7 @@ def _build_multiselect_menu_model(
         selected_norm,
         exclude_norm,
     )
+    label_display_by_key = _build_multiselect_label_display_map(button, limited_values)
     return MultiselectMenuModel(
         filter_name=filter_name,
         has_exclude_column=has_exclude_column,
@@ -1084,7 +959,27 @@ def _build_multiselect_menu_model(
         total_values=total_values,
         selected_norm=selected_norm,
         exclude_norm=exclude_norm,
+        label_display_by_key=label_display_by_key,
     )
+
+
+def _build_multiselect_label_display_map(button, values) -> dict[str, str]:
+    if not SIMPLE_POPUP_TEXT_CLAMP:
+        return {}
+    try:
+        fm_label = button.fontMetrics() if button is not None else None
+        if fm_label is None:
+            return {}
+        return {
+            key: fm_label.elidedText(
+                label,
+                Qt.TextElideMode.ElideRight,
+                SIMPLE_POPUP_LABEL_MAX_PX,
+            )
+            for key, label in (_multiselect_value_key_label(value) for value in values)
+        }
+    except Exception:
+        return {}
 
 
 def _multiselect_menu_signature(model: MultiselectMenuModel, theme_name: str | None):
@@ -1097,6 +992,7 @@ def _multiselect_menu_signature(model: MultiselectMenuModel, theme_name: str | N
         model.exclude_col_min,
         model.total_values,
         tuple(_multiselect_value_key_label(value) for value in model.values),
+        tuple(sorted(model.label_display_by_key.items())),
         tuple(sorted(model.selected_norm)),
         tuple(sorted(model.exclude_norm)),
     )
@@ -1251,18 +1147,7 @@ def _add_multiselect_item_row(
     on_exclude_toggle,
 ) -> tuple[int, QCheckBox, QCheckBox | None]:
     cb_value, label_text = _multiselect_value_key_label(value)
-    label_text_display = label_text
-    if SIMPLE_POPUP_TEXT_CLAMP:
-        try:
-            fm_label = button.fontMetrics() if button is not None else None
-            if fm_label is not None:
-                label_text_display = fm_label.elidedText(
-                    label_text,
-                    Qt.TextElideMode.ElideRight,
-                    SIMPLE_POPUP_LABEL_MAX_PX,
-                )
-        except Exception:
-            label_text_display = label_text
+    label_text_display = model.label_display_by_key.get(cb_value, label_text)
     label = QLabel(label_text_display)
     try:
         label.setWordWrap(False)
@@ -1313,6 +1198,7 @@ def _configure_multiselect_item_checkbox(
 ) -> None:
     try:
         checkbox.setProperty("value", str(value))
+        checkbox.setProperty("value_norm", str(value).casefold())
         if style:
             checkbox.setStyleSheet(style)
         checkbox.setChecked(bool(checked))
@@ -1503,15 +1389,30 @@ def _append_multiselect_batch_controls(
     )
     row_idx += 1
 
-    def _batch_set_include(target_state: bool):
+    def _batch_set_include(
+        target_state: bool,
+        include_callback=on_toggle,
+        exclude_callback=on_exclude_toggle,
+    ):
         self._multiselect_batch_updating = True
         try:
+            if target_state:
+                for cb in exclude_checks or ():
+                    if not _is_widget_valid(cb):
+                        continue
+                    previous_signal_state = bool(cb.blockSignals(True))
+                    try:
+                        cb.setChecked(False)
+                    finally:
+                        cb.blockSignals(previous_signal_state)
             for cb in checks or ():
                 if not _is_widget_valid(cb):
                     continue
-                cb.blockSignals(True)
-                cb.setChecked(target_state)
-                cb.blockSignals(False)
+                previous_signal_state = bool(cb.blockSignals(True))
+                try:
+                    cb.setChecked(target_state)
+                finally:
+                    cb.blockSignals(previous_signal_state)
         finally:
             self._multiselect_batch_updating = False
         _notify_multiselect_batch_change(
@@ -1519,21 +1420,36 @@ def _append_multiselect_batch_controls(
             button,
             checks,
             exclude_checks,
-            on_toggle,
-            on_exclude_toggle,
+            include_callback,
+            exclude_callback,
             include_changed=True,
             exclude_changed=False,
         )
 
-    def _batch_set_exclude(target_state: bool):
+    def _batch_set_exclude(
+        target_state: bool,
+        include_callback=on_toggle,
+        exclude_callback=on_exclude_toggle,
+    ):
         self._multiselect_batch_updating = True
         try:
+            if target_state:
+                for cb in checks or ():
+                    if not _is_widget_valid(cb):
+                        continue
+                    previous_signal_state = bool(cb.blockSignals(True))
+                    try:
+                        cb.setChecked(False)
+                    finally:
+                        cb.blockSignals(previous_signal_state)
             for cb in exclude_checks or ():
                 if not _is_widget_valid(cb):
                     continue
-                cb.blockSignals(True)
-                cb.setChecked(target_state)
-                cb.blockSignals(False)
+                previous_signal_state = bool(cb.blockSignals(True))
+                try:
+                    cb.setChecked(target_state)
+                finally:
+                    cb.blockSignals(previous_signal_state)
         finally:
             self._multiselect_batch_updating = False
         _notify_multiselect_batch_change(
@@ -1541,8 +1457,8 @@ def _append_multiselect_batch_controls(
             button,
             checks,
             exclude_checks,
-            on_toggle,
-            on_exclude_toggle,
+            include_callback,
+            exclude_callback,
             include_changed=False,
             exclude_changed=True,
         )
@@ -1918,7 +1834,10 @@ def _sync_multiselect_checks(
     selected_set = {str(v).casefold() for v in (selected or [])}
     for cb in checks or []:
         try:
-            cb.setChecked(self._checkbox_value(cb).casefold() in selected_set)
+            value_norm = cb.property("value_norm") or self._checkbox_value(
+                cb
+            ).casefold()
+            cb.setChecked(str(value_norm) in selected_set)
         except Exception as exc:
             logger.debug(
                 "Falha ao sincronizar checkbox include em multiselect: %s", exc
@@ -1926,7 +1845,10 @@ def _sync_multiselect_checks(
     exclude_set = {str(v).casefold() for v in (exclude_selected or [])}
     for cb in exclude_checks or []:
         try:
-            cb.setChecked(self._checkbox_value(cb).casefold() in exclude_set)
+            value_norm = cb.property("value_norm") or self._checkbox_value(
+                cb
+            ).casefold()
+            cb.setChecked(str(value_norm) in exclude_set)
         except Exception as exc:
             logger.debug(
                 "Falha ao sincronizar checkbox exclude em multiselect: %s", exc
@@ -2556,7 +2478,7 @@ def _on_macro_filter_changed(self):
                 self.adv_status_checks,
                 [],
                 self.adv_status_exclude_checks,
-                preset["status_exclude_values"],
+                preset["situacao_exclude_values"],
             )
             self._update_multiselect_button(
                 getattr(self, "adv_status_button", None),
@@ -2798,24 +2720,12 @@ def _sort_sectors(self, values):
 
 
 def _sort_responsavel_values(self, df_subset, values, resp_col: str, df_source=None):
-    if not values:
-        return []
-    source_df = df_source if isinstance(df_source, pd.DataFrame) else df_subset
-    cache = getattr(self, "_responsavel_sector_rank_cache", None)
-    if not isinstance(cache, dict):
-        cache = {}
-        self._responsavel_sector_rank_cache = cache
-    data_token = getattr(self, "_data_load_token", None)
-    source_key = data_token if data_token is not None else id(source_df)
-    cache_key = (source_key, len(source_df), tuple(source_df.columns))
-    counts_by_column = cache.get(cache_key)
-    if not isinstance(counts_by_column, dict):
-        counts_by_column = build_responsavel_sector_counts_by_column(
-            source_df, RESPONSAVEL_FILTER_COLUMN_CANDIDATES
-        )
-        cache[cache_key] = counts_by_column
-    sector_counts = counts_by_column.get(resp_col, {})
-    return order_responsavel_values(values, sector_counts, sector_to_div=SECTOR_TO_DIV)
+    return responsavel_options_refresher(self).sorted_values(
+        df_subset,
+        values,
+        resp_col,
+        df_source=df_source,
+    )
 
 
 def _apply_divisao_to_setor_checks(self):
@@ -2824,144 +2734,7 @@ def _apply_divisao_to_setor_checks(self):
 
 
 def _refresh_responsavel_options(self, target_prefixes=None):
-    state = responsavel_materialization_state(self)
-    all_prefixes = state.all_prefixes
-    if target_prefixes is None:
-        requested_prefixes = set(all_prefixes)
-    else:
-        requested_prefixes = {p for p in target_prefixes if p in all_prefixes}
-    if not requested_prefixes:
-        return
-    if self.df_completo is None or self.df_completo.empty:
-        self._mark_responsavel_dirty(prefixes=requested_prefixes)
-        return
-
-    def apply_cb():
-        return self._apply_advanced_filters_from_ui()
-
-    def _set_enabled(widget, enabled):
-        if widget is None:
-            return
-        try:
-            widget.setEnabled(bool(enabled))
-        except Exception as exc:
-            logger.debug(
-                "Falha ao ajustar estado enabled de widget %r: %s", widget, exc
-            )
-
-    def _set_visible(widget, visible):
-        if widget is None:
-            return
-        try:
-            widget.setVisible(bool(visible))
-        except Exception as exc:
-            logger.debug("Falha ao ajustar visibilidade de widget %r: %s", widget, exc)
-
-    manager = _advanced_filter_manager(self)
-    df = manager.filtered_responsavel_frame(self.df_completo)
-
-    resp_cols = [
-        (
-            "solicitante",
-            "adv_responsavel_solicitante",
-            RESPONSAVEL_FILTER_COLUMN_CANDIDATES["solicitante"],
-        ),
-        (
-            "responsavel_programacao",
-            "adv_responsavel_programacao",
-            RESPONSAVEL_FILTER_COLUMN_CANDIDATES["responsavel_programacao"],
-        ),
-        (
-            "responsavel_execucao",
-            "adv_responsavel_execucao",
-            RESPONSAVEL_FILTER_COLUMN_CANDIDATES["responsavel_execucao"],
-        ),
-    ]
-    processed_prefixes = set()
-    for key_name, prefix, candidate_cols in resp_cols:
-        if prefix not in requested_prefixes:
-            continue
-        box = getattr(self, f"{prefix}_box", None)
-        button = getattr(self, f"{prefix}_button", None)
-        menu = getattr(self, f"{prefix}_menu", None)
-        checks_attr = f"{prefix}_checks"
-        exclude_checks_attr = f"{prefix}_exclude_checks"
-        exclude = getattr(self, f"{prefix}_exclude", None)
-        source_col = next(
-            (name for name in candidate_cols if name in self.df_completo.columns),
-            None,
-        )
-        col_exists = source_col is not None
-        _set_visible(box, col_exists)
-        if not col_exists:
-            _set_enabled(button, False)
-            _set_enabled(exclude, False)
-            setattr(self, checks_attr, [])
-            setattr(self, exclude_checks_attr, [])
-            processed_prefixes.add(prefix)
-            continue
-        values = manager.responsavel_option_values(df, source_col)
-        try:
-            values = list(values)
-        except Exception as exc:
-            logger.debug(
-                "Failed to prepare responsavel values for column '%s': %s",
-                source_col,
-                exc,
-            )
-            values = []
-        _set_enabled(button, True)
-        _set_enabled(exclude, True)
-        selected = set((self._advanced_filters or {}).get(key_name) or [])
-        excluded = set(
-            (self._advanced_filters or {}).get(f"{key_name}_exclude_values") or []
-        )
-        include_checks, exclude_checks = self._rebuild_multiselect_menu(
-            button,
-            menu,
-            values,
-            selected,
-            lambda *_,
-            current_button=button,
-            current_checks_attr=checks_attr,
-            current_exclude_checks_attr=exclude_checks_attr: self._update_multiselect_button(
-                current_button,
-                getattr(self, current_checks_attr, []),
-                exclude_checks=getattr(self, current_exclude_checks_attr, None),
-            ),
-            True,
-            excluded,
-            lambda *_,
-            current_button=button,
-            current_checks_attr=checks_attr,
-            current_exclude_checks_attr=exclude_checks_attr: self._update_multiselect_button(
-                current_button,
-                getattr(self, current_checks_attr, []),
-                exclude_checks=getattr(self, current_exclude_checks_attr, None),
-            ),
-        )
-        setattr(self, checks_attr, include_checks)
-        setattr(self, exclude_checks_attr, exclude_checks)
-        processed_prefixes.add(prefix)
-
-    adv_cache = getattr(self, "_adv_values_cache", {}) or {}
-    derivadas_numbers = adv_cache.get("derivadas_vals", [])
-    if not derivadas_numbers:
-        # Extrai numeros unicos de SSAs derivadas se nao estiver em cache
-        try:
-            if "derivada_de" in df.columns:
-                derivadas_series = self._normalize_ssa_series(df["derivada_de"])
-                derivadas_numbers = sorted(
-                    {v for v in derivadas_series.unique() if v and str(v).strip()},
-                    key=lambda x: str(x).casefold(),
-                )
-                adv_cache["derivadas_vals"] = derivadas_numbers
-                self._adv_values_cache = adv_cache
-        except Exception as exc:
-            logger.debug(
-                "Falha ao atualizar cache de derivadas em filtros avancados: %s", exc
-            )
-    state.mark_materialized(processed_prefixes)
+    responsavel_options_refresher(self).refresh(target_prefixes=target_prefixes)
 
 
 def _clear_advanced_filters(self):
@@ -3591,6 +3364,8 @@ def _refresh_derivadas_menu(self, filters, apply_cb, selected_override=None):
             for v in selected_override
             if str(v).strip().casefold() in {"has", "all_ste", "is"}
         }
+    if not selected and getattr(self, "adv_derivada_checks", None):
+        selected = _collect_derivadas_selected_from_checks(self)
     if not selected:
         if bool(filters.get("derivada_has")):
             selected.add("has")
