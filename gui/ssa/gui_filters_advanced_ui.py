@@ -36,7 +36,7 @@ from gui.qt_stubs import (
 from utils.robust_logging import get_robust_logger
 
 from .filter_domain_rules import (
-    MACRO_BAIXAR_STATUS_EXCLUSIONS,
+    advanced_macro_filter_preset,
     build_responsavel_sector_counts_by_column,
     collect_nonempty_column_values,
     filter_responsavel_frame_by_sector_selection,
@@ -432,11 +432,6 @@ def _set_checkbox_checked_quietly(self, checkbox, checked: bool) -> None:
         try:
             checkbox.blockSignals(True)
             manual_blocked = True
-        except Exception as exc:
-            logger.debug(
-                "Falha ao bloquear sinais de checkbox sem QSignalBlocker: %s", exc
-            )
-        try:
             checkbox.setChecked(desired)
         except Exception as exc:
             logger.debug(
@@ -1035,15 +1030,23 @@ def _limit_multiselect_values(
     if len(valid_values) <= HIGH_CARDINALITY_MENU_LIMIT:
         return valid_values
     selected_keys = selected_norm | exclude_norm
+    if not selected_keys:
+        return valid_values[:HIGH_CARDINALITY_MENU_LIMIT]
     selected_values = []
+    found_selected_keys: set[str] = set()
     remaining = []
     remaining_limit = HIGH_CARDINALITY_MENU_LIMIT
     for value in valid_values:
         key = _multiselect_value_key_label(value)[0].casefold()
         if key in selected_keys:
             selected_values.append(value)
+            found_selected_keys.add(key)
         elif len(remaining) < remaining_limit:
             remaining.append(value)
+        if len(remaining) >= remaining_limit and len(found_selected_keys) >= len(
+            selected_keys
+        ):
+            break
     return selected_values + remaining[: max(0, remaining_limit - len(selected_values))]
 
 
@@ -1231,6 +1234,149 @@ def _build_multiselect_checkbox_styles(
     return checkbox_style, checkbox_style
 
 
+def _add_multiselect_item_row(
+    self,
+    *,
+    grid,
+    row_idx: int,
+    button,
+    model: MultiselectMenuModel,
+    value,
+    popup_text: str,
+    cb_style_include: str,
+    cb_style_exclude: str,
+    apply_checkbox_styles: bool,
+    exclude_enabled: bool,
+    on_toggle,
+    on_exclude_toggle,
+) -> tuple[int, QCheckBox, QCheckBox | None]:
+    cb_value, label_text = _multiselect_value_key_label(value)
+    label_text_display = label_text
+    if SIMPLE_POPUP_TEXT_CLAMP:
+        try:
+            fm_label = button.fontMetrics() if button is not None else None
+            if fm_label is not None:
+                label_text_display = fm_label.elidedText(
+                    label_text,
+                    Qt.TextElideMode.ElideRight,
+                    SIMPLE_POPUP_LABEL_MAX_PX,
+                )
+        except Exception:
+            label_text_display = label_text
+    label = QLabel(label_text_display)
+    try:
+        label.setWordWrap(False)
+        label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        label.setStyleSheet(f"font-size: 11px; color: {popup_text};")
+        if label_text_display != label_text:
+            label.setToolTip(label_text)
+    except Exception as exc:
+        logger.debug("Falha ao estilizar label do item no menu multiselect: %s", exc)
+    include_cb = QCheckBox()
+    exclude_cb = QCheckBox() if exclude_enabled else None
+    cb_key = str(cb_value).casefold()
+    _configure_multiselect_item_checkbox(
+        include_cb,
+        value=cb_value,
+        checked=cb_key in model.selected_norm,
+        style=cb_style_include if apply_checkbox_styles else "",
+    )
+    if exclude_cb is not None:
+        _configure_multiselect_item_checkbox(
+            exclude_cb,
+            value=cb_value,
+            checked=cb_key in model.exclude_norm,
+            style=cb_style_exclude if apply_checkbox_styles else "",
+        )
+    grid.addWidget(label, row_idx, 0)
+    grid.addWidget(include_cb, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
+    if exclude_cb is not None:
+        grid.addWidget(exclude_cb, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
+        _connect_multiselect_exclusion_pair(
+            self,
+            include_cb,
+            exclude_cb,
+            on_toggle=on_toggle,
+            on_exclude_toggle=on_exclude_toggle,
+        )
+    elif on_toggle is not None:
+        _connect_checkbox_callback(include_cb, on_toggle, "on_toggle")
+    return row_idx + 1, include_cb, exclude_cb
+
+
+def _configure_multiselect_item_checkbox(
+    checkbox,
+    *,
+    value,
+    checked: bool,
+    style: str,
+) -> None:
+    try:
+        checkbox.setProperty("value", str(value))
+        if style:
+            checkbox.setStyleSheet(style)
+        checkbox.setChecked(bool(checked))
+    except Exception as exc:
+        logger.debug("Falha ao configurar checkbox do menu multiselect: %s", exc)
+
+
+def _connect_checkbox_callback(checkbox, callback, label: str) -> None:
+    if callback is None:
+        return
+    try:
+        checkbox.toggled.connect(callback)
+    except Exception as exc:
+        logger.warning("Falha ao conectar callback %s do menu multiselect: %s", label, exc)
+
+
+def _connect_multiselect_exclusion_pair(
+    self,
+    include_cb,
+    exclude_cb,
+    *,
+    on_toggle,
+    on_exclude_toggle,
+) -> None:
+    def _toggle_include(checked, other=exclude_cb):
+        if getattr(self, "_multiselect_batch_updating", False):
+            return
+        if not checked or not _is_widget_valid(other):
+            return
+        try:
+            if not other.isChecked():
+                return
+            other.blockSignals(True)
+            other.setChecked(False)
+        finally:
+            if _is_widget_valid(other):
+                other.blockSignals(False)
+
+    def _toggle_exclude(checked, other=include_cb):
+        if getattr(self, "_multiselect_batch_updating", False):
+            return
+        if not checked or not _is_widget_valid(other):
+            return
+        try:
+            if not other.isChecked():
+                return
+            other.blockSignals(True)
+            other.setChecked(False)
+        finally:
+            if _is_widget_valid(other):
+                other.blockSignals(False)
+
+    try:
+        include_cb.toggled.connect(_toggle_include)
+        exclude_cb.toggled.connect(_toggle_exclude)
+    except Exception as exc:
+        logger.warning(
+            "Falha ao conectar mutual exclusion include/exclude no menu multiselect: %s",
+            exc,
+        )
+    _connect_checkbox_callback(include_cb, on_toggle, "on_toggle")
+    _connect_checkbox_callback(exclude_cb, on_exclude_toggle, "on_exclude_toggle")
+
+
 def _notify_multiselect_batch_change(
     self,
     button,
@@ -1366,18 +1512,18 @@ def _append_multiselect_batch_controls(
                 cb.blockSignals(True)
                 cb.setChecked(target_state)
                 cb.blockSignals(False)
-            _notify_multiselect_batch_change(
-                self,
-                button,
-                checks,
-                exclude_checks,
-                on_toggle,
-                on_exclude_toggle,
-                include_changed=True,
-                exclude_changed=False,
-            )
         finally:
             self._multiselect_batch_updating = False
+        _notify_multiselect_batch_change(
+            self,
+            button,
+            checks,
+            exclude_checks,
+            on_toggle,
+            on_exclude_toggle,
+            include_changed=True,
+            exclude_changed=False,
+        )
 
     def _batch_set_exclude(target_state: bool):
         self._multiselect_batch_updating = True
@@ -1388,18 +1534,18 @@ def _append_multiselect_batch_controls(
                 cb.blockSignals(True)
                 cb.setChecked(target_state)
                 cb.blockSignals(False)
-            _notify_multiselect_batch_change(
-                self,
-                button,
-                checks,
-                exclude_checks,
-                on_toggle,
-                on_exclude_toggle,
-                include_changed=False,
-                exclude_changed=True,
-            )
         finally:
             self._multiselect_batch_updating = False
+        _notify_multiselect_batch_change(
+            self,
+            button,
+            checks,
+            exclude_checks,
+            on_toggle,
+            on_exclude_toggle,
+            include_changed=False,
+            exclude_changed=True,
+        )
 
     try:
         batch_mark_include.clicked.connect(lambda: _batch_set_include(True))
@@ -1413,243 +1559,16 @@ def _append_multiselect_batch_controls(
     return row_idx
 
 
-def _rebuild_multiselect_menu(
-    self,
-    button,
+def _make_multiselect_scroll(
+    *,
+    container,
+    model: MultiselectMenuModel,
+    popup_bg: str,
+    popup_text: str,
+    popup_border: str,
+    checked_bg: str,
     menu,
-    values,
-    selected_set,
-    on_toggle=None,
-    show_footer=None,
-    exclude_selected_set=None,
-    on_exclude_toggle=None,
 ):
-    checks = []
-    exclude_checks = []
-    model = _build_multiselect_menu_model(
-        button,
-        values,
-        selected_set,
-        exclude_selected_set,
-    )
-    signature = _multiselect_menu_signature(
-        model,
-        str(getattr(self, "_current_theme", "") or ""),
-    )
-    cached = getattr(menu, "_ssa_multiselect_cache", None)
-    if isinstance(cached, dict) and cached.get("signature") == signature:
-        cached_checks = list(cached.get("checks") or [])
-        cached_exclude_checks = list(cached.get("exclude_checks") or [])
-        if all(_is_widget_valid(check) for check in cached_checks) and all(
-            _is_widget_valid(check) for check in cached_exclude_checks
-        ):
-            self._update_multiselect_button(
-                button,
-                cached_checks,
-                exclude_checks=cached_exclude_checks,
-            )
-            return cached_checks, cached_exclude_checks
-    try:
-        menu.clear()
-    except Exception as exc:
-        logger.debug("Falha ao limpar menu multiselect antes de reconstruir: %s", exc)
-    try:
-        menu.setMinimumWidth(model.popup_width)
-        menu.setMaximumWidth(model.popup_width)
-    except Exception as exc:
-        logger.debug("Falha ao ajustar largura do menu multiselect: %s", exc)
-
-    popup_bg, popup_text, popup_border, checked_bg, checkbox_bg, checkbox_border = (
-        _resolve_popup_theme_tokens(
-            self,
-            button,
-            menu,
-        )
-    )
-
-    container = QWidget()
-    grid = QGridLayout(container)
-    _configure_multiselect_grid(
-        grid,
-        model.has_exclude_column,
-        model.include_col_min,
-        model.exclude_col_min,
-    )
-    row_idx = 0
-
-    row_idx = _append_multiselect_header(
-        grid,
-        row_idx,
-        filter_name=model.filter_name,
-        has_exclude_column=model.has_exclude_column,
-        popup_text=popup_text,
-        popup_border=popup_border,
-    )
-    row_idx = _append_multiselect_limit_notice(
-        grid,
-        row_idx,
-        displayed_count=len(model.values),
-        total_values=model.total_values,
-        has_exclude_column=model.has_exclude_column,
-        popup_text=popup_text,
-    )
-
-    apply_checkbox_styles = len(model.values) <= HIGH_CARDINALITY_MENU_LIMIT
-    try:
-        cb_style_include, cb_style_exclude = _build_multiselect_checkbox_styles(
-            checkbox_bg=checkbox_bg,
-            checkbox_border=checkbox_border,
-            checked_bg=checked_bg,
-        )
-    except Exception as exc:
-        logger.debug("Falha ao gerar estilo de checkbox do menu multiselect: %s", exc)
-        cb_style_include = ""
-        cb_style_exclude = ""
-    if apply_checkbox_styles and cb_style_include:
-        try:
-            container.setStyleSheet(cb_style_include)
-            apply_checkbox_styles = False
-        except Exception as exc:
-            logger.debug(
-                "Falha ao aplicar estilo de checkbox no container multiselect: %s", exc
-            )
-
-    for val in model.values:
-        cb_value, label_text = _multiselect_value_key_label(val)
-        label_text_display = label_text
-        if SIMPLE_POPUP_TEXT_CLAMP:
-            try:
-                fm_label = button.fontMetrics() if button is not None else None
-                if fm_label is not None:
-                    label_text_display = fm_label.elidedText(
-                        label_text,
-                        Qt.TextElideMode.ElideRight,
-                        SIMPLE_POPUP_LABEL_MAX_PX,
-                    )
-            except Exception:
-                label_text_display = label_text
-        label = QLabel(label_text_display)
-        try:
-            label.setWordWrap(False)
-            label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            label.setStyleSheet(f"font-size: 11px; color: {popup_text};")
-            if label_text_display != label_text:
-                label.setToolTip(label_text)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao estilizar label do item no menu multiselect: %s", exc
-            )
-        include_cb = QCheckBox()
-        exclude_cb = QCheckBox() if exclude_selected_set is not None else None
-        try:
-            include_cb.setProperty("value", str(cb_value))
-            if apply_checkbox_styles:
-                include_cb.setStyleSheet(cb_style_include)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao configurar checkbox include do menu multiselect: %s", exc
-            )
-        if exclude_cb is not None:
-            try:
-                exclude_cb.setProperty("value", str(cb_value))
-                if apply_checkbox_styles:
-                    exclude_cb.setStyleSheet(cb_style_exclude)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao configurar checkbox exclude do menu multiselect: %s", exc
-                )
-        cb_key = str(cb_value).casefold()
-        try:
-            include_cb.setChecked(cb_key in model.selected_norm)
-        except Exception as exc:
-            logger.debug("Falha ao aplicar estado inicial do checkbox include: %s", exc)
-        if exclude_cb is not None:
-            try:
-                exclude_cb.setChecked(cb_key in model.exclude_norm)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar estado inicial do checkbox exclude: %s", exc
-                )
-        grid.addWidget(label, row_idx, 0)
-        grid.addWidget(include_cb, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-        if exclude_cb is not None:
-            grid.addWidget(
-                exclude_cb, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter
-            )
-        row_idx += 1
-        checks.append(include_cb)
-        if exclude_cb is not None:
-            exclude_checks.append(exclude_cb)
-        if exclude_cb is not None:
-
-            def _toggle_include(checked, other=exclude_cb):
-                if getattr(self, "_multiselect_batch_updating", False):
-                    return
-                if not checked or not _is_widget_valid(other):
-                    return
-                try:
-                    if not other.isChecked():
-                        return
-                    other.blockSignals(True)
-                    other.setChecked(False)
-                finally:
-                    if _is_widget_valid(other):
-                        other.blockSignals(False)
-
-            def _toggle_exclude(checked, other=include_cb):
-                if getattr(self, "_multiselect_batch_updating", False):
-                    return
-                if not checked or not _is_widget_valid(other):
-                    return
-                try:
-                    if not other.isChecked():
-                        return
-                    other.blockSignals(True)
-                    other.setChecked(False)
-                finally:
-                    if _is_widget_valid(other):
-                        other.blockSignals(False)
-
-            try:
-                include_cb.toggled.connect(_toggle_include)
-                exclude_cb.toggled.connect(_toggle_exclude)
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao conectar mutual exclusion include/exclude no menu multiselect: %s",
-                    exc,
-                )
-        if on_toggle is not None:
-            try:
-                include_cb.toggled.connect(on_toggle)
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao conectar callback on_toggle do menu multiselect: %s", exc
-                )
-        if exclude_cb is not None and on_exclude_toggle is not None:
-            try:
-                exclude_cb.toggled.connect(on_exclude_toggle)
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao conectar callback on_exclude_toggle do menu multiselect: %s",
-                    exc,
-                )
-
-    if exclude_selected_set is not None:
-        row_idx = _append_multiselect_batch_controls(
-            self,
-            grid=grid,
-            row_idx=row_idx,
-            checks=checks,
-            exclude_checks=exclude_checks,
-            checkbox_bg=checkbox_bg,
-            checkbox_border=checkbox_border,
-            checked_bg=checked_bg,
-            popup_text=popup_text,
-            on_toggle=on_toggle,
-            on_exclude_toggle=on_exclude_toggle,
-            button=button,
-        )
-
     scroll = QScrollArea()
     scroll.setWidget(container)
     scroll.setWidgetResizable(True)
@@ -1712,6 +1631,10 @@ def _rebuild_multiselect_menu(
         logger.debug(
             "Falha ao ajustar altura dinamica do scroll no menu multiselect: %s", exc
         )
+    return scroll
+
+
+def _append_multiselect_scroll_action(menu, scroll) -> None:
     scroll_act = QWidgetAction(menu)
     scroll_act.setDefaultWidget(scroll)
     try:
@@ -1719,32 +1642,247 @@ def _rebuild_multiselect_menu(
     except Exception as exc:
         logger.debug("Falha ao adicionar scroll action no menu multiselect: %s", exc)
 
-    # Botoes de fechamento. A aplicacao fica no botao "Aplicar" geral.
-    if show_footer is not None:
-        close_btn = QPushButton("Fechar")
-        close_btn.setFixedWidth(88)
-        close_btn.setToolTip("Fechar menu")
+
+def _append_multiselect_footer(menu, *, show_footer) -> None:
+    if show_footer is None:
+        return
+    close_btn = QPushButton("Fechar")
+    close_btn.setFixedWidth(88)
+    close_btn.setToolTip("Fechar menu")
+    try:
+        close_btn.clicked.connect(menu.close)
+    except Exception as exc:
+        logger.debug("Falha ao conectar botao Fechar no menu multiselect: %s", exc)
+    ok_row = QWidget()
+    ok_layout = QHBoxLayout(ok_row)
+    ok_layout.setContentsMargins(8, 4, 8, 6)
+    ok_layout.setSpacing(6)
+    ok_layout.addStretch()
+    ok_layout.addWidget(close_btn)
+    ok_layout.addStretch()
+    ok_act = QWidgetAction(menu)
+    ok_act.setDefaultWidget(ok_row)
+    try:
+        menu.addAction(ok_act)
+    except Exception as exc:
+        logger.debug("Falha ao adicionar rodape de acoes no menu multiselect: %s", exc)
+
+
+def _try_reuse_multiselect_menu_cache(self, *, menu, button, signature):
+    cached = getattr(menu, "_ssa_multiselect_cache", None)
+    if not isinstance(cached, dict) or cached.get("signature") != signature:
+        return None
+    cached_checks = list(cached.get("checks") or [])
+    cached_exclude_checks = list(cached.get("exclude_checks") or [])
+    if not all(_is_widget_valid(check) for check in cached_checks):
+        return None
+    if not all(_is_widget_valid(check) for check in cached_exclude_checks):
+        return None
+    self._update_multiselect_button(
+        button,
+        cached_checks,
+        exclude_checks=cached_exclude_checks,
+    )
+    return cached_checks, cached_exclude_checks
+
+
+def _prepare_multiselect_menu(menu, model: MultiselectMenuModel) -> None:
+    try:
+        menu.clear()
+    except Exception as exc:
+        logger.debug("Falha ao limpar menu multiselect antes de reconstruir: %s", exc)
+    try:
+        menu.setMinimumWidth(model.popup_width)
+        menu.setMaximumWidth(model.popup_width)
+    except Exception as exc:
+        logger.debug("Falha ao ajustar largura do menu multiselect: %s", exc)
+
+
+def _build_multiselect_grid(model: MultiselectMenuModel):
+    container = QWidget()
+    grid = QGridLayout(container)
+    _configure_multiselect_grid(
+        grid,
+        model.has_exclude_column,
+        model.include_col_min,
+        model.exclude_col_min,
+    )
+    return container, grid
+
+
+def _configure_multiselect_checkbox_style(
+    *,
+    container,
+    checkbox_bg: str,
+    checkbox_border: str,
+    checked_bg: str,
+    value_count: int,
+) -> tuple[str, str, bool]:
+    apply_checkbox_styles = value_count <= HIGH_CARDINALITY_MENU_LIMIT
+    try:
+        cb_style_include, cb_style_exclude = _build_multiselect_checkbox_styles(
+            checkbox_bg=checkbox_bg,
+            checkbox_border=checkbox_border,
+            checked_bg=checked_bg,
+        )
+    except Exception as exc:
+        logger.debug("Falha ao gerar estilo de checkbox do menu multiselect: %s", exc)
+        return "", "", apply_checkbox_styles
+    if apply_checkbox_styles and cb_style_include:
         try:
-            close_btn.clicked.connect(menu.close)
+            container.setStyleSheet(cb_style_include)
+            apply_checkbox_styles = False
         except Exception as exc:
             logger.debug(
-                "Falha ao conectar botao Fechar no menu multiselect: %s", exc
+                "Falha ao aplicar estilo de checkbox no container multiselect: %s", exc
             )
-        ok_row = QWidget()
-        ok_layout = QHBoxLayout(ok_row)
-        ok_layout.setContentsMargins(8, 4, 8, 6)
-        ok_layout.setSpacing(6)
-        ok_layout.addStretch()
-        ok_layout.addWidget(close_btn)
-        ok_layout.addStretch()
-        ok_act = QWidgetAction(menu)
-        ok_act.setDefaultWidget(ok_row)
-        try:
-            menu.addAction(ok_act)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao adicionar rodape de acoes no menu multiselect: %s", exc
-            )
+    return cb_style_include, cb_style_exclude, apply_checkbox_styles
+
+
+def _populate_multiselect_items(
+    self,
+    *,
+    grid,
+    row_idx: int,
+    button,
+    model: MultiselectMenuModel,
+    popup_text: str,
+    cb_style_include: str,
+    cb_style_exclude: str,
+    apply_checkbox_styles: bool,
+    exclude_enabled: bool,
+    on_toggle,
+    on_exclude_toggle,
+) -> tuple[int, list[QCheckBox], list[QCheckBox]]:
+    checks: list[QCheckBox] = []
+    exclude_checks: list[QCheckBox] = []
+    for val in model.values:
+        row_idx, include_cb, exclude_cb = _add_multiselect_item_row(
+            self,
+            grid=grid,
+            row_idx=row_idx,
+            button=button,
+            model=model,
+            value=val,
+            popup_text=popup_text,
+            cb_style_include=cb_style_include,
+            cb_style_exclude=cb_style_exclude,
+            apply_checkbox_styles=apply_checkbox_styles,
+            exclude_enabled=exclude_enabled,
+            on_toggle=on_toggle,
+            on_exclude_toggle=on_exclude_toggle,
+        )
+        checks.append(include_cb)
+        if exclude_cb is not None:
+            exclude_checks.append(exclude_cb)
+    return row_idx, checks, exclude_checks
+
+
+def _rebuild_multiselect_menu(
+    self,
+    button,
+    menu,
+    values,
+    selected_set,
+    on_toggle=None,
+    show_footer=None,
+    exclude_selected_set=None,
+    on_exclude_toggle=None,
+):
+    model = _build_multiselect_menu_model(
+        button,
+        values,
+        selected_set,
+        exclude_selected_set,
+    )
+    signature = _multiselect_menu_signature(
+        model,
+        str(getattr(self, "_current_theme", "") or ""),
+    )
+    cached_result = _try_reuse_multiselect_menu_cache(
+        self,
+        menu=menu,
+        button=button,
+        signature=signature,
+    )
+    if cached_result is not None:
+        return cached_result
+    _prepare_multiselect_menu(menu, model)
+    popup_bg, popup_text, popup_border, checked_bg, checkbox_bg, checkbox_border = (
+        _resolve_popup_theme_tokens(
+            self,
+            button,
+            menu,
+        )
+    )
+    container, grid = _build_multiselect_grid(model)
+    row_idx = 0
+    row_idx = _append_multiselect_header(
+        grid,
+        row_idx,
+        filter_name=model.filter_name,
+        has_exclude_column=model.has_exclude_column,
+        popup_text=popup_text,
+        popup_border=popup_border,
+    )
+    row_idx = _append_multiselect_limit_notice(
+        grid,
+        row_idx,
+        displayed_count=len(model.values),
+        total_values=model.total_values,
+        has_exclude_column=model.has_exclude_column,
+        popup_text=popup_text,
+    )
+    cb_style_include, cb_style_exclude, apply_checkbox_styles = (
+        _configure_multiselect_checkbox_style(
+            container=container,
+            checkbox_bg=checkbox_bg,
+            checkbox_border=checkbox_border,
+            checked_bg=checked_bg,
+            value_count=len(model.values),
+        )
+    )
+    row_idx, checks, exclude_checks = _populate_multiselect_items(
+        self,
+        grid=grid,
+        row_idx=row_idx,
+        button=button,
+        model=model,
+        popup_text=popup_text,
+        cb_style_include=cb_style_include,
+        cb_style_exclude=cb_style_exclude,
+        apply_checkbox_styles=apply_checkbox_styles,
+        exclude_enabled=exclude_selected_set is not None,
+        on_toggle=on_toggle,
+        on_exclude_toggle=on_exclude_toggle,
+    )
+    if exclude_selected_set is not None:
+        row_idx = _append_multiselect_batch_controls(
+            self,
+            grid=grid,
+            row_idx=row_idx,
+            checks=checks,
+            exclude_checks=exclude_checks,
+            checkbox_bg=checkbox_bg,
+            checkbox_border=checkbox_border,
+            checked_bg=checked_bg,
+            popup_text=popup_text,
+            on_toggle=on_toggle,
+            on_exclude_toggle=on_exclude_toggle,
+            button=button,
+        )
+
+    scroll = _make_multiselect_scroll(
+        container=container,
+        model=model,
+        popup_bg=popup_bg,
+        popup_text=popup_text,
+        popup_border=popup_border,
+        checked_bg=checked_bg,
+        menu=menu,
+    )
+    _append_multiselect_scroll_action(menu, scroll)
+    _append_multiselect_footer(menu, show_footer=show_footer)
     menu._ssa_multiselect_cache = {
         "signature": signature,
         "checks": checks,
@@ -2367,8 +2505,8 @@ def _ensure_macro_status_menu_ready(self) -> tuple[list[Any], list[Any]]:
         self,
         prefix="adv_status",
         values=status_values,
-        include_values=filters.get("status_values"),
-        exclude_values=filters.get("status_exclude_values"),
+        include_values=filters.get("situacao"),
+        exclude_values=filters.get("situacao_exclude_values"),
     )
     return (
         list(getattr(self, "adv_status_checks", None) or []),
@@ -2396,12 +2534,13 @@ def _on_macro_filter_changed(self):
         choice = self.adv_macro_combo.currentData()
     except Exception:
         choice = None
-    if choice == "ssas_para_baixar":
+    preset = advanced_macro_filter_preset(choice)
+    if preset is not None:
         try:
             self._sync_multiselect_checks(
                 getattr(self, "adv_derivada_button", None),
                 getattr(self, "adv_derivada_checks", None),
-                ["all_ste"],
+                preset["derivada_include_values"],
             )
         except Exception as exc:
             logger.warning(
@@ -2417,7 +2556,7 @@ def _on_macro_filter_changed(self):
                 self.adv_status_checks,
                 [],
                 self.adv_status_exclude_checks,
-                MACRO_BAIXAR_STATUS_EXCLUSIONS,
+                preset["status_exclude_values"],
             )
             self._update_multiselect_button(
                 getattr(self, "adv_status_button", None),
@@ -2426,6 +2565,7 @@ def _on_macro_filter_changed(self):
             )
         except Exception as exc:
             logger.warning("Falha ao aplicar preset de status no macro filtro: %s", exc)
+
 
 def _reorganize_advanced_filters_grid(self, width: int):
     """Reorganiza grid de filtros avancados em distribuicao continua por colunas."""
@@ -2902,7 +3042,7 @@ def _has_active_advanced_filters(self, data: dict) -> bool:
         "prioridade_planejamento_values"
     ):
         return True
-    if data.get("num_reprogramacoes_mode") and data.get("num_reprogramacoes_values"):
+    if data.get("num_reprogramacoes_values"):
         return True
     if (
         data.get("semana_emissao_inicio") is not None
@@ -2925,26 +3065,21 @@ def _has_active_advanced_filters(self, data: dict) -> bool:
     return False
 
 
-def _apply_advanced_filters_from_ui(self, store_only: bool = False):
-    previous_filters = dict(getattr(self, "_advanced_filters", None) or {})
-    if not store_only:
-        try:
-            self._store_last_filter_state()
-        except Exception as exc:
-            logger.warning(
-                "Falha ao salvar estado antes de aplicar filtros avancados: %s", exc
-            )
+def _read_advanced_filters_from_ui(self, previous_filters: dict) -> dict:
     widget_context = getattr(self, "_filter_panel_context", None)
     if not isinstance(widget_context, dict):
         widget_context = getattr(self, "_adv_ctx", None)
-    data = AdvancedFilterStateReader(
+    return AdvancedFilterStateReader(
         widget_context=widget_context if isinstance(widget_context, dict) else {},
         current_filters=previous_filters,
         responsavel_state=responsavel_materialization_state(self),
         parse_week=self._parse_week,
     ).collect()
 
-    self._advanced_filters = data
+
+def _sync_quick_executor_from_advanced_filters(
+    self, previous_filters: dict, data: dict
+) -> None:
     executor_filters_were_active = bool(
         previous_filters.get("setor_executor")
         or previous_filters.get("setor_executor_exclude_values")
@@ -2969,9 +3104,9 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
             "Falha ao sincronizar combo rapido de setor executor apos aplicar avancado: %s",
             exc,
         )
-    if store_only:
-        return
-    self._advanced_filters_active = self._has_active_advanced_filters(data)
+
+
+def _refresh_after_advanced_filters_apply(self) -> str | None:
     notice_box = {"value": None}
 
     def _capture_notice(value):
@@ -2986,36 +3121,58 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
         )
     finally:
         setattr(self, "_adv_notice_callback", None)
-    notice = notice_box["value"]
-    if notice:
+    return notice_box["value"]
+
+
+def _show_advanced_filter_notice(self, notice: str | None) -> None:
+    if not notice:
+        return
+    try:
+        if not hasattr(self, "update_filter_status_display"):
+            return
+        notice_suffix = ""
+        if notice == "derivada_all_ste_empty":
+            notice_suffix = "Aviso: nenhuma derivada STE/SES encontrada para o filtro."
+        elif notice == "derivada_empty":
+            notice_suffix = "Aviso: nenhuma derivada encontrada para o filtro."
+        self.update_filter_status_display(
+            filtered_total=(
+                len(self.df_exibido)
+                if hasattr(self, "df_exibido") and self.df_exibido is not None
+                else None
+            ),
+            original_total=(
+                len(self.df_completo)
+                if hasattr(self, "df_completo") and self.df_completo is not None
+                else None
+            ),
+            search_text=None,
+            suffix=notice_suffix,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Falha ao atualizar status com aviso de derivadas apos filtro avancado: %s",
+            exc,
+        )
+
+
+def _apply_advanced_filters_from_ui(self, store_only: bool = False):
+    previous_filters = dict(getattr(self, "_advanced_filters", None) or {})
+    if not store_only:
         try:
-            if hasattr(self, "update_filter_status_display"):
-                notice_suffix = ""
-                if notice == "derivada_all_ste_empty":
-                    notice_suffix = (
-                        "Aviso: nenhuma derivada STE/SES encontrada para o filtro."
-                    )
-                elif notice == "derivada_empty":
-                    notice_suffix = "Aviso: nenhuma derivada encontrada para o filtro."
-                self.update_filter_status_display(
-                    filtered_total=(
-                        len(self.df_exibido)
-                        if hasattr(self, "df_exibido") and self.df_exibido is not None
-                        else None
-                    ),
-                    original_total=(
-                        len(self.df_completo)
-                        if hasattr(self, "df_completo") and self.df_completo is not None
-                        else None
-                    ),
-                    search_text=None,
-                    suffix=notice_suffix,
-                )
+            self._store_last_filter_state()
         except Exception as exc:
             logger.warning(
-                "Falha ao atualizar status com aviso de derivadas apos filtro avancado: %s",
-                exc,
+                "Falha ao salvar estado antes de aplicar filtros avancados: %s", exc
             )
+    data = _read_advanced_filters_from_ui(self, previous_filters)
+    self._advanced_filters = data
+    _sync_quick_executor_from_advanced_filters(self, previous_filters, data)
+    if store_only:
+        return
+    self._advanced_filters_active = self._has_active_advanced_filters(data)
+    notice = _refresh_after_advanced_filters_apply(self)
+    _show_advanced_filter_notice(self, notice)
 
 
 def _parse_week(self, raw: str):

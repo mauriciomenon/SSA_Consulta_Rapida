@@ -9,7 +9,9 @@ import pandas as pd
 
 EXCLUDED_TERMINAL_STATUSES = frozenset({"SCA", "SES", "STE"})
 EXCLUDED_TERMINAL_SUMMARY = "situacao!=SCA/SES/STE"
+MACRO_BAIXAR_FILTER_KEY = "ssas_para_baixar"
 MACRO_BAIXAR_STATUS_EXCLUSIONS = ("SAD", "SCA", "SES", "STE")
+MACRO_BAIXAR_DERIVADA_SELECTION = ("all_ste",)
 SECTOR_EXECUTOR_PRIORITY = (
     "IEE1",
     "IEE2",
@@ -101,29 +103,37 @@ def _best_sector_from_counts(counts: Mapping[str, int] | None) -> str:
     if not counts:
         return ""
     best_sector = ""
-    best_key = (-1, 0, "")
+    best_count = -1
+    best_name_key = ""
     for raw_sector, raw_count in counts.items():
         sector = str(raw_sector)
-        key = (int(raw_count), -len(sector), sector.casefold())
-        if key > best_key:
+        count = int(raw_count)
+        name_key = sector.casefold()
+        if count > best_count or (
+            count == best_count and (not best_sector or name_key < best_name_key)
+        ):
             best_sector = sector
-            best_key = key
+            best_count = count
+            best_name_key = name_key
     return best_sector
 
 
 def _sector_counts_for_responsavel_column(
     df: pd.DataFrame, resp_col: str, sector_cols: list[str]
 ) -> dict[str, dict[str, int]]:
-    wide = pd.DataFrame(
+    person_series = normalize_nonempty_string_series(df[resp_col])
+    normalized = pd.DataFrame(
         {
             "row_id": df.index,
-            "person": normalize_nonempty_string_series(df[resp_col]),
+            "person": person_series,
+            **{
+                sector_col: normalize_nonempty_string_series(df[sector_col])
+                for sector_col in sector_cols
+            },
         },
         index=df.index,
     )
-    for sector_col in sector_cols:
-        wide[sector_col] = normalize_nonempty_string_series(df[sector_col])
-    long = wide.melt(
+    long = normalized.melt(
         id_vars=("row_id", "person"),
         value_vars=sector_cols,
         value_name="sector",
@@ -282,6 +292,19 @@ def filter_responsavel_frame_by_sector_selection(
         emissor_exclude=emissor_exclude,
     )
 
+
+def macro_baixar_filter_preset() -> dict[str, tuple[str, ...]]:
+    return {
+        "derivada_include_values": MACRO_BAIXAR_DERIVADA_SELECTION,
+        "status_exclude_values": MACRO_BAIXAR_STATUS_EXCLUSIONS,
+    }
+
+
+def advanced_macro_filter_preset(choice: Any) -> dict[str, tuple[str, ...]] | None:
+    if choice == MACRO_BAIXAR_FILTER_KEY:
+        return macro_baixar_filter_preset()
+    return None
+
 ADVANCED_FILTER_VISUAL_COLUMN_MAP = {
     "setor_executor": ("setor_executor",),
     "setor_executor_exclude_values": ("setor_executor",),
@@ -320,6 +343,7 @@ ADVANCED_FILTER_VISUAL_COLUMN_MAP = {
     "semana_emissao_fim": ("semana_cadastro",),
     "semana_execucao_inicio": ("semana_programada",),
     "semana_execucao_fim": ("semana_programada",),
+    "derivada_include_values": ("derivada_de",),
     "derivada_has": ("derivada_de",),
     "derivada_all_ste": ("derivada_de",),
     "derivada_is": ("derivada_de",),
