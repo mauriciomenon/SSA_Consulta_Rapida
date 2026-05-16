@@ -64,12 +64,16 @@ from gui.helpers.formatting_helpers import (
     normalize_chunk_for_parse,
 )
 from gui.ssa import gui_details as ssa_gui_details
-from gui.ssa.column_filter_engine import (
-    ColumnFilterCaches,
-    apply_column_filters,
-    get_column_filter_date_display_series,
-    should_match_date_display_filter,
+from gui.ssa.column_filter_runtime import (
+    ColumnFilterRuntimeState,
+    apply_column_filters_with_state,
+    get_column_filter_date_display_columns,
+    get_date_display_series,
+    is_column_filter_date_display_column,
+    should_match_date_filter,
 )
+from gui.ssa.column_filter_engine import ColumnFilterCaches
+from gui.ssa.column_filter_engine import apply_column_filters as apply_column_filters
 from gui.ssa.filter_cache_context import (
     build_filter_cache_context_from_parts,
     build_filter_cache_parts,
@@ -96,12 +100,9 @@ from gui.ssa.filter_ui_state import FilterUiStatePresenter
 from gui.ssa.general_search_columns import build_gui_general_search_columns
 from gui.ssa.filter_saved_names import build_persistent_filter_name
 from gui.ssa.persistent_filters import (
-    PersistentFilterIndex,
-    build_persistent_filter_index,
+    PersistentFilterStore,
     get_gui_saved_filters_path,
-    load_persistent_filters_file,
     persistent_filter_state_key,
-    save_persistent_filters_file,
     sort_persistent_filters,
 )
 from gui.ssa.filter_status_manager import FilterStatusManager, FilterStatusPayload
@@ -123,10 +124,13 @@ from utils.themes import get_theme_roles
 
 # Module logger
 logger = get_robust_logger().get_logger(__name__, "gui")
+
 _FILTER_ALIAS_MAP_CACHE: dict[str, Any] | None = None
 _FILTER_ALIAS_MAP_CACHE_LOADED = False
 _WHITESPACE_RE = re.compile(r"\s+")
 __all__ = [
+    "apply_column_filters",
+    "build_column_mask",
     "FilterGUISSAMixin",
     "MAX_GLOBAL_RETIRED_FILTER_WORKERS",
     "DeferredFilterWorkerRegistry",
@@ -229,14 +233,11 @@ def _connect_filter_signal(signal, slot, *, label: str) -> bool:
         return False
     try:
         queued_connection = _FILTER_QT_QUEUED
-        if queued_connection is not None and not isinstance(queued_connection, type):
+        if queued_connection is not None:
             try:
                 signal.connect(slot, queued_connection)
             except TypeError:
-                try:
-                    signal.connect(slot, type=queued_connection)
-                except TypeError:
-                    signal.connect(slot)
+                signal.connect(slot)
         else:
             signal.connect(slot)
         return True
@@ -969,7 +970,7 @@ class FilterGUISSAMixin:
         # Recalcula e aplica larguras com base no slice atual exibido para garantir consistência imediata
         try:
             if hasattr(self, "df_para_tabela") and not self.df_para_tabela.empty:
-                self._compute_gui_column_widths(self.df_para_tabela)
+                self._compute_gui_column_widths(self.df_para_tabela.head(100))
                 self._apply_computed_widths_only()
         except Exception as exc:
             logger.debug("Falha ao recalcular/aplicar larguras apos filtro: %s", exc)
@@ -1461,6 +1462,7 @@ class FilterGUISSAMixin:
             row_w = pooled.get("row_widget")
             name_lbl = pooled.get("label")
             term_box = pooled.get("input")
+            hide_btn = pooled.get("hide")
             if (
                 isinstance(row_w, QWidget)
                 and isinstance(name_lbl, QLabel)
@@ -3054,25 +3056,36 @@ class FilterGUISSAMixin:
 
     def _apply_column_filters(self, df: pd.DataFrame) -> pd.DataFrame:
         """Aplica todos os filtros por coluna com as mesmas regras de busca (prefixo ^, sufixo $, =exato, ~regex, !neg)."""
-        caches = ColumnFilterCaches(
-            revision=getattr(self, "_column_filter_series_cache_revision", None),
-            series=getattr(self, "_column_filter_series_cache", {}) or {},
-            casefold=getattr(self, "_column_filter_casefold_cache", {}) or {},
-            mask=getattr(self, "_column_filter_mask_cache", {}) or {},
-            date_scope=getattr(self, "_column_filter_date_cache_scope", None),
-            date_parsed=getattr(self, "_column_filter_date_parsed_cache", {}) or {},
-            date=getattr(self, "_column_filter_date_cache", {}) or {},
-            frame_tokens=getattr(self, "_column_filter_frame_tokens", {}) or {},
-        )
-        filtered = apply_column_filters(
+        state = self._get_column_filter_runtime_state()
+        filtered = apply_column_filters_with_state(
+            state,
             df,
-            self._active_column_filters,
-            self._column_to_or_group,
+            getattr(self, "_active_column_filters", {}) or {},
+            getattr(self, "_column_to_or_group", {}) or {},
             revision=getattr(self, "_data_revision", 0),
-            caches=caches,
             build_column_mask=self._build_column_mask,
-            date_display_columns=self._get_column_filter_date_display_columns(df),
         )
+        self._store_column_filter_runtime_state(state)
+        return filtered
+
+    def _get_column_filter_runtime_state(self) -> ColumnFilterRuntimeState:
+        return ColumnFilterRuntimeState(
+            ColumnFilterCaches(
+                revision=getattr(self, "_column_filter_series_cache_revision", None),
+                series=getattr(self, "_column_filter_series_cache", {}) or {},
+                casefold=getattr(self, "_column_filter_casefold_cache", {}) or {},
+                mask=getattr(self, "_column_filter_mask_cache", {}) or {},
+                date_scope=getattr(self, "_column_filter_date_cache_scope", None),
+                date_parsed=getattr(self, "_column_filter_date_parsed_cache", {}) or {},
+                date=getattr(self, "_column_filter_date_cache", {}) or {},
+                frame_tokens=getattr(self, "_column_filter_frame_tokens", {}) or {},
+            )
+        )
+
+    def _store_column_filter_runtime_state(
+        self, state: ColumnFilterRuntimeState
+    ) -> None:
+        caches = state.caches
         self._column_filter_series_cache_revision = caches.revision
         self._column_filter_series_cache = caches.series
         self._column_filter_casefold_cache = caches.casefold
@@ -3081,61 +3094,34 @@ class FilterGUISSAMixin:
         self._column_filter_date_parsed_cache = caches.date_parsed
         self._column_filter_date_cache = caches.date
         self._column_filter_frame_tokens = caches.frame_tokens
-        return filtered
 
     def _should_match_date_display_filter(self, col: str, raw_filter: str) -> bool:
-        return should_match_date_display_filter(
-            raw_filter,
-            is_date_column=self._is_column_filter_date_display_column(col),
+        return should_match_date_filter(
+            col, raw_filter, getattr(self, "df_completo", None)
         )
 
     def _is_column_filter_date_display_column(self, col: str) -> bool:
-        col_lower = str(col or "").casefold()
-        return (
-            "data" in col_lower
-            or "date" in col_lower
-            or col_lower.startswith("dt_")
+        return is_column_filter_date_display_column(
+            col, getattr(self, "df_completo", None)
         )
 
     def _get_column_filter_date_display_columns(
         self, df: pd.DataFrame
     ) -> frozenset[str]:
-        if df is None or df.empty:
-            return frozenset()
-        date_columns: set[str] = set()
-        for col in df.columns:
-            if self._is_column_filter_date_display_column(str(col)) or (
-                col in df
-                and pd.api.types.is_datetime64_any_dtype(df[col])
-            ):
-                date_columns.add(str(col))
-        return frozenset(date_columns)
+        return get_column_filter_date_display_columns(df)
 
     def _get_column_filter_date_display_series(
         self, df: pd.DataFrame, col: str
     ) -> pd.Series | None:
-        current_revision = getattr(self, "_data_revision", 0)
-        caches = ColumnFilterCaches(
-            revision=getattr(self, "_column_filter_series_cache_revision", None),
-            series=getattr(self, "_column_filter_series_cache", {}) or {},
-            casefold=getattr(self, "_column_filter_casefold_cache", {}) or {},
-            mask=getattr(self, "_column_filter_mask_cache", {}) or {},
-            date_scope=getattr(self, "_column_filter_date_cache_scope", None),
-            date_parsed=getattr(self, "_column_filter_date_parsed_cache", {}) or {},
-            date=getattr(self, "_column_filter_date_cache", {}) or {},
-            frame_tokens=getattr(self, "_column_filter_frame_tokens", {}) or {},
-        )
-        display_dates = get_column_filter_date_display_series(
+        state = self._get_column_filter_runtime_state()
+        series = get_date_display_series(
+            state,
             df,
             col,
-            revision=current_revision,
-            caches=caches,
+            revision=getattr(self, "_data_revision", 0),
         )
-        self._column_filter_date_cache_scope = caches.date_scope
-        self._column_filter_date_parsed_cache = caches.date_parsed
-        self._column_filter_date_cache = caches.date
-        self._column_filter_frame_tokens = caches.frame_tokens
-        return display_dates
+        self._store_column_filter_runtime_state(state)
+        return series
 
     def _try_hide_column_filter_line(self, column_name: str) -> None:
         current_value = ""
@@ -3968,36 +3954,28 @@ class FilterGUISSAMixin:
 
     def load_persistent_filters(self):
         """Carrega filtros persistentes salvos."""
-        self.persistent_filters = load_persistent_filters_file(
-            get_gui_saved_filters_path()
-        )
-        self._persistent_filter_index = build_persistent_filter_index(
-            self.persistent_filters
-        )
-        self._persistent_filter_index_count = len(self.persistent_filters)
+        self.persistent_filters = self._get_persistent_filter_store().load()
         self.update_filter_tags()
 
+    def _get_persistent_filter_store(self) -> PersistentFilterStore:
+        store = getattr(self, "_persistent_filter_store", None)
+        if not isinstance(store, PersistentFilterStore):
+            store = PersistentFilterStore(get_gui_saved_filters_path())
+            self._persistent_filter_store = store
+        return store
+
     def _save_persistent_filters_file(self) -> bool:
-        return save_persistent_filters_file(
-            get_gui_saved_filters_path(),
-            getattr(self, "persistent_filters", []) or [],
+        return self._get_persistent_filter_store().save(
+            getattr(self, "persistent_filters", []) or []
         )
 
     def _invalidate_persistent_filter_index(self) -> None:
-        self._persistent_filter_index = None
-        self._persistent_filter_index_count = None
+        self._get_persistent_filter_store().invalidate_index()
 
-    def _get_persistent_filter_index(self) -> PersistentFilterIndex:
-        filters = getattr(self, "persistent_filters", []) or []
-        index = getattr(self, "_persistent_filter_index", None)
-        indexed_count = getattr(self, "_persistent_filter_index_count", None)
-        if not isinstance(index, PersistentFilterIndex):
-            index = build_persistent_filter_index(filters)
-        elif indexed_count != len(filters):
-            index = build_persistent_filter_index(filters)
-        self._persistent_filter_index = index
-        self._persistent_filter_index_count = len(filters)
-        return index
+    def _get_persistent_filter_index(self):
+        return self._get_persistent_filter_store().index_for(
+            getattr(self, "persistent_filters", []) or []
+        )
 
     def save_current_filter(self):  # skipcq: PY-R1000
         """Salva o estado atual de filtros como persistente."""
@@ -4066,24 +4044,18 @@ class FilterGUISSAMixin:
             "terms": current_text,
             "state": _copy_filter_mapping(current_state),
         }
-        self.persistent_filters.append(new_filter)
-        self.persistent_filters = sort_persistent_filters(self.persistent_filters)
-        self._invalidate_persistent_filter_index()
-        if not self._save_persistent_filters_file():
-            self.persistent_filters = [
-                item for item in self.persistent_filters if item is not new_filter
-            ]
-            self._invalidate_persistent_filter_index()
+        updated_filters, saved = self._get_persistent_filter_store().add_filter(
+            self.persistent_filters,
+            new_filter,
+        )
+        if not saved:
             QMessageBox.warning(
                 _qt_parent(self),
                 "Erro",
                 "Nao foi possivel salvar o filtro persistente.",
             )
             return
-        self._persistent_filter_index = build_persistent_filter_index(
-            self.persistent_filters
-        )
-        self._persistent_filter_index_count = len(self.persistent_filters)
+        self.persistent_filters = updated_filters
         self.update_filter_tags()
 
         QMessageBox.information(

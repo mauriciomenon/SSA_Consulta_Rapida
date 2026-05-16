@@ -6,9 +6,11 @@ import copy
 import json
 import os
 import tempfile
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import date, datetime
 from typing import Any
 
 from gui.gui_config import get_gui_main_preferences_path
@@ -24,6 +26,64 @@ class PersistentFilterIndex:
     legacy_terms: frozenset[str]
 
 
+@dataclass
+class PersistentFilterStore:
+    path: str
+    _index: PersistentFilterIndex | None = None
+    _index_count: int | None = None
+
+    def load(self) -> list[dict[str, Any]]:
+        filters = load_persistent_filters_file(self.path)
+        self._index = build_persistent_filter_index(filters)
+        self._index_count = len(filters)
+        return filters
+
+    def save(self, filters: Any) -> bool:
+        return save_persistent_filters_file(self.path, filters or [])
+
+    def add_filter(
+        self,
+        filters: list[dict[str, Any]],
+        new_filter: dict[str, Any],
+    ) -> tuple[list[dict[str, Any]], bool]:
+        updated_filters = sort_persistent_filters([*filters, new_filter])
+        if not self.save(updated_filters):
+            return filters, False
+        self._add_filter_to_index(new_filter)
+        self._index_count = len(updated_filters)
+        return updated_filters, True
+
+    def invalidate_index(self) -> None:
+        self._index = None
+        self._index_count = None
+
+    def index_for(self, filters: Any) -> PersistentFilterIndex:
+        filter_list = filters if isinstance(filters, list) else []
+        if not isinstance(self._index, PersistentFilterIndex):
+            self._index = build_persistent_filter_index(filter_list)
+        elif self._index_count != len(filter_list):
+            self._index = build_persistent_filter_index(filter_list)
+        self._index_count = len(filter_list)
+        return self._index
+
+    def _add_filter_to_index(self, new_filter: dict[str, Any]) -> None:
+        if not isinstance(self._index, PersistentFilterIndex):
+            return
+        state_key = _filter_item_state_key(new_filter)
+        term = str(new_filter.get("terms", "") or "").strip()
+        state_keys = set(self._index.state_keys)
+        legacy_terms = set(self._index.legacy_terms)
+        if state_key:
+            state_keys.add(state_key)
+        elif term:
+            legacy_terms.add(term)
+        self._index = PersistentFilterIndex(
+            signature=(*self._index.signature, (state_key, term)),
+            state_keys=frozenset(state_keys),
+            legacy_terms=frozenset(legacy_terms),
+        )
+
+
 def get_gui_saved_filters_path() -> str:
     config_dir = os.path.dirname(get_gui_main_preferences_path())
     return os.path.join(config_dir, "gui_saved_filters.json")
@@ -33,6 +93,10 @@ class PersistentFilterJSONEncoder(json.JSONEncoder):
     def default(self, o: Any) -> Any:
         if isinstance(o, set):
             return sorted(o, key=str)
+        if isinstance(o, datetime):
+            return o.isoformat(sep=" ")
+        if isinstance(o, date):
+            return o.isoformat()
         return super().default(o)
 
 
@@ -102,7 +166,7 @@ def _write_private_json_file(path: str, payload: dict[str, Any]) -> None:
                 if os.name == "posix":
                     os.fchmod(handle.fileno(), 0o600)
                 _dump_private_json_payload(handle, payload)
-        os.replace(tmp_path, path)
+        _replace_private_json_file(tmp_path, path)
         tmp_path = None
     finally:
         if tmp_path:
@@ -114,6 +178,23 @@ def _write_private_json_file(path: str, payload: dict[str, Any]) -> None:
                 logger.warning(
                     "Falha ao remover arquivo temporario de filtros: %s", exc
                 )
+
+
+def _replace_private_json_file(source_path: str, target_path: str) -> None:
+    last_error: OSError | None = None
+    for attempt in range(3):
+        try:
+            os.replace(source_path, target_path)
+            if os.name == "posix":
+                os.chmod(target_path, 0o600)
+            return
+        except OSError as exc:
+            last_error = exc
+            if attempt >= 2:
+                break
+            time.sleep(0.05 * (attempt + 1))
+    if last_error is not None:
+        raise last_error
 
 
 @contextmanager

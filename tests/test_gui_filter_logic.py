@@ -553,6 +553,21 @@ class TestGUIFilterLogic:
         setor_input, _, _, _ = controls[setor_key]
         assert str(setor_input.text() or "").strip() == "MEL4"
 
+    def test_quick_setor_executor_preserves_existing_advanced_exclusions(self):
+        self.window._advanced_filters = {
+            "setor_executor_exclude_values": ["MEL3"],
+        }
+        self.window._active_column_filters["setor_executor"] = "IEE1"
+
+        self.window._sync_advanced_executor_filter_from_active_filters(
+            clear_exclude=True
+        )
+
+        assert self.window._advanced_filters["setor_executor"] == ["IEE1"]
+        assert self.window._advanced_filters["setor_executor_exclude_values"] == [
+            "MEL3"
+        ]
+
     def test_apply_advanced_executor_syncs_back_to_quick_combo_and_active_filters(self):
         self._set_filter_panel_tab("filters")
         QApplication.processEvents()

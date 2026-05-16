@@ -75,6 +75,13 @@ from gui.ssa.main_window_filter_bar import (  # noqa: E402
     build_pagination_filter_bar,
     build_search_bar,
 )
+from gui.ssa.main_window_bottom_section import build_bottom_filter_section  # noqa: E402
+from gui.ssa.main_window_table_section import build_main_table_widget  # noqa: E402
+from gui.ssa.table_context_menu import (  # noqa: E402
+    TableContextMenuCallbacks,
+    show_table_context_menu,
+)
+from gui.ssa import table_sorting as ssa_table_sorting  # noqa: E402
 from gui.ssa.filter_domain_rules import (  # noqa: E402
     collect_nonempty_column_values,
     order_sector_values,
@@ -129,6 +136,7 @@ SAM_SSA_PUBLIC_VIEW_URL = (
     "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx"
     "?SerialNumber={numero_ssa}&language=pt"
 )
+SAM_ALLOWED_URL_HOSTS = frozenset({"osprd.itaipu"})
 
 EXCLUDED_CANONICAL_UI_COLUMNS = {
     "id",
@@ -1255,6 +1263,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._data_revision_df_ids = None
         self._details_ssa_index_sources = None
         self._details_ssa_series_index = None
+        self._canonical_available_columns_cache_key = None
+        self._canonical_available_columns_cache = None
         if reason:
             logger.debug("Data revision bump (%s): %s", reason, next_rev)
         return next_rev
@@ -1835,216 +1845,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "Falha ao conectar persistencia de page size na paginacao: %s", exc
             )
 
-        # Table
-        table_widget = QTableWidget()
-        table_widget.setEditTriggers(cast(Any, QTableWidget.EditTrigger.NoEditTriggers))
-        table_widget.setSelectionBehavior(
-            cast(Any, QAbstractItemView.SelectionBehavior.SelectRows)
-        )
-        self._set_widget_min_height_safe(table_widget, 220, "tabela principal")
-        header = table_widget.horizontalHeader()
-        vertical_header = table_widget.verticalHeader()
-        if header is not None and vertical_header is not None:
-            header.setSectionResizeMode(cast(Any, QHeaderView.ResizeMode.Interactive))
-            vertical_header.setVisible(False)
-            vertical_header.setSectionResizeMode(
-                cast(Any, QHeaderView.ResizeMode.Fixed)
-            )
-            vertical_header.setDefaultSectionSize(24)
-            header.sectionResized.connect(self._on_header_section_resized)
-        else:
-            logger.warning(
-                "Header da tabela indisponivel; configuracao avancada de colunas ignorada."
-            )
-
-        table_widget.doubleClicked.connect(self.on_table_double_click)
-        table_widget.cellClicked.connect(self.on_table_cell_clicked)
-        table_widget.itemSelectionChanged.connect(self.update_details_from_selection)
-
-        try:
-            if header is not None:
-                header.setSectionsClickable(True)
-                header.setSortIndicatorShown(True)
-                try:
-                    header.setSectionsMovable(True)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao habilitar drag and drop no header da tabela: %s", exc
-                    )
-                try:
-                    header.setFirstSectionMovable(False)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao fixar primeira secao do header da tabela: %s", exc
-                    )
-                try:
-                    header.setMinimumSectionSize(26)
-                    header.setDefaultSectionSize(92)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao configurar tamanho minimo/default do header da tabela: %s",
-                        exc,
-                    )
-                try:
-                    f = header.font()
-                    f.setBold(False)
-                    header.setFont(f)
-                    header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao aplicar estilo/fonte no header da tabela: %s", exc
-                    )
-                header.sectionClicked.connect(self.on_header_clicked)
-                header.sectionMoved.connect(self._on_header_section_moved)
-                header.setContextMenuPolicy(
-                    cast(Any, Qt.ContextMenuPolicy.CustomContextMenu)
-                )
-                header.customContextMenuRequested.connect(self.show_header_context_menu)
-                header.installEventFilter(self)
-        except Exception as exc:
-            logger.warning(
-                "Falha ao configurar comportamento do header da tabela: %s", exc
-            )
-
-        table_widget.setContextMenuPolicy(
-            cast(Any, Qt.ContextMenuPolicy.CustomContextMenu)
-        )
-        table_widget.customContextMenuRequested.connect(self.show_context_menu)
-
+        table_widget = build_main_table_widget(self)
         tab_layout.addWidget(cast(Any, table_widget), 6)
 
-        # Details + column filters
-        bottom_layout = QHBoxLayout()
-        details_group = QGroupBox("Detalhes da SSA Selecionada")
-        details_group.setObjectName("detailsPanelGroup")
-        details_layout = QVBoxLayout(cast(Any, details_group))
-        details_layout.setContentsMargins(4, 2, 4, 4)
-        details_layout.setSpacing(2)
-        details_text = QTextBrowser()
-        try:
-            details_text.setFrameShape(QFrame.Shape.NoFrame)
-        except Exception as exc:
-            logger.debug("Falha ao remover frame do painel de detalhes: %s", exc)
-        try:
-            details_viewport = details_text.viewport()
-            if details_viewport is not None:
-                details_viewport.setAutoFillBackground(False)
-                details_viewport.installEventFilter(self)
-                self._details_text_viewport = details_viewport
-        except Exception as exc:
-            logger.debug(
-                "Falha ao configurar preenchimento do viewport de detalhes: %s", exc
-            )
-        details_text.setReadOnly(True)
-        try:
-            details_text.setOpenLinks(False)
-            details_text.setOpenExternalLinks(False)
-            details_text.anchorClicked.connect(self._on_details_anchor_clicked)
-        except Exception as exc:
-            logger.debug("Falha ao configurar links no painel de detalhes: %s", exc)
-        details_layout.addWidget(cast(Any, details_text))
-        bottom_layout.addWidget(cast(Any, details_group), 2)
-
-        col_filters_group = QGroupBox("")
-        col_filters_outer = QVBoxLayout(cast(Any, col_filters_group))
-        col_filters_outer.setContentsMargins(1, 1, 1, 1)
-        col_filters_outer.setSpacing(1)
-        col_filters_scroll = QScrollArea()
-        col_filters_scroll.setWidgetResizable(True)
-        col_filters_container = QWidget()
-        col_filters_list_layout = QVBoxLayout(cast(Any, col_filters_container))
-        col_filters_scroll.setWidget(cast(Any, col_filters_container))
-        col_filters_outer.addWidget(cast(Any, col_filters_scroll), 1)
-        footer = QHBoxLayout()
-        footer.addStretch()
-        add_column_filter_btn = QPushButton("Adicionar filtro de coluna")
-        add_column_filter_btn.setMaximumWidth(260)
-        add_column_filter_btn.setToolTip(
-            "Selecionar qualquer coluna para ativar filtro dedicado"
-        )
-        add_column_filter_btn.clicked.connect(self._open_add_column_filter_menu)
-        footer.addWidget(cast(Any, add_column_filter_btn))
-        footer.addSpacing(8)
-        clear_all_btn = QPushButton("Limpar todos filtros de colunas")
-        clear_all_btn.setMaximumWidth(260)
-        clear_all_btn.clicked.connect(self._clear_all_column_filters)
-        footer.addWidget(cast(Any, clear_all_btn))
-        footer.addStretch()
-        col_filters_outer.addLayout(cast(Any, footer))
-
-        right_col_widget = QWidget()
-        right_col = QVBoxLayout(cast(Any, right_col_widget))
-        right_col.setContentsMargins(0, 0, 0, 0)
-        filters_panel_group = QGroupBox("")
-        filters_panel_layout = QVBoxLayout(cast(Any, filters_panel_group))
-        filters_panel_layout.setContentsMargins(4, 2, 4, 4)
-        filters_panel_layout.setSpacing(2)
-        filter_panel_header = QWidget()
-        self._set_widget_fixed_height_safe(
-            filter_panel_header, 24, "cabecalho de abas de filtros"
-        )
-        filter_panel_header_layout = QHBoxLayout(cast(Any, filter_panel_header))
-        filter_panel_header_layout.setContentsMargins(0, 0, 0, 0)
-        filter_panel_header_layout.setSpacing(6)
-        filter_panel_tab_bar = QTabBar()
-        filter_panel_tab_bar.addTab("Por coluna")
-        filter_panel_tab_bar.addTab("Avancados")
-        filter_panel_tab_bar.setToolTip("Alternar entre filtros por coluna e avancados")
-        try:
-            filter_panel_tab_bar.setExpanding(False)
-            filter_panel_tab_bar.setDrawBase(False)
-            filter_panel_tab_bar.setFixedHeight(22)
-            filter_panel_tab_bar.setStyleSheet(
-                "QTabBar::tab {"
-                "min-width:96px; padding:1px 10px;"
-                "border:1px solid palette(mid);"
-                "border-bottom:0;"
-                "margin-right:1px;"
-                "}"
-                "QTabBar::tab:selected {"
-                "background:palette(highlight);"
-                "color:palette(highlighted-text);"
-                "}"
-                "QTabBar::tab:!selected {"
-                "background:palette(window);"
-                "color:palette(windowText);"
-                "}"
-            )
-        except Exception as exc:
-            logger.debug("Falha ao configurar barra local de abas de filtros: %s", exc)
-        filter_panel_title = QLabel("Filtros por Coluna")
-        try:
-            filter_panel_title.setAlignment(cast(Any, Qt).AlignmentFlag.AlignCenter)
-            filter_panel_title.setStyleSheet("font-weight:600; color:palette(windowText);")
-            filter_panel_title.setSizePolicy(
-                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-            )
-        except Exception as exc:
-            logger.debug("Falha ao configurar titulo da area de filtros: %s", exc)
-        filter_panel_header_layout.addWidget(cast(Any, filter_panel_tab_bar), 0)
-        filter_panel_header_layout.addWidget(cast(Any, filter_panel_title), 1)
-        right_balance = QWidget()
-        try:
-            right_balance.setFixedWidth(202)
-        except Exception as exc:
-            logger.debug("Falha ao configurar balanceador da area de filtros: %s", exc)
-        filter_panel_header_layout.addWidget(cast(Any, right_balance), 0)
-        filters_panel_layout.addWidget(cast(Any, filter_panel_header), 0)
-
-        adv_group, adv_ctx = self._build_advanced_filters_panel()
-        try:
-            adv_group.setTitle("")
-        except Exception as exc:
-            logger.debug("Falha ao limpar titulo do grupo de filtros avancados: %s", exc)
-        filters_panel_stack = QStackedWidget()
-        filters_panel_stack.addWidget(cast(Any, col_filters_group))
-        filters_panel_stack.addWidget(cast(Any, adv_group))
-        filters_panel_layout.addWidget(cast(Any, filters_panel_stack), 1)
-        right_col.addWidget(cast(Any, filters_panel_group), 1)
-        bottom_layout.addWidget(cast(Any, right_col_widget), 3)
-
+        bottom_context = build_bottom_filter_section(self)
+        bottom_layout = bottom_context.pop("_bottom_layout")
+        adv_ctx = bottom_context.pop("_adv_ctx")
         tab_layout.addSpacing(0)
-        tab_layout.addLayout(cast(Any, bottom_layout), 4)
+        tab_layout.addLayout(bottom_layout, 4)
 
         ctx.update(
             {
@@ -2073,53 +1881,32 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "export_list_btn": export_list_btn,
                 "undo_filter_btn": undo_filter_btn,
                 "table_widget": table_widget,
-                "details_group": details_group,
-                "details_text": details_text,
-                "filters_panel_group": filters_panel_group,
-                "filter_panel_tab_bar": filter_panel_tab_bar,
-                "filter_panel_title": filter_panel_title,
-                "filters_panel_stack": filters_panel_stack,
-                "col_filters_group": col_filters_group,
-                "col_filters_scroll": col_filters_scroll,
-                "col_filters_container": col_filters_container,
-                "col_filters_list_layout": col_filters_list_layout,
-                "add_column_filter_btn": add_column_filter_btn,
-                "clear_all_btn": clear_all_btn,
             }
         )
+        ctx.update(bottom_context)
         ctx.update(adv_ctx)
         self._adv_ctx = adv_ctx
-
-        def _activate_filter_panel(index: int) -> None:
-            active_index = 1 if int(index) == 1 else 0
-            self._active_filter_panel_kind = "advanced" if active_index == 1 else "columns"
-            try:
-                filters_panel_stack.setCurrentIndex(active_index)
-                filter_panel_title.setText(
-                    "Filtros Avancados" if active_index == 1 else "Filtros por Coluna"
-                )
-            except Exception as exc:
-                logger.debug("Falha ao trocar painel local de filtros: %s", exc)
-            if active_index == 1:
-                try:
-                    self._adv_options_dirty = True
-                    self._schedule_adv_options_refresh()
-                    self._reorganize_advanced_filters_grid(self.adv_filters_group.width())
-                except Exception as exc:
-                    logger.debug("Falha ao atualizar filtros avancados locais: %s", exc)
-            try:
-                self._queue_bottom_panel_height_sync()
-            except Exception as exc:
-                logger.debug("Falha ao sincronizar altura apos troca local de filtro: %s", exc)
-
-        try:
-            filter_panel_tab_bar.currentChanged.connect(_activate_filter_panel)
-        except Exception as exc:
-            logger.debug("Falha ao conectar aba local de filtros: %s", exc)
         return ctx
 
     def _get_canonical_available_columns(self) -> list[str]:
         """Retorna colunas elegiveis para seletores de UI (sem legados invalidos)."""
+        allowed_columns_text = str(os.environ.get("SSA_ALLOWED_COLUMNS", "") or "")
+        source_key = (
+            getattr(self, "_data_revision", 0),
+            tuple(getattr(self, "visible_columns", None) or ()),
+            tuple(getattr(self, "default_columns", None) or ()),
+            tuple(getattr(self, "_profile_columns", None) or ()),
+            tuple(getattr(self, "_current_display_columns", None) or ()),
+            tuple((getattr(self, "_active_column_filters", {}) or {}).keys()),
+            tuple((getattr(self, "_column_filter_widgets", {}) or {}).keys()),
+            tuple(sorted(getattr(self, "_non_null_cols_cache", set()) or set())),
+            allowed_columns_text,
+        )
+        if source_key == getattr(self, "_canonical_available_columns_cache_key", None):
+            cached = getattr(self, "_canonical_available_columns_cache", None)
+            if isinstance(cached, list):
+                return [str(column) for column in cached]
+
         legacy_invalid_columns = {
             "Numero da SSA",
             "Número da SSA",
@@ -2182,7 +1969,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         allowed_columns = None
         try:
-            allowed_raw = str(os.environ.get("SSA_ALLOWED_COLUMNS", "") or "").strip()
+            allowed_raw = allowed_columns_text.strip()
             if allowed_raw:
                 allowed_columns = {
                     token.strip() for token in allowed_raw.split(",") if token.strip()
@@ -2247,6 +2034,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 continue
             seen.add(col_name)
             result.append(col_name)
+        self._canonical_available_columns_cache_key = source_key
+        self._canonical_available_columns_cache = list(result)
         return result
 
     def _schedule_adv_options_refresh(self):
@@ -2621,180 +2410,34 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
 
     def _sort_num_reprogramacoes_robust(self, ascending: bool) -> pd.DataFrame:
-        """Sort num_reprogramacoes with mixed legacy values without TypeError."""
-        source_df = self.df_exibido
-        if source_df is None or source_df.empty:
-            return source_df
-        if "num_reprogramacoes" not in source_df.columns:
-            return source_df
-
-        sort_keys = self._get_num_reprogramacoes_sort_keys()
-        sort_direction = bool(ascending)
-        ordered_index = sort_keys.sort_values(
-            by=["__reprog_is_nan", "__reprog_num", "__reprog_txt"],
-            ascending=[True, sort_direction, sort_direction],
-            na_position="last",
-            kind="mergesort",
-        ).index
-        sorted_keys = sort_keys.loc[ordered_index]
-        self._last_num_reprog_sorted_keys = sorted_keys
-        return source_df.loc[ordered_index]
+        return ssa_table_sorting.sort_num_reprogramacoes_robust(self, ascending)
 
     def _build_num_reprogramacoes_sort_keys(
         self, source_df: pd.DataFrame
     ) -> pd.DataFrame:
-        raw_series = source_df["num_reprogramacoes"]
-        raw_text = raw_series.astype("string").fillna("")
-        numeric = pd.to_numeric(raw_series, errors="coerce").astype("Float64")
-        missing_numeric_mask = numeric.isna()
-        if bool(missing_numeric_mask.any()):
-            extracted_source = raw_text[missing_numeric_mask]
-            extracted = extracted_source.str.extract(r"(-?\d+)")[0]
-            extracted_numeric = pd.to_numeric(extracted, errors="coerce").astype(
-                "Float64"
-            )
-            numeric = numeric.copy()
-            numeric.loc[missing_numeric_mask] = extracted_numeric
-        return pd.DataFrame(
-            {
-                "__reprog_is_nan": numeric.isna(),
-                "__reprog_num": numeric,
-                "__reprog_txt": raw_text.str.casefold(),
-            },
-            index=source_df.index,
-        )
+        return ssa_table_sorting.build_num_reprogramacoes_sort_keys(source_df)
 
     def _should_use_mixed_text_sort(self, column_name: str) -> bool:
-        source_df = self.df_exibido
-        if not isinstance(source_df, pd.DataFrame):
-            return False
-        if column_name not in source_df.columns:
-            return False
-        series = source_df[column_name]
-        dtype = getattr(series, "dtype", None)
-        return bool(
-            pd.api.types.is_object_dtype(dtype) or pd.api.types.is_string_dtype(dtype)
+        return ssa_table_sorting.should_use_mixed_text_sort(
+            self.df_exibido, column_name
         )
 
     def _build_mixed_text_sort_keys(self, source_series: pd.Series) -> pd.DataFrame:
-        raw_text = source_series.astype("string").fillna("").str.strip()
-        empty_mask = source_series.isna() | raw_text.eq("")
-        normalized_numeric_text = raw_text.str.replace(",", ".", regex=False)
-        is_numeric = normalized_numeric_text.str.fullmatch(
-            r"[+-]?\d+(?:\.\d+)?"
-        ).fillna(False)
-        numeric_values = pd.to_numeric(
-            normalized_numeric_text.where(is_numeric), errors="coerce"
-        ).astype("Float64")
-
-        first_char = raw_text.str.slice(0, 1)
-        starts_alpha = first_char.str.isalpha().fillna(False)
-        starts_alnum = first_char.str.isalnum().fillna(False)
-        alpha_mask = (~empty_mask) & (~is_numeric) & starts_alpha
-        symbol_mask = (~empty_mask) & (~is_numeric) & (~starts_alpha) & (~starts_alnum)
-        other_text_mask = (~empty_mask) & (~is_numeric) & (~alpha_mask) & (~symbol_mask)
-
-        bucket_order = pd.Series(3, index=raw_text.index, dtype="Int64")
-        bucket_order.loc[symbol_mask] = 0
-        bucket_order.loc[is_numeric] = 1
-        bucket_order.loc[alpha_mask] = 2
-        bucket_order.loc[other_text_mask] = 3
-        bucket_order.loc[empty_mask] = 9
-
-        normalized_text = raw_text.str.casefold()
-        return pd.DataFrame(
-            {
-                "__mixed_is_empty": empty_mask,
-                "__mixed_bucket_order": bucket_order,
-                "__mixed_symbol_txt": normalized_text.where(symbol_mask),
-                "__mixed_num": numeric_values,
-                "__mixed_alpha_txt": normalized_text.where(alpha_mask),
-                "__mixed_other_txt": normalized_text.where(other_text_mask),
-            },
-            index=source_series.index,
-        )
+        return ssa_table_sorting.build_mixed_text_sort_keys(source_series)
 
     def _get_mixed_text_sort_keys(
         self, source_df: pd.DataFrame, column_name: str
     ) -> pd.DataFrame:
-        source_id = id(source_df)
-        source_len = len(source_df.index)
-        cache = getattr(self, "_mixed_text_sort_cache", None)
-        keys_df = cache.get("keys_df") if isinstance(cache, dict) else None
-        cache_source_len = (
-            cache.get("source_len", -1) if isinstance(cache, dict) else -1
+        return ssa_table_sorting.get_mixed_text_sort_keys(
+            self, source_df, column_name
         )
-        try:
-            cache_source_len_int = int(cache_source_len)
-        except (TypeError, ValueError):
-            cache_source_len_int = -1
-        cache_is_valid = (
-            isinstance(cache, dict)
-            and cache.get("column_name") == column_name
-            and cache.get("source_id") == source_id
-            and cache_source_len_int == source_len
-            and isinstance(keys_df, pd.DataFrame)
-            and keys_df.index.equals(source_df.index)
-        )
-        if not cache_is_valid:
-            keys_df = self._build_mixed_text_sort_keys(source_df[column_name])
-            self._mixed_text_sort_cache = {
-                "column_name": column_name,
-                "source_id": source_id,
-                "source_len": source_len,
-                "keys_df": keys_df,
-            }
-        if not isinstance(keys_df, pd.DataFrame):
-            keys_df = self._build_mixed_text_sort_keys(source_df[column_name])
-        if not keys_df.index.equals(source_df.index):
-            keys_df = self._build_mixed_text_sort_keys(source_df[column_name])
-            self._mixed_text_sort_cache = {
-                "column_name": column_name,
-                "source_id": source_id,
-                "source_len": source_len,
-                "keys_df": keys_df,
-            }
-        return keys_df
 
     def _sort_mixed_text_column_robust(
         self, column_name: str, ascending: bool
     ) -> pd.DataFrame:
-        source_df = self.df_exibido
-        if source_df is None or source_df.empty:
-            return source_df
-        if column_name not in source_df.columns:
-            return source_df
-
-        sort_keys = self._get_mixed_text_sort_keys(source_df, column_name)
-        sort_direction = bool(ascending)
-        ordered_index = sort_keys.sort_values(
-            by=[
-                "__mixed_is_empty",
-                "__mixed_bucket_order",
-                "__mixed_symbol_txt",
-                "__mixed_num",
-                "__mixed_alpha_txt",
-                "__mixed_other_txt",
-            ],
-            ascending=[
-                True,
-                sort_direction,
-                sort_direction,
-                sort_direction,
-                sort_direction,
-                sort_direction,
-            ],
-            na_position="last",
-            kind="mergesort",
-        ).index
-        sorted_df = source_df.loc[ordered_index]
-        self._mixed_text_sort_cache = {
-            "column_name": column_name,
-            "source_id": id(sorted_df),
-            "source_len": len(sorted_df.index),
-            "keys_df": sort_keys.loc[ordered_index],
-        }
-        return sorted_df
+        return ssa_table_sorting.sort_mixed_text_column_robust(
+            self, column_name, ascending
+        )
 
     def _reset_mixed_text_sort_cache(self) -> None:
         self._mixed_text_sort_cache = {
@@ -2805,53 +2448,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         }
 
     def _get_num_reprogramacoes_sort_keys(self) -> pd.DataFrame:
-        source_df = self.df_exibido
-        if not isinstance(source_df, pd.DataFrame):
-            return pd.DataFrame(
-                {
-                    "__reprog_is_nan": pd.Series(dtype="bool"),
-                    "__reprog_num": pd.Series(dtype="float64"),
-                    "__reprog_txt": pd.Series(dtype="string"),
-                }
-            )
-        if "num_reprogramacoes" not in source_df.columns:
-            return pd.DataFrame(index=source_df.index)
-
-        source_id = id(source_df)
-        source_len = len(source_df.index)
-        cache = getattr(self, "_num_reprog_sort_cache", None)
-        keys_df = cache.get("keys_df") if isinstance(cache, dict) else None
-        cache_source_len = (
-            cache.get("source_len", -1) if isinstance(cache, dict) else -1
-        )
-        try:
-            cache_source_len_int = int(cache_source_len)
-        except (TypeError, ValueError):
-            cache_source_len_int = -1
-        cache_is_valid = (
-            isinstance(cache, dict)
-            and cache.get("source_id") == source_id
-            and cache_source_len_int == source_len
-            and isinstance(keys_df, pd.DataFrame)
-            and keys_df.index.equals(source_df.index)
-        )
-        if not cache_is_valid:
-            keys_df = self._build_num_reprogramacoes_sort_keys(source_df)
-            self._num_reprog_sort_cache = {
-                "source_id": source_id,
-                "source_len": source_len,
-                "keys_df": keys_df,
-            }
-        if not isinstance(keys_df, pd.DataFrame):
-            keys_df = self._build_num_reprogramacoes_sort_keys(source_df)
-        if not keys_df.index.equals(source_df.index):
-            keys_df = self._build_num_reprogramacoes_sort_keys(source_df)
-            self._num_reprog_sort_cache = {
-                "source_id": source_id,
-                "source_len": source_len,
-                "keys_df": keys_df,
-            }
-        return keys_df
+        return ssa_table_sorting.get_num_reprogramacoes_sort_keys(self)
 
     def _reset_num_reprogramacoes_sort_cache(self) -> None:
         self._num_reprog_sort_cache = {
@@ -2861,19 +2458,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         }
 
     def _prime_num_reprogramacoes_sort_cache(self) -> None:
-        source_df = self.df_exibido
-        if not isinstance(source_df, pd.DataFrame):
-            self._reset_num_reprogramacoes_sort_cache()
-            return
-        if source_df.empty or "num_reprogramacoes" not in source_df.columns:
-            self._reset_num_reprogramacoes_sort_cache()
-            return
-        keys_df = self._build_num_reprogramacoes_sort_keys(source_df)
-        self._num_reprog_sort_cache = {
-            "source_id": id(source_df),
-            "source_len": len(source_df.index),
-            "keys_df": keys_df,
-        }
+        ssa_table_sorting.prime_num_reprogramacoes_sort_cache(self)
 
     def _resolve_header_column_name(self, logical_index: int) -> str | None:
         if logical_index < 0 or self.table_widget.columnCount() == 0:
@@ -3393,7 +2978,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
         if selected_values:
             advanced_filters["setor_executor"] = selected_values
-            if clear_exclude:
+            if clear_exclude and "setor_executor_exclude_values" not in advanced_filters:
                 advanced_filters["setor_executor_exclude_values"] = []
         else:
             advanced_filters.pop("setor_executor", None)
@@ -3680,8 +3265,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         safe_url = str(url or "").strip()
         if not safe_url:
             return False
+        qurl = QUrl(safe_url)
+        scheme = str(qurl.scheme() or "").casefold()
+        host = str(qurl.host() or "").casefold()
+        if scheme not in {"http", "https"} or host not in SAM_ALLOWED_URL_HOSTS:
+            logger.warning(
+                "URL externa bloqueada por politica de seguranca: scheme=%s host=%s",
+                scheme or "<empty>",
+                host or "<empty>",
+            )
+            return False
         try:
-            ok = bool(QDesktopServices.openUrl(QUrl(safe_url)))
+            ok = bool(QDesktopServices.openUrl(qurl))
         except Exception as exc:
             logger.warning("Falha ao abrir URL externa %s: %s", safe_url, exc)
             ok = False
@@ -3700,7 +3295,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _open_sam_ssa(self, numero_ssa: str):
         safe_numero = self._normalize_ssa_value(numero_ssa)
-        if not safe_numero:
+        if not re.fullmatch(r"[A-Za-z0-9]+", safe_numero):
+            logger.warning("Numero SSA invalido para URL SAM: %s", safe_numero)
             return False
         opened = self._open_url_in_browser(
             self._build_sam_ssa_url(safe_numero),
@@ -3863,78 +3459,27 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def show_context_menu(self, position):
         """Mostra menu de contexto na tabela."""
-        if self.table_widget.itemAt(position):
-            menu = QMenu(self)
-
-            # Acoes para celulas
-            copy_cell_action = QAction("Copiar Valor da Celula", self)
-            copy_cell_action.triggered.connect(self.copy_cell_value)
-            cast(Any, menu).addAction(copy_cell_action)
-
-            copy_row_action = QAction("Copiar Linha Completa", self)
-            copy_row_action.triggered.connect(self.copy_row_data)
-            cast(Any, menu).addAction(copy_row_action)
-
-            export_action = QAction("Exportar lista (txt)", self)
-            export_action.triggered.connect(self._export_current_list_txt)
-            cast(Any, menu).addAction(export_action)
-
-            menu.addSeparator()
-
-            current_item = self.table_widget.itemAt(position)
-            row_series = None
-            if current_item:
-                try:
-                    row_series = self._get_series_from_row(current_item.row())
-                except Exception:
-                    row_series = None
-
-            if row_series is not None:
-                numero_ssa = str(row_series.get("numero_ssa", "")).strip()
-                derivada_de = str(row_series.get("derivada_de", "")).strip()
-                derived_list = (
-                    self._get_derivadas_for_ssa(numero_ssa) if numero_ssa else []
-                )
-                if derivada_de:
-                    origem_action = QAction("Ir para SSA origem", self)
-                    origem_action.triggered.connect(
-                        lambda: self._jump_to_ssa(derivada_de)
-                    )
-                    cast(Any, menu).addAction(origem_action)
-                if derived_list:
-                    label = f"Mostrar derivadas ({len(derived_list)})"
-                    derivadas_action = QAction(label, self)
-                    derivadas_action.triggered.connect(
-                        lambda: self._filter_by_derivadas(numero_ssa)
-                    )
-                    cast(Any, menu).addAction(derivadas_action)
-                if self._last_derivada_origem:
-                    voltar_action = QAction("Voltar SSA origem", self)
-                    voltar_action.triggered.connect(self._clear_derivadas_filter)
-                    cast(Any, menu).addAction(voltar_action)
-                menu.addSeparator()
-
-            # Acoes para colunas
-            if current_item:
-                column = current_item.column()
-                if column > 0:  # Nção permitir remover a coluna de ándice
-                    column_name = self.table_widget.horizontalHeaderItem(column).text()
-
-                    remove_column_action = QAction(
-                        f"Remover Coluna '{column_name}'", self
-                    )
-                    remove_column_action.triggered.connect(
-                        lambda: self.remove_column_by_index(column)
-                    )
-                    cast(Any, menu).addAction(remove_column_action)
-
-                    auto_fit_action = QAction(f"Ajustar Largura '{column_name}'", self)
-                    auto_fit_action.triggered.connect(
-                        lambda: self.auto_fit_column(column)
-                    )
-                    cast(Any, menu).addAction(auto_fit_action)
-
-            menu.exec(self.table_widget.mapToGlobal(position))
+        show_table_context_menu(
+            self,
+            self.table_widget,
+            position,
+            TableContextMenuCallbacks(
+                copy_cell_value=self.copy_cell_value,
+                copy_row_data=self.copy_row_data,
+                export_current_list_txt=self._export_current_list_txt,
+                get_series_from_row=self._get_series_from_row,
+                jump_to_ssa=self._jump_to_ssa,
+                filter_by_derivadas=self._filter_by_derivadas,
+                clear_derivadas_filter=self._clear_derivadas_filter,
+                remove_column_by_index=self.remove_column_by_index,
+                auto_fit_column=self.auto_fit_column,
+                last_derivada_origem=lambda: getattr(
+                    self, "_last_derivada_origem", None
+                ),
+            ),
+            action_cls=QAction,
+            menu_cls=QMenu,
+        )
 
     def copy_cell_value(self, *_):  # QAction triggered pode enviar 'checked'
         """Copia o valor da celula selecionada."""
@@ -4209,7 +3754,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             }
 
         selected_count = len(selected_files)
-        copied = 0
         skipped = 0
         failed = 0
         unsupported = 0
@@ -4281,7 +3825,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         return {
             "selected": selected_count,
-            "copied": copied,
+            "copied": 0,
+            "copied_scope": "async_worker",
             "skipped": skipped,
             "failed": failed,
             "unsupported": unsupported,
