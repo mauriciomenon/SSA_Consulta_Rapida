@@ -233,11 +233,14 @@ def _connect_filter_signal(signal, slot, *, label: str) -> bool:
         return False
     try:
         queued_connection = _FILTER_QT_QUEUED
-        if queued_connection is not None:
+        if queued_connection is not None and not isinstance(queued_connection, type):
             try:
                 signal.connect(slot, queued_connection)
             except TypeError:
-                signal.connect(slot)
+                try:
+                    signal.connect(slot, type=queued_connection)
+                except TypeError:
+                    signal.connect(slot)
         else:
             signal.connect(slot)
         return True
