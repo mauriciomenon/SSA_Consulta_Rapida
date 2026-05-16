@@ -9,11 +9,17 @@ SummaryAction = dict[str, Any]
 SummaryEntry = dict[str, Any]
 
 SUMMARY_LABEL_SHORTENINGS = (
+    ("Descricao da SSA", "Desc"),
+    ("Descricao Execucao", "Desc Exec"),
+    ("Setor Executor", "Exec"),
+    ("Setor Emissor", "Emis"),
     ("Executor", "Exec"),
     ("Emissor", "Emis"),
     ("Situacao", "Sit"),
     ("Prio Emissao", "Prio"),
     ("Prio Planejamento", "Plan"),
+    ("Semana Cadastro", "Sem Cad"),
+    ("Semana Programada", "Sem Prog"),
     ("Ano Emissao", "Ano Emis"),
     ("Ano Execucao", "Ano Exec"),
     ("Reprogramacoes", "No. Reprog"),
@@ -150,7 +156,7 @@ def build_advanced_summary_entries(advanced_filters: dict) -> OrderedDict[str, S
             return
         merge_summary_actions(
             entries,
-            text=text,
+            text=shorten_summary_label(text),
             actions=[{"kind": "advanced_keys", "keys": keys}],
         )
 

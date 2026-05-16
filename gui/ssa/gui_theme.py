@@ -524,8 +524,6 @@ def _apply_status_summary_styles(window, selector, context: dict | None, style: 
         "export_list_btn",
         "undo_filter_btn",
         "save_filter_button",
-        "search_button",
-        "clear_filter_button",
     )
     _apply_style_to_window_widgets(window, highlight_button_names, highlight_style)
     if isinstance(context, dict):

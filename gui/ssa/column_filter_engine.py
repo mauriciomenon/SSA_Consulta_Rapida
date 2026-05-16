@@ -31,6 +31,8 @@ class ColumnFilterCaches:
     frame_tokens: dict[int, tuple[weakref.ReferenceType[pd.DataFrame], str]] = field(
         default_factory=dict
     )
+    date_filter_terms: dict[tuple[str, bool], bool] = field(default_factory=dict)
+    max_entries: int = 96
 
 
 class OrFilterGroup(TypedDict, total=False):
@@ -51,6 +53,7 @@ def _dataframe_cache_key(
             return revision, cached_token
     token = uuid4().hex
     caches.frame_tokens[df_id] = (weakref.ref(df), token)
+    _trim_cache_dict(caches.frame_tokens, caches.max_entries)
     return revision, token
 
 
@@ -81,6 +84,7 @@ def get_column_filter_date_display_series(
     caches.date_parsed[col] = parsed_dates
     display_dates = parsed_dates.dt.strftime("%d/%m/%Y").fillna("").astype(str)
     caches.date[col] = display_dates
+    _trim_date_caches(caches)
     return display_dates
 
 
@@ -126,7 +130,9 @@ def apply_column_filters(
                 build_column_mask=build_column_mask,
                 date_display_columns=date_display_columns,
             )
-            if isinstance(group_mask, pd.Series) and not group_mask.all():
+            if group_mask is None:
+                continue
+            if not group_mask.all():
                 combined_mask = combined_mask & group_mask
             continue
         if col not in df.columns or not raw_str:
@@ -175,30 +181,57 @@ def _build_or_group_mask(
     group_raw = ", ".join(group_values) or fallback_raw
     if not group_raw:
         return None
-    group_mask_values = np.zeros(len(df.index), dtype=bool)
+    include_expr, exclude_expr = _split_positive_and_negative_terms(group_raw)
+    if not include_expr and not exclude_expr:
+        return None
+    group_mask_values = (
+        np.zeros(len(df.index), dtype=bool)
+        if include_expr
+        else np.ones(len(df.index), dtype=bool)
+    )
+    excluded_mask_values = np.zeros(len(df.index), dtype=bool)
     has_group_column = False
     for group_col in group.get("columns", []):
         col = str(group_col)
         if col not in df.columns:
             continue
         has_group_column = True
-        col_mask = _build_effective_column_mask(
-            df,
-            col,
-            group_raw,
-            frame_key=frame_key,
-            revision=revision,
-            caches=caches,
-            build_column_mask=build_column_mask,
-            date_display_columns=date_display_columns,
-        )
-        np.logical_or(
-            group_mask_values,
-            col_mask.reindex(df.index, fill_value=False).to_numpy(dtype=bool),
-            out=group_mask_values,
-        )
+        if include_expr:
+            include_mask = _build_effective_column_mask(
+                df,
+                col,
+                include_expr,
+                frame_key=frame_key,
+                revision=revision,
+                caches=caches,
+                build_column_mask=build_column_mask,
+                date_display_columns=date_display_columns,
+            )
+            np.logical_or(
+                group_mask_values,
+                include_mask.to_numpy(dtype=bool, copy=False),
+                out=group_mask_values,
+            )
+        if exclude_expr:
+            exclude_mask = _build_effective_column_mask(
+                df,
+                col,
+                exclude_expr,
+                frame_key=frame_key,
+                revision=revision,
+                caches=caches,
+                build_column_mask=build_column_mask,
+                date_display_columns=date_display_columns,
+            )
+            np.logical_or(
+                excluded_mask_values,
+                exclude_mask.to_numpy(dtype=bool, copy=False),
+                out=excluded_mask_values,
+            )
     if not has_group_column:
         return None
+    if exclude_expr:
+        np.logical_and(group_mask_values, ~excluded_mask_values, out=group_mask_values)
     return pd.Series(group_mask_values, index=df.index)
 
 
@@ -230,7 +263,8 @@ def _build_effective_column_mask(
         casefolded_series=col_casefold,
     )
     display_dates = None
-    if should_match_date_display_filter(
+    if _should_match_date_display_filter_cached(
+        caches,
         raw_str,
         is_date_column=col in (date_display_columns or frozenset()),
     ):
@@ -249,6 +283,7 @@ def _build_effective_column_mask(
             build_column_mask,
         )
     caches.mask[mask_key] = col_mask
+    _trim_cache_dict(caches.mask, caches.max_entries)
     return col_mask.reindex(df.index, fill_value=False)
 
 
@@ -274,7 +309,53 @@ def _get_cached_text_series(
     col_casefold = col_series.str.casefold()
     caches.series[cache_key] = col_series
     caches.casefold[cache_key] = col_casefold
+    _trim_cache_dict(caches.series, caches.max_entries)
+    _trim_cache_dict(caches.casefold, caches.max_entries)
     return col_series, col_casefold
+
+
+def _trim_cache_dict(cache: dict, max_entries: int) -> None:
+    limit = max(1, int(max_entries))
+    while len(cache) > limit:
+        first_key = next(iter(cache), None)
+        if first_key is None:
+            return
+        cache.pop(first_key, None)
+
+
+def _trim_date_caches(caches: ColumnFilterCaches) -> None:
+    limit = max(1, int(caches.max_entries))
+    while len(caches.date) > limit:
+        first_key = next(iter(caches.date), None)
+        if first_key is None:
+            break
+        caches.date.pop(first_key, None)
+        caches.date_parsed.pop(first_key, None)
+    while len(caches.date_parsed) > limit:
+        first_key = next(iter(caches.date_parsed), None)
+        if first_key is None:
+            break
+        caches.date_parsed.pop(first_key, None)
+        caches.date.pop(first_key, None)
+
+
+def _should_match_date_display_filter_cached(
+    caches: ColumnFilterCaches,
+    raw_filter: str,
+    *,
+    is_date_column: bool,
+) -> bool:
+    cache_key = (str(raw_filter or ""), bool(is_date_column))
+    cached = caches.date_filter_terms.get(cache_key)
+    if isinstance(cached, bool):
+        return cached
+    result = should_match_date_display_filter(
+        raw_filter,
+        is_date_column=is_date_column,
+    )
+    caches.date_filter_terms[cache_key] = result
+    _trim_cache_dict(caches.date_filter_terms, caches.max_entries)
+    return result
 
 
 def _merge_date_display_mask(

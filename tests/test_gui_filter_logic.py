@@ -326,8 +326,11 @@ class TestGUIFilterLogic:
         assert str(search_button.text() or "") == "↵"
         assert str(clear_filter_button.text() or "") == "⌫"
         assert str(undo_filter_btn.text() or "") == "↺"
-        assert "color:" in str(search_button.styleSheet() or "")
-        assert "color:" in str(clear_filter_button.styleSheet() or "")
+        assert "QFrame#quickSearchBox" in str(quick_search_box.styleSheet() or "")
+        assert "border:0" in str(search_button.styleSheet() or "")
+        assert "background:transparent" in str(search_button.styleSheet() or "")
+        assert "border:0" in str(clear_filter_button.styleSheet() or "")
+        assert "background:transparent" in str(clear_filter_button.styleSheet() or "")
         assert "color:" in str(save_filter_button.styleSheet() or "")
         assert "busca" in tooltip.casefold()
         assert "filtros de coluna" in tooltip
@@ -375,7 +378,7 @@ class TestGUIFilterLogic:
         assert abs(quick_label.geometry().y() - quick_combo.geometry().y()) <= 6
         assert quick_label.geometry().x() < quick_combo.geometry().x()
         assert quick_combo.geometry().x() > column_selector.geometry().x()
-        assert quick_combo.height() <= (search_button.height() + 2)
+        assert quick_combo.height() <= 28
         assert quick_combo.height() >= 24
         parent_widget = quick_combo.parentWidget()
         assert parent_widget is not None
@@ -430,9 +433,14 @@ class TestGUIFilterLogic:
             if str(label.text() or "").strip()
         ]
 
-        assert "Descricao da SSA" in labels
+        assert "Desc. SSA" in labels
         assert "Set. Exec." in labels
         assert "Set. Emis." in labels
+        assert "Desc. Exec." in labels
+        assert "Loc." in labels
+        assert "Sem. Cad." in labels
+        assert "Sem. Prog." in labels
+        assert "Sem. Exec." in labels
 
     def test_advanced_filters_reprogramacoes_controls_are_compact(self):
         self._set_filter_panel_tab("filters")
@@ -673,7 +681,7 @@ class TestGUIFilterLogic:
                 )
             ]
             assert "IEE3, MEL3, MEL4" in summary_text
-            assert any("Executor" in text for text in summary_buttons)
+            assert any("Exec" in text for text in summary_buttons)
             assert col in self.window._column_to_or_group
 
         # Ajuste manual em um campo deve repercutir no par
@@ -682,6 +690,11 @@ class TestGUIFilterLogic:
         self.window._refresh_after_filter_change()
         assert self.window._active_column_filters["setor_emissor"] == "MEL4"
         assert Counter(self._extract_visible_ssa()) == Counter([3])
+
+        self.window._sync_or_group_values("setor_executor", "IEE3, !MEL4")
+        self.window._refresh_after_filter_change()
+        assert self.window._active_column_filters["setor_emissor"] == "IEE3, !MEL4"
+        assert Counter(self._extract_visible_ssa()) == Counter([1, 2])
 
     def test_profile_empty_or_group_keeps_specific_column_value(self):
         normalized = NormalizedFilterProfile(
@@ -3606,9 +3619,9 @@ class TestGUIFilterLogic:
             )
         ]
         assert "Busca: 'Teste A'" in main_summary
-        assert "Descricao da SSA: Teste" in main_summary
+        assert "Desc: Teste" in main_summary
         assert "Busca: 'Teste A'" in main_buttons
-        assert "Descricao da SSA: Teste" in main_buttons
+        assert "Desc: Teste" in main_buttons
         self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
@@ -3620,9 +3633,9 @@ class TestGUIFilterLogic:
             )
         ]
         assert "Busca: 'Teste A'" in filters_summary
-        assert "Descricao da SSA: Teste" in filters_summary
+        assert "Desc: Teste" in filters_summary
         assert "Busca: 'Teste A'" in filters_buttons
-        assert "Descricao da SSA: Teste" in filters_buttons
+        assert "Desc: Teste" in filters_buttons
 
     def test_on_filter_finished_uses_pending_search_display_for_status(self):
         self.window._active_filter_request_id = 31
@@ -7829,6 +7842,48 @@ class TestGUIFilterLogic:
             is not self.window._column_filter_series_cache[second_key]
         )
 
+    def test_column_filter_cache_keeps_bounded_series_and_masks(self):
+        df = pd.DataFrame(
+            {
+                "c1": ["alfa", "beta"],
+                "c2": ["alfa", "beta"],
+                "c3": ["alfa", "beta"],
+            }
+        )
+        caches = filter_mixin.ColumnFilterCaches(
+            revision=None,
+            series={},
+            casefold={},
+            mask={},
+            date_scope=None,
+            date_parsed={},
+            date={},
+            max_entries=2,
+        )
+
+        def _build_mask(series, raw, **kwargs):
+            return filter_mixin.build_column_mask(
+                series,
+                raw,
+                default_mode="contains",
+                **kwargs,
+            )
+
+        for column in ("c1", "c2", "c3"):
+            filter_mixin.apply_column_filters(
+                df,
+                {column: "alfa"},
+                {},
+                revision=1,
+                caches=caches,
+                build_column_mask=_build_mask,
+                date_display_columns=set(),
+            )
+
+        assert len(caches.series) <= 2
+        assert len(caches.casefold) <= 2
+        assert len(caches.mask) <= 2
+
     def test_filter_alias_map_reuses_module_cache_between_instances(
         self, monkeypatch
     ):
@@ -8368,6 +8423,24 @@ class TestGUIFilterLogic:
         assert worker.wait_called_ms is None
         assert worker.deleted is True
         assert self.window.filter_thread is None
+
+    def test_filter_worker_cleanup_accepts_already_deleted_qt_worker(self):
+        class _DeletedSignal:
+            def disconnect(self, _callback=None):
+                raise RuntimeError(
+                    "wrapped C/C++ object of type FilterWorker has been deleted"
+                )
+
+        class _DeletedWorker:
+            def __init__(self):
+                self.filter_finished = _DeletedSignal()
+                self.error_occurred = _DeletedSignal()
+
+        worker = _DeletedWorker()
+        self.window._filter_worker_registry.add(worker)
+
+        assert self.window._cleanup_filter_worker(worker) is True
+        assert not self.window._filter_worker_registry.contains(worker)
 
     def test_close_event_cancels_filter_worker_when_running_check_fails(self):
         class _BrokenRunningWorker:

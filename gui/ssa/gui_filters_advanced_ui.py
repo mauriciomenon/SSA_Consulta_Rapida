@@ -115,11 +115,11 @@ def _get_widget_screen_geometry(widget):
         except Exception as exc:
             logger.debug("Failed to get screen geometry from window handle: %s", exc)
         try:
-            screen = QApplication.screenAt(
-                candidate.mapToGlobal(candidate.rect().center())
-            )
-            if screen is not None:
-                return screen.availableGeometry()
+            screen_at = getattr(QApplication, "screenAt", None)
+            if callable(screen_at):
+                screen = screen_at(candidate.mapToGlobal(candidate.rect().center()))
+                if screen is not None:
+                    return screen.availableGeometry()
         except Exception as exc:
             logger.debug("Failed to get screen geometry from widget center: %s", exc)
     try:
@@ -419,30 +419,13 @@ def _set_checkbox_checked_quietly(self, checkbox, checked: bool) -> None:
             exc,
         )
         desired = bool(checked)
-    previous_signal_state = False
-    manual_blocked = False
     try:
         with QSignalBlocker(checkbox):
             checkbox.setChecked(desired)
-            return
-    except Exception:
-        try:
-            previous_signal_state = bool(checkbox.blockSignals(True))
-            manual_blocked = True
-            checkbox.setChecked(desired)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao atualizar checkbox em _set_checkbox_checked_quietly: %s", exc
-            )
-        finally:
-            if manual_blocked:
-                try:
-                    checkbox.blockSignals(previous_signal_state)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao restaurar sinais de checkbox sem QSignalBlocker: %s",
-                        exc,
-                    )
+    except Exception as exc:
+        logger.debug(
+            "Falha ao atualizar checkbox em _set_checkbox_checked_quietly: %s", exc
+        )
 
 
 def _sync_responsavel_flags(self) -> None:
@@ -2530,13 +2513,17 @@ def _reorganize_advanced_filters_grid(self, width: int):
     if effective_width < LAYOUT_MIN_VALID_WIDTH:
         return
     previous_effective_width = getattr(self, "_adv_filters_last_effective_width", None)
+    previous_max_scroll_h = getattr(self, "_adv_filters_last_max_scroll_h", None)
     if (
         previous_effective_width is not None
         and abs(int(effective_width) - int(previous_effective_width)) < 8
+        and previous_max_scroll_h is not None
+        and abs(int(max_scroll_h) - int(previous_max_scroll_h)) < 8
         and getattr(self, "_adv_filters_grid_cols", None) is not None
     ):
         return
     self._adv_filters_last_effective_width = int(effective_width)
+    self._adv_filters_last_max_scroll_h = int(max_scroll_h)
 
     grid = self._adv_filters_main_grid
     w = self._adv_filters_grid_widgets

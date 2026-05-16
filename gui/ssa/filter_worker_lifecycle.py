@@ -9,6 +9,20 @@ from typing import Any
 MAX_GLOBAL_RETIRED_FILTER_WORKERS = 64
 
 
+def _is_deleted_qt_object_error(exc: Exception) -> bool:
+    text = str(exc)
+    return "wrapped C/C++ object" in text and "has been deleted" in text
+
+
+def _is_disconnected_signal_error(exc: Exception) -> bool:
+    text = str(exc).casefold()
+    return "disconnect" in text and (
+        "no connection" in text
+        or "not connected" in text
+        or "failed" in text
+    )
+
+
 class DeferredFilterWorkerRegistry:
     """Explicit registry for workers that outlive a filter request."""
 
@@ -164,20 +178,26 @@ class FilterWorkerLifecycle:
         if worker is None:
             return True
         try:
-            self._disconnect_worker_signals(worker)
             still_running = self._request_worker_stop(worker)
             if still_running:
                 self.retain_until_finished(worker)
                 return False
+            self._disconnect_worker_signals(worker)
             try:
                 worker.deleteLater()
             except Exception as exc:
+                if _is_deleted_qt_object_error(exc):
+                    self.registry.remove(worker)
+                    return True
                 self.logger.debug("Falha ao chamar deleteLater no worker de filtro: %s", exc)
             try:
                 self.prune()
             except Exception as exc:
                 self.logger.debug("Falha ao podar workers de filtro apos cleanup: %s", exc)
         except Exception as exc:
+            if _is_deleted_qt_object_error(exc):
+                self.registry.remove(worker)
+                return True
             self.logger.warning("Falha durante cleanup do worker de filtro: %s", exc)
             return False
         return True
@@ -190,6 +210,12 @@ class FilterWorkerLifecycle:
             try:
                 signal.disconnect()
             except Exception as exc:
+                if _is_deleted_qt_object_error(exc):
+                    continue
+                if isinstance(exc, (TypeError, RuntimeError)) and (
+                    _is_disconnected_signal_error(exc)
+                ):
+                    continue
                 self.logger.debug(
                     "Falha ao desconectar %s do worker de filtro: %s",
                     signal_name,

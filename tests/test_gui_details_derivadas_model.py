@@ -88,6 +88,22 @@ def test_build_graph_model_marks_related_edges_and_partial_count() -> None:
     assert model.truncated == 1
 
 
+def test_build_graph_model_keeps_single_node_without_edges() -> None:
+    model = details_derivadas_model.build_graph_model(
+        {"target": "202600023", "children": [], "descendants": [], "related": []},
+        max_descendants=1,
+        node_width=100,
+        node_height=30,
+        x_gap=170,
+        y_gap=60,
+        margin=8,
+    )
+
+    assert model is not None
+    assert model.nodes == {"202600023"}
+    assert model.edges == []
+
+
 def test_build_mermaid_text_uses_stable_text_node_ids() -> None:
     mermaid = details_derivadas_model.build_mermaid_text(
         {"target": "SSA-2025", "children": ["REL-2025"]},

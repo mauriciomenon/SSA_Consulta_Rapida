@@ -1335,22 +1335,18 @@ class FilterGUISSAMixin:
         return str(col)
 
     def _expand_column_alias_for_filter(self, col: str) -> str:
-        """Prefer full labels in the column-filter list when short aliases exist."""
+        """Use compact labels in the column-filter list."""
         resolved = self._resolve_column_display_name(col)
-        expanded_aliases = {
-            "Exec.": "Setor executor",
-            "Emis.": "Setor emissor",
-            "Sit.": "Situacao",
-            "Loc.": "Localizacao",
-            "Prog.": "Semana programada",
-            "Sem. Cad.": "Semana cadastro",
-            "Prio.": "Prioridade",
-            "Prio. Emissao": "Prioridade Emissao",
-            "Prio. Planej.": "Prioridade Planejamento",
-            "Resp. Prog.": "Responsavel programacao",
-            "Resp. Exec.": "Responsavel execucao",
+        compact_aliases = {
+            "Descricao da SSA": "Desc. SSA",
+            "Descricao Execucao": "Desc. Exec.",
+            "Setor executor": "Set. Exec.",
+            "Setor emissor": "Set. Emis.",
+            "Semana cadastro": "Sem. Cad.",
+            "Semana programada": "Sem. Prog.",
+            "Semana executada": "Sem. Exec.",
         }
-        return expanded_aliases.get(resolved, resolved)
+        return compact_aliases.get(resolved, resolved)
 
     def _find_unmapped_alias_columns(self, candidates) -> list[str]:
         seen = set()
@@ -1527,7 +1523,7 @@ class FilterGUISSAMixin:
             if not isinstance(dynamic_width, int):
                 label_metrics = label.fontMetrics()
                 desired_width = int(label_metrics.horizontalAdvance(full_name) + 16)
-                dynamic_width = max(90, min(260, desired_width))
+                dynamic_width = max(78, min(150, desired_width))
                 width_cache[cache_key] = dynamic_width
             label.setMinimumWidth(max(min_label_column_width, dynamic_width))
         except Exception as exc:
@@ -2204,14 +2200,21 @@ class FilterGUISSAMixin:
             )
 
     def _filters_summary_display_name(self, col: str) -> str:
-        if col == "setor_executor":
-            return "Executor"
-        if col == "setor_emissor":
-            return "Emissor"
-        if col == "descricao_ssa":
-            return "Descricao da SSA"
-        if col == "situacao":
-            return "Situacao"
+        compact = {
+            "setor_executor": "Exec",
+            "setor_emissor": "Emis",
+            "descricao_ssa": "Desc",
+            "descricao_execucao": "Desc Exec",
+            "localizacao_codigo": "Loc",
+            "semana_cadastro": "Sem Cad",
+            "semana_programada": "Sem Prog",
+            "semana_executada": "Sem Exec",
+            "situacao": "Sit",
+            "grau_prioridade_emissao": "Prio Emis",
+            "grau_prioridade_planejamento": "Prio Plan",
+        }
+        if col in compact:
+            return compact[col]
         return self._resolve_column_display_name(col)
 
     def _read_filters_summary_search_text(self) -> str:
@@ -2979,6 +2982,10 @@ class FilterGUISSAMixin:
             "setor_emissor",
             "setor_executor",
             "descricao_execucao",
+            "localizacao_codigo",
+            "semana_cadastro",
+            "semana_programada",
+            "semana_executada",
         )
 
     def _reset_or_groups(self):

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from itertools import chain
 from typing import Any, Callable, Mapping, cast
 
 from shared.numero_ssa import normalize_relation_id as normalize_numero_ssa_relation
@@ -548,7 +549,7 @@ def _entry_lookup_by_ssa(
     direct_children: list[object],
 ) -> dict[str, object]:
     entry_by_ssa: dict[str, object] = {}
-    for raw in [*lineage, *descendants, *direct_children]:
+    for raw in chain(lineage, descendants, direct_children):
         normalized = _entry_ssa(raw)
         if normalized and normalized not in entry_by_ssa:
             entry_by_ssa[normalized] = raw
@@ -620,63 +621,65 @@ def _ordered_graph_nodes(
 ) -> list[tuple[str, int]]:
     lineage = [_entry_ssa(raw) for raw in _lineage_entries(data)]
     child_map = {
-        parent: [_entry_ssa(child) for child in children if _entry_ssa(child)]
-        for parent, children in _child_entry_map(descendants_entries).items()
+        parent: [_entry_ssa(child) for child in child_entries if _entry_ssa(child)]
+        for parent, child_entries in _child_entry_map(descendants_entries).items()
     }
 
     ordered_nodes: list[tuple[str, int]] = []
     family_roots = _normalize_values(data.get("family_roots", []))
     render_family = bool(data.get("render_family")) and bool(child_map) and bool(family_roots)
     target_depth = len(lineage)
+    seen_nodes: set[str] = set()
+
+    def append_node(node: str, depth: int) -> None:
+        if not node or node in seen_nodes:
+            return
+        seen_nodes.add(node)
+        ordered_nodes.append((node, depth))
 
     if render_family:
-        seen_family_nodes: set[str] = set()
         for root in family_roots:
             stack = [(root, 0)]
             while stack:
                 node, depth = stack.pop()
-                if not node or node in seen_family_nodes:
+                if not node or node in seen_nodes:
                     continue
-                seen_family_nodes.add(node)
-                ordered_nodes.append((node, depth))
+                append_node(node, depth)
                 for child_ssa in reversed(child_map.get(node, [])):
-                    if child_ssa not in seen_family_nodes:
+                    if child_ssa not in seen_nodes:
                         stack.append((child_ssa, depth + 1))
-        return ordered_nodes
+    else:
+        for depth, node in enumerate(lineage):
+            append_node(node, depth)
+        append_node(target, target_depth)
 
-    for depth, node in enumerate(lineage):
-        ordered_nodes.append((node, depth))
-    ordered_nodes.append((target, target_depth))
-    seen_children: set[str] = set()
+        def append_descendant_nodes(parent_ssa: str, depth: int) -> None:
+            stack = [
+                (child_ssa, depth)
+                for child_ssa in reversed(child_map.get(parent_ssa, []))
+            ]
+            while stack:
+                child_ssa, child_depth = stack.pop()
+                if child_ssa in seen_nodes:
+                    continue
+                append_node(child_ssa, child_depth)
+                for nested_child in reversed(child_map.get(child_ssa, [])):
+                    if nested_child not in seen_nodes:
+                        stack.append((nested_child, child_depth + 1))
 
-    def append_descendant_nodes(parent_ssa: str, depth: int) -> None:
-        stack = [(child_ssa, depth) for child_ssa in reversed(child_map.get(parent_ssa, []))]
-        while stack:
-            child_ssa, child_depth = stack.pop()
-            if child_ssa in seen_children:
+        for child_ssa in children:
+            if not child_ssa or child_ssa in seen_nodes:
                 continue
-            seen_children.add(child_ssa)
-            ordered_nodes.append((child_ssa, child_depth))
-            for nested_child in reversed(child_map.get(child_ssa, [])):
-                if nested_child not in seen_children:
-                    stack.append((nested_child, child_depth + 1))
-
-    for child_ssa in children:
-        if not child_ssa or child_ssa in seen_children:
-            continue
-        seen_children.add(child_ssa)
-        ordered_nodes.append((child_ssa, target_depth + 1))
-        append_descendant_nodes(child_ssa, target_depth + 2)
+            append_node(child_ssa, target_depth + 1)
+            append_descendant_nodes(child_ssa, target_depth + 2)
 
     related_entries = data.get("related", [])
     if isinstance(related_entries, list):
-        related_seen: set[str] = set()
         for raw in related_entries:
             if not isinstance(raw, dict):
                 continue
             related_ssa = normalize_relation_value(cast(dict[str, object], raw).get("ssa"))
-            if not related_ssa or related_ssa in related_seen:
+            if not related_ssa or related_ssa in seen_nodes:
                 continue
-            related_seen.add(related_ssa)
-            ordered_nodes.append((related_ssa, target_depth + 1))
+            append_node(related_ssa, target_depth + 1)
     return ordered_nodes

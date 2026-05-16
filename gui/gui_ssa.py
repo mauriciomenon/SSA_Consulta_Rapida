@@ -55,6 +55,7 @@ if code_root not in sys.path:
 
 from core.config_manager import COLUMN_AFFINITY_SCORES  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file
+from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS  # noqa: E402
 from gui.gui_config import DEFAULT_GUI_SETTINGS  # noqa: E402
 from gui.gui_config import get_gui_main_preferences_path  # noqa: E402
@@ -79,7 +80,6 @@ from gui.ssa.gui_filters_responsavel_state import (  # noqa: E402
 )
 from shared.db_names import ALL_SSA_TABLE_NAMES  # noqa: E402
 from shared.db_names import CANONICAL_SSA_TABLE
-from utils.themes import get_theme_roles, normalize_theme  # noqa: E402
 
 # Inicializar logging robusto
 try:
@@ -170,8 +170,6 @@ EXCLUDED_CANONICAL_UI_COLUMNS = {
     "relacao",
 }
 
-import hashlib
-
 from armazenamento.database import query_db, vacuum_analyze_database  # noqa: E402
 from armazenamento.derivadas_sync import (  # noqa: E402
     scan_derivadas_consistency,
@@ -179,8 +177,6 @@ from armazenamento.derivadas_sync import (  # noqa: E402
 )
 
 # --- Importações do Projeto ---
-from core.app_logic import filter_dataframe, parse_search_terms  # noqa: E402
-from utils.formatting import format_cell  # noqa: E402
 from utils.formatting import format_dataframe_for_display
 
 # (mantido acima)
@@ -194,7 +190,6 @@ try:
         PYQT_VERSION_STR,
         QT_VERSION_STR,
         QEvent,
-        QSignalBlocker,
         Qt,
         QTimer,
         QUrl,
@@ -206,7 +201,6 @@ try:
         QCheckBox,
         QComboBox,
         QDialog,
-        QDialogButtonBox,
         QFileDialog,
         QFrame,
         QGridLayout,
@@ -215,7 +209,6 @@ try:
         QHeaderView,
         QLabel,
         QLineEdit,
-        QListWidget,
         QMainWindow,
         QMenu,
         QMessageBox,
@@ -227,28 +220,21 @@ try:
         QStackedWidget,
         QTabBar,
         QTableWidget,
-        QTableWidgetItem,
         QTabWidget,
         QTextBrowser,
         QTextEdit,
-        QToolButton,
         QVBoxLayout,
         QWidget,
-        QWidgetAction,
     )
 
     from gui.cache import FilterCache  # noqa: E402
-    from gui.helpers import format_search_display  # noqa: E402
-    from gui.helpers import highlight_text, normalize_chunk_for_parse
 
     # Import mixins for code organization
     from gui.mixins import FilterGUISSAMixin  # noqa: E402
     from gui.widgets import ColumnSelector  # noqa: E402
     from gui.widgets import (
         ColumnFilterDialog,
-        ColumnManagerDialog,
         DataPaginator,
-        FilterHelpDialog,
     )
 
     # Import workers, cache, widgets, and helpers from separate modules
@@ -1804,20 +1790,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         search_input.textChanged.connect(self._on_search_text_changed)
         search_button = QPushButton("↵")
         self._set_widget_fixed_height_safe(
-            search_button, 26, "botao Aplicar da pesquisa geral"
+            search_button, 22, "botao Aplicar da pesquisa geral"
         )
         try:
-            search_button.setFixedWidth(28)
+            search_button.setFixedWidth(26)
         except Exception as exc:
             logger.debug("Falha ao aplicar estilo no botao Aplicar da pesquisa: %s", exc)
         search_button.setToolTip("Aplicar busca (Enter)")
         search_button.clicked.connect(self._on_general_search_apply_clicked)
         clear_filter_button = QPushButton("⌫")
         self._set_widget_fixed_height_safe(
-            clear_filter_button, 26, "botao Limpar Busca"
+            clear_filter_button, 22, "botao Limpar Busca"
         )
         try:
-            clear_filter_button.setFixedWidth(28)
+            clear_filter_button.setFixedWidth(26)
         except Exception as exc:
             logger.debug(
                 "Falha ao aplicar estilo no botao Limpar Busca da pesquisa: %s", exc
@@ -1885,7 +1871,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         search_box.setMaximumWidth(950)
         search_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         search_box_layout = QHBoxLayout(cast(Any, search_box))
-        search_box_layout.setContentsMargins(2, 0, 2, 0)
+        search_box_layout.setContentsMargins(3, 2, 3, 2)
         search_box_layout.setSpacing(2)
         search_box_layout.addWidget(cast(Any, clear_filter_button), 0)
         search_box_layout.addWidget(cast(Any, search_input), 1)
@@ -1902,6 +1888,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "background:transparent;"
                 "padding:0;"
                 "font-weight:700;"
+                "font-size:12px;"
                 "}"
                 "QFrame#quickSearchBox QPushButton:hover {"
                 "background:palette(alternate-base);"
@@ -2250,8 +2237,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Details + column filters
         bottom_layout = QHBoxLayout()
         details_group = QGroupBox("Detalhes da SSA Selecionada")
+        details_group.setObjectName("detailsPanelGroup")
         details_layout = QVBoxLayout(cast(Any, details_group))
-        details_layout.setContentsMargins(2, 2, 2, 2)
+        details_layout.setContentsMargins(4, 2, 4, 4)
         details_layout.setSpacing(2)
         details_text = QTextBrowser()
         try:
@@ -3331,6 +3319,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.debug("Falha ao abrir dialogo de filtro por coluna: %s", exc)
             return None
 
+    def _resolve_column_filter_prompt_name(self, col_name: str) -> str:
+        variants = COLUMN_HEADER_LABEL_VARIANTS.get(str(col_name), {})
+        for key in ("long", "medium"):
+            value = str(variants.get(key) or "").strip()
+            if value:
+                return value
+        return self._resolve_column_display_name(col_name)
+
     def show_header_context_menu(self, pos):
         try:
             header = self.table_widget.horizontalHeader()
@@ -3340,7 +3336,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return
 
             menu = QMenu(self)
-            full_name = self._expand_column_alias_for_filter(col_name)
+            full_name = self._resolve_column_filter_prompt_name(col_name)
             apply_action = QAction(f"Filtrar '{full_name}'...", self)
             clear_action = QAction("Limpar filtro desta coluna", self)
             clear_all_action = QAction("Limpar todos filtros de colunas", self)

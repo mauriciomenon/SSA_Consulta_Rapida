@@ -42,15 +42,22 @@ def render_graph_svg_pixmap(
         return False
     renderer = None
     svg_payload = graph_svg.encode("utf-8")
-    cache_key = hashlib.blake2b(svg_payload, digest_size=12).hexdigest()
+    cached_svg = getattr(graph_label, "_ssa_graph_svg_text", None)
     cached_key = getattr(graph_label, "_ssa_graph_svg_cache_key", None)
     cached_renderer = getattr(graph_label, "_ssa_graph_svg_renderer", None)
-    if cached_key == cache_key and cached_renderer is not None:
+    if cached_svg is graph_svg and cached_renderer is not None:
         renderer = cached_renderer
+        cache_key = cached_key
+    else:
+        cache_key = hashlib.blake2b(svg_payload, digest_size=12).hexdigest()
+        if cached_key == cache_key and cached_renderer is not None:
+            renderer = cached_renderer
+            graph_label._ssa_graph_svg_text = graph_svg
     if renderer is None:
         renderer = dependencies.renderer_cls(
             dependencies.byte_array_cls(svg_payload)
         )
+        graph_label._ssa_graph_svg_text = graph_svg
         graph_label._ssa_graph_svg_cache_key = cache_key
         graph_label._ssa_graph_svg_renderer = renderer
     default_size = renderer.defaultSize()
@@ -58,7 +65,7 @@ def render_graph_svg_pixmap(
     natural_h = max(1, int(default_size.height()))
     available_w = max(120, graph_panel.width() - 24)
     available_h = max(120, graph_panel.height() - 24)
-    scale = min(1.0, available_w / natural_w, available_h / natural_h)
+    scale = min(1.35, available_w / natural_w, available_h / natural_h)
     render_w = max(1, int(natural_w * scale))
     render_h = max(1, int(natural_h * scale))
     dpr = 1.0
