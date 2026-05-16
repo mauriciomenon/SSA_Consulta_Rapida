@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import hashlib
 from pathlib import Path
 from typing import Any, MutableMapping
 
@@ -13,6 +12,10 @@ class SvgRenderDependencies:
     pixmap_cls: type[Any]
     renderer_cls: type[Any]
     qt_module: Any
+
+
+_SVG_RENDERER_CACHE_MAX = 16
+_SVG_RENDERER_CACHE: dict[tuple[type[Any], str], Any] = {}
 
 
 def load_svg_render_dependencies() -> SvgRenderDependencies | None:
@@ -40,32 +43,19 @@ def render_graph_svg_pixmap(
 ) -> bool:
     if not graph_svg:
         return False
-    renderer = None
-    svg_payload = graph_svg.encode("utf-8")
-    cached_svg = getattr(graph_label, "_ssa_graph_svg_text", None)
-    cached_key = getattr(graph_label, "_ssa_graph_svg_cache_key", None)
-    cached_renderer = getattr(graph_label, "_ssa_graph_svg_renderer", None)
-    if cached_svg is graph_svg and cached_renderer is not None:
-        renderer = cached_renderer
-        cache_key = cached_key
-    else:
-        cache_key = hashlib.blake2b(svg_payload, digest_size=12).hexdigest()
-        if cached_key == cache_key and cached_renderer is not None:
-            renderer = cached_renderer
-            graph_label._ssa_graph_svg_text = graph_svg
+    renderer = _cached_svg_renderer(dependencies.renderer_cls, graph_svg)
     if renderer is None:
+        svg_payload = graph_svg.encode("utf-8")
         renderer = dependencies.renderer_cls(
             dependencies.byte_array_cls(svg_payload)
         )
-        graph_label._ssa_graph_svg_text = graph_svg
-        graph_label._ssa_graph_svg_cache_key = cache_key
-        graph_label._ssa_graph_svg_renderer = renderer
+        _store_svg_renderer(dependencies.renderer_cls, graph_svg, renderer)
     default_size = renderer.defaultSize()
     natural_w = max(1, int(default_size.width()))
     natural_h = max(1, int(default_size.height()))
     available_w = max(120, graph_panel.width() - 24)
     available_h = max(120, graph_panel.height() - 24)
-    scale = min(1.35, available_w / natural_w, available_h / natural_h)
+    scale = min(1.0, available_w / natural_w, available_h / natural_h)
     render_w = max(1, int(natural_w * scale))
     render_h = max(1, int(natural_h * scale))
     dpr = 1.0
@@ -86,6 +76,21 @@ def render_graph_svg_pixmap(
     graph_label.setFixedSize(render_w, render_h)
     graph_label.setToolTip("")
     return True
+
+
+def _cached_svg_renderer(renderer_cls: type[Any], graph_svg: str) -> Any | None:
+    return _SVG_RENDERER_CACHE.get((renderer_cls, graph_svg))
+
+
+def _store_svg_renderer(
+    renderer_cls: type[Any], graph_svg: str, renderer: Any
+) -> None:
+    _SVG_RENDERER_CACHE[(renderer_cls, graph_svg)] = renderer
+    while len(_SVG_RENDERER_CACHE) > _SVG_RENDERER_CACHE_MAX:
+        first_key = next(iter(_SVG_RENDERER_CACHE), None)
+        if first_key is None:
+            return
+        _SVG_RENDERER_CACHE.pop(first_key, None)
 
 
 @dataclass(slots=True)
