@@ -9100,8 +9100,8 @@ class TestGUIFilterLogic:
             assert event.isAccepted() is True
             assert worker.stop_called is True
             assert worker.quit_called is True
-            assert worker.wait_calls and worker.wait_calls[0] == 1500
-            assert worker.terminate_called is True
+            assert worker.wait_calls == []
+            assert worker.terminate_called is False
             assert worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS
             assert self.window._active_rescan_worker is None
         finally:
@@ -9152,7 +9152,7 @@ class TestGUIFilterLogic:
             assert event.isAccepted() is True
             assert worker.stop_called is True
             assert worker.quit_called is True
-            assert worker.wait_calls and worker.wait_calls[0] == 1500
+            assert worker.wait_calls == []
             assert worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS
             assert self.window._active_rescan_worker is None
         finally:
@@ -9205,7 +9205,7 @@ class TestGUIFilterLogic:
             gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS[:] = []
             gui_ssa.GLOBAL_RETIRED_RESCAN_META.clear()
 
-    def test_close_event_uses_running_helper_when_worker_isrunning_is_unstable_after_wait(
+    def test_close_event_keeps_rescan_shutdown_nonblocking_after_initial_state_check(
         self, monkeypatch
     ):
         class _RescanWorkerUnstableAfterWait:
@@ -9258,7 +9258,9 @@ class TestGUIFilterLogic:
             assert event.isAccepted() is True
             assert worker.stop_called is True
             assert worker.quit_called is True
-            assert call_counter["count"] >= 2
+            assert call_counter["count"] == 1
+            assert worker.wait_calls == []
+            assert worker.terminate_called is False
             assert self.window._active_rescan_worker is None
         finally:
             if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
