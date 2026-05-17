@@ -1785,10 +1785,10 @@ def _apply_details_dialog_geometry(window, dialog, details_tab_splitter) -> None
     details_tab_splitter.setSizes([max(0, target_height - bottom_height), bottom_height])
 
 
-def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
+def _resolve_details_dialog_target(window, numero_ssa, series=None):
     target = _normalize_ssa_value(window, numero_ssa)
     if not target:
-        return
+        return None
     if series is not None:
         try:
             series_target = (
@@ -1801,7 +1801,56 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
     if series is None:
         series = _get_series_for_ssa(window, target)
     if series is None:
+        return None
+    return target, series
+
+
+def _resolve_details_dialog_style(window, palette_cls):
+    try:
+        link_color = window.palette().color(palette_cls.ColorRole.Highlight).name()
+    except Exception:
+        roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
+        link_color = pick_css_color(
+            roles.get("accent"),
+            roles.get("panel_text"),
+            roles.get("label_color"),
+            fallback="#4a90e2",
+        )
+
+    dialog_font_pt = DERIVADAS_DIALOG_DETAILS_FONT_PT
+    dialog_label_font_pt = DERIVADAS_DIALOG_LABEL_FONT_PT
+    dialog_tree_font_pt = DERIVADAS_DIALOG_TREE_FONT_PT
+    dialog_font_family = DETAILS_CONFIG.mono_font_family
+    try:
+        base_font = window.font()
+        size = base_font.pointSizeF()
+        if size <= 0:
+            size = float(base_font.pointSize())
+        if size > 0:
+            dialog_font_pt = size
+            dialog_label_font_pt = size
+            dialog_tree_font_pt = size
+        family = str(base_font.family() or "").strip()
+        if family:
+            dialog_font_family = family
+    except Exception as exc:
+        logger.debug(
+            "Falha ao obter fonte base da UI para dialogo de detalhes: %s", exc
+        )
+    return (
+        link_color,
+        dialog_font_pt,
+        dialog_label_font_pt,
+        dialog_tree_font_pt,
+        dialog_font_family,
+    )
+
+
+def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
+    resolved_target = _resolve_details_dialog_target(window, numero_ssa, series)
+    if resolved_target is None:
         return
+    target, series = resolved_target
 
     try:
         from PyQt6.QtCore import Qt
@@ -1880,39 +1929,15 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
         0,
         alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
     )
-    try:
-        link_color = window.palette().color(QPalette.ColorRole.Highlight).name()
-    except Exception:
-        roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
-        link_color = pick_css_color(
-            roles.get("accent"),
-            roles.get("panel_text"),
-            roles.get("label_color"),
-            fallback="#4a90e2",
-        )
-
     current_target = {"ssa": target}
     export_state = {"svg": "", "mermaid": "", "target": target}
-    dialog_font_pt = DERIVADAS_DIALOG_DETAILS_FONT_PT
-    dialog_label_font_pt = DERIVADAS_DIALOG_LABEL_FONT_PT
-    dialog_tree_font_pt = DERIVADAS_DIALOG_TREE_FONT_PT
-    dialog_font_family = DETAILS_CONFIG.mono_font_family
-    try:
-        base_font = window.font()
-        size = base_font.pointSizeF()
-        if size <= 0:
-            size = float(base_font.pointSize())
-        if size > 0:
-            dialog_font_pt = size
-            dialog_label_font_pt = size
-            dialog_tree_font_pt = size
-        family = str(base_font.family() or "").strip()
-        if family:
-            dialog_font_family = family
-    except Exception as exc:
-        logger.debug(
-            "Falha ao obter fonte base da UI para dialogo de detalhes: %s", exc
-        )
+    (
+        link_color,
+        dialog_font_pt,
+        dialog_label_font_pt,
+        dialog_tree_font_pt,
+        dialog_font_family,
+    ) = _resolve_details_dialog_style(window, QPalette)
 
     def _render_graph_pixmap(graph_svg: str) -> bool:
         if tree_graph_label is None or svg_render_deps is None:
