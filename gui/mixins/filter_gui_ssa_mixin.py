@@ -237,7 +237,10 @@ def _connect_filter_signal(signal, slot, *, label: str) -> bool:
             try:
                 signal.connect(slot, queued_connection)
             except TypeError:
-                signal.connect(slot)
+                try:
+                    signal.connect(slot, type=queued_connection)
+                except TypeError:
+                    signal.connect(slot)
         else:
             signal.connect(slot)
         return True
@@ -1013,15 +1016,16 @@ class FilterGUISSAMixin:
                 active_id,
             )
             return
-        table_widget = getattr(self, "table_widget", None)
-        if not _is_search_widget_valid(table_widget):
+        table_available = _is_search_widget_valid(getattr(self, "table_widget", None))
+        if not table_available:
             logger.debug(
-                "table_widget indisponivel no inicio de on_filter_error; ignorando erro: %s",
+                "table_widget indisponivel no inicio de on_filter_error; registrando erro sem recuperar selecao: %s",
                 error_msg,
             )
-            return
         pending_jump = getattr(self, "_pending_jump_to_ssa", None)
         if (
+            table_available
+            and
             isinstance(pending_jump, dict)
             and request_id is not None
             and pending_jump.get("request_id") == request_id
