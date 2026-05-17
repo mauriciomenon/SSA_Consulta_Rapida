@@ -23,6 +23,12 @@ from gui.ssa.gui_worker_registry import (
     _drop_orphaned_worker_meta,
     _process_expired_workers,
 )
+from gui.ssa.gui_worker_status import (
+    already_running_status_text as _already_running_status_text,
+    cancel_request_status_text as _cancel_request_status_text,
+    consolidation_status_text as _consolidation_status_text,
+    success_status_text as _success_status_text,
+)
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
@@ -100,60 +106,6 @@ def _configure_operation_dialog(progress_dialog, operation_label: str) -> None:
             progress_dialog.set_operation_label(operation_label)
     except Exception as exc:
         logger.debug("Falha ao configurar rotulo da operacao no dialogo: %s", exc)
-
-
-def _success_status_text(is_explicit_import: bool, outcome: RescanOutcome) -> str:
-    if not is_explicit_import:
-        return "Status: Reescaneamento concluido. Clique em 'Recarregar Dados' para atualizar."
-    if outcome == RescanOutcome.UPDATED:
-        return "Status: Importacao externa concluida."
-    if outcome == RescanOutcome.REJECTIONS_ONLY:
-        return "Status: Importacao externa concluida com rejeicoes de regra."
-    return "Status: Importacao externa concluida sem alteracoes."
-
-
-def _consolidation_status_text(outcome: RescanOutcome) -> str:
-    if outcome == RescanOutcome.UPDATED:
-        return "Status: Consolidacao de arquivos concluida."
-    return "Status: Consolidacao de arquivos concluida sem alteracoes."
-
-
-def _cancel_request_status_text(
-    is_explicit_import: bool, operation_kind: str
-) -> tuple[str, str]:
-    if operation_kind == "consolidate":
-        return (
-            "Status: Cancelamento solicitado na consolidacao de arquivos.",
-            "consolidate.cancel.requested",
-        )
-    if is_explicit_import:
-        return (
-            "Status: Cancelamento solicitado na importacao externa.",
-            "explicit_import.cancel.requested",
-        )
-    return (
-        "Status: Cancelamento solicitado no reescaneamento.",
-        "rescan.cancel.requested",
-    )
-
-
-def _already_running_status_text(
-    *, is_explicit_import: bool, operation_kind: str
-) -> tuple[str, str]:
-    if operation_kind == "consolidate":
-        return (
-            "Status: Consolidacao de arquivos ja em andamento.",
-            "consolidate.already_running",
-        )
-    if is_explicit_import:
-        return (
-            "Status: Importacao externa ja em andamento.",
-            "explicit_import.already_running",
-        )
-    return (
-        "Status: Reescaneamento ja em andamento.",
-        "rescan.already_running",
-    )
 
 
 def _build_rescan_worker(
@@ -656,7 +608,7 @@ def prune_retired_rescan_workers(
             drop_orphaned_meta=True,
         )
 
-    def _stop_rescan_worker(worker) -> bool:
+    def _stop_and_verify_rescan_worker(worker) -> bool:
         if hasattr(worker, "stop"):
             worker.stop()
         if hasattr(worker, "quit"):
@@ -678,7 +630,7 @@ def prune_retired_rescan_workers(
         global_workers=global_workers,
         global_meta=global_meta,
         warn_message="Rescan worker excedeu TTL; solicitando stop.",
-        stop_worker_fn=_stop_rescan_worker,
+        stop_worker_fn=_stop_and_verify_rescan_worker,
         stop_error_log="Falha ao encerrar rescan worker expirado: %s",
     )
 
