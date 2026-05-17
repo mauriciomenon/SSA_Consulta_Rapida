@@ -1,0 +1,27 @@
+gui/ssa/filter_summary_removal.py
+  s_082d1ff7d55d96::t_ba492cf5ddf8ff 16,40
+  s_082d1ff7d55d96::t_bedf6aed12f4e8 1-15,17-39,41-83
+gui/mixins/filter_gui_ssa_mixin.py
+  s_082d1ff7d55d96::t_4284042529542a 2496-2497,2502-2503,2505
+  s_082d1ff7d55d96::t_0e92900b2e90c4 2548,2557
+  s_082d1ff7d55d96::t_bd4a073d2c14c6 119-122
+tests/test_filter_summary_removal.py
+  s_082d1ff7d55d96::t_cc804d319fc1f1 1-22,24-47
+  s_082d1ff7d55d96::t_fcc743addc1d63 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "a0eb7e0876a5dbd1c9e3ed189316b6da7f8c5ab4",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
