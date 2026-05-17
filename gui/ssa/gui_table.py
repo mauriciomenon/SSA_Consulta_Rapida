@@ -45,7 +45,7 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 
 _FILTER_HEADER_PREFIX = "[f] "
 _HEADER_SIDE_PADDING_TEXT = "  "
-_ADAPTIVE_HEADER_REFRESH_DELAY_MS = 150
+_ADAPTIVE_HEADER_REFRESH_DELAY_MS = 250
 _DEFAULT_TABLE_CELL_ALIGNMENT = str(DEFAULT_GUI_SETTINGS["table_cell_alignment"])
 _TABLE_CELL_HORIZONTAL_ALIGNMENT_MAP = {
     "left": Qt.AlignmentFlag.AlignLeft,
@@ -53,6 +53,7 @@ _TABLE_CELL_HORIZONTAL_ALIGNMENT_MAP = {
     "right": Qt.AlignmentFlag.AlignRight,
 }
 _HASH_LINK_TOOLTIP = "Abrir SSA no SAM"
+_HASH_LINK_STYLE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 if QBrush is not None and QColor is not None:
     try:
         _HASH_LINK_FOREGROUND = QBrush(QColor("#4a90e2"))
@@ -175,13 +176,16 @@ def _apply_adaptive_header_labels(window) -> None:
         return
 
     label_width_cache = _adaptive_header_label_width_cache(window, header)
+    final_label_cache = getattr(window, "_adaptive_header_final_label_cache", {})
+    if not isinstance(final_label_cache, dict):
+        final_label_cache = {}
     visual_filter_columns = _get_visual_filter_columns(
         window, context="labels adaptativos"
     )
     previous_signatures = _adaptive_header_label_signatures(window)
     next_signatures = {}
-    prefix_px = label_width_cache[_FILTER_HEADER_PREFIX]
-    padding_px = label_width_cache[_HEADER_SIDE_PADDING_TEXT]
+    prefix_px = int(label_width_cache.get(_FILTER_HEADER_PREFIX, 0) or 0)
+    padding_px = int(label_width_cache.get(_HEADER_SIDE_PADDING_TEXT, 0) or 0)
     table = getattr(window, "table_widget", None)
     try:
         column_count = int(table.columnCount()) if table is not None else 0
@@ -200,6 +204,8 @@ def _apply_adaptive_header_labels(window) -> None:
             continue
         try:
             available_px = int(window.table_widget.columnWidth(logical_index))
+            if bool(window.table_widget.isColumnHidden(logical_index)):
+                continue
             has_filter = column_name != "#" and column_name in visual_filter_columns
             runtime_label = (
                 "#"
@@ -211,18 +217,29 @@ def _apply_adaptive_header_labels(window) -> None:
             header_item = window.table_widget.horizontalHeaderItem(logical_index)
             if previous_signatures.get(column_name) == signature and header_item is not None:
                 continue
-            base_label = _select_adaptive_header_label(
-                window,
+            cache_key = (
                 column_name,
                 available_px,
                 has_filter,
-                prefix_px=prefix_px,
-                padding_px=padding_px,
-                label_width_cache=label_width_cache,
+                runtime_label,
+                prefix_px,
+                padding_px,
             )
-            final_label = (
-                f"{_FILTER_HEADER_PREFIX}{base_label}" if has_filter else base_label
-            )
+            final_label = final_label_cache.get(cache_key)
+            if not isinstance(final_label, str):
+                base_label = _select_adaptive_header_label(
+                    window,
+                    column_name,
+                    available_px,
+                    has_filter,
+                    prefix_px=prefix_px,
+                    padding_px=padding_px,
+                    label_width_cache=label_width_cache,
+                )
+                final_label = (
+                    f"{_FILTER_HEADER_PREFIX}{base_label}" if has_filter else base_label
+                )
+                final_label_cache[cache_key] = final_label
             if header_item is None:
                 header_item = QTableWidgetItem(final_label)
                 try:
@@ -244,6 +261,7 @@ def _apply_adaptive_header_labels(window) -> None:
                 exc,
             )
     window._adaptive_header_label_width_cache = label_width_cache
+    window._adaptive_header_final_label_cache = final_label_cache
     window._adaptive_header_label_signatures = next_signatures
 
 
@@ -271,6 +289,7 @@ def _adaptive_header_label_width_cache(window, header) -> dict[str, int]:
         != measure_signature
     ):
         window._adaptive_header_label_width_cache = {}
+        window._adaptive_header_final_label_cache = {}
         window._adaptive_header_label_width_cache_signature = measure_signature
         window._adaptive_header_label_width_cache_font = font_signature
 
@@ -633,6 +652,7 @@ def _set_hash_column_item_metadata(window, item, row_idx):
         Qt.ItemDataRole.UserRole,
         row_idx + (current_page - 1) * page_size,
     )
+    item.setData(_HASH_LINK_STYLE_ROLE, True)
     try:
         font = item.font()
         font.setUnderline(True)
@@ -654,6 +674,10 @@ def _set_hash_column_item_metadata(window, item, row_idx):
 def _populate_table_items(window, display_df, table_cell_alignment):
     columns_list = list(display_df.columns)
     cell_render_failures = 0
+    previous_hash_positions = getattr(window, "_hash_link_item_positions", set())
+    if not isinstance(previous_hash_positions, set):
+        previous_hash_positions = set()
+    current_hash_positions: set[tuple[int, int]] = set()
     for row_idx, row_values in enumerate(display_df.itertuples(index=False, name=None)):
         for col_idx, (col_name, value) in enumerate(zip(columns_list, row_values)):
             try:
@@ -663,12 +687,14 @@ def _populate_table_items(window, display_df, table_cell_alignment):
                     item = QTableWidgetItem(item_text)
                     item.setTextAlignment(table_cell_alignment)
                     window.table_widget.setItem(row_idx, col_idx, item)
-                elif str(item.text() or "") != item_text:
-                    item.setText(item_text)
+                else:
+                    if str(item.text() or "") != item_text:
+                        item.setText(item_text)
                     if item.textAlignment() != table_cell_alignment:
                         item.setTextAlignment(table_cell_alignment)
                 if col_name == "#":
                     _set_hash_column_item_metadata(window, item, row_idx)
+                    current_hash_positions.add((row_idx, col_idx))
             except Exception as exc:
                 cell_render_failures += 1
                 logger.debug(
@@ -694,6 +720,28 @@ def _populate_table_items(window, display_df, table_cell_alignment):
             "Renderizacao da tabela concluiu com %s falhas de celula.",
             cell_render_failures,
         )
+    stale_hash_positions = previous_hash_positions - current_hash_positions
+    for row_idx, col_idx in stale_hash_positions:
+        try:
+            item = window.table_widget.item(row_idx, col_idx)
+            if item is None or item.data(_HASH_LINK_STYLE_ROLE) is not True:
+                continue
+            font = item.font()
+            font.setUnderline(False)
+            item.setFont(font)
+            if QBrush is not None:
+                item.setForeground(QBrush())
+            if hasattr(item, "setToolTip"):
+                item.setToolTip("")
+            item.setData(_HASH_LINK_STYLE_ROLE, None)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao resetar estilo de link reaproveitado na celula %s,%s: %s",
+                row_idx,
+                col_idx,
+                exc,
+            )
+    window._hash_link_item_positions = current_hash_positions
 
 
 def _resolve_empty_table_columns(window):
@@ -738,7 +786,8 @@ def _render_empty_page_table(window, header, *, update_details):
             include_preferences=False,
         )
         try:
-            window.table_widget.setColumnWidth(column_index, max(30, int(px)))
+            min_px = 24 if str(col_name) == "#" else 30
+            window.table_widget.setColumnWidth(column_index, max(min_px, int(px)))
         except Exception as exc:
             logger.debug(
                 "Falha ao aplicar largura da coluna %s em tabela vazia: %s",
@@ -780,6 +829,10 @@ def _apply_rendered_table_widths(window, display_df):
         window._widths_columns_sig = cols_sig
         window._last_viewport_w = viewport_width
 
+    try:
+        header_min_px = int(window.table_widget.horizontalHeader().minimumSectionSize())
+    except Exception:
+        header_min_px = 0
     for column_index, col_name in enumerate(display_df.columns):
         px = table_widths.resolve_column_width(
             window,
@@ -796,7 +849,7 @@ def _apply_rendered_table_widths(window, display_df):
                 max_px = int(max_map.get(col_name, max_px))
             except Exception:
                 max_px = 1000
-        min_px = 24 if str(col_name) == "#" else 30
+        min_px = max(24 if str(col_name) == "#" else 30, header_min_px)
         window.table_widget.setColumnWidth(
             column_index, max(min_px, min(int(px), max_px))
         )
@@ -883,9 +936,9 @@ def _rebuild_table_widget(window, header, display_df, display_headers):
         window.table_widget.setRowCount(len(display_df))
         window.table_widget.setColumnCount(len(display_df.columns))
         window.table_widget.setHorizontalHeaderLabels(display_headers)
-        _populate_table_items(
-            window, display_df, _table_cell_alignment_from_preferences()
-        )
+        table_cell_alignment = _table_cell_alignment_from_preferences()
+        _populate_table_items(window, display_df, table_cell_alignment)
+        window._last_table_cell_alignment = table_cell_alignment
 
 
 def _restore_interactive_header_mode(header):
@@ -933,14 +986,72 @@ def _synchronize_header_visual_order(window, header):
         )
 
 
-def _finalize_page_render(window, display_df, render_signature, *, update_details):
+def _can_skip_reused_render_finalize(window, display_df) -> bool:
+    """Return True when a reused page render does not need width/header work."""
+    expected_alignment = _table_cell_alignment_from_preferences()
+    if getattr(window, "_last_table_cell_alignment", None) != expected_alignment:
+        return False
+    if bool(getattr(window, "_skip_width_recompute_once", False)):
+        return False
+    cols_sig = tuple(display_df.columns)
+    try:
+        viewport_width = window.table_widget.viewport().width()
+    except Exception:
+        viewport_width = -1
+    try:
+        if table_widths.needs_width_recompute(window, cols_sig, viewport_width):
+            return False
+    except Exception as exc:
+        logger.debug(
+            "Falha ao avaliar reaproveitamento de render da tabela: %s", exc
+        )
+        return False
+    try:
+        header_min_px = int(window.table_widget.horizontalHeader().minimumSectionSize())
+    except Exception:
+        header_min_px = 0
+    for column_index, col_name in enumerate(display_df.columns):
+        try:
+            desired_px = table_widths.resolve_column_width(
+                window,
+                col_name,
+                include_runtime=True,
+                include_preferences=True,
+            )
+            max_px = 1000
+            width_manager = getattr(window, "width_manager", None)
+            max_map = getattr(width_manager, "max_pixel_widths", None)
+            if isinstance(max_map, dict):
+                max_px = int(max_map.get(col_name, max_px))
+            min_px = max(24 if str(col_name) == "#" else 30, header_min_px)
+            target_px = max(min_px, min(int(desired_px), max_px))
+            if int(window.table_widget.columnWidth(column_index)) != target_px:
+                return False
+        except Exception as exc:
+            logger.debug(
+                "Falha ao comparar largura reutilizada da coluna %s: %s",
+                col_name,
+                exc,
+            )
+            return False
+    return True
+
+
+def _finalize_page_render(
+    window, display_df, render_signature, *, update_details, reuse_render=False
+):
+    if reuse_render and _can_skip_reused_render_finalize(window, display_df):
+        try:
+            window._ensure_nonzero_column_widths()
+        except Exception as exc:
+            logger.debug("Falha ao garantir larguras nao zeradas da tabela: %s", exc)
+        _apply_adaptive_header_labels(window)
+        _refresh_initial_details(window, update_details=update_details)
+        window._last_table_render_signature = render_signature
+        return
+
     header = window.table_widget.horizontalHeader()
     _apply_rendered_table_widths(window, display_df)
-
-    try:
-        window._force_column_widths()
-    except Exception as exc:
-        logger.debug("Falha ao reforcar larguras salvas da tabela: %s", exc)
 
     try:
         window._ensure_nonzero_column_widths()
@@ -978,7 +1089,11 @@ def display_current_page(window, page_number, *, update_details=True):
         _rebuild_table_widget(window, header, display_df, display_headers)
 
     _finalize_page_render(
-        window, display_df, render_signature, update_details=update_details
+        window,
+        display_df,
+        render_signature,
+        update_details=update_details,
+        reuse_render=reuse_render,
     )
 
 
@@ -1135,5 +1250,6 @@ def apply_table_cell_alignment(window, alignment_name: str) -> None:
                 item = table.item(row_index, column_index)
                 if item is not None and item.textAlignment() != table_cell_alignment:
                     item.setTextAlignment(table_cell_alignment)
+        window._last_table_cell_alignment = table_cell_alignment
     finally:
         table.setUpdatesEnabled(was_updates_enabled)

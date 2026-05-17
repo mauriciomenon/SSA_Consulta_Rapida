@@ -711,3 +711,29 @@ class TestGUITableRenderResilience:
         assert self.window.table_widget.rowCount() == 0
         assert self.window._details_current_ssa is None
         assert self.window.details_text.toPlainText().strip() == ""
+
+    def test_display_current_page_reuses_render_without_width_recompute(
+        self, monkeypatch
+    ):
+        self.window.display_current_page(1, update_details=False)
+        QApplication.processEvents()
+
+        calls = {"rebuild": 0, "widths": 0}
+        original_rebuild = gui_table._rebuild_table_widget
+        original_widths = gui_table._apply_rendered_table_widths
+
+        def counted_rebuild(*args, **kwargs):
+            calls["rebuild"] += 1
+            return original_rebuild(*args, **kwargs)
+
+        def counted_widths(*args, **kwargs):
+            calls["widths"] += 1
+            return original_widths(*args, **kwargs)
+
+        monkeypatch.setattr(gui_table, "_rebuild_table_widget", counted_rebuild)
+        monkeypatch.setattr(gui_table, "_apply_rendered_table_widths", counted_widths)
+
+        self.window.display_current_page(1, update_details=False)
+        QApplication.processEvents()
+
+        assert calls == {"rebuild": 0, "widths": 0}

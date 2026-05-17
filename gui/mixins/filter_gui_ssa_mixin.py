@@ -176,7 +176,7 @@ class SummaryRemovalPlan:
     refresh_needed: bool = False
     sync_advanced_ui: bool = False
     sync_quick_combo: bool = False
-    removal_column_names: list[str] = field(default_factory=list)
+    columns_to_reset: list[str] = field(default_factory=list)
     removal_advanced_keys: list[str] = field(default_factory=list)
 
 
@@ -990,13 +990,6 @@ class FilterGUISSAMixin:
         self._sync_clear_filter_button_state()
         self._apply_search_display()
         self._apply_filter_result_width_safety("filter_finished", deferred=True)
-        # Recalcula e aplica larguras com base no slice atual exibido para garantir consistência imediata
-        try:
-            if hasattr(self, "df_para_tabela") and not self.df_para_tabela.empty:
-                self._compute_gui_column_widths(self.df_para_tabela.head(100))
-                self._apply_computed_widths_only()
-        except Exception as exc:
-            logger.debug("Falha ao recalcular/aplicar larguras apos filtro: %s", exc)
         self._consume_pending_jump_to_ssa(effective_request_id)
 
     def on_filter_error(self, error_msg: str, request_id: int | None = None):
@@ -2253,7 +2246,8 @@ class FilterGUISSAMixin:
         except Exception as exc:
             logger.debug("Falha ao reposicionar paginador no reset de filtros: %s", exc)
         self.paginator.set_dataframe(self.df_exibido)
-        self.display_current_page(1)
+        self.display_current_page(1, update_details=False)
+        self._schedule_filter_refresh_details_update()
         self._update_col_filter_indicator()
         self._set_filtered_count_status()
         self._sync_clear_filter_button_state()
@@ -2540,8 +2534,8 @@ class FilterGUISSAMixin:
                     action,
                 )
                 return
-            if column_name not in plan.removal_column_names:
-                plan.removal_column_names.append(column_name)
+            if column_name not in plan.columns_to_reset:
+                plan.columns_to_reset.append(column_name)
             return
         if kind == "advanced_keys":
             self._collect_filters_summary_advanced_keys(action, plan)
@@ -2587,9 +2581,9 @@ class FilterGUISSAMixin:
                 plan.sync_quick_combo = True
 
     def _apply_filters_summary_column_removals(self, plan: SummaryRemovalPlan) -> None:
-        if not plan.removal_column_names:
+        if not plan.columns_to_reset:
             return
-        for column_name in plan.removal_column_names:
+        for column_name in plan.columns_to_reset:
             if column_name in self._active_column_filters or column_name in getattr(
                 self, "_column_to_or_group", {}
             ):
@@ -3117,7 +3111,11 @@ class FilterGUISSAMixin:
                         "Falha ao restaurar detalhes apos refresh de filtros: %s", exc
                     )
             else:
-                measure_timing("render", lambda: self.display_current_page(current))
+                measure_timing(
+                    "render",
+                    lambda: self.display_current_page(current, update_details=False),
+                )
+                self._schedule_filter_refresh_details_update()
         except Exception as exc:
             logger.debug(
                 "Falha ao renderizar pagina atual diretamente no refresh; usando fallback: %s",
@@ -3131,8 +3129,33 @@ class FilterGUISSAMixin:
                         getattr(self.paginator, "current_page", 1),
                         getattr(self.paginator, "total_pages", 1),
                     ),
-                ): self.display_current_page(cp),
+                ): self.display_current_page(cp, update_details=False),
             )
+            self._schedule_filter_refresh_details_update()
+
+    def _schedule_filter_refresh_details_update(self) -> None:
+        expected_revision = int(getattr(self, "_data_revision", 0) or 0)
+
+        def update_details_if_current() -> None:
+            try:
+                if int(getattr(self, "_data_revision", 0) or 0) != expected_revision:
+                    return
+                table = getattr(self, "table_widget", None)
+                row_count = int(table.rowCount()) if table is not None else 0
+                series = self._get_series_from_row(0) if row_count > 0 else None
+                ssa_gui_details._update_details_from_series(self, series)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao atualizar detalhes apos refresh de filtros: %s", exc
+                )
+
+        try:
+            QTimer.singleShot(0, update_details_if_current)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao agendar atualizacao de detalhes apos refresh: %s", exc
+            )
+            update_details_if_current()
 
     def _finish_filter_refresh_ui(self, measure_timing) -> None:
         measure_timing("status_indicator", self._update_col_filter_indicator)

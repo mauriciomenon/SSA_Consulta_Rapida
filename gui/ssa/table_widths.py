@@ -199,7 +199,8 @@ def resolve_column_name_for_width_persist(window, logical_index: int) -> str | N
 
 
 def persist_column_width_change(window, col_name: str, new_size: int) -> None:
-    new_px = max(30, min(int(new_size), 1200))
+    min_px = 24 if col_name == "#" else 30
+    new_px = max(min_px, min(int(new_size), 1200))
     saved_widths = getattr(window, "_saved_gui_column_widths", None)
     if not isinstance(saved_widths, dict):
         saved_widths = {}

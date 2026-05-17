@@ -5891,7 +5891,7 @@ class TestGUIFilterLogic:
         logical_index = self.window._current_display_columns.index("numero_ssa")
         self.window.table_widget.setColumnWidth(logical_index, 140)
         self.window._on_header_section_resized(logical_index, 50, 140)
-        time.sleep(0.22)
+        time.sleep(0.32)
         QApplication.processEvents()
 
         header_text = str(
