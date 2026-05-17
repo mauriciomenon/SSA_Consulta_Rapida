@@ -10,11 +10,13 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QPushButton,
     QSizePolicy,
     QWidget,
 )
 
+from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
@@ -77,6 +79,96 @@ def build_column_filters_panel(window) -> None:
     _ensure_column_filters_footer(window, target_layout)
     target_layout.addStretch()
     _sync_bottom_panel_heights(window)
+
+
+def open_add_column_filter_menu(window) -> None:
+    menu = QMenu(window if isinstance(window, QWidget) else None)
+    columns = []
+    candidates = []
+    canonical_provider = getattr(window, "_get_canonical_available_columns", None)
+    if callable(canonical_provider):
+        try:
+            candidates.extend(canonical_provider())
+        except Exception as exc:
+            logger.debug(
+                "Falha ao obter lista canonica de colunas para menu de filtros: %s",
+                exc,
+            )
+    candidates.extend((window._active_column_filters or {}).keys())
+
+    seen = set()
+    try:
+        window._last_unmapped_alias_columns = window._find_unmapped_alias_columns(
+            candidates
+        )
+    except Exception as exc:
+        logger.debug("Falha ao mapear colunas sem alias: %s", exc)
+        window._last_unmapped_alias_columns = []
+    legacy_invalid_columns = {
+        "Número da SSA",
+        "Numero da SSA",
+        "No SSA",
+        "Data Cadastro",
+    }
+    valid_cols = []
+    for col in candidates:
+        if not isinstance(col, str) or not col or col == "#" or col in seen:
+            continue
+        if col in COMPATIBILITY_NULL_UI_COLUMNS:
+            continue
+        if col in legacy_invalid_columns:
+            continue
+        display = window._resolve_column_display_name(col)
+        if str(display).strip() == "No SSA" and col != "numero_ssa":
+            continue
+        seen.add(col)
+        valid_cols.append(col)
+
+    pinned = []
+    pinned_seen = set()
+    for col in getattr(window, "_current_display_columns", []) or []:
+        if col in valid_cols and col not in pinned_seen:
+            pinned.append(col)
+            pinned_seen.add(col)
+    for col in window._active_column_filters.keys():
+        if col in valid_cols and col not in pinned_seen:
+            pinned.append(col)
+            pinned_seen.add(col)
+    remaining = [c for c in valid_cols if c not in pinned_seen]
+    remaining.sort(key=lambda c: window._expand_column_alias_for_filter(c).casefold())
+    ordered_cols = pinned + remaining
+
+    label_counts = {}
+    for col in ordered_cols:
+        display = window._expand_column_alias_for_filter(col)
+        key = str(display).strip().casefold()
+        label_counts[key] = label_counts.get(key, 0) + 1
+    for col in ordered_cols:
+        display = window._expand_column_alias_for_filter(col)
+        display_text = str(display)
+        if label_counts.get(display_text.strip().casefold(), 0) > 1:
+            display_text = f"{display_text} [{col}]"
+        action = menu.addAction(display_text)
+        if action is None:
+            continue
+        action.setCheckable(True)
+        action.setChecked(col in window._active_column_filters)
+        action.setData(col)
+        columns.append(action)
+    if not columns:
+        menu.deleteLater()
+        return
+    button = window.add_column_filter_btn
+    chosen = menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
+    if chosen is None:
+        return
+    col_name = chosen.data()
+    if not col_name:
+        return
+    if col_name in window._active_column_filters:
+        window._deactivate_column_filter(col_name)
+    else:
+        window._activate_column_filter(col_name)
 
 
 def _resolve_column_filters_layout(window):

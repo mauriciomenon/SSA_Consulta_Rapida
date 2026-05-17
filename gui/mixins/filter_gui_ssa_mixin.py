@@ -56,7 +56,6 @@ from core.app_logic import FILTER_SEARCH_CACHE_ATTR, FILTER_SEARCH_MARKER_ATTR
 from core.search_filter_constants import FILTER_SEARCH_SIGNATURE_CACHE_ATTR
 from core.app_logic import filter_dataframe, parse_search_terms
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
-from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS
 
 # Imports de gui helpers
 from gui.helpers.formatting_helpers import (
@@ -74,7 +73,10 @@ from gui.ssa.column_filter_runtime import (
 )
 from gui.ssa.column_filter_engine import ColumnFilterCaches
 from gui.ssa.column_filter_engine import apply_column_filters as apply_column_filters
-from gui.ssa.column_filter_panel import build_column_filters_panel
+from gui.ssa.column_filter_panel import (
+    build_column_filters_panel,
+    open_add_column_filter_menu,
+)
 from gui.ssa.filter_cache_context import (
     build_filter_cache_context_from_parts,
     build_filter_cache_parts,
@@ -1268,100 +1270,7 @@ class FilterGUISSAMixin:
 
     def _open_add_column_filter_menu(self):
         """Exibe menu com todas as colunas disponiveis para ativar filtros dedicados."""
-        try:
-            from PyQt6.QtWidgets import QMenu
-        except Exception:
-            return
-        menu = QMenu(_qt_parent(self))
-        columns = []
-        candidates = []
-        canonical_provider = getattr(self, "_get_canonical_available_columns", None)
-        if callable(canonical_provider):
-            try:
-                candidates.extend(canonical_provider())
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao obter lista canonica de colunas para menu de filtros: %s",
-                    exc,
-                )
-        candidates.extend((self._active_column_filters or {}).keys())
-
-        seen = set()
-        try:
-            self._last_unmapped_alias_columns = self._find_unmapped_alias_columns(
-                candidates
-            )
-        except Exception as exc:
-            logger.debug("Falha ao mapear colunas sem alias: %s", exc)
-            self._last_unmapped_alias_columns = []
-        legacy_invalid_columns = {
-            "Número da SSA",
-            "Numero da SSA",
-            "No SSA",
-            "Data Cadastro",
-        }
-        valid_cols = []
-        for col in candidates:
-            if not isinstance(col, str) or not col or col == "#" or col in seen:
-                continue
-            if col in COMPATIBILITY_NULL_UI_COLUMNS:
-                continue
-            if col in legacy_invalid_columns:
-                continue
-            display = self._resolve_column_display_name(col)
-            if str(display).strip() == "No SSA" and col != "numero_ssa":
-                continue
-            seen.add(col)
-            valid_cols.append(col)
-
-        pinned = []
-        pinned_seen = set()
-        for col in getattr(self, "_current_display_columns", []) or []:
-            if col in valid_cols and col not in pinned_seen:
-                pinned.append(col)
-                pinned_seen.add(col)
-        for col in self._active_column_filters.keys():
-            if col in valid_cols and col not in pinned_seen:
-                pinned.append(col)
-                pinned_seen.add(col)
-        remaining = [c for c in valid_cols if c not in pinned_seen]
-        remaining.sort(key=lambda c: self._expand_column_alias_for_filter(c).casefold())
-        ordered_cols = pinned + remaining
-
-        label_counts = {}
-        for col in ordered_cols:
-            display = self._expand_column_alias_for_filter(col)
-            key = str(display).strip().casefold()
-            label_counts[key] = label_counts.get(key, 0) + 1
-        for col in ordered_cols:
-            display = self._expand_column_alias_for_filter(col)
-            display_text = str(display)
-            if label_counts.get(display_text.strip().casefold(), 0) > 1:
-                display_text = f"{display_text} [{col}]"
-            action = menu.addAction(display_text)
-            if action is None:
-                continue
-            action.setCheckable(True)
-            action.setChecked(col in self._active_column_filters)
-            action.setData(col)
-            columns.append(action)
-        if not columns:
-            menu.deleteLater()
-            return
-        chosen = menu.exec(
-            self.add_column_filter_btn.mapToGlobal(
-                self.add_column_filter_btn.rect().bottomLeft()
-            )
-        )
-        if chosen is None:
-            return
-        col_name = chosen.data()
-        if not col_name:
-            return
-        if col_name in self._active_column_filters:
-            self._deactivate_column_filter(col_name)
-        else:
-            self._activate_column_filter(col_name)
+        open_add_column_filter_menu(self)
 
     def _resolve_column_display_name(self, col: str) -> str:
         internal_map = getattr(self, "internal_to_display", None)
