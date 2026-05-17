@@ -1,0 +1,57 @@
+tests/test_table_performance_guards.py
+  s_082d1ff7d55d96::t_a20f6548dfcefb 81-104
+  s_082d1ff7d55d96::t_97a81450bec8e2 22,111,124,126,144
+  s_082d1ff7d55d96::t_83fd3089b2ce1a 105
+  s_082d1ff7d55d96::t_d94db90a8181fe 131-138
+  s_082d1ff7d55d96::t_bed635772545af 1-3,5-13,41-52,54-72,77-80,106-108,115-121,139-142,148-174,176-177
+  s_082d1ff7d55d96::t_1ec1cf4e463fcd 53,109-110,112-114,143,145-147
+  s_082d1ff7d55d96::t_7504c523951e4a 4,175
+  s_082d1ff7d55d96::t_c9ee770fd2da58 122-123,125,127-130
+  s_082d1ff7d55d96::t_d107c8a1eb8c24 16-20,23-40
+  s_082d1ff7d55d96::t_5e608c8ef197ba 21
+  s_082d1ff7d55d96::t_40d2674ceb63e8 14-15,73-76
+tests/test_system_integration.py
+  s_082d1ff7d55d96::t_43de9c7c481f3b 52-69
+  s_082d1ff7d55d96::t_43d59c8cc942d9 37-51
+tests/test_gui_filter_logic.py
+  s_082d1ff7d55d96::t_c6ef02b590d0e6 1262,1267,1276-1278,1281-1285,1295-1296
+  s_082d1ff7d55d96::t_97a81450bec8e2 8035,8044,8886,8898,8915,8920
+gui/ssa/gui_table.py
+  s_082d1ff7d55d96::t_969277adde2edb 29,37-41,277,286-289,1213,1220-1242
+  s_082d1ff7d55d96::t_89672da9745c31 1068,1091-1096
+  s_082d1ff7d55d96::t_b6534a71091dac 343-366,652,750
+gui/ssa/table_sorting.py
+  s_082d1ff7d55d96::t_05928246be08c2 174-176,291-292,294-301,304-305,309,311-329
+  s_082d1ff7d55d96::t_dcd6f0396f8bda 11-13,177-179,181-183,230-231,233-240,242-244,257-260,262-263,285-286,289
+  s_082d1ff7d55d96::t_76ec502cc8e95d 5,134,136,219-220,222-229,302-303,306-308,310
+  s_082d1ff7d55d96::t_97a81450bec8e2 123,128,135,180,194,199,204,221,232,241,261,293,353,367
+  s_082d1ff7d55d96::t_16463122c4156c 86,245-256,264-284,287-288,290
+gui/gui_ssa.py
+  s_082d1ff7d55d96::t_804da9a86b5913 1376
+  s_082d1ff7d55d96::t_984868a9a796f5 3772-3773,4039-4040,4229-4230
+  s_082d1ff7d55d96::t_60d57c008fde82 2909,2915-2920
+  s_082d1ff7d55d96::t_c77ea81584b93a 2359-2361
+  s_082d1ff7d55d96::t_c0f0a1d1b7ec37 3439,3441-3446
+  s_082d1ff7d55d96::t_97a81450bec8e2 1719,1725,2305,2315
+gui/ssa/system_integration.py
+  s_082d1ff7d55d96::t_b178d75081b2ae 138-143
+  s_082d1ff7d55d96::t_e0b52ede8ac49b 69-70,80-83,93-94
+tests/test_gui_table_render_resilience.py
+  s_082d1ff7d55d96::t_b0098c10dc26aa 454
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "37f4b893e355b82581aa6a32f5100e9450ead6c8",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
