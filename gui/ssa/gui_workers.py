@@ -71,10 +71,14 @@ def _connect_signal(signal, slot, *, label: str) -> bool:
         return False
     try:
         queued_connection = _QT_QUEUED
-        if queued_connection is not None and not isinstance(queued_connection, type):
+        if queued_connection is not None:
             try:
                 signal.connect(slot, queued_connection)
             except TypeError:
+                logger.warning(
+                    "Signal %s nao aceitou QueuedConnection; usando conexao padrao.",
+                    label,
+                )
                 signal.connect(slot)
         else:
             signal.connect(slot)

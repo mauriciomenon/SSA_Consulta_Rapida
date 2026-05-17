@@ -21,7 +21,7 @@ class _SignalPositionalQueuedOnly:
         raise AssertionError("unexpected fallback path for positional queued signal")
 
 
-class _SignalKeywordQueuedOnly:
+class _SignalPlainFallbackOnly:
     def __init__(self, queued_token):
         self.queued_token = queued_token
         self.calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
@@ -30,7 +30,7 @@ class _SignalKeywordQueuedOnly:
         self.calls.append((args, kwargs))
         if args:
             raise TypeError("positional type not supported")
-        if kwargs.get("type") is self.queued_token:
+        if not kwargs:
             return None
         raise AssertionError("unexpected fallback path for keyword queued signal")
 
@@ -51,12 +51,12 @@ def test_connect_signal_prefers_positional_queued(monkeypatch):
     assert kwargs == {}
 
 
-def test_connect_signal_falls_back_to_keyword_queued(monkeypatch):
+def test_connect_signal_falls_back_to_plain_connect(monkeypatch):
     queued_token = object()
-    signal = _SignalKeywordQueuedOnly(queued_token)
+    signal = _SignalPlainFallbackOnly(queued_token)
     monkeypatch.setattr(gui_workers, "_QT_QUEUED", queued_token, raising=True)
 
-    connected = gui_workers._connect_signal(signal, lambda: None, label="test.keyword")
+    connected = gui_workers._connect_signal(signal, lambda: None, label="test.plain")
 
     assert connected is True
     assert len(signal.calls) == 2
@@ -65,7 +65,7 @@ def test_connect_signal_falls_back_to_keyword_queued(monkeypatch):
     assert first_args == (queued_token,)
     assert first_kwargs == {}
     assert second_args == ()
-    assert second_kwargs == {"type": queued_token}
+    assert second_kwargs == {}
 
 
 def test_sanitize_ssa_like_value_handles_broken_str() -> None:
