@@ -280,10 +280,9 @@ class TestGUIFilterLogic:
         assert text.startswith("Colunas Visiveis:")
         assert not hasattr(selector, "summary_label")
 
-    def test_top_toolbar_hides_update_derivadas_button(self):
+    def test_top_toolbar_omits_update_derivadas_button(self):
         button = getattr(self.window, "update_derivadas_button", None)
-        assert button is not None
-        assert button.isVisible() is False
+        assert button is None
         visible_named = [
             btn
             for btn in self.window.findChildren(QPushButton)
@@ -7172,7 +7171,6 @@ class TestGUIFilterLogic:
         assert sync_calls[1]["include_db_source"] is False
         assert sync_calls[1]["actor"] == "gui-derivadas-sheet-phase"
         assert sync_calls[1]["sheet_files"] == [special_a, special_b]
-        assert self.window.update_derivadas_button.text() == "Atualizar Derivadas"
         assert "Derivadas atualizadas" in self.window.status_label.text()
 
     def test_update_derivadas_from_sources_runs_only_db_when_no_special_sheets(

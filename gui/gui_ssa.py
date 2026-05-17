@@ -19,9 +19,7 @@ Para executar: python gui_ssa.py
 import copy
 import json
 import logging
-import ntpath
 import os
-import posixpath
 import re
 import shutil
 import subprocess  # nosec B404
@@ -69,6 +67,7 @@ from gui.ssa import gui_filters_advanced as ssa_gui_filters  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
 from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
+from gui.ssa import app_menus as ssa_app_menus  # noqa: E402
 from gui.ssa import derivadas_sync_controller as ssa_derivadas_sync  # noqa: E402
 from gui.ssa import database_operations as ssa_database_operations  # noqa: E402
 from gui.ssa import list_export_controller as ssa_list_export_controller  # noqa: E402
@@ -215,17 +214,11 @@ try:
     )
     from PyQt6.QtGui import QAction, QDesktopServices, QFont
     from PyQt6.QtWidgets import (
-        QAbstractItemView,
         QApplication,
-        QCheckBox,
-        QComboBox,
         QDialog,
         QFileDialog,
-        QFrame,
         QGridLayout,
-        QGroupBox,
         QHBoxLayout,
-        QHeaderView,
         QLabel,
         QLineEdit,
         QMainWindow,
@@ -233,14 +226,11 @@ try:
         QMessageBox,
         QProgressBar,
         QPushButton,
-        QScrollArea,
         QSizePolicy,
-        QSpacerItem,
         QStackedWidget,
         QTabBar,
         QTableWidget,
         QTabWidget,
-        QTextBrowser,
         QTextEdit,
         QVBoxLayout,
         QWidget,
@@ -1613,13 +1603,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.rescan_button.clicked.connect(self.rescan_data)
         toolbar_layout.addWidget(cast(Any, self.rescan_button))
 
-        self.update_derivadas_button = QPushButton("Atualizar Derivadas", self)
-        self.update_derivadas_button.setToolTip(
-            "Atualizar tabelas de derivadas (fase DB e fase planilhas especiais)"
-        )
-        self.update_derivadas_button.clicked.connect(self.update_derivadas_from_sources)
-        # Botao removido da barra superior por UX; funcionalidade permanece no menu Database.
-        self.update_derivadas_button.setVisible(False)
+        self.update_derivadas_button = None
         # Semana Atual (YYYYWW) como indicador informativo na barra superior
         try:
             from datetime import date
@@ -3125,8 +3109,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _open_url_in_browser(self, url: str, *, success_status: str) -> bool:
         qurl = QUrl(str(url or ""))
-        if str(qurl.scheme() or "").casefold() != "https":
-            logger.warning("URL externa bloqueada por scheme invalido.")
+        if not ssa_system.is_allowed_sam_url(qurl):
+            logger.warning(
+                "URL externa bloqueada por politica local: scheme=%s host=%s",
+                str(qurl.scheme() or "").casefold() or "<empty>",
+                str(qurl.host() or "").casefold() or "<empty>",
+            )
             return False
         ok = ssa_system.open_allowed_url(
             url,
@@ -3457,128 +3445,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._on_header_section_resized(column_index, old_width, new_width)
 
     def _setup_app_menus(self) -> None:
-        menu_bar_getter = getattr(self, "menuBar", None)
-        if not callable(menu_bar_getter):
-            return
-        menu_bar = menu_bar_getter()
-        if menu_bar is None or not hasattr(menu_bar, "addMenu"):
-            return
-
-        arquivo_menu = menu_bar.addMenu("Arquivo")
-        importacao_menu = menu_bar.addMenu("Importacao")
-        db_menu = menu_bar.addMenu("Database")
-        opcoes_menu = menu_bar.addMenu("Opcoes")
-        ajuda_menu = menu_bar.addMenu("Ajuda")
-
-        export_action = QAction("Exportar lista", self)
-        export_action.triggered.connect(self._export_current_list_txt)
-        arquivo_menu.addAction(export_action)
-
-        close_action = QAction("Sair", self)
-        close_action.triggered.connect(self.close)
-        arquivo_menu.addAction(close_action)
-
-        import_action = QAction("Importar XLS/XLSX externo", self)
-        import_action.triggered.connect(self.import_external_excel_files)
-        importacao_menu.addAction(import_action)
-
-        rescan_diff_action = QAction("Atualizar Dados", self)
-        rescan_diff_action.triggered.connect(self.rescan_diff_data)
-        importacao_menu.addAction(rescan_diff_action)
-
-        rescan_full_action = QAction("Reescaneamento Completo", self)
-        rescan_full_action.triggered.connect(self.rescan_full_data)
-        importacao_menu.addAction(rescan_full_action)
-
-        open_docs_action = QAction("Abrir Pasta de Arquivos", self)
-        set_status_tip = getattr(open_docs_action, "setStatusTip", None)
-        if callable(set_status_tip):
-            set_status_tip(
-                f"Pasta atual de entrada: {os.path.join(project_root, 'docs_entrada')}"
-            )
-        open_docs_action.triggered.connect(self.open_docs_folder)
-        importacao_menu.addAction(open_docs_action)
-
-        open_processadas_action = QAction("Abrir Pasta Arquivos Processados", self)
-        open_processadas_action.triggered.connect(self.open_processadas_folder)
-        importacao_menu.addAction(open_processadas_action)
-
-        open_nosurvivor_action = QAction("Abrir Pasta Arquivos Redundantes", self)
-        open_nosurvivor_action.triggered.connect(self.open_nosurvivor_folder)
-        importacao_menu.addAction(open_nosurvivor_action)
-
-        consolidate_action = QAction("Consolidar arquivos de entrada", self)
-        consolidate_action.triggered.connect(self.consolidate_input_files)
-        importacao_menu.addAction(consolidate_action)
-
-        rescan_prompt_action = QAction("Reescanear", self)
-        rescan_prompt_action.triggered.connect(self.rescan_data)
-        db_menu.addAction(rescan_prompt_action)
-
-        derivadas_action = QAction("Atualizar derivadas", self)
-        derivadas_action.triggered.connect(self.update_derivadas_from_sources)
-        db_menu.addAction(derivadas_action)
-
-        load_other_db_action = QAction("Carregar outro DB", self)
-        load_other_db_action.triggered.connect(self.load_other_database)
-        db_menu.addAction(load_other_db_action)
-
-        vacuum_analyze_action = QAction("Compactar DB", self)
-        vacuum_analyze_action.triggered.connect(self.run_vacuum_analyze)
-        db_menu.addAction(vacuum_analyze_action)
-
-        open_settings_action = QAction("Abrir arquivo de opcoes", self)
-        open_settings_action.triggered.connect(self.open_settings_file_with_backup)
-        opcoes_menu.addAction(open_settings_action)
-
-        reset_settings_action = QAction("Restaurar opcoes padrao", self)
-        reset_settings_action.triggered.connect(self.reset_settings_to_defaults)
-        opcoes_menu.addAction(reset_settings_action)
-
-        hard_reset_filters_action = QAction("Limpar Filtros", self)
-        hard_reset_filters_action.triggered.connect(self._hard_reset_filters_state)
-        opcoes_menu.addAction(hard_reset_filters_action)
-
-        alignment_menu = opcoes_menu.addMenu("Alinhamento da tabela")
-        current_alignment = str(
-            GUI_MAIN_PREFERENCES.get("gui_settings", {})
-            .get(
-                "table_cell_alignment",
-                _DEFAULT_TABLE_CELL_ALIGNMENT,
-            )
-            .strip()
-            .lower()
+        ssa_app_menus.setup_app_menus(
+            self,
+            action_cls=QAction,
+            preferences=GUI_MAIN_PREFERENCES,
+            project_root=project_root,
+            default_table_alignment=_DEFAULT_TABLE_CELL_ALIGNMENT,
+            table_alignment_labels=_TABLE_CELL_ALIGNMENT_LABELS,
         )
-        self._table_cell_alignment_actions = {}
-        for alignment_name, label in _TABLE_CELL_ALIGNMENT_LABELS.items():
-            alignment_action = QAction(label, self)
-            cast(Any, alignment_action).setCheckable(True)
-            cast(Any, alignment_action).setChecked(alignment_name == current_alignment)
-            cast(Any, alignment_action).triggered.connect(
-                lambda _checked, name=alignment_name: (
-                    self._apply_table_cell_alignment_preference(name)
-                )
-            )
-            alignment_menu.addAction(alignment_action)
-            self._table_cell_alignment_actions[alignment_name] = alignment_action
-
-        theme_action = QAction("Selecionar Tema", self)
-        theme_action.triggered.connect(self.toggle_theme_menu)
-        opcoes_menu.addAction(theme_action)
-
-        install_action = QAction("Instalacao", self)
-        install_action.triggered.connect(self.open_installation_guide)
-        ajuda_menu.addAction(install_action)
-
-        help_action = QAction("Ajuda", self)
-        help_action.triggered.connect(self.show_filter_help)
-        ajuda_menu.addAction(help_action)
-
-        about_handler = getattr(self, "show_about_dialog", None)
-        if callable(about_handler):
-            about_action = QAction("Sobre", self)
-            about_action.triggered.connect(about_handler)
-            ajuda_menu.addAction(about_action)
 
     def import_external_excel_files(self):
         """Enfileira importacao externa; o staging roda em background."""

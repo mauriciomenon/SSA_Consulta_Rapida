@@ -308,7 +308,8 @@ def start_derivadas_sync_ui_state(
     logger: Any,
 ) -> None:
     try:
-        ui.update_button.setEnabled(False)
+        if ui.update_button is not None:
+            ui.update_button.setEnabled(False)
         if ui.progress_bar is not None:
             ui.progress_bar.setVisible(True)
             ui.progress_bar.setRange(0, 0)
@@ -456,7 +457,8 @@ def _restore_derivadas_sync_ui_state(
     ui: DerivadasSyncUiRefs, previous: dict[str, Any], logger: Any
 ) -> None:
     try:
-        ui.update_button.setEnabled(True)
+        if ui.update_button is not None:
+            ui.update_button.setEnabled(True)
         if ui.progress_bar is not None:
             ui.progress_bar.setVisible(bool(previous.get("progress_visible")))
             progress_range = previous.get("progress_range") or (0, 0)

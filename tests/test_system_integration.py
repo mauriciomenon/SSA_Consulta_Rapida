@@ -34,6 +34,25 @@ def test_validate_local_open_target_rejects_path_outside_allowed_base(tmp_path):
         )
 
 
+def test_validate_local_open_target_rejects_symlink_escape(tmp_path):
+    allowed = tmp_path / "allowed"
+    blocked = tmp_path / "blocked"
+    allowed.mkdir()
+    blocked.mkdir()
+    target = blocked / "file.txt"
+    target.write_text("x", encoding="utf-8")
+    symlink = allowed / "linked.txt"
+    symlink.symlink_to(target)
+
+    with pytest.raises(ValueError, match="fora da base permitida"):
+        system_integration.validate_local_open_target(
+            str(symlink),
+            must_exist=True,
+            expect_dir=False,
+            allowed_base=str(allowed),
+        )
+
+
 def test_validate_local_open_target_rejects_command_metacharacters(tmp_path):
     allowed = tmp_path / "allowed"
     allowed.mkdir()

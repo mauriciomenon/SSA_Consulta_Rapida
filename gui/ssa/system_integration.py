@@ -71,15 +71,11 @@ def validate_local_open_target(
     raw_parts = [part for part in raw.replace("\\", "/").split("/") if part]
     if ".." in raw_parts:
         raise ValueError("Caminho com parent traversal nao permitido.")
-    normalized = os.path.abspath(os.path.normpath(raw))
+    normalized = os.path.realpath(os.path.normpath(raw))
     _validate_allowed_base(normalized, allowed_base)
     if os.path.basename(normalized).startswith("-"):
         raise ValueError(
             "Caminho inicia com '-' e pode ser interpretado como opcao de comando."
-        )
-    if any(part.startswith("-") for part in normalized.split(os.sep) if part):
-        raise ValueError(
-            "Caminho contem parte iniciada por '-' e pode ser interpretada como opcao."
         )
     if must_exist and not os.path.exists(normalized):
         raise FileNotFoundError(f"Caminho nao encontrado: {normalized}")
@@ -99,7 +95,7 @@ def _validate_allowed_base(
 ) -> None:
     raw_bases = [allowed_base] if isinstance(allowed_base, str) else list(allowed_base)
     for raw_base in raw_bases:
-        normalized_base = os.path.abspath(os.path.normpath(str(raw_base)))
+        normalized_base = os.path.realpath(os.path.normpath(str(raw_base)))
         try:
             common_path = os.path.commonpath([normalized, normalized_base])
         except ValueError:
