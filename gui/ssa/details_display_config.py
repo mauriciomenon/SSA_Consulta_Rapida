@@ -12,6 +12,12 @@ class DetailsDisplayConfig:
     border_color: str = "#ccc"
     field_priority: list[str] = field(default_factory=list)
     display_overrides: dict[str, str] = field(default_factory=dict)
+    label_line_breaks: dict[str, str] = field(
+        default_factory=lambda: {
+            "grau_prioridade_emissao": "Grau de Prioridade<br/>(Emissao)",
+            "data_arquivo_origem": "Data do Arquivo<br/>de Origem",
+        }
+    )
     highlight_background_color: str = "yellow"
     highlight_text_color: str = ""
     highlight_font_weight: str = "bold"
@@ -28,6 +34,7 @@ class DetailsDisplayConfig:
         highlight_background_color,
         highlight_font_weight,
         mono_font_family,
+        highlight_text_color=None,
     ) -> None:
         if details_dialog_font_size is not None:
             self.details_dialog_font_size = details_dialog_font_size
@@ -41,6 +48,8 @@ class DetailsDisplayConfig:
             self.display_overrides = dict(detail_display_overrides)
         if highlight_background_color is not None:
             self.highlight_background_color = highlight_background_color
+        if highlight_text_color is not None:
+            self.highlight_text_color = highlight_text_color
         if highlight_font_weight is not None:
             self.highlight_font_weight = highlight_font_weight
         if mono_font_family is not None:

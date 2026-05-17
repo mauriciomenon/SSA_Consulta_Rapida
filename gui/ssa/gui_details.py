@@ -23,6 +23,7 @@ from gui.ssa.details_graph_export import (
     load_svg_render_dependencies,
     render_graph_svg_pixmap,
 )
+from gui.ssa.gui_details_html import DetailsHtmlDependencies, render_details_html
 from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 from shared.ssa_status import format_status_display, get_status_code
 from utils.formatting import format_cell
@@ -206,218 +207,30 @@ def _format_details_html(
     ssa_index: Mapping[str, pd.Series] | None = None,
 ):
     """Formata dados da SSA como HTML com highlight opcional."""
-    if font_size_pt is None:
-        font_size_pt = DETAILS_CONFIG.details_dialog_font_size
-    if label_font_size_pt is None:
-        label_font_size_pt = font_size_pt
-    if not font_family:
-        try:
-            ui_font_family = str(window.font().family() or "").strip()
-        except Exception as exc:
-            logger.debug("Falha ao ler familia de fonte da UI para detalhes: %s", exc)
-            ui_font_family = ""
-        font_family = ui_font_family or "sans-serif"
-
-    search_terms = _collect_highlight_terms(window) if highlight_search_terms else []
-
-    theme_roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
-    try:
-        from PyQt6.QtGui import QPalette as _QPal
-
-        text_color = pick_css_color(
-            window.palette().color(_QPal.ColorRole.WindowText).name(),
-            theme_roles.get("panel_text"),
-            theme_roles.get("label_color"),
-            fallback="#d0d0d0",
-        )
-        link_color = pick_css_color(
-            window.palette().color(_QPal.ColorRole.Highlight).name(),
-            theme_roles.get("accent"),
-            text_color,
-            fallback="#4a90e2",
-        )
-    except Exception as exc:
-        logger.debug("Falha ao resolver cores de tema para detalhes HTML: %s", exc)
-        text_color = pick_css_color(
-            theme_roles.get("panel_text"),
-            theme_roles.get("label_color"),
-            fallback="#d0d0d0",
-        )
-        link_color = pick_css_color(
-            theme_roles.get("accent"),
-            text_color,
-            fallback="#4a90e2",
-        )
-
-    html_lines = [
-        (
-            f'<html><body style="font-family: {font_family}; '
-            f'font-size: {font_size_pt}pt; color: {text_color};">'
-        )
-    ]
-    html_lines.append(
-        '<table style="width: 100%; border-collapse: collapse; table-layout: fixed;">'
+    deps = DetailsHtmlDependencies(
+        collect_highlight_terms=_collect_highlight_terms,
+        get_window_ssa_series_index=_get_window_ssa_series_index,
+        get_derivadas_for_ssa=_get_derivadas_for_ssa,
+        get_related_ssas_for_series=_get_related_ssas_for_series,
+        hydrate_ssa_index_candidates=_hydrate_ssa_index_candidates,
+        get_series_for_ssa=_get_series_for_ssa,
+        normalize_ssa_value=_normalize_ssa_value,
+        highlight_text=_highlight_text,
+        render_ssa_navigation_link=_render_ssa_navigation_link,
     )
-    html_lines.append(
-        '<colgroup><col style="width: 18%;"/><col style="width: 82%;"/></colgroup>'
+    return render_details_html(
+        window,
+        series,
+        config=DETAILS_CONFIG,
+        hidden_fields=HIDDEN_DETAIL_FIELDS,
+        deps=deps,
+        highlight_search_terms=highlight_search_terms,
+        font_size_pt=font_size_pt,
+        linkify=linkify,
+        label_font_size_pt=label_font_size_pt,
+        font_family=font_family,
+        ssa_index=ssa_index,
     )
-
-    def field_sort_key(item):
-        col, _ = item
-        try:
-            return (0, DETAILS_CONFIG.field_priority.index(col))
-        except ValueError:
-            return (1, col)
-
-    sorted_items = sorted(series.items(), key=field_sort_key)
-
-    for col, value in sorted_items:
-        if col in HIDDEN_DETAIL_FIELDS or str(col).startswith("_"):
-            continue
-        formatted_value = format_cell(value, col)
-        if not formatted_value:
-            continue
-        if col == "situacao":
-            formatted_value = format_status_display(formatted_value)
-        display_name = DETAILS_CONFIG.display_overrides.get(
-            col, window.internal_to_display.get(col, col)
-        )
-        if col == "numero_ssa" and linkify:
-            safe_ssa = _normalize_ssa_value(window, formatted_value)
-            escaped_value = html_module.escape(formatted_value)
-            if safe_ssa:
-                formatted_value = (
-                    f'<a href="copy-ssa:{safe_ssa}" style="color:{text_color}; '
-                    f'text-decoration:none;">{escaped_value}</a>'
-                )
-            else:
-                formatted_value = escaped_value
-        elif highlight_search_terms and search_terms:
-            formatted_value = _highlight_text(window, formatted_value, search_terms)
-        else:
-            formatted_value = html_module.escape(formatted_value)
-        display_name_html = html_module.escape(display_name)
-        if display_name == "Grau de Prioridade (Emissao)":
-            display_name_html = "Grau de Prioridade<br/>(Emissao)"
-        elif display_name == "Data do Arquivo de Origem":
-            display_name_html = "Data do Arquivo<br/>de Origem"
-
-        html_lines.append(
-            f"<tr>"
-            f'<td style="padding: {DETAILS_CONFIG.table_padding}px; '
-            f"border-bottom: 1px solid {DETAILS_CONFIG.border_color}; "
-            f'font-weight: bold; font-size: {label_font_size_pt}pt; vertical-align: top;">'
-            f"{display_name_html}:</td>"
-            f'<td style="padding: {DETAILS_CONFIG.table_padding}px; '
-            f"border-bottom: 1px solid {DETAILS_CONFIG.border_color}; "
-            f'overflow-wrap: anywhere; word-break: break-word;">'
-            f"{formatted_value}</td>"
-            f"</tr>"
-        )
-
-    allow_global_index = ssa_index is None
-    if allow_global_index:
-        ssa_index = _get_window_ssa_series_index(window)
-    if ssa_index is None:
-        ssa_index = {}
-
-    try:
-        derived_list = _get_derivadas_for_ssa(window, series.get("numero_ssa"))
-    except Exception as exc:
-        logger.debug(
-            "Falha ao coletar lista de derivadas para detalhes HTML: %s", exc
-        )
-        derived_list = []
-    if derived_list:
-        if linkify:
-            items = []
-            derived_exists_cache: dict[str, bool] = {}
-            if isinstance(ssa_index, dict):
-                _hydrate_ssa_index_candidates(
-                    window,
-                    cast(dict[str, pd.Series], ssa_index),
-                    derived_list,
-                )
-            for item in derived_list:
-                href = _normalize_ssa_value(window, item)
-                exists = False
-                if href:
-                    cached_exists = derived_exists_cache.get(href)
-                    if cached_exists is None:
-                        resolved_series = ssa_index.get(href)
-                        if resolved_series is None and allow_global_index:
-                            resolved_series = _get_series_for_ssa(window, href)
-                        cached_exists = resolved_series is not None
-                        derived_exists_cache[href] = cached_exists
-                    exists = cached_exists
-                items.append(
-                    _render_ssa_navigation_link(
-                        href or item,
-                        link_color=link_color,
-                        panel_mode=False,
-                        exists=exists,
-                    )
-                )
-            derived_text = ", ".join(items)
-        else:
-            derived_text = ", ".join(derived_list)
-            if highlight_search_terms and search_terms:
-                derived_text = _highlight_text(window, derived_text, search_terms)
-            else:
-                derived_text = html_module.escape(derived_text)
-        label = f"SSAs derivadas ({len(derived_list)})"
-        html_lines.append(
-            f"<tr>"
-            f'<td style="padding: {DETAILS_CONFIG.table_padding}px; '
-            f"border-bottom: 1px solid {DETAILS_CONFIG.border_color}; "
-            f'font-weight: bold; font-size: {label_font_size_pt}pt; vertical-align: top;">'
-            f"{html_module.escape(label)}:</td>"
-            f'<td style="padding: {DETAILS_CONFIG.table_padding}px; '
-            f"border-bottom: 1px solid {DETAILS_CONFIG.border_color}; "
-            f'overflow-wrap: anywhere; word-break: break-word;">'
-            f"{derived_text}</td>"
-            f"</tr>"
-        )
-
-    related_items = _get_related_ssas_for_series(window, series, ssa_index=ssa_index)
-    if related_items:
-        rendered_items = []
-        seen_related = set()
-        for item in related_items:
-            related_ssa = str(item.get("ssa", "") or "").strip()
-            if not related_ssa or related_ssa in seen_related:
-                continue
-            seen_related.add(related_ssa)
-            related_exists = bool(item.get("exists", False))
-            rendered_items.append(
-                _render_ssa_navigation_link(
-                    related_ssa,
-                    link_color=link_color,
-                    panel_mode=False,
-                    exists=related_exists,
-                    status_hint="",
-                )
-                if linkify
-                else html_module.escape(related_ssa)
-            )
-        if rendered_items:
-            label = f"SSAs relacionadas ({len(rendered_items)})"
-            related_text = ", ".join(rendered_items)
-            html_lines.append(
-                f"<tr>"
-                f'<td style="padding: {DETAILS_CONFIG.table_padding}px; '
-                f"border-bottom: 1px solid {DETAILS_CONFIG.border_color}; "
-                f'font-weight: bold; font-size: {label_font_size_pt}pt; vertical-align: top;">'
-                f"{html_module.escape(label)}:</td>"
-                f'<td style="padding: {DETAILS_CONFIG.table_padding}px; '
-                f"border-bottom: 1px solid {DETAILS_CONFIG.border_color}; "
-                f'overflow-wrap: anywhere; word-break: break-word;">'
-                f"{related_text}</td>"
-                f"</tr>"
-            )
-
-    html_lines.append("</table></body></html>")
-    return "\n".join(html_lines)
 
 
 def _normalize_ssa_value(window, value):
@@ -753,20 +566,24 @@ def update_details_from_selection(window):
     render_signature = _get_details_render_signature(window, series)
     current_signature = window.details_text.property("details_render_signature")
     skip_ssa = window.table_widget.property("details_skip_selection_once_for_ssa")
-    if skip_ssa is not None:
-        window.table_widget.setProperty("details_skip_selection_once_for_ssa", None)
     if selected_ssa is not None and selected_ssa == skip_ssa:
         try:
             if (
                 not window.details_text.document().isEmpty()
                 and render_signature == current_signature
             ):
+                window.table_widget.setProperty(
+                    "details_skip_selection_once_for_ssa", None
+                )
                 return
         except Exception:
             if (
                 window.details_text.toPlainText().strip()
                 and render_signature == current_signature
             ):
+                window.table_widget.setProperty(
+                    "details_skip_selection_once_for_ssa", None
+                )
                 return
     try:
         if (
@@ -780,6 +597,8 @@ def update_details_from_selection(window):
             and render_signature == current_signature
             ):
                 return
+    if skip_ssa is not None:
+        window.table_widget.setProperty("details_skip_selection_once_for_ssa", None)
     _schedule_details_update(window, series)
 
 
