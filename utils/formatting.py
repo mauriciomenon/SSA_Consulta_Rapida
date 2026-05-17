@@ -45,32 +45,26 @@ def _is_nullish(v) -> bool:
 
 
 def _format_number(v) -> str:
+    if _is_nullish(v):
+        return ""
     # Inteiros
     if isinstance(v, (int,)) and not isinstance(v, bool):
         return str(v)
     # Floats
     if isinstance(v, float):
-        if math.isnan(v):
-            return ""
         # Se for integral, mostra como inteiro
         if abs(v - round(v)) < 1e-9:
             return str(int(round(v)))
         # Caso contrário, usa formato compacto sem zeros à direita excessivos
         s = "%g" % v
         return s
-    # Pandas tipos numéricos
-    if isinstance(v, (pd.Int64Dtype, pd.Float64Dtype)):
-        try:
-            return _format_number(v.item())
-        except Exception:
-            return str(v)
     return str(v)
 
 
 def _format_date_like(v) -> str:
+    if _is_nullish(v):
+        return ""
     if isinstance(v, pd.Timestamp):
-        if pd.isna(v):
-            return ""
         return v.strftime("%d/%m/%Y")
     if isinstance(v, datetime):
         return v.strftime("%d/%m/%Y")
@@ -109,7 +103,7 @@ def format_cell(value, column: Optional[str] = None) -> str:
                 s = _normalize_ssa_str(value)
                 return s or ""
             except Exception:
-                pass
+                return str(value)
         return str(value)
 
     # Colunas que parecem data
@@ -137,11 +131,27 @@ def format_cell(value, column: Optional[str] = None) -> str:
     return str(value)
 
 
-def format_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
-    """Retorna uma cópia formatada pronta para exibição (valores já como strings)."""
+def _format_dataframe_with(df: pd.DataFrame, formatter) -> pd.DataFrame:
     if df is None or df.empty:
         return df.copy()
     out = df.copy()
     for col in out.columns:
-        out[col] = out[col].apply(lambda v, c=col: format_cell(v, c))
+        out[col] = out[col].apply(lambda v, c=col: formatter(v, c))
     return out
+
+
+def format_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
+    """Retorna uma cópia formatada pronta para exibição (valores já como strings)."""
+    return _format_dataframe_with(df, format_cell)
+
+
+def format_table_cell(value, column: Optional[str] = None) -> str:
+    text = format_cell(value, column)
+    if "\n" in text or "\r" in text:
+        text = " ".join(text.split())
+    return text.replace("\\n", " ").replace("\\r", " ")
+
+
+def format_dataframe_for_table_display(df: pd.DataFrame) -> pd.DataFrame:
+    """Retorna copia formatada e normalizada para celulas de tabela GUI."""
+    return _format_dataframe_with(df, format_table_cell)
