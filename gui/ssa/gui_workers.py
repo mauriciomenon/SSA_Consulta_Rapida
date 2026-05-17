@@ -1342,63 +1342,13 @@ def on_load_error(
             logger.debug("Falha ao podar workers de carga apos erro: %s", exc)
 
 
-def on_load_finished(
-    window,
-    *,
-    worker=None,
-    request_id: int | None = None,
-    global_workers: list,
-    global_meta: dict,
-    max_global_workers: int,
-    retired_ttl_sec: float,
-    retired_force_wait_ms: int,
-    sip_module,
-) -> None:
-    active_id = getattr(window, "_active_data_load_request_id", None)
-    is_stale = (
-        request_id is not None and active_id is not None and request_id != active_id
-    )
-    target_worker = (
-        worker if worker is not None else getattr(window, "data_loader_thread", None)
-    )
-    if is_stale:
-        try:
-            cleanup_data_loader_worker(
-                window,
-                target_worker,
-                global_workers=global_workers,
-                global_meta=global_meta,
-                max_global_workers=max_global_workers,
-                retired_ttl_sec=retired_ttl_sec,
-                retired_force_wait_ms=retired_force_wait_ms,
-                sip_module=sip_module,
-            )
-        finally:
-            if (
-                target_worker is not None
-                and getattr(window, "data_loader_thread", None) is target_worker
-            ):
-                window.data_loader_thread = None
-            try:
-                prune_retired_data_loader_workers(
-                    window,
-                    global_workers=global_workers,
-                    global_meta=global_meta,
-                    max_global_workers=max_global_workers,
-                    retired_ttl_sec=retired_ttl_sec,
-                    retired_force_wait_ms=retired_force_wait_ms,
-                    sip_module=sip_module,
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao podar workers de carga no cleanup de request obsoleto: %s",
-                    exc,
-                )
-        return
-
+def _restore_data_load_controls(window) -> None:
     window.progress_bar.setVisible(False)
     window.load_button.setEnabled(True)
     window.search_button.setEnabled(True)
+
+
+def _update_load_finished_status_if_needed(window) -> None:
     status_label = getattr(window, "status_label", None)
     current_status_text = ""
     if status_label is not None:
@@ -1408,18 +1358,33 @@ def on_load_finished(
         except Exception as exc:
             logger.debug("Falha ao ler status atual no fim da carga: %s", exc)
             current_status_text = ""
-    if current_status_text == "Status: Carregando dados...":
-        try:
-            current_df = getattr(window, "df_exibido", None)
-            current_count = int(len(current_df.index)) if current_df is not None else 0
-        except Exception as exc:
-            logger.debug("Falha ao calcular total de SSAs no fim da carga: %s", exc)
-            current_count = 0
-        _set_status_label_text(
-            window,
-            f"Status: {current_count} SSAs carregadas. Pronto para filtrar.",
-            context="on_load_finished.loading_status_fallback",
-        )
+    if current_status_text != "Status: Carregando dados...":
+        return
+    try:
+        current_df = getattr(window, "df_exibido", None)
+        current_count = int(len(current_df.index)) if current_df is not None else 0
+    except Exception as exc:
+        logger.debug("Falha ao calcular total de SSAs no fim da carga: %s", exc)
+        current_count = 0
+    _set_status_label_text(
+        window,
+        f"Status: {current_count} SSAs carregadas. Pronto para filtrar.",
+        context="on_load_finished.loading_status_fallback",
+    )
+
+
+def _cleanup_finished_data_loader_request(
+    window,
+    target_worker,
+    *,
+    global_workers: list,
+    global_meta: dict,
+    max_global_workers: int,
+    retired_ttl_sec: float,
+    retired_force_wait_ms: int,
+    sip_module,
+    prune_error_context: str,
+) -> None:
     try:
         cleanup_data_loader_worker(
             window,
@@ -1448,7 +1413,57 @@ def on_load_finished(
                 sip_module=sip_module,
             )
         except Exception as exc:
-            logger.debug("Falha ao podar workers de carga no fim do load: %s", exc)
+            logger.debug(prune_error_context, exc)
+
+
+def on_load_finished(
+    window,
+    *,
+    worker=None,
+    request_id: int | None = None,
+    global_workers: list,
+    global_meta: dict,
+    max_global_workers: int,
+    retired_ttl_sec: float,
+    retired_force_wait_ms: int,
+    sip_module,
+) -> None:
+    active_id = getattr(window, "_active_data_load_request_id", None)
+    is_stale = (
+        request_id is not None and active_id is not None and request_id != active_id
+    )
+    target_worker = (
+        worker if worker is not None else getattr(window, "data_loader_thread", None)
+    )
+    if is_stale:
+        _cleanup_finished_data_loader_request(
+            window,
+            target_worker,
+            global_workers=global_workers,
+            global_meta=global_meta,
+            max_global_workers=max_global_workers,
+            retired_ttl_sec=retired_ttl_sec,
+            retired_force_wait_ms=retired_force_wait_ms,
+            sip_module=sip_module,
+            prune_error_context=(
+                "Falha ao podar workers de carga no cleanup de request obsoleto: %s"
+            ),
+        )
+        return
+
+    _restore_data_load_controls(window)
+    _update_load_finished_status_if_needed(window)
+    _cleanup_finished_data_loader_request(
+        window,
+        target_worker,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=max_global_workers,
+        retired_ttl_sec=retired_ttl_sec,
+        retired_force_wait_ms=retired_force_wait_ms,
+        sip_module=sip_module,
+        prune_error_context="Falha ao podar workers de carga no fim do load: %s",
+    )
 
 
 def _connect_rescan_worker_lifecycle(
