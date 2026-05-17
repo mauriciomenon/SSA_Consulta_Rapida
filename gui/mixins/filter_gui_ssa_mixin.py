@@ -14,7 +14,6 @@ import os
 import re
 from collections import OrderedDict
 from contextlib import contextmanager
-from dataclasses import dataclass, field
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -117,6 +116,10 @@ from gui.ssa.filter_summary_presenter import (
     FilterSummaryPresenter,
     FilterSummaryWidgets,
 )
+from gui.ssa.filter_summary_removal import (
+    SummaryRemovalPlan,
+    build_summary_removal_plan,
+)
 from gui.ssa.search_refinement import can_reuse_refined_search
 from utils.robust_logging import get_robust_logger
 
@@ -168,16 +171,6 @@ def _copy_filter_mapping(value: Any) -> dict:
     if not isinstance(value, dict):
         return {}
     return {key: _copy_filter_value(item) for key, item in value.items()}
-
-
-@dataclass
-class SummaryRemovalPlan:
-    reset_search_baseline: bool = False
-    refresh_needed: bool = False
-    sync_advanced_ui: bool = False
-    sync_quick_combo: bool = False
-    columns_to_reset: list[str] = field(default_factory=list)
-    removal_advanced_keys: list[str] = field(default_factory=list)
 
 
 class FilterRefreshTimer:
@@ -2500,68 +2493,18 @@ class FilterGUISSAMixin:
         if not self._confirm_filter_summary_item_removal(item_text):
             return
         self._safe_store_last_filter_state("remove_filters_summary_item")
-        plan = SummaryRemovalPlan()
-        for action in actions:
-            self._collect_filters_summary_removal_action(action, plan)
+        plan = build_summary_removal_plan(actions)
+        self._apply_filters_summary_direct_resets(plan)
         self._apply_filters_summary_advanced_removals(plan)
         self._apply_filters_summary_column_removals(plan)
         self._finish_filters_summary_removal(plan)
 
-    def _collect_filters_summary_removal_action(
-        self, action: SummaryAction, plan: SummaryRemovalPlan
-    ) -> None:
-        if not isinstance(action, dict):
-            return
-        kind = str(action.get("kind") or "").strip()
-        if kind == "search":
-            plan.reset_search_baseline = True
-            plan.refresh_needed = True
-            return
-        if kind == "dedicated_or":
+    def _apply_filters_summary_direct_resets(self, plan: SummaryRemovalPlan) -> None:
+        if plan.clear_dedicated_or_text:
             self._dedicated_or_text = ""
-            return
-        if kind == "exclude_ste_sca":
+        if plan.clear_exclude_terminal_statuses:
             self._exclude_ste_sca = False
             self._sync_exclude_ste_checkbox_state(False)
-            plan.sync_advanced_ui = True
-            plan.refresh_needed = True
-            return
-        if kind in {"column", "column_or_group"}:
-            column_name = str(action.get("column") or "").strip()
-            if not column_name:
-                logger.warning(
-                    "Resumo de filtros recebeu acao sem coluna valida: %r",
-                    action,
-                )
-                return
-            if column_name not in plan.columns_to_reset:
-                plan.columns_to_reset.append(column_name)
-            return
-        if kind == "advanced_keys":
-            self._collect_filters_summary_advanced_keys(action, plan)
-            return
-        raise ValueError(f"Acao de resumo de filtros nao suportada: {action!r}")
-
-    def _collect_filters_summary_advanced_keys(
-        self, action: SummaryAction, plan: SummaryRemovalPlan
-    ) -> None:
-        raw_keys = action.get("keys")
-        if isinstance(raw_keys, str):
-            raw_key_values = [raw_keys]
-        elif isinstance(raw_keys, (list, tuple, set)):
-            raw_key_values = list(raw_keys)
-        else:
-            raw_key_values = []
-        keys = [str(key).strip() for key in raw_key_values if str(key).strip()]
-        if not keys:
-            logger.warning(
-                "Resumo de filtros recebeu advanced_keys sem chaves: %r",
-                action,
-            )
-            return
-        for key in keys:
-            if key not in plan.removal_advanced_keys:
-                plan.removal_advanced_keys.append(key)
 
     def _apply_filters_summary_advanced_removals(
         self, plan: SummaryRemovalPlan
@@ -2602,7 +2545,7 @@ class FilterGUISSAMixin:
         self._active_column_filters[column_name] = ""
 
     def _finish_filters_summary_removal(self, plan: SummaryRemovalPlan) -> None:
-        if plan.reset_search_baseline:
+        if plan.clear_general_search_state:
             self._clear_general_search_state()
         if plan.sync_advanced_ui:
             self._sync_advanced_filter_ui()
@@ -2611,7 +2554,7 @@ class FilterGUISSAMixin:
             self._refresh_after_filter_change()
         else:
             self._update_filters_summary()
-        if plan.reset_search_baseline and not self._has_any_active_filters():
+        if plan.clear_general_search_state and not self._has_any_active_filters():
             self._set_filtered_count_status()
         self._sync_clear_filter_button_state()
         if plan.sync_quick_combo:
