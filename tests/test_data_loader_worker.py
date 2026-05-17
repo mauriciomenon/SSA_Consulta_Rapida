@@ -10,6 +10,10 @@ pytest.importorskip(
 )
 from PyQt6.QtWidgets import QApplication
 
+from gui.workers.data_loader_processing import (
+    prepare_dataframe_for_ui,
+    sanitize_ssa_like_value,
+)
 from gui.workers.data_loader_worker import DataLoaderWorker
 
 
@@ -58,7 +62,7 @@ def test_resolve_target_table_invalid_identifier_falls_back_to_canonical():
 
 def test_run_builds_safe_paginated_query_and_emits_data():
     captured = {}
-    emitted = []
+    prepared = []
 
     def fake_query(db_path, table_name, query, **kwargs):
         captured["query"] = query
@@ -71,16 +75,17 @@ def test_run_builds_safe_paginated_query_and_emits_data():
         offset=5,
         order_by="numero_ssa DESC",
     )
-    worker.data_loaded.connect(lambda df: emitted.append(df))
+    worker.data_prepared.connect(lambda payload: prepared.append(payload))
 
     with patch("gui.workers.data_loader_worker.query_db", side_effect=fake_query):
         worker.run()
 
-    assert emitted and not emitted[0].empty
-    assert emitted[0]["numero_ssa"].tolist() == ["1"]
-    assert emitted[0].attrs.get("ssa_preprocessed_for_gui") is True
-    assert "ssa_sanitized_df" not in emitted[0].attrs
-    assert isinstance(emitted[0].attrs.get("ssa_non_null_cols"), list)
+    assert prepared and not prepared[0].complete.empty
+    assert prepared[0].preprocessed_for_gui is True
+    assert prepared[0].complete["numero_ssa"].tolist() == ["1"]
+    assert prepared[0].complete.attrs.get("ssa_preprocessed_for_gui") is True
+    assert "ssa_sanitized_df" not in prepared[0].complete.attrs
+    assert isinstance(prepared[0].complete.attrs.get("ssa_non_null_cols"), list)
     assert 'ORDER BY "numero_ssa" DESC' in captured["query"]
     assert "LIMIT 10 OFFSET 5" in captured["query"]
 
@@ -104,6 +109,25 @@ def test_run_adds_deterministic_order_for_paginated_query_without_order_by():
     assert "LIMIT 10 OFFSET 5" in captured["query"]
 
 
+def test_run_uses_positive_limit_placeholder_when_offset_has_no_limit():
+    captured = {}
+    emitted = []
+
+    def fake_query(db_path, table_name, query, **kwargs):
+        captured["query"] = query
+        return pd.DataFrame({"numero_ssa": ["1"]})
+
+    worker = DataLoaderWorker(":memory:", "ssa_table", offset=5)
+    worker.data_loaded.connect(lambda df: emitted.append(df))
+
+    with patch("gui.workers.data_loader_worker.query_db", side_effect=fake_query):
+        worker.run()
+
+    assert emitted and not emitted[0].empty
+    assert f"LIMIT {worker._SQLITE_OFFSET_WITHOUT_LIMIT} OFFSET 5" in captured["query"]
+    assert "LIMIT -1" not in captured["query"]
+
+
 def test_run_uses_business_default_order_for_full_load_without_order_by():
     captured = {}
     emitted = []
@@ -123,7 +147,6 @@ def test_run_uses_business_default_order_for_full_load_without_order_by():
 
 
 def test_prepare_dataframe_for_ui_preserves_custom_order_by_contract():
-    worker = DataLoaderWorker(":memory:", "ssa_table", order_by="situacao ASC")
     source_df = pd.DataFrame(
         {
             "numero_ssa": ["202500003.0", "202500001.0", "202500002.0"],
@@ -132,7 +155,7 @@ def test_prepare_dataframe_for_ui_preserves_custom_order_by_contract():
         }
     )
 
-    prepared_df = worker._prepare_dataframe_for_ui(source_df)
+    prepared_df = prepare_dataframe_for_ui(source_df, order_by="situacao ASC")
 
     assert prepared_df["situacao"].tolist() == ["SCA", "STE", "SCA"]
     assert prepared_df["numero_ssa"].tolist() == [
@@ -143,7 +166,6 @@ def test_prepare_dataframe_for_ui_preserves_custom_order_by_contract():
 
 
 def test_prepare_dataframe_for_ui_default_order_keeps_non_ste_first_then_desc_ssa():
-    worker = DataLoaderWorker(":memory:", "ssa_table")
     source_df = pd.DataFrame(
         {
             "numero_ssa": [
@@ -157,7 +179,7 @@ def test_prepare_dataframe_for_ui_default_order_keeps_non_ste_first_then_desc_ss
         }
     )
 
-    prepared_df = worker._prepare_dataframe_for_ui(source_df)
+    prepared_df = prepare_dataframe_for_ui(source_df)
 
     assert prepared_df["numero_ssa"].tolist() == [
         "202500005",
@@ -169,7 +191,6 @@ def test_prepare_dataframe_for_ui_default_order_keeps_non_ste_first_then_desc_ss
 
 
 def test_prepare_dataframe_for_ui_sanitizes_and_attaches_attrs():
-    worker = DataLoaderWorker(":memory:", "ssa_table")
     source_df = pd.DataFrame(
         {
             "numero_ssa": ["202500002.0", 202500003.0, "SSA-202500001"],
@@ -178,7 +199,7 @@ def test_prepare_dataframe_for_ui_sanitizes_and_attaches_attrs():
         }
     )
 
-    prepared_df = worker._prepare_dataframe_for_ui(source_df)
+    prepared_df = prepare_dataframe_for_ui(source_df)
 
     assert prepared_df.attrs.get("ssa_preprocessed_for_gui") is True
     assert "ssa_sanitized_df" not in prepared_df.attrs
@@ -190,8 +211,12 @@ def test_prepare_dataframe_for_ui_sanitizes_and_attaches_attrs():
     assert set(prepared_df["situacao"].tolist()) == {"STE", "SCA"}
 
 
+def test_sanitize_ssa_like_value_does_not_fold_unrelated_text_with_nine_digits():
+    assert sanitize_ssa_like_value("Order 123-456-789") == "Order 123-456-789"
+    assert sanitize_ssa_like_value("SSA-202500001") == "202500001"
+
+
 def test_prepare_dataframe_for_ui_fallback_sort_matches_sqlite_integer_cast_prefix():
-    worker = DataLoaderWorker(":memory:", "ssa_table")
     source_df = pd.DataFrame(
         {
             "numero_ssa": ["2025-001", "SSA-202500001", "202500001.0", ""],
@@ -200,7 +225,7 @@ def test_prepare_dataframe_for_ui_fallback_sort_matches_sqlite_integer_cast_pref
         }
     )
 
-    prepared_df = worker._prepare_dataframe_for_ui(source_df)
+    prepared_df = prepare_dataframe_for_ui(source_df)
 
     assert prepared_df["numero_ssa"].tolist() == [
         "202500001",

@@ -13,9 +13,13 @@ from time import perf_counter
 
 import pandas as pd
 
-from gui.workers.data_loader_worker import DataLoaderWorker
 from gui.workers.rescan_worker import RescanOutcome
 from gui.ssa.gui_filters_responsavel_state import responsavel_materialization_state
+from gui.ssa.gui_loaded_dataframes import (
+    LoadedDataFrames,
+    prepare_loaded_dataframes,
+    resolve_loaded_columns_with_values,
+)
 from gui.ssa.gui_worker_registry import (
     GLOBAL_WORKERS_LOCK as _GLOBAL_WORKERS_LOCK,
     _classify_and_update_global_workers_locked,
@@ -162,14 +166,11 @@ def retain_data_loader_worker_until_finished(
 ) -> None:
     if worker is None:
         return
-    with _GLOBAL_WORKERS_LOCK:
-        if getattr(window, "_retired_data_loader_workers", None) is None:
-            window._retired_data_loader_workers = []
     now = perf_counter()
     _ = retired_ttl_sec, retired_force_wait_ms
     with _GLOBAL_WORKERS_LOCK:
-        retired = getattr(window, "_retired_data_loader_workers", None)
-        if retired is None:
+        retired = getattr(window, "_retired_data_loader_workers", None) or []
+        if getattr(window, "_retired_data_loader_workers", None) is None:
             retired = []
             window._retired_data_loader_workers = retired
         if worker in retired:
@@ -183,9 +184,17 @@ def retain_data_loader_worker_until_finished(
             with _GLOBAL_WORKERS_LOCK:
                 retired_workers = getattr(window, "_retired_data_loader_workers", None)
                 if retired_workers is not None and w in retired_workers:
-                    retired_workers.remove(w)
+                    retired_workers[:] = [
+                        worker_ref
+                        for worker_ref in retired_workers
+                        if worker_ref is not w
+                    ]
                 if w in global_workers:
-                    global_workers.remove(w)
+                    global_workers[:] = [
+                        worker_ref
+                        for worker_ref in global_workers
+                        if worker_ref is not w
+                    ]
                 global_meta.pop(w, None)
         except Exception as exc:
             logger.debug(
@@ -229,11 +238,15 @@ def retain_data_loader_worker_until_finished(
         if max_global_workers > 0 and len(global_workers) > max_global_workers:
             overflow = len(global_workers) - max_global_workers
             dropped_workers = global_workers[:overflow]
+            dropped_worker_ids = {id(worker_ref) for worker_ref in dropped_workers}
             del global_workers[:overflow]
             for dropped_worker in dropped_workers:
                 global_meta.pop(dropped_worker, None)
-                if dropped_worker in retired:
-                    retired.remove(dropped_worker)
+            retired[:] = [
+                worker_ref
+                for worker_ref in retired
+                if id(worker_ref) not in dropped_worker_ids
+            ]
     destroyed_signal = getattr(worker, "destroyed", None)
     if destroyed_signal is not None:
         _connect_signal(
@@ -336,7 +349,7 @@ def prune_retired_data_loader_workers(
         )
     )
 
-    def _stop_data_loader_worker(worker) -> bool:
+    def _stop_data_loader_worker(worker, **_unused) -> bool:
         return cleanup_data_loader_worker(
             window,
             worker,
@@ -518,7 +531,7 @@ def cleanup_window_workers_on_close(
             cleanup_data_loader_worker(
                 window,
                 data_worker,
-                wait_ms=3000,
+                wait_ms=0,
                 global_workers=data_loader_workers,
                 global_meta=data_loader_meta,
                 max_global_workers=max_data_loader_workers,
@@ -639,7 +652,7 @@ def cleanup_data_loader_worker(
     window,
     worker,
     *,
-    wait_ms: int = 1500,
+    wait_ms: int = 0,
     run_prune: bool = True,
     global_workers: list,
     global_meta: dict,
@@ -832,11 +845,11 @@ def _connect_data_loader_callbacks(
     retired_force_wait_ms: int,
     sip_module,
 ) -> None:
-    def _handle_data_loaded(df, rid=request_id):
+    def _handle_data_loaded(data, rid=request_id):
         handler = getattr(window, "on_data_loaded", None)
         if callable(handler):
-            return handler(df, request_id=rid)
-        return on_data_loaded(window, df, request_id=rid)
+            return handler(data, request_id=rid)
+        return on_data_loaded(window, data, request_id=rid)
 
     def _handle_load_error(msg, rid=request_id):
         try:
@@ -883,9 +896,15 @@ def _connect_data_loader_callbacks(
             sip_module=sip_module,
         )
 
-    _connect_signal(
-        worker.data_loaded, _handle_data_loaded, label="data_loader.data_loaded"
-    )
+    data_prepared_signal = getattr(worker, "data_prepared", None)
+    if not _connect_signal(
+        data_prepared_signal,
+        _handle_data_loaded,
+        label="data_loader.data_prepared",
+    ):
+        _connect_signal(
+            worker.data_loaded, _handle_data_loaded, label="data_loader.data_loaded"
+        )
     _connect_signal(
         worker.error_occurred, _handle_load_error, label="data_loader.error_occurred"
     )
@@ -983,7 +1002,8 @@ def load_data(
         worker = data_loader_cls(db_path, table_name)
     except Exception as exc:
         logger.error(
-            "Falha ao instanciar DataLoaderWorker: %s", _mask_db_path(str(exc), db_path)
+            "Falha ao instanciar DataLoaderWorker (db_path=<db_path>, error_type=%s).",
+            type(exc).__name__,
         )
         try:
             handler = getattr(window, "on_load_error", None)
@@ -1045,34 +1065,6 @@ def _is_stale_data_load_result(window, request_id: int | None) -> bool:
     return False
 
 
-def _prepare_loaded_dataframes(
-    df: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame, bool, dict]:
-    attrs = getattr(df, "attrs", {})
-    preprocessed_for_gui = bool(attrs.get("ssa_preprocessed_for_gui"))
-    if preprocessed_for_gui:
-        df_copy = df
-    else:
-        df_copy = df.copy()
-        for ssa_col in ("numero_ssa", "derivada_de"):
-            if ssa_col in df_copy.columns:
-                try:
-                    df_copy[ssa_col] = df_copy[ssa_col].map(
-                        DataLoaderWorker._sanitize_ssa_like_value
-                    )
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao sanitizar coluna %s na carga de dados: %s",
-                        ssa_col,
-                        exc,
-                    )
-    if preprocessed_for_gui:
-        display_df = df
-    else:
-        display_df = DataLoaderWorker._build_initial_sorted_dataframe(df_copy)
-    return df_copy, display_df, preprocessed_for_gui, attrs
-
-
 def _sync_data_revision_after_load(window, request_id: int | None) -> None:
     try:
         last_req = getattr(window, "_data_revision_request_id", None)
@@ -1131,23 +1123,14 @@ def _reset_post_load_sort_and_width_state(window) -> None:
 
 def _sync_non_null_column_cache_after_load(
     window,
-    df_copy: pd.DataFrame,
-    attrs: dict,
-    *,
-    preprocessed_for_gui: bool,
+    loaded: LoadedDataFrames,
 ) -> None:
     try:
-        non_null_cols_attr = (
-            attrs.get("ssa_non_null_cols") if preprocessed_for_gui else None
-        )
-        if isinstance(non_null_cols_attr, list):
-            non_null_cols = {str(col) for col in non_null_cols_attr if str(col)}
-        else:
-            non_null_cols = set(DataLoaderWorker._build_non_null_columns(df_copy))
+        non_null_cols = resolve_loaded_columns_with_values(loaded)
         window._non_null_cols_cache = non_null_cols
         window._non_null_cols_revision = int(getattr(window, "_data_revision", 0) or 0)
         try:
-            df_copy.attrs["ssa_non_null_cols"] = sorted(non_null_cols)
+            loaded.complete.attrs["ssa_non_null_cols"] = sorted(non_null_cols)
         except Exception as exc:
             logger.debug(
                 "Falha ao propagar attrs de colunas nao nulas para df_completo: %s",
@@ -1229,19 +1212,16 @@ def _update_loaded_data_status(window) -> None:
 def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     if _is_stale_data_load_result(window, request_id):
         return
-    df_copy, display_df, preprocessed_for_gui, attrs = _prepare_loaded_dataframes(df)
-    window.df_completo = df_copy
-    window.df_exibido = display_df
-    window._df_last_search_filtered = window.df_completo
+    loaded = prepare_loaded_dataframes(df)
+    window.df_completo = loaded.complete
+    window.df_exibido = loaded.display
+    window._df_last_search_filtered = (
+        window.df_completo if loaded.preprocessed_for_gui else window.df_exibido
+    )
     _sync_data_revision_after_load(window, request_id)
     _reset_post_load_filter_state(window)
     _reset_post_load_sort_and_width_state(window)
-    _sync_non_null_column_cache_after_load(
-        window,
-        df_copy,
-        attrs,
-        preprocessed_for_gui=preprocessed_for_gui,
-    )
+    _sync_non_null_column_cache_after_load(window, loaded)
     _sync_column_selector_after_load(window)
     _sync_filter_controls_after_load(window)
     _update_loaded_data_status(window)

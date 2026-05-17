@@ -8624,7 +8624,7 @@ class TestGUIFilterLogic:
 
         assert event.isAccepted() is True
         assert worker.quit_called is True
-        assert worker.wait_called_ms == 3000
+        assert worker.wait_called_ms is None
         assert worker.deleted is True
         assert self.window.data_loader_thread is None
 
@@ -8686,6 +8686,7 @@ class TestGUIFilterLogic:
     def test_on_data_loaded_fallback_keeps_df_completo_order_and_sorts_df_exibido(self):
         self.window._active_data_load_request_id = 27
         df = self.base_df.iloc[[0, 1, 2, 3, 4]].copy()
+        df.attrs.clear()
         df["numero_ssa"] = [
             "202500004.0",
             "202500005.0",
@@ -8931,7 +8932,7 @@ class TestGUIFilterLogic:
         self.window.on_load_finished(worker=stale_worker, request_id=9)
 
         assert stale_worker.quit_called is True
-        assert stale_worker.wait_called_ms == 1500
+        assert stale_worker.wait_called_ms is None
         assert stale_worker.deleted is True
         assert self.window.data_loader_thread is active_worker
         assert self.window.progress_bar.isVisible() is True
@@ -8992,7 +8993,7 @@ class TestGUIFilterLogic:
 
         assert event.isAccepted() is True
         assert worker.quit_called is True
-        assert worker.wait_called_ms == 3000
+        assert worker.wait_called_ms is None
         assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
 
         worker.finish_now()
@@ -9306,7 +9307,7 @@ class TestGUIFilterLogic:
         self.window.on_load_finished(worker=worker, request_id=11)
 
         assert worker.quit_called is True
-        assert worker.wait_called_ms == 1500
+        assert worker.wait_called_ms is None
         assert worker.deleted is True
         assert self.window.data_loader_thread is None
         assert self.window.progress_bar.isVisible() is False
