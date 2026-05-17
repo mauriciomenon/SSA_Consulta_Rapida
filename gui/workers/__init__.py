@@ -3,6 +3,7 @@
 
 from gui.workers.data_loader_worker import DataLoaderWorker
 from gui.workers.filter_worker import FilterWorker
+from gui.workers.list_export_worker import ListExportWorker
 from gui.workers.rescan_worker import RescanWorker
 
-__all__ = ['DataLoaderWorker', 'FilterWorker', 'RescanWorker']
+__all__ = ["DataLoaderWorker", "FilterWorker", "ListExportWorker", "RescanWorker"]

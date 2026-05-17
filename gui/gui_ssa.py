@@ -71,6 +71,7 @@ from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
 from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
 from gui.ssa import derivadas_sync_controller as ssa_derivadas_sync  # noqa: E402
 from gui.ssa import database_operations as ssa_database_operations  # noqa: E402
+from gui.ssa import list_export_controller as ssa_list_export_controller  # noqa: E402
 from gui.ssa import system_integration as ssa_system  # noqa: E402
 from gui.ssa.derivadas_table_resolver import resolve_derivadas_table_name  # noqa: E402
 from gui.ssa.main_window_filter_bar import (  # noqa: E402
@@ -114,7 +115,6 @@ except Exception as e:
     # Fallback para logging padrão
     logger = logging.getLogger(__name__)
     logger.error(f"Falha ao inicializar logging robusto: {e}")
-logger = logging.getLogger(__name__)
 
 # Compatibility aliases for tests and older imports. Ownership lives in gui_workers.
 GLOBAL_RETIRED_DATA_LOADER_WORKERS = ssa_gui_workers.GLOBAL_RETIRED_DATA_LOADER_WORKERS
@@ -200,12 +200,6 @@ from armazenamento.derivadas_sync import (  # noqa: E402
     scan_derivadas_consistency,
     sync_derivadas,
 )
-
-# --- Importações do Projeto ---
-from utils.formatting import format_dataframe_for_display
-
-# (mantido acima)
-
 
 # --- Importações do PyQt6 (com fallback headless para CI) ---
 QT_AVAILABLE = True
@@ -3150,6 +3144,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return ssa_system.build_sam_ssa_url(numero_ssa)
 
     def _open_url_in_browser(self, url: str, *, success_status: str) -> bool:
+        qurl = QUrl(str(url or ""))
+        if str(qurl.scheme() or "").casefold() != "https":
+            logger.warning("URL externa bloqueada por scheme invalido.")
+            return False
         ok = ssa_system.open_allowed_url(
             url,
             qdesktopservices=QDesktopServices,
@@ -3174,8 +3172,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if not re.fullmatch(r"[A-Za-z0-9]+", safe_numero):
             logger.warning("Numero SSA invalido para URL SAM: %s", safe_numero)
             return False
+        sam_url = self._build_sam_ssa_url(safe_numero)
+        if not ssa_system.is_allowed_sam_url(QUrl(sam_url)):
+            logger.warning("URL SAM rejeitada por host fora da allow-list.")
+            return False
         opened = self._open_url_in_browser(
-            self._build_sam_ssa_url(safe_numero),
+            sam_url,
             success_status=f"Status: SSA {safe_numero} aberta no SAM.",
         )
         if not opened and not os.environ.get("PYTEST_CURRENT_TEST"):
@@ -3201,7 +3203,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return True
 
     def on_table_cell_clicked(self, row: int, column: int):
-        if column != 0:
+        if self._resolve_header_column_name(column) not in {"#", "numero_ssa"}:
             return
         series = self._get_series_from_row(row)
         if series is None:
@@ -3379,30 +3381,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 clipboard.setText("\t".join(row_data))
 
     def _export_current_list_txt(self):
-        if self.df_exibido is None or self.df_exibido.empty:
-            QMessageBox.information(self, "Aviso", "Nenhum dado para exportar.")
-            return
-        try:
-            path, _ = QFileDialog.getSaveFileName(
-                self, "Exportar lista", "", "Text Files (*.txt)"
-            )
-        except Exception:
-            path = ""
-        if not path:
-            return
-        cols = [col for col in self.visible_columns if col in self.df_exibido.columns]
-        if not cols:
-            cols = list(self.df_exibido.columns)
-        export_df = self.df_exibido[cols].copy()
-        try:
-            export_df = format_dataframe_for_display(export_df)
-        except Exception as e:
-            logger.warning("Falha ao formatar dataframe para exportacao: %s", e)
-        try:
-            export_df.to_csv(path, sep="\t", index=False)
-        except Exception as e:
-            logger.error("Falha ao exportar lista para arquivo: %s", e)
-            QMessageBox.information(self, "Aviso", "Falha ao exportar a lista.")
+        state = getattr(self, "_list_export_state", None)
+        if not isinstance(state, ssa_list_export_controller.ListExportState):
+            state = ssa_list_export_controller.ListExportState()
+            self._list_export_state = state
+        return ssa_list_export_controller.export_current_list_tsv(
+            self,
+            state,
+            file_dialog=QFileDialog,
+            message_box=QMessageBox,
+        )
 
     def remove_column_by_index(self, column_index):
         """Remove uma coluna especifica baseada no indice da tabela."""
@@ -3732,7 +3720,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             target_path,
             must_exist=must_exist,
             expect_dir=expect_dir,
-            allowed_base=allowed_base,
+            allowed_base=allowed_base or project_root,
         )
 
     @staticmethod
@@ -4237,6 +4225,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Prefer Qt abstraction to avoid blocking UI and keep cross-platform behavior.
             if QT_AVAILABLE:
                 url = QUrl.fromLocalFile(safe_folder_path)
+                if str(url.scheme() or "").casefold() != "file":
+                    raise RuntimeError("URL local gerou scheme inesperado")
                 ok = QDesktopServices.openUrl(url)
                 if ok:
                     return

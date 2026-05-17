@@ -5044,11 +5044,22 @@ class TestGUIFilterLogic:
         assert "solicitante" not in self.window._current_display_columns
 
     def test_clicking_hash_column_opens_sam_ssa_url(self, monkeypatch):
-        self.window.display_current_page(1)
+        self.window.table_widget.setColumnCount(2)
+        self.window._current_display_columns = ["#", "numero_ssa"]
         opened = []
 
         monkeypatch.setattr(
-            QDesktopServices,
+            self.window,
+            "_get_series_from_row",
+            lambda _row: pd.Series({"numero_ssa": "202600001"}),
+        )
+        monkeypatch.setattr(
+            self.window,
+            "_resolve_header_column_name",
+            lambda column: "#" if column == 0 else "numero_ssa",
+        )
+        monkeypatch.setattr(
+            gui_ssa.QDesktopServices,
             "openUrl",
             lambda url: opened.append(url.toString()) or True,
         )
@@ -5056,7 +5067,35 @@ class TestGUIFilterLogic:
         self.window.on_table_cell_clicked(0, 0)
 
         assert opened == [
-            "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx?SerialNumber=1&language=pt"
+            "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx?SerialNumber=202600001&language=pt"
+        ]
+
+    def test_clicking_reordered_hash_column_opens_sam_ssa_url(self, monkeypatch):
+        self.window.table_widget.setColumnCount(3)
+        self.window._current_display_columns = ["situacao", "#", "numero_ssa"]
+        opened = []
+
+        monkeypatch.setattr(
+            self.window,
+            "_get_series_from_row",
+            lambda _row: pd.Series({"numero_ssa": "202600001"}),
+        )
+        monkeypatch.setattr(
+            self.window,
+            "_resolve_header_column_name",
+            lambda column: "#" if column == 1 else "situacao",
+        )
+        monkeypatch.setattr(
+            gui_ssa.QDesktopServices,
+            "openUrl",
+            lambda url: opened.append(url.toString()) or True,
+        )
+
+        self.window.on_table_cell_clicked(0, 0)
+        self.window.on_table_cell_clicked(0, 1)
+
+        assert opened == [
+            "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx?SerialNumber=202600001&language=pt"
         ]
 
     def test_double_click_numero_ssa_copies_without_opening_details(self, monkeypatch):

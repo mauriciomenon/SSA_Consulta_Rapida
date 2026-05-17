@@ -49,7 +49,7 @@ def test_resolve_platform_open_command_prefers_absolute_windows_launcher(monkeyp
     monkeypatch.setattr(system_integration.sys, "platform", "win32")
     monkeypatch.setenv("WINDIR", r"C:\\Windows")
     monkeypatch.setattr(
-        system_integration.os.path,
+        system_integration.ntpath,
         "isfile",
         lambda path: path == r"C:\Windows\explorer.exe",
     )

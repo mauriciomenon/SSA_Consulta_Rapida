@@ -32,13 +32,11 @@ def open_allowed_url(
     if not safe_url:
         return False
     qurl = qurl_cls(safe_url)
-    scheme = str(qurl.scheme() or "").casefold()
-    host = str(qurl.host() or "").casefold()
-    if scheme != "https" or host not in SAM_ALLOWED_URL_HOSTS:
+    if not is_allowed_sam_url(qurl):
         logger.warning(
             "URL externa bloqueada por politica de seguranca: scheme=%s host=%s",
-            scheme or "<empty>",
-            host or "<empty>",
+            str(qurl.scheme() or "").casefold() or "<empty>",
+            str(qurl.host() or "").casefold() or "<empty>",
         )
         return False
     try:
@@ -48,6 +46,12 @@ def open_allowed_url(
         return False
 
 
+def is_allowed_sam_url(qurl: Any) -> bool:
+    scheme = str(qurl.scheme() or "").casefold()
+    host = str(qurl.host() or "").casefold()
+    return scheme == "https" and host in SAM_ALLOWED_URL_HOSTS
+
+
 def validate_local_open_target(
     target_path: str,
     *,
@@ -55,6 +59,8 @@ def validate_local_open_target(
     expect_dir: bool | None,
     allowed_base: str | list[str] | tuple[str, ...] | None = None,
 ) -> str:
+    if allowed_base is None:
+        raise ValueError("Base permitida obrigatoria para caminho local.")
     raw = str(target_path or "")
     if not raw.strip():
         raise ValueError("Caminho vazio para abertura.")
@@ -64,8 +70,7 @@ def validate_local_open_target(
     if ".." in raw_parts:
         raise ValueError("Caminho com parent traversal nao permitido.")
     normalized = os.path.abspath(os.path.normpath(raw))
-    if allowed_base:
-        _validate_allowed_base(normalized, allowed_base)
+    _validate_allowed_base(normalized, allowed_base)
     if os.path.basename(normalized).startswith("-"):
         raise ValueError(
             "Caminho inicia com '-' e pode ser interpretado como opcao de comando."
@@ -99,7 +104,7 @@ def resolve_platform_open_command() -> str:
     path_module = os.path
     if sys.platform.startswith("win"):
         windir = os.environ.get("WINDIR", r"C:\Windows")
-        preferred_paths.append(os.path.join(windir, "explorer.exe"))
+        preferred_paths.append(ntpath.join(windir, "explorer.exe"))
         cmd = "explorer"
         path_module = ntpath
     elif sys.platform == "darwin":
@@ -112,11 +117,11 @@ def resolve_platform_open_command() -> str:
         path_module = posixpath
     for preferred in preferred_paths:
         preferred_abs = path_module.abspath(preferred)
-        if path_module.isabs(preferred_abs) and os.path.isfile(preferred_abs):
+        if path_module.isabs(preferred_abs) and path_module.isfile(preferred_abs):
             return preferred_abs
     fallback = shutil.which(cmd)
     if fallback:
         fallback_abs = path_module.abspath(fallback)
-        if path_module.isabs(fallback_abs) and os.path.isfile(fallback_abs):
+        if path_module.isabs(fallback_abs) and path_module.isfile(fallback_abs):
             return fallback_abs
     raise RuntimeError(f"Comando indisponivel para abrir recurso: {cmd}")
