@@ -1181,7 +1181,7 @@ def load_data(
         global_meta[worker] = perf_counter()
 
 
-def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
+def _is_stale_data_load_result(window, request_id: int | None) -> bool:
     active_id = getattr(window, "_active_data_load_request_id", None)
     if request_id is not None and active_id is not None and request_id != active_id:
         logger.debug(
@@ -1189,7 +1189,13 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
             request_id,
             active_id,
         )
-        return
+        return True
+    return False
+
+
+def _prepare_loaded_dataframes(
+    df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, bool, dict]:
     attrs = getattr(df, "attrs", {})
     preprocessed_for_gui = bool(attrs.get("ssa_preprocessed_for_gui"))
     if preprocessed_for_gui:
@@ -1208,29 +1214,38 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
                         ssa_col,
                         exc,
                     )
-    window.df_completo = df_copy
+    if preprocessed_for_gui:
+        display_df = df
+    else:
+        display_df = DataLoaderWorker._build_initial_sorted_dataframe(df_copy)
+    return df_copy, display_df, preprocessed_for_gui, attrs
+
+
+def _sync_data_revision_after_load(window, request_id: int | None) -> None:
     try:
         last_req = getattr(window, "_data_revision_request_id", None)
-        if request_id is None or request_id != last_req:
-            if hasattr(window, "_bump_data_revision"):
-                window._bump_data_revision("data_loaded")
-            else:
-                window._data_revision = (
-                    int(getattr(window, "_data_revision", 0) or 0) + 1
-                )
-            try:
-                window._data_uuid = uuid.uuid4().hex
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao gerar UUID de dados; usando fallback textual: %s", exc
-                )
-                window._data_uuid = f"fallback-{time.time_ns()}-{int(getattr(window, '_data_revision', 0) or 0)}"
-            window._data_revision_request_id = request_id
+        if request_id is not None and request_id == last_req:
+            return
+        if hasattr(window, "_bump_data_revision"):
+            window._bump_data_revision("data_loaded")
+        else:
+            window._data_revision = int(getattr(window, "_data_revision", 0) or 0) + 1
+        try:
+            window._data_uuid = uuid.uuid4().hex
+        except Exception as exc:
+            logger.debug(
+                "Falha ao gerar UUID de dados; usando fallback textual: %s", exc
+            )
+            window._data_uuid = f"fallback-{time.time_ns()}-{int(getattr(window, '_data_revision', 0) or 0)}"
+        window._data_revision_request_id = request_id
     except Exception as exc:
         logger.debug(
             "Falha ao atualizar revisao de dados; resetando para baseline: %s", exc
         )
         window._data_revision = 1
+
+
+def _reset_post_load_filter_state(window) -> None:
     try:
         window.clear_filter_cache()
     except Exception as exc:
@@ -1246,12 +1261,9 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
             timer.stop()
     except Exception as exc:
         logger.debug("Falha ao parar debounce de setor apos carga de dados: %s", exc)
-    if preprocessed_for_gui:
-        base = df
-    else:
-        base = DataLoaderWorker._build_initial_sorted_dataframe(df_copy)
-    window.df_exibido = base
-    window._df_last_search_filtered = window.df_completo
+
+
+def _reset_post_load_sort_and_width_state(window) -> None:
     window._widths_computed_for_df_hash = None
     try:
         if hasattr(window, "_reset_num_reprogramacoes_sort_cache"):
@@ -1263,6 +1275,15 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
             window._reset_mixed_text_sort_cache()
     except Exception as exc:
         logger.debug("Falha ao resetar cache de sort de texto misto: %s", exc)
+
+
+def _sync_non_null_column_cache_after_load(
+    window,
+    df_copy: pd.DataFrame,
+    attrs: dict,
+    *,
+    preprocessed_for_gui: bool,
+) -> None:
     try:
         non_null_cols_attr = (
             attrs.get("ssa_non_null_cols") if preprocessed_for_gui else None
@@ -1282,6 +1303,9 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
             )
     except Exception as exc:
         logger.debug("Falha ao calcular cache de colunas nao nulas apos carga: %s", exc)
+
+
+def _sync_column_selector_after_load(window) -> None:
     try:
         if hasattr(window, "column_selector") and window.column_selector is not None:
             canonical_provider = getattr(
@@ -1298,6 +1322,9 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         logger.debug(
             "Falha ao sincronizar colunas disponiveis apos carga de dados: %s", exc
         )
+
+
+def _sync_filter_controls_after_load(window) -> None:
     try:
         window.clear_filter_button.setEnabled(window._has_any_active_filters())
     except Exception as exc:
@@ -1313,22 +1340,21 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
             window._adv_options_dirty = False
     except Exception as e:
         logger.warning("Falha ao atualizar opcoes de filtros avancados: %s", e)
+
+
+def _update_loaded_data_status(window) -> None:
     current_filter_profile = getattr(window, "current_filter_profile", None)
     profile_hint = (
         f" (perfil: {current_filter_profile})" if current_filter_profile else ""
     )
+    displayed_df = getattr(window, "df_exibido", None)
+    complete_df = getattr(window, "df_completo", None)
+    filtered_total = len(displayed_df) if displayed_df is not None else None
+    original_total = len(complete_df) if complete_df is not None else None
     try:
         window.update_filter_status_display(
-            filtered_total=(
-                len(window.df_exibido)
-                if hasattr(window, "df_exibido") and window.df_exibido is not None
-                else None
-            ),
-            original_total=(
-                len(window.df_completo)
-                if hasattr(window, "df_completo") and window.df_completo is not None
-                else None
-            ),
+            filtered_total=filtered_total,
+            original_total=original_total,
             search_text=None,
             suffix=(
                 f"Pronto para filtrar{profile_hint}."
@@ -1343,9 +1369,30 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         )
         _set_status_label_text(
             window,
-            f"Status: {len(window.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar.",
+            f"Status: {filtered_total or 0} SSAs carregadas{profile_hint}. Pronto para filtrar.",
             context="on_data_loaded.fallback_update_filter_status_display",
         )
+
+
+def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
+    if _is_stale_data_load_result(window, request_id):
+        return
+    df_copy, display_df, preprocessed_for_gui, attrs = _prepare_loaded_dataframes(df)
+    window.df_completo = df_copy
+    window.df_exibido = display_df
+    window._df_last_search_filtered = window.df_completo
+    _sync_data_revision_after_load(window, request_id)
+    _reset_post_load_filter_state(window)
+    _reset_post_load_sort_and_width_state(window)
+    _sync_non_null_column_cache_after_load(
+        window,
+        df_copy,
+        attrs,
+        preprocessed_for_gui=preprocessed_for_gui,
+    )
+    _sync_column_selector_after_load(window)
+    _sync_filter_controls_after_load(window)
+    _update_loaded_data_status(window)
 
 
 def _mask_db_path(error_msg: str, db_path: str | None) -> str:
@@ -1777,10 +1824,8 @@ def rescan_data(
                     else "rescan.success.cancelled"
                 ),
             )
-            _release_worker_ref()
             _release_dialog_ref()
             return
-        _release_worker_ref()
         progress_dialog.set_finished(True)
         _release_dialog_ref()
         should_reload_data = (
@@ -1834,7 +1879,6 @@ def rescan_data(
                     else "rescan.error.cancelled"
                 ),
             )
-            _release_worker_ref()
             _release_dialog_ref()
             return
         progress_dialog.set_finished(False, error_msg)
@@ -1856,7 +1900,6 @@ def rescan_data(
                 else "rescan.error"
             ),
         )
-        _release_worker_ref()
 
     _connect_signal(
         worker.finished_success, on_success, label="rescan.finished_success"
