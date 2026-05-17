@@ -90,6 +90,7 @@ from gui.ssa.filter_domain_rules import (
 from gui.ssa.filter_mask_logic import build_column_mask
 from gui.ssa.filter_profile_logic import (
     NormalizedFilterProfile,
+    filter_profile_is_custom,
     normalize_inline_executor_emissor_profile,
     normalize_named_filter_profile,
 )
@@ -2994,96 +2995,16 @@ class FilterGUISSAMixin:
         """Marca o perfil atual como personalizado quando filtros divergem."""
         if getattr(self, "_profile_lock", False):
             return
-        base_raw = self._profile_base_filters or {}
-        base = base_raw if isinstance(base_raw, dict) else {}
-        base_columns_candidate = base.get("columns")
-        base_columns_raw = (
-            base_columns_candidate if isinstance(base_columns_candidate, dict) else {}
-        )
-        base_columns = {str(k): str(v).strip() for k, v in base_columns_raw.items()}
-        base_groups_raw = base.get("or_groups")
-        base_groups = base_groups_raw if isinstance(base_groups_raw, list) else []
-        base_exclude = bool(base.get("exclude_ste_sca", False))
-
-        if (
-            self.current_filter_profile
-            and self.current_filter_profile in self.filter_profiles
+        if not filter_profile_is_custom(
+            current_filter_profile=getattr(self, "current_filter_profile", None),
+            filter_profiles=getattr(self, "filter_profiles", None),
+            profile_base_filters=getattr(self, "_profile_base_filters", None),
+            active_column_filters=getattr(self, "_active_column_filters", None),
+            column_to_or_group=getattr(self, "_column_to_or_group", None),
+            column_or_groups=getattr(self, "_column_or_groups", None),
+            exclude_ste_sca=bool(getattr(self, "_exclude_ste_sca", False)),
         ):
-            mismatch = False
-            # Verifica colunas mapeadas
-            current_columns = {}
-            referenced_columns = set(base_columns.keys()) | set(
-                self._active_column_filters.keys()
-            )
-            column_to_or_group = getattr(self, "_column_to_or_group", {}) or {}
-            for col in referenced_columns:
-                group = column_to_or_group.get(col)
-                if isinstance(group, dict):
-                    current_columns[col] = ", ".join(
-                        str(value).strip()
-                        for value in group.get("values", [])
-                        if str(value).strip()
-                    )
-                else:
-                    current_columns[col] = str(
-                        self._active_column_filters.get(col, "")
-                    ).strip()
-
-            for col, expected in base_columns.items():
-                if current_columns.get(col, "").strip() != expected:
-                    mismatch = True
-                    break
-
-            if not mismatch:
-                # Valores adicionais além do perfil base
-                for col, current in current_columns.items():
-                    if col not in base_columns and current.strip():
-                        mismatch = True
-                        break
-
-            if not mismatch:
-                # Compara grupos OR
-                def _group_repr(group: Any):
-                    if not isinstance(group, dict):
-                        return (tuple(), tuple())
-                    cols_raw = group.get("columns", ())
-                    vals_raw = group.get("values", ())
-                    cols = (
-                        tuple(
-                            sorted(
-                                str(item).strip()
-                                for item in cols_raw
-                                if str(item).strip()
-                            )
-                        )
-                        if isinstance(cols_raw, (list, tuple))
-                        else tuple()
-                    )
-                    vals = (
-                        tuple(
-                            sorted(
-                                str(item).strip()
-                                for item in vals_raw
-                                if str(item).strip()
-                            )
-                        )
-                        if isinstance(vals_raw, (list, tuple))
-                        else tuple()
-                    )
-                    return (cols, vals)
-
-                current_groups = sorted(
-                    _group_repr(g) for g in getattr(self, "_column_or_groups", [])
-                )
-                expected_groups = sorted(_group_repr(g) for g in base_groups)
-                if current_groups != expected_groups:
-                    mismatch = True
-
-            if not mismatch and base_exclude != bool(self._exclude_ste_sca):
-                mismatch = True
-
-            if not mismatch:
-                return
+            return
         self.current_filter_profile = None
         self._profile_base_filters = {}
         selector = getattr(self, "profile_selector", None)
@@ -3159,19 +3080,13 @@ class FilterGUISSAMixin:
             for col in self._profile_columns:
                 new_filters[col] = ""
             for col, text in normalized_columns.items():
-                if col not in new_filters:
-                    new_filters[col] = text
-                else:
-                    new_filters[col] = text
+                new_filters[col] = text
             for group in self._column_or_groups:
                 group_text = ", ".join(group.get("values", []))
                 if not group_text:
                     continue
                 for col in group.get("columns", []):
-                    if col not in new_filters:
-                        new_filters[col] = group_text
-                    else:
-                        new_filters[col] = group_text
+                    new_filters[col] = group_text
             self._active_column_filters = new_filters
             self._profile_base_filters = {
                 "columns": {
