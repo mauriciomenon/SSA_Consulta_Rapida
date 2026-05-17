@@ -3983,8 +3983,89 @@ class TestGUIFilterLogic:
             ssa_gui_details._update_details_from_series(self.window, series)
 
         html = self.window.details_text.toHtml()
+        assert "copy-ssa:202600023" in html
         assert "202500777" in html
         assert "202500888" in html
+
+    def test_advanced_emissor_include_status_exclude_and_single_undo_contract(self):
+        scenario_df = pd.DataFrame(
+            {
+                "numero_ssa": [
+                    "202600001",
+                    "202600002",
+                    "202600003",
+                    "202600004",
+                    "202600005",
+                    "202600006",
+                ],
+                "situacao": ["APV", "STE", "STE", "APV", "SCA", "APV"],
+                "derivada_de": ["", "", "", "", "", ""],
+                "localizacao_codigo": ["LOC1", "LOC2", "LOC3", "LOC4", "LOC5", "LOC6"],
+                "descricao_localizacao": ["Desc"] * 6,
+                "equipamento": ["EQ"] * 6,
+                "semana_cadastro": [202501] * 6,
+                "semana_programada": [202503] * 6,
+                "data_cadastro": ["2025-01-01"] * 6,
+                "descricao_ssa": ["A", "B", "C", "D", "E", "F"],
+                "setor_executor": ["MEL4"] * 6,
+                "setor_emissor": ["IEE1", "IEE1", "IEE2", "IEE2", "IEE3", "MEL4"],
+                "descricao_execucao": ["Exec"] * 6,
+                "solicitante": ["User"] * 6,
+            }
+        )
+        self.window.df_completo = scenario_df.copy()
+        self.window.df_exibido = scenario_df.copy()
+        self.window._df_last_search_filtered = scenario_df.copy()
+        self.window.paginator.set_dataframe(scenario_df.copy())
+        self._set_filter_panel_tab("filters")
+        QApplication.processEvents()
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+
+        def check_values(checks, values):
+            expected = set(values)
+            found = set()
+            for checkbox in checks or []:
+                value = str(checkbox.property("value") or "")
+                if value in expected:
+                    checkbox.setChecked(True)
+                    found.add(value)
+            assert found == expected
+
+        check_values(getattr(self.window, "adv_emissor_checks", []), ["IEE1", "IEE2"])
+        self.window._apply_advanced_filters_from_ui()
+        QApplication.processEvents()
+
+        assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == [
+            "202600004",
+            "202600003",
+            "202600002",
+            "202600001",
+        ]
+        assert self.window._advanced_filters.get("setor_emissor") == ["IEE1", "IEE2"]
+
+        check_values(getattr(self.window, "adv_status_exclude_checks", []), ["STE"])
+        self.window._apply_advanced_filters_from_ui()
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters.get("situacao_exclude_values") == ["STE"]
+        assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == [
+            "202600004",
+            "202600001",
+        ]
+
+        self.window._restore_last_filter_state()
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters.get("setor_emissor") == ["IEE1", "IEE2"]
+        assert not self.window._advanced_filters.get("situacao_exclude_values")
+        assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == [
+            "202600004",
+            "202600003",
+            "202600002",
+            "202600001",
+        ]
+        assert self.window.undo_filter_btn.isEnabled() is False
 
     def test_update_details_from_series_resolves_related_ssas_without_full_index_build(
         self,

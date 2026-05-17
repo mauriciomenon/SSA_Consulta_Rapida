@@ -567,23 +567,18 @@ def update_details_from_selection(window):
     current_signature = window.details_text.property("details_render_signature")
     skip_ssa = window.table_widget.property("details_skip_selection_once_for_ssa")
     if selected_ssa is not None and selected_ssa == skip_ssa:
+        window.table_widget.setProperty("details_skip_selection_once_for_ssa", None)
         try:
             if (
                 not window.details_text.document().isEmpty()
                 and render_signature == current_signature
             ):
-                window.table_widget.setProperty(
-                    "details_skip_selection_once_for_ssa", None
-                )
                 return
         except Exception:
             if (
                 window.details_text.toPlainText().strip()
                 and render_signature == current_signature
             ):
-                window.table_widget.setProperty(
-                    "details_skip_selection_once_for_ssa", None
-                )
                 return
     try:
         if (
@@ -660,6 +655,7 @@ def _update_details_from_series(window, series):
             font_size_pt=font_size_pt,
             linkify=True,
             font_family=font_family,
+            ssa_index={},
         )
         window.details_text.setHtml(html_content)
         window.details_text.setProperty("details_render_signature", render_signature)
@@ -1278,6 +1274,11 @@ def _build_derivadas_tree_html(
             return _ssa_link(ssa, status_hint=status_hint)
         return _ssa_link(entry)
 
+    def _entry_ssa_value(entry) -> str:
+        if isinstance(entry, dict):
+            return _normalize_ssa_relation_value(entry.get("ssa"))
+        return _normalize_ssa_relation_value(entry)
+
     def _append_line(lines, depth: int, rendered: str, *, current: bool = False):
         guide = ""
         for _ in range(depth):
@@ -1324,11 +1325,7 @@ def _build_derivadas_tree_html(
             if rendered:
                 _append_line(lines, depth, rendered, current=safe_node == target)
             for raw_child in reversed(tree_model.child_map.get(safe_node, [])):
-                child_value = _normalize_ssa_relation_value(
-                    cast(dict[str, object], raw_child).get("ssa")
-                    if isinstance(raw_child, dict)
-                    else raw_child
-                )
+                child_value = _entry_ssa_value(raw_child)
                 if child_value and child_value not in seen_family_nodes:
                     stack.append((child_value, depth + 1))
     else:
@@ -1341,11 +1338,7 @@ def _build_derivadas_tree_html(
             seen_descendants: set[str] = set()
             for raw in tree_model.direct_children:
                 rendered = _render_entry(raw)
-                child_value = _normalize_ssa_relation_value(
-                    cast(dict[str, object], raw).get("ssa")
-                    if isinstance(raw, dict)
-                    else raw
-                )
+                child_value = _entry_ssa_value(raw)
                 if not rendered or not child_value or child_value in seen_descendants:
                     continue
                 seen_descendants.add(child_value)
@@ -1356,12 +1349,7 @@ def _build_derivadas_tree_html(
                 ]
                 while stack:
                     raw_descendant, depth = stack.pop()
-                    if not isinstance(raw_descendant, dict):
-                        continue
-                    raw_descendant_map = cast(dict[str, object], raw_descendant)
-                    descendant_value = _normalize_ssa_relation_value(
-                        raw_descendant_map.get("ssa")
-                    )
+                    descendant_value = _entry_ssa_value(raw_descendant)
                     rendered_descendant = _render_entry(raw_descendant)
                     if (
                         not descendant_value
