@@ -111,10 +111,10 @@ from gui.ssa.filter_summary_entries import (
     SummaryEntry,
     build_advanced_summary_entries,
     merge_summary_actions as _merge_summary_actions,
-    shorten_summary_label,
 )
-from gui.ssa.filter_summary_style import (
-    build_summary_button_stylesheet,
+from gui.ssa.filter_summary_presenter import (
+    FilterSummaryPresenter,
+    FilterSummaryWidgets,
 )
 from gui.ssa.search_refinement import can_reuse_refined_search
 from utils.robust_logging import get_robust_logger
@@ -171,7 +171,7 @@ def _copy_filter_mapping(value: Any) -> dict:
 
 @dataclass
 class SummaryRemovalPlan:
-    clear_search: bool = False
+    reset_search_baseline: bool = False
     refresh_needed: bool = False
     sync_advanced_ui: bool = False
     sync_quick_combo: bool = False
@@ -2352,124 +2352,30 @@ class FilterGUISSAMixin:
                 actions=[{"kind": "exclude_ste_sca"}],
             )
 
-    def _apply_filters_summary_frame_style(
-        self, *, active_state: bool, roles: dict[str, str]
-    ) -> str:
-        summary_bg = roles.get("summary_frame_bg") or roles.get("panel_bg") or "transparent"
-        if (
-            hasattr(self, "filters_summary_frame")
-            and self.filters_summary_frame is not None
-        ):
-            active_border = (
-                roles.get("accent")
-                or roles.get("input_border_focus")
-                or roles.get("panel_text")
-                or "palette(highlight)"
-            )
-            idle_border = (
-                roles.get("input_border") or roles.get("panel_border") or "palette(mid)"
-            )
-            frame_border = active_border if active_state else idle_border
-            self.filters_summary_frame.setStyleSheet(
-                "QFrame#filtersSummaryFrame {"
-                f"background:{summary_bg};"
-                f"border:1px solid {frame_border};"
-                "border-radius:4px;"
-                "}"
-            )
-        return summary_bg
-
-    def _apply_filters_summary_label_style(
-        self, *, summary_text: str, active_state: bool, summary_color: str
-    ) -> None:
-        if not hasattr(self, "filters_summary_label"):
-            return
-        self.filters_summary_label.setText("" if active_state else "Nenhum filtro ativo")
-        self.filters_summary_label.setToolTip(summary_text if active_state else "")
-        try:
-            self.filters_summary_label.setVisible(not active_state)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao atualizar visibilidade do texto de filtros ativos: %s",
-                exc,
-            )
-        self.filters_summary_label.setStyleSheet(
-            f"color:{summary_color};"
-            "background:transparent;"
-            "padding:0 2px;"
-            + ("font-weight:700;" if active_state else "font-weight:400;")
+    def _get_filter_summary_presenter(self) -> FilterSummaryPresenter | None:
+        widgets = (
+            getattr(self, "filters_summary_frame", None),
+            getattr(self, "filters_summary_label", None),
+            getattr(self, "filters_summary_items_widget", None),
+            getattr(self, "filters_summary_items_layout", None),
+            getattr(self, "filters_summary_scroll", None),
         )
-
-    def _apply_filters_summary_scroll_style(
-        self, *, active_state: bool, summary_bg: str
-    ) -> None:
-        scroll = getattr(self, "filters_summary_scroll", None)
-        if scroll is None:
-            return
-        try:
-            scroll.setVisible(active_state)
-            scroll.setStyleSheet(
-                "QScrollArea {"
-                "border:0;"
-                f"background:{summary_bg};"
-                "}"
-                "QScrollArea > QWidget > QWidget {"
-                f"background:{summary_bg};"
-                "}"
+        if any(widget is None for widget in widgets):
+            return None
+        presenter = getattr(self, "_filter_summary_presenter", None)
+        if not isinstance(presenter, FilterSummaryPresenter):
+            presenter = FilterSummaryPresenter(
+                FilterSummaryWidgets(
+                    frame=widgets[0],
+                    label=widgets[1],
+                    items_widget=widgets[2],
+                    items_layout=widgets[3],
+                    scroll=widgets[4],
+                ),
+                logger,
             )
-            viewport = scroll.viewport()
-            if viewport is not None:
-                viewport.setAutoFillBackground(False)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao atualizar visibilidade do scroll de filtros ativos: %s",
-                exc,
-            )
-
-    def _apply_filters_summary_visual_state(
-        self, *, summary_text: str, active_state: bool
-    ) -> None:
-        roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
-        summary_color = (
-            roles.get("summary_text_color")
-            or roles.get("panel_text")
-            or roles.get("label_color")
-            or "palette(windowText)"
-        )
-        summary_bg = self._apply_filters_summary_frame_style(
-            active_state=active_state, roles=roles
-        )
-        self._apply_filters_summary_label_style(
-            summary_text=summary_text,
-            active_state=active_state,
-            summary_color=summary_color,
-        )
-        self._apply_filters_summary_scroll_style(
-            active_state=active_state, summary_bg=summary_bg
-        )
-
-    def _sync_filters_summary_buttons(
-        self, summary_entries: OrderedDict[str, SummaryEntry]
-    ) -> None:
-        try:
-            summary_signature = tuple(
-                (
-                    str(entry.get("text") or ""),
-                    tuple(
-                        repr(action)
-                        for action in entry.get("actions", [])
-                        if isinstance(action, dict)
-                    ),
-                )
-                for entry in summary_entries.values()
-            )
-            if summary_signature != getattr(self, "_filters_summary_signature", None):
-                self._rebuild_filters_summary_buttons(list(summary_entries.values()))
-                self._filters_summary_signature = summary_signature
-        except Exception as exc:
-            logger.warning(
-                "Falha ao reconstruir botoes clicaveis do resumo de filtros: %s", exc
-            )
+            self._filter_summary_presenter = presenter
+        return presenter
 
     def _update_filters_summary(self):
         """Atualiza o resumo de filtros ativos na interface"""
@@ -2492,174 +2398,15 @@ class FilterGUISSAMixin:
             summary_text = "Nenhum filtro ativo"
 
         active_state = bool(active_filters)
-        self._apply_filters_summary_visual_state(
-            summary_text=summary_text, active_state=active_state
-        )
-        self._sync_filters_summary_buttons(summary_entries)
-
-    def _clear_filters_summary_buttons(self) -> None:
-        layout = getattr(self, "filters_summary_items_layout", None)
-        if layout is None:
-            return
-        while layout.count():
-            item = layout.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
-        self._filters_summary_button_pool = []
-
-    def _rebuild_filters_summary_buttons(self, entries: list[SummaryEntry]) -> None:
-        layout = getattr(self, "filters_summary_items_layout", None)
-        container = getattr(self, "filters_summary_items_widget", None)
-        if layout is None or container is None:
-            return
-        roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
-        accent = roles.get("accent") or roles.get("input_border_focus") or "#4a90e2"
-        border = roles.get("input_border") or roles.get("panel_border") or accent
-        text_color = roles.get("panel_text") or roles.get("label_color") or "inherit"
-        background = roles.get("input_bg") or "transparent"
-        try:
-            container.setFixedHeight(22)
-            container.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao configurar tamanho do container de filtros ativos: %s", exc
+        presenter = self._get_filter_summary_presenter()
+        if presenter is not None:
+            presenter.update(
+                theme_name=str(getattr(self, "_current_theme", "") or "dark"),
+                summary_text=summary_text,
+                active_state=active_state,
+                entries=list(summary_entries.values()),
+                on_remove=self._on_filters_summary_item_clicked,
             )
-        pool = getattr(self, "_filters_summary_button_pool", None)
-        if not isinstance(pool, list):
-            pool = []
-            self._filters_summary_button_pool = pool
-        width_cache = getattr(self, "_filters_summary_button_width_cache", None)
-        if not isinstance(width_cache, dict):
-            width_cache = {}
-            self._filters_summary_button_width_cache = width_cache
-        stylesheet_cache = getattr(self, "_filters_summary_stylesheet_cache", None)
-        if not isinstance(stylesheet_cache, dict):
-            stylesheet_cache = {}
-            self._filters_summary_stylesheet_cache = stylesheet_cache
-        content_width = 0
-        spacing = 0
-        try:
-            spacing = int(layout.spacing() or 0)
-        except Exception as exc:
-            logger.debug("Falha ao obter espacamento dos filtros ativos: %s", exc)
-        visible_button_count = 0
-        for index, entry in enumerate(entries):
-            text = str(entry.get("text") or "").strip()
-            raw_actions = entry.get("actions")
-            if not text or not isinstance(raw_actions, list) or not raw_actions:
-                continue
-            actions: list[SummaryAction] = [
-                cast(SummaryAction, dict(action))
-                for action in raw_actions
-                if isinstance(action, dict)
-            ]
-            if not actions:
-                continue
-            display_text = shorten_summary_label(text)
-            if index < len(pool) and isinstance(pool[index], QPushButton):
-                button = pool[index]
-            else:
-                button = QPushButton(container)
-                button.clicked.connect(self._handle_filters_summary_button_clicked)
-                pool.append(button)
-                layout.addWidget(button, 0)
-            button.setText(display_text)
-            button.setToolTip(f"Clique para remover este filtro: {text}")
-            button.setProperty("filter_summary_text", text)
-            button.setProperty("filter_summary_actions", actions)
-            style_signature = (border, accent, background, text_color)
-            try:
-                button.setVisible(True)
-                button.setFixedHeight(22)
-                button.setSizePolicy(
-                    QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed
-                )
-                if button.property("filter_summary_style") != style_signature:
-                    stylesheet = stylesheet_cache.get(style_signature)
-                    if not isinstance(stylesheet, str):
-                        stylesheet = build_summary_button_stylesheet(
-                            border=border,
-                            accent=accent,
-                            background=background,
-                            text_color=text_color,
-                        )
-                        stylesheet_cache[style_signature] = stylesheet
-                    button.setStyleSheet(stylesheet)
-                    button.setProperty("filter_summary_style", style_signature)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao aplicar estilo em botao do resumo de filtros '%s': %s",
-                    text,
-                    exc,
-                )
-            visible_button_count += 1
-            try:
-                width_key = (display_text, style_signature)
-                button_width = width_cache.get(width_key)
-                if not isinstance(button_width, int):
-                    button_width = int(button.sizeHint().width())
-                    width_cache[width_key] = button_width
-                content_width += button_width + spacing
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao medir largura do botao de filtro ativo '%s': %s",
-                    text,
-                    exc,
-                )
-        for button in pool[visible_button_count:]:
-            try:
-                if isinstance(button, QPushButton):
-                    button.setVisible(False)
-                    button.setProperty("filter_summary_text", "")
-                    button.setProperty("filter_summary_actions", [])
-            except TypeError:
-                logger.debug(
-                    "Botao excedente de filtro ativo ja estava sem handler de clique."
-                )
-            except RuntimeError as exc:
-                logger.debug(
-                    "Falha ao ocultar botao excedente do resumo de filtros: %s", exc
-                )
-        try:
-            layout.activate()
-            scroll = getattr(self, "filters_summary_scroll", None)
-            viewport_width = 0
-            if scroll is not None and scroll.viewport() is not None:
-                viewport_width = int(scroll.viewport().width() or 0)
-                try:
-                    scroll_policy = getattr(_Qt, "ScrollBarPolicy", None)
-                    if scroll_policy is not None:
-                        policy = (
-                            scroll_policy.ScrollBarAsNeeded
-                            if visible_button_count > 0
-                            and content_width > viewport_width
-                            else scroll_policy.ScrollBarAlwaysOff
-                        )
-                        scroll.setHorizontalScrollBarPolicy(policy)
-                except Exception as exc:
-                    logger.debug(
-                        "Falha ao ajustar politica do scroll de filtros ativos: %s", exc
-                    )
-            container.setFixedSize(max(1, content_width, viewport_width), 22)
-        except Exception as exc:
-            logger.debug("Falha ao ajustar largura dos filtros ativos: %s", exc)
-        try:
-            container.setVisible(bool(entries))
-        except Exception as exc:
-            logger.debug(
-                "Falha ao atualizar visibilidade do container de resumo de filtros: %s",
-                exc,
-            )
-
-    def _handle_filters_summary_button_clicked(self, _checked: bool = False) -> None:
-        button = self.sender()
-        if not isinstance(button, QPushButton):
-            return
-        item_text = str(button.property("filter_summary_text") or "")
-        raw_actions = button.property("filter_summary_actions")
-        actions = raw_actions if isinstance(raw_actions, list) else []
-        self._on_filters_summary_item_clicked(item_text, actions)
 
     def _confirm_filter_summary_item_removal(self, item_text: str) -> bool:
         title = "Remover filtro"
@@ -2725,7 +2472,7 @@ class FilterGUISSAMixin:
             return
         kind = str(action.get("kind") or "").strip()
         if kind == "search":
-            plan.clear_search = True
+            plan.reset_search_baseline = True
             plan.refresh_needed = True
             return
         if kind == "dedicated_or":
@@ -2813,7 +2560,7 @@ class FilterGUISSAMixin:
         self._active_column_filters[column_name] = ""
 
     def _finish_filters_summary_removal(self, plan: SummaryRemovalPlan) -> None:
-        if plan.clear_search:
+        if plan.reset_search_baseline:
             self._clear_general_search_state()
         if plan.sync_advanced_ui:
             self._sync_advanced_filter_ui()
@@ -2822,7 +2569,7 @@ class FilterGUISSAMixin:
             self._refresh_after_filter_change()
         else:
             self._update_filters_summary()
-        if plan.clear_search and not self._has_any_active_filters():
+        if plan.reset_search_baseline and not self._has_any_active_filters():
             self._set_filtered_count_status()
         self._sync_clear_filter_button_state()
         if plan.sync_quick_combo:
