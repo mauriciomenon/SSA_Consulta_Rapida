@@ -29,7 +29,7 @@ import sys
 import threading
 from collections import OrderedDict
 from datetime import datetime
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 import pandas as pd
 
@@ -124,6 +124,63 @@ GLOBAL_RETIRED_RESCAN_META = ssa_gui_workers.GLOBAL_RETIRED_RESCAN_META
 RETIRED_WORKER_TTL_SEC = ssa_gui_workers.RETIRED_WORKER_TTL_SEC
 RETIRED_WORKER_FORCE_WAIT_MS = ssa_gui_workers.RETIRED_WORKER_FORCE_WAIT_MS
 logger.addHandler(logging.NullHandler())
+
+
+class _DataLoaderRetentionKwargs(TypedDict):
+    global_workers: list[Any]
+    global_meta: dict[Any, Any]
+    max_global_workers: int
+    retired_ttl_sec: float
+    retired_force_wait_ms: int
+
+
+class _RescanRetentionKwargs(_DataLoaderRetentionKwargs):
+    pass
+
+
+class _CloseRetentionKwargs(TypedDict):
+    data_loader_workers: list[Any]
+    data_loader_meta: dict[Any, Any]
+    max_data_loader_workers: int
+    rescan_workers: list[Any]
+    rescan_meta: dict[Any, Any]
+    max_rescan_workers: int
+    retired_ttl_sec: float
+    retired_force_wait_ms: int
+
+
+def _data_loader_retention_kwargs() -> _DataLoaderRetentionKwargs:
+    return {
+        "global_workers": GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+        "global_meta": GLOBAL_RETIRED_DATA_LOADER_META,
+        "max_global_workers": MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+        "retired_ttl_sec": RETIRED_WORKER_TTL_SEC,
+        "retired_force_wait_ms": RETIRED_WORKER_FORCE_WAIT_MS,
+    }
+
+
+def _rescan_retention_kwargs() -> _RescanRetentionKwargs:
+    return {
+        "global_workers": GLOBAL_RETIRED_RESCAN_WORKERS,
+        "global_meta": GLOBAL_RETIRED_RESCAN_META,
+        "max_global_workers": MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
+        "retired_ttl_sec": RETIRED_WORKER_TTL_SEC,
+        "retired_force_wait_ms": RETIRED_WORKER_FORCE_WAIT_MS,
+    }
+
+
+def _close_retention_kwargs() -> _CloseRetentionKwargs:
+    return {
+        "data_loader_workers": GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+        "data_loader_meta": GLOBAL_RETIRED_DATA_LOADER_META,
+        "max_data_loader_workers": MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+        "rescan_workers": GLOBAL_RETIRED_RESCAN_WORKERS,
+        "rescan_meta": GLOBAL_RETIRED_RESCAN_META,
+        "max_rescan_workers": MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
+        "retired_ttl_sec": RETIRED_WORKER_TTL_SEC,
+        "retired_force_wait_ms": RETIRED_WORKER_FORCE_WAIT_MS,
+    }
+
 
 _COLUMN_FILTER_DIALOG_MIN_WIDTH = 420
 _COLUMN_FILTER_DIALOG_HINT = "Aceita termo, !termo para exclusao"
@@ -2355,11 +2412,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             table_name=TABLE_NAME,
             data_loader_cls=DataLoaderWorker,
             qmessagebox=QMessageBox,
-            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
-            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
-            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
-            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
-            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            **_data_loader_retention_kwargs(),
             sip_module=sip,
         )
 
@@ -2381,11 +2434,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             request_id=request_id,
             db_path=DB_PATH,
             qmessagebox=QMessageBox,
-            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
-            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
-            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
-            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
-            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            **_data_loader_retention_kwargs(),
             sip_module=sip,
         )
 
@@ -2394,11 +2443,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self,
             worker=worker,
             request_id=request_id,
-            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
-            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
-            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
-            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
-            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            **_data_loader_retention_kwargs(),
             sip_module=sip,
         )
 
@@ -3778,11 +3823,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     rescan_worker_cls=RescanWorker,
                     rescan_dialog_cls=RescanProgressDialog,
                     qmessagebox=QMessageBox,
-                    global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
-                    global_meta=GLOBAL_RETIRED_RESCAN_META,
-                    max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
-                    retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
-                    retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+                    **_rescan_retention_kwargs(),
                     sip_module=sip,
                     rescan_mode="explicit",
                     source_files=tuple(safe_selected_files),
@@ -4019,11 +4060,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 rescan_worker_cls=RescanWorker,
                 rescan_dialog_cls=RescanProgressDialog,
                 qmessagebox=QMessageBox,
-                global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
-                global_meta=GLOBAL_RETIRED_RESCAN_META,
-                max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
-                retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
-                retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+                **_rescan_retention_kwargs(),
                 sip_module=sip,
                 rescan_mode="diff",
                 operation_label="Consolidacao de arquivos",
@@ -4059,11 +4096,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             rescan_worker_cls=RescanWorker,
             rescan_dialog_cls=RescanProgressDialog,
             qmessagebox=QMessageBox,
-            global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
-            global_meta=GLOBAL_RETIRED_RESCAN_META,
-            max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
-            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
-            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            **_rescan_retention_kwargs(),
             sip_module=sip,
             rescan_mode="prompt",
             db_path=DB_PATH,
@@ -4081,11 +4114,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             rescan_worker_cls=RescanWorker,
             rescan_dialog_cls=RescanProgressDialog,
             qmessagebox=QMessageBox,
-            global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
-            global_meta=GLOBAL_RETIRED_RESCAN_META,
-            max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
-            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
-            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            **_rescan_retention_kwargs(),
             sip_module=sip,
             rescan_mode="diff",
             db_path=DB_PATH,
@@ -4103,11 +4132,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             rescan_worker_cls=RescanWorker,
             rescan_dialog_cls=RescanProgressDialog,
             qmessagebox=QMessageBox,
-            global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
-            global_meta=GLOBAL_RETIRED_RESCAN_META,
-            max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
-            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
-            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            **_rescan_retention_kwargs(),
             sip_module=sip,
             rescan_mode="full",
             db_path=DB_PATH,
@@ -4681,14 +4706,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """
         ssa_gui_workers.cleanup_window_workers_on_close(
             self,
-            data_loader_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
-            data_loader_meta=GLOBAL_RETIRED_DATA_LOADER_META,
-            max_data_loader_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
-            rescan_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
-            rescan_meta=GLOBAL_RETIRED_RESCAN_META,
-            max_rescan_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
-            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
-            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            **_close_retention_kwargs(),
             sip_module=sip,
         )
 
