@@ -5,9 +5,7 @@
 
 from __future__ import annotations
 
-import sys
 from contextlib import contextmanager
-from dataclasses import dataclass
 from importlib import import_module
 from typing import Any
 
@@ -16,12 +14,12 @@ import pandas as pd
 from gui.gui_config import (
     COLUMN_HEADER_LABEL_VARIANTS,
     DEFAULT_COLUMN_DISPLAY_NAMES,
-    DEFAULT_COLUMN_WIDTHS,
     DEFAULT_GUI_SETTINGS,
     GUI_MAIN_PREFERENCES,
 )
 from gui.qt_stubs import QHeaderView, Qt, QTableWidgetItem, QTimer
 from gui.ssa import gui_details as ssa_gui_details
+from gui.ssa import table_widths
 from utils.formatting import (
     format_dataframe_for_table_display as format_dataframe_for_display,
 )
@@ -62,14 +60,6 @@ if QBrush is not None and QColor is not None:
         _HASH_LINK_FOREGROUND = None
 else:
     _HASH_LINK_FOREGROUND = None
-
-
-@dataclass(frozen=True)
-class ColumnWidthContext:
-    visible_columns: list[str]
-    width_manager: Any
-    widget_width: int
-    window_width: int
 
 
 def _set_current_display_columns(window, columns: list[str]) -> None:
@@ -345,31 +335,6 @@ def _get_header_visual_column_order(window) -> list[str]:
         ordered_pairs.append((visual_index, column_name))
     ordered_pairs.sort(key=lambda item: item[0])
     return [column_name for _, column_name in ordered_pairs]
-
-
-def _fallback_column_width(col_name: str) -> int:
-    if col_name in DEFAULT_COLUMN_WIDTHS:
-        return int(DEFAULT_COLUMN_WIDTHS[col_name])
-    if col_name == "#":
-        return 24
-    return 120
-
-
-def _resolve_column_width(
-    window,
-    col_name: str,
-    *,
-    include_runtime: bool,
-    include_preferences: bool,
-) -> int:
-    px = getattr(window, "_saved_gui_column_widths", {}).get(col_name)
-    if px is None and include_runtime:
-        px = getattr(window, "_gui_column_pixel_widths", {}).get(col_name)
-    if px is None and include_preferences:
-        px = GUI_MAIN_PREFERENCES.get("column_widths", {}).get(col_name)
-    if px is None:
-        px = _fallback_column_width(col_name)
-    return int(px)
 
 
 def _build_render_marker_sample(
@@ -766,7 +731,7 @@ def _render_empty_page_table(window, header, *, update_details):
         logger.debug("Falha ao aplicar cabecalhos da tabela vazia: %s", exc)
 
     for column_index, col_name in enumerate(current_columns):
-        px = _resolve_column_width(
+        px = table_widths.resolve_column_width(
             window,
             col_name,
             include_runtime=False,
@@ -799,26 +764,6 @@ def _render_empty_page_table(window, header, *, update_details):
         ssa_gui_details._update_details_from_series(window, None)
 
 
-def _needs_width_recompute(window, cols_sig, viewport_width):
-    need_cols = (not hasattr(window, "_widths_columns_sig")) or (
-        window._widths_columns_sig != cols_sig
-    )
-    need_vw = (not hasattr(window, "_last_viewport_w")) or (
-        abs(viewport_width - window._last_viewport_w) > 12
-    )
-    saved_widths = getattr(window, "_saved_gui_column_widths", {})
-    has_persisted_widths_for_all = isinstance(saved_widths, dict) and all(
-        (
-            isinstance(width_value := saved_widths.get(col_name), (int, float))
-            and int(width_value) > 0
-        )
-        for col_name in cols_sig
-    )
-    if need_vw and has_persisted_widths_for_all:
-        need_vw = False
-    return need_cols or need_vw
-
-
 def _apply_rendered_table_widths(window, display_df):
     cols_sig = tuple(display_df.columns)
     try:
@@ -828,7 +773,7 @@ def _apply_rendered_table_widths(window, display_df):
     skip_width_recompute = bool(getattr(window, "_skip_width_recompute_once", False))
     if skip_width_recompute:
         window._skip_width_recompute_once = False
-    if not skip_width_recompute and _needs_width_recompute(
+    if not skip_width_recompute and table_widths.needs_width_recompute(
         window, cols_sig, viewport_width
     ):
         window._compute_gui_column_widths(display_df)
@@ -836,7 +781,7 @@ def _apply_rendered_table_widths(window, display_df):
         window._last_viewport_w = viewport_width
 
     for column_index, col_name in enumerate(display_df.columns):
-        px = _resolve_column_width(
+        px = table_widths.resolve_column_width(
             window,
             col_name,
             include_runtime=True,
@@ -1009,7 +954,7 @@ def _finalize_page_render(window, display_df, render_signature, *, update_detail
     window._last_table_render_signature = render_signature
 
     try:
-        QTimer.singleShot(0, window._ensure_nonzero_column_widths)
+        QTimer.singleShot(0, lambda: window._ensure_nonzero_column_widths())
     except Exception as exc:
         logger.debug("Falha ao agendar reforco de largura de colunas: %s", exc)
 
@@ -1111,113 +1056,27 @@ def _compute_widths_for_df(
     widget_width: int = 0,
     window_width: int = 0,
 ):
-    del internal_to_display, saved_widths
-    context = ColumnWidthContext(
-        visible_columns=list(visible_columns or []),
-        width_manager=width_manager,
-        widget_width=int(widget_width),
-        window_width=int(window_width),
+    return table_widths.compute_widths_for_df(
+        df,
+        visible_columns,
+        width_manager,
+        internal_to_display,
+        saved_widths,
+        widget_width=widget_width,
+        window_width=window_width,
     )
-    return _compute_column_widths_from_context(df, context)
 
 
-def _compute_column_widths_from_context(
-    df: pd.DataFrame, context: ColumnWidthContext
-):
-    if not context.visible_columns:
-        return None
-    if hasattr(df, "columns"):
-        existing_visible_cols = [
-            col for col in context.visible_columns if col in df.columns
-        ]
-        if not existing_visible_cols:
-            return None
-        visible_df = df[existing_visible_cols].reindex(columns=existing_visible_cols)
-        visible_df = _sample_width_dataframe(visible_df)
-    else:
-        existing_visible_cols = list(context.visible_columns)
-        visible_df = df
-    table_width = context.widget_width
-    if table_width < 500:
-        table_width = max(
-            1000 if sys.platform == "darwin" else 1400,
-            context.window_width - 50,
-        )
-    else:
-        table_width = max(1, table_width - 40)
-    min_width = 1100 if sys.platform == "darwin" else 1400
-    table_width = max(table_width, min_width)
-    correct_column_order = ["#"] + existing_visible_cols
-    column_widths = context.width_manager.compute_optimal_widths(
-        df=visible_df, available_width=table_width, column_order=correct_column_order
-    )
-    if sys.platform == "darwin":
-        column_widths = {
-            key: (value + 2 if key != "#" else value)
-            for key, value in column_widths.items()
-        }
-    return column_widths
+def _compute_column_widths_from_context(df: pd.DataFrame, context):
+    return table_widths.compute_column_widths_from_context(df, context)
 
 
 def _sample_width_dataframe(df: pd.DataFrame, max_rows: int = 1000) -> pd.DataFrame:
-    if len(df.index) <= max_rows:
-        return df
-    head_rows = max_rows // 2
-    tail_rows = max_rows - head_rows
-    return pd.concat([df.head(head_rows), df.tail(tail_rows)])
+    return table_widths.sample_width_dataframe(df, max_rows=max_rows)
 
 
 def _compute_gui_column_widths(window, df: pd.DataFrame):
-    """
-    Calcula larguras de colunas usando o WidthManager unificado.
-    Substitui 150+ linhas de codigo frankenstein por uma chamada limpa.
-    """
-    try:
-        visible_columns = getattr(window, "visible_columns", None)
-        if isinstance(visible_columns, (list, tuple)):
-            visible_columns = list(visible_columns)
-        else:
-            visible_columns = []
-        if not visible_columns:
-            return
-        width_manager = getattr(window, "width_manager", None)
-        if width_manager is None:
-            logger.debug("WidthManager nao inicializado; pulando calculo de larguras.")
-            return
-
-        try:
-            widget_width = int(window.table_widget.width())
-        except Exception as exc:
-            logger.debug(
-                "Falha ao ler largura do table_widget em _compute_gui_column_widths: %s",
-                exc,
-            )
-            widget_width = 0
-        try:
-            window_width = int(window.width())
-        except Exception as exc:
-            logger.debug(
-                "Falha ao ler largura da janela em _compute_gui_column_widths: %s", exc
-            )
-            window_width = widget_width
-
-        column_widths = _compute_widths_for_df(
-            df,
-            visible_columns,
-            width_manager,
-            widget_width=widget_width,
-            window_width=window_width,
-        )
-        if not column_widths:
-            logger.error("Nenhuma coluna visivel encontrada no DataFrame")
-            return
-        window._gui_column_pixel_widths = column_widths
-
-    except Exception as exc:
-        logger.error("Falha em _compute_gui_column_widths: %s", exc)
-        # Fallback para larguras minimas das colunas visiveis apenas
-        visible_cols = ["#"] + (visible_columns if visible_columns else [])
-        window._gui_column_pixel_widths = {col: 100 for col in visible_cols}
+    return table_widths.compute_gui_column_widths(window, df)
 
 
 def _on_header_section_resized(
@@ -1226,74 +1085,35 @@ def _on_header_section_resized(
     """Salva a largura ajustada pelo usuario na configuracao persistente."""
     del old_size
     try:
-        col_name = _resolve_column_name_for_width_persist(window, logical_index)
+        col_name = table_widths.resolve_column_name_for_width_persist(
+            window, logical_index
+        )
         if not col_name:
             return
-        _persist_column_width_change(window, col_name, new_size)
+        table_widths.persist_column_width_change(window, col_name, new_size)
+        _schedule_adaptive_header_label_refresh(window)
+        _schedule_column_width_preferences_persist(window)
     except Exception as exc:  # noqa: BLE001
         # Evita quebrar a GUI por falhas de IO, mas preserva evidencia no log.
         logger.debug("Falha ao persistir largura de coluna redimensionada: %s", exc)
 
 
 def _resolve_column_name_for_width_persist(window, logical_index: int) -> str | None:
-    resolver = getattr(window, "_resolve_header_column_name", None)
-    if callable(resolver):
-        col_name = resolver(logical_index)
-        if col_name:
-            return col_name
-    cols = _current_display_columns(window)
-    if not cols or logical_index < 0 or logical_index >= len(cols):
-        return None
-    return cols[logical_index]
+    return table_widths.resolve_column_name_for_width_persist(window, logical_index)
 
 
 def _persist_column_width_change(window, col_name: str, new_size: int) -> None:
-    new_px = max(30, min(int(new_size), 1200))
-    window._saved_gui_column_widths[col_name] = new_px
-    if hasattr(window, "_gui_column_pixel_widths"):
-        window._gui_column_pixel_widths[col_name] = new_px
+    table_widths.persist_column_width_change(window, col_name, new_size)
     _schedule_adaptive_header_label_refresh(window)
     _schedule_column_width_preferences_persist(window)
 
 
 def _flush_column_width_preferences(window) -> None:
-    """Persiste larguras salvas em cache local para preferencias da GUI."""
-    try:
-        saved_widths = getattr(window, "_saved_gui_column_widths", None)
-        if not isinstance(saved_widths, dict):
-            return
-        from gui.gui_config import GUI_MAIN_PREFERENCES
-
-        prefs_widths = GUI_MAIN_PREFERENCES.setdefault("column_widths", {})
-        changed = False
-        for col_name, width in saved_widths.items():
-            if not isinstance(col_name, str) or not col_name:
-                continue
-            try:
-                width_px = max(30, min(int(width), 1200))
-            except (TypeError, ValueError):
-                continue
-            if prefs_widths.get(col_name) != width_px:
-                prefs_widths[col_name] = width_px
-                changed = True
-        if changed and hasattr(window, "_persist_gui_preferences"):
-            window._persist_gui_preferences()
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("Falha ao atualizar preferencias de largura de coluna: %s", exc)
+    return table_widths.flush_column_width_preferences(window)
 
 
 def _schedule_column_width_preferences_persist(window) -> None:
-    """Debounce de persistencia de largura para evitar IO excessivo em drag de header."""
-    timer = getattr(window, "_column_width_persist_timer", None)
-    try:
-        if timer is None:
-            timer = QTimer(_timer_parent(window))
-            timer.setSingleShot(True)
-            timer.timeout.connect(lambda: _flush_column_width_preferences(window))
-            setattr(window, "_column_width_persist_timer", timer)
-        timer.start(250)
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("Falha ao agendar persistencia de largura de coluna: %s", exc)
+    return table_widths.schedule_column_width_preferences_persist(window)
 
 
 def apply_table_cell_alignment(window, alignment_name: str) -> None:
