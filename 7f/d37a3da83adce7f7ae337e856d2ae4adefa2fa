@@ -1,0 +1,67 @@
+gui/ssa/gui_workers.py
+  s_082d1ff7d55d96::t_cb1a88b37eb429 1005-1006
+  s_082d1ff7d55d96::t_2e6d8eb3bd6a83 848,851-852,899-907
+  s_082d1ff7d55d96::t_7f666355dc24e0 21,187,191,193,197,241,245-249,1129
+  s_082d1ff7d55d96::t_d1fdb833fe8cde 352
+  s_082d1ff7d55d96::t_fc4c1386b63ba4 1218-1220
+  s_082d1ff7d55d96::t_4e720acd42f3b1 18-20,22,1126,1133,1215-1217,1224
+  s_082d1ff7d55d96::t_24a28be7107157 172-173,188-190,194-196
+  s_082d1ff7d55d96::t_1b58cfbff9ba87 534,655
+tests/test_data_loader_worker.py
+  s_082d1ff7d55d96::t_ff844e5768259f 112-130
+  s_082d1ff7d55d96::t_b71ba4b8316727 65,78,84
+  s_082d1ff7d55d96::t_184d4afca39daa 158,182,202,228
+  s_082d1ff7d55d96::t_7ae8759e4c6cb0 13-16,214-216
+  s_082d1ff7d55d96::t_3b0ab251f1338f 83,85-88
+gui/workers/data_loader_query.py
+  s_082d1ff7d55d96::t_dae88de7313bfb 1-28
+gui/workers/data_loader_processing.py
+  s_082d1ff7d55d96::t_4b9f650e38f579 1-16,18-32,34-51,53-70,72-76,78,80,82,84-86,88-91,98-102,104-114,116-117,128-132,156-158,166-171,177-210,212-214,222-224,227
+  s_082d1ff7d55d96::t_905397b5644f9d 33,159-165,176,211,215-221,226
+  s_082d1ff7d55d96::t_4a623769d3c7a6 143-148,172-175
+  s_082d1ff7d55d96::t_21f8afcfd6fea0 93-95
+  s_082d1ff7d55d96::t_6b69a1534a2c74 118,123-127,133-137,149-155
+  s_082d1ff7d55d96::t_ab2ccfaf24edea 71,77,79,81,83,87,92,96-97,103
+  s_082d1ff7d55d96::t_986c5e981353d8 225
+  s_082d1ff7d55d96::t_acd8bb20eee97e 119-122
+  s_082d1ff7d55d96::t_18cf05d47e0a4d 52,115
+  s_082d1ff7d55d96::t_1ed1d926d08c22 17,138-142
+gui/ssa/gui_loaded_dataframes.py
+  s_082d1ff7d55d96::t_38c219eb6a2ef4 7-11,17,26
+  s_082d1ff7d55d96::t_984585be33647a 14-16
+  s_082d1ff7d55d96::t_33c95642f2c450 23
+  s_082d1ff7d55d96::t_ad339db3d0006c 1-6,12-13,18-19,24-25
+  s_082d1ff7d55d96::t_aeef352374f7dd 20-22
+tests/test_gui_workers_signal_connect.py
+  s_082d1ff7d55d96::t_dbd51348302246 7,76
+tests/test_gui_filter_logic.py
+  s_082d1ff7d55d96::t_92973f7b5ad01d 8627,8935,8996,9310
+  s_082d1ff7d55d96::t_db2b11ca81d15f 8689
+gui/workers/data_loader_worker.py
+  s_082d1ff7d55d96::t_f304e1d961fc52 32,202,208-212
+  s_082d1ff7d55d96::t_c3f91d19443148 15-22,35-38
+  s_082d1ff7d55d96::t_e70f2ccc1f0abe 214
+  s_082d1ff7d55d96::t_e3f23444648b57 121-122,153,155-178,187
+  s_082d1ff7d55d96::t_2793551c4a5be7 220
+  s_082d1ff7d55d96::t_5d50e887c347ff 23,96
+  s_082d1ff7d55d96::t_7a40c17821aa58 197-200
+  s_082d1ff7d55d96::t_3d00d6c5ee6388 154
+  s_082d1ff7d55d96::t_4844af46eb4b40 215
+  s_082d1ff7d55d96::t_60365d10d71aec 39,99-102,119,126-128,216-219,221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "7fd37a3da83adce7f7ae337e856d2ae4adefa2fa",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
