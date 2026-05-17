@@ -69,6 +69,7 @@ from gui.ssa import gui_filters_advanced as ssa_gui_filters  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
 from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
+from gui.ssa import derivadas_sync_controller as ssa_derivadas_sync  # noqa: E402
 from gui.ssa.derivadas_table_resolver import resolve_derivadas_table_name  # noqa: E402
 from gui.ssa.main_window_filter_bar import (  # noqa: E402
     build_filters_summary_bar,
@@ -4458,17 +4459,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 )
 
     def _list_special_derivadas_sheets(self) -> list[str]:
-        docs_path = os.path.join(project_root, "docs_entrada")
-        if not os.path.isdir(docs_path):
-            return []
-        files: list[str] = []
-        for base_name in os.listdir(docs_path):
-            lowered = str(base_name).strip().casefold()
-            if lowered.startswith("ssas derivadas e relacionadas") and lowered.endswith(
-                ".xlsx"
-            ):
-                files.append(os.path.join(docs_path, base_name))
-        return sorted(files, key=lambda path: os.path.basename(path).casefold())
+        return ssa_derivadas_sync.list_special_derivadas_sheets(project_root)
 
     def _resolve_derivadas_table_name(self, db_path: str) -> str:
         return resolve_derivadas_table_name(
@@ -4477,172 +4468,74 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             CANONICAL_SSA_TABLE,
         )
 
-    def update_derivadas_from_sources(self):
-        db_path = DB_PATH
-        if not db_path or not os.path.exists(db_path):
-            if os.environ.get("PYTEST_CURRENT_TEST"):
-                return
-            QMessageBox.warning(self, "Erro", f"Banco nao encontrado: {db_path}")
-            return
-
-        sync_lock = getattr(self, "_derivadas_sync_lock", None)
-        if sync_lock is None:
-            sync_lock = threading.Lock()
-            self._derivadas_sync_lock = sync_lock
-        with sync_lock:
-            if bool(getattr(self, "_derivadas_sync_running", False)):
-                if hasattr(self, "status_label"):
-                    self.status_label.setText(
-                        "Status: Atualizacao de derivadas ja em andamento."
-                    )
-                return {
-                    "ok": False,
-                    "reason": "already_running",
-                    "db_path": db_path,
-                    "table_name": str(
-                        getattr(self, "_derivadas_sync_table_name", "") or ""
-                    ),
-                }
-            self._derivadas_sync_running = True
-            self._derivadas_sync_thread = None
-            self._derivadas_sync_pending_result = None
-            self._derivadas_sync_phase_status = ""
-            self._derivadas_sync_ui_state = {}
-            self._derivadas_sync_table_name = ""
-
-        try:
-            special_files = self._list_special_derivadas_sheets()
-            table_name = self._resolve_derivadas_table_name(db_path)
-            self._derivadas_sync_table_name = table_name
-        except Exception as exc:
-            with sync_lock:
-                self._derivadas_sync_running = False
-            error = str(exc)
-            logger.error("Falha ao preparar sync manual de derivadas: %s", error)
-            if hasattr(self, "status_label"):
-                self.status_label.setText("Status: Falha ao preparar derivadas.")
-            return {"ok": False, "error": error, "db_path": db_path}
-        previous_status = (
-            self.status_label.text() if hasattr(self, "status_label") else ""
-        )
-        previous_progress_visible = (
-            bool(self.progress_bar.isVisible())
-            if hasattr(self, "progress_bar")
-            else False
-        )
-        previous_progress_range = (
-            (self.progress_bar.minimum(), self.progress_bar.maximum())
-            if hasattr(self, "progress_bar")
-            else (0, 0)
-        )
-        previous_progress_value = (
-            int(self.progress_bar.value()) if hasattr(self, "progress_bar") else 0
-        )
-        previous_ui_state = {
-            "status": previous_status,
-            "progress_visible": previous_progress_visible,
-            "progress_range": previous_progress_range,
-            "progress_value": previous_progress_value,
-        }
-
-        self._start_derivadas_sync_ui_state(
-            previous_ui_state, "Status: Atualizando derivadas via DB..."
-        )
-
-        if os.environ.get("PYTEST_CURRENT_TEST"):
-            result = SSAMainWindow._execute_derivadas_sync_job(
-                db_path=db_path,
-                table_name=table_name,
-                special_files=special_files,
-            )
-            return SSAMainWindow._finalize_derivadas_sync_result(
-                self, result, previous_ui_state=previous_ui_state
-            )
-
-        with sync_lock:
-            self._derivadas_sync_phase_status = "Status: Atualizando derivadas via DB..."
-            self._derivadas_sync_ui_state = previous_ui_state
-
-        def _window_alive() -> bool:
-            if self is None:
-                return False
-            if not hasattr(self, "metaObject"):
-                return True
-            if sip is None:
-                return True
-            try:
-                return not sip.isdeleted(self)
-            except Exception:
-                return False
-
-        def _set_phase_status(text: str) -> None:
-            self._derivadas_sync_phase_status = str(text or "")
-
-        def _work() -> None:
-            try:
-                result = SSAMainWindow._execute_derivadas_sync_job(
-                    db_path=db_path,
-                    table_name=table_name,
-                    special_files=special_files,
-                    status_callback=_set_phase_status,
-                )
-            except Exception as exc:
-                result = {"ok": False, "error": str(exc)}
-            self._derivadas_sync_pending_result = result
-
-        def _poll_delivery() -> None:
-            if not _window_alive():
-                self._derivadas_sync_pending_result = None
-                self._derivadas_sync_thread = None
-                with sync_lock:
-                    self._derivadas_sync_running = False
-                return
+    def _get_derivadas_sync_state(self) -> ssa_derivadas_sync.DerivadasSyncState:
+        state = getattr(self, "_derivadas_sync_state", None)
+        if not isinstance(state, ssa_derivadas_sync.DerivadasSyncState):
             phase_status = str(getattr(self, "_derivadas_sync_phase_status", "") or "")
-            if phase_status and hasattr(self, "status_label"):
-                self.status_label.setText(phase_status)
-            pending = getattr(self, "_derivadas_sync_pending_result", None)
-            if pending is None:
-                if bool(getattr(self, "_derivadas_sync_running", False)):
-                    QTimer.singleShot(100, _poll_delivery)
-                return
-            self._derivadas_sync_pending_result = None
-            SSAMainWindow._finalize_derivadas_sync_result(self, pending)
+            state = ssa_derivadas_sync.DerivadasSyncState(
+                running=bool(getattr(self, "_derivadas_sync_running", False)),
+                thread=getattr(self, "_derivadas_sync_thread", None),
+                pending_result=getattr(self, "_derivadas_sync_pending_result", None),
+                phase_status=phase_status,
+                ui_state=getattr(self, "_derivadas_sync_ui_state", {}) or {},
+                table_name=str(getattr(self, "_derivadas_sync_table_name", "") or ""),
+                last_status_text=phase_status,
+            )
+            self._derivadas_sync_state = state
+        return state
 
-        worker = threading.Thread(target=_work, daemon=True)
-        with sync_lock:
-            if not bool(getattr(self, "_derivadas_sync_running", False)):
-                return {
-                    "ok": False,
-                    "reason": "not_running",
-                    "db_path": db_path,
-                    "table_name": table_name,
-                }
-            self._derivadas_sync_thread = worker
-            worker.start()
-        QTimer.singleShot(100, _poll_delivery)
-        return {
-            "ok": True,
-            "started": True,
-            "db_path": db_path,
-            "table_name": table_name,
-        }
+    def _sync_derivadas_sync_state_attrs(
+        self, state: ssa_derivadas_sync.DerivadasSyncState | None = None
+    ) -> None:
+        current = state or self._get_derivadas_sync_state()
+        self._derivadas_sync_running = current.running
+        self._derivadas_sync_thread = current.thread
+        self._derivadas_sync_pending_result = current.pending_result
+        self._derivadas_sync_phase_status = current.phase_status
+        self._derivadas_sync_ui_state = current.ui_state
+        self._derivadas_sync_table_name = current.table_name
+
+    def _derivadas_sync_ui_refs(self) -> ssa_derivadas_sync.DerivadasSyncUiRefs:
+        return ssa_derivadas_sync.DerivadasSyncUiRefs(
+            message_parent=self,
+            status_label=getattr(self, "status_label", None),
+            progress_bar=getattr(self, "progress_bar", None),
+            update_button=getattr(self, "update_derivadas_button", None),
+            refresh_button_state=self._update_derivadas_button_state,
+        )
+
+    def update_derivadas_from_sources(self):
+        state = self._get_derivadas_sync_state()
+        deps = ssa_derivadas_sync.DerivadasSyncDependencies(
+            qmessagebox=QMessageBox,
+            qtimer=QTimer,
+            sip_module=sip,
+            thread_factory=threading.Thread,
+            list_special_sheets=self._list_special_derivadas_sheets,
+            resolve_table_name=self._resolve_derivadas_table_name,
+            execute_job=SSAMainWindow._execute_derivadas_sync_job,
+            finalize_result=SSAMainWindow._finalize_derivadas_sync_result,
+            sync_state_callback=lambda: self._sync_derivadas_sync_state_attrs(state),
+            logger=logger,
+        )
+        return ssa_derivadas_sync.update_derivadas_from_sources(
+            self._derivadas_sync_ui_refs(),
+            state,
+            db_path=DB_PATH,
+            deps=deps,
+        )
 
     def _start_derivadas_sync_ui_state(
         self, previous_ui_state: dict[str, Any], initial_status: str
     ) -> None:
-        try:
-            self.update_derivadas_button.setEnabled(False)
-            if hasattr(self, "progress_bar"):
-                if bool(previous_ui_state.get("progress_visible")):
-                    self.progress_bar.setVisible(True)
-                self.progress_bar.setRange(0, 0)
-            if hasattr(self, "status_label"):
-                self.status_label.setText(initial_status)
-        except Exception as exc:
-            logger.warning(
-                "Falha ao preparar estado visual antes do sync manual de derivadas: %s",
-                exc,
-            )
+        state = self._get_derivadas_sync_state()
+        return ssa_derivadas_sync.start_derivadas_sync_ui_state(
+            self._derivadas_sync_ui_refs(),
+            state,
+            previous_ui_state,
+            initial_status,
+            logger,
+        )
 
     @staticmethod
     def _execute_derivadas_sync_job(
@@ -4652,100 +4545,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         special_files: list[str],
         status_callback=None,
     ) -> dict[str, Any]:
-        def _set_status(text: str) -> None:
-            if callable(status_callback):
-                status_callback(text)
-
-        def _has_sheet_parse_evidence(entry: dict[str, Any]) -> bool:
-            if not isinstance(entry, dict):
-                return False
-            raw_stats = entry.get("stats")
-            stats = raw_stats if isinstance(raw_stats, dict) else {}
-            has_flag = bool(entry.get("has_parse_evidence"))
-            accepted = int(stats.get("accepted_edges", 0) or 0)
-            special_layout = int(stats.get("special_layout_detected", 0) or 0)
-            informational = int(stats.get("informational_rows_skipped", 0) or 0)
-            return has_flag or accepted > 0 or special_layout > 0 or informational > 0
-
-        try:
-            _set_status("Status: Atualizando derivadas via DB...")
-            db_report = sync_derivadas(
-                db_path=db_path,
-                table_name=table_name,
-                include_db_source=True,
-                verify_only=False,
-                actor="gui-derivadas-db-phase",
-            )
-
-            final_report = db_report
-            db_stats = db_report.get("db_stats") or {}
-            db_edges = int(db_stats.get("accepted_edges", 0) or 0)
-            if special_files:
-                _set_status(
-                    "Status: Atualizando derivadas via planilhas especiais "
-                    f"({len(special_files)})..."
-                )
-                final_report = sync_derivadas(
-                    db_path=db_path,
-                    table_name=table_name,
-                    include_db_source=False,
-                    sheet_files=special_files,
-                    verify_only=False,
-                    actor="gui-derivadas-sheet-phase",
-                )
-                reported_files = {
-                    os.path.abspath(str(path))
-                    for path in (final_report.get("sheet_files") or [])
-                }
-                expected_files = {os.path.abspath(path) for path in special_files}
-                if reported_files != expected_files:
-                    raise RuntimeError(
-                        "Sync de planilhas especiais sem cobertura completa de arquivos "
-                        f"(esperado={len(expected_files)}, recebido={len(reported_files)})."
-                    )
-                sheet_file_reports = final_report.get("sheet_file_reports") or []
-                reports_by_file = {}
-                for entry in sheet_file_reports:
-                    if not isinstance(entry, dict):
-                        continue
-                    current_file = str(entry.get("sheet_file") or "").strip()
-                    if not current_file:
-                        continue
-                    reports_by_file[os.path.abspath(current_file)] = entry
-                files_without_evidence = []
-                for current_file in sorted(expected_files):
-                    current_entry = reports_by_file.get(current_file)
-                    if current_entry is None or not _has_sheet_parse_evidence(
-                        current_entry
-                    ):
-                        files_without_evidence.append(os.path.basename(current_file))
-                if files_without_evidence:
-                    raise RuntimeError(
-                        "Planilhas especiais sem evidencia individual: "
-                        + ", ".join(files_without_evidence)
-                    )
-
-            merge_stats = final_report.get("merge_stats") or {}
-            sheet_stats = final_report.get("sheet_stats") or {}
-            merged_edges = int(merge_stats.get("merged_edges", 0) or 0)
-            sheet_edges = int(sheet_stats.get("accepted_edges", 0) or 0)
-            consistency = scan_derivadas_consistency(db_path=db_path)
-            if not bool(consistency.get("schema_ready")) or not bool(
-                consistency.get("is_consistent")
-            ):
-                issue_counts = consistency.get("issue_counts") or {}
-                raise RuntimeError(
-                    "Derivadas inconsistente apos sync manual: "
-                    f"{json.dumps(issue_counts, ensure_ascii=True)}"
-                )
-            return {
-                "ok": True,
-                "db_edges": db_edges,
-                "sheet_edges": sheet_edges,
-                "merged_edges": merged_edges,
-            }
-        except Exception as exc:
-            return {"ok": False, "error": str(exc)}
+        return ssa_derivadas_sync.execute_derivadas_sync_job(
+            db_path=db_path,
+            table_name=table_name,
+            special_files=special_files,
+            sync_derivadas_fn=sync_derivadas,
+            scan_derivadas_consistency_fn=scan_derivadas_consistency,
+            status_callback=status_callback,
+        )
 
     def _finalize_derivadas_sync_result(
         self,
@@ -4753,53 +4560,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         *,
         previous_ui_state: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        previous = (
-            previous_ui_state or getattr(self, "_derivadas_sync_ui_state", {}) or {}
+        state = self._get_derivadas_sync_state()
+        finalized = ssa_derivadas_sync.finalize_derivadas_sync_result(
+            self._derivadas_sync_ui_refs(),
+            state,
+            result,
+            previous_ui_state=previous_ui_state,
+            qmessagebox=QMessageBox,
+            logger=logger,
         )
-        self._derivadas_sync_running = False
-        self._derivadas_sync_thread = None
-        self._derivadas_sync_pending_result = None
-        self._derivadas_sync_phase_status = ""
-        self._derivadas_sync_table_name = ""
-
-        try:
-            self.update_derivadas_button.setEnabled(True)
-            if hasattr(self, "progress_bar"):
-                self.progress_bar.setVisible(bool(previous.get("progress_visible")))
-                progress_range = previous.get("progress_range") or (0, 0)
-                self.progress_bar.setRange(progress_range[0], progress_range[1])
-                self.progress_bar.setValue(int(previous.get("progress_value", 0) or 0))
-        except Exception as exc:
-            logger.warning(
-                "Falha ao restaurar estado visual do sync manual de derivadas: %s",
-                exc,
-            )
-
-        if bool(result.get("ok")):
-            merged_edges = int(result.get("merged_edges", 0) or 0)
-            db_edges = int(result.get("db_edges", 0) or 0)
-            sheet_edges = int(result.get("sheet_edges", 0) or 0)
-            if hasattr(self, "status_label"):
-                self.status_label.setText(
-                    "Status: Derivadas atualizadas (merged="
-                    f"{merged_edges}, db={db_edges}, sheet={sheet_edges})."
-                )
-            try:
-                self._update_derivadas_button_state()
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao atualizar estado do botao de derivadas apos sync manual: %s",
-                    exc,
-                )
-            return result
-
-        error = str(result.get("error") or "Erro desconhecido")
-        logger.error("Falha ao atualizar derivadas manualmente: %s", error)
-        if hasattr(self, "status_label"):
-            self.status_label.setText("Status: Falha ao atualizar derivadas.")
-        if not os.environ.get("PYTEST_CURRENT_TEST"):
-            QMessageBox.critical(self, "Erro", f"Falha ao atualizar derivadas: {error}")
-        return result
+        self._sync_derivadas_sync_state_attrs(state)
+        return finalized
 
     @staticmethod
     def _validate_database_candidate(db_file: str) -> dict[str, Any]:
