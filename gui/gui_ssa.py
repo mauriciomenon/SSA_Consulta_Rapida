@@ -70,6 +70,7 @@ from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
 from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
 from gui.ssa import derivadas_sync_controller as ssa_derivadas_sync  # noqa: E402
+from gui.ssa import system_integration as ssa_system  # noqa: E402
 from gui.ssa.derivadas_table_resolver import resolve_derivadas_table_name  # noqa: E402
 from gui.ssa.main_window_filter_bar import (  # noqa: E402
     build_filters_summary_bar,
@@ -131,13 +132,6 @@ _TABLE_CELL_ALIGNMENT_LABELS = {
     "right": "Direita",
 }
 _DEFAULT_TABLE_CELL_ALIGNMENT = str(DEFAULT_GUI_SETTINGS["table_cell_alignment"])
-SAM_HOME_URL = "https://osprd.itaipu/SAM_SMA/"
-SAM_SSA_PUBLIC_VIEW_URL = (
-    "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx"
-    "?SerialNumber={numero_ssa}&language=pt"
-)
-SAM_ALLOWED_URL_HOSTS = frozenset({"osprd.itaipu"})
-
 EXCLUDED_CANONICAL_UI_COLUMNS = {
     "id",
     "desde",
@@ -3257,34 +3251,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     @staticmethod
     def _build_sam_ssa_url(numero_ssa: str) -> str:
-        return SAM_SSA_PUBLIC_VIEW_URL.format(numero_ssa=str(numero_ssa).strip())
+        return ssa_system.build_sam_ssa_url(numero_ssa)
 
     def _open_url_in_browser(self, url: str, *, success_status: str) -> bool:
-        safe_url = str(url or "").strip()
-        if not safe_url:
-            return False
-        qurl = QUrl(safe_url)
-        scheme = str(qurl.scheme() or "").casefold()
-        host = str(qurl.host() or "").casefold()
-        if scheme not in {"http", "https"} or host not in SAM_ALLOWED_URL_HOSTS:
-            logger.warning(
-                "URL externa bloqueada por politica de seguranca: scheme=%s host=%s",
-                scheme or "<empty>",
-                host or "<empty>",
-            )
-            return False
-        try:
-            ok = bool(QDesktopServices.openUrl(qurl))
-        except Exception as exc:
-            logger.warning("Falha ao abrir URL externa %s: %s", safe_url, exc)
-            ok = False
+        ok = ssa_system.open_allowed_url(
+            url,
+            qdesktopservices=QDesktopServices,
+            qurl_cls=QUrl,
+            logger=logger,
+        )
         if ok and hasattr(self, "status_label"):
             self.status_label.setText(success_status)
         return ok
 
     def _open_sam_home(self):
         opened = self._open_url_in_browser(
-            SAM_HOME_URL,
+            ssa_system.SAM_HOME_URL,
             success_status="Status: SAM aberto no navegador.",
         )
         if not opened and not os.environ.get("PYTEST_CURRENT_TEST"):
@@ -3854,75 +3836,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         expect_dir: bool | None,
         allowed_base: str | list[str] | tuple[str, ...] | None = None,
     ) -> str:
-        raw = str(target_path or "")
-        if not raw.strip():
-            raise ValueError("Caminho vazio para abertura.")
-        if any(ch in raw for ch in ("\x00", "\n", "\r")):
-            raise ValueError("Caminho contem caracteres invalidos.")
-        raw_parts = [part for part in raw.replace("\\", "/").split("/") if part]
-        if ".." in raw_parts:
-            raise ValueError("Caminho com parent traversal nao permitido.")
-        normalized = os.path.abspath(os.path.normpath(raw))
-        if allowed_base:
-            raw_bases = (
-                [allowed_base]
-                if isinstance(allowed_base, str)
-                else list(allowed_base)
-            )
-            allowed = False
-            for raw_base in raw_bases:
-                normalized_base = os.path.abspath(os.path.normpath(str(raw_base)))
-                try:
-                    common_path = os.path.commonpath([normalized, normalized_base])
-                except ValueError:
-                    continue
-                if common_path == normalized_base:
-                    allowed = True
-                    break
-            if not allowed:
-                raise ValueError("Caminho fora da base permitida.")
-        if os.path.basename(normalized).startswith("-"):
-            raise ValueError(
-                "Caminho inicia com '-' e pode ser interpretado como opcao de comando."
-            )
-        if must_exist and not os.path.exists(normalized):
-            raise FileNotFoundError(f"Caminho nao encontrado: {normalized}")
-        if (
-            expect_dir is True
-            and os.path.exists(normalized)
-            and not os.path.isdir(normalized)
-        ):
-            raise ValueError(f"Era esperado diretorio: {normalized}")
-        if (
-            expect_dir is False
-            and os.path.exists(normalized)
-            and os.path.isdir(normalized)
-        ):
-            raise ValueError(f"Era esperado arquivo: {normalized}")
-        return normalized
+        return ssa_system.validate_local_open_target(
+            target_path,
+            must_exist=must_exist,
+            expect_dir=expect_dir,
+            allowed_base=allowed_base,
+        )
 
     @staticmethod
     def _resolve_platform_open_command() -> str:
-        preferred_paths: list[str] = []
-        path_module = os.path
-        if sys.platform.startswith("win"):
-            windir = os.environ.get("WINDIR", r"C:\Windows")
-            preferred_paths.append(os.path.join(windir, "explorer.exe"))
-            cmd = "explorer"
-            path_module = ntpath
-        elif sys.platform == "darwin":
-            preferred_paths.append("/usr/bin/open")
-            cmd = "open"
-            path_module = posixpath
-        else:
-            preferred_paths.extend(("/usr/bin/xdg-open", "/bin/xdg-open"))
-            cmd = "xdg-open"
-            path_module = posixpath
-        for preferred in preferred_paths:
-            preferred_abs = path_module.abspath(preferred)
-            if path_module.isabs(preferred_abs) and os.path.isfile(preferred_abs):
-                return preferred_abs
-        raise RuntimeError(f"Comando indisponivel para abrir recurso: {cmd}")
+        return ssa_system.resolve_platform_open_command()
 
     def open_settings_file_with_backup(self):
         """Abre settings.json para edicao apos criar backup failsafe com timestamp."""
