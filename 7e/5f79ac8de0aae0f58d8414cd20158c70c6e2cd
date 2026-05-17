@@ -1,0 +1,32 @@
+tests/test_data_loader_worker.py
+  s_082d1ff7d55d96::t_e597898610163c 23
+  s_082d1ff7d55d96::t_e70aea39b9afc8 14,18-22,34,40,49,58,62,110-112,131,150-152
+gui/workers/data_loader_worker.py
+  s_082d1ff7d55d96::t_3fd7f039764330 20,64,66
+  s_082d1ff7d55d96::t_6083ae5c684b52 21,65,67-71
+tests/test_workers_advanced.py
+  s_082d1ff7d55d96::t_4545ac02731a29 43
+  s_082d1ff7d55d96::t_3bcec596870bf4 684
+  s_082d1ff7d55d96::t_fe6d4f98a81bb4 38-42,130-133,137-141,145-147,151,154,159,162,168,172,175,184,193,203,213-216,220-224
+gui/workers/data_loader_query.py
+  s_082d1ff7d55d96::t_13f4f43fe715ed 91
+  s_082d1ff7d55d96::t_99d7ff6bc7bb1d 7-8,10-41,63-90,92-123
+gui/workers/data_loader_repository.py
+  s_082d1ff7d55d96::t_45c0ce1bad1413 1-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "7e5f79ac8de0aae0f58d8414cd20158c70c6e2cd",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
