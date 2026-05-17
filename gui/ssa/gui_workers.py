@@ -1595,6 +1595,215 @@ def on_load_finished(
             logger.debug("Falha ao podar workers de carga no fim do load: %s", exc)
 
 
+def _connect_rescan_worker_lifecycle(
+    window,
+    worker,
+    progress_dialog,
+    *,
+    is_explicit_import: bool,
+    normalized_kind: str,
+    global_workers: list,
+    global_meta: dict,
+    max_global_workers: int,
+    retired_ttl_sec: float,
+    retired_force_wait_ms: int,
+    sip_module,
+) -> None:
+    cancelled = False
+
+    def _release_worker_ref(*_args) -> None:
+        try:
+            if getattr(window, "_active_rescan_worker", None) is worker:
+                window._active_rescan_worker = None
+        except Exception as exc:
+            logger.debug("Falha ao liberar referencia do RescanWorker: %s", exc)
+        try:
+            with _GLOBAL_WORKERS_LOCK:
+                if worker in global_workers:
+                    global_workers.remove(worker)
+                global_meta.pop(worker, None)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao remover referencias globais do RescanWorker: %s", exc
+            )
+
+    def _release_dialog_ref(*_args) -> None:
+        try:
+            if getattr(window, "_active_rescan_dialog", None) is progress_dialog:
+                window._active_rescan_dialog = None
+        except Exception as exc:
+            logger.debug(
+                "Falha ao liberar referencia do dialogo de reescaneamento: %s", exc
+            )
+
+    def _prune_retired_workers_after_finish(*_args) -> None:
+        try:
+            prune_retired_rescan_workers(
+                window,
+                global_workers=global_workers,
+                global_meta=global_meta,
+                max_global_workers=max_global_workers,
+                retired_ttl_sec=retired_ttl_sec,
+                retired_force_wait_ms=retired_force_wait_ms,
+                sip_module=sip_module,
+            )
+        except Exception as exc:
+            logger.debug(
+                "Falha ao podar rescan workers apos worker finalizado: %s", exc
+            )
+
+    def on_success():
+        nonlocal cancelled
+        outcome = getattr(worker, "last_outcome", RescanOutcome.UPDATED)
+        if not isinstance(outcome, RescanOutcome):
+            try:
+                outcome = RescanOutcome(str(outcome or RescanOutcome.UPDATED.value))
+            except ValueError:
+                outcome = RescanOutcome.UPDATED
+        if cancelled:
+            progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
+            _set_status_label_text(
+                window,
+                (
+                    "Status: Consolidacao de arquivos cancelada."
+                    if normalized_kind == "consolidate"
+                    else "Status: Importacao externa cancelada."
+                    if is_explicit_import
+                    else "Status: Reescaneamento cancelado."
+                ),
+                context=(
+                    "consolidate.success.cancelled"
+                    if normalized_kind == "consolidate"
+                    else "explicit_import.success.cancelled"
+                    if is_explicit_import
+                    else "rescan.success.cancelled"
+                ),
+            )
+            _release_dialog_ref()
+            return
+        progress_dialog.set_finished(True)
+        _release_dialog_ref()
+        should_reload_data = (
+            outcome == RescanOutcome.UPDATED
+            and normalized_kind != "consolidate"
+            and hasattr(window, "load_data")
+        )
+        success_text = (
+            _consolidation_status_text(outcome)
+            if normalized_kind == "consolidate"
+            else _success_status_text(is_explicit_import, outcome)
+        )
+        _set_status_label_text(
+            window,
+            success_text,
+            context=(
+                "consolidate.success.done"
+                if normalized_kind == "consolidate"
+                else "explicit_import.success.done"
+                if is_explicit_import
+                else "rescan.success.done"
+            ),
+        )
+        if should_reload_data:
+            try:
+                window.load_data()
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao recarregar dados apos operacao concluida: %s", exc
+                )
+
+    def on_error(error_msg):
+        nonlocal cancelled
+        if cancelled or str(error_msg).strip().lower().startswith("processo cancelado"):
+            cancelled = True
+            progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
+            _set_status_label_text(
+                window,
+                (
+                    "Status: Consolidacao de arquivos cancelada."
+                    if normalized_kind == "consolidate"
+                    else "Status: Importacao externa cancelada."
+                    if is_explicit_import
+                    else "Status: Reescaneamento cancelado."
+                ),
+                context=(
+                    "consolidate.error.cancelled"
+                    if normalized_kind == "consolidate"
+                    else "explicit_import.error.cancelled"
+                    if is_explicit_import
+                    else "rescan.error.cancelled"
+                ),
+            )
+            _release_dialog_ref()
+            return
+        progress_dialog.set_finished(False, error_msg)
+        _release_dialog_ref()
+        _set_status_label_text(
+            window,
+            (
+                "Status: Erro na consolidacao de arquivos."
+                if normalized_kind == "consolidate"
+                else "Status: Erro na importacao externa."
+                if is_explicit_import
+                else "Status: Erro no reescaneamento."
+            ),
+            context=(
+                "consolidate.error"
+                if normalized_kind == "consolidate"
+                else "explicit_import.error"
+                if is_explicit_import
+                else "rescan.error"
+            ),
+        )
+
+    def on_cancel_requested():
+        nonlocal cancelled
+        cancelled = True
+        running = is_rescan_worker_running(worker, sip_module)
+        cancel_text, cancel_context = _cancel_request_status_text(
+            is_explicit_import, normalized_kind
+        )
+        _set_status_label_text(window, cancel_text, context=cancel_context)
+        if running:
+            try:
+                if hasattr(worker, "stop"):
+                    worker.stop()
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao solicitar stop do RescanWorker no cancelamento: %s", exc
+                )
+
+    _connect_signal(
+        worker.finished_success, on_success, label="rescan.finished_success"
+    )
+    _connect_signal(worker.finished_error, on_error, label="rescan.finished_error")
+    _connect_signal(
+        worker.finished, _release_worker_ref, label="rescan.finished.release"
+    )
+    _connect_signal(
+        worker.finished, _release_dialog_ref, label="rescan.finished.dialog_release"
+    )
+    _connect_signal(
+        worker.finished,
+        _prune_retired_workers_after_finish,
+        label="rescan.finished.prune",
+    )
+    _connect_signal(
+        worker.finished, worker.deleteLater, label="rescan.finished.deleteLater"
+    )
+    if hasattr(progress_dialog, "finished"):
+        _connect_signal(
+            progress_dialog.finished,
+            _release_dialog_ref,
+            label="rescan.dialog.finished.release",
+        )
+    _connect_signal(
+        progress_dialog.cancel_requested,
+        on_cancel_requested,
+        label="rescan.dialog.cancel_requested",
+    )
+
+
 def rescan_data(
     window,
     *,
@@ -1754,200 +1963,19 @@ def rescan_data(
         worker.progress, progress_dialog.update_progress, label="rescan.progress"
     )
 
-    cancelled = False
-
-    def _release_worker_ref(*_args) -> None:
-        try:
-            if getattr(window, "_active_rescan_worker", None) is worker:
-                window._active_rescan_worker = None
-        except Exception as exc:
-            logger.debug("Falha ao liberar referencia do RescanWorker: %s", exc)
-        try:
-            with _GLOBAL_WORKERS_LOCK:
-                if worker in global_workers:
-                    global_workers.remove(worker)
-                global_meta.pop(worker, None)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao remover referencias globais do RescanWorker: %s", exc
-            )
-
-    def _release_dialog_ref(*_args) -> None:
-        try:
-            if getattr(window, "_active_rescan_dialog", None) is progress_dialog:
-                window._active_rescan_dialog = None
-        except Exception as exc:
-            logger.debug(
-                "Falha ao liberar referencia do dialogo de reescaneamento: %s", exc
-            )
-
-    def _prune_retired_workers_after_finish(*_args) -> None:
-        try:
-            prune_retired_rescan_workers(
-                window,
-                global_workers=global_workers,
-                global_meta=global_meta,
-                max_global_workers=max_global_workers,
-                retired_ttl_sec=retired_ttl_sec,
-                retired_force_wait_ms=retired_force_wait_ms,
-                sip_module=sip_module,
-            )
-        except Exception as exc:
-            logger.debug(
-                "Falha ao podar rescan workers apos worker finalizado: %s", exc
-            )
-
-    def on_success():
-        nonlocal cancelled
-        outcome = getattr(worker, "last_outcome", RescanOutcome.UPDATED)
-        if not isinstance(outcome, RescanOutcome):
-            try:
-                outcome = RescanOutcome(str(outcome or RescanOutcome.UPDATED.value))
-            except ValueError:
-                outcome = RescanOutcome.UPDATED
-        if cancelled:
-            progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
-            _set_status_label_text(
-                window,
-                (
-                    "Status: Consolidacao de arquivos cancelada."
-                    if normalized_kind == "consolidate"
-                    else "Status: Importacao externa cancelada."
-                    if is_explicit_import
-                    else "Status: Reescaneamento cancelado."
-                ),
-                context=(
-                    "consolidate.success.cancelled"
-                    if normalized_kind == "consolidate"
-                    else "explicit_import.success.cancelled"
-                    if is_explicit_import
-                    else "rescan.success.cancelled"
-                ),
-            )
-            _release_dialog_ref()
-            return
-        progress_dialog.set_finished(True)
-        _release_dialog_ref()
-        should_reload_data = (
-            outcome == RescanOutcome.UPDATED
-            and normalized_kind != "consolidate"
-            and hasattr(window, "load_data")
-        )
-        success_text = (
-            _consolidation_status_text(outcome)
-            if normalized_kind == "consolidate"
-            else _success_status_text(is_explicit_import, outcome)
-        )
-        _set_status_label_text(
-            window,
-            success_text,
-            context=(
-                "consolidate.success.done"
-                if normalized_kind == "consolidate"
-                else "explicit_import.success.done"
-                if is_explicit_import
-                else "rescan.success.done"
-            ),
-        )
-        if should_reload_data:
-            try:
-                window.load_data()
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao recarregar dados apos operacao concluida: %s", exc
-                )
-
-    def on_error(error_msg):
-        nonlocal cancelled
-        if cancelled or str(error_msg).strip().lower().startswith("processo cancelado"):
-            cancelled = True
-            progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
-            _set_status_label_text(
-                window,
-                (
-                    "Status: Consolidacao de arquivos cancelada."
-                    if normalized_kind == "consolidate"
-                    else "Status: Importacao externa cancelada."
-                    if is_explicit_import
-                    else "Status: Reescaneamento cancelado."
-                ),
-                context=(
-                    "consolidate.error.cancelled"
-                    if normalized_kind == "consolidate"
-                    else "explicit_import.error.cancelled"
-                    if is_explicit_import
-                    else "rescan.error.cancelled"
-                ),
-            )
-            _release_dialog_ref()
-            return
-        progress_dialog.set_finished(False, error_msg)
-        _release_dialog_ref()
-        _set_status_label_text(
-            window,
-            (
-                "Status: Erro na consolidacao de arquivos."
-                if normalized_kind == "consolidate"
-                else "Status: Erro na importacao externa."
-                if is_explicit_import
-                else "Status: Erro no reescaneamento."
-            ),
-            context=(
-                "consolidate.error"
-                if normalized_kind == "consolidate"
-                else "explicit_import.error"
-                if is_explicit_import
-                else "rescan.error"
-            ),
-        )
-
-    _connect_signal(
-        worker.finished_success, on_success, label="rescan.finished_success"
+    _connect_rescan_worker_lifecycle(
+        window,
+        worker,
+        progress_dialog,
+        is_explicit_import=is_explicit_import,
+        normalized_kind=normalized_kind,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=max_global_workers,
+        retired_ttl_sec=retired_ttl_sec,
+        retired_force_wait_ms=retired_force_wait_ms,
+        sip_module=sip_module,
     )
-    _connect_signal(worker.finished_error, on_error, label="rescan.finished_error")
-    _connect_signal(
-        worker.finished, _release_worker_ref, label="rescan.finished.release"
-    )
-    _connect_signal(
-        worker.finished, _release_dialog_ref, label="rescan.finished.dialog_release"
-    )
-    _connect_signal(
-        worker.finished,
-        _prune_retired_workers_after_finish,
-        label="rescan.finished.prune",
-    )
-    _connect_signal(
-        worker.finished, worker.deleteLater, label="rescan.finished.deleteLater"
-    )
-    if hasattr(progress_dialog, "finished"):
-        _connect_signal(
-            progress_dialog.finished,
-            _release_dialog_ref,
-            label="rescan.dialog.finished.release",
-        )
-
-    def on_cancel_requested():
-        nonlocal cancelled
-        cancelled = True
-        running = is_rescan_worker_running(worker, sip_module)
-        cancel_text, cancel_context = _cancel_request_status_text(
-            is_explicit_import, normalized_kind
-        )
-        _set_status_label_text(
-            window,
-            cancel_text,
-            context=cancel_context,
-        )
-        if running:
-            try:
-                if hasattr(worker, "stop"):
-                    worker.stop()
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao solicitar stop do RescanWorker no cancelamento: %s", exc
-                )
-
-    progress_dialog.cancel_requested.connect(on_cancel_requested)
 
     worker.start()
     if normalized_kind == "consolidate":
