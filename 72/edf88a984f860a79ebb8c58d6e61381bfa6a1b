@@ -1,0 +1,28 @@
+tests/test_gui_filter_logic.py
+  s_082d1ff7d55d96::t_8699c58054302e 9103-9104,9155,9208,9261-9263
+gui/ssa/gui_workers.py
+  s_082d1ff7d55d96::t_9472ee75316048 77,79,81,261-271
+  s_082d1ff7d55d96::t_d67b64f1ef8172 865-1047
+  s_082d1ff7d55d96::t_73034a0f13e782 608
+  s_082d1ff7d55d96::t_1664b711cb2ec1 341-342
+  s_082d1ff7d55d96::t_5342264985c62c 212,272-279
+  s_082d1ff7d55d96::t_65c6bc5d12756c 1376
+  s_082d1ff7d55d96::t_3469a34548f066 1090-1091,1093-1094,1097-1105,1125-1127,1155,1157-1159,1161-1162,1164-1175
+  s_082d1ff7d55d96::t_0278bddcfe7ec6 1373
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "72edf88a984f860a79ebb8c58d6e61381bfa6a1b",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
