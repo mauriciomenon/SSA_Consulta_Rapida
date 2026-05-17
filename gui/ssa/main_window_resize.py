@@ -8,6 +8,7 @@ from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 RESIZE_WIDTH_SAMPLE_ROWS = 100
+RESIZE_RECOMPUTE_MIN_WIDTH_DELTA = 32
 
 
 class ResizeWindowProtocol(Protocol):
@@ -65,6 +66,7 @@ class MainWindowResizeController:
         self.pending_adv_filters_width: int | None = None
         self.pending_sync_bottom = False
         self.last_window_width = int(window.width()) if hasattr(window, "width") else 0
+        self.last_applied_adv_filters_width: int | None = None
         window._last_window_width = self.last_window_width
         self.timer = qtimer_cls(window)
         self.timer.setSingleShot(True)
@@ -114,7 +116,16 @@ class MainWindowResizeController:
     def _should_recompute_column_widths(self) -> bool:
         if not hasattr(self.window, "df_para_tabela"):
             return False
-        return not self.window.df_para_tabela.empty
+        if self.window.df_para_tabela.empty:
+            return False
+        try:
+            current_width = int(self.window.width())
+        except (TypeError, ValueError):
+            current_width = self.last_window_width
+        return (
+            abs(current_width - int(self.last_window_width))
+            >= RESIZE_RECOMPUTE_MIN_WIDTH_DELTA
+        )
 
     def schedule(self, expected_revision: int | None) -> None:
         try:
@@ -145,7 +156,10 @@ class MainWindowResizeController:
 
         if adv_filters_width is not None:
             try:
-                self.window._reorganize_advanced_filters_grid(int(adv_filters_width))
+                width = int(adv_filters_width)
+                if width != self.last_applied_adv_filters_width:
+                    self.window._reorganize_advanced_filters_grid(width)
+                    self.last_applied_adv_filters_width = width
             except Exception as exc:
                 logger.debug(
                     "Falha ao reorganizar grid de filtros durante resize: %s", exc
