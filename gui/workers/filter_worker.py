@@ -7,7 +7,7 @@ import logging
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from core.app_logic import filter_dataframe, parse_search_terms
+from core.search_filter import filter_dataframe, parse_search_terms
 from gui.cache import FilterCache
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,8 @@ def _normalize_search_chunks(search_chunks: list | tuple | None) -> list[list[st
             terms = [str(term).strip() for term in chunk if str(term).strip()]
         else:
             terms = [str(chunk).strip()] if str(chunk).strip() else []
+        if not terms:
+            continue
         chunk_key = tuple(terms)
         if chunk_key in seen_search_chunks:
             continue
@@ -71,7 +73,7 @@ class FilterWorker(QThread):
             logger.debug("Falha ao solicitar interrupcao do FilterWorker: %s", exc)
 
     def _is_cancelled(self) -> bool:
-        if bool(getattr(self, "_cancel_requested", False)):
+        if self._cancel_requested:
             return True
         try:
             return bool(self.isInterruptionRequested())
@@ -99,6 +101,7 @@ class FilterWorker(QThread):
             if (
                 isinstance(cached_hash, dict)
                 and cached_hash.get("key") == cache_key
+                and cache_key[3] is not None
                 and isinstance(cached_hash.get("hash"), str)
             ):
                 return str(cached_hash["hash"])
@@ -221,7 +224,7 @@ class FilterWorker(QThread):
                     if self._is_cancelled():
                         return
                 else:
-                    matched_indices: list[pd.Index] = []
+                    combined_mask = pd.Series(False, index=self.df_completo.index)
                     include_all_rows = False
                     for terms in search_chunks:
                         if self._is_cancelled():
@@ -239,9 +242,12 @@ class FilterWorker(QThread):
                                     self.df_completo,
                                     parsed,
                                     search_columns=self.search_columns,
-                                )
+                            )
                             if not filtered.empty:
-                                matched_indices.append(filtered.index)
+                                combined_mask = combined_mask | pd.Series(
+                                    self.df_completo.index.isin(filtered.index),
+                                    index=self.df_completo.index,
+                                )
                         else:
                             include_all_rows = True
                             break
@@ -249,17 +255,12 @@ class FilterWorker(QThread):
                             return
                     if include_all_rows:
                         df_filtrado = self.df_completo
-                    elif matched_indices:
-                        matched_index = matched_indices[0]
-                        for index in matched_indices[1:]:
-                            matched_index = matched_index.union(index)
-                        df_filtrado = self.df_completo.loc[
-                            self.df_completo.index.isin(matched_index)
-                        ]
+                    elif bool(combined_mask.any()):
+                        df_filtrado = self.df_completo.loc[combined_mask]
                     else:
                         df_filtrado = self.df_completo.iloc[0:0]
             else:
-                df_filtrado = self.df_completo.copy(deep=False)
+                df_filtrado = self.df_completo
 
             if self._is_cancelled():
                 return

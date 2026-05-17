@@ -124,8 +124,11 @@ class FilterSearchCacheManager:
     def store_cached_search_data(
         df: pd.DataFrame,
         search_cache_token: tuple[str, tuple[str, ...], int, str | None],
-        row_search_text: pd.Series,
+        base_lower_df_or_row_search_text: pd.DataFrame | pd.Series | None,
+        row_search_text: pd.Series | None = None,
     ) -> None:
+        if row_search_text is None:
+            row_search_text = cast(pd.Series, base_lower_df_or_row_search_text)
         fingerprint = search_cache_token[3]
         payload: dict[str, Any] = {
             "token": (
@@ -197,14 +200,13 @@ def _filter_exact_identifier_columns(
             column.dtype
         ):
             column_mask = column.eq(numeric_identifier)
-        if not bool(column_mask.any()):
-            normalized = (
-                column.astype("string")
-                .fillna("")
-                .str.strip()
-                .str.replace(r"\.0+$", "", regex=True)
-            )
-            column_mask = normalized.eq(identifier)
+        normalized = (
+            column.astype("string")
+            .fillna("")
+            .str.strip()
+            .str.replace(r"\.0+$", "", regex=True)
+        )
+        column_mask = column_mask | normalized.eq(identifier)
         mask = mask | column_mask
     return FilterSearchCacheManager.clear_result_attrs(df[mask])
 
@@ -482,7 +484,7 @@ def filter_dataframe(
             return FilterSearchCacheManager.clear_result_attrs(df.iloc[0:0])
         row_search_text = _build_row_search_text(df, available_search_cols)
         FilterSearchCacheManager.store_cached_search_data(
-            df, search_cache_token, row_search_text
+            df, search_cache_token, None, row_search_text
         )
         cached_search_data = FilterSearchCacheManager.get_cached_search_data(
             df, search_cache_token

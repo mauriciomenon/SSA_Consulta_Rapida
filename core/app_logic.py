@@ -732,6 +732,8 @@ def _run_derivadas_sync_phase(
     reported_files = report.get("sheet_files") or []
     sheet_file_reports = report.get("sheet_file_reports") or []
     sheet_evidence = report.get("sheet_evidence") or {}
+    if not isinstance(sheet_evidence, dict):
+        sheet_evidence = {}
     accepted_edges = int(sheet_stats.get("accepted_edges", 0) or 0)
     special_layout_detected = int(sheet_stats.get("special_layout_detected", 0) or 0)
     has_sheet_evidence = accepted_edges > 0 or special_layout_detected > 0
@@ -1174,10 +1176,11 @@ def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
                 )
                 continue
             if preexisting_sidecars.get(suffix):
+                Path(sidecar_backup).touch(exist_ok=True)
                 logger.info(
-                    "Arquivo auxiliar preexistente nao foi preservado porque "
-                    "nao existe mais apos checkpoint: %s",
-                    os.path.basename(sidecar),
+                    "Arquivo auxiliar preexistente foi registrado vazio no backup "
+                    "apos checkpoint consumir o sidecar: %s",
+                    os.path.basename(sidecar_backup),
                 )
     except OSError as exc:
         raise DatabaseError(

@@ -591,10 +591,11 @@ def test_filter_dataframe_reuses_cached_search_data_on_same_dataframe(
     def _tracked_store(
         frame: pd.DataFrame,
         search_cache_token,
+        base_lower_df: pd.DataFrame | None,
         row_search_text: pd.Series,
     ) -> None:
         store_calls["count"] += 1
-        original_store(frame, search_cache_token, row_search_text)
+        original_store(frame, search_cache_token, base_lower_df, row_search_text)
 
     monkeypatch.setattr(
         app_logic.FilterSearchCacheManager,
