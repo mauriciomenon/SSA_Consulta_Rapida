@@ -2304,34 +2304,48 @@ class TestGUIFilterLogic:
         self.window.display_current_page(1)
         QApplication.processEvents()
 
-        # Ajusta manualmente a largura de uma coluna e garante persistência pós-ciclos
+        def current_widths():
+            return {
+                column: self.window.table_widget.columnWidth(index)
+                for index, column in enumerate(
+                    getattr(self.window, "_current_display_columns", []) or []
+                )
+            }
+
+        # User/runtime widths must be one source of truth across all reset paths.
         self.window.table_widget.setColumnWidth(1, 240)
-        width_before = self.window.table_widget.columnWidth(1)
+        baseline_widths = current_widths()
+        self.window._saved_gui_column_widths.update(baseline_widths)
+        self.window._gui_column_pixel_widths.update(baseline_widths)
 
         # Aplica perfil OR, filtros gerais e limpa várias vezes
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
         QApplication.processEvents()
-        width_after_profile = self.window.table_widget.columnWidth(1)
+        assert current_widths() == baseline_widths
 
         self.window.search_input.setText("Teste A, Teste D")
         self.window.initiate_filtering()
         QApplication.processEvents()
-        width_after_search = self.window.table_widget.columnWidth(1)
+        assert current_widths() == baseline_widths
 
         self.window._clear_all_column_filters()
         QApplication.processEvents()
-        width_after_clear_columns = self.window.table_widget.columnWidth(1)
+        assert current_widths() == baseline_widths
 
         self.window.clear_filter()
         QApplication.processEvents()
-        width_after_clear_general = self.window.table_widget.columnWidth(1)
+        assert current_widths() == baseline_widths
 
-        # Larguras não devem ser zeradas; permitir pequenas variações entre ciclos
-        assert width_before > 0
-        assert width_after_profile > 0
-        assert width_after_search > 0
-        assert width_after_clear_columns > 0
-        assert width_after_clear_general > 0
+        self.window._active_column_filters["descricao_ssa"] = "Teste"
+        self.window._safe_store_last_filter_state("width_stability_global_clear")
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+        assert current_widths() == baseline_widths
+
+        self.window._active_column_filters["descricao_ssa"] = "Teste"
+        self.window._hard_reset_filters_state()
+        QApplication.processEvents()
+        assert current_widths() == baseline_widths
 
     def test_display_current_page_honors_page_number_parameter(self):
         self.window.df_completo = self.base_df.copy()
@@ -8189,6 +8203,24 @@ class TestGUIFilterLogic:
 
         assert self.window._df_last_search_filtered is self.window.df_completo
 
+    def test_clear_filter_skips_full_refresh_for_pending_search_only(self, monkeypatch):
+        self.window.search_input.setText("Teste A")
+        self.window._pending_search_display = "Teste A"
+        self.window._active_filter_search_display = ""
+
+        def fail_refresh():
+            raise AssertionError("clear_filter should not refresh unchanged table")
+
+        monkeypatch.setattr(self.window, "_refresh_after_filter_change", fail_refresh)
+
+        self.window.clear_filter()
+        QApplication.processEvents()
+
+        assert self.window.search_input.text() == ""
+        assert self.window._pending_search_display is None
+        assert self.window._df_last_search_filtered is self.window.df_completo
+        assert self.window.clear_filter_button.isEnabled() is False
+
     def test_clear_filter_resets_async_search_display_state(self):
         self.window._sync_filtering = False
         self.window.search_input.setText("Teste A")
@@ -9497,11 +9529,11 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(self.window, "_refresh_after_filter_change", lambda: None)
         monkeypatch.setattr(self.window, "_apply_search_display", lambda: None)
         self.window.table_widget = None
+        status_before = self.window.filtered_status_label.text()
 
         self.window.on_filter_finished(self.base_df.copy(), request_id=77)
 
-        status = self.window.filtered_status_label.text()
-        assert status == "Status: 5 de 5 SSAs"
+        assert self.window.filtered_status_label.text() == status_before
 
     def test_on_filter_finished_zero_results_separates_count_from_notice(self):
         self.window.search_input.setText("SVP, R001")
@@ -10086,6 +10118,25 @@ class TestGUIFilterLogic:
                 QPushButton
             )
         ]
+
+    def test_restore_last_filter_state_preserves_snapshot_when_render_fails(
+        self, monkeypatch
+    ):
+        self.window.search_input.setText("Teste A")
+        self.window._safe_store_last_filter_state("test_restore_failure")
+        snapshot = self.window._last_filter_state
+        assert snapshot is not None
+
+        def fail_render(_restored_search_text):
+            raise RuntimeError("forced restore render failure")
+
+        monkeypatch.setattr(self.window, "_render_restored_filter_state", fail_render)
+
+        with pytest.raises(RuntimeError, match="forced restore render failure"):
+            self.window._restore_last_filter_state()
+
+        assert self.window._last_filter_state is snapshot
+        assert self.window.undo_filter_btn.isEnabled() is True
 
     def test_clear_all_filters_global_stops_pending_debounce(self):
         self.window.search_input.setText("Teste")
