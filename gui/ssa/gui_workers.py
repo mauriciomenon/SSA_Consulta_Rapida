@@ -1,7 +1,7 @@
 # gui/ssa/gui_workers.py
 # Relation: used by gui/gui_ssa.py (SSAMainWindow facade).
 # Relation: uses gui/workers and worker retention globals from gui/gui_ssa.py.
-# Relation: owns load_data flow and worker cleanup; no layout changes.
+# Relation: owns load_data flow, worker registries, and worker cleanup; no layout changes.
 
 from __future__ import annotations
 
@@ -21,9 +21,20 @@ from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 _GLOBAL_WORKERS_LOCK = threading.Lock()
-# NOTE: worker retention uses window-local list plus global registry; keep behavior stable.
-# Refactor to a manager class is tracked in docs/RECOVERY_BACKLOG.md.
-# NOTE: global worker lists are capped by max_* to limit lock contention.
+
+GLOBAL_RETIRED_DATA_LOADER_WORKERS = []
+MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS = 64
+GLOBAL_RETIRED_DATA_LOADER_META = {}
+
+GLOBAL_RETIRED_RESCAN_WORKERS = []
+MAX_GLOBAL_RETIRED_RESCAN_WORKERS = 8
+GLOBAL_RETIRED_RESCAN_META = {}
+
+RETIRED_WORKER_TTL_SEC = 300.0
+RETIRED_WORKER_FORCE_WAIT_MS = 500
+
+# NOTE: worker retention uses window-local list plus module registry; keep behavior stable.
+# NOTE: retained worker lists are capped by max_* to limit lock contention.
 
 try:
     from PyQt6.QtCore import Qt as _Qt
@@ -64,10 +75,7 @@ def _connect_signal(signal, slot, *, label: str) -> bool:
             try:
                 signal.connect(slot, queued_connection)
             except TypeError:
-                try:
-                    signal.connect(slot, type=queued_connection)
-                except TypeError:
-                    signal.connect(slot)
+                signal.connect(slot)
         else:
             signal.connect(slot)
         return True
@@ -279,10 +287,10 @@ def retain_data_loader_worker_until_finished(
     )
 
 
-def is_data_loader_worker_alive(worker, sip_module) -> bool:
+def is_worker_alive(worker, sip_module) -> bool:
     if worker is None:
         return False
-    if sip_module is None:
+    if sip_module is None or not hasattr(sip_module, "isdeleted"):
         return True
     try:
         return not sip_module.isdeleted(worker)
@@ -293,8 +301,12 @@ def is_data_loader_worker_alive(worker, sip_module) -> bool:
         return False
 
 
+def is_data_loader_worker_alive(worker, sip_module) -> bool:
+    return is_worker_alive(worker, sip_module)
+
+
 def is_data_loader_worker_running(worker, sip_module) -> bool:
-    if not is_data_loader_worker_alive(worker, sip_module):
+    if not is_worker_alive(worker, sip_module):
         return False
     try:
         if hasattr(worker, "isRunning"):
@@ -465,6 +477,7 @@ def prune_retired_data_loader_workers(
             window,
             worker,
             wait_ms=retired_force_wait_ms,
+            run_prune=False,
             global_workers=global_workers,
             global_meta=global_meta,
             max_global_workers=max_global_workers,
@@ -500,7 +513,7 @@ def prune_retired_data_loader_workers(
 
 
 def is_rescan_worker_running(worker, sip_module) -> bool:
-    if not is_data_loader_worker_alive(worker, sip_module):
+    if not is_worker_alive(worker, sip_module):
         return False
     try:
         if hasattr(worker, "isRunning"):
@@ -533,7 +546,7 @@ def retain_rescan_worker_global(
     sip_module,
 ) -> bool:
     try:
-        if not is_data_loader_worker_alive(worker, sip_module):
+        if not is_worker_alive(worker, sip_module):
             logger.debug(
                 "RescanWorker invalido no closeEvent (%s); retencao global ignorada.",
                 reason,
@@ -757,6 +770,7 @@ def prune_retired_rescan_workers(
     sip_module,
 ) -> None:
     now = perf_counter()
+    wait_ms = int(retired_force_wait_ms or 0)
     expired_global = []
     with _GLOBAL_WORKERS_LOCK:
         expired_global = _classify_and_update_global_workers_locked(
@@ -775,14 +789,14 @@ def prune_retired_rescan_workers(
         if hasattr(worker, "quit"):
             worker.quit()
         if hasattr(worker, "wait"):
-            worker.wait(int(retired_force_wait_ms))
+            worker.wait(wait_ms)
         if (
             hasattr(worker, "isRunning")
             and worker.isRunning()
             and hasattr(worker, "terminate")
         ):
             worker.terminate()
-            worker.wait(int(retired_force_wait_ms))
+            worker.wait(wait_ms)
         return not is_rescan_worker_running(worker, sip_module)
 
     _process_expired_workers(
@@ -801,6 +815,7 @@ def cleanup_data_loader_worker(
     worker,
     *,
     wait_ms: int = 1500,
+    run_prune: bool = True,
     global_workers: list,
     global_meta: dict,
     max_global_workers: int,
@@ -856,18 +871,21 @@ def cleanup_data_loader_worker(
         logger.warning("Falha durante cleanup do worker de carga: %s", exc)
         still_running = True
     finally:
-        try:
-            prune_retired_data_loader_workers(
-                window,
-                global_workers=global_workers,
-                global_meta=global_meta,
-                max_global_workers=max_global_workers,
-                retired_ttl_sec=retired_ttl_sec,
-                retired_force_wait_ms=retired_force_wait_ms,
-                sip_module=sip_module,
-            )
-        except Exception as prune_exc:
-            logger.debug("Falha ao podar workers de carga apos cleanup: %s", prune_exc)
+        if run_prune:
+            try:
+                prune_retired_data_loader_workers(
+                    window,
+                    global_workers=global_workers,
+                    global_meta=global_meta,
+                    max_global_workers=max_global_workers,
+                    retired_ttl_sec=retired_ttl_sec,
+                    retired_force_wait_ms=retired_force_wait_ms,
+                    sip_module=sip_module,
+                )
+            except Exception as prune_exc:
+                logger.debug(
+                    "Falha ao podar workers de carga apos cleanup: %s", prune_exc
+                )
     return not still_running
 
 

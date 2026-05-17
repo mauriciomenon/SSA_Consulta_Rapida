@@ -3811,6 +3811,10 @@ class TestGUIFilterLogic:
         ):
             event = QResizeEvent(QSize(1280, 800), QSize(1200, 760))
             self.window.resizeEvent(event)
+            debounce_ms = int(
+                getattr(self.window._resize_recompute_timer, "interval", lambda: 300)()
+            )
+            cast(Any, QTest).qWait(debounce_ms + 80)
 
         assert captured_widths
         assert captured_widths[0] >= 0
@@ -3819,6 +3823,7 @@ class TestGUIFilterLogic:
         self.window._last_window_width = 900
         self.window._data_revision = 17
         self.window.df_exibido = self.base_df.copy()
+        self.window.df_para_tabela = self.base_df.copy()
         calls: list[int | None] = []
 
         with patch.object(

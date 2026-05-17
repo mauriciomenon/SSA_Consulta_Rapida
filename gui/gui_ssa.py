@@ -75,6 +75,7 @@ from gui.ssa.main_window_filter_bar import (  # noqa: E402
     build_pagination_filter_bar,
     build_search_bar,
 )
+from gui.ssa import main_window_resize as ssa_gui_resize  # noqa: E402
 from gui.ssa.main_window_bottom_section import build_bottom_filter_section  # noqa: E402
 from gui.ssa.main_window_table_section import build_main_table_widget  # noqa: E402
 from gui.ssa.table_context_menu import (  # noqa: E402
@@ -108,19 +109,17 @@ except Exception as e:
     logger.error(f"Falha ao inicializar logging robusto: {e}")
 logger = logging.getLogger(__name__)
 
-# Retencao global defensiva para workers de carga que sobrevivem ao ciclo da janela.
-GLOBAL_RETIRED_DATA_LOADER_WORKERS = []
-MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS = 64
-GLOBAL_RETIRED_DATA_LOADER_META = {}
-
-# Retencao global defensiva para workers de reescaneamento (importacao) que podem
-# continuar por alguns instantes apos o fechamento do dialogo modal.
-GLOBAL_RETIRED_RESCAN_WORKERS = []
-MAX_GLOBAL_RETIRED_RESCAN_WORKERS = 8
-GLOBAL_RETIRED_RESCAN_META = {}
-
-RETIRED_WORKER_TTL_SEC = 300.0
-RETIRED_WORKER_FORCE_WAIT_MS = 500
+# Compatibility aliases for tests and older imports. Ownership lives in gui_workers.
+GLOBAL_RETIRED_DATA_LOADER_WORKERS = ssa_gui_workers.GLOBAL_RETIRED_DATA_LOADER_WORKERS
+MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS = (
+    ssa_gui_workers.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS
+)
+GLOBAL_RETIRED_DATA_LOADER_META = ssa_gui_workers.GLOBAL_RETIRED_DATA_LOADER_META
+GLOBAL_RETIRED_RESCAN_WORKERS = ssa_gui_workers.GLOBAL_RETIRED_RESCAN_WORKERS
+MAX_GLOBAL_RETIRED_RESCAN_WORKERS = ssa_gui_workers.MAX_GLOBAL_RETIRED_RESCAN_WORKERS
+GLOBAL_RETIRED_RESCAN_META = ssa_gui_workers.GLOBAL_RETIRED_RESCAN_META
+RETIRED_WORKER_TTL_SEC = ssa_gui_workers.RETIRED_WORKER_TTL_SEC
+RETIRED_WORKER_FORCE_WAIT_MS = ssa_gui_workers.RETIRED_WORKER_FORCE_WAIT_MS
 logger.addHandler(logging.NullHandler())
 
 _COLUMN_FILTER_DIALOG_MIN_WIDTH = 420
@@ -1742,10 +1741,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "source_len": 0,
             "keys_df": None,
         }
-        self._pending_resize_recompute_revision = None
-        self._resize_recompute_timer = QTimer(self)
-        self._resize_recompute_timer.setSingleShot(True)
-        self._resize_recompute_timer.timeout.connect(self._on_resize_recompute_timeout)
+        self._resize_timer_cls = QTimer
+        ssa_gui_resize.initialize_resize_controller(self, QTimer)
         self._filter_request_seq = 0
         self._active_filter_request_id = 0
         self._active_filter_search_request_id = None
@@ -4962,137 +4959,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def resizeEvent(self, event):
         """Reotimiza larguras das colunas quando a janela eh redimensionada."""
         super().resizeEvent(event)
-
-        # Mantem grid da aba Filtros responsivo durante resize.
-        try:
-            if getattr(self, "_active_filter_panel_kind", None) == "advanced":
-                if hasattr(self, "adv_filters_group") and self.adv_filters_group:
-                    width = self.adv_filters_group.width()
-                    self._reorganize_advanced_filters_grid(width)
-        except Exception as exc:
-            logger.debug("Falha ao reorganizar grid de filtros durante resize: %s", exc)
-        try:
-            self._sync_bottom_panel_heights()
-        except Exception as exc:
-            logger.debug(
-                "Falha ao sincronizar altura dos paineis inferiores durante resize: %s",
-                exc,
-            )
-
-        # So recalcula se ha dados carregados e uma mudanca significativa na largura
-        if (
-            hasattr(self, "df_exibido")
-            and not self.df_exibido.empty
-            and hasattr(self, "_last_window_width")
-        ):
-            width_change = abs(event.size().width() - self._last_window_width)
-            if width_change > 12:  # So recalcula se mudanca for > 12px
-                expected_revision = int(getattr(self, "_data_revision", 0) or 0)
-                self._schedule_resize_recompute(expected_revision=expected_revision)
-
-        # Salva largura atual
-        self._last_window_width = event.size().width()
+        ssa_gui_resize.handle_resize_event(self, event)
 
     def _recompute_column_widths_on_resize(self, expected_revision=None):
         """Recalcula e aplica larguras das colunas apos resize da janela."""
-        try:
-            if hasattr(self, "isVisible") and not self.isVisible():
-                return
-            table_widget = getattr(self, "table_widget", None)
-            if not _is_widget_valid(table_widget):
-                return
-            if expected_revision is not None:
-                current_revision = int(getattr(self, "_data_revision", 0) or 0)
-                if current_revision != int(expected_revision):
-                    return
-            # Verifica se widgets estção em estado vãlido
-            if (
-                table_widget is None
-                or not hasattr(self, "df_para_tabela")
-                or self.df_para_tabela.empty
-                or not table_widget.isVisible()
-            ):
-                return
-
-            width_key = (
-                id(self.df_para_tabela),
-                len(self.df_para_tabela.index),
-                len(self.df_para_tabela.columns),
-                int(getattr(self, "_data_revision", 0) or 0),
-                int(getattr(self, "_last_window_width", 0) or 0),
-            )
-            if getattr(self, "_last_resize_width_key", None) == width_key:
-                return
-
-            # Recalcula larguras com nova dimensção da janela usando WidthManager.
-            # Em datasets grandes usa amostragem para reduzir custo no thread de UI.
-            width_df = self.df_para_tabela
-            if len(width_df.index) > 2000:
-                width_df = width_df.head(2000)
-            self._compute_gui_column_widths(width_df)
-            # Aplica as novas larguras
-            self._apply_computed_widths_only()
-            self._last_resize_width_key = width_key
-        except (RuntimeError, AttributeError, KeyError, TypeError, ValueError):
-            logger.exception("Column width recompute failed during resize")
+        return ssa_gui_resize.recompute_column_widths_on_resize(
+            self, expected_revision=expected_revision
+        )
 
     def _schedule_resize_recompute(self, expected_revision: int) -> None:
-        try:
-            self._pending_resize_recompute_revision = int(expected_revision)
-            if (
-                hasattr(self, "_resize_recompute_timer")
-                and self._resize_recompute_timer is not None
-            ):
-                self._resize_recompute_timer.setInterval(300)
-                self._resize_recompute_timer.start()
-            else:
-                QTimer.singleShot(
-                    300,
-                    lambda rev=int(
-                        expected_revision
-                    ): self._recompute_column_widths_on_resize(expected_revision=rev),
-                )
-        except Exception as exc:
-            logger.debug("Falha ao agendar recompute de resize: %s", exc)
+        return ssa_gui_resize.schedule_resize_recompute(self, expected_revision)
 
     def _on_resize_recompute_timeout(self) -> None:
-        expected_revision = getattr(self, "_pending_resize_recompute_revision", None)
-        self._pending_resize_recompute_revision = None
-        self._recompute_column_widths_on_resize(expected_revision=expected_revision)
+        return ssa_gui_resize.on_resize_recompute_timeout(self)
 
     def _apply_computed_widths_only(self):
         """Aplica apenas as larguras calculadas pelo WidthManager (ignora configurações salvas)."""
-        try:
-            if (
-                not hasattr(self, "df_para_tabela")
-                or self.df_para_tabela.empty
-                or not hasattr(self, "_gui_column_pixel_widths")
-                or not self.table_widget
-                or not self.table_widget.isVisible()
-            ):
-                return
-
-            # CORRECAO CRITICA: Usar _current_display_columns que contem apenas as colunas visiveis filtradas
-            # Em vez de ['#'] + todas as colunas do df_para_tabela
-            if (
-                not hasattr(self, "_current_display_columns")
-                or not self._current_display_columns
-            ):
-                return
-
-            table_columns = self._current_display_columns
-
-            # Aplicar larguras para todas as colunas definidas
-            for col_name, px in self._gui_column_pixel_widths.items():
-                if col_name in table_columns and px and px > 0:
-                    col_index = table_columns.index(col_name)
-                    if col_index < self.table_widget.columnCount():
-                        current_width = self.table_widget.columnWidth(col_index)
-                        if current_width != px:  # So aplica se diferente
-                            self.table_widget.setColumnWidth(col_index, px)
-
-        except (RuntimeError, AttributeError, KeyError, TypeError, ValueError):
-            logger.exception("Column width apply failed during resize handling")
+        return ssa_gui_resize.apply_computed_widths_only(self)
 
     def closeEvent(self, event):
         """
