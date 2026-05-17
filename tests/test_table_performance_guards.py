@@ -78,28 +78,12 @@ def test_compute_widths_passes_sample_for_large_dataframe_to_width_manager():
     assert width_manager.column_order == ["#", "numero_ssa", "descricao_ssa"]
 
 
-def test_render_marker_sample_is_reused_for_same_page(monkeypatch):
+def test_render_marker_sample_includes_all_rows_for_small_page():
     df = pd.DataFrame({"numero_ssa": [1, 2, 3], "situacao": ["A", "B", "C"]})
-    paginator = SimpleNamespace(current_page=1, page_size=50)
-    window = SimpleNamespace(
-        _data_uuid="dataset-1",
-        _data_revision=7,
-        paginator=paginator,
-    )
-    calls = {"count": 0}
-    original_builder = gui_table._build_render_marker_sample
 
-    def _counted_builder(frame: pd.DataFrame):
-        calls["count"] += 1
-        return original_builder(frame)
+    marker_sample = gui_table._build_render_marker_sample(df)
 
-    monkeypatch.setattr(gui_table, "_build_render_marker_sample", _counted_builder)
-
-    first = gui_table._get_cached_render_marker_sample(window, df)
-    second = gui_table._get_cached_render_marker_sample(window, df)
-
-    assert first == second
-    assert calls["count"] == 1
+    assert marker_sample == (("1", "A"), ("2", "B"), ("3", "C"))
 
 
 def test_mixed_text_sort_does_not_retain_cache_above_row_limit():

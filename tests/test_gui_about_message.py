@@ -131,5 +131,5 @@ def test_open_installation_guide_uses_bundled_internal_docs(
 
     assert result["opened"] is True
     assert result["path"] == os.path.abspath(str(guide_path))
-    assert opened["cmd"] == ["fake-open", os.path.abspath(str(guide_path))]
+    assert opened["cmd"] == ["fake-open", "--", os.path.abspath(str(guide_path))]
     assert opened["shell"] is False

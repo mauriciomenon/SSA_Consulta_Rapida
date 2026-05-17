@@ -327,7 +327,10 @@ def _build_render_marker_sample(
 
     try:
         marker_columns = list(display_df.columns)
-        row_indexes = sorted({0, len(display_df) // 2, len(display_df) - 1})
+        if len(display_df) <= 100:
+            row_indexes = list(range(len(display_df)))
+        else:
+            row_indexes = sorted({0, len(display_df) // 2, len(display_df) - 1})
         marker_df = display_df.iloc[row_indexes][marker_columns].fillna("")
         return tuple(
             tuple(str(value) for value in row_values)
@@ -338,30 +341,6 @@ def _build_render_marker_sample(
             "Falha ao construir amostra de marcadores da renderizacao: %s", exc
         )
         return tuple()
-
-
-def _get_cached_render_marker_sample(
-    window,
-    display_df: pd.DataFrame,
-) -> tuple[tuple[str, ...], ...]:
-    try:
-        marker_key = (
-            getattr(window, "_data_uuid", None),
-            int(getattr(window, "_data_revision", 0) or 0),
-            int(getattr(window.paginator, "current_page", 1)),
-            int(getattr(window.paginator, "page_size", 0)),
-            int(len(display_df)),
-            tuple(display_df.columns),
-        )
-        cached = getattr(window, "_last_table_marker_sample", None)
-        if isinstance(cached, tuple) and len(cached) == 2 and cached[0] == marker_key:
-            return cached[1]
-        marker_sample = _build_render_marker_sample(display_df)
-        window._last_table_marker_sample = (marker_key, marker_sample)
-        return marker_sample
-    except Exception as exc:
-        logger.debug("Falha ao consultar cache de marcadores da tabela: %s", exc)
-        return _build_render_marker_sample(display_df)
 
 
 def _build_page_render_signature(
@@ -649,7 +628,7 @@ def display_current_page(window, page_number, *, update_details=True):
     # Sem reordenacao para garantir correspondencia com as larguras calculadas
 
     display_df = window.df_para_tabela[cols_to_show].copy()
-    raw_marker_sample = _get_cached_render_marker_sample(window, display_df)
+    raw_marker_sample = _build_render_marker_sample(display_df)
     # Mantem colunas atuais para mapear indice->nome ao salvar larguras
     window._current_display_columns = ["#"] + list(display_df.columns)
 
