@@ -63,6 +63,14 @@ else:
     _HASH_LINK_FOREGROUND = None
 
 
+def _set_current_display_columns(window, columns: list[str]) -> None:
+    window._current_display_columns = list(columns)
+
+
+def _current_display_columns(window) -> list[str]:
+    return list(getattr(window, "_current_display_columns", []) or [])
+
+
 def _get_visual_filter_columns(window, *, context: str) -> set[str]:
     visual_filter_columns: set[str] = set()
     get_visual_filter_columns = getattr(window, "_get_visual_filter_columns", None)
@@ -153,7 +161,7 @@ def _select_adaptive_header_label(
 
 
 def _apply_adaptive_header_labels(window) -> None:
-    columns = list(getattr(window, "_current_display_columns", []) or [])
+    columns = _current_display_columns(window)
     if not columns:
         return
 
@@ -167,50 +175,12 @@ def _apply_adaptive_header_labels(window) -> None:
     if header is None:
         return
 
-    font_signature = None
-    if hasattr(header, "font"):
-        try:
-            font = header.font()
-            font_signature = (
-                str(font.family()),
-                int(font.pointSizeF() * 100),
-                int(font.weight()),
-                bool(font.italic()),
-            )
-        except Exception as exc:
-            logger.debug("Falha ao ler assinatura da fonte do header: %s", exc)
-
-    measure_signature = (font_signature, id(_measure_header_text_px))
-    if (
-        getattr(window, "_adaptive_header_label_width_cache_signature", None)
-        != measure_signature
-    ):
-        setattr(window, "_adaptive_header_label_width_cache", {})
-        setattr(
-            window,
-            "_adaptive_header_label_width_cache_signature",
-            measure_signature,
-        )
-        setattr(window, "_adaptive_header_label_width_cache_font", font_signature)
-
+    label_width_cache = _adaptive_header_label_width_cache(window, header)
     visual_filter_columns = _get_visual_filter_columns(
         window, context="labels adaptativos"
     )
-    previous_signatures = getattr(window, "_adaptive_header_label_signatures", {})
-    if not isinstance(previous_signatures, dict):
-        previous_signatures = {}
+    previous_signatures = _adaptive_header_label_signatures(window)
     next_signatures = {}
-    label_width_cache = getattr(window, "_adaptive_header_label_width_cache", {})
-    if not isinstance(label_width_cache, dict):
-        label_width_cache = {}
-    if _FILTER_HEADER_PREFIX not in label_width_cache:
-        label_width_cache[_FILTER_HEADER_PREFIX] = _measure_header_text_px(
-            window, _FILTER_HEADER_PREFIX
-        )
-    if _HEADER_SIDE_PADDING_TEXT not in label_width_cache:
-        label_width_cache[_HEADER_SIDE_PADDING_TEXT] = _measure_header_text_px(
-            window, _HEADER_SIDE_PADDING_TEXT
-        )
     prefix_px = label_width_cache[_FILTER_HEADER_PREFIX]
     padding_px = label_width_cache[_HEADER_SIDE_PADDING_TEXT]
     table = getattr(window, "table_widget", None)
@@ -274,8 +244,56 @@ def _apply_adaptive_header_labels(window) -> None:
                 column_name,
                 exc,
             )
-    setattr(window, "_adaptive_header_label_width_cache", label_width_cache)
-    setattr(window, "_adaptive_header_label_signatures", next_signatures)
+    window._adaptive_header_label_width_cache = label_width_cache
+    window._adaptive_header_label_signatures = next_signatures
+
+
+def _header_font_signature(header):
+    if not hasattr(header, "font"):
+        return None
+    try:
+        font = header.font()
+        return (
+            str(font.family()),
+            int(font.pointSizeF() * 100),
+            int(font.weight()),
+            bool(font.italic()),
+        )
+    except Exception as exc:
+        logger.debug("Falha ao ler assinatura da fonte do header: %s", exc)
+        return None
+
+
+def _adaptive_header_label_width_cache(window, header) -> dict[str, int]:
+    font_signature = _header_font_signature(header)
+    measure_signature = (font_signature, id(_measure_header_text_px))
+    if (
+        getattr(window, "_adaptive_header_label_width_cache_signature", None)
+        != measure_signature
+    ):
+        window._adaptive_header_label_width_cache = {}
+        window._adaptive_header_label_width_cache_signature = measure_signature
+        window._adaptive_header_label_width_cache_font = font_signature
+
+    label_width_cache = getattr(window, "_adaptive_header_label_width_cache", {})
+    if not isinstance(label_width_cache, dict):
+        label_width_cache = {}
+    if _FILTER_HEADER_PREFIX not in label_width_cache:
+        label_width_cache[_FILTER_HEADER_PREFIX] = _measure_header_text_px(
+            window, _FILTER_HEADER_PREFIX
+        )
+    if _HEADER_SIDE_PADDING_TEXT not in label_width_cache:
+        label_width_cache[_HEADER_SIDE_PADDING_TEXT] = _measure_header_text_px(
+            window, _HEADER_SIDE_PADDING_TEXT
+        )
+    return label_width_cache
+
+
+def _adaptive_header_label_signatures(window) -> dict:
+    previous_signatures = getattr(window, "_adaptive_header_label_signatures", {})
+    if isinstance(previous_signatures, dict):
+        return previous_signatures
+    return {}
 
 
 def _schedule_adaptive_header_label_refresh(window) -> None:
@@ -286,7 +304,7 @@ def _schedule_adaptive_header_label_refresh(window) -> None:
             timer = QTimer(_timer_parent(window))
             timer.setSingleShot(True)
             timer.timeout.connect(lambda: _apply_adaptive_header_labels(window))
-            setattr(window, "_adaptive_header_label_timer", timer)
+            window._adaptive_header_label_timer = timer
         timer.start(_ADAPTIVE_HEADER_REFRESH_DELAY_MS)
     except Exception as exc:
         logger.debug("Falha ao agendar refresh de labels adaptativos: %s", exc)
@@ -300,7 +318,7 @@ def _timer_parent(window):
 
 def _get_header_visual_column_order(window) -> list[str]:
     header = window.table_widget.horizontalHeader()
-    columns = list(getattr(window, "_current_display_columns", []) or [])
+    columns = _current_display_columns(window)
     if header is None or not columns:
         return columns
     ordered_pairs: list[tuple[int, str]] = []
@@ -521,7 +539,7 @@ def _resolve_visible_columns_for_page(window):
 def _build_display_dataframe_for_page(window, cols_to_show):
     display_df = window.df_para_tabela[cols_to_show].copy()
     raw_marker_sample = _build_render_marker_sample(display_df)
-    window._current_display_columns = ["#"] + list(display_df.columns)
+    _set_current_display_columns(window, ["#"] + list(display_df.columns))
 
     if "#" not in display_df.columns:
         display_df.insert(
@@ -638,14 +656,10 @@ def _populate_table_items(window, display_df, table_cell_alignment):
                 item = window.table_widget.item(row_idx, col_idx)
                 if item is None:
                     item = QTableWidgetItem(item_text)
+                    item.setTextAlignment(table_cell_alignment)
                     window.table_widget.setItem(row_idx, col_idx, item)
                 elif str(item.text() or "") != item_text:
                     item.setText(item_text)
-                try:
-                    current_alignment = item.textAlignment()
-                except Exception:
-                    current_alignment = None
-                if current_alignment != table_cell_alignment:
                     item.setTextAlignment(table_cell_alignment)
                 if col_name == "#":
                     _set_hash_column_item_metadata(window, item, row_idx)
@@ -700,18 +714,17 @@ def _render_empty_page_table(window, header, *, update_details):
     window.table_widget.setRowCount(0)
 
     valid_cols = _resolve_empty_table_columns(window)
-    window._current_display_columns = ["#"] + list(valid_cols)
-    window.table_widget.setColumnCount(len(window._current_display_columns))
+    current_columns = ["#"] + list(valid_cols)
+    _set_current_display_columns(window, current_columns)
+    window.table_widget.setColumnCount(len(current_columns))
     visual_filter_columns = _get_visual_filter_columns(window, context="tabela vazia")
-    headers = _build_display_headers(
-        window, window._current_display_columns, visual_filter_columns
-    )
+    headers = _build_display_headers(window, current_columns, visual_filter_columns)
     try:
         window.table_widget.setHorizontalHeaderLabels(headers)
     except Exception as exc:
         logger.debug("Falha ao aplicar cabecalhos da tabela vazia: %s", exc)
 
-    for column_index, col_name in enumerate(window._current_display_columns):
+    for column_index, col_name in enumerate(current_columns):
         px = window._saved_gui_column_widths.get(col_name)
         if px is None:
             px = _fallback_column_width(col_name)
@@ -771,7 +784,9 @@ def _apply_rendered_table_widths(window, display_df):
     skip_width_recompute = bool(getattr(window, "_skip_width_recompute_once", False))
     if skip_width_recompute:
         window._skip_width_recompute_once = False
-    if _needs_width_recompute(window, cols_sig, viewport_width) and not skip_width_recompute:
+    if not skip_width_recompute and _needs_width_recompute(
+        window, cols_sig, viewport_width
+    ):
         window._compute_gui_column_widths(display_df)
         window._widths_columns_sig = cols_sig
         window._last_viewport_w = viewport_width
@@ -899,14 +914,14 @@ def _synchronize_header_visual_order(window, header):
     try:
         if header is None:
             return
-        desired_visual_order = list(getattr(window, "_current_display_columns", []) or [])
+        desired_visual_order = _current_display_columns(window)
         current_visual_order = _get_header_visual_column_order(window)
         if desired_visual_order and current_visual_order != desired_visual_order:
             logical_index_by_column = {
                 column_name: logical_index
                 for logical_index, column_name in enumerate(desired_visual_order)
             }
-            setattr(window, "_header_order_sync_suspended", True)
+            window._header_order_sync_suspended = True
             try:
                 for desired_visual_index, _column_name in enumerate(
                     desired_visual_order
@@ -916,7 +931,7 @@ def _synchronize_header_visual_order(window, header):
                     if current_visual_index != desired_visual_index:
                         header.moveSection(current_visual_index, desired_visual_index)
             finally:
-                setattr(window, "_header_order_sync_suspended", False)
+                window._header_order_sync_suspended = False
         final_visual_order = _get_header_visual_column_order(window)
         if desired_visual_order and final_visual_order != desired_visual_order:
             logger.warning(
@@ -1069,7 +1084,7 @@ def _compute_widths_for_df(
     if table_width < 500:
         table_width = max(1000 if sys.platform == "darwin" else 1400, window_width - 50)
     else:
-        table_width = table_width - 40
+        table_width = max(1, table_width - 40)
     min_width = 1100 if sys.platform == "darwin" else 1400
     table_width = max(table_width, min_width)
     correct_column_order = ["#"] + existing_visible_cols
