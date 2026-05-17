@@ -90,6 +90,10 @@ from gui.ssa.filter_domain_rules import (  # noqa: E402
     collect_nonempty_column_values,
     order_sector_values,
 )
+from gui.ssa.canonical_columns import (  # noqa: E402
+    CanonicalColumnInputs,
+    build_canonical_available_columns,
+)
 from gui.ssa.gui_filters_responsavel_state import (  # noqa: E402
     RESPONSAVEL_FILTER_PREFIXES,
     ResponsavelMaterializationState,
@@ -190,50 +194,6 @@ _TABLE_CELL_ALIGNMENT_LABELS = {
     "right": "Direita",
 }
 _DEFAULT_TABLE_CELL_ALIGNMENT = str(DEFAULT_GUI_SETTINGS["table_cell_alignment"])
-EXCLUDED_CANONICAL_UI_COLUMNS = {
-    "id",
-    "desde",
-    "desde_1",
-    "desde_2",
-    "ate",
-    "ate_1",
-    "ate_2",
-    "tempo_excedido",
-    "tempo_total",
-    "tempo_disponivel",
-    "total_tempo_tpe_planejado",
-    "total_tempo_tex_planejado",
-    "total_tempo_tpo_planejado",
-    "total_tempo_tpe_executada",
-    "total_tempo_tex_executada",
-    "total_tempo_tpo_executada",
-    "total_horas_programadas",
-    "prazo_limite",
-    "data_limite",
-    "status_execucao_prazo",
-    "sistema_origem",
-    "registros_espera",
-    "num_reprobaciones",
-    "situacao_espera",
-    "numero_desvios",
-    "justificativa",
-    "parciais",
-    "situacao_da_parcial",
-    "atividade_especial",
-    "equipamento_retirado",
-    "sn_retirado",
-    "destino",
-    "equipamento_instalado",
-    "sn_instalado",
-    "sn_extra",
-    "origem",
-    "desativacao_da_localizacao",
-    "instalacao_estimada",
-    "executado",
-    "concluido",
-    "situacao_de_desvio",
-    "relacao",
-}
 
 from armazenamento.database import query_db, vacuum_analyze_database  # noqa: E402
 from armazenamento.derivadas_sync import (  # noqa: E402
@@ -1676,7 +1636,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Botões de ações
         self.rescan_button = QPushButton("Reescanear")
         self.rescan_button.setToolTip(
-            "Abrir opcoes de reescaneamento/importacao da pasta docs_entrada"
+            "Abrir opcoes de sincronizacao do banco, incluindo importacao e reescaneamento"
         )
         self.rescan_button.clicked.connect(self.rescan_data)
         toolbar_layout.addWidget(cast(Any, self.rescan_button))
@@ -1941,149 +1901,39 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _get_canonical_available_columns(self) -> list[str]:
         """Retorna colunas elegiveis para seletores de UI (sem legados invalidos)."""
         allowed_columns_text = str(os.environ.get("SSA_ALLOWED_COLUMNS", "") or "")
-        source_key = (
-            getattr(self, "_data_revision", 0),
-            tuple(getattr(self, "visible_columns", None) or ()),
-            tuple(getattr(self, "default_columns", None) or ()),
-            tuple(getattr(self, "_profile_columns", None) or ()),
-            tuple(getattr(self, "_current_display_columns", None) or ()),
-            tuple((getattr(self, "_active_column_filters", {}) or {}).keys()),
-            tuple((getattr(self, "_column_filter_widgets", {}) or {}).keys()),
-            tuple(sorted(getattr(self, "_non_null_cols_cache", set()) or set())),
-            allowed_columns_text,
+        inputs = CanonicalColumnInputs(
+            visible_columns=tuple(getattr(self, "visible_columns", None) or ()),
+            default_columns=tuple(getattr(self, "default_columns", None) or ()),
+            profile_columns=tuple(getattr(self, "_profile_columns", None) or ()),
+            current_display_columns=tuple(
+                getattr(self, "_current_display_columns", None) or ()
+            ),
+            active_filter_columns=tuple(
+                (getattr(self, "_active_column_filters", {}) or {}).keys()
+            ),
+            widget_columns=tuple(
+                (getattr(self, "_column_filter_widgets", {}) or {}).keys()
+            ),
+            non_null_columns=tuple(getattr(self, "_non_null_cols_cache", set()) or ()),
+            allowed_columns_text=allowed_columns_text,
+            default_display_mappings=DEFAULT_DISPLAY_MAPPINGS,
+            internal_to_display=getattr(self, "internal_to_display", None),
+            display_map=getattr(self, "display_map", None),
+            compatibility_null_ui_columns=set(COMPATIBILITY_NULL_UI_COLUMNS),
         )
+        source_key = inputs.cache_key(int(getattr(self, "_data_revision", 0) or 0))
         if source_key == getattr(self, "_canonical_available_columns_cache_key", None):
             cached = getattr(self, "_canonical_available_columns_cache", None)
             if isinstance(cached, list):
                 return [str(column) for column in cached]
 
-        legacy_invalid_columns = {
-            "Numero da SSA",
-            "Número da SSA",
-            "No SSA",
-            "Data Cadastro",
-        }
-        candidates = []
-        seen_candidates = set()
-        always_allow = set()
-        mapped_columns = set()
-
-        def _append_candidate(value, *, allow: bool = False):
-            if not isinstance(value, str):
-                return
-            col_name = value.strip()
-            if not col_name or col_name == "#":
-                return
-            if col_name in seen_candidates:
-                if allow:
-                    always_allow.add(col_name)
-                return
-            seen_candidates.add(col_name)
-            candidates.append(col_name)
-            if allow:
-                always_allow.add(col_name)
-
-        def _collect_mapped_keys(mapping_obj):
-            if not isinstance(mapping_obj, dict):
-                return
-            for key in mapping_obj.keys():
-                if not isinstance(key, str):
-                    continue
-                key_name = key.strip()
-                if key_name:
-                    mapped_columns.add(key_name)
-
-        for attr_name in (
-            "visible_columns",
-            "default_columns",
-            "_profile_columns",
-            "_current_display_columns",
-        ):
-            values = getattr(self, attr_name, None)
-            if isinstance(values, (list, tuple)):
-                for value in values:
-                    _append_candidate(value, allow=True)
-
-        active_filters = getattr(self, "_active_column_filters", None)
-        if isinstance(active_filters, dict):
-            for key in active_filters.keys():
-                _append_candidate(key, allow=True)
-        active_widgets = getattr(self, "_column_filter_widgets", None)
-        if isinstance(active_widgets, dict):
-            for key in active_widgets.keys():
-                _append_candidate(key, allow=True)
-
-        _collect_mapped_keys(DEFAULT_DISPLAY_MAPPINGS)
-        _collect_mapped_keys(getattr(self, "internal_to_display", None))
-        _collect_mapped_keys(getattr(self, "display_map", None))
-
-        allowed_columns = None
         try:
-            allowed_raw = allowed_columns_text.strip()
-            if allowed_raw:
-                allowed_columns = {
-                    token.strip() for token in allowed_raw.split(",") if token.strip()
-                }
+            result = build_canonical_available_columns(inputs)
         except Exception as exc:
             logger.debug(
-                "Falha ao ler whitelist de colunas via SSA_ALLOWED_COLUMNS: %s", exc
+                "Falha ao montar lista canonica de colunas de filtro: %s", exc
             )
-            allowed_columns = None
-
-        non_null_cols = None
-        try:
-            cached_cols = getattr(self, "_non_null_cols_cache", None)
-            if isinstance(cached_cols, set) and cached_cols:
-                non_null_cols = set(cached_cols)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao ler cache de colunas nao nulas para menu canonico: %s", exc
-            )
-            non_null_cols = None
-
-        # Evita scan direto em DataFrame aqui para nao disputar estado com workers.
-        # A fonte oficial para "nao nulas" neste ponto e o cache ja calculado no fluxo de carga.
-
-        for col_name in mapped_columns:
-            _append_candidate(col_name, allow=(col_name in always_allow))
-        if isinstance(non_null_cols, set) and non_null_cols:
-            for col_name in non_null_cols:
-                _append_candidate(col_name, allow=(col_name in always_allow))
-        for col_name in always_allow:
-            _append_candidate(col_name, allow=True)
-
-        result = []
-        seen = set()
-
-        def _is_canonical_column(col_name: str) -> bool:
-            if not col_name or col_name == "#":
-                return False
-            if col_name in always_allow:
-                return True
-            if col_name in COMPATIBILITY_NULL_UI_COLUMNS:
-                return False
-            if col_name in legacy_invalid_columns:
-                return False
-            if col_name in EXCLUDED_CANONICAL_UI_COLUMNS:
-                return False
-            if "_relacionada_" in col_name or "_relacionado_" in col_name:
-                return False
-            if not re.fullmatch(r"[a-z][a-z0-9_]*", col_name):
-                return False
-            if isinstance(allowed_columns, set) and col_name not in allowed_columns:
-                return False
-            return True
-
-        for col in candidates:
-            if not isinstance(col, str):
-                continue
-            col_name = col.strip()
-            if col_name in seen:
-                continue
-            if not _is_canonical_column(col_name):
-                continue
-            seen.add(col_name)
-            result.append(col_name)
+            result = []
         self._canonical_available_columns_cache_key = source_key
         self._canonical_available_columns_cache = list(result)
         return result
