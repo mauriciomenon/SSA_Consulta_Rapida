@@ -70,6 +70,7 @@ from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
 from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
 from gui.ssa import derivadas_sync_controller as ssa_derivadas_sync  # noqa: E402
+from gui.ssa import database_operations as ssa_database_operations  # noqa: E402
 from gui.ssa import system_integration as ssa_system  # noqa: E402
 from gui.ssa.derivadas_table_resolver import resolve_derivadas_table_name  # noqa: E402
 from gui.ssa.main_window_filter_bar import (  # noqa: E402
@@ -4279,7 +4280,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     @staticmethod
     def _execute_vacuum_analyze(db_path: str) -> dict[str, Any]:
-        return vacuum_analyze_database(db_path)
+        return ssa_database_operations.execute_vacuum_analyze(
+            db_path, vacuum_analyze_database
+        )
 
     def _finalize_vacuum_analyze_result(self, result: dict[str, Any]) -> dict[str, Any]:
         self._vacuum_analyze_running = False
@@ -4497,12 +4500,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     @staticmethod
     def _validate_database_candidate(db_file: str) -> dict[str, Any]:
-        try:
-            test_df = query_db(db_file, TABLE_NAME)
-        except Exception as exc:
-            return {"ok": False, "error": str(exc), "db_file": db_file}
-        has_rows = bool(test_df is not None and not test_df.empty)
-        return {"ok": has_rows, "db_file": db_file}
+        return ssa_database_operations.validate_database_candidate(
+            db_file,
+            table_name=TABLE_NAME,
+            query_db_fn=query_db,
+        )
 
     def _finalize_database_candidate_validation(
         self, result: dict[str, Any]
