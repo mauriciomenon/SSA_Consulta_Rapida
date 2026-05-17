@@ -6,18 +6,10 @@ import re
 
 import pandas as pd
 
+from core.regex_safety import safe_regex_contains as _safe_regex_contains
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
-
-_NESTED_QUANTIFIER_RE = re.compile(r"\((?:[^()]*[+*][^()]*)\)\s*[+*{]")
-_HEAVY_QUANTIFIER_CHAIN_RE = re.compile(r"(?:[+*]|\{[^}]*\}){3,}")
-_GROUP_ALTERNATION_WITH_QUANTIFIER_RE = re.compile(
-    r"\([^)]*\|[^)]*\)\s*(?:[+*?]|\{[^}]*\})"
-)
-_UNSAFE_REGEX_QUANTIFIER_RE = re.compile(r"(?<!\\)[+*?{]")
-_REGEX_META_CHAR_RE = re.compile(r"[*+?{}|()[\]]")
-_MAX_REGEX_PATTERN_LENGTH = 120
 
 
 def _true_mask(series: pd.Series) -> pd.Series:
@@ -28,44 +20,6 @@ def _to_text_series(series: pd.Series) -> pd.Series:
     if pd.api.types.is_string_dtype(series.dtype):
         return series.fillna("") if series.hasnans else series
     return series.astype("string").fillna("")
-
-
-def _safe_regex_contains(series: pd.Series, pattern: str) -> pd.Series:
-    pattern_text = str(pattern or "")
-    if not pattern_text:
-        return _true_mask(series)
-    if len(pattern_text) > _MAX_REGEX_PATTERN_LENGTH:
-        logger.warning("Regex de filtro bloqueado por tamanho; usando busca literal.")
-        return series.str.contains(pattern_text, case=False, na=False, regex=False)
-    has_lookaround = (
-        "(?=" in pattern_text
-        or "(?!" in pattern_text
-        or "(?<=" in pattern_text
-        or "(?<!" in pattern_text
-    )
-    has_backref = bool(re.search(r"\\[1-9]", pattern_text))
-    has_quantifier = bool(_UNSAFE_REGEX_QUANTIFIER_RE.search(pattern_text))
-    meta_char_count = len(_REGEX_META_CHAR_RE.findall(pattern_text))
-    has_alternation_with_quantifier = "|" in pattern_text and bool(
-        re.search(r"[+*?{]", pattern_text)
-    )
-    if (
-        _NESTED_QUANTIFIER_RE.search(pattern_text)
-        or _HEAVY_QUANTIFIER_CHAIN_RE.search(pattern_text)
-        or _GROUP_ALTERNATION_WITH_QUANTIFIER_RE.search(pattern_text)
-        or has_lookaround
-        or has_backref
-        or has_quantifier
-        or meta_char_count > 16
-        or has_alternation_with_quantifier
-    ):
-        logger.warning("Regex de filtro bloqueado por seguranca; usando busca literal.")
-        return series.str.contains(pattern_text, case=False, na=False, regex=False)
-    try:
-        re.compile(pattern_text)
-        return series.str.contains(pattern_text, case=False, na=False, regex=True)
-    except re.error:
-        return series.str.contains(pattern_text, case=False, na=False, regex=False)
 
 
 def _is_plain_token(token: str) -> bool:
@@ -118,24 +72,31 @@ def _match_column_token(
         stripped = text_series.str.strip()
         result = original_series.isna() | stripped.eq("") | text_series.eq("-")
         return ~result if negated else result
+    folded_value = value.casefold()
     if value.startswith("~") and len(value) > 1:
-        result = _safe_regex_contains(text_series, value[1:])
+        result = _safe_regex_contains(
+            text_series, value[1:], reject_quantifiers=True, fallback_literal=True
+        )
     elif value.startswith("="):
-        result = casefolded_series.eq(value[1:].casefold())
+        result = casefolded_series.eq(folded_value[1:])
     elif value.startswith("^"):
-        result = casefolded_series.str.startswith(value[1:].casefold(), na=False)
+        result = casefolded_series.str.startswith(folded_value[1:], na=False)
     elif value.endswith("$"):
-        result = casefolded_series.str.endswith(value[:-1].casefold(), na=False)
+        result = casefolded_series.str.endswith(folded_value[:-1], na=False)
     elif mode == "prefix":
-        result = casefolded_series.str.startswith(value.casefold(), na=False)
+        result = casefolded_series.str.startswith(folded_value, na=False)
     elif mode == "suffix":
-        result = casefolded_series.str.endswith(value.casefold(), na=False)
+        result = casefolded_series.str.endswith(folded_value, na=False)
     elif mode == "exact":
-        result = casefolded_series.eq(value.casefold())
+        result = casefolded_series.eq(folded_value)
     elif mode == "regex":
-        result = _safe_regex_contains(text_series, value)
+        result = _safe_regex_contains(
+            text_series, value, reject_quantifiers=True, fallback_literal=True
+        )
     else:
-        result = text_series.str.contains(value, case=False, na=False, regex=False)
+        result = casefolded_series.str.contains(
+            folded_value, na=False, regex=False
+        )
     return ~result if negated else result
 
 
@@ -211,6 +172,7 @@ def build_column_mask(
     if plain_exclude_mask is not None:
         mask = mask & ~plain_exclude_mask
     for token in complex_excludes:
+        # _match_column_token keeps the "!" prefix and returns the negated mask.
         mask = mask & _match_column_token(
             text_series,
             casefolded_series,

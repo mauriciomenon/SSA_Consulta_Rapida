@@ -53,7 +53,8 @@ except ImportError:
     FilterHelpDialog = cast(Any, None)
 
 # Imports do core
-from core.app_logic import FILTER_SEARCH_CACHE_ATTR, FILTER_SEARCH_TOKEN_ATTR
+from core.app_logic import FILTER_SEARCH_CACHE_ATTR, FILTER_SEARCH_MARKER_ATTR
+from core.search_filter_constants import FILTER_SEARCH_SIGNATURE_CACHE_ATTR
 from core.app_logic import filter_dataframe, parse_search_terms
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS
@@ -607,8 +608,9 @@ class FilterGUISSAMixin:
             return source
 
         safe_attr_keys = {
-            FILTER_SEARCH_TOKEN_ATTR,
+            FILTER_SEARCH_MARKER_ATTR,
             FILTER_SEARCH_CACHE_ATTR,
+            FILTER_SEARCH_SIGNATURE_CACHE_ATTR,
             "ssa_preprocessed_for_gui",
             "ssa_non_null_cols",
         }
@@ -760,33 +762,11 @@ class FilterGUISSAMixin:
         else:
             search_text = ""
         raw_chunks = self._prepare_search_chunks(search_text) if search_text else []
-        chunk_terms_lists = (
-            [self._normalize_chunk_for_parse(chunk) for chunk in raw_chunks]
-            if raw_chunks
-            else (
-                []
-                if not search_text
-                else [self._normalize_chunk_for_parse(search_text)]
-            )
-        )
-        # remove empty chunk lists
-        chunk_terms_lists = [terms for terms in chunk_terms_lists if terms]
-        unique_chunk_terms_lists = []
-        seen_chunk_terms = set()
-        for terms in chunk_terms_lists:
-            chunk_key = tuple(str(term) for term in terms)
-            if chunk_key in seen_chunk_terms:
-                continue
-            seen_chunk_terms.add(chunk_key)
-            unique_chunk_terms_lists.append(list(terms))
-        search_chunks_for_worker = unique_chunk_terms_lists
+        search_chunks_for_worker = raw_chunks
 
         self._sync_clear_filter_button_state()
 
-        if chunk_terms_lists:
-            display_text = self._format_search_display(chunk_terms_lists)
-        else:
-            display_text = search_text if search_text else ""
+        display_text = search_text if search_text else ""
         filter_source_candidate = self.df_completo
         try:
             last_search_filtered = getattr(self, "_df_last_search_filtered", None)
@@ -802,7 +782,9 @@ class FilterGUISSAMixin:
                 if previous_search_display
                 else []
             )
-            current_terms = chunk_terms_lists[0] if chunk_terms_lists else []
+            current_terms = (
+                self._normalize_chunk_for_parse(search_text) if search_text else []
+            )
             has_active_worker = getattr(self, "filter_thread", None) is not None
             if (
                 isinstance(last_search_filtered, pd.DataFrame)
@@ -834,9 +816,14 @@ class FilterGUISSAMixin:
         # Modo síncrono (sem QThread) opcional para testes
         if getattr(self, "_sync_filtering", False):
             try:
+                sync_chunks = [
+                    self._normalize_chunk_for_parse(chunk)
+                    for chunk in search_chunks_for_worker
+                ]
+                sync_chunks = [terms for terms in sync_chunks if terms]
                 df_filtrado = self._apply_general_search_terms(
                     filter_source,
-                    search_chunks_for_worker,
+                    sync_chunks,
                     default_mode=default_mode,
                     general_search_columns=general_search_columns,
                 )
@@ -858,9 +845,14 @@ class FilterGUISSAMixin:
                 "FilterWorker indisponivel; aplicando filtro em modo sincrono"
             )
             try:
+                sync_chunks = [
+                    self._normalize_chunk_for_parse(chunk)
+                    for chunk in search_chunks_for_worker
+                ]
+                sync_chunks = [terms for terms in sync_chunks if terms]
                 df_filtrado = self._apply_general_search_terms(
                     filter_source,
-                    search_chunks_for_worker,
+                    sync_chunks,
                     default_mode=default_mode,
                     general_search_columns=general_search_columns,
                 )
@@ -2812,10 +2804,7 @@ class FilterGUISSAMixin:
         return group
 
     def _sync_or_group_values(self, column: str, text: str):
-        """Syncs filter values across columns in same OR group.
-
-        SIMPLIFIED: No logical operators - commas and semicolons separate terms.
-        """
+        """Sync shared values for columns evaluated by the column-filter OR engine."""
         group = self._column_to_or_group.get(column)
         if not group:
             return
@@ -3292,10 +3281,14 @@ class FilterGUISSAMixin:
             if isinstance(active_filters, dict)
             else (getattr(self, "_active_column_filters", {}) or {})
         )
+        active_filter_lookup = {
+            str(column_name): str(value).strip()
+            for column_name, value in current_filters.items()
+        }
         return {
-            column_name
+            str(column_name)
             for column_name in hidden_set
-            if not str(current_filters.get(column_name, "")).strip()
+            if not active_filter_lookup.get(str(column_name), "")
         }
 
     def _snapshot_filter_state(self) -> dict:

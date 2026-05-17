@@ -548,7 +548,7 @@ def test_filter_dataframe_small_anchored_regex_builds_fieldwise_cache_lazily() -
     assert list(plain["numero_ssa"]) == ["202500001", "202500002"]
     assert had_base_lower_before is False
     assert list(anchored["numero_ssa"]) == ["202500001", "202500003"]
-    assert len(cached_after["base_lower_df"]) == len(df.index)
+    assert "base_lower_df" not in cached_after
 
 
 def test_filter_dataframe_invalidates_cache_after_in_place_value_change() -> None:
@@ -591,11 +591,10 @@ def test_filter_dataframe_reuses_cached_search_data_on_same_dataframe(
     def _tracked_store(
         frame: pd.DataFrame,
         search_cache_token,
-        base_lower_df: pd.DataFrame,
         row_search_text: pd.Series,
     ) -> None:
         store_calls["count"] += 1
-        original_store(frame, search_cache_token, base_lower_df, row_search_text)
+        original_store(frame, search_cache_token, row_search_text)
 
     monkeypatch.setattr(
         app_logic.FilterSearchCacheManager,

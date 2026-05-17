@@ -11,6 +11,7 @@ import pytest
 
 from armazenamento import database
 from core import app_logic
+from core import import_run_report
 
 
 def _get_project_root() -> Path:
@@ -1441,7 +1442,7 @@ def test_write_import_run_report_returns_none_on_open_value_error(
     def _raise_open(*args, **kwargs):
         raise ValueError("invalid path")
 
-    monkeypatch.setattr(app_logic, "open", _raise_open, raising=False)
+    monkeypatch.setattr(import_run_report, "open", _raise_open, raising=False)
 
     assert app_logic._write_import_run_report(payload) is None
 

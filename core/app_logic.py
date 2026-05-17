@@ -14,7 +14,6 @@ a atualizacao do banco de dados SQLite e o gerenciamento do cache.
 # - Related modules: extracao.extractor, armazenamento.database,
 #   armazenamento.database_validation, armazenamento.database_integrity.
 
-import hashlib
 import json
 import logging
 import os
@@ -23,7 +22,6 @@ import shutil
 import sqlite3
 import sys
 import time
-import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, cast
@@ -61,111 +59,25 @@ _DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE: Dict[str, str] = {
         ) AS db_edges
     """,
 }
-FILTER_FIELD_SEPARATOR = "\x1f"
-FILTER_SEARCH_TOKEN_ATTR = "_filter_search_token"
-FILTER_SEARCH_CACHE_ATTR = "_filter_search_cache"
-FILTER_SEARCH_FIELDWISE_CACHE_MAX_ROWS = 5000
-FILTER_ROW_SEARCH_BATCH_SIZE = 8
-FILTER_SEARCH_ROW_TEXT_CACHE_MAX_BYTES = 8 * 1024 * 1024
+from core.search_filter import (  # noqa: E402
+    FILTER_SEARCH_CACHE_ATTR,
+    FILTER_SEARCH_MARKER_ATTR,
+    FilterSearchCacheManager,
+    filter_dataframe,
+    parse_search_terms,
+)
+from core.import_run_report import (  # noqa: E402
+    _build_import_run_payload,
+    _write_import_run_report,
+)
 
-
-class FilterSearchCacheManager:
-    """Manage per-DataFrame search cache attrs for filter_dataframe()."""
-
-    @staticmethod
-    def _compute_cache_signature(
-        df: pd.DataFrame, available_search_cols: list[str]
-    ) -> str | None:
-        if not available_search_cols:
-            return None
-        search_df = df.loc[:, available_search_cols]
-        row_count = len(search_df.index)
-        if row_count == 0:
-            data_digest = "empty"
-        elif row_count <= 5000:
-            hashed = pd.util.hash_pandas_object(search_df, index=True)
-            data_digest = hashlib.blake2b(
-                hashed.to_numpy().tobytes(),
-                digest_size=16,
-            ).hexdigest()
-        else:
-            sample_size = min(64, row_count)
-            last_idx = row_count - 1
-            sample_positions = {
-                int(round(i * last_idx / float(sample_size - 1)))
-                for i in range(sample_size)
-            }
-            sample_df = search_df.iloc[sorted(sample_positions)]
-            hashed = pd.util.hash_pandas_object(sample_df, index=True)
-            data_digest = hashlib.blake2b(
-                hashed.to_numpy().tobytes(),
-                digest_size=16,
-            ).hexdigest()
-        payload = (
-            id(df),
-            tuple(str(col) for col in available_search_cols),
-            tuple(str(dtype) for dtype in search_df.dtypes),
-            row_count,
-            data_digest,
-        )
-        return repr(payload)
-
-    @staticmethod
-    def build_token(
-        df: pd.DataFrame, available_search_cols: list[str]
-    ) -> tuple[str, tuple[str, ...], int, str | None]:
-        data_token = df.attrs.setdefault(FILTER_SEARCH_TOKEN_ATTR, uuid.uuid4().hex)
-        fingerprint = FilterSearchCacheManager._compute_cache_signature(
-            df, available_search_cols
-        )
-        return (data_token, tuple(available_search_cols), len(df.index), fingerprint)
-
-    @staticmethod
-    def get_cached_search_data(
-        df: pd.DataFrame,
-        search_cache_token: tuple[str, tuple[str, ...], int, str | None],
-    ) -> Optional[dict[str, Any]]:
-        cached_search_data = df.attrs.get(FILTER_SEARCH_CACHE_ATTR)
-        if (
-            isinstance(cached_search_data, dict)
-            and cached_search_data.get("token") == search_cache_token
-        ):
-            return cast(dict[str, Any], cached_search_data)
-        return None
-
-    @staticmethod
-    def store_cached_search_data(
-        df: pd.DataFrame,
-        search_cache_token: tuple[str, tuple[str, ...], int, str | None],
-        base_lower_df: pd.DataFrame | None,
-        row_search_text: pd.Series,
-    ) -> None:
-        payload: dict[str, Any] = {
-            "token": search_cache_token,
-        }
-        try:
-            row_search_text_bytes = int(row_search_text.memory_usage(deep=True))
-        except Exception as exc:
-            logger.debug(
-                "Falha ao medir payload de row_search_text para cache de busca: %s",
-                exc,
-            )
-            row_search_text_bytes = 0
-        if (
-            row_search_text_bytes <= 0
-            or row_search_text_bytes <= FILTER_SEARCH_ROW_TEXT_CACHE_MAX_BYTES
-        ):
-            payload["row_search_text"] = row_search_text
-        if isinstance(base_lower_df, pd.DataFrame):
-            payload["base_lower_df"] = base_lower_df
-        df.attrs[FILTER_SEARCH_CACHE_ATTR] = payload
-
-    @staticmethod
-    def clear_result_attrs(result_df: pd.DataFrame) -> pd.DataFrame:
-        result_df.attrs.pop(FILTER_SEARCH_TOKEN_ATTR, None)
-        result_df.attrs.pop(FILTER_SEARCH_CACHE_ATTR, None)
-        return result_df
-
+__all__ = [
+    "FILTER_SEARCH_CACHE_ATTR",
+    "FILTER_SEARCH_MARKER_ATTR",
+    "FilterSearchCacheManager",
+    "filter_dataframe",
+    "parse_search_terms",
+]
 
 # --- Excecoes Personalizadas ---
 
@@ -416,7 +328,7 @@ def _import_single_file(
             "rows_removed_invalid_identity": int(
                 invalid_row_summary.get("total_removed", 0)
             ),
-            "rows_ready_for_insert": int(len(df)),
+            "rows_ready_for_insert": 0,
             "rows_inserted": 0,
         }
         metrics["invalid_identity"] = invalid_row_summary
@@ -1155,8 +1067,17 @@ def _apply_postprocess_file_moves(
     """Apply post-import moves and return old_path -> final_path mapping."""
     moved_paths: Dict[str, str] = {}
     for file_path, record_count in successful_files_with_records:
+        try:
+            normalized_record_count = int(record_count)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Contagem invalida para movimentacao pos-importacao de '%s': %r",
+                os.path.basename(file_path),
+                record_count,
+            )
+            normalized_record_count = 0
         route_to_nosurvivor = bool(
-            route_zero_survivor_to_nosurvivor and int(record_count) <= 0
+            route_zero_survivor_to_nosurvivor and normalized_record_count <= 0
         )
         final_path = _move_file_after_import(
             file_path=file_path,
@@ -1188,7 +1109,18 @@ def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
         try:
             conn = sqlite3.connect(db_path, timeout=2)
             conn.execute("PRAGMA busy_timeout = 2000")
-            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            checkpoint = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            if checkpoint and int(checkpoint[0] or 0) != 0:
+                last_error = sqlite3.OperationalError(
+                    f"WAL checkpoint ocupado: {checkpoint}"
+                )
+                if attempt < 3:
+                    logger.warning(
+                        "Banco ocupado no checkpoint de full rescan (tentativa %s/3).",
+                        attempt,
+                    )
+                    time.sleep(0.35 * attempt)
+                    continue
             last_error = None
             break
         except sqlite3.Error as exc:
@@ -1205,10 +1137,11 @@ def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
             if conn is not None:
                 conn.close()
     if last_error is not None:
-        raise DatabaseError(
-            "Falha ao preparar full rescan por lock ativo no banco. "
-            f"Feche acessos concorrentes e tente novamente: {last_error}"
-        ) from last_error
+        logger.warning(
+            "Checkpoint WAL do full rescan permaneceu ocupado; "
+            "rotacao vai preservar sidecars se existirem: %s",
+            last_error,
+        )
     wal_path = f"{db_path}-wal"
     if os.path.exists(wal_path):
         try:
@@ -1218,9 +1151,9 @@ def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
                 f"Falha ao validar estado do WAL antes do full rescan: {exc}"
             ) from exc
         if wal_size > 0:
-            raise DatabaseError(
-                "WAL ativo detectado antes da rotacao do banco. "
-                "Feche acessos concorrentes e tente novamente."
+            logger.warning(
+                "WAL ainda ativo apos checkpoint antes do full rescan; "
+                "rotacao vai preservar o sidecar no backup."
             )
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_path = f"{db_path}.full_rescan_backup_{timestamp}"
@@ -1241,10 +1174,10 @@ def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
                 )
                 continue
             if preexisting_sidecars.get(suffix):
-                Path(sidecar_backup).touch()
                 logger.info(
-                    "Arquivo auxiliar do banco preservado como placeholder no backup: %s",
-                    os.path.basename(sidecar_backup),
+                    "Arquivo auxiliar preexistente nao foi preservado porque "
+                    "nao existe mais apos checkpoint: %s",
+                    os.path.basename(sidecar),
                 )
     except OSError as exc:
         raise DatabaseError(
@@ -1289,7 +1222,18 @@ def _promote_full_rescan_candidate(
         try:
             conn = sqlite3.connect(candidate_db_path, timeout=2)
             conn.execute("PRAGMA busy_timeout = 2000")
-            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            checkpoint = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            if checkpoint and int(checkpoint[0] or 0) != 0:
+                last_error = sqlite3.OperationalError(
+                    f"WAL checkpoint ocupado: {checkpoint}"
+                )
+                if attempt < 3:
+                    logger.warning(
+                        "DB candidato ocupado no checkpoint final (tentativa %s/3).",
+                        attempt,
+                    )
+                    time.sleep(0.35 * attempt)
+                    continue
             last_error = None
             break
         except sqlite3.Error as exc:
@@ -1306,12 +1250,14 @@ def _promote_full_rescan_candidate(
             if conn is not None:
                 conn.close()
     if last_error is not None:
-        raise DatabaseError(
-            "Falha ao preparar DB candidato para promocao final. "
-            f"Feche acessos concorrentes e tente novamente: {last_error}"
-        ) from last_error
+        logger.warning(
+            "Checkpoint WAL do DB candidato permaneceu ocupado; "
+            "promocao vai preservar sidecars se existirem: %s",
+            last_error,
+        )
 
     candidate_wal_path = f"{candidate_db_path}-wal"
+    candidate_sidecars_to_promote: list[tuple[str, str]] = []
     if os.path.exists(candidate_wal_path):
         try:
             wal_size = int(os.path.getsize(candidate_wal_path))
@@ -1320,194 +1266,47 @@ def _promote_full_rescan_candidate(
                 f"Falha ao validar estado do WAL do DB candidato: {exc}"
             ) from exc
         if wal_size > 0:
-            raise DatabaseError(
-                "WAL ativo detectado no DB candidato antes da promocao final."
+            logger.warning(
+                "WAL do DB candidato ainda ativo apos checkpoint; "
+                "promocao vai preservar o sidecar."
             )
+            for suffix in ("-wal", "-shm"):
+                sidecar = f"{candidate_db_path}{suffix}"
+                if os.path.exists(sidecar):
+                    candidate_sidecars_to_promote.append(
+                        (sidecar, f"{primary_db_path}{suffix}")
+                    )
 
-    _cleanup_sqlite_sidecars(candidate_db_path)
+    if not candidate_sidecars_to_promote:
+        _cleanup_sqlite_sidecars(candidate_db_path)
     backup_path = _rotate_database_for_full_rescan(primary_db_path)
     try:
         os.replace(candidate_db_path, primary_db_path)
     except OSError as exc:
-        raise DatabaseError(
-            f"Falha ao promover DB candidato para o caminho principal: {exc}"
-        ) from exc
+        try:
+            shutil.move(candidate_db_path, primary_db_path)
+        except (OSError, shutil.Error) as move_exc:
+            raise DatabaseError(
+                "Falha ao promover DB candidato para o caminho principal: "
+                f"{move_exc}"
+            ) from move_exc
+        logger.warning(
+            "Promocao de DB candidato usou shutil.move apos falha de os.replace: %s",
+            exc,
+        )
+    for source_sidecar, target_sidecar in candidate_sidecars_to_promote:
+        try:
+            os.replace(source_sidecar, target_sidecar)
+        except OSError as exc:
+            raise DatabaseError(
+                "Falha ao promover sidecar do DB candidato para o caminho principal: "
+                f"{exc}"
+            ) from exc
     logger.info(
         "DB candidato promovido com sucesso para o caminho principal: %s",
         os.path.basename(primary_db_path),
     )
     return backup_path
-
-
-def _write_import_run_report(payload: Dict[str, Any]) -> Optional[str]:
-    """Grava resumo estruturado de uma execucao de importacao em JSON."""
-    try:
-        logs_dir = os.path.join(project_root, "logs")
-        runtime_root = str(os.environ.get("SSA_RUNTIME_ROOT") or "").strip()
-        if runtime_root:
-            runtime_logs_dir = os.path.join(runtime_root, "logs")
-            try:
-                logs_dir = str(
-                    ensure_path_is_allowed(
-                        runtime_logs_dir,
-                        purpose="import_report_logs_dir",
-                        must_exist=False,
-                        expect_directory=True,
-                        extra_allowed_roots=(runtime_root,),
-                    )
-                )
-            except PathSafetyError as exc:
-                logger.warning(
-                    "Runtime logs dir rejeitado para relatorio de importacao: %s",
-                    exc,
-                )
-        os.makedirs(logs_dir, exist_ok=True)
-        run_id = str(
-            payload.get("run_id") or datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        )
-        report_path = os.path.join(logs_dir, f"import_run_{run_id}.json")
-        with open(report_path, "w", encoding="utf-8") as fp:
-            json.dump(payload, fp, ensure_ascii=False, indent=2, default=str)
-        return report_path
-    except (OSError, TypeError, ValueError) as exc:
-        logger.warning("Falha ao gravar relatorio JSON de importacao: %s", exc)
-        return None
-
-
-def _build_import_run_payload(
-    *,
-    run_id: str,
-    run_started_at: datetime,
-    finished_at: datetime,
-    result: bool,
-    status: str,
-    reason: str,
-    force_import: bool,
-    table_name: str,
-    db_name: str,
-    docs_dir: str,
-    data_dir: str,
-    primary_db_path: str,
-    working_db_path: str,
-    candidate_db_path: Optional[str],
-    promoted_backup_path: Optional[str],
-    cache_file: str,
-    total_files: int,
-    successfully_processed_files: List[str],
-    critical_errors: List[tuple[str, str, str]],
-    deterministic_failed_files: List[str],
-    derivadas_sheet_files: List[str],
-    db_only_derivadas_sync: bool,
-    derivadas_sync_blocking_error: bool,
-    sync_materialized: bool,
-    files_to_process: List[str],
-    ignored_legacy_excel_files: List[str],
-    integrity_report: Dict[str, Any],
-    file_reports: List[Dict[str, Any]],
-    phase_durations: Dict[str, float],
-) -> Dict[str, Any]:
-    total_rows_extracted = 0
-    total_rows_removed_invalid_identity = 0
-    total_rows_ready_for_insert = 0
-    total_rows_inserted = 0
-    total_extraction_seconds = 0.0
-    total_validation_seconds = 0.0
-    total_insert_seconds = 0.0
-    for entry in file_reports:
-        counts = entry.get("counts") or {}
-        durations = entry.get("durations") or {}
-        total_rows_extracted += int(counts.get("rows_extracted", 0) or 0)
-        total_rows_removed_invalid_identity += int(
-            counts.get("rows_removed_invalid_identity", 0) or 0
-        )
-        total_rows_ready_for_insert += int(counts.get("rows_ready_for_insert", 0) or 0)
-        total_rows_inserted += int(counts.get("rows_inserted", 0) or 0)
-        total_extraction_seconds += float(durations.get("extraction_seconds", 0) or 0)
-        total_validation_seconds += float(durations.get("validation_seconds", 0) or 0)
-        total_insert_seconds += float(durations.get("insert_seconds", 0) or 0)
-    normalized_phase_durations: Dict[str, float] = {}
-    for key, value in phase_durations.items():
-        try:
-            normalized_phase_durations[key] = round(float(value), 3)
-        except (TypeError, ValueError):
-            continue
-    return {
-        "run_id": run_id,
-        "started_at": run_started_at.isoformat(timespec="seconds"),
-        "finished_at": finished_at.isoformat(timespec="seconds"),
-        "duration_seconds": round((finished_at - run_started_at).total_seconds(), 3),
-        "durations": {
-            "sum_file_extraction_seconds": round(total_extraction_seconds, 3),
-            "sum_file_validation_seconds": round(total_validation_seconds, 3),
-            "sum_file_insert_seconds": round(total_insert_seconds, 3),
-            **normalized_phase_durations,
-        },
-        "result": bool(result),
-        "status": status,
-        "reason": reason,
-        "inputs": {
-            "force_import": bool(force_import),
-            "table_name": table_name,
-            "db_name": db_name,
-        },
-        "paths": {
-            "docs_dir": docs_dir,
-            "data_dir": data_dir,
-            "db_path": primary_db_path,
-            "primary_db_path": primary_db_path,
-            "working_db_path": working_db_path,
-            "candidate_db_path": candidate_db_path,
-            "promoted_backup_path": promoted_backup_path,
-            "candidate_preserved": bool(
-                candidate_db_path
-                and os.path.exists(candidate_db_path)
-                and candidate_db_path != primary_db_path
-            ),
-            "cache_file": cache_file,
-        },
-        "counts": {
-            "total_candidates": int(total_files),
-            "success_count": len(successfully_processed_files),
-            "error_count": len(critical_errors),
-            "deterministic_failure_count": len(deterministic_failed_files),
-            "derivadas_sheet_count": len(derivadas_sheet_files),
-            "db_only_derivadas_sync": bool(db_only_derivadas_sync),
-            "derivadas_sync_blocking_error": bool(derivadas_sync_blocking_error),
-            "sync_materialized": bool(sync_materialized),
-            "ignored_legacy_excel_count": len(ignored_legacy_excel_files),
-            "rows_extracted_total": total_rows_extracted,
-            "rows_removed_invalid_identity_total": total_rows_removed_invalid_identity,
-            "rows_ready_for_insert_total": total_rows_ready_for_insert,
-            "rows_inserted_total": total_rows_inserted,
-        },
-        "files": {
-            "candidates": [os.path.basename(p) for p in files_to_process],
-            "success": [os.path.basename(p) for p in successfully_processed_files],
-            "deterministic_failed": [
-                os.path.basename(p) for p in deterministic_failed_files
-            ],
-            "derivadas_sheet_files": [
-                os.path.basename(p) for p in derivadas_sheet_files
-            ],
-            "ignored_legacy_excel": [
-                os.path.basename(p) for p in ignored_legacy_excel_files
-            ],
-        },
-        "errors": [
-            {
-                "type": error_type,
-                "file": os.path.basename(file_path),
-                "message": message,
-            }
-            for error_type, file_path, message in critical_errors
-        ],
-        "integrity": {
-            "is_valid": integrity_report.get("is_valid"),
-            "issue_count": len(integrity_report.get("issues", [])),
-            "warning_count": len(integrity_report.get("warnings", [])),
-        },
-        "file_reports": file_reports,
-    }
 
 
 def _process_file_with_resilience(
@@ -2670,374 +2469,6 @@ def run_importer_logic(
         )
         _finalize_and_return(False, "unexpected_exception", str(e))
         raise ImporterError("Erro critico no processo de importacao.") from e
-
-
-def parse_search_terms(
-    search_terms: Any,
-    default_mode: str = "contains",
-) -> List[Dict[str, Any]]:
-    """
-    Converte termos brutos em uma estrutura padronizada com modo e polaridade.
-
-    SIMPLIFIED RAW STRING CONTRACT:
-    - Raw strings split only by commas before parsing.
-    - Raw strings do not parse logical operators such as OU/OR/AND/E.
-    - General search applies implicit AND between terms (all raw terms stay in group=0).
-    - Each term may match any searched field; grouped OR is only preserved when the
-      caller provides pre-parsed dict terms with explicit group metadata.
-
-    Modos aceitos por termo:
-    - contem (padrao): foo
-    - comeca com: ^foo
-    - termina com: foo$
-    - igual: =foo
-    - regex: ~foo.*bar
-    Negativo: prefixar ! (ou -) antes do termo (ex.: !^adm, !=fechado, !$2025, !~regex)
-    """
-    parsed: List[Dict[str, Any]] = []
-    if search_terms is None:
-        return parsed
-    if isinstance(search_terms, list):
-        normalized_terms: list[Any] = search_terms
-    elif isinstance(search_terms, tuple):
-        normalized_terms = list(search_terms)
-    elif isinstance(search_terms, str):
-        normalized_terms = [search_terms]
-    else:
-        logger.warning(
-            "parse_search_terms recebeu tipo invalido de search_terms: %s",
-            type(search_terms).__name__,
-        )
-        return parsed
-    if len(normalized_terms) == 0:
-        return parsed
-
-    allowed_modes = {"contains", "prefix", "suffix", "exact", "regex"}
-    fallback_mode = default_mode if default_mode in allowed_modes else "contains"
-
-    # Simplified: split only by commas, then process all terms with group=0 (AND logic)
-    for raw in normalized_terms:
-        if not isinstance(raw, str):
-            continue
-        raw_chunks = [chunk.strip() for chunk in raw.split(",")]
-        for raw_chunk in raw_chunks:
-            t = raw_chunk.strip()
-            if not t:
-                continue
-            negative = False
-            if (t.startswith("!") or t.startswith("-")) and len(t) > 1:
-                negative = True
-                t = t[1:]
-            mode = fallback_mode
-            value = t
-            if t.startswith("~") and len(t) > 1:
-                mode = "regex"
-                value = t[1:]
-            elif t.startswith("=") and len(t) > 1:
-                mode = "exact"
-                value = t[1:]
-            elif t.startswith("$") and len(t) > 1:
-                mode = "suffix"
-                value = t[1:]
-            elif fallback_mode != "regex" and t.startswith("^") and len(t) > 1:
-                mode = "prefix"
-                value = t[1:]
-            elif fallback_mode != "regex" and t.endswith("$") and len(t) > 1:
-                mode = "suffix"
-                value = t[:-1]
-            parsed.append(
-                {
-                    "raw": raw_chunk,
-                    "mode": mode,
-                    "value": value,
-                    "negative": negative,
-                    "group": 0,  # All terms in same group (AND logic)
-                }
-            )
-    return parsed
-
-
-def filter_dataframe(
-    df: pd.DataFrame, search_terms: Any, search_columns: Optional[list] = None
-) -> pd.DataFrame:
-    """
-    Filtra um DataFrame com base em uma lista de termos de busca (strings) ou
-    termos ja parseados por parse_search_terms().
-
-     OTIMIZACAO: Agora permite especificar colunas de busca para melhor performance.
-
-    Args:
-        df: DataFrame para filtrar
-        search_terms: Lista de termos de busca ou termos parseados
-        search_columns: Lista de colunas especificas para buscar. Se None, busca nas
-                       colunas prioritarias disponiveis para busca geral, incluindo
-                       numero, situacao, setores, descricoes e campos humanos como
-                       solicitante e responsavel_*.
-
-    Modos por termo: contem (padrao), comeca (^), termina ($), igual (=), regex (~),
-    com suporte a negativos (! ou -).
-
-    Contrato atual:
-    - termos brutos (str) seguem o parser simplificado atual: AND implicito entre termos
-    - cada termo e satisfeito quando qualquer campo pesquisavel da linha corresponder
-    - termos ja parseados (dict) ainda podem carregar grupos legados para OR entre grupos
-    """
-    if df is None or df.empty:
-        return df
-    if isinstance(search_terms, list):
-        normalized_search_terms: list[Any] = search_terms
-    elif isinstance(search_terms, tuple):
-        normalized_search_terms = list(search_terms)
-    elif isinstance(search_terms, str):
-        normalized_search_terms = [search_terms]
-    else:
-        logger.warning(
-            "filter_dataframe recebeu search_terms invalido (%s); retornando DataFrame sem filtro",
-            type(search_terms).__name__,
-        )
-        return df
-    if len(normalized_search_terms) == 0:
-        return df
-
-    #  OTIMIZACAO: Usar apenas colunas prioritarias se nao especificado
-    if search_columns is None:
-        # Colunas mais frequentemente pesquisadas (ordem por relevancia)
-        # Inclui campos de descricao utilizados na GUI: descricao_ssa e descricao_execucao
-        priority_columns = [
-            "numero_ssa",
-            "situacao",
-            "solicitante",
-            "responsavel_solicitante",
-            "responsavel_programacao",
-            "responsavel_execucao",
-            "setor_executor",
-            "setor_emissor",
-            "localizacao_codigo",
-            "descricao_localizacao",
-            "descricao_ssa",
-            "descricao_execucao",
-            "descricao_servico",
-            "observacao",
-            "prazo_limite_str",
-            "data_cadastro_str",
-        ]
-        # Filtrar apenas colunas que existem no DataFrame
-        search_columns = [col for col in priority_columns if col in df.columns]
-
-        # Se nenhuma coluna prioritaria existe, usar todas as de texto como fallback
-        if not search_columns:
-            search_columns = df.select_dtypes(
-                include=["object", "string"]
-            ).columns.tolist()
-
-    # Criar DataFrame base apenas com colunas de busca
-    available_search_cols = [col for col in search_columns if col in df.columns]
-    if not available_search_cols:
-        logger.warning("Nenhuma coluna de busca valida encontrada")
-        return df
-
-    # Permite tanto termos brutos (str) quanto parseados (dict)
-    terms: List[Dict[str, Any]]
-    if isinstance(normalized_search_terms[0], dict):
-        terms = [
-            cast(Dict[str, Any], term)
-            for term in normalized_search_terms
-            if isinstance(term, dict)
-        ]
-    else:
-        terms = parse_search_terms(normalized_search_terms)
-
-    if not terms:
-        return df
-
-    # Cache de patterns: pre-compila patterns para evitar re.escape repetido
-    pattern_cache = {}
-    for term in terms:
-        mode = term.get("mode", "contains")
-        value = term.get("value", "") or ""
-        cache_key = (mode, value)
-
-        if cache_key not in pattern_cache:
-            if mode == "contains":
-                pattern_cache[cache_key] = (value, False)
-            elif mode == "prefix":
-                pattern_cache[cache_key] = (f"^{re.escape(value)}", True)
-            elif mode == "suffix":
-                pattern_cache[cache_key] = (f"{re.escape(value)}$", True)
-            elif mode == "exact":
-                pattern_cache[cache_key] = (f"^{re.escape(value)}$", True)
-            elif mode == "regex":
-                pattern_cache[cache_key] = (value, True)
-            else:
-                pattern_cache[cache_key] = (value, False)
-
-    search_cache_token = FilterSearchCacheManager.build_token(df, available_search_cols)
-    cached_search_data = FilterSearchCacheManager.get_cached_search_data(
-        df, search_cache_token
-    )
-    base_lower_df: pd.DataFrame | None = None
-    row_search_text: pd.Series | None = None
-
-    if cached_search_data is not None:
-        cached_base = cached_search_data.get("base_lower_df")
-        cached_rows = cached_search_data.get("row_search_text")
-        if isinstance(cached_base, pd.DataFrame) and len(cached_base.index) == len(df.index):
-            base_lower_df = cached_base
-        if isinstance(cached_rows, pd.Series) and len(cached_rows.index) == len(df.index):
-            row_search_text = cached_rows
-
-    if row_search_text is None:
-        search_df = df.loc[:, available_search_cols].copy(deep=False)
-        search_df.attrs = {}
-        base_str_df = search_df.astype("string").fillna("")
-        if base_str_df.shape[1] == 0:
-            return FilterSearchCacheManager.clear_result_attrs(df.iloc[0:0])
-        normalized_columns = [
-            base_str_df[column_name]
-            .str.casefold()
-            .str.replace(FILTER_FIELD_SEPARATOR, " ", regex=False)
-            for column_name in base_str_df.columns
-        ]
-        if len(normalized_columns) == 1:
-            row_search_text = normalized_columns[0]
-        else:
-            batch_segments: list[pd.Series] = []
-            for batch_start in range(
-                0, len(normalized_columns), FILTER_ROW_SEARCH_BATCH_SIZE
-            ):
-                batch_end = batch_start + FILTER_ROW_SEARCH_BATCH_SIZE
-                batch_segment = normalized_columns[batch_start]
-                for normalized_column in normalized_columns[batch_start + 1 : batch_end]:
-                    batch_segment = batch_segment.str.cat(
-                        normalized_column,
-                        sep=FILTER_FIELD_SEPARATOR,
-                        na_rep="",
-                    )
-                batch_segments.append(batch_segment)
-            row_search_text = batch_segments[0]
-            for batch_segment in batch_segments[1:]:
-                row_search_text = row_search_text.str.cat(
-                    batch_segment,
-                    sep=FILTER_FIELD_SEPARATOR,
-                    na_rep="",
-                )
-        FilterSearchCacheManager.store_cached_search_data(
-            df, search_cache_token, base_lower_df, row_search_text
-        )
-        cached_search_data = FilterSearchCacheManager.get_cached_search_data(
-            df, search_cache_token
-        )
-
-    assert row_search_text is not None
-
-    logger.debug(
-        "Buscando em %s colunas: %s",
-        len(available_search_cols),
-        list(available_search_cols),
-    )
-
-    def _mask_for_term(term: Dict[str, Any]) -> pd.Series:
-        mode = term.get("mode", "contains")
-        value = term.get("value", "") or ""
-        cache_key = (mode, value)
-
-        pattern, use_regex = pattern_cache.get(cache_key, (value, False))
-
-        def _fieldwise_regex(pattern_text: str) -> pd.Series:
-            nonlocal base_lower_df, cached_search_data
-            if base_lower_df is None:
-                search_df = df.loc[:, available_search_cols].copy(deep=False)
-                search_df.attrs = {}
-                base_str_df = search_df.astype("string").fillna("")
-                if base_str_df.shape[1] == 0:
-                    return pd.Series(False, index=df.index)
-                base_lower_df = base_str_df.apply(
-                    lambda col: col.str.casefold().str.replace(
-                        FILTER_FIELD_SEPARATOR, " ", regex=False
-                    )
-                )
-                if (
-                    len(df.index) <= FILTER_SEARCH_FIELDWISE_CACHE_MAX_ROWS
-                    and isinstance(cached_search_data, dict)
-                ):
-                    cached_search_data["base_lower_df"] = base_lower_df
-            per_column_masks = [
-                base_lower_df[column_name].str.contains(
-                    pattern_text, case=False, na=False, regex=True
-                )
-                for column_name in base_lower_df.columns
-            ]
-            if not per_column_masks:
-                return pd.Series(False, index=df.index)
-            field_mask = per_column_masks[0]
-            for column_mask in per_column_masks[1:]:
-                field_mask = field_mask | column_mask
-            return field_mask
-
-        def _contains(pattern: str, *, regex: bool) -> pd.Series:
-            if regex:
-                return row_search_text.str.contains(
-                    pattern, case=False, na=False, regex=True
-                )
-
-            lowered = str(pattern).casefold()
-            return row_search_text.str.contains(lowered, regex=False, na=False)
-
-        if mode == "regex":
-            try:
-                if "^" in pattern or "$" in pattern:
-                    return _fieldwise_regex(pattern)
-                return row_search_text.str.contains(
-                    pattern, case=False, na=False, regex=True
-                )
-            except re.error:
-                lowered = str(pattern).casefold()
-                return row_search_text.str.contains(lowered, regex=False, na=False)
-
-        lowered = str(value).casefold()
-        if mode == "prefix":
-            field_pattern = (
-                rf"(?:^|{re.escape(FILTER_FIELD_SEPARATOR)}){re.escape(lowered)}"
-            )
-            return row_search_text.str.contains(field_pattern, na=False, regex=True)
-        if mode == "suffix":
-            field_pattern = (
-                rf"{re.escape(lowered)}(?:$|{re.escape(FILTER_FIELD_SEPARATOR)})"
-            )
-            return row_search_text.str.contains(field_pattern, na=False, regex=True)
-        if mode == "exact":
-            field_pattern = (
-                rf"(?:^|{re.escape(FILTER_FIELD_SEPARATOR)})"
-                rf"{re.escape(lowered)}"
-                rf"(?:$|{re.escape(FILTER_FIELD_SEPARATOR)})"
-            )
-            return row_search_text.str.contains(field_pattern, na=False, regex=True)
-
-        return _contains(pattern, regex=use_regex)
-
-    grouped_terms: Dict[int, List[Dict[str, Any]]] = {}
-    for term in terms:
-        group_idx = term.get("group", 0)
-        grouped_terms.setdefault(int(group_idx), []).append(term)
-
-    final_mask = pd.Series(False, index=df.index)
-    for group_terms in grouped_terms.values():
-        group_mask = pd.Series(True, index=df.index)
-        positives = [t for t in group_terms if not t.get("negative")]
-        negatives = [t for t in group_terms if t.get("negative")]
-
-        for term in positives:
-            group_mask = group_mask & _mask_for_term(term)
-
-        for term in negatives:
-            group_mask = group_mask & (~_mask_for_term(term))
-
-        final_mask = final_mask | group_mask
-
-    if final_mask.any():
-        return FilterSearchCacheManager.clear_result_attrs(df[final_mask])
-    return FilterSearchCacheManager.clear_result_attrs(df.iloc[0:0])
-
 
 def import_files_to_database(
     docs_dir: str,

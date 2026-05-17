@@ -1,0 +1,25 @@
+"""Default search column policy for non-GUI callers."""
+
+DEFAULT_FILTER_SEARCH_COLUMNS = (
+    "numero_ssa",
+    "situacao",
+    "solicitante",
+    "responsavel_solicitante",
+    "responsavel_programacao",
+    "responsavel_execucao",
+    "setor_executor",
+    "setor_emissor",
+    "localizacao_codigo",
+    "descricao_localizacao",
+    "descricao_ssa",
+    "descricao_execucao",
+    "descricao_servico",
+    "observacao",
+    "grau_prioridade",
+    "grau_prioridade_emissao",
+    "grau_prioridade_planejamento",
+    "prioridade_emissao",
+    "prioridade_planejamento",
+    "prazo_limite_str",
+    "data_cadastro_str",
+)
