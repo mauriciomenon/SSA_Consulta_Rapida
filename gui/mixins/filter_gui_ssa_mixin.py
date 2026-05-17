@@ -9,6 +9,7 @@ Padrao de nomenclatura: funcao_pai_mixin.py
 """
 
 # Imports necessarios
+import copy
 import json
 import os
 import re
@@ -21,7 +22,6 @@ import pandas as pd
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
     QHBoxLayout,
-    QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -74,6 +74,7 @@ from gui.ssa.column_filter_runtime import (
 )
 from gui.ssa.column_filter_engine import ColumnFilterCaches
 from gui.ssa.column_filter_engine import apply_column_filters as apply_column_filters
+from gui.ssa.column_filter_panel import build_column_filters_panel
 from gui.ssa.filter_cache_context import (
     build_filter_cache_context_from_parts,
     build_filter_cache_parts,
@@ -145,26 +146,8 @@ _CLEAR_FILTER_HARD_RESET_CLICK_TARGET = 3
 _CLEAR_FILTER_HARD_RESET_WINDOW_SEC = 3.0
 
 
-def _copy_filter_value(value: Any, *, depth: int = 0) -> Any:
-    if value is None or isinstance(value, str | int | float | bool):
-        return value
-    if depth > 4:
-        return str(value)
-    if isinstance(value, dict):
-        return {
-            key: _copy_filter_value(item, depth=depth + 1)
-            for key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [_copy_filter_value(item, depth=depth + 1) for item in value]
-    if isinstance(value, tuple):
-        return tuple(_copy_filter_value(item, depth=depth + 1) for item in value)
-    if isinstance(value, set):
-        return {
-            _copy_filter_value(item, depth=depth + 1)
-            for item in sorted(value, key=lambda item: str(item))
-        }
-    return value
+def _copy_filter_value(value: Any) -> Any:
+    return copy.deepcopy(value)
 
 
 def _copy_filter_mapping(value: Any) -> dict:
@@ -722,7 +705,7 @@ class FilterGUISSAMixin:
             return filter_source.iloc[0:0].copy()
         if len(unique_chunk_terms_lists) == 1:
             return filter_source.loc[combined_mask]
-        return filter_source.loc[combined_mask].reset_index(drop=True)
+        return filter_source.loc[combined_mask]
 
     def _get_default_filter_mode(self) -> str:
         if not hasattr(self, "_cached_default_mode"):
@@ -1478,357 +1461,8 @@ class FilterGUISSAMixin:
         self._build_column_filters_panel()
         self._refresh_after_filter_change()
 
-    def _build_column_filter_row_widget(
-        self,
-        col: str,
-        term: Any,
-        min_label_column_width: int,
-    ) -> QWidget:
-        row_pool = getattr(self, "_column_filter_row_pool", None)
-        if not isinstance(row_pool, dict):
-            row_pool = {}
-            self._column_filter_row_pool = row_pool
-        full_name = self._expand_column_alias_for_filter(col)
-        try:
-            display_text = self._format_column_filter_display_value(
-                str(term), column=col
-            )
-        except Exception:
-            display_text = str(term)
-        pooled = row_pool.get(col)
-        if isinstance(pooled, dict):
-            row_w = pooled.get("row_widget")
-            name_lbl = pooled.get("label")
-            term_box = pooled.get("input")
-            hide_btn = pooled.get("hide")
-            if (
-                isinstance(row_w, QWidget)
-                and isinstance(name_lbl, QLabel)
-                and isinstance(term_box, QLineEdit)
-            ):
-                name_lbl.setText(full_name)
-                self._configure_column_filter_label(
-                    name_lbl, col, full_name, min_label_column_width
-                )
-                with _blocked_widget_signals(
-                    term_box, log_context=f"reuse_column_filter_{col}"
-                ):
-                    term_box.setText(display_text)
-                self._column_filter_labels[col] = name_lbl
-                self._column_filter_inputs[col] = term_box
-                row_w.setVisible(True)
-                return row_w
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(4)
-        name_lbl = QLabel(full_name)
-        self._column_filter_labels[col] = name_lbl
-        self._configure_column_filter_label(name_lbl, col, full_name, min_label_column_width)
-        term_box = QLineEdit(display_text)
-        self._column_filter_inputs[col] = term_box
-        self._configure_column_filter_input(term_box, col)
-        self._apply_filter_widget_theme(name_lbl, term_box)
-        apply_btn = self._build_column_filter_button(
-            "↵",
-            col,
-            tooltip="Aplicar filtro desta coluna.",
-        )
-        clear_btn = self._build_column_filter_button(
-            "⌫",
-            col,
-            tooltip="Limpa o valor desta coluna e reaplica os filtros.",
-        )
-        hide_btn = self._build_column_filter_button(
-            "Ocultar",
-            col,
-            tooltip="Oculta a linha somente quando o filtro da coluna estiver vazio.",
-        )
-        self._connect_column_filter_row_actions(col, term_box, apply_btn, clear_btn, hide_btn)
-        row.addWidget(name_lbl)
-        row.addWidget(term_box, 1)
-        row.addWidget(apply_btn)
-        row.addWidget(clear_btn)
-        row.addWidget(hide_btn)
-        row_w = QWidget()
-        row_w.setLayout(row)
-        row_pool[col] = {
-            "row_widget": row_w,
-            "label": name_lbl,
-            "input": term_box,
-            "apply": apply_btn,
-            "clear": clear_btn,
-            "hide": hide_btn,
-        }
-        return row_w
-
-    def _configure_column_filter_label(
-        self,
-        label: QLabel,
-        col: str,
-        full_name: str,
-        min_label_column_width: int,
-    ) -> None:
-        try:
-            width_cache = getattr(self, "_column_filter_label_width_cache", None)
-            if not isinstance(width_cache, dict):
-                width_cache = {}
-                self._column_filter_label_width_cache = width_cache
-            label_font = label.font()
-            cache_key = (
-                str(full_name),
-                int(min_label_column_width),
-                label_font.family(),
-                int(label_font.pointSize()),
-                int(label_font.weight()),
-            )
-            dynamic_width = width_cache.get(cache_key)
-            if not isinstance(dynamic_width, int):
-                label_metrics = label.fontMetrics()
-                desired_width = int(label_metrics.horizontalAdvance(full_name) + 16)
-                dynamic_width = max(78, min(150, desired_width))
-                width_cache[cache_key] = dynamic_width
-            label.setMinimumWidth(max(min_label_column_width, dynamic_width))
-        except Exception as exc:
-            logger.debug(
-                "Falha ao ajustar largura do label do filtro de coluna %s: %s",
-                col,
-                exc,
-            )
-            label.setMinimumWidth(min_label_column_width)
-        try:
-            label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao aplicar size policy no label do filtro de coluna %s: %s",
-                col,
-                exc,
-            )
-
-    def _configure_column_filter_input(self, term_box: QLineEdit, col: str) -> None:
-        term_box.setPlaceholderText(
-            "Termos separados por virgula sao alternativas. Modos: foo, ^pre, suf$, =exato, ~^regex, !neg"
-        )
-        term_box.setMinimumWidth(220)
-        try:
-            term_box.setMinimumHeight(26)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao aplicar altura minima no input do filtro de coluna %s: %s",
-                col,
-                exc,
-            )
-        try:
-            term_box.setSizePolicy(
-                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-            )
-        except Exception as exc:
-            logger.debug(
-                "Falha ao aplicar size policy no input do filtro de coluna %s: %s",
-                col,
-                exc,
-            )
-
-    def _build_column_filter_button(
-        self,
-        text: str,
-        col: str,
-        *,
-        tooltip: str | None = None,
-    ) -> QPushButton:
-        button = QPushButton(text)
-        try:
-            button.setMinimumHeight(26)
-            button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            button.setFixedWidth(42 if len(text) <= 2 else 70)
-            if tooltip:
-                button.setToolTip(tooltip)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao configurar botao %s do filtro de coluna %s: %s",
-                text,
-                col,
-                exc,
-            )
-        return button
-
-    def _connect_column_filter_row_actions(
-        self,
-        col: str,
-        term_box: QLineEdit,
-        apply_btn: QPushButton,
-        clear_btn: QPushButton,
-        hide_btn: QPushButton,
-    ) -> None:
-        def apply_current_text() -> None:
-            new_text = str(term_box.text()).strip()
-            current_text = str(self._active_column_filters.get(col, "")).strip()
-            if new_text == current_text:
-                self._sync_or_group_values(col, new_text)
-                self._build_column_filters_panel()
-                self._refresh_after_filter_change()
-                self._sync_clear_filter_button_state()
-                return
-            self._safe_store_last_filter_state("apply_column_filter")
-            self._active_column_filters[col] = new_text
-            self._sync_or_group_values(col, new_text)
-            self._mark_profile_as_custom()
-            self._build_column_filters_panel()
-            self._refresh_after_filter_change()
-            self._sync_clear_filter_button_state()
-
-        def clear_current_text() -> None:
-            current_text = str(self._active_column_filters.get(col, "")).strip()
-            typed_raw = str(term_box.text())
-            if not current_text and not typed_raw:
-                return
-            self._safe_store_last_filter_state("clear_column_filter_value")
-            self._active_column_filters[col] = ""
-            self._sync_or_group_values(col, "")
-            with _blocked_widget_signals(
-                term_box, log_context=f"clear_column_filter_{col}"
-            ):
-                term_box.setText("")
-            self._mark_profile_as_custom()
-            self._build_column_filters_panel()
-            self._refresh_after_filter_change()
-            self._sync_clear_filter_button_state()
-
-        try:
-            term_box.returnPressed.connect(apply_current_text)
-            apply_btn.clicked.connect(apply_current_text)
-            clear_btn.clicked.connect(clear_current_text)
-            hide_btn.clicked.connect(
-                lambda _checked=False, column=col: self._try_hide_column_filter_line(
-                    column
-                )
-            )
-        except Exception as exc:
-            logger.debug(
-                "Falha ao conectar controles do filtro de coluna %s: %s",
-                col,
-                exc,
-            )
-
     def _build_column_filters_panel(self):
-        # Escolhe layout de lista (compatável com versões antigas e novas)
-        target_layout = None
-        if hasattr(self, "col_filters_list_layout"):
-            target_layout = self.col_filters_list_layout
-        elif hasattr(self, "col_filters_layout"):
-            target_layout = self.col_filters_layout
-        else:
-            return
-
-        row_pool = getattr(self, "_column_filter_row_pool", None)
-        if not isinstance(row_pool, dict):
-            row_pool = {}
-            self._column_filter_row_pool = row_pool
-        pending_focused_text = self._capture_focused_column_filter_text()
-        while target_layout.count():
-            item = target_layout.takeAt(0)
-            w = item.widget()
-            if w:
-                w.setVisible(False)
-                w.setParent(None)
-        self._column_filter_inputs = {}
-        self._column_filter_labels = {}
-        # Controle de linhas ocultas (somente exibição)
-        if not hasattr(self, "_hidden_column_filter_lines"):
-            self._hidden_column_filter_lines = set()
-
-        if not self._active_column_filters:
-            self._active_column_filters = OrderedDict(
-                (col, "") for col in self._column_filter_default_columns()
-            )
-
-        # Keep a minimum label column aligned with "Descricao Execucao".
-        # If a label is longer, current behavior still pushes the input right.
-        font_obj = getattr(self, "_info_font", None)
-        font_key = None
-        if font_obj is not None:
-            try:
-                font_key = (
-                    str(font_obj.family()),
-                    int(font_obj.pointSize()),
-                    int(font_obj.pixelSize()),
-                    bool(font_obj.bold()),
-                )
-            except Exception:
-                font_key = None
-        cached_label_width = getattr(self, "_column_filter_label_width", None)
-        cached_label_width_key = getattr(
-            self, "_column_filter_label_width_key", None
-        )
-        min_label_column_width = cached_label_width
-        if (
-            not isinstance(min_label_column_width, int)
-            or cached_label_width_key != font_key
-        ):
-            min_label_column_width = 100
-            try:
-                ref_name = self._expand_column_alias_for_filter("descricao_execucao")
-                ref_probe = QLabel(ref_name)
-                if font_obj is not None:
-                    ref_probe.setFont(font_obj)
-                ref_metrics = ref_probe.fontMetrics()
-                ref_width = int(ref_metrics.horizontalAdvance(ref_name) + 16)
-                min_label_column_width = max(100, min(260, ref_width))
-                self._column_filter_label_width = min_label_column_width
-                self._column_filter_label_width_key = font_key
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao calcular largura minima de alinhamento dos labels de filtro: %s",
-                    exc,
-                )
-
-        for col, term in self._active_column_filters.items():
-            if (
-                hasattr(self, "_hidden_column_filter_lines")
-                and col in self._hidden_column_filter_lines
-            ):
-                continue
-            display_term = pending_focused_text.get(col, term)
-            target_layout.addWidget(
-                self._build_column_filter_row_widget(
-                    col, display_term, min_label_column_width
-                )
-            )
-
-        self._update_col_filter_indicator()
-        focus_col = self._pending_filter_focus
-        if focus_col and focus_col in self._column_filter_inputs:
-            try:
-                widget = self._column_filter_inputs[focus_col]
-                widget.setFocus()
-                widget.selectAll()
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao focar campo do filtro de coluna %s: %s", focus_col, exc
-                )
-        self._pending_filter_focus = None
-        self._refresh_column_filter_widgets()
-        # Botção limpar todos
-        # Rodape centralizado (se nao houver barra fixa)
-        if not hasattr(self, "clear_all_btn"):
-            clear_all = QPushButton("Limpar todos filtros de colunas")
-            clear_all.setMaximumWidth(260)
-            clear_all.clicked.connect(self._clear_all_column_filters)
-            footer = QHBoxLayout()
-            footer.addStretch()
-            footer.addWidget(clear_all)
-            footer.addStretch()
-            row_w = QWidget()
-            row_w.setLayout(footer)
-            target_layout.addWidget(row_w)
-        target_layout.addStretch()
-        try:
-            if hasattr(self, "_sync_bottom_panel_heights"):
-                self._sync_bottom_panel_heights()
-        except Exception as exc:
-            logger.debug(
-                "Falha ao sincronizar altura dos paineis inferiores apos rebuild de filtros por coluna: %s",
-                exc,
-            )
+        build_column_filters_panel(self)
 
     def _capture_focused_column_filter_text(self) -> dict[str, str]:
         pending: dict[str, str] = {}
@@ -2841,6 +2475,11 @@ class FilterGUISSAMixin:
         except Exception:
             current_value = ""
         if current_value:
+            hidden_lines = getattr(self, "_hidden_column_filter_lines", None)
+            if isinstance(hidden_lines, set) and column_name in hidden_lines:
+                hidden_lines.discard(column_name)
+                self._pending_filter_focus = column_name
+                self._build_column_filters_panel()
             try:
                 display_name = self._resolve_column_display_name(column_name)
             except Exception:
