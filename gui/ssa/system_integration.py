@@ -66,6 +66,8 @@ def validate_local_open_target(
         raise ValueError("Caminho vazio para abertura.")
     if any(ch in raw for ch in ("\x00", "\n", "\r")):
         raise ValueError("Caminho contem caracteres invalidos.")
+    if _contains_command_metacharacter(raw):
+        raise ValueError("Caminho contem caracteres reservados para comandos.")
     raw_parts = [part for part in raw.replace("\\", "/").split("/") if part]
     if ".." in raw_parts:
         raise ValueError("Caminho com parent traversal nao permitido.")
@@ -75,6 +77,10 @@ def validate_local_open_target(
         raise ValueError(
             "Caminho inicia com '-' e pode ser interpretado como opcao de comando."
         )
+    if any(part.startswith("-") for part in normalized.split(os.sep) if part):
+        raise ValueError(
+            "Caminho contem parte iniciada por '-' e pode ser interpretada como opcao."
+        )
     if must_exist and not os.path.exists(normalized):
         raise FileNotFoundError(f"Caminho nao encontrado: {normalized}")
     if expect_dir is True and os.path.exists(normalized) and not os.path.isdir(normalized):
@@ -82,6 +88,10 @@ def validate_local_open_target(
     if expect_dir is False and os.path.exists(normalized) and os.path.isdir(normalized):
         raise ValueError(f"Era esperado arquivo: {normalized}")
     return normalized
+
+
+def _contains_command_metacharacter(raw_path: str) -> bool:
+    return any(ch in raw_path for ch in (";", "&", "|", "`", "$", "<", ">"))
 
 
 def _validate_allowed_base(
@@ -125,3 +135,9 @@ def resolve_platform_open_command() -> str:
         if path_module.isabs(fallback_abs) and path_module.isfile(fallback_abs):
             return fallback_abs
     raise RuntimeError(f"Comando indisponivel para abrir recurso: {cmd}")
+
+
+def build_platform_open_args(command: str, target_path: str) -> list[str]:
+    if sys.platform.startswith("win"):
+        return [command, target_path]
+    return [command, "--", target_path]

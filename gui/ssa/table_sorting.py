@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 import pandas as pd
+
+
+MAX_SORT_CACHE_ROWS = 120_000
 
 
 def empty_num_reprogramacoes_sort_keys(index: pd.Index | None = None) -> pd.DataFrame:
@@ -79,7 +83,7 @@ def build_mixed_text_sort_keys(source_series: pd.Series) -> pd.DataFrame:
     empty_mask = source_series.isna() | raw_text.eq("")
     normalized_numeric_text = raw_text.str.replace(",", ".", regex=False)
     is_numeric = normalized_numeric_text.str.fullmatch(
-        r"[+-]?\d+(?:\.\d+)?"
+        r"[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?"
     ).fillna(False)
     numeric_values = pd.to_numeric(
         normalized_numeric_text.where(is_numeric), errors="coerce"
@@ -116,34 +120,22 @@ def build_mixed_text_sort_keys(source_series: pd.Series) -> pd.DataFrame:
 def get_mixed_text_sort_keys(
     window: Any, source_df: pd.DataFrame, column_name: str
 ) -> pd.DataFrame:
-    source_id = id(source_df)
+    source_marker = _get_sort_cache_source_marker(source_df, (column_name,))
     source_len = len(source_df.index)
     cache = getattr(window, "_mixed_text_sort_cache", None)
     keys_df = _get_valid_sort_cache_frame(
         cache,
-        source_df.index,
-        source_id=source_id,
+        source_marker=source_marker,
         source_len=source_len,
         column_name=column_name,
     )
     if keys_df is None:
         keys_df = _build_mixed_text_sort_keys_for_window(window, source_df[column_name])
-        window._mixed_text_sort_cache = {
-            "column_name": column_name,
-            "source_id": source_id,
-            "source_len": source_len,
-            "keys_df": keys_df,
-        }
+        _store_mixed_text_sort_cache(
+            window, column_name, source_marker, source_len, keys_df
+        )
     if not isinstance(keys_df, pd.DataFrame):
         keys_df = _build_mixed_text_sort_keys_for_window(window, source_df[column_name])
-    if not keys_df.index.equals(source_df.index):
-        keys_df = _build_mixed_text_sort_keys_for_window(window, source_df[column_name])
-        window._mixed_text_sort_cache = {
-            "column_name": column_name,
-            "source_id": source_id,
-            "source_len": source_len,
-            "keys_df": keys_df,
-        }
     return keys_df
 
 
@@ -179,12 +171,16 @@ def sort_mixed_text_column_robust(
         kind="mergesort",
     ).index
     sorted_df = source_df.loc[ordered_index]
-    window._mixed_text_sort_cache = {
-        "column_name": column_name,
-        "source_id": id(sorted_df),
-        "source_len": len(sorted_df.index),
-        "keys_df": sort_keys.loc[ordered_index],
-    }
+    sorted_df.attrs["_ssa_sort_cache_base_token"] = _get_sort_cache_base_token(
+        source_df
+    )
+    _store_mixed_text_sort_cache(
+        window,
+        column_name,
+        _get_sort_cache_source_marker(sorted_df, (column_name,)),
+        len(sorted_df.index),
+        sort_keys.loc[ordered_index],
+    )
     return sorted_df
 
 
@@ -195,31 +191,19 @@ def get_num_reprogramacoes_sort_keys(window: Any) -> pd.DataFrame:
     if "num_reprogramacoes" not in source_df.columns:
         return empty_num_reprogramacoes_sort_keys(source_df.index)
 
-    source_id = id(source_df)
+    source_marker = _get_sort_cache_source_marker(source_df, ("num_reprogramacoes",))
     source_len = len(source_df.index)
     cache = getattr(window, "_num_reprog_sort_cache", None)
     keys_df = _get_valid_sort_cache_frame(
         cache,
-        source_df.index,
-        source_id=source_id,
+        source_marker=source_marker,
         source_len=source_len,
     )
     if keys_df is None:
         keys_df = _build_num_reprogramacoes_sort_keys_for_window(window, source_df)
-        window._num_reprog_sort_cache = {
-            "source_id": source_id,
-            "source_len": source_len,
-            "keys_df": keys_df,
-        }
+        _store_num_reprogramacoes_sort_cache(window, source_marker, source_len, keys_df)
     if not isinstance(keys_df, pd.DataFrame):
         keys_df = _build_num_reprogramacoes_sort_keys_for_window(window, source_df)
-    if not keys_df.index.equals(source_df.index):
-        keys_df = _build_num_reprogramacoes_sort_keys_for_window(window, source_df)
-        window._num_reprog_sort_cache = {
-            "source_id": source_id,
-            "source_len": source_len,
-            "keys_df": keys_df,
-        }
     return keys_df
 
 
@@ -232,11 +216,117 @@ def prime_num_reprogramacoes_sort_cache(window: Any) -> None:
         window._reset_num_reprogramacoes_sort_cache()
         return
     keys_df = _build_num_reprogramacoes_sort_keys_for_window(window, source_df)
-    window._num_reprog_sort_cache = {
-        "source_id": id(source_df),
-        "source_len": len(source_df.index),
-        "keys_df": keys_df,
-    }
+    _store_num_reprogramacoes_sort_cache(
+        window,
+        _get_sort_cache_source_marker(source_df, ("num_reprogramacoes",)),
+        len(source_df.index),
+        keys_df,
+    )
+
+
+def store_num_reprogramacoes_sort_cache(
+    window: Any, source_df: pd.DataFrame, keys_df: pd.DataFrame
+) -> None:
+    _store_num_reprogramacoes_sort_cache(
+        window,
+        _get_sort_cache_source_marker(source_df, ("num_reprogramacoes",)),
+        len(source_df.index),
+        keys_df,
+    )
+
+
+def _store_mixed_text_sort_cache(
+    window: Any,
+    column_name: str,
+    source_marker: tuple,
+    source_len: int,
+    keys_df: pd.DataFrame,
+) -> None:
+    _store_sort_cache(
+        window,
+        cache_attr="_mixed_text_sort_cache",
+        reset_method="_reset_mixed_text_sort_cache",
+        source_len=source_len,
+        payload={
+            "column_name": column_name,
+            "source_marker": source_marker,
+            "source_len": source_len,
+            "keys_df": keys_df,
+        },
+    )
+
+
+def _store_num_reprogramacoes_sort_cache(
+    window: Any,
+    source_marker: tuple,
+    source_len: int,
+    keys_df: pd.DataFrame,
+) -> None:
+    _store_sort_cache(
+        window,
+        cache_attr="_num_reprog_sort_cache",
+        reset_method="_reset_num_reprogramacoes_sort_cache",
+        source_len=source_len,
+        payload={
+            "source_marker": source_marker,
+            "source_len": source_len,
+            "keys_df": keys_df,
+        },
+    )
+
+
+def _store_sort_cache(
+    window: Any,
+    *,
+    cache_attr: str,
+    reset_method: str,
+    source_len: int,
+    payload: dict[str, Any],
+) -> None:
+    if source_len > MAX_SORT_CACHE_ROWS:
+        reset_cache = getattr(window, reset_method)
+        reset_cache()
+        return
+    setattr(window, cache_attr, payload)
+
+
+def _get_sort_cache_source_marker(
+    source_df: pd.DataFrame, columns: tuple[str, ...]
+) -> tuple:
+    return (
+        _get_sort_cache_base_token(source_df),
+        len(source_df.index),
+        tuple(columns),
+        _sample_sort_cache_values(source_df, columns),
+    )
+
+
+def _get_sort_cache_base_token(source_df: pd.DataFrame) -> str:
+    token = source_df.attrs.get("_ssa_sort_cache_base_token")
+    if isinstance(token, str) and token:
+        return token
+    token = uuid.uuid4().hex
+    source_df.attrs["_ssa_sort_cache_base_token"] = token
+    return token
+
+
+def _sample_sort_cache_values(
+    source_df: pd.DataFrame, columns: tuple[str, ...]
+) -> tuple[tuple[str, ...], ...]:
+    if source_df.empty:
+        return tuple()
+    row_indexes = sorted({0, len(source_df.index) // 2, len(source_df.index) - 1})
+    values: list[tuple[str, ...]] = []
+    for row_index in row_indexes:
+        row_values: list[str] = []
+        for column in columns:
+            if column not in source_df.columns:
+                row_values.append("")
+                continue
+            value = source_df.iloc[row_index][column]
+            row_values.append("" if pd.isna(value) else str(value))
+        values.append(tuple(row_values))
+    return tuple(values)
 
 
 def _build_mixed_text_sort_keys_for_window(
@@ -259,9 +349,8 @@ def _build_num_reprogramacoes_sort_keys_for_window(
 
 def _get_valid_sort_cache_frame(
     cache: Any,
-    expected_index: pd.Index,
     *,
-    source_id: int,
+    source_marker: tuple,
     source_len: int,
     column_name: str | None = None,
 ) -> pd.DataFrame | None:
@@ -275,10 +364,9 @@ def _get_valid_sort_cache_frame(
         return None
     keys_df = cache.get("keys_df")
     if (
-        cache.get("source_id") == source_id
+        cache.get("source_marker") == source_marker
         and cache_source_len == source_len
         and isinstance(keys_df, pd.DataFrame)
-        and keys_df.index.equals(expected_index)
     ):
         return keys_df
     return None

@@ -451,7 +451,7 @@ class TestGUITableRenderResilience:
             QApplication.processEvents()
 
         assert ok is True
-        assert update_details.call_count == 1
+        assert update_details.call_count == 0
         assert self.window._details_current_ssa == initial_ssa
         assert str(self.window.details_text.toHtml() or "") == initial_html
 

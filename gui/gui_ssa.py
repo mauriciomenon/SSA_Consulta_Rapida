@@ -1365,18 +1365,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
         gui_settings["table_cell_alignment"] = normalized
-        current_details_ssa = getattr(self, "_details_current_ssa", None)
-        current_details_series = None
-        if current_details_ssa:
-            try:
-                current_details_series = ssa_gui_details._get_series_for_ssa(
-                    self, current_details_ssa
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao resolver detalhes atuais antes de reaplicar alinhamento da tabela: %s",
-                    exc,
-                )
 
         for key, action in getattr(self, "_table_cell_alignment_actions", {}).items():
             try:
@@ -1385,17 +1373,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.debug("Falha ao atualizar check do alinhamento %s: %s", key, exc)
 
         persisted = self._persist_gui_preferences()
-        self.display_current_page(self.paginator.current_page, update_details=False)
-        if current_details_series is not None:
-            try:
-                ssa_gui_details._update_details_from_series(
-                    self, current_details_series
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao restaurar detalhes atuais apos mudar alinhamento da tabela: %s",
-                    exc,
-                )
+        ssa_gui_table.apply_table_cell_alignment(self, normalized)
 
         if persisted:
             self.status_label.setText(
@@ -1738,13 +1716,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._data_revision_request_id = None
         self._data_uuid = None
         self._num_reprog_sort_cache = {
-            "source_id": None,
+            "source_marker": None,
             "source_len": 0,
             "keys_df": None,
         }
         self._mixed_text_sort_cache = {
             "column_name": None,
-            "source_id": None,
+            "source_marker": None,
             "source_len": 0,
             "keys_df": None,
         }
@@ -2324,7 +2302,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _reset_mixed_text_sort_cache(self) -> None:
         self._mixed_text_sort_cache = {
             "column_name": None,
-            "source_id": None,
+            "source_marker": None,
             "source_len": 0,
             "keys_df": None,
         }
@@ -2334,7 +2312,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _reset_num_reprogramacoes_sort_cache(self) -> None:
         self._num_reprog_sort_cache = {
-            "source_id": None,
+            "source_marker": None,
             "source_len": 0,
             "keys_df": None,
         }
@@ -2378,11 +2356,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     if isinstance(
                         sorted_keys, pd.DataFrame
                     ) and sorted_keys.index.equals(self.df_exibido.index):
-                        self._num_reprog_sort_cache = {
-                            "source_id": id(self.df_exibido),
-                            "source_len": len(self.df_exibido.index),
-                            "keys_df": sorted_keys,
-                        }
+                        ssa_table_sorting.store_num_reprogramacoes_sort_cache(
+                            self, self.df_exibido, sorted_keys
+                        )
                     else:
                         self._prime_num_reprogramacoes_sort_cache()
                     self._last_num_reprog_sorted_keys = None
@@ -2930,14 +2906,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
         selected_value = str(active_filters.get("setor_executor", "") or "").strip()
         advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
-        advanced_values = self._normalize_filter_sequence_values(
+        advanced_executor_candidates = self._normalize_filter_sequence_values(
             advanced_filters.get("setor_executor")
         )
         advanced_excludes = self._normalize_filter_sequence_values(
             advanced_filters.get("setor_executor_exclude_values")
         )
-        if not selected_value and len(advanced_values) == 1 and not advanced_excludes:
-            selected_value = advanced_values[0]
+        if (
+            not selected_value
+            and len(advanced_executor_candidates) == 1
+            and not advanced_excludes
+        ):
+            selected_value = advanced_executor_candidates[0]
         if "," in selected_value:
             return ""
         return selected_value
@@ -3456,8 +3436,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         col_count = self.table_widget.columnCount()
         if col_count <= 0:
             return
+        current_columns = list(getattr(self, "_current_display_columns", []) or [])
         for column_index in range(col_count):
-            if column_index == 0:
+            column_name = (
+                str(current_columns[column_index])
+                if column_index < len(current_columns)
+                else ""
+            )
+            if column_name == "#":
                 continue
             self._best_fit_column_width(column_index)
 
@@ -3783,7 +3769,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if not opened:
                 resolved = SSAMainWindow._resolve_platform_open_command()
                 subprocess.Popen(  # nosec B603
-                    [resolved, safe_settings_path], shell=False
+                    ssa_system.build_platform_open_args(resolved, safe_settings_path),
+                    shell=False,
                 )
                 opened = True
         except Exception as exc:
@@ -4049,7 +4036,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if not opened:
                 resolved = SSAMainWindow._resolve_platform_open_command()
                 subprocess.Popen(  # nosec B603
-                    [resolved, safe_doc_path], shell=False
+                    ssa_system.build_platform_open_args(resolved, safe_doc_path),
+                    shell=False,
                 )
                 opened = True
             if hasattr(self, "status_label"):
@@ -4238,7 +4226,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 # Best-effort fallback, non-blocking.
                 resolved = SSAMainWindow._resolve_platform_open_command()
                 subprocess.Popen(  # nosec B603
-                    [resolved, safe_folder_path], shell=False
+                    ssa_system.build_platform_open_args(resolved, safe_folder_path),
+                    shell=False,
                 )
                 return
             except Exception as fallback_exc:

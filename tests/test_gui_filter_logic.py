@@ -1259,11 +1259,12 @@ class TestGUIFilterLogic:
         assert set(actions.keys()) == {"left", "center", "right"}
         assert actions["center"].isCheckable() is True
 
-    def test_apply_table_cell_alignment_preference_updates_gui_prefs_and_rerenders(
+    def test_apply_table_cell_alignment_preference_updates_gui_prefs_without_rerender(
         self, monkeypatch
     ):
         persist_calls = {"count": 0}
         render_calls: list[tuple[int, bool]] = []
+        alignment_calls: list[str] = []
 
         def _fake_persist():
             persist_calls["count"] += 1
@@ -1272,8 +1273,16 @@ class TestGUIFilterLogic:
         def _fake_render(page, *, update_details=True):
             render_calls.append((page, update_details))
 
+        def _fake_alignment(_window, alignment_name):
+            alignment_calls.append(alignment_name)
+
         monkeypatch.setattr(self.window, "_persist_gui_preferences", _fake_persist)
         monkeypatch.setattr(self.window, "display_current_page", _fake_render)
+        monkeypatch.setattr(
+            gui_ssa.ssa_gui_table,
+            "apply_table_cell_alignment",
+            _fake_alignment,
+        )
 
         ok = self.window._apply_table_cell_alignment_preference("right")
 
@@ -1283,7 +1292,8 @@ class TestGUIFilterLogic:
             == "right"
         )
         assert persist_calls["count"] == 1
-        assert render_calls == [(self.window.paginator.current_page, False)]
+        assert render_calls == []
+        assert alignment_calls == ["right"]
         assert self.window._table_cell_alignment_actions["right"].isChecked() is True
         assert "Direita" in str(self.window.status_label.text() or "")
 
@@ -8022,7 +8032,7 @@ class TestGUIFilterLogic:
             index=[999999],
         )
         self.window._num_reprog_sort_cache = {
-            "source_id": id(self.window.df_exibido),
+            "source_marker": ("stale-token",),
             "source_len": len(self.window.df_exibido.index),
             "keys_df": stale_keys,
         }
@@ -8031,7 +8041,7 @@ class TestGUIFilterLogic:
         self.window.on_header_clicked(logical_index)
 
         cache = self.window._num_reprog_sort_cache
-        assert isinstance(cache.get("source_id"), int)
+        assert isinstance(cache.get("source_marker"), tuple)
         assert isinstance(cache["keys_df"], pd.DataFrame)
         assert cache["keys_df"].index.equals(self.window.df_exibido.index)
 
@@ -8873,7 +8883,7 @@ class TestGUIFilterLogic:
         df = self.base_df.copy()
         df["num_reprogramacoes"] = [2, "Reprogramacao #1", 0, "", None]
         self.window._num_reprog_sort_cache = {
-            "source_id": 999,
+            "source_marker": ("old-num-token",),
             "source_len": 123,
             "keys_df": pd.DataFrame(
                 {
@@ -8885,7 +8895,7 @@ class TestGUIFilterLogic:
         }
         self.window._mixed_text_sort_cache = {
             "column_name": "situacao",
-            "source_id": 999,
+            "source_marker": ("old-mixed-token",),
             "source_len": 123,
             "keys_df": pd.DataFrame(
                 {
@@ -8902,12 +8912,12 @@ class TestGUIFilterLogic:
         self.window.on_data_loaded(df, request_id=31)
 
         num_cache = self.window._num_reprog_sort_cache
-        assert num_cache["source_id"] is None
+        assert num_cache["source_marker"] is None
         assert num_cache["source_len"] == 0
         assert num_cache["keys_df"] is None
         mixed_cache = self.window._mixed_text_sort_cache
         assert mixed_cache["column_name"] is None
-        assert mixed_cache["source_id"] is None
+        assert mixed_cache["source_marker"] is None
         assert mixed_cache["source_len"] == 0
         assert mixed_cache["keys_df"] is None
 

@@ -34,6 +34,39 @@ def test_validate_local_open_target_rejects_path_outside_allowed_base(tmp_path):
         )
 
 
+def test_validate_local_open_target_rejects_command_metacharacters(tmp_path):
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    target = allowed / "bad;name.txt"
+    target.write_text("x", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="caracteres reservados"):
+        system_integration.validate_local_open_target(
+            str(target),
+            must_exist=True,
+            expect_dir=False,
+            allowed_base=str(allowed),
+        )
+
+
+def test_build_platform_open_args_uses_separator_outside_windows(monkeypatch):
+    monkeypatch.setattr(system_integration.sys, "platform", "darwin")
+
+    assert system_integration.build_platform_open_args("/usr/bin/open", "/tmp/a") == [
+        "/usr/bin/open",
+        "--",
+        "/tmp/a",
+    ]
+
+
+def test_build_platform_open_args_keeps_windows_explorer_contract(monkeypatch):
+    monkeypatch.setattr(system_integration.sys, "platform", "win32")
+
+    assert system_integration.build_platform_open_args(
+        r"C:\Windows\explorer.exe", r"C:\tmp\a"
+    ) == [r"C:\Windows\explorer.exe", r"C:\tmp\a"]
+
+
 def test_open_allowed_url_requires_https_and_allowed_host():
     opened = []
 

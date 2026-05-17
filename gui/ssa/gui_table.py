@@ -26,6 +26,7 @@ from utils.robust_logging import get_robust_logger
 
 QBrush: Any = None
 QColor: Any = None
+QObject: Any = None
 try:
     qt_gui = import_module("PyQt6.QtGui")
     QBrush = getattr(qt_gui, "QBrush", None)
@@ -33,6 +34,11 @@ try:
 except Exception:
     QBrush = None
     QColor = None
+try:
+    qt_core = import_module("PyQt6.QtCore")
+    QObject = getattr(qt_core, "QObject", None)
+except Exception:
+    QObject = None
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
@@ -268,13 +274,19 @@ def _schedule_adaptive_header_label_refresh(window) -> None:
     timer = getattr(window, "_adaptive_header_label_timer", None)
     try:
         if timer is None:
-            timer = QTimer(window)
+            timer = QTimer(_timer_parent(window))
             timer.setSingleShot(True)
             timer.timeout.connect(lambda: _apply_adaptive_header_labels(window))
             setattr(window, "_adaptive_header_label_timer", timer)
         timer.start(_ADAPTIVE_HEADER_REFRESH_DELAY_MS)
     except Exception as exc:
         logger.debug("Falha ao agendar refresh de labels adaptativos: %s", exc)
+
+
+def _timer_parent(window):
+    if QObject is not None and isinstance(window, QObject):
+        return window
+    return None
 
 
 def _get_header_visual_column_order(window) -> list[str]:
@@ -326,6 +338,30 @@ def _build_render_marker_sample(
             "Falha ao construir amostra de marcadores da renderizacao: %s", exc
         )
         return tuple()
+
+
+def _get_cached_render_marker_sample(
+    window,
+    display_df: pd.DataFrame,
+) -> tuple[tuple[str, ...], ...]:
+    try:
+        marker_key = (
+            getattr(window, "_data_uuid", None),
+            int(getattr(window, "_data_revision", 0) or 0),
+            int(getattr(window.paginator, "current_page", 1)),
+            int(getattr(window.paginator, "page_size", 0)),
+            int(len(display_df)),
+            tuple(display_df.columns),
+        )
+        cached = getattr(window, "_last_table_marker_sample", None)
+        if isinstance(cached, tuple) and len(cached) == 2 and cached[0] == marker_key:
+            return cached[1]
+        marker_sample = _build_render_marker_sample(display_df)
+        window._last_table_marker_sample = (marker_key, marker_sample)
+        return marker_sample
+    except Exception as exc:
+        logger.debug("Falha ao consultar cache de marcadores da tabela: %s", exc)
+        return _build_render_marker_sample(display_df)
 
 
 def _build_page_render_signature(
@@ -613,7 +649,7 @@ def display_current_page(window, page_number, *, update_details=True):
     # Sem reordenacao para garantir correspondencia com as larguras calculadas
 
     display_df = window.df_para_tabela[cols_to_show].copy()
-    raw_marker_sample = _build_render_marker_sample(display_df)
+    raw_marker_sample = _get_cached_render_marker_sample(window, display_df)
     # Mantem colunas atuais para mapear indice->nome ao salvar larguras
     window._current_display_columns = ["#"] + list(display_df.columns)
 
@@ -690,7 +726,6 @@ def display_current_page(window, page_number, *, update_details=True):
     display_headers = _build_display_headers(
         window, list(display_df.columns), visual_filter_columns
     )
-    render_marker_sample = _build_render_marker_sample(display_df)
     gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
     table_cell_alignment_name = (
         str(
@@ -712,7 +747,7 @@ def display_current_page(window, page_number, *, update_details=True):
         window,
         display_df,
         display_headers,
-        marker_sample=render_marker_sample,
+        marker_sample=raw_marker_sample,
     )
     previous_signature = getattr(window, "_last_table_render_signature", None)
     reuse_render = (
@@ -1030,6 +1065,7 @@ def _compute_widths_for_df(
         if not existing_visible_cols:
             return None
         visible_df = df[existing_visible_cols].reindex(columns=existing_visible_cols)
+        visible_df = _sample_width_dataframe(visible_df)
     else:
         existing_visible_cols = list(visible_columns)
         visible_df = df
@@ -1050,6 +1086,14 @@ def _compute_widths_for_df(
             for key, value in column_widths.items()
         }
     return column_widths
+
+
+def _sample_width_dataframe(df: pd.DataFrame, max_rows: int = 1000) -> pd.DataFrame:
+    if len(df.index) <= max_rows:
+        return df
+    head_rows = max_rows // 2
+    tail_rows = max_rows - head_rows
+    return pd.concat([df.head(head_rows), df.tail(tail_rows)])
 
 
 def _compute_gui_column_widths(window, df: pd.DataFrame):
@@ -1166,10 +1210,33 @@ def _schedule_column_width_preferences_persist(window) -> None:
     timer = getattr(window, "_column_width_persist_timer", None)
     try:
         if timer is None:
-            timer = QTimer(window)
+            timer = QTimer(_timer_parent(window))
             timer.setSingleShot(True)
             timer.timeout.connect(lambda: _flush_column_width_preferences(window))
             setattr(window, "_column_width_persist_timer", timer)
         timer.start(250)
     except Exception as exc:  # noqa: BLE001
         logger.debug("Falha ao agendar persistencia de largura de coluna: %s", exc)
+
+
+def apply_table_cell_alignment(window, alignment_name: str) -> None:
+    table_cell_alignment_name = str(alignment_name or "").strip().lower()
+    horizontal_alignment = _TABLE_CELL_HORIZONTAL_ALIGNMENT_MAP.get(
+        table_cell_alignment_name,
+        _TABLE_CELL_HORIZONTAL_ALIGNMENT_MAP[_DEFAULT_TABLE_CELL_ALIGNMENT],
+    )
+    table_cell_alignment = Qt.AlignmentFlag.AlignVCenter | horizontal_alignment
+    table = getattr(window, "table_widget", None)
+    if table is None:
+        return
+    try:
+        row_count = int(table.rowCount())
+        column_count = int(table.columnCount())
+    except Exception as exc:
+        logger.debug("Falha ao consultar tamanho da tabela para alinhamento: %s", exc)
+        return
+    for row_index in range(row_count):
+        for column_index in range(column_count):
+            item = table.item(row_index, column_index)
+            if item is not None:
+                item.setTextAlignment(table_cell_alignment)
