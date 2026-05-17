@@ -11,9 +11,16 @@ pytest.importorskip(
 from PyQt6.QtWidgets import QApplication
 
 from gui.workers.data_loader_processing import (
+    DEFAULT_UI_SORT_SPEC,
     prepare_dataframe_for_ui,
     sanitize_ssa_like_value,
 )
+from gui.workers.data_loader_query import (
+    SQLITE_OFFSET_WITHOUT_LIMIT,
+    build_default_ui_order_clause,
+    normalize_order_by,
+)
+from gui.workers.data_loader_repository import resolve_target_table
 from gui.workers.data_loader_worker import DataLoaderWorker
 
 
@@ -24,15 +31,13 @@ def qapp():
 
 
 def test_normalize_order_by_accepts_whitelisted_columns():
-    worker = DataLoaderWorker(":memory:", "ssa_table")
-    clause = worker._normalize_order_by("numero_ssa DESC, situacao asc")
+    clause = normalize_order_by("numero_ssa DESC, situacao asc")
     assert clause == '"numero_ssa" DESC, "situacao" ASC'
 
 
 def test_normalize_order_by_rejects_non_whitelisted_column():
-    worker = DataLoaderWorker(":memory:", "ssa_table")
     with pytest.raises(ValueError):
-        worker._normalize_order_by("drop_table DESC")
+        normalize_order_by("drop_table DESC")
 
 
 def test_resolve_target_table_falls_back_to_ssa_table(tmp_path):
@@ -41,8 +46,7 @@ def test_resolve_target_table_falls_back_to_ssa_table(tmp_path):
         conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
         conn.commit()
 
-    worker = DataLoaderWorker(str(db_path), "ssas")
-    assert worker._resolve_target_table() == "ssa_table"
+    assert resolve_target_table(str(db_path), "ssas") == "ssa_table"
 
 
 def test_resolve_target_table_accepts_second_legacy_alias(tmp_path):
@@ -51,13 +55,11 @@ def test_resolve_target_table_accepts_second_legacy_alias(tmp_path):
         conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
         conn.commit()
 
-    worker = DataLoaderWorker(str(db_path), "ssa_chamados")
-    assert worker._resolve_target_table() == "ssa_table"
+    assert resolve_target_table(str(db_path), "ssa_chamados") == "ssa_table"
 
 
 def test_resolve_target_table_invalid_identifier_falls_back_to_canonical():
-    worker = DataLoaderWorker(":memory:", 'ssa_table"; DROP TABLE ssa_table; --')
-    assert worker._resolve_target_table() == "ssa_table"
+    assert resolve_target_table(":memory:", 'ssa_table"; DROP TABLE ssa_table; --') == "ssa_table"
 
 
 def test_run_builds_safe_paginated_query_and_emits_data():
@@ -105,7 +107,9 @@ def test_run_adds_deterministic_order_for_paginated_query_without_order_by():
         worker.run()
 
     assert emitted and not emitted[0].empty
-    assert f'ORDER BY {worker._build_default_ui_order_clause()}' in captured["query"]
+    assert f"ORDER BY {build_default_ui_order_clause(DEFAULT_UI_SORT_SPEC)}" in captured[
+        "query"
+    ]
     assert "LIMIT 10 OFFSET 5" in captured["query"]
 
 
@@ -124,7 +128,7 @@ def test_run_uses_positive_limit_placeholder_when_offset_has_no_limit():
         worker.run()
 
     assert emitted and not emitted[0].empty
-    assert f"LIMIT {worker._SQLITE_OFFSET_WITHOUT_LIMIT} OFFSET 5" in captured["query"]
+    assert f"LIMIT {SQLITE_OFFSET_WITHOUT_LIMIT} OFFSET 5" in captured["query"]
     assert "LIMIT -1" not in captured["query"]
 
 
@@ -143,7 +147,9 @@ def test_run_uses_business_default_order_for_full_load_without_order_by():
         worker.run()
 
     assert emitted and not emitted[0].empty
-    assert f'ORDER BY {worker._build_default_ui_order_clause()}' in captured["query"]
+    assert f"ORDER BY {build_default_ui_order_clause(DEFAULT_UI_SORT_SPEC)}" in captured[
+        "query"
+    ]
 
 
 def test_prepare_dataframe_for_ui_preserves_custom_order_by_contract():

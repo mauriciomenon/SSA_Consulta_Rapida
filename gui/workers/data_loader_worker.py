@@ -5,23 +5,20 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from contextlib import closing
 
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from armazenamento.database import query_db
-from armazenamento.identifier_utils import is_valid_identifier
 from gui.workers.data_loader_processing import (
     DEFAULT_UI_SORT_SPEC,
     DEFAULT_UI_STATUS_LAST,
     SQLITE_INTEGER_PREFIX_RE,
-    SQLITE_OFFSET_WITHOUT_LIMIT,
     LoadedDataFrames,
     prepare_loaded_payload,
 )
-from gui.workers.data_loader_query import build_default_ui_order_clause
-from shared.db_names import ALL_SSA_TABLE_NAMES, CANONICAL_SSA_TABLE
+from gui.workers.data_loader_repository import resolve_target_table
+from gui.workers.data_loader_query import build_select_query
 
 logger = logging.getLogger(__name__)
 
@@ -33,28 +30,9 @@ class DataLoaderWorker(QThread):
     data_loaded = pyqtSignal(pd.DataFrame)
     error_occurred = pyqtSignal(str)
     _DEFAULT_UI_STATUS_LAST = DEFAULT_UI_STATUS_LAST
-    _SQLITE_OFFSET_WITHOUT_LIMIT = SQLITE_OFFSET_WITHOUT_LIMIT
     _SQLITE_INTEGER_PREFIX_RE = SQLITE_INTEGER_PREFIX_RE
     _DEFAULT_UI_SORT_SPEC = DEFAULT_UI_SORT_SPEC
-    _TABLE_RESOLUTION_CACHE: dict[tuple[str, str], str] = {}
 
-    _ALLOWED_ORDER_COLUMNS = {
-        "numero_ssa",
-        "situacao",
-        "data_cadastro",
-        "semana_cadastro",
-        "semana_programada",
-        "semana_executada",
-        "setor_emissor",
-        "setor_executor",
-        "descricao_ssa",
-        "localizacao_codigo",
-        "equipamento",
-        "solicitante",
-        "grau_prioridade_emissao",
-        "grau_prioridade_planejamento",
-        "derivada_de",
-    }
     def __init__(self, db_path, table_name, limit=None, offset=0, order_by=None):
         super().__init__()
         self.db_path = db_path
@@ -79,112 +57,18 @@ class DataLoaderWorker(QThread):
         except RuntimeError:
             return False
 
-    def _sanitize_identifier(self, value: str) -> str:
-        text = str(value or "").strip()
-        if not text:
-            return ""
-        if not is_valid_identifier(text):
-            return ""
-        return text
-
-    def _quote_identifier(self, value: str) -> str:
-        identifier = str(value or "").replace('"', '""')
-        return f'"{identifier}"'
-
-    @classmethod
-    def _build_default_ui_order_clause(cls) -> str:
-        return build_default_ui_order_clause(cls._DEFAULT_UI_SORT_SPEC)
-
-    def _resolve_target_table(self) -> str:
-        cache_key = (str(self.db_path), str(self.table_name))
-        cached_table = self._TABLE_RESOLUTION_CACHE.get(cache_key)
-        if cached_table:
-            return cached_table
-        requested = self._sanitize_identifier(self.table_name)
-        candidates = []
-        if requested:
-            candidates.append(requested)
-        for name in ALL_SSA_TABLE_NAMES:
-            if name not in candidates:
-                candidates.append(name)
-
-        try:
-            with closing(sqlite3.connect(self.db_path)) as conn:
-                rows = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type IN ('table','view')"
-                ).fetchall()
-                existing = {str(row[0]) for row in rows if row and row[0]}
-            for candidate in candidates:
-                if candidate in existing:
-                    self._TABLE_RESOLUTION_CACHE[cache_key] = candidate
-                    return candidate
-        except (sqlite3.Error, OSError):
-            logger.debug("Falha ao resolver tabela alvo do DataLoaderWorker.")
-
-        fallback = candidates[0] if candidates else CANONICAL_SSA_TABLE
-        sanitized_fallback = self._sanitize_identifier(fallback)
-        resolved_fallback = sanitized_fallback or CANONICAL_SSA_TABLE
-        self._TABLE_RESOLUTION_CACHE[cache_key] = resolved_fallback
-        return resolved_fallback
-
-    def _normalize_order_by(self, order_by: str | None) -> str | None:
-        if not order_by:
-            return None
-        normalized_parts = []
-        parts = [part.strip() for part in str(order_by).split(",") if part.strip()]
-        if not parts:
-            return None
-        for part in parts:
-            tokens = part.split()
-            if len(tokens) == 1:
-                col, direction = tokens[0], "ASC"
-            elif len(tokens) == 2:
-                col, direction = tokens[0], tokens[1].upper()
-            else:
-                raise ValueError(f"ORDER BY invalido: {part}")
-            col = self._sanitize_identifier(col).lower()
-            if col not in self._ALLOWED_ORDER_COLUMNS:
-                raise ValueError(f"Coluna ORDER BY nao permitida: {col}")
-            if direction not in {"ASC", "DESC"}:
-                raise ValueError(f"Direcao ORDER BY invalida: {direction}")
-            normalized_parts.append(f"{self._quote_identifier(col)} {direction}")
-        return ", ".join(normalized_parts)
-
-    def _build_select_query(self, target_table: str) -> tuple[str, bool]:
-        query = f"SELECT * FROM {self._quote_identifier(target_table)}"  # nosec B608
-        already_sorted_for_ui = False
-
-        order_clause = self._normalize_order_by(self.order_by)
-        if order_clause:
-            query += f" ORDER BY {order_clause}"
-        else:
-            query += f" ORDER BY {self._build_default_ui_order_clause()}"
-            already_sorted_for_ui = True
-
-        if self.limit is not None:
-            limit_int = int(self.limit)
-            if limit_int < 0:
-                raise ValueError("LIMIT nao pode ser negativo")
-            query += f" LIMIT {limit_int}"
-
-        offset_int = int(self.offset or 0)
-        if offset_int < 0:
-            raise ValueError("OFFSET nao pode ser negativo")
-        if offset_int > 0:
-            if self.limit is None:
-                query += f" LIMIT {self._SQLITE_OFFSET_WITHOUT_LIMIT}"
-            query += f" OFFSET {offset_int}"
-
-        return query, already_sorted_for_ui
-
     def run(self):
         try:
             if self._is_cancelled():
                 return
-            target_table = self._resolve_target_table()
-            if not self._sanitize_identifier(target_table):
-                raise ValueError("Tabela alvo invalida para DataLoaderWorker")
-            query, already_sorted_for_ui = self._build_select_query(target_table)
+            target_table = resolve_target_table(self.db_path, self.table_name)
+            query, already_sorted_for_ui = build_select_query(
+                target_table=target_table,
+                order_by=self.order_by,
+                limit=self.limit,
+                offset=self.offset,
+                default_sort_spec=self._DEFAULT_UI_SORT_SPEC,
+            )
 
             if self._is_cancelled():
                 return

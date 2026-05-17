@@ -35,6 +35,12 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from gui.workers.data_loader_worker import DataLoaderWorker  # noqa: E402
+from gui.workers.data_loader_query import (  # noqa: E402
+    normalize_order_by,
+    quote_identifier,
+    sanitize_identifier,
+)
+from gui.workers.data_loader_repository import resolve_target_table  # noqa: E402
 from gui.workers.filter_worker import FilterWorker  # noqa: E402
 
 # =============================================================================
@@ -121,64 +127,52 @@ class TestDataLoaderWorkerUnit:
 
     def test_sanitize_identifier_valid(self):
         """Testa sanitizacao de identificadores validos."""
-        worker = DataLoaderWorker(":memory:", "test")
-
-        assert worker._sanitize_identifier("valid_name") == "valid_name"
-        assert worker._sanitize_identifier("_underscore") == "_underscore"
-        assert worker._sanitize_identifier("name123") == "name123"
-        assert worker._sanitize_identifier("  spaces  ") == "spaces"
+        assert sanitize_identifier("valid_name") == "valid_name"
+        assert sanitize_identifier("_underscore") == "_underscore"
+        assert sanitize_identifier("name123") == "name123"
+        assert sanitize_identifier("  spaces  ") == "spaces"
 
     def test_sanitize_identifier_invalid(self):
         """Testa sanitizacao de identificadores invalidos (SQL injection)."""
-        worker = DataLoaderWorker(":memory:", "test")
-
-        assert worker._sanitize_identifier("drop table") == ""
-        assert worker._sanitize_identifier("1numeric") == ""
-        assert worker._sanitize_identifier("name;delete") == ""
-        assert worker._sanitize_identifier("") == ""
-        assert worker._sanitize_identifier(cast(Any, None)) == ""
+        assert sanitize_identifier("drop table") == ""
+        assert sanitize_identifier("1numeric") == ""
+        assert sanitize_identifier("name;delete") == ""
+        assert sanitize_identifier("") == ""
+        assert sanitize_identifier(cast(Any, None)) == ""
 
     def test_quote_identifier(self):
         """Testa escaping de identificadores SQL."""
-        worker = DataLoaderWorker(":memory:", "test")
-
-        assert worker._quote_identifier("ssa_table") == '"ssa_table"'
-        assert worker._quote_identifier('ssa"table') == '"ssa""table"'
-        assert worker._quote_identifier("") == '""'
+        assert quote_identifier("ssa_table") == '"ssa_table"'
+        assert quote_identifier('ssa"table') == '"ssa""table"'
+        assert quote_identifier("") == '""'
 
     def test_normalize_order_by_single_column(self):
         """Testa normalizacao de ORDER BY com uma coluna."""
-        worker = DataLoaderWorker(":memory:", "test")
-
-        result = worker._normalize_order_by("numero_ssa")
+        result = normalize_order_by("numero_ssa")
         assert result == '"numero_ssa" ASC'
 
-        result = worker._normalize_order_by("numero_ssa DESC")
+        result = normalize_order_by("numero_ssa DESC")
         assert result == '"numero_ssa" DESC'
 
     def test_normalize_order_by_multiple_columns(self):
         """Testa normalizacao de ORDER BY com multiplas colunas."""
-        worker = DataLoaderWorker(":memory:", "test")
-
-        result = worker._normalize_order_by("numero_ssa DESC, situacao ASC")
+        result = normalize_order_by("numero_ssa DESC, situacao ASC")
         assert result == '"numero_ssa" DESC, "situacao" ASC'
 
-        result = worker._normalize_order_by("data_cadastro, setor_executor desc")
+        result = normalize_order_by("data_cadastro, setor_executor desc")
         assert result == '"data_cadastro" ASC, "setor_executor" DESC'
 
     def test_normalize_order_by_invalid_columns(self):
         """Testa rejeicao de colunas nao permitidas (protecao SQL injection)."""
-        worker = DataLoaderWorker(":memory:", "test")
-
         with pytest.raises(ValueError, match="Coluna ORDER BY nao permitida"):
-            worker._normalize_order_by("drop_table DESC")
+            normalize_order_by("drop_table DESC")
 
         # SQL injection com multiplos tokens e detectado como ORDER BY invalido
         with pytest.raises(ValueError, match="ORDER BY invalido"):
-            worker._normalize_order_by("numero_ssa; DELETE FROM ssa_table")
+            normalize_order_by("numero_ssa; DELETE FROM ssa_table")
 
         with pytest.raises(ValueError, match="Direcao ORDER BY invalida"):
-            worker._normalize_order_by("numero_ssa INVALID")
+            normalize_order_by("numero_ssa INVALID")
 
     def test_resolve_target_table_explicit(self, tmp_path):
         """Testa resolucao de tabela quando tabela solicitada existe."""
@@ -187,8 +181,7 @@ class TestDataLoaderWorkerUnit:
             conn.execute("CREATE TABLE custom_table (id TEXT)")
             conn.commit()
 
-        worker = DataLoaderWorker(str(db_path), "custom_table")
-        assert worker._resolve_target_table() == "custom_table"
+        assert resolve_target_table(str(db_path), "custom_table") == "custom_table"
 
     def test_resolve_target_table_fallback(self, tmp_path):
         """Testa fallback para ssa_table quando tabela solicitada nao existe."""
@@ -197,8 +190,7 @@ class TestDataLoaderWorkerUnit:
             conn.execute("CREATE TABLE ssa_table (id TEXT)")
             conn.commit()
 
-        worker = DataLoaderWorker(str(db_path), "nonexistent_table")
-        assert worker._resolve_target_table() == "ssa_table"
+        assert resolve_target_table(str(db_path), "nonexistent_table") == "ssa_table"
 
     def test_resolve_target_table_no_tables(self, tmp_path):
         """Testa comportamento quando nenhuma tabela existe."""
@@ -207,9 +199,8 @@ class TestDataLoaderWorkerUnit:
         with closing(sqlite3.connect(db_path)):
             pass
 
-        worker = DataLoaderWorker(str(db_path), "test_table")
         # Deve retornar tabela solicitada como fallback
-        assert worker._resolve_target_table() == "test_table"
+        assert resolve_target_table(str(db_path), "test_table") == "test_table"
 
     def test_resolve_target_table_rejects_invalid_identifier_and_falls_back_to_canonical(
         self, tmp_path
@@ -219,18 +210,18 @@ class TestDataLoaderWorkerUnit:
         with closing(sqlite3.connect(db_path)):
             pass
 
-        worker = DataLoaderWorker(str(db_path), "ssa_table; DROP TABLE ssa_table")
-        assert worker._resolve_target_table() == "ssa_table"
+        assert (
+            resolve_target_table(str(db_path), "ssa_table; DROP TABLE ssa_table")
+            == "ssa_table"
+        )
 
     def test_sanitize_identifier_uses_central_identifier_policy(self):
         """Testa aderencia do worker ao utilitario central de identificadores."""
-        worker = DataLoaderWorker(":memory:", "test")
-
-        assert worker._sanitize_identifier("ssa_table") == "ssa_table"
-        assert worker._sanitize_identifier(" numero_ssa ") == "numero_ssa"
-        assert worker._sanitize_identifier("1numero_ssa") == ""
-        assert worker._sanitize_identifier("numero-ssa") == ""
-        assert worker._sanitize_identifier("numero_ssa;DROP") == ""
+        assert sanitize_identifier("ssa_table") == "ssa_table"
+        assert sanitize_identifier(" numero_ssa ") == "numero_ssa"
+        assert sanitize_identifier("1numero_ssa") == ""
+        assert sanitize_identifier("numero-ssa") == ""
+        assert sanitize_identifier("numero_ssa;DROP") == ""
 
 
 # =============================================================================
@@ -679,8 +670,6 @@ class TestWorkerRegression:
 
     def test_data_loader_sql_injection_protection(self):
         """Testa protecao contra SQL injection em ORDER BY."""
-        worker = DataLoaderWorker(":memory:", "ssa_table")
-
         # Tentativas de SQL injection devem ser rejeitadas
         malicious_inputs = [
             "numero_ssa; DROP TABLE ssa_table",
@@ -692,7 +681,7 @@ class TestWorkerRegression:
 
         for malicious in malicious_inputs:
             with pytest.raises(ValueError):
-                worker._normalize_order_by(malicious)
+                normalize_order_by(malicious)
 
     def test_filter_worker_handles_special_characters_in_data(self):
         """Testa que worker lida com caracteres especiais nos dados."""
