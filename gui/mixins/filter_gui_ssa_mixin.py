@@ -240,7 +240,10 @@ def _connect_filter_signal(signal, slot, *, label: str) -> bool:
             try:
                 signal.connect(slot, queued_connection)
             except TypeError:
-                signal.connect(slot)
+                try:
+                    signal.connect(slot, type=queued_connection)
+                except TypeError:
+                    signal.connect(slot)
         else:
             signal.connect(slot)
         return True
