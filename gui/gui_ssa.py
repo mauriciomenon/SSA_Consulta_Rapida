@@ -52,6 +52,7 @@ if code_root not in sys.path:
 
 from core.config_manager import COLUMN_AFFINITY_SCORES  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file
+from core.import_formats import SUPPORTED_IMPORT_SUFFIXES  # noqa: E402
 from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS  # noqa: E402
 from gui.gui_config import DEFAULT_GUI_SETTINGS  # noqa: E402
@@ -128,6 +129,11 @@ GLOBAL_RETIRED_RESCAN_META = ssa_gui_workers.GLOBAL_RETIRED_RESCAN_META
 RETIRED_WORKER_TTL_SEC = ssa_gui_workers.RETIRED_WORKER_TTL_SEC
 RETIRED_WORKER_FORCE_WAIT_MS = ssa_gui_workers.RETIRED_WORKER_FORCE_WAIT_MS
 logger.addHandler(logging.NullHandler())
+
+
+def _external_import_file_dialog_filter() -> str:
+    suffix_patterns = " ".join(f"*{suffix}" for suffix in SUPPORTED_IMPORT_SUFFIXES)
+    return f"Arquivos Excel ({suffix_patterns});;Todos os Arquivos (*)"
 
 
 class _DataLoaderRetentionKwargs(TypedDict):
@@ -2851,7 +2857,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self,
             "Selecionar arquivos Excel para importar",
             os.path.expanduser("~"),
-            "Arquivos Excel (*.xlsx *.xls);;Todos os Arquivos (*)",
+            _external_import_file_dialog_filter(),
         )
 
         if not selected_files:
@@ -2869,38 +2875,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             }
 
         selected_count = len(selected_files)
-        skipped = 0
-        failed = 0
-        unsupported = 0
         queued = False
-        safe_selected_files: list[str] = []
-        for raw_source in selected_files:
-            source = str(raw_source or "").strip()
-            if not source:
-                skipped += 1
-                continue
-            try:
-                validated_source = SSAMainWindow._validate_local_open_target(
-                    source,
-                    must_exist=True,
-                    expect_dir=False,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Importacao externa rejeitou caminho invalido '%s': %s",
-                    source,
-                    exc,
-                )
-                failed += 1
-                continue
-            if not validated_source.casefold().endswith((".xlsx", ".xls")):
-                logger.info(
-                    "Importacao externa ignorou arquivo nao suportado pelo pipeline: %s",
-                    validated_source,
-                )
-                unsupported += 1
-                continue
-            safe_selected_files.append(validated_source)
+        prepared_selection = ssa_system_controller.prepare_external_import_selection(
+            selected_files,
+            logger=logger,
+        )
+        skipped = int(prepared_selection["skipped"])
+        failed = int(prepared_selection["failed"])
+        unsupported = int(prepared_selection["unsupported"])
+        safe_selected_files = list(prepared_selection["safe_selected_files"])
         try:
             from gui.widgets import RescanProgressDialog
             from gui.workers import RescanWorker

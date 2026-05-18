@@ -306,20 +306,6 @@ class RescanWorker(QThread):
     def _resolve_source_files(self) -> tuple[str, ...] | None:
         if not self.source_files:
             return None
-        from core.import_staging import (
-            _normalize_explicit_allowed_files,
-            validate_external_source_path,
-        )
-
-        explicit_allowed_files = _normalize_explicit_allowed_files(self.source_files)
-        resolved = [
-            validate_external_source_path(
-                path,
-                normalized_allowed_files=explicit_allowed_files,
-            )
-            for path in self.source_files
-        ]
-        self.source_files = tuple(resolved)
         return self.source_files
 
     def _resolve_explicit_files(self) -> tuple[str, ...] | None:
@@ -535,27 +521,19 @@ class RescanWorker(QThread):
                     )
                     self.finished_success.emit()
                 else:
-                    if self._has_runtime_errors or self._last_total_files > 0:
+                    if self._has_runtime_errors:
                         self.last_outcome = RescanOutcome.ERROR
                         self.progress.emit(100, "Falha no reescaneamento completo")
                         self.output_line.emit("")
                         self.output_line.emit("=== Reescaneamento Completo Falhou ===")
-                        if self._has_runtime_errors:
-                            self.output_line.emit(
-                                "Importacao falhou com erros durante o processamento."
+                        self.output_line.emit(
+                            "Importacao falhou com erros durante o processamento."
+                        )
+                        self.finished_error.emit(
+                            self._runtime_failure_message(
+                                "Importacao completa falhou com erros"
                             )
-                            self.finished_error.emit(
-                                self._runtime_failure_message(
-                                    "Importacao completa falhou com erros"
-                                )
-                            )
-                        else:
-                            self.output_line.emit(
-                                "Importacao concluida mas nenhum dado foi atualizado."
-                            )
-                            self.finished_error.emit(
-                                "Importacao completa sem atualizacoes"
-                            )
+                        )
                     else:
                         self.last_outcome = RescanOutcome.NO_CHANGES
                         self.progress.emit(100, "Concluido sem alteracoes")

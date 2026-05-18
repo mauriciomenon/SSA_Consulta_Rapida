@@ -35,7 +35,7 @@ def setup_app_menus(
         importacao_menu,
         action_cls,
         window,
-        "Importar XLS/XLSX externo",
+        "Importar XLSX externo",
         window.import_external_excel_files,
     )
     _add_action(importacao_menu, action_cls, window, "Atualizar Dados", window.rescan_diff_data)

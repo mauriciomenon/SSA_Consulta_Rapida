@@ -12,6 +12,8 @@ from core.config_manager import load_default_settings_payload
 from core.config_manager import load_settings
 from core.config_manager import resolve_user_settings_path
 from core.config_manager import save_settings
+from core.import_staging import _normalize_explicit_allowed_files
+from core.import_staging import validate_external_source_path
 from gui.ssa import database_operations
 from gui.ssa import gui_preferences_persistence
 from gui.ssa import system_integration
@@ -201,6 +203,51 @@ def execute_vacuum_analyze(
     vacuum_analyze_database_fn: Callable[[str], dict[str, Any]],
 ) -> dict[str, Any]:
     return database_operations.execute_vacuum_analyze(db_path, vacuum_analyze_database_fn)
+
+
+def prepare_external_import_selection(
+    selected_files: list[str] | tuple[str, ...],
+    *,
+    logger: Any,
+) -> dict[str, Any]:
+    skipped = 0
+    failed = 0
+    unsupported = 0
+    safe_selected_files: list[str] = []
+    explicit_allowed_files = _normalize_explicit_allowed_files(selected_files)
+    for raw_source in selected_files:
+        source = str(raw_source or "").strip()
+        if not source:
+            skipped += 1
+            continue
+        try:
+            validated_source = validate_external_source_path(
+                source,
+                normalized_allowed_files=explicit_allowed_files,
+            )
+        except ValueError as exc:
+            logger.info(
+                "Importacao externa ignorou arquivo nao suportado ou invalido '%s': %s",
+                source,
+                exc,
+            )
+            unsupported += 1
+            continue
+        except Exception as exc:
+            logger.warning(
+                "Importacao externa rejeitou caminho invalido '%s': %s",
+                source,
+                exc,
+            )
+            failed += 1
+            continue
+        safe_selected_files.append(validated_source)
+    return {
+        "safe_selected_files": safe_selected_files,
+        "skipped": skipped,
+        "failed": failed,
+        "unsupported": unsupported,
+    }
 
 
 def _copy_timestamped_backup(path: str) -> str:

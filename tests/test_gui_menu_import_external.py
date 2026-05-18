@@ -172,7 +172,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         "Sair",
     ]
     assert importacao_labels == [
-        "Importar XLS/XLSX externo",
+        "Importar XLSX externo",
         "Atualizar Dados",
         "Reescaneamento Completo",
         "Abrir Pasta de Arquivos",
@@ -238,8 +238,8 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     assert result["copied"] == 0
     assert result["skipped"] == 0
     assert result["failed"] == 0
-    assert result["unsupported"] == 0
-    assert result["staged"] == 3
+    assert result["unsupported"] == 1
+    assert result["staged"] == 2
     assert result["result_scope"] == "queue"
     assert result["db_updated"] is False
     assert result["db_update_requested"] is True
@@ -247,12 +247,49 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     assert list(captured["kwargs"]["source_files"]) == [
         str(source),
         str(source_ok_2),
-        str(source2),
     ]
     assert captured["kwargs"]["rescan_mode"] == "explicit"
     assert captured["kwargs"]["reload_on_success"] is True
     assert captured["kwargs"]["operation_kind"] == "import"
     assert window.status_label.text == ""
+
+
+def test_import_external_excel_files_accepts_selected_file_outside_project(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    source_root = tmp_path / "downloads"
+    source_root.mkdir()
+    source = source_root / "entrada.xlsx"
+    source.write_text("new", encoding="utf-8")
+
+    monkeypatch.setattr(gui_ssa, "project_root", str(project_root))
+    monkeypatch.setattr(
+        gui_ssa.QFileDialog,
+        "getOpenFileNames",
+        lambda *args, **kwargs: ([str(source)], "Arquivos Excel"),
+    )
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        gui_ssa.ssa_gui_workers,
+        "rescan_data",
+        lambda _window, **kwargs: captured.setdefault("kwargs", dict(kwargs)),
+    )
+
+    class _Window:
+        def __init__(self) -> None:
+            self.status_label = _DummyLabel()
+
+    result = gui_ssa.SSAMainWindow.import_external_excel_files(cast(Any, _Window()))
+
+    assert result["selected"] == 1
+    assert result["failed"] == 0
+    assert result["unsupported"] == 0
+    assert result["staged"] == 1
+    assert result["queued"] is True
+    assert list(captured["kwargs"]["source_files"]) == [str(source)]
 
 
 def test_import_external_excel_files_empty_selection_returns_consistent_schema(

@@ -5,6 +5,8 @@ import shutil
 from pathlib import Path
 from typing import Callable, Iterable, Sequence
 
+from core.import_formats import SUPPORTED_IMPORT_SUFFIXES
+from core.import_formats import supported_import_suffixes_text
 from utils.path_safety import ensure_path_is_allowed, reserve_unique_path
 
 CancelCallback = Callable[[], bool]
@@ -64,8 +66,11 @@ def validate_external_source_path(
             raise
         safe_source_path = resolved_source
     source_path = safe_source_path
-    if source_path.suffix.casefold() not in {".xlsx", ".xls"}:
-        raise ValueError(f"Arquivo nao suportado pelo pipeline: {source_path.name}")
+    if source_path.suffix.casefold() not in SUPPORTED_IMPORT_SUFFIXES:
+        raise ValueError(
+            "Arquivo nao suportado pelo pipeline "
+            f"({supported_import_suffixes_text()}): {source_path.name}"
+        )
     return str(source_path)
 
 
@@ -181,16 +186,17 @@ def stage_external_import_files(
                 if source_fd is not None:
                     os.close(source_fd)
             if callable(should_cancel) and should_cancel():
-                try:
-                    os.remove(destination)
-                    reserved_paths.discard(destination_abs)
-                except OSError as exc:
-                    failed += 1
-                    if callable(error_callback):
-                        error_callback(
-                            "[ERRO] Falha ao remover arquivo staged apos "
-                            f"cancelamento '{destination}': {exc}"
-                        )
+                if destination_created:
+                    try:
+                        os.remove(destination)
+                    except OSError as exc:
+                        failed += 1
+                        if callable(error_callback):
+                            error_callback(
+                                "[ERRO] Falha ao remover arquivo staged apos "
+                                f"cancelamento '{destination}': {exc}"
+                            )
+                reserved_paths.discard(destination_abs)
                 break
             copied += 1
             staged_files.append(destination)

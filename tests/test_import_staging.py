@@ -12,7 +12,9 @@ from core.import_staging import stage_external_import_files
 from utils import path_safety
 
 
-def test_stage_external_import_files_accepts_xlsx_and_xls(tmp_path: Path) -> None:
+def test_stage_external_import_files_accepts_only_backend_supported_formats(
+    tmp_path: Path,
+) -> None:
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
     source_dir = tmp_path / "fontes"
@@ -28,12 +30,12 @@ def test_stage_external_import_files_accepts_xlsx_and_xls(tmp_path: Path) -> Non
         source_files=(str(xlsx_file), str(xls_file)),
     )
 
-    assert summary["copied"] == 2
+    assert summary["copied"] == 1
     assert summary["failed"] == 0
-    assert summary["unsupported"] == 0
-    assert len(staged_files) == 2
+    assert summary["unsupported"] == 1
+    assert len(staged_files) == 1
     assert (docs_dir / "entrada.xlsx").exists()
-    assert (docs_dir / "entrada.xls").exists()
+    assert not (docs_dir / "entrada.xls").exists()
 
 
 def test_validate_external_source_path_accepts_explicit_selected_file(

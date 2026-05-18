@@ -11,6 +11,7 @@ import os
 import shutil
 import sys
 import threading
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -77,7 +78,7 @@ def test_rescan_worker_accepts_explicit_external_source_file(
     assert worker._resolve_source_files() == (str(source.resolve()),)
 
 
-def test_rescan_worker_normalizes_explicit_allowlist_once(
+def test_rescan_worker_defers_source_validation_to_staging(
     tmp_path,
     monkeypatch,
 ):
@@ -90,13 +91,12 @@ def test_rescan_worker_normalizes_explicit_allowlist_once(
         source.write_text("payload", encoding="utf-8")
     monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [runtime_root])
 
-    original_normalize = import_staging._normalize_explicit_allowed_files
     calls = 0
 
     def counting_normalize(extra_allowed_files):
         nonlocal calls
         calls += 1
-        return original_normalize(extra_allowed_files)
+        return {Path(path).resolve(strict=False) for path in extra_allowed_files}
 
     monkeypatch.setattr(
         import_staging,
@@ -110,8 +110,8 @@ def test_rescan_worker_normalizes_explicit_allowlist_once(
         source_files=tuple(str(source) for source in sources),
     )
 
-    assert worker._resolve_source_files() == tuple(str(source.resolve()) for source in sources)
-    assert calls == 1
+    assert worker._resolve_source_files() == tuple(str(source) for source in sources)
+    assert calls == 0
 
 
 @pytest.fixture
@@ -402,10 +402,10 @@ class TestRescanWorkerIntegration:
             for line in signal_collector.output_lines
         )
 
-    def test_run_full_without_updates_with_processed_context_emits_error(
+    def test_run_full_without_updates_with_processed_context_emits_no_changes_success(
         self, rescan_worker, signal_collector
     ):
-        """Full com arquivos no ciclo e retorno False deve sinalizar erro."""
+        """Full sem erros e sem atualizacao deve terminar como no_changes."""
         rescan_worker.output_line.connect(signal_collector.on_output)
         rescan_worker.finished_success.connect(signal_collector.on_finished_success)
         rescan_worker.finished_error.connect(signal_collector.on_finished_error)
@@ -421,12 +421,11 @@ class TestRescanWorkerIntegration:
         ):
             rescan_worker.run()
 
-        assert signal_collector.finished_success is False
-        assert signal_collector.finished_error is not None
-        assert rescan_worker.last_outcome == "error"
-        assert "sem atualizacoes" in signal_collector.finished_error.lower()
+        assert signal_collector.finished_success is True
+        assert signal_collector.finished_error is None
+        assert rescan_worker.last_outcome == "no_changes"
         assert any(
-            "Reescaneamento Completo Falhou" in line
+            "Reescaneamento Completo Concluido" in line
             for line in signal_collector.output_lines
         )
 
@@ -549,6 +548,40 @@ class TestRescanWorkerIntegration:
         )
         assert not any(
             "Reescaneamento Completo Falhou" in line
+            for line in signal_collector.output_lines
+        )
+
+    def test_run_full_without_updates_emits_no_changes_success(
+        self, signal_collector
+    ):
+        worker = RescanWorker("main.py", ".", force_import=True)
+        worker.output_line.connect(signal_collector.on_output)
+        worker.finished_success.connect(signal_collector.on_finished_success)
+        worker.finished_error.connect(signal_collector.on_finished_error)
+
+        def _mock_importer(**kwargs):
+            callback = kwargs["progress_callback"]
+            callback("start", {"total": 1})
+            callback(
+                "finish",
+                {
+                    "total": 1,
+                    "processed": 0,
+                    "errors": [],
+                },
+            )
+            return False
+
+        with patch(
+            "gui.workers.rescan_worker.run_importer_logic", side_effect=_mock_importer
+        ):
+            worker.run()
+
+        assert signal_collector.finished_success is True
+        assert signal_collector.finished_error is None
+        assert worker.last_outcome == "no_changes"
+        assert any(
+            "Reescaneamento Completo Concluido" in line
             for line in signal_collector.output_lines
         )
 
@@ -712,20 +745,23 @@ class TestRescanWorkerIntegration:
         )
         try:
             with patch("gui.workers.rescan_worker.run_importer_logic") as mock_importer:
-                mock_importer.return_value = True
+                def _mock_importer(**kwargs):
+                    callback = kwargs["progress_callback"]
+                    callback("start", {"total": 1})
+                    callback("finish", {"total": 1, "processed": 1, "errors": []})
+                    return True
+
+                mock_importer.side_effect = _mock_importer
                 worker.run()
 
                 staged_file = docs_dir / "entrada.xlsx"
                 staged_legacy = docs_dir / "entrada_legacy.xls"
                 assert staged_file.exists()
-                assert staged_legacy.exists()
-                assert worker.last_outcome == RescanOutcome.NO_CHANGES
+                assert not staged_legacy.exists()
+                assert worker.last_outcome == RescanOutcome.UPDATED
                 call_kwargs = mock_importer.call_args[1]
                 assert call_kwargs["docs_dir"] == str(docs_dir)
-                assert call_kwargs["explicit_files"] == (
-                    str(staged_file),
-                    str(staged_legacy),
-                )
+                assert call_kwargs["explicit_files"] == (str(staged_file),)
         finally:
             if worker._logger_attached:
                 worker._detach_logger()

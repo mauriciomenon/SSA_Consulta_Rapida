@@ -65,6 +65,10 @@ from core.search_filter import (  # noqa: E402
     filter_dataframe,
     parse_search_terms,
 )
+from core.import_formats import (  # noqa: E402
+    SUPPORTED_IMPORT_SUFFIXES,
+    supported_import_suffixes_text,
+)
 from core.import_run_report import (  # noqa: E402
     _build_import_run_payload,
     _write_import_run_report,
@@ -160,7 +164,7 @@ def _resolve_explicit_import_files(
     *,
     docs_dir_path: Path,
 ) -> List[str]:
-    """Resolve explicit XLSX files and ensure they stay under docs_dir."""
+    """Resolve explicit import files and ensure they stay under docs_dir."""
     docs_dir_resolved = docs_dir_path.resolve()
     resolved_files: List[str] = []
     seen: set[str] = set()
@@ -174,9 +178,10 @@ def _resolve_explicit_import_files(
             must_exist=True,
             expect_directory=False,
         )
-        if candidate.suffix.casefold() != ".xlsx":
+        if candidate.suffix.casefold() not in SUPPORTED_IMPORT_SUFFIXES:
             raise PathSafetyError(
-                f"explicit_import_file: '{candidate}' deve ser um arquivo .xlsx."
+                "explicit_import_file: "
+                f"'{candidate}' deve ser um arquivo {supported_import_suffixes_text()}."
             )
         try:
             candidate.relative_to(docs_dir_resolved)
@@ -2528,7 +2533,7 @@ def import_explicit_files_to_database(
     db_path: str = "data/ssas.db",
     raise_on_error: bool = False,
 ) -> bool:
-    """Import explicit XLSX files already staged under docs_dir into the database."""
+    """Import explicit supported files already staged under docs_dir into the database."""
     try:
         safe_docs_dir, safe_db_path = _resolve_import_targets(docs_dir, db_path)
         explicit_resolved = _resolve_explicit_import_files(
@@ -2600,12 +2605,9 @@ def get_filtered_data(
         if filters:
             for column, value in filters.items():
                 if column in df.columns and value is not None:
-                    # Aplicar filtro case-insensitive
-                    df = df[
-                        df[column]
-                        .astype(str)
-                        .str.contains(str(value), case=False, na=False)
-                    ]
+                    terms = parse_search_terms(str(value))
+                    if terms:
+                        df = filter_dataframe(df, [column], terms)
 
         return df
 
