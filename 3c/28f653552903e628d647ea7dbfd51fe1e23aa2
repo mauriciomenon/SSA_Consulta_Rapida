@@ -1,0 +1,25 @@
+gui/ssa/headless_qt_stubs.py
+  s_082d1ff7d55d96::t_82d324a7c21ed8 700-705
+  s_082d1ff7d55d96::t_3be8312ab62350 1-474,482-699,706-717
+  s_082d1ff7d55d96::t_b5dc35521b6a13 475-481
+gui/gui_ssa.py
+  s_082d1ff7d55d96::t_107f9e8aac36a6 312-315
+  s_082d1ff7d55d96::t_3be8312ab62350 254-291
+  s_082d1ff7d55d96::t_6e43a79e3a43fb 1038-1039,1052-1053
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "3c28f653552903e628d647ea7dbfd51fe1e23aa2",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
