@@ -56,7 +56,7 @@ def test_exact_identifier_search_is_limited_to_relation_identifier_columns() -> 
 def test_exact_identifier_search_accepts_float_artifact_in_relation_columns() -> None:
     df = pd.DataFrame(
         {
-            "numero_ssa": ["202600001", "202605373.0"],
+            "numero_ssa": ["202600001", "202605373.00"],
             "derivada_de": ["", ""],
             "descricao_ssa": ["a", "b"],
         }
@@ -68,4 +68,4 @@ def test_exact_identifier_search_accepts_float_artifact_in_relation_columns() ->
         ["numero_ssa", "derivada_de", "descricao_ssa"],
     )
 
-    assert result["numero_ssa"].tolist() == ["202605373.0"]
+    assert result["numero_ssa"].tolist() == ["202605373.00"]

@@ -24,8 +24,8 @@ from core.regex_safety import safe_regex_contains
 
 logger = logging.getLogger(__name__)
 _NORMALIZED_SEARCH_CACHE_LOCK = threading.Lock()
-_NORMALIZED_SEARCH_CACHE_MAX_ENTRIES = 2
-_NORMALIZED_SEARCH_CACHE_MAX_BYTES = 64 * 1024 * 1024
+_NORMALIZED_SEARCH_CACHE_MAX_ENTRIES = 1
+_NORMALIZED_SEARCH_CACHE_MAX_BYTES = 256 * 1024 * 1024
 _NORMALIZED_SEARCH_CACHE: OrderedDict[tuple[Any, ...], dict[str, Any]] = OrderedDict()
 
 class GeneralSearchCancelled(Exception):
@@ -33,13 +33,19 @@ class GeneralSearchCancelled(Exception):
 
 
 def clear_filter_search_attrs(result_df: pd.DataFrame) -> pd.DataFrame:
-    result_df.attrs.pop(FILTER_SEARCH_MARKER_ATTR, None)
-    result_df.attrs.pop(FILTER_SEARCH_CACHE_ATTR, None)
-    result_df.attrs.pop(FILTER_SEARCH_SIGNATURE_CACHE_ATTR, None)
+    result_df.attrs = dict(result_df.attrs)
+    for key in (
+        FILTER_SEARCH_MARKER_ATTR,
+        FILTER_SEARCH_CACHE_ATTR,
+        FILTER_SEARCH_SIGNATURE_CACHE_ATTR,
+    ):
+        result_df.attrs.pop(key, None)
     return result_df
 
 
-def _single_exact_identifier_term(terms: list[dict[str, Any]]) -> str | None:
+def _single_default_group_exact_identifier_term(
+    terms: list[dict[str, Any]],
+) -> str | None:
     if len(terms) != 1:
         return None
     term = terms[0]
@@ -71,22 +77,54 @@ def _filter_exact_identifier_columns(
         numeric_identifier = int(identifier)
     except (TypeError, ValueError):
         numeric_identifier = None
+    normalized_identifier = str(identifier).casefold()
     for column_name in exact_columns:
         column = df[column_name]
-        column_mask = pd.Series(False, index=df.index)
-        if numeric_identifier is not None and pd.api.types.is_numeric_dtype(
-            column.dtype
-        ):
-            column_mask = column.eq(numeric_identifier)
-        else:
-            normalized = column.astype("string").fillna("").str.strip()
-            column_mask = normalized.eq(identifier)
-            if numeric_identifier is not None:
-                # Excel/CSV imports can turn numeric SSA identifiers into
-                # float-looking strings; only numeric search terms get this path.
-                column_mask = column_mask | normalized.eq(f"{identifier}.0")
+        column_mask = _identifier_column_match_mask(
+            column,
+            normalized_identifier=normalized_identifier,
+            numeric_identifier=numeric_identifier,
+        )
         mask = mask | column_mask
     return clear_filter_search_attrs(df[mask])
+
+
+def _identifier_column_match_mask(
+    column: pd.Series,
+    *,
+    normalized_identifier: str,
+    numeric_identifier: int | None,
+) -> pd.Series:
+    if numeric_identifier is not None and pd.api.types.is_numeric_dtype(column.dtype):
+        return column.eq(numeric_identifier)
+
+    direct_numeric_mask = pd.Series(False, index=column.index)
+    if numeric_identifier is not None:
+        direct_numeric_mask = column.eq(numeric_identifier)
+
+    normalized = _normalize_filter_search_series(column).str.strip()
+    column_mask = normalized.eq(normalized_identifier)
+    if numeric_identifier is None:
+        return column_mask
+
+    return direct_numeric_mask | column_mask | _float_artifact_identifier_mask(
+        normalized,
+        normalized_identifier,
+    )
+
+
+def _float_artifact_identifier_mask(
+    normalized: pd.Series,
+    normalized_identifier: str,
+) -> pd.Series:
+    # Excel/CSV imports can turn numeric SSA identifiers into float-looking strings.
+    decimal_prefix = f"{normalized_identifier}."
+    decimal_tail = normalized.str.slice(len(decimal_prefix))
+    return (
+        normalized.str.startswith(decimal_prefix, na=False)
+        & decimal_tail.ne("")
+        & decimal_tail.str.strip("0").eq("")
+    )
 
 
 def _normalize_filter_search_series(series: pd.Series) -> pd.Series:
@@ -105,10 +143,7 @@ def _build_normalized_column_cache(
 ) -> dict[str, pd.Series]:
     revision = df.attrs.get("ssa_data_revision")
     if revision is None:
-        return {
-            column_name: _normalize_filter_search_series(df[column_name])
-            for column_name in available_search_cols
-        }
+        return _build_normalized_columns(df, available_search_cols)
 
     cache_key = (
         id(df),
@@ -127,14 +162,8 @@ def _build_normalized_column_cache(
             _NORMALIZED_SEARCH_CACHE.move_to_end(cache_key)
             return dict(cached["columns"])
 
-    normalized_columns = {
-        column_name: _normalize_filter_search_series(df[column_name])
-        for column_name in available_search_cols
-    }
-    estimated_bytes = sum(
-        int(series.memory_usage(index=False, deep=False))
-        for series in normalized_columns.values()
-    )
+    normalized_columns = _build_normalized_columns(df, available_search_cols)
+    estimated_bytes = _estimate_normalized_cache_bytes(normalized_columns)
     if estimated_bytes > _NORMALIZED_SEARCH_CACHE_MAX_BYTES:
         return normalized_columns
     with _NORMALIZED_SEARCH_CACHE_LOCK:
@@ -145,6 +174,16 @@ def _build_normalized_column_cache(
         while len(_NORMALIZED_SEARCH_CACHE) > _NORMALIZED_SEARCH_CACHE_MAX_ENTRIES:
             _NORMALIZED_SEARCH_CACHE.popitem(last=False)
     return dict(normalized_columns)
+
+
+def _build_normalized_columns(
+    df: pd.DataFrame,
+    available_search_cols: list[str],
+) -> dict[str, pd.Series]:
+    return {
+        column_name: _normalize_filter_search_series(df[column_name])
+        for column_name in available_search_cols
+    }
 
 
 def parse_search_terms(
@@ -197,40 +236,45 @@ def parse_search_terms(
             continue
         raw_chunks = [chunk.strip() for chunk in raw.split(",")]
         for raw_chunk in raw_chunks:
-            t = raw_chunk.strip()
-            if not t:
+            parsed_chunk = _parse_search_chunk(raw_chunk, fallback_mode)
+            if parsed_chunk is None:
                 continue
-            negative = False
-            if (t.startswith("!") or t.startswith("-")) and len(t) > 1:
-                negative = True
-                t = t[1:]
-            mode = fallback_mode
-            value = t
-            if t.startswith("~") and len(t) > 1:
-                mode = "regex"
-                value = t[1:]
-            elif t.startswith("=") and len(t) > 1:
-                mode = "exact"
-                value = t[1:]
-            elif t.startswith("$") and len(t) > 1:
-                mode = "suffix"
-                value = t[1:]
-            elif fallback_mode != "regex" and t.startswith("^") and len(t) > 1:
-                mode = "prefix"
-                value = t[1:]
-            elif fallback_mode != "regex" and t.endswith("$") and len(t) > 1:
-                mode = "suffix"
-                value = t[:-1]
-            parsed.append(
-                {
-                    "raw": raw_chunk,
-                    "mode": mode,
-                    "value": value,
-                    "negative": negative,
-                    "group": 0,  # All terms in same group (AND logic)
-                }
-            )
+            parsed.append(parsed_chunk)
     return parsed
+
+
+def _parse_search_chunk(raw_chunk: str, fallback_mode: str) -> Dict[str, Any] | None:
+    token = raw_chunk.strip()
+    if not token:
+        return None
+    negative = False
+    if (token.startswith("!") or token.startswith("-")) and len(token) > 1:
+        negative = True
+        token = token[1:]
+    mode = fallback_mode
+    value = token
+    if token.startswith("~") and len(token) > 1:
+        mode = "regex"
+        value = token[1:]
+    elif token.startswith("=") and len(token) > 1:
+        mode = "exact"
+        value = token[1:]
+    elif token.startswith("$") and len(token) > 1:
+        mode = "suffix"
+        value = token[1:]
+    elif fallback_mode != "regex" and token.startswith("^") and len(token) > 1:
+        mode = "prefix"
+        value = token[1:]
+    elif fallback_mode != "regex" and token.endswith("$") and len(token) > 1:
+        mode = "suffix"
+        value = token[:-1]
+    return {
+        "raw": raw_chunk,
+        "mode": mode,
+        "value": value,
+        "negative": negative,
+        "group": 0,  # All terms in same group (AND logic)
+    }
 
 
 def _normalize_search_terms_input(search_terms: Any) -> list[Any] | None:
@@ -271,43 +315,236 @@ def _coerce_filter_terms(
     return parse_search_terms(normalized_search_terms)
 
 
+def _prepare_filter_dataframe_inputs(
+    df: pd.DataFrame,
+    search_terms: Any,
+    search_columns: Optional[list],
+) -> tuple[list[str], List[Dict[str, Any]]] | None:
+    normalized_search_terms = _normalize_search_terms_input(search_terms)
+    if normalized_search_terms is None or len(normalized_search_terms) == 0:
+        return None
+
+    available_search_cols = _resolve_available_search_columns(df, search_columns)
+    if not available_search_cols:
+        logger.warning("Nenhuma coluna de busca valida encontrada")
+        return None
+
+    terms = _coerce_filter_terms(normalized_search_terms)
+    if not terms:
+        return None
+    return available_search_cols, terms
+
+
 def _combine_filter_term_masks(
     df: pd.DataFrame,
     terms: List[Dict[str, Any]],
-    mask_for_term: Callable[[Dict[str, Any]], pd.Series],
+    mask_for_term: Callable[[Dict[str, Any], pd.Index], pd.Series],
 ) -> pd.Series:
-    has_explicit_or_groups = any(
+    has_non_default_groups = any(
         int(term.get("group", 0) or 0) != 0 for term in terms
     )
-    if not has_explicit_or_groups:
-        final_mask = pd.Series(True, index=df.index)
-        for term in terms:
-            term_mask = mask_for_term(term)
-            if term.get("negative"):
-                final_mask = final_mask & (~term_mask)
-            else:
-                final_mask = final_mask & term_mask
-        return final_mask
+    if not has_non_default_groups:
+        return _combine_and_term_masks(df.index, terms, mask_for_term)
 
     grouped_terms: Dict[int, List[Dict[str, Any]]] = {}
     for term in terms:
         group_idx = term.get("group", 0)
         grouped_terms.setdefault(int(group_idx), []).append(term)
 
-    final_mask = pd.Series(False, index=df.index)
+    return _combine_or_group_masks(df.index, grouped_terms, mask_for_term)
+
+
+def _combine_and_term_masks(
+    full_index: pd.Index,
+    terms: List[Dict[str, Any]],
+    mask_for_term: Callable[[Dict[str, Any], pd.Index], pd.Series],
+) -> pd.Series:
+    if not full_index.is_unique:
+        return _combine_and_term_masks_full_index(full_index, terms, mask_for_term)
+
+    active_index = full_index
+    for term in terms:
+        if len(active_index) == 0:
+            break
+        candidate_mask = mask_for_term(term, active_index)
+        if not candidate_mask.index.equals(active_index):
+            candidate_mask = candidate_mask.reindex(active_index, fill_value=False)
+        if term.get("negative"):
+            candidate_mask = ~candidate_mask
+        active_index = candidate_mask[candidate_mask].index
+
+    final_mask = pd.Series(False, index=full_index)
+    final_mask.loc[active_index] = True
+    return final_mask
+
+
+def _combine_and_term_masks_full_index(
+    full_index: pd.Index,
+    terms: List[Dict[str, Any]],
+    mask_for_term: Callable[[Dict[str, Any], pd.Index], pd.Series],
+) -> pd.Series:
+    final_mask = pd.Series(True, index=full_index)
+    for term in terms:
+        term_mask = mask_for_term(term, full_index)
+        if not term_mask.index.equals(full_index):
+            term_mask = pd.Series(term_mask.to_numpy(dtype=bool), index=full_index)
+        if term.get("negative"):
+            final_mask = final_mask & (~term_mask)
+        else:
+            final_mask = final_mask & term_mask
+    return final_mask
+
+
+def _combine_or_group_masks(
+    full_index: pd.Index,
+    grouped_terms: Dict[int, List[Dict[str, Any]]],
+    mask_for_term: Callable[[Dict[str, Any], pd.Index], pd.Series],
+) -> pd.Series:
+    final_mask = pd.Series(False, index=full_index)
     for group_terms in grouped_terms.values():
-        group_mask = pd.Series(True, index=df.index)
+        candidate_index = final_mask[~final_mask].index
+        if len(candidate_index) == 0:
+            break
+        group_mask = pd.Series(True, index=candidate_index)
         positives = [t for t in group_terms if not t.get("negative")]
         negatives = [t for t in group_terms if t.get("negative")]
 
         for term in positives:
-            group_mask = group_mask & mask_for_term(term)
+            term_mask = mask_for_term(term, candidate_index).reindex(
+                candidate_index,
+                fill_value=False,
+            )
+            group_mask = group_mask & term_mask
 
         for term in negatives:
-            group_mask = group_mask & (~mask_for_term(term))
+            term_mask = mask_for_term(term, candidate_index).reindex(
+                candidate_index,
+                fill_value=False,
+            )
+            group_mask = group_mask & (~term_mask)
 
-        final_mask = final_mask | group_mask
+        final_mask.loc[candidate_index] = group_mask
     return final_mask
+
+
+def _candidate_series(series: pd.Series, candidate_index: pd.Index) -> pd.Series:
+    if candidate_index is series.index:
+        return series
+    if len(candidate_index) == len(series.index) and candidate_index.equals(series.index):
+        return series
+    return series.loc[candidate_index]
+
+
+def _estimate_normalized_cache_bytes(normalized_columns: dict[str, pd.Series]) -> int:
+    total_bytes = 0
+    for series in normalized_columns.values():
+        row_count = len(series.index)
+        if row_count == 0:
+            continue
+        sample_size = min(row_count, 1024)
+        sample = series.iloc[:sample_size]
+        shallow_bytes = int(series.memory_usage(index=False, deep=False))
+        average_chars = float(sample.str.len().fillna(0).mean())
+        total_bytes += shallow_bytes + int(average_chars * row_count)
+    return total_bytes
+
+
+def _column_match_mask(
+    *,
+    candidate_index: pd.Index,
+    available_search_cols: list[str],
+    normalized_column_cache: dict[str, pd.Series],
+    mode: str,
+    lowered_value: str,
+) -> pd.Series:
+    mask = pd.Series(False, index=candidate_index)
+    for column_name in available_search_cols:
+        column_text = _candidate_series(
+            normalized_column_cache[column_name],
+            candidate_index,
+        )
+        if mode == "prefix":
+            column_mask = column_text.str.startswith(lowered_value, na=False)
+        elif mode == "suffix":
+            column_mask = column_text.str.endswith(lowered_value, na=False)
+        elif mode == "exact":
+            column_mask = column_text.eq(lowered_value)
+        else:
+            column_mask = column_text.str.contains(lowered_value, regex=False, na=False)
+        mask = mask | column_mask
+    return mask
+
+
+def _regex_column_match_mask(
+    *,
+    candidate_index: pd.Index,
+    available_search_cols: list[str],
+    normalized_column_cache: dict[str, pd.Series],
+    pattern: str,
+    reject_quantifiers: bool = False,
+) -> pd.Series:
+    mask = pd.Series(False, index=candidate_index)
+    remaining_index = candidate_index
+    for column_name in available_search_cols:
+        if len(remaining_index) == 0:
+            break
+        column_text = _candidate_series(
+            normalized_column_cache[column_name],
+            remaining_index,
+        )
+        column_mask = safe_regex_contains(
+            column_text,
+            pattern,
+            reject_quantifiers=reject_quantifiers,
+            fallback_literal=False,
+        )
+        mask.loc[remaining_index] = column_mask
+        remaining_index = mask[~mask].index
+    return mask
+
+
+def _mask_for_filter_term(
+    *,
+    term: Dict[str, Any],
+    candidate_index: pd.Index,
+    available_search_cols: list[str],
+    normalized_column_cache: dict[str, pd.Series],
+) -> pd.Series:
+    mode = term.get("mode", "contains")
+    value = term.get("value", "") or ""
+    lowered_value = str(value).casefold()
+
+    if mode == "regex":
+        try:
+            pattern = str(value)
+            reject_quantifiers = (
+                len(candidate_index) * max(len(available_search_cols), 1) > 50_000
+            )
+            return _regex_column_match_mask(
+                candidate_index=candidate_index,
+                available_search_cols=available_search_cols,
+                normalized_column_cache=normalized_column_cache,
+                pattern=pattern,
+                reject_quantifiers=reject_quantifiers,
+            )
+        except re.error:
+            return pd.Series(False, index=candidate_index)
+
+    if mode in {"prefix", "suffix", "exact"}:
+        return _column_match_mask(
+            candidate_index=candidate_index,
+            available_search_cols=available_search_cols,
+            normalized_column_cache=normalized_column_cache,
+            mode=mode,
+            lowered_value=lowered_value,
+        )
+    return _column_match_mask(
+        candidate_index=candidate_index,
+        available_search_cols=available_search_cols,
+        normalized_column_cache=normalized_column_cache,
+        mode="contains",
+        lowered_value=lowered_value,
+    )
 
 
 def filter_dataframe(
@@ -338,22 +575,12 @@ def filter_dataframe(
     """
     if df is None or df.empty:
         return df
-    normalized_search_terms = _normalize_search_terms_input(search_terms)
-    if normalized_search_terms is None:
+    prepared_inputs = _prepare_filter_dataframe_inputs(df, search_terms, search_columns)
+    if prepared_inputs is None:
         return df
-    if len(normalized_search_terms) == 0:
-        return df
+    available_search_cols, terms = prepared_inputs
 
-    available_search_cols = _resolve_available_search_columns(df, search_columns)
-    if not available_search_cols:
-        logger.warning("Nenhuma coluna de busca valida encontrada")
-        return df
-
-    terms = _coerce_filter_terms(normalized_search_terms)
-    if not terms:
-        return df
-
-    exact_identifier = _single_exact_identifier_term(terms)
+    exact_identifier = _single_default_group_exact_identifier_term(terms)
     if exact_identifier:
         exact_identifier_result = _filter_exact_identifier_columns(
             df,
@@ -365,66 +592,21 @@ def filter_dataframe(
 
     normalized_column_cache = _build_normalized_column_cache(df, available_search_cols)
 
-    def _column_match_mask(mode: str, lowered_value: str) -> pd.Series:
-        mask = pd.Series(False, index=df.index)
-        for column_name in available_search_cols:
-            column_text = normalized_column_cache[column_name]
-            if mode == "prefix":
-                column_mask = column_text.str.startswith(lowered_value, na=False)
-            elif mode == "suffix":
-                column_mask = column_text.str.endswith(lowered_value, na=False)
-            elif mode == "exact":
-                column_mask = column_text.eq(lowered_value)
-            else:
-                column_mask = column_text.str.contains(
-                    lowered_value, regex=False, na=False
-                )
-            mask = mask | column_mask
-        return mask
-
-    def _regex_column_match_mask(
-        pattern: str,
-        *,
-        reject_quantifiers: bool = False,
-    ) -> pd.Series:
-        mask = pd.Series(False, index=df.index)
-        reject_complex_quantifiers = (
-            reject_quantifiers and len(df.index) * max(len(available_search_cols), 1) > 50_000
-        )
-        for column_name in available_search_cols:
-            column_text = normalized_column_cache[column_name]
-            mask = mask | safe_regex_contains(
-                column_text,
-                pattern,
-                reject_quantifiers=reject_complex_quantifiers,
-                fallback_literal=False,
-            )
-        return mask
-
     logger.debug(
         "Buscando em %s colunas: %s",
         len(available_search_cols),
         list(available_search_cols),
     )
-    def _mask_for_term(term: Dict[str, Any]) -> pd.Series:
-        mode = term.get("mode", "contains")
-        value = term.get("value", "") or ""
-        lowered_value = str(value).casefold()
-
-        if mode == "regex":
-            try:
-                pattern = str(value)
-                if "^" in pattern or "$" in pattern:
-                    return _regex_column_match_mask(pattern, reject_quantifiers=True)
-                return _regex_column_match_mask(pattern)
-            except re.error:
-                return pd.Series(False, index=df.index)
-
-        if mode in {"prefix", "suffix", "exact"}:
-            return _column_match_mask(mode, lowered_value)
-        return _column_match_mask("contains", lowered_value)
-
-    final_mask = _combine_filter_term_masks(df, terms, _mask_for_term)
+    final_mask = _combine_filter_term_masks(
+        df,
+        terms,
+        lambda term, candidate_index: _mask_for_filter_term(
+            term=term,
+            candidate_index=candidate_index,
+            available_search_cols=available_search_cols,
+            normalized_column_cache=normalized_column_cache,
+        ),
+    )
     if final_mask.any():
         return clear_filter_search_attrs(df[final_mask])
     return clear_filter_search_attrs(df.iloc[0:0])
@@ -469,7 +651,7 @@ def apply_general_search_terms(
         if should_cancel is not None and should_cancel():
             raise GeneralSearchCancelled
         if not grouped_terms:
-            return filter_source.iloc[0:0].copy()
+            return clear_filter_search_attrs(filter_source.copy(deep=False))
         if general_search_columns is None:
             return filter_dataframe_func(filter_source, grouped_terms)
         return filter_dataframe_func(
@@ -478,4 +660,4 @@ def apply_general_search_terms(
             search_columns=general_search_columns,
         )
 
-    return filter_source.iloc[0:0].copy()
+    return clear_filter_search_attrs(filter_source.copy(deep=False))
