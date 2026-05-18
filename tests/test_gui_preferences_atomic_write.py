@@ -92,11 +92,13 @@ def test_persist_visible_columns_order_uses_resolved_gui_config_path(
 
 
 def test_theme_persist_uses_resolved_gui_config_path(monkeypatch, tmp_path):
-    from gui.ssa import gui_theme
+    from gui.ssa import gui_preferences_persistence
 
     expected_path = tmp_path / "cfg_theme" / "gui_main_preferences.json"
     monkeypatch.setattr(
-        gui_theme, "get_gui_main_preferences_path", lambda: str(expected_path)
+        gui_preferences_persistence,
+        "get_gui_main_preferences_path",
+        lambda: str(expected_path),
     )
 
     calls = []
@@ -104,11 +106,12 @@ def test_theme_persist_uses_resolved_gui_config_path(monkeypatch, tmp_path):
     def _fake_atomic(path, data, *, indent=2, ensure_ascii=False):
         calls.append((path, data, indent, ensure_ascii))
 
-    monkeypatch.setattr(gui_theme, "atomic_write_json_file", _fake_atomic)
+    monkeypatch.setattr(
+        gui_preferences_persistence, "atomic_write_json_file", _fake_atomic
+    )
 
-    ok = gui_theme.persist_gui_preferences(
+    ok = gui_preferences_persistence.persist_gui_preferences(
         {"gui_settings": {"theme": "gruvbox"}},
-        "/tmp/ignored-project-root",
     )
 
     assert ok is True
@@ -123,7 +126,7 @@ def test_theme_persist_uses_resolved_gui_config_path(monkeypatch, tmp_path):
 def test_theme_dialog_skips_default_preference_write_when_unchanged(monkeypatch):
     from PyQt6 import QtWidgets
 
-    from gui.ssa import gui_theme
+    from gui.ssa import gui_preferences_persistence, gui_theme
 
     class _FakeSignal:
         def connect(self, *_args, **_kwargs) -> None:
@@ -213,8 +216,8 @@ def test_theme_dialog_skips_default_preference_write_when_unchanged(monkeypatch)
 
     persist_calls = []
     monkeypatch.setattr(
-        gui_theme,
-        "persist_gui_preferences",
+        gui_preferences_persistence,
+        "persist_gui_preferences_async",
         lambda *args, **kwargs: persist_calls.append((args, kwargs)) or True,
     )
 

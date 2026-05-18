@@ -6,6 +6,7 @@ import ntpath
 import os
 import posixpath
 import shutil
+import subprocess  # nosec B404
 import sys
 from typing import Any
 
@@ -137,3 +138,29 @@ def build_platform_open_args(command: str, target_path: str) -> list[str]:
     if sys.platform.startswith("win"):
         return [command, target_path]
     return [command, "--", target_path]
+
+
+def open_local_path_non_blocking(
+    target_path: str,
+    *,
+    qdesktopservices: Any,
+    qurl_cls: Any,
+    qt_available: bool,
+    logger: Any,
+) -> bool:
+    if qt_available:
+        try:
+            url = qurl_cls.fromLocalFile(target_path)
+            if str(url.scheme() or "").casefold() != "file":
+                raise RuntimeError("URL local gerou scheme inesperado")
+            if qdesktopservices.openUrl(url):
+                return True
+            raise RuntimeError("QDesktopServices.openUrl returned False")
+        except Exception as exc:
+            logger.warning("Falha ao abrir caminho local via Qt: %s", exc)
+    resolved = resolve_platform_open_command()
+    subprocess.Popen(  # nosec B603
+        build_platform_open_args(resolved, target_path),
+        shell=False,
+    )
+    return True

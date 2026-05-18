@@ -231,7 +231,6 @@ try:
         QTabBar,
         QTableWidget,
         QTabWidget,
-        QTextEdit,
         QVBoxLayout,
         QWidget,
     )
@@ -275,7 +274,6 @@ except ImportError as exc:
         QTabBar,
         QTabWidget,
         QTableWidget,
-        QTextEdit,
         QTimer,
         QUrl,
         QVBoxLayout,
@@ -667,6 +665,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._details_ssa_series_index = None
         self._canonical_available_columns_cache_key = None
         self._canonical_available_columns_cache = None
+        self._adv_values_cache = {}
         if reason:
             logger.debug("Data revision bump (%s): %s", reason, next_rev)
         return next_rev
@@ -692,6 +691,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             context[attr] = value
             synced += 1
         logger.debug("Advanced filter checks synced to panel context: %s", synced)
+
+    def theme_filter_context(self) -> dict | None:
+        context = getattr(self, "_filter_panel_context", None)
+        return context if isinstance(context, dict) else None
+
+    def set_theme_name_for_filter_context(self, theme_name: str) -> None:
+        context = self.theme_filter_context()
+        if context is not None:
+            context["_theme_name"] = theme_name
+
+    def refresh_filter_widgets_after_theme(self, theme_name: str) -> None:
+        self._adv_options_dirty = True
+        if getattr(self, "_active_filter_panel_kind", None) == "advanced":
+            self._pending_theme_refresh_column_filters = theme_name
+            self._schedule_adv_options_refresh()
+            return
+        self._refresh_column_filter_widgets()
+        self._pending_theme_refresh_column_filters = None
 
     def _log_tsm_debug(self, event_name: str, *, widget_role: str, obj) -> None:
         if not TSM_DEBUG_ENABLED:
@@ -2080,10 +2097,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             or logical_index >= len(current_columns)
         ):
             return
-        if current_columns[0] == "#" and header.visualIndex(0) != 0:
+        hash_visual_index = header.visualIndex(0)
+        if current_columns[0] == "#" and hash_visual_index not in (0, -1):
             try:
                 self._header_order_sync_suspended = True
-                header.moveSection(header.visualIndex(0), 0)
+                header.moveSection(hash_visual_index, 0)
             except Exception as exc:
                 logger.debug("Falha ao restaurar coluna # apos drag: %s", exc)
             finally:
@@ -2984,11 +3002,28 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         expect_dir: bool | None,
         allowed_base: str | list[str] | tuple[str, ...] | None = None,
     ) -> str:
+        project_base = os.path.realpath(os.path.normpath(project_root))
+        raw_bases = (
+            [allowed_base]
+            if isinstance(allowed_base, str) or allowed_base is None
+            else list(allowed_base)
+        )
+        safe_bases = []
+        for raw_base in raw_bases:
+            candidate = project_base if raw_base is None else str(raw_base)
+            normalized_base = os.path.realpath(os.path.normpath(candidate))
+            try:
+                if os.path.commonpath([normalized_base, project_base]) == project_base:
+                    safe_bases.append(normalized_base)
+            except ValueError:
+                continue
+        if not safe_bases:
+            raise ValueError("Base permitida fora do projeto.")
         return ssa_system.validate_local_open_target(
             target_path,
             must_exist=must_exist,
             expect_dir=expect_dir,
-            allowed_base=allowed_base or project_root,
+            allowed_base=tuple(safe_bases),
         )
 
     @staticmethod
@@ -3027,10 +3062,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 settings_path,
                 must_exist=True,
                 expect_dir=False,
-                allowed_base=(
-                    os.path.join(project_root, "config"),
-                    os.path.dirname(settings_path),
-                ),
+                allowed_base=os.path.join(project_root, "config"),
             )
         except Exception as exc:
             logger.warning("Caminho de settings invalido para abertura: %s", exc)
@@ -3044,17 +3076,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         opened = False
         try:
-            if QT_AVAILABLE:
-                opened = bool(
-                    QDesktopServices.openUrl(QUrl.fromLocalFile(safe_settings_path))
-                )
-            if not opened:
-                resolved = SSAMainWindow._resolve_platform_open_command()
-                subprocess.Popen(  # nosec B603
-                    ssa_system.build_platform_open_args(resolved, safe_settings_path),
-                    shell=False,
-                )
-                opened = True
+            opened = ssa_system.open_local_path_non_blocking(
+                safe_settings_path,
+                qdesktopservices=QDesktopServices,
+                qurl_cls=QUrl,
+                qt_available=QT_AVAILABLE,
+                logger=logger,
+            )
         except Exception as exc:
             logger.warning("Falha ao abrir settings para edicao: %s", exc)
             if not os.environ.get("PYTEST_CURRENT_TEST"):
@@ -3311,17 +3339,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     for path in _iter_installation_guide_candidates()
                 ),
             )
-            opened = False
-            if QT_AVAILABLE:
-                safe_doc_url = QUrl.fromLocalFile(safe_doc_path)
-                opened = bool(QDesktopServices.openUrl(safe_doc_url))
-            if not opened:
-                resolved = SSAMainWindow._resolve_platform_open_command()
-                subprocess.Popen(  # nosec B603
-                    ssa_system.build_platform_open_args(resolved, safe_doc_path),
-                    shell=False,
-                )
-                opened = True
+            opened = ssa_system.open_local_path_non_blocking(
+                safe_doc_path,
+                qdesktopservices=QDesktopServices,
+                qurl_cls=QUrl,
+                qt_available=QT_AVAILABLE,
+                logger=logger,
+            )
             if hasattr(self, "status_label"):
                 self.status_label.setText("Status: Guia de instalacao aberto.")
             return {"opened": opened, "path": safe_doc_path}
@@ -3492,33 +3516,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return
 
         try:
-            # Prefer Qt abstraction to avoid blocking UI and keep cross-platform behavior.
-            if QT_AVAILABLE:
-                url = QUrl.fromLocalFile(safe_folder_path)
-                if str(url.scheme() or "").casefold() != "file":
-                    raise RuntimeError("URL local gerou scheme inesperado")
-                ok = QDesktopServices.openUrl(url)
-                if ok:
-                    return
-                raise RuntimeError("QDesktopServices.openUrl returned False")
-            raise RuntimeError("Qt not available to open folders")
-        except Exception as open_exc:
-            logger.warning("Falha ao abrir pasta %s via Qt: %s", folder_label, open_exc)
-            try:
-                # Best-effort fallback, non-blocking.
-                resolved = SSAMainWindow._resolve_platform_open_command()
-                subprocess.Popen(  # nosec B603
-                    ssa_system.build_platform_open_args(resolved, safe_folder_path),
-                    shell=False,
-                )
+            opened = ssa_system.open_local_path_non_blocking(
+                safe_folder_path,
+                qdesktopservices=QDesktopServices,
+                qurl_cls=QUrl,
+                qt_available=QT_AVAILABLE,
+                logger=logger,
+            )
+            if opened:
                 return
-            except Exception as fallback_exc:
-                logger.warning("Fallback para abrir pasta falhou: %s", fallback_exc)
-                if os.environ.get("PYTEST_CURRENT_TEST"):
-                    return
-                QMessageBox.warning(
-                    self, "Erro", f"Erro ao abrir pasta: {fallback_exc}"
-                )
+        except Exception as open_exc:
+            logger.warning("Falha ao abrir pasta %s: %s", folder_label, open_exc)
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                return
+            QMessageBox.warning(self, "Erro", f"Erro ao abrir pasta: {open_exc}")
 
     def _list_special_derivadas_sheets(self) -> list[str]:
         return ssa_derivadas_sync.list_special_derivadas_sheets(project_root)
@@ -3815,6 +3826,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         Garante cleanup adequado dos QThreads para evitar o erro:
         'QThread: Destroyed while thread is still running'
         """
+        try:
+            from gui.ssa.gui_preferences_persistence import flush_gui_preferences_async
+
+            flush_gui_preferences_async(timeout=1.0)
+        except Exception as exc:
+            logger.debug("Falha ao aguardar persistencia GUI no closeEvent: %s", exc)
+
         ssa_gui_workers.cleanup_window_workers_on_close(
             self,
             **_close_retention_kwargs(),
