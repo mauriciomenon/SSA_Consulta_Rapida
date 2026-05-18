@@ -13,6 +13,7 @@ import copy
 import json
 import os
 import re
+import weakref
 from collections import OrderedDict
 from contextlib import contextmanager
 from time import perf_counter
@@ -55,6 +56,7 @@ except ImportError:
 from core.app_logic import FILTER_SEARCH_CACHE_ATTR, FILTER_SEARCH_MARKER_ATTR
 from core.search_filter_constants import FILTER_SEARCH_SIGNATURE_CACHE_ATTR
 from core.app_logic import filter_dataframe, parse_search_terms
+from core.search_filter import apply_general_search_terms
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 
 # Imports de gui helpers
@@ -217,10 +219,7 @@ def _connect_filter_signal(signal, slot, *, label: str) -> bool:
             try:
                 signal.connect(slot, queued_connection)
             except TypeError:
-                try:
-                    signal.connect(slot, type=queued_connection)
-                except TypeError:
-                    signal.connect(slot)
+                signal.connect(slot)
         else:
             signal.connect(slot)
         return True
@@ -454,6 +453,17 @@ class FilterGUISSAMixin:
 
     def _set_filter_ui_idle(self) -> None:
         """Garante estado visual de ociosidade após abortar/limpar filtros."""
+        required_widgets = (
+            "progress_bar",
+            "load_button",
+            "search_button",
+            "status_label",
+        )
+        if any(getattr(self, name, None) is None for name in required_widgets):
+            logger.debug(
+                "Estado visual de filtro ignorado antes da UI de filtro estar pronta"
+            )
+            return
         self._filter_ui_state().set_idle()
 
     def _set_checked_without_signal(
@@ -669,7 +679,10 @@ class FilterGUISSAMixin:
         try:
             accepted = self._ask_yes_no(
                 title="Limpar Filtros",
-                message="Voce clicou varias vezes em limpar filtros. Deseja resetar todos os filtros?",
+                message=(
+                    "Voce clicou varias vezes em limpar filtros. Deseja fazer um "
+                    "reset completo, restaurando defaults e limpando a busca?"
+                ),
             )
         except Exception as exc:
             logger.debug(
@@ -688,27 +701,12 @@ class FilterGUISSAMixin:
         default_mode: str,
         general_search_columns: list[str],
     ) -> pd.DataFrame:
-        if not unique_chunk_terms_lists:
-            return filter_source.copy(deep=False)
-
-        combined_mask = pd.Series(False, index=filter_source.index)
-        matched_any = False
-        for terms in unique_chunk_terms_lists:
-            parsed = parse_search_terms(terms, default_mode=default_mode)
-            chunk_df = filter_dataframe(
-                filter_source,
-                parsed,
-                search_columns=general_search_columns,
-            )
-            if chunk_df.empty:
-                continue
-            matched_any = True
-            combined_mask.loc[chunk_df.index] = True
-        if not matched_any:
-            return filter_source.iloc[0:0].copy()
-        if len(unique_chunk_terms_lists) == 1:
-            return filter_source.loc[combined_mask]
-        return filter_source.loc[combined_mask]
+        return apply_general_search_terms(
+            filter_source,
+            unique_chunk_terms_lists,
+            default_mode=default_mode,
+            general_search_columns=general_search_columns,
+        )
 
     def _get_default_filter_mode(self) -> str:
         if not hasattr(self, "_cached_default_mode"):
@@ -720,32 +718,15 @@ class FilterGUISSAMixin:
             )
         return str(self._cached_default_mode or "contains")
 
-    def initiate_filtering(self):
-        if self.df_completo.empty:
-            self._set_filter_ui_idle()
-            QMessageBox.information(
-                _qt_parent(self), "Aviso", "Nenhum dado carregado para filtrar."
-            )
-            return
-
-        self._safe_store_last_filter_state("initiate_filtering")
-        try:
-            self._debounce_timer.stop()
-        except Exception as exc:
-            logger.debug("Falha ao parar debounce antes de iniciar filtragem: %s", exc)
-        request_id = self._invalidate_active_filter_request("initiate_filtering")
-
+    def _current_general_search_text(self) -> str:
         search_widget = getattr(self, "search_input", None)
         if _is_search_widget_valid(search_widget):
-            search_text = str(cast(Any, search_widget).text() or "").strip()
-        else:
-            search_text = ""
-        raw_chunks = self._prepare_search_chunks(search_text) if search_text else []
-        search_chunks_for_worker = raw_chunks
+            return str(cast(Any, search_widget).text() or "").strip()
+        return ""
 
-        self._sync_clear_filter_button_state()
-
-        display_text = search_text if search_text else ""
+    def _select_general_filter_source_candidate(
+        self, search_text: str
+    ) -> pd.DataFrame:
         filter_source_candidate = self.df_completo
         try:
             last_search_filtered = getattr(self, "_df_last_search_filtered", None)
@@ -774,81 +755,63 @@ class FilterGUISSAMixin:
                 and not has_column_filters
                 and not getattr(self, "_exclude_ste_sca", False)
                 and not has_active_worker
+                and can_reuse_refined_search(previous_terms, current_terms)
             ):
-                if can_reuse_refined_search(previous_terms, current_terms):
-                    filter_source_candidate = last_search_filtered
+                filter_source_candidate = last_search_filtered
         except Exception as exc:
             logger.debug(
                 "Falha ao avaliar refinamento seguro da busca; usando df_completo: %s",
                 exc,
             )
-        self._pending_search_display = display_text
-        self._active_filter_search_display = display_text
-        self._active_filter_search_request_id = request_id
+        return filter_source_candidate
 
-        self._filter_ui_state().set_busy()
+    def _normalized_search_chunks_for_sync(
+        self, search_chunks: list[str]
+    ) -> list[list[str]]:
+        sync_chunks = [
+            self._normalize_chunk_for_parse(chunk) for chunk in search_chunks
+        ]
+        return [terms for terms in sync_chunks if terms]
 
-        default_mode = self._get_default_filter_mode()
-        filter_source = self._get_filter_source_dataframe(filter_source_candidate)
-        general_search_columns = build_gui_general_search_columns(filter_source)
-
-        # Modo síncrono (sem QThread) opcional para testes
-        if getattr(self, "_sync_filtering", False):
-            try:
-                sync_chunks = [
-                    self._normalize_chunk_for_parse(chunk)
-                    for chunk in search_chunks_for_worker
-                ]
-                sync_chunks = [terms for terms in sync_chunks if terms]
-                df_filtrado = self._apply_general_search_terms(
-                    filter_source,
-                    sync_chunks,
-                    default_mode=default_mode,
-                    general_search_columns=general_search_columns,
-                )
-                self.on_filter_finished(df_filtrado, request_id=request_id)
-                self._apply_filter_result_width_safety("sync_filtering")
-            except Exception as e:  # noqa: BLE001
-                self.on_filter_error(
-                    f"Erro ao filtrar dados: {e}", request_id=request_id
-                )
-            finally:
-                self.on_filter_finished_cleanup(None, request_id=request_id)
-            return
-
-        self._cancel_active_filter_worker("initiate_filtering_new_request")
-
-        # Fallback defensivo para ambientes sem worker assíncrono disponível
-        if FilterWorker is None:
-            logger.warning(
-                "FilterWorker indisponivel; aplicando filtro em modo sincrono"
+    def _run_general_filter_synchronously(
+        self,
+        filter_source: pd.DataFrame,
+        search_chunks: list[str],
+        *,
+        default_mode: str,
+        general_search_columns: list[str],
+        request_id: int,
+        width_safety_context: str | None = None,
+    ) -> None:
+        try:
+            sync_chunks = self._normalized_search_chunks_for_sync(search_chunks)
+            df_filtrado = self._apply_general_search_terms(
+                filter_source,
+                sync_chunks,
+                default_mode=default_mode,
+                general_search_columns=general_search_columns,
             )
-            try:
-                sync_chunks = [
-                    self._normalize_chunk_for_parse(chunk)
-                    for chunk in search_chunks_for_worker
-                ]
-                sync_chunks = [terms for terms in sync_chunks if terms]
-                df_filtrado = self._apply_general_search_terms(
-                    filter_source,
-                    sync_chunks,
-                    default_mode=default_mode,
-                    general_search_columns=general_search_columns,
-                )
-                self.on_filter_finished(df_filtrado, request_id=request_id)
-            except Exception as e:  # noqa: BLE001
-                self.on_filter_error(
-                    f"Erro ao filtrar dados: {e}", request_id=request_id
-                )
-            finally:
-                self.on_filter_finished_cleanup(None, request_id=request_id)
-            return
+            self.on_filter_finished(df_filtrado, request_id=request_id)
+            if width_safety_context is not None:
+                self._apply_filter_result_width_safety(width_safety_context)
+        except Exception as e:  # noqa: BLE001
+            self.on_filter_error(f"Erro ao filtrar dados: {e}", request_id=request_id)
+        finally:
+            self.on_filter_finished_cleanup(None, request_id=request_id)
 
-        # Inicia a thread de filtragem (modo padrao assincrono)
+    def _start_general_filter_worker(
+        self,
+        filter_source: pd.DataFrame,
+        search_chunks: list[str],
+        *,
+        default_mode: str,
+        general_search_columns: list[str],
+        request_id: int,
+    ) -> None:
         filter_cache_context = self._build_filter_cache_context()
         worker = FilterWorker(
             filter_source,
-            search_chunks_for_worker,
+            search_chunks,
             search_columns=general_search_columns,
             default_mode=default_mode,
             cache_context=filter_cache_context,
@@ -884,6 +847,77 @@ class FilterGUISSAMixin:
             )
             return
         worker.start()
+
+    def initiate_filtering(self):
+        if self.df_completo.empty:
+            self._set_filter_ui_idle()
+            QMessageBox.information(
+                _qt_parent(self), "Aviso", "Nenhum dado carregado para filtrar."
+            )
+            return
+
+        self._safe_store_last_filter_state("initiate_filtering")
+        try:
+            self._debounce_timer.stop()
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce antes de iniciar filtragem: %s", exc)
+        request_id = self._invalidate_active_filter_request("initiate_filtering")
+
+        search_text = self._current_general_search_text()
+        raw_chunks = self._prepare_search_chunks(search_text) if search_text else []
+        search_chunks_for_worker = raw_chunks
+
+        self._sync_clear_filter_button_state()
+
+        display_text = search_text if search_text else ""
+        filter_source_candidate = self._select_general_filter_source_candidate(
+            search_text
+        )
+        self._pending_search_display = display_text
+        self._active_filter_search_display = display_text
+        self._active_filter_search_request_id = request_id
+
+        self._filter_ui_state().set_busy()
+
+        default_mode = self._get_default_filter_mode()
+        filter_source = self._get_filter_source_dataframe(filter_source_candidate)
+        general_search_columns = build_gui_general_search_columns(filter_source)
+
+        # Modo síncrono (sem QThread) opcional para testes
+        if getattr(self, "_sync_filtering", False):
+            self._run_general_filter_synchronously(
+                filter_source,
+                search_chunks_for_worker,
+                default_mode=default_mode,
+                general_search_columns=general_search_columns,
+                request_id=request_id,
+                width_safety_context="sync_filtering",
+            )
+            return
+
+        self._cancel_active_filter_worker("initiate_filtering_new_request")
+
+        # Fallback defensivo para ambientes sem worker assíncrono disponível
+        if FilterWorker is None:
+            logger.warning(
+                "FilterWorker indisponivel; aplicando filtro em modo sincrono"
+            )
+            self._run_general_filter_synchronously(
+                filter_source,
+                search_chunks_for_worker,
+                default_mode=default_mode,
+                general_search_columns=general_search_columns,
+                request_id=request_id,
+            )
+            return
+
+        self._start_general_filter_worker(
+            filter_source,
+            search_chunks_for_worker,
+            default_mode=default_mode,
+            general_search_columns=general_search_columns,
+            request_id=request_id,
+        )
 
     def on_filter_finished(
         self, df_filtrado: pd.DataFrame, request_id: int | None = None
@@ -927,16 +961,8 @@ class FilterGUISSAMixin:
             effective_request_id is not None
             and effective_request_id == current_search_request_id
         ):
-            pending_display = getattr(self, "_pending_search_display", None)
-            pending_display_text = str(pending_display or "").strip()
-            if pending_display_text:
-                self._active_filter_search_display = pending_display_text
             search_text = str(
                 getattr(self, "_active_filter_search_display", "") or ""
-            ).strip()
-        if not search_text:
-            search_text = str(
-                getattr(self, "_pending_search_display", "") or ""
             ).strip()
         filtered_total_current = None
         try:
@@ -1094,7 +1120,14 @@ class FilterGUISSAMixin:
         if not deferred:
             return
         try:
-            QTimer.singleShot(0, lambda: self._apply_safe_width_deferred(context))
+            self_ref = weakref.ref(self)
+
+            def _apply_width_if_alive() -> None:
+                window = self_ref()
+                if window is not None:
+                    window._apply_safe_width_deferred(context)
+
+            QTimer.singleShot(0, _apply_width_if_alive)
         except Exception as exc:
             logger.debug(
                 "Falha ao agendar largura de seguranca em %s: %s",
@@ -1475,18 +1508,13 @@ class FilterGUISSAMixin:
             payload=payload,
             split_labels=not shares_single_status_label,
         )
-        if shares_single_status_label:
-            target_label = (
-                status_label if status_label is not None else filtered_status_label
-            )
-            if target_label is None:
-                return count_status_text, notice_status_text
-            target_label.setText(count_status_text)
-            return count_status_text, notice_status_text
         if filtered_status_label is not None:
             filtered_status_label.setText(count_status_text)
-        if status_label is not None:
-            status_label.setText(notice_status_text)
+        if status_label is not None and status_label is not filtered_status_label:
+            if shares_single_status_label:
+                status_label.setText(count_status_text)
+            else:
+                status_label.setText(notice_status_text)
         return count_status_text, notice_status_text
 
     def _resolve_status_search_text(self, search_text: str | None = None) -> str:
@@ -1629,6 +1657,7 @@ class FilterGUISSAMixin:
                 self.search_input.clear()
                 self.search_input.setText("")
         self._pending_search_display = None
+        self._active_filter_search_display = ""
         self._df_last_search_filtered = pd.DataFrame()
 
         # Limpar todos os filtros de coluna com o mesmo baseline padrao
@@ -2867,9 +2896,7 @@ class FilterGUISSAMixin:
         restored_search_text = str(state.get("search_text", "") or "")
         self._set_search_text_across_tabs(restored_search_text)
         self._pending_search_display = state.get("pending_search_display")
-        self._df_last_search_filtered = (
-            pd.DataFrame() if restored_search_text.strip() else self.df_completo
-        )
+        self._df_last_search_filtered = self.df_completo
         return restored_search_text
 
     def _restore_filter_column_state(self, state: dict) -> None:

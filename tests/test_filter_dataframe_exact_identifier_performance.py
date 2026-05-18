@@ -1,7 +1,6 @@
 import time
 
 import pandas as pd
-import pytest
 
 from core import app_logic
 
@@ -20,19 +19,8 @@ def _large_identifier_frame(rows: int = 80_000) -> pd.DataFrame:
     )
 
 
-def test_exact_identifier_search_uses_identifier_columns_without_heavy_cache(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_exact_identifier_search_uses_identifier_columns_without_heavy_cache() -> None:
     df = _large_identifier_frame()
-
-    def fail_build_token(*_args, **_kwargs):
-        raise AssertionError("exact identifier search must not build aggregate cache")
-
-    monkeypatch.setattr(
-        app_logic.FilterSearchCacheManager,
-        "build_token",
-        fail_build_token,
-    )
 
     started = time.perf_counter()
     result = app_logic.filter_dataframe(
@@ -43,6 +31,7 @@ def test_exact_identifier_search_uses_identifier_columns_without_heavy_cache(
     elapsed_ms = (time.perf_counter() - started) * 1000.0
 
     assert result["numero_ssa"].tolist() == ["202605373"]
+    assert "_filter_search_cache" not in df.attrs
     assert elapsed_ms < 250
 
 

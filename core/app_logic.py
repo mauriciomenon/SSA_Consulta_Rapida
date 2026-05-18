@@ -62,7 +62,6 @@ _DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE: Dict[str, str] = {
 from core.search_filter import (  # noqa: E402
     FILTER_SEARCH_CACHE_ATTR,
     FILTER_SEARCH_MARKER_ATTR,
-    FilterSearchCacheManager,
     filter_dataframe,
     parse_search_terms,
 )
@@ -74,7 +73,6 @@ from core.import_run_report import (  # noqa: E402
 __all__ = [
     "FILTER_SEARCH_CACHE_ATTR",
     "FILTER_SEARCH_MARKER_ATTR",
-    "FilterSearchCacheManager",
     "filter_dataframe",
     "parse_search_terms",
 ]

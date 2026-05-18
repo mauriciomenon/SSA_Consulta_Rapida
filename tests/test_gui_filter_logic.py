@@ -2005,33 +2005,13 @@ class TestGUIFilterLogic:
         visible_ssa = [str(value) for value in self._extract_visible_ssa()]
         assert Counter(visible_ssa) == Counter([target_ssa])
 
-    def test_general_search_reuses_filter_dataframe_cache_on_same_dataframe(
-        self, monkeypatch
-    ):
+    def test_general_search_does_not_persist_row_text_cache_on_same_dataframe(self):
         realistic_df = self._build_realistic_base_df_50()
         self.window._sync_filtering = True
         self.window.df_completo = realistic_df.copy()
         self.window.df_exibido = realistic_df.copy()
         self.window._df_last_search_filtered = realistic_df.copy()
         self.window.paginator.set_dataframe(realistic_df.copy())
-
-        store_calls = {"count": 0}
-        original_store = app_logic.FilterSearchCacheManager.store_cached_search_data
-
-        def _tracked_store(
-            frame: pd.DataFrame,
-            search_cache_token,
-            base_lower_df: pd.DataFrame,
-            row_search_text: pd.Series,
-        ) -> None:
-            store_calls["count"] += 1
-            original_store(frame, search_cache_token, base_lower_df, row_search_text)
-
-        monkeypatch.setattr(
-            app_logic.FilterSearchCacheManager,
-            "store_cached_search_data",
-            staticmethod(_tracked_store),
-        )
 
         self.window.search_input.setText("Teste")
         self.window.initiate_filtering()
@@ -2041,7 +2021,7 @@ class TestGUIFilterLogic:
         self.window.initiate_filtering()
         QApplication.processEvents()
 
-        assert store_calls["count"] == 1
+        assert app_logic.FILTER_SEARCH_CACHE_ATTR not in self.window.df_completo.attrs
 
     def test_initiate_filtering_refines_previous_search_subset_when_safe(
         self, monkeypatch
@@ -2217,7 +2197,7 @@ class TestGUIFilterLogic:
         assert captured_sources
         assert captured_sources[0] is self.window.df_completo
 
-    def test_filter_dataframe_large_search_cache_skips_base_lower_df_payload(self):
+    def test_filter_dataframe_large_search_does_not_persist_row_text_cache(self):
         heavy_df = self._build_heavy_filters_df(rows=6000)
 
         filtered = app_logic.filter_dataframe(
@@ -2226,12 +2206,8 @@ class TestGUIFilterLogic:
             search_columns=["descricao_ssa", "setor_executor"],
         )
 
-        cached = heavy_df.attrs.get(app_logic.FILTER_SEARCH_CACHE_ATTR)
-
         assert not filtered.empty
-        assert isinstance(cached, dict)
-        assert "base_lower_df" not in cached
-        assert len(cached["row_search_text"]) == len(heavy_df.index)
+        assert app_logic.FILTER_SEARCH_CACHE_ATTR not in heavy_df.attrs
 
     def test_filter_dataframe_large_anchored_regex_works_without_cached_base_lower_df(
         self,
@@ -2244,11 +2220,8 @@ class TestGUIFilterLogic:
             search_columns=["descricao_ssa"],
         )
 
-        cached = heavy_df.attrs.get(app_logic.FILTER_SEARCH_CACHE_ATTR)
-
         assert not filtered.empty
-        assert isinstance(cached, dict)
-        assert "base_lower_df" not in cached
+        assert app_logic.FILTER_SEARCH_CACHE_ATTR not in heavy_df.attrs
 
     def test_build_gui_general_search_columns_skips_all_null_columns_from_attrs(self):
         df = self._build_heavy_filters_df(rows=8)
