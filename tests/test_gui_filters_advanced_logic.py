@@ -565,6 +565,6 @@ def test_week_exclude_contract_keys_are_explicit_noop_allowlist_only():
     explicit_noop_allowlist = {"semana_emissao_exclude", "semana_execucao_exclude"}
 
     assert logic_week_exclude_keys <= explicit_noop_allowlist
-    assert explicit_noop_allowlist <= produced_keys
+    assert not (explicit_noop_allowlist & produced_keys)
     not_in_detector = logic_week_exclude_keys - detector_keys
     assert not_in_detector <= explicit_noop_allowlist

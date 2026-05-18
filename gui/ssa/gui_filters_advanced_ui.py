@@ -12,14 +12,12 @@ from typing import Any
 import pandas as pd
 
 from gui.qt_stubs import (
-    QApplication,
     QCheckBox,
     QComboBox,
     QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
-    QLabel,
     QLineEdit,
     QMenu,
     QPushButton,
@@ -30,8 +28,6 @@ from gui.qt_stubs import (
     QToolButton,
     QVBoxLayout,
     QWidget,
-    QWidgetAction,
-    sip,
 )
 from utils.robust_logging import get_robust_logger
 
@@ -40,6 +36,7 @@ from .filter_domain_rules import (
     order_sector_values,
     sector_sort_key,
 )
+from .gui_filters_advanced_activity import has_active_advanced_filters
 from .gui_filters_advanced_layout import (
     AdvancedGridLayoutConstraints,
     AdvancedGridLayoutMetrics,
@@ -49,6 +46,20 @@ from .gui_filters_advanced_refresh import (
     AdvancedFilterUIState,
     build_advanced_values_cache_key,
     get_cached_advanced_filter_option_values,
+)
+from .gui_filters_advanced_specs import (
+    ADVANCED_RESPONSAVEL_MULTISELECT_SPECS,
+    ADVANCED_STANDARD_MULTISELECT_SPECS,
+    ADVANCED_YEAR_MULTISELECT_SPECS,
+)
+from .gui_filters_advanced_sync import sync_advanced_filter_ui
+from .gui_filters_multiselect_menu import (
+    _build_multiselect_summary_candidates,
+    _checked_values_from_checkboxes,
+    _fit_button_text,
+    _is_not_deleted,
+    _sync_include_exclude_multiselect_checks,
+    _update_multiselect_button,
 )
 from .gui_filters_advanced_state_reader import (
     AdvancedFilterStateReader,
@@ -60,6 +71,66 @@ from .gui_filters_responsavel_state import responsavel_materialization_state
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 _DERIVADA_ALL_STE_LABEL = "Derivadas em STE/SES"
+_is_widget_valid = _is_not_deleted
+
+
+def _attach_multiselect_menu(*args, **kwargs):
+    from .gui_filters_multiselect_menu import _attach_multiselect_menu as impl
+
+    return impl(*args, **kwargs)
+
+
+def _rebuild_multiselect_menu(*args, **kwargs):
+    from .gui_filters_multiselect_menu import _rebuild_multiselect_menu as impl
+
+    return impl(*args, **kwargs)
+
+
+def _sync_multiselect_checks(*args, **kwargs):
+    from .gui_filters_multiselect_menu import _sync_multiselect_checks as impl
+
+    return impl(*args, **kwargs)
+
+
+@dataclass(frozen=True)
+class AdvancedFilterPanelParts:
+    group: QGroupBox
+    fields: dict
+    controls: dict
+    main_grid: QGridLayout
+    action_box: QGroupBox
+    apply_btn: QPushButton
+    clear_btn: QPushButton
+    controls_scroll: QScrollArea
+
+
+@dataclass
+class AdvancedFilterPanelState:
+    group: QGroupBox
+    main_grid: QGridLayout
+    grid_widgets: dict[str, Any]
+    grid_order: tuple[str, ...]
+    apply_btn: QPushButton
+    clear_btn: QPushButton
+    metric_controls: tuple[Any, ...]
+    action_widget: QGroupBox
+    controls_scroll: QScrollArea
+    action_btn_dims: tuple[int, int] | None = None
+    grid_cols: int | None = None
+    last_widget_count: int | None = None
+    layout_mode: str | None = None
+    last_effective_width: int | None = None
+    last_max_scroll_h: int | None = None
+    cell_min_width: int | None = None
+    cell_min_width_widget_key: tuple[int, ...] | None = None
+
+
+def _advanced_panel_state(self) -> AdvancedFilterPanelState | None:
+    state = getattr(self, "_advanced_filter_panel_state", None)
+    if isinstance(state, AdvancedFilterPanelState):
+        return state
+    return None
+
 
 # Layout constants
 LAYOUT_MIN_VALID_WIDTH = 1
@@ -72,65 +143,6 @@ LAYOUT_ADV_CONTROL_HEIGHT = 22
 LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 36
 LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 46
 
-# Simple popup guard (golden baseline).
-# Keep this switch easy to revert if we want full dynamic width again.
-SIMPLE_POPUP_TEXT_CLAMP = True
-SIMPLE_POPUP_LABEL_MAX_PX = 300
-SIMPLE_POPUP_RIGHT_GUTTER_PX = 10
-SIMPLE_POPUP_SCROLLBAR_GUARD_PX = 18
-HIGH_CARDINALITY_MENU_LIMIT = 160
-
-
-@dataclass(frozen=True)
-class MultiselectMenuModel:
-    filter_name: str
-    has_exclude_column: bool
-    popup_width: int
-    include_col_min: int
-    exclude_col_min: int
-    values: list[Any]
-    total_values: int
-    selected_norm: set[str]
-    exclude_norm: set[str]
-    label_display_by_key: dict[str, str]
-
-
-def _get_widget_screen_geometry(widget):
-    candidate_widgets = []
-    if widget is not None:
-        candidate_widgets.append(widget)
-        try:
-            window = widget.window()
-        except Exception:
-            window = None
-        if window is not None and window is not widget:
-            candidate_widgets.append(window)
-    for candidate in candidate_widgets:
-        try:
-            handle = candidate.windowHandle()
-            if handle is not None:
-                screen = handle.screen()
-                if screen is not None:
-                    return screen.availableGeometry()
-        except Exception as exc:
-            logger.debug("Failed to get screen geometry from window handle: %s", exc)
-        try:
-            screen_at = getattr(QApplication, "screenAt", None)
-            if callable(screen_at):
-                screen = screen_at(candidate.mapToGlobal(candidate.rect().center()))
-                if screen is not None:
-                    return screen.availableGeometry()
-        except Exception as exc:
-            logger.debug("Failed to get screen geometry from widget center: %s", exc)
-    try:
-        screen = QApplication.primaryScreen()
-        if screen is not None:
-            return screen.availableGeometry()
-    except Exception as exc:
-        logger.debug("Failed to get primary screen geometry: %s", exc)
-    return None
-
-
 def _flatten_field_box(box: QGroupBox) -> None:
     if box is None:
         return
@@ -141,8 +153,9 @@ def _flatten_field_box(box: QGroupBox) -> None:
 
 
 def _apply_advanced_filters_font_policy(self, width: int) -> None:
-    group = getattr(self, "adv_filters_group", None) or getattr(
-        self, "_adv_filters_group_obj", None
+    state = _advanced_panel_state(self)
+    group = getattr(self, "adv_filters_group", None) or (
+        state.group if state is not None else getattr(self, "_adv_filters_group_obj", None)
     )
     if group is None:
         return
@@ -159,7 +172,11 @@ def _apply_advanced_filters_font_policy(self, width: int) -> None:
     control_pt = max(9, min(12, base_pt))
     title_pt = max(control_pt, min(12, control_pt + 1))
     try:
-        boxes = (getattr(self, "_adv_filters_grid_widgets", {}) or {}).values()
+        boxes = (
+            state.grid_widgets.values()
+            if state is not None
+            else (getattr(self, "_adv_filters_grid_widgets", {}) or {}).values()
+        )
     except Exception:
         boxes = []
     for box in boxes:
@@ -171,7 +188,11 @@ def _apply_advanced_filters_font_policy(self, width: int) -> None:
             box.setFont(bf)
         except Exception as exc:
             logger.debug("Falha ao ajustar fonte do box de filtro avancado: %s", exc)
-    controls = getattr(self, "_adv_filters_metric_controls", ()) or ()
+    controls = (
+        state.metric_controls
+        if state is not None
+        else getattr(self, "_adv_filters_metric_controls", ()) or ()
+    )
     for control in controls:
         if control is None:
             continue
@@ -185,18 +206,6 @@ def _apply_advanced_filters_font_policy(self, width: int) -> None:
             )
 
 
-def _is_widget_valid(widget) -> bool:
-    if widget is None:
-        return False
-    if sip is None:
-        return True
-    try:
-        wrapper_type = getattr(sip, "wrapper", None)
-        if wrapper_type is not None and not isinstance(widget, wrapper_type):
-            return False
-        return not sip.isdeleted(widget)
-    except (RuntimeError, TypeError):
-        return False
 
 
 def _safe_len(value: Any) -> int:
@@ -213,11 +222,16 @@ def _resolve_adv_layout_baseline(self) -> tuple[int, int, int]:
 
 def _update_advanced_filters_action_buttons(self, width: int) -> None:
     """Aplica dimensao estavel para botoes de acao do painel avancado."""
-    apply_btn = getattr(self, "_adv_filters_apply_btn", None)
-    clear_btn = getattr(self, "_adv_filters_clear_btn", None)
+    state = _advanced_panel_state(self)
+    apply_btn = state.apply_btn if state is not None else getattr(
+        self, "_adv_filters_apply_btn", None
+    )
+    clear_btn = state.clear_btn if state is not None else getattr(
+        self, "_adv_filters_clear_btn", None
+    )
     if apply_btn is None or clear_btn is None:
         return
-    if not _is_widget_valid(apply_btn) or not _is_widget_valid(clear_btn):
+    if not _is_not_deleted(apply_btn) or not _is_not_deleted(clear_btn):
         return
     _ = width
     _, min_width, max_width = _resolve_adv_layout_baseline(self)
@@ -225,7 +239,11 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
     max_width = max(min_width + 6, min(84, max_width))
     try:
         grid_cols = int(
-            getattr(self, "_adv_filters_grid_cols", LAYOUT_GRID_PREF_COLS)
+            (
+                state.grid_cols
+                if state is not None
+                else getattr(self, "_adv_filters_grid_cols", LAYOUT_GRID_PREF_COLS)
+            )
             or LAYOUT_GRID_PREF_COLS
         )
     except Exception:
@@ -238,15 +256,20 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
         max_width = min(max_width, per_button_budget)
         min_width = min(min_width, max_width)
     new_dims = (min_width, max_width)
-    if getattr(self, "_adv_filters_action_btn_dims", None) == new_dims:
+    current_dims = state.action_btn_dims if state is not None else getattr(
+        self, "_adv_filters_action_btn_dims", None
+    )
+    if current_dims == new_dims:
         return
+    if state is not None:
+        state.action_btn_dims = new_dims
     self._adv_filters_action_btn_dims = new_dims
     for btn in (apply_btn, clear_btn):
-        if not _is_widget_valid(btn):
+        if not _is_not_deleted(btn):
             continue
         try:
             ref_btn = getattr(self, "search_button", None)
-            if ref_btn is not None and _is_widget_valid(ref_btn):
+            if ref_btn is not None and _is_not_deleted(ref_btn):
                 ref_font = ref_btn.font()
                 ref_font.setBold(False)
                 btn.setFont(ref_font)
@@ -265,12 +288,18 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
 
 
 def _enforce_advanced_filters_compact_metrics(self) -> None:
-    group = getattr(self, "adv_filters_group", None)
-    if group is None:
-        group = getattr(self, "_adv_filters_group_obj", None)
+    state = _advanced_panel_state(self)
+    group = getattr(self, "adv_filters_group", None) or (
+        state.group if state is not None else getattr(self, "_adv_filters_group_obj", None)
+    )
     if group is None:
         return
-    for field_box in (getattr(self, "_adv_filters_grid_widgets", {}) or {}).values():
+    grid_widgets = (
+        state.grid_widgets
+        if state is not None
+        else getattr(self, "_adv_filters_grid_widgets", {}) or {}
+    )
+    for field_box in grid_widgets.values():
         if field_box is None:
             continue
         try:
@@ -280,7 +309,12 @@ def _enforce_advanced_filters_compact_metrics(self) -> None:
             logger.debug(
                 "Falha ao aplicar metrica compacta em box de filtro avancado: %s", exc
             )
-    for control in getattr(self, "_adv_filters_metric_controls", ()) or ():
+    controls = (
+        state.metric_controls
+        if state is not None
+        else getattr(self, "_adv_filters_metric_controls", ()) or ()
+    )
+    for control in controls:
         if control is None:
             continue
         try:
@@ -294,6 +328,14 @@ def _enforce_advanced_filters_compact_metrics(self) -> None:
 
 
 def _compute_adv_grid_cell_min_width(self, visible_widgets) -> int:
+    state = _advanced_panel_state(self)
+    widget_key = tuple(id(widget) for _, widget in visible_widgets if widget is not None)
+    if (
+        state is not None
+        and state.cell_min_width is not None
+        and state.cell_min_width_widget_key == widget_key
+    ):
+        return state.cell_min_width
     base_cell_min, _, _ = _resolve_adv_layout_baseline(self)
     widths = []
     for _, widget in visible_widgets:
@@ -311,7 +353,11 @@ def _compute_adv_grid_cell_min_width(self, visible_widgets) -> int:
     p75 = widths[p75_idx]
     avg = sum(widths) // len(widths)
     dynamic_baseline = max(p75, avg) + 22
-    return max(174, min(300, max(base_cell_min, dynamic_baseline)))
+    result = max(174, min(300, max(base_cell_min, dynamic_baseline)))
+    if state is not None:
+        state.cell_min_width = result
+        state.cell_min_width_widget_key = widget_key
+    return result
 
 
 def _make_multiselect_box(
@@ -407,7 +453,7 @@ def _run_menu_pre_show_hook(self, button) -> None:
 
 def _set_checkbox_checked_quietly(self, checkbox, checked: bool) -> None:
     """Atualiza estado de checkbox sem propagar sinais e sem deixar bloqueio preso."""
-    if not _is_widget_valid(checkbox):
+    if not _is_not_deleted(checkbox):
         return
     try:
         desired = bool(checked)
@@ -437,6 +483,12 @@ def _mark_responsavel_dirty(self, prefixes=None) -> None:
 
 
 def _on_sector_debounce_timeout(self) -> None:
+    group = getattr(self, "adv_filters_group", None)
+    if group is None:
+        state = _advanced_panel_state(self)
+        group = state.group if state is not None else None
+    if group is None or not _is_not_deleted(group):
+        return
     target = responsavel_materialization_state(self).stale_built_prefixes()
     if not target:
         return
@@ -464,44 +516,25 @@ def _sync_responsavel_button_summaries(self, only_prefixes=None) -> None:
     if only_prefixes is not None:
         selected_prefixes = {p for p in only_prefixes}
     filters = self._advanced_filters or {}
-    pairs = (
-        (
-            "adv_responsavel_solicitante",
-            "adv_responsavel_solicitante_button",
-            "solicitante",
-            "solicitante_exclude_values",
-        ),
-        (
-            "adv_responsavel_programacao",
-            "adv_responsavel_programacao_button",
-            "responsavel_programacao",
-            "responsavel_programacao_exclude_values",
-        ),
-        (
-            "adv_responsavel_execucao",
-            "adv_responsavel_execucao_button",
-            "responsavel_execucao",
-            "responsavel_execucao_exclude_values",
-        ),
-    )
-    for prefix, button_attr, include_key, exclude_key in pairs:
-        if selected_prefixes is not None and prefix not in selected_prefixes:
+    for spec in ADVANCED_RESPONSAVEL_MULTISELECT_SPECS:
+        if selected_prefixes is not None and spec.prefix not in selected_prefixes:
             continue
-        button = getattr(self, button_attr, None)
-        if button is None or not _is_widget_valid(button):
+        button = getattr(self, f"{spec.prefix}_button", None)
+        if button is None or not _is_not_deleted(button):
             continue
         include_values = [
-            str(v) for v in (filters.get(include_key) or []) if str(v).strip()
+            str(v) for v in (filters.get(spec.include_key) or []) if str(v).strip()
         ]
         exclude_values = [
-            str(v) for v in (filters.get(exclude_key) or []) if str(v).strip()
+            str(v) for v in (filters.get(spec.exclude_key) or []) if str(v).strip()
         ]
         candidates = _build_multiselect_summary_candidates(
             include_values,
             exclude_values,
             "Selecionar",
         )
-        text = _fit_button_text(button, candidates, candidates[-1])
+        fallback = candidates[1] if len(candidates) > 1 else candidates[-1]
+        text = _fit_button_text(button, candidates, fallback)
         try:
             button.setText(text)
             button.setEnabled(True)
@@ -515,1328 +548,81 @@ def _sync_responsavel_button_summaries(self, only_prefixes=None) -> None:
         except Exception as exc:
             logger.debug(
                 "Falha ao sincronizar resumo de botao de responsavel (%s): %s",
-                button_attr,
+                spec.prefix,
                 exc,
             )
 
 
-def _build_multiselect_summary_candidates(
-    selected_values,
-    excluded_values,
-    placeholder: str,
-    total: int | None = None,
-) -> list[str]:
-    selected = [str(v) for v in (selected_values or []) if str(v).strip()]
-    excluded = [str(v) for v in (excluded_values or []) if str(v).strip()]
-    include_text = ", ".join(selected) if selected else ""
-    exclude_text = ", ".join(excluded) if excluded else ""
-    if total == 0:
-        return ["Sem dados"]
-    if not selected and not excluded:
-        return [placeholder]
-    if total is not None and len(selected) == total and not excluded:
-        return ["Todos", f"Incluir: {include_text}"]
-    if selected and excluded:
-        return [
-            f"Incluir: {include_text} | Diferente: {exclude_text}",
-            f"{len(selected)} incluir, {len(excluded)} diferente",
-            f"Incluir: {include_text}",
-            f"Diferente: {exclude_text}",
-        ]
-    if selected:
-        return [
-            f"Incluir: {include_text}",
-            "1 incluir" if len(selected) == 1 else f"{len(selected)} incluir",
-        ]
-    return [
-        f"Diferente: {exclude_text}",
-        "1 diferente" if len(excluded) == 1 else f"{len(excluded)} diferente",
-    ]
-
-
-def _attach_multiselect_menu(self, button, menu):
-    if button is None or menu is None:
-        return
-
-    def _show_menu():
-        if not _is_widget_valid(button) or not _is_widget_valid(menu):
-            return
-        try:
-            self._run_menu_pre_show_hook(button)
-        except Exception as exc:
-            logger.debug("Falha no pre-show do menu multiselect: %s", exc)
-        try:
-            rect = button.rect()
-            pos = button.mapToGlobal(rect.bottomLeft())
-            try:
-                menu_size = menu.sizeHint()
-                screen = _get_widget_screen_geometry(button)
-                if screen is not None:
-                    if menu_size and pos.y() + menu_size.height() > screen.bottom():
-                        pos = button.mapToGlobal(rect.topLeft())
-                        pos.setY(pos.y() - menu_size.height())
-                    if menu_size and pos.x() + menu_size.width() > screen.right():
-                        pos.setX(
-                            max(screen.left(), screen.right() - menu_size.width() - 4)
-                        )
-                    if pos.x() < screen.left():
-                        pos.setX(screen.left() + 2)
-                    if pos.y() < screen.top():
-                        pos.setY(screen.top() + 2)
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao ajustar posicao do menu multiselect na tela: %s", exc
-                )
-            menu.exec(pos)
-            return
-        except Exception as exc:
-            logger.warning("Falha ao abrir menu multiselect: %s", exc)
-
-    try:
-        button.clicked.connect(_show_menu)
-    except Exception as exc:
-        logger.warning("Falha ao conectar abertura de menu multiselect: %s", exc)
-
-
-def _update_multiselect_button(
-    self, button, checks, placeholder: str = "Selecionar", exclude_checks=None
-):
-    if not _is_widget_valid(button):
-        return
-    selected = []
-    for cb in checks or []:
-        try:
-            if not _is_widget_valid(cb):
-                continue
-            if cb.isChecked():
-                value = self._checkbox_value(cb)
-                if value:
-                    selected.append(value)
-        except Exception as exc:
-            logger.debug(
-                "Failed to read include checkbox state in multiselect summary: %s", exc
-            )
-    excluded = []
-    for cb in exclude_checks or []:
-        try:
-            if not _is_widget_valid(cb):
-                continue
-            if cb.isChecked():
-                value = self._checkbox_value(cb)
-                if value:
-                    excluded.append(value)
-        except Exception as exc:
-            logger.debug(
-                "Failed to read exclude checkbox state in multiselect summary: %s", exc
-            )
-    total = len(checks or [])
-    candidates = _build_multiselect_summary_candidates(
-        selected,
-        excluded,
-        placeholder,
-        total=total,
-    )
-    text = _fit_button_text(button, candidates, candidates[-1])
-    try:
-        button.setText(text)
-        # Esmaecimento visual para botoes sem dados
-        if total == 0:
-            button.setEnabled(False)
-        else:
-            button.setEnabled(True)
-        if selected or excluded:
-            button.setToolTip(
-                "Incluir: "
-                + ", ".join(selected)
-                + ("\nDiferente: " + ", ".join(excluded) if excluded else "")
-            )
-        else:
-            button.setToolTip(placeholder if total > 0 else "Nenhum dado disponivel")
-    except Exception as exc:
-        logger.debug("Falha ao atualizar resumo/tooltip do botao multiselect: %s", exc)
-
-
-def _fit_button_text(button, candidates, fallback: str) -> str:
-    try:
-        if not _is_widget_valid(button):
-            return str(fallback)
-        fm = button.fontMetrics()
-        width = _safe_widget_width(button)
-        available = max(24, width - 10)
-        for text in candidates:
-            if text and fm.horizontalAdvance(text) <= available:
-                return text
-        primary = next((str(item) for item in candidates if item), str(fallback))
-        if fm.horizontalAdvance(primary) <= available:
-            return primary
-        elided = fm.elidedText(primary, Qt.TextElideMode.ElideRight, available)
-        return elided or str(fallback)
-    except Exception as exc:
-        logger.debug("Falha ao ajustar texto de botao ao espaco disponivel: %s", exc)
-        return str(fallback)
-
-
-def _safe_widget_width(widget) -> int:
-    if widget is None or not _is_widget_valid(widget):
-        return 0
-    try:
-        width_fn = getattr(widget, "width", None)
-        if callable(width_fn):
-            value = int(width_fn() or 0)
-            if value > 0:
-                return value
-    except Exception as exc:
-        logger.debug("Falha ao medir largura atual de widget: %s", exc)
-    try:
-        size_hint_fn = getattr(widget, "sizeHint", None)
-        if callable(size_hint_fn):
-            hint = size_hint_fn()
-            if hint is not None:
-                value = int(hint.width() or 0)
-                if value > 0:
-                    return value
-    except Exception as exc:
-        logger.debug("Falha ao medir sizeHint de widget: %s", exc)
-    try:
-        minimum_width_fn = getattr(widget, "minimumWidth", None)
-        if callable(minimum_width_fn):
-            return max(0, int(minimum_width_fn() or 0))
-    except Exception as exc:
-        logger.debug("Falha ao medir largura minima de widget: %s", exc)
-    return 0
-
-
-def _palette_color_name(widget, palette_attr: str) -> str:
-    if widget is None or not _is_widget_valid(widget):
-        return ""
-    try:
-        palette = widget.palette()
-        color_group = getattr(palette, palette_attr, None)
-        if callable(color_group):
-            color = color_group().color()
-            name = color.name()
-            if isinstance(name, str):
-                value = name.strip()
-                if value:
-                    return value
-    except Exception:
-        return ""
-    return ""
-
-
-def _resolve_popup_theme_tokens(
-    self, button, menu
-) -> tuple[str, str, str, str, str, str]:
-    roles = getattr(self, "_current_theme_roles", None)
-    if not isinstance(roles, dict):
-        roles = {}
-    popup_bg = (
-        roles.get("popup_bg")
-        or roles.get("panel_bg")
-        or _palette_color_name(menu, "window")
-        or _palette_color_name(button, "window")
-    )
-    popup_text = (
-        roles.get("popup_text")
-        or roles.get("panel_text")
-        or roles.get("label_color")
-        or _palette_color_name(menu, "windowText")
-        or _palette_color_name(button, "windowText")
-    )
-    popup_border = (
-        roles.get("popup_border")
-        or roles.get("panel_border")
-        or _palette_color_name(menu, "mid")
-        or _palette_color_name(button, "mid")
-    )
-    checked_bg = (
-        roles.get("checkbox_checked_bg")
-        or roles.get("accent")
-        or _palette_color_name(menu, "highlight")
-    )
-    checkbox_bg = roles.get("checkbox_bg") or popup_bg
-    checkbox_border = roles.get("checkbox_border") or popup_border
-
-    if not popup_bg:
-        popup_bg = "palette(window)"
-    if not popup_text:
-        popup_text = "palette(window-text)"
-    if not popup_border:
-        popup_border = "palette(mid)"
-    if not checked_bg:
-        checked_bg = popup_border
-    if not checkbox_bg:
-        checkbox_bg = popup_bg
-    if not checkbox_border:
-        checkbox_border = popup_border
-    return popup_bg, popup_text, popup_border, checked_bg, checkbox_bg, checkbox_border
-
-
-def _detect_filter_name_from_button(button) -> str:
-    try:
-        prop_value = button.property("filter_name") if button is not None else None
-        if isinstance(prop_value, str):
-            filter_name = prop_value.strip()
-            if filter_name:
-                return filter_name
-    except Exception as exc:
-        logger.debug("Falha ao ler propriedade filter_name do botao: %s", exc)
-    filter_name = ""
-    try:
-        parent = button.parent() if button is not None else None
-        seen = set()
-        for _ in range(50):
-            if parent is None:
-                break
-            pid = id(parent)
-            if pid in seen:
-                logger.debug(
-                    "Ciclo detectado ao subir parent() no menu multiselect; abortando."
-                )
-                break
-            seen.add(pid)
-            if isinstance(parent, QGroupBox):
-                candidate = parent.title()
-                if candidate and candidate not in ("Valores", ""):
-                    filter_name = candidate
-                    break
-            parent = parent.parent() if hasattr(parent, "parent") else None
-    except Exception as exc:
-        logger.debug("Falha ao detectar nome do filtro para menu multiselect: %s", exc)
-    return filter_name
-
-
-def _multiselect_value_key_label(value) -> tuple[str, str]:
-    if isinstance(value, (list, tuple)):
-        key = value[0] if len(value) > 0 else ""
-        label = value[1] if len(value) > 1 else key
-    else:
-        key = value
-        label = value
-    return str(key), str(label)
-
-
-def _compute_multiselect_popup_metrics(
-    button, values, filter_name: str, has_exclude_column: bool
-):
-    valid_values = []
-    for raw_val in values or []:
-        _, label_text = _multiselect_value_key_label(raw_val)
-        if label_text and label_text.strip():
-            valid_values.append(raw_val)
-    try:
-        fm = button.fontMetrics() if button is not None else None
-    except Exception:
-        fm = None
-    try:
-        measured_values = valid_values[:HIGH_CARDINALITY_MENU_LIMIT]
-        max_label_chars = max(
-            len(_multiselect_value_key_label(value)[1]) for value in measured_values
-        )
-        avg_char_px = 8
-        if fm is not None:
-            avg_char_px = max(7, min(10, fm.horizontalAdvance("MMMMmmmm") // 8))
-        max_label_px = max_label_chars * avg_char_px
-    except Exception:
-        max_label_px = 64
-    # Simple clamp for very long names in responsavel menus.
-    # Easy rollback: set SIMPLE_POPUP_TEXT_CLAMP = False.
-    if SIMPLE_POPUP_TEXT_CLAMP:
-        max_label_px = min(max_label_px, SIMPLE_POPUP_LABEL_MAX_PX)
-    content_width = max_label_px + (136 if has_exclude_column else 80)
-    if filter_name:
-        try:
-            header_width = (
-                fm.horizontalAdvance(filter_name)
-                if fm is not None
-                else (len(filter_name) * 8)
-            )
-        except Exception:
-            header_width = len(filter_name) * 8
-        header_extra = 170 if has_exclude_column else 34
-        content_width = max(content_width, header_width + header_extra)
-    include_col_min = 64
-    exclude_col_min = 92
-    if has_exclude_column and fm is not None:
-        include_col_min = max(include_col_min, fm.horizontalAdvance("Conter") + 14)
-        exclude_col_min = max(exclude_col_min, fm.horizontalAdvance("Nao conter") + 14)
-        exclude_col_min += SIMPLE_POPUP_RIGHT_GUTTER_PX
-        content_width = max(content_width, include_col_min + exclude_col_min + 140)
-        # Keep a small guard for vertical scrollbar in large lists.
-        # Easy rollback: set SIMPLE_POPUP_SCROLLBAR_GUARD_PX = 0.
-        if len(valid_values) > 9:
-            content_width += SIMPLE_POPUP_SCROLLBAR_GUARD_PX
-    popup_max_width = 680
-    try:
-        screen_geometry = _get_widget_screen_geometry(button)
-        if screen_geometry is not None:
-            screen_w = int(screen_geometry.width())
-            if screen_w > 0:
-                popup_max_width = max(420, min(960, int(screen_w * 0.72)))
-    except Exception:
-        popup_max_width = 680
-    popup_width = max(220, min(popup_max_width, content_width))
-    return popup_width, include_col_min, exclude_col_min, valid_values
-
-
-def _limit_multiselect_values(
-    valid_values: list[Any],
-    selected_norm: set[str],
-    exclude_norm: set[str],
-) -> list[Any]:
-    if len(valid_values) <= HIGH_CARDINALITY_MENU_LIMIT:
-        return valid_values
-    selected_keys = selected_norm | exclude_norm
-    if not selected_keys:
-        return valid_values[:HIGH_CARDINALITY_MENU_LIMIT]
-    selected_values = []
-    found_selected_keys: set[str] = set()
-    remaining = []
-    remaining_limit = HIGH_CARDINALITY_MENU_LIMIT
-    for value in valid_values:
-        key = _multiselect_value_key_label(value)[0].casefold()
-        if key in selected_keys:
-            selected_values.append(value)
-            found_selected_keys.add(key)
-        elif len(remaining) < remaining_limit:
-            remaining.append(value)
-        if len(remaining) >= remaining_limit and len(found_selected_keys) >= len(
-            selected_keys
-        ):
-            break
-    return selected_values + remaining[: max(0, remaining_limit - len(selected_values))]
-
-
-def _build_multiselect_menu_model(
-    button,
-    values,
-    selected_set,
-    exclude_selected_set,
-) -> MultiselectMenuModel:
-    selected_norm = {str(v).casefold() for v in (selected_set or [])}
-    exclude_norm = {str(v).casefold() for v in (exclude_selected_set or [])}
-    filter_name = _detect_filter_name_from_button(button)
-    has_exclude_column = exclude_selected_set is not None
-    popup_width, include_col_min, exclude_col_min, valid_values = (
-        _compute_multiselect_popup_metrics(
-            button,
-            values,
-            filter_name,
-            has_exclude_column,
-        )
-    )
-    total_values = len(valid_values)
-    limited_values = _limit_multiselect_values(
-        valid_values,
-        selected_norm,
-        exclude_norm,
-    )
-    label_display_by_key = _build_multiselect_label_display_map(button, limited_values)
-    return MultiselectMenuModel(
-        filter_name=filter_name,
-        has_exclude_column=has_exclude_column,
-        popup_width=popup_width,
-        include_col_min=include_col_min,
-        exclude_col_min=exclude_col_min,
-        values=limited_values,
-        total_values=total_values,
-        selected_norm=selected_norm,
-        exclude_norm=exclude_norm,
-        label_display_by_key=label_display_by_key,
-    )
-
-
-def _build_multiselect_label_display_map(button, values) -> dict[str, str]:
-    if not SIMPLE_POPUP_TEXT_CLAMP:
-        return {}
-    try:
-        fm_label = button.fontMetrics() if button is not None else None
-        if fm_label is None:
-            return {}
-        return {
-            key: fm_label.elidedText(
-                label,
-                Qt.TextElideMode.ElideRight,
-                SIMPLE_POPUP_LABEL_MAX_PX,
-            )
-            for key, label in (_multiselect_value_key_label(value) for value in values)
-        }
-    except Exception:
-        return {}
-
-
-def _multiselect_menu_signature(model: MultiselectMenuModel, theme_name: str | None):
-    return (
-        theme_name,
-        model.filter_name,
-        model.has_exclude_column,
-        model.popup_width,
-        model.include_col_min,
-        model.exclude_col_min,
-        model.total_values,
-        tuple(_multiselect_value_key_label(value) for value in model.values),
-        tuple(sorted(model.label_display_by_key.items())),
-        tuple(sorted(model.selected_norm)),
-        tuple(sorted(model.exclude_norm)),
-    )
-
-
-def _configure_multiselect_grid(
-    grid,
-    has_exclude_column: bool,
-    include_col_min: int,
-    exclude_col_min: int,
-) -> None:
-    grid.setContentsMargins(6, 4, 14 + SIMPLE_POPUP_RIGHT_GUTTER_PX, 4)
-    grid.setHorizontalSpacing(6)
-    grid.setVerticalSpacing(4)
-    try:
-        grid.setAlignment(Qt.AlignmentFlag.AlignTop)
-    except Exception as exc:
-        logger.debug("Falha ao alinhar grid do menu multiselect no topo: %s", exc)
-    if has_exclude_column:
-        grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(1, 0)
-        grid.setColumnStretch(2, 0)
-        grid.setColumnMinimumWidth(1, include_col_min)
-        grid.setColumnMinimumWidth(2, exclude_col_min)
-    else:
-        grid.setColumnStretch(0, 1)
-
-
-def _append_multiselect_header(
-    grid,
-    row_idx: int,
-    *,
-    filter_name: str,
-    has_exclude_column: bool,
-    popup_text: str,
-    popup_border: str,
-) -> int:
-    if not filter_name:
-        return row_idx
-    label_filter = QLabel(filter_name)
-    try:
-        label_filter.setStyleSheet("font-weight: bold; font-size: 11px;")
-    except Exception as exc:
-        logger.debug("Failed to style multiselect menu header label: %s", exc)
-    grid.addWidget(label_filter, row_idx, 0)
-
-    if has_exclude_column:
-        label_inc = QLabel("Conter")
-        label_exc = QLabel("Nao conter")
-        try:
-            label_style_inc = (
-                "font-size: 10px;"
-                f" color: {popup_text};"
-                f" border: 1px solid {popup_border};"
-                " border-radius: 2px;"
-                " padding: 1px 3px;"
-            )
-            label_style_exc = (
-                "font-size: 10px;"
-                f" color: {popup_text};"
-                f" border: 1px solid {popup_border};"
-                " border-radius: 2px;"
-                " padding: 1px 7px 1px 3px;"
-            )
-            label_inc.setStyleSheet(label_style_inc)
-            label_exc.setStyleSheet(label_style_exc)
-            label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-            label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao estilizar header include/exclude do menu multiselect: %s",
-                exc,
-            )
-        grid.addWidget(label_inc, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-        grid.addWidget(label_exc, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
-    return row_idx + 1
-
-
-def _append_multiselect_limit_notice(
-    grid,
-    row_idx: int,
-    *,
-    displayed_count: int,
-    total_values: int,
-    has_exclude_column: bool,
-    popup_text: str,
-) -> int:
-    if total_values <= displayed_count:
-        return row_idx
-    limited_label = QLabel(
-        f"Mostrando {displayed_count} de {total_values}. Refine o filtro."
-    )
-    try:
-        limited_label.setStyleSheet(f"font-size: 10px; color: {popup_text};")
-        limited_label.setToolTip(
-            "A lista completa tem muitos itens; valores ja selecionados foram preservados."
-        )
-    except Exception as exc:
-        logger.debug("Falha ao estilizar aviso de lista limitada: %s", exc)
-    col_span = 3 if has_exclude_column else 1
-    grid.addWidget(limited_label, row_idx, 0, 1, col_span)
-    row_idx += 1
-
-    header_sep = QFrame()
-    header_sep.setFrameShape(QFrame.Shape.HLine)
-    header_sep.setFrameShadow(QFrame.Shadow.Sunken)
-    grid.addWidget(header_sep, row_idx, 0, 1, col_span)
-    return row_idx + 1
-
-
-def _build_multiselect_checkbox_styles(
-    *,
-    checkbox_bg: str,
-    checkbox_border: str,
-    checked_bg: str,
-) -> tuple[str, str]:
-    checkbox_style = (
-        "QCheckBox::indicator {"
-        " width:14px; height:14px;"
-        f" border:1px solid {checkbox_border};"
-        f" background:{checkbox_bg};"
-        "}"
-        "QCheckBox::indicator:checked {"
-        f" border:1px solid {checked_bg};"
-        f" background:{checked_bg};"
-        "}"
-        "QCheckBox::indicator:checked:hover {"
-        f" background:{checked_bg};"
-        "}"
-        "QCheckBox::indicator:disabled {"
-        f" border:1px solid {checkbox_border};"
-        f" background:{checkbox_bg};"
-        "}"
-    )
-    return checkbox_style, checkbox_style
-
-
-def _add_multiselect_item_row(
-    self,
-    *,
-    grid,
-    row_idx: int,
-    button,
-    model: MultiselectMenuModel,
-    value,
-    popup_text: str,
-    cb_style_include: str,
-    cb_style_exclude: str,
-    apply_checkbox_styles: bool,
-    exclude_enabled: bool,
-    on_toggle,
-    on_exclude_toggle,
-) -> tuple[int, QCheckBox, QCheckBox | None]:
-    cb_value, label_text = _multiselect_value_key_label(value)
-    label_text_display = model.label_display_by_key.get(cb_value, label_text)
-    label = QLabel(label_text_display)
-    try:
-        label.setWordWrap(False)
-        label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        label.setStyleSheet(f"font-size: 11px; color: {popup_text};")
-        if label_text_display != label_text:
-            label.setToolTip(label_text)
-    except Exception as exc:
-        logger.debug("Falha ao estilizar label do item no menu multiselect: %s", exc)
-    include_cb = QCheckBox()
-    exclude_cb = QCheckBox() if exclude_enabled else None
-    cb_key = str(cb_value).casefold()
-    _configure_multiselect_item_checkbox(
-        include_cb,
-        value=cb_value,
-        checked=cb_key in model.selected_norm,
-        style=cb_style_include if apply_checkbox_styles else "",
-    )
-    if exclude_cb is not None:
-        _configure_multiselect_item_checkbox(
-            exclude_cb,
-            value=cb_value,
-            checked=cb_key in model.exclude_norm,
-            style=cb_style_exclude if apply_checkbox_styles else "",
-        )
-    grid.addWidget(label, row_idx, 0)
-    grid.addWidget(include_cb, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-    if exclude_cb is not None:
-        grid.addWidget(exclude_cb, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
-        _connect_multiselect_exclusion_pair(
-            self,
-            include_cb,
-            exclude_cb,
-            on_toggle=on_toggle,
-            on_exclude_toggle=on_exclude_toggle,
-        )
-    elif on_toggle is not None:
-        _connect_checkbox_callback(include_cb, on_toggle, "on_toggle")
-    return row_idx + 1, include_cb, exclude_cb
-
-
-def _configure_multiselect_item_checkbox(
-    checkbox,
-    *,
-    value,
-    checked: bool,
-    style: str,
-) -> None:
-    try:
-        checkbox.setProperty("value", str(value))
-        checkbox.setProperty("value_norm", str(value).casefold())
-        if style:
-            checkbox.setStyleSheet(style)
-        checkbox.setChecked(bool(checked))
-    except Exception as exc:
-        logger.debug("Falha ao configurar checkbox do menu multiselect: %s", exc)
-
-
-def _connect_checkbox_callback(checkbox, callback, label: str) -> None:
-    if callback is None:
-        return
-    try:
-        checkbox.toggled.connect(callback)
-    except Exception as exc:
-        logger.warning("Falha ao conectar callback %s do menu multiselect: %s", label, exc)
-
-
-def _connect_multiselect_exclusion_pair(
-    self,
-    include_cb,
-    exclude_cb,
-    *,
-    on_toggle,
-    on_exclude_toggle,
-) -> None:
-    def _toggle_include(checked, other=exclude_cb):
-        if getattr(self, "_multiselect_batch_updating", False):
-            return
-        if not checked or not _is_widget_valid(other):
-            return
-        try:
-            if not other.isChecked():
-                return
-            other.blockSignals(True)
-            other.setChecked(False)
-        finally:
-            if _is_widget_valid(other):
-                other.blockSignals(False)
-
-    def _toggle_exclude(checked, other=include_cb):
-        if getattr(self, "_multiselect_batch_updating", False):
-            return
-        if not checked or not _is_widget_valid(other):
-            return
-        try:
-            if not other.isChecked():
-                return
-            other.blockSignals(True)
-            other.setChecked(False)
-        finally:
-            if _is_widget_valid(other):
-                other.blockSignals(False)
-
-    try:
-        include_cb.toggled.connect(_toggle_include)
-        exclude_cb.toggled.connect(_toggle_exclude)
-    except Exception as exc:
-        logger.warning(
-            "Falha ao conectar mutual exclusion include/exclude no menu multiselect: %s",
-            exc,
-        )
-    _connect_checkbox_callback(include_cb, on_toggle, "on_toggle")
-    _connect_checkbox_callback(exclude_cb, on_exclude_toggle, "on_exclude_toggle")
-
-
-def _notify_multiselect_batch_change(
-    self,
-    button,
-    checks,
-    exclude_checks,
-    on_toggle,
-    on_exclude_toggle,
-    *,
-    include_changed: bool,
-    exclude_changed: bool,
-) -> None:
-    try:
-        self._update_multiselect_button(button, checks, exclude_checks=exclude_checks)
-    except Exception as exc:
-        logger.debug(
-            "Falha ao atualizar resumo de botao apos lote no menu multiselect: %s", exc
-        )
-    if include_changed and callable(on_toggle):
-        on_toggle()
-    if exclude_changed and callable(on_exclude_toggle):
-        on_exclude_toggle()
-
-
-def _make_multiselect_batch_button(
-    label: str,
-    *,
-    checkbox_bg: str,
-    checkbox_border: str,
-    checked_bg: str,
-):
-    button = QPushButton()
-    try:
-        button.setText("")
-        button.setAccessibleName(label)
-        button.setToolTip(label)
-        button.setFixedSize(14, 14)
-        button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        button.setStyleSheet(
-            "QPushButton {"
-            " min-width:14px; max-width:14px; min-height:14px; max-height:14px;"
-            f" border:1px solid {checkbox_border}; background:{checkbox_bg};"
-            " border-radius:2px; padding:0px;"
-            "}"
-            "QPushButton:pressed {"
-            f" border:1px solid {checked_bg}; background:{checked_bg};"
-            "}"
-        )
-    except Exception as exc:
-        logger.debug("Falha ao configurar botao batch do multiselect: %s", exc)
-    return button
-
-
-def _append_multiselect_batch_controls(
-    self,
-    *,
-    grid,
-    row_idx,
-    checks,
-    exclude_checks,
-    checkbox_bg: str,
-    checkbox_border: str,
-    checked_bg: str,
-    popup_text: str,
-    on_toggle,
-    on_exclude_toggle,
-    button,
-):
-    separator = QFrame()
-    separator.setFrameShape(QFrame.Shape.HLine)
-    separator.setFrameShadow(QFrame.Shadow.Sunken)
-    grid.addWidget(separator, row_idx, 0, 1, 3)
-    row_idx += 1
-
-    batch_mark_include = _make_multiselect_batch_button(
-        "Selecionar incluir em lote",
-        checkbox_bg=checkbox_bg,
-        checkbox_border=checkbox_border,
-        checked_bg=checked_bg,
-    )
-    batch_clear_include = _make_multiselect_batch_button(
-        "Limpar incluir em lote",
-        checkbox_bg=checkbox_bg,
-        checkbox_border=checkbox_border,
-        checked_bg=checked_bg,
-    )
-    batch_mark_exclude = _make_multiselect_batch_button(
-        "Selecionar excluir em lote",
-        checkbox_bg=checkbox_bg,
-        checkbox_border=checkbox_border,
-        checked_bg=checked_bg,
-    )
-    batch_clear_exclude = _make_multiselect_batch_button(
-        "Limpar excluir em lote",
-        checkbox_bg=checkbox_bg,
-        checkbox_border=checkbox_border,
-        checked_bg=checked_bg,
-    )
-
-    label_mark = QLabel("Selecionar em lote")
-    label_clear = QLabel("Limpar selecao em lote")
-    try:
-        label_mark.setStyleSheet(f"font-size: 11px; color: {popup_text};")
-        label_clear.setStyleSheet(f"font-size: 11px; color: {popup_text};")
-    except Exception as exc:
-        logger.debug(
-            "Falha ao estilizar labels de marcacao em lote no menu multiselect: %s", exc
-        )
-
-    grid.addWidget(label_mark, row_idx, 0)
-    grid.addWidget(
-        batch_mark_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter
-    )
-    grid.addWidget(
-        batch_mark_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter
-    )
-    row_idx += 1
-
-    grid.addWidget(label_clear, row_idx, 0)
-    grid.addWidget(
-        batch_clear_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter
-    )
-    grid.addWidget(
-        batch_clear_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter
-    )
-    row_idx += 1
-
-    def _batch_set_include(
-        target_state: bool,
-        include_callback=on_toggle,
-        exclude_callback=on_exclude_toggle,
-    ):
-        self._multiselect_batch_updating = True
-        try:
-            if target_state:
-                for cb in exclude_checks or ():
-                    if not _is_widget_valid(cb):
-                        continue
-                    previous_signal_state = bool(cb.blockSignals(True))
-                    try:
-                        cb.setChecked(False)
-                    finally:
-                        cb.blockSignals(previous_signal_state)
-            for cb in checks or ():
-                if not _is_widget_valid(cb):
-                    continue
-                previous_signal_state = bool(cb.blockSignals(True))
-                try:
-                    cb.setChecked(target_state)
-                finally:
-                    cb.blockSignals(previous_signal_state)
-        finally:
-            self._multiselect_batch_updating = False
-        _notify_multiselect_batch_change(
-            self,
-            button,
-            checks,
-            exclude_checks,
-            include_callback,
-            exclude_callback,
-            include_changed=True,
-            exclude_changed=False,
-        )
-
-    def _batch_set_exclude(
-        target_state: bool,
-        include_callback=on_toggle,
-        exclude_callback=on_exclude_toggle,
-    ):
-        self._multiselect_batch_updating = True
-        try:
-            if target_state:
-                for cb in checks or ():
-                    if not _is_widget_valid(cb):
-                        continue
-                    previous_signal_state = bool(cb.blockSignals(True))
-                    try:
-                        cb.setChecked(False)
-                    finally:
-                        cb.blockSignals(previous_signal_state)
-            for cb in exclude_checks or ():
-                if not _is_widget_valid(cb):
-                    continue
-                previous_signal_state = bool(cb.blockSignals(True))
-                try:
-                    cb.setChecked(target_state)
-                finally:
-                    cb.blockSignals(previous_signal_state)
-        finally:
-            self._multiselect_batch_updating = False
-        _notify_multiselect_batch_change(
-            self,
-            button,
-            checks,
-            exclude_checks,
-            include_callback,
-            exclude_callback,
-            include_changed=False,
-            exclude_changed=True,
-        )
-
-    try:
-        batch_mark_include.clicked.connect(lambda: _batch_set_include(True))
-        batch_clear_include.clicked.connect(lambda: _batch_set_include(False))
-        batch_mark_exclude.clicked.connect(lambda: _batch_set_exclude(True))
-        batch_clear_exclude.clicked.connect(lambda: _batch_set_exclude(False))
-    except Exception as exc:
-        logger.debug(
-            "Falha ao conectar acoes de marcacao em lote no menu multiselect: %s", exc
-        )
-    return row_idx
-
-
-def _make_multiselect_scroll(
-    *,
-    container,
-    model: MultiselectMenuModel,
-    popup_bg: str,
-    popup_text: str,
-    popup_border: str,
-    checked_bg: str,
-    menu,
-):
-    scroll = QScrollArea()
-    scroll.setWidget(container)
-    scroll.setWidgetResizable(True)
-    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-    try:
-        scroll.setAlignment(Qt.AlignmentFlag.AlignTop)
-    except Exception as exc:
-        logger.debug("Falha ao alinhar scroll do menu multiselect no topo: %s", exc)
-    try:
-        container.setStyleSheet(
-            "QWidget {"
-            f" background: {popup_bg};"
-            f" color: {popup_text};"
-            "}"
-            "QLabel {"
-            " font-size: 11px;"
-            f" color: {popup_text};"
-            "}"
-        )
-        scroll.setStyleSheet(
-            "QScrollArea {"
-            f" border: 1px solid {popup_border};"
-            f" background: {popup_bg};"
-            "}"
-        )
-        menu.setStyleSheet(
-            "QMenu {"
-            f" background: {popup_bg};"
-            f" color: {popup_text};"
-            f" border: 1px solid {popup_border};"
-            "}"
-            "QPushButton {"
-            f" color: {popup_text};"
-            f" background: {popup_bg};"
-            f" border: 1px solid {popup_border};"
-            " border-radius: 4px;"
-            " padding: 2px 8px;"
-            "}"
-            "QPushButton:hover {"
-            f" border: 1px solid {checked_bg};"
-            "}"
-        )
-    except Exception as exc:
-        logger.debug(
-            "Falha ao aplicar estilo visual do scroll/menu multiselect: %s", exc
-        )
-    try:
-        base_rows = len(model.values)
-        if model.filter_name:
-            base_rows += 2
-        if model.total_values > len(model.values):
-            base_rows += 1
-        if model.has_exclude_column:
-            base_rows += 2
-        visible_rows = max(1, min(9, base_rows))
-        target_height = 12 + (visible_rows * 22)
-        scroll.setFixedHeight(max(58, min(236, target_height)))
-    except Exception as exc:
-        logger.debug(
-            "Falha ao ajustar altura dinamica do scroll no menu multiselect: %s", exc
-        )
-    return scroll
-
-
-def _append_multiselect_scroll_action(menu, scroll) -> None:
-    scroll_act = QWidgetAction(menu)
-    scroll_act.setDefaultWidget(scroll)
-    try:
-        menu.addAction(scroll_act)
-    except Exception as exc:
-        logger.debug("Falha ao adicionar scroll action no menu multiselect: %s", exc)
-
-
-def _append_multiselect_footer(menu, *, show_footer) -> None:
-    if show_footer is None:
-        return
-    close_btn = QPushButton("Fechar")
-    close_btn.setFixedWidth(88)
-    close_btn.setToolTip("Fechar menu")
-    try:
-        close_btn.clicked.connect(menu.close)
-    except Exception as exc:
-        logger.debug("Falha ao conectar botao Fechar no menu multiselect: %s", exc)
-    ok_row = QWidget()
-    ok_layout = QHBoxLayout(ok_row)
-    ok_layout.setContentsMargins(8, 4, 8, 6)
-    ok_layout.setSpacing(6)
-    ok_layout.addStretch()
-    ok_layout.addWidget(close_btn)
-    ok_layout.addStretch()
-    ok_act = QWidgetAction(menu)
-    ok_act.setDefaultWidget(ok_row)
-    try:
-        menu.addAction(ok_act)
-    except Exception as exc:
-        logger.debug("Falha ao adicionar rodape de acoes no menu multiselect: %s", exc)
-
-
-def _try_reuse_multiselect_menu_cache(self, *, menu, button, signature):
-    cached = getattr(menu, "_ssa_multiselect_cache", None)
-    if not isinstance(cached, dict) or cached.get("signature") != signature:
-        return None
-    cached_checks = list(cached.get("checks") or [])
-    cached_exclude_checks = list(cached.get("exclude_checks") or [])
-    if not all(_is_widget_valid(check) for check in cached_checks):
-        return None
-    if not all(_is_widget_valid(check) for check in cached_exclude_checks):
-        return None
-    self._update_multiselect_button(
-        button,
-        cached_checks,
-        exclude_checks=cached_exclude_checks,
-    )
-    return cached_checks, cached_exclude_checks
-
-
-def _prepare_multiselect_menu(menu, model: MultiselectMenuModel) -> None:
-    try:
-        menu.clear()
-    except Exception as exc:
-        logger.debug("Falha ao limpar menu multiselect antes de reconstruir: %s", exc)
-    try:
-        menu.setMinimumWidth(model.popup_width)
-        menu.setMaximumWidth(model.popup_width)
-    except Exception as exc:
-        logger.debug("Falha ao ajustar largura do menu multiselect: %s", exc)
-
-
-def _build_multiselect_grid(model: MultiselectMenuModel):
-    container = QWidget()
-    grid = QGridLayout(container)
-    _configure_multiselect_grid(
-        grid,
-        model.has_exclude_column,
-        model.include_col_min,
-        model.exclude_col_min,
-    )
-    return container, grid
-
-
-def _configure_multiselect_checkbox_style(
-    *,
-    container,
-    checkbox_bg: str,
-    checkbox_border: str,
-    checked_bg: str,
-    value_count: int,
-) -> tuple[str, str, bool]:
-    apply_checkbox_styles = value_count <= HIGH_CARDINALITY_MENU_LIMIT
-    try:
-        cb_style_include, cb_style_exclude = _build_multiselect_checkbox_styles(
-            checkbox_bg=checkbox_bg,
-            checkbox_border=checkbox_border,
-            checked_bg=checked_bg,
-        )
-    except Exception as exc:
-        logger.debug("Falha ao gerar estilo de checkbox do menu multiselect: %s", exc)
-        return "", "", apply_checkbox_styles
-    if apply_checkbox_styles and cb_style_include:
-        try:
-            container.setStyleSheet(cb_style_include)
-            apply_checkbox_styles = False
-        except Exception as exc:
-            logger.debug(
-                "Falha ao aplicar estilo de checkbox no container multiselect: %s", exc
-            )
-    return cb_style_include, cb_style_exclude, apply_checkbox_styles
-
-
-def _populate_multiselect_items(
-    self,
-    *,
-    grid,
-    row_idx: int,
-    button,
-    model: MultiselectMenuModel,
-    popup_text: str,
-    cb_style_include: str,
-    cb_style_exclude: str,
-    apply_checkbox_styles: bool,
-    exclude_enabled: bool,
-    on_toggle,
-    on_exclude_toggle,
-) -> tuple[int, list[QCheckBox], list[QCheckBox]]:
-    checks: list[QCheckBox] = []
-    exclude_checks: list[QCheckBox] = []
-    for val in model.values:
-        row_idx, include_cb, exclude_cb = _add_multiselect_item_row(
-            self,
-            grid=grid,
-            row_idx=row_idx,
-            button=button,
-            model=model,
-            value=val,
-            popup_text=popup_text,
-            cb_style_include=cb_style_include,
-            cb_style_exclude=cb_style_exclude,
-            apply_checkbox_styles=apply_checkbox_styles,
-            exclude_enabled=exclude_enabled,
-            on_toggle=on_toggle,
-            on_exclude_toggle=on_exclude_toggle,
-        )
-        checks.append(include_cb)
-        if exclude_cb is not None:
-            exclude_checks.append(exclude_cb)
-    return row_idx, checks, exclude_checks
-
-
-def _rebuild_multiselect_menu(
-    self,
-    button,
-    menu,
-    values,
-    selected_set,
-    on_toggle=None,
-    show_footer=None,
-    exclude_selected_set=None,
-    on_exclude_toggle=None,
-):
-    model = _build_multiselect_menu_model(
-        button,
-        values,
-        selected_set,
-        exclude_selected_set,
-    )
-    signature = _multiselect_menu_signature(
-        model,
-        str(getattr(self, "_current_theme", "") or ""),
-    )
-    cached_result = _try_reuse_multiselect_menu_cache(
-        self,
-        menu=menu,
-        button=button,
-        signature=signature,
-    )
-    if cached_result is not None:
-        return cached_result
-    _prepare_multiselect_menu(menu, model)
-    popup_bg, popup_text, popup_border, checked_bg, checkbox_bg, checkbox_border = (
-        _resolve_popup_theme_tokens(
-            self,
-            button,
-            menu,
-        )
-    )
-    container, grid = _build_multiselect_grid(model)
-    row_idx = 0
-    row_idx = _append_multiselect_header(
-        grid,
-        row_idx,
-        filter_name=model.filter_name,
-        has_exclude_column=model.has_exclude_column,
-        popup_text=popup_text,
-        popup_border=popup_border,
-    )
-    row_idx = _append_multiselect_limit_notice(
-        grid,
-        row_idx,
-        displayed_count=len(model.values),
-        total_values=model.total_values,
-        has_exclude_column=model.has_exclude_column,
-        popup_text=popup_text,
-    )
-    cb_style_include, cb_style_exclude, apply_checkbox_styles = (
-        _configure_multiselect_checkbox_style(
-            container=container,
-            checkbox_bg=checkbox_bg,
-            checkbox_border=checkbox_border,
-            checked_bg=checked_bg,
-            value_count=len(model.values),
-        )
-    )
-    row_idx, checks, exclude_checks = _populate_multiselect_items(
-        self,
-        grid=grid,
-        row_idx=row_idx,
-        button=button,
-        model=model,
-        popup_text=popup_text,
-        cb_style_include=cb_style_include,
-        cb_style_exclude=cb_style_exclude,
-        apply_checkbox_styles=apply_checkbox_styles,
-        exclude_enabled=exclude_selected_set is not None,
-        on_toggle=on_toggle,
-        on_exclude_toggle=on_exclude_toggle,
-    )
-    if exclude_selected_set is not None:
-        row_idx = _append_multiselect_batch_controls(
-            self,
-            grid=grid,
-            row_idx=row_idx,
-            checks=checks,
-            exclude_checks=exclude_checks,
-            checkbox_bg=checkbox_bg,
-            checkbox_border=checkbox_border,
-            checked_bg=checked_bg,
-            popup_text=popup_text,
-            on_toggle=on_toggle,
-            on_exclude_toggle=on_exclude_toggle,
-            button=button,
-        )
-
-    scroll = _make_multiselect_scroll(
-        container=container,
-        model=model,
-        popup_bg=popup_bg,
-        popup_text=popup_text,
-        popup_border=popup_border,
-        checked_bg=checked_bg,
-        menu=menu,
-    )
-    _append_multiselect_scroll_action(menu, scroll)
-    _append_multiselect_footer(menu, show_footer=show_footer)
-    menu._ssa_multiselect_cache = {
-        "signature": signature,
-        "checks": checks,
-        "exclude_checks": exclude_checks,
-    }
-    self._update_multiselect_button(button, checks, exclude_checks=exclude_checks)
-    if exclude_selected_set is not None:
-        return checks, exclude_checks
-    return checks, []
-
-
-def _checkbox_value(self, checkbox) -> str:
-    try:
-        text = checkbox.text()
-        if text:
-            return text
-    except Exception as exc:
-        logger.debug("Falha ao obter texto do checkbox em _checkbox_value: %s", exc)
-    try:
-        value = checkbox.property("value")
-        if value is not None:
-            return str(value)
-    except Exception as exc:
-        logger.debug(
-            "Falha ao obter propriedade 'value' do checkbox em _checkbox_value: %s", exc
-        )
-    return ""
-
-
-def _sync_multiselect_checks(
-    self, button, checks, selected, exclude_checks=None, exclude_selected=None
-):
-    selected_set = {str(v).casefold() for v in (selected or [])}
-    for cb in checks or []:
-        try:
-            value_norm = cb.property("value_norm") or self._checkbox_value(
-                cb
-            ).casefold()
-            cb.setChecked(str(value_norm) in selected_set)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao sincronizar checkbox include em multiselect: %s", exc
-            )
-    exclude_set = {str(v).casefold() for v in (exclude_selected or [])}
-    for cb in exclude_checks or []:
-        try:
-            value_norm = cb.property("value_norm") or self._checkbox_value(
-                cb
-            ).casefold()
-            cb.setChecked(str(value_norm) in exclude_set)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao sincronizar checkbox exclude em multiselect: %s", exc
-            )
-    self._update_multiselect_button(button, checks, exclude_checks=exclude_checks)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def _make_reprogramacoes_controls(self, layout_baseline):
@@ -2065,9 +851,11 @@ def _build_advanced_derivada_field(self, deriv_button, deriv_menu):
         deriv_menu,
         deriv_values,
         deriv_selected,
-        lambda *_: self._update_multiselect_button(
+        lambda *_: _update_multiselect_button(
+            self,
             deriv_button,
             getattr(self, "adv_derivada_checks", None),
+            "Selecionar",
         ),
         self._apply_advanced_filters_from_ui,
         None,
@@ -2144,112 +932,68 @@ def _advanced_filter_metric_controls(
     )
 
 
-def _build_advanced_filters_context(
-    group,
-    fields,
-    *,
-    reprog_box,
-    reprog_mode,
-    reprog_button,
-    reprog_menu,
-    week_emissao_start,
-    week_emissao_end,
-    week_emissao_exclude,
-    week_exec_start,
-    week_exec_end,
-    week_exec_exclude,
-    macro_combo,
-    deriv_checks,
-    responsavel_fields,
-):
-    ctx = {"adv_filters_group": group}
-    for prefix, field_key in (
-        ("adv_executor", "exec"),
-        ("adv_emissor", "emis"),
-        ("adv_status", "status"),
-    ):
-        _, button, menu, exclude = fields[field_key]
-        ctx.update(
-            {
-                f"{prefix}_button": button,
-                f"{prefix}_menu": menu,
-                f"{prefix}_checks": [],
-                f"{prefix}_exclude": exclude,
-                f"{prefix}_exclude_checks": [],
-            }
-        )
-    for prefix, field_key in (
-        ("adv_year_emissao", "year_emissao"),
-        ("adv_year_execucao", "year_execucao"),
-    ):
-        _, button, menu, _ = fields[field_key]
-        ctx.update(
-            {
-                f"{prefix}_button": button,
-                f"{prefix}_menu": menu,
-                f"{prefix}_checks": [],
-                f"{prefix}_exclude_checks": [],
-            }
-        )
+def _add_multiselect_context(ctx: dict, prefix: str, button, menu, exclude=None) -> None:
     ctx.update(
         {
-            "adv_reprog_box": reprog_box,
-            "adv_reprog_mode": reprog_mode,
-            "adv_reprog_button": reprog_button,
-            "adv_reprog_menu": reprog_menu,
-            "adv_reprog_checks": [],
-            "adv_week_emissao_start": week_emissao_start,
-            "adv_week_emissao_end": week_emissao_end,
-            "adv_week_emissao_exclude": week_emissao_exclude,
-            "adv_week_execucao_start": week_exec_start,
-            "adv_week_execucao_end": week_exec_end,
-            "adv_week_execucao_exclude": week_exec_exclude,
-            "adv_macro_combo": macro_combo,
+            f"{prefix}_button": button,
+            f"{prefix}_menu": menu,
+            f"{prefix}_checks": [],
+            f"{prefix}_exclude_checks": [],
         }
     )
-    for prefix, field_key in (
-        ("adv_prioridade_emissao", "prio_emis"),
-        ("adv_prioridade_planejamento", "prio_plan"),
-    ):
-        _, button, menu, _ = fields[field_key]
-        ctx.update(
-            {
-                f"{prefix}_button": button,
-                f"{prefix}_menu": menu,
-                f"{prefix}_checks": [],
-                f"{prefix}_exclude_checks": [],
-            }
-        )
+    if exclude is not None:
+        ctx[f"{prefix}_exclude"] = exclude
+
+
+def _add_multiselect_specs_context(ctx: dict, specs, fields: dict) -> None:
+    for spec in specs:
+        _, button, menu, exclude = fields[spec.field_key]
+        _add_multiselect_context(ctx, spec.prefix, button, menu, exclude)
+
+
+def _build_advanced_filters_context_from_parts(parts: AdvancedFilterPanelParts):
+    fields = parts.fields
+    controls = parts.controls
+    ctx = {"adv_filters_group": parts.group}
+
+    _add_multiselect_specs_context(ctx, ADVANCED_STANDARD_MULTISELECT_SPECS[:3], fields)
+    _add_multiselect_specs_context(ctx, ADVANCED_YEAR_MULTISELECT_SPECS, fields)
+
+    ctx.update(
+        {
+            "adv_reprog_box": controls["reprog_box"],
+            "adv_reprog_mode": controls["reprog_mode"],
+            "adv_reprog_button": controls["reprog_button"],
+            "adv_reprog_menu": controls["reprog_menu"],
+            "adv_reprog_checks": [],
+            "adv_week_emissao_start": controls["week_emissao_start"],
+            "adv_week_emissao_end": controls["week_emissao_end"],
+            "adv_week_execucao_start": controls["week_exec_start"],
+            "adv_week_execucao_end": controls["week_exec_end"],
+            "adv_macro_combo": controls["macro_combo"],
+        }
+    )
+
+    _add_multiselect_specs_context(ctx, ADVANCED_STANDARD_MULTISELECT_SPECS[3:], fields)
+
     _, deriv_button, deriv_menu, _ = fields["deriv"]
     ctx.update(
         {
             "adv_derivada_button": deriv_button,
             "adv_derivada_menu": deriv_menu,
-            "adv_derivada_checks": deriv_checks,
+            "adv_derivada_checks": controls["deriv_checks"],
             "adv_derivada_has": None,
             "adv_derivada_is": None,
         }
     )
-    for prefix, field_key in (
-        ("adv_responsavel_solicitante", "sol"),
-        ("adv_responsavel_programacao", "prog"),
-        ("adv_responsavel_execucao", "exec_resp"),
-    ):
-        box, button, menu, exclude = responsavel_fields[field_key]
-        ctx.update(
-            {
-                f"{prefix}_button": button,
-                f"{prefix}_menu": menu,
-                f"{prefix}_checks": [],
-                f"{prefix}_exclude": exclude,
-                f"{prefix}_exclude_checks": [],
-                f"{prefix}_box": box,
-            }
-        )
+
+    for spec in ADVANCED_RESPONSAVEL_MULTISELECT_SPECS:
+        box, button, menu, exclude = controls["responsavel_fields"][spec.field_key]
+        _add_multiselect_context(ctx, spec.prefix, button, menu, exclude)
+        ctx[f"{spec.prefix}_box"] = box
     return ctx
 
-
-def _build_advanced_filters_panel(self):
+def _make_advanced_filter_panel_shell(self):
     group = QGroupBox("Filtros Avancados")
     _reset_advanced_menu_hooks(self)
     try:
@@ -2266,54 +1010,46 @@ def _build_advanced_filters_panel(self):
     grid_container_layout = QVBoxLayout(grid_container)
     grid_container_layout.setContentsMargins(0, 0, 0, 0)
     grid_container_layout.setSpacing(0)
+    return group, outer, grid_container, grid_container_layout
 
-    layout_baseline = _resolve_adv_layout_baseline(self)
-    fields = _make_advanced_multiselect_fields(self, layout_baseline)
-    emis_box, emis_button, emis_menu, emis_exclude = fields["emis"]
-    exec_box, exec_button, exec_menu, exec_exclude = fields["exec"]
-    status_box, status_button, status_menu, status_exclude = fields["status"]
-    year_emissao_box, year_emissao_button, year_emissao_menu, _ = fields[
-        "year_emissao"
-    ]
-    year_execucao_box, year_execucao_button, year_execucao_menu, _ = fields[
-        "year_execucao"
-    ]
 
+def _make_advanced_filter_auxiliary_controls(self, fields, responsavel_fields, baseline):
     reprog_box, reprog_mode, reprog_button, reprog_menu = (
-        _make_reprogramacoes_controls(self, layout_baseline)
+        _make_reprogramacoes_controls(self, baseline)
     )
-    self.adv_reprog_mode = reprog_mode
-    self.adv_reprog_button = reprog_button
-    self.adv_reprog_menu = reprog_menu
-    self.adv_reprog_checks = []
-
-    prio_emis_box, prio_emis_button, prio_emis_menu, _ = fields["prio_emis"]
-    prio_plan_box, prio_plan_button, prio_plan_menu, _ = fields["prio_plan"]
     deriv_box, deriv_button, deriv_menu, _ = fields["deriv"]
-    self.adv_derivada_checks = []
     deriv_checks = _build_advanced_derivada_field(self, deriv_button, deriv_menu)
-    self.adv_derivada_button = deriv_button
-    self.adv_derivada_menu = deriv_menu
-    self.adv_derivada_checks = deriv_checks
-
     week_emis_box, week_emissao_start, week_emissao_end = _make_week_range_box(
         "Emissao (AnoSemana)"
     )
-    week_emissao_exclude = None
     week_exec_box, week_exec_start, week_exec_end = _make_week_range_box(
         "Execucao (AnoSemana)"
     )
-    week_exec_exclude = None
-
     macro_box, macro_combo = _make_advanced_macro_box(self)
+    return {
+        "reprog_box": reprog_box,
+        "reprog_mode": reprog_mode,
+        "reprog_button": reprog_button,
+        "reprog_menu": reprog_menu,
+        "deriv_box": deriv_box,
+        "deriv_button": deriv_button,
+        "deriv_menu": deriv_menu,
+        "deriv_checks": deriv_checks,
+        "week_emis_box": week_emis_box,
+        "week_emissao_start": week_emissao_start,
+        "week_emissao_end": week_emissao_end,
+        "week_emissao_exclude": None,
+        "week_exec_box": week_exec_box,
+        "week_exec_start": week_exec_start,
+        "week_exec_end": week_exec_end,
+        "week_exec_exclude": None,
+        "macro_box": macro_box,
+        "macro_combo": macro_combo,
+        "responsavel_fields": responsavel_fields,
+    }
 
-    responsavel_fields = _make_advanced_responsavel_fields(self, layout_baseline)
-    sol_box, sol_button, sol_menu, sol_exclude = responsavel_fields["sol"]
-    prog_box, prog_button, prog_menu, prog_exclude = responsavel_fields["prog"]
-    exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = (
-        responsavel_fields["exec_resp"]
-    )
 
+def _make_advanced_filter_panel_grid(self, outer, grid_container, grid_container_layout):
     main_grid = QGridLayout()
     main_grid.setContentsMargins(0, 0, 0, 0)
     main_grid.setHorizontalSpacing(4)
@@ -2321,77 +1057,295 @@ def _build_advanced_filters_panel(self):
     action_box, apply_btn, clear_btn = _make_advanced_action_box(self)
     grid_container_layout.addLayout(main_grid)
     controls_scroll = _configure_advanced_panel_scroll(self, outer, grid_container)
+    return main_grid, action_box, apply_btn, clear_btn, controls_scroll
 
-    self._adv_filters_main_grid = main_grid
-    self._adv_filters_grid_widgets = {
+
+def _advanced_filter_grid_widgets(fields: dict, controls: dict, action_box) -> dict:
+    emis_box, _, _, _ = fields["emis"]
+    exec_box, _, _, _ = fields["exec"]
+    status_box, _, _, _ = fields["status"]
+    year_emissao_box, _, _, _ = fields["year_emissao"]
+    year_execucao_box, _, _, _ = fields["year_execucao"]
+    prio_emis_box, _, _, _ = fields["prio_emis"]
+    prio_plan_box, _, _, _ = fields["prio_plan"]
+    sol_box, _, _, _ = controls["responsavel_fields"]["sol"]
+    prog_box, _, _, _ = controls["responsavel_fields"]["prog"]
+    exec_resp_box, _, _, _ = controls["responsavel_fields"]["exec_resp"]
+    return {
         "emis_box": emis_box,
         "exec_box": exec_box,
         "status_box": status_box,
         "year_emissao_box": year_emissao_box,
         "year_execucao_box": year_execucao_box,
-        "reprog_box": reprog_box,
+        "reprog_box": controls["reprog_box"],
         "prio_emis_box": prio_emis_box,
         "prio_plan_box": prio_plan_box,
-        "deriv_box": deriv_box,
-        "macro_box": macro_box,
-        "week_emis_box": week_emis_box,
-        "week_exec_box": week_exec_box,
+        "deriv_box": controls["deriv_box"],
+        "macro_box": controls["macro_box"],
+        "week_emis_box": controls["week_emis_box"],
+        "week_exec_box": controls["week_exec_box"],
         "sol_box": sol_box,
         "prog_box": prog_box,
         "exec_resp_box": exec_resp_box,
         "action_box": action_box,
     }
-    self._adv_filters_grid_order = tuple(self._adv_filters_grid_widgets)
 
-    self._adv_filters_apply_btn = apply_btn
-    self._adv_filters_clear_btn = clear_btn
-    self._adv_filters_metric_controls = _advanced_filter_metric_controls(
-        fields,
-        responsavel_fields,
-        reprog_mode=reprog_mode,
-        reprog_button=reprog_button,
-        week_emissao_start=week_emissao_start,
-        week_emissao_end=week_emissao_end,
-        week_exec_start=week_exec_start,
-        week_exec_end=week_exec_end,
-        macro_combo=macro_combo,
-        apply_btn=apply_btn,
-        clear_btn=clear_btn,
+
+def _advanced_filter_metric_controls_from_parts(parts: AdvancedFilterPanelParts):
+    controls = parts.controls
+    return _advanced_filter_metric_controls(
+        parts.fields,
+        controls["responsavel_fields"],
+        reprog_mode=controls["reprog_mode"],
+        reprog_button=controls["reprog_button"],
+        week_emissao_start=controls["week_emissao_start"],
+        week_emissao_end=controls["week_emissao_end"],
+        week_exec_start=controls["week_exec_start"],
+        week_exec_end=controls["week_exec_end"],
+        macro_combo=controls["macro_combo"],
+        apply_btn=parts.apply_btn,
+        clear_btn=parts.clear_btn,
     )
-    self._adv_filters_action_widget = action_box
-    self._adv_filters_action_btn_dims = None
-    self._adv_filters_controls_scroll = controls_scroll
-    self._adv_filters_grid_cols = None
-    self._adv_filters_last_widget_count = None
-    self._adv_filters_group_obj = group
-    if _is_widget_valid(group):
+
+
+def _publish_advanced_filter_legacy_attrs(self, state: AdvancedFilterPanelState) -> None:
+    self._adv_filters_main_grid = state.main_grid
+    self._adv_filters_grid_widgets = state.grid_widgets
+    self._adv_filters_grid_order = state.grid_order
+    self._adv_filters_apply_btn = state.apply_btn
+    self._adv_filters_clear_btn = state.clear_btn
+    self._adv_filters_metric_controls = state.metric_controls
+    self._adv_filters_action_widget = state.action_widget
+    self._adv_filters_action_btn_dims = state.action_btn_dims
+    self._adv_filters_controls_scroll = state.controls_scroll
+    self._adv_filters_grid_cols = state.grid_cols
+    self._adv_filters_last_widget_count = state.last_widget_count
+    self._adv_filters_group_obj = state.group
+
+
+def _register_advanced_filter_panel_state(self, parts: AdvancedFilterPanelParts):
+    controls = parts.controls
+    self.adv_reprog_mode = controls["reprog_mode"]
+    self.adv_reprog_button = controls["reprog_button"]
+    self.adv_reprog_menu = controls["reprog_menu"]
+    self.adv_reprog_checks = []
+    self.adv_derivada_button = controls["deriv_button"]
+    self.adv_derivada_menu = controls["deriv_menu"]
+    self.adv_derivada_checks = controls["deriv_checks"]
+
+    grid_widgets = _advanced_filter_grid_widgets(
+        parts.fields,
+        controls,
+        parts.action_box,
+    )
+    metric_controls = _advanced_filter_metric_controls_from_parts(parts)
+    state = AdvancedFilterPanelState(
+        group=parts.group,
+        main_grid=parts.main_grid,
+        grid_widgets=grid_widgets,
+        grid_order=tuple(grid_widgets),
+        apply_btn=parts.apply_btn,
+        clear_btn=parts.clear_btn,
+        metric_controls=metric_controls,
+        action_widget=parts.action_box,
+        controls_scroll=parts.controls_scroll,
+    )
+    self._advanced_filter_panel_state = state
+    _publish_advanced_filter_legacy_attrs(self, state)
+
+def _finalize_advanced_filter_panel_layout(self, group) -> None:
+    if _is_not_deleted(group):
         _update_advanced_filters_action_buttons(self, group.width())
     _enforce_advanced_filters_compact_metrics(self)
-
     try:
-        if _is_widget_valid(group):
+        if _is_not_deleted(group):
             self._reorganize_advanced_filters_grid(group.width())
     except Exception as exc:
         logger.debug("Falha no relayout inicial dos filtros avancados: %s", exc)
 
-    ctx = _build_advanced_filters_context(
-        group,
-        fields,
-        reprog_box=reprog_box,
-        reprog_mode=reprog_mode,
-        reprog_button=reprog_button,
-        reprog_menu=reprog_menu,
-        week_emissao_start=week_emissao_start,
-        week_emissao_end=week_emissao_end,
-        week_emissao_exclude=week_emissao_exclude,
-        week_exec_start=week_exec_start,
-        week_exec_end=week_exec_end,
-        week_exec_exclude=week_exec_exclude,
-        macro_combo=macro_combo,
-        deriv_checks=deriv_checks,
-        responsavel_fields=responsavel_fields,
+
+def _resolve_advanced_grid_viewport_metrics(self, width: int):
+    effective_width = width
+    state = _advanced_panel_state(self)
+    controls_scroll = (
+        state.controls_scroll
+        if state is not None
+        else getattr(self, "_adv_filters_controls_scroll", None)
     )
-    return group, ctx
+    max_scroll_h = LAYOUT_ADV_PANEL_MAX_HEIGHT
+    try:
+        if controls_scroll is not None and hasattr(controls_scroll, "viewport"):
+            viewport_w = int(controls_scroll.viewport().width())
+            if viewport_w > 0:
+                effective_width = min(effective_width, viewport_w)
+        group = getattr(self, "adv_filters_group", None)
+        if controls_scroll is not None and group is not None:
+            group_h = int(group.height())
+            if group_h > 0:
+                max_scroll_h = max(
+                    80,
+                    min(
+                        LAYOUT_ADV_PANEL_MAX_HEIGHT,
+                        group_h - (LAYOUT_ADV_CONTROL_HEIGHT + 8),
+                    ),
+                )
+    except Exception as exc:
+        logger.debug(
+            "Falha ao obter largura efetiva do viewport dos filtros avancados: %s", exc
+        )
+    return effective_width, max_scroll_h, controls_scroll
+
+
+def _advanced_filter_visible_grid_widgets(self):
+    state = _advanced_panel_state(self)
+    widgets = state.grid_widgets if state is not None else getattr(
+        self, "_adv_filters_grid_widgets", None
+    )
+    grid = state.main_grid if state is not None else getattr(
+        self, "_adv_filters_main_grid", None
+    )
+    if not widgets or grid is None:
+        return None, []
+    order = (
+        state.grid_order
+        if state is not None
+        else getattr(self, "_adv_filters_grid_order", tuple(widgets))
+    )
+    visible = [
+        (name, widget)
+        for name in order
+        if (widget := widgets.get(name)) is not None
+    ]
+    return grid, visible
+
+
+def _advanced_grid_spacing_metrics(grid):
+    try:
+        spacing = int(grid.horizontalSpacing())
+    except Exception:
+        spacing = 0
+    try:
+        margins = grid.contentsMargins()
+        horizontal_padding = int(margins.left() + margins.right())
+        vertical_padding = int(margins.top() + margins.bottom())
+    except Exception:
+        horizontal_padding = 0
+        vertical_padding = 0
+    try:
+        vertical_spacing = int(grid.verticalSpacing())
+    except Exception:
+        vertical_spacing = 0
+    return spacing, horizontal_padding, vertical_spacing, vertical_padding
+
+
+def _build_advanced_grid_plan(
+    self,
+    *,
+    grid,
+    visible,
+    effective_width: int,
+    max_scroll_h: int,
+):
+    cell_min_width = _compute_adv_grid_cell_min_width(self, visible)
+    spacing, horizontal_padding, vertical_spacing, vertical_padding = (
+        _advanced_grid_spacing_metrics(grid)
+    )
+    return build_advanced_grid_layout_plan(
+        visible_count=len(visible),
+        metrics=AdvancedGridLayoutMetrics(
+            effective_width=effective_width,
+            cell_min_width=cell_min_width,
+            spacing=spacing,
+            horizontal_padding=horizontal_padding,
+            vertical_spacing=vertical_spacing,
+            vertical_padding=vertical_padding,
+        ),
+        constraints=AdvancedGridLayoutConstraints(
+            min_cols=LAYOUT_GRID_MIN_COLS,
+            max_cols=LAYOUT_GRID_MAX_COLS,
+            preferred_cols=LAYOUT_GRID_PREF_COLS,
+            field_box_min_height=LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT,
+            field_box_max_height=LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT,
+            max_scroll_height=max_scroll_h,
+        ),
+    )
+
+
+def _advanced_grid_relayout_needed(self, plan, visible_count: int) -> bool:
+    state = _advanced_panel_state(self)
+    if state is not None:
+        return not (
+            state.grid_cols == plan.cols and state.last_widget_count == visible_count
+        )
+    return not (
+        getattr(self, "_adv_filters_grid_cols", None) == plan.cols
+        and getattr(self, "_adv_filters_last_widget_count", None) == visible_count
+    )
+
+
+def _apply_advanced_grid_stretch(grid, previous_cols, next_cols: int) -> None:
+    if previous_cols == next_cols:
+        return
+    for col in range(0, LAYOUT_GRID_MAX_COLS + 3):
+        try:
+            grid.setColumnStretch(col, 0)
+        except Exception as exc:
+            logger.debug("Falha ao resetar stretch de coluna no grid avancado: %s", exc)
+    for col in range(next_cols):
+        grid.setColumnStretch(col, 1)
+
+
+def _apply_advanced_grid_plan(self, *, grid, visible, plan) -> None:
+    state = _advanced_panel_state(self)
+    previous_cols = (
+        state.grid_cols
+        if state is not None
+        else getattr(self, "_adv_filters_grid_cols", None)
+    )
+    if state is not None:
+        state.grid_cols = plan.cols
+        state.last_widget_count = len(visible)
+        state.layout_mode = plan.layout_mode
+    self._adv_filters_grid_cols = plan.cols
+    self._adv_filters_last_widget_count = len(visible)
+    self._adv_filters_layout_mode = plan.layout_mode
+    for idx, (_, widget) in enumerate(visible):
+        row = idx // plan.cols
+        col = idx % plan.cols
+        grid.addWidget(widget, row, col)
+        if not widget.isVisible():
+            widget.show()
+    _apply_advanced_grid_stretch(grid, previous_cols, plan.cols)
+
+
+def _build_advanced_filters_panel(self):
+    group, outer, grid_container, grid_container_layout = (
+        _make_advanced_filter_panel_shell(self)
+    )
+    layout_baseline = _resolve_adv_layout_baseline(self)
+    fields = _make_advanced_multiselect_fields(self, layout_baseline)
+    responsavel_fields = _make_advanced_responsavel_fields(self, layout_baseline)
+    controls = _make_advanced_filter_auxiliary_controls(
+        self, fields, responsavel_fields, layout_baseline
+    )
+    main_grid, action_box, apply_btn, clear_btn, controls_scroll = (
+        _make_advanced_filter_panel_grid(
+            self, outer, grid_container, grid_container_layout
+        )
+    )
+    parts = AdvancedFilterPanelParts(
+        group=group,
+        fields=fields,
+        controls=controls,
+        main_grid=main_grid,
+        action_box=action_box,
+        apply_btn=apply_btn,
+        clear_btn=clear_btn,
+        controls_scroll=controls_scroll,
+    )
+    _register_advanced_filter_panel_state(self, parts)
+    _finalize_advanced_filter_panel_layout(self, group)
+    return group, _build_advanced_filters_context_from_parts(parts)
 
 
 def _ensure_macro_status_menu_ready(self) -> tuple[list[Any], list[Any]]:
@@ -2434,6 +1388,45 @@ def _save_advanced_filters_default(self):
     return
 
 
+def _apply_macro_derivada_preset(self, preset: dict[str, tuple[str, ...]]) -> None:
+    self._sync_multiselect_checks(
+        getattr(self, "adv_derivada_button", None),
+        getattr(self, "adv_derivada_checks", None),
+        preset["derivada_include_values"],
+    )
+
+
+def _apply_macro_status_preset(self, preset: dict[str, tuple[str, ...]]) -> None:
+    status_checks, status_exclude_checks = _ensure_macro_status_menu_ready(self)
+    self.adv_status_checks = status_checks
+    self.adv_status_exclude_checks = status_exclude_checks
+    _sync_include_exclude_multiselect_checks(
+        self,
+        button=getattr(self, "adv_status_button", None),
+        include_checks=self.adv_status_checks,
+        include_values=(),
+        exclude_checks=self.adv_status_exclude_checks,
+        exclude_values=preset["situacao_exclude_values"],
+    )
+    _update_multiselect_button(
+        self,
+        getattr(self, "adv_status_button", None),
+        getattr(self, "adv_status_checks", None),
+        exclude_checks=getattr(self, "adv_status_exclude_checks", None),
+    )
+
+
+def _apply_advanced_macro_filter_preset(self, preset: dict[str, tuple[str, ...]]) -> None:
+    try:
+        _apply_macro_derivada_preset(self, preset)
+    except Exception as exc:
+        logger.warning("Falha ao aplicar preset de derivadas no macro filtro: %s", exc)
+    try:
+        _apply_macro_status_preset(self, preset)
+    except Exception as exc:
+        logger.warning("Falha ao aplicar preset de status no macro filtro: %s", exc)
+
+
 def _on_macro_filter_changed(self):
     try:
         choice = self.adv_macro_combo.currentData()
@@ -2441,133 +1434,66 @@ def _on_macro_filter_changed(self):
         choice = None
     preset = advanced_macro_filter_preset(choice)
     if preset is not None:
-        try:
-            self._sync_multiselect_checks(
-                getattr(self, "adv_derivada_button", None),
-                getattr(self, "adv_derivada_checks", None),
-                preset["derivada_include_values"],
-            )
-        except Exception as exc:
-            logger.warning(
-                "Falha ao aplicar preset de derivadas no macro filtro: %s", exc
-            )
-        try:
-            status_checks, status_exclude_checks = _ensure_macro_status_menu_ready(self)
-            self.adv_status_checks = status_checks
-            self.adv_status_exclude_checks = status_exclude_checks
-            # Baixar keeps active rows by excluding terminal statuses.
-            self._sync_multiselect_checks(
-                getattr(self, "adv_status_button", None),
-                self.adv_status_checks,
-                [],
-                self.adv_status_exclude_checks,
-                preset["situacao_exclude_values"],
-            )
-            self._update_multiselect_button(
-                getattr(self, "adv_status_button", None),
-                getattr(self, "adv_status_checks", None),
-                exclude_checks=getattr(self, "adv_status_exclude_checks", None),
-            )
-        except Exception as exc:
-            logger.warning("Falha ao aplicar preset de status no macro filtro: %s", exc)
+        _apply_advanced_macro_filter_preset(self, preset)
 
 
 def _reorganize_advanced_filters_grid(self, width: int):
     """Reorganiza grid de filtros avancados em distribuicao continua por colunas."""
-    if not hasattr(self, "_adv_filters_main_grid") or not hasattr(
-        self, "_adv_filters_grid_widgets"
-    ):
-        return
     _enforce_advanced_filters_compact_metrics(self)
 
-    effective_width = width
-    controls_scroll = getattr(self, "_adv_filters_controls_scroll", None)
-    max_scroll_h = LAYOUT_ADV_PANEL_MAX_HEIGHT
-    try:
-        if controls_scroll is not None and hasattr(controls_scroll, "viewport"):
-            viewport_w = int(controls_scroll.viewport().width())
-            if viewport_w > 0:
-                effective_width = min(effective_width, viewport_w)
-        if (
-            controls_scroll is not None
-            and hasattr(self, "adv_filters_group")
-            and self.adv_filters_group is not None
-        ):
-            group_h = int(self.adv_filters_group.height())
-            if group_h > 0:
-                max_scroll_h = max(
-                    80,
-                    min(
-                        LAYOUT_ADV_PANEL_MAX_HEIGHT,
-                        group_h - (LAYOUT_ADV_CONTROL_HEIGHT + 8),
-                    ),
-                )
-    except Exception as exc:
-        logger.debug(
-            "Falha ao obter largura efetiva do viewport dos filtros avancados: %s", exc
-        )
+    effective_width, max_scroll_h, controls_scroll = (
+        _resolve_advanced_grid_viewport_metrics(self, width)
+    )
 
     _update_advanced_filters_action_buttons(self, effective_width)
     _apply_advanced_filters_font_policy(self, effective_width)
 
     if effective_width < LAYOUT_MIN_VALID_WIDTH:
         return
-    previous_effective_width = getattr(self, "_adv_filters_last_effective_width", None)
-    previous_max_scroll_h = getattr(self, "_adv_filters_last_max_scroll_h", None)
+    state = _advanced_panel_state(self)
+    previous_effective_width = (
+        state.last_effective_width
+        if state is not None
+        else getattr(self, "_adv_filters_last_effective_width", None)
+    )
+    previous_max_scroll_h = (
+        state.last_max_scroll_h
+        if state is not None
+        else getattr(self, "_adv_filters_last_max_scroll_h", None)
+    )
+    current_cols = (
+        state.grid_cols
+        if state is not None
+        else getattr(self, "_adv_filters_grid_cols", None)
+    )
     if (
         previous_effective_width is not None
         and abs(int(effective_width) - int(previous_effective_width)) < 8
         and previous_max_scroll_h is not None
         and abs(int(max_scroll_h) - int(previous_max_scroll_h)) < 8
-        and getattr(self, "_adv_filters_grid_cols", None) is not None
+        and current_cols is not None
     ):
         return
+    if state is not None:
+        state.last_effective_width = int(effective_width)
+        state.last_max_scroll_h = int(max_scroll_h)
     self._adv_filters_last_effective_width = int(effective_width)
     self._adv_filters_last_max_scroll_h = int(max_scroll_h)
 
-    grid = self._adv_filters_main_grid
-    w = self._adv_filters_grid_widgets
-    order = getattr(self, "_adv_filters_grid_order", tuple(w))
-    visible = [(name, widget) for name in order if (widget := w.get(name)) is not None]
+    grid, visible = _advanced_filter_visible_grid_widgets(self)
     if not visible:
         return
 
-    cell_min_width = _compute_adv_grid_cell_min_width(self, visible)
     try:
-        spacing = int(grid.horizontalSpacing())
-    except Exception:
-        spacing = 0
-    try:
-        margins = grid.contentsMargins()
-        horizontal_padding = int(margins.left() + margins.right())
-    except Exception:
-        horizontal_padding = 0
-    try:
-        vertical_spacing = int(grid.verticalSpacing())
-        margins = grid.contentsMargins()
-        plan = build_advanced_grid_layout_plan(
-            visible_count=len(visible),
-            metrics=AdvancedGridLayoutMetrics(
-                effective_width=effective_width,
-                cell_min_width=cell_min_width,
-                spacing=spacing,
-                horizontal_padding=horizontal_padding,
-                vertical_spacing=vertical_spacing,
-                vertical_padding=int(margins.top() + margins.bottom()),
-            ),
-            constraints=AdvancedGridLayoutConstraints(
-                min_cols=LAYOUT_GRID_MIN_COLS,
-                max_cols=LAYOUT_GRID_MAX_COLS,
-                preferred_cols=LAYOUT_GRID_PREF_COLS,
-                field_box_min_height=LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT,
-                field_box_max_height=LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT,
-                max_scroll_height=max_scroll_h,
-            ),
+        plan = _build_advanced_grid_plan(
+            self,
+            grid=grid,
+            visible=visible,
+            effective_width=effective_width,
+            max_scroll_h=max_scroll_h,
         )
     except Exception as exc:
-        logger.debug(
-            "Falha ao calcular layout dos filtros avancados: %s", exc
-        )
+        logger.debug("Falha ao calcular layout dos filtros avancados: %s", exc)
         return
     if plan is None:
         return
@@ -2575,27 +1501,9 @@ def _reorganize_advanced_filters_grid(self, width: int):
         controls_scroll.setMinimumHeight(plan.scroll_height)
         controls_scroll.setMaximumHeight(plan.scroll_height)
 
-    if getattr(self, "_adv_filters_grid_cols", None) == plan.cols and getattr(
-        self, "_adv_filters_last_widget_count", None
-    ) == len(visible):
+    if not _advanced_grid_relayout_needed(self, plan, len(visible)):
         return
-    self._adv_filters_grid_cols = plan.cols
-    self._adv_filters_last_widget_count = len(visible)
-    self._adv_filters_layout_mode = plan.layout_mode
-
-    for idx, (_, widget) in enumerate(visible):
-        row = idx // plan.cols
-        col = idx % plan.cols
-        grid.addWidget(widget, row, col)
-        if not widget.isVisible():
-            widget.show()
-    for col in range(0, LAYOUT_GRID_MAX_COLS + 3):
-        try:
-            grid.setColumnStretch(col, 0)
-        except Exception as exc:
-            logger.debug("Falha ao resetar stretch de coluna no grid avancado: %s", exc)
-    for col in range(plan.cols):
-        grid.setColumnStretch(col, 1)
+    _apply_advanced_grid_plan(self, grid=grid, visible=visible, plan=plan)
 
 
 def _on_adv_sector_selection_changed(self, *_):
@@ -2607,7 +1515,7 @@ def _on_adv_sector_selection_changed(self, *_):
     try:
         self._apply_divisao_to_setor_checks()
         try:
-            self._update_multiselect_button(
+            _update_multiselect_button(self,
                 self.adv_executor_button,
                 self.adv_executor_checks,
                 exclude_checks=getattr(self, "adv_executor_exclude_checks", None),
@@ -2615,7 +1523,7 @@ def _on_adv_sector_selection_changed(self, *_):
         except Exception as exc:
             logger.warning("Falha ao atualizar botao de setor executor: %s", exc)
         try:
-            self._update_multiselect_button(
+            _update_multiselect_button(self,
                 self.adv_emissor_button,
                 self.adv_emissor_checks,
                 exclude_checks=getattr(self, "adv_emissor_exclude_checks", None),
@@ -2634,7 +1542,7 @@ def _on_adv_sector_exclude_changed(self, *_):
     if getattr(self, "_adv_sector_handler_running", False):
         return
     try:
-        self._update_multiselect_button(
+        _update_multiselect_button(self,
             self.adv_executor_button,
             self.adv_executor_checks,
             exclude_checks=getattr(self, "adv_executor_exclude_checks", None),
@@ -2642,7 +1550,7 @@ def _on_adv_sector_exclude_changed(self, *_):
     except Exception as exc:
         logger.warning("Falha ao atualizar botao de setor executor (exclude): %s", exc)
     try:
-        self._update_multiselect_button(
+        _update_multiselect_button(self,
             self.adv_emissor_button,
             self.adv_emissor_checks,
             exclude_checks=getattr(self, "adv_emissor_exclude_checks", None),
@@ -2660,7 +1568,7 @@ def _schedule_sector_options_refresh(self):
     if not built:
         self._mark_responsavel_dirty()
         try:
-            if timer is not None and _is_widget_valid(timer):
+            if timer is not None and _is_not_deleted(timer):
                 timer.stop()
         except Exception as exc:
             logger.debug(
@@ -2676,7 +1584,7 @@ def _schedule_sector_options_refresh(self):
             logger.warning("Falha no refresh imediato de setores (sem timer): %s", exc)
         return
     try:
-        if _is_widget_valid(timer):
+        if _is_not_deleted(timer):
             timer.stop()
             timer.start()
             return
@@ -2764,65 +1672,9 @@ def _clear_advanced_filters(self):
 
 
 def _has_active_advanced_filters(self, data: dict) -> bool:
-    if not isinstance(data, dict) or not data:
-        return False
-    list_keys = (
-        "setor_executor",
-        "setor_emissor",
-        "situacao",
-        "solicitante",
-        "responsavel_programacao",
-        "responsavel_execucao",
-    )
-    for key in list_keys:
-        if data.get(key):
-            return True
-    exclude_list_keys = (
-        "setor_executor_exclude_values",
-        "setor_emissor_exclude_values",
-        "situacao_exclude_values",
-        "solicitante_exclude_values",
-        "responsavel_programacao_exclude_values",
-        "responsavel_execucao_exclude_values",
-        "prioridade_emissao_exclude_values",
-        "prioridade_planejamento_exclude_values",
-    )
-    for key in exclude_list_keys:
-        if data.get(key):
-            return True
-    if data.get("ano_emissao") or data.get("ano_execucao"):
+    if isinstance(data, dict) and data.get("macro_filter"):
         return True
-    if data.get("ano_emissao_values") or data.get("ano_execucao_values"):
-        return True
-    if data.get("ano_emissao_exclude_values") or data.get(
-        "ano_execucao_exclude_values"
-    ):
-        return True
-    if data.get("prioridade_emissao_values") or data.get(
-        "prioridade_planejamento_values"
-    ):
-        return True
-    if data.get("num_reprogramacoes_values"):
-        return True
-    if (
-        data.get("semana_emissao_inicio") is not None
-        or data.get("semana_emissao_fim") is not None
-    ):
-        return True
-    if (
-        data.get("semana_execucao_inicio") is not None
-        or data.get("semana_execucao_fim") is not None
-    ):
-        return True
-    if (
-        data.get("derivada_has")
-        or data.get("derivada_all_ste")
-        or data.get("derivada_is")
-    ):
-        return True
-    if data.get("macro_filter"):
-        return True
-    return False
+    return has_active_advanced_filters(data)
 
 
 def _read_advanced_filters_from_ui(self, previous_filters: dict) -> dict:
@@ -2928,9 +1780,9 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
     data = _read_advanced_filters_from_ui(self, previous_filters)
     self._advanced_filters = data
     _sync_quick_executor_from_advanced_filters(self, previous_filters, data)
+    self._advanced_filters_active = self._has_active_advanced_filters(data)
     if store_only:
         return
-    self._advanced_filters_active = self._has_active_advanced_filters(data)
     notice = _refresh_after_advanced_filters_apply(self)
     _show_advanced_filter_notice(self, notice)
 
@@ -2947,241 +1799,23 @@ def _parse_week(self, raw: str):
 
 
 def _get_checked_values(self, source):
-    values = []
     if source is None:
-        return values
+        return []
+    if isinstance(source, tuple):
+        source = list(source)
     if isinstance(source, list):
-        for child in source:
-            try:
-                if not _is_widget_valid(child):
-                    continue
-                if child.isChecked():
-                    value = self._checkbox_value(child)
-                    if value:
-                        values.append(value)
-            except Exception as exc:
-                logger.debug(
-                    "Failed to read checkbox from provided checkbox list in _get_checked_values: %s",
-                    exc,
-                )
-        return values
+        return _checked_values_from_checkboxes(source)
     if hasattr(source, "findChildren"):
         try:
             children = source.findChildren(QCheckBox)
         except Exception:
             children = []
-        for child in children:
-            try:
-                if not _is_widget_valid(child):
-                    continue
-                if child.isChecked():
-                    value = self._checkbox_value(child)
-                    if value:
-                        values.append(value)
-            except Exception as exc:
-                logger.debug(
-                    "Failed to read checkbox from widget source in _get_checked_values: %s",
-                    exc,
-                )
-    return values
+        return _checked_values_from_checkboxes(children)
+    return []
 
 
 def _sync_advanced_filter_ui(self):
-    data = self._advanced_filters or {}
-    self._sync_multiselect_checks(
-        getattr(self, "adv_executor_button", None),
-        getattr(self, "adv_executor_checks", None),
-        data.get("setor_executor"),
-        getattr(self, "adv_executor_exclude_checks", None),
-        data.get("setor_executor_exclude_values"),
-    )
-    self._sync_multiselect_checks(
-        getattr(self, "adv_emissor_button", None),
-        getattr(self, "adv_emissor_checks", None),
-        data.get("setor_emissor"),
-        getattr(self, "adv_emissor_exclude_checks", None),
-        data.get("setor_emissor_exclude_values"),
-    )
-    self._sync_multiselect_checks(
-        getattr(self, "adv_status_button", None),
-        getattr(self, "adv_status_checks", None),
-        data.get("situacao"),
-        getattr(self, "adv_status_exclude_checks", None),
-        data.get("situacao_exclude_values"),
-    )
-    responsavel_cfg = (
-        (
-            "adv_responsavel_solicitante",
-            "adv_responsavel_solicitante_button",
-            "adv_responsavel_solicitante_checks",
-            "solicitante",
-            "adv_responsavel_solicitante_exclude_checks",
-            "solicitante_exclude_values",
-        ),
-        (
-            "adv_responsavel_programacao",
-            "adv_responsavel_programacao_button",
-            "adv_responsavel_programacao_checks",
-            "responsavel_programacao",
-            "adv_responsavel_programacao_exclude_checks",
-            "responsavel_programacao_exclude_values",
-        ),
-        (
-            "adv_responsavel_execucao",
-            "adv_responsavel_execucao_button",
-            "adv_responsavel_execucao_checks",
-            "responsavel_execucao",
-            "adv_responsavel_execucao_exclude_checks",
-            "responsavel_execucao_exclude_values",
-        ),
-    )
-    built_prefixes = responsavel_materialization_state(self).built_prefixes
-    unbuilt_prefixes = set()
-    for (
-        prefix,
-        button_attr,
-        checks_attr,
-        key_name,
-        excl_checks_attr,
-        excl_key_name,
-    ) in responsavel_cfg:
-        if prefix in built_prefixes:
-            self._sync_multiselect_checks(
-                getattr(self, button_attr, None),
-                getattr(self, checks_attr, None),
-                data.get(key_name),
-                getattr(self, excl_checks_attr, None),
-                data.get(excl_key_name),
-            )
-        else:
-            unbuilt_prefixes.add(prefix)
-    if unbuilt_prefixes:
-        self._sync_responsavel_button_summaries(only_prefixes=unbuilt_prefixes)
-    self._sync_multiselect_checks(
-        getattr(self, "adv_prioridade_emissao_button", None),
-        getattr(self, "adv_prioridade_emissao_checks", None),
-        data.get("prioridade_emissao_values"),
-        getattr(self, "adv_prioridade_emissao_exclude_checks", None),
-        data.get("prioridade_emissao_exclude_values"),
-    )
-    self._sync_multiselect_checks(
-        getattr(self, "adv_prioridade_planejamento_button", None),
-        getattr(self, "adv_prioridade_planejamento_checks", None),
-        data.get("prioridade_planejamento_values"),
-        getattr(self, "adv_prioridade_planejamento_exclude_checks", None),
-        data.get("prioridade_planejamento_exclude_values"),
-    )
-    self._sync_multiselect_checks(
-        getattr(self, "adv_reprog_button", None),
-        getattr(self, "adv_reprog_checks", None),
-        data.get("num_reprogramacoes_values"),
-    )
-    try:
-        reprog_mode = getattr(self, "adv_reprog_mode", None)
-        if reprog_mode is not None:
-            mode_value = data.get("num_reprogramacoes_mode") or "eq"
-            idx = reprog_mode.findData(mode_value)
-            if idx < 0:
-                idx = reprog_mode.findData("eq")
-            if idx >= 0:
-                reprog_mode.setCurrentIndex(idx)
-    except Exception as exc:
-        logger.warning(
-            "Falha ao sincronizar modo de reprogramacoes nos filtros avancados: %s", exc
-        )
-    try:
-        emissao_values = data.get("ano_emissao_values")
-        emissao_exclude = data.get("ano_emissao_exclude_values")
-        if emissao_values is None and data.get("ano_emissao") is not None:
-            emissao_values = [data.get("ano_emissao")]
-        if (
-            emissao_exclude is None
-            and data.get("ano_emissao_exclude")
-            and data.get("ano_emissao") is not None
-        ):
-            emissao_exclude = [data.get("ano_emissao")]
-        self._sync_multiselect_checks(
-            getattr(self, "adv_year_emissao_button", None),
-            getattr(self, "adv_year_emissao_checks", None),
-            emissao_values,
-            getattr(self, "adv_year_emissao_exclude_checks", None),
-            emissao_exclude,
-        )
-    except Exception as exc:
-        logger.warning(
-            "Falha ao sincronizar filtro avancado de ano de emissao: %s", exc
-        )
-    try:
-        execucao_values = data.get("ano_execucao_values")
-        execucao_exclude = data.get("ano_execucao_exclude_values")
-        if execucao_values is None and data.get("ano_execucao") is not None:
-            execucao_values = [data.get("ano_execucao")]
-        if (
-            execucao_exclude is None
-            and data.get("ano_execucao_exclude")
-            and data.get("ano_execucao") is not None
-        ):
-            execucao_exclude = [data.get("ano_execucao")]
-        self._sync_multiselect_checks(
-            getattr(self, "adv_year_execucao_button", None),
-            getattr(self, "adv_year_execucao_checks", None),
-            execucao_values,
-            getattr(self, "adv_year_execucao_exclude_checks", None),
-            execucao_exclude,
-        )
-    except Exception as exc:
-        logger.warning(
-            "Falha ao sincronizar filtro avancado de ano de execucao: %s", exc
-        )
-    try:
-        week_fields = (
-            ("adv_week_emissao_start", "semana_emissao_inicio"),
-            ("adv_week_emissao_end", "semana_emissao_fim"),
-            ("adv_week_execucao_start", "semana_execucao_inicio"),
-            ("adv_week_execucao_end", "semana_execucao_fim"),
-        )
-        for attr, key in week_fields:
-            widget = getattr(self, attr, None)
-            if widget is None:
-                continue
-            value = data.get(key)
-            widget.setText("" if value is None else str(value))
-    except Exception as exc:
-        logger.warning(
-            "Falha ao sincronizar intervalo de semanas dos filtros avancados: %s", exc
-        )
-    try:
-        derivada_selected = []
-        if bool(data.get("derivada_has")):
-            derivada_selected.append("has")
-        if bool(data.get("derivada_all_ste")):
-            derivada_selected.append("all_ste")
-        if bool(data.get("derivada_is")):
-            derivada_selected.append("is")
-        self._sync_multiselect_checks(
-            getattr(self, "adv_derivada_button", None),
-            getattr(self, "adv_derivada_checks", None),
-            derivada_selected,
-        )
-    except Exception as exc:
-        logger.warning(
-            "Falha ao sincronizar toggles de derivadas nos filtros avancados: %s", exc
-        )
-    try:
-        if hasattr(self, "adv_macro_combo"):
-            self.adv_macro_combo.blockSignals(True)
-            idx = self.adv_macro_combo.findData(data.get("macro_filter"))
-            self.adv_macro_combo.setCurrentIndex(max(0, idx))
-    except Exception as exc:
-        logger.warning(
-            "Falha ao sincronizar seletor macro dos filtros avancados: %s", exc
-        )
-    finally:
-        try:
-            if hasattr(self, "adv_macro_combo"):
-                self.adv_macro_combo.blockSignals(False)
-        except Exception as exc:
-            logger.debug("Falha ao reativar sinais do seletor macro apos sync: %s", exc)
+    sync_advanced_filter_ui(self)
 
 
 def _refresh_sector_menus(self, exec_vals, emis_vals, status_vals, filters, apply_cb):
@@ -3228,7 +1862,7 @@ def _refresh_include_exclude_multiselect(
     exclude_checks_attr = f"{prefix}_exclude_checks"
 
     def update_summary(*_):
-        self._update_multiselect_button(
+        _update_multiselect_button(self,
             button,
             getattr(self, checks_attr, None),
             exclude_checks=getattr(self, exclude_checks_attr, None),
@@ -3298,7 +1932,7 @@ def _refresh_reprogramacoes_menu(self, reprog_vals, filters, apply_cb):
             getattr(self, "adv_reprog_menu", None),
             values,
             selected,
-            lambda *_: self._update_multiselect_button(
+            lambda *_: _update_multiselect_button(self,
                 getattr(self, "adv_reprog_button", None),
                 getattr(self, "adv_reprog_checks", None),
             ),
@@ -3366,9 +2000,11 @@ def _refresh_derivadas_menu(self, filters, apply_cb, selected_override=None):
             getattr(self, "adv_derivada_menu", None),
             deriv_values,
             selected,
-            lambda *_: self._update_multiselect_button(
+            lambda *_: _update_multiselect_button(
+                self,
                 getattr(self, "adv_derivada_button", None),
                 getattr(self, "adv_derivada_checks", None),
+                "Selecionar",
             ),
             True,
             None,

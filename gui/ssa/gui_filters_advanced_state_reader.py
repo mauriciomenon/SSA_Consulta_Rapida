@@ -7,6 +7,14 @@ from typing import Any, Callable
 
 from utils.robust_logging import get_robust_logger
 
+from .gui_filters_advanced_specs import (
+    AdvancedFilterWidgetContext,
+    ADVANCED_RESPONSAVEL_MULTISELECT_SPECS,
+    ADVANCED_STANDARD_MULTISELECT_SPECS,
+    ADVANCED_YEAR_MULTISELECT_SPECS,
+)
+from .gui_filters_multiselect_menu import _checked_values_from_checkboxes
+
 logger = get_robust_logger().get_logger(__name__, "gui")
 
 
@@ -29,15 +37,6 @@ def _combo_item_data(combo: Any):
         if _is_deleted_qt_wrapper_error(exc):
             return None
         raise
-
-
-def _widget_value(widget: Any):
-    property_getter = getattr(widget, "property", None)
-    if callable(property_getter):
-        value = property_getter("value")
-        if value is not None:
-            return value
-    return None
 
 
 def _is_deleted_qt_wrapper_error(exc: RuntimeError) -> bool:
@@ -94,32 +93,6 @@ def resolve_year_selection_sets(
 
 
 class AdvancedFilterStateReader:
-    RESPONSAVEL_PREFIXES = {
-        "solicitante": "adv_responsavel_solicitante",
-        "responsavel_programacao": "adv_responsavel_programacao",
-        "responsavel_execucao": "adv_responsavel_execucao",
-    }
-    RESPONSAVEL_WIDGET_BINDINGS = {
-        "solicitante": (
-            "adv_responsavel_solicitante",
-            "adv_responsavel_solicitante_checks",
-            "solicitante_exclude_values",
-            "adv_responsavel_solicitante_exclude_checks",
-        ),
-        "responsavel_programacao": (
-            "adv_responsavel_programacao",
-            "adv_responsavel_programacao_checks",
-            "responsavel_programacao_exclude_values",
-            "adv_responsavel_programacao_exclude_checks",
-        ),
-        "responsavel_execucao": (
-            "adv_responsavel_execucao",
-            "adv_responsavel_execucao_checks",
-            "responsavel_execucao_exclude_values",
-            "adv_responsavel_execucao_exclude_checks",
-        ),
-    }
-
     def __init__(
         self,
         *,
@@ -130,37 +103,19 @@ class AdvancedFilterStateReader:
     ) -> None:
         self.current_filters = current_filters or {}
         self.responsavel_state = responsavel_state
-        self.widgets = widget_context if isinstance(widget_context, dict) else {}
+        self.context = AdvancedFilterWidgetContext(widget_context)
         self.parse_week = parse_week
+        self._checked_values_cache: dict[str, list[str]] = {}
 
     def widget(self, name: str):
-        return self.widgets.get(name)
+        return self.context.widget(name)
 
     def checked_values(self, checks_attr: str) -> list[str]:
-        values = []
-        for item in self.widget(checks_attr) or []:
-            try:
-                is_checked = getattr(item, "isChecked", None)
-                if is_checked is None:
-                    continue
-                if callable(is_checked):
-                    checked = bool(is_checked())
-                elif isinstance(is_checked, bool):
-                    checked = bool(is_checked)
-                else:
-                    continue
-                if not checked:
-                    continue
-                raw_value = _widget_value(item)
-            except RuntimeError as exc:
-                if _is_deleted_qt_wrapper_error(exc):
-                    continue
-                raise
-            if raw_value is None:
-                continue
-            text = str(raw_value).strip()
-            if text:
-                values.append(text)
+        cached = self._checked_values_cache.get(checks_attr)
+        if cached is not None:
+            return list(cached)
+        values = _checked_values_from_checkboxes(self.widget(checks_attr) or [])
+        self._checked_values_cache[checks_attr] = list(values)
         return values
 
     def week_range(self, start_attr: str, end_attr: str) -> tuple[int | None, int | None]:
@@ -200,48 +155,35 @@ class AdvancedFilterStateReader:
         return _call_widget_bool(widget, "isChecked")
 
     def _collect_sector_status_filters(self) -> dict:
-        bindings = (
-            ("setor_executor", "adv_executor_checks"),
-            ("setor_executor_exclude_values", "adv_executor_exclude_checks"),
-            ("setor_emissor", "adv_emissor_checks"),
-            ("setor_emissor_exclude_values", "adv_emissor_exclude_checks"),
-            ("situacao", "adv_status_checks"),
-            ("situacao_exclude_values", "adv_status_exclude_checks"),
-        )
+        bindings = []
+        for spec in ADVANCED_STANDARD_MULTISELECT_SPECS[:3]:
+            bindings.append((spec.include_key, f"{spec.prefix}_checks"))
+            if spec.exclude_key is not None:
+                bindings.append((spec.exclude_key, f"{spec.prefix}_exclude_checks"))
         return {key: self.checked_values(attr) for key, attr in bindings}
 
     def _collect_year_priority_filters(self) -> dict:
-        multiselect_bindings = (
-            ("ano_emissao_values", "adv_year_emissao_checks"),
-            ("ano_emissao_exclude_values", "adv_year_emissao_exclude_checks"),
-            ("ano_execucao_values", "adv_year_execucao_checks"),
-            ("ano_execucao_exclude_values", "adv_year_execucao_exclude_checks"),
+        multiselect_bindings = [
             ("num_reprogramacoes_values", "adv_reprog_checks"),
-            ("prioridade_emissao_values", "adv_prioridade_emissao_checks"),
-            (
-                "prioridade_emissao_exclude_values",
-                "adv_prioridade_emissao_exclude_checks",
-            ),
-            (
-                "prioridade_planejamento_values",
-                "adv_prioridade_planejamento_checks",
-            ),
-            (
-                "prioridade_planejamento_exclude_values",
-                "adv_prioridade_planejamento_exclude_checks",
-            ),
-        )
+        ]
+        for spec in ADVANCED_YEAR_MULTISELECT_SPECS:
+            multiselect_bindings.append(
+                (f"{spec.base_key}_values", f"{spec.prefix}_checks")
+            )
+            multiselect_bindings.append(
+                (f"{spec.base_key}_exclude_values", f"{spec.prefix}_exclude_checks")
+            )
+        for spec in ADVANCED_STANDARD_MULTISELECT_SPECS[3:]:
+            multiselect_bindings.append((spec.include_key, f"{spec.prefix}_checks"))
+            if spec.exclude_key is not None:
+                multiselect_bindings.append(
+                    (spec.exclude_key, f"{spec.prefix}_exclude_checks")
+                )
         data: dict[str, object] = {
             key: self.checked_values(attr) for key, attr in multiselect_bindings
         }
         data.update(
             {
-                "semana_emissao_exclude": self.checked_flag(
-                    "adv_week_emissao_exclude"
-                ),
-                "semana_execucao_exclude": self.checked_flag(
-                    "adv_week_execucao_exclude"
-                ),
                 "num_reprogramacoes_mode": _combo_item_data(
                     self.widget("adv_reprog_mode")
                 ),
@@ -256,17 +198,18 @@ class AdvancedFilterStateReader:
 
     def _collect_responsavel_filters(self) -> dict:
         data = {}
-        for include_key, binding in self.RESPONSAVEL_WIDGET_BINDINGS.items():
-            prefix, include_checks_attr, exclude_key, exclude_checks_attr = binding
-            data[include_key] = self.responsavel_values(
-                include_checks_attr,
-                include_key,
-                prefix,
+        for spec in ADVANCED_RESPONSAVEL_MULTISELECT_SPECS:
+            data[spec.include_key] = self.responsavel_values(
+                f"{spec.prefix}_checks",
+                spec.include_key,
+                spec.prefix,
             )
-            data[exclude_key] = self.responsavel_values(
-                exclude_checks_attr,
-                exclude_key,
-                prefix,
+            if spec.exclude_key is None:
+                continue
+            data[spec.exclude_key] = self.responsavel_values(
+                f"{spec.prefix}_exclude_checks",
+                spec.exclude_key,
+                spec.prefix,
             )
         return data
 

@@ -40,6 +40,7 @@ from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from gui.ssa import gui_filters_advanced_ui as advanced_ui  # noqa: E402
+from gui.ssa import gui_filters_multiselect_menu as advanced_menu  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
 from gui.ssa.filter_profile_logic import (  # noqa: E402
@@ -6248,16 +6249,16 @@ class TestGUIFilterLogic:
                 return None
 
         captured = {}
-        monkeypatch.setattr(advanced_ui, "_is_widget_valid", lambda _widget: True)
+        monkeypatch.setattr(advanced_menu, "_is_not_deleted", lambda _widget: True)
         monkeypatch.setattr(
-            advanced_ui,
+            advanced_menu,
             "_get_widget_screen_geometry",
             lambda _widget: QRect(1000, 40, 900, 700),
         )
 
         button = _FakeButton()
         menu = _FakeMenu()
-        advanced_ui._attach_multiselect_menu(_FakeOwner(), button, menu)
+        advanced_menu._attach_multiselect_menu(_FakeOwner(), button, menu)
         button.clicked.emit()
 
         assert captured["pos"].x() >= 1000
@@ -6268,7 +6269,7 @@ class TestGUIFilterLogic:
         menu = QtWidgets.QMenu()
         values = [f"Resp {idx:04d}" for idx in range(450)]
 
-        checks, exclude_checks = advanced_ui._rebuild_multiselect_menu(
+        checks, exclude_checks = advanced_menu._rebuild_multiselect_menu(
             self.window,
             button,
             menu,
@@ -6282,7 +6283,7 @@ class TestGUIFilterLogic:
 
         include_values = [str(check.property("value") or "") for check in checks]
         exclude_values = [str(check.property("value") or "") for check in exclude_checks]
-        assert len(checks) == advanced_ui.HIGH_CARDINALITY_MENU_LIMIT
+        assert len(checks) == advanced_menu.HIGH_CARDINALITY_MENU_LIMIT
         assert "Resp 0449" in include_values
         assert "Resp 0448" in exclude_values
 
@@ -6291,7 +6292,7 @@ class TestGUIFilterLogic:
         menu = QtWidgets.QMenu()
         values = ["Resp A", "Resp B", "Resp C"]
 
-        first_checks, first_exclude_checks = advanced_ui._rebuild_multiselect_menu(
+        first_checks, first_exclude_checks = advanced_menu._rebuild_multiselect_menu(
             self.window,
             button,
             menu,
@@ -6303,7 +6304,7 @@ class TestGUIFilterLogic:
             None,
         )
         first_action_count = len(menu.actions())
-        second_checks, second_exclude_checks = advanced_ui._rebuild_multiselect_menu(
+        second_checks, second_exclude_checks = advanced_menu._rebuild_multiselect_menu(
             self.window,
             button,
             menu,
