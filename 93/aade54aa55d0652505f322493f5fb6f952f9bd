@@ -1,0 +1,19 @@
+gui/mixins/filter_gui_ssa_mixin.py
+  s_082d1ff7d55d96::t_a67ec9e5e05ba8 243-246
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "93aade54aa55d0652505f322493f5fb6f952f9bd",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
