@@ -166,7 +166,7 @@ def _resolve_explicit_import_files(
 ) -> List[str]:
     """Resolve explicit import files and ensure they stay under docs_dir."""
     docs_dir_resolved = docs_dir_path.resolve()
-    resolved_files: List[str] = []
+    resolved_files: List[tuple[str, datetime | None, str]] = []
     seen: set[str] = set()
     for raw_path in file_paths:
         if raw_path is None:
@@ -193,20 +193,22 @@ def _resolve_explicit_import_files(
         if normalized in seen:
             continue
         seen.add(normalized)
-        resolved_files.append(normalized)
+        resolved_files.append(
+            (normalized, best_datetime_for_file(normalized), candidate.name.casefold())
+        )
 
-    def _sort_key(path: str) -> tuple[bool, datetime | None, str, str]:
-        file_dt = best_datetime_for_file(path)
+    def _sort_key(item: tuple[str, datetime | None, str]) -> tuple[bool, datetime | None, str, str]:
+        path, file_dt, basename = item
         return (
             file_dt is None,
             file_dt,
-            os.path.basename(path).casefold(),
+            basename,
             path.casefold(),
         )
 
     # Keep explicit import deterministic and aligned with diff/full ordering:
     # older snapshots first, newest snapshot last.
-    return sorted(resolved_files, key=_sort_key)
+    return [path for path, _file_dt, _basename in sorted(resolved_files, key=_sort_key)]
 
 
 # --- Funcoes Auxiliares Refatoradas ---
@@ -2607,7 +2609,7 @@ def get_filtered_data(
                 if column in df.columns and value is not None:
                     terms = parse_search_terms(str(value))
                     if terms:
-                        df = filter_dataframe(df, [column], terms)
+                        df = filter_dataframe(df, terms, [column])
 
         return df
 
