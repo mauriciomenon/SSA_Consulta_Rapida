@@ -1,0 +1,49 @@
+tests/test_gui_menu_import_external.py
+  s_082d1ff7d55d96::t_e0181dc412ce42 257-294
+  s_082d1ff7d55d96::t_3940e0f96b6402 175,241-242
+core/import_formats.py
+  s_082d1ff7d55d96::t_dffea8039a340a 1-13
+gui/workers/rescan_worker.py
+  s_082d1ff7d55d96::t_ac5ab77dbd183e 524,529-534,536
+gui/ssa/app_menus.py
+  s_082d1ff7d55d96::t_b4906ae1a61aa5 38
+core/import_staging.py
+  s_082d1ff7d55d96::t_874f34ad8e2a9e 8-9,69-73
+  s_082d1ff7d55d96::t_7802e74deb28fa 189-199
+gui/gui_ssa.py
+  s_082d1ff7d55d96::t_224779f25ecb18 2879-2881,2883-2886
+  s_082d1ff7d55d96::t_3ef87305abc678 55,2860
+  s_082d1ff7d55d96::t_2c220903e939f9 2882
+  s_082d1ff7d55d96::t_752c8ee061f7b4 134-138
+tests/test_import_staging.py
+  s_082d1ff7d55d96::t_ec29821607f13c 15-17,33,35-36,38
+gui/ssa/main_window_system_controller.py
+  s_082d1ff7d55d96::t_8de09fffaadc2f 15-16,208-250
+core/app_logic.py
+  s_082d1ff7d55d96::t_42cd04fa6e5c7e 2608-2610
+  s_082d1ff7d55d96::t_033d10024977bf 2536
+  s_082d1ff7d55d96::t_a71d628372a356 68-71,167,181,183-184
+tests/test_rescan_worker_advanced.py
+  s_082d1ff7d55d96::t_48a9d8fd7dd9f4 554-587
+  s_082d1ff7d55d96::t_e88f610477b048 81,99,113-114
+  s_082d1ff7d55d96::t_857f2fb356bfab 14
+  s_082d1ff7d55d96::t_eb6861480d1af6 748-754,761
+  s_082d1ff7d55d96::t_843dd7eb567ba3 405,408,424-426,428
+  s_082d1ff7d55d96::t_361e7300f97e52 760,764
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "8334c67533abab2e052203bdd8cbc9caa57f1696",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
