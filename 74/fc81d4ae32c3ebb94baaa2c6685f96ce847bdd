@@ -1,0 +1,73 @@
+gui/ssa/gui_theme.py
+  s_082d1ff7d55d96::t_5b35bd4ed44020 387-388,390-391
+  s_082d1ff7d55d96::t_8bc213e493cb88 139,158-163,167-172
+  s_082d1ff7d55d96::t_10ae6e0c55c48d 459-467,474,606,608-609,642-643
+  s_082d1ff7d55d96::t_23d6c91341acb9 491-495,498-500,503,511-514
+  s_082d1ff7d55d96::t_0d8483c2bb3550 649,674-679
+  s_082d1ff7d55d96::t_463a279fc304dd 536
+  s_082d1ff7d55d96::t_504a0950699c45 225-227,501-502,523-525
+  s_082d1ff7d55d96::t_2c2015916e755b 350-352
+  s_082d1ff7d55d96::t_827c312e6f1948 13,78-83
+  s_082d1ff7d55d96::t_552c77ccbc302e 14-18
+  s_082d1ff7d55d96::t_e1b5fa0b4b0aae 12
+  s_082d1ff7d55d96::t_72d084f3926e36 55-64
+  s_082d1ff7d55d96::t_fddb4c0ace1a1a 377,410-412,426-430,445,450-451,468-473,475-476
+  s_082d1ff7d55d96::t_485c4cf884a81a 533,537,542-547,551,564-567,573
+  s_082d1ff7d55d96::t_74902534d5d4c1 648,660-664
+  s_082d1ff7d55d96::t_90f89f0454bbbd 654-657
+  s_082d1ff7d55d96::t_00f4101497f52e 392-398
+  s_082d1ff7d55d96::t_fd454ce550ef88 532,548-549,552-563,568-572,574-605,607,610-617,633-634,644
+gui/gui_ssa.py
+  s_082d1ff7d55d96::t_68bf49c890c5f0 3079-3085,3519-3527,3529-3530,3532
+  s_082d1ff7d55d96::t_902b696c329852 668
+  s_082d1ff7d55d96::t_6bbbb9e63c1249 3005-3021,3026,3065
+  s_082d1ff7d55d96::t_8b70f5deaa9cc9 3342-3348
+  s_082d1ff7d55d96::t_d584e1198da312 3829-3835
+  s_082d1ff7d55d96::t_ae8f4c3ff9cce6 695-712
+  s_082d1ff7d55d96::t_3e43826c37d78f 2100-2101,2104
+gui/helpers/theme_helpers.py
+  s_082d1ff7d55d96::t_fd97acdcf2812f 89-108
+gui/ssa/gui_theme_styles.py
+  s_082d1ff7d55d96::t_23d6c91341acb9 1-89,133-272
+  s_082d1ff7d55d96::t_bce25eb98a3780 90-96,99,102,106-108,113,115,118,131-132
+  s_082d1ff7d55d96::t_19840f8f9fc9b3 101,103-105,114,116-117
+  s_082d1ff7d55d96::t_34bc2cbccfbdb4 97-98,100,119-130
+  s_082d1ff7d55d96::t_d867ef528ea5c6 109-112
+gui/ssa/system_integration.py
+  s_082d1ff7d55d96::t_d3760173ffc451 141-166
+  s_082d1ff7d55d96::t_9178c86606a573 9
+tests/test_gui_preferences_atomic_write.py
+  s_082d1ff7d55d96::t_4db54536dbbe6c 95,99-101,109-111,113,129,219-220
+gui/helpers/__init__.py
+  s_082d1ff7d55d96::t_39ea40e846aa97 14,22
+gui/ssa/gui_theme_dialog.py
+  s_082d1ff7d55d96::t_6f368c35dc8cf4 1-80
+gui/ssa/gui_preferences_persistence.py
+  s_082d1ff7d55d96::t_3a49e3f236a425 4
+  s_082d1ff7d55d96::t_8696e96563c7ca 66
+  s_082d1ff7d55d96::t_35c65f03c6dd43 1-2,5,8-36,83,92-93,95-96
+  s_082d1ff7d55d96::t_7f2176d078a3bf 3,6,94
+  s_082d1ff7d55d96::t_011282ebc19934 50-51,56-62,86-87,89-90
+  s_082d1ff7d55d96::t_00c4041fbffc8d 7,37-39,41-42,44-46,48,63-65,69,71-72,74-75,98-101
+  s_082d1ff7d55d96::t_72e1ecaf673924 40,43,47,80,97
+  s_082d1ff7d55d96::t_09d3b11d70cd4a 49,67-68,73,76,79,88
+  s_082d1ff7d55d96::t_6a23107259d0d5 70,77-78,81-82
+  s_082d1ff7d55d96::t_cd2b85fc6c5f0d 52-55
+  s_082d1ff7d55d96::t_f630df8be93360 84-85,91,102-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "74fc81d4ae32c3ebb94baaa2c6685f96ce847bdd",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
