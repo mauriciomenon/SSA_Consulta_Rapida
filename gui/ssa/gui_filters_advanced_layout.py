@@ -5,6 +5,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+LAYOUT_MIN_VALID_WIDTH = 1
+LAYOUT_GRID_MIN_COLS = 1
+LAYOUT_GRID_MAX_COLS = 4
+LAYOUT_GRID_PREF_COLS = 4
+LAYOUT_ADV_PANEL_MIN_HEIGHT = 82
+LAYOUT_ADV_PANEL_MAX_HEIGHT = 285
+LAYOUT_ADV_CONTROL_HEIGHT = 22
+LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 36
+LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 46
+
 
 @dataclass(frozen=True, slots=True)
 class AdvancedGridLayoutPlan:

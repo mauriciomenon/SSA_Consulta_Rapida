@@ -12,6 +12,7 @@ from core.config_manager import atomic_write_json_file
 from gui.gui_config import get_gui_main_preferences_path
 from utils.robust_logging import get_robust_logger
 from utils.themes import get_palette, get_theme_roles, normalize_theme
+from .gui_filters_advanced_panel_state import advanced_panel_state
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
@@ -317,6 +318,12 @@ def _apply_style_to_window_widgets(window, names: tuple[str, ...], css: str) -> 
             _set_stylesheet_if_changed(widget, css)
 
 
+def _apply_style_to_widgets(widgets, css: str) -> None:
+    for widget in widgets:
+        if widget is not None:
+            _set_stylesheet_if_changed(widget, css)
+
+
 def _apply_style_to_context_widgets(
     context: dict, names: tuple[str, ...], css: str
 ) -> None:
@@ -387,11 +394,12 @@ def _apply_advanced_filter_control_styles(window, style: dict) -> None:
     )
     try:
         _apply_style_to_window_widgets(window, adv_buttons, style["tool_btn_css"])
-        _apply_style_to_window_widgets(
-            window,
-            ("_adv_filters_apply_btn", "_adv_filters_clear_btn"),
-            style["action_btn_css"],
-        )
+        state = advanced_panel_state(window)
+        if state is not None:
+            _apply_style_to_widgets(
+                (state.apply_btn, state.clear_btn),
+                style["action_btn_css"],
+            )
         _apply_style_to_window_widgets(
             window, ("adv_macro_combo", "adv_reprog_mode"), style["combo_css"]
         )
@@ -475,7 +483,8 @@ def _apply_details_and_group_styles(
 
     for group_name in ("details_group", "col_filters_group", "adv_filters_group"):
         _apply_group_style(window, group_name, normalized, light_themes, group_css)
-    action_widget = getattr(window, "_adv_filters_action_widget", None)
+    state = advanced_panel_state(window)
+    action_widget = state.action_widget if state is not None else None
     if action_widget is not None:
         _set_stylesheet_if_changed(
             action_widget, "" if normalized in light_themes else group_css

@@ -39,7 +39,7 @@ from gui.gui_config import DEFAULT_COLUMN_WIDTHS  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
-from gui.ssa import gui_filters_advanced_ui as advanced_ui  # noqa: E402
+from gui.ssa import gui_filters_advanced_layout as advanced_layout  # noqa: E402
 from gui.ssa import gui_filters_multiselect_menu as advanced_menu  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
@@ -1055,7 +1055,7 @@ class TestGUIFilterLogic:
 
     def test_advanced_panel_context_exposes_emissor_before_executor(self):
         _ = self._panel_context()
-        grid_widgets = getattr(self.window, "_adv_filters_grid_widgets", {})
+        grid_widgets = self.window._advanced_filter_panel_state.grid_widgets
         keys = list(grid_widgets.keys())
         assert keys.index("emis_box") < keys.index("exec_box")
 
@@ -7432,25 +7432,26 @@ class TestGUIFilterLogic:
         self.window._reorganize_advanced_filters_grid(1501)
         self.window._reorganize_advanced_filters_grid(1201)
         self.window._reorganize_advanced_filters_grid(800)
-        assert self.window._adv_filters_main_grid.count() > 0
+        assert self.window._advanced_filter_panel_state.main_grid.count() > 0
 
     def test_reorganize_advanced_filters_grid_allows_single_column_width(self):
         self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         self.window._reorganize_advanced_filters_grid(90)
-        assert self.window._adv_filters_layout_mode == "cols_1"
+        state = self.window._advanced_filter_panel_state
+        assert state.layout_mode == "cols_1"
 
-        grid = self.window._adv_filters_main_grid
-        widgets = self.window._adv_filters_grid_widgets
+        grid = state.main_grid
+        widgets = state.grid_widgets
         exec_resp_item = grid.itemAtPosition(14, 0)
         assert exec_resp_item is not None
         assert exec_resp_item.widget() is widgets["exec_resp_box"]
 
     def test_advanced_grid_layout_plan_is_calculated_outside_qt_application(self):
-        plan = advanced_ui.build_advanced_grid_layout_plan(
+        plan = advanced_layout.build_advanced_grid_layout_plan(
             visible_count=14,
-            metrics=advanced_ui.AdvancedGridLayoutMetrics(
+            metrics=advanced_layout.AdvancedGridLayoutMetrics(
                 effective_width=900,
                 cell_min_width=190,
                 spacing=6,
@@ -7458,7 +7459,7 @@ class TestGUIFilterLogic:
                 vertical_spacing=4,
                 vertical_padding=8,
             ),
-            constraints=advanced_ui.AdvancedGridLayoutConstraints(
+            constraints=advanced_layout.AdvancedGridLayoutConstraints(
                 min_cols=1,
                 max_cols=4,
                 preferred_cols=4,
@@ -7479,14 +7480,15 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         self.window._reorganize_advanced_filters_grid(1501)
-        assert str(self.window._adv_filters_layout_mode).startswith("cols_")
-        previous_mode = self.window._adv_filters_layout_mode
+        state = self.window._advanced_filter_panel_state
+        assert str(state.layout_mode).startswith("cols_")
+        previous_mode = state.layout_mode
 
         self.window._reorganize_advanced_filters_grid(0)
-        assert self.window._adv_filters_layout_mode == previous_mode
+        assert state.layout_mode == previous_mode
 
         self.window._reorganize_advanced_filters_grid(800)
-        assert self.window._adv_filters_layout_mode in {"cols_2", "cols_3", "cols_4"}
+        assert state.layout_mode in {"cols_2", "cols_3", "cols_4"}
 
     def test_reprogramacoes_menu_builds_without_responsavel_materialized(self):
         self.window.df_completo = self.base_df.assign(

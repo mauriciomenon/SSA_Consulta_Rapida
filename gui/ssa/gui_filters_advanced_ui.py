@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
 
@@ -37,10 +36,21 @@ from .filter_domain_rules import (
     sector_sort_key,
 )
 from .gui_filters_advanced_activity import has_active_advanced_filters
+from .gui_filters_advanced_grid import (
+    enforce_advanced_filters_compact_metrics as _enforce_advanced_filters_compact_metrics,
+    reorganize_advanced_filters_grid as _reorganize_advanced_filters_grid_impl,
+    resolve_adv_layout_baseline as _resolve_adv_layout_baseline,
+    update_advanced_filters_action_buttons as _update_advanced_filters_action_buttons,
+)
 from .gui_filters_advanced_layout import (
-    AdvancedGridLayoutConstraints,
-    AdvancedGridLayoutMetrics,
-    build_advanced_grid_layout_plan,
+    LAYOUT_ADV_CONTROL_HEIGHT,
+    LAYOUT_ADV_PANEL_MAX_HEIGHT,
+    LAYOUT_ADV_PANEL_MIN_HEIGHT,
+)
+from .gui_filters_advanced_panel_state import (
+    AdvancedFilterPanelParts,
+    AdvancedFilterPanelState,
+    advanced_panel_state as _advanced_panel_state,
 )
 from .gui_filters_advanced_refresh import (
     AdvancedFilterUIState,
@@ -61,10 +71,7 @@ from .gui_filters_multiselect_menu import (
     _sync_include_exclude_multiselect_checks,
     _update_multiselect_button,
 )
-from .gui_filters_advanced_state_reader import (
-    AdvancedFilterStateReader,
-    resolve_year_selection_sets,
-)
+from .gui_filters_advanced_state_reader import AdvancedFilterStateReader, resolve_year_selection_sets
 from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
 from .gui_filters_responsavel_refresh import responsavel_options_refresher
 from .gui_filters_responsavel_state import responsavel_materialization_state
@@ -72,6 +79,21 @@ from .gui_filters_responsavel_state import responsavel_materialization_state
 logger = get_robust_logger().get_logger(__name__, "gui")
 _DERIVADA_ALL_STE_LABEL = "Derivadas em STE/SES"
 _is_widget_valid = _is_not_deleted
+_ADVANCED_MULTISELECT_FIELD_DEFS = (
+    ("emis", "Emissor", True),
+    ("exec", "Executor", True),
+    ("status", "Situacao", True),
+    ("year_emissao", "Ano Emissao", False),
+    ("year_execucao", "Ano Execucao", False),
+    ("prio_emis", "Prio. Emissao", True),
+    ("prio_plan", "Prio. Planejamento", True),
+    ("deriv", "Derivadas", False),
+)
+_ADVANCED_RESPONSAVEL_FIELD_DEFS = (
+    ("sol", "Solicitante"),
+    ("prog", "Resp Prog"),
+    ("exec_resp", "Resp Exec"),
+)
 
 
 def _attach_multiselect_menu(*args, **kwargs):
@@ -92,57 +114,6 @@ def _sync_multiselect_checks(*args, **kwargs):
     return impl(*args, **kwargs)
 
 
-@dataclass(frozen=True)
-class AdvancedFilterPanelParts:
-    group: QGroupBox
-    fields: dict
-    controls: dict
-    main_grid: QGridLayout
-    action_box: QGroupBox
-    apply_btn: QPushButton
-    clear_btn: QPushButton
-    controls_scroll: QScrollArea
-
-
-@dataclass
-class AdvancedFilterPanelState:
-    group: QGroupBox
-    main_grid: QGridLayout
-    grid_widgets: dict[str, Any]
-    grid_order: tuple[str, ...]
-    apply_btn: QPushButton
-    clear_btn: QPushButton
-    metric_controls: tuple[Any, ...]
-    action_widget: QGroupBox
-    controls_scroll: QScrollArea
-    action_btn_dims: tuple[int, int] | None = None
-    grid_cols: int | None = None
-    last_widget_count: int | None = None
-    layout_mode: str | None = None
-    last_effective_width: int | None = None
-    last_max_scroll_h: int | None = None
-    cell_min_width: int | None = None
-    cell_min_width_widget_key: tuple[int, ...] | None = None
-
-
-def _advanced_panel_state(self) -> AdvancedFilterPanelState | None:
-    state = getattr(self, "_advanced_filter_panel_state", None)
-    if isinstance(state, AdvancedFilterPanelState):
-        return state
-    return None
-
-
-# Layout constants
-LAYOUT_MIN_VALID_WIDTH = 1
-LAYOUT_GRID_MIN_COLS = 1
-LAYOUT_GRID_MAX_COLS = 4
-LAYOUT_GRID_PREF_COLS = 4
-LAYOUT_ADV_PANEL_MIN_HEIGHT = 82
-LAYOUT_ADV_PANEL_MAX_HEIGHT = 285
-LAYOUT_ADV_CONTROL_HEIGHT = 22
-LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 36
-LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 46
-
 def _flatten_field_box(box: QGroupBox) -> None:
     if box is None:
         return
@@ -152,212 +123,11 @@ def _flatten_field_box(box: QGroupBox) -> None:
         logger.debug("Falha ao achatar box de filtro avancado: %s", exc)
 
 
-def _apply_advanced_filters_font_policy(self, width: int) -> None:
-    state = _advanced_panel_state(self)
-    group = getattr(self, "adv_filters_group", None) or (
-        state.group if state is not None else getattr(self, "_adv_filters_group_obj", None)
-    )
-    if group is None:
-        return
-    base_pt = 10
-    try:
-        ref_button = getattr(self, "search_button", None)
-        ref_font = ref_button.font() if ref_button is not None else group.font()
-        current = int(ref_font.pointSize())
-        if current > 0:
-            base_pt = current
-    except Exception as exc:
-        logger.debug("Falha ao ler fonte base do grupo de filtros avancados: %s", exc)
-    _ = width
-    control_pt = max(9, min(12, base_pt))
-    title_pt = max(control_pt, min(12, control_pt + 1))
-    try:
-        boxes = (
-            state.grid_widgets.values()
-            if state is not None
-            else (getattr(self, "_adv_filters_grid_widgets", {}) or {}).values()
-        )
-    except Exception:
-        boxes = []
-    for box in boxes:
-        if box is None:
-            continue
-        try:
-            bf = box.font()
-            bf.setPointSize(title_pt)
-            box.setFont(bf)
-        except Exception as exc:
-            logger.debug("Falha ao ajustar fonte do box de filtro avancado: %s", exc)
-    controls = (
-        state.metric_controls
-        if state is not None
-        else getattr(self, "_adv_filters_metric_controls", ()) or ()
-    )
-    for control in controls:
-        if control is None:
-            continue
-        try:
-            cf = control.font()
-            cf.setPointSize(control_pt)
-            control.setFont(cf)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao ajustar fonte de controle no painel avancado: %s", exc
-            )
-
-
-
-
 def _safe_len(value: Any) -> int:
     try:
         return len(value)
     except Exception:
         return 0
-
-
-def _resolve_adv_layout_baseline(self) -> tuple[int, int, int]:
-    _ = self
-    return 212, 88, 134
-
-
-def _update_advanced_filters_action_buttons(self, width: int) -> None:
-    """Aplica dimensao estavel para botoes de acao do painel avancado."""
-    state = _advanced_panel_state(self)
-    apply_btn = state.apply_btn if state is not None else getattr(
-        self, "_adv_filters_apply_btn", None
-    )
-    clear_btn = state.clear_btn if state is not None else getattr(
-        self, "_adv_filters_clear_btn", None
-    )
-    if apply_btn is None or clear_btn is None:
-        return
-    if not _is_not_deleted(apply_btn) or not _is_not_deleted(clear_btn):
-        return
-    _ = width
-    _, min_width, max_width = _resolve_adv_layout_baseline(self)
-    min_width = max(56, min(72, min_width))
-    max_width = max(min_width + 6, min(84, max_width))
-    try:
-        grid_cols = int(
-            (
-                state.grid_cols
-                if state is not None
-                else getattr(self, "_adv_filters_grid_cols", LAYOUT_GRID_PREF_COLS)
-            )
-            or LAYOUT_GRID_PREF_COLS
-        )
-    except Exception:
-        grid_cols = LAYOUT_GRID_PREF_COLS
-    grid_cols = max(1, min(LAYOUT_GRID_MAX_COLS, grid_cols))
-    if width > 0:
-        cell_width = max(112, int(width // grid_cols))
-        pair_budget = max(116, cell_width - 10)
-        per_button_budget = max(56, int((pair_budget - 6) // 2))
-        max_width = min(max_width, per_button_budget)
-        min_width = min(min_width, max_width)
-    new_dims = (min_width, max_width)
-    current_dims = state.action_btn_dims if state is not None else getattr(
-        self, "_adv_filters_action_btn_dims", None
-    )
-    if current_dims == new_dims:
-        return
-    if state is not None:
-        state.action_btn_dims = new_dims
-    self._adv_filters_action_btn_dims = new_dims
-    for btn in (apply_btn, clear_btn):
-        if not _is_not_deleted(btn):
-            continue
-        try:
-            ref_btn = getattr(self, "search_button", None)
-            if ref_btn is not None and _is_not_deleted(ref_btn):
-                ref_font = ref_btn.font()
-                ref_font.setBold(False)
-                btn.setFont(ref_font)
-                ref_h = int(
-                    ref_btn.height()
-                    or ref_btn.sizeHint().height()
-                    or LAYOUT_ADV_CONTROL_HEIGHT
-                )
-                ref_h = max(20, min(24, ref_h))
-                btn.setMinimumHeight(ref_h)
-                btn.setMaximumHeight(ref_h)
-            btn.setMinimumWidth(min_width)
-            btn.setMaximumWidth(max_width)
-        except Exception as exc:
-            logger.debug("Falha ao ajustar largura minima de botao de acao: %s", exc)
-
-
-def _enforce_advanced_filters_compact_metrics(self) -> None:
-    state = _advanced_panel_state(self)
-    group = getattr(self, "adv_filters_group", None) or (
-        state.group if state is not None else getattr(self, "_adv_filters_group_obj", None)
-    )
-    if group is None:
-        return
-    grid_widgets = (
-        state.grid_widgets
-        if state is not None
-        else getattr(self, "_adv_filters_grid_widgets", {}) or {}
-    )
-    for field_box in grid_widgets.values():
-        if field_box is None:
-            continue
-        try:
-            field_box.setMinimumHeight(LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT)
-            field_box.setMaximumHeight(LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao aplicar metrica compacta em box de filtro avancado: %s", exc
-            )
-    controls = (
-        state.metric_controls
-        if state is not None
-        else getattr(self, "_adv_filters_metric_controls", ()) or ()
-    )
-    for control in controls:
-        if control is None:
-            continue
-        try:
-            control.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-            control.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        except Exception as exc:
-            logger.debug(
-                "Falha ao aplicar metrica compacta em controle de filtro avancado: %s",
-                exc,
-            )
-
-
-def _compute_adv_grid_cell_min_width(self, visible_widgets) -> int:
-    state = _advanced_panel_state(self)
-    widget_key = tuple(id(widget) for _, widget in visible_widgets if widget is not None)
-    if (
-        state is not None
-        and state.cell_min_width is not None
-        and state.cell_min_width_widget_key == widget_key
-    ):
-        return state.cell_min_width
-    base_cell_min, _, _ = _resolve_adv_layout_baseline(self)
-    widths = []
-    for _, widget in visible_widgets:
-        if widget is None:
-            continue
-        try:
-            widths.append(int(widget.minimumSizeHint().width()))
-        except Exception as exc:
-            logger.debug("Falha ao medir largura minima de filtro avancado: %s", exc)
-            continue
-    if not widths:
-        return base_cell_min
-    widths.sort()
-    p75_idx = max(0, min(len(widths) - 1, int((len(widths) - 1) * 0.75)))
-    p75 = widths[p75_idx]
-    avg = sum(widths) // len(widths)
-    dynamic_baseline = max(p75, avg) + 22
-    result = max(174, min(300, max(base_cell_min, dynamic_baseline)))
-    if state is not None:
-        state.cell_min_width = result
-        state.cell_min_width_widget_key = widget_key
-    return result
 
 
 def _make_multiselect_box(
@@ -746,41 +516,12 @@ def _reset_advanced_menu_hooks(self) -> None:
 
 def _make_advanced_multiselect_fields(self, layout_baseline) -> dict[str, tuple]:
     return {
-        "emis": self._make_multiselect_box(
-            "Emissor",
+        key: self._make_multiselect_box(
+            title,
+            with_exclude=with_exclude,
             layout_baseline=layout_baseline,
-        ),
-        "exec": self._make_multiselect_box(
-            "Executor",
-            layout_baseline=layout_baseline,
-        ),
-        "status": self._make_multiselect_box(
-            "Situacao",
-            layout_baseline=layout_baseline,
-        ),
-        "year_emissao": self._make_multiselect_box(
-            "Ano Emissao",
-            with_exclude=False,
-            layout_baseline=layout_baseline,
-        ),
-        "year_execucao": self._make_multiselect_box(
-            "Ano Execucao",
-            with_exclude=False,
-            layout_baseline=layout_baseline,
-        ),
-        "prio_emis": self._make_multiselect_box(
-            "Prio. Emissao",
-            layout_baseline=layout_baseline,
-        ),
-        "prio_plan": self._make_multiselect_box(
-            "Prio. Planejamento",
-            layout_baseline=layout_baseline,
-        ),
-        "deriv": self._make_multiselect_box(
-            "Derivadas",
-            with_exclude=False,
-            layout_baseline=layout_baseline,
-        ),
+        )
+        for key, title, with_exclude in _ADVANCED_MULTISELECT_FIELD_DEFS
     }
 
 
@@ -803,18 +544,8 @@ def _make_advanced_macro_box(self):
 
 def _make_advanced_responsavel_fields(self, layout_baseline) -> dict[str, tuple]:
     fields = {
-        "sol": self._make_multiselect_box(
-            "Solicitante",
-            layout_baseline=layout_baseline,
-        ),
-        "prog": self._make_multiselect_box(
-            "Resp Prog",
-            layout_baseline=layout_baseline,
-        ),
-        "exec_resp": self._make_multiselect_box(
-            "Resp Exec",
-            layout_baseline=layout_baseline,
-        ),
+        key: self._make_multiselect_box(title, layout_baseline=layout_baseline)
+        for key, title in _ADVANCED_RESPONSAVEL_FIELD_DEFS
     }
     hook_specs = (
         ("sol", "adv_responsavel_solicitante"),
@@ -1108,23 +839,20 @@ def _advanced_filter_metric_controls_from_parts(parts: AdvancedFilterPanelParts)
     )
 
 
-def _publish_advanced_filter_legacy_attrs(self, state: AdvancedFilterPanelState) -> None:
-    self._adv_filters_main_grid = state.main_grid
-    self._adv_filters_grid_widgets = state.grid_widgets
-    self._adv_filters_grid_order = state.grid_order
-    self._adv_filters_apply_btn = state.apply_btn
-    self._adv_filters_clear_btn = state.clear_btn
-    self._adv_filters_metric_controls = state.metric_controls
-    self._adv_filters_action_widget = state.action_widget
-    self._adv_filters_action_btn_dims = state.action_btn_dims
-    self._adv_filters_controls_scroll = state.controls_scroll
-    self._adv_filters_grid_cols = state.grid_cols
-    self._adv_filters_last_widget_count = state.last_widget_count
-    self._adv_filters_group_obj = state.group
-
-
 def _register_advanced_filter_panel_state(self, parts: AdvancedFilterPanelParts):
     controls = parts.controls
+    for spec in ADVANCED_STANDARD_MULTISELECT_SPECS:
+        _, button, menu, exclude = parts.fields[spec.field_key]
+        setattr(self, f"{spec.prefix}_button", button)
+        setattr(self, f"{spec.prefix}_menu", menu)
+        setattr(self, f"{spec.prefix}_checks", [])
+        setattr(self, f"{spec.prefix}_exclude_checks", [])
+        if exclude is not None:
+            setattr(self, f"{spec.prefix}_exclude", exclude)
+    self.adv_executor_button = parts.fields["exec"][1]
+    self.adv_executor_checks = []
+    self.adv_emissor_button = parts.fields["emis"][1]
+    self.adv_emissor_checks = []
     self.adv_reprog_mode = controls["reprog_mode"]
     self.adv_reprog_button = controls["reprog_button"]
     self.adv_reprog_menu = controls["reprog_menu"]
@@ -1151,7 +879,6 @@ def _register_advanced_filter_panel_state(self, parts: AdvancedFilterPanelParts)
         controls_scroll=parts.controls_scroll,
     )
     self._advanced_filter_panel_state = state
-    _publish_advanced_filter_legacy_attrs(self, state)
 
 def _finalize_advanced_filter_panel_layout(self, group) -> None:
     if _is_not_deleted(group):
@@ -1164,161 +891,7 @@ def _finalize_advanced_filter_panel_layout(self, group) -> None:
         logger.debug("Falha no relayout inicial dos filtros avancados: %s", exc)
 
 
-def _resolve_advanced_grid_viewport_metrics(self, width: int):
-    effective_width = width
-    state = _advanced_panel_state(self)
-    controls_scroll = (
-        state.controls_scroll
-        if state is not None
-        else getattr(self, "_adv_filters_controls_scroll", None)
-    )
-    max_scroll_h = LAYOUT_ADV_PANEL_MAX_HEIGHT
-    try:
-        if controls_scroll is not None and hasattr(controls_scroll, "viewport"):
-            viewport_w = int(controls_scroll.viewport().width())
-            if viewport_w > 0:
-                effective_width = min(effective_width, viewport_w)
-        group = getattr(self, "adv_filters_group", None)
-        if controls_scroll is not None and group is not None:
-            group_h = int(group.height())
-            if group_h > 0:
-                max_scroll_h = max(
-                    80,
-                    min(
-                        LAYOUT_ADV_PANEL_MAX_HEIGHT,
-                        group_h - (LAYOUT_ADV_CONTROL_HEIGHT + 8),
-                    ),
-                )
-    except Exception as exc:
-        logger.debug(
-            "Falha ao obter largura efetiva do viewport dos filtros avancados: %s", exc
-        )
-    return effective_width, max_scroll_h, controls_scroll
-
-
-def _advanced_filter_visible_grid_widgets(self):
-    state = _advanced_panel_state(self)
-    widgets = state.grid_widgets if state is not None else getattr(
-        self, "_adv_filters_grid_widgets", None
-    )
-    grid = state.main_grid if state is not None else getattr(
-        self, "_adv_filters_main_grid", None
-    )
-    if not widgets or grid is None:
-        return None, []
-    order = (
-        state.grid_order
-        if state is not None
-        else getattr(self, "_adv_filters_grid_order", tuple(widgets))
-    )
-    visible = [
-        (name, widget)
-        for name in order
-        if (widget := widgets.get(name)) is not None
-    ]
-    return grid, visible
-
-
-def _advanced_grid_spacing_metrics(grid):
-    try:
-        spacing = int(grid.horizontalSpacing())
-    except Exception:
-        spacing = 0
-    try:
-        margins = grid.contentsMargins()
-        horizontal_padding = int(margins.left() + margins.right())
-        vertical_padding = int(margins.top() + margins.bottom())
-    except Exception:
-        horizontal_padding = 0
-        vertical_padding = 0
-    try:
-        vertical_spacing = int(grid.verticalSpacing())
-    except Exception:
-        vertical_spacing = 0
-    return spacing, horizontal_padding, vertical_spacing, vertical_padding
-
-
-def _build_advanced_grid_plan(
-    self,
-    *,
-    grid,
-    visible,
-    effective_width: int,
-    max_scroll_h: int,
-):
-    cell_min_width = _compute_adv_grid_cell_min_width(self, visible)
-    spacing, horizontal_padding, vertical_spacing, vertical_padding = (
-        _advanced_grid_spacing_metrics(grid)
-    )
-    return build_advanced_grid_layout_plan(
-        visible_count=len(visible),
-        metrics=AdvancedGridLayoutMetrics(
-            effective_width=effective_width,
-            cell_min_width=cell_min_width,
-            spacing=spacing,
-            horizontal_padding=horizontal_padding,
-            vertical_spacing=vertical_spacing,
-            vertical_padding=vertical_padding,
-        ),
-        constraints=AdvancedGridLayoutConstraints(
-            min_cols=LAYOUT_GRID_MIN_COLS,
-            max_cols=LAYOUT_GRID_MAX_COLS,
-            preferred_cols=LAYOUT_GRID_PREF_COLS,
-            field_box_min_height=LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT,
-            field_box_max_height=LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT,
-            max_scroll_height=max_scroll_h,
-        ),
-    )
-
-
-def _advanced_grid_relayout_needed(self, plan, visible_count: int) -> bool:
-    state = _advanced_panel_state(self)
-    if state is not None:
-        return not (
-            state.grid_cols == plan.cols and state.last_widget_count == visible_count
-        )
-    return not (
-        getattr(self, "_adv_filters_grid_cols", None) == plan.cols
-        and getattr(self, "_adv_filters_last_widget_count", None) == visible_count
-    )
-
-
-def _apply_advanced_grid_stretch(grid, previous_cols, next_cols: int) -> None:
-    if previous_cols == next_cols:
-        return
-    for col in range(0, LAYOUT_GRID_MAX_COLS + 3):
-        try:
-            grid.setColumnStretch(col, 0)
-        except Exception as exc:
-            logger.debug("Falha ao resetar stretch de coluna no grid avancado: %s", exc)
-    for col in range(next_cols):
-        grid.setColumnStretch(col, 1)
-
-
-def _apply_advanced_grid_plan(self, *, grid, visible, plan) -> None:
-    state = _advanced_panel_state(self)
-    previous_cols = (
-        state.grid_cols
-        if state is not None
-        else getattr(self, "_adv_filters_grid_cols", None)
-    )
-    if state is not None:
-        state.grid_cols = plan.cols
-        state.last_widget_count = len(visible)
-        state.layout_mode = plan.layout_mode
-    self._adv_filters_grid_cols = plan.cols
-    self._adv_filters_last_widget_count = len(visible)
-    self._adv_filters_layout_mode = plan.layout_mode
-    for idx, (_, widget) in enumerate(visible):
-        row = idx // plan.cols
-        col = idx % plan.cols
-        grid.addWidget(widget, row, col)
-        if not widget.isVisible():
-            widget.show()
-    _apply_advanced_grid_stretch(grid, previous_cols, plan.cols)
-
-
-def _build_advanced_filters_panel(self):
+def _create_advanced_filter_panel_parts(self) -> AdvancedFilterPanelParts:
     group, outer, grid_container, grid_container_layout = (
         _make_advanced_filter_panel_shell(self)
     )
@@ -1333,7 +906,7 @@ def _build_advanced_filters_panel(self):
             self, outer, grid_container, grid_container_layout
         )
     )
-    parts = AdvancedFilterPanelParts(
+    return AdvancedFilterPanelParts(
         group=group,
         fields=fields,
         controls=controls,
@@ -1343,9 +916,13 @@ def _build_advanced_filters_panel(self):
         clear_btn=clear_btn,
         controls_scroll=controls_scroll,
     )
+
+
+def _build_advanced_filters_panel(self):
+    parts = _create_advanced_filter_panel_parts(self)
     _register_advanced_filter_panel_state(self, parts)
-    _finalize_advanced_filter_panel_layout(self, group)
-    return group, _build_advanced_filters_context_from_parts(parts)
+    _finalize_advanced_filter_panel_layout(self, parts.group)
+    return parts.group, _build_advanced_filters_context_from_parts(parts)
 
 
 def _ensure_macro_status_menu_ready(self) -> tuple[list[Any], list[Any]]:
@@ -1398,21 +975,19 @@ def _apply_macro_derivada_preset(self, preset: dict[str, tuple[str, ...]]) -> No
 
 def _apply_macro_status_preset(self, preset: dict[str, tuple[str, ...]]) -> None:
     status_checks, status_exclude_checks = _ensure_macro_status_menu_ready(self)
-    self.adv_status_checks = status_checks
-    self.adv_status_exclude_checks = status_exclude_checks
     _sync_include_exclude_multiselect_checks(
         self,
         button=getattr(self, "adv_status_button", None),
-        include_checks=self.adv_status_checks,
+        include_checks=status_checks,
         include_values=(),
-        exclude_checks=self.adv_status_exclude_checks,
+        exclude_checks=status_exclude_checks,
         exclude_values=preset["situacao_exclude_values"],
     )
     _update_multiselect_button(
         self,
         getattr(self, "adv_status_button", None),
-        getattr(self, "adv_status_checks", None),
-        exclude_checks=getattr(self, "adv_status_exclude_checks", None),
+        status_checks,
+        exclude_checks=status_exclude_checks,
     )
 
 
@@ -1438,125 +1013,53 @@ def _on_macro_filter_changed(self):
 
 
 def _reorganize_advanced_filters_grid(self, width: int):
-    """Reorganiza grid de filtros avancados em distribuicao continua por colunas."""
-    _enforce_advanced_filters_compact_metrics(self)
+    _reorganize_advanced_filters_grid_impl(self, width)
 
-    effective_width, max_scroll_h, controls_scroll = (
-        _resolve_advanced_grid_viewport_metrics(self, width)
-    )
 
-    _update_advanced_filters_action_buttons(self, effective_width)
-    _apply_advanced_filters_font_policy(self, effective_width)
-
-    if effective_width < LAYOUT_MIN_VALID_WIDTH:
-        return
-    state = _advanced_panel_state(self)
-    previous_effective_width = (
-        state.last_effective_width
-        if state is not None
-        else getattr(self, "_adv_filters_last_effective_width", None)
-    )
-    previous_max_scroll_h = (
-        state.last_max_scroll_h
-        if state is not None
-        else getattr(self, "_adv_filters_last_max_scroll_h", None)
-    )
-    current_cols = (
-        state.grid_cols
-        if state is not None
-        else getattr(self, "_adv_filters_grid_cols", None)
-    )
-    if (
-        previous_effective_width is not None
-        and abs(int(effective_width) - int(previous_effective_width)) < 8
-        and previous_max_scroll_h is not None
-        and abs(int(max_scroll_h) - int(previous_max_scroll_h)) < 8
-        and current_cols is not None
+def _update_sector_filter_buttons(self, context: str = "") -> None:
+    for prefix, label in (
+        ("adv_executor", "setor executor"),
+        ("adv_emissor", "setor emissor"),
     ):
-        return
-    if state is not None:
-        state.last_effective_width = int(effective_width)
-        state.last_max_scroll_h = int(max_scroll_h)
-    self._adv_filters_last_effective_width = int(effective_width)
-    self._adv_filters_last_max_scroll_h = int(max_scroll_h)
-
-    grid, visible = _advanced_filter_visible_grid_widgets(self)
-    if not visible:
-        return
-
-    try:
-        plan = _build_advanced_grid_plan(
-            self,
-            grid=grid,
-            visible=visible,
-            effective_width=effective_width,
-            max_scroll_h=max_scroll_h,
-        )
-    except Exception as exc:
-        logger.debug("Falha ao calcular layout dos filtros avancados: %s", exc)
-        return
-    if plan is None:
-        return
-    if controls_scroll is not None:
-        controls_scroll.setMinimumHeight(plan.scroll_height)
-        controls_scroll.setMaximumHeight(plan.scroll_height)
-
-    if not _advanced_grid_relayout_needed(self, plan, len(visible)):
-        return
-    _apply_advanced_grid_plan(self, grid=grid, visible=visible, plan=plan)
+        try:
+            _update_multiselect_button(
+                self,
+                getattr(self, f"{prefix}_button"),
+                getattr(self, f"{prefix}_checks"),
+                exclude_checks=getattr(self, f"{prefix}_exclude_checks", None),
+            )
+        except Exception as exc:
+            suffix = f" ({context})" if context else ""
+            logger.warning("Falha ao atualizar botao de %s%s: %s", label, suffix, exc)
 
 
 def _on_adv_sector_selection_changed(self, *_):
-    if getattr(self, "_adv_sector_syncing", False):
+    state = _advanced_panel_state(self)
+    if state is None:
         return
-    if getattr(self, "_adv_sector_handler_running", False):
+    if state.sector_syncing:
         return
-    self._adv_sector_handler_running = True
+    if state.sector_handler_running:
+        return
+    state.sector_handler_running = True
     try:
         self._apply_divisao_to_setor_checks()
-        try:
-            _update_multiselect_button(self,
-                self.adv_executor_button,
-                self.adv_executor_checks,
-                exclude_checks=getattr(self, "adv_executor_exclude_checks", None),
-            )
-        except Exception as exc:
-            logger.warning("Falha ao atualizar botao de setor executor: %s", exc)
-        try:
-            _update_multiselect_button(self,
-                self.adv_emissor_button,
-                self.adv_emissor_checks,
-                exclude_checks=getattr(self, "adv_emissor_exclude_checks", None),
-            )
-        except Exception as exc:
-            logger.warning("Falha ao atualizar botao de setor emissor: %s", exc)
+        _update_sector_filter_buttons(self)
         self._schedule_sector_options_refresh()
     finally:
-        self._adv_sector_handler_running = False
+        state.sector_handler_running = False
 
 
 def _on_adv_sector_exclude_changed(self, *_):
     """Atualiza filtros de exclusão de setor com debouncing."""
-    if getattr(self, "_adv_sector_syncing", False):
+    state = _advanced_panel_state(self)
+    if state is None:
         return
-    if getattr(self, "_adv_sector_handler_running", False):
+    if state.sector_syncing:
         return
-    try:
-        _update_multiselect_button(self,
-            self.adv_executor_button,
-            self.adv_executor_checks,
-            exclude_checks=getattr(self, "adv_executor_exclude_checks", None),
-        )
-    except Exception as exc:
-        logger.warning("Falha ao atualizar botao de setor executor (exclude): %s", exc)
-    try:
-        _update_multiselect_button(self,
-            self.adv_emissor_button,
-            self.adv_emissor_checks,
-            exclude_checks=getattr(self, "adv_emissor_exclude_checks", None),
-        )
-    except Exception as exc:
-        logger.warning("Falha ao atualizar botao de setor emissor (exclude): %s", exc)
+    if state.sector_handler_running:
+        return
+    _update_sector_filter_buttons(self, context="exclude")
     self._schedule_sector_options_refresh()
 
 
@@ -1747,17 +1250,11 @@ def _show_advanced_filter_notice(self, notice: str | None) -> None:
             notice_suffix = "Aviso: nenhuma derivada STE/SES encontrada para o filtro."
         elif notice == "derivada_empty":
             notice_suffix = "Aviso: nenhuma derivada encontrada para o filtro."
+        displayed_df = getattr(self, "df_exibido", None)
+        complete_df = getattr(self, "df_completo", None)
         self.update_filter_status_display(
-            filtered_total=(
-                len(self.df_exibido)
-                if hasattr(self, "df_exibido") and self.df_exibido is not None
-                else None
-            ),
-            original_total=(
-                len(self.df_completo)
-                if hasattr(self, "df_completo") and self.df_completo is not None
-                else None
-            ),
+            filtered_total=len(displayed_df) if displayed_df is not None else None,
+            original_total=len(complete_df) if complete_df is not None else None,
             search_text=None,
             suffix=notice_suffix,
         )
@@ -2100,7 +1597,7 @@ def _read_advanced_filter_ui_state(
         cache,
         df,
         data_load_token=getattr(self, "_data_load_token", None),
-        sort_sectors=self._sort_sectors,
+        sort_sectors=lambda values: _sort_sectors(self, values),
     )
     self._adv_values_cache = cache
     return AdvancedFilterUIState(filters=filters, values=values)
