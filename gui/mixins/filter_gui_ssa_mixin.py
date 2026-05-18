@@ -22,11 +22,8 @@ from typing import TYPE_CHECKING, Any, Optional, cast
 import pandas as pd
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
-    QHBoxLayout,
     QLineEdit,
     QMessageBox,
-    QPushButton,
-    QSizePolicy,
     QWidget,
 )
 
@@ -104,13 +101,8 @@ from gui.ssa.filter_worker_lifecycle import (
 )
 from gui.ssa.filter_ui_state import FilterUiStatePresenter
 from gui.ssa.general_search_columns import build_gui_general_search_columns
-from gui.ssa.filter_saved_names import build_persistent_filter_name
-from gui.ssa.persistent_filters import (
-    PersistentFilterStore,
-    get_gui_saved_filters_path,
-    persistent_filter_state_key,
-    sort_persistent_filters,
-)
+from gui.ssa.persistent_filter_ui import PersistentFilterUiController
+from gui.ssa.persistent_filters import get_gui_saved_filters_path
 from gui.ssa.filter_status_manager import FilterStatusManager, FilterStatusPayload
 from gui.ssa.filter_summary_entries import (
     SummaryAction,
@@ -321,14 +313,14 @@ class FilterGUISSAMixin:
         except Exception as exc:
             logger.debug("Falha ao parar debounce durante %s: %s", log_context, exc)
         widgets = self._get_live_search_inputs_snapshot()
-        skipped_focused = False
+        all_synchronized = True
         for widget in widgets:
             if widget is exclude_widget:
                 continue
             if skip_if_any_focused:
                 try:
                     if widget.hasFocus():
-                        skipped_focused = True
+                        all_synchronized = False
                         continue
                 except RuntimeError as exc:
                     logger.debug(
@@ -349,7 +341,7 @@ class FilterGUISSAMixin:
                 logger.debug(
                     "Widget de busca invalido durante %s: %s", log_context, exc
                 )
-        return not skipped_focused
+        return all_synchronized
 
     def _set_search_text_across_tabs(self, text: str) -> None:
         """Aplica texto no campo de busca vivo."""
@@ -846,6 +838,7 @@ class FilterGUISSAMixin:
                 request_id=request_id,
             )
             return
+        self._retain_filter_worker_until_finished(worker)
         worker.start()
 
     def initiate_filtering(self):
@@ -3216,209 +3209,36 @@ class FilterGUISSAMixin:
 
     def load_persistent_filters(self):
         """Carrega filtros persistentes salvos."""
-        self.persistent_filters = self._get_persistent_filter_store().load()
-        self.update_filter_tags()
+        self._get_persistent_filter_ui_controller().load()
 
-    def _get_persistent_filter_store(self) -> PersistentFilterStore:
-        store = getattr(self, "_persistent_filter_store", None)
-        if not isinstance(store, PersistentFilterStore):
-            store = PersistentFilterStore(get_gui_saved_filters_path())
-            self._persistent_filter_store = store
-        return store
+    def _get_persistent_filter_ui_controller(self) -> PersistentFilterUiController:
+        controller = getattr(self, "_persistent_filter_ui_controller", None)
+        if not isinstance(controller, PersistentFilterUiController):
+            controller = PersistentFilterUiController(
+                self,
+                copy_filter_mapping=_copy_filter_mapping,
+                saved_filters_path_factory=get_gui_saved_filters_path,
+            )
+            self._persistent_filter_ui_controller = controller
+        return controller
 
     def _save_persistent_filters_file(self) -> bool:
-        return self._get_persistent_filter_store().save(
-            getattr(self, "persistent_filters", []) or []
-        )
+        return self._get_persistent_filter_ui_controller().save_file()
 
     def _invalidate_persistent_filter_index(self) -> None:
-        self._get_persistent_filter_store().invalidate_index()
+        self._get_persistent_filter_ui_controller().invalidate_index()
 
     def _get_persistent_filter_index(self):
-        return self._get_persistent_filter_store().index_for(
-            getattr(self, "persistent_filters", []) or []
-        )
+        return self._get_persistent_filter_ui_controller().index()
 
     def save_current_filter(self):  # skipcq: PY-R1000
         """Salva o estado atual de filtros como persistente."""
-        current_state = self._snapshot_filter_state()
-        current_text = str(current_state.get("search_text", "") or "").strip()
-        active_columns = current_state.get("active_column_filters") or {}
-        active_column_values = [
-            str(value).strip()
-            for value in active_columns.values()
-            if str(value).strip()
-        ]
-        has_filter_state = bool(
-            current_text
-            or active_column_values
-            or current_state.get("column_or_groups")
-            or current_state.get("exclude_ste_sca")
-            or current_state.get("advanced_filters_active")
-            or current_state.get("current_filter_profile")
-        )
-        if not has_filter_state:
-            QMessageBox.information(
-                _qt_parent(self),
-                "Aviso",
-                "Aplique algum filtro antes de salvar.",
-            )
-            return
-
-        filter_name = build_persistent_filter_name(
-            current_state,
-            existing_count=len(self.persistent_filters),
-        )
-        try:
-            metrics = self.search_input.fontMetrics()
-            width_px = int(
-                self.search_input.width() or self.search_input.minimumWidth() or 320
-            )
-            available = max(64, width_px - 40)
-            ellipsis = "..."
-            if metrics.horizontalAdvance(filter_name) > available:
-                trimmed = filter_name
-                while (
-                    trimmed
-                    and metrics.horizontalAdvance(trimmed + ellipsis) > available
-                ):
-                    trimmed = trimmed[:-1]
-                if len(trimmed) < 3:
-                    trimmed = filter_name[:3]
-                filter_name = trimmed + ellipsis
-        except Exception as exc:
-            logger.debug(
-                "Falha ao truncar nome de filtro persistente por largura: %s", exc
-            )
-
-        current_state_key = persistent_filter_state_key(current_state)
-        index = self._get_persistent_filter_index()
-        if current_state_key in index.state_keys or (
-            not current_state_key and current_text in index.legacy_terms
-        ):
-            QMessageBox.information(
-                _qt_parent(self), "Aviso", "Este filtro ja esta salvo."
-            )
-            return
-
-        new_filter = {
-            "name": filter_name,
-            "terms": current_text,
-            "state": _copy_filter_mapping(current_state),
-        }
-        updated_filters, saved = self._get_persistent_filter_store().add_filter(
-            self.persistent_filters,
-            new_filter,
-        )
-        if not saved:
-            QMessageBox.warning(
-                _qt_parent(self),
-                "Erro",
-                "Nao foi possivel salvar o filtro persistente.",
-            )
-            return
-        self.persistent_filters = updated_filters
-        self.update_filter_tags()
-
-        QMessageBox.information(
-            _qt_parent(self), "Sucesso", f"Filtro '{filter_name}' salvo com sucesso!"
-        )
+        self._get_persistent_filter_ui_controller().save_current()
 
     def update_filter_tags(self):
         """Atualiza as tags visuais dos filtros persistentes."""
-        # Remove tags existentes
-        for i in reversed(range(self.filter_tags_layout.count())):
-            child = self.filter_tags_layout.takeAt(i)
-            if child.widget():
-                child.widget().deleteLater()
-
-        roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
-        fg = roles.get("summary_text_color", self.palette().windowText().color().name())
-        border = roles.get("tag_border")
-        bg_normal = roles.get("tag_normal_bg")
-        bg_hover = roles.get("tag_hover")
-        bg_pressed = roles.get("tag_pressed")
-
-        tag_css = f"""
-            QPushButton {{
-                color: {fg};
-                background-color: {bg_normal};
-                border: 1px solid {border};
-                border-radius: 3px;
-                padding: 2px 8px;
-                font-size: 10px;
-            }}
-            QPushButton:hover {{
-                background-color: {bg_hover};
-            }}
-            QPushButton:pressed {{
-                background-color: {bg_pressed};
-            }}
-        """
-
-        # Adiciona novas tags
-        for filter_data in sort_persistent_filters(self.persistent_filters):
-            tag_button = QPushButton(filter_data["name"])
-            tag_button.setMaximumHeight(25)
-            tag_button.setMaximumWidth(180)
-            tag_button.setSizePolicy(
-                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
-            )
-            tag_button.setStyleSheet(tag_css)
-            tag_button.setToolTip(f"Clique para aplicar: {filter_data['terms']}")
-            tag_button.clicked.connect(
-                lambda checked,
-                filter_data=filter_data: self.apply_persistent_filter(filter_data)
-            )
-
-            # Botção X para remover
-            remove_button = QPushButton("X")
-            remove_button.setMaximumSize(20, 20)
-            remove_button.setStyleSheet(tag_css)
-            remove_button.setToolTip("Remover filtro")
-            remove_button.clicked.connect(
-                lambda checked, filter_data=filter_data: self.remove_persistent_filter(
-                    filter_data
-                )
-            )
-
-            # Layout horizontal para tag + botção remover
-            tag_layout = QHBoxLayout()
-            tag_layout.setContentsMargins(0, 0, 0, 0)
-            tag_layout.setSpacing(2)
-            tag_layout.addWidget(tag_button)
-            tag_layout.addWidget(remove_button)
-
-            tag_widget = QWidget()
-            tag_widget.setLayout(tag_layout)
-            tag_widget.setSizePolicy(
-                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
-            )
-            self.filter_tags_layout.addWidget(tag_widget)
+        self._get_persistent_filter_ui_controller().update_tags()
 
     def apply_persistent_filter(self, filter_data):
         """Aplica um filtro persistente."""
-        if isinstance(filter_data, dict) and isinstance(filter_data.get("state"), dict):
-            try:
-                previous_state = self._snapshot_filter_state()
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao salvar estado antes de aplicar filtro persistente: %s",
-                    exc,
-                )
-                previous_state = None
-            try:
-                self._restore_last_filter_state(
-                    _copy_filter_mapping(filter_data["state"]),
-                    consume_undo=False,
-                )
-            finally:
-                self._last_filter_state = previous_state
-                self._update_undo_button_state()
-            return
-        if isinstance(filter_data, dict):
-            terms = str(filter_data.get("terms", "") or "")
-        else:
-            terms = str(filter_data or "")
-        self.search_input.setText(terms)
-        self.initiate_filtering()
+        self._get_persistent_filter_ui_controller().apply(filter_data)
