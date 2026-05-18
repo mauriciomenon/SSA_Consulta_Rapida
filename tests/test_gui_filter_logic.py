@@ -1933,6 +1933,32 @@ class TestGUIFilterLogic:
             self.window.search_input.text() == f"{target_ssa}, !{exclude_solicitante}"
         )
 
+    def test_general_search_undo_restores_previous_applied_filter_state(self):
+        realistic_df = self._build_realistic_base_df_50()
+        self.window._sync_filtering = True
+        self.window.df_completo = realistic_df.copy()
+        self.window.df_exibido = realistic_df.copy()
+        self.window._df_last_search_filtered = realistic_df.copy()
+        self.window.paginator.set_dataframe(realistic_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        target_ssa = str(realistic_df.iloc[0]["numero_ssa"])
+        self.window.search_input.setText(f"={target_ssa}")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        assert len(self.window.df_exibido) == 1
+        assert self.window.search_input.text() == f"={target_ssa}"
+        assert self.window.undo_filter_btn.isEnabled() is True
+
+        self.window._restore_last_filter_state()
+        QApplication.processEvents()
+
+        assert self.window.search_input.text() == ""
+        assert len(self.window.df_exibido) == len(realistic_df)
+        assert self.window.undo_filter_btn.isEnabled() is False
+
     def test_general_search_button_click_filters_real_table_content(self):
         realistic_df = self._build_realistic_base_df_50()
         assert len(realistic_df) == 50

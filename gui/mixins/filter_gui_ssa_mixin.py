@@ -280,11 +280,20 @@ class FilterGUISSAMixin:
 
         def __getattr__(self, name: str) -> Any: ...
 
-    def _safe_store_last_filter_state(self, reason: str = "") -> None:
+    def _safe_store_last_filter_state(
+        self,
+        reason: str = "",
+        *,
+        search_text_override: str | None = None,
+        pending_search_display_override: str | None = None,
+    ) -> None:
         """Armazena snapshot do estado de filtros sem quebrar o fluxo da UI."""
         self._filter_cache_context_dirty = True
         try:
-            self._store_last_filter_state()
+            self._store_last_filter_state(
+                search_text_override=search_text_override,
+                pending_search_display_override=pending_search_display_override,
+            )
         except AttributeError as exc:
             if reason:
                 logger.debug("Historico de filtros indisponivel (%s): %s", reason, exc)
@@ -413,7 +422,7 @@ class FilterGUISSAMixin:
             if isinstance(value, bool):
                 return bool(value)
             if isinstance(value, (list, tuple, set)):
-                return any(_has_value(item) for item in value)
+                return len(value) > 0
             return bool(str(value).strip())
 
         for key, mapped_columns in _ADVANCED_FILTER_VISUAL_COLUMN_MAP.items():
@@ -759,6 +768,9 @@ class FilterGUISSAMixin:
                 self._normalize_chunk_for_parse(search_text) if search_text else []
             )
             has_active_worker = getattr(self, "filter_thread", None) is not None
+            can_reuse_previous_result = can_reuse_refined_search(
+                previous_terms, current_terms
+            )
             if (
                 isinstance(last_search_filtered, pd.DataFrame)
                 and list(last_search_filtered.columns)
@@ -768,7 +780,7 @@ class FilterGUISSAMixin:
                 and not has_column_filters
                 and not getattr(self, "_exclude_ste_sca", False)
                 and not has_active_worker
-                and can_reuse_refined_search(previous_terms, current_terms)
+                and can_reuse_previous_result
             ):
                 filter_source_candidate = last_search_filtered
         except Exception as exc:
@@ -870,14 +882,21 @@ class FilterGUISSAMixin:
             )
             return
 
-        self._safe_store_last_filter_state("initiate_filtering")
+        search_text = self._current_general_search_text()
+        previous_search_text = str(
+            getattr(self, "_active_filter_search_display", "") or ""
+        )
+        self._safe_store_last_filter_state(
+            "initiate_filtering",
+            search_text_override=previous_search_text,
+            pending_search_display_override=previous_search_text,
+        )
         try:
             self._debounce_timer.stop()
         except Exception as exc:
             logger.debug("Falha ao parar debounce antes de iniciar filtragem: %s", exc)
         request_id = self._invalidate_active_filter_request("initiate_filtering")
 
-        search_text = self._current_general_search_text()
         raw_chunks = self._prepare_search_chunks(search_text) if search_text else []
         search_chunks_for_worker = raw_chunks
 
@@ -2669,6 +2688,14 @@ class FilterGUISSAMixin:
             or has_advanced_filters
             or has_excluded_terminal_status
         )
+        if has_post_search_filters:
+            undo_state = getattr(self, "_last_filter_state", None)
+            applied_search_text = str(
+                getattr(self, "_active_filter_search_display", "") or ""
+            )
+            if isinstance(undo_state, dict) and applied_search_text:
+                undo_state["search_text"] = applied_search_text
+                undo_state["pending_search_display"] = applied_search_text
         filtered = self._apply_filter_refresh_filters_and_update_cache(
             filtered,
             has_post_search_filters=has_post_search_filters,
@@ -2752,14 +2779,23 @@ class FilterGUISSAMixin:
             if not active_filter_lookup.get(str(column_name), "")
         }
 
-    def _snapshot_filter_state(self) -> dict:
+    def _snapshot_filter_state(
+        self,
+        *,
+        search_text_override: str | None = None,
+        pending_search_display_override: str | None = None,
+    ) -> dict:
         """Capture undo state.
 
         Hidden column-filter lines are captured as UI preference, but restore
         sanitizes active-filter lines so a non-empty filter cannot become
         invisible.
         """
-        search_text = self._current_general_search_text()
+        search_text = (
+            str(search_text_override)
+            if search_text_override is not None
+            else self._current_general_search_text()
+        )
         try:
             active_filters = OrderedDict(self._active_column_filters or {})
         except Exception:
@@ -2776,7 +2812,11 @@ class FilterGUISSAMixin:
             )
         return {
             "search_text": search_text,
-            "pending_search_display": getattr(self, "_pending_search_display", None),
+            "pending_search_display": (
+                pending_search_display_override
+                if pending_search_display_override is not None
+                else getattr(self, "_pending_search_display", None)
+            ),
             "active_column_filters": active_filters,
             "column_or_groups": groups_snapshot,
             "exclude_ste_sca": bool(getattr(self, "_exclude_ste_sca", False)),
@@ -2796,8 +2836,17 @@ class FilterGUISSAMixin:
             "dedicated_or_text": str(getattr(self, "_dedicated_or_text", "")),
         }
 
-    def _filter_state_signature(self) -> tuple:
-        search_text = self._current_general_search_text()
+    def _filter_state_signature(
+        self,
+        *,
+        search_text_override: str | None = None,
+        pending_search_display_override: str | None = None,
+    ) -> tuple:
+        search_text = (
+            str(search_text_override)
+            if search_text_override is not None
+            else self._current_general_search_text()
+        )
         active_filters = getattr(self, "_active_column_filters", {}) or {}
         or_groups = getattr(self, "_column_or_groups", []) or []
         hidden_lines = getattr(self, "_hidden_column_filter_lines", set()) or set()
@@ -2821,21 +2870,36 @@ class FilterGUISSAMixin:
             ),
             tuple(sorted(str(value) for value in hidden_lines)),
             str(getattr(self, "_dedicated_or_text", "")),
-            str(getattr(self, "_pending_search_display", None)),
+            str(
+                pending_search_display_override
+                if pending_search_display_override is not None
+                else getattr(self, "_pending_search_display", None)
+            ),
         )
 
-    def _store_last_filter_state(self) -> None:
+    def _store_last_filter_state(
+        self,
+        *,
+        search_text_override: str | None = None,
+        pending_search_display_override: str | None = None,
+    ) -> None:
         if getattr(self, "_restoring_filter_state", False):
             return
         try:
-            signature = self._filter_state_signature()
+            signature = self._filter_state_signature(
+                search_text_override=search_text_override,
+                pending_search_display_override=pending_search_display_override,
+            )
             if (
                 getattr(self, "_last_filter_state_signature", None) == signature
                 and getattr(self, "_last_filter_state", None) is not None
             ):
                 self._update_undo_button_state()
                 return
-            self._last_filter_state = self._snapshot_filter_state()
+            self._last_filter_state = self._snapshot_filter_state(
+                search_text_override=search_text_override,
+                pending_search_display_override=pending_search_display_override,
+            )
             self._last_filter_state_signature = signature
         except Exception as exc:
             logger.warning("Falha ao gerar snapshot de estado de filtros: %s", exc)

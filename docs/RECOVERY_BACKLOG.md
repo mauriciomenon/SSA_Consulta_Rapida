@@ -35,6 +35,28 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-05-18 20:25 - GUI undo fix and structural roadmap
+
+Escopo deste registro:
+1. BUG_REAL corrigido no slice atual: Undo da busca geral salvava o texto digitado ainda nao aplicado, em vez do ultimo filtro aplicado.
+2. Contrato esperado: busca exata reduz a lista e Undo volta ao estado anterior sem busca; Undo de filtros por coluna e avancados continua funcionando.
+3. Status estrutural medido nesta rodada:
+   - `gui/gui_ssa.py`: 3727 linhas; `SSAMainWindow` ainda tem 3100 linhas; god class medio/alto.
+   - `gui/mixins/filter_gui_ssa_mixin.py`: 3205 linhas; god mixin alto; coordena busca, undo, filtros por coluna, resumo visual, refresh, workers e parte de estado.
+   - `gui/ssa/gui_filters_advanced_ui.py`: 1638 linhas; god module medio; ainda mistura construcao de painel, refresh de opcoes, sync visual e acoes de filtros avancados.
+   - `gui/ssa/gui_details.py`: 1568 linhas; medio; provider/model/export ja sairam, mas ainda tem funcoes grandes de arvore/link/render de derivadas.
+   - `gui/ssa/gui_filters_multiselect_menu.py`: 1474 linhas; medio/alto; virou ownership real do multiselect, mas precisa corte interno.
+   - `core/app_logic.py`: 2618 linhas; god module alto; `run_importer_logic` tem 290 linhas e `_import_single_file` tem 280 linhas.
+   - `tests/test_gui_filter_logic.py`: 10346 linhas; god test file muito alto.
+4. Kluster manteve residual estrutural em `FilterGUISSAMixin`: UI, worker lifecycle, persistencia e regra de DataFrame ainda estao acoplados.
+
+Pendente priorizado:
+1. `BUG_REAL`: manter teste/smoke de Undo para busca geral, coluna e avancado como guarda contra regressao.
+2. `NAO_BLOQUEANTE_DEFERIDO`: extrair controller de busca/Undo de `FilterGUISSAMixin`, sem alterar layout.
+3. `NAO_BLOQUEANTE_DEFERIDO`: extrair `run_importer_logic` e `_import_single_file` de `core/app_logic.py` para servicos de importacao.
+4. `NAO_BLOQUEANTE_DEFERIDO`: iniciar diagnostico da importacao automatica PAI a partir do repo local `~/git/scrap_report`, primeiro mapeando funcoes de obtencao de XLS/dados antes de importar codigo.
+5. `NAO_BLOQUEANTE_DEFERIDO`: dividir `tests/test_gui_filter_logic.py` por dominio depois que os contratos GUI estabilizados estiverem cobertos por testes menores.
+
 ## Update 2026-05-15 14:39 - Advanced filters manager residuals
 
 Escopo deste registro:
