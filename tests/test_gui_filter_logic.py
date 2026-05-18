@@ -913,15 +913,19 @@ class TestGUIFilterLogic:
         assert summary_buttons.count("Exec: IEE3") == 1
 
     def test_filters_summary_buttons_remove_search_with_confirmation(self):
-        self.window.search_input.setText("Teste A")
+        self.window._sync_filtering = True
+        self.window.search_input.setText("MEL3")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
         self.window._update_filters_summary()
         QApplication.processEvents()
+        assert self.window._df_last_search_filtered is not self.window.df_completo
 
         summary_widget = getattr(self.window, "filters_summary_items_widget", None)
         assert summary_widget is not None
         buttons = summary_widget.findChildren(QPushButton)
         search_button = next(
-            btn for btn in buttons if "Busca: 'Teste A'" in str(btn.text() or "")
+            btn for btn in buttons if "Busca: 'MEL3'" in str(btn.text() or "")
         )
 
         with patch(
@@ -933,6 +937,8 @@ class TestGUIFilterLogic:
 
         question_mock.assert_called_once()
         assert self.window.search_input.text() == ""
+        assert self.window._df_last_search_filtered is self.window.df_completo
+        assert len(self.window.df_exibido) == len(self.window.df_completo)
 
     def test_filters_summary_buttons_remove_exclude_ste_sca_with_confirmation(self):
         self.window._on_exclude_ste_sca_toggled(True)
@@ -2039,16 +2045,16 @@ class TestGUIFilterLogic:
         self.window.paginator.set_dataframe(self.base_df.copy())
 
         captured_sources: list[pd.DataFrame] = []
-        original_filter_dataframe = filter_mixin.filter_dataframe
+        original_apply_terms = self.window._apply_general_search_terms
 
-        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+        def _tracked_apply_terms(frame: pd.DataFrame, *args, **kwargs):
             captured_sources.append(frame)
-            return original_filter_dataframe(frame, *args, **kwargs)
+            return original_apply_terms(frame, *args, **kwargs)
 
         monkeypatch.setattr(
-            filter_mixin,
-            "filter_dataframe",
-            _tracked_filter_dataframe,
+            self.window,
+            "_apply_general_search_terms",
+            _tracked_apply_terms,
         )
 
         self.window.search_input.setText("MEL3")
@@ -2073,16 +2079,16 @@ class TestGUIFilterLogic:
         self.window.paginator.set_dataframe(self.base_df.copy())
 
         captured_sources: list[pd.DataFrame] = []
-        original_filter_dataframe = filter_mixin.filter_dataframe
+        original_apply_terms = self.window._apply_general_search_terms
 
-        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+        def _tracked_apply_terms(frame: pd.DataFrame, *args, **kwargs):
             captured_sources.append(frame)
-            return original_filter_dataframe(frame, *args, **kwargs)
+            return original_apply_terms(frame, *args, **kwargs)
 
         monkeypatch.setattr(
-            filter_mixin,
-            "filter_dataframe",
-            _tracked_filter_dataframe,
+            self.window,
+            "_apply_general_search_terms",
+            _tracked_apply_terms,
         )
 
         self.window.search_input.setText("MEL")
@@ -2108,16 +2114,16 @@ class TestGUIFilterLogic:
         self.window.paginator.set_dataframe(self.base_df.copy())
 
         captured_sources: list[pd.DataFrame] = []
-        original_filter_dataframe = filter_mixin.filter_dataframe
+        original_apply_terms = self.window._apply_general_search_terms
 
-        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+        def _tracked_apply_terms(frame: pd.DataFrame, *args, **kwargs):
             captured_sources.append(frame)
-            return original_filter_dataframe(frame, *args, **kwargs)
+            return original_apply_terms(frame, *args, **kwargs)
 
         monkeypatch.setattr(
-            filter_mixin,
-            "filter_dataframe",
-            _tracked_filter_dataframe,
+            self.window,
+            "_apply_general_search_terms",
+            _tracked_apply_terms,
         )
 
         self.window.search_input.setText("MEL3")
@@ -2143,16 +2149,16 @@ class TestGUIFilterLogic:
         self.window.paginator.set_dataframe(self.base_df.copy())
 
         captured_sources: list[pd.DataFrame] = []
-        original_filter_dataframe = filter_mixin.filter_dataframe
+        original_apply_terms = self.window._apply_general_search_terms
 
-        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+        def _tracked_apply_terms(frame: pd.DataFrame, *args, **kwargs):
             captured_sources.append(frame)
-            return original_filter_dataframe(frame, *args, **kwargs)
+            return original_apply_terms(frame, *args, **kwargs)
 
         monkeypatch.setattr(
-            filter_mixin,
-            "filter_dataframe",
-            _tracked_filter_dataframe,
+            self.window,
+            "_apply_general_search_terms",
+            _tracked_apply_terms,
         )
 
         self.window.search_input.setText("MEL3")
@@ -2178,16 +2184,16 @@ class TestGUIFilterLogic:
         self.window.paginator.set_dataframe(self.base_df.copy())
 
         captured_sources: list[pd.DataFrame] = []
-        original_filter_dataframe = filter_mixin.filter_dataframe
+        original_apply_terms = self.window._apply_general_search_terms
 
-        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+        def _tracked_apply_terms(frame: pd.DataFrame, *args, **kwargs):
             captured_sources.append(frame)
-            return original_filter_dataframe(frame, *args, **kwargs)
+            return original_apply_terms(frame, *args, **kwargs)
 
         monkeypatch.setattr(
-            filter_mixin,
-            "filter_dataframe",
-            _tracked_filter_dataframe,
+            self.window,
+            "_apply_general_search_terms",
+            _tracked_apply_terms,
         )
 
         self.window.search_input.setText("MEL3")
@@ -7710,6 +7716,10 @@ class TestGUIFilterLogic:
 
         assert null_filtered["numero_ssa"].tolist() == [1, 3, 4]
         assert not_null_filtered["numero_ssa"].tolist() == [2, 5]
+        assert set(null_filtered["numero_ssa"]).isdisjoint(not_null_filtered["numero_ssa"])
+        assert set(null_filtered["numero_ssa"]) | set(not_null_filtered["numero_ssa"]) == set(
+            nullable_df["numero_ssa"]
+        )
 
     def test_column_filter_date_display_guard_handles_missing_display_series(
         self, monkeypatch

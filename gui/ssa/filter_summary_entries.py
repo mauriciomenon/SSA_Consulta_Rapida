@@ -3,10 +3,41 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from typing import Any
+from dataclasses import dataclass
+import re
+from typing import Any, TypedDict
 
 SummaryAction = dict[str, Any]
 SummaryEntry = dict[str, Any]
+
+
+class ColumnOrGroupSummary(TypedDict, total=False):
+    columns: list[str]
+    values: list[str]
+
+FILTER_SUMMARY_COMPACT_NAMES = {
+    "setor_executor": "Exec",
+    "setor_emissor": "Emis",
+    "descricao_ssa": "Desc",
+    "descricao_execucao": "Desc Exec",
+    "localizacao_codigo": "Loc",
+    "semana_cadastro": "Sem Cad",
+    "semana_programada": "Sem Prog",
+    "semana_executada": "Sem Exec",
+    "situacao": "Sit",
+    "grau_prioridade_emissao": "Prio Emis",
+    "grau_prioridade_planejamento": "Prio Plan",
+}
+
+COLUMN_FILTER_COMPACT_ALIASES = {
+    "Descricao da SSA": "Desc. SSA",
+    "Descricao Execucao": "Desc. Exec.",
+    "Setor executor": "Set. Exec.",
+    "Setor emissor": "Set. Emis.",
+    "Semana cadastro": "Sem. Cad.",
+    "Semana programada": "Sem. Prog.",
+    "Semana executada": "Sem. Exec.",
+}
 
 SUMMARY_LABEL_SHORTENINGS = (
     ("Descricao da SSA", "Desc"),
@@ -16,8 +47,8 @@ SUMMARY_LABEL_SHORTENINGS = (
     ("Executor", "Exec"),
     ("Emissor", "Emis"),
     ("Situacao", "Sit"),
-    ("Prio Emissao", "Prio"),
-    ("Prio Planejamento", "Plan"),
+    ("Prio Emissao", "Prio Emis"),
+    ("Prio Planejamento", "Prio Plan"),
     ("Semana Cadastro", "Sem Cad"),
     ("Semana Programada", "Sem Prog"),
     ("Ano Emissao", "Ano Emis"),
@@ -31,56 +62,20 @@ SUMMARY_LABEL_SHORTENINGS = (
     ("Semana Execucao", "Sem Exec"),
 )
 
-ADVANCED_SECTOR_SPECS = (
-    ("Executor", "setor_executor", None, ["setor_executor"]),
-    ("Executor", "setor_executor_exclude_values", "!=", ["setor_executor_exclude_values"]),
-    ("Emissor", "setor_emissor", None, ["setor_emissor"]),
-    ("Emissor", "setor_emissor_exclude_values", "!=", ["setor_emissor_exclude_values"]),
-    ("Divisao", "divisao", None, ["divisao"]),
-    ("Divisao", "divisao_exclude_values", "!=", ["divisao_exclude_values"]),
-)
-ADVANCED_STATUS_SPECS = (
-    ("Situacao", "situacao", None, ["situacao"]),
-    ("Situacao", "situacao_exclude_values", "!=", ["situacao_exclude_values"]),
-    ("Prio Emissao", "prioridade_emissao_values", None, ["prioridade_emissao_values"]),
-    (
-        "Prio Emissao",
-        "prioridade_emissao_exclude_values",
-        "!=",
-        ["prioridade_emissao_exclude_values"],
-    ),
-    (
-        "Prio Planejamento",
-        "prioridade_planejamento_values",
-        None,
-        ["prioridade_planejamento_values"],
-    ),
-    (
-        "Prio Planejamento",
-        "prioridade_planejamento_exclude_values",
-        "!=",
-        ["prioridade_planejamento_exclude_values"],
-    ),
-)
-ADVANCED_RESPONSIBLE_SPECS = (
-    ("Solicitante", "solicitante", None, ["solicitante"]),
-    ("Solicitante", "solicitante_exclude_values", "!=", ["solicitante_exclude_values"]),
-    ("Resp Programacao", "responsavel_programacao", None, ["responsavel_programacao"]),
-    (
-        "Resp Programacao",
-        "responsavel_programacao_exclude_values",
-        "!=",
-        ["responsavel_programacao_exclude_values"],
-    ),
-    ("Resp Execucao", "responsavel_execucao", None, ["responsavel_execucao"]),
-    (
-        "Resp Execucao",
-        "responsavel_execucao_exclude_values",
-        "!=",
-        ["responsavel_execucao_exclude_values"],
-    ),
-)
+_FILTER_VALUE_WHITESPACE_RE = re.compile(r"\s+")
 
+
+@dataclass(frozen=True)
+class FilterSummaryContext:
+    search_text: str
+    dedicated_or_text: str
+    active_column_filters: dict[str, Any]
+    column_or_groups: list[ColumnOrGroupSummary]
+    column_to_or_group: dict[str, ColumnOrGroupSummary]
+    advanced_filters: dict[str, Any]
+    advanced_filters_active: bool
+    exclude_terminal_statuses: bool
+    theme_name: str
 
 def summary_week_range(start: Any, end: Any) -> str | None:
     if start is None and end is None:
@@ -92,6 +87,16 @@ def summary_week_range(start: Any, end: Any) -> str | None:
     return f"{start}-{end}"
 
 
+def excluded_summary_week_range(start: Any, end: Any) -> str | None:
+    if start is None and end is None:
+        return None
+    if start is None:
+        return f"exclui ate {end}"
+    if end is None:
+        return f"exclui desde {start}"
+    return f"exclui {start}-{end}"
+
+
 def shorten_summary_label(text: str) -> str:
     display_text = str(text or "")
     for full_label, short_label in SUMMARY_LABEL_SHORTENINGS:
@@ -99,6 +104,194 @@ def shorten_summary_label(text: str) -> str:
         if display_text.startswith(prefix):
             return f"{short_label}:{display_text[len(prefix):]}"
     return display_text
+
+
+def filters_summary_display_name(col: str, resolve_column_display_name) -> str:
+    column_name = str(col)
+    if column_name in FILTER_SUMMARY_COMPACT_NAMES:
+        return FILTER_SUMMARY_COMPACT_NAMES[column_name]
+    return str(resolve_column_display_name(column_name))
+
+
+def compact_column_filter_display_name(resolved_name: str) -> str:
+    display_name = str(resolved_name)
+    return COLUMN_FILTER_COMPACT_ALIASES.get(display_name, display_name)
+
+
+def format_column_filter_display_value(
+    raw: str,
+    *,
+    column: str | None = None,
+    alias_map: dict | None = None,
+) -> str:
+    if not raw:
+        return ""
+    tokens = _split_column_filter_display_tokens(raw)
+    if not tokens:
+        return ""
+    return ", ".join(_map_column_filter_display_tokens(tokens, column, alias_map))
+
+
+def _split_column_filter_display_tokens(raw: str) -> list[str]:
+    text = str(raw).replace(";", ",").strip()
+    text = _FILTER_VALUE_WHITESPACE_RE.sub(" ", text).strip()
+    return [token.strip() for token in text.split(",") if token.strip()]
+
+
+def _map_column_filter_display_tokens(
+    tokens: list[str],
+    column: str | None,
+    alias_map: dict | None,
+) -> list[str]:
+    if not tokens or not isinstance(alias_map, dict):
+        return tokens
+    col_map = None
+    if column:
+        col_map = alias_map.get(column) or alias_map.get(column.lower())
+    global_map = alias_map.get("_global")
+    return [
+        _map_column_filter_display_token(token, col_map, global_map)
+        for token in tokens
+    ]
+
+
+def _map_column_filter_display_token(
+    token: str,
+    col_map: Any,
+    global_map: Any,
+) -> str:
+    key = token.casefold()
+    new_token = None
+    if isinstance(col_map, dict):
+        new_token = col_map.get(key)
+    if new_token is None and isinstance(global_map, dict):
+        new_token = global_map.get(key)
+    if isinstance(new_token, str) and new_token.strip():
+        return new_token
+    return token
+
+
+def build_filters_summary_base_entries(
+    *,
+    context: FilterSummaryContext,
+    display_name_for_column,
+    format_value,
+) -> tuple[OrderedDict[str, SummaryEntry], tuple, dict, bool]:
+    summary_entries: OrderedDict[str, SummaryEntry] = OrderedDict()
+    normalized_search_text = str(context.search_text or "").strip()
+    if normalized_search_text:
+        merge_summary_actions(
+            summary_entries,
+            text=f"Busca: '{normalized_search_text}'",
+            actions=[{"kind": "search"}],
+        )
+
+    normalized_or_text = str(context.dedicated_or_text or "").strip()
+    if normalized_or_text:
+        merge_summary_actions(
+            summary_entries,
+            text=f"Filtro OU: {format_value(normalized_or_text)}",
+            actions=[{"kind": "dedicated_or"}],
+        )
+
+    _add_column_filter_summary_entries(
+        summary_entries,
+        active_column_filters=context.active_column_filters,
+        column_or_groups=context.column_or_groups,
+        column_to_or_group=context.column_to_or_group,
+        display_name_for_column=display_name_for_column,
+        format_value=format_value,
+    )
+
+    raw_summary_signature = build_filters_summary_raw_signature(
+        context=context,
+    )
+    return (
+        summary_entries,
+        raw_summary_signature,
+        context.advanced_filters,
+        context.advanced_filters_active,
+    )
+
+
+def build_filters_summary_raw_signature(
+    *,
+    context: FilterSummaryContext,
+) -> tuple:
+    return (
+        str(context.search_text or "").strip(),
+        tuple((str(k), str(v)) for k, v in context.active_column_filters.items()),
+        _freeze_summary_action(context.column_or_groups or []),
+        _freeze_summary_action(context.advanced_filters),
+        bool(context.advanced_filters_active),
+        bool(context.exclude_terminal_statuses),
+        str(context.dedicated_or_text or "").strip(),
+        str(context.theme_name or "dark"),
+    )
+
+
+def _add_column_filter_summary_entries(
+    summary_entries: OrderedDict[str, SummaryEntry],
+    *,
+    active_column_filters: dict,
+    column_or_groups: list,
+    column_to_or_group: dict,
+    display_name_for_column,
+    format_value,
+) -> None:
+    if not active_column_filters:
+        return
+    for group in column_or_groups:
+        _add_column_or_group_summary_entry(
+            summary_entries,
+            group,
+            display_name_for_column=display_name_for_column,
+            format_value=format_value,
+        )
+    for col_name, filter_value in active_column_filters.items():
+        if col_name in column_to_or_group:
+            continue
+        normalized_value = format_value(str(filter_value), column=col_name)
+        if not normalized_value:
+            continue
+        merge_summary_actions(
+            summary_entries,
+            text=f"{display_name_for_column(col_name)}: {normalized_value}",
+            actions=[{"kind": "column", "column": str(col_name)}],
+        )
+
+
+def _add_column_or_group_summary_entry(
+    summary_entries: OrderedDict[str, SummaryEntry],
+    group: dict,
+    *,
+    display_name_for_column,
+    format_value,
+) -> None:
+    values = list(group.get("values", []) or [])
+    if not values:
+        return
+    columns = list(group.get("columns", []) or [])
+    if set(columns) == {"setor_executor", "setor_emissor"}:
+        label = "Executor ou Emissor (OU)"
+    else:
+        column_names = " ou ".join(display_name_for_column(column) for column in columns)
+        label = f"{column_names} (OU)"
+    values_txt = format_value(", ".join(values))
+    if not values_txt:
+        return
+    action_column = str(columns[0]) if columns else ""
+    merge_summary_actions(
+        summary_entries,
+        text=f"{label}: {values_txt}",
+        actions=[
+            {
+                "kind": "column_or_group",
+                "column": action_column,
+                "columns": columns,
+            }
+        ],
+    )
 
 
 def merge_summary_actions(
@@ -112,8 +305,23 @@ def merge_summary_actions(
         return
     entry = target.get(normalized_text)
     if entry is None:
-        target[normalized_text] = {"text": normalized_text, "actions": list(actions)}
+        target[normalized_text] = _new_summary_entry(normalized_text, actions)
         return
+    _append_unique_summary_actions(entry, actions)
+
+
+def _new_summary_entry(text: str, actions: list[SummaryAction]) -> SummaryEntry:
+    valid_actions = [action for action in actions if isinstance(action, dict)]
+    return {
+        "text": text,
+        "actions": valid_actions,
+    }
+
+
+def _append_unique_summary_actions(
+    entry: SummaryEntry,
+    actions: list[SummaryAction],
+) -> None:
     existing_actions = entry.setdefault("actions", [])
     seen_signatures = {
         _freeze_summary_action(action)
@@ -130,176 +338,25 @@ def merge_summary_actions(
         seen_signatures.add(signature)
 
 
-def build_advanced_summary_entries(advanced_filters: dict) -> OrderedDict[str, SummaryEntry]:
-    entries: OrderedDict[str, SummaryEntry] = OrderedDict()
-
-    def add_adv(
-        label,
-        values,
-        op: str | None = None,
-        *,
-        action_keys: list[str] | None = None,
-    ) -> None:
-        if not values:
-            return
-        if isinstance(values, list):
-            txt = ", ".join(str(value) for value in values if str(value).strip())
-        else:
-            txt = str(values).strip()
-        if not txt:
-            return
-        text = f"{label}: {txt}"
-        if op:
-            text = f"{label} {op} {txt}"
-        keys = [str(key) for key in (action_keys or []) if str(key).strip()]
-        if not keys:
-            return
-        merge_summary_actions(
-            entries,
-            text=shorten_summary_label(text),
-            actions=[{"kind": "advanced_keys", "keys": keys}],
-        )
-
-    for builder in ADVANCED_ENTRY_BUILDERS:
-        builder(advanced_filters, entries, add_adv)
-    return entries
-
-
-def _add_basic_advanced_entries(adv: dict, _entries, add_adv) -> None:
-    for specs in (
-        ADVANCED_SECTOR_SPECS,
-        ADVANCED_STATUS_SPECS,
-        ADVANCED_RESPONSIBLE_SPECS,
-    ):
-        for label, key, op, action_keys in specs:
-            add_adv(label, adv.get(key), op, action_keys=action_keys)
-
-
-def _add_year_advanced_entries(adv: dict, _entries, add_adv) -> None:
-    for label, base_key in (
-        ("Ano Emissao", "ano_emissao"),
-        ("Ano Execucao", "ano_execucao"),
-    ):
-        values_key, exclude_key, exclude_values_key, values, excluded = (
-            _resolve_year_filter_values(adv, base_key)
-        )
-        add_adv(label, values, action_keys=[base_key, values_key])
-        add_adv(label, excluded, "!=", action_keys=[exclude_key, exclude_values_key])
-
-
-def _add_week_advanced_entries(adv: dict, _entries, add_adv) -> None:
-    for label, start_key, end_key, exclude_key in (
-        (
-            "Semana Emissao",
-            "semana_emissao_inicio",
-            "semana_emissao_fim",
-            "semana_emissao_exclude",
-        ),
-        (
-            "Semana Execucao",
-            "semana_execucao_inicio",
-            "semana_execucao_fim",
-            "semana_execucao_exclude",
-        ),
-    ):
-        _add_temporal_range_entry(adv, add_adv, label, start_key, end_key, exclude_key)
-
-
-def _resolve_year_filter_values(adv: dict, base_key: str) -> tuple[str, str, str, Any, Any]:
-    values_key = f"{base_key}_values"
-    exclude_key = f"{base_key}_exclude"
-    exclude_values_key = f"{base_key}_exclude_values"
-    values = adv.get(values_key)
-    excluded = adv.get(exclude_values_key)
-    exclude_legacy = bool(adv.get(exclude_key))
-    if values is None and not exclude_legacy and adv.get(base_key) is not None:
-        values = [adv.get(base_key)]
-    if excluded is None and exclude_legacy and adv.get(base_key) is not None:
-        excluded = [adv.get(base_key)]
-    return values_key, exclude_key, exclude_values_key, values, excluded
-
-
-def _add_temporal_range_entry(
-    adv: dict,
-    add_adv,
-    label: str,
-    start_key: str,
-    end_key: str,
-    exclude_key: str,
-) -> None:
-    week_range = summary_week_range(adv.get(start_key), adv.get(end_key))
-    if not week_range:
-        return
-    action_keys = [start_key, end_key]
-    if adv.get(exclude_key):
-        action_keys.append(exclude_key)
-    add_adv(
-        label,
-        [week_range],
-        "!=" if adv.get(exclude_key) else None,
-        action_keys=action_keys,
-    )
-
-
-def _add_derivada_advanced_entries(adv: dict, entries, _add_adv) -> None:
-    if adv.get("derivada_has"):
-        merge_summary_actions(
-            entries,
-            text="Possui derivada",
-            actions=[{"kind": "advanced_keys", "keys": ["derivada_has"]}],
-        )
-    if adv.get("derivada_terminal_statuses") or adv.get("derivada_all_ste"):
-        merge_summary_actions(
-            entries,
-            text="Derivadas em status terminal",
-            actions=[
-                {
-                    "kind": "advanced_keys",
-                    "keys": ["derivada_terminal_statuses", "derivada_all_ste"],
-                }
-            ],
-        )
-    if adv.get("derivada_is"):
-        merge_summary_actions(
-            entries,
-            text="SSA derivada",
-            actions=[{"kind": "advanced_keys", "keys": ["derivada_is"]}],
-        )
-
-
-def _add_macro_advanced_entries(adv: dict, entries, _add_adv) -> None:
-    if not adv.get("macro_filter"):
-        return
-    macro_value = adv.get("macro_filter")
-    macro_label = "SSAs para baixar" if macro_value == "ssas_para_baixar" else str(macro_value)
-    merge_summary_actions(
-        entries,
-        text=f"Macro: {macro_label}",
-        actions=[{"kind": "advanced_keys", "keys": ["macro_filter"]}],
-    )
-
-
-ADVANCED_ENTRY_BUILDERS = (
-    _add_basic_advanced_entries,
-    _add_year_advanced_entries,
-    _add_week_advanced_entries,
-    _add_derivada_advanced_entries,
-    _add_macro_advanced_entries,
-)
-
-
 def _freeze_summary_action(value: Any) -> Any:
     if isinstance(value, dict):
-        return tuple(
-            (str(key), _freeze_summary_action(item))
-            for key, item in sorted(value.items(), key=lambda entry: str(entry[0]))
+        return (
+            "dict",
+            tuple((str(key), _freeze_summary_value(item)) for key, item in value.items()),
+        )
+    return _freeze_summary_value(value)
+
+
+def _freeze_summary_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return (
+            "dict",
+            tuple((str(key), _freeze_summary_value(item)) for key, item in value.items()),
         )
     if isinstance(value, (list, tuple)):
-        return tuple(_freeze_summary_action(item) for item in value)
+        return tuple(_freeze_summary_value(item) for item in value)
     if isinstance(value, set):
-        return tuple(sorted(_freeze_summary_action(item) for item in value))
-    try:
-        hash(value)
-    except TypeError:
-        return f"<unhashable:{type(value).__name__}>"
-    return value
+        return tuple(sorted((_freeze_summary_value(item) for item in value), key=repr))
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    return ("str", str(value))
