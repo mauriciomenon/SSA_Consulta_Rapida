@@ -22,25 +22,24 @@ from gui.ssa.details_display_config import DetailsDisplayConfig
 from gui.ssa.details_dialog_constants import (
     DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT,
     DERIVADAS_DIALOG_DETAILS_FONT_PT,
-    DERIVADAS_DIALOG_DETAILS_MIN_WIDTH,
-    DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT,
     DERIVADAS_DIALOG_LABEL_FONT_PT,
     DERIVADAS_DIALOG_MIN_HEIGHT,
     DERIVADAS_DIALOG_MIN_WIDTH,
-    DERIVADAS_DIALOG_RATIO_LEFT,
-    DERIVADAS_DIALOG_RATIO_RIGHT,
     DERIVADAS_DIALOG_TREE_FONT_PT,
-    DERIVADAS_DIALOG_TREE_MIN_WIDTH,
     DERIVADAS_GRAPH_MAX_DESCENDANTS,
-    DERIVADAS_SPLITTER_HANDLE_WIDTH,
     HIDDEN_DETAIL_FIELDS,
     SSA_NORM_CACHE_MAX_ENTRIES,
 )
-from gui.ssa.details_graph_export import (
-    DetailsGraphExportController,
-    load_svg_render_dependencies,
-    render_graph_svg_pixmap,
+from gui.ssa.details_dialog_presenter import (
+    DetailsDialogCallbacks,
+    DetailsDialogPresenter,
 )
+from gui.ssa.details_normalization import (
+    is_missing_scalar as _is_missing_scalar,
+    normalize_ssa_relation_series as _normalize_ssa_relation_series,
+    normalize_ssa_relation_value as _normalize_ssa_relation_value,
+)
+from gui.ssa.details_series_index import DetailsSeriesIndex
 from gui.ssa.gui_details_html import DetailsHtmlDependencies, render_details_html
 from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 from shared.ssa_status import format_status_display, get_status_code
@@ -52,19 +51,6 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 
 
 DETAILS_CONFIG = DetailsDisplayConfig()
-
-
-def _init_readonly_text_browser(
-    browser, *, min_width: int | None = None, min_height: int | None = None
-):
-    browser.setReadOnly(True)
-    browser.setOpenLinks(False)
-    browser.setOpenExternalLinks(False)
-    if min_width is not None:
-        browser.setMinimumWidth(min_width)
-    if min_height is not None:
-        browser.setMinimumHeight(min_height)
-    return browser
 
 
 def configure_details_constants(
@@ -282,38 +268,6 @@ def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
         return pd.Series([""] * len(series), index=series.index, dtype="object")
 
 
-def _normalize_ssa_relation_value(value) -> str:
-    if _is_missing_scalar(value):
-        return ""
-    return details_derivadas_model.normalize_relation_value(value)
-
-
-def _is_missing_scalar(value) -> bool:
-    if value is None:
-        return True
-    try:
-        if not pd.api.types.is_scalar(value):
-            return False
-        return bool(pd.isna(value))
-    except Exception as exc:
-        logger.debug("Falha ao avaliar valor escalar ausente: %s", exc)
-        return False
-
-
-def _normalize_ssa_relation_series(series: pd.Series) -> pd.Series:
-    try:
-        series_obj = series.astype("object")
-        codes, uniques = pd.factorize(series_obj, sort=False)
-        normalized_uniques = [_normalize_ssa_relation_value(value) for value in uniques]
-        resolved = [""] * len(series_obj)
-        for index, code in enumerate(codes):
-            if code >= 0:
-                resolved[index] = normalized_uniques[code]
-        return pd.Series(resolved, index=series_obj.index, dtype="object")
-    except Exception:
-        return series.map(_normalize_ssa_relation_value)
-
-
 def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
     if df is None or column_name not in getattr(df, "columns", []):
         return pd.Series(dtype="object")
@@ -345,7 +299,7 @@ def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
     return normalized
 
 
-def _get_df_ssa_series_index(window, df) -> dict[str, pd.Series]:
+def _get_df_ssa_series_index(window, df) -> Mapping[str, pd.Series]:
     if df is None or df.empty or "numero_ssa" not in getattr(df, "columns", []):
         return {}
     data_uuid = getattr(window, "_data_uuid", None)
@@ -368,22 +322,24 @@ def _get_df_ssa_series_index(window, df) -> dict[str, pd.Series]:
     if isinstance(cached, dict) and cached:
         return cached
 
-    lookup: dict[str, pd.Series] = {}
+    lookup: Mapping[str, pd.Series] = {}
     normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
     try:
         normalized_text_series = normalized_series.astype("string").fillna("").str.strip()
         first_value_mask = normalized_text_series.ne("") & ~normalized_text_series.duplicated()
-        first_row_positions = first_value_mask.to_numpy().nonzero()[0]
-        if len(first_row_positions) == 0:
+        first_positions = first_value_mask.to_numpy().nonzero()[0]
+        first_values = normalized_text_series.iloc[first_positions]
+        if first_values.empty:
             return lookup
-        first_rows = df.iloc[first_row_positions]
-        first_values = normalized_text_series.iloc[first_row_positions]
-        for offset, normalized in enumerate(first_values.to_list()):
+        row_positions: dict[str, int] = {}
+        for normalized, position in zip(
+            first_values.to_list(), first_positions, strict=True
+        ):
             normalized_text = str(normalized or "").strip()
             if not normalized_text:
                 continue
-            matched = first_rows.iloc[offset]
-            lookup[normalized_text] = matched
+            row_positions[normalized_text] = int(position)
+        lookup = DetailsSeriesIndex(df, row_positions)
     except Exception as exc:
         logger.debug("Falha ao montar indice SSA por DataFrame: %s", exc)
         return {}
@@ -869,6 +825,10 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
         def _select_target_row_later():
             try:
                 if int(getattr(paginator, "current_page", 1)) != page:
+                    logger.debug(
+                        "Selecao adiada ignorada para SSA %s: pagina atual mudou",
+                        num_norm,
+                    )
                     return
                 if row_in_page < 0 or row_in_page >= window.table_widget.rowCount():
                     return
@@ -1530,275 +1490,34 @@ def _resolve_details_dialog_style(window, palette_cls):
     )
 
 
+def _build_details_dialog_callbacks(window) -> DetailsDialogCallbacks:
+    return DetailsDialogCallbacks(
+        apply_geometry=_apply_details_dialog_geometry,
+        build_graph_html=_build_derivadas_graph_html,
+        build_mermaid_text=_build_derivadas_mermaid_text,
+        build_tree_html=_build_derivadas_tree_html,
+        collect_tree_data=_collect_derivadas_tree_data,
+        copy_ssa_to_clipboard=window._copy_ssa_to_clipboard,
+        extract_svg_markup=_extract_inline_svg_markup,
+        format_details_html=_format_details_html,
+        get_series_for_ssa=_get_series_for_ssa,
+        logger=logger,
+        normalize_ssa_value=_normalize_ssa_value,
+        resolve_style=_resolve_details_dialog_style,
+    )
+
+
 def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
     resolved_target = _resolve_details_dialog_target(window, numero_ssa, series)
     if resolved_target is None:
         return
     target, series = resolved_target
-
-    try:
-        from PyQt6.QtCore import Qt
-        from PyQt6.QtGui import QPalette
-        from PyQt6.QtWidgets import (
-            QDialog,
-            QFileDialog,
-            QGridLayout,
-            QHBoxLayout,
-            QLabel,
-            QMenu,
-            QMessageBox,
-            QPushButton,
-            QSplitter,
-            QTextBrowser,
-            QToolButton,
-            QVBoxLayout,
-            QWidget,
-        )
-    except Exception:
-        return
-    svg_render_deps = load_svg_render_dependencies()
-    if svg_render_deps is None:
-        logger.debug("QSvgRenderer unavailable for derivadas graph rendering")
-
-    dialog = QDialog(window)
-    dialog.setWindowTitle(f"Detalhes da SSA #{target}")
-    dialog.setMinimumWidth(DERIVADAS_DIALOG_MIN_WIDTH)
-    dialog.setMinimumHeight(DERIVADAS_DIALOG_MIN_HEIGHT)
-
-    root_layout = QVBoxLayout(dialog)
-    details_tab_splitter = QSplitter(Qt.Orientation.Vertical)
-    details_tab_splitter.setChildrenCollapsible(False)
-    details_tab_splitter.setHandleWidth(DERIVADAS_SPLITTER_HANDLE_WIDTH)
-    details_derivadas_splitter = QSplitter(Qt.Orientation.Horizontal)
-    details_derivadas_splitter.setChildrenCollapsible(False)
-    details_derivadas_splitter.setHandleWidth(DERIVADAS_SPLITTER_HANDLE_WIDTH)
-    details_browser = _init_readonly_text_browser(
-        QTextBrowser(), min_width=DERIVADAS_DIALOG_DETAILS_MIN_WIDTH
-    )
-    tree_tab_browser = _init_readonly_text_browser(
-        QTextBrowser(),
-        min_width=DERIVADAS_DIALOG_TREE_MIN_WIDTH,
-        min_height=DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT,
-    )
-    tree_graph_label = None
-    tree_graph_text_browser = None
-    if svg_render_deps is not None:
-        tree_graph_label = QLabel(dialog)
-        tree_graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        tree_graph_label.setStyleSheet("border:none; background:transparent;")
-        tree_graph_label.setMinimumHeight(DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT)
-        tree_graph_browser = tree_graph_label
-    else:
-        tree_graph_text_browser = _init_readonly_text_browser(
-            QTextBrowser(), min_height=DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT
-        )
-        tree_graph_browser = tree_graph_text_browser
-    tree_graph_panel = QWidget(dialog)
-    tree_graph_panel_layout = QGridLayout(tree_graph_panel)
-    tree_graph_panel_layout.setContentsMargins(0, 0, 0, 0)
-    tree_graph_panel_layout.setSpacing(0)
-    tree_graph_panel_layout.addWidget(
-        tree_graph_browser,
-        0,
-        0,
-        alignment=Qt.AlignmentFlag.AlignCenter,
-    )
-    export_button = QToolButton(tree_graph_panel)
-    export_button.setText("Exportar")
-    export_button.setAutoRaise(True)
-    export_button.setToolTip("Exportar grafo em PNG, SVG ou Mermaid")
-    tree_graph_panel_layout.addWidget(
-        export_button,
-        0,
-        0,
-        alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
-    )
-    current_target = {"ssa": target}
-    export_state = {"svg": "", "mermaid": "", "target": target}
-    (
-        link_color,
-        dialog_font_pt,
-        dialog_label_font_pt,
-        dialog_tree_font_pt,
-        dialog_font_family,
-    ) = _resolve_details_dialog_style(window, QPalette)
-
-    def _render_graph_pixmap(graph_svg: str) -> bool:
-        if tree_graph_label is None or svg_render_deps is None:
-            return False
-        return render_graph_svg_pixmap(
-            graph_svg=graph_svg,
-            graph_label=tree_graph_label,
-            graph_panel=tree_graph_panel,
-            dependencies=svg_render_deps,
-        )
-
-    def _render_target(ssa_target, resolved_series=None):
-        export_state["svg"] = ""
-        export_state["mermaid"] = ""
-        normalized = _normalize_ssa_value(window, ssa_target)
-        if not normalized:
-            return False
-        if resolved_series is not None:
-            try:
-                matches_target = (
-                    _normalize_ssa_value(window, resolved_series.get("numero_ssa"))
-                    == normalized
-                )
-            except Exception:
-                matches_target = False
-            if not matches_target:
-                resolved_series = None
-        series_target = resolved_series
-        if series_target is None:
-            series_target = _get_series_for_ssa(window, normalized)
-        if series_target is None:
-            return False
-        ssa_index: dict[str, pd.Series] = {}
-        current_target["ssa"] = normalized
-        export_state["target"] = normalized
-        tree_data = _collect_derivadas_tree_data(window, normalized)
-        html_details = _format_details_html(
-            window,
-            series_target,
-            highlight_search_terms=True,
-            font_size_pt=dialog_font_pt,
-            linkify=True,
-            label_font_size_pt=dialog_label_font_pt,
-            font_family=dialog_font_family,
-            ssa_index=ssa_index,
-        )
-        details_browser.setHtml(html_details)
-        tree_html = _build_derivadas_tree_html(
-            window,
-            normalized,
-            link_color=link_color,
-            tree_font_pt=dialog_tree_font_pt,
-            font_family=dialog_font_family,
-            tree_data_override=tree_data,
-            ssa_index=ssa_index,
-        )
-        mermaid_text = _build_derivadas_mermaid_text(tree_data)
-        graph_html = _build_derivadas_graph_html(
-            window,
-            tree_data,
-            link_color=link_color,
-            font_family=dialog_font_family,
-        )
-        graph_svg = _extract_inline_svg_markup(graph_html)
-        export_state["svg"] = graph_svg
-        export_state["mermaid"] = mermaid_text
-        if tree_graph_label is not None:
-            if not graph_svg or not _render_graph_pixmap(graph_svg):
-                tree_graph_label.setText("Grafo de derivadas indisponivel.")
-                if svg_render_deps is not None:
-                    tree_graph_label.setPixmap(svg_render_deps.pixmap_cls())
-                tree_graph_label.setToolTip("Grafo de derivadas indisponivel.")
-        elif graph_html and tree_graph_text_browser is not None:
-            tree_graph_text_browser.setHtml(graph_html)
-        else:
-            if tree_graph_text_browser is None:
-                logger.warning(
-                    "Widget de grafo de derivadas ausente para %s", normalized
-                )
-                return False
-            tree_graph_text_browser.setPlainText("Grafo de derivadas indisponivel.")
-        if tree_html:
-            tree_tab_browser.setHtml(tree_html)
-        else:
-            tree_tab_browser.setPlainText("Arvore de derivadas indisponivel.")
-        return True
-
-    export_controller = DetailsGraphExportController(
-        dialog=dialog,
-        graph_widget=tree_graph_browser,
-        export_state=export_state,
-        file_dialog_cls=QFileDialog,
-        message_box_cls=QMessageBox,
-        menu_cls=QMenu,
-        logger=logger,
-    )
-
-    def _refresh_graph_after_resize() -> None:
-        graph_svg = str(export_state["svg"] or "")
-        if graph_svg:
-            _render_graph_pixmap(graph_svg)
-
-    def _handle_dialog_anchor(url):
-        try:
-            href = url.toString()
-        except Exception:
-            return
-        if not href:
-            return
-        if href.startswith("ssa-panel:"):
-            target_href = href[len("ssa-panel:") :].strip().lstrip("/")
-            _render_target(target_href)
-            return
-        if href.startswith("copy-ssa:"):
-            target_href = href[len("copy-ssa:") :].strip().lstrip("/")
-            if target_href:
-                window._copy_ssa_to_clipboard(target_href)
-            return
-        if href.startswith("ssa-details:"):
-            target_href = href[len("ssa-details:") :].strip().lstrip("/")
-            _render_target(target_href)
-            return
-        if href.startswith("ssa_details://"):
-            target_href = href[len("ssa_details://") :].strip().lstrip("/")
-            _render_target(target_href)
-            return
-        if href.startswith("ssa:"):
-            target_href = href[len("ssa:") :].strip().lstrip("/")
-            _render_target(target_href)
-            return
-        if href.startswith("derivadas:tree") or href.startswith("derivadas://tree"):
-            _render_target(current_target["ssa"])
-
-    details_browser.anchorClicked.connect(_handle_dialog_anchor)
-    tree_tab_browser.anchorClicked.connect(_handle_dialog_anchor)
-    if tree_graph_text_browser is not None:
-        tree_graph_text_browser.anchorClicked.connect(_handle_dialog_anchor)
-    tree_graph_browser.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-    tree_graph_browser.customContextMenuRequested.connect(
-        lambda pos: export_controller.show_menu(tree_graph_browser.mapToGlobal(pos))
-    )
-    export_button.clicked.connect(
-        lambda: export_controller.show_menu(
-            export_button.mapToGlobal(export_button.rect().bottomRight())
-        )
-    )
-    if not _render_target(target, resolved_series=series):
-        return
-
-    details_tab_splitter.addWidget(details_browser)
-    details_derivadas_splitter.addWidget(tree_tab_browser)
-    details_derivadas_splitter.addWidget(tree_graph_panel)
-    details_derivadas_splitter.setStretchFactor(0, DERIVADAS_DIALOG_RATIO_LEFT)
-    details_derivadas_splitter.setStretchFactor(1, DERIVADAS_DIALOG_RATIO_RIGHT)
-    details_derivadas_splitter.setSizes(
-        [DERIVADAS_DIALOG_RATIO_LEFT * 10, DERIVADAS_DIALOG_RATIO_RIGHT * 10]
-    )
-    details_tab_splitter.addWidget(details_derivadas_splitter)
-    details_tab_splitter.setStretchFactor(0, 1)
-    details_tab_splitter.setStretchFactor(1, 1)
-    details_tab_splitter.setSizes([470, DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT])
-
-    root_layout.addWidget(details_tab_splitter)
-
-    close_button = QPushButton("Fechar")
-    close_button.setMinimumWidth(180)
-    close_button.setMaximumWidth(240)
-    close_button.clicked.connect(dialog.accept)
-    close_row = QHBoxLayout()
-    close_row.addStretch(1)
-    close_row.addWidget(close_button)
-    close_row.addStretch(1)
-    root_layout.addLayout(close_row)
-    _apply_details_dialog_geometry(window, dialog, details_tab_splitter)
-    if tree_graph_label is not None:
-        QTimer.singleShot(0, _refresh_graph_after_resize)
-    dialog.exec()
+    DetailsDialogPresenter(
+        window=window,
+        target=target,
+        series=series,
+        callbacks=_build_details_dialog_callbacks(window),
+    ).open()
 
 
 def _store_window_filter_state(window, reason: str) -> None:
