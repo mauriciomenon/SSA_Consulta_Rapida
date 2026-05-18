@@ -86,6 +86,7 @@ class _FakeSize:
 
 class _FakeRenderer:
     instances = 0
+    last_rect = None
 
     def __init__(self, _payload) -> None:
         self.__class__.instances += 1
@@ -93,8 +94,17 @@ class _FakeRenderer:
     def defaultSize(self):
         return _FakeSize(300, 120)
 
-    def render(self, _painter) -> None:
+    def render(self, _painter, rect) -> None:
+        self.__class__.last_rect = rect
         return
+
+
+class _FakeRectF:
+    def __init__(self, x: float, y: float, width: float, height: float) -> None:
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
 
 
 class _FakeByteArray:
@@ -185,13 +195,14 @@ def test_extract_inline_svg_markup_reads_svg_inside_full_html() -> None:
     assert gui_details._extract_inline_svg_markup(html) == "<svg><text>ok</text></svg>"
 
 
-def test_render_graph_svg_pixmap_uses_logical_label_size_on_high_dpi() -> None:
+def test_render_graph_svg_pixmap_uses_logical_label_size() -> None:
     label = _FakeGraphLabel()
     _FakeRenderer.instances = 0
     deps = SvgRenderDependencies(
         byte_array_cls=_FakeByteArray,
         painter_cls=_FakePainter,
         pixmap_cls=_FakeSvgPixmap,
+        rectf_cls=_FakeRectF,
         renderer_cls=_FakeRenderer,
         qt_module=_FakeQtModule,
     )
@@ -212,10 +223,13 @@ def test_render_graph_svg_pixmap_uses_logical_label_size_on_high_dpi() -> None:
     assert ok is True
     assert second_ok is True
     assert label.pixmap is not None
-    assert label.pixmap.width == 600
-    assert label.pixmap.height == 240
+    assert label.pixmap.width == 300
+    assert label.pixmap.height == 120
     assert label.fixed_size == (300, 120)
     assert label.tooltip == ""
+    assert _FakeRenderer.last_rect is not None
+    assert _FakeRenderer.last_rect.width == 300.0
+    assert _FakeRenderer.last_rect.height == 120.0
     assert _FakeRenderer.instances == 1
 
 

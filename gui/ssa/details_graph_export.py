@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, MutableMapping
@@ -10,17 +11,18 @@ class SvgRenderDependencies:
     byte_array_cls: type[Any]
     painter_cls: type[Any]
     pixmap_cls: type[Any]
+    rectf_cls: type[Any]
     renderer_cls: type[Any]
     qt_module: Any
 
 
 _SVG_RENDERER_CACHE_MAX = 16
-_SVG_RENDERER_CACHE: dict[tuple[type[Any], str], Any] = {}
+_SVG_RENDERER_CACHE: OrderedDict[tuple[type[Any], str], Any] = OrderedDict()
 
 
 def load_svg_render_dependencies() -> SvgRenderDependencies | None:
     try:
-        from PyQt6.QtCore import QByteArray, Qt
+        from PyQt6.QtCore import QByteArray, QRectF, Qt
         from PyQt6.QtGui import QPainter, QPixmap
         from PyQt6.QtSvg import QSvgRenderer
     except Exception:
@@ -29,6 +31,7 @@ def load_svg_render_dependencies() -> SvgRenderDependencies | None:
         byte_array_cls=QByteArray,
         painter_cls=QPainter,
         pixmap_cls=QPixmap,
+        rectf_cls=QRectF,
         renderer_cls=QSvgRenderer,
         qt_module=Qt,
     )
@@ -58,19 +61,11 @@ def render_graph_svg_pixmap(
     scale = min(1.0, available_w / natural_w, available_h / natural_h)
     render_w = max(1, int(natural_w * scale))
     render_h = max(1, int(natural_h * scale))
-    dpr = 1.0
-    device_pixel_ratio = getattr(graph_panel, "devicePixelRatioF", None)
-    if callable(device_pixel_ratio):
-        dpr = max(1.0, float(device_pixel_ratio()))
-    pixmap = dependencies.pixmap_cls(
-        max(1, int(render_w * dpr)), max(1, int(render_h * dpr))
-    )
-    set_dpr = getattr(pixmap, "setDevicePixelRatio", None)
-    if callable(set_dpr):
-        set_dpr(dpr)
+    pixmap = dependencies.pixmap_cls(render_w, render_h)
     pixmap.fill(dependencies.qt_module.GlobalColor.transparent)
     painter = dependencies.painter_cls(pixmap)
-    renderer.render(painter)
+    target_rect = dependencies.rectf_cls(0.0, 0.0, float(render_w), float(render_h))
+    renderer.render(painter, target_rect)
     painter.end()
     graph_label.setPixmap(pixmap)
     graph_label.setFixedSize(render_w, render_h)
@@ -79,18 +74,21 @@ def render_graph_svg_pixmap(
 
 
 def _cached_svg_renderer(renderer_cls: type[Any], graph_svg: str) -> Any | None:
-    return _SVG_RENDERER_CACHE.get((renderer_cls, graph_svg))
+    cache_key = (renderer_cls, graph_svg)
+    renderer = _SVG_RENDERER_CACHE.get(cache_key)
+    if renderer is not None:
+        _SVG_RENDERER_CACHE.move_to_end(cache_key)
+    return renderer
 
 
 def _store_svg_renderer(
     renderer_cls: type[Any], graph_svg: str, renderer: Any
 ) -> None:
-    _SVG_RENDERER_CACHE[(renderer_cls, graph_svg)] = renderer
+    cache_key = (renderer_cls, graph_svg)
+    _SVG_RENDERER_CACHE[cache_key] = renderer
+    _SVG_RENDERER_CACHE.move_to_end(cache_key)
     while len(_SVG_RENDERER_CACHE) > _SVG_RENDERER_CACHE_MAX:
-        first_key = next(iter(_SVG_RENDERER_CACHE), None)
-        if first_key is None:
-            return
-        _SVG_RENDERER_CACHE.pop(first_key, None)
+        _SVG_RENDERER_CACHE.popitem(last=False)
 
 
 @dataclass(slots=True)
@@ -119,8 +117,8 @@ class DetailsGraphExportController:
     def _write_text_export(
         self, *, path: str, content: str, log_message: str, warning_message: str
     ) -> None:
-        parent_dir = Path(path).expanduser().parent
-        if not parent_dir.exists():
+        export_path = Path(path).expanduser()
+        if not export_path.parent.exists():
             self.message_box_cls.warning(
                 self.dialog,
                 "Exportacao",
@@ -128,7 +126,7 @@ class DetailsGraphExportController:
             )
             return
         try:
-            with open(path, "w", encoding="utf-8") as handle:
+            with export_path.open("w", encoding="utf-8") as handle:
                 handle.write(content)
         except OSError as exc:
             self.logger.warning(log_message, exc)

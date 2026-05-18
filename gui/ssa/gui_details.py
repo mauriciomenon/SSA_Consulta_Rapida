@@ -17,7 +17,25 @@ from gui.helpers.theme_helpers import pick_css_color
 from gui.qt_stubs import QTimer
 from gui.ssa import details_data_provider
 from gui.ssa import details_derivadas_model
+from gui.ssa import details_graph_renderer
 from gui.ssa.details_display_config import DetailsDisplayConfig
+from gui.ssa.details_dialog_constants import (
+    DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT,
+    DERIVADAS_DIALOG_DETAILS_FONT_PT,
+    DERIVADAS_DIALOG_DETAILS_MIN_WIDTH,
+    DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT,
+    DERIVADAS_DIALOG_LABEL_FONT_PT,
+    DERIVADAS_DIALOG_MIN_HEIGHT,
+    DERIVADAS_DIALOG_MIN_WIDTH,
+    DERIVADAS_DIALOG_RATIO_LEFT,
+    DERIVADAS_DIALOG_RATIO_RIGHT,
+    DERIVADAS_DIALOG_TREE_FONT_PT,
+    DERIVADAS_DIALOG_TREE_MIN_WIDTH,
+    DERIVADAS_GRAPH_MAX_DESCENDANTS,
+    DERIVADAS_SPLITTER_HANDLE_WIDTH,
+    HIDDEN_DETAIL_FIELDS,
+    SSA_NORM_CACHE_MAX_ENTRIES,
+)
 from gui.ssa.details_graph_export import (
     DetailsGraphExportController,
     load_svg_render_dependencies,
@@ -34,26 +52,6 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 
 
 DETAILS_CONFIG = DetailsDisplayConfig()
-HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
-DERIVADAS_DIALOG_RATIO_LEFT = 24
-DERIVADAS_DIALOG_RATIO_RIGHT = 76
-DERIVADAS_DIALOG_MIN_HEIGHT = 640
-DERIVADAS_DIALOG_DETAILS_FONT_PT = 12.0
-DERIVADAS_DIALOG_TREE_FONT_PT = 12.0
-DERIVADAS_DIALOG_LABEL_FONT_PT = 11.0
-SSA_NORM_CACHE_MAX_ENTRIES = 64
-DERIVADAS_DIALOG_MIN_WIDTH = 960
-DERIVADAS_DIALOG_TREE_MIN_WIDTH = 180
-DERIVADAS_DIALOG_DETAILS_MIN_WIDTH = 520
-DERIVADAS_GRAPH_NODE_WIDTH = 100
-DERIVADAS_GRAPH_NODE_HEIGHT = 30
-DERIVADAS_GRAPH_X_GAP = 170
-DERIVADAS_GRAPH_Y_GAP = 60
-DERIVADAS_GRAPH_MARGIN = 8
-DERIVADAS_GRAPH_MAX_DESCENDANTS = 120
-DERIVADAS_DIALOG_GRAPH_PANEL_MIN_HEIGHT = 120
-DERIVADAS_SPLITTER_HANDLE_WIDTH = 10
-DERIVADAS_DIALOG_BOTTOM_TARGET_MIN_HEIGHT = 180
 
 
 def _init_readonly_text_browser(
@@ -373,18 +371,18 @@ def _get_df_ssa_series_index(window, df) -> dict[str, pd.Series]:
     lookup: dict[str, pd.Series] = {}
     normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
     try:
-        valid_series = normalized_series.astype("string").fillna("").str.strip()
-        valid_series = valid_series[valid_series.ne("")]
-        unique_series = valid_series[~valid_series.duplicated()]
-        if unique_series.empty:
+        normalized_text_series = normalized_series.astype("string").fillna("").str.strip()
+        first_value_mask = normalized_text_series.ne("") & ~normalized_text_series.duplicated()
+        first_row_positions = first_value_mask.to_numpy().nonzero()[0]
+        if len(first_row_positions) == 0:
             return lookup
-        first_rows = df.loc[unique_series.index]
-        if isinstance(first_rows, pd.Series):
-            first_rows = first_rows.to_frame().T
-        for normalized, (_, matched) in zip(unique_series.to_list(), first_rows.iterrows()):
+        first_rows = df.iloc[first_row_positions]
+        first_values = normalized_text_series.iloc[first_row_positions]
+        for offset, normalized in enumerate(first_values.to_list()):
             normalized_text = str(normalized or "").strip()
             if not normalized_text:
                 continue
+            matched = first_rows.iloc[offset]
             lookup[normalized_text] = matched
     except Exception as exc:
         logger.debug("Falha ao montar indice SSA por DataFrame: %s", exc)
@@ -834,7 +832,11 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
             return
         if pos is None:
             return
-        page_size = int(getattr(window.paginator, "page_size", 50))
+        paginator = getattr(window, "paginator", None)
+        if paginator is None:
+            _update_details_from_series(window, _matched_series)
+            return
+        page_size = int(getattr(paginator, "page_size", 50))
         if page_size <= 0:
             logger.warning(
                 "Page size invalido ao saltar para SSA %s: %s", num_norm, page_size
@@ -842,7 +844,7 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
             return
         page = int(pos // page_size + 1)
         try:
-            window.paginator.current_page = page
+            paginator.current_page = page
         except Exception as exc:
             logger.debug(
                 "Falha ao atualizar pagina atual no salto para SSA %s: %s",
@@ -866,7 +868,7 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
 
         def _select_target_row_later():
             try:
-                if int(getattr(window.paginator, "current_page", 1)) != page:
+                if int(getattr(paginator, "current_page", 1)) != page:
                     return
                 if row_in_page < 0 or row_in_page >= window.table_widget.rowCount():
                     return
@@ -1016,19 +1018,23 @@ def _get_cached_derivadas_family_edges(window) -> list[tuple[str, str]]:
 
 def _get_cached_derivadas_children_by_parent(window) -> dict[str, list[str]]:
     try:
-        edges = _get_cached_derivadas_family_edges(window)
+        source_df = getattr(window, "df_completo", None)
         cache_owner = getattr(window, "cache_manager", None)
         cache_get = getattr(cache_owner, "get_cached_value", None)
         cache_put = getattr(cache_owner, "cache_value", None)
         has_cache_manager = callable(cache_get) and callable(cache_put)
-        cache_key = (id(edges), len(edges))
-        if has_cache_manager:
+        data_revision = getattr(window, "_data_revision", None)
+        data_uuid = getattr(window, "_data_uuid", None)
+        row_count = len(source_df) if isinstance(source_df, pd.DataFrame) else 0
+        cache_key = (id(source_df), row_count, data_revision, data_uuid)
+        if data_uuid is not None and has_cache_manager:
             cached_map = cast(Any, cache_get)(
                 "details_derivadas_children_by_parent", cache_key
             )
             if isinstance(cached_map, dict):
                 return cast(dict[str, list[str]], cached_map)
 
+        edges = _get_cached_derivadas_family_edges(window)
         children_by_parent: dict[str, list[str]] = {}
         seen_by_parent: dict[str, set[str]] = {}
         for parent_value, child_value in edges:
@@ -1039,7 +1045,7 @@ def _get_cached_derivadas_children_by_parent(window) -> dict[str, list[str]]:
                 continue
             seen.add(child_value)
             children_by_parent.setdefault(parent_value, []).append(child_value)
-        if has_cache_manager:
+        if data_uuid is not None and has_cache_manager:
             cast(Any, cache_put)(
                 "details_derivadas_children_by_parent",
                 cache_key,
@@ -1058,25 +1064,12 @@ def _derivadas_frame_cache_token(window) -> object:
         return ("empty", 0)
     data_uuid = getattr(window, "_data_uuid", None)
     revision = getattr(window, "_data_revision", None)
-    if data_uuid is not None and revision is not None:
-        return ("revision", revision, tuple(getattr(df, "shape", (0, 0))))
-    columns = [
-        column
-        for column in ("numero_ssa", "derivada_de", "situacao")
-        if column in getattr(df, "columns", [])
-    ]
-    if columns:
-        try:
-            relation_hash = int(
-                pd.util.hash_pandas_object(
-                    df.loc[:, columns].astype("string").fillna(""),
-                    index=False,
-                ).sum()
-            )
-            return ("content", tuple(getattr(df, "shape", (0, 0))), relation_hash)
-        except Exception as exc:
-            logger.debug("Falha ao calcular assinatura local de derivadas: %s", exc)
-    return ("identity", id(df), tuple(getattr(df, "shape", (0, 0))))
+    shape = tuple(getattr(df, "shape", (0, 0)))
+    if data_uuid is not None:
+        if revision is not None:
+            return ("revision", revision, shape)
+        return ("uuid", data_uuid, shape)
+    return ("uncached", id(df), shape, object())
 
 
 def _collect_derivadas_tree_data(window, numero_ssa):
@@ -1397,127 +1390,11 @@ def _build_derivadas_graph_html(
     link_color: str,
     font_family: str,
 ) -> str:
-    graph_model = details_derivadas_model.build_graph_model(
-        data,
-        max_descendants=DERIVADAS_GRAPH_MAX_DESCENDANTS,
-        node_width=DERIVADAS_GRAPH_NODE_WIDTH,
-        node_height=DERIVADAS_GRAPH_NODE_HEIGHT,
-        x_gap=DERIVADAS_GRAPH_X_GAP,
-        y_gap=DERIVADAS_GRAPH_Y_GAP,
-        margin=DERIVADAS_GRAPH_MARGIN,
-        normalizer=_normalize_ssa_relation_value,
-    )
-    if graph_model is None:
-        return ""
-    node_w = DERIVADAS_GRAPH_NODE_WIDTH
-    node_h = DERIVADAS_GRAPH_NODE_HEIGHT
-    theme_roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
-    text_color = pick_css_color(
-        theme_roles.get("panel_text"),
-        theme_roles.get("label_color"),
-        fallback="#d0d0d0",
-    )
-    node_fill = pick_css_color(
-        theme_roles.get("input_bg"),
-        theme_roles.get("panel_bg"),
-        fallback="#1f1f1f",
-    )
-    node_target_fill = "#69b7ff"
-    node_stroke = pick_css_color(
-        link_color,
-        theme_roles.get("border"),
-        fallback="#4a90e2",
-    )
-
-    def _node_font_size(value: str) -> float:
-        usable_w = max(18.0, float(node_w) - 18.0)
-        text_len = max(1, len(str(value or "")))
-        by_width = usable_w / (text_len * 0.56)
-        by_height = max(10.0, float(node_h) * 0.56)
-        return max(11.0, min(by_width, by_height, 15.5))
-
-    svg_lines = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{graph_model.svg_width}" '
-        f'height="{graph_model.svg_height}" viewBox="0 0 {graph_model.svg_width} {graph_model.svg_height}">',
-        "<defs>",
-        '<marker id="arrow" markerWidth="4" markerHeight="4" refX="3.5" refY="1.7" orient="auto">',
-        f'<polygon points="0 0, 4 1.7, 0 3.4" fill="{node_stroke}" />',
-        "</marker>",
-        "</defs>",
-    ]
-
-    lane_counters: dict[tuple[str, int], int] = {}
-
-    def _compute_lane_x(source: str, x1: float, x2: float) -> float:
-        direction = 1 if x2 >= x1 else -1
-        lane_key = (source, direction)
-        lane_index = lane_counters.get(lane_key, 0)
-        lane_counters[lane_key] = lane_index + 1
-        span = x2 - x1 if direction > 0 else x1 - x2
-        if span <= 0:
-            return x1
-        min_offset = min(2.0, span / 2.0)
-        max_offset = max(min_offset, span - min_offset)
-        lane_offset = min(max(min_offset, float(lane_index + 1) * 3.0), max_offset)
-        return x1 + (direction * lane_offset)
-
-    for source, target_node in graph_model.edges:
-        source_pos = graph_model.positions.get(source)
-        target_pos = graph_model.positions.get(target_node)
-        if source_pos is None or target_pos is None:
-            continue
-        sx, sy = source_pos
-        tx, ty = target_pos
-        x1 = sx + node_w / 2.0 + graph_model.offset_x
-        x2 = tx - node_w / 2.0 + graph_model.offset_x
-        y1 = sy + graph_model.offset_y
-        y2 = ty + graph_model.offset_y
-        mid_x = _compute_lane_x(source, x1, x2)
-        dash_attr = (
-            ' stroke-dasharray="7 6"'
-            if (source, target_node) in graph_model.dashed_edges
-            else ""
-        )
-        safe_source = html_module.escape(source, quote=True)
-        safe_target_node = html_module.escape(target_node, quote=True)
-        svg_lines.append(
-            f'<path data-from="{safe_source}" data-to="{safe_target_node}" '
-            f'd="M{x1:.1f},{y1:.1f} L{mid_x:.1f},{y1:.1f} '
-            f'L{mid_x:.1f},{y2:.1f} L{x2:.1f},{y2:.1f}" '
-            f'fill="none" stroke="{node_stroke}" stroke-width="0.9" '
-            f'marker-end="url(#arrow)"{dash_attr} />'
-        )
-
-    for node, (x, y) in graph_model.positions.items():
-        x0 = x - node_w / 2.0 + graph_model.offset_x
-        y0 = y - node_h / 2.0 + graph_model.offset_y
-        fill = node_target_fill if node == graph_model.target else node_fill
-        safe_node = html_module.escape(node)
-        svg_lines.append(
-            f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{node_w}" height="{node_h}" '
-            f'rx="5" ry="5" fill="{fill}" stroke="{node_stroke}" stroke-width="0.8" />'
-        )
-        svg_lines.append(
-            f'<text x="{(x0 + node_w / 2.0):.1f}" y="{(y0 + node_h / 2.0 + 5):.1f}" text-anchor="middle" '
-            f'font-family="{html_module.escape(font_family)}" font-size="{_node_font_size(node):.1f}" fill="{text_color}">{safe_node}</text>'
-        )
-    svg_lines.append("</svg>")
-
-    summary = (
-        f"Nos: {len(graph_model.nodes)} | Relacoes: {len(graph_model.edges)} | "
-        f"Descendentes: {graph_model.descendants_count}"
-    )
-    if graph_model.truncated > 0:
-        summary = (
-            f"{summary} | Exibicao parcial de descendentes: +{graph_model.truncated}"
-        )
-    return (
-        "<html><body style="
-        f'"font-family:{html_module.escape(font_family)}; margin:6px;">'
-        "<div style='margin-bottom:6px; font-weight:600;'>Grafo de derivadas</div>"
-        f"{''.join(svg_lines)}"
-        f"<div style='margin-top:8px; opacity:0.85;'>{html_module.escape(summary)}</div>"
-        "</body></html>"
+    return details_graph_renderer.build_derivadas_graph_html(
+        current_theme=str(getattr(window, "_current_theme", "dark") or "dark"),
+        data=data,
+        link_color=link_color,
+        font_family=font_family,
     )
 
 
@@ -1724,7 +1601,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa, series=None):
         tree_graph_browser,
         0,
         0,
-        alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter,
+        alignment=Qt.AlignmentFlag.AlignCenter,
     )
     export_button = QToolButton(tree_graph_panel)
     export_button.setText("Exportar")
