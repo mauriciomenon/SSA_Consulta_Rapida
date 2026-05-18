@@ -11,6 +11,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 import core.config_manager as config_manager  # noqa: E402
+from interface import config_command  # noqa: E402
 
 
 def test_save_settings_is_atomic_and_does_not_corrupt_existing_file(
@@ -78,11 +79,11 @@ def test_handle_config_command_merges_with_latest_settings_before_save(monkeypat
             "external_key": "keep",
         }
 
-    monkeypatch.setattr(config_manager, "load_settings", _load_settings)
-    monkeypatch.setattr(config_manager, "save_settings", lambda data: saved.append(data))
+    monkeypatch.setattr(config_command, "load_settings", _load_settings)
+    monkeypatch.setattr(config_command, "save_settings", lambda data: saved.append(data))
     monkeypatch.setattr(builtins, "input", lambda _prompt: next(inputs))
 
-    config_manager.handle_config_command()
+    config_command.handle_config_command()
 
     assert load_calls["count"] == 2
     assert saved == [
@@ -102,17 +103,17 @@ def test_handle_config_command_skips_save_when_nothing_changed(monkeypatch):
     inputs = iter(["", ""])
 
     monkeypatch.setattr(
-        config_manager,
+        config_command,
         "load_settings",
         lambda: {
             "default_filters": ["keep"],
             "user_preferences": {"filter_mode_default": "contains"},
         },
     )
-    monkeypatch.setattr(config_manager, "save_settings", lambda data: saved.append(data))
+    monkeypatch.setattr(config_command, "save_settings", lambda data: saved.append(data))
     monkeypatch.setattr(builtins, "input", lambda _prompt: next(inputs))
 
-    config_manager.handle_config_command()
+    config_command.handle_config_command()
 
     assert saved == []
 
@@ -123,9 +124,11 @@ def test_save_settings_creates_new_file_with_private_mode(tmp_path, monkeypatch)
     monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
     settings_path = cfg_dir / "settings.json"
 
-    config_manager.save_settings({"secret": "local"})
+    config_manager.save_settings({"local_value": "local"})
 
-    assert json.loads(settings_path.read_text(encoding="utf-8")) == {"secret": "local"}
+    assert json.loads(settings_path.read_text(encoding="utf-8")) == {
+        "local_value": "local"
+    }
     if os.name == "nt":
         return
     assert stat.S_IMODE(settings_path.stat().st_mode) == 0o600

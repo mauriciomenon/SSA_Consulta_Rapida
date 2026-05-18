@@ -715,6 +715,7 @@ class FilterGUISSAMixin:
             unique_chunk_terms_lists,
             default_mode=default_mode,
             general_search_columns=general_search_columns,
+            filter_dataframe_func=filter_dataframe,
         )
 
     def _get_default_filter_mode(self) -> str:
@@ -1659,7 +1660,7 @@ class FilterGUISSAMixin:
                 self.search_input.setText("")
         self._pending_search_display = None
         self._active_filter_search_display = ""
-        self._df_last_search_filtered = pd.DataFrame()
+        self._df_last_search_filtered = self.df_completo
 
         # Limpar todos os filtros de coluna com o mesmo baseline padrao
         self._active_column_filters = OrderedDict(
@@ -1743,7 +1744,7 @@ class FilterGUISSAMixin:
 
         self._pending_search_display = None
         self._pending_filter_focus = None
-        self._df_last_search_filtered = pd.DataFrame()
+        self._df_last_search_filtered = self.df_completo
         self._active_column_filters = OrderedDict(
             (col, "") for col in self._column_filter_default_columns()
         )
@@ -2565,15 +2566,19 @@ class FilterGUISSAMixin:
 
     def _schedule_filter_refresh_details_update(self) -> None:
         expected_revision = int(getattr(self, "_data_revision", 0) or 0)
+        self_ref = weakref.ref(self)
 
         def update_details_if_current() -> None:
+            window = self_ref()
+            if window is None:
+                return
             try:
-                if int(getattr(self, "_data_revision", 0) or 0) != expected_revision:
+                if int(getattr(window, "_data_revision", 0) or 0) != expected_revision:
                     return
-                table = getattr(self, "table_widget", None)
+                table = getattr(window, "table_widget", None)
                 row_count = int(table.rowCount()) if table is not None else 0
-                series = self._get_series_from_row(0) if row_count > 0 else None
-                ssa_gui_details._update_details_from_series(self, series)
+                series = window._get_series_from_row(0) if row_count > 0 else None
+                ssa_gui_details._update_details_from_series(window, series)
             except Exception as exc:
                 logger.debug(
                     "Falha ao atualizar detalhes apos refresh de filtros: %s", exc
@@ -2751,10 +2756,7 @@ class FilterGUISSAMixin:
         sanitizes active-filter lines so a non-empty filter cannot become
         invisible.
         """
-        try:
-            search_text = self.search_input.text()
-        except Exception:
-            search_text = ""
+        search_text = self._current_general_search_text()
         try:
             active_filters = OrderedDict(self._active_column_filters or {})
         except Exception:
@@ -2792,10 +2794,7 @@ class FilterGUISSAMixin:
         }
 
     def _filter_state_signature(self) -> tuple:
-        try:
-            search_text = self.search_input.text()
-        except Exception:
-            search_text = ""
+        search_text = self._current_general_search_text()
         active_filters = getattr(self, "_active_column_filters", {}) or {}
         or_groups = getattr(self, "_column_or_groups", []) or []
         hidden_lines = getattr(self, "_hidden_column_filter_lines", set()) or set()

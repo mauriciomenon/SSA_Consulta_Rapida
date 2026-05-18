@@ -1,7 +1,6 @@
 """Testes específicos para filtros combinados (AND/OU) da GUI principal."""
 
 import copy
-import builtins
 import json
 import os
 import re
@@ -39,6 +38,7 @@ from gui.gui_config import DEFAULT_COLUMN_WIDTHS  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
+from gui.ssa import filter_aliases  # noqa: E402
 from gui.ssa import gui_filters_advanced_layout as advanced_layout  # noqa: E402
 from gui.ssa import gui_filters_multiselect_menu as advanced_menu  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
@@ -697,7 +697,10 @@ class TestGUIFilterLogic:
             ]
             assert "IEE3, MEL3, MEL4" in summary_text
             assert any("Exec" in text for text in summary_buttons)
-            assert col in self.window._column_to_or_group
+            assert {
+                "setor_executor",
+                "setor_emissor",
+            }.issubset(self.window._column_to_or_group)
 
         # Ajuste manual em um campo deve repercutir no par
         self.window._active_column_filters["setor_executor"] = "MEL4"
@@ -948,7 +951,7 @@ class TestGUIFilterLogic:
         summary_widget = getattr(self.window, "filters_summary_items_widget", None)
         assert summary_widget is not None
         buttons = summary_widget.findChildren(QPushButton)
-        exclude_button = next(
+        situacao_exclude_button = next(
             btn for btn in buttons if "situacao!=SCA/SES/STE" in str(btn.text() or "")
         )
 
@@ -956,7 +959,9 @@ class TestGUIFilterLogic:
             "gui.mixins.filter_gui_ssa_mixin.QMessageBox.question",
             return_value=QtWidgets.QMessageBox.StandardButton.Yes,
         ):
-            cast(Any, QTest).mouseClick(exclude_button, Qt.MouseButton.LeftButton)
+            cast(Any, QTest).mouseClick(
+                situacao_exclude_button, Qt.MouseButton.LeftButton
+            )
             QApplication.processEvents()
 
         assert self.window._exclude_ste_sca is False
@@ -1625,7 +1630,9 @@ class TestGUIFilterLogic:
         self.window.internal_to_display["parciais"] = "Parciais"
         self.window.internal_to_display["situacao_da_parcial"] = "Situacao Parcial"
 
-        monkeypatch.setattr(QtWidgets, "QMenu", _FakeMenu)
+        from gui.ssa import column_filter_panel
+
+        monkeypatch.setattr(column_filter_panel, "QMenu", _FakeMenu)
 
         self.window._open_add_column_filter_menu()
         menu_columns = {action.data() for action in created_actions}
@@ -3600,8 +3607,14 @@ class TestGUIFilterLogic:
         assert Counter(self._extract_visible_ssa()) == Counter()
         assert self.window.search_input.text().strip() == "Teste A, Teste D"
 
-    def test_general_search_debounce_uses_minimum_interval(self):
-        assert int(self.window._debounce_timer.interval()) >= 1400
+    def test_general_search_debounce_uses_configured_interval_without_legacy_floor(self):
+        expected = gui_ssa.ssa_system_controller.resolve_search_debounce_ms(
+            gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {}),
+            logger=gui_ssa.logger,
+        )
+
+        assert int(self.window._debounce_timer.interval()) == expected
+        assert expected < 1400
 
     def test_clear_filter_on_filters_tab_clears_search_in_all_tabs(self):
         self.window.search_input.setText("Teste A")
@@ -8035,26 +8048,26 @@ class TestGUIFilterLogic:
     def test_filter_alias_map_reuses_module_cache_between_instances(
         self, monkeypatch
     ):
-        monkeypatch.setattr(filter_mixin, "_FILTER_ALIAS_MAP_CACHE", None)
-        monkeypatch.setattr(filter_mixin, "_FILTER_ALIAS_MAP_CACHE_LOADED", False)
+        filter_aliases.load_filter_alias_map_once.cache_clear()
         opened_paths: list[str] = []
-        real_open = builtins.open
+        real_open = filter_aliases.Path.open
 
-        def _counted_open(path, *args, **kwargs):
-            if str(path).endswith("filter_aliases.json"):
-                opened_paths.append(str(path))
-            return real_open(path, *args, **kwargs)
+        def _counted_open(path_obj, *args, **kwargs):
+            if str(path_obj).endswith("filter_aliases.json"):
+                opened_paths.append(str(path_obj))
+            return real_open(path_obj, *args, **kwargs)
 
         class _AliasConsumer(filter_mixin.FilterGUISSAMixin):
             pass
 
-        monkeypatch.setattr(builtins, "open", _counted_open)
+        monkeypatch.setattr(filter_aliases.Path, "open", _counted_open)
 
         first_map = _AliasConsumer()._get_filter_alias_map()
         second_map = _AliasConsumer()._get_filter_alias_map()
 
         assert first_map == second_map
         assert len(opened_paths) == 1
+        filter_aliases.load_filter_alias_map_once.cache_clear()
 
     def test_advanced_filter_include_ignores_nullable_text_instead_of_na_literal(self):
         nullable_df = self.base_df.assign(
@@ -8364,6 +8377,8 @@ class TestGUIFilterLogic:
 
         def _fake_filter(_df, parsed, **_kwargs):
             values = tuple(token.get("value") for token in parsed)
+            if set(values) == {"chunk-a", "chunk-b"}:
+                return self.base_df.iloc[[0, 1, 2]].copy()
             if values == ("chunk-a",):
                 return self.base_df.iloc[[0, 1]].copy()
             return self.base_df.iloc[[1, 2]].copy()
@@ -8394,6 +8409,8 @@ class TestGUIFilterLogic:
 
         def _fake_filter(_df, parsed, **_kwargs):
             values = tuple(token.get("value") for token in parsed)
+            if set(values) == {"chunk-a", "chunk-b"}:
+                return repeated_df.iloc[[0, 1]].copy()
             if values == ("chunk-a",):
                 return repeated_df.iloc[[0]].copy()
             return repeated_df.iloc[[1]].copy()

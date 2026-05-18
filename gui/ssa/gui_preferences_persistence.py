@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import copy
 import queue
 import threading
-import time
 from collections.abc import Callable
+from typing import Any
 
 from core.config_manager import atomic_write_json_file
 from gui.gui_config import get_gui_main_preferences_path
@@ -46,7 +45,7 @@ class PreferencesWriter:
         self._debounce_seconds = debounce_seconds
         self._retries = retries
         self._lock = threading.Lock()
-        self._queue: queue.Queue[dict | None] = queue.Queue()
+        self._queue: queue.Queue[dict[Any, Any] | None] = queue.Queue()
         self._stopped = False
         self._thread = threading.Thread(
             target=self._run,
@@ -55,51 +54,117 @@ class PreferencesWriter:
         )
         self._thread.start()
 
-    def persist_async(self, gui_prefs: dict) -> None:
+    def persist_async(self, gui_prefs: dict) -> bool:
+        """Queue a preferences write and return only the enqueue status."""
         with self._lock:
             if self._stopped:
-                return
-            self._queue.put(_snapshot_preferences(gui_prefs))
+                return False
+            self._queue.put(gui_prefs)
+            return True
+
+    @property
+    def is_stopped(self) -> bool:
+        with self._lock:
+            return self._stopped
 
     def _run(self) -> None:
         while True:
             prefs_snapshot = self._queue.get()
             if prefs_snapshot is None:
+                self._queue.task_done()
                 return
-            time.sleep(self._debounce_seconds)
-            stop_after_write = False
-            while True:
-                try:
-                    next_snapshot = self._queue.get_nowait()
-                except queue.Empty:
-                    break
-                if next_snapshot is None:
-                    stop_after_write = True
-                    break
-                prefs_snapshot = next_snapshot
-            self._write_func(prefs_snapshot, retries=self._retries)
+            try:
+                prefs_snapshot, stop_after_write = self._drain_latest_snapshot(
+                    prefs_snapshot
+                )
+                self._write_func(
+                    _snapshot_preferences(prefs_snapshot),
+                    retries=self._retries,
+                )
+            finally:
+                self._queue.task_done()
             if stop_after_write:
                 return
 
-    def shutdown(self, *, timeout: float = 1.0) -> None:
+    def _drain_latest_snapshot(
+        self, prefs_snapshot: dict[str, Any]
+    ) -> tuple[dict[str, Any], bool]:
+        stop_after_write = False
+        while True:
+            try:
+                next_snapshot = self._queue.get(timeout=self._debounce_seconds)
+            except queue.Empty:
+                break
+            if next_snapshot is None:
+                stop_after_write = True
+                self._queue.task_done()
+                continue
+            prefs_snapshot = next_snapshot
+            self._queue.task_done()
+        return prefs_snapshot, stop_after_write
+
+    def shutdown(self, *, timeout: float | None = 1.0) -> None:
         with self._lock:
             if not self._stopped:
                 self._stopped = True
                 self._queue.put(None)
             thread = self._thread
+        if timeout is None:
+            thread.join()
+            return
         thread.join(timeout=max(0.0, float(timeout)))
 
 
 def _snapshot_preferences(gui_prefs: dict) -> dict:
-    return copy.deepcopy(gui_prefs)
+    return {
+        key: _snapshot_json_value(value)
+        for key, value in gui_prefs.items()
+    }
 
 
+def _snapshot_json_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _snapshot_json_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_snapshot_json_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_snapshot_json_value(item) for item in value]
+    return value
+
+
+_GUI_PREFERENCES_WRITER_LOCK = threading.Lock()
 _GUI_PREFERENCES_WRITER = PreferencesWriter(persist_gui_preferences, retries=1)
 
 
-def persist_gui_preferences_async(gui_prefs: dict) -> None:
-    _GUI_PREFERENCES_WRITER.persist_async(gui_prefs)
+def _get_gui_preferences_writer() -> PreferencesWriter:
+    global _GUI_PREFERENCES_WRITER
+    writer_to_shutdown: PreferencesWriter | None = None
+    with _GUI_PREFERENCES_WRITER_LOCK:
+        if not _GUI_PREFERENCES_WRITER.is_stopped:
+            return _GUI_PREFERENCES_WRITER
+        writer_to_shutdown = _GUI_PREFERENCES_WRITER
+
+    writer_to_shutdown.shutdown(timeout=None)
+
+    with _GUI_PREFERENCES_WRITER_LOCK:
+        if _GUI_PREFERENCES_WRITER is writer_to_shutdown:
+            _GUI_PREFERENCES_WRITER = PreferencesWriter(
+                persist_gui_preferences,
+                retries=1,
+            )
+        return _GUI_PREFERENCES_WRITER
 
 
-def flush_gui_preferences_async(*, timeout: float = 1.0) -> None:
-    _GUI_PREFERENCES_WRITER.shutdown(timeout=timeout)
+def persist_gui_preferences_async(gui_prefs: dict) -> bool:
+    """Queue GUI preferences for async persistence.
+
+    The return value confirms only that the update was accepted by the writer.
+    Disk write failures are logged by the background writer.
+    """
+    return _get_gui_preferences_writer().persist_async(gui_prefs)
+
+
+def shutdown_gui_preferences_writer(*, timeout: float = 1.0) -> None:
+    with _GUI_PREFERENCES_WRITER_LOCK:
+        writer = _GUI_PREFERENCES_WRITER
+    writer.shutdown(timeout=timeout)

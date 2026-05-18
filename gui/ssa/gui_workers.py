@@ -478,7 +478,7 @@ def cleanup_rescan_worker_on_close(
                 "Falha ao consultar estado inicial do RescanWorker no closeEvent (%s). Assumindo ativo para shutdown defensivo.",
                 exc,
             )
-        if running_now and not retained_globally:
+        if running_now:
             try:
                 if hasattr(worker, "stop"):
                     worker.stop()
@@ -495,6 +495,7 @@ def cleanup_rescan_worker_on_close(
                     "Falha ao solicitar quit do RescanWorker no closeEvent: %s",
                     exc,
                 )
+        if running_now and not retained_globally:
             try:
                 if hasattr(worker, "wait"):
                     worker.wait(max(0, int(retired_force_wait_ms)))
@@ -506,7 +507,11 @@ def cleanup_rescan_worker_on_close(
     except Exception as exc:
         logger.debug("Falha ao encerrar RescanWorker durante closeEvent: %s", exc)
     finally:
-        if not retained_globally and is_worker_alive(worker, sip_module):
+        if (
+            not retained_globally
+            and is_worker_alive(worker, sip_module)
+            and is_rescan_worker_running(worker, sip_module)
+        ):
             retain_rescan_worker_global(
                 worker,
                 reason="fallback-finally",
@@ -745,7 +750,9 @@ def _prepare_data_load_request(window) -> int:
     except Exception as exc:
         logger.warning("Falha ao cancelar worker de filtro antes do load: %s", exc)
     try:
-        window._debounce_timer.stop()
+        debounce_timer = getattr(window, "_debounce_timer", None)
+        if debounce_timer is not None:
+            debounce_timer.stop()
     except Exception as exc:
         logger.debug("Falha ao parar debounce de filtro antes do load: %s", exc)
 
@@ -1053,10 +1060,6 @@ def load_data(
         sip_module=sip_module,
     )
     worker.start()
-    with _GLOBAL_WORKERS_LOCK:
-        if worker not in global_workers:
-            global_workers.append(worker)
-        global_meta[worker] = perf_counter()
 
 
 def _is_stale_data_load_result(window, request_id: int | None) -> bool:

@@ -72,6 +72,7 @@ from gui.ssa import derivadas_sync_controller as ssa_derivadas_sync  # noqa: E40
 from gui.ssa import database_operations as ssa_database_operations  # noqa: E402
 from gui.ssa import list_export_controller as ssa_list_export_controller  # noqa: E402
 from gui.ssa import system_integration as ssa_system  # noqa: E402
+from gui.ssa import main_window_system_controller as ssa_system_controller  # noqa: E402
 from gui.ssa.derivadas_table_resolver import resolve_derivadas_table_name  # noqa: E402
 from gui.ssa.main_window_filter_bar import (  # noqa: E402
     build_filters_summary_bar,
@@ -635,17 +636,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.debug("Falha ao aplicar altura fixa em %s: %s", label, exc)
 
     def _persist_gui_preferences(self):
-        try:
-            atomic_write_json_file(
-                get_gui_main_preferences_path(),
-                GUI_MAIN_PREFERENCES,
-                indent=2,
-                ensure_ascii=False,
-            )
-            return True
-        except Exception as exc:
-            logger.warning("Falha ao persistir preferencias GUI: %s", exc)
-            return False
+        persisted = ssa_system_controller.queue_gui_preferences_write(
+            GUI_MAIN_PREFERENCES
+        )
+        if not persisted:
+            logger.warning("Falha ao enfileirar persistencia de preferencias GUI.")
+        return persisted
 
     def _resolve_startup_theme(self):
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
@@ -956,20 +952,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "column_widths", {}
         ).copy()
 
-        # Debounce de filtro (da configuracao JSON).
-        # Mantemos um piso para incentivar uso do botao "Aplicar" sem remover debounce.
-        debounce_delay = gui_settings.get("debounce_delay", 250)
-        try:
-            debounce_delay = int(debounce_delay)
-        except (TypeError, ValueError) as exc:
-            logger.warning(
-                "Valor invalido para debounce_delay nas preferencias (%s); usando fallback 250 ms.",
-                exc,
-            )
-            debounce_delay = 250
-        minimum_search_debounce_ms = 1400  # ms
-        if debounce_delay < minimum_search_debounce_ms:
-            debounce_delay = minimum_search_debounce_ms
+        debounce_delay = ssa_system_controller.resolve_search_debounce_ms(
+            gui_settings,
+            logger=logger,
+        )
         self._debounce_timer = QTimer(self)
         self._debounce_timer.setSingleShot(True)
         self._debounce_timer.setInterval(debounce_delay)
@@ -2062,20 +2048,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         GUI_MAIN_PREFERENCES["hidden_columns"] = list(hidden_columns)
         if os.environ.get("PYTEST_CURRENT_TEST"):
             return
-        snapshot = copy.deepcopy(GUI_MAIN_PREFERENCES)
-        snapshot["display_columns"] = list(ordered_visible_columns)
-        snapshot["hidden_columns"] = list(hidden_columns)
-        try:
-            atomic_write_json_file(
-                get_gui_main_preferences_path(),
-                snapshot,
-                indent=2,
-                ensure_ascii=False,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Falha ao persistir nova ordem de colunas apos drag no header: %s", exc
-            )
+        SSAMainWindow._persist_gui_preferences(cast(Any, self))
 
     def _on_header_section_moved(
         self,
@@ -2531,18 +2504,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     @staticmethod
     def _build_sam_ssa_url(numero_ssa: str) -> str:
-        return ssa_system.build_sam_ssa_url(numero_ssa)
+        return ssa_system_controller.build_sam_ssa_url(numero_ssa)
 
     def _open_url_in_browser(self, url: str, *, success_status: str) -> bool:
-        qurl = QUrl(str(url or ""))
-        if not ssa_system.is_allowed_sam_url(qurl):
-            logger.warning(
-                "URL externa bloqueada por politica local: scheme=%s host=%s",
-                str(qurl.scheme() or "").casefold() or "<empty>",
-                str(qurl.host() or "").casefold() or "<empty>",
-            )
-            return False
-        ok = ssa_system.open_allowed_url(
+        ok = ssa_system_controller.open_allowed_url(
             url,
             qdesktopservices=QDesktopServices,
             qurl_cls=QUrl,
@@ -2553,27 +2518,27 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return ok
 
     def _open_sam_home(self):
-        opened = self._open_url_in_browser(
-            ssa_system.SAM_HOME_URL,
-            success_status="Status: SAM aberto no navegador.",
+        opened = ssa_system_controller.open_sam_home(
+            qdesktopservices=QDesktopServices,
+            qurl_cls=QUrl,
+            logger=logger,
         )
+        if opened and hasattr(self, "status_label"):
+            self.status_label.setText("Status: SAM aberto no navegador.")
         if not opened and not os.environ.get("PYTEST_CURRENT_TEST"):
             QMessageBox.warning(self, "Erro", "Falha ao abrir o SAM no navegador.")
         return opened
 
     def _open_sam_ssa(self, numero_ssa: str):
         safe_numero = self._normalize_ssa_value(numero_ssa)
-        if not re.fullmatch(r"[A-Za-z0-9]+", safe_numero):
-            logger.warning("Numero SSA invalido para URL SAM: %s", safe_numero)
-            return False
-        sam_url = self._build_sam_ssa_url(safe_numero)
-        if not ssa_system.is_allowed_sam_url(QUrl(sam_url)):
-            logger.warning("URL SAM rejeitada por host fora da allow-list.")
-            return False
-        opened = self._open_url_in_browser(
-            sam_url,
-            success_status=f"Status: SSA {safe_numero} aberta no SAM.",
+        opened, safe_numero = ssa_system_controller.open_sam_ssa(
+            safe_numero,
+            qdesktopservices=QDesktopServices,
+            qurl_cls=QUrl,
+            logger=logger,
         )
+        if opened and hasattr(self, "status_label"):
+            self.status_label.setText(f"Status: SSA {safe_numero} aberta no SAM.")
         if not opened and not os.environ.get("PYTEST_CURRENT_TEST"):
             QMessageBox.warning(
                 self,
@@ -2984,15 +2949,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         }
 
     def _resolve_settings_file_path(self) -> str:
-        try:
-            from core import config_manager
-
-            resolver = getattr(config_manager, "_resolve_config_path", None)
-            if callable(resolver):
-                return str(resolver(config_manager.USER_SETTINGS_FILE))
-        except Exception as exc:
-            logger.debug("Falha ao resolver settings path via config_manager: %s", exc)
-        return os.path.join(project_root, "config", "settings.json")
+        return ssa_system_controller.resolve_settings_file_path(project_root)
 
     @staticmethod
     def _validate_local_open_target(
@@ -3002,28 +2959,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         expect_dir: bool | None,
         allowed_base: str | list[str] | tuple[str, ...] | None = None,
     ) -> str:
-        project_base = os.path.realpath(os.path.normpath(project_root))
-        raw_bases = (
-            [allowed_base]
-            if isinstance(allowed_base, str) or allowed_base is None
-            else list(allowed_base)
-        )
-        safe_bases = []
-        for raw_base in raw_bases:
-            candidate = project_base if raw_base is None else str(raw_base)
-            normalized_base = os.path.realpath(os.path.normpath(candidate))
-            try:
-                if os.path.commonpath([normalized_base, project_base]) == project_base:
-                    safe_bases.append(normalized_base)
-            except ValueError:
-                continue
-        if not safe_bases:
-            raise ValueError("Base permitida fora do projeto.")
-        return ssa_system.validate_local_open_target(
+        return ssa_system_controller.validate_project_open_target(
+            project_root,
             target_path,
             must_exist=must_exist,
             expect_dir=expect_dir,
-            allowed_base=tuple(safe_bases),
+            allowed_base=allowed_base,
         )
 
     @staticmethod
@@ -3032,17 +2973,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def open_settings_file_with_backup(self):
         """Abre settings.json para edicao apos criar backup failsafe com timestamp."""
-        settings_path = os.path.abspath(self._resolve_settings_file_path())
-        os.makedirs(os.path.dirname(settings_path), exist_ok=True)
-
         try:
-            if not os.path.exists(settings_path):
-                from core.config_manager import load_settings, save_settings
-
-                save_settings(load_settings())
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            backup_path = f"{settings_path}.bak_{timestamp}"
-            shutil.copy2(settings_path, backup_path)
+            requested_settings_path = self._resolve_settings_file_path()
+            prepared = ssa_system_controller.prepare_settings_file_for_edit(
+                project_root,
+                settings_path=requested_settings_path,
+            )
+            settings_path = str(prepared["settings_path"])
         except Exception as exc:
             logger.warning("Falha ao preparar backup de settings: %s", exc)
             if not os.environ.get("PYTEST_CURRENT_TEST"):
@@ -3054,7 +2991,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return {
                 "opened": False,
                 "backup_created": False,
-                "settings_path": settings_path,
+                "settings_path": self._resolve_settings_file_path(),
             }
 
         try:
@@ -3062,7 +2999,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 settings_path,
                 must_exist=True,
                 expect_dir=False,
-                allowed_base=os.path.join(project_root, "config"),
+                allowed_base=os.path.dirname(settings_path),
             )
         except Exception as exc:
             logger.warning("Caminho de settings invalido para abertura: %s", exc)
@@ -3076,7 +3013,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         opened = False
         try:
-            opened = ssa_system.open_local_path_non_blocking(
+            opened = ssa_system_controller.open_local_path(
                 safe_settings_path,
                 qdesktopservices=QDesktopServices,
                 qurl_cls=QUrl,
@@ -3106,31 +3043,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def reset_settings_to_defaults(self):
         """Restaura settings.json para os valores padrao com backup previo."""
         settings_path = self._resolve_settings_file_path()
-        os.makedirs(os.path.dirname(settings_path), exist_ok=True)
-
-        try:
-            from core import config_manager
-
-            resolver = getattr(config_manager, "_resolve_config_path", None)
-            if callable(resolver):
-                default_settings_path = str(
-                    resolver(config_manager.DEFAULT_SETTINGS_FILE)
-                )
-            else:
-                default_settings_path = os.path.join(
-                    project_root, "config", "default_settings.json"
-                )
-            if not os.path.exists(default_settings_path):
-                config_manager.ensure_default_settings(fail_fast=False)
-            with open(default_settings_path, "r", encoding="utf-8") as handle:
-                default_settings = json.load(handle)
-        except Exception as exc:
-            logger.warning("Falha ao carregar defaults de opcoes: %s", exc)
-            if not os.environ.get("PYTEST_CURRENT_TEST"):
-                QMessageBox.warning(
-                    self, "Erro", f"Falha ao carregar opcoes padrao: {exc}"
-                )
-            return {"ok": False, "reason": "load_default_failed"}
 
         if not os.environ.get("PYTEST_CURRENT_TEST"):
             qmessagebox = cast(Any, QMessageBox)
@@ -3144,26 +3056,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if answer != qmessagebox.StandardButton.Yes:
                 return {"ok": False, "cancelled": True}
 
-        backup_created = False
-        backup_path = ""
         try:
-            if os.path.exists(settings_path):
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-                backup_path = f"{settings_path}.bak_{timestamp}"
-                shutil.copy2(settings_path, backup_path)
-                backup_created = True
-        except Exception as exc:
-            logger.warning("Falha ao criar backup antes do reset de opcoes: %s", exc)
-            if not os.environ.get("PYTEST_CURRENT_TEST"):
-                QMessageBox.warning(
-                    self, "Erro", f"Falha ao criar backup de opcoes: {exc}"
-                )
-            return {"ok": False, "reason": "backup_failed"}
-
-        try:
-            from core.config_manager import save_settings
-
-            save_settings(default_settings)
+            result = ssa_system_controller.reset_settings_file_to_defaults(
+                project_root,
+                settings_path=settings_path,
+            )
         except Exception as exc:
             logger.warning("Falha ao restaurar opcoes padrao: %s", exc)
             if not os.environ.get("PYTEST_CURRENT_TEST"):
@@ -3174,12 +3071,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self.status_label.setText("Status: Opcoes padrao restauradas com sucesso.")
         if not os.environ.get("PYTEST_CURRENT_TEST"):
             QMessageBox.information(self, "Sucesso", "Opcoes padrao restauradas.")
-        return {
-            "ok": True,
-            "settings_path": settings_path,
-            "backup_created": backup_created,
-            "backup_path": backup_path,
-        }
+        return result
 
     def consolidate_input_files(self):
         """Enfileira consolidacao de docs_entrada para processadas em background."""
@@ -3339,7 +3231,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     for path in _iter_installation_guide_candidates()
                 ),
             )
-            opened = ssa_system.open_local_path_non_blocking(
+            opened = ssa_system_controller.open_local_path(
                 safe_doc_path,
                 qdesktopservices=QDesktopServices,
                 qurl_cls=QUrl,
@@ -3437,8 +3329,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     @staticmethod
     def _execute_vacuum_analyze(db_path: str) -> dict[str, Any]:
-        return ssa_database_operations.execute_vacuum_analyze(
-            db_path, vacuum_analyze_database
+        return ssa_system_controller.execute_vacuum_analyze(
+            db_path,
+            vacuum_analyze_database,
         )
 
     def _finalize_vacuum_analyze_result(self, result: dict[str, Any]) -> dict[str, Any]:
@@ -3516,7 +3409,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return
 
         try:
-            opened = ssa_system.open_local_path_non_blocking(
+            opened = ssa_system_controller.open_local_path(
                 safe_folder_path,
                 qdesktopservices=QDesktopServices,
                 qurl_cls=QUrl,
@@ -3827,9 +3720,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         'QThread: Destroyed while thread is still running'
         """
         try:
-            from gui.ssa.gui_preferences_persistence import flush_gui_preferences_async
+            from gui.ssa.gui_preferences_persistence import shutdown_gui_preferences_writer
 
-            flush_gui_preferences_async(timeout=1.0)
+            shutdown_gui_preferences_writer(timeout=1.0)
         except Exception as exc:
             logger.debug("Falha ao aguardar persistencia GUI no closeEvent: %s", exc)
 
