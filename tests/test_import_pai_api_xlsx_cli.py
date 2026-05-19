@@ -17,6 +17,7 @@ def test_cli_source_xlsx_fetch_only_writes_summary(tmp_path: Path) -> None:
             "description": ["CLI PAI"],
             "issue_datetime": ["2026-01-09T13:56:00Z"],
             "executor_sector": ["IEE3"],
+            "emitter_sector": ["MEL4"],
         }
     ).to_excel(source, index=False)
 
@@ -44,8 +45,15 @@ def test_cli_source_xlsx_fetch_only_writes_summary(tmp_path: Path) -> None:
     assert payload["requested_executor_sectors"] == []
     assert payload["requested_emitter_sectors"] == []
     assert payload["requested_ssa_numbers"] == []
+    assert payload["requested_filters"]["executor_sectors"] == []
+    assert payload["requested_filters"]["number_of_years"] == 4
+    assert payload["requested_filters"]["limit"] == 200
     assert payload["normalized_rows"] == 1
     assert payload["imported"] is False
     assert Path(payload["import_xlsx_path"]).is_file()
     assert payload["ssa_examples"] == ["202600003"]
+    assert payload["rows_by_executor_sector"] == {"IEE3": 1}
+    assert payload["rows_by_emitter_sector"] == {"MEL4": 1}
+    assert payload["rows_by_source_file"] == {"pai_cli.xlsx": 1}
+    assert payload["ssa_examples_by_executor_sector"] == {"IEE3": ["202600003"]}
     assert payload["warnings"] == []
