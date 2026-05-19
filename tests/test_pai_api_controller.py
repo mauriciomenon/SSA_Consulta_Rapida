@@ -59,6 +59,7 @@ class _Window:
         self.persist_count = 0
         self.reload_count = 0
         self.confirm_count = 0
+        self.last_decision_request: Any | None = None
 
     def pai_api_preferences(self) -> dict[str, Any]:
         return self.preferences
@@ -86,9 +87,10 @@ class _Window:
     def reload_pai_api_data(self) -> None:
         self.reload_count += 1
 
-    def confirm_pai_api_reload(self, qmessagebox: Any) -> bool:
+    def confirm_pai_api_import(self, qmessagebox: Any, decision_request: Any) -> bool:
         _ = qmessagebox
         self.confirm_count += 1
+        self.last_decision_request = decision_request
         return True
 
     def _persist_gui_preferences(self) -> bool:
@@ -158,6 +160,35 @@ def test_auto_refresh_timeout_starts_worker_without_reload_prompt(tmp_path: Path
     window.worker.finished_success.emit()
     assert window.confirm_count == 0
     assert window.reload_count == 0
+
+
+def test_manual_refresh_decision_imports_after_preview_confirmation(
+    tmp_path: Path,
+) -> None:
+    window = _Window()
+    preferences = _preferences(auto_enabled=False)
+    window.preferences = preferences
+    window.context = _context(tmp_path)
+
+    assert pai_api_controller.start_pai_api_refresh(
+        window,
+        preferences=preferences,
+        context=_context(tmp_path),
+        worker_cls=_Worker,
+        ask_reload=True,
+    )
+
+    assert isinstance(window.worker, _Worker)
+    decision_request = type(
+        "DecisionRequest",
+        (),
+        {"normalized_rows": 3, "previewed_sectors": 1, "failed_sectors": 0},
+    )()
+    window.worker.import_decision_required.emit(decision_request)
+
+    assert window.confirm_count == 1
+    assert window.last_decision_request is decision_request
+    assert window.worker.import_decision is True
 
 
 def test_auto_refresh_timeout_does_not_spam_status_when_worker_is_running(

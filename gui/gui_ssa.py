@@ -2909,14 +2909,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def reload_pai_api_data(self) -> None:
         self.load_data()
 
-    def confirm_pai_api_reload(self, qmessagebox) -> bool:
+    def confirm_pai_api_import(self, qmessagebox, decision_request) -> bool:
         if qmessagebox is None or not hasattr(qmessagebox, "question"):
             return True
         buttons = qmessagebox.StandardButton
+        normalized_rows = int(getattr(decision_request, "normalized_rows", 0) or 0)
+        previewed_sectors = int(getattr(decision_request, "previewed_sectors", 0) or 0)
+        failed_sectors = int(getattr(decision_request, "failed_sectors", 0) or 0)
+        detail = (
+            f"API PAI validou {normalized_rows} linhas em "
+            f"{previewed_sectors} setor(es)."
+        )
+        if failed_sectors:
+            detail += f"\nSetores com falha: {failed_sectors}."
         answer = qmessagebox.question(
             self,
             "API PAI",
-            "API PAI importou dados. Carregar dados atualizados agora?",
+            detail + "\n\nImportar no banco e carregar os dados atualizados agora?",
             buttons.Yes | buttons.No,
             buttons.Yes,
         )

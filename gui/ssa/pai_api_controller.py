@@ -85,7 +85,7 @@ class PaiApiWindowPort(Protocol):
     def active_pai_api_timer(self) -> PaiApiTimerPort | None: ...
     def set_active_pai_api_timer(self, timer: PaiApiTimerPort | None) -> None: ...
     def reload_pai_api_data(self) -> None: ...
-    def confirm_pai_api_reload(self, qmessagebox: Any) -> bool: ...
+    def confirm_pai_api_import(self, qmessagebox: Any, decision_request: Any) -> bool: ...
     def _persist_gui_preferences(self) -> bool: ...
 
 
@@ -293,7 +293,7 @@ def _confirm_worker_import(
     qmessagebox: Any,
 ) -> None:
     window.set_pai_api_status(f"Status: {format_decision_request_status(decision_request)}")
-    worker.set_import_decision(window.confirm_pai_api_reload(qmessagebox))
+    worker.set_import_decision(window.confirm_pai_api_import(qmessagebox, decision_request))
 
 
 def _finish_success(
@@ -303,17 +303,19 @@ def _finish_success(
     qmessagebox: Any,
     ask_reload: bool,
 ) -> None:
-    if window.active_pai_api_worker() is worker:
-        window.set_active_pai_api_worker(None)
     partial_status = _worker_partial_status(worker)
-    if _worker_import_skipped(worker):
+    try:
+        if _worker_import_skipped(worker):
+            window.set_pai_api_status(partial_status or STATUS_API_KEEP_CURRENT)
+            return
+        if ask_reload:
+            window.set_pai_api_status(partial_status or STATUS_API_RELOAD)
+            window.reload_pai_api_data()
+            return
         window.set_pai_api_status(partial_status or STATUS_API_KEEP_CURRENT)
-        return
-    if ask_reload:
-        window.set_pai_api_status(partial_status or STATUS_API_RELOAD)
-        window.reload_pai_api_data()
-        return
-    window.set_pai_api_status(partial_status or STATUS_API_KEEP_CURRENT)
+    finally:
+        if window.active_pai_api_worker() is worker:
+            window.set_active_pai_api_worker(None)
 
 
 def _finish_error(
