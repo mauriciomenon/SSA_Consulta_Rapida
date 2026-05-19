@@ -20,6 +20,7 @@ EXTERNAL_STAGING_SUMMARY_KEYS = (
     "staged",
     "already_staged",
 )
+MAX_STAGING_RESERVATION_ATTEMPTS = 20
 
 
 def empty_external_staging_summary() -> dict[str, int]:
@@ -89,16 +90,18 @@ def validate_external_source_path(
 def stage_external_import_files(
     *,
     project_root: str | os.PathLike[str],
+    docs_dir: str | os.PathLike[str] | None = None,
     source_files: Sequence[str | os.PathLike[str]],
     should_cancel: CancelCallback | None = None,
     output_callback: LineCallback | None = None,
     error_callback: LineCallback | None = None,
 ) -> tuple[list[str], dict[str, int]]:
     project_root_path = Path(project_root).resolve()
+    docs_candidate = Path(docs_dir).expanduser() if docs_dir else project_root_path / "docs_entrada"
     docs_path = ensure_path_is_allowed(
-        project_root_path / "docs_entrada",
+        docs_candidate,
         purpose="explicit_import_docs_dir",
-        base=project_root_path,
+        base=project_root_path if docs_dir is None else None,
         must_exist=False,
         expect_directory=True,
     )
@@ -107,7 +110,6 @@ def stage_external_import_files(
     reserved_paths = {
         os.path.abspath(str(path)) for path in docs_path.iterdir() if path.is_file()
     }
-    next_suffix_by_base: dict[str, int] = {}
     summary = empty_external_staging_summary()
     staged_files: list[str] = []
     total_sources = len(source_files)
@@ -147,7 +149,6 @@ def stage_external_import_files(
                 validated_source=validated_source,
                 docs_path=docs_path,
                 reserved_paths=reserved_paths,
-                next_suffix_by_base=next_suffix_by_base,
                 should_cancel=should_cancel,
                 error_callback=error_callback,
             )
@@ -176,7 +177,6 @@ def _stage_validated_external_source(
     validated_source: str,
     docs_path: Path,
     reserved_paths: set[str],
-    next_suffix_by_base: dict[str, int],
     should_cancel: CancelCallback | None,
     error_callback: LineCallback | None,
 ) -> tuple[str | None, bool, bool]:
@@ -187,12 +187,10 @@ def _stage_validated_external_source(
         reserved_paths.add(base_destination_abs)
         return base_destination_abs, False, False
 
-    for _attempt in range(3):
+    for _attempt in range(MAX_STAGING_RESERVATION_ATTEMPTS):
         destination = _reserve_staging_destination(
             base_destination=base_destination,
-            base_destination_abs=base_destination_abs,
             reserved_paths=reserved_paths,
-            next_suffix_by_base=next_suffix_by_base,
         )
         destination_abs = os.path.abspath(destination)
         if callable(should_cancel) and should_cancel():
@@ -226,30 +224,21 @@ def _stage_validated_external_source(
                 )
             reserved_paths.discard(destination_abs)
             raise
-    raise FileExistsError(f"Destino de staging ocupado repetidamente: {base_destination}")
+    raise FileExistsError(
+        "Destino de staging ocupado apos "
+        f"{MAX_STAGING_RESERVATION_ATTEMPTS} tentativas: {base_destination}"
+    )
 
 
 def _reserve_staging_destination(
     *,
     base_destination: Path,
-    base_destination_abs: str,
     reserved_paths: set[str],
-    next_suffix_by_base: dict[str, int],
 ) -> Path:
     destination = reserve_unique_path(
         base_destination,
         reserved_paths=reserved_paths,
-        starting_index=next_suffix_by_base.get(base_destination_abs, 1),
     )
-    destination_name = Path(destination).stem
-    prefix = f"{base_destination.stem}__"
-    if destination_name.startswith(prefix):
-        raw_index = destination_name[len(prefix) :]
-        if raw_index.isdigit():
-            next_suffix_by_base[base_destination_abs] = max(
-                next_suffix_by_base.get(base_destination_abs, 1),
-                int(raw_index) + 1,
-            )
     return Path(destination)
 
 
@@ -263,9 +252,7 @@ def _remove_destination(
     try:
         os.remove(destination)
     except FileNotFoundError:
-        if ignore_missing:
-            return
-        raise
+        return
     except OSError as exc:
         _emit_stage_error(
             error_callback,

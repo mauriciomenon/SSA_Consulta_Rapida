@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 import pytest
 
 from core.pai_import_service import fetch_and_import_pai_xlsx
@@ -87,7 +88,17 @@ def test_fetch_and_import_pai_xlsx_stages_and_imports(
 ) -> None:
     xlsx_path = tmp_path / "out" / "pai.xlsx"
     xlsx_path.parent.mkdir()
-    xlsx_path.write_bytes(b"xlsx")
+    pd.DataFrame(
+        {
+            "ssa_number": [202600001],
+            "description": ["Teste PAI"],
+            "issue_datetime": ["2026-01-07T13:56:00Z"],
+            "localization": ["M075A006"],
+            "emitter_sector": ["MEL4"],
+            "executor_sector": ["IEE3"],
+            "year_week": [202602],
+        }
+    ).to_excel(xlsx_path, index=False)
     export = PaiScrapReportExport(
         command=("python", "-m", "scrap_report.cli"),
         scrap_report_root=tmp_path,
@@ -107,7 +118,7 @@ def test_fetch_and_import_pai_xlsx_stages_and_imports(
 
     def stage_files(**kwargs: Any) -> tuple[list[str], dict[str, int]]:
         staged_calls.append(kwargs)
-        return [str(tmp_path / "docs_entrada" / "pai.xlsx")], {
+        return [str(tmp_path / "docs_entrada" / "pai_ssa_import.xlsx")], {
             "copied": 1,
             "skipped": 0,
             "failed": 0,
@@ -118,6 +129,13 @@ def test_fetch_and_import_pai_xlsx_stages_and_imports(
 
     def import_files(file_paths: list[str], **kwargs: Any) -> bool:
         import_calls.append({"file_paths": file_paths, **kwargs})
+        db_path = Path(kwargs["db_path"])
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        import sqlite3
+
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS ssa_table (numero_ssa TEXT)")
+            conn.execute("INSERT INTO ssa_table (numero_ssa) VALUES ('202600001')")
         return True
 
     result = fetch_and_import_pai_xlsx(
@@ -129,8 +147,13 @@ def test_fetch_and_import_pai_xlsx_stages_and_imports(
     )
 
     assert result.imported is True
-    assert result.staged_files == (str(tmp_path / "docs_entrada" / "pai.xlsx"),)
-    assert staged_calls[0]["source_files"] == (str(xlsx_path),)
+    assert result.normalized_rows == 1
+    assert result.rows_before_import == 0
+    assert result.rows_after_import == 1
+    assert result.import_xlsx_path == tmp_path / "docs_entrada" / "pai_ssa_import.xlsx"
+    assert result.staged_files == (str(tmp_path / "docs_entrada" / "pai_ssa_import.xlsx"),)
+    assert staged_calls[0]["source_files"] == (str(result.import_xlsx_path),)
+    assert staged_calls[0]["docs_dir"] == tmp_path / "docs_entrada"
     assert import_calls[0]["docs_dir"] == str(tmp_path / "docs_entrada")
     assert import_calls[0]["db_path"] == str(tmp_path / "data" / "ssas.db")
 

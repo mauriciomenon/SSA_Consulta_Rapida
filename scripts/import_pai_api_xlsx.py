@@ -88,6 +88,8 @@ def run(args: argparse.Namespace) -> int:
         fetch_only=bool(args.fetch_only),
     )
     print(f"XLSX PAI: {result.export.xlsx_path}")
+    if result.import_xlsx_path is not None:
+        print(f"XLSX SSA importacao: {result.import_xlsx_path}")
     print(f"Manifest PAI: {result.export.manifest_path}")
     if args.fetch_only:
         exit_code = 0
@@ -97,6 +99,22 @@ def run(args: argparse.Namespace) -> int:
     elif not result.imported:
         print("Falha ao importar XLSX PAI no banco.", file=sys.stderr)
         exit_code = 3
+    elif result.rows_after_import is None:
+        print("Falha ao verificar linhas importadas PAI.", file=sys.stderr)
+        exit_code = 5
+    elif (
+        (result.normalized_rows or 0) > 0
+        and result.rows_before_import == 0
+        and result.rows_after_import == 0
+    ):
+        print(
+            "Falha ao importar XLSX PAI: XLSX tinha dados, mas banco ficou sem linhas.",
+            file=sys.stderr,
+        )
+        exit_code = 4
+    elif result.rows_after_import == 0:
+        print("Importacao PAI concluida sem registros.")
+        exit_code = 0
     else:
         print(f"Importacao PAI concluida: {result.staged_files[0]}")
         exit_code = 0

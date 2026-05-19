@@ -124,6 +124,29 @@ def test_stage_external_import_files_accepts_explicit_external_source(
     assert (docs_dir / "entrada.xlsx").read_text(encoding="utf-8") == "payload"
 
 
+def test_stage_external_import_files_uses_explicit_docs_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    docs_dir = tmp_path / "custom_docs"
+    docs_dir.mkdir()
+    source = tmp_path / "entrada.xlsx"
+    source.write_text("payload", encoding="utf-8")
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [tmp_path])
+
+    staged_files, summary = stage_external_import_files(
+        project_root=str(runtime_root),
+        docs_dir=docs_dir,
+        source_files=(str(source),),
+    )
+
+    assert summary["copied"] == 1
+    assert staged_files == [str(docs_dir / "entrada.xlsx")]
+    assert not (runtime_root / "docs_entrada" / "entrada.xlsx").exists()
+
+
 def test_stage_external_import_files_normalizes_explicit_allowlist_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
