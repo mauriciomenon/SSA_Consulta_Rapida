@@ -5,6 +5,12 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from core.pai_api_options import (
+    PAI_API_ALLOWED_SECTORS,
+    PAI_API_SETTINGS_KEY,
+    normalize_pai_api_options,
+)
+
 
 def setup_app_menus(
     window: Any,
@@ -112,6 +118,8 @@ def setup_app_menus(
         table_alignment_labels=table_alignment_labels,
     )
 
+    _add_pai_api_menu(window, opcoes_menu, action_cls, preferences=preferences)
+
     _add_action(opcoes_menu, action_cls, window, "Selecionar Tema", window.toggle_theme_menu)
     _add_action(ajuda_menu, action_cls, window, "Instalacao", window.open_installation_guide)
     _add_action(ajuda_menu, action_cls, window, "Ajuda", window.show_filter_help)
@@ -168,3 +176,41 @@ def _add_alignment_menu(
         )
         alignment_menu.addAction(alignment_action)
         window._table_cell_alignment_actions[alignment_name] = alignment_action
+
+
+def _add_pai_api_menu(
+    window: Any,
+    opcoes_menu: Any,
+    action_cls: Any,
+    *,
+    preferences: dict[str, Any],
+) -> None:
+    pai_menu = opcoes_menu.addMenu("API PAI")
+    settings = preferences.get("gui_settings", {}).get(PAI_API_SETTINGS_KEY, {})
+    options = normalize_pai_api_options(settings)
+
+    api_action = action_cls("API habilitada", window)
+    api_action.setCheckable(True)
+    api_action.setChecked(options.enabled)
+    api_action.triggered.connect(window.set_pai_api_enabled)
+    pai_menu.addAction(api_action)
+
+    scrap_action = action_cls("Busca via scrap_report", window)
+    scrap_action.setCheckable(True)
+    scrap_action.setChecked(options.scrap_report_enabled)
+    scrap_action.triggered.connect(window.set_pai_api_scrap_enabled)
+    pai_menu.addAction(scrap_action)
+
+    sector_menu = pai_menu.addMenu("Setores executores")
+    selected_sectors = {value.casefold() for value in options.executor_sectors}
+    for sector in PAI_API_ALLOWED_SECTORS:
+        sector_action = action_cls(sector, window)
+        sector_action.setCheckable(True)
+        sector_action.setChecked(sector.casefold() in selected_sectors)
+        sector_action.triggered.connect(
+            lambda checked, value=sector: window.set_pai_api_sector_enabled(
+                value,
+                checked,
+            )
+        )
+        sector_menu.addAction(sector_action)

@@ -72,6 +72,7 @@ from gui.ssa import app_menus as ssa_app_menus  # noqa: E402
 from gui.ssa import derivadas_sync_controller as ssa_derivadas_sync  # noqa: E402
 from gui.ssa import database_operations as ssa_database_operations  # noqa: E402
 from gui.ssa import list_export_controller as ssa_list_export_controller  # noqa: E402
+from gui.ssa import pai_api_controller as ssa_pai_api_controller  # noqa: E402
 from gui.ssa import system_integration as ssa_system  # noqa: E402
 from gui.ssa import main_window_system_controller as ssa_system_controller  # noqa: E402
 from gui.ssa.derivadas_table_resolver import resolve_derivadas_table_name  # noqa: E402
@@ -862,6 +863,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.df_exibido = pd.DataFrame()  # DataFrame filtrado
         self.df_para_tabela = pd.DataFrame()  # DataFrame paginado para exibiçção
         self._derivadas_sync_lock = threading.Lock()
+        self._active_pai_api_worker = None
 
         try:
             base_font = QFont(self.font())
@@ -1017,6 +1019,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
         self.rescan_button.clicked.connect(self.rescan_data)
         toolbar_layout.addWidget(cast(Any, self.rescan_button))
+
+        self.api_button = QPushButton("API")
+        self.api_button.setToolTip("Atualizar dados via API PAI por setor executor")
+        self.api_button.clicked.connect(self.refresh_data_from_api)
+        toolbar_layout.addWidget(cast(Any, self.api_button))
 
         self.update_derivadas_button = None
         # Semana Atual (YYYYWW) como indicador informativo na barra superior
@@ -2849,6 +2856,65 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             project_root=project_root,
             default_table_alignment=_DEFAULT_TABLE_CELL_ALIGNMENT,
             table_alignment_labels=_TABLE_CELL_ALIGNMENT_LABELS,
+        )
+
+    def refresh_data_from_api(self):
+        return ssa_pai_api_controller.start_pai_api_refresh(
+            self,
+            preferences=GUI_MAIN_PREFERENCES,
+            project_root=project_root,
+            docs_dir=os.path.join(project_root, "docs_entrada"),
+            db_path=DB_PATH,
+            qmessagebox=QMessageBox,
+        )
+
+    def set_pai_api_status(self, text: str) -> None:
+        self.status_label.setText(text)
+
+    def active_pai_api_worker(self):
+        return self._active_pai_api_worker
+
+    def set_active_pai_api_worker(self, worker) -> None:
+        self._active_pai_api_worker = worker
+
+    def reload_pai_api_data(self) -> None:
+        self.load_data()
+
+    def confirm_pai_api_reload(self, qmessagebox) -> bool:
+        if qmessagebox is None or not hasattr(qmessagebox, "question"):
+            return True
+        buttons = qmessagebox.StandardButton
+        answer = qmessagebox.question(
+            self,
+            "API PAI",
+            "API PAI importou dados. Carregar dados atualizados agora?",
+            buttons.Yes | buttons.No,
+            buttons.Yes,
+        )
+        return answer == buttons.Yes
+
+    def set_pai_api_enabled(self, checked: bool) -> bool:
+        return ssa_pai_api_controller.set_pai_api_boolean_option(
+            self,
+            GUI_MAIN_PREFERENCES,
+            ssa_pai_api_controller.PAI_API_ENABLED_KEY,
+            bool(checked),
+        )
+
+    def set_pai_api_scrap_enabled(self, checked: bool) -> bool:
+        return ssa_pai_api_controller.set_pai_api_boolean_option(
+            self,
+            GUI_MAIN_PREFERENCES,
+            ssa_pai_api_controller.PAI_API_SCRAP_ENABLED_KEY,
+            bool(checked),
+        )
+
+    def set_pai_api_sector_enabled(self, sector: str, checked: bool) -> bool:
+        return ssa_pai_api_controller.set_pai_api_sector_enabled(
+            self,
+            GUI_MAIN_PREFERENCES,
+            sector,
+            bool(checked),
         )
 
     def import_external_excel_files(self):

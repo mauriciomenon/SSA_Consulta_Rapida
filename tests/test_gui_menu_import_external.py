@@ -62,6 +62,12 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def setChecked(self, value: bool) -> None:
             self._checked = bool(value)
 
+        def setEnabled(self, value: bool) -> None:
+            self._enabled = bool(value)
+
+        def setStatusTip(self, value: str) -> None:
+            self._status_tip = value
+
     class _Window:
         def __init__(self) -> None:
             self._menu_bar = _DummyMenuBar()
@@ -132,6 +138,15 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def _apply_table_cell_alignment_preference(self, _name: str) -> None:
             return None
 
+        def set_pai_api_enabled(self, _checked: bool) -> None:
+            return None
+
+        def set_pai_api_scrap_enabled(self, _checked: bool) -> None:
+            return None
+
+        def set_pai_api_sector_enabled(self, _sector: str, _checked: bool) -> None:
+            return None
+
     window = _Window()
     monkeypatch.setattr(gui_ssa, "QAction", cast(Any, _FakeAction))
     gui_ssa.SSAMainWindow._setup_app_menus(cast(Any, window))
@@ -140,6 +155,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert "Database" in window._menu_bar.menus
     assert "Opcoes" in window._menu_bar.menus
     assert "Ajuda" in window._menu_bar.menus
+    assert "API PAI" in window._menu_bar.menus["Opcoes"].submenus
     assert len(window._menu_bar.menus["Arquivo"].actions) == 2
     assert len(window._menu_bar.menus["Importacao"].actions) == 7
     assert len(window._menu_bar.menus["Database"].actions) == 4
@@ -193,6 +209,12 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         "Selecionar Tema",
     ]
     assert ajuda_labels == ["Instalacao", "Ajuda"]
+    api_menu = window._menu_bar.menus["Opcoes"].submenus["API PAI"]
+    assert [getattr(action, "_text", "") for action in api_menu.actions] == [
+        "API habilitada",
+        "Busca via scrap_report",
+    ]
+    assert "Setores executores" in api_menu.submenus
 
 
 def test_import_external_excel_files_copies_and_suffixes_collisions(
