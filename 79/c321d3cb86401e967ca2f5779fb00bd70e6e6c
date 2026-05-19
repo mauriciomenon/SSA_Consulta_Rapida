@@ -1,0 +1,52 @@
+tests/test_pai_api_controller.py
+  s_082d1ff7d55d96::t_9ebbf4153d0ce4 158-181
+tests/test_pai_api_worker.py
+  s_082d1ff7d55d96::t_b83915a7107f7e 4
+  s_082d1ff7d55d96::t_bfc74233c95b45 14,18,22,40,85,91-93,99-101,106-180,182-232
+  s_082d1ff7d55d96::t_c7237789d3df4d 94-97
+  s_082d1ff7d55d96::t_e52ec7030efcc1 98
+  s_082d1ff7d55d96::t_4e77bc8e4f65f2 84,86-90,102-103
+  s_082d1ff7d55d96::t_dbf402c046654f 233-275
+gui/ssa/pai_api_status_text.py
+  s_082d1ff7d55d96::t_20b0f1c5d300b7 1-18
+gui/ssa/pai_api_controller.py
+  s_082d1ff7d55d96::t_a913d5bd2b2e8c 324-326,328
+  s_082d1ff7d55d96::t_ba820acae16b30 159-161
+  s_082d1ff7d55d96::t_f05c6110fbaed8 284,286,289,332-334,343-346
+  s_082d1ff7d55d96::t_8e9cbfaba002d5 335-342
+  s_082d1ff7d55d96::t_3c1dce3fcfeadd 135,146-147,193
+  s_082d1ff7d55d96::t_756976cc709907 19,327,329-331
+gui/workers/pai_api_worker.py
+  s_082d1ff7d55d96::t_56f3dba7127cd3 28,47-63,156-166,168,172-180,195,197-201,213-218,245-252,254-259,262,276-278
+  s_082d1ff7d55d96::t_e282065070a378 77,94,127,279-280
+  s_082d1ff7d55d96::t_ed34fd800fe9b0 78,81,85-88,126,129,132,272,275,281-282,284-286,290,292-307
+  s_082d1ff7d55d96::t_5c84df0549754f 84
+  s_082d1ff7d55d96::t_c05c674a62b919 24,202-207,212,219-223,225,328,331,345,348
+  s_082d1ff7d55d96::t_4fa7bb1d91d6ed 337
+  s_082d1ff7d55d96::t_156838504d6e3e 122,342-344
+  s_082d1ff7d55d96::t_61bfc916ce2eac 29-30,144,146-147,329-330,332,346-347,349
+  s_082d1ff7d55d96::t_4b1d2f9d67a655 10,335
+  s_082d1ff7d55d96::t_b5e2817ad0b439 40-46,79-80
+  s_082d1ff7d55d96::t_a9a3486b898335 76,123,128,130-131,134-136,325-327,333-334,336,338-341
+  s_082d1ff7d55d96::t_62ae78f95d2846 263-271,273-274
+  s_082d1ff7d55d96::t_3030e99c3fc39b 145
+  s_082d1ff7d55d96::t_eb399d861561dd 5,208-211,224,226-228,230-237,239-244
+  s_082d1ff7d55d96::t_c5bb63795c956f 9,82,283,287-289,291
+  s_082d1ff7d55d96::t_413ff6fe12b3ec 120-121,124-125,139-143,148-155,167,169-171,181-194,196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "79c321d3cb86401e967ca2f5779fb00bd70e6e6c",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
