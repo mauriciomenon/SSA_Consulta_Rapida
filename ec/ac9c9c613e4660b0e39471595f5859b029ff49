@@ -1,0 +1,23 @@
+gui/ssa/app_menus.py
+  s_082d1ff7d55d96::t_534502a6befbf3 11-13,275-279,287-300
+  s_082d1ff7d55d96::t_3562697b6b5e8c 42-56,60-67,113-114,126-135,164-166
+  s_082d1ff7d55d96::t_2ac4b5787d3039 247-250
+tests/test_gui_menu_import_external.py
+  s_082d1ff7d55d96::t_24277f809693aa 58-59,228-239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "ecac9c9c613e4660b0e39471595f5859b029ff49",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
