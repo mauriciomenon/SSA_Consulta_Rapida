@@ -9,12 +9,15 @@ PAI_API_SETTINGS_KEY = "pai_api"
 PAI_API_ENABLED_KEY = "enabled"
 PAI_API_SCRAP_ENABLED_KEY = "scrap_report_enabled"
 PAI_API_SECTORS_KEY = "executor_sectors"
+PAI_API_AUTO_REFRESH_ENABLED_KEY = "auto_refresh_enabled"
+PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY = "auto_refresh_interval_minutes"
 
 PAI_API_ALLOWED_SECTORS = ("IEE3", "MEL4", "IEE1", "IEE4", "MEL3", "MEL1", "IEE2", "MEL2")
 PAI_API_PRIORITY_SECTORS = PAI_API_ALLOWED_SECTORS
 PAI_API_FOCUSED_SECTORS = ("IEE3", "MEL4", "MEL3")
 PAI_API_DEFAULT_LIMIT = 200
 PAI_API_DEFAULT_NUMBER_OF_YEARS = 4
+PAI_API_DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 10
 
 PAI_API_DATA_SCOPE_LABELS = {
     "executadas": "Executadas",
@@ -30,6 +33,8 @@ PAI_API_DEFAULT_DATA_SCOPES = tuple(PAI_API_DATA_SCOPE_LABELS)
 class PaiApiGuiOptions:
     enabled: bool
     scrap_report_enabled: bool
+    auto_refresh_enabled: bool
+    auto_refresh_interval_minutes: int
     executor_sectors: tuple[str, ...]
     limit: int
     number_of_years: int
@@ -49,6 +54,10 @@ def default_pai_api_settings() -> dict[str, Any]:
     return {
         PAI_API_ENABLED_KEY: True,
         PAI_API_SCRAP_ENABLED_KEY: True,
+        PAI_API_AUTO_REFRESH_ENABLED_KEY: False,
+        PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY: (
+            PAI_API_DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES
+        ),
         PAI_API_SECTORS_KEY: list(PAI_API_ALLOWED_SECTORS),
         "limit": PAI_API_DEFAULT_LIMIT,
         "number_of_years": PAI_API_DEFAULT_NUMBER_OF_YEARS,
@@ -104,6 +113,13 @@ def normalize_pai_api_options(raw_settings: Mapping[str, Any] | None) -> PaiApiG
     return PaiApiGuiOptions(
         enabled=bool(settings.get(PAI_API_ENABLED_KEY, True)),
         scrap_report_enabled=bool(settings.get(PAI_API_SCRAP_ENABLED_KEY, True)),
+        auto_refresh_enabled=bool(
+            settings.get(PAI_API_AUTO_REFRESH_ENABLED_KEY, False)
+        ),
+        auto_refresh_interval_minutes=_positive_int(
+            settings.get(PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY),
+            PAI_API_DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES,
+        ),
         executor_sectors=sectors,
         limit=_positive_int(settings.get("limit"), PAI_API_DEFAULT_LIMIT),
         number_of_years=_positive_int(
@@ -130,7 +146,7 @@ def _normalize_ordered_values(
             continue
         seen.add(key)
         normalized.append(allowed_by_key[key])
-    return tuple(normalized) or missing_default
+    return tuple(normalized)
 
 
 def _positive_int(value: object, default: int) -> int:

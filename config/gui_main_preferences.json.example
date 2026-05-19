@@ -170,6 +170,8 @@
     "pai_api": {
       "enabled": true,
       "scrap_report_enabled": true,
+      "auto_refresh_enabled": false,
+      "auto_refresh_interval_minutes": 10,
       "executor_sectors": [
         "IEE3",
         "MEL4",

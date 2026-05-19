@@ -201,6 +201,12 @@ def _add_pai_api_menu(
     scrap_action.triggered.connect(window.set_pai_api_scrap_enabled)
     pai_menu.addAction(scrap_action)
 
+    auto_action = action_cls("Atualizacao automatica (10 min)", window)
+    auto_action.setCheckable(True)
+    auto_action.setChecked(options.auto_refresh_enabled)
+    auto_action.triggered.connect(window.set_pai_api_auto_refresh_enabled)
+    pai_menu.addAction(auto_action)
+
     sector_menu = pai_menu.addMenu("Setores executores")
     selected_sectors = {value.casefold() for value in options.executor_sectors}
     for sector in PAI_API_ALLOWED_SECTORS:

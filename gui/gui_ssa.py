@@ -53,6 +53,7 @@ if code_root not in sys.path:
 from core.config_manager import COLUMN_AFFINITY_SCORES  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file
 from core.import_formats import SUPPORTED_IMPORT_SUFFIXES  # noqa: E402
+from core.pai_api_options import PAI_API_ENABLED_KEY, PAI_API_SCRAP_ENABLED_KEY
 from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS  # noqa: E402
 from gui.gui_config import DEFAULT_GUI_SETTINGS  # noqa: E402
@@ -864,6 +865,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.df_para_tabela = pd.DataFrame()  # DataFrame paginado para exibiçção
         self._derivadas_sync_lock = threading.Lock()
         self._active_pai_api_worker = None
+        self._active_pai_api_timer = None
 
         try:
             base_font = QFont(self.font())
@@ -973,6 +975,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.persistent_filters = []
 
         self.init_ui()
+        self.initialize_pai_api_auto_refresh()
 
         # Carrega filtros apos a GUI estar configurada
         self.load_persistent_filters()
@@ -2862,11 +2865,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return ssa_pai_api_controller.start_pai_api_refresh(
             self,
             preferences=GUI_MAIN_PREFERENCES,
+            context=self._pai_api_refresh_context(),
+        )
+
+    def initialize_pai_api_auto_refresh(self) -> bool:
+        return ssa_pai_api_controller.initialize_pai_api_auto_refresh(
+            self,
+            preferences=GUI_MAIN_PREFERENCES,
+            context=self._pai_api_refresh_context(),
+            qtimer_cls=QTimer,
+        )
+
+    def _pai_api_refresh_context(self):
+        return ssa_pai_api_controller.PaiApiRefreshContext(
             project_root=project_root,
             docs_dir=os.path.join(project_root, "docs_entrada"),
             db_path=DB_PATH,
             qmessagebox=QMessageBox,
         )
+
+    def pai_api_preferences(self):
+        return GUI_MAIN_PREFERENCES
+
+    def pai_api_refresh_context(self):
+        return self._pai_api_refresh_context()
 
     def set_pai_api_status(self, text: str) -> None:
         self.status_label.setText(text)
@@ -2876,6 +2898,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def set_active_pai_api_worker(self, worker) -> None:
         self._active_pai_api_worker = worker
+
+    def active_pai_api_timer(self):
+        return self._active_pai_api_timer
+
+    def set_active_pai_api_timer(self, timer) -> None:
+        self._active_pai_api_timer = timer
 
     def reload_pai_api_data(self) -> None:
         self.load_data()
@@ -2897,7 +2925,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return ssa_pai_api_controller.set_pai_api_boolean_option(
             self,
             GUI_MAIN_PREFERENCES,
-            ssa_pai_api_controller.PAI_API_ENABLED_KEY,
+            PAI_API_ENABLED_KEY,
             bool(checked),
         )
 
@@ -2905,7 +2933,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return ssa_pai_api_controller.set_pai_api_boolean_option(
             self,
             GUI_MAIN_PREFERENCES,
-            ssa_pai_api_controller.PAI_API_SCRAP_ENABLED_KEY,
+            PAI_API_SCRAP_ENABLED_KEY,
+            bool(checked),
+        )
+
+    def set_pai_api_auto_refresh_enabled(self, checked: bool) -> bool:
+        return ssa_pai_api_controller.set_pai_api_auto_refresh_enabled(
+            self,
+            GUI_MAIN_PREFERENCES,
             bool(checked),
         )
 

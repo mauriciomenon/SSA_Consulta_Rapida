@@ -11,6 +11,7 @@ from core.pai_scrap_report_provider import (
     PaiScrapReportExport,
     PaiScrapReportRequest,
     run_pai_scrap_report_export,
+    run_pai_scrap_report_ca_export,
 )
 
 
@@ -80,6 +81,35 @@ def test_run_pai_scrap_report_export_rejects_manifest_path_escape(
             ),
             runner=runner,
         )
+
+
+def test_run_pai_scrap_report_ca_export_creates_ca_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    def runner(command: list[str], **kwargs: Any) -> _Completed:
+        assert command[:5] == ["/bin/uv", "run", "--project", str(scrap_root), "python"]
+        assert "sam-api-cert" in command
+        assert "--output" in command
+        output_dir.mkdir(exist_ok=True)
+        (output_dir / "itaipu_root_ca.pem").write_text("CERT", encoding="utf-8")
+        return _Completed()
+
+    result = run_pai_scrap_report_ca_export(
+        PaiScrapReportRequest(
+            project_root=tmp_path,
+            output_dir=output_dir,
+            scrap_report_root=scrap_root,
+        ),
+        runner=runner,
+    )
+
+    assert result.ca_file == output_dir / "itaipu_root_ca.pem"
+    assert "sam-api-cert" in result.command
 
 
 def test_fetch_and_import_pai_xlsx_stages_and_imports(

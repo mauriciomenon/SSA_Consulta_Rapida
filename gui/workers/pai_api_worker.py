@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import replace
 from pathlib import Path
 
 from core.pai_api_options import PaiApiGuiOptions, pai_api_options_error
 from core.pai_import_service import PaiImportResult, fetch_and_import_pai_xlsx
-from core.pai_scrap_report_provider import PAI_RUNNER_UV, PaiScrapReportRequest
+from core.pai_scrap_report_provider import (
+    PAI_RUNNER_UV,
+    PaiScrapReportRequest,
+    run_pai_scrap_report_ca_export,
+)
 from gui.workers.qt_thread_shim import QThread, pyqtSignal
 
 
@@ -47,21 +52,25 @@ class PaiApiRefreshWorker(QThread):
             self.finished_error.emit(options_error)
             return
 
+        self.config.output_dir.mkdir(parents=True, exist_ok=True)
         self.output_line.emit(
             "Iniciando API PAI: setores=" + ", ".join(sectors)
         )
 
+        base_request = PaiScrapReportRequest(
+            project_root=self.config.project_root,
+            output_dir=self.config.output_dir,
+            allow_sibling_scrap_report=True,
+            runner=PAI_RUNNER_UV,
+            executor_sectors=sectors,
+            limit=options.limit,
+            number_of_years=options.number_of_years,
+        )
+        self.progress.emit(5, "API PAI: validando CA")
+        certificate = run_pai_scrap_report_ca_export(base_request)
         self.progress.emit(10, "API PAI: baixando XLSX")
         result = fetch_and_import_pai_xlsx(
-            PaiScrapReportRequest(
-                project_root=self.config.project_root,
-                output_dir=self.config.output_dir,
-                allow_sibling_scrap_report=True,
-                runner=PAI_RUNNER_UV,
-                executor_sectors=sectors,
-                limit=options.limit,
-                number_of_years=options.number_of_years,
-            ),
+            replace(base_request, ca_file=certificate.ca_file),
             docs_dir=self.config.docs_dir,
             db_path=self.config.db_path,
         )

@@ -5,14 +5,19 @@ from pathlib import Path
 from core.pai_api_options import normalize_pai_api_options
 from core.pai_import_service import PaiImportResult
 from core.pai_scrap_report_provider import PaiScrapReportExport
+from core.pai_scrap_report_provider import PaiScrapReportCertificate
 from gui.workers import pai_api_worker
 from gui.workers.pai_api_worker import PaiApiRefreshWorker, PaiApiWorkerConfig
 
 
-def test_pai_api_worker_batches_executor_sectors(monkeypatch, tmp_path: Path) -> None:
+def test_pai_api_worker_sends_all_executor_sectors_in_one_request(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
     captured = {}
 
     def _fake_fetch(request, *, docs_dir, db_path):
+        captured["fetch_calls"] = int(captured.get("fetch_calls", 0)) + 1
         captured["request"] = request
         captured["docs_dir"] = docs_dir
         captured["db_path"] = db_path
@@ -37,6 +42,18 @@ def test_pai_api_worker_batches_executor_sectors(monkeypatch, tmp_path: Path) ->
         )
 
     monkeypatch.setattr(pai_api_worker, "fetch_and_import_pai_xlsx", _fake_fetch)
+    monkeypatch.setattr(
+        pai_api_worker,
+        "run_pai_scrap_report_ca_export",
+        lambda request: PaiScrapReportCertificate(
+            command=("cert",),
+            scrap_report_root=tmp_path,
+            ca_file=tmp_path / "ca.pem",
+            manifest_path=tmp_path / "cert.json",
+            stdout="",
+            stderr="",
+        ),
+    )
     worker = PaiApiRefreshWorker(
         PaiApiWorkerConfig(
             project_root=tmp_path,
@@ -52,6 +69,8 @@ def test_pai_api_worker_batches_executor_sectors(monkeypatch, tmp_path: Path) ->
     worker.run()
 
     assert captured["request"].executor_sectors == ("IEE3", "MEL4", "MEL3")
+    assert captured["request"].ca_file == tmp_path / "ca.pem"
+    assert captured["fetch_calls"] == 1
     assert captured["docs_dir"] == tmp_path / "docs"
     assert captured["db_path"] == tmp_path / "ssas.db"
     assert len(worker.results) == 1

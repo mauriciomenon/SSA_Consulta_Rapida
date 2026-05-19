@@ -144,6 +144,9 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def set_pai_api_scrap_enabled(self, _checked: bool) -> None:
             return None
 
+        def set_pai_api_auto_refresh_enabled(self, _checked: bool) -> None:
+            return None
+
         def set_pai_api_sector_enabled(self, _sector: str, _checked: bool) -> None:
             return None
 
@@ -213,6 +216,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert [getattr(action, "_text", "") for action in api_menu.actions] == [
         "API habilitada",
         "Busca via scrap_report",
+        "Atualizacao automatica (10 min)",
     ]
     assert "Setores executores" in api_menu.submenus
 
