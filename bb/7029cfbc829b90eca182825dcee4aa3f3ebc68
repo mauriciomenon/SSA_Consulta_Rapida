@@ -1,0 +1,20 @@
+.gitignore
+  s_082d1ff7d55d96::t_adb08c7790d34e 508-511
+  s_082d1ff7d55d96::t_bbbe9c41015bea 170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "bb7029cfbc829b90eca182825dcee4aa3f3ebc68",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
