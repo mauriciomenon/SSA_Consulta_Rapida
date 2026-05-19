@@ -16,6 +16,7 @@ from core.pai_api_options import (
     update_pai_api_data_scope_setting,
     update_pai_api_sector_setting,
 )
+from gui.ssa.pai_api_status_text import trim_pai_api_status_detail
 from gui.workers.pai_api_worker import (
     PaiApiRefreshWorker,
     PaiApiWorkerConfig,
@@ -131,6 +132,7 @@ def start_pai_api_refresh(
     context: PaiApiRefreshContext,
     worker_cls: Any = PaiApiRefreshWorker,
     ask_reload: bool = True,
+    quiet_if_running: bool = False,
 ) -> bool:
     settings = preferences.get("gui_settings", {}).get(PAI_API_SETTINGS_KEY, {})
     options = normalize_pai_api_options(settings)
@@ -141,7 +143,8 @@ def start_pai_api_refresh(
 
     active_worker = window.active_pai_api_worker()
     if active_worker is not None and _worker_is_running(active_worker):
-        window.set_pai_api_status(STATUS_API_ALREADY_RUNNING)
+        if not quiet_if_running:
+            window.set_pai_api_status(STATUS_API_ALREADY_RUNNING)
         return False
 
     worker = worker_cls(
@@ -153,6 +156,9 @@ def start_pai_api_refresh(
             options=options,
         )
     )
+    reset_for_start = getattr(worker, "reset_for_start", None)
+    if callable(reset_for_start):
+        reset_for_start()
     window.set_active_pai_api_worker(worker)
     _connect_worker(
         window,
@@ -184,6 +190,7 @@ def initialize_pai_api_auto_refresh(
                 context=window.pai_api_refresh_context(),
                 worker_cls=worker_cls,
                 ask_reload=False,
+                quiet_if_running=True,
             )
         )
         window.set_active_pai_api_timer(timer)
@@ -274,11 +281,12 @@ def _finish_success(
 ) -> None:
     if window.active_pai_api_worker() is worker:
         window.set_active_pai_api_worker(None)
+    partial_status = _worker_partial_status(worker)
     if ask_reload and window.confirm_pai_api_reload(qmessagebox):
-        window.set_pai_api_status(STATUS_API_RELOAD)
+        window.set_pai_api_status(partial_status or STATUS_API_RELOAD)
         window.reload_pai_api_data()
         return
-    window.set_pai_api_status(STATUS_API_KEEP_CURRENT)
+    window.set_pai_api_status(partial_status or STATUS_API_KEEP_CURRENT)
 
 
 def _finish_error(
@@ -313,13 +321,29 @@ def _status_for_options_error(message: str) -> str:
     return f"Status: {message}"
 
 
-def _short_error_message(message: str, *, max_length: int = 88) -> str:
-    text = " ".join(str(message or "").split())
-    if not text:
-        return "erro sem detalhe"
-    if len(text) <= max_length:
-        return text
-    return text[: max_length - 3].rstrip() + "..."
+def _short_error_message(
+    message: str,
+    *,
+    max_length: int | None = None,
+) -> str:
+    if max_length is None:
+        return trim_pai_api_status_detail(message)
+    return trim_pai_api_status_detail(message, max_length=max_length)
+
+
+def _worker_partial_status(worker: Any) -> str | None:
+    summary_fn = getattr(worker, "summary", None)
+    if not callable(summary_fn):
+        return None
+    summary = summary_fn()
+    failed_count = int(getattr(summary, "failed_sectors", 0))
+    if failed_count <= 0:
+        return None
+    imported_count = int(getattr(summary, "imported_sectors", 0))
+    return (
+        "Status: API PAI parcial; "
+        f"{imported_count} setores importados; {failed_count} falharam."
+    )
 
 
 def set_pai_api_auto_refresh_enabled(

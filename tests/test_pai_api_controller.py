@@ -155,6 +155,30 @@ def test_auto_refresh_timeout_starts_worker_without_reload_prompt(tmp_path: Path
     assert window.reload_count == 0
 
 
+def test_auto_refresh_timeout_does_not_spam_status_when_worker_is_running(
+    tmp_path: Path,
+) -> None:
+    window = _Window()
+    preferences = _preferences(auto_enabled=True)
+    window.preferences = preferences
+    window.context = _context(tmp_path)
+    pai_api_controller.initialize_pai_api_auto_refresh(
+        window,
+        preferences=preferences,
+        context=_context(tmp_path),
+        qtimer_cls=_Timer,
+        worker_cls=_Worker,
+    )
+
+    assert window.timer is not None
+    timer = window.timer
+    timer.timeout.emit()
+    status_count = len(window.statuses)
+    timer.timeout.emit()
+
+    assert len(window.statuses) == status_count
+
+
 def test_set_auto_refresh_enabled_persists_and_starts_timer(tmp_path: Path) -> None:
     window = _Window()
     preferences = _preferences(auto_enabled=False)
