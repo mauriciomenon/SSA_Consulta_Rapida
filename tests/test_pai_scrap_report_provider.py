@@ -1,0 +1,144 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from core.pai_import_service import fetch_and_import_pai_xlsx
+from core.pai_scrap_report_provider import (
+    PaiScrapReportExport,
+    PaiScrapReportRequest,
+    run_pai_scrap_report_export,
+)
+
+
+class _Completed:
+    returncode = 0
+    stdout = ""
+    stderr = ""
+
+
+def test_run_pai_scrap_report_export_creates_xlsx_from_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    xlsx_path = output_dir / "pai_sam_api.xlsx"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    def runner(command: list[str], **kwargs: Any) -> _Completed:
+        assert command[:5] == ["/bin/uv", "run", "--project", str(scrap_root), "python"]
+        assert "sam-api-flow" in command
+        output_dir.mkdir(exist_ok=True)
+        xlsx_path.write_bytes(b"xlsx")
+        (output_dir / "pai_sam_api_manifest.json").write_text(
+            '{"status":"ok","exports":{"data_xlsx":"pai_sam_api.xlsx"}}',
+            encoding="utf-8",
+        )
+        return _Completed()
+
+    result = run_pai_scrap_report_export(
+        PaiScrapReportRequest(
+            project_root=tmp_path,
+            output_dir=output_dir,
+            scrap_report_root=scrap_root,
+        ),
+        runner=runner,
+    )
+
+    assert result.xlsx_path == xlsx_path
+    assert result.manifest_path == output_dir / "pai_sam_api_manifest.json"
+
+
+def test_run_pai_scrap_report_export_rejects_manifest_path_escape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    outside = tmp_path / "outside.xlsx"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    def runner(_command: list[str], **_kwargs: Any) -> _Completed:
+        output_dir.mkdir(exist_ok=True)
+        outside.write_bytes(b"xlsx")
+        (output_dir / "pai_sam_api_manifest.json").write_text(
+            f'{{"status":"ok","exports":{{"data_xlsx":"{outside}"}}}}',
+            encoding="utf-8",
+        )
+        return _Completed()
+
+    with pytest.raises(ValueError, match="fora do diretorio esperado"):
+        run_pai_scrap_report_export(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                output_dir=output_dir,
+                scrap_report_root=scrap_root,
+            ),
+            runner=runner,
+        )
+
+
+def test_fetch_and_import_pai_xlsx_stages_and_imports(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    xlsx_path = tmp_path / "out" / "pai.xlsx"
+    xlsx_path.parent.mkdir()
+    xlsx_path.write_bytes(b"xlsx")
+    export = PaiScrapReportExport(
+        command=("python", "-m", "scrap_report.cli"),
+        scrap_report_root=tmp_path,
+        manifest_path=tmp_path / "out" / "manifest.json",
+        xlsx_path=xlsx_path,
+        manifest={"status": "ok"},
+        stdout="",
+        stderr="",
+    )
+    monkeypatch.setattr(
+        "core.pai_import_service.run_pai_scrap_report_export",
+        lambda _request: export,
+    )
+
+    staged_calls: list[dict[str, Any]] = []
+    import_calls: list[dict[str, Any]] = []
+
+    def stage_files(**kwargs: Any) -> tuple[list[str], dict[str, int]]:
+        staged_calls.append(kwargs)
+        return [str(tmp_path / "docs_entrada" / "pai.xlsx")], {
+            "copied": 1,
+            "skipped": 0,
+            "failed": 0,
+            "unsupported": 0,
+            "staged": 1,
+            "already_staged": 0,
+        }
+
+    def import_files(file_paths: list[str], **kwargs: Any) -> bool:
+        import_calls.append({"file_paths": file_paths, **kwargs})
+        return True
+
+    result = fetch_and_import_pai_xlsx(
+        PaiScrapReportRequest(project_root=tmp_path),
+        docs_dir=tmp_path / "docs_entrada",
+        db_path=tmp_path / "data" / "ssas.db",
+        stage_files=stage_files,
+        import_files=import_files,
+    )
+
+    assert result.imported is True
+    assert result.staged_files == (str(tmp_path / "docs_entrada" / "pai.xlsx"),)
+    assert staged_calls[0]["source_files"] == (str(xlsx_path),)
+    assert import_calls[0]["docs_dir"] == str(tmp_path / "docs_entrada")
+    assert import_calls[0]["db_path"] == str(tmp_path / "data" / "ssas.db")
+
+
+def _make_scrap_report_root(tmp_path: Path) -> Path:
+    root = tmp_path / "scrap_report"
+    cli_dir = root / "src" / "scrap_report"
+    cli_dir.mkdir(parents=True)
+    (root / "pyproject.toml").write_text("[project]\nname='scrap-report'\n")
+    (cli_dir / "cli.py").write_text("def main(): return 0\n")
+    return root

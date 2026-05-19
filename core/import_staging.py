@@ -7,10 +7,23 @@ from typing import Callable, Iterable, Sequence
 
 from core.import_formats import SUPPORTED_IMPORT_SUFFIXES
 from core.import_formats import supported_import_suffixes_text
+from utils.file_copy import copy_source_without_execute_bit
 from utils.path_safety import ensure_path_is_allowed, reserve_unique_path
 
 CancelCallback = Callable[[], bool]
 LineCallback = Callable[[str], None]
+EXTERNAL_STAGING_SUMMARY_KEYS = (
+    "copied",
+    "skipped",
+    "failed",
+    "unsupported",
+    "staged",
+    "already_staged",
+)
+
+
+def empty_external_staging_summary() -> dict[str, int]:
+    return dict.fromkeys(EXTERNAL_STAGING_SUMMARY_KEYS, 0)
 
 
 def _normalize_explicit_allowed_files(
@@ -24,8 +37,7 @@ def _normalize_explicit_allowed_files(
             continue
         candidate = Path(raw).expanduser()
         resolved = candidate.resolve(strict=False)
-        if resolved.is_file():
-            allowed_files.add(resolved)
+        allowed_files.add(resolved)
     return allowed_files
 
 
@@ -68,7 +80,7 @@ def validate_external_source_path(
     source_path = safe_source_path
     if source_path.suffix.casefold() not in SUPPORTED_IMPORT_SUFFIXES:
         raise ValueError(
-            "Arquivo nao suportado pelo pipeline "
+            "Arquivo nao suportado para staging "
             f"({supported_import_suffixes_text()}): {source_path.name}"
         )
     return str(source_path)
@@ -96,10 +108,7 @@ def stage_external_import_files(
         os.path.abspath(str(path)) for path in docs_path.iterdir() if path.is_file()
     }
     next_suffix_by_base: dict[str, int] = {}
-    copied = 0
-    skipped = 0
-    failed = 0
-    unsupported = 0
+    summary = empty_external_staging_summary()
     staged_files: list[str] = []
     total_sources = len(source_files)
     explicit_allowed_files = _normalize_explicit_allowed_files(source_files)
@@ -109,127 +118,198 @@ def stage_external_import_files(
             break
         source = str(raw_source or "").strip()
         if not source:
-            skipped += 1
+            summary["skipped"] += 1
             continue
-        if callable(output_callback):
-            output_callback(
-                f"[STAGE {index}/{total_sources}] Preparando: {os.path.basename(source) or source}"
-            )
+        _emit_stage_prepare(output_callback, source=source, index=index, total=total_sources)
         try:
             validated_source = validate_external_source_path(
                 source,
                 normalized_allowed_files=explicit_allowed_files,
             )
         except FileNotFoundError:
-            failed += 1
-            if callable(error_callback):
-                error_callback(f"[ERRO] Arquivo inexistente: {source}")
+            summary["failed"] += 1
+            _emit_stage_error(error_callback, f"Arquivo inexistente: {source}")
             continue
         except ValueError as exc:
-            unsupported += 1
-            if callable(output_callback):
-                output_callback(f"[IGNORADO] {exc}")
+            summary["unsupported"] += 1
+            _emit_stage_ignored(output_callback, str(exc))
             continue
         except (OSError, shutil.Error) as exc:
-            failed += 1
-            if callable(error_callback):
-                error_callback(
-                    f"[ERRO] Falha ao validar arquivo externo '{source}': {exc}"
-                )
+            summary["failed"] += 1
+            _emit_stage_error(
+                error_callback,
+                f"Falha ao validar arquivo externo '{source}': {exc}",
+            )
             continue
 
-        base_name = os.path.basename(validated_source)
-        base_destination = docs_path / base_name
-        source_abs = os.path.abspath(validated_source)
-        destination_abs = os.path.abspath(str(base_destination))
-        if source_abs == destination_abs:
-            staged_files.append(destination_abs)
-            reserved_paths.add(destination_abs)
-            continue
+        try:
+            staged_file, was_copied, cancelled = _stage_validated_external_source(
+                validated_source=validated_source,
+                docs_path=docs_path,
+                reserved_paths=reserved_paths,
+                next_suffix_by_base=next_suffix_by_base,
+                should_cancel=should_cancel,
+                error_callback=error_callback,
+            )
+            if cancelled:
+                break
+            if staged_file:
+                staged_files.append(staged_file)
+                if was_copied:
+                    summary["copied"] += 1
+                else:
+                    summary["already_staged"] += 1
+        except (OSError, shutil.Error) as exc:
+            summary["failed"] += 1
+            _emit_stage_error(
+                error_callback,
+                f"Falha ao copiar arquivo externo '{validated_source}': {exc}",
+            )
 
-        destination = reserve_unique_path(
-            base_destination,
+    summary["staged"] = len(staged_files)
+    _emit_stage_summary(output_callback, summary)
+    return staged_files, summary
+
+
+def _stage_validated_external_source(
+    *,
+    validated_source: str,
+    docs_path: Path,
+    reserved_paths: set[str],
+    next_suffix_by_base: dict[str, int],
+    should_cancel: CancelCallback | None,
+    error_callback: LineCallback | None,
+) -> tuple[str | None, bool, bool]:
+    base_destination = docs_path / os.path.basename(validated_source)
+    base_destination_abs = os.path.abspath(str(base_destination))
+    source_abs = os.path.abspath(validated_source)
+    if source_abs == base_destination_abs:
+        reserved_paths.add(base_destination_abs)
+        return base_destination_abs, False, False
+
+    for _attempt in range(3):
+        destination = _reserve_staging_destination(
+            base_destination=base_destination,
+            base_destination_abs=base_destination_abs,
             reserved_paths=reserved_paths,
-            starting_index=next_suffix_by_base.get(destination_abs, 1),
+            next_suffix_by_base=next_suffix_by_base,
         )
         destination_abs = os.path.abspath(destination)
-        destination_name = Path(destination).stem
-        base_name_stem = base_destination.stem
-        prefix = f"{base_name_stem}__"
-        if destination_name.startswith(prefix):
-            raw_index = destination_name[len(prefix) :]
-            if raw_index.isdigit():
-                next_suffix_by_base[os.path.abspath(str(base_destination))] = (
-                    int(raw_index) + 1
-                )
+        if callable(should_cancel) and should_cancel():
+            reserved_paths.discard(destination_abs)
+            return None, False, True
+
         destination_created = False
         try:
+            copy_source_without_execute_bit(validated_source, destination)
+            destination_created = True
             if callable(should_cancel) and should_cancel():
-                break
-            reserved_paths.add(destination_abs)
-            source_fd = None
-            source_stat = None
-            try:
-                source_fd = os.open(validated_source, os.O_RDONLY)
-                source_stat = os.fstat(source_fd)
-                with os.fdopen(source_fd, "rb") as source_handle:
-                    source_fd = None
-                    with open(destination, "xb") as destination_handle:
-                        destination_created = True
-                        shutil.copyfileobj(source_handle, destination_handle)
-                os.chmod(destination, source_stat.st_mode & 0o600)
-                os.utime(
+                _remove_destination(
                     destination,
-                    ns=(source_stat.st_atime_ns, source_stat.st_mtime_ns),
+                    error_callback=error_callback,
+                    context="apos cancelamento",
+                    ignore_missing=False,
                 )
-            finally:
-                if source_fd is not None:
-                    os.close(source_fd)
-            if callable(should_cancel) and should_cancel():
-                if destination_created:
-                    try:
-                        os.remove(destination)
-                    except OSError as exc:
-                        failed += 1
-                        if callable(error_callback):
-                            error_callback(
-                                "[ERRO] Falha ao remover arquivo staged apos "
-                                f"cancelamento '{destination}': {exc}"
-                            )
                 reserved_paths.discard(destination_abs)
-                break
-            copied += 1
-            staged_files.append(destination)
-        except (OSError, shutil.Error) as exc:
-            failed += 1
-            if destination_created:
-                try:
-                    os.remove(destination)
-                except FileNotFoundError:
-                    pass
-                except OSError as cleanup_exc:
-                    if callable(error_callback):
-                        error_callback(
-                            "[ERRO] Falha ao remover arquivo staged parcial "
-                            f"'{destination}': {cleanup_exc}"
-                        )
+                return None, False, True
+            return str(destination), True, False
+        except FileExistsError:
             reserved_paths.discard(destination_abs)
-            if callable(error_callback):
-                error_callback(
-                    f"[ERRO] Falha ao copiar arquivo externo '{validated_source}': {exc}"
+            continue
+        except (OSError, shutil.Error):
+            if destination_created:
+                _remove_destination(
+                    destination,
+                    error_callback=error_callback,
+                    context="parcial",
+                    ignore_missing=True,
                 )
+            reserved_paths.discard(destination_abs)
+            raise
+    raise FileExistsError(f"Destino de staging ocupado repetidamente: {base_destination}")
 
-    summary = {
-        "copied": copied,
-        "skipped": skipped,
-        "failed": failed,
-        "unsupported": unsupported,
-        "staged": len(staged_files),
-    }
+
+def _reserve_staging_destination(
+    *,
+    base_destination: Path,
+    base_destination_abs: str,
+    reserved_paths: set[str],
+    next_suffix_by_base: dict[str, int],
+) -> Path:
+    destination = reserve_unique_path(
+        base_destination,
+        reserved_paths=reserved_paths,
+        starting_index=next_suffix_by_base.get(base_destination_abs, 1),
+    )
+    destination_name = Path(destination).stem
+    prefix = f"{base_destination.stem}__"
+    if destination_name.startswith(prefix):
+        raw_index = destination_name[len(prefix) :]
+        if raw_index.isdigit():
+            next_suffix_by_base[base_destination_abs] = max(
+                next_suffix_by_base.get(base_destination_abs, 1),
+                int(raw_index) + 1,
+            )
+    return Path(destination)
+
+
+def _remove_destination(
+    destination: Path,
+    *,
+    error_callback: LineCallback | None,
+    context: str,
+    ignore_missing: bool,
+) -> None:
+    try:
+        os.remove(destination)
+    except FileNotFoundError:
+        if ignore_missing:
+            return
+        raise
+    except OSError as exc:
+        _emit_stage_error(
+            error_callback,
+            f"Falha ao remover arquivo staged {context} '{destination}': {exc}",
+        )
+
+
+def _emit_stage_prepare(
+    output_callback: LineCallback | None,
+    *,
+    source: str,
+    index: int,
+    total: int,
+) -> None:
+    if callable(output_callback):
+        output_callback(
+            f"[STAGE {index}/{total}] Preparando: {os.path.basename(source) or source}"
+        )
+
+
+def _emit_stage_ignored(
+    output_callback: LineCallback | None,
+    message: str,
+) -> None:
+    if callable(output_callback):
+        output_callback(f"[IGNORADO] {message}")
+
+
+def _emit_stage_error(
+    error_callback: LineCallback | None,
+    message: str,
+) -> None:
+    if callable(error_callback):
+        error_callback(f"[ERRO] {message}")
+
+
+def _emit_stage_summary(
+    output_callback: LineCallback | None,
+    summary: dict[str, int],
+) -> None:
     if callable(output_callback):
         output_callback(
             "Staging concluido: "
-            f"copiados={copied}, ignorados={skipped}, "
-            f"nao_suportados={unsupported}, falhas={failed}, staged={len(staged_files)}"
+            f"copiados={summary['copied']}, skipped={summary['skipped']}, "
+            f"nao_suportados={summary['unsupported']}, "
+            f"falhas={summary['failed']}, staged={summary['staged']}"
         )
-    return staged_files, summary
