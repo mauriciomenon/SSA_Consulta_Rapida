@@ -55,6 +55,8 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
             self.triggered = _FakeSignal()
             self._checkable = False
             self._checked = False
+            self._enabled = True
+            self._status_tip = ""
 
         def setCheckable(self, value: bool) -> None:
             self._checkable = bool(value)
@@ -223,6 +225,18 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     ]
     assert "Setores executores" in api_menu.submenus
     assert "Tipos de dados" in api_menu.submenus
+    data_scope_actions = {
+        getattr(action, "_text", ""): action
+        for action in api_menu.submenus["Tipos de dados"].actions
+    }
+    assert data_scope_actions["Consulta"]._enabled is True
+    assert data_scope_actions["Consulta"]._checked is True
+    assert data_scope_actions["Executadas"]._enabled is False
+    assert data_scope_actions["Executadas"]._checked is False
+    assert "backend scraper" in data_scope_actions["Executadas"]._status_tip
+    assert data_scope_actions["Para planejamento"]._enabled is False
+    assert data_scope_actions["Para planejamento"]._checked is False
+    assert "contrato de dados" in data_scope_actions["Para planejamento"]._status_tip
 
 
 def test_import_external_excel_files_copies_and_suffixes_collisions(

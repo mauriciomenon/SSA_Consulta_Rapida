@@ -8,6 +8,9 @@ from typing import Any
 from core.pai_api_options import (
     PAI_API_ALLOWED_SECTORS,
     PAI_API_ALLOWED_DATA_SCOPES,
+    PAI_API_PLANNED_SCRAPER_DATA_SCOPES,
+    PAI_API_REST_DATA_SCOPES,
+    PAI_API_UNSUPPORTED_DATA_SCOPES,
     pai_api_data_scope_label,
     PAI_API_SETTINGS_KEY,
     normalize_pai_api_options,
@@ -36,9 +39,32 @@ def setup_app_menus(
     opcoes_menu = menu_bar.addMenu("Opcoes")
     ajuda_menu = menu_bar.addMenu("Ajuda")
 
+    _add_file_menu(window, arquivo_menu, action_cls)
+    _add_import_menu(window, importacao_menu, action_cls, project_root=project_root)
+    _add_database_menu(window, db_menu, action_cls)
+    _add_options_menu(
+        window,
+        opcoes_menu,
+        action_cls=action_cls,
+        preferences=preferences,
+        default_table_alignment=default_table_alignment,
+        table_alignment_labels=table_alignment_labels,
+    )
+    _add_help_menu(window, ajuda_menu, action_cls)
+
+
+def _add_file_menu(window: Any, arquivo_menu: Any, action_cls: Any) -> None:
     _add_action(arquivo_menu, action_cls, window, "Exportar lista", window._export_current_list_txt)
     _add_action(arquivo_menu, action_cls, window, "Sair", window.close)
 
+
+def _add_import_menu(
+    window: Any,
+    importacao_menu: Any,
+    action_cls: Any,
+    *,
+    project_root: str,
+) -> None:
     _add_action(
         importacao_menu,
         action_cls,
@@ -84,6 +110,8 @@ def setup_app_menus(
         window.consolidate_input_files,
     )
 
+
+def _add_database_menu(window: Any, db_menu: Any, action_cls: Any) -> None:
     _add_action(db_menu, action_cls, window, "Reescanear", window.rescan_data)
     _add_action(
         db_menu,
@@ -95,6 +123,16 @@ def setup_app_menus(
     _add_action(db_menu, action_cls, window, "Carregar outro DB", window.load_other_database)
     _add_action(db_menu, action_cls, window, "Compactar DB", window.run_vacuum_analyze)
 
+
+def _add_options_menu(
+    window: Any,
+    opcoes_menu: Any,
+    *,
+    action_cls: Any,
+    preferences: dict[str, Any],
+    default_table_alignment: str,
+    table_alignment_labels: dict[str, str],
+) -> None:
     _add_action(
         opcoes_menu,
         action_cls,
@@ -123,6 +161,9 @@ def setup_app_menus(
     _add_pai_api_menu(window, opcoes_menu, action_cls, preferences=preferences)
 
     _add_action(opcoes_menu, action_cls, window, "Selecionar Tema", window.toggle_theme_menu)
+
+
+def _add_help_menu(window: Any, ajuda_menu: Any, action_cls: Any) -> None:
     _add_action(ajuda_menu, action_cls, window, "Instalacao", window.open_installation_guide)
     _add_action(ajuda_menu, action_cls, window, "Ajuda", window.show_filter_help)
 
@@ -203,7 +244,10 @@ def _add_pai_api_menu(
     scrap_action.triggered.connect(window.set_pai_api_scrap_enabled)
     pai_menu.addAction(scrap_action)
 
-    auto_action = action_cls("Atualizacao automatica (10 min)", window)
+    auto_action = action_cls(
+        f"Atualizacao automatica ({options.auto_refresh_interval_minutes} min)",
+        window,
+    )
     auto_action.setCheckable(True)
     auto_action.setChecked(options.auto_refresh_enabled)
     auto_action.triggered.connect(window.set_pai_api_auto_refresh_enabled)
@@ -228,7 +272,11 @@ def _add_pai_api_menu(
     for scope in PAI_API_ALLOWED_DATA_SCOPES:
         scope_action = action_cls(pai_api_data_scope_label(scope), window)
         scope_action.setCheckable(True)
-        scope_action.setChecked(scope.casefold() in selected_scopes)
+        scope_available = scope in PAI_API_REST_DATA_SCOPES
+        scope_action.setChecked(scope_available and scope.casefold() in selected_scopes)
+        scope_action.setEnabled(scope_available)
+        if not scope_available:
+            _set_action_status_tip(scope_action, _pai_api_scope_unavailable_tip(scope))
         scope_action.triggered.connect(
             lambda checked, value=scope: window.set_pai_api_data_scope_enabled(
                 value,
@@ -236,3 +284,17 @@ def _add_pai_api_menu(
             )
         )
         data_scope_menu.addAction(scope_action)
+
+
+def _pai_api_scope_unavailable_tip(scope: str) -> str:
+    if scope in PAI_API_PLANNED_SCRAPER_DATA_SCOPES:
+        return "Tipo PAI exige backend scraper dedicado antes de habilitar."
+    if scope in PAI_API_UNSUPPORTED_DATA_SCOPES:
+        return "Tipo PAI ainda nao tem contrato de dados implementado."
+    return "Tipo PAI indisponivel neste fluxo."
+
+
+def _set_action_status_tip(action: Any, text: str) -> None:
+    set_status_tip = getattr(action, "setStatusTip", None)
+    if callable(set_status_tip):
+        set_status_tip(text)
