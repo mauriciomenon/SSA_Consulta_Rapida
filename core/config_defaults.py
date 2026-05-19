@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Dict
 
 DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
@@ -35,7 +37,7 @@ DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
     "tempo_total": "Tempo Total",
     "desde_1": "Desde (1)",
     "total_tempo_tpe_planejado": "Tempo TPE Plan.",
-    "total_tempo_tpe_executada": "Tempo Total TPE Executada",
+    "total_tempo_tpe_executada": "Tempo TPE Exec.",
     "total_tempo_tex_planejado": "Tempo TEX Plan.",
     "total_tempo_tpo_planejado": "Tempo TPO Plan.",
     "total_horas_programadas": "Horas Prog.",
@@ -56,7 +58,7 @@ DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
     "executado": "Executado",
     "concluido": "Concluído",
     "total_tempo_tpo_executada": "Tempo TPO Exec.",
-    "total_tempo_tex_executada": "Tempo Total TEX Executada",
+    "total_tempo_tex_executada": "Tempo TEX Exec.",
     "data_inicio_programada": "Data Início Prog.",
     "data_programacao": "Data Programação",
     "data_inicio_reprogramada": "Data Início Reprog.",
@@ -99,8 +101,8 @@ COLUMN_AFFINITY_SCORES: Dict[str, int] = {
     # Planejamento
     "grau_prioridade_planejamento": 780,
     "semana_programada": 770,
-    "responsavel_programacao": 760,
     # Programacao
+    "responsavel_programacao": 760,
     "data_inicio_programada": 730,
     "data_programacao": 720,
     # Reprogramacao
@@ -113,104 +115,42 @@ COLUMN_AFFINITY_SCORES: Dict[str, int] = {
     "descricao_execucao": 600,
     "responsavel_execucao": 590,
     "semana_executada": 580,
+    "status_execucao_prazo": 575,
     "execucao_simples": 570,
     "execucao_parcial": 560,
     "concluido": 550,
     "executado": 540,
+    "atividade_especial": 530,
 }
 
-# Default mapping used if column_mappings.json is missing/invalid
-DEFAULT_COLUMN_MAPPINGS: Dict[str, list] = {
-    "numero_ssa": ["Nº SSA", "Nº SSA*", "Nº SSA Original", "Numero SSA", "Nº da SSA"],
-    "situacao": ["Situação", "Situacao", "Status"],
-    "derivada_de": ["Derivada de", "Derivada De"],
-    "localizacao_codigo": [
-        "Loc.",
-        "Localização",
-        "Cod. Localização",
-        "Codigo Localizacao",
-    ],
-    "descricao_localizacao": [
-        "Desc. Loc.",
-        "Descrição da Localização",
-        "Descricao Localizacao",
-    ],
-    "equipamento": ["Equip.", "Equipamento"],
-    "semana_cadastro": ["Sem.\nCadastro", "Sem. Cadastro", "Semana Cadastro"],
-    "data_cadastro": [
-        "Emitida Em",
-        "Data de Emissão",
-        "Data Cadastro",
-        "Data/Hora de Cadastro",
-    ],
-    "descricao_ssa": ["Descrição da SSA", "Descricao da SSA", "Descricao"],
-    "setor_emissor": ["Emissor", "Setor Emissor"],
-    "setor_executor": ["Executor", "Setor Executor"],
-    "solicitante": ["Solicitante"],
-    "servico_origem": ["Serv. Origem", "Serviço de Origem"],
-    "grau_prioridade_emissao": [
-        "Prior. Emissão",
-        "Prioridade Emissão",
-        "Grau Prioridade Emissão",
-    ],
-    "grau_prioridade_planejamento": [
-        "Prior. Planej.",
-        "Prioridade Planejamento",
-        "Grau Prioridade Planejamento",
-    ],
-    "execucao_simples": ["Exec. Simples", "Execução Simples"],
-    "responsavel_programacao": ["Resp. Prog.", "Responsável Programação"],
-    "semana_programada": ["Sem. Prog.", "Semana Programada"],
-    "responsavel_execucao": ["Resp. Exec.", "Responsável Execução"],
-    "descricao_execucao": ["Descrição da Execução", "Descricao da Execucao"],
-    "prazo_limite": ["Prazo Limite"],
-    "tempo_disponivel": ["Tempo Disp.", "Tempo Disponível"],
-    "data_limite": ["Data Limite"],
-    "tempo_excedido": ["Tempo Excedido"],
-    "desde": ["Desde"],
-    "tempo_total": ["Tempo Total"],
-    "desde_1": ["Desde (1)"],
-    "total_tempo_tpe_planejado": ["Tempo TPE Plan.", "Total Tempo TPE Planejado"],
-    "total_tempo_tex_planejado": ["Tempo TEX Plan.", "Total Tempo TEX Planejado"],
-    "total_tempo_tpo_planejado": ["Tempo TPO Plan.", "Total Tempo TPO Planejado"],
-    "total_horas_programadas": ["Horas Prog.", "Total Horas Programadas"],
-    "total_tempo_tpe_executada": ["Total Tempo TPE Executada"],
-    "semana_executada": ["Sem. Exec.", "Semana Executada"],
-    "num_reprogramacoes": ["Nº Reprog.", "Número de Reprogramações", "Reprogramações"],
-    "execucao_parcial": ["Exec. Parcial", "Execução Parcial"],
-    "anomalia": ["Anomalia"],
-    "sistema_origem": ["Sis. Origem", "Sistema de Origem"],
-    "numero_desvios": ["Número de Desvios", "Nº de Desvios", "Desvio"],
-    "justificativa": ["Justificativa", "Justificativa sem APR"],
+# Column mappings source of truth lives in config/column_mappings.json.
+_COLUMN_MAPPINGS_PATH = Path(__file__).resolve().parents[1] / "config" / "column_mappings.json"
+
+_MINIMAL_COLUMN_MAPPINGS_FALLBACK: Dict[str, list] = {
+    "numero_ssa": ["Nº SSA", "Numero SSA", "ssa_number"],
+    "data_cadastro": ["Emitida Em", "Data Cadastro", "issue_datetime"],
+    "descricao_ssa": ["Descrição da SSA", "Descricao", "description"],
+    "setor_executor": ["Executor", "Setor Executor", "executor_sector"],
+    "setor_emissor": ["Emissor", "Setor Emissor", "emitter_sector"],
     "atividade_especial": ["Atividade Especial", "Actividad Especial"],
-    "equipamento_retirado": ["Equipamento Retirado"],
-    "destino": ["Destino"],
-    "equipamento_instalado": ["Equipamento Instalado"],
-    "origem": ["Origem"],
-    "desativacao_da_localizacao": ["Desativação da localização"],
-    "instalacao_estimada": ["Instalação Estimada"],
-    "executado": ["Executado"],
-    "concluido": ["Concluído"],
-    "total_tempo_tpo_executada": ["Total Tempo TPO Executada"],
-    "data_inicio_programada": ["Data início Programada"],
-    "data_programacao": ["Data de programação"],
-    "data_inicio_reprogramada": ["Data início Reprogramada"],
-    "data_reprogramacao": ["Data de reprogramação"],
-    "situacao_reprogramacao": ["Situação de Reprogramação"],
-    "total_de_reprogramacoes": ["Total de Reprogramações"],
-    "situacao_de_desvio": ["Situação de Desvio"],
-    "relacao": ["Relação"],
-    "sn": ["SN"],
-    "ate_1": ["Até (1)"],
-    "ate_2": ["Até (2)"],
-    "desde_2": ["Desde (2)"],
-    "numero_ssa_relacionada_1": ["Número da SSA Relacionada"],
-    "numero_ssa_relacionada_2": ["Número da SSA Relacionada (2)"],
-    "setor_emissor_relacionado_1": ["Setor Emissor Relacionado"],
-    "setor_emissor_relacionado_2": ["Setor Emissor Relacionado (2)"],
-    "setor_executor_relacionado_1": ["Setor Executor Relacionado"],
-    "setor_executor_relacionado_2": ["Setor Executor Relacionado (2)"],
-    "situacao_relacionada_1": ["Situação Relacionada"],
-    "situacao_relacionada_2": ["Situação Relacionada (2)"],
-    "status_execucao_prazo": ["Situação do Prazo", "Status Prazo"],
 }
+
+
+def _load_default_column_mappings() -> Dict[str, list]:
+    try:
+        raw = json.loads(_COLUMN_MAPPINGS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return dict(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
+    if not isinstance(raw, dict) or not raw:
+        return dict(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
+    cleaned: Dict[str, list] = {}
+    for canonical, aliases in raw.items():
+        if not isinstance(canonical, str) or not isinstance(aliases, list):
+            continue
+        valid_aliases = [alias for alias in aliases if isinstance(alias, str) and alias]
+        if valid_aliases:
+            cleaned[canonical] = valid_aliases
+    return cleaned or dict(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
+
+
+DEFAULT_COLUMN_MAPPINGS: Dict[str, list] = _load_default_column_mappings()

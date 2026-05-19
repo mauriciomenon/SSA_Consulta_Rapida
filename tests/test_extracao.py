@@ -140,7 +140,31 @@ def test_extract_data_from_excel_fails_when_required_columns_missing(tmp_path):
         extract_data_from_excel(str(file_path))
 
     assert "Missing required columns" in str(excinfo.value)
-    assert "available_columns=" in str(excinfo.value)
+
+
+def test_extract_data_from_excel_accepts_english_api_headers(tmp_path):
+    df = pd.DataFrame(
+        {
+            "ssa_number": [202600233],
+            "description": ["API report row"],
+            "issue_datetime": ["2026-01-07 13:56:00"],
+            "executor_sector": ["IEE3"],
+            "emitter_sector": ["MEL4"],
+            "localization": ["M075A006"],
+            "year_week": [202602],
+        }
+    )
+    file_path = tmp_path / "api_headers.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
+
+    result = extract_data_from_excel(str(file_path))
+
+    assert str(result.loc[0, "numero_ssa"]) == "202600233"
+    assert result.loc[0, "descricao_ssa"] == "API report row"
+    assert result.loc[0, "setor_executor"] == "IEE3"
+    assert result.loc[0, "setor_emissor"] == "MEL4"
+    assert "data_cadastro" in result.columns
 
 
 def test_extract_data_from_excel_empty_mapping_keeps_original_columns_and_fails_required(

@@ -5,12 +5,25 @@
     "Nº SSA Original",
     "Numero SSA",
     "Nº da SSA",
-    "Número da SSA"
+    "Número da SSA",
+    "ssa_number",
+    "SSA Number",
+    "SSANumber",
+    "Numero de SSA",
+    "Numero de la SSA"
   ],
   "situacao": [
     "Situação",
     "Situacao",
-    "Status"
+    "Status",
+    "situation",
+    "situation_desc",
+    "Situation",
+    "SituationDesc",
+    "Situacion",
+    "Situación",
+    "Estado",
+    "process_status"
   ],
   "derivada_de": [
     "Derivada de",
@@ -20,7 +33,13 @@
     "Loc.",
     "Localização",
     "Cod. Localização",
-    "Codigo Localizacao"
+    "Codigo Localizacao",
+    "localization",
+    "Localization",
+    "localizacion",
+    "Localizacion",
+    "Ubicacion",
+    "Ubicación"
   ],
   "descricao_localizacao": [
     "Desc. Loc.",
@@ -35,26 +54,53 @@
     "Sem.\nCadastro",
     "Sem. Cadastro",
     "Semana Cadastro",
-    "Semana de Cadastro"
+    "Semana de Cadastro",
+    "year_week",
+    "Year Week",
+    "Ano Semana",
+    "Ano-Semana"
   ],
   "data_cadastro": [
     "Emitida Em",
     "Data de Emissão",
     "Data Cadastro",
-    "Data/Hora de Cadastro"
+    "Data/Hora de Cadastro",
+    "issue_datetime",
+    "emission_datetime",
+    "Issue Datetime",
+    "Emission Datetime",
+    "Fecha Emision",
+    "Fecha de Emision",
+    "Fecha de Emisión"
   ],
   "descricao_ssa": [
     "Descrição da SSA",
     "Descricao da SSA",
-    "Descricao"
+    "Descricao",
+    "description",
+    "Description",
+    "descripcion",
+    "Descripción",
+    "Descripcion",
+    "Descripcion de la SSA",
+    "Descripción de la SSA"
   ],
   "setor_emissor": [
     "Emissor",
-    "Setor Emissor"
+    "Setor Emissor",
+    "emitter_sector",
+    "Emitter Sector",
+    "EmitterSector",
+    "EmmiterSector",
+    "Sector Emisor"
   ],
   "setor_executor": [
     "Executor",
-    "Setor Executor"
+    "Setor Executor",
+    "executor_sector",
+    "Executor Sector",
+    "ExecutorSector",
+    "Sector Ejecutor"
   ],
   "solicitante": [
     "Solicitante"
@@ -96,7 +142,11 @@
   "descricao_execucao": [
     "Descrição da Execução",
     "Descricao da Execucao",
-    "Descrição Execução"
+    "Descrição Execução",
+    "execution_description",
+    "Execution Description",
+    "Descripcion de la Ejecucion",
+    "Descripción de la Ejecución"
   ],
   "total_tempo_tex_executada": [
     "Total Tempo TEX Executada"
@@ -197,6 +247,7 @@
     "Justificativa sem APR"
   ],
   "atividade_especial": [
+    "Atividade Especial",
     "Actividad Especial"
   ],
   "equipamento_retirado": [
