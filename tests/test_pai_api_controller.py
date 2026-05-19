@@ -102,15 +102,20 @@ class _Worker:
         self.error_line = _Signal()
         self.progress = _Signal()
         self.preview_ready = _Signal()
+        self.import_decision_required = _Signal()
         self.finished_success = _Signal()
         self.finished_error = _Signal()
         self.started = False
+        self.import_decision: bool | None = None
 
     def start(self) -> None:
         self.started = True
 
     def isRunning(self) -> bool:
         return self.started
+
+    def set_import_decision(self, approved: bool) -> None:
+        self.import_decision = bool(approved)
 
 
 def test_auto_refresh_timer_starts_when_enabled(tmp_path: Path) -> None:

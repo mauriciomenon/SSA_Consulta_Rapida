@@ -6,7 +6,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from dataclasses import replace
 from pathlib import Path
-from threading import Lock
+from threading import Event, Lock
 from typing import Sequence
 
 from core.pai_api_options import PaiApiGuiOptions, pai_api_options_error
@@ -26,6 +26,7 @@ from gui.workers.qt_thread_shim import QThread, pyqtSignal
 
 
 PAI_API_MAX_CONCURRENT_FETCHES = 3
+PAI_API_IMPORT_CONFIRM_TIMEOUT_SECONDS = 300.0
 
 
 @dataclass(frozen=True)
@@ -35,12 +36,27 @@ class PaiApiWorkerConfig:
     db_path: Path
     output_dir: Path
     options: PaiApiGuiOptions
+    confirm_before_import: bool = False
+    fetch_only: bool = False
 
 
 @dataclass(frozen=True)
 class PaiApiRefreshSummary:
+    previewed_sectors: int
     imported_sectors: int
     failed_sectors: int
+    normalized_rows: int
+    imported_normalized_rows: int
+    rows_after_import: int | None
+    import_skipped: bool
+    failures: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PaiApiImportDecisionRequest:
+    previewed_sectors: int
+    failed_sectors: int
+    normalized_rows: int
     failures: tuple[str, ...]
 
 
@@ -66,6 +82,7 @@ class PaiApiRefreshWorker(QThread):
     error_line = pyqtSignal(str)
     progress = pyqtSignal(int, str)
     preview_ready = pyqtSignal(object)
+    import_decision_required = pyqtSignal(object)
     finished_success = pyqtSignal()
     finished_error = pyqtSignal(str)
 
@@ -74,18 +91,30 @@ class PaiApiRefreshWorker(QThread):
         self.config = config
         self.results: list[PaiImportResult] = []
         self.failures: list[str] = []
-        self._summary = PaiApiRefreshSummary(0, 0, ())
+        self._summary = PaiApiRefreshSummary(0, 0, 0, 0, 0, None, False, ())
         self._state_lock = Lock()
+        self._import_decision_event = Event()
+        self._import_decision = False
+        self._import_decision_ready = False
 
     def summary(self) -> PaiApiRefreshSummary:
         with self._state_lock:
             return self._summary
 
+    def set_import_decision(self, approved: bool) -> None:
+        with self._state_lock:
+            self._import_decision = bool(approved)
+            self._import_decision_ready = True
+        self._import_decision_event.set()
+
     def reset_for_start(self) -> None:
         with self._state_lock:
             self.results.clear()
             self.failures.clear()
-            self._summary = PaiApiRefreshSummary(0, 0, ())
+            self._summary = PaiApiRefreshSummary(0, 0, 0, 0, 0, None, False, ())
+            self._import_decision = False
+            self._import_decision_ready = False
+            self._import_decision_event.clear()
 
     def run(self) -> None:
         try:
@@ -121,10 +150,31 @@ class PaiApiRefreshWorker(QThread):
         if certificate is None:
             return
 
-        self._refresh_sectors(base_request, certificate.ca_file, sectors)
+        previews = self._fetch_sector_previews(
+            self._sector_requests(base_request, certificate.ca_file, sectors)
+        )
+        self._refresh_summary(previews=previews)
+        if not previews:
+            self.finished_error.emit(_format_total_failure(self._failures_snapshot()))
+            return
+
+        if self.config.fetch_only:
+            self._mark_import_skipped(previews=previews)
+            self.progress.emit(100, "API PAI preview concluido; DB inalterado")
+            self.finished_success.emit()
+            return
+
+        if self.config.confirm_before_import and not self._confirm_import(previews):
+            self._mark_import_skipped(previews=previews)
+            self.progress.emit(100, "API PAI preview concluido; DB inalterado")
+            self.finished_success.emit()
+            return
+
+        for preview in previews:
+            self._import_sector_preview(preview)
 
         imported_count = sum(1 for result in self._results_snapshot() if result.imported)
-        self._refresh_summary()
+        self._refresh_summary(previews=previews)
         if imported_count == 0:
             self.finished_error.emit(_format_total_failure(self._failures_snapshot()))
             return
@@ -146,17 +196,6 @@ class PaiApiRefreshWorker(QThread):
             self._refresh_summary()
             self.finished_error.emit(failure)
             return None
-
-    def _refresh_sectors(
-        self,
-        base_request: PaiScrapReportRequest,
-        ca_file: Path,
-        sectors: tuple[str, ...],
-    ) -> None:
-        requests = self._sector_requests(base_request, ca_file, sectors)
-        previews = self._fetch_sector_previews(requests)
-        for preview in previews:
-            self._import_sector_preview(preview)
 
     def _sector_requests(
         self,
@@ -277,13 +316,33 @@ class PaiApiRefreshWorker(QThread):
             f"setor {sector_preview.sector}: {_format_refresh_result(result)}"
         )
 
-    def _refresh_summary(self) -> None:
+    def _confirm_import(self, previews: list[_PaiSectorPreview]) -> bool:
+        self.import_decision_required.emit(_decision_request(previews, self._failures_snapshot()))
+        if not self._import_decision_event.wait(PAI_API_IMPORT_CONFIRM_TIMEOUT_SECONDS):
+            self._add_failure("confirmacao de importacao nao recebida")
+            return False
+        with self._state_lock:
+            if not self._import_decision_ready:
+                self._add_failure("confirmacao de importacao nao recebida")
+                return False
+            return self._import_decision
+
+    def _mark_import_skipped(self, previews: list[_PaiSectorPreview]) -> None:
+        self._set_summary(_summary_from_state(
+            results=self._results_snapshot(),
+            failures=self._failures_snapshot(),
+            previews=tuple(previews),
+            import_skipped=True,
+        ))
+
+    def _refresh_summary(self, previews: list[_PaiSectorPreview] | None = None) -> None:
         results = self._results_snapshot()
         failures = self._failures_snapshot()
-        self._set_summary(PaiApiRefreshSummary(
-            imported_sectors=sum(1 for result in results if result.imported),
-            failed_sectors=len(failures),
-            failures=tuple(failures),
+        self._set_summary(_summary_from_state(
+            results=results,
+            failures=failures,
+            previews=tuple(previews or ()),
+            import_skipped=False,
         ))
 
     def _set_summary(self, summary: PaiApiRefreshSummary) -> None:
@@ -321,6 +380,56 @@ def format_preview_status(preview: PaiFetchedXlsxPreview) -> str:
         "API PAI: "
         f"{preview.normalized_rows} linhas validadas em "
         f"{preview.import_xlsx_path.name}"
+    )
+
+
+def format_decision_request_status(request: PaiApiImportDecisionRequest) -> str:
+    return (
+        "API PAI: "
+        f"{request.normalized_rows} linhas em {request.previewed_sectors} setores; "
+        "aguardando confirmacao"
+    )
+
+
+def _decision_request(
+    previews: list[_PaiSectorPreview],
+    failures: Sequence[str],
+) -> PaiApiImportDecisionRequest:
+    return PaiApiImportDecisionRequest(
+        previewed_sectors=len(previews),
+        failed_sectors=len(failures),
+        normalized_rows=sum(preview.preview.normalized_rows for preview in previews),
+        failures=tuple(failures),
+    )
+
+
+def _summary_from_state(
+    *,
+    results: Sequence[PaiImportResult],
+    failures: Sequence[str],
+    previews: Sequence[_PaiSectorPreview],
+    import_skipped: bool,
+) -> PaiApiRefreshSummary:
+    imported_results = tuple(result for result in results if result.imported)
+    rows_after_import = next(
+        (
+            result.rows_after_import
+            for result in reversed(imported_results)
+            if result.rows_after_import is not None
+        ),
+        None,
+    )
+    return PaiApiRefreshSummary(
+        previewed_sectors=len(previews),
+        imported_sectors=len(imported_results),
+        failed_sectors=len(failures),
+        normalized_rows=sum(preview.preview.normalized_rows for preview in previews),
+        imported_normalized_rows=sum(
+            int(result.normalized_rows or 0) for result in imported_results
+        ),
+        rows_after_import=rows_after_import,
+        import_skipped=import_skipped,
+        failures=tuple(failures),
     )
 
 

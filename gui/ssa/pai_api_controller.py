@@ -20,6 +20,7 @@ from gui.ssa.pai_api_status_text import trim_pai_api_status_detail
 from gui.workers.pai_api_worker import (
     PaiApiRefreshWorker,
     PaiApiWorkerConfig,
+    format_decision_request_status,
     format_preview_status,
 )
 from utils.robust_logging import get_robust_logger
@@ -66,11 +67,13 @@ class PaiApiWorkerPort(Protocol):
     error_line: PaiApiSignal
     progress: PaiApiSignal
     preview_ready: PaiApiSignal
+    import_decision_required: PaiApiSignal
     finished_success: PaiApiSignal
     finished_error: PaiApiSignal
 
     def start(self) -> None: ...
     def isRunning(self) -> bool: ...
+    def set_import_decision(self, approved: bool) -> None: ...
 
 
 class PaiApiWindowPort(Protocol):
@@ -154,6 +157,8 @@ def start_pai_api_refresh(
             db_path=Path(context.db_path),
             output_dir=Path(context.output_dir),
             options=options,
+            confirm_before_import=ask_reload,
+            fetch_only=not ask_reload,
         )
     )
     reset_for_start = getattr(worker, "reset_for_start", None)
@@ -183,16 +188,7 @@ def initialize_pai_api_auto_refresh(
     if timer is None:
         timer = qtimer_cls(window)
         timer.setSingleShot(False)
-        timer.timeout.connect(
-            lambda: start_pai_api_refresh(
-                window,
-                preferences=window.pai_api_preferences(),
-                context=window.pai_api_refresh_context(),
-                worker_cls=worker_cls,
-                ask_reload=False,
-                quiet_if_running=True,
-            )
-        )
+        timer.timeout.connect(partial(_run_auto_refresh_timeout, window, worker_cls))
         window.set_active_pai_api_timer(timer)
     return sync_pai_api_auto_refresh(window, preferences=preferences)
 
@@ -235,6 +231,9 @@ def _connect_worker(
     worker.error_line.connect(_log_worker_error)
     worker.progress.connect(partial(_set_worker_progress, window))
     worker.preview_ready.connect(partial(_set_worker_preview_status, window))
+    worker.import_decision_required.connect(
+        partial(_confirm_worker_import, window, worker, qmessagebox=qmessagebox)
+    )
     worker.finished_success.connect(
         partial(
             _finish_success,
@@ -245,6 +244,20 @@ def _connect_worker(
         )
     )
     worker.finished_error.connect(partial(_finish_error, window, worker))
+
+
+def _run_auto_refresh_timeout(
+    window: PaiApiWindowPort,
+    worker_cls: Any,
+) -> bool:
+    return start_pai_api_refresh(
+        window,
+        preferences=window.pai_api_preferences(),
+        context=window.pai_api_refresh_context(),
+        worker_cls=worker_cls,
+        ask_reload=False,
+        quiet_if_running=True,
+    )
 
 
 def _log_worker_output(text: str, *_args: Any) -> None:
@@ -272,6 +285,17 @@ def _set_worker_preview_status(
     window.set_pai_api_status(f"Status: {format_preview_status(preview)}")
 
 
+def _confirm_worker_import(
+    window: PaiApiWindowPort,
+    worker: PaiApiWorkerPort,
+    decision_request: Any,
+    *_args: Any,
+    qmessagebox: Any,
+) -> None:
+    window.set_pai_api_status(f"Status: {format_decision_request_status(decision_request)}")
+    worker.set_import_decision(window.confirm_pai_api_reload(qmessagebox))
+
+
 def _finish_success(
     window: PaiApiWindowPort,
     worker: Any,
@@ -282,7 +306,10 @@ def _finish_success(
     if window.active_pai_api_worker() is worker:
         window.set_active_pai_api_worker(None)
     partial_status = _worker_partial_status(worker)
-    if ask_reload and window.confirm_pai_api_reload(qmessagebox):
+    if _worker_import_skipped(worker):
+        window.set_pai_api_status(partial_status or STATUS_API_KEEP_CURRENT)
+        return
+    if ask_reload:
         window.set_pai_api_status(partial_status or STATUS_API_RELOAD)
         window.reload_pai_api_data()
         return
@@ -344,6 +371,14 @@ def _worker_partial_status(worker: Any) -> str | None:
         "Status: API PAI parcial; "
         f"{imported_count} setores importados; {failed_count} falharam."
     )
+
+
+def _worker_import_skipped(worker: Any) -> bool:
+    summary_fn = getattr(worker, "summary", None)
+    if not callable(summary_fn):
+        return False
+    summary = summary_fn()
+    return bool(getattr(summary, "import_skipped", False))
 
 
 def set_pai_api_auto_refresh_enabled(
