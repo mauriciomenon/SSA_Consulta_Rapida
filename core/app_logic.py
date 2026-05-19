@@ -18,7 +18,6 @@ import json
 import logging
 import os
 import re
-import shutil
 import sqlite3
 import sys
 import time
@@ -56,6 +55,13 @@ from core.import_formats import (  # noqa: E402
     SUPPORTED_IMPORT_SUFFIXES,
     supported_import_suffixes_text,
 )
+from core.import_database_rotation import (  # noqa: E402
+    build_full_rescan_candidate_path as _build_full_rescan_candidate_path,
+    promote_full_rescan_candidate as _promote_full_rescan_candidate,
+)
+from core.import_postprocess import (  # noqa: E402
+    route_and_move_processed_files as _apply_postprocess_file_moves,
+)
 from core.import_run_report import (  # noqa: E402
     _build_import_run_payload,
     _write_import_run_report,
@@ -82,11 +88,6 @@ from utils.path_safety import ensure_path_is_allowed  # noqa: E402
 logger = logging.getLogger(__name__)
 
 QUERYABLE_FILTER_COLUMNS = frozenset(DEFAULT_COLUMN_MAPPINGS)
-SQLITE_CHECKPOINT_BUSY_INDEX = 0
-SQLITE_CHECKPOINT_LOG_INDEX = 1
-SQLITE_CHECKPOINT_CHECKPOINTED_INDEX = 2
-SQLITE_FILE_REPLACE_RETRY_DELAYS_SECONDS = (0.0, 0.1, 0.35, 0.75)
-SQL_LIKE_ESCAPE_CHAR = "\\"
 
 _DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE: Dict[str, str] = {
     "ssa_table": """
@@ -382,7 +383,8 @@ def _needs_db_only_derivadas_sync(
                 and len(_DB_ONLY_DERIVADAS_PREFLIGHT_CACHE)
                 >= _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE_LIMIT
             ):
-                _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE.clear()
+                oldest_key = next(iter(_DB_ONLY_DERIVADAS_PREFLIGHT_CACHE))
+                _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE.pop(oldest_key, None)
             _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE[cache_key] = result
         return result
 
@@ -510,7 +512,18 @@ def _run_derivadas_sync_phase(
         sheet_evidence = {}
     accepted_edges = int(sheet_stats.get("accepted_edges", 0) or 0)
     special_layout_detected = int(sheet_stats.get("special_layout_detected", 0) or 0)
-    has_sheet_evidence = accepted_edges > 0 or special_layout_detected > 0
+    informational_rows = int(sheet_stats.get("informational_rows_skipped", 0) or 0)
+    has_file_parse_evidence = any(
+        _has_sheet_parse_evidence(entry)
+        for entry in sheet_file_reports
+        if isinstance(entry, dict)
+    )
+    has_sheet_evidence = (
+        accepted_edges > 0
+        or special_layout_detected > 0
+        or informational_rows > 0
+        or has_file_parse_evidence
+    )
     db_stats = report.get("db_stats") or {}
     db_edges = int(db_stats.get("accepted_edges", 0) or 0)
     merge_stats = report.get("merge_stats") or {}
@@ -556,14 +569,20 @@ def _run_derivadas_sync_phase(
             if current is None or not _has_sheet_parse_evidence(current):
                 files_without_evidence.append(os.path.basename(expected_file))
     if files_without_evidence:
-        logger.error(
-            "Sync de derivadas especiais sem evidencia individual em %s arquivo(s): %s",
+        report = dict(report)
+        report["sheet_files_without_evidence"] = sorted(files_without_evidence)
+        if len(files_without_evidence) >= len(existing_files):
+            logger.error(
+                "Sync de derivadas especiais sem evidencia individual em %s arquivo(s): %s",
+                len(files_without_evidence),
+                ", ".join(sorted(files_without_evidence)),
+            )
+            return False, existing_files, report
+        logger.warning(
+            "Sync de derivadas especiais ignorou %s arquivo(s) sem evidencia individual: %s",
             len(files_without_evidence),
             ", ".join(sorted(files_without_evidence)),
         )
-        report = dict(report)
-        report["sheet_files_without_evidence"] = sorted(files_without_evidence)
-        return False, existing_files, report
     if existing_files and not bool(sheet_evidence.get("is_complete", True)):
         report = dict(report)
         report["sheet_files_without_evidence"] = sorted(
@@ -572,11 +591,16 @@ def _run_derivadas_sync_phase(
             if str(path).strip()
         )
         missing_count = len(report["sheet_files_without_evidence"])
-        logger.error(
-            "Sync de derivadas especiais reportou evidencia incompleta no sumario agregado (%s arquivo(s)).",
+        if missing_count >= len(existing_files):
+            logger.error(
+                "Sync de derivadas especiais reportou evidencia incompleta no sumario agregado (%s arquivo(s)).",
+                missing_count,
+            )
+            return False, existing_files, report
+        logger.warning(
+            "Sync de derivadas especiais reportou evidencia agregada parcial (%s arquivo(s)).",
             missing_count,
         )
-        return False, existing_files, report
     if existing_files and not has_sheet_evidence and not has_graph_evidence:
         logger.error(
             "Sync de derivadas especiais sem evidencia de parse valido (accepted_edges=0, special_layout_detected=0)."
@@ -600,7 +624,8 @@ def _run_derivadas_sync_phase(
         )
         return False, existing_files, report
 
-    cached_sheets = list(existing_files) if has_sheet_evidence else []
+    should_cache_sheet_files = accepted_edges > 0 or special_layout_detected > 0
+    cached_sheets = list(existing_files) if should_cache_sheet_files else []
     logger.info(
         "Sync de derivadas concluido (planilhas=%s, merged_edges=%s, db_edges=%s, sheet_edges=%s).",
         len(existing_files),
@@ -686,15 +711,21 @@ def _has_only_deterministic_rejections(
     if not critical_errors:
         return False
 
-    extraction_error_paths = {
+    deterministic_error_types = {"extraction", "validation", "database_generic"}
+    regular_deterministic_error_paths = {
         file_path
         for error_type, file_path, _message in critical_errors
-        if error_type == "extraction"
+        if file_path in regular_candidate_set and error_type in deterministic_error_types
     }
-    if extraction_error_paths != regular_candidate_set:
+    regular_blocking_error_paths = {
+        file_path
+        for error_type, file_path, _message in critical_errors
+        if file_path in regular_candidate_set and error_type not in deterministic_error_types
+    }
+    if regular_blocking_error_paths:
         return False
 
-    return len(extraction_error_paths) == len(critical_errors)
+    return regular_deterministic_error_paths == regular_candidate_set
 
 
 def _load_import_discovery_settings() -> Dict[str, Any]:
@@ -760,341 +791,6 @@ def _load_import_discovery_settings() -> Dict[str, Any]:
             exc,
         )
         return defaults
-
-
-def _build_nonconflicting_destination(
-    path: Path,
-    *,
-    existing_names: Optional[set[str]] = None,
-) -> Path:
-    """Return a non-conflicting destination path by suffixing __N when needed."""
-    names = existing_names
-    if names is None:
-        names = {candidate.name for candidate in path.parent.iterdir()}
-    if path.name not in names and not path.exists():
-        return path
-    stem = path.stem
-    suffix = path.suffix
-    for idx in range(1, 10000):
-        candidate = path.with_name(f"{stem}__{idx}{suffix}")
-        if candidate.name not in names:
-            return candidate
-    raise OSError(f"Nao foi possivel resolver destino unico para '{path}'")
-
-
-def _move_file_after_import(
-    *,
-    file_path: str,
-    docs_dir: str,
-    processadas_subdir: str,
-    nosurvivor_subdir: str,
-    route_to_nosurvivor: bool,
-    existing_destination_names: Optional[set[str]] = None,
-) -> str:
-    """Move processed file to processadas (or processadas/nosurvivor) and return final path."""
-    source = Path(file_path).resolve()
-    docs_root = Path(docs_dir).resolve()
-    processadas_root = (docs_root / processadas_subdir).resolve()
-    if not source.exists():
-        logger.warning("Arquivo para pos-processamento nao encontrado: %s", file_path)
-        return file_path
-    try:
-        source.relative_to(docs_root)
-    except ValueError:
-        logger.warning(
-            "Arquivo fora de docs_dir nao sera movido no pos-processamento: %s",
-            file_path,
-        )
-        return file_path
-    if source.is_relative_to(processadas_root):
-        return str(source)
-
-    destination_root = processadas_root
-    if route_to_nosurvivor:
-        destination_root = processadas_root / nosurvivor_subdir
-    destination_root.mkdir(parents=True, exist_ok=True)
-    destination = _build_nonconflicting_destination(
-        destination_root / source.name,
-        existing_names=existing_destination_names,
-    )
-    if destination == source:
-        return str(source)
-    try:
-        shutil.move(str(source), str(destination))
-    except (OSError, RuntimeError, shutil.Error, ValueError) as exc:
-        logger.warning(
-            "Falha ao mover arquivo pos-importacao '%s' para '%s': %s",
-            file_path,
-            destination,
-            exc,
-        )
-        return file_path
-    try:
-        src_rel = source.relative_to(docs_root).as_posix()
-    except ValueError:
-        src_rel = str(source)
-    try:
-        dst_rel = destination.relative_to(docs_root).as_posix()
-    except ValueError:
-        dst_rel = str(destination)
-    logger.info(
-        "Arquivo pos-importacao movido: %s -> %s",
-        src_rel,
-        dst_rel,
-    )
-    if existing_destination_names is not None:
-        existing_destination_names.add(destination.name)
-    return str(destination)
-
-
-def _apply_postprocess_file_moves(
-    *,
-    successful_files_with_records: List[tuple[str, int]],
-    docs_dir: str,
-    processadas_subdir: str,
-    nosurvivor_subdir: str,
-    route_zero_survivor_to_nosurvivor: bool,
-) -> Dict[str, str]:
-    """Apply post-import moves and return old_path -> final_path mapping."""
-    moved_paths: Dict[str, str] = {}
-    destination_name_cache: dict[Path, set[str]] = {}
-    for file_path, record_count in successful_files_with_records:
-        try:
-            normalized_record_count = int(record_count)
-        except (TypeError, ValueError):
-            logger.warning(
-                "Contagem invalida para movimentacao pos-importacao de '%s': %r",
-                os.path.basename(file_path),
-                record_count,
-            )
-            normalized_record_count = 0
-        route_to_nosurvivor = bool(
-            route_zero_survivor_to_nosurvivor and normalized_record_count <= 0
-        )
-        docs_root = Path(docs_dir).resolve()
-        destination_root = (docs_root / processadas_subdir).resolve()
-        if route_to_nosurvivor:
-            destination_root = (destination_root / nosurvivor_subdir).resolve()
-        existing_names = destination_name_cache.setdefault(
-            destination_root,
-            {candidate.name for candidate in destination_root.iterdir()}
-            if destination_root.exists()
-            else set(),
-        )
-        final_path = _move_file_after_import(
-            file_path=file_path,
-            docs_dir=docs_dir,
-            processadas_subdir=processadas_subdir,
-            nosurvivor_subdir=nosurvivor_subdir,
-            route_to_nosurvivor=route_to_nosurvivor,
-            existing_destination_names=existing_names,
-        )
-        moved_paths[file_path] = final_path
-    return moved_paths
-
-
-def _rotate_preexisting_database_for_full_rescan(db_path: str) -> None:
-    """Rotate the previous DB before a full rescan creates a clean candidate."""
-    _rotate_database_for_full_rescan(db_path)
-
-
-def _checkpoint_is_fully_truncated(checkpoint: Any) -> bool:
-    if not checkpoint or len(checkpoint) < 3:
-        return False
-    busy = int(checkpoint[SQLITE_CHECKPOINT_BUSY_INDEX] or 0)
-    log_frames = int(checkpoint[SQLITE_CHECKPOINT_LOG_INDEX] or 0)
-    checkpointed_frames = int(checkpoint[SQLITE_CHECKPOINT_CHECKPOINTED_INDEX] or 0)
-    return busy == 0 and log_frames == checkpointed_frames
-
-
-def _force_wal_checkpoint(db_path: str, *, log_label: str) -> Optional[Exception]:
-    last_error: Optional[Exception] = None
-    for attempt in range(1, 4):
-        conn: Optional[sqlite3.Connection] = None
-        try:
-            conn = sqlite3.connect(db_path, timeout=2)
-            conn.execute("PRAGMA busy_timeout = 2000")
-            checkpoint = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
-            if not _checkpoint_is_fully_truncated(checkpoint):
-                last_error = sqlite3.OperationalError(
-                    f"WAL checkpoint incompleto: {checkpoint}"
-                )
-                if attempt < 3:
-                    logger.warning(
-                        "%s ocupado no checkpoint (tentativa %s/3).",
-                        log_label,
-                        attempt,
-                    )
-                    time.sleep(0.35 * attempt)
-                    continue
-            last_error = None
-            break
-        except sqlite3.Error as exc:
-            last_error = exc
-            if "locked" in str(exc).lower() and attempt < 3:
-                logger.warning(
-                    "%s bloqueado no checkpoint (tentativa %s/3).",
-                    log_label,
-                    attempt,
-                )
-                time.sleep(0.35 * attempt)
-                continue
-            break
-        finally:
-            if conn is not None:
-                conn.close()
-    return last_error
-
-
-def _replace_sqlite_file_with_retry(source: str, target: str) -> None:
-    last_error: OSError | None = None
-    for delay in SQLITE_FILE_REPLACE_RETRY_DELAYS_SECONDS:
-        if delay:
-            time.sleep(delay)
-        try:
-            os.replace(source, target)
-            return
-        except OSError as exc:
-            last_error = exc
-    if last_error is not None:
-        raise last_error
-
-
-def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
-    """Rotate the current DB file to a timestamped backup and return the backup path."""
-    if not os.path.exists(db_path):
-        return None
-    logger.info("Preparando full rescan: checkpoint WAL e rotacao de banco.")
-    preexisting_sidecars = {
-        suffix: os.path.exists(f"{db_path}{suffix}") for suffix in ("-wal", "-shm")
-    }
-    last_error = _force_wal_checkpoint(db_path, log_label="Banco de full rescan")
-    if last_error is not None:
-        logger.warning(
-            "Checkpoint WAL do full rescan permaneceu ocupado; "
-            "rotacao sera bloqueada se o WAL ainda tiver dados: %s",
-            last_error,
-        )
-    wal_path = f"{db_path}-wal"
-    if os.path.exists(wal_path):
-        try:
-            wal_size = int(os.path.getsize(wal_path))
-        except OSError as exc:
-            raise DatabaseError(
-                f"Falha ao validar estado do WAL antes do full rescan: {exc}"
-            ) from exc
-        if wal_size > 0:
-            raise DatabaseError(
-                "WAL ainda ativo apos checkpoint antes do full rescan; "
-                "rotacao bloqueada para evitar backup inconsistente."
-            )
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = f"{db_path}.full_rescan_backup_{timestamp}"
-    try:
-        _replace_sqlite_file_with_retry(db_path, backup_path)
-        logger.info(
-            "Banco anterior movido para backup de full rescan: %s",
-            os.path.basename(backup_path),
-        )
-        for suffix in ("-wal", "-shm"):
-            sidecar = f"{db_path}{suffix}"
-            sidecar_backup = f"{backup_path}{suffix}"
-            if os.path.exists(sidecar):
-                _replace_sqlite_file_with_retry(sidecar, sidecar_backup)
-                logger.info(
-                    "Arquivo auxiliar do banco movido para backup: %s",
-                    os.path.basename(sidecar_backup),
-                )
-                continue
-            if preexisting_sidecars.get(suffix):
-                Path(sidecar_backup).touch(exist_ok=True)
-                logger.info(
-                    "Arquivo auxiliar preexistente foi registrado vazio no backup "
-                    "apos checkpoint consumir o sidecar: %s",
-                    os.path.basename(sidecar_backup),
-                )
-    except OSError as exc:
-        raise DatabaseError(
-            f"Falha ao preparar banco limpo para full rescan: {exc}"
-        ) from exc
-    return backup_path
-
-
-def _build_full_rescan_candidate_path(db_path: str, run_id: str) -> str:
-    """Build an isolated DB path for a full-rescan candidate run."""
-    return f"{db_path}.full_rescan_candidate_{run_id}"
-
-
-def _cleanup_sqlite_sidecars(db_path: str) -> None:
-    """Remove sqlite sidecars for a detached database file when they exist."""
-    for suffix in ("-wal", "-shm"):
-        sidecar = f"{db_path}{suffix}"
-        if not os.path.exists(sidecar):
-            continue
-        os.remove(sidecar)
-        logger.info(
-            "Arquivo auxiliar temporario removido: %s", os.path.basename(sidecar)
-        )
-
-
-def _promote_full_rescan_candidate(
-    candidate_db_path: str, primary_db_path: str
-) -> Optional[str]:
-    """Promote a validated full-rescan candidate DB into the primary path."""
-    if not os.path.exists(candidate_db_path):
-        raise DatabaseError(
-            f"DB candidato ausente para promocao final: {candidate_db_path}"
-        )
-
-    logger.info(
-        "Promovendo DB candidato de full rescan para principal: %s",
-        os.path.basename(candidate_db_path),
-    )
-    last_error = _force_wal_checkpoint(
-        candidate_db_path, log_label="DB candidato de full rescan"
-    )
-    if last_error is not None:
-        logger.warning(
-            "Checkpoint WAL do DB candidato permaneceu ocupado; "
-            "promocao vai preservar sidecars se existirem: %s",
-            last_error,
-        )
-
-    candidate_wal_path = f"{candidate_db_path}-wal"
-    if os.path.exists(candidate_wal_path):
-        try:
-            wal_size = int(os.path.getsize(candidate_wal_path))
-        except OSError as exc:
-            raise DatabaseError(
-                f"Falha ao validar estado do WAL do DB candidato: {exc}"
-            ) from exc
-        if wal_size > 0:
-            raise DatabaseError(
-                "WAL do DB candidato ainda ativo apos checkpoint; "
-                "promocao bloqueada para evitar banco inconsistente."
-            )
-
-    _cleanup_sqlite_sidecars(candidate_db_path)
-    backup_path = _rotate_database_for_full_rescan(primary_db_path)
-    try:
-        _replace_sqlite_file_with_retry(candidate_db_path, primary_db_path)
-    except OSError as exc:
-        try:
-            shutil.move(candidate_db_path, primary_db_path)
-        except (OSError, shutil.Error) as move_exc:
-            raise DatabaseError(
-                "Falha ao promover DB candidato para o caminho principal: "
-                f"{move_exc}"
-            ) from move_exc
-        logger.warning(
-            "Promocao de DB candidato usou shutil.move apos falha de os.replace: %s",
-            exc,
-        )
-    logger.info(
-        "DB candidato promovido com sucesso para o caminho principal: %s",
-        os.path.basename(primary_db_path),
-    )
-    return backup_path
 
 
 def _process_file_with_resilience(
@@ -1508,6 +1204,50 @@ def _validate_and_promote_candidate_if_needed(
     return result
 
 
+def _promote_candidate_for_outcome(
+    *,
+    candidate_db_path: Optional[str],
+    working_db_path: str,
+    primary_db_path: str,
+    table_name: str,
+    critical_errors: List[tuple[str, str, str]],
+) -> Dict[str, Any]:
+    promotion_result = _validate_and_promote_candidate_if_needed(
+        candidate_db_path=candidate_db_path,
+        working_db_path=working_db_path,
+        primary_db_path=primary_db_path,
+        table_name=table_name,
+    )
+    if bool(promotion_result.get("ok", False)):
+        return promotion_result
+
+    failure_type = str(promotion_result.get("failure_type", "") or "promotion")
+    failure_message = str(
+        promotion_result.get("failure_message", "") or "promotion_failed"
+    )
+    critical_errors.append(
+        (failure_type, candidate_db_path or working_db_path, failure_message)
+    )
+    status = (
+        "candidate_invalid"
+        if failure_type == "candidate_validation"
+        else "candidate_promotion_failed"
+    )
+    reason = (
+        "candidate_failed_final_integrity"
+        if failure_type == "candidate_validation"
+        else failure_message
+    )
+    return {
+        "ok": False,
+        "status": status,
+        "reason": reason,
+        "integrity_report": {},
+        "promoted_backup_path": None,
+        "working_db_path": working_db_path,
+    }
+
+
 def _prepare_working_database_for_import(
     *,
     data_dir: str,
@@ -1669,6 +1409,28 @@ def _finalize_import_run_outcome(
         time.perf_counter() - deterministic_cache_started
     )
 
+    has_regular_candidate = any(
+        not os.path.basename(file_path).startswith("~$")
+        and not _is_derivadas_sheet_file(file_path)
+        for file_path in files_to_process
+    )
+    if (
+        not successfully_processed_files
+        and not deterministic_failed_files
+        and not critical_errors
+        and not has_regular_candidate
+        and not sync_materialized
+    ):
+        logger.info("Nenhum arquivo regular elegivel encontrado para importacao.")
+        return {
+            "result": True,
+            "status": "no_changes",
+            "reason": "no_regular_import_candidates",
+            "integrity_report": {},
+            "promoted_backup_path": None,
+            "working_db_path": working_db_path,
+        }
+
     rejection_only = _has_only_deterministic_rejections(
         files_to_process=files_to_process,
         successfully_processed_files=successfully_processed_files,
@@ -1691,37 +1453,21 @@ def _finalize_import_run_outcome(
 
     if successfully_processed_files:
         cache_success_paths = list(successfully_processed_files)
-        promotion_result = _validate_and_promote_candidate_if_needed(
+        promotion_result = _promote_candidate_for_outcome(
             candidate_db_path=candidate_db_path,
             working_db_path=working_db_path,
             primary_db_path=primary_db_path,
             table_name=table_name,
+            critical_errors=critical_errors,
         )
         if not bool(promotion_result.get("ok", False)):
-            failure_type = str(promotion_result.get("failure_type", "") or "promotion")
-            failure_message = str(
-                promotion_result.get("failure_message", "") or "promotion_failed"
-            )
-            critical_errors.append(
-                (failure_type, candidate_db_path or working_db_path, failure_message)
-            )
-            status = (
-                "candidate_invalid"
-                if failure_type == "candidate_validation"
-                else "candidate_promotion_failed"
-            )
-            reason = (
-                "candidate_failed_final_integrity"
-                if failure_type == "candidate_validation"
-                else failure_message
-            )
             return {
                 "result": False,
-                "status": status,
-                "reason": reason,
-                "integrity_report": {},
-                "promoted_backup_path": None,
-                "working_db_path": working_db_path,
+                "status": str(promotion_result["status"]),
+                "reason": str(promotion_result["reason"]),
+                "integrity_report": promotion_result["integrity_report"],
+                "promoted_backup_path": promotion_result["promoted_backup_path"],
+                "working_db_path": str(promotion_result["working_db_path"]),
             }
 
         next_integrity_report = promotion_result.get("integrity_report")
@@ -1768,37 +1514,21 @@ def _finalize_import_run_outcome(
         }
 
     if sync_materialized:
-        promotion_result = _validate_and_promote_candidate_if_needed(
+        promotion_result = _promote_candidate_for_outcome(
             candidate_db_path=candidate_db_path,
             working_db_path=working_db_path,
             primary_db_path=primary_db_path,
             table_name=table_name,
+            critical_errors=critical_errors,
         )
         if not bool(promotion_result.get("ok", False)):
-            failure_type = str(promotion_result.get("failure_type", "") or "promotion")
-            failure_message = str(
-                promotion_result.get("failure_message", "") or "promotion_failed"
-            )
-            critical_errors.append(
-                (failure_type, candidate_db_path or working_db_path, failure_message)
-            )
-            status = (
-                "candidate_invalid"
-                if failure_type == "candidate_validation"
-                else "candidate_promotion_failed"
-            )
-            reason = (
-                "candidate_failed_final_integrity"
-                if failure_type == "candidate_validation"
-                else failure_message
-            )
             return {
                 "result": False,
-                "status": status,
-                "reason": reason,
-                "integrity_report": {},
-                "promoted_backup_path": None,
-                "working_db_path": working_db_path,
+                "status": str(promotion_result["status"]),
+                "reason": str(promotion_result["reason"]),
+                "integrity_report": promotion_result["integrity_report"],
+                "promoted_backup_path": promotion_result["promoted_backup_path"],
+                "working_db_path": str(promotion_result["working_db_path"]),
             }
 
         next_integrity_report = promotion_result.get("integrity_report")
@@ -2424,19 +2154,6 @@ def get_filtered_data(
         return pd.DataFrame()
 
     try:
-        sql_filter = _build_get_filtered_data_sql_filter(filters)
-        if sql_filter is not None:
-            where_clause, params = sql_filter
-            table_sql = _quote_sql_identifier(CANONICAL_SSA_TABLE)
-            query = f"SELECT * FROM {table_sql} WHERE {where_clause}"  # nosec B608
-            return database.query_db(
-                str(safe_db_path),
-                CANONICAL_SSA_TABLE,
-                query=query,
-                params=params,
-                raise_on_error=True,
-            )
-
         df = database.query_db(
             str(safe_db_path),
             CANONICAL_SSA_TABLE,
@@ -2460,67 +2177,3 @@ def get_filtered_data(
     except (ValueError, sqlite3.Error, pd.errors.DatabaseError) as e:
         logger.error(f"Erro ao obter dados filtrados: {e}")
         return pd.DataFrame()  # Retorna DataFrame vazio em caso de erro
-
-
-def _quote_sql_identifier(identifier: str) -> str:
-    return '"' + identifier.replace('"', '""') + '"'
-
-
-def _escape_sql_like(value: str) -> str:
-    return (
-        value.replace(SQL_LIKE_ESCAPE_CHAR, SQL_LIKE_ESCAPE_CHAR * 2)
-        .replace("%", SQL_LIKE_ESCAPE_CHAR + "%")
-        .replace("_", SQL_LIKE_ESCAPE_CHAR + "_")
-    )
-
-
-def _build_get_filtered_data_sql_filter(
-    filters: Dict[str, Any] | None,
-) -> tuple[str, tuple[Any, ...]] | None:
-    if not filters:
-        return None
-    clauses: list[str] = []
-    params: list[Any] = []
-    for column, value in filters.items():
-        column_name = str(column)
-        if column_name not in QUERYABLE_FILTER_COLUMNS or value is None:
-            continue
-        terms = parse_search_terms(str(value))
-        if not terms:
-            continue
-        column_expr = (
-            f"LOWER(COALESCE(CAST({_quote_sql_identifier(column_name)} AS TEXT), ''))"
-        )
-        for term in terms:
-            mode = str(term.get("mode") or "contains")
-            if mode == "regex":
-                return None
-            term_value = str(term.get("value") or "")
-            if not term_value.isascii():
-                return None
-            raw_value = term_value.lower()
-            if mode == "exact":
-                clause = f"{column_expr} = ?"
-                param = raw_value
-            elif mode == "prefix":
-                clause = (
-                    f"{column_expr} LIKE ? ESCAPE '{SQL_LIKE_ESCAPE_CHAR}'"
-                )
-                param = f"{_escape_sql_like(raw_value)}%"
-            elif mode == "suffix":
-                clause = (
-                    f"{column_expr} LIKE ? ESCAPE '{SQL_LIKE_ESCAPE_CHAR}'"
-                )
-                param = f"%{_escape_sql_like(raw_value)}"
-            else:
-                clause = (
-                    f"{column_expr} LIKE ? ESCAPE '{SQL_LIKE_ESCAPE_CHAR}'"
-                )
-                param = f"%{_escape_sql_like(raw_value)}%"
-            if bool(term.get("negative")):
-                clause = f"NOT ({clause})"
-            clauses.append(clause)
-            params.append(param)
-    if not clauses:
-        return None
-    return " AND ".join(clauses), tuple(params)

@@ -11,6 +11,7 @@ import pytest
 
 from armazenamento import database
 from core import app_logic
+from core import import_postprocess
 from core import import_run_report
 
 
@@ -1416,14 +1417,12 @@ def test_move_file_after_import_returns_original_on_move_oserror(
     def _raise_move(src: str, dst: str) -> str:
         raise OSError("move blocked")
 
-    monkeypatch.setattr(app_logic.shutil, "move", _raise_move)
+    monkeypatch.setattr(import_postprocess.shutil, "move", _raise_move)
 
-    final_path = app_logic._move_file_after_import(
+    final_path = import_postprocess.move_file_after_import(
         file_path=str(source),
         docs_dir=str(docs_dir),
-        processadas_subdir="processadas",
-        nosurvivor_subdir="nosurvivor",
-        route_to_nosurvivor=False,
+        destination_root=(docs_dir / "processadas").resolve(),
     )
 
     assert final_path == str(source)
