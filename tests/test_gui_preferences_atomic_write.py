@@ -2,10 +2,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 
-def test_persist_gui_preferences_uses_atomic_writer(monkeypatch, tmp_path):
-    from gui import gui_ssa
-
-    monkeypatch.setattr(gui_ssa, "GUI_MAIN_PREFERENCES", {"x": 1})
+def _capture_preferences_queue(monkeypatch, gui_ssa):
     calls: list[dict] = []
 
     def _fake_queue(data):
@@ -17,6 +14,14 @@ def test_persist_gui_preferences_uses_atomic_writer(monkeypatch, tmp_path):
         "queue_gui_preferences_write",
         _fake_queue,
     )
+    return calls
+
+
+def test_persist_gui_preferences_queues_preferences_write(monkeypatch, tmp_path):
+    from gui import gui_ssa
+
+    monkeypatch.setattr(gui_ssa, "GUI_MAIN_PREFERENCES", {"x": 1})
+    calls = _capture_preferences_queue(monkeypatch, gui_ssa)
 
     gui_ssa.SSAMainWindow._persist_gui_preferences(cast(Any, object()))
 
@@ -42,17 +47,7 @@ def test_persist_visible_columns_order_uses_resolved_gui_config_path(
     )
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
 
-    calls: list[dict] = []
-
-    def _fake_queue(data):
-        calls.append(dict(data))
-        return True
-
-    monkeypatch.setattr(
-        gui_ssa.ssa_system_controller,
-        "queue_gui_preferences_write",
-        _fake_queue,
-    )
+    calls = _capture_preferences_queue(monkeypatch, gui_ssa)
 
     fake_window = cast(
         Any,
@@ -116,111 +111,44 @@ def test_theme_persist_uses_resolved_gui_config_path(monkeypatch, tmp_path):
     assert ensure_ascii is False
 
 
-def test_theme_dialog_skips_default_preference_write_when_unchanged(monkeypatch):
+def test_theme_dialog_accepting_current_default_does_not_write(monkeypatch):
     from PyQt6 import QtWidgets
 
-    from gui.ssa import gui_preferences_persistence, gui_theme
+    from gui.ssa import gui_theme_dialog
 
-    class _FakeSignal:
-        def connect(self, *_args, **_kwargs) -> None:
-            return None
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    _ = app
 
-    class _FakeDialog:
-        class DialogCode:
-            Accepted = 1
-
-        def __init__(self, *_args, **_kwargs) -> None:
-            return None
-
-        def setWindowTitle(self, *_args, **_kwargs) -> None:
-            return None
-
-        def setModal(self, *_args, **_kwargs) -> None:
-            return None
-
-        def exec(self) -> int:
-            return self.DialogCode.Accepted
-
-        def accept(self) -> None:
-            return None
-
-        def reject(self) -> None:
-            return None
-
-    class _FakeCombo:
-        def __init__(self, *_args, **_kwargs) -> None:
-            self._items: list[tuple[str, str]] = []
-            self._index = 0
-
-        def addItem(self, label: str, value: str) -> None:
-            self._items.append((label, value))
-
-        def setCurrentIndex(self, index: int) -> None:
-            self._index = int(index)
-
-        def currentData(self) -> str:
-            return self._items[self._index][1]
-
-    class _FakeCheckBox:
-        def __init__(self, *_args, **_kwargs) -> None:
-            self._checked = False
-
-        def setChecked(self, value: bool) -> None:
-            self._checked = bool(value)
-
-        def isChecked(self) -> bool:
-            return self._checked
-
-    class _FakeDialogButtonBox:
-        class StandardButton:
-            Ok = 1
-            Cancel = 2
-
-        def __init__(self, *_args, **_kwargs) -> None:
-            self.accepted = _FakeSignal()
-            self.rejected = _FakeSignal()
-
-    class _FakeLabel:
-        def __init__(self, *_args, **_kwargs) -> None:
-            return None
-
-    class _FakeLayout:
-        def __init__(self, *_args, **_kwargs) -> None:
-            return None
-
-        def addWidget(self, *_args, **_kwargs) -> None:
-            return None
-
-    class _Window:
+    class _Window(QtWidgets.QWidget):
         _current_theme = "gruvbox"
 
         def __init__(self) -> None:
+            super().__init__()
             self.applied: list[str] = []
 
         def apply_theme(self, theme: str) -> None:
             self.applied.append(theme)
 
-    monkeypatch.setattr(QtWidgets, "QDialog", _FakeDialog)
-    monkeypatch.setattr(QtWidgets, "QComboBox", _FakeCombo)
-    monkeypatch.setattr(QtWidgets, "QCheckBox", _FakeCheckBox)
-    monkeypatch.setattr(QtWidgets, "QDialogButtonBox", _FakeDialogButtonBox)
-    monkeypatch.setattr(QtWidgets, "QLabel", _FakeLabel)
-    monkeypatch.setattr(QtWidgets, "QVBoxLayout", _FakeLayout)
+    monkeypatch.setattr(
+        QtWidgets.QDialog,
+        "exec",
+        lambda _dialog: QtWidgets.QDialog.DialogCode.Accepted,
+    )
 
     persist_calls = []
-    monkeypatch.setattr(
-        gui_preferences_persistence,
-        "persist_gui_preferences_async",
-        lambda *args, **kwargs: persist_calls.append((args, kwargs)) or True,
-    )
+
+    def persist(value):
+        persist_calls.append(value)
+        return True
 
     prefs = {"gui_settings": {"theme": "gruvbox", "theme_default": "gruvbox"}}
     window = _Window()
 
-    gui_theme.show_theme_selection_dialog(
+    gui_theme_dialog.show_theme_selection_dialog(
         window,
         gui_prefs=prefs,
-        project_root="/tmp/ignored-project-root",
+        theme_items=[("Gruvbox", "gruvbox"), ("Windows 7", "windows7")],
+        persist_preferences_async=persist,
     )
 
     assert window.applied == ["gruvbox"]
@@ -232,10 +160,11 @@ def test_theme_dialog_skips_default_preference_write_when_unchanged(monkeypatch)
         "gui_settings": {"theme": "windows7", "theme_default": "gruvbox"}
     }
 
-    gui_theme.show_theme_selection_dialog(
+    gui_theme_dialog.show_theme_selection_dialog(
         temporary_window,
         gui_prefs=temporary_prefs,
-        project_root="/tmp/ignored-project-root",
+        theme_items=[("Gruvbox", "gruvbox"), ("Windows 7", "windows7")],
+        persist_preferences_async=persist,
     )
 
     assert temporary_window.applied == ["windows7"]

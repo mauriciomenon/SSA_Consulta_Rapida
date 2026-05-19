@@ -13,7 +13,7 @@ def show_theme_selection_dialog(
     *,
     gui_prefs: dict,
     theme_items: Sequence[tuple[str, str]],
-    persist_preferences_async: Callable[[dict], None],
+    persist_preferences_async: Callable[[dict], object],
 ) -> None:
     from PyQt6.QtWidgets import (
         QCheckBox,
@@ -50,6 +50,13 @@ def show_theme_selection_dialog(
 
     default_checkbox = QCheckBox("Usar tema selecionado como padrao", dialog)
     default_checkbox.setChecked(is_default_theme)
+    default_checkbox_changed = False
+
+    def _mark_default_checkbox_changed(*_args) -> None:
+        nonlocal default_checkbox_changed
+        default_checkbox_changed = True
+
+    default_checkbox.toggled.connect(_mark_default_checkbox_changed)
     layout.addWidget(default_checkbox)
 
     buttons = QDialogButtonBox(
@@ -73,8 +80,35 @@ def show_theme_selection_dialog(
         return
 
     gui_settings = gui_prefs.setdefault("gui_settings", {})
-    if default_checkbox.isChecked():
-        previous_default = normalize_theme(str(gui_settings.get("theme_default") or ""))
+    _persist_theme_default_choice(
+        gui_prefs=gui_prefs,
+        selected_theme_key=selected_theme_key,
+        set_as_default=default_checkbox.isChecked(),
+        was_default_theme=is_default_theme,
+        default_choice_changed=default_checkbox_changed,
+        persist_preferences_async=persist_preferences_async,
+    )
+
+
+def _persist_theme_default_choice(
+    *,
+    gui_prefs: dict,
+    selected_theme_key: str,
+    set_as_default: bool,
+    was_default_theme: bool,
+    default_choice_changed: bool,
+    persist_preferences_async: Callable[[dict], object],
+) -> bool:
+    gui_settings = gui_prefs.setdefault("gui_settings", {})
+    previous_default = normalize_theme(str(gui_settings.get("theme_default") or ""))
+    if set_as_default:
         if previous_default != selected_theme_key:
             gui_settings["theme_default"] = selected_theme_key
             persist_preferences_async(gui_prefs)
+            return True
+        return False
+    if default_choice_changed and was_default_theme and "theme_default" in gui_settings:
+        gui_settings.pop("theme_default", None)
+        persist_preferences_async(gui_prefs)
+        return True
+    return False
