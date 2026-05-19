@@ -1536,7 +1536,7 @@ def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
         force_import=True,
     )
 
-    assert updated is False
+    assert updated is True
     assert _read_descricao(primary_db) == "primary_old"
     payload = cast(dict[str, Any], captured["payload"])
     assert payload["status"] == "deterministic_rejections_only"

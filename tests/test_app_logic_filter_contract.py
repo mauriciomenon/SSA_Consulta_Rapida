@@ -303,6 +303,32 @@ def test_get_filtered_data_returns_empty_on_database_error(
     assert out.empty
 
 
+def test_get_filtered_data_ignores_unknown_filter_columns(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "ssa_unknown_filter.sqlite"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        """
+        CREATE TABLE ssa_table (
+            numero_ssa TEXT,
+            situacao TEXT,
+            segredo_interno TEXT
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO ssa_table (numero_ssa, situacao, segredo_interno) VALUES (?, ?, ?)",
+        ("202500001", "STE", "bloquear"),
+    )
+    conn.commit()
+    conn.close()
+
+    out = get_filtered_data(str(db_path), filters={"segredo_interno": "bloquear"})
+
+    assert len(out) == 1
+
+
 def test_filter_dataframe_default_search_columns_match_solicitante_and_setor_executor() -> (
     None
 ):

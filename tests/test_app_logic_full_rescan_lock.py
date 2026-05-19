@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from core.app_logic import _recreate_database_for_full_rescan
+from core.app_logic import _rotate_preexisting_database_for_full_rescan
 
 
 def _build_wal_db(db_path: Path) -> None:
@@ -20,13 +20,13 @@ def _build_wal_db(db_path: Path) -> None:
         conn.close()
 
 
-def test_recreate_database_for_full_rescan_without_external_lock(
+def test_rotate_preexisting_database_for_full_rescan_without_external_lock(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "ssas.db"
     _build_wal_db(db_path)
 
-    _recreate_database_for_full_rescan(str(db_path))
+    _rotate_preexisting_database_for_full_rescan(str(db_path))
 
     backups = sorted(
         p
@@ -45,7 +45,7 @@ def test_recreate_database_for_full_rescan_without_external_lock(
     assert int(row[0]) == 2
 
 
-def test_recreate_database_for_full_rescan_moves_existing_sidecars(
+def test_rotate_preexisting_database_for_full_rescan_moves_existing_sidecars(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "ssas.db"
@@ -56,7 +56,7 @@ def test_recreate_database_for_full_rescan_moves_existing_sidecars(
     wal_sidecar.write_bytes(b"")
     shm_sidecar.write_bytes(b"")
 
-    _recreate_database_for_full_rescan(str(db_path))
+    _rotate_preexisting_database_for_full_rescan(str(db_path))
 
     backups = sorted(
         p

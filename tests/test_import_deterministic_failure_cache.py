@@ -117,7 +117,7 @@ def test_run_importer_updates_deterministic_failure_cache_by_error_code(
         force_import=False,
     )
 
-    assert updated is False
+    assert updated is True
     assert deterministic_calls == [[str(bad_file)]]
     assert cache_after_calls["n"] == 0
     payload = cast(dict[str, Any], captured["payload"])

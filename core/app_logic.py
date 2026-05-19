@@ -23,6 +23,7 @@ import sqlite3
 import sys
 import time
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, cast
 
@@ -38,6 +39,38 @@ from armazenamento.derivadas_sync import (  # noqa: E402
     scan_derivadas_consistency,
     sync_derivadas,
 )
+from core.config_defaults import DEFAULT_COLUMN_MAPPINGS  # noqa: E402
+from core.config_manager import load_settings  # noqa: E402
+from core.import_errors import (  # noqa: E402
+    CacheError,
+    DataValidationError,
+    DatabaseConnectionError,
+    DatabaseCorruptionError,
+    DatabaseError,
+    DatabaseSchemaError,
+    DatabaseSpaceError,
+    ExtractionError,
+    ImporterError,
+)
+from core.import_formats import (  # noqa: E402
+    SUPPORTED_IMPORT_SUFFIXES,
+    supported_import_suffixes_text,
+)
+from core.import_run_report import (  # noqa: E402
+    _build_import_run_payload,
+    _write_import_run_report,
+)
+from core.import_single_file import (  # noqa: E402
+    ImportSingleFileServices,
+    ensure_source_metadata_columns,
+    import_single_file as _import_single_file_impl,
+)
+from core.search_filter import (  # noqa: E402
+    FILTER_SEARCH_CACHE_ATTR,
+    FILTER_SEARCH_MARKER_ATTR,
+    filter_dataframe,
+    parse_search_terms,
+)
 from extracao import extractor  # noqa: E402
 from shared.db_names import CANONICAL_SSA_TABLE  # noqa: E402
 from utils import caching  # noqa: E402
@@ -47,6 +80,13 @@ from utils.path_safety import ensure_path_is_allowed  # noqa: E402
 
 # Configura logger especifico para este modulo
 logger = logging.getLogger(__name__)
+
+QUERYABLE_FILTER_COLUMNS = frozenset(DEFAULT_COLUMN_MAPPINGS)
+SQLITE_CHECKPOINT_BUSY_INDEX = 0
+SQLITE_CHECKPOINT_LOG_INDEX = 1
+SQLITE_CHECKPOINT_CHECKPOINTED_INDEX = 2
+SQLITE_FILE_REPLACE_RETRY_DELAYS_SECONDS = (0.0, 0.1, 0.35, 0.75)
+SQL_LIKE_ESCAPE_CHAR = "\\"
 
 _DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE: Dict[str, str] = {
     "ssa_table": """
@@ -59,20 +99,29 @@ _DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE: Dict[str, str] = {
         ) AS db_edges
     """,
 }
-from core.search_filter import (  # noqa: E402
-    FILTER_SEARCH_CACHE_ATTR,
-    FILTER_SEARCH_MARKER_ATTR,
-    filter_dataframe,
-    parse_search_terms,
-)
-from core.import_formats import (  # noqa: E402
-    SUPPORTED_IMPORT_SUFFIXES,
-    supported_import_suffixes_text,
-)
-from core.import_run_report import (  # noqa: E402
-    _build_import_run_payload,
-    _write_import_run_report,
-)
+_DB_ONLY_DERIVADAS_PREFLIGHT_CACHE: dict[
+    tuple[str, str, tuple[tuple[str, int, int], ...]], bool
+] = {}
+_DB_ONLY_DERIVADAS_PREFLIGHT_CACHE_LIMIT = 128
+
+
+class FileProcessAction(str, Enum):
+    CONTINUE = "ok"
+    BREAK = "break"
+    CANCELLED = "cancelled"
+
+
+def _sqlite_file_state_key(db_path: str) -> tuple[tuple[str, int, int], ...]:
+    states: list[tuple[str, int, int]] = []
+    for suffix in ("", "-wal", "-shm"):
+        side_path = f"{db_path}{suffix}"
+        try:
+            stat = os.stat(side_path)
+        except FileNotFoundError:
+            states.append((suffix, -1, -1))
+            continue
+        states.append((suffix, int(stat.st_size), int(stat.st_mtime_ns)))
+    return tuple(states)
 
 __all__ = [
     "FILTER_SEARCH_CACHE_ATTR",
@@ -80,64 +129,6 @@ __all__ = [
     "filter_dataframe",
     "parse_search_terms",
 ]
-
-# --- Excecoes Personalizadas ---
-
-
-class ImporterError(Exception):
-    """Excecao base para erros no processo de importacao."""
-
-    pass
-
-
-class CacheError(ImporterError):
-    """Erro relacionado ao sistema de cache."""
-
-    pass
-
-
-class ExtractionError(ImporterError):
-    """Erro durante a extracao de dados de um arquivo."""
-
-    def __init__(self, message: str, error_code: str | None = None):
-        super().__init__(message)
-        self.error_code = error_code
-
-
-class DatabaseError(ImporterError):
-    """Erro durante operacoes no banco de dados."""
-
-    pass
-
-
-class DatabaseConnectionError(DatabaseError):
-    """Erro de conexao com o banco de dados."""
-
-    pass
-
-
-class DatabaseCorruptionError(DatabaseError):
-    """Erro indicando corrupcao no banco de dados."""
-
-    pass
-
-
-class DatabaseSchemaError(DatabaseError):
-    """Erro relacionado ao schema do banco de dados."""
-
-    pass
-
-
-class DatabaseSpaceError(DatabaseError):
-    """Erro de espaco insuficiente em disco."""
-
-    pass
-
-
-class DataValidationError(ImporterError):
-    """Erro de validacao de dados antes da insercao."""
-
-    pass
 
 
 def _resolve_import_targets(docs_dir: str, db_path: str) -> tuple[Path, Path]:
@@ -197,11 +188,13 @@ def _resolve_explicit_import_files(
             (normalized, best_datetime_for_file(normalized), candidate.name.casefold())
         )
 
-    def _sort_key(item: tuple[str, datetime | None, str]) -> tuple[bool, datetime | None, str, str]:
+    def _sort_key(
+        item: tuple[str, datetime | None, str],
+    ) -> tuple[bool, datetime, str, str]:
         path, file_dt, basename = item
         return (
             file_dt is None,
-            file_dt,
+            file_dt or datetime.min,
             basename,
             path.casefold(),
         )
@@ -287,280 +280,25 @@ def _import_single_file(
     table_name: str,
     should_cancel: Optional[Callable[[], bool]] = None,
     _metrics_out: Optional[Dict[str, Any]] = None,
+    *,
+    metadata_columns_ready: bool = False,
 ) -> tuple[bool, int]:
-    """
-    Importa um unico arquivo Excel para o banco de dados.
+    return _import_single_file_impl(
+        file_path,
+        db_path,
+        table_name,
+        should_cancel=should_cancel,
+        _metrics_out=_metrics_out,
+        services=ImportSingleFileServices(
+            extract_data_from_excel=extractor.extract_data_from_excel,
+            extractor_error_type=extractor.ExtractionError,
+            validate_dataframe_before_insert=database.validate_dataframe_before_insert,
+            ensure_column_exists=database.ensure_column_exists,
+            insert_dataframe_with_smart_upsert=database.insert_dataframe_with_smart_upsert,
+        ),
+        metadata_columns_ready=metadata_columns_ready,
+    )
 
-    Args:
-        file_path (str): Caminho completo para o arquivo Excel.
-        db_path (str): Caminho para o banco de dados SQLite.
-        table_name (str): Nome da tabela no banco de dados.
-        should_cancel (Optional[Callable[[], bool]]): Callback consultivo para cancelar a operacao.
-
-    Returns:
-        tuple[bool, int]: (sucesso, numero_de_registros_processados)
-
-    Raises:
-        ExtractionError: Se houver falha na extracao.
-        DatabaseError: Se houver falha na insercao no DB.
-    """
-    logger.info(f"Iniciando importacao de '{file_path}'...")
-    metrics: Dict[str, Any] = {"file": os.path.basename(file_path)}
-    try:
-        extraction_started = time.perf_counter()
-        df = extractor.extract_data_from_excel(file_path, should_cancel=should_cancel)
-        extraction_duration = time.perf_counter() - extraction_started
-        if df is None:
-            raise ExtractionError(f"Extractor retornou None para '{file_path}'")
-        invalid_row_summary_raw = df.attrs.get("invalid_row_summary")
-        invalid_row_summary = (
-            dict(invalid_row_summary_raw)
-            if isinstance(invalid_row_summary_raw, dict)
-            else {}
-        )
-        row_count_before_invalid_filter_raw = df.attrs.get(
-            "row_count_before_invalid_filter"
-        )
-        row_count_before_invalid_filter = (
-            int(row_count_before_invalid_filter_raw)
-            if isinstance(row_count_before_invalid_filter_raw, int)
-            else int(len(df))
-        )
-        metrics["durations"] = {"extraction_seconds": round(extraction_duration, 3)}
-        metrics["counts"] = {
-            "rows_extracted": int(len(df)),
-            "rows_before_invalid_filter": row_count_before_invalid_filter,
-            "rows_removed_invalid_identity": int(
-                invalid_row_summary.get("total_removed", 0)
-            ),
-            "rows_ready_for_insert": 0,
-            "rows_inserted": 0,
-        }
-        metrics["invalid_identity"] = invalid_row_summary
-        metrics["invalid_identity_tracked"] = bool(invalid_row_summary)
-        if should_cancel and should_cancel():
-            raise ExtractionError(
-                "operation cancelled", error_code="OPERATION_CANCELLED"
-            )
-        if not df.empty:
-            df = df.copy()
-            if should_cancel and should_cancel():
-                raise ExtractionError(
-                    "operation cancelled", error_code="OPERATION_CANCELLED"
-                )
-            # NOVA: Validar dados antes da insercao
-            logger.info(f"Validando dados extraidos de '{file_path}'...")
-            validation_started = time.perf_counter()
-            validation_report = database.validate_dataframe_before_insert(
-                df, table_name
-            )
-
-            validation_rule_labels = {
-                "duplicate_numero_ssa_exact": "Duplicidade exata no export",
-                "duplicate_numero_ssa_conflict": "Duplicidade conflitante no export",
-            }
-            for violation in validation_report.get("violations", []):
-                rule = violation.get("rule")
-                count = violation.get("count")
-                severity = violation.get("severity", "warning")
-                sample = violation.get("sample_ssa") or []
-                sample_txt = f" (ex.: {', '.join(sample)})" if sample else ""
-                rule_txt = str(rule or "regra_desconhecida").replace("_", " ")
-                rule_label = validation_rule_labels.get(
-                    rule,
-                    f"Violacao de validacao [{rule_txt}]",
-                )
-                message = f"{rule_label} atingiu {count} linha(s){sample_txt}"
-                if severity == "error":
-                    logger.error(
-                        "Validacao - %s: %s", os.path.basename(file_path), message
-                    )
-                else:
-                    logger.warning(
-                        "Validacao - %s: %s", os.path.basename(file_path), message
-                    )
-
-            invalid_by_column = validation_report.get("invalid_by_column", {})
-            critical_columns = {"numero_ssa", "data_cadastro"}
-            rows_to_drop: set[int] = set()
-            for column, indices in invalid_by_column.items():
-                if column in critical_columns:
-                    rows_to_drop.update(indices)
-
-            if rows_to_drop:
-                bad_subset = df.loc[list(rows_to_drop)].copy()
-                sample_ssas = (
-                    bad_subset["numero_ssa"].astype(str).head(5).tolist()
-                    if "numero_ssa" in bad_subset.columns
-                    else [str(idx) for idx in list(rows_to_drop)[:5]]
-                )
-                logger.error(
-                    "Removendo %s linha(s) com dados obrigatorios ausentes em '%s' (amostra: %s)",
-                    len(rows_to_drop),
-                    os.path.basename(file_path),
-                    ", ".join(sample_ssas),
-                )
-                df.drop(index=list(rows_to_drop), inplace=True)
-            metrics["durations"]["validation_seconds"] = round(
-                time.perf_counter() - validation_started, 3
-            )
-            metrics["counts"]["rows_ready_for_insert"] = int(len(df))
-            metrics["counts"]["rows_removed_required_validation"] = int(
-                len(rows_to_drop)
-            )
-
-            if df.empty:
-                logger.error(
-                    "Nenhuma linha valida restou apos validacao de '%s'; nada sera inserido.",
-                    os.path.basename(file_path),
-                )
-                return False, 0
-
-            critical_missing_rules = {
-                "missing_column_numero_ssa",
-                "missing_column_data_cadastro",
-            }
-            has_critical_missing_columns = any(
-                violation.get("rule") in critical_missing_rules
-                and violation.get("severity") == "error"
-                for violation in validation_report.get("violations", [])
-            )
-
-            # Se ha problemas criticos, pode escolher entre falhar ou continuar
-            if not validation_report.get("is_valid", False):
-                critical_issues = validation_report["issues"]
-                critical_summary = "; ".join(
-                    str(issue) for issue in critical_issues[:5]
-                )
-                logger.error(
-                    "Validacao critica em '%s': %s",
-                    os.path.basename(file_path),
-                    critical_summary or "sem detalhe",
-                )
-                if has_critical_missing_columns:
-                    raise ExtractionError(
-                        critical_summary
-                        or "Colunas obrigatorias ausentes no DataFrame",
-                        error_code="MISSING_REQUIRED_COLUMNS",
-                    )
-                logger.warning(
-                    "Validacao critica em '%s': seguindo com insercao por politica atual.",
-                    os.path.basename(file_path),
-                )
-            else:
-                logger.info(
-                    "Validacao concluida para '%s': %s linhas prontas para insercao",
-                    os.path.basename(file_path),
-                    len(df),
-                )
-
-            # Garante coluna de rastreio de origem no banco
-            database.ensure_column_exists(db_path, table_name, "arquivo_origem", "TEXT")
-            database.ensure_column_exists(
-                db_path, table_name, "data_arquivo_origem", "TEXT"
-            )
-            database.ensure_column_exists(db_path, table_name, "data_planilha", "TEXT")
-            best_file_dt = best_datetime_for_file(file_path)
-            file_dt_iso = (
-                best_file_dt.isoformat(timespec="seconds")
-                if best_file_dt is not None
-                else None
-            )
-            file_dt_text = (
-                best_file_dt.strftime("%Y-%m-%d %H:%M:%S")
-                if best_file_dt is not None
-                else None
-            )
-            if "arquivo_origem" not in df.columns:
-                df["arquivo_origem"] = os.path.basename(file_path)
-            else:
-                df["arquivo_origem"] = df["arquivo_origem"].fillna(
-                    os.path.basename(file_path)
-                )
-            if "data_arquivo_origem" not in df.columns:
-                df["data_arquivo_origem"] = file_dt_text
-            else:
-                df["data_arquivo_origem"] = df["data_arquivo_origem"].fillna(
-                    file_dt_text
-                )
-            if "data_planilha" not in df.columns:
-                df["data_planilha"] = file_dt_iso
-            else:
-                df["data_planilha"] = df["data_planilha"].fillna(file_dt_iso)
-
-            # Conta registros antes de inserir
-            record_count = len(df)
-            insertion_started = time.perf_counter()
-
-            # CORRECAO CRITICA: Usar smart_upsert para evitar duplicatas
-            if should_cancel and should_cancel():
-                raise ExtractionError(
-                    "operation cancelled", error_code="OPERATION_CANCELLED"
-                )
-            success = database.insert_dataframe_with_smart_upsert(
-                df, db_path, table_name
-            )
-            metrics["durations"]["insert_seconds"] = round(
-                time.perf_counter() - insertion_started, 3
-            )
-            metrics["counts"]["rows_inserted"] = int(record_count if success else 0)
-            if success:
-                logger.info(
-                    "Resumo do arquivo '%s': extracao=%ss, validacao=%ss, insercao=%ss, linhas=%s, invalidos_sem_identidade=%s, prontas=%s",
-                    os.path.basename(file_path),
-                    metrics["durations"].get("extraction_seconds", 0),
-                    metrics["durations"].get("validation_seconds", 0),
-                    metrics["durations"].get("insert_seconds", 0),
-                    metrics["counts"].get("rows_extracted", 0),
-                    metrics["counts"].get("rows_removed_invalid_identity", 0),
-                    metrics["counts"].get("rows_ready_for_insert", 0),
-                )
-                logger.info(
-                    "Importacao finalizada para '%s': inseridas=%s, removidas_validacao=%s, invalidos_sem_identidade=%s",
-                    os.path.basename(file_path),
-                    record_count,
-                    metrics["counts"].get("rows_removed_required_validation", 0),
-                    metrics["counts"].get("rows_removed_invalid_identity", 0),
-                )
-                return True, record_count
-            else:
-                logger.error(
-                    "Falha ao inserir dados validados de '%s' no banco de dados.",
-                    os.path.basename(file_path),
-                )
-                raise DatabaseError(f"Erro ao inserir dados do arquivo {file_path}")
-        else:
-            logger.warning(
-                "Arquivo '%s' sem linhas validas apos extracao; importacao ignorada.",
-                os.path.basename(file_path),
-            )
-            return True, 0  # Nao e um erro critico, apenas nao ha dados
-    except extractor.ExtractionError as e:
-        # Normalize extractor error type into core.app_logic.ExtractionError
-        message = str(e).strip() or "Erro de extracao sem detalhe"
-        raise ExtractionError(
-            message,
-            error_code=getattr(e, "error_code", None),
-        ) from e
-    except ExtractionError:
-        raise
-    except DatabaseError:
-        raise
-    except ImporterError:
-        raise
-    except (RuntimeError, TypeError, ValueError) as e:
-        error_type = type(e).__name__
-        logger.exception(
-            "Erro inesperado (%s) ao importar '%s': %s",
-            error_type,
-            file_path,
-            e,
-        )
-        raise ExtractionError(f"{error_type} ao importar {file_path}: {e}") from e
-    finally:
-        if _metrics_out is not None:
-            _metrics_out.clear()
-            _metrics_out.update(metrics)
 
 
 def _is_derivadas_sheet_file(file_path: str) -> bool:
@@ -605,6 +343,12 @@ def _needs_db_only_derivadas_sync(
 ) -> bool:
     """Decide if derivadas sync should run with DB-only source when no files changed."""
 
+    if not isinstance(db_path, (str, os.PathLike)) or not str(db_path).strip():
+        logger.warning(
+            "Caminho de banco invalido para preflight de derivadas: %r", db_path
+        )
+        return False
+
     normalized_table_name = str(table_name or "").strip()
 
     if should_cancel and should_cancel():
@@ -617,6 +361,31 @@ def _needs_db_only_derivadas_sync(
         )
         return False
 
+    cache_key: tuple[str, str, tuple[tuple[str, int, int], ...]] | None = None
+    try:
+        resolved_db_path = str(Path(db_path).resolve())
+        cache_key = (
+            resolved_db_path,
+            normalized_table_name,
+            _sqlite_file_state_key(resolved_db_path),
+        )
+        cached_result = _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE.get(cache_key)
+        if cached_result is not None:
+            return cached_result
+    except OSError as exc:
+        logger.debug("Cache de preflight DB-only de derivadas indisponivel: %s", exc)
+
+    def _finish(result: bool) -> bool:
+        if cache_key is not None:
+            if (
+                cache_key not in _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE
+                and len(_DB_ONLY_DERIVADAS_PREFLIGHT_CACHE)
+                >= _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE_LIMIT
+            ):
+                _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE.clear()
+            _DB_ONLY_DERIVADAS_PREFLIGHT_CACHE[cache_key] = result
+        return result
+
     try:
         with database.get_db_connection(db_path) as conn:
             resolved_table_name = database.resolve_target_table(
@@ -628,7 +397,7 @@ def _needs_db_only_derivadas_sync(
                     "Tabela resolvida invalida para preflight DB-only de derivadas: %r",
                     resolved_table_name,
                 )
-                return False
+                return _finish(False)
             if should_cancel and should_cancel():
                 logger.info(
                     "Cancelamento solicitado durante preflight DB-only de derivadas."
@@ -641,7 +410,7 @@ def _needs_db_only_derivadas_sync(
                 )
             )
             if db_edges_count <= 0:
-                return False
+                return _finish(False)
 
             if should_cancel and should_cancel():
                 logger.info(
@@ -661,7 +430,7 @@ def _needs_db_only_derivadas_sync(
                 ).fetchall()
             }
             if not ready_tables.issubset(existing_tables):
-                return True
+                return _finish(True)
 
             if should_cancel and should_cancel():
                 logger.info(
@@ -688,9 +457,9 @@ def _needs_db_only_derivadas_sync(
             ).fetchone()
 
             if latest is None:
-                return True
+                return _finish(True)
             latest_db_edges = int(latest[0] or 0)
-            return (
+            return _finish(
                 matrix_active <= 0
                 or summary_total <= 0
                 or latest_db_edges != db_edges_count
@@ -748,8 +517,15 @@ def _run_derivadas_sync_phase(
     merged_edges = int(merge_stats.get("merged_edges", 0) or 0)
     has_graph_evidence = db_edges > 0 or merged_edges > 0
 
-    expected_files_set = {os.path.abspath(path) for path in existing_files}
-    reported_files_set = {os.path.abspath(str(path)) for path in reported_files}
+    expected_file_paths = {
+        path: os.path.abspath(path)
+        for path in existing_files
+    }
+    expected_files_set = set(expected_file_paths.values())
+    reported_files_set = {
+        os.path.abspath(str(path))
+        for path in reported_files
+    }
     if existing_files and reported_files_set != expected_files_set:
         logger.error(
             "Sync de derivadas especiais sem cobertura completa de arquivos (esperado=%s, recebido=%s).",
@@ -775,8 +551,7 @@ def _run_derivadas_sync_phase(
             if not raw_sheet_file:
                 continue
             reports_by_file[os.path.abspath(raw_sheet_file)] = entry
-        for expected_file in existing_files:
-            normalized = os.path.abspath(expected_file)
+        for expected_file, normalized in expected_file_paths.items():
             current = reports_by_file.get(normalized)
             if current is None or not _has_sheet_parse_evidence(current):
                 files_without_evidence.append(os.path.basename(expected_file))
@@ -935,10 +710,6 @@ def _load_import_discovery_settings() -> Dict[str, Any]:
         "upsert_short_circuit_policy": "consulta_only",
     }
     try:
-        from core.config_manager import (
-            load_settings,
-        )  # lazy import to avoid startup coupling
-
         settings = load_settings()
         import_settings = settings.get("import_settings") or {}
         include_processadas = bool(
@@ -991,15 +762,22 @@ def _load_import_discovery_settings() -> Dict[str, Any]:
         return defaults
 
 
-def _build_nonconflicting_destination(path: Path) -> Path:
+def _build_nonconflicting_destination(
+    path: Path,
+    *,
+    existing_names: Optional[set[str]] = None,
+) -> Path:
     """Return a non-conflicting destination path by suffixing __N when needed."""
-    if not path.exists():
+    names = existing_names
+    if names is None:
+        names = {candidate.name for candidate in path.parent.iterdir()}
+    if path.name not in names and not path.exists():
         return path
     stem = path.stem
     suffix = path.suffix
     for idx in range(1, 10000):
         candidate = path.with_name(f"{stem}__{idx}{suffix}")
-        if not candidate.exists():
+        if candidate.name not in names:
             return candidate
     raise OSError(f"Nao foi possivel resolver destino unico para '{path}'")
 
@@ -1011,6 +789,7 @@ def _move_file_after_import(
     processadas_subdir: str,
     nosurvivor_subdir: str,
     route_to_nosurvivor: bool,
+    existing_destination_names: Optional[set[str]] = None,
 ) -> str:
     """Move processed file to processadas (or processadas/nosurvivor) and return final path."""
     source = Path(file_path).resolve()
@@ -1034,7 +813,10 @@ def _move_file_after_import(
     if route_to_nosurvivor:
         destination_root = processadas_root / nosurvivor_subdir
     destination_root.mkdir(parents=True, exist_ok=True)
-    destination = _build_nonconflicting_destination(destination_root / source.name)
+    destination = _build_nonconflicting_destination(
+        destination_root / source.name,
+        existing_names=existing_destination_names,
+    )
     if destination == source:
         return str(source)
     try:
@@ -1060,6 +842,8 @@ def _move_file_after_import(
         src_rel,
         dst_rel,
     )
+    if existing_destination_names is not None:
+        existing_destination_names.add(destination.name)
     return str(destination)
 
 
@@ -1073,6 +857,7 @@ def _apply_postprocess_file_moves(
 ) -> Dict[str, str]:
     """Apply post-import moves and return old_path -> final_path mapping."""
     moved_paths: Dict[str, str] = {}
+    destination_name_cache: dict[Path, set[str]] = {}
     for file_path, record_count in successful_files_with_records:
         try:
             normalized_record_count = int(record_count)
@@ -1086,30 +871,43 @@ def _apply_postprocess_file_moves(
         route_to_nosurvivor = bool(
             route_zero_survivor_to_nosurvivor and normalized_record_count <= 0
         )
+        docs_root = Path(docs_dir).resolve()
+        destination_root = (docs_root / processadas_subdir).resolve()
+        if route_to_nosurvivor:
+            destination_root = (destination_root / nosurvivor_subdir).resolve()
+        existing_names = destination_name_cache.setdefault(
+            destination_root,
+            {candidate.name for candidate in destination_root.iterdir()}
+            if destination_root.exists()
+            else set(),
+        )
         final_path = _move_file_after_import(
             file_path=file_path,
             docs_dir=docs_dir,
             processadas_subdir=processadas_subdir,
             nosurvivor_subdir=nosurvivor_subdir,
             route_to_nosurvivor=route_to_nosurvivor,
+            existing_destination_names=existing_names,
         )
         moved_paths[file_path] = final_path
     return moved_paths
 
 
-def _recreate_database_for_full_rescan(db_path: str) -> None:
-    """Create a clean DB for full rescan by rotating the previous file."""
+def _rotate_preexisting_database_for_full_rescan(db_path: str) -> None:
+    """Rotate the previous DB before a full rescan creates a clean candidate."""
     _rotate_database_for_full_rescan(db_path)
 
 
-def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
-    """Rotate the current DB file to a timestamped backup and return the backup path."""
-    if not os.path.exists(db_path):
-        return None
-    logger.info("Preparando full rescan: checkpoint WAL e rotacao de banco.")
-    preexisting_sidecars = {
-        suffix: os.path.exists(f"{db_path}{suffix}") for suffix in ("-wal", "-shm")
-    }
+def _checkpoint_is_fully_truncated(checkpoint: Any) -> bool:
+    if not checkpoint or len(checkpoint) < 3:
+        return False
+    busy = int(checkpoint[SQLITE_CHECKPOINT_BUSY_INDEX] or 0)
+    log_frames = int(checkpoint[SQLITE_CHECKPOINT_LOG_INDEX] or 0)
+    checkpointed_frames = int(checkpoint[SQLITE_CHECKPOINT_CHECKPOINTED_INDEX] or 0)
+    return busy == 0 and log_frames == checkpointed_frames
+
+
+def _force_wal_checkpoint(db_path: str, *, log_label: str) -> Optional[Exception]:
     last_error: Optional[Exception] = None
     for attempt in range(1, 4):
         conn: Optional[sqlite3.Connection] = None
@@ -1117,13 +915,14 @@ def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
             conn = sqlite3.connect(db_path, timeout=2)
             conn.execute("PRAGMA busy_timeout = 2000")
             checkpoint = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
-            if checkpoint and int(checkpoint[0] or 0) != 0:
+            if not _checkpoint_is_fully_truncated(checkpoint):
                 last_error = sqlite3.OperationalError(
-                    f"WAL checkpoint ocupado: {checkpoint}"
+                    f"WAL checkpoint incompleto: {checkpoint}"
                 )
                 if attempt < 3:
                     logger.warning(
-                        "Banco ocupado no checkpoint de full rescan (tentativa %s/3).",
+                        "%s ocupado no checkpoint (tentativa %s/3).",
+                        log_label,
                         attempt,
                     )
                     time.sleep(0.35 * attempt)
@@ -1134,7 +933,8 @@ def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
             last_error = exc
             if "locked" in str(exc).lower() and attempt < 3:
                 logger.warning(
-                    "Banco bloqueado na preparacao do full rescan (tentativa %s/3).",
+                    "%s bloqueado no checkpoint (tentativa %s/3).",
+                    log_label,
                     attempt,
                 )
                 time.sleep(0.35 * attempt)
@@ -1143,10 +943,36 @@ def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
         finally:
             if conn is not None:
                 conn.close()
+    return last_error
+
+
+def _replace_sqlite_file_with_retry(source: str, target: str) -> None:
+    last_error: OSError | None = None
+    for delay in SQLITE_FILE_REPLACE_RETRY_DELAYS_SECONDS:
+        if delay:
+            time.sleep(delay)
+        try:
+            os.replace(source, target)
+            return
+        except OSError as exc:
+            last_error = exc
+    if last_error is not None:
+        raise last_error
+
+
+def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
+    """Rotate the current DB file to a timestamped backup and return the backup path."""
+    if not os.path.exists(db_path):
+        return None
+    logger.info("Preparando full rescan: checkpoint WAL e rotacao de banco.")
+    preexisting_sidecars = {
+        suffix: os.path.exists(f"{db_path}{suffix}") for suffix in ("-wal", "-shm")
+    }
+    last_error = _force_wal_checkpoint(db_path, log_label="Banco de full rescan")
     if last_error is not None:
         logger.warning(
             "Checkpoint WAL do full rescan permaneceu ocupado; "
-            "rotacao vai preservar sidecars se existirem: %s",
+            "rotacao sera bloqueada se o WAL ainda tiver dados: %s",
             last_error,
         )
     wal_path = f"{db_path}-wal"
@@ -1158,14 +984,14 @@ def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
                 f"Falha ao validar estado do WAL antes do full rescan: {exc}"
             ) from exc
         if wal_size > 0:
-            logger.warning(
+            raise DatabaseError(
                 "WAL ainda ativo apos checkpoint antes do full rescan; "
-                "rotacao vai preservar o sidecar no backup."
+                "rotacao bloqueada para evitar backup inconsistente."
             )
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_path = f"{db_path}.full_rescan_backup_{timestamp}"
     try:
-        os.replace(db_path, backup_path)
+        _replace_sqlite_file_with_retry(db_path, backup_path)
         logger.info(
             "Banco anterior movido para backup de full rescan: %s",
             os.path.basename(backup_path),
@@ -1174,7 +1000,7 @@ def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
             sidecar = f"{db_path}{suffix}"
             sidecar_backup = f"{backup_path}{suffix}"
             if os.path.exists(sidecar):
-                os.replace(sidecar, sidecar_backup)
+                _replace_sqlite_file_with_retry(sidecar, sidecar_backup)
                 logger.info(
                     "Arquivo auxiliar do banco movido para backup: %s",
                     os.path.basename(sidecar_backup),
@@ -1224,39 +1050,9 @@ def _promote_full_rescan_candidate(
         "Promovendo DB candidato de full rescan para principal: %s",
         os.path.basename(candidate_db_path),
     )
-    last_error: Optional[Exception] = None
-    for attempt in range(1, 4):
-        conn: Optional[sqlite3.Connection] = None
-        try:
-            conn = sqlite3.connect(candidate_db_path, timeout=2)
-            conn.execute("PRAGMA busy_timeout = 2000")
-            checkpoint = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
-            if checkpoint and int(checkpoint[0] or 0) != 0:
-                last_error = sqlite3.OperationalError(
-                    f"WAL checkpoint ocupado: {checkpoint}"
-                )
-                if attempt < 3:
-                    logger.warning(
-                        "DB candidato ocupado no checkpoint final (tentativa %s/3).",
-                        attempt,
-                    )
-                    time.sleep(0.35 * attempt)
-                    continue
-            last_error = None
-            break
-        except sqlite3.Error as exc:
-            last_error = exc
-            if "locked" in str(exc).lower() and attempt < 3:
-                logger.warning(
-                    "DB candidato bloqueado na promocao final (tentativa %s/3).",
-                    attempt,
-                )
-                time.sleep(0.35 * attempt)
-                continue
-            break
-        finally:
-            if conn is not None:
-                conn.close()
+    last_error = _force_wal_checkpoint(
+        candidate_db_path, log_label="DB candidato de full rescan"
+    )
     if last_error is not None:
         logger.warning(
             "Checkpoint WAL do DB candidato permaneceu ocupado; "
@@ -1265,7 +1061,6 @@ def _promote_full_rescan_candidate(
         )
 
     candidate_wal_path = f"{candidate_db_path}-wal"
-    candidate_sidecars_to_promote: list[tuple[str, str]] = []
     if os.path.exists(candidate_wal_path):
         try:
             wal_size = int(os.path.getsize(candidate_wal_path))
@@ -1274,22 +1069,15 @@ def _promote_full_rescan_candidate(
                 f"Falha ao validar estado do WAL do DB candidato: {exc}"
             ) from exc
         if wal_size > 0:
-            logger.warning(
+            raise DatabaseError(
                 "WAL do DB candidato ainda ativo apos checkpoint; "
-                "promocao vai preservar o sidecar."
+                "promocao bloqueada para evitar banco inconsistente."
             )
-            for suffix in ("-wal", "-shm"):
-                sidecar = f"{candidate_db_path}{suffix}"
-                if os.path.exists(sidecar):
-                    candidate_sidecars_to_promote.append(
-                        (sidecar, f"{primary_db_path}{suffix}")
-                    )
 
-    if not candidate_sidecars_to_promote:
-        _cleanup_sqlite_sidecars(candidate_db_path)
+    _cleanup_sqlite_sidecars(candidate_db_path)
     backup_path = _rotate_database_for_full_rescan(primary_db_path)
     try:
-        os.replace(candidate_db_path, primary_db_path)
+        _replace_sqlite_file_with_retry(candidate_db_path, primary_db_path)
     except OSError as exc:
         try:
             shutil.move(candidate_db_path, primary_db_path)
@@ -1302,14 +1090,6 @@ def _promote_full_rescan_candidate(
             "Promocao de DB candidato usou shutil.move apos falha de os.replace: %s",
             exc,
         )
-    for source_sidecar, target_sidecar in candidate_sidecars_to_promote:
-        try:
-            os.replace(source_sidecar, target_sidecar)
-        except OSError as exc:
-            raise DatabaseError(
-                "Falha ao promover sidecar do DB candidato para o caminho principal: "
-                f"{exc}"
-            ) from exc
     logger.info(
         "DB candidato promovido com sucesso para o caminho principal: %s",
         os.path.basename(primary_db_path),
@@ -1331,13 +1111,10 @@ def _process_file_with_resilience(
     deterministic_failed_files: List[str],
     file_reports: List[Dict[str, Any]],
     emit_progress: Callable[[str, Dict[str, Any]], None],
-) -> str:
+) -> FileProcessAction:
     """Processa um arquivo regular com tratamento de erros padrao.
 
-    Retornos:
-    - "ok": seguir fluxo normal.
-    - "break": interromper loop de arquivos.
-    - "cancelled": cancelamento solicitado durante extracao.
+    Retorna acao de controle do loop de importacao.
     """
     try:
         file_metrics: Dict[str, Any] = {}
@@ -1347,6 +1124,7 @@ def _process_file_with_resilience(
             table_name,
             should_cancel=should_cancel,
             _metrics_out=file_metrics,
+            metadata_columns_ready=True,
         )
         if file_metrics:
             file_metrics["status"] = "success" if success else "no_rows"
@@ -1361,7 +1139,7 @@ def _process_file_with_resilience(
                 "file_success",
                 {"filename": base_name, "records": normalized_record_count},
             )
-        return "ok"
+        return FileProcessAction.CONTINUE
     except DatabaseConnectionError as exc:
         logger.error(
             "Erro de conexao com banco ao processar '%s': %s",
@@ -1374,7 +1152,7 @@ def _process_file_with_resilience(
             {"file": base_name, "status": "connection_error", "error": str(exc)}
         )
         emit_progress("file_error", {"filename": base_name, "error": str(exc)})
-        return "break"
+        return FileProcessAction.BREAK
     except DatabaseCorruptionError as exc:
         logger.error("Corrupcao detectada ao processar '%s': %s", file_path, exc)
         logger.info("Tentando reparo automatico do banco...")
@@ -1385,10 +1163,10 @@ def _process_file_with_resilience(
         if database.repair_database_if_needed(working_db_path, table_name=table_name):
             logger.info("Reparo bem-sucedido, continuando processamento...")
             critical_errors.append(("corruption_repaired", file_path, str(exc)))
-            return "ok"
+            return FileProcessAction.CONTINUE
         logger.error("Falha no reparo automatico")
         critical_errors.append(("corruption_failed", file_path, str(exc)))
-        return "break"
+        return FileProcessAction.BREAK
     except DatabaseSpaceError as exc:
         logger.error(
             "Espaco em disco insuficiente ao processar '%s': %s", file_path, exc
@@ -1398,7 +1176,7 @@ def _process_file_with_resilience(
             {"file": base_name, "status": "space_error", "error": str(exc)}
         )
         emit_progress("file_error", {"filename": base_name, "error": str(exc)})
-        return "break"
+        return FileProcessAction.BREAK
     except DatabaseSchemaError as exc:
         logger.error("Erro de schema ao processar '%s': %s", file_path, exc)
         logger.info("Tentando recriacao do schema...")
@@ -1409,10 +1187,10 @@ def _process_file_with_resilience(
         if database.initialize_database(working_db_path):
             logger.info("Schema recriado, continuando processamento...")
             critical_errors.append(("schema_repaired", file_path, str(exc)))
-            return "ok"
+            return FileProcessAction.CONTINUE
         logger.error("Falha na recriacao do schema")
         critical_errors.append(("schema_failed", file_path, str(exc)))
-        return "break"
+        return FileProcessAction.BREAK
     except DataValidationError as exc:
         logger.warning(
             "Dados invalidos em '%s': %s. Pulando arquivo...", file_path, exc
@@ -1422,12 +1200,12 @@ def _process_file_with_resilience(
             {"file": base_name, "status": "validation_error", "error": str(exc)}
         )
         emit_progress("file_error", {"filename": base_name, "error": str(exc)})
-        return "ok"
+        return FileProcessAction.CONTINUE
     except ExtractionError as exc:
         error_code = getattr(exc, "error_code", None)
         if error_code == "OPERATION_CANCELLED" and should_cancel:
             logger.info("Cancelamento solicitado; interrompendo importacao.")
-            return "cancelled"
+            return FileProcessAction.CANCELLED
         if error_code == "MISSING_REQUIRED_COLUMNS":
             deterministic_failed_files.append(file_path)
         logger.warning(
@@ -1443,7 +1221,7 @@ def _process_file_with_resilience(
             }
         )
         emit_progress("file_error", {"filename": base_name, "error": str(exc)})
-        return "ok"
+        return FileProcessAction.CONTINUE
     except DatabaseError as exc:
         logger.error(
             "Erro de banco ao processar '%s': %s. Continuando...", file_path, exc
@@ -1453,7 +1231,7 @@ def _process_file_with_resilience(
             {"file": base_name, "status": "database_error", "error": str(exc)}
         )
         emit_progress("file_error", {"filename": base_name, "error": str(exc)})
-        return "ok"
+        return FileProcessAction.CONTINUE
     except (AttributeError, KeyError, TypeError, ValueError) as exc:
         logger.error(
             "Erro inesperado ao processar '%s': %s. Continuando...", file_path, exc
@@ -1463,7 +1241,7 @@ def _process_file_with_resilience(
             {"file": base_name, "status": "unexpected_error", "error": str(exc)}
         )
         emit_progress("file_error", {"filename": base_name, "error": str(exc)})
-        return "ok"
+        return FileProcessAction.CONTINUE
 
 
 def _process_regular_files_phase(
@@ -1483,33 +1261,22 @@ def _process_regular_files_phase(
 ) -> bool:
     """Processa arquivos regulares e retorna flag de cancelamento parcial do full rescan."""
     cancelled_full_rescan = False
-    for index, file_path in enumerate(files_to_process):
-        if should_cancel and should_cancel():
-            logger.info("Cancelamento solicitado; interrompendo importacao.")
-            if candidate_db_path is not None:
-                cancelled_full_rescan = True
-            break
-        base_name = os.path.basename(file_path)
-        emit_progress(
-            "file_start",
-            {
-                "current": index + 1,
-                "total": total_files,
-                "filename": base_name,
-            },
+    has_regular_import_candidate = any(
+        not os.path.basename(file_path).startswith("~$")
+        and not _is_derivadas_sheet_file(file_path)
+        for file_path in files_to_process
+    )
+    if has_regular_import_candidate:
+        ensure_source_metadata_columns(
+            working_db_path,
+            table_name,
+            database.ensure_column_exists,
         )
-        if base_name.startswith("~$"):
-            logger.info("Ignorando arquivo temporario '%s'", base_name)
-            continue
-        if _is_derivadas_sheet_file(file_path):
-            logger.info(
-                "Planilha especial de derivadas detectada: '%s' (fase dedicada separada).",
-                base_name,
-            )
-            continue
-        action = _process_file_with_resilience(
+    for index, file_path in enumerate(files_to_process):
+        action = _process_regular_file_step(
             file_path=file_path,
-            base_name=base_name,
+            index=index,
+            total_files=total_files,
             working_db_path=working_db_path,
             table_name=table_name,
             should_cancel=should_cancel,
@@ -1521,13 +1288,67 @@ def _process_regular_files_phase(
             file_reports=file_reports,
             emit_progress=emit_progress,
         )
-        if action == "cancelled":
+        if action is FileProcessAction.CANCELLED:
             if candidate_db_path is not None:
                 cancelled_full_rescan = True
             break
-        if action == "break":
+        if action is FileProcessAction.BREAK:
             break
     return cancelled_full_rescan
+
+
+def _process_regular_file_step(
+    *,
+    file_path: str,
+    index: int,
+    total_files: int,
+    working_db_path: str,
+    table_name: str,
+    should_cancel: Optional[Callable[[], bool]],
+    candidate_db_path: Optional[str],
+    successfully_processed_files: List[str],
+    successful_regular_files_with_records: List[tuple[str, int]],
+    critical_errors: List[tuple[str, str, str]],
+    deterministic_failed_files: List[str],
+    file_reports: List[Dict[str, Any]],
+    emit_progress: Callable[[str, Dict[str, Any]], None],
+) -> FileProcessAction:
+    if should_cancel and should_cancel():
+        logger.info("Cancelamento solicitado; interrompendo importacao.")
+        return FileProcessAction.CANCELLED
+
+    base_name = os.path.basename(file_path)
+    emit_progress(
+        "file_start",
+        {
+            "current": index + 1,
+            "total": total_files,
+            "filename": base_name,
+        },
+    )
+    if base_name.startswith("~$"):
+        logger.info("Ignorando arquivo temporario '%s'", base_name)
+        return FileProcessAction.CONTINUE
+    if _is_derivadas_sheet_file(file_path):
+        logger.info(
+            "Planilha especial de derivadas detectada: '%s' (fase dedicada separada).",
+            base_name,
+        )
+        return FileProcessAction.CONTINUE
+    return _process_file_with_resilience(
+        file_path=file_path,
+        base_name=base_name,
+        working_db_path=working_db_path,
+        table_name=table_name,
+        should_cancel=should_cancel,
+        candidate_db_path=candidate_db_path,
+        successfully_processed_files=successfully_processed_files,
+        successful_regular_files_with_records=successful_regular_files_with_records,
+        critical_errors=critical_errors,
+        deterministic_failed_files=deterministic_failed_files,
+        file_reports=file_reports,
+        emit_progress=emit_progress,
+    )
 
 
 def _run_optional_derivadas_sync(
@@ -1542,22 +1363,23 @@ def _run_optional_derivadas_sync(
     docs_dir: str,
     critical_errors: List[tuple[str, str, str]],
     emit_progress: Callable[[str, Dict[str, Any]], None],
-) -> tuple[bool, bool]:
-    """Executa sync opcional de derivadas e retorna (sync_materialized, blocking_error)."""
+) -> tuple[bool, bool, list[str]]:
+    """Executa sync opcional de derivadas e retorna resultado e arquivos especiais."""
     sync_materialized = False
     derivadas_sync_blocking_error = False
+    synced_success_files: list[str] = []
     should_run_derivadas_sync = auto_derivadas_sync_enabled and (
         bool(successfully_processed_files)
         or bool(derivadas_sheet_files)
         or bool(db_only_derivadas_sync)
     )
     if not should_run_derivadas_sync:
-        return sync_materialized, derivadas_sync_blocking_error
+        return sync_materialized, derivadas_sync_blocking_error, synced_success_files
     if should_cancel and should_cancel():
         logger.info(
             "Cancelamento solicitado; sync de derivadas especiais nao sera executado."
         )
-        return sync_materialized, derivadas_sync_blocking_error
+        return sync_materialized, derivadas_sync_blocking_error, synced_success_files
     try:
         sync_ok, synced_sheets, sync_report = _run_derivadas_sync_phase(
             db_path=working_db_path,
@@ -1565,9 +1387,12 @@ def _run_optional_derivadas_sync(
             derivadas_sheet_files=derivadas_sheet_files,
         )
         if sync_ok and not derivadas_sync_blocking_error:
-            for special_file in synced_sheets:
-                if special_file not in successfully_processed_files:
-                    successfully_processed_files.append(special_file)
+            existing_success = set(successfully_processed_files)
+            synced_success_files = [
+                special_file
+                for special_file in synced_sheets
+                if special_file not in existing_success
+            ]
             db_edges = int(
                 ((sync_report.get("db_stats") or {}).get("accepted_edges", 0) or 0)
             )
@@ -1635,7 +1460,7 @@ def _run_optional_derivadas_sync(
             "file_error",
             {"filename": "SSAs Derivadas e Relacionadas", "error": str(exc)},
         )
-    return sync_materialized, derivadas_sync_blocking_error
+    return sync_materialized, derivadas_sync_blocking_error, synced_success_files
 
 
 def _validate_and_promote_candidate_if_needed(
@@ -1856,7 +1681,7 @@ def _finalize_import_run_outcome(
             "nenhum arquivo elegivel foi importado nesta execucao."
         )
         return {
-            "result": False,
+            "result": True,
             "status": "deterministic_rejections_only",
             "reason": "all_candidates_rejected_by_deterministic_rules",
             "integrity_report": {},
@@ -2163,23 +1988,20 @@ def _handle_derivadas_preflight_without_regular_files(
 def _build_progress_emitter(
     progress_callback: Optional[Callable[[str, Dict[str, Any]], None]],
 ) -> Callable[[str, Dict[str, Any]], None]:
-    """Envolve o callback de progresso e o desabilita apos falha."""
-    progress_cb = progress_callback
+    """Envolve o callback de progresso sem transformar falha de UI em falha core."""
 
     def _emit_progress(event_type: str, data: Dict[str, Any]) -> None:
-        nonlocal progress_cb
-        if not progress_cb:
+        if not progress_callback:
             return
         try:
-            progress_cb(event_type, data)
+            progress_callback(event_type, data)
         except Exception as exc:
             logger.warning(
-                "Progress callback failed for event '%s': %s. Disabling progress callback.",
+                "Progress callback failed for event '%s': %s.",
                 event_type,
                 exc,
                 exc_info=True,
             )
-            progress_cb = None
 
     return _emit_progress
 
@@ -2369,7 +2191,11 @@ def run_importer_logic(
                 file_reports=file_reports,
                 emit_progress=_emit_progress,
             )
-            sync_materialized, derivadas_sync_blocking_error = (
+            (
+                sync_materialized,
+                derivadas_sync_blocking_error,
+                synced_special_files,
+            ) = (
                 _run_optional_derivadas_sync(
                     auto_derivadas_sync_enabled=auto_derivadas_sync_enabled,
                     successfully_processed_files=successfully_processed_files,
@@ -2383,6 +2209,7 @@ def run_importer_logic(
                     emit_progress=_emit_progress,
                 )
             )
+            successfully_processed_files.extend(synced_special_files)
         finally:
             phase_durations["run_file_processing_seconds"] = (
                 time.perf_counter() - file_processing_started
@@ -2597,22 +2424,103 @@ def get_filtered_data(
         return pd.DataFrame()
 
     try:
+        sql_filter = _build_get_filtered_data_sql_filter(filters)
+        if sql_filter is not None:
+            where_clause, params = sql_filter
+            table_sql = _quote_sql_identifier(CANONICAL_SSA_TABLE)
+            query = f"SELECT * FROM {table_sql} WHERE {where_clause}"  # nosec B608
+            return database.query_db(
+                str(safe_db_path),
+                CANONICAL_SSA_TABLE,
+                query=query,
+                params=params,
+                raise_on_error=True,
+            )
+
         df = database.query_db(
             str(safe_db_path),
             CANONICAL_SSA_TABLE,
             raise_on_error=True,
         )
 
-        # Aplicar filtros se fornecidos
         if filters:
             for column, value in filters.items():
-                if column in df.columns and value is not None:
+                column_name = str(column)
+                if (
+                    column_name in QUERYABLE_FILTER_COLUMNS
+                    and column_name in df.columns
+                    and value is not None
+                ):
                     terms = parse_search_terms(str(value))
                     if terms:
-                        df = filter_dataframe(df, terms, [column])
+                        df = filter_dataframe(df, terms, [column_name])
 
         return df
 
     except (ValueError, sqlite3.Error, pd.errors.DatabaseError) as e:
         logger.error(f"Erro ao obter dados filtrados: {e}")
         return pd.DataFrame()  # Retorna DataFrame vazio em caso de erro
+
+
+def _quote_sql_identifier(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
+
+
+def _escape_sql_like(value: str) -> str:
+    return (
+        value.replace(SQL_LIKE_ESCAPE_CHAR, SQL_LIKE_ESCAPE_CHAR * 2)
+        .replace("%", SQL_LIKE_ESCAPE_CHAR + "%")
+        .replace("_", SQL_LIKE_ESCAPE_CHAR + "_")
+    )
+
+
+def _build_get_filtered_data_sql_filter(
+    filters: Dict[str, Any] | None,
+) -> tuple[str, tuple[Any, ...]] | None:
+    if not filters:
+        return None
+    clauses: list[str] = []
+    params: list[Any] = []
+    for column, value in filters.items():
+        column_name = str(column)
+        if column_name not in QUERYABLE_FILTER_COLUMNS or value is None:
+            continue
+        terms = parse_search_terms(str(value))
+        if not terms:
+            continue
+        column_expr = (
+            f"LOWER(COALESCE(CAST({_quote_sql_identifier(column_name)} AS TEXT), ''))"
+        )
+        for term in terms:
+            mode = str(term.get("mode") or "contains")
+            if mode == "regex":
+                return None
+            term_value = str(term.get("value") or "")
+            if not term_value.isascii():
+                return None
+            raw_value = term_value.lower()
+            if mode == "exact":
+                clause = f"{column_expr} = ?"
+                param = raw_value
+            elif mode == "prefix":
+                clause = (
+                    f"{column_expr} LIKE ? ESCAPE '{SQL_LIKE_ESCAPE_CHAR}'"
+                )
+                param = f"{_escape_sql_like(raw_value)}%"
+            elif mode == "suffix":
+                clause = (
+                    f"{column_expr} LIKE ? ESCAPE '{SQL_LIKE_ESCAPE_CHAR}'"
+                )
+                param = f"%{_escape_sql_like(raw_value)}"
+            else:
+                clause = (
+                    f"{column_expr} LIKE ? ESCAPE '{SQL_LIKE_ESCAPE_CHAR}'"
+                )
+                param = f"%{_escape_sql_like(raw_value)}%"
+            if bool(term.get("negative")):
+                clause = f"NOT ({clause})"
+            clauses.append(clause)
+            params.append(param)
+    if not clauses:
+        return None
+    return " AND ".join(clauses), tuple(params)

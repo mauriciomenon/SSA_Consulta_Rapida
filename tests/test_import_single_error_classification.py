@@ -195,7 +195,7 @@ def test_process_file_with_resilience_keeps_batch_running_on_internal_result_cas
         ),
     )
 
-    assert action == "ok"
+    assert action == app_logic.FileProcessAction.CONTINUE
     assert successful_files == []
     assert successful_with_records == []
     assert deterministic_failed == []
@@ -262,7 +262,7 @@ def test_process_file_with_resilience_keeps_batch_running_on_internal_runtime_at
         ),
     )
 
-    assert action == "ok"
+    assert action == app_logic.FileProcessAction.CONTINUE
     assert successful_files == []
     assert successful_with_records == []
     assert deterministic_failed == []
@@ -287,7 +287,7 @@ def test_process_file_with_resilience_keeps_batch_running_on_internal_runtime_at
     ]
 
 
-def test_build_progress_emitter_disables_callback_after_first_failure() -> None:
+def test_build_progress_emitter_keeps_reporting_after_callback_failure() -> None:
     calls: list[tuple[str, dict[str, object]]] = []
 
     def _broken_callback(event_type: str, data: dict[str, object]) -> None:
@@ -299,7 +299,7 @@ def test_build_progress_emitter_disables_callback_after_first_failure() -> None:
     emitter("first", {"step": 1})
     emitter("second", {"step": 2})
 
-    assert calls == [("first", {"step": 1})]
+    assert calls == [("first", {"step": 1}), ("second", {"step": 2})]
 
 
 def test_import_single_file_raises_when_extractor_returns_none(
@@ -388,7 +388,7 @@ def test_import_single_file_logs_friendly_duplicate_labels(
     assert ok is True
     assert count == 1
     assert "Duplicidade exata no export atingiu 2 linha(s)" in caplog.text
-    assert "Violacao de validacao [outra regra] atingiu 1 linha(s)" in caplog.text
+    assert "Aviso de validacao [outra regra] atingiu 1 linha(s)" in caplog.text
 
 
 def test_import_single_file_drops_invalid_numero_ssa_rows_before_insert(

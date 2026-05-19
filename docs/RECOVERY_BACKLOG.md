@@ -53,14 +53,23 @@ Escopo deste registro:
 Pendente priorizado:
 1. `BUG_REAL`: manter teste/smoke de Undo para busca geral, coluna e avancado como guarda contra regressao.
 2. `STABILITY_PATCH`: controller de busca/Undo extraido para `gui/ssa/filter_search_undo_controller.py`, sem alterar layout; wrappers mantidos no mixin por compatibilidade.
-3. `NAO_BLOQUEANTE_DEFERIDO`: extrair `run_importer_logic` e `_import_single_file` de `core/app_logic.py` para servicos de importacao.
-4. `NAO_BLOQUEANTE_DEFERIDO`: iniciar diagnostico da importacao automatica PAI a partir do repo local `~/git/scrap_report`, primeiro mapeando funcoes de obtencao de XLS/dados antes de importar codigo.
-5. `NAO_BLOQUEANTE_DEFERIDO`: dividir `tests/test_gui_filter_logic.py` por dominio depois que os contratos GUI estabilizados estiverem cobertos por testes menores.
+3. `STABILITY_PATCH`: `_import_single_file` extraido para `core/import_single_file.py`; `core/app_logic.py` mantem wrapper por compatibilidade de testes e chamadas internas.
+4. `NAO_BLOQUEANTE_DEFERIDO`: extrair `run_importer_logic` de `core/app_logic.py` para servico de orquestracao de importacao.
+5. `NAO_BLOQUEANTE_DEFERIDO`: iniciar diagnostico da importacao automatica PAI a partir do repo local `~/git/scrap_report`, primeiro mapeando funcoes de obtencao de XLS/dados antes de importar codigo.
+6. `NAO_BLOQUEANTE_DEFERIDO`: dividir `tests/test_gui_filter_logic.py` por dominio depois que os contratos GUI estabilizados estiverem cobertos por testes menores.
 
 Residual apos extracao do controller:
 1. `NAO_BLOQUEANTE_DEFERIDO`: `FilterGUISSAMixin` ainda e grande e ainda contem ordenacao/pandas em caminho de UI.
 2. `NAO_BLOQUEANTE_DEFERIDO`: `filter_search_undo_controller.py` ainda manipula estado privado da janela; proximo corte correto e criar DTO/interface de estado de filtros para reduzir o contrato dinamico.
 3. `NAO_BLOQUEANTE_DEFERIDO`: assinatura de Undo ainda usa congelamento recursivo de estado; manter sob observacao de performance antes de trocar por dirty flag.
+
+Residual apos extracao de importacao por arquivo:
+1. `NAO_BLOQUEANTE_DEFERIDO`: `run_importer_logic` ainda e funcao grande em `core/app_logic.py`; proximo corte deve isolar orquestracao de fases sem mudar contrato publico.
+2. `NAO_BLOQUEANTE_DEFERIDO`: `_process_file_with_resilience` ainda depende do wrapper `_import_single_file` em `core/app_logic.py` para compatibilidade de monkeypatches; remover somente depois de ajustar testes/contrato de injecao.
+3. `NAO_BLOQUEANTE_DEFERIDO`: progresso de importacao ainda usa callbacks textuais dentro de funcoes de dominio; proximo corte deve introduzir eventos/resultados estruturados antes de trocar UI.
+4. `NAO_BLOQUEANTE_DEFERIDO`: rotacao/promocao de banco ainda fica em `core/app_logic.py`; mover para camada de banco em slice proprio com testes de WAL/sidecars.
+5. `NAO_BLOQUEANTE_DEFERIDO`: rotacao/promocao de banco precisa coordenar fechamento de conexoes persistentes antes de `os.replace`, especialmente no Windows.
+6. `NAO_BLOQUEANTE_DEFERIDO`: validacao/limpeza de linhas ainda fica dentro de `core/import_single_file.py`; mover para transformacao dedicada antes de mudar politica de dados.
 
 ## Update 2026-05-15 14:39 - Advanced filters manager residuals
 
