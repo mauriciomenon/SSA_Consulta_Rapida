@@ -6,7 +6,7 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from core.pai_import_service import fetch_and_import_pai_xlsx
+from core.pai_import_service import fetch_and_import_pai_xlsx, preview_existing_pai_xlsx
 from core.pai_scrap_report_provider import (
     PaiScrapReportExport,
     PaiScrapReportRequest,
@@ -181,11 +181,38 @@ def test_fetch_and_import_pai_xlsx_stages_and_imports(
     assert result.rows_before_import == 0
     assert result.rows_after_import == 1
     assert result.import_xlsx_path == tmp_path / "docs_entrada" / "pai_ssa_import.xlsx"
+    normalized = pd.read_excel(result.import_xlsx_path)
+    assert normalized.loc[0, "sistema_origem"] == "PAI"
+    assert normalized.loc[0, "arquivo_origem"] == "pai.xlsx"
     assert result.staged_files == (str(tmp_path / "docs_entrada" / "pai_ssa_import.xlsx"),)
     assert staged_calls[0]["source_files"] == (str(result.import_xlsx_path),)
     assert staged_calls[0]["docs_dir"] == tmp_path / "docs_entrada"
     assert import_calls[0]["docs_dir"] == str(tmp_path / "docs_entrada")
     assert import_calls[0]["db_path"] == str(tmp_path / "data" / "ssas.db")
+
+
+def test_preview_existing_pai_xlsx_normalizes_without_api_call(tmp_path: Path) -> None:
+    source = tmp_path / "pai_local.xlsm"
+    pd.DataFrame(
+        {
+            "ssa_number": [202600002],
+            "description": ["Local PAI"],
+            "issue_datetime": ["2026-01-08T13:56:00Z"],
+            "executor_sector": ["MEL4"],
+        }
+    ).to_excel(source, index=False)
+
+    preview = preview_existing_pai_xlsx(
+        PaiScrapReportRequest(project_root=tmp_path),
+        source,
+        docs_dir=tmp_path / "docs_entrada",
+    )
+
+    assert preview.normalized_rows == 1
+    normalized = pd.read_excel(preview.import_xlsx_path)
+    assert str(normalized.loc[0, "numero_ssa"]) == "202600002"
+    assert normalized.loc[0, "sistema_origem"] == "PAI"
+    assert normalized.loc[0, "arquivo_origem"] == "pai_local.xlsm"
 
 
 def _make_scrap_report_root(tmp_path: Path) -> Path:

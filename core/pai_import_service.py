@@ -53,6 +53,27 @@ def fetch_pai_xlsx_preview(
     return _fetch_and_normalize_pai_xlsx(request, docs_dir=docs_dir)
 
 
+def preview_existing_pai_xlsx(
+    request: PaiScrapReportRequest,
+    source_xlsx: Path,
+    *,
+    docs_dir: Path,
+) -> PaiFetchedXlsxPreview:
+    source_xlsx = Path(source_xlsx).expanduser().resolve(strict=False)
+    if not source_xlsx.is_file():
+        raise FileNotFoundError(f"XLS PAI nao encontrado: {source_xlsx}")
+    export = PaiScrapReportExport(
+        command=("source-xlsx", str(source_xlsx)),
+        scrap_report_root=request.project_root,
+        manifest_path=source_xlsx,
+        xlsx_path=source_xlsx,
+        manifest={"source": "local_xlsx"},
+        stdout="",
+        stderr="",
+    )
+    return _normalize_export_for_preview(export, docs_dir=docs_dir)
+
+
 def import_prepared_pai_xlsx(
     request: PaiScrapReportRequest,
     preview: PaiFetchedXlsxPreview,
@@ -87,7 +108,7 @@ def import_prepared_pai_xlsx(
         db_path=str(db_path),
         raise_on_error=False,
     )
-    rows_after_import = count_rows(db_path) if imported else None
+    rows_after_import = count_rows(db_path)
     return PaiImportResult(
         export=preview.export,
         mode="import",
@@ -142,6 +163,14 @@ def _fetch_and_normalize_pai_xlsx(
     docs_dir: Path,
 ) -> PaiFetchedXlsxPreview:
     export = run_pai_scrap_report_export(request)
+    return _normalize_export_for_preview(export, docs_dir=docs_dir)
+
+
+def _normalize_export_for_preview(
+    export: PaiScrapReportExport,
+    *,
+    docs_dir: Path,
+) -> PaiFetchedXlsxPreview:
     with _normalize_for_import(export.xlsx_path, docs_dir) as normalized_result:
         normalized_result.preserve()
         return PaiFetchedXlsxPreview(

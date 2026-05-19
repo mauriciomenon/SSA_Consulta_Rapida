@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -13,7 +14,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from core.pai_import_service import fetch_and_import_pai_xlsx
+from core.pai_import_service import (
+    fetch_and_import_pai_xlsx,
+    import_prepared_pai_xlsx,
+    preview_existing_pai_xlsx,
+)
 from core.pai_scrap_report_provider import (
     PAI_DEFAULT_API_TIMEOUT_SECONDS,
     PAI_DEFAULT_COMMAND_TIMEOUT_SECONDS,
@@ -35,6 +40,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project-root", default=str(PROJECT_ROOT))
     parser.add_argument("--scrap-report-root", default=None)
     parser.add_argument("--output-dir", default=None)
+    parser.add_argument(
+        "--source-xlsx",
+        default=None,
+        help="valida/importa XLS/XLSX PAI ja existente, sem chamar API",
+    )
     parser.add_argument("--profile", default=PAI_DEFAULT_PROFILE)
     parser.add_argument("--executor-sector", action="append", default=[])
     parser.add_argument("--emitter-sector", action="append", default=[])
@@ -52,6 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--docs-dir", default="docs_entrada")
     parser.add_argument("--db-path", default="data/ssas.db")
+    parser.add_argument("--summary-json", default=None)
     parser.add_argument(
         "--fetch-only",
         action="store_true",
@@ -81,16 +92,37 @@ def run(args: argparse.Namespace) -> int:
         api_timeout_seconds=float(args.api_timeout_seconds),
         command_timeout_seconds=float(args.command_timeout_seconds),
     )
-    result = fetch_and_import_pai_xlsx(
-        request,
-        docs_dir=_resolve_under_project(project_root, args.docs_dir),
-        db_path=_resolve_under_project(project_root, args.db_path),
-        fetch_only=bool(args.fetch_only),
-    )
+    docs_dir = _resolve_under_project(project_root, args.docs_dir)
+    db_path = _resolve_under_project(project_root, args.db_path)
+    source_xlsx = _optional_path(args.source_xlsx)
+    if source_xlsx is not None:
+        preview = preview_existing_pai_xlsx(request, source_xlsx, docs_dir=docs_dir)
+        if args.fetch_only:
+            result = _preview_only_result(preview)
+        else:
+            result = import_prepared_pai_xlsx(
+                request,
+                preview,
+                docs_dir=docs_dir,
+                db_path=db_path,
+            )
+    else:
+        result = fetch_and_import_pai_xlsx(
+            request,
+            docs_dir=docs_dir,
+            db_path=db_path,
+            fetch_only=bool(args.fetch_only),
+        )
     print(f"XLSX PAI: {result.export.xlsx_path}")
     if result.import_xlsx_path is not None:
         print(f"XLSX SSA importacao: {result.import_xlsx_path}")
     print(f"Manifest PAI: {result.export.manifest_path}")
+    if result.normalized_rows is not None:
+        print(f"Linhas normalizadas: {result.normalized_rows}")
+    if result.rows_before_import is not None:
+        print(f"Linhas antes da importacao: {result.rows_before_import}")
+    if result.rows_after_import is not None:
+        print(f"Linhas depois da importacao: {result.rows_after_import}")
     if args.fetch_only:
         exit_code = 0
     elif not result.staged_files:
@@ -104,7 +136,6 @@ def run(args: argparse.Namespace) -> int:
         exit_code = 5
     elif (
         (result.normalized_rows or 0) > 0
-        and result.rows_before_import == 0
         and result.rows_after_import == 0
     ):
         print(
@@ -121,7 +152,45 @@ def run(args: argparse.Namespace) -> int:
     if exit_code == 0 and args.cleanup_manifest:
         result.export.manifest_path.unlink(missing_ok=True)
         print("Manifest PAI removido.")
+    if args.summary_json:
+        _write_summary_json(_resolve_under_project(project_root, args.summary_json), result)
     return exit_code
+
+
+def _preview_only_result(preview):
+    from core.import_staging import empty_external_staging_summary
+    from core.pai_import_service import PaiImportResult
+
+    return PaiImportResult(
+        export=preview.export,
+        mode="fetch_only",
+        import_xlsx_path=preview.import_xlsx_path,
+        staged_files=(),
+        staging_summary=empty_external_staging_summary(),
+        imported=False,
+        normalized_rows=preview.normalized_rows,
+        rows_before_import=None,
+        rows_after_import=None,
+    )
+
+
+def _write_summary_json(path: Path, result) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "mode": result.mode,
+        "xlsx_path": str(result.export.xlsx_path),
+        "import_xlsx_path": (
+            str(result.import_xlsx_path) if result.import_xlsx_path else None
+        ),
+        "manifest_path": str(result.export.manifest_path),
+        "imported": bool(result.imported),
+        "normalized_rows": result.normalized_rows,
+        "rows_before_import": result.rows_before_import,
+        "rows_after_import": result.rows_after_import,
+        "staged_files": list(result.staged_files),
+        "staging_summary": result.staging_summary,
+    }
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def _optional_path(raw_path: str | None) -> Path | None:

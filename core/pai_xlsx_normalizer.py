@@ -20,6 +20,8 @@ PAI_TO_SSA_COLUMN_MAP: tuple[tuple[str, str], ...] = (
 PAI_DATE_SOURCE_COLUMNS = ("emission_datetime", "issue_datetime")
 PAI_SITUACAO_SOURCE_COLUMNS = ("situation_desc", "process_status")
 PAI_SSA_IMPORT_SUFFIX = "_ssa_import"
+PAI_SOURCE_SYSTEM = "PAI"
+PAI_SUPPORTED_EXCEL_SUFFIXES = (".xls", ".xlsx", ".xlsm")
 SSA_IMPORT_REQUIRED_COLUMNS = ("numero_ssa", "data_cadastro", "descricao_ssa")
 
 
@@ -62,8 +64,10 @@ def normalize_pai_xlsx_for_ssa_import(
 ) -> PaiXlsxNormalizationResult:
     source_xlsx = Path(source_xlsx)
     target_xlsx = Path(target_xlsx)
+    _validate_source_excel_path(source_xlsx)
     frame = pd.read_excel(source_xlsx)
     normalized = build_normalized_pai_dataframe(frame)
+    _add_pai_origin_metadata(normalized, source_xlsx)
     target_xlsx.parent.mkdir(parents=True, exist_ok=True)
     normalized.to_excel(target_xlsx, index=False)
     return PaiXlsxNormalizationResult(path=target_xlsx, row_count=len(normalized))
@@ -139,6 +143,19 @@ def _clean_normalized_text_columns(frame: pd.DataFrame) -> None:
             continue
         stripped = frame.loc[text_mask, column].str.strip()
         frame.loc[text_mask, column] = stripped.mask(stripped.eq(""), pd.NA)
+
+
+def _validate_source_excel_path(path: Path) -> None:
+    if not path.is_file():
+        raise FileNotFoundError(f"XLS PAI nao encontrado: {path}")
+    if path.suffix.casefold() not in PAI_SUPPORTED_EXCEL_SUFFIXES:
+        supported = ", ".join(PAI_SUPPORTED_EXCEL_SUFFIXES)
+        raise ValueError(f"Arquivo PAI deve ser Excel ({supported}): {path}")
+
+
+def _add_pai_origin_metadata(frame: pd.DataFrame, source_xlsx: Path) -> None:
+    frame["sistema_origem"] = PAI_SOURCE_SYSTEM
+    frame["arquivo_origem"] = source_xlsx.name
 
 
 def _remove_normalized_xlsx(path: Path) -> None:
