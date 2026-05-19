@@ -1,0 +1,70 @@
+core/pai_import_verifier.py
+  s_082d1ff7d55d96::t_93e920677f0a2b 6-7,20
+  s_082d1ff7d55d96::t_3bc476994d36f7 1-4,8-11,13,16-19
+  s_082d1ff7d55d96::t_8d0e3b4fa026c3 5,12,14-15,21-22
+scripts/import_pai_api_xlsx.py
+  s_082d1ff7d55d96::t_8d0e3b4fa026c3 102-104
+  s_082d1ff7d55d96::t_ec9740b1b5a11c 91-92,114
+  s_082d1ff7d55d96::t_b523b43ea0c150 105-109
+  s_082d1ff7d55d96::t_11ee2f059d3d71 110-113,115-117
+core/pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_9a52deb8ba939c 66-72,109
+  s_082d1ff7d55d96::t_0a26643450b1aa 78
+  s_082d1ff7d55d96::t_37227ad23386ef 23,90,100
+  s_082d1ff7d55d96::t_451ad241c8f9d4 128
+  s_082d1ff7d55d96::t_63968743c6d673 87,121-124,131-141
+  s_082d1ff7d55d96::t_83f7c56cd3805d 84-85,129
+  s_082d1ff7d55d96::t_b523b43ea0c150 79,82
+  s_082d1ff7d55d96::t_ca4af98c9b55af 21
+  s_082d1ff7d55d96::t_33ee6bfb0a2663 105-106
+  s_082d1ff7d55d96::t_086f2e34beefdc 5,8,32-58,142-148
+  s_082d1ff7d55d96::t_3bc476994d36f7 125-126
+  s_082d1ff7d55d96::t_04563c533f31d4 130
+  s_082d1ff7d55d96::t_a77a30e2102ae4 86
+  s_082d1ff7d55d96::t_11ee2f059d3d71 6,26-31,59-62
+  s_082d1ff7d55d96::t_d897aae21d9527 118-120
+  s_082d1ff7d55d96::t_5e2fc378a53811 83,127
+  s_082d1ff7d55d96::t_0832218f2afa47 98-99,101-104,107-108
+  s_082d1ff7d55d96::t_ec9740b1b5a11c 1-4,7,9-20,22,24-25,63-65,73-77,80-81,88-89,91-97,110-117
+tests/test_pai_scrap_report_provider.py
+  s_082d1ff7d55d96::t_89944546a09677 151
+  s_082d1ff7d55d96::t_bd2561564ab1cb 150,153
+  s_082d1ff7d55d96::t_5cd8b7361abbef 156
+  s_082d1ff7d55d96::t_ec9740b1b5a11c 6,91-101,121,132-138,152,154-155
+core/pai_import_service.py
+  s_082d1ff7d55d96::t_34989797b5e9df 115-118
+  s_082d1ff7d55d96::t_3bc476994d36f7 17,49,91
+  s_082d1ff7d55d96::t_8f4cd0883ee53d 7,110
+  s_082d1ff7d55d96::t_0832218f2afa47 21
+  s_082d1ff7d55d96::t_232090dae67155 119
+  s_082d1ff7d55d96::t_086f2e34beefdc 19-20,65-66,92-93,111
+  s_082d1ff7d55d96::t_ca4af98c9b55af 31,55,96,105-106
+  s_082d1ff7d55d96::t_11ee2f059d3d71 36,60,80,101
+  s_082d1ff7d55d96::t_09296445f3666f 107-109
+  s_082d1ff7d55d96::t_b523b43ea0c150 37,61,81,84,102
+  s_082d1ff7d55d96::t_ec9740b1b5a11c 18,32,38,56,62,97
+  s_082d1ff7d55d96::t_8d0e3b4fa026c3 24
+  s_082d1ff7d55d96::t_dadf12e2f31585 67-79,82-83,85-90,98,100,103,112-113
+core/import_staging.py
+  s_082d1ff7d55d96::t_a77a30e2102ae4 227-230
+  s_082d1ff7d55d96::t_5cd8b7361abbef 93,100,102,104
+  s_082d1ff7d55d96::t_0f0ee673345e91 23,190,255
+tests/test_import_staging.py
+  s_082d1ff7d55d96::t_5cd8b7361abbef 127-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "81ba5201d7960d1b2e6b1ca22c0987dfbe0d96e3",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <menon@menonm5pro.local>"
+    }
+  }
+}
