@@ -1,0 +1,52 @@
+core/import_database_rotation.py
+  s_082d1ff7d55d96::t_2477c586282f1f 57,107,147,163-164
+  s_082d1ff7d55d96::t_76351f12923a4f 154-155
+  s_082d1ff7d55d96::t_12b1b24765845e 46-49,51-56,58,64-67,83-86,88-95,138-146,148-153,156-162
+  s_082d1ff7d55d96::t_4355961086785a 1-45,50,59-63,68-82,87,96-106,108-137,165-226
+core/import_postprocess.py
+  s_082d1ff7d55d96::t_6b3331bdb99b8f 63-66
+  s_082d1ff7d55d96::t_2e0c4e43e56c14 156
+  s_082d1ff7d55d96::t_328cb62d81a20e 177-184
+  s_082d1ff7d55d96::t_5c9bfbce30b046 69-81,106-107,170-175
+  s_082d1ff7d55d96::t_6755ea3504820e 19,28,32,35-36,88,112,190
+  s_082d1ff7d55d96::t_d664c5d6b7cb7e 189
+  s_082d1ff7d55d96::t_3d504aa28bba64 53-56,67-68,168-169
+  s_082d1ff7d55d96::t_c7351008eaf850 139-140
+  s_082d1ff7d55d96::t_7c313fd6fec7d9 12,24-25,34
+  s_082d1ff7d55d96::t_09d9794135cd21 144
+  s_082d1ff7d55d96::t_06c6921e551180 41-52,155
+  s_082d1ff7d55d96::t_4703d60c402f74 1-11,13-18,20-23,26,33,37-40,82-85,87,89-104,108-111,113-138,142-143,145-154,157-167,176,185-188,191-192,194
+  s_082d1ff7d55d96::t_fd12e3aec7e071 29-31,141,193
+  s_082d1ff7d55d96::t_528ffe4f0d7830 27,57-62,86,105
+core/app_logic.py
+  s_082d1ff7d55d96::t_9946d59e461738 1412-1432
+  s_082d1ff7d55d96::t_3ce4dba93f900e 627-628
+  s_082d1ff7d55d96::t_81bf398be96bec 386-387
+  s_082d1ff7d55d96::t_574763c901fe93 1456,1461,1466-1470,1517,1522,1527-1531
+  s_082d1ff7d55d96::t_3c78f45f4282b7 58-62,64
+  s_082d1ff7d55d96::t_89251d2d05062a 63
+  s_082d1ff7d55d96::t_df2c8fde7fa06e 515-526,714
+  s_082d1ff7d55d96::t_c1e33000c7775f 715,718,720-725,728
+  s_082d1ff7d55d96::t_bc8505ed7be178 574-582,594-601
+  s_082d1ff7d55d96::t_016b34cb31092c 1207-1250
+tests/test_import_run_report.py
+  s_082d1ff7d55d96::t_4e1efc14850aa1 14,1420,1422,1425
+tests/test_app_logic_full_rescan_lock.py
+  s_082d1ff7d55d96::t_6d7b2f34080e34 6,29,59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "1d3ce118ac400155089d0dd5a59961834245cdaf",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
