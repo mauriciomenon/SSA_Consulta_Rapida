@@ -39,6 +39,13 @@ def test_cli_source_xlsx_fetch_only_writes_summary(tmp_path: Path) -> None:
     assert exit_code == 0
     payload = json.loads(summary.read_text(encoding="utf-8"))
     assert payload["mode"] == "fetch_only"
+    assert payload["source_kind"] == "source-xlsx"
+    assert payload["source_xlsx"] == str(source)
+    assert payload["requested_executor_sectors"] == []
+    assert payload["requested_emitter_sectors"] == []
+    assert payload["requested_ssa_numbers"] == []
     assert payload["normalized_rows"] == 1
     assert payload["imported"] is False
     assert Path(payload["import_xlsx_path"]).is_file()
+    assert payload["ssa_examples"] == ["202600003"]
+    assert payload["warnings"] == []

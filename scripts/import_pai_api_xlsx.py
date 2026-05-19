@@ -9,6 +9,9 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any, Mapping, cast
+
+import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -31,6 +34,8 @@ from core.pai_scrap_report_provider import (
     PAI_SCRAP_REPORT_RUNNER_ENV,
     PaiScrapReportRequest,
 )
+
+SUMMARY_SSA_EXAMPLE_LIMIT = 20
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -134,10 +139,10 @@ def run(args: argparse.Namespace) -> int:
     elif result.rows_after_import is None:
         print("Falha ao verificar linhas importadas PAI.", file=sys.stderr)
         exit_code = 5
-    elif (
-        (result.normalized_rows or 0) > 0
-        and result.rows_after_import == 0
-    ):
+    elif result.normalized_rows is None:
+        print("Falha ao verificar linhas normalizadas PAI.", file=sys.stderr)
+        exit_code = 6
+    elif result.normalized_rows > 0 and result.rows_after_import == 0:
         print(
             "Falha ao importar XLSX PAI: XLSX tinha dados, mas banco ficou sem linhas.",
             file=sys.stderr,
@@ -153,7 +158,12 @@ def run(args: argparse.Namespace) -> int:
         result.export.manifest_path.unlink(missing_ok=True)
         print("Manifest PAI removido.")
     if args.summary_json:
-        _write_summary_json(_resolve_under_project(project_root, args.summary_json), result)
+        _write_summary_json(
+            _resolve_under_project(project_root, args.summary_json),
+            result,
+            request=request,
+            source_xlsx=source_xlsx,
+        )
     return exit_code
 
 
@@ -174,10 +184,21 @@ def _preview_only_result(preview):
     )
 
 
-def _write_summary_json(path: Path, result) -> None:
+def _write_summary_json(
+    path: Path,
+    result,
+    *,
+    request: PaiScrapReportRequest,
+    source_xlsx: Path | None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
+        "source_kind": "source-xlsx" if source_xlsx is not None else "api",
+        "requested_executor_sectors": list(request.executor_sectors),
+        "requested_emitter_sectors": list(request.emitter_sectors),
+        "requested_ssa_numbers": list(request.ssa_numbers),
         "mode": result.mode,
+        "source_xlsx": str(source_xlsx) if source_xlsx is not None else None,
         "xlsx_path": str(result.export.xlsx_path),
         "import_xlsx_path": (
             str(result.import_xlsx_path) if result.import_xlsx_path else None
@@ -189,8 +210,55 @@ def _write_summary_json(path: Path, result) -> None:
         "rows_after_import": result.rows_after_import,
         "staged_files": list(result.staged_files),
         "staging_summary": result.staging_summary,
+        "ssa_examples": _read_ssa_examples(result.import_xlsx_path),
+        "warnings": _extract_manifest_warnings(result.export.manifest),
     }
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _read_ssa_examples(path: Path | None) -> list[str]:
+    if path is None or not path.is_file():
+        return []
+    try:
+        frame = pd.read_excel(path, dtype=str, nrows=SUMMARY_SSA_EXAMPLE_LIMIT)
+    except (OSError, ValueError) as exc:
+        return [f"summary_read_error:{type(exc).__name__}"]
+    number_column = _first_existing_column(
+        frame.columns,
+        ("numero_ssa", "Numero da SSA", "ssa_number", "SSA"),
+    )
+    if number_column is None:
+        return []
+    return [
+        value
+        for value in (
+            str(raw_value).strip()
+            for raw_value in frame[number_column].dropna().tolist()
+        )
+        if value
+    ][:SUMMARY_SSA_EXAMPLE_LIMIT]
+
+
+def _extract_manifest_warnings(manifest: object) -> list[str]:
+    if not isinstance(manifest, dict):
+        return []
+    manifest_mapping = cast(Mapping[str, object], manifest)
+    warnings = manifest_mapping.get("warnings")
+    if isinstance(warnings, list):
+        return [str(item) for item in warnings]
+    warning = manifest_mapping.get("warning")
+    if warning:
+        return [str(warning)]
+    return []
+
+
+def _first_existing_column(columns: Any, candidates: tuple[str, ...]) -> str | None:
+    existing = {str(column).casefold(): str(column) for column in columns}
+    for candidate in candidates:
+        found = existing.get(candidate.casefold())
+        if found is not None:
+            return found
+    return None
 
 
 def _optional_path(raw_path: str | None) -> Path | None:
