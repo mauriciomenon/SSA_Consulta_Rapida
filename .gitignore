@@ -167,6 +167,7 @@ celerybeat.pid
 # Environments
 .env
 .envrc  # (contem chaves locais via direnv; ver .envrc.example)
+!.envrc.example
 .venv
 env/
 venv/
@@ -254,7 +255,6 @@ data/ssas.db-journal
 data/ssas.db.*
 # Artefatos locais de Node (desversionados)
 node_modules/
-package.json
 bun.lock
 # Preferencia local da GUI principal (subir manualmente apenas quando combinado)
 config/gui_main_preferences.json
@@ -470,7 +470,6 @@ config/mcp-*.json
 .github/instructions/snyk_rules.instructions.md
 
 
-package-lock.json
 profile.bkp
 .envrc.backup
 .envrc.multi
@@ -506,3 +505,7 @@ heatmap-last-year.png
 !dev_env/build/*.bat
 !dev_env/build/*.bzl
 docs_entrada/docs_entrada.zip
+# Local agent/debug artifacts
+.clawpatch/
+agents.toml
+tmp/
