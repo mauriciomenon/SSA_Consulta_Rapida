@@ -52,10 +52,15 @@ Escopo deste registro:
 
 Pendente priorizado:
 1. `BUG_REAL`: manter teste/smoke de Undo para busca geral, coluna e avancado como guarda contra regressao.
-2. `NAO_BLOQUEANTE_DEFERIDO`: extrair controller de busca/Undo de `FilterGUISSAMixin`, sem alterar layout.
+2. `STABILITY_PATCH`: controller de busca/Undo extraido para `gui/ssa/filter_search_undo_controller.py`, sem alterar layout; wrappers mantidos no mixin por compatibilidade.
 3. `NAO_BLOQUEANTE_DEFERIDO`: extrair `run_importer_logic` e `_import_single_file` de `core/app_logic.py` para servicos de importacao.
 4. `NAO_BLOQUEANTE_DEFERIDO`: iniciar diagnostico da importacao automatica PAI a partir do repo local `~/git/scrap_report`, primeiro mapeando funcoes de obtencao de XLS/dados antes de importar codigo.
 5. `NAO_BLOQUEANTE_DEFERIDO`: dividir `tests/test_gui_filter_logic.py` por dominio depois que os contratos GUI estabilizados estiverem cobertos por testes menores.
+
+Residual apos extracao do controller:
+1. `NAO_BLOQUEANTE_DEFERIDO`: `FilterGUISSAMixin` ainda e grande e ainda contem ordenacao/pandas em caminho de UI.
+2. `NAO_BLOQUEANTE_DEFERIDO`: `filter_search_undo_controller.py` ainda manipula estado privado da janela; proximo corte correto e criar DTO/interface de estado de filtros para reduzir o contrato dinamico.
+3. `NAO_BLOQUEANTE_DEFERIDO`: assinatura de Undo ainda usa congelamento recursivo de estado; manter sob observacao de performance antes de trocar por dirty flag.
 
 ## Update 2026-05-15 14:39 - Advanced filters manager residuals
 

@@ -123,7 +123,8 @@ from gui.ssa.filter_summary_removal import (
     SummaryRemovalPlan,
     build_summary_removal_plan,
 )
-from gui.ssa.search_refinement import can_reuse_refined_search
+from gui.ssa import filter_search_undo_controller as search_undo_controller
+from gui.ssa.filter_state_utils import copy_filter_mapping as _copy_filter_mapping
 from utils.robust_logging import get_robust_logger
 
 # Imports de utils
@@ -145,41 +146,6 @@ __all__ = [
 
 _CLEAR_FILTER_HARD_RESET_CLICK_TARGET = 3
 _CLEAR_FILTER_HARD_RESET_WINDOW_SEC = 3.0
-
-
-def _copy_filter_value(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {key: _copy_filter_value(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return list(value)
-    if isinstance(value, tuple):
-        return tuple(value)
-    if isinstance(value, set):
-        return set(value)
-    return value
-
-
-def _copy_filter_mapping(value: Any) -> dict:
-    if not isinstance(value, dict):
-        return {}
-    return {key: _copy_filter_value(item) for key, item in value.items()}
-
-
-def _freeze_filter_state_value(value: Any) -> Any:
-    if isinstance(value, dict):
-        return tuple(
-            (str(key), _freeze_filter_state_value(item))
-            for key, item in value.items()
-        )
-    if isinstance(value, (list, tuple)):
-        return tuple(_freeze_filter_state_value(item) for item in value)
-    if isinstance(value, set):
-        return tuple(sorted((_freeze_filter_state_value(item) for item in value), key=repr))
-    try:
-        hash(value)
-    except TypeError:
-        return str(value)
-    return value
 
 
 class FilterRefreshTimer:
@@ -287,25 +253,12 @@ class FilterGUISSAMixin:
         search_text_override: str | None = None,
         pending_search_display_override: str | None = None,
     ) -> None:
-        """Armazena snapshot do estado de filtros sem quebrar o fluxo da UI."""
-        self._filter_cache_context_dirty = True
-        try:
-            self._store_last_filter_state(
-                search_text_override=search_text_override,
-                pending_search_display_override=pending_search_display_override,
-            )
-        except AttributeError as exc:
-            if reason:
-                logger.debug("Historico de filtros indisponivel (%s): %s", reason, exc)
-            else:
-                logger.debug("Historico de filtros indisponivel: %s", exc)
-        except Exception as exc:
-            if reason:
-                logger.warning(
-                    "Falha ao salvar historico de filtros (%s): %s", reason, exc
-                )
-            else:
-                logger.warning("Falha ao salvar historico de filtros: %s", exc)
+        search_undo_controller.safe_store_last_filter_state(
+            self,
+            reason,
+            search_text_override=search_text_override,
+            pending_search_display_override=pending_search_display_override,
+        )
 
     def _iter_search_inputs(self):
         current = getattr(self, "search_input", None)
@@ -741,54 +694,18 @@ class FilterGUISSAMixin:
         return str(self._cached_default_mode or "contains")
 
     def _current_general_search_text(self) -> str:
-        search_widget = getattr(self, "search_input", None)
-        if _is_search_widget_valid(search_widget):
-            return str(cast(Any, search_widget).text() or "").strip()
-        return ""
+        return search_undo_controller.current_general_search_text(
+            self,
+            is_widget_valid=_is_search_widget_valid,
+        )
 
     def _select_general_filter_source_candidate(
         self, search_text: str
     ) -> pd.DataFrame:
-        filter_source_candidate = self.df_completo
-        try:
-            last_search_filtered = getattr(self, "_df_last_search_filtered", None)
-            column_filters = getattr(self, "_active_column_filters", {}) or {}
-            has_column_filters = any(
-                str(filter_value).strip() for filter_value in column_filters.values()
-            )
-            previous_search_display = str(
-                getattr(self, "_active_filter_search_display", "") or ""
-            ).strip()
-            previous_terms = (
-                self._normalize_chunk_for_parse(previous_search_display)
-                if previous_search_display
-                else []
-            )
-            current_terms = (
-                self._normalize_chunk_for_parse(search_text) if search_text else []
-            )
-            has_active_worker = getattr(self, "filter_thread", None) is not None
-            can_reuse_previous_result = can_reuse_refined_search(
-                previous_terms, current_terms
-            )
-            if (
-                isinstance(last_search_filtered, pd.DataFrame)
-                and list(last_search_filtered.columns)
-                and previous_terms
-                and current_terms
-                and not getattr(self, "_advanced_filters_active", False)
-                and not has_column_filters
-                and not getattr(self, "_exclude_ste_sca", False)
-                and not has_active_worker
-                and can_reuse_previous_result
-            ):
-                filter_source_candidate = last_search_filtered
-        except Exception as exc:
-            logger.debug(
-                "Falha ao avaliar refinamento seguro da busca; usando df_completo: %s",
-                exc,
-            )
-        return filter_source_candidate
+        return search_undo_controller.select_general_filter_source_candidate(
+            self,
+            search_text,
+        )
 
     def _normalized_search_chunks_for_sync(
         self, search_chunks: list[str]
@@ -2785,96 +2702,24 @@ class FilterGUISSAMixin:
         search_text_override: str | None = None,
         pending_search_display_override: str | None = None,
     ) -> dict:
-        """Capture undo state.
-
-        Hidden column-filter lines are captured as UI preference, but restore
-        sanitizes active-filter lines so a non-empty filter cannot become
-        invisible.
-        """
-        search_text = (
-            str(search_text_override)
-            if search_text_override is not None
-            else self._current_general_search_text()
+        return search_undo_controller.snapshot_filter_state(
+            self,
+            search_text_override=search_text_override,
+            pending_search_display_override=pending_search_display_override,
         )
-        try:
-            active_filters = OrderedDict(self._active_column_filters or {})
-        except Exception:
-            active_filters = OrderedDict()
-        groups_snapshot = []
-        for group in getattr(self, "_column_or_groups", []) or []:
-            if not isinstance(group, dict):
-                continue
-            groups_snapshot.append(
-                {
-                    "columns": tuple(group.get("columns", ())),
-                    "values": list(group.get("values", ())),
-                }
-            )
-        return {
-            "search_text": search_text,
-            "pending_search_display": (
-                pending_search_display_override
-                if pending_search_display_override is not None
-                else getattr(self, "_pending_search_display", None)
-            ),
-            "active_column_filters": active_filters,
-            "column_or_groups": groups_snapshot,
-            "exclude_ste_sca": bool(getattr(self, "_exclude_ste_sca", False)),
-            "advanced_filters": _copy_filter_mapping(
-                getattr(self, "_advanced_filters", None)
-            ),
-            "advanced_filters_active": bool(
-                getattr(self, "_advanced_filters_active", False)
-            ),
-            "current_filter_profile": getattr(self, "current_filter_profile", None),
-            "profile_base_filters": _copy_filter_mapping(
-                getattr(self, "_profile_base_filters", None)
-            ),
-            "hidden_column_filter_lines": set(
-                getattr(self, "_hidden_column_filter_lines", None) or set()
-            ),
-            "dedicated_or_text": str(getattr(self, "_dedicated_or_text", "")),
-        }
 
     def _filter_state_signature(
         self,
         *,
         search_text_override: str | None = None,
         pending_search_display_override: str | None = None,
+        state: dict | None = None,
     ) -> tuple:
-        search_text = (
-            str(search_text_override)
-            if search_text_override is not None
-            else self._current_general_search_text()
-        )
-        active_filters = getattr(self, "_active_column_filters", {}) or {}
-        or_groups = getattr(self, "_column_or_groups", []) or []
-        hidden_lines = getattr(self, "_hidden_column_filter_lines", set()) or set()
-        return (
-            str(search_text or ""),
-            tuple((str(k), str(v)) for k, v in active_filters.items()),
-            tuple(
-                (
-                    tuple(str(column) for column in (group.get("columns", ()) or ())),
-                    tuple(str(value) for value in (group.get("values", ()) or ())),
-                )
-                for group in or_groups
-                if isinstance(group, dict)
-            ),
-            bool(getattr(self, "_exclude_ste_sca", False)),
-            _freeze_filter_state_value(getattr(self, "_advanced_filters", None) or {}),
-            bool(getattr(self, "_advanced_filters_active", False)),
-            str(getattr(self, "current_filter_profile", None)),
-            _freeze_filter_state_value(
-                getattr(self, "_profile_base_filters", None) or {}
-            ),
-            tuple(sorted(str(value) for value in hidden_lines)),
-            str(getattr(self, "_dedicated_or_text", "")),
-            str(
-                pending_search_display_override
-                if pending_search_display_override is not None
-                else getattr(self, "_pending_search_display", None)
-            ),
+        return search_undo_controller.filter_state_signature(
+            self,
+            search_text_override=search_text_override,
+            pending_search_display_override=pending_search_display_override,
+            state=state,
         )
 
     def _store_last_filter_state(
@@ -2883,106 +2728,29 @@ class FilterGUISSAMixin:
         search_text_override: str | None = None,
         pending_search_display_override: str | None = None,
     ) -> None:
-        if getattr(self, "_restoring_filter_state", False):
-            return
-        try:
-            signature = self._filter_state_signature(
-                search_text_override=search_text_override,
-                pending_search_display_override=pending_search_display_override,
-            )
-            if (
-                getattr(self, "_last_filter_state_signature", None) == signature
-                and getattr(self, "_last_filter_state", None) is not None
-            ):
-                self._update_undo_button_state()
-                return
-            self._last_filter_state = self._snapshot_filter_state(
-                search_text_override=search_text_override,
-                pending_search_display_override=pending_search_display_override,
-            )
-            self._last_filter_state_signature = signature
-        except Exception as exc:
-            logger.warning("Falha ao gerar snapshot de estado de filtros: %s", exc)
-            self._last_filter_state = None
-            self._last_filter_state_signature = None
-        self._update_undo_button_state()
+        search_undo_controller.store_last_filter_state(
+            self,
+            search_text_override=search_text_override,
+            pending_search_display_override=pending_search_display_override,
+        )
 
     def _restore_filter_search_state(self, state: dict) -> str:
-        restored_search_text = str(state.get("search_text", "") or "")
-        self._set_search_text_across_tabs(restored_search_text)
-        self._pending_search_display = state.get("pending_search_display")
-        self._df_last_search_filtered = self.df_completo
-        return restored_search_text
+        return search_undo_controller.restore_filter_search_state(self, state)
 
     def _restore_filter_column_state(self, state: dict) -> None:
-        self._active_column_filters = OrderedDict(
-            state.get("active_column_filters") or {}
-        )
-        self._reset_or_groups()
-        for group in state.get("column_or_groups") or []:
-            if not isinstance(group, dict):
-                continue
-            self._register_or_group(
-                list(group.get("columns") or []), list(group.get("values") or [])
-            )
-        self._hidden_column_filter_lines = self._sanitize_hidden_column_filter_lines(
-            state.get("hidden_column_filter_lines") or set(),
-            self._active_column_filters,
-        )
-        self._dedicated_or_text = str(state.get("dedicated_or_text") or "")
+        search_undo_controller.restore_filter_column_state(self, state)
 
     def _restore_filter_advanced_state(self, state: dict) -> None:
-        self._exclude_ste_sca = bool(state.get("exclude_ste_sca"))
-        checkbox = getattr(self, "exclude_ste_checkbox", None)
-        if checkbox is not None:
-            try:
-                self._set_checked_without_signal(
-                    checkbox,
-                    self._exclude_ste_sca,
-                    log_context="restore_exclude_ste_checkbox",
-                )
-            except Exception as exc:
-                logger.debug(
-                    "Falha ao restaurar checkbox exclude_ste principal: %s", exc
-                )
-        self._advanced_filters = state.get("advanced_filters") or {}
-        self._advanced_filters_active = bool(state.get("advanced_filters_active"))
-        try:
-            self._sync_advanced_filter_ui()
-        except Exception as exc:
-            logger.warning(
-                "Falha ao sincronizar UI de filtros avancados no restore: %s", exc
-            )
+        search_undo_controller.restore_filter_advanced_state(self, state)
 
     def _restore_filter_profile_state(self, state: dict) -> None:
-        self.current_filter_profile = state.get("current_filter_profile")
-        self._profile_base_filters = state.get("profile_base_filters") or {}
-        selector = getattr(self, "profile_selector", None)
-        if selector is None:
-            return
-        idx = (
-            selector.findData(self.current_filter_profile)
-            if self.current_filter_profile
-            else selector.findData(None)
-        )
-        if idx < 0:
-            return
-        self._profile_lock = True
-        try:
-            selector.setCurrentIndex(idx)
-        finally:
-            self._profile_lock = False
+        search_undo_controller.restore_filter_profile_state(self, state)
 
     def _render_restored_filter_state(self, restored_search_text: str) -> None:
-        if restored_search_text.strip():
-            self.initiate_filtering()
-        else:
-            self._refresh_after_filter_change()
-        try:
-            self._update_filters_summary()
-        except Exception as exc:
-            logger.debug("Falha ao atualizar resumo de filtros no restore: %s", exc)
-        self._sync_clear_filter_button_state()
+        search_undo_controller.render_restored_filter_state(
+            self,
+            restored_search_text,
+        )
 
     def _restore_last_filter_state(
         self,
@@ -2990,37 +2758,14 @@ class FilterGUISSAMixin:
         *,
         consume_undo: bool = True,
     ) -> None:
-        if state is not None and not isinstance(state, dict):
-            state = None
-        if state is None:
-            state = getattr(self, "_last_filter_state", None)
-        if state is None:
-            return
-        self._invalidate_active_filter_request("restore_last_filter_state")
-        self._set_filter_ui_idle()
-        self._restoring_filter_state = True
-        try:
-            restored_search_text = self._restore_filter_search_state(state)
-            self._restore_filter_column_state(state)
-            self._restore_filter_advanced_state(state)
-            self._restore_filter_profile_state(state)
-            self._build_column_filters_panel()
-            try:
-                self.update_filter_tags()
-            except Exception as exc:
-                logger.debug("Falha ao atualizar tags de filtros no restore: %s", exc)
-            self._render_restored_filter_state(restored_search_text)
-            if consume_undo:
-                self._last_filter_state = None
-                self._last_filter_state_signature = None
-        finally:
-            self._restoring_filter_state = False
-            self._update_undo_button_state()
+        search_undo_controller.restore_last_filter_state(
+            self,
+            state,
+            consume_undo=consume_undo,
+        )
 
     def _update_undo_button_state(self) -> None:
-        self._set_undo_filter_buttons_enabled(
-            getattr(self, "_last_filter_state", None) is not None
-        )
+        search_undo_controller.update_undo_button_state(self)
 
     def _apply_search_display(self):
         display_text = getattr(self, "_pending_search_display", None)
