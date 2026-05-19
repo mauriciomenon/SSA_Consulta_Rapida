@@ -1,0 +1,29 @@
+core/pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_c5b9eec5a07b01 23-24,67,70,148-158
+tests/test_import_pai_api_xlsx_cli.py
+  s_082d1ff7d55d96::t_8fe3baae8db0df 1-44
+tests/test_pai_scrap_report_provider.py
+  s_082d1ff7d55d96::t_481f941f7a4a0a 9,184-186,194-215
+scripts/import_pai_api_xlsx.py
+  s_082d1ff7d55d96::t_e90eb77d5fbe7a 8,17-21,43-47,65,95-115,120-125,155-156,160-193
+core/pai_import_service.py
+  s_082d1ff7d55d96::t_66ff6c0747be97 63-64
+  s_082d1ff7d55d96::t_0b92e056b9ef19 74,111,166-173
+  s_082d1ff7d55d96::t_9981ee9213c30d 56-62,65-73,75-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "4904dc37bb0933bb0c5e8c9dfa852632b0bdd98d",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maurício Menon <mauricio.menon@gmail.com>"
+    }
+  }
+}
