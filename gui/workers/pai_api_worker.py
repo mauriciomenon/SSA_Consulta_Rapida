@@ -7,7 +7,12 @@ from dataclasses import replace
 from pathlib import Path
 
 from core.pai_api_options import PaiApiGuiOptions, pai_api_options_error
-from core.pai_import_service import PaiImportResult, fetch_and_import_pai_xlsx
+from core.pai_import_service import (
+    PaiFetchedXlsxPreview,
+    PaiImportResult,
+    fetch_pai_xlsx_preview,
+    import_prepared_pai_xlsx,
+)
 from core.pai_scrap_report_provider import (
     PAI_RUNNER_UV,
     PaiScrapReportRequest,
@@ -29,6 +34,7 @@ class PaiApiRefreshWorker(QThread):
     output_line = pyqtSignal(str)
     error_line = pyqtSignal(str)
     progress = pyqtSignal(int, str)
+    preview_ready = pyqtSignal(object)
     finished_success = pyqtSignal()
     finished_error = pyqtSignal(str)
 
@@ -69,8 +75,18 @@ class PaiApiRefreshWorker(QThread):
         self.progress.emit(5, "API PAI: validando CA")
         certificate = run_pai_scrap_report_ca_export(base_request)
         self.progress.emit(10, "API PAI: baixando XLSX")
-        result = fetch_and_import_pai_xlsx(
+        preview = fetch_pai_xlsx_preview(
             replace(base_request, ca_file=certificate.ca_file),
+            docs_dir=self.config.docs_dir,
+        )
+        self.preview_ready.emit(preview)
+        self.progress.emit(
+            60,
+            f"API PAI: {preview.normalized_rows} linhas obtidas; importando",
+        )
+        result = import_prepared_pai_xlsx(
+            replace(base_request, ca_file=certificate.ca_file),
+            preview,
             docs_dir=self.config.docs_dir,
             db_path=self.config.db_path,
         )
@@ -88,3 +104,11 @@ def _format_refresh_result(result: PaiImportResult) -> str:
             return "[OK SEM LINHAS] API PAI importada sem registros no banco."
         return f"[OK] API PAI importada; linhas no banco={rows}"
     return "[NAO IMPORTADO] API PAI processada; importacao no banco nao confirmada."
+
+
+def format_preview_status(preview: PaiFetchedXlsxPreview) -> str:
+    return (
+        "API PAI: "
+        f"{preview.normalized_rows} linhas validadas em "
+        f"{preview.import_xlsx_path.name}"
+    )

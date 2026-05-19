@@ -182,6 +182,9 @@
         "IEE2",
         "MEL2"
       ],
+      "data_scopes": [
+        "consulta"
+      ],
       "limit": 200,
       "number_of_years": 4
     }

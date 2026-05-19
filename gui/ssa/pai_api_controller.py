@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -12,9 +13,14 @@ from core.pai_api_options import (
     normalize_pai_api_options,
     pai_api_options_error,
     update_pai_api_boolean_setting,
+    update_pai_api_data_scope_setting,
     update_pai_api_sector_setting,
 )
-from gui.workers.pai_api_worker import PaiApiRefreshWorker, PaiApiWorkerConfig
+from gui.workers.pai_api_worker import (
+    PaiApiRefreshWorker,
+    PaiApiWorkerConfig,
+    format_preview_status,
+)
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
@@ -36,17 +42,44 @@ class PaiApiRefreshContext:
     project_root: str
     docs_dir: str
     db_path: str
+    output_dir: str
     qmessagebox: Any
+
+
+class PaiApiSignal(Protocol):
+    def connect(self, callback: Any) -> None: ...
+
+
+class PaiApiTimerPort(Protocol):
+    timeout: PaiApiSignal
+
+    def setSingleShot(self, value: bool) -> None: ...
+    def setInterval(self, value: int) -> None: ...
+    def start(self) -> None: ...
+    def stop(self) -> None: ...
+    def isActive(self) -> bool: ...
+
+
+class PaiApiWorkerPort(Protocol):
+    output_line: PaiApiSignal
+    error_line: PaiApiSignal
+    progress: PaiApiSignal
+    preview_ready: PaiApiSignal
+    finished_success: PaiApiSignal
+    finished_error: PaiApiSignal
+
+    def start(self) -> None: ...
+    def isRunning(self) -> bool: ...
 
 
 class PaiApiWindowPort(Protocol):
     def pai_api_preferences(self) -> dict[str, Any]: ...
     def pai_api_refresh_context(self) -> PaiApiRefreshContext: ...
     def set_pai_api_status(self, text: str) -> None: ...
-    def active_pai_api_worker(self) -> Any: ...
-    def set_active_pai_api_worker(self, worker: Any | None) -> None: ...
-    def active_pai_api_timer(self) -> Any: ...
-    def set_active_pai_api_timer(self, timer: Any | None) -> None: ...
+    def active_pai_api_worker(self) -> PaiApiWorkerPort | None: ...
+    def set_active_pai_api_worker(self, worker: PaiApiWorkerPort | None) -> None: ...
+    def active_pai_api_timer(self) -> PaiApiTimerPort | None: ...
+    def set_active_pai_api_timer(self, timer: PaiApiTimerPort | None) -> None: ...
     def reload_pai_api_data(self) -> None: ...
     def confirm_pai_api_reload(self, qmessagebox: Any) -> bool: ...
     def _persist_gui_preferences(self) -> bool: ...
@@ -77,6 +110,20 @@ def set_pai_api_sector_enabled(
     return persisted
 
 
+def set_pai_api_data_scope_enabled(
+    window: PaiApiWindowPort,
+    preferences: dict[str, Any],
+    scope: str,
+    enabled: bool,
+) -> bool:
+    clean_scope = str(scope or "").strip().casefold()
+    if not update_pai_api_data_scope_setting(preferences, clean_scope, enabled):
+        window.set_pai_api_status(f"Status: Tipo API PAI invalido: {clean_scope}")
+        return False
+    persisted, _active = _persist_and_sync(window, preferences)
+    return persisted
+
+
 def start_pai_api_refresh(
     window: PaiApiWindowPort,
     *,
@@ -97,13 +144,12 @@ def start_pai_api_refresh(
         window.set_pai_api_status(STATUS_API_ALREADY_RUNNING)
         return False
 
-    output_dir = Path(context.project_root) / "tmp" / "pai_api_gui"
     worker = worker_cls(
         PaiApiWorkerConfig(
             project_root=Path(context.project_root),
             docs_dir=Path(context.docs_dir),
             db_path=Path(context.db_path),
-            output_dir=output_dir,
+            output_dir=Path(context.output_dir),
             options=options,
         )
     )
@@ -178,22 +224,45 @@ def _connect_worker(
     qmessagebox: Any,
     ask_reload: bool,
 ) -> None:
-    worker.output_line.connect(lambda text, *_args: logger.info("%s", text))
-    worker.error_line.connect(lambda text, *_args: logger.warning("%s", text))
-    worker.progress.connect(
-        lambda _percent, message, *_args: window.set_pai_api_status(
-            f"Status: {message}"
-        )
-    )
+    worker.output_line.connect(_log_worker_output)
+    worker.error_line.connect(_log_worker_error)
+    worker.progress.connect(partial(_set_worker_progress, window))
+    worker.preview_ready.connect(partial(_set_worker_preview_status, window))
     worker.finished_success.connect(
-        lambda: _finish_success(
+        partial(
+            _finish_success,
             window,
             worker,
             qmessagebox=qmessagebox,
             ask_reload=ask_reload,
         )
     )
-    worker.finished_error.connect(lambda message: _finish_error(window, worker, message))
+    worker.finished_error.connect(partial(_finish_error, window, worker))
+
+
+def _log_worker_output(text: str, *_args: Any) -> None:
+    logger.info("%s", text)
+
+
+def _log_worker_error(text: str, *_args: Any) -> None:
+    logger.warning("%s", text)
+
+
+def _set_worker_progress(
+    window: PaiApiWindowPort,
+    _percent: int,
+    message: str,
+    *_args: Any,
+) -> None:
+    window.set_pai_api_status(f"Status: {message}")
+
+
+def _set_worker_preview_status(
+    window: PaiApiWindowPort,
+    preview: Any,
+    *_args: Any,
+) -> None:
+    window.set_pai_api_status(f"Status: {format_preview_status(preview)}")
 
 
 def _finish_success(
@@ -291,6 +360,7 @@ __all__ = [
     "initialize_pai_api_auto_refresh",
     "set_pai_api_auto_refresh_enabled",
     "set_pai_api_boolean_option",
+    "set_pai_api_data_scope_enabled",
     "set_pai_api_sector_enabled",
     "sync_pai_api_auto_refresh",
     "start_pai_api_refresh",

@@ -38,6 +38,69 @@ class PaiImportResult:
     rows_after_import: int | None
 
 
+@dataclass(frozen=True)
+class PaiFetchedXlsxPreview:
+    export: PaiScrapReportExport
+    import_xlsx_path: Path
+    normalized_rows: int
+
+
+def fetch_pai_xlsx_preview(
+    request: PaiScrapReportRequest,
+    *,
+    docs_dir: Path,
+) -> PaiFetchedXlsxPreview:
+    return _fetch_and_normalize_pai_xlsx(request, docs_dir=docs_dir)
+
+
+def import_prepared_pai_xlsx(
+    request: PaiScrapReportRequest,
+    preview: PaiFetchedXlsxPreview,
+    *,
+    docs_dir: Path,
+    db_path: Path,
+    stage_files: StageFunction = stage_external_import_files,
+    import_files: ImportFunction = import_explicit_files_to_database,
+    count_rows: RowCountFunction = count_imported_ssa_rows,
+) -> PaiImportResult:
+    rows_before_import = count_rows(db_path)
+    staged_files, summary = stage_files(
+        project_root=request.project_root,
+        docs_dir=docs_dir,
+        source_files=(str(preview.import_xlsx_path),),
+    )
+    if not staged_files:
+        return PaiImportResult(
+            export=preview.export,
+            mode="import",
+            import_xlsx_path=preview.import_xlsx_path,
+            staged_files=(),
+            staging_summary=summary,
+            imported=False,
+            normalized_rows=preview.normalized_rows,
+            rows_before_import=rows_before_import,
+            rows_after_import=None,
+        )
+    imported = import_files(
+        staged_files,
+        docs_dir=str(docs_dir),
+        db_path=str(db_path),
+        raise_on_error=False,
+    )
+    rows_after_import = count_rows(db_path) if imported else None
+    return PaiImportResult(
+        export=preview.export,
+        mode="import",
+        import_xlsx_path=preview.import_xlsx_path,
+        staged_files=tuple(staged_files),
+        staging_summary=summary,
+        imported=bool(imported),
+        normalized_rows=preview.normalized_rows,
+        rows_before_import=rows_before_import,
+        rows_after_import=rows_after_import,
+    )
+
+
 def fetch_and_import_pai_xlsx(
     request: PaiScrapReportRequest,
     *,
@@ -48,59 +111,43 @@ def fetch_and_import_pai_xlsx(
     import_files: ImportFunction = import_explicit_files_to_database,
     count_rows: RowCountFunction = count_imported_ssa_rows,
 ) -> PaiImportResult:
-    export = run_pai_scrap_report_export(request)
+    preview = _fetch_and_normalize_pai_xlsx(request, docs_dir=docs_dir)
     if fetch_only:
         return PaiImportResult(
-            export=export,
+            export=preview.export,
             mode="fetch_only",
-            import_xlsx_path=None,
+            import_xlsx_path=preview.import_xlsx_path,
             staged_files=(),
             staging_summary=empty_external_staging_summary(),
             imported=False,
-            normalized_rows=None,
+            normalized_rows=preview.normalized_rows,
             rows_before_import=None,
             rows_after_import=None,
         )
 
+    return import_prepared_pai_xlsx(
+        request,
+        preview,
+        docs_dir=docs_dir,
+        db_path=db_path,
+        stage_files=stage_files,
+        import_files=import_files,
+        count_rows=count_rows,
+    )
+
+
+def _fetch_and_normalize_pai_xlsx(
+    request: PaiScrapReportRequest,
+    *,
+    docs_dir: Path,
+) -> PaiFetchedXlsxPreview:
+    export = run_pai_scrap_report_export(request)
     with _normalize_for_import(export.xlsx_path, docs_dir) as normalized_result:
-        import_xlsx_path = normalized_result.path
-        staged_files, summary = stage_files(
-            project_root=request.project_root,
-            docs_dir=docs_dir,
-            source_files=(str(import_xlsx_path),),
-        )
-        if not staged_files:
-            return PaiImportResult(
-                export=export,
-                mode="import",
-                import_xlsx_path=import_xlsx_path,
-                staged_files=(),
-                staging_summary=summary,
-                imported=False,
-                normalized_rows=normalized_result.row_count,
-                rows_before_import=None,
-                rows_after_import=None,
-            )
-        rows_before_import = count_rows(db_path)
-        imported = import_files(
-            staged_files,
-            docs_dir=str(docs_dir),
-            db_path=str(db_path),
-            raise_on_error=False,
-        )
-        rows_after_import = count_rows(db_path) if imported else None
-        if imported:
-            normalized_result.preserve()
-        return PaiImportResult(
+        normalized_result.preserve()
+        return PaiFetchedXlsxPreview(
             export=export,
-            mode="import",
-            import_xlsx_path=import_xlsx_path,
-            staged_files=tuple(staged_files),
-            staging_summary=summary,
-            imported=bool(imported),
+            import_xlsx_path=normalized_result.path,
             normalized_rows=normalized_result.row_count,
-            rows_before_import=rows_before_import,
-            rows_after_import=rows_after_import,
         )
 
 

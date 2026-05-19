@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from core.pai_api_options import normalize_pai_api_options
-from core.pai_import_service import PaiImportResult
+from core.pai_import_service import PaiFetchedXlsxPreview, PaiImportResult
 from core.pai_scrap_report_provider import PaiScrapReportExport
 from core.pai_scrap_report_provider import PaiScrapReportCertificate
 from gui.workers import pai_api_worker
@@ -16,12 +16,11 @@ def test_pai_api_worker_sends_all_executor_sectors_in_one_request(
 ) -> None:
     captured = {}
 
-    def _fake_fetch(request, *, docs_dir, db_path):
-        captured["fetch_calls"] = int(captured.get("fetch_calls", 0)) + 1
+    def _fake_fetch(request, *, docs_dir):
+        captured["preview_calls"] = int(captured.get("preview_calls", 0)) + 1
         captured["request"] = request
         captured["docs_dir"] = docs_dir
-        captured["db_path"] = db_path
-        return PaiImportResult(
+        return PaiFetchedXlsxPreview(
             export=PaiScrapReportExport(
                 command=("cmd",),
                 scrap_report_root=tmp_path,
@@ -31,17 +30,30 @@ def test_pai_api_worker_sends_all_executor_sectors_in_one_request(
                 stdout="",
                 stderr="",
             ),
-            mode="import",
             import_xlsx_path=tmp_path / "import.xlsx",
+            normalized_rows=2,
+        )
+
+    def _fake_import(request, preview, *, docs_dir, db_path):
+        captured["import_calls"] = int(captured.get("import_calls", 0)) + 1
+        captured["import_request"] = request
+        captured["preview"] = preview
+        captured["import_docs_dir"] = docs_dir
+        captured["db_path"] = db_path
+        return PaiImportResult(
+            export=preview.export,
+            mode="import",
+            import_xlsx_path=preview.import_xlsx_path,
             staged_files=("import.xlsx",),
             staging_summary={"staged": 1},
             imported=True,
-            normalized_rows=2,
+            normalized_rows=preview.normalized_rows,
             rows_before_import=0,
             rows_after_import=2,
         )
 
-    monkeypatch.setattr(pai_api_worker, "fetch_and_import_pai_xlsx", _fake_fetch)
+    monkeypatch.setattr(pai_api_worker, "fetch_pai_xlsx_preview", _fake_fetch)
+    monkeypatch.setattr(pai_api_worker, "import_prepared_pai_xlsx", _fake_import)
     monkeypatch.setattr(
         pai_api_worker,
         "run_pai_scrap_report_ca_export",
@@ -70,7 +82,10 @@ def test_pai_api_worker_sends_all_executor_sectors_in_one_request(
 
     assert captured["request"].executor_sectors == ("IEE3", "MEL4", "MEL3")
     assert captured["request"].ca_file == tmp_path / "ca.pem"
-    assert captured["fetch_calls"] == 1
+    assert captured["preview_calls"] == 1
+    assert captured["import_calls"] == 1
     assert captured["docs_dir"] == tmp_path / "docs"
+    assert captured["import_docs_dir"] == tmp_path / "docs"
     assert captured["db_path"] == tmp_path / "ssas.db"
+    assert captured["preview"].normalized_rows == 2
     assert len(worker.results) == 1

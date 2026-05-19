@@ -2881,6 +2881,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             project_root=project_root,
             docs_dir=os.path.join(project_root, "docs_entrada"),
             db_path=DB_PATH,
+            output_dir=os.path.join(project_root, "tmp", "pai_api_gui"),
             qmessagebox=QMessageBox,
         )
 
@@ -2949,6 +2950,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self,
             GUI_MAIN_PREFERENCES,
             sector,
+            bool(checked),
+        )
+
+    def set_pai_api_data_scope_enabled(self, scope: str, checked: bool) -> bool:
+        return ssa_pai_api_controller.set_pai_api_data_scope_enabled(
+            self,
+            GUI_MAIN_PREFERENCES,
+            scope,
             bool(checked),
         )
 

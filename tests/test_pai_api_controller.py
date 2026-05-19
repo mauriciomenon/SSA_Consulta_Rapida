@@ -101,6 +101,7 @@ class _Worker:
         self.output_line = _Signal()
         self.error_line = _Signal()
         self.progress = _Signal()
+        self.preview_ready = _Signal()
         self.finished_success = _Signal()
         self.finished_error = _Signal()
         self.started = False
@@ -209,5 +210,6 @@ def _context(tmp_path: Path) -> pai_api_controller.PaiApiRefreshContext:
         project_root=str(tmp_path),
         docs_dir=str(tmp_path / "docs"),
         db_path=str(tmp_path / "ssas.db"),
+        output_dir=str(tmp_path / "pai_api"),
         qmessagebox=None,
     )

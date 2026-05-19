@@ -150,6 +150,9 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def set_pai_api_sector_enabled(self, _sector: str, _checked: bool) -> None:
             return None
 
+        def set_pai_api_data_scope_enabled(self, _scope: str, _checked: bool) -> None:
+            return None
+
     window = _Window()
     monkeypatch.setattr(gui_ssa, "QAction", cast(Any, _FakeAction))
     gui_ssa.SSAMainWindow._setup_app_menus(cast(Any, window))
@@ -219,6 +222,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         "Atualizacao automatica (10 min)",
     ]
     assert "Setores executores" in api_menu.submenus
+    assert "Tipos de dados" in api_menu.submenus
 
 
 def test_import_external_excel_files_copies_and_suffixes_collisions(
