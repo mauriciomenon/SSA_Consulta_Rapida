@@ -166,7 +166,23 @@
     "filter_cache_size": 50,
     "cache_enabled": true,
     "cache_auto_clear": false,
-    "theme_default": null
+    "theme_default": null,
+    "pai_api": {
+      "enabled": true,
+      "scrap_report_enabled": true,
+      "executor_sectors": [
+        "IEE3",
+        "MEL4",
+        "IEE1",
+        "IEE4",
+        "MEL3",
+        "MEL1",
+        "IEE2",
+        "MEL2"
+      ],
+      "limit": 200,
+      "number_of_years": 4
+    }
   },
   "version": "1.0.0",
   "created_for": "GUI Main (main.py --gui)",
