@@ -1,0 +1,9 @@
+uv.lock
+  ai_agent 924,926,928
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e58190a5409a53f8114a8ab8ec735cbcba6e1d64",
+  "prompts": {}
+}
