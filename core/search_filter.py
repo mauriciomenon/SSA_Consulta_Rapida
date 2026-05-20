@@ -167,6 +167,15 @@ def _build_normalized_column_cache(
     if estimated_bytes > _NORMALIZED_SEARCH_CACHE_MAX_BYTES:
         return normalized_columns
     with _NORMALIZED_SEARCH_CACHE_LOCK:
+        cached = _NORMALIZED_SEARCH_CACHE.get(cache_key)
+        if (
+            isinstance(cached, dict)
+            and callable(cached.get("df_ref"))
+            and cached["df_ref"]() is df
+            and isinstance(cached.get("columns"), dict)
+        ):
+            _NORMALIZED_SEARCH_CACHE.move_to_end(cache_key)
+            return dict(cached["columns"])
         _NORMALIZED_SEARCH_CACHE[cache_key] = {
             "df_ref": weakref.ref(df),
             "columns": normalized_columns,
@@ -428,9 +437,7 @@ def _combine_or_group_masks(
 
 
 def _candidate_series(series: pd.Series, candidate_index: pd.Index) -> pd.Series:
-    if candidate_index is series.index:
-        return series
-    if len(candidate_index) == len(series.index) and candidate_index.equals(series.index):
+    if candidate_index.equals(series.index):
         return series
     return series.loc[candidate_index]
 
@@ -527,7 +534,8 @@ def _mask_for_filter_term(
                 pattern=pattern,
                 reject_quantifiers=reject_quantifiers,
             )
-        except re.error:
+        except re.error as exc:
+            logger.warning("Regex invalido no termo de filtro: %s", exc)
             return pd.Series(False, index=candidate_index)
 
     if mode in {"prefix", "suffix", "exact"}:
@@ -573,7 +581,9 @@ def filter_dataframe(
     - cada termo e satisfeito quando qualquer campo pesquisavel da linha corresponder
     - termos ja parseados (dict) ainda podem carregar grupos legados de alternativas
     """
-    if df is None or df.empty:
+    if df is None:
+        return pd.DataFrame()
+    if df.empty:
         return df
     prepared_inputs = _prepare_filter_dataframe_inputs(df, search_terms, search_columns)
     if prepared_inputs is None:

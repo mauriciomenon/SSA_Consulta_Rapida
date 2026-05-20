@@ -131,9 +131,10 @@ def safe_regex_contains(
         logger.warning("Regex de filtro bloqueado por seguranca; usando busca literal.")
         return series.str.contains(pattern_text, case=False, na=False, regex=False)
     try:
-        re.compile(pattern_text)
-        return series.str.contains(pattern_text, case=False, na=False, regex=True)
-    except re.error:
+        compiled = re.compile(pattern_text, re.IGNORECASE)
+        return series.str.contains(compiled, na=False, regex=True)
+    except re.error as exc:
+        logger.warning("Regex de filtro invalido: %s", exc)
         if not fallback_literal:
             return pd.Series(False, index=series.index, name=series.name)
         return series.str.contains(pattern_text, case=False, na=False, regex=False)
