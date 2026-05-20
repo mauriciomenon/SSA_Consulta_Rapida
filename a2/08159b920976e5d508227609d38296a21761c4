@@ -1,0 +1,25 @@
+tests/test_filter_worker.py
+  s_082d1ff7d55d96::t_a42991c27a6d3b 161
+core/search_filter.py
+  s_082d1ff7d55d96::t_183177c2bb422c 93
+  s_082d1ff7d55d96::t_55cc60f99111d0 463-464
+  s_082d1ff7d55d96::t_d64ec3e5089518 660-661,664-680
+tests/test_filter_modes.py
+  s_082d1ff7d55d96::t_44e54053b0b9bf 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "a208159b920976e5d508227609d38296a21761c4",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
