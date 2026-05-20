@@ -1,0 +1,41 @@
+tests/test_pai_scrap_report_provider.py
+  s_082d1ff7d55d96::t_86759a80fd589f 86-110,141-160
+  s_082d1ff7d55d96::t_6090672306c01b 125
+core/pai_scrap_report_provider.py
+  s_082d1ff7d55d96::t_06e2968e9b54be 39-43,214-219,236-237,270-300,306,315,318
+  s_082d1ff7d55d96::t_c40fa6420609cc 135-137
+  s_082d1ff7d55d96::t_f8d04e9c4bef6d 10,212-213,222,229,256-257
+  s_082d1ff7d55d96::t_51cc127114283a 33,211,221,225-228
+tests/test_app_logic_postprocess_moves.py
+  s_082d1ff7d55d96::t_982a802d00da1e 65-111
+core/import_staging.py
+  s_082d1ff7d55d96::t_a5c5f59190e7e8 255-259
+  s_082d1ff7d55d96::t_07e51b0ac49dd6 306-308
+tests/test_import_staging.py
+  s_082d1ff7d55d96::t_98039cabda1040 514-540
+core/import_postprocess.py
+  s_082d1ff7d55d96::t_7c67dd164b10a4 20-21,24,31-32,126-129
+  s_082d1ff7d55d96::t_6bcd417190f6d6 66-67
+  s_082d1ff7d55d96::t_3ac36415e26e76 38,45-55
+  s_082d1ff7d55d96::t_1422ead994dd9a 9,231-238,240,243-246
+  s_082d1ff7d55d96::t_dc243d4f19fe81 87,115-122,141,279-291
+  s_082d1ff7d55d96::t_a8cdd82024a2de 277-278
+  s_082d1ff7d55d96::t_70d643ee8f35c2 5,215-230,239,241-242,247
+  s_082d1ff7d55d96::t_9cd2bd1887f1cd 56,131-136,163-214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "8d489f5de1f27aefa8350bf01f964536bf6d36d0",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
