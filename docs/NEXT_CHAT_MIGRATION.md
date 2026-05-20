@@ -1,26 +1,43 @@
 # Next Chat Migration Guide
 
-## CURRENT TRUTH 2026-05-04 01h14
+## CURRENT TRUTH 2026-05-19 21h30
 
-- Branch alvo operacional: `dev` e `main` sincronizados.
-- Base minima sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`; usar este commit ou sucessor sincronizado em `main`/`dev`.
-- PR #58 e PR #59: merged.
-- PR #56 e PR #57: merged anteriormente; o estado ativo agora e pos-merge do PR #59.
-- `main`, `dev`, `origin/main` e `origin/dev` apontam para o mesmo HEAD.
-- Artefatos v4.37 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` seguem stale e nao devem ser usados para publicacao final.
-- Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
-- Orquestradores ativos:
-  - Windows AMD64: `dev_env/build/release_windows.ps1`.
-  - Debian AMD64: `dev_env/build/release_debian.sh`.
-  - Orquestrador local Windows+WSL: `dev_env/build/release_local.ps1`.
-- Checks GitHub do merge PR #58:
-  - Pass: `minimal-ci`, `Secret Scan`, `codeql-security-scan`, `opencode-pr-review`, `semgrep-cloud-platform/scan`, `security/snyk`, `GitGuardian`, `Socket`, `CodeFactor`, `DeepScan`, `CodeQL`.
-  - Externos/advisory: `code/snyk (mauriciomenon)` falhou por limite `Code test limit reached`; `DeepSource: Python` falhou no dashboard externo.
-- Protecao de codigo:
-  - Nuitka continua backend preferencial para release protegido.
-  - PyInstaller tem protecao parcial.
-  - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
-- Proximo passo operacional: rebuildar Windows AMD64 e Debian AMD64 a partir deste HEAD, validar artefatos e atualizar release v4.37 somente com pacotes novos.
+- Branch alvo operacional: `dev`.
+- HEAD operacional atual validado localmente antes deste DOC_SYNC:
+  - `b96c5d8b438673b2ae152d2c1cf6a7e5d4030c4d 2026-05-19T21:29:07-03:00 STABILITY_PATCH: simplify PAI summary aggregation`.
+- `dev` esta sincronizado com `origin/dev` antes deste DOC_SYNC.
+- `main` nao deve ser assumido sincronizado com `dev` sem nova checagem.
+- Workspace local tem apenas residuos fora de escopo:
+  - `.agents/`
+  - `agents.lock`
+  - `config/gui_saved_filters.json`
+- `.gitignore` ja ignora `.clawpatch/`, `agents.toml` e `tmp/`.
+- Checks GitHub verdes no head publicado `29c359ad3ab4e53eedafe5de6a25e685f506924c`:
+  - `minimal-ci`
+  - `CodeQL`
+  - `Secret Scan`
+  - `Automatic Dependency Submission`
+- API PAI:
+  - fluxo real habilitado: `consulta`.
+  - smoke real fetch-only validado para `IEE3`, `MEL4`, `MEL3` com CA exportada via `scrap_report`.
+  - GUI confirma antes de gravar dados da API no DB.
+  - Auto-refresh nao grava no DB automaticamente.
+  - `summary-json` registra fonte, filtros pedidos, setores, arquivos origem, contagens e exemplos de SSAs.
+- Dependencia:
+  - `idna` atualizado em `dev`; alerta Dependabot deve fechar quando o fix chegar ao default branch.
+- Tipos PAI:
+  - `executadas` e `aprovacao` seguem planejados ate existir provider real.
+  - `planejamento` e `programacao` seguem nao suportados.
+- God modules ainda abertos:
+  - `gui/gui_ssa.py`: 3846 linhas.
+  - `gui/mixins/filter_gui_ssa_mixin.py`: 3014 linhas.
+  - `tests/test_gui_filter_logic.py`: 10372 linhas.
+  - `core/app_logic.py`: 2179 linhas.
+- Bloqueios antes de merge operacional:
+  1. Smoke GUI final: boot, API, XLS externo, filtros, undo, detalhes e derivadas.
+  2. Se PR for autorizado, rodar CodeRabbit no PR.
+  3. Continuar corte de `filter_gui_ssa_mixin.py` e `SSAMainWindow` se a meta clean-code for criterio bloqueante.
+- Build macOS/release ainda nao executado neste ciclo.
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 

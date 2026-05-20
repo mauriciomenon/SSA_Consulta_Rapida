@@ -1,34 +1,51 @@
 # Recovery Backlog
 
-## CURRENT TRUTH 2026-05-11 22h10
+## CURRENT TRUTH 2026-05-19 21h30
 
-- Branch alvo operacional desta rodada: `dev`.
-- HEAD operacional atual validado:
-  - `84f5cf540fcf971f506ba5688d424c460b272d8c 2026-05-08T00:35:03-03:00 docs: Record history rewrite support follow-up`.
-- Rewrite de historico executado e publicado em branches/tags do repositorio.
-- Validacao de segredos em branches/tags locais publicados: `gitleaks_findings=0`.
-- GitHub checks no HEAD atual de `dev`: `minimal-ci`, `Secret Scan`, `codeql-security-scan`, `Automatic Dependency Submission` e `release-windows` em `success`.
-- Pendencia externa: `refs/pull/*/head` antigas do GitHub ainda retêm achados historicos e sao read-only para push/API. Requer purge pelo GitHub Support.
-- PR refs afetadas pela pendencia externa: `1,2,3,9,10,11,12,13,14,15,16`.
-- `dev` avancou alem da base antiga `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`; nao assumir `main` sincronizado sem nova checagem explicita.
-- Base funcional local validada antes deste DOC_SYNC: `3f9d6701d798a04e8b42b6c4f7bf7711f1e68dc3 2026-05-05T12:37:11-03:00 test(launchers): Fail executable smoke on timeout`.
-- Commits funcionais desta rodada:
-  - `6495fc8694069d3078002f4b98cca089639a30a3 2026-05-05T12:22:43-03:00 fix(launchers): Fail force rescan on candidate import errors`
-  - `17084dbdeabf21e63625a5fd3c7462eeb66ed08f 2026-05-05T12:26:36-03:00 fix(gui): Include import failure detail in worker status`
-  - `b659b43b6af466c13289b49905193e04e2c1430a 2026-05-05T12:29:05-03:00 fix(build): Reject stale macOS app bundles for DMG`
-  - `3f9d6701d798a04e8b42b6c4f7bf7711f1e68dc3 2026-05-05T12:37:11-03:00 test(launchers): Fail executable smoke on timeout`
-- Artefatos v4.37 anteriores a esta base funcional seguem stale e nao devem ser usados para publicacao final.
-- Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
-- Orquestradores ativos:
-  - Windows AMD64: `dev_env/build/release_windows.ps1`.
-  - Debian AMD64: `dev_env/build/release_debian.sh`.
-  - Orquestrador local Windows+WSL: `dev_env/build/release_local.ps1`.
-- Merge para `main` ainda nao autorizado. Nao abrir PR nem fazer merge sem comando explicito.
-- Protecao de codigo:
-  - Nuitka continua backend preferencial para release protegido.
-  - PyInstaller tem protecao parcial.
-  - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
-- Proximo passo operacional: apos aprovacao explicita, abrir PR `dev` -> `main` ou executar o fluxo de merge definido pelo usuario.
+- Branch alvo operacional: `dev`.
+- HEAD operacional atual validado localmente antes deste DOC_SYNC:
+  - `b96c5d8b438673b2ae152d2c1cf6a7e5d4030c4d 2026-05-19T21:29:07-03:00 STABILITY_PATCH: simplify PAI summary aggregation`.
+- `dev` esta sincronizado com `origin/dev` antes deste DOC_SYNC.
+- Workspace local tem apenas residuos fora de escopo:
+  - `.agents/`
+  - `agents.lock`
+  - `config/gui_saved_filters.json`
+- `.gitignore` ja ignora `.clawpatch/`, `agents.toml` e `tmp/`.
+- GitHub checks verdes no head anterior publicado `29c359ad3ab4e53eedafe5de6a25e685f506924c`:
+  - `minimal-ci`
+  - `CodeQL`
+  - `Secret Scan`
+  - `Automatic Dependency Submission`
+- Slice dependencia:
+  - `idna` atualizado em `dev`; alerta Dependabot deve fechar somente quando o fix chegar ao default branch.
+- Slice API PAI:
+  - API PAI por setor esta funcional no fluxo `consulta`.
+  - Smoke real fetch-only validado para `IEE3`, `MEL4`, `MEL3` com CA exportada via `scrap_report`.
+  - GUI agora confirma antes de gravar dados da API no DB.
+  - Auto-refresh permanece sem escrita automatica no DB.
+- Slice origem/debug:
+  - `summary-json` registra fonte, filtros pedidos, setores, arquivos origem, contagens e exemplos de SSAs.
+  - Resumo PAI foi limpo para remover helpers pequenos sem ownership real; contrato JSON preservado.
+- Tipos PAI:
+  - `consulta` e o unico fluxo habilitado com backend real.
+  - `executadas` e `aprovacao` seguem planejados.
+  - `planejamento` e `programacao` seguem nao suportados ate existir provider real.
+- God modules ainda abertos:
+  - `gui/gui_ssa.py`: 3846 linhas.
+  - `gui/mixins/filter_gui_ssa_mixin.py`: 3014 linhas.
+  - `tests/test_gui_filter_logic.py`: 10372 linhas.
+  - `core/app_logic.py`: 2179 linhas, abaixo da meta de 2200.
+- Validacoes locais recentes:
+  - `py_compile`, `ruff`, `ty`, `pytest` focado, `bandit`, `semgrep`, `detect-secrets`, `gitleaks`.
+  - Suite completa recente: `1846 passed, 6 skipped, 11 subtests passed`.
+  - `pip-audit` e `safety`: sem vulnerabilidades conhecidas no export do lock.
+  - `snyk` local falhou por parser/manifest e nao foi considerado validacao limpa.
+- Merge para `main` ainda nao autorizado. Nao abrir PR, nao usar CodeRabbit em PR, nao mergear sem comando explicito.
+- Bloqueios antes de merge operacional:
+  1. Smoke GUI final: boot, API, XLS externo, filtros, undo, detalhes e derivadas.
+  2. Se PR for autorizado, rodar revisao CodeRabbit no PR.
+  3. Continuar corte de `filter_gui_ssa_mixin.py` e `SSAMainWindow` se a meta de clean code for criterio bloqueante.
+- Build macOS/release ainda nao executado neste ciclo; so entra se o alvo for release de artefato.
 
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
