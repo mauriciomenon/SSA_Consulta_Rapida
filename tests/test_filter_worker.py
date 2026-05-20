@@ -158,7 +158,7 @@ class TestFilterWorker:
 
         assert errors == []
         assert len(emitted) == 1
-        assert emitted[0] is filtered_frame
+        assert emitted[0] is not filtered_frame
         assert emitted[0]["texto"].tolist() == ["alfa"]
         assert filter_mock.call_count == 1
         concat_mock.assert_not_called()

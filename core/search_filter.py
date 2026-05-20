@@ -90,7 +90,7 @@ def _filter_exact_identifier_columns(
             numeric_identifier=numeric_identifier,
         )
         mask = mask | column_mask
-    return clear_filter_search_attrs(df[mask])
+    return clear_filter_search_attrs(df[mask.to_numpy(dtype=bool, copy=False)])
 
 
 def _identifier_column_match_mask(
@@ -460,6 +460,8 @@ def _estimate_normalized_cache_bytes(normalized_columns: dict[str, pd.Series]) -
         sample = series.iloc[:sample_size]
         shallow_bytes = int(series.memory_usage(index=False, deep=False))
         average_chars = float(sample.str.len().fillna(0).mean())
+        if pd.isna(average_chars):
+            average_chars = 0.0
         total_bytes += shallow_bytes + int(average_chars * row_count)
     return total_bytes
 
@@ -655,27 +657,24 @@ def apply_general_search_terms(
             )
         return clear_filter_search_attrs(result.copy(deep=False))
 
-    if len(unique_chunk_terms_lists) > 1:
-        grouped_terms: list[Dict[str, Any]] = []
-        for group_idx, terms in enumerate(unique_chunk_terms_lists, start=1):
-            if should_cancel is not None and should_cancel():
-                raise GeneralSearchCancelled
-            parsed_group = parse_terms_func(terms, default_mode)
-            for term in parsed_group:
-                term["group"] = group_idx
-            grouped_terms.extend(parsed_group)
+    grouped_terms: list[Dict[str, Any]] = []
+    for group_idx, terms in enumerate(unique_chunk_terms_lists, start=1):
         if should_cancel is not None and should_cancel():
             raise GeneralSearchCancelled
-        if not grouped_terms:
-            return clear_filter_search_attrs(filter_source.copy(deep=False))
-        if general_search_columns is None:
-            result = filter_dataframe_func(filter_source, grouped_terms)
-        else:
-            result = filter_dataframe_func(
-                filter_source,
-                grouped_terms,
-                search_columns=general_search_columns,
-            )
-        return clear_filter_search_attrs(result.copy(deep=False))
-
-    return clear_filter_search_attrs(filter_source.copy(deep=False))
+        parsed_group = parse_terms_func(terms, default_mode)
+        for term in parsed_group:
+            term["group"] = group_idx
+        grouped_terms.extend(parsed_group)
+    if should_cancel is not None and should_cancel():
+        raise GeneralSearchCancelled
+    if not grouped_terms:
+        return clear_filter_search_attrs(filter_source.copy(deep=False))
+    if general_search_columns is None:
+        result = filter_dataframe_func(filter_source, grouped_terms)
+    else:
+        result = filter_dataframe_func(
+            filter_source,
+            grouped_terms,
+            search_columns=general_search_columns,
+        )
+    return clear_filter_search_attrs(result.copy(deep=False))

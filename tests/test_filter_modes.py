@@ -7,7 +7,7 @@ import pandas as pd
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
-from core.app_logic import filter_dataframe
+from core.search_filter import filter_dataframe
 
 
 def _df():
