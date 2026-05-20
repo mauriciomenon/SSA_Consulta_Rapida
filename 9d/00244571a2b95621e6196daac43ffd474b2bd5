@@ -1,0 +1,82 @@
+shared/table_display_defaults.py
+  s_082d1ff7d55d96::t_5092a293a4d13e 1-116
+gui/ssa/main_window_system_controller.py
+  s_082d1ff7d55d96::t_0bb3ce5ed3463a 11,279-281
+  s_082d1ff7d55d96::t_48196d13ff051a 186-187
+  s_082d1ff7d55d96::t_53a0a62a9adb86 12,152,164,188
+  s_082d1ff7d55d96::t_f061f0a372b833 185
+  s_082d1ff7d55d96::t_8b3721b38b933b 162-163,169,269-272
+  s_082d1ff7d55d96::t_7e34f8900767a4 13
+  s_082d1ff7d55d96::t_53f119c6f04696 278
+  s_082d1ff7d55d96::t_bb4539f86ab192 282
+  s_082d1ff7d55d96::t_f2cd04036c627c 150,153-160
+core/config_manager.py
+  s_082d1ff7d55d96::t_992fe3e6d91f2a 342
+  s_082d1ff7d55d96::t_a696c019052830 170-171
+  s_082d1ff7d55d96::t_9abc6412abfb0e 51,142,154
+  s_082d1ff7d55d96::t_65e2a0ed303c23 16,24,338
+  s_082d1ff7d55d96::t_96b288468870b0 17
+  s_082d1ff7d55d96::t_733113cafe507c 30-33,284,292,295-298,306,309,312-314,325,437-444
+  s_082d1ff7d55d96::t_dc6662ebc1a91a 15,275-276,376-385
+  s_082d1ff7d55d96::t_40581882721890 65-73,82-83
+  s_082d1ff7d55d96::t_c7407527831807 143-146
+  s_082d1ff7d55d96::t_a77819155647b9 268
+  s_082d1ff7d55d96::t_719655e891357f 52-59,155-162
+core/config_defaults.py
+  s_082d1ff7d55d96::t_62df9bb6870aa9 5,51,83
+  s_082d1ff7d55d96::t_5624899bf31438 20,44-47
+  s_082d1ff7d55d96::t_ef73cf4eabc66c 48
+  s_082d1ff7d55d96::t_9304abe1bf9123 61-62
+  s_082d1ff7d55d96::t_b4ee2f8ded5e82 49-50,52-60,63-80,84-90
+  s_082d1ff7d55d96::t_410799bd6d76ec 7,21-24,31,33,41
+core/app_logic.py
+  s_082d1ff7d55d96::t_1ed8e894657aba 1177-1178,1192-1193,1205-1206
+  s_082d1ff7d55d96::t_295a5993b8ff86 41,90
+tests/test_import_run_report.py
+  s_082d1ff7d55d96::t_fa81ebddf7459b 1409,1428
+tests/test_config_manager_mappings_integrity.py
+  s_082d1ff7d55d96::t_590f1cead98785 31,37,41,57,77-81
+core/import_formats.py
+  s_082d1ff7d55d96::t_716e8e282ec540 9-11
+core/import_database_rotation.py
+  s_082d1ff7d55d96::t_d8cb4753e4947a 23,25
+tests/test_config_manager_atomic_save.py
+  s_082d1ff7d55d96::t_1b89273cbe1809 185,224
+core/import_single_file.py
+  s_082d1ff7d55d96::t_20d1a8872c0bb5 306,313-315,320-322
+  s_082d1ff7d55d96::t_4bd6cf2efc1667 107-120,128-132
+  s_082d1ff7d55d96::t_6f161b60c80c97 93-96
+  s_082d1ff7d55d96::t_2173e202e87542 91-92,103
+  s_082d1ff7d55d96::t_b3c3935b702f92 170,214
+  s_082d1ff7d55d96::t_39b126cea9b4a5 256
+core/import_postprocess.py
+  s_082d1ff7d55d96::t_2a694d8d4e3ecd 100,146,334-335
+  s_082d1ff7d55d96::t_875b63c5f0f885 72-74,222-223,267-268
+  s_082d1ff7d55d96::t_53625df40ba01d 235-236,240-246,254,257-266,269-274
+  s_082d1ff7d55d96::t_7c8457b0ccbe32 247-253
+  s_082d1ff7d55d96::t_5969e9a3b255a2 238-239
+core/pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_557d3013e7e0c2 41,91,96-97,100-103
+  s_082d1ff7d55d96::t_f6d0e888d8fd6c 93-95
+  s_082d1ff7d55d96::t_1395458bee065c 42
+  s_082d1ff7d55d96::t_686631993bfc62 144-145
+  s_082d1ff7d55d96::t_eb5b39ab868b7c 147
+  s_082d1ff7d55d96::t_40db301340d794 153-156
+  s_082d1ff7d55d96::t_ba3d444e0a071f 7,29,176-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "9d00244571a2b95621e6196daac43ffd474b2bd5",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
