@@ -1414,10 +1414,10 @@ def test_move_file_after_import_returns_original_on_move_oserror(
     source = docs_dir / "arquivo.xlsx"
     source.write_text("ok", encoding="utf-8")
 
-    def _raise_move(src: str, dst: str) -> str:
+    def _raise_move(_src: Path, _dst: Path) -> None:
         raise OSError("move blocked")
 
-    monkeypatch.setattr(import_postprocess.shutil, "move", _raise_move)
+    monkeypatch.setattr(import_postprocess, "_move_without_overwrite", _raise_move)
 
     final_path = import_postprocess.move_file_after_import(
         file_path=str(source),
