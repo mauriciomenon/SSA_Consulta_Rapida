@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import logging
-import re
 import threading
 import weakref
 from collections import OrderedDict
 from typing import Any, Callable, Dict, List, Optional, cast
 
+import numpy as np
 import pandas as pd
 
 from shared.numero_ssa import normalize_relation_id
 from core.search_filter_constants import (
+    FILTER_DEFAULT_GROUP_INDEX,
     FILTER_EXACT_IDENTIFIER_COLUMNS,
     FILTER_FIELD_SEPARATOR,
     FILTER_SEARCH_CACHE_ATTR,
@@ -53,7 +54,10 @@ def _single_default_group_exact_identifier_term(
         return None
     # Programmatic/legacy terms can still carry OR-group metadata; the exact
     # identifier fast path is safe only for the default AND group.
-    if int(term.get("group", 0) or 0) != 0:
+    if (
+        int(term.get("group", FILTER_DEFAULT_GROUP_INDEX) or 0)
+        != FILTER_DEFAULT_GROUP_INDEX
+    ):
         return None
     return normalize_relation_id(term.get("value", ""))
 
@@ -204,7 +208,7 @@ def parse_search_terms(
 
     SIMPLIFIED RAW STRING CONTRACT:
     - Raw strings split only by commas before parsing.
-    - General search applies implicit AND between terms (all raw terms stay in group=0).
+    - General search applies implicit AND between terms in the default group.
     - Each term may match any searched field.
     - Pre-parsed dict terms may carry explicit group metadata for legacy
       grouped alternatives; raw user text never creates those groups.
@@ -239,7 +243,7 @@ def parse_search_terms(
     allowed_modes = {"contains", "prefix", "suffix", "exact", "regex"}
     fallback_mode = default_mode if default_mode in allowed_modes else "contains"
 
-    # Simplified: split only by commas, then process all terms with group=0 (AND logic)
+    # Simplified: split only by commas, then process all terms in the default group.
     for raw in normalized_terms:
         if not isinstance(raw, str):
             continue
@@ -282,7 +286,7 @@ def _parse_search_chunk(raw_chunk: str, fallback_mode: str) -> Dict[str, Any] | 
         "mode": mode,
         "value": value,
         "negative": negative,
-        "group": 0,  # All terms in same group (AND logic)
+        "group": FILTER_DEFAULT_GROUP_INDEX,
     }
 
 
@@ -350,17 +354,19 @@ def _combine_filter_term_masks(
     mask_for_term: Callable[[Dict[str, Any], pd.Index], pd.Series],
 ) -> pd.Series:
     has_non_default_groups = any(
-        int(term.get("group", 0) or 0) != 0 for term in terms
+        int(term.get("group", FILTER_DEFAULT_GROUP_INDEX) or 0)
+        != FILTER_DEFAULT_GROUP_INDEX
+        for term in terms
     )
     if not has_non_default_groups:
         return _combine_and_term_masks(df.index, terms, mask_for_term)
 
     grouped_terms: Dict[int, List[Dict[str, Any]]] = {}
     for term in terms:
-        group_idx = term.get("group", 0)
+        group_idx = term.get("group", FILTER_DEFAULT_GROUP_INDEX)
         grouped_terms.setdefault(int(group_idx), []).append(term)
 
-    return _combine_or_group_masks(df.index, grouped_terms, mask_for_term)
+    return _combine_or_of_and_group_masks(df.index, grouped_terms, mask_for_term)
 
 
 def _combine_and_term_masks(
@@ -368,7 +374,7 @@ def _combine_and_term_masks(
     terms: List[Dict[str, Any]],
     mask_for_term: Callable[[Dict[str, Any], pd.Index], pd.Series],
 ) -> pd.Series:
-    if not full_index.is_unique:
+    if full_index.has_duplicates:
         return _combine_and_term_masks_full_index(full_index, terms, mask_for_term)
 
     active_index = full_index
@@ -401,10 +407,12 @@ def _combine_and_term_masks_full_index(
             final_mask = final_mask & (~term_mask)
         else:
             final_mask = final_mask & term_mask
+        if not final_mask.any():
+            break
     return final_mask
 
 
-def _combine_or_group_masks(
+def _combine_or_of_and_group_masks(
     full_index: pd.Index,
     grouped_terms: Dict[int, List[Dict[str, Any]]],
     mask_for_term: Callable[[Dict[str, Any], pd.Index], pd.Series],
@@ -464,7 +472,7 @@ def _column_match_mask(
     mode: str,
     lowered_value: str,
 ) -> pd.Series:
-    mask = pd.Series(False, index=candidate_index)
+    column_masks: list[np.ndarray] = []
     for column_name in available_search_cols:
         column_text = _candidate_series(
             normalized_column_cache[column_name],
@@ -478,8 +486,10 @@ def _column_match_mask(
             column_mask = column_text.eq(lowered_value)
         else:
             column_mask = column_text.str.contains(lowered_value, regex=False, na=False)
-        mask = mask | column_mask
-    return mask
+        column_masks.append(column_mask.to_numpy(dtype=bool, copy=False))
+    if not column_masks:
+        return pd.Series(False, index=candidate_index)
+    return pd.Series(np.logical_or.reduce(column_masks), index=candidate_index)
 
 
 def _regex_column_match_mask(
@@ -490,14 +500,11 @@ def _regex_column_match_mask(
     pattern: str,
     reject_quantifiers: bool = False,
 ) -> pd.Series:
-    mask = pd.Series(False, index=candidate_index)
-    remaining_index = candidate_index
+    column_masks: list[np.ndarray] = []
     for column_name in available_search_cols:
-        if len(remaining_index) == 0:
-            break
         column_text = _candidate_series(
             normalized_column_cache[column_name],
-            remaining_index,
+            candidate_index,
         )
         column_mask = safe_regex_contains(
             column_text,
@@ -505,9 +512,10 @@ def _regex_column_match_mask(
             reject_quantifiers=reject_quantifiers,
             fallback_literal=False,
         )
-        mask.loc[remaining_index] = column_mask
-        remaining_index = mask[~mask].index
-    return mask
+        column_masks.append(column_mask.to_numpy(dtype=bool, copy=False))
+    if not column_masks:
+        return pd.Series(False, index=candidate_index)
+    return pd.Series(np.logical_or.reduce(column_masks), index=candidate_index)
 
 
 def _mask_for_filter_term(
@@ -522,21 +530,17 @@ def _mask_for_filter_term(
     lowered_value = str(value).casefold()
 
     if mode == "regex":
-        try:
-            pattern = str(value)
-            reject_quantifiers = (
-                len(candidate_index) * max(len(available_search_cols), 1) > 50_000
-            )
-            return _regex_column_match_mask(
-                candidate_index=candidate_index,
-                available_search_cols=available_search_cols,
-                normalized_column_cache=normalized_column_cache,
-                pattern=pattern,
-                reject_quantifiers=reject_quantifiers,
-            )
-        except re.error as exc:
-            logger.warning("Regex invalido no termo de filtro: %s", exc)
-            return pd.Series(False, index=candidate_index)
+        pattern = str(value)
+        reject_quantifiers = (
+            len(candidate_index) * max(len(available_search_cols), 1) > 50_000
+        )
+        return _regex_column_match_mask(
+            candidate_index=candidate_index,
+            available_search_cols=available_search_cols,
+            normalized_column_cache=normalized_column_cache,
+            pattern=pattern,
+            reject_quantifiers=reject_quantifiers,
+        )
 
     if mode in {"prefix", "suffix", "exact"}:
         return _column_match_mask(
@@ -573,8 +577,8 @@ def filter_dataframe(
                        solicitante e responsavel_*.
 
     Modos por termo: contem (padrao), comeca (^), termina ($), igual (=), regex (~),
-    com suporte a negativos (! ou -). Regex sem ancora busca no texto combinado da
-    linha; regex com ^ ou $ busca por campo pesquisavel individual.
+    com suporte a negativos (! ou -). Regex busca em cada campo pesquisavel
+    individual, nao em texto concatenado entre colunas.
 
     Contrato atual:
     - termos brutos (str) seguem o parser simplificado atual: AND implicito entre termos
@@ -642,12 +646,14 @@ def apply_general_search_terms(
         if should_cancel is not None and should_cancel():
             raise GeneralSearchCancelled
         if general_search_columns is None:
-            return filter_dataframe_func(filter_source, parsed)
-        return filter_dataframe_func(
-            filter_source,
-            parsed,
-            search_columns=general_search_columns,
-        )
+            result = filter_dataframe_func(filter_source, parsed)
+        else:
+            result = filter_dataframe_func(
+                filter_source,
+                parsed,
+                search_columns=general_search_columns,
+            )
+        return clear_filter_search_attrs(result.copy(deep=False))
 
     if len(unique_chunk_terms_lists) > 1:
         grouped_terms: list[Dict[str, Any]] = []
@@ -663,11 +669,13 @@ def apply_general_search_terms(
         if not grouped_terms:
             return clear_filter_search_attrs(filter_source.copy(deep=False))
         if general_search_columns is None:
-            return filter_dataframe_func(filter_source, grouped_terms)
-        return filter_dataframe_func(
-            filter_source,
-            grouped_terms,
-            search_columns=general_search_columns,
-        )
+            result = filter_dataframe_func(filter_source, grouped_terms)
+        else:
+            result = filter_dataframe_func(
+                filter_source,
+                grouped_terms,
+                search_columns=general_search_columns,
+            )
+        return clear_filter_search_attrs(result.copy(deep=False))
 
     return clear_filter_search_attrs(filter_source.copy(deep=False))

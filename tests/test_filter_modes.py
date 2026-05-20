@@ -60,6 +60,17 @@ def test_regex_and_fallback():
     assert len(out_fallback) == 0
 
 
+def test_regex_handles_duplicate_dataframe_index():
+    df = _df()
+    df.index = [1, 1, 2, 2, 3, 3]
+
+    out_regex = filter_dataframe(df, ["~\\d+ abc"])
+    assert set(out_regex["num"]) == {6}
+
+    out_invalid = filter_dataframe(df, ["~["])
+    assert len(out_invalid) == 0
+
+
 def test_mixed_terms_and_negatives():
     df = _df()
     out = filter_dataframe(df, ["adm", "area$", "!geral"])
