@@ -1,0 +1,25 @@
+tests/conftest.py
+  s_082d1ff7d55d96::t_364b0c5c906673 80-83
+  s_082d1ff7d55d96::t_98367cb7cab915 47-49
+  s_082d1ff7d55d96::t_e2f710f4d13c1e 40,46
+.github/workflows/minimal-ci.yml
+  s_082d1ff7d55d96::t_5b4d0d6de9c3cf 93-94
+  s_082d1ff7d55d96::t_5ad6f71b31a0d0 65
+  s_082d1ff7d55d96::t_24124f537b169f 55,61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c0888b25a66b59392f4498ba2e4375be76af4504",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
