@@ -1,0 +1,22 @@
+scripts/import_pai_api_xlsx.py
+  s_082d1ff7d55d96::t_8cb5dfc0e9d9df 245-249,282,284,286,288,290,292,294,296,306-307,311,318
+  s_082d1ff7d55d96::t_b42f0667f52e7e 283,285,287,289,291,293,295,297,299-305,308-310,314-317
+  s_082d1ff7d55d96::t_37b1773086bc9b 12,42-49,243-244,250,256-257,262,313,319
+  s_082d1ff7d55d96::t_4bf7e0b0c41069 258-261
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b96c5d8b0e6575dbee3baa13d97b93b04187195c",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
