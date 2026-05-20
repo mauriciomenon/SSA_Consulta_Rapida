@@ -182,7 +182,7 @@ def test_ensure_default_settings_reports_copy_failure(tmp_path, monkeypatch):
 
     errors = config_manager.ensure_default_settings(fail_fast=False)
     assert errors
-    assert any(item.startswith("copy_failed:") for item in errors)
+    assert any("falha ao copiar config padrao" in item for item in errors)
 
 
 def test_ensure_default_settings_raises_in_fail_fast_mode(tmp_path, monkeypatch):
@@ -221,10 +221,7 @@ def test_ensure_default_settings_reports_generate_failure(tmp_path, monkeypatch)
 
     errors = config_manager.ensure_default_settings(fail_fast=False)
     assert errors
-    assert any(
-        item.startswith("copy_failed:") or item.startswith("generate_failed:")
-        for item in errors
-    )
+    assert any("falha ao gerar config padrao" in item for item in errors)
 
 
 def test_ensure_default_settings_generated_fallback_matches_default_contract(

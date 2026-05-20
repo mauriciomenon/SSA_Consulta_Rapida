@@ -88,26 +88,36 @@ def _drop_required_invalid_rows(
     if not rows_to_drop:
         return df, 0
 
-    bad_subset = df.loc[list(rows_to_drop)].copy()
-    sample_ssas = (
-        bad_subset["numero_ssa"].astype(str).head(5).tolist()
-        if "numero_ssa" in bad_subset.columns
-        else [str(idx) for idx in list(rows_to_drop)[:5]]
-    )
+    drop_indices = list(rows_to_drop)
+    sample_indices = drop_indices[:5]
+    if "numero_ssa" in df.columns:
+        sample_ssas = df.loc[sample_indices, "numero_ssa"].astype(str).tolist()
+    else:
+        sample_ssas = [str(idx) for idx in sample_indices]
     logger.error(
         "Removendo %s linha(s) com dados obrigatorios ausentes em '%s' (amostra: %s)",
         len(rows_to_drop),
         os.path.basename(file_path),
         ", ".join(sample_ssas),
     )
-    return df.drop(index=list(rows_to_drop)), len(rows_to_drop)
+    return df.drop(index=drop_indices), len(rows_to_drop)
 
 
 def _add_source_metadata_columns(df: Any, file_path: str) -> Any:
-    best_file_dt = best_datetime_for_file(file_path)
-    file_dt_iso = (
-        best_file_dt.isoformat(timespec="seconds")
-        if best_file_dt is not None
+    basename = os.path.basename(file_path)
+    if "arquivo_origem" not in df.columns:
+        df["arquivo_origem"] = basename
+    else:
+        df["arquivo_origem"] = df["arquivo_origem"].fillna(basename)
+    needs_file_dt_text = "data_arquivo_origem" not in df.columns or bool(
+        df["data_arquivo_origem"].isna().any()
+    )
+    needs_file_dt_iso = "data_planilha" not in df.columns or bool(
+        df["data_planilha"].isna().any()
+    )
+    best_file_dt = (
+        best_datetime_for_file(file_path)
+        if needs_file_dt_text or needs_file_dt_iso
         else None
     )
     file_dt_text = (
@@ -115,11 +125,11 @@ def _add_source_metadata_columns(df: Any, file_path: str) -> Any:
         if best_file_dt is not None
         else None
     )
-    basename = os.path.basename(file_path)
-    if "arquivo_origem" not in df.columns:
-        df["arquivo_origem"] = basename
-    else:
-        df["arquivo_origem"] = df["arquivo_origem"].fillna(basename)
+    file_dt_iso = (
+        best_file_dt.isoformat(timespec="seconds")
+        if best_file_dt is not None
+        else None
+    )
     if "data_arquivo_origem" not in df.columns:
         df["data_arquivo_origem"] = file_dt_text
     else:
@@ -157,7 +167,7 @@ def import_single_file(
         ExtractionError: Se houver falha na extracao.
         DatabaseError: Se houver falha na insercao no DB.
     """
-    logger.info(f"Iniciando importacao de '{file_path}'...")
+    logger.info("Iniciando importacao de '%s'...", file_path)
     metrics: Dict[str, Any] = {"file": os.path.basename(file_path)}
     try:
         extraction_started = time.perf_counter()
@@ -196,13 +206,12 @@ def import_single_file(
                 "operation cancelled", error_code="OPERATION_CANCELLED"
             )
         if not df.empty:
-            df = df.copy()
             if should_cancel and should_cancel():
                 raise ExtractionError(
                     "operation cancelled", error_code="OPERATION_CANCELLED"
                 )
             # NOVA: Validar dados antes da insercao
-            logger.info(f"Validando dados extraidos de '{file_path}'...")
+            logger.info("Validando dados extraidos de '%s'...", file_path)
             validation_started = time.perf_counter()
             validation_report = services.validate_dataframe_before_insert(
                 df, table_name
@@ -244,7 +253,7 @@ def import_single_file(
 
             # Se ha problemas criticos, pode escolher entre falhar ou continuar
             if not validation_report.get("is_valid", False):
-                critical_issues = validation_report["issues"]
+                critical_issues = list(validation_report.get("issues", []))
                 critical_summary = "; ".join(
                     str(issue) for issue in critical_issues[:5]
                 )
@@ -294,22 +303,23 @@ def import_single_file(
             )
             metrics["counts"]["rows_inserted"] = int(record_count if success else 0)
             if success:
+                counts = metrics.get("counts", {})
                 logger.info(
                     "Resumo do arquivo '%s': extracao=%ss, validacao=%ss, insercao=%ss, linhas=%s, invalidos_sem_identidade=%s, prontas=%s",
                     os.path.basename(file_path),
                     metrics["durations"].get("extraction_seconds", 0),
                     metrics["durations"].get("validation_seconds", 0),
                     metrics["durations"].get("insert_seconds", 0),
-                    metrics["counts"].get("rows_extracted", 0),
-                    metrics["counts"].get("rows_removed_invalid_identity", 0),
-                    metrics["counts"].get("rows_ready_for_insert", 0),
+                    counts.get("rows_extracted", 0),
+                    counts.get("rows_removed_invalid_identity", 0),
+                    counts.get("rows_ready_for_insert", 0),
                 )
                 logger.info(
                     "Importacao finalizada para '%s': inseridas=%s, removidas_validacao=%s, invalidos_sem_identidade=%s",
                     os.path.basename(file_path),
-                    record_count,
-                    metrics["counts"].get("rows_removed_required_validation", 0),
-                    metrics["counts"].get("rows_removed_invalid_identity", 0),
+                    counts.get("rows_inserted", 0),
+                    counts.get("rows_removed_required_validation", 0),
+                    counts.get("rows_removed_invalid_identity", 0),
                 )
                 return True, record_count
             else:

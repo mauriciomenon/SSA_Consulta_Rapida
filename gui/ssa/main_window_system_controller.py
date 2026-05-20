@@ -8,10 +8,11 @@ import shutil
 from datetime import datetime
 from typing import Any, Callable
 
+from core.config_defaults import default_settings_payload
+from core.config_manager import atomic_write_json_file
+from core.config_manager import ensure_default_settings
 from core.config_manager import load_default_settings_payload
-from core.config_manager import load_settings
 from core.config_manager import resolve_user_settings_path
-from core.config_manager import save_settings
 from core.import_staging import _normalize_explicit_allowed_files
 from core.import_staging import validate_external_source_path
 from gui.ssa import database_operations
@@ -146,16 +147,26 @@ def prepare_settings_file_for_edit(
 ) -> dict[str, Any]:
     settings_path = os.path.abspath(settings_path or resolve_settings_file_path(project_root))
     os.makedirs(os.path.dirname(settings_path), exist_ok=True)
+    created_settings = False
     if not os.path.exists(settings_path):
-        save_settings(load_settings())
+        atomic_write_json_file(settings_path, _load_default_settings(project_root))
+        created_settings = True
+    if created_settings:
+        return {
+            "ok": True,
+            "settings_path": settings_path,
+            "backup_path": "",
+            "backup_created": False,
+        }
     backup_path = _copy_timestamped_backup(settings_path)
-    if not os.path.exists(backup_path):
-        raise FileNotFoundError(f"Backup de opcoes nao criado: {backup_path}")
+    backup_created = bool(backup_path) and os.path.exists(backup_path)
+    if not backup_created:
+        raise FileNotFoundError(f"Backup de opcoes nao criado para: {settings_path}")
     return {
         "ok": True,
         "settings_path": settings_path,
         "backup_path": backup_path,
-        "backup_created": True,
+        "backup_created": backup_created,
     }
 
 
@@ -171,8 +182,10 @@ def reset_settings_file_to_defaults(
     backup_created = False
     if os.path.exists(settings_path):
         backup_path = _copy_timestamped_backup(settings_path)
-        backup_created = True
-    save_settings(default_settings)
+        backup_created = bool(backup_path)
+        if not backup_created:
+            raise OSError(f"Backup de opcoes nao criado para: {settings_path}")
+    atomic_write_json_file(settings_path, default_settings)
     return {
         "ok": True,
         "settings_path": settings_path,
@@ -253,10 +266,17 @@ def prepare_external_import_selection(
 def _copy_timestamped_backup(path: str) -> str:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     backup_path = f"{path}.bak_{timestamp}"
-    shutil.copy2(path, backup_path)
+    try:
+        shutil.copy2(path, backup_path)
+    except OSError:
+        return ""
     return backup_path
 
 
 def _load_default_settings(project_root: str) -> dict[str, Any]:
     _ = project_root
-    return load_default_settings_payload()
+    ensure_default_settings(fail_fast=False)
+    try:
+        return load_default_settings_payload()
+    except FileNotFoundError:
+        return dict(default_settings_payload())

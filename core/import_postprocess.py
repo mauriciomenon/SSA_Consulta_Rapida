@@ -6,7 +6,6 @@ import errno
 import logging
 import os
 import shutil
-import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -70,6 +69,9 @@ def _split_filename_preserving_suffixes(path: Path) -> tuple[str, str]:
         return path.name, ""
     stem = path.name[: -len(suffix)]
     if not stem:
+        single_suffix = path.suffix
+        if single_suffix and path.name != single_suffix:
+            return path.name[: -len(single_suffix)], single_suffix
         return path.name, ""
     return stem, suffix
 
@@ -95,7 +97,7 @@ def move_file_after_import(
     destination_root: Path,
     existing_destination_names: Optional[set[str]] = None,
     suffix_index_cache: Optional[dict[tuple[str, str], int]] = None,
-) -> str:
+) -> str | None:
     """Move processed file to processadas or nosurvivor and return final path."""
     source = Path(file_path).resolve()
     docs_root = Path(docs_dir).resolve()
@@ -141,7 +143,7 @@ def move_file_after_import(
             destination_root,
             exc,
         )
-        return file_path
+        return None
     try:
         src_rel = source.relative_to(docs_root).as_posix()
     except ValueError:
@@ -217,6 +219,8 @@ def _advance_suffix_cache_after_conflict(
 def _move_without_overwrite(source: Path, destination: Path) -> None:
     try:
         os.link(source, destination)
+        source.unlink()
+        return
     except FileExistsError:
         raise
     except OSError as exc:
@@ -228,23 +232,46 @@ def _move_without_overwrite(source: Path, destination: Path) -> None:
             getattr(errno, "EOPNOTSUPP", errno.ENOTSUP),
         }:
             raise
-        temp_path = Path(
-            tempfile.NamedTemporaryFile(
-                dir=destination.parent,
-                prefix=f".{destination.name}.",
-                suffix=".tmp",
-                delete=False,
-            ).name
-        )
+        destination_fd = None
+        destination_created = False
         try:
-            with temp_path.open("wb") as reserved:
+            if destination.exists():
+                raise FileExistsError(destination)
+            source_mode = source.stat().st_mode & 0o777
+            destination_fd = os.open(
+                destination,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                source_mode,
+            )
+            destination_created = True
+            try:
+                destination_stream = os.fdopen(destination_fd, "wb")
+            except Exception:
+                os.close(destination_fd)
+                destination_fd = None
+                raise
+            with destination_stream as reserved:
+                destination_fd = None
                 with source.open("rb") as src:
                     shutil.copyfileobj(src, reserved)
-            shutil.copystat(source, temp_path, follow_symlinks=True)
-            os.link(temp_path, destination)
-        finally:
-            temp_path.unlink(missing_ok=True)
-    source.unlink()
+                reserved.flush()
+                try:
+                    os.fsync(reserved.fileno())
+                except OSError as fsync_exc:
+                    logger.debug(
+                        "fsync failed for postprocess destination '%s': %s",
+                        destination,
+                        fsync_exc,
+                    )
+            shutil.copystat(source, destination, follow_symlinks=True)
+            source.unlink()
+            return
+        except Exception:
+            if destination_fd is not None:
+                os.close(destination_fd)
+            if destination_created:
+                destination.unlink(missing_ok=True)
+            raise
 
 
 def route_and_move_processed_files(
@@ -304,6 +331,8 @@ def route_and_move_processed_files(
             destination_root=destination_root,
             suffix_index_cache=suffix_index_cache,
         )
+        if final_path is None:
+            continue
         moved_paths[file_path] = final_path
         moved_paths[str(Path(file_path).resolve())] = final_path
     return moved_paths

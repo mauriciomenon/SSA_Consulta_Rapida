@@ -20,9 +20,9 @@ SQLITE_CHECKPOINT_CHECKPOINTED_INDEX = 2
 SQLITE_FILE_REPLACE_RETRY_DELAYS_SECONDS = (0.0, 0.1, 0.35, 0.75)
 
 
-def rotate_preexisting_database_for_full_rescan(db_path: str) -> None:
+def rotate_preexisting_database_for_full_rescan(db_path: str) -> Optional[str]:
     """Rotate the previous DB before a full rescan creates a clean candidate."""
-    rotate_database_for_full_rescan(db_path)
+    return rotate_database_for_full_rescan(db_path)
 
 
 def build_full_rescan_candidate_path(db_path: str, run_id: str) -> str:

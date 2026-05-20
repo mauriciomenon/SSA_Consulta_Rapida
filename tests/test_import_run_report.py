@@ -1406,7 +1406,7 @@ def test_load_import_discovery_settings_falls_back_on_non_mapping_settings(
     assert settings["upsert_short_circuit_policy"] == "consulta_only"
 
 
-def test_move_file_after_import_returns_original_on_move_oserror(
+def test_move_file_after_import_returns_none_on_move_oserror(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     docs_dir = tmp_path / "docs_entrada"
@@ -1425,7 +1425,7 @@ def test_move_file_after_import_returns_original_on_move_oserror(
         destination_root=(docs_dir / "processadas").resolve(),
     )
 
-    assert final_path == str(source)
+    assert final_path is None
     assert source.exists()
 
 

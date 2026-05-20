@@ -38,7 +38,7 @@ from armazenamento.derivadas_sync import (  # noqa: E402
     scan_derivadas_consistency,
     sync_derivadas,
 )
-from core.config_defaults import DEFAULT_COLUMN_MAPPINGS  # noqa: E402
+from core.config_defaults import get_default_column_mappings  # noqa: E402
 from core.config_manager import load_settings  # noqa: E402
 from core.import_errors import (  # noqa: E402
     CacheError,
@@ -87,7 +87,7 @@ from utils.path_safety import ensure_path_is_allowed  # noqa: E402
 # Configura logger especifico para este modulo
 logger = logging.getLogger(__name__)
 
-QUERYABLE_FILTER_COLUMNS = frozenset(DEFAULT_COLUMN_MAPPINGS)
+QUERYABLE_FILTER_COLUMNS = frozenset(get_default_column_mappings())
 
 _DB_ONLY_DERIVADAS_EDGE_COUNT_QUERY_BY_TABLE: Dict[str, str] = {
     "ssa_table": """
@@ -1174,6 +1174,8 @@ def _validate_and_promote_candidate_if_needed(
         "working_db_path": working_db_path,
         "failure_type": "",
         "failure_message": "",
+        "status": "",
+        "reason": "",
     }
     if candidate_db_path is None:
         return result
@@ -1187,6 +1189,8 @@ def _validate_and_promote_candidate_if_needed(
         result["ok"] = False
         result["failure_type"] = "candidate_validation"
         result["failure_message"] = str(integrity_report.get("issues", []))
+        result["status"] = "candidate_invalid"
+        result["reason"] = "candidate_failed_final_integrity"
         return result
     try:
         promoted_backup_path = _promote_full_rescan_candidate(
@@ -1198,6 +1202,8 @@ def _validate_and_promote_candidate_if_needed(
         result["ok"] = False
         result["failure_type"] = "promotion"
         result["failure_message"] = str(exc)
+        result["status"] = "candidate_promotion_failed"
+        result["reason"] = str(exc)
         return result
     result["promoted_backup_path"] = promoted_backup_path
     result["working_db_path"] = primary_db_path

@@ -2,126 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict
 
-DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
-    "id": "id",
-    "numero_ssa": "Nº SSA",
-    "situacao": "Situação",
-    "derivada_de": "Derivada de",
-    "localizacao_codigo": "Loc.",
-    "descricao_localizacao": "Desc. Loc.",
-    "equipamento": "Equip.",
-    "semana_cadastro": "Sem.\nCadastro",
-    "data_cadastro": "Emitida Em",
-    "descricao_ssa": "Descrição da SSA",
-    "setor_emissor": "Emissor",
-    "setor_executor": "Executor",
-    "solicitante": "Solicitante",
-    "servico_origem": "Serv. Origem",
-    "grau_prioridade_emissao": "Prior. Emissão",
-    "grau_prioridade_planejamento": "Prior. Planej.",
-    "execucao_simples": "Exec. Simples",
-    "responsavel_programacao": "Resp. Prog.",
-    "semana_programada": "Sem. Prog.",
-    "responsavel_execucao": "Resp. Exec.",
-    "descricao_execucao": "Descrição da Execução",
-    "anomalia": "Anomalia",
-    "sistema_origem": "Sis. Origem",
-    "prazo_limite": "Prazo Limite",
-    "status_execucao_prazo": "Situação do Prazo",
-    "tempo_disponivel": "Tempo Disp.",
-    "data_limite": "Data Limite",
-    "tempo_excedido": "Tempo Excedido",
-    "desde": "Desde",
-    "tempo_total": "Tempo Total",
-    "desde_1": "Desde (1)",
-    "total_tempo_tpe_planejado": "Tempo TPE Plan.",
-    "total_tempo_tpe_executada": "Tempo TPE Exec.",
-    "total_tempo_tex_planejado": "Tempo TEX Plan.",
-    "total_tempo_tpo_planejado": "Tempo TPO Plan.",
-    "total_horas_programadas": "Horas Prog.",
-    "semana_executada": "Sem. Exec.",
-    "num_reprogramacoes": "Nº Reprog.",
-    "execucao_parcial": "Exec. Parcial",
-    "situacao_da_parcial": "Situacao da Parcial",
-    "atividade_especial": "Atividade Especial",
-    "equipamento_retirado": "Equipamento Retirado",
-    "sn_retirado": "SN Retirado",
-    "destino": "Destino",
-    "equipamento_instalado": "Equipamento Instalado",
-    "sn_instalado": "SN Instalado",
-    "sn_extra": "SN Extra",
-    "origem": "Origem",
-    "desativacao_da_localizacao": "Desativação da Localização",
-    "instalacao_estimada": "Instalação Estimada",
-    "executado": "Executado",
-    "concluido": "Concluído",
-    "total_tempo_tpo_executada": "Tempo TPO Exec.",
-    "total_tempo_tex_executada": "Tempo TEX Exec.",
-    "data_inicio_programada": "Data Início Prog.",
-    "data_programacao": "Data Programação",
-    "data_inicio_reprogramada": "Data Início Reprog.",
-    "data_reprogramacao": "Data Reprog.",
-    "situacao_reprogramacao": "Situação Reprog.",
-    "total_de_reprogramacoes": "Total Reprog.",
-    "situacao_de_desvio": "Situação Desvio",
-    "ate_1": "Até (1)",
-    "ate_2": "Até (2)",
-    "desde_2": "Desde (2)",
-    "numero_ssa_relacionada_1": "Nº SSA Rel. 1",
-    "numero_ssa_relacionada_2": "Nº SSA Rel. 2",
-    "numero_ssa_relacionada_3": "Nº SSA Rel. 3",
-    "setor_emissor_relacionado_1": "Setor Emissor Rel. 1",
-    "setor_emissor_relacionado_2": "Setor Emissor Rel. 2",
-    "setor_executor_relacionado_1": "Setor Executor Rel. 1",
-    "setor_executor_relacionado_2": "Setor Executor Rel. 2",
-    "situacao_relacionada_1": "Situação Rel. 1",
-    "situacao_relacionada_2": "Situação Rel. 2",
-    "relacao": "Relação",
-}
-
-# Column affinity score (higher means closer to left in "show all by affinity").
-# Keep this as a plain map so UI flows can reuse it without layout coupling.
-COLUMN_AFFINITY_SCORES: Dict[str, int] = {
-    # Core identifiers
-    "numero_ssa": 1000,
-    "situacao": 980,
-    "derivada_de": 960,
-    "localizacao_codigo": 940,
-    "descricao_localizacao": 930,
-    "equipamento": 920,
-    "descricao_ssa": 900,
-    # Emissao
-    "data_cadastro": 860,
-    "semana_cadastro": 850,
-    "solicitante": 840,
-    "setor_emissor": 830,
-    "grau_prioridade_emissao": 820,
-    # Planejamento
-    "grau_prioridade_planejamento": 780,
-    "semana_programada": 770,
-    # Programacao
-    "responsavel_programacao": 760,
-    "data_inicio_programada": 730,
-    "data_programacao": 720,
-    # Reprogramacao
-    "num_reprogramacoes": 680,
-    "total_de_reprogramacoes": 670,
-    "data_inicio_reprogramada": 660,
-    "data_reprogramacao": 650,
-    "situacao_reprogramacao": 640,
-    # Execucao
-    "descricao_execucao": 600,
-    "responsavel_execucao": 590,
-    "semana_executada": 580,
-    "status_execucao_prazo": 575,
-    "execucao_simples": 570,
-    "execucao_parcial": 560,
-    "concluido": 550,
-    "executado": 540,
-    "atividade_especial": 530,
-}
+from shared.table_display_defaults import DEFAULT_DISPLAY_MAPPINGS
 
 # Column mappings source of truth lives in config/column_mappings.json.
 _COLUMN_MAPPINGS_PATH = Path(__file__).resolve().parents[1] / "config" / "column_mappings.json"
@@ -134,15 +17,20 @@ _MINIMAL_COLUMN_MAPPINGS_FALLBACK: Dict[str, list] = {
     "setor_emissor": ["Emissor", "Setor Emissor", "emitter_sector"],
     "atividade_especial": ["Atividade Especial", "Actividad Especial"],
 }
+_DEFAULT_COLUMN_MAPPINGS_CACHE: Dict[str, list] | None = None
+
+
+def _copy_column_mappings(source: Dict[str, list]) -> Dict[str, list]:
+    return {canonical: list(aliases) for canonical, aliases in source.items()}
 
 
 def _load_default_column_mappings() -> Dict[str, list]:
     try:
         raw = json.loads(_COLUMN_MAPPINGS_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return dict(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
+        return _copy_column_mappings(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
     if not isinstance(raw, dict) or not raw:
-        return dict(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
+        return _copy_column_mappings(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
     cleaned: Dict[str, list] = {}
     for canonical, aliases in raw.items():
         if not isinstance(canonical, str) or not isinstance(aliases, list):
@@ -150,7 +38,53 @@ def _load_default_column_mappings() -> Dict[str, list]:
         valid_aliases = [alias for alias in aliases if isinstance(alias, str) and alias]
         if valid_aliases:
             cleaned[canonical] = valid_aliases
-    return cleaned or dict(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
+    return cleaned or _copy_column_mappings(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
 
 
-DEFAULT_COLUMN_MAPPINGS: Dict[str, list] = _load_default_column_mappings()
+def get_default_column_mappings() -> Dict[str, list]:
+    global _DEFAULT_COLUMN_MAPPINGS_CACHE
+    if _DEFAULT_COLUMN_MAPPINGS_CACHE is None:
+        _DEFAULT_COLUMN_MAPPINGS_CACHE = _load_default_column_mappings()
+    return _copy_column_mappings(_DEFAULT_COLUMN_MAPPINGS_CACHE)
+
+
+def default_settings_payload() -> dict[str, Any]:
+    return {
+        "version": "1.0.0",
+        "description": "Default settings for SSA Consulta Rapida",
+        "display_settings": {
+            "column_visibility": {},
+            "column_widths": {
+                "#": 4,
+                "Nº SSA": 9,
+                "Loc.": 10,
+                "Emissor": 6,
+                "Executor": 6,
+            },
+            "max_auto_scroll_pages": 3,
+        },
+        "user_preferences": {
+            "auto_scroll_to_end": False,
+            "filter_mode_default": "contains",
+        },
+        "default_filters": [],
+        "import_settings": {
+            "include_processadas_in_full_rescan": True,
+            "processadas_subdir": "processadas",
+            "ignore_nosurvivor_in_full_rescan": True,
+            "nosurvivor_subdir": "nosurvivor",
+            "move_processed_after_import": False,
+            "route_zero_survivor_to_nosurvivor": True,
+            "upsert_short_circuit_policy": "consulta_only",
+        },
+    }
+
+
+def default_config_payload_for_filename(filename: str) -> dict[str, Any] | None:
+    if filename == "default_settings.json":
+        return default_settings_payload()
+    if filename == "display_mappings.json":
+        return DEFAULT_DISPLAY_MAPPINGS
+    if filename == "column_mappings.json":
+        return get_default_column_mappings()
+    return None

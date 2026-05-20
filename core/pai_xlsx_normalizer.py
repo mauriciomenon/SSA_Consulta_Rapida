@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 from typing import Iterator
 
@@ -25,6 +26,7 @@ PAI_SSA_IMPORT_SUFFIX = "_ssa_import"
 PAI_SOURCE_SYSTEM = "PAI"
 PAI_SUPPORTED_EXCEL_SUFFIXES = (".xls", ".xlsx", ".xlsm")
 SSA_IMPORT_REQUIRED_COLUMNS = ("numero_ssa", "data_cadastro", "descricao_ssa")
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,8 @@ class PaiXlsxNormalizationResult:
 
 @dataclass
 class ManagedPaiXlsxNormalization:
+    """Data yielded by managed_pai_xlsx_for_ssa_import."""
+
     path: Path
     row_count: int
     summary: PaiXlsxSummary
@@ -84,15 +88,19 @@ def normalize_pai_xlsx_for_ssa_import(
 
 
 def build_normalized_pai_dataframe(frame: pd.DataFrame) -> pd.DataFrame:
-    normalized = pd.DataFrame()
+    normalized_columns: dict[str, pd.Series] = {}
     for target_column, source_columns in PAI_TO_SSA_COLUMN_CANDIDATES.items():
-        source = _first_available_column(frame, source_columns)
-        if not source.isna().all():
-            normalized[target_column] = source
-    normalized["data_cadastro"] = _format_datetime_without_timezone_for_ssa_import(
+        present_columns = tuple(column for column in source_columns if column in frame.columns)
+        if present_columns:
+            source = _first_available_column(frame, present_columns)
+            normalized_columns[target_column] = source
+    normalized_columns["data_cadastro"] = _format_datetime_as_utc_naive_for_ssa_import(
         _first_available_column(frame, PAI_DATE_SOURCE_COLUMNS)
     )
-    normalized["situacao"] = _first_available_column(frame, PAI_SITUACAO_SOURCE_COLUMNS)
+    normalized_columns["situacao"] = _first_available_column(
+        frame, PAI_SITUACAO_SOURCE_COLUMNS
+    )
+    normalized = pd.DataFrame(normalized_columns, index=frame.index)
     _clean_normalized_text_columns(normalized)
     missing_required = [
         column
@@ -133,15 +141,19 @@ def _first_available_column(frame: pd.DataFrame, columns: tuple[str, ...]) -> pd
     return result
 
 
-def _format_datetime_without_timezone_for_ssa_import(series: pd.Series) -> pd.Series:
+def _format_datetime_as_utc_naive_for_ssa_import(series: pd.Series) -> pd.Series:
+    """Normalize PAI timestamps to UTC and emit SSA-compatible naive text."""
     parsed = pd.to_datetime(series, errors="coerce", utc=True)
-    formatted = parsed.dt.tz_convert(None).dt.strftime("%Y-%m-%d %H:%M:%S")
+    formatted = parsed.dt.tz_localize(None).dt.strftime("%Y-%m-%d %H:%M:%S")
     return formatted.where(parsed.notna(), pd.NA)
 
 
 def _clean_normalized_text_columns(frame: pd.DataFrame) -> None:
     for column in frame.select_dtypes(include=("object", "string")).columns:
-        stripped = frame[column].astype("string").str.strip()
+        series = frame[column]
+        if str(series.dtype) != "string":
+            series = series.astype("string")
+        stripped = series.str.strip()
         frame[column] = stripped.mask(stripped.eq(""), pd.NA)
 
 
@@ -161,5 +173,5 @@ def _add_pai_origin_metadata(frame: pd.DataFrame, source_xlsx: Path) -> None:
 def _remove_normalized_xlsx(path: Path) -> None:
     try:
         path.unlink(missing_ok=True)
-    except OSError:
-        return
+    except OSError as exc:
+        logger.warning("Falha ao remover XLSX PAI temporario '%s': %s", path, exc)

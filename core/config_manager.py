@@ -11,19 +11,24 @@ import shutil
 import tempfile
 from typing import Any, Callable, Dict
 
-from core.config_defaults import COLUMN_AFFINITY_SCORES
-from core.config_defaults import DEFAULT_COLUMN_MAPPINGS
 from core.config_defaults import DEFAULT_DISPLAY_MAPPINGS
+from core.config_defaults import default_config_payload_for_filename
+from core.config_defaults import get_default_column_mappings
+from shared.table_display_defaults import COLUMN_AFFINITY_SCORES
 from utils.path_safety import PathSafetyError, ensure_path_is_allowed
 from utils.robust_logging import get_robust_logger
 
 __all__ = [
     "COLUMN_AFFINITY_SCORES",
-    "DEFAULT_COLUMN_MAPPINGS",
     "DEFAULT_DISPLAY_MAPPINGS",
+    "get_default_column_mappings",
 ]
 
 logger = get_robust_logger().get_logger(__name__, "core")
+
+
+class ConfigProvisionError(RuntimeError):
+    """Raised when a default config file cannot be provisioned."""
 
 
 def _atomic_write_json_file(
@@ -43,11 +48,29 @@ def _atomic_write_json_file(
     tmp_path = None
     try:
         fd, tmp_path = tempfile.mkstemp(prefix=f".{base_name}.tmp.", dir=target_dir)
+        if hasattr(os, "fchmod"):
+            try:
+                os.fchmod(fd, target_mode)
+            except OSError as exc:
+                logger.debug(
+                    "initial fchmod failed for config temp file (%s): %s",
+                    tmp_path,
+                    exc,
+                )
         f = os.fdopen(fd, "w", encoding="utf-8")
         fd = None
         try:
             json.dump(data, f, indent=indent, ensure_ascii=ensure_ascii)
             f.flush()
+            if hasattr(os, "fchmod"):
+                try:
+                    os.fchmod(f.fileno(), target_mode)
+                except OSError as exc:
+                    logger.debug(
+                        "fchmod failed for config temp file (%s): %s",
+                        tmp_path,
+                        exc,
+                    )
             try:
                 os.fsync(f.fileno())
             except OSError as exc:
@@ -56,7 +79,8 @@ def _atomic_write_json_file(
                 )
         finally:
             f.close()
-        os.chmod(tmp_path, target_mode)
+        if not hasattr(os, "fchmod"):
+            os.chmod(tmp_path, target_mode)
         os.replace(tmp_path, path)
         _fsync_parent_directory(target_dir)
         tmp_path = None
@@ -115,6 +139,11 @@ def _atomic_copy_file(src: str, dst: str) -> None:
     target_dir = os.path.dirname(dst) or "."
     base_name = os.path.basename(dst) or "file"
     os.makedirs(target_dir, exist_ok=True)
+    target_mode = 0o600
+    try:
+        target_mode = os.stat(src).st_mode & 0o777
+    except OSError as exc:
+        logger.debug("Falha ao ler modo de '%s': %s", src, exc)
 
     tmp_path = None
     try:
@@ -122,6 +151,15 @@ def _atomic_copy_file(src: str, dst: str) -> None:
             prefix=f".{base_name}.tmp.", dir=target_dir, delete=False
         ) as tmp_file:
             tmp_path = tmp_file.name
+            if hasattr(os, "fchmod"):
+                try:
+                    os.fchmod(tmp_file.fileno(), target_mode)
+                except OSError as exc:
+                    logger.debug(
+                        "initial fchmod failed for config temp file (%s): %s",
+                        tmp_path,
+                        exc,
+                    )
             with open(src, "rb") as src_file:
                 shutil.copyfileobj(src_file, tmp_file)
             tmp_file.flush()
@@ -129,7 +167,8 @@ def _atomic_copy_file(src: str, dst: str) -> None:
                 os.fsync(tmp_file.fileno())
             except OSError as exc:
                 logger.debug("fsync failed for config temp file (%s): %s", tmp_path, exc)
-        shutil.copymode(src, tmp_path)
+        if not hasattr(os, "fchmod"):
+            os.chmod(tmp_path, target_mode)
         os.replace(tmp_path, dst)
         _fsync_parent_directory(target_dir)
         tmp_path = None
@@ -191,8 +230,6 @@ def resolve_default_settings_path() -> str:
 def load_default_settings_payload() -> Dict[str, Any]:
     default_settings_file = resolve_default_settings_path()
     if not os.path.exists(default_settings_file):
-        ensure_default_settings(fail_fast=False)
-    if not os.path.exists(default_settings_file):
         raise FileNotFoundError(
             f"Arquivo de configuracoes padrao nao encontrado: {default_settings_file}"
         )
@@ -228,53 +265,15 @@ def _load_json_mapping_integrity(
         _atomic_write_json_file(path, default_mapping, indent=2, ensure_ascii=False)
         logger.warning("%s foi recriado em '%s' com valores padrao.", file_label, path)
         return default_mapping.copy()
-    except Exception as e:
+    except (OSError, TypeError, ValueError) as e:
         logger.error("Falha ao restaurar %s: %s", file_label, e)
         logger.error("Usando defaults em memoria; arquivo nao foi atualizado.")
         return default_mapping.copy()
 
 
-def _default_settings_payload() -> dict[str, Any]:
-    return {
-        "version": "1.0.0",
-        "description": "Default settings for SSA Consulta Rapida",
-        "display_settings": {
-            "column_visibility": {},
-            "column_widths": {
-                "#": 4,
-                "Nº SSA": 9,
-                "Loc.": 10,
-                "Emi.": 6,
-                "Exe.": 6,
-            },
-            "max_auto_scroll_pages": 3,
-        },
-        "user_preferences": {
-            "auto_scroll_to_end": False,
-            "filter_mode_default": "contains",
-        },
-        "default_filters": [],
-        "import_settings": {
-            "include_processadas_in_full_rescan": True,
-            "processadas_subdir": "processadas",
-            "ignore_nosurvivor_in_full_rescan": True,
-            "nosurvivor_subdir": "nosurvivor",
-            "move_processed_after_import": False,
-            "route_zero_survivor_to_nosurvivor": True,
-            "upsert_short_circuit_policy": "consulta_only",
-        },
-    }
-
-
 def _default_payload_for_config_target(target_file: str) -> dict[str, Any] | None:
-    filename = os.path.basename(target_file)
-    if filename == "default_settings.json":
-        return _default_settings_payload()
-    if filename == "display_mappings.json":
-        return DEFAULT_DISPLAY_MAPPINGS
-    if filename == "column_mappings.json":
-        return DEFAULT_COLUMN_MAPPINGS
-    return None
+    payload = default_config_payload_for_filename(os.path.basename(target_file))
+    return dict(payload) if payload is not None else None
 
 
 def _provision_default_config_file(
@@ -282,7 +281,7 @@ def _provision_default_config_file(
     example_file: str,
     *,
     cfg_dir: str,
-) -> str | None:
+) -> None:
     example_path = os.path.join(cfg_dir, example_file)
     if not os.path.exists(example_path):
         example_path = os.path.join(CONFIG_DIR, example_file)
@@ -290,10 +289,13 @@ def _provision_default_config_file(
         try:
             _atomic_copy_file(example_path, target_file)
             logger.info(f"Arquivo de configuração padrão criado: {target_file}")
-            return None
+            return
         except IOError as e:
             logger.error(f"Falha ao copiar '{example_path}' para '{target_file}': {e}")
-            return f"copy_failed:{target_file}"
+            raise ConfigProvisionError(
+                f"falha ao copiar config padrao de '{example_path}' para "
+                f"'{target_file}': {e}"
+            ) from e
     try:
         os.makedirs(os.path.dirname(target_file) or cfg_dir, exist_ok=True)
         default_content = _default_payload_for_config_target(target_file)
@@ -301,13 +303,15 @@ def _provision_default_config_file(
             logger.warning(
                 f"Arquivo de exemplo '{example_path}' não encontrado para '{target_file}'."
             )
-            return None
+            return
         _atomic_write_json_file(target_file, default_content, indent=2, ensure_ascii=False)
         logger.info(f"Arquivo padrão gerado: {target_file}")
-        return None
+        return
     except Exception as e:
         logger.error(f"Falha ao gerar arquivo padrão '{target_file}': {e}")
-        return f"generate_failed:{target_file}"
+        raise ConfigProvisionError(
+            f"falha ao gerar config padrao '{target_file}': {e}"
+        ) from e
 
 
 def load_display_mappings_integrity() -> Dict[str, str]:
@@ -318,7 +322,7 @@ def load_display_mappings_integrity() -> Dict[str, str]:
         path,
         DEFAULT_DISPLAY_MAPPINGS,
         file_label="display_mappings.json",
-        validator=lambda data: isinstance(data, dict) and bool(data),
+        validator=lambda data: isinstance(data, dict),
     )
 
 
@@ -331,11 +335,11 @@ def load_column_mappings_integrity() -> Dict[str, list]:
     path = os.path.join(cfg_dir, "column_mappings.json")
     return _load_json_mapping_integrity(
         path,
-        DEFAULT_COLUMN_MAPPINGS,
+        get_default_column_mappings(),
         file_label="column_mappings.json",
         validator=lambda data: isinstance(data, dict)
         and bool(data)
-        and all(isinstance(v, list) and len(v) > 0 for v in data.values()),
+        and all(isinstance(v, list) for v in data.values()),
     )
 
 
@@ -369,9 +373,17 @@ def load_settings() -> Dict[str, Any]:
         logger.debug(f"Configurações carregadas de '{settings_path}'.")
         return settings
     except FileNotFoundError:
+        if settings_path != default_settings_file and os.path.exists(
+            default_settings_file
+        ):
+            logger.warning(
+                "Arquivo de configuracao do usuario sumiu durante leitura. "
+                "Carregando default '%s'.",
+                default_settings_file,
+            )
+            with open(default_settings_file, "r", encoding="utf-8") as f:
+                return json.load(f)
         logger.critical(f"Arquivo de configuração '{settings_path}' não encontrado.")
-        # Retorna um dicionário vazio ou padrão mínimo como último recurso?
-        # Ou lança uma exceção? Vamos lançar para que o chamador decida.
         raise
     except json.JSONDecodeError as e:
         logger.error(f"Erro ao decodificar JSON em '{settings_path}': {e}")
@@ -422,13 +434,14 @@ def ensure_default_settings(*, fail_fast: bool = True) -> list[str]:
     for target_file, example_file in required_files.items():
         if not os.path.exists(target_file):
             cfg_dir = _get_config_dir()
-            error = _provision_default_config_file(
-                target_file,
-                example_file,
-                cfg_dir=cfg_dir,
-            )
-            if error:
-                errors.append(error)
+            try:
+                _provision_default_config_file(
+                    target_file,
+                    example_file,
+                    cfg_dir=cfg_dir,
+                )
+            except ConfigProvisionError as exc:
+                errors.append(str(exc))
     if errors:
         logger.critical(
             "ensure_default_settings completed with errors: %s", "; ".join(errors)
