@@ -1,0 +1,57 @@
+tests/run_import_detailed.py
+  s_082d1ff7d55d96::t_6d679f7124471a 27,32-33
+  s_082d1ff7d55d96::t_807450ae62d1af 15,85,87,89-90,97-111,116,119-120
+exportacao/exporter.py
+  s_082d1ff7d55d96::t_7e97576c010a72 11
+  s_082d1ff7d55d96::t_1928ce99be29fd 6-10,12-76
+core/pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_807450ae62d1af 82-91
+  s_082d1ff7d55d96::t_6d679f7124471a 104,107,109,143
+  s_082d1ff7d55d96::t_517a30a2678734 147
+scripts/run_lint.py
+  s_082d1ff7d55d96::t_807450ae62d1af 32-33
+gui/widgets/column_selector.py
+  s_082d1ff7d55d96::t_807450ae62d1af 64-68
+scripts/sync_pyinstaller_outputs.py
+  s_082d1ff7d55d96::t_807450ae62d1af 79
+extracao/extractor.py
+  s_082d1ff7d55d96::t_46d9141cc6e126 302,305,650-652,654
+  s_082d1ff7d55d96::t_807450ae62d1af 417,419-421,483,485-490,790-803
+  s_082d1ff7d55d96::t_6d679f7124471a 22,126
+  s_082d1ff7d55d96::t_33d90899cb80a5 269,377-385
+  s_082d1ff7d55d96::t_517a30a2678734 358-360,418,484
+  s_082d1ff7d55d96::t_782a0c02142ece 644-645,656-657
+gui/widgets/data_paginator.py
+  s_082d1ff7d55d96::t_46d9141cc6e126 113,115
+  s_082d1ff7d55d96::t_517a30a2678734 82-83,109-112
+  s_082d1ff7d55d96::t_807450ae62d1af 8-11,21-25,49,104-108,114
+tests/test_exporter.py
+  s_082d1ff7d55d96::t_1928ce99be29fd 98-108
+scripts/run_quality_gates.py
+  s_082d1ff7d55d96::t_807450ae62d1af 55-61,69,163,189-194
+scripts/migracao/migrar_para_unificado.py
+  s_082d1ff7d55d96::t_1928ce99be29fd 102-128
+scripts/smoke_cli.py
+  s_082d1ff7d55d96::t_c106d01fce4260 30,34
+  s_082d1ff7d55d96::t_dad74d25062b0f 28-29
+  s_082d1ff7d55d96::t_b5dd413f3ab89d 118,159
+  s_082d1ff7d55d96::t_deb45fdbcdc993 25-27
+  s_082d1ff7d55d96::t_e4f8ebbe1d2c0d 120,123
+  s_082d1ff7d55d96::t_807450ae62d1af 164-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c8a6f660948a1bedce524bac100f0bd2b57a0fc8",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
