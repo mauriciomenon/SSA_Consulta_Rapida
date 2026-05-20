@@ -1,0 +1,37 @@
+.gitignore
+  s_082d1ff7d55d96::t_7c3d3c75ad6a1f 326-327
+  s_082d1ff7d55d96::t_e498e7f208b043 340
+  s_082d1ff7d55d96::t_08122e4f781b7a 183,187-193,282-283,293-295
+  s_082d1ff7d55d96::t_3d5ea09bfe579d 310-313
+  s_082d1ff7d55d96::t_8be4d8521f8b2b 321-322
+  s_082d1ff7d55d96::t_2f6e2dc3390c0e 392
+  s_082d1ff7d55d96::t_41ab2a07688ba2 374-375
+  s_082d1ff7d55d96::t_ae5ca410065cc1 275,339,341-343,373
+  s_082d1ff7d55d96::t_08b5f6f03f7bc8 141-142,146-147
+  s_082d1ff7d55d96::t_d38a77778b4e10 144-145
+  s_082d1ff7d55d96::t_5e3d2bc3b02870 21-25,106
+  s_082d1ff7d55d96::t_45708a4b563d37 19
+  s_082d1ff7d55d96::t_16efe8a3e4bc6f 13-14
+  s_082d1ff7d55d96::t_a350b3eb958f0c 132,181-182,186
+  s_082d1ff7d55d96::t_e48658547cf824 65-69
+  s_082d1ff7d55d96::t_20e76ba6fd1813 185
+  s_082d1ff7d55d96::t_47b36fa0374185 56-62,64,70,287,307-309
+  s_082d1ff7d55d96::t_8643a0fe44de25 236-270,272-274,276-277,284-285,296-298,319-320,366-370,384-388
+  s_082d1ff7d55d96::t_630d9843b732db 4-7,271,344-346
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "adf980f7abd17992f2aea8f7269ade45b1b73bd1",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
