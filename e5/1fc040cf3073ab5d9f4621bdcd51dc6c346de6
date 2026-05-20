@@ -1,0 +1,21 @@
+tests/test_pai_api_options.py
+  s_082d1ff7d55d96::t_d5f592a5ad6122 73
+core/pai_api_options.py
+  s_082d1ff7d55d96::t_d5f592a5ad6122 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e51fc040cf3073ab5d9f4621bdcd51dc6c346de6",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
