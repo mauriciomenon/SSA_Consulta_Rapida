@@ -56,4 +56,5 @@ def test_cli_source_xlsx_fetch_only_writes_summary(tmp_path: Path) -> None:
     assert payload["rows_by_emitter_sector"] == {"MEL4": 1}
     assert payload["rows_by_source_file"] == {"pai_cli.xlsx": 1}
     assert payload["ssa_examples_by_executor_sector"] == {"IEE3": ["202600003"]}
+    assert payload["summary_error"] is None
     assert payload["warnings"] == []

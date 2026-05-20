@@ -9,9 +9,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Mapping, TypedDict, cast
-
-import pandas as pd
+from typing import Mapping, cast
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -22,6 +20,7 @@ from core.pai_import_service import (
     import_prepared_pai_xlsx,
     preview_existing_pai_xlsx,
 )
+from core.pai_xlsx_summary import read_pai_xlsx_summary
 from core.pai_scrap_report_provider import (
     PAI_DEFAULT_API_TIMEOUT_SECONDS,
     PAI_DEFAULT_COMMAND_TIMEOUT_SECONDS,
@@ -34,18 +33,6 @@ from core.pai_scrap_report_provider import (
     PAI_SCRAP_REPORT_RUNNER_ENV,
     PaiScrapReportRequest,
 )
-
-SUMMARY_SSA_EXAMPLE_LIMIT = 20
-SUMMARY_GROUP_EXAMPLE_LIMIT = 10
-
-
-class XlsxSummary(TypedDict):
-    ssa_examples: list[str]
-    rows_by_executor_sector: dict[str, int]
-    rows_by_emitter_sector: dict[str, int]
-    rows_by_source_file: dict[str, int]
-    ssa_examples_by_executor_sector: dict[str, list[str]]
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -201,7 +188,7 @@ def _write_summary_json(
     source_xlsx: Path | None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    xlsx_summary = _read_xlsx_summary(result.import_xlsx_path)
+    xlsx_summary = read_pai_xlsx_summary(result.import_xlsx_path)
     requested_filters = {
         "executor_sectors": list(request.executor_sectors),
         "emitter_sectors": list(request.emitter_sectors),
@@ -235,88 +222,10 @@ def _write_summary_json(
         "ssa_examples_by_executor_sector": xlsx_summary[
             "ssa_examples_by_executor_sector"
         ],
+        "summary_error": xlsx_summary["summary_error"],
         "warnings": _extract_manifest_warnings(result.export.manifest),
     }
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-
-
-def _read_xlsx_summary(path: Path | None) -> XlsxSummary:
-    empty = XlsxSummary(
-        ssa_examples=[],
-        rows_by_executor_sector={},
-        rows_by_emitter_sector={},
-        rows_by_source_file={},
-        ssa_examples_by_executor_sector={},
-    )
-    if path is None or not path.is_file():
-        return empty
-    try:
-        frame = pd.read_excel(path, dtype=str)
-    except (OSError, ValueError) as exc:
-        return XlsxSummary(
-            ssa_examples=[f"summary_read_error:{type(exc).__name__}"],
-            rows_by_executor_sector={},
-            rows_by_emitter_sector={},
-            rows_by_source_file={},
-            ssa_examples_by_executor_sector={},
-        )
-    number_column = _first_existing_column(
-        frame.columns,
-        ("numero_ssa", "Numero da SSA", "ssa_number", "SSA"),
-    )
-    executor_column = _first_existing_column(
-        frame.columns,
-        ("setor_executor", "executor_sector", "Setor Executor"),
-    )
-    emitter_column = _first_existing_column(
-        frame.columns,
-        ("setor_emissor", "emitter_sector", "Setor Emissor"),
-    )
-    source_file_column = _first_existing_column(
-        frame.columns,
-        ("arquivo_origem", "source_file", "Arquivo Origem"),
-    )
-    if not any((number_column, executor_column, emitter_column, source_file_column)):
-        return empty
-
-    if number_column is not None:
-        number_values = frame[number_column].fillna("").astype(str).str.strip()
-    else:
-        number_values = pd.Series("", index=frame.index)
-    if executor_column is not None:
-        executor_values = frame[executor_column].fillna("").astype(str).str.strip()
-    else:
-        executor_values = pd.Series("", index=frame.index)
-    if emitter_column is not None:
-        emitter_values = frame[emitter_column].fillna("").astype(str).str.strip()
-    else:
-        emitter_values = pd.Series("", index=frame.index)
-    if source_file_column is not None:
-        source_file_values = frame[source_file_column].fillna("").astype(str).str.strip()
-    else:
-        source_file_values = pd.Series("", index=frame.index)
-
-    number_non_empty = number_values[number_values != ""]
-    executor_non_empty = executor_values[executor_values != ""]
-    emitter_non_empty = emitter_values[emitter_values != ""]
-    source_file_non_empty = source_file_values[source_file_values != ""]
-    grouped_examples_frame = pd.DataFrame(
-        {"executor": executor_values, "number": number_values}
-    )
-    examples_by_executor: dict[str, list[str]] = {
-        executor: group["number"].head(SUMMARY_GROUP_EXAMPLE_LIMIT).tolist()
-        for executor, group in grouped_examples_frame[
-            (grouped_examples_frame["executor"] != "")
-            & (grouped_examples_frame["number"] != "")
-        ].groupby("executor", sort=False)
-    }
-    return XlsxSummary(
-        ssa_examples=number_non_empty.head(SUMMARY_SSA_EXAMPLE_LIMIT).tolist(),
-        rows_by_executor_sector=executor_non_empty.value_counts(sort=False).to_dict(),
-        rows_by_emitter_sector=emitter_non_empty.value_counts(sort=False).to_dict(),
-        rows_by_source_file=source_file_non_empty.value_counts(sort=False).to_dict(),
-        ssa_examples_by_executor_sector=examples_by_executor,
-    )
 
 
 def _extract_manifest_warnings(manifest: object) -> list[str]:
@@ -330,15 +239,6 @@ def _extract_manifest_warnings(manifest: object) -> list[str]:
     if warning:
         return [str(warning)]
     return []
-
-
-def _first_existing_column(columns: Any, candidates: tuple[str, ...]) -> str | None:
-    existing = {str(column).casefold(): str(column) for column in columns}
-    for candidate in candidates:
-        found = existing.get(candidate.casefold())
-        if found is not None:
-            return found
-    return None
 
 
 def _optional_path(raw_path: str | None) -> Path | None:
