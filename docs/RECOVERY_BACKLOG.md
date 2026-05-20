@@ -1,17 +1,19 @@
 # Recovery Backlog
 
-## CURRENT TRUTH 2026-05-19 21h30
+## CURRENT TRUTH 2026-05-20 00h46
 
 - Branch alvo operacional: `dev`.
-- HEAD operacional atual validado localmente antes deste DOC_SYNC:
-  - `b96c5d8b438673b2ae152d2c1cf6a7e5d4030c4d 2026-05-19T21:29:07-03:00 STABILITY_PATCH: simplify PAI summary aggregation`.
-- `dev` esta sincronizado com `origin/dev` antes deste DOC_SYNC.
+- HEAD operacional atual validado localmente e publicado em `origin/dev`:
+  - `c0888b25a66b59392f4498ba2e4375be76af4504 2026-05-20T00:35:59-03:00 STABILITY_PATCH: stabilize GUI pytest order in CI`.
+  - `50f405a6815ec0e33572fa967948f1131a5dcbfa 2026-05-20T00:12:32-03:00 STABILITY_PATCH: harden PAI import summary contract`.
+  - `2cf14f52469454cdf2fd08e37d7b4cf817ff24ef 2026-05-19T23:08:55-03:00 STABILITY_PATCH: move PAI XLSX summary to streaming reader`.
+- `dev` esta sincronizado com `origin/dev`.
 - Workspace local tem apenas residuos fora de escopo:
   - `.agents/`
   - `agents.lock`
   - `config/gui_saved_filters.json`
 - `.gitignore` ja ignora `.clawpatch/`, `agents.toml` e `tmp/`.
-- GitHub checks verdes no head anterior publicado `29c359ad3ab4e53eedafe5de6a25e685f506924c`:
+- GitHub checks verdes no head publicado `c0888b25a66b59392f4498ba2e4375be76af4504`:
   - `minimal-ci`
   - `CodeQL`
   - `Secret Scan`
@@ -20,12 +22,13 @@
   - `idna` atualizado em `dev`; alerta Dependabot deve fechar somente quando o fix chegar ao default branch.
 - Slice API PAI:
   - API PAI por setor esta funcional no fluxo `consulta`.
-  - Smoke real fetch-only validado para `IEE3`, `MEL4`, `MEL3` com CA exportada via `scrap_report`.
+  - Smoke real fetch-only validado neste ciclo para `IEE3` com CA exportada via `scrap_report`; ciclo anterior ja validou `IEE3`, `MEL4`, `MEL3`.
   - GUI agora confirma antes de gravar dados da API no DB.
   - Auto-refresh permanece sem escrita automatica no DB.
 - Slice origem/debug:
   - `summary-json` registra fonte, filtros pedidos, setores, arquivos origem, contagens e exemplos de SSAs.
   - Resumo PAI foi limpo para remover helpers pequenos sem ownership real; contrato JSON preservado.
+  - Resumo XLSX agora e carregado pelo servico de importacao e reaproveitado no report, sem segunda leitura XLSX no caminho normal.
 - Tipos PAI:
   - `consulta` e o unico fluxo habilitado com backend real.
   - `executadas` e `aprovacao` seguem planejados.
@@ -38,12 +41,14 @@
 - Validacoes locais recentes:
   - `py_compile`, `ruff`, `ty`, `pytest` focado, `bandit`, `semgrep`, `detect-secrets`, `gitleaks`.
   - Suite completa recente: `1846 passed, 6 skipped, 11 subtests passed`.
+  - Smoke GUI offscreen: boot, busca exata, undo, detalhes e cancelamento de preview API.
+  - Smoke API real fetch-only: `IEE3`, `limit=1`, `normalized_rows=1`, `summary_error=null`.
   - `pip-audit` e `safety`: sem vulnerabilidades conhecidas no export do lock.
   - `snyk` local falhou por parser/manifest e nao foi considerado validacao limpa.
 - Merge para `main` ainda nao autorizado. Nao abrir PR, nao usar CodeRabbit em PR, nao mergear sem comando explicito.
 - Bloqueios antes de merge operacional:
-  1. Smoke GUI final: boot, API, XLS externo, filtros, undo, detalhes e derivadas.
-  2. Se PR for autorizado, rodar revisao CodeRabbit no PR.
+  1. Se PR for autorizado, rodar revisao CodeRabbit no PR.
+  2. Executar build/smoke macOS se o alvo for release de artefato.
   3. Continuar corte de `filter_gui_ssa_mixin.py` e `SSAMainWindow` se a meta de clean code for criterio bloqueante.
 - Build macOS/release ainda nao executado neste ciclo; so entra se o alvo for release de artefato.
 
