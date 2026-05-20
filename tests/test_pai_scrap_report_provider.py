@@ -83,6 +83,31 @@ def test_run_pai_scrap_report_export_rejects_manifest_path_escape(
         )
 
 
+def test_run_pai_scrap_report_export_rejects_stale_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    (output_dir / "pai_sam_api.xlsx").write_bytes(b"old")
+    (output_dir / "pai_sam_api_manifest.json").write_text(
+        '{"status":"ok","exports":{"data_xlsx":"pai_sam_api.xlsx"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    with pytest.raises(FileNotFoundError, match="Manifest PAI nao criado"):
+        run_pai_scrap_report_export(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                output_dir=output_dir,
+                scrap_report_root=scrap_root,
+            ),
+            runner=lambda _command, **_kwargs: _Completed(),
+        )
+
+
 def test_run_pai_scrap_report_ca_export_creates_ca_file(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -97,6 +122,7 @@ def test_run_pai_scrap_report_ca_export_creates_ca_file(
         assert "--output" in command
         output_dir.mkdir(exist_ok=True)
         (output_dir / "itaipu_root_ca.pem").write_text("CERT", encoding="utf-8")
+        (output_dir / "sam_api_cert.json").write_text('{"status":"ok"}', encoding="utf-8")
         return _Completed()
 
     result = run_pai_scrap_report_ca_export(
@@ -110,6 +136,28 @@ def test_run_pai_scrap_report_ca_export_creates_ca_file(
 
     assert result.ca_file == output_dir / "itaipu_root_ca.pem"
     assert "sam-api-cert" in result.command
+
+
+def test_run_pai_scrap_report_ca_export_rejects_stale_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    (output_dir / "itaipu_root_ca.pem").write_text("OLD CERT", encoding="utf-8")
+    (output_dir / "sam_api_cert.json").write_text('{"status":"ok"}', encoding="utf-8")
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    with pytest.raises(FileNotFoundError, match="CA PAI nao criada"):
+        run_pai_scrap_report_ca_export(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                output_dir=output_dir,
+                scrap_report_root=scrap_root,
+            ),
+            runner=lambda _command, **_kwargs: _Completed(),
+        )
 
 
 def test_fetch_and_import_pai_xlsx_stages_and_imports(

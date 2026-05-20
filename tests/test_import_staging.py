@@ -511,3 +511,30 @@ def test_stage_external_import_files_reports_cleanup_failure_after_cancel(
     assert (docs_dir / "cancel.xlsx").exists()
     assert (docs_dir / "cancel.xlsx").read_text(encoding="utf-8") == "payload"
     assert any("Falha ao remover arquivo staged apos cancelamento" in error for error in errors)
+
+
+def test_remove_destination_reports_missing_when_required(tmp_path: Path) -> None:
+    errors: list[str] = []
+    missing = tmp_path / "missing.xlsx"
+
+    import_staging._remove_destination(
+        missing,
+        error_callback=errors.append,
+        context="apos cancelamento",
+        ignore_missing=False,
+    )
+
+    assert any("nao encontrado para remocao" in error for error in errors)
+
+
+def test_remove_destination_ignores_missing_when_optional(tmp_path: Path) -> None:
+    errors: list[str] = []
+
+    import_staging._remove_destination(
+        tmp_path / "missing.xlsx",
+        error_callback=errors.append,
+        context="parcial",
+        ignore_missing=True,
+    )
+
+    assert errors == []

@@ -252,6 +252,11 @@ def _remove_destination(
     try:
         os.remove(destination)
     except FileNotFoundError:
+        if not ignore_missing:
+            _emit_stage_error(
+                error_callback,
+                f"Arquivo staged {context} nao encontrado para remocao: '{destination}'",
+            )
         return
     except OSError as exc:
         _emit_stage_error(
@@ -298,5 +303,7 @@ def _emit_stage_summary(
             "Staging concluido: "
             f"copiados={summary['copied']}, skipped={summary['skipped']}, "
             f"nao_suportados={summary['unsupported']}, "
-            f"falhas={summary['failed']}, staged={summary['staged']}"
+            f"falhas={summary['failed']}, "
+            f"ja_no_destino={summary['already_staged']}, "
+            f"staged={summary['staged']}"
         )

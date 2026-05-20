@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import errno
 import logging
 import os
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -15,39 +17,43 @@ DESTINATION_SUFFIX_LIMIT = 10000
 def build_nonconflicting_destination(
     path: Path,
     *,
-    existing_names: Optional[set[str]] = None,
-    suffix_index_cache: Optional[dict[tuple[str, str], int]] = None,
+    existing_names: set[str],
+    suffix_index_cache: dict[tuple[str, str], int],
 ) -> Path:
     """Return a non-conflicting destination path by suffixing __N when needed."""
-    names = existing_names
-    if names is None:
-        names = _directory_names(path.parent)
-    if path.name not in names:
+    if path.name not in existing_names:
         return path
     stem, suffix = _split_filename_preserving_suffixes(path)
     cache_key = (stem, suffix)
-    if suffix_index_cache is None:
-        suffix_index_cache = _build_suffix_index_cache(names)
     start_index = suffix_index_cache.setdefault(cache_key, 1)
     for idx in range(start_index, DESTINATION_SUFFIX_LIMIT):
         candidate = path.with_name(f"{stem}__{idx}{suffix}")
-        if candidate.name not in names:
-            if suffix_index_cache is not None:
-                suffix_index_cache[cache_key] = idx + 1
+        if candidate.name not in existing_names:
+            suffix_index_cache[cache_key] = idx + 1
             return candidate
     raise OSError(f"Nao foi possivel resolver destino unico para '{path}'")
 
 
 def _build_suffix_index_cache(names: set[str]) -> dict[tuple[str, str], int]:
-    cache: dict[tuple[str, str], int] = {}
+    used_indexes: dict[tuple[str, str], set[int]] = {}
     for name in names:
         stem, suffix = _split_filename_preserving_suffixes(Path(name))
         base_stem, separator, number_part = stem.rpartition("__")
         if not separator or not number_part.isdigit():
             continue
         cache_key = (base_stem, suffix)
-        cache[cache_key] = max(cache.get(cache_key, 1), int(number_part) + 1)
-    return cache
+        used_indexes.setdefault(cache_key, set()).add(int(number_part))
+    return {
+        cache_key: _first_available_suffix_index(indexes)
+        for cache_key, indexes in used_indexes.items()
+    }
+
+
+def _first_available_suffix_index(indexes: set[int]) -> int:
+    for idx in range(1, DESTINATION_SUFFIX_LIMIT):
+        if idx not in indexes:
+            return idx
+    raise OSError("Limite de sufixos de destino esgotado")
 
 
 def _directory_names(path: Path) -> set[str]:
@@ -57,6 +63,8 @@ def _directory_names(path: Path) -> set[str]:
 
 
 def _split_filename_preserving_suffixes(path: Path) -> tuple[str, str]:
+    if path.name.startswith(".") and path.name.count(".") == 1:
+        return path.name, ""
     suffix = "".join(path.suffixes)
     if not suffix:
         return path.name, ""
@@ -76,6 +84,7 @@ def _destination_root(
     destination_root = (docs_root / processadas_subdir).resolve()
     if route_to_nosurvivor:
         destination_root = (destination_root / nosurvivor_subdir).resolve()
+    destination_root.relative_to(docs_root)
     return destination_root
 
 
@@ -103,23 +112,33 @@ def move_file_after_import(
         return file_path
 
     destination_root = destination_root.resolve()
+    try:
+        destination_root.relative_to(docs_root)
+    except ValueError:
+        logger.warning(
+            "Destino de pos-processamento fora de docs_dir sera ignorado: %s",
+            destination_root,
+        )
+        return file_path
     if source.is_relative_to(destination_root):
         return str(source)
     destination_root.mkdir(parents=True, exist_ok=True)
-    destination = build_nonconflicting_destination(
-        destination_root / source.name,
-        existing_names=existing_destination_names,
-        suffix_index_cache=suffix_index_cache,
-    )
-    if destination == source:
-        return str(source)
+    if existing_destination_names is None:
+        existing_destination_names = _directory_names(destination_root)
+    if suffix_index_cache is None:
+        suffix_index_cache = _build_suffix_index_cache(existing_destination_names)
     try:
-        shutil.move(str(source), str(destination))
+        destination = _move_to_available_destination(
+            source,
+            destination_root,
+            existing_destination_names,
+            suffix_index_cache,
+        )
     except (OSError, RuntimeError, shutil.Error, ValueError) as exc:
         logger.warning(
             "Falha ao mover arquivo pos-importacao '%s' para '%s': %s",
             file_path,
-            destination,
+            destination_root,
             exc,
         )
         return file_path
@@ -139,6 +158,93 @@ def move_file_after_import(
     if existing_destination_names is not None:
         existing_destination_names.add(destination.name)
     return str(destination.resolve())
+
+
+def _move_to_available_destination(
+    source: Path,
+    destination_root: Path,
+    existing_names: set[str],
+    suffix_index_cache: dict[tuple[str, str], int],
+) -> Path:
+    attempted_names: set[str] = set()
+    for _attempt in range(DESTINATION_SUFFIX_LIMIT):
+        destination = build_nonconflicting_destination(
+            destination_root / source.name,
+            existing_names=existing_names,
+            suffix_index_cache=suffix_index_cache,
+        )
+        if destination == source:
+            return source
+        if destination.name in attempted_names:
+            raise OSError(f"Destino repetido durante retry: {destination}")
+        attempted_names.add(destination.name)
+        try:
+            _move_without_overwrite(source, destination)
+            return destination
+        except FileExistsError:
+            existing_names.add(destination.name)
+            _advance_suffix_cache_after_conflict(
+                source.name,
+                destination.name,
+                suffix_index_cache,
+            )
+    raise OSError(f"Nao foi possivel reservar destino unico para '{source}'")
+
+
+def _advance_suffix_cache_after_conflict(
+    source_name: str,
+    failed_name: str,
+    suffix_index_cache: dict[tuple[str, str], int],
+) -> None:
+    stem, suffix = _split_filename_preserving_suffixes(Path(source_name))
+    cache_key = (stem, suffix)
+    failed_stem, failed_suffix = _split_filename_preserving_suffixes(Path(failed_name))
+    failed_base, separator, number_part = failed_stem.rpartition("__")
+    next_index = 1
+    if (
+        separator
+        and failed_base == stem
+        and failed_suffix == suffix
+        and number_part.isdigit()
+    ):
+        next_index = int(number_part) + 1
+    suffix_index_cache[cache_key] = max(
+        suffix_index_cache.get(cache_key, 1),
+        next_index,
+    )
+
+
+def _move_without_overwrite(source: Path, destination: Path) -> None:
+    try:
+        os.link(source, destination)
+    except FileExistsError:
+        raise
+    except OSError as exc:
+        if exc.errno not in {
+            errno.EXDEV,
+            errno.EPERM,
+            errno.EACCES,
+            errno.ENOTSUP,
+            getattr(errno, "EOPNOTSUPP", errno.ENOTSUP),
+        }:
+            raise
+        temp_path = Path(
+            tempfile.NamedTemporaryFile(
+                dir=destination.parent,
+                prefix=f".{destination.name}.",
+                suffix=".tmp",
+                delete=False,
+            ).name
+        )
+        try:
+            with temp_path.open("wb") as reserved:
+                with source.open("rb") as src:
+                    shutil.copyfileobj(src, reserved)
+            shutil.copystat(source, temp_path, follow_symlinks=True)
+            os.link(temp_path, destination)
+        finally:
+            temp_path.unlink(missing_ok=True)
+    source.unlink()
 
 
 def route_and_move_processed_files(
@@ -168,12 +274,21 @@ def route_and_move_processed_files(
             route_zero_survivor_to_nosurvivor
             and normalized_record_count <= 0
         )
-        destination_root = _destination_root(
-            docs_root,
-            processadas_subdir,
-            nosurvivor_subdir,
-            route_to_nosurvivor=route_to_nosurvivor,
-        )
+        try:
+            destination_root = _destination_root(
+                docs_root,
+                processadas_subdir,
+                nosurvivor_subdir,
+                route_to_nosurvivor=route_to_nosurvivor,
+            )
+        except ValueError:
+            logger.warning(
+                "Destino de pos-processamento fora de docs_dir sera ignorado: %s",
+                processadas_subdir,
+            )
+            moved_paths[file_path] = file_path
+            moved_paths[str(Path(file_path).resolve())] = file_path
+            continue
         existing_names = destination_name_cache.get(destination_root)
         if existing_names is None:
             existing_names = _directory_names(destination_root)

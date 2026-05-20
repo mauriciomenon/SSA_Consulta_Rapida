@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess  # nosec B404
 import sys
+import time
 from dataclasses import dataclass
 from importlib.util import find_spec
 from pathlib import Path
@@ -29,8 +30,15 @@ PAI_XLSX_FILENAME = "pai_sam_api.xlsx"
 PAI_CA_FILENAME = "itaipu_root_ca.pem"
 PAI_CA_MANIFEST_FILENAME = "sam_api_cert.json"
 PAI_EXPORT_XLSX_KEYS = ("data_xlsx", "xlsx")
+PAI_ARTIFACT_FRESHNESS_TOLERANCE_SECONDS = 2.0
 
 CompletedRunner = Callable[..., Any]
+
+
+@dataclass(frozen=True)
+class PaiScrapReportCompleted:
+    stdout: str
+    stderr: str
 
 
 @dataclass(frozen=True)
@@ -124,7 +132,9 @@ def resolve_scrap_report_execution(
                     cwd=root,
                     scrap_report_root=root,
                 )
-            runner = PAI_RUNNER_PYTHONPATH
+            raise FileNotFoundError(
+                f"Runner {PAI_RUNNER_UV!r} solicitado, mas o binario uv nao foi encontrado."
+            )
         if runner != PAI_RUNNER_PYTHONPATH:
             raise ValueError(
                 f"Runner scrap_report invalido em {PAI_SCRAP_REPORT_RUNNER_ENV}: {runner}"
@@ -198,33 +208,33 @@ def run_pai_scrap_report_export(
         build_pai_scrap_report_command(request)
     )
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    completed = runner(
-        list(command),
-        cwd=str(execution.cwd),
-        capture_output=True,
-        text=True,
-        timeout=request.command_timeout_seconds,
-        check=False,
-        env=execution.env,
+    command_started_at = time.time()
+    for artifact in (manifest_path, fallback_xlsx_path):
+        artifact.unlink(missing_ok=True)
+    completed = _run_scrap_report_command(
+        command,
+        execution,
+        timeout_seconds=request.command_timeout_seconds,
+        runner=runner,
+        label="sam-api-flow",
     )
-    stdout = str(getattr(completed, "stdout", "") or "")
-    stderr = str(getattr(completed, "stderr", "") or "")
-    returncode = int(getattr(completed, "returncode", 1))
-    if returncode != 0:
-        raise RuntimeError(
-            "scrap_report sam-api-flow falhou "
-            f"(exit={returncode}): {stderr.strip() or stdout.strip()}"
-        )
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"Manifest PAI nao criado nesta execucao: {manifest_path}")
     manifest = _load_manifest(manifest_path)
     xlsx_path = _resolve_xlsx_from_manifest(manifest, manifest_path, fallback_xlsx_path)
+    if (
+        xlsx_path != fallback_xlsx_path
+        and xlsx_path.stat().st_mtime < command_started_at - PAI_ARTIFACT_FRESHNESS_TOLERANCE_SECONDS
+    ):
+        raise FileNotFoundError(f"XLSX PAI nao criado nesta execucao: {xlsx_path}")
     return PaiScrapReportExport(
         command=command,
         scrap_report_root=execution.scrap_report_root or execution.cwd,
         manifest_path=manifest_path,
         xlsx_path=xlsx_path,
         manifest=manifest,
-        stdout=stdout,
-        stderr=stderr,
+        stdout=completed.stdout,
+        stderr=completed.stderr,
     )
 
 
@@ -243,6 +253,8 @@ def run_pai_scrap_report_ca_export(
     output_dir.mkdir(parents=True, exist_ok=True)
     ca_file = output_dir / PAI_CA_FILENAME
     manifest_path = output_dir / PAI_CA_MANIFEST_FILENAME
+    for artifact in (ca_file, manifest_path):
+        artifact.unlink(missing_ok=True)
     command = (
         *execution.command_prefix,
         "-m",
@@ -255,12 +267,43 @@ def run_pai_scrap_report_ca_export(
         "--timeout-seconds",
         str(request.api_timeout_seconds),
     )
+    completed = _run_scrap_report_command(
+        command,
+        execution,
+        timeout_seconds=request.command_timeout_seconds,
+        runner=runner,
+        label="sam-api-cert",
+    )
+    if not ca_file.is_file():
+        raise FileNotFoundError(f"CA PAI nao criada: {ca_file}")
+    if not manifest_path.is_file():
+        raise FileNotFoundError(
+            f"Manifest de CA PAI nao criado nesta execucao: {manifest_path}"
+        )
+    return PaiScrapReportCertificate(
+        command=command,
+        scrap_report_root=execution.scrap_report_root or execution.cwd,
+        ca_file=ca_file,
+        manifest_path=manifest_path,
+        stdout=completed.stdout,
+        stderr=completed.stderr,
+    )
+
+
+def _run_scrap_report_command(
+    command: tuple[str, ...],
+    execution: PaiScrapReportExecution,
+    *,
+    timeout_seconds: float,
+    runner: CompletedRunner,
+    label: str,
+) -> PaiScrapReportCompleted:
     completed = runner(
         list(command),
         cwd=str(execution.cwd),
         capture_output=True,
         text=True,
-        timeout=request.command_timeout_seconds,
+        timeout=timeout_seconds,
         check=False,
         env=execution.env,
     )
@@ -269,19 +312,10 @@ def run_pai_scrap_report_ca_export(
     returncode = int(getattr(completed, "returncode", 1))
     if returncode != 0:
         raise RuntimeError(
-            "scrap_report sam-api-cert falhou "
+            f"scrap_report {label} falhou "
             f"(exit={returncode}): {stderr.strip() or stdout.strip()}"
         )
-    if not ca_file.is_file():
-        raise FileNotFoundError(f"CA PAI nao criada: {ca_file}")
-    return PaiScrapReportCertificate(
-        command=command,
-        scrap_report_root=execution.scrap_report_root or execution.cwd,
-        ca_file=ca_file,
-        manifest_path=manifest_path,
-        stdout=stdout,
-        stderr=stderr,
-    )
+    return PaiScrapReportCompleted(stdout=stdout, stderr=stderr)
 
 
 def _optional_scrap_report_root(
