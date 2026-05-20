@@ -8,15 +8,17 @@ from pathlib import Path
 from typing import Iterator
 
 import pandas as pd
+from core.pai_xlsx_summary import PaiXlsxSummary
+from core.pai_xlsx_summary import summarize_normalized_pai_frame
 
-PAI_TO_SSA_COLUMN_MAP: tuple[tuple[str, str], ...] = (
-    ("ssa_number", "numero_ssa"),
-    ("localization", "localizacao_codigo"),
-    ("description", "descricao_ssa"),
-    ("year_week", "semana_cadastro"),
-    ("emitter_sector", "setor_emissor"),
-    ("executor_sector", "setor_executor"),
-)
+PAI_TO_SSA_COLUMN_CANDIDATES: dict[str, tuple[str, ...]] = {
+    "numero_ssa": ("ssa_number", "numero_ssa"),
+    "localizacao_codigo": ("localization", "localizacao_codigo"),
+    "descricao_ssa": ("description", "descricao_ssa"),
+    "semana_cadastro": ("year_week", "semana_cadastro"),
+    "setor_emissor": ("emitter_sector", "setor_emissor"),
+    "setor_executor": ("executor_sector", "setor_executor"),
+}
 PAI_DATE_SOURCE_COLUMNS = ("emission_datetime", "issue_datetime")
 PAI_SITUACAO_SOURCE_COLUMNS = ("situation_desc", "process_status")
 PAI_SSA_IMPORT_SUFFIX = "_ssa_import"
@@ -29,12 +31,14 @@ SSA_IMPORT_REQUIRED_COLUMNS = ("numero_ssa", "data_cadastro", "descricao_ssa")
 class PaiXlsxNormalizationResult:
     path: Path
     row_count: int
+    summary: PaiXlsxSummary
 
 
 @dataclass
 class ManagedPaiXlsxNormalization:
     path: Path
     row_count: int
+    summary: PaiXlsxSummary
     keep_file: bool = False
 
     def preserve(self) -> None:
@@ -50,6 +54,7 @@ def managed_pai_xlsx_for_ssa_import(
     managed = ManagedPaiXlsxNormalization(
         path=result.path,
         row_count=result.row_count,
+        summary=result.summary,
     )
     try:
         yield managed
@@ -68,22 +73,22 @@ def normalize_pai_xlsx_for_ssa_import(
     frame = pd.read_excel(source_xlsx)
     normalized = build_normalized_pai_dataframe(frame)
     _add_pai_origin_metadata(normalized, source_xlsx)
+    summary = summarize_normalized_pai_frame(normalized)
     target_xlsx.parent.mkdir(parents=True, exist_ok=True)
     normalized.to_excel(target_xlsx, index=False)
-    return PaiXlsxNormalizationResult(path=target_xlsx, row_count=len(normalized))
+    return PaiXlsxNormalizationResult(
+        path=target_xlsx,
+        row_count=len(normalized),
+        summary=summary,
+    )
 
 
 def build_normalized_pai_dataframe(frame: pd.DataFrame) -> pd.DataFrame:
     normalized = pd.DataFrame()
-    for source_column, target_column in PAI_TO_SSA_COLUMN_MAP:
-        if source_column not in frame.columns:
-            continue
-        if target_column in normalized.columns:
-            normalized[target_column] = normalized[target_column].combine_first(
-                frame[source_column]
-            )
-        else:
-            normalized[target_column] = frame[source_column]
+    for target_column, source_columns in PAI_TO_SSA_COLUMN_CANDIDATES.items():
+        source = _first_available_column(frame, source_columns)
+        if not source.isna().all():
+            normalized[target_column] = source
     normalized["data_cadastro"] = _format_datetime_without_timezone_for_ssa_import(
         _first_available_column(frame, PAI_DATE_SOURCE_COLUMNS)
     )
@@ -102,7 +107,7 @@ def build_normalized_pai_dataframe(frame: pd.DataFrame) -> pd.DataFrame:
     empty_required = [
         column
         for column in SSA_IMPORT_REQUIRED_COLUMNS
-        if normalized[column].isna().all()
+        if column in normalized.columns and normalized[column].isna().all()
     ]
     if empty_required:
         raise ValueError(
@@ -135,14 +140,9 @@ def _format_datetime_without_timezone_for_ssa_import(series: pd.Series) -> pd.Se
 
 
 def _clean_normalized_text_columns(frame: pd.DataFrame) -> None:
-    for column in frame.columns:
-        if frame[column].dtype != "object":
-            continue
-        text_mask = frame[column].map(lambda value: isinstance(value, str))
-        if not bool(text_mask.any()):
-            continue
-        stripped = frame.loc[text_mask, column].str.strip()
-        frame.loc[text_mask, column] = stripped.mask(stripped.eq(""), pd.NA)
+    for column in frame.select_dtypes(include=("object", "string")).columns:
+        stripped = frame[column].astype("string").str.strip()
+        frame[column] = stripped.mask(stripped.eq(""), pd.NA)
 
 
 def _validate_source_excel_path(path: Path) -> None:

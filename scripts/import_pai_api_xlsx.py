@@ -9,18 +9,20 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Mapping, cast
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from core.pai_import_report import build_pai_import_summary_payload
+from core.pai_import_report import evaluate_pai_import_exit_status
 from core.pai_import_service import (
+    PaiImportResult,
     fetch_and_import_pai_xlsx,
     import_prepared_pai_xlsx,
+    preview_only_pai_import_result,
     preview_existing_pai_xlsx,
 )
-from core.pai_xlsx_summary import read_pai_xlsx_summary
 from core.pai_scrap_report_provider import (
     PAI_DEFAULT_API_TIMEOUT_SECONDS,
     PAI_DEFAULT_COMMAND_TIMEOUT_SECONDS,
@@ -99,7 +101,7 @@ def run(args: argparse.Namespace) -> int:
     if source_xlsx is not None:
         preview = preview_existing_pai_xlsx(request, source_xlsx, docs_dir=docs_dir)
         if args.fetch_only:
-            result = _preview_only_result(preview)
+            result = preview_only_pai_import_result(preview)
         else:
             result = import_prepared_pai_xlsx(
                 request,
@@ -124,32 +126,16 @@ def run(args: argparse.Namespace) -> int:
         print(f"Linhas antes da importacao: {result.rows_before_import}")
     if result.rows_after_import is not None:
         print(f"Linhas depois da importacao: {result.rows_after_import}")
-    if args.fetch_only:
-        exit_code = 0
-    elif not result.staged_files:
-        print(f"Falha no staging PAI: {result.staging_summary}", file=sys.stderr)
-        exit_code = 2
-    elif not result.imported:
-        print("Falha ao importar XLSX PAI no banco.", file=sys.stderr)
-        exit_code = 3
-    elif result.rows_after_import is None:
-        print("Falha ao verificar linhas importadas PAI.", file=sys.stderr)
-        exit_code = 5
-    elif result.normalized_rows is None:
-        print("Falha ao verificar linhas normalizadas PAI.", file=sys.stderr)
-        exit_code = 6
-    elif result.normalized_rows > 0 and result.rows_after_import == 0:
+    exit_status = evaluate_pai_import_exit_status(result, fetch_only=bool(args.fetch_only))
+    if exit_status.message_key:
         print(
-            "Falha ao importar XLSX PAI: XLSX tinha dados, mas banco ficou sem linhas.",
-            file=sys.stderr,
+            _format_exit_status_message(
+                exit_status.message_key,
+                exit_status.message_value,
+            ),
+            file=sys.stderr if exit_status.stderr else sys.stdout,
         )
-        exit_code = 4
-    elif result.rows_after_import == 0:
-        print("Importacao PAI concluida sem registros.")
-        exit_code = 0
-    else:
-        print(f"Importacao PAI concluida: {result.staged_files[0]}")
-        exit_code = 0
+    exit_code = exit_status.code
     if exit_code == 0 and args.cleanup_manifest:
         result.export.manifest_path.unlink(missing_ok=True)
         print("Manifest PAI removido.")
@@ -162,83 +148,40 @@ def run(args: argparse.Namespace) -> int:
         )
     return exit_code
 
-
-def _preview_only_result(preview):
-    from core.import_staging import empty_external_staging_summary
-    from core.pai_import_service import PaiImportResult
-
-    return PaiImportResult(
-        export=preview.export,
-        mode="fetch_only",
-        import_xlsx_path=preview.import_xlsx_path,
-        staged_files=(),
-        staging_summary=empty_external_staging_summary(),
-        imported=False,
-        normalized_rows=preview.normalized_rows,
-        rows_before_import=None,
-        rows_after_import=None,
-    )
-
-
 def _write_summary_json(
     path: Path,
-    result,
+    result: PaiImportResult,
     *,
     request: PaiScrapReportRequest,
     source_xlsx: Path | None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    xlsx_summary = read_pai_xlsx_summary(result.import_xlsx_path)
-    requested_filters = {
-        "executor_sectors": list(request.executor_sectors),
-        "emitter_sectors": list(request.emitter_sectors),
-        "ssa_numbers": list(request.ssa_numbers),
-        "number_of_years": request.number_of_years,
-        "limit": request.limit,
-    }
-    payload = {
-        "source_kind": "source-xlsx" if source_xlsx is not None else "api",
-        "requested_filters": requested_filters,
-        "requested_executor_sectors": requested_filters["executor_sectors"],
-        "requested_emitter_sectors": requested_filters["emitter_sectors"],
-        "requested_ssa_numbers": requested_filters["ssa_numbers"],
-        "mode": result.mode,
-        "source_xlsx": str(source_xlsx) if source_xlsx is not None else None,
-        "xlsx_path": str(result.export.xlsx_path),
-        "import_xlsx_path": (
-            str(result.import_xlsx_path) if result.import_xlsx_path else None
-        ),
-        "manifest_path": str(result.export.manifest_path),
-        "imported": bool(result.imported),
-        "normalized_rows": result.normalized_rows,
-        "rows_before_import": result.rows_before_import,
-        "rows_after_import": result.rows_after_import,
-        "staged_files": list(result.staged_files),
-        "staging_summary": result.staging_summary,
-        "ssa_examples": xlsx_summary["ssa_examples"],
-        "rows_by_executor_sector": xlsx_summary["rows_by_executor_sector"],
-        "rows_by_emitter_sector": xlsx_summary["rows_by_emitter_sector"],
-        "rows_by_source_file": xlsx_summary["rows_by_source_file"],
-        "ssa_examples_by_executor_sector": xlsx_summary[
-            "ssa_examples_by_executor_sector"
-        ],
-        "summary_error": xlsx_summary["summary_error"],
-        "warnings": _extract_manifest_warnings(result.export.manifest),
-    }
+    payload = build_pai_import_summary_payload(
+        result,
+        request=request,
+        source_xlsx=source_xlsx,
+    )
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def _extract_manifest_warnings(manifest: object) -> list[str]:
-    if not isinstance(manifest, dict):
-        return []
-    manifest_mapping = cast(Mapping[str, object], manifest)
-    warnings = manifest_mapping.get("warnings")
-    if isinstance(warnings, list):
-        return [str(item) for item in warnings]
-    warning = manifest_mapping.get("warning")
-    if warning:
-        return [str(warning)]
-    return []
+def _format_exit_status_message(message_key: str, value: object) -> str:
+    if message_key == "missing_import_xlsx":
+        return "Falha ao gerar XLSX PAI normalizado."
+    if message_key == "missing_normalized_rows":
+        return "Falha ao verificar linhas normalizadas PAI."
+    if message_key == "staging_failed":
+        return f"Falha no staging PAI: {value}"
+    if message_key == "import_failed":
+        return "Falha ao importar XLSX PAI no banco."
+    if message_key == "missing_imported_rows":
+        return "Falha ao verificar linhas importadas PAI."
+    if message_key == "non_empty_xlsx_empty_db":
+        return "Falha ao importar XLSX PAI: XLSX tinha dados, mas banco ficou sem linhas."
+    if message_key == "empty_import_success":
+        return f"Importacao PAI concluida sem registros: {value}"
+    if message_key == "import_success":
+        return f"Importacao PAI concluida: {value}"
+    return ""
 
 
 def _optional_path(raw_path: str | None) -> Path | None:

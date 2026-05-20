@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, ContextManager
 
@@ -18,6 +18,8 @@ from core.pai_import_verifier import count_imported_ssa_rows
 from core.pai_xlsx_normalizer import default_ssa_import_xlsx_path
 from core.pai_xlsx_normalizer import ManagedPaiXlsxNormalization
 from core.pai_xlsx_normalizer import managed_pai_xlsx_for_ssa_import
+from core.pai_xlsx_summary import PaiXlsxSummary
+from core.pai_xlsx_summary import empty_pai_xlsx_summary
 from utils.path_safety import reserve_unique_path
 
 ImportFunction = Callable[..., bool]
@@ -36,6 +38,7 @@ class PaiImportResult:
     normalized_rows: int | None
     rows_before_import: int | None
     rows_after_import: int | None
+    xlsx_summary: PaiXlsxSummary = field(default_factory=empty_pai_xlsx_summary)
 
 
 @dataclass(frozen=True)
@@ -43,6 +46,22 @@ class PaiFetchedXlsxPreview:
     export: PaiScrapReportExport
     import_xlsx_path: Path
     normalized_rows: int
+    xlsx_summary: PaiXlsxSummary = field(default_factory=empty_pai_xlsx_summary)
+
+
+def preview_only_pai_import_result(preview: PaiFetchedXlsxPreview) -> PaiImportResult:
+    return PaiImportResult(
+        export=preview.export,
+        mode="fetch_only",
+        import_xlsx_path=preview.import_xlsx_path,
+        staged_files=(),
+        staging_summary=empty_external_staging_summary(),
+        imported=False,
+        normalized_rows=preview.normalized_rows,
+        rows_before_import=None,
+        rows_after_import=None,
+        xlsx_summary=preview.xlsx_summary,
+    )
 
 
 def fetch_pai_xlsx_preview(
@@ -101,6 +120,7 @@ def import_prepared_pai_xlsx(
             normalized_rows=preview.normalized_rows,
             rows_before_import=rows_before_import,
             rows_after_import=None,
+            xlsx_summary=preview.xlsx_summary,
         )
     imported = import_files(
         staged_files,
@@ -119,6 +139,7 @@ def import_prepared_pai_xlsx(
         normalized_rows=preview.normalized_rows,
         rows_before_import=rows_before_import,
         rows_after_import=rows_after_import,
+        xlsx_summary=preview.xlsx_summary,
     )
 
 
@@ -134,17 +155,7 @@ def fetch_and_import_pai_xlsx(
 ) -> PaiImportResult:
     preview = _fetch_and_normalize_pai_xlsx(request, docs_dir=docs_dir)
     if fetch_only:
-        return PaiImportResult(
-            export=preview.export,
-            mode="fetch_only",
-            import_xlsx_path=preview.import_xlsx_path,
-            staged_files=(),
-            staging_summary=empty_external_staging_summary(),
-            imported=False,
-            normalized_rows=preview.normalized_rows,
-            rows_before_import=None,
-            rows_after_import=None,
-        )
+        return preview_only_pai_import_result(preview)
 
     return import_prepared_pai_xlsx(
         request,
@@ -177,6 +188,7 @@ def _normalize_export_for_preview(
             export=export,
             import_xlsx_path=normalized_result.path,
             normalized_rows=normalized_result.row_count,
+            xlsx_summary=normalized_result.summary,
         )
 
 
