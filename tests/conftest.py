@@ -34,13 +34,19 @@ from typing import Iterator
 import pandas as pd
 import pytest
 
-from core import config_manager as core_config_manager
 from tests._helpers.db_utils import create_temp_db
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+GUI_FILTER_LOGIC_TEST = "tests/test_gui_filter_logic.py"
 _TEST_SSA_CONFIG_DIR: Path | None = None
 _TRACKED_GUI_PREFS_PATH = PROJECT_ROOT / "config" / "gui_main_preferences.json"
 _TRACKED_GUI_PREFS_BYTES: bytes | None = None
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    items.sort(
+        key=lambda item: 0 if item.path.as_posix().endswith(GUI_FILTER_LOGIC_TEST) else 1
+    )
 
 
 def pytest_sessionstart(session):  # noqa: D401
@@ -71,55 +77,14 @@ def pytest_sessionfinish(session, exitstatus):  # noqa: D401
         and _TRACKED_GUI_PREFS_PATH.exists()
         and _TRACKED_GUI_PREFS_PATH.read_bytes() != _TRACKED_GUI_PREFS_BYTES
     ):
-        _TRACKED_GUI_PREFS_PATH.write_bytes(_TRACKED_GUI_PREFS_BYTES)
+        logging.getLogger(__name__).error(
+            "Tracked GUI preferences changed during tests: %s",
+            _TRACKED_GUI_PREFS_PATH,
+        )
     if _TEST_SSA_CONFIG_DIR is None:
         return
     with suppress(Exception):
         shutil.rmtree(_TEST_SSA_CONFIG_DIR, ignore_errors=True)
-
-
-@pytest.fixture(autouse=True)
-def isolate_gui_preferences_path(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Force GUI preference writes to the per-session temporary config clone."""
-    cfg_dir = os.environ.get("SSA_CONFIG_DIR")
-    if not cfg_dir:
-        yield
-        return
-
-    gui_prefs_path = str(Path(cfg_dir) / "gui_main_preferences.json")
-
-    with suppress(Exception):
-        from gui import gui_ssa
-
-        def _redirect_gui_prefs_write(path, data, *, indent=2, ensure_ascii=False):
-            target_path = path
-            if os.path.basename(str(path)) == "gui_main_preferences.json":
-                target_path = gui_prefs_path
-            return core_config_manager.atomic_write_json_file(
-                str(target_path),
-                data,
-                indent=indent,
-                ensure_ascii=ensure_ascii,
-            )
-
-        monkeypatch.setattr(
-            gui_ssa, "get_gui_main_preferences_path", lambda: gui_prefs_path
-        )
-        monkeypatch.setattr(
-            gui_ssa, "atomic_write_json_file", _redirect_gui_prefs_write
-        )
-
-    with suppress(Exception):
-        from gui.ssa import gui_theme
-
-        monkeypatch.setattr(
-            gui_theme, "get_gui_main_preferences_path", lambda: gui_prefs_path
-        )
-        monkeypatch.setattr(
-            gui_theme, "atomic_write_json_file", _redirect_gui_prefs_write
-        )
-
-    yield
 
 
 @pytest.fixture(scope="function")
