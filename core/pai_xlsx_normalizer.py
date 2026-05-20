@@ -79,7 +79,16 @@ def normalize_pai_xlsx_for_ssa_import(
     _add_pai_origin_metadata(normalized, source_xlsx)
     summary = summarize_normalized_pai_frame(normalized)
     target_xlsx.parent.mkdir(parents=True, exist_ok=True)
-    normalized.to_excel(target_xlsx, index=False)
+    temp_xlsx = target_xlsx.with_name(f".{target_xlsx.name}.tmp")
+    try:
+        if temp_xlsx.exists():
+            temp_xlsx.unlink()
+        normalized.to_excel(temp_xlsx, index=False)
+        temp_xlsx.replace(target_xlsx)
+    except Exception:
+        if temp_xlsx.exists():
+            temp_xlsx.unlink()
+        raise
     return PaiXlsxNormalizationResult(
         path=target_xlsx,
         row_count=len(normalized),
@@ -92,12 +101,12 @@ def build_normalized_pai_dataframe(frame: pd.DataFrame) -> pd.DataFrame:
     for target_column, source_columns in PAI_TO_SSA_COLUMN_CANDIDATES.items():
         present_columns = tuple(column for column in source_columns if column in frame.columns)
         if present_columns:
-            source = _first_available_column(frame, present_columns)
+            source = _coalesce_columns(frame, present_columns)
             normalized_columns[target_column] = source
     normalized_columns["data_cadastro"] = _format_datetime_as_utc_naive_for_ssa_import(
-        _first_available_column(frame, PAI_DATE_SOURCE_COLUMNS)
+        _coalesce_columns(frame, PAI_DATE_SOURCE_COLUMNS)
     )
-    normalized_columns["situacao"] = _first_available_column(
+    normalized_columns["situacao"] = _coalesce_columns(
         frame, PAI_SITUACAO_SOURCE_COLUMNS
     )
     normalized = pd.DataFrame(normalized_columns, index=frame.index)
@@ -131,14 +140,11 @@ def default_ssa_import_xlsx_path(source_xlsx: Path) -> Path:
     return source_xlsx.with_name(f"{source_xlsx.stem}{PAI_SSA_IMPORT_SUFFIX}.xlsx")
 
 
-def _first_available_column(frame: pd.DataFrame, columns: tuple[str, ...]) -> pd.Series:
+def _coalesce_columns(frame: pd.DataFrame, columns: tuple[str, ...]) -> pd.Series:
     present_columns = [column for column in columns if column in frame.columns]
     if not present_columns:
         return pd.Series([pd.NA] * len(frame), index=frame.index)
-    result = frame[present_columns[0]]
-    for column in present_columns[1:]:
-        result = result.combine_first(frame[column])
-    return result
+    return frame[present_columns].bfill(axis=1).iloc[:, 0]
 
 
 def _format_datetime_as_utc_naive_for_ssa_import(series: pd.Series) -> pd.Series:

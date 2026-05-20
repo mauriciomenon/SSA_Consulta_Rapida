@@ -5,6 +5,10 @@ import pandas as pd
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSpinBox, QWidget
 
+PAGE_SIZE_MIN = 10
+PAGE_SIZE_MAX = 500
+DEFAULT_PAGE_SIZE = 50
+
 
 class DataPaginator(QWidget):
     """Widget para paginacao de dados."""
@@ -14,7 +18,11 @@ class DataPaginator(QWidget):
     def __init__(self, df, page_size=50):
         super().__init__()
         self.df = df
-        self.page_size = page_size
+        try:
+            page_size_value = int(page_size)
+        except (TypeError, ValueError):
+            page_size_value = DEFAULT_PAGE_SIZE
+        self.page_size = min(max(page_size_value, PAGE_SIZE_MIN), PAGE_SIZE_MAX)
         self.current_page = 1
         self.total_pages = 1
         self.init_ui()
@@ -38,7 +46,7 @@ class DataPaginator(QWidget):
         page_size_layout = QHBoxLayout()
         page_size_layout.addWidget(QLabel("Linhas por Pagina:"))
         self.page_size_spinbox = QSpinBox()
-        self.page_size_spinbox.setRange(10, 500)
+        self.page_size_spinbox.setRange(PAGE_SIZE_MIN, PAGE_SIZE_MAX)
         self.page_size_spinbox.setSingleStep(10)
         self.page_size_spinbox.setValue(self.page_size)
         self.page_size_spinbox.valueChanged.connect(self.change_page_size)
@@ -71,6 +79,8 @@ class DataPaginator(QWidget):
             self.page_info_label.setText(
                 f"Pagina {self.current_page} de {self.total_pages}"
             )
+        if hasattr(self, "prev_button") and hasattr(self, "next_button"):
+            self.update_buttons()
 
     def update_buttons(self):
         self.prev_button.setEnabled(self.current_page > 1)
@@ -91,7 +101,18 @@ class DataPaginator(QWidget):
             self.page_changed.emit(self.current_page)
 
     def change_page_size(self, new_size):
-        self.page_size = new_size
+        try:
+            page_size_value = int(new_size)
+        except (TypeError, ValueError):
+            return
+        self.page_size = min(max(page_size_value, PAGE_SIZE_MIN), PAGE_SIZE_MAX)
+        if (
+            hasattr(self, "page_size_spinbox")
+            and self.page_size_spinbox.value() != self.page_size
+        ):
+            self.page_size_spinbox.blockSignals(True)
+            self.page_size_spinbox.setValue(self.page_size)
+            self.page_size_spinbox.blockSignals(False)
         # Reset para a pagina 1 ao mudar o tamanho
         self.current_page = 1
         self.update_pagination_info()

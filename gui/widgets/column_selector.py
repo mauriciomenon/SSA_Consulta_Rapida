@@ -61,12 +61,13 @@ class ColumnSelector(QWidget):
         )
         try:
             result = dialog.exec()
-        except Exception:
-            result = dialog.accept() or QDialog.DialogCode.Accepted
+        except Exception as exc:
+            logging.getLogger(__name__).error(
+                "Falha ao executar dialogo de colunas: %s", exc, exc_info=True
+            )
+            return
         if result == QDialog.DialogCode.Accepted:
             new_columns = dialog.get_selected_columns()
-            if not new_columns:
-                new_columns = list(self.default_columns)
             self.selected_internal_columns = new_columns
             for col in self.selected_internal_columns:
                 if col not in self.available_columns:
