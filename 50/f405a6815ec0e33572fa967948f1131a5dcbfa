@@ -1,0 +1,48 @@
+core/pai_import_report.py
+  s_082d1ff7d55d96::t_a0ae710af486ea 42-43,100,106,114-115,121,127,133,140-141,145-146
+  s_082d1ff7d55d96::t_7e6d3b0d4a429a 53
+  s_082d1ff7d55d96::t_fdcba1c00f4950 97-99,101-105,107-108
+  s_082d1ff7d55d96::t_28f615da53142e 1-41,44-52,54-96,109-113,116-120,122-126,128-132,134-136,143-144,147-160
+  s_082d1ff7d55d96::t_0c4db7afd337a8 137-139,142
+core/pai_xlsx_summary.py
+  s_082d1ff7d55d96::t_c2ef14e63df55c 75-103,157-162
+  s_082d1ff7d55d96::t_f06e34bd115181 10,72-74
+  s_082d1ff7d55d96::t_35b43ed78edf37 120,151-152
+  s_082d1ff7d55d96::t_4ad45e2abfb5b1 128
+  s_082d1ff7d55d96::t_cae4738dcec403 5,27-69,136-141,143-149
+  s_082d1ff7d55d96::t_41d95aef1ebbe0 133,163-176
+  s_082d1ff7d55d96::t_55eaba1775e4bb 71,104-106,113,129,132,135,156,179-182,184
+core/pai_import_service.py
+  s_082d1ff7d55d96::t_fab5788472a7ac 5,22,49
+  s_082d1ff7d55d96::t_d8225fa8987a69 21,63,123,142,191
+  s_082d1ff7d55d96::t_aed8354118c8a0 52-62,64,158
+  s_082d1ff7d55d96::t_9da97263dde992 41
+core/pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_2ebb7b96cd7e49 143-145
+  s_082d1ff7d55d96::t_3caa4cf5f20e2d 110
+  s_082d1ff7d55d96::t_a8dacd15cc4a3b 14-21,88-91
+  s_082d1ff7d55d96::t_117540cbdea1df 11-12,34,41,57,76,79-83
+scripts/import_pai_api_xlsx.py
+  s_082d1ff7d55d96::t_926df604016cac 17-18
+  s_082d1ff7d55d96::t_3138e271638bd1 129,136,138
+  s_082d1ff7d55d96::t_e8f8dac63336c3 130,132-135,167-184
+  s_082d1ff7d55d96::t_f4a76237d79e34 159-163
+  s_082d1ff7d55d96::t_17f025dca4b012 20,153
+  s_082d1ff7d55d96::t_38cdc4b3881ffe 23,104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "50f405a6815ec0e33572fa967948f1131a5dcbfa",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
