@@ -9,7 +9,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Mapping, cast
+from typing import Any, Mapping, TypedDict, cast
 
 import pandas as pd
 
@@ -37,6 +37,14 @@ from core.pai_scrap_report_provider import (
 
 SUMMARY_SSA_EXAMPLE_LIMIT = 20
 SUMMARY_GROUP_EXAMPLE_LIMIT = 10
+
+
+class XlsxSummary(TypedDict):
+    ssa_examples: list[str]
+    rows_by_executor_sector: dict[str, int]
+    rows_by_emitter_sector: dict[str, int]
+    rows_by_source_file: dict[str, int]
+    ssa_examples_by_executor_sector: dict[str, list[str]]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -232,20 +240,26 @@ def _write_summary_json(
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def _read_xlsx_summary(path: Path | None) -> dict[str, object]:
-    empty: dict[str, object] = {
-        "ssa_examples": [],
-        "rows_by_executor_sector": {},
-        "rows_by_emitter_sector": {},
-        "rows_by_source_file": {},
-        "ssa_examples_by_executor_sector": {},
-    }
+def _read_xlsx_summary(path: Path | None) -> XlsxSummary:
+    empty = XlsxSummary(
+        ssa_examples=[],
+        rows_by_executor_sector={},
+        rows_by_emitter_sector={},
+        rows_by_source_file={},
+        ssa_examples_by_executor_sector={},
+    )
     if path is None or not path.is_file():
         return empty
     try:
         frame = pd.read_excel(path, dtype=str)
     except (OSError, ValueError) as exc:
-        return {**empty, "ssa_examples": [f"summary_read_error:{type(exc).__name__}"]}
+        return XlsxSummary(
+            ssa_examples=[f"summary_read_error:{type(exc).__name__}"],
+            rows_by_executor_sector={},
+            rows_by_emitter_sector={},
+            rows_by_source_file={},
+            ssa_examples_by_executor_sector={},
+        )
     number_column = _first_existing_column(
         frame.columns,
         ("numero_ssa", "Numero da SSA", "ssa_number", "SSA"),
@@ -264,74 +278,45 @@ def _read_xlsx_summary(path: Path | None) -> dict[str, object]:
     )
     if not any((number_column, executor_column, emitter_column, source_file_column)):
         return empty
-    return _summarize_xlsx_frame(
-        frame,
-        number_column=number_column,
-        executor_column=executor_column,
-        emitter_column=emitter_column,
-        source_file_column=source_file_column,
+
+    if number_column is not None:
+        number_values = frame[number_column].fillna("").astype(str).str.strip()
+    else:
+        number_values = pd.Series("", index=frame.index)
+    if executor_column is not None:
+        executor_values = frame[executor_column].fillna("").astype(str).str.strip()
+    else:
+        executor_values = pd.Series("", index=frame.index)
+    if emitter_column is not None:
+        emitter_values = frame[emitter_column].fillna("").astype(str).str.strip()
+    else:
+        emitter_values = pd.Series("", index=frame.index)
+    if source_file_column is not None:
+        source_file_values = frame[source_file_column].fillna("").astype(str).str.strip()
+    else:
+        source_file_values = pd.Series("", index=frame.index)
+
+    number_non_empty = number_values[number_values != ""]
+    executor_non_empty = executor_values[executor_values != ""]
+    emitter_non_empty = emitter_values[emitter_values != ""]
+    source_file_non_empty = source_file_values[source_file_values != ""]
+    grouped_examples_frame = pd.DataFrame(
+        {"executor": executor_values, "number": number_values}
     )
-
-
-def _summarize_xlsx_frame(
-    frame: pd.DataFrame,
-    *,
-    number_column: str | None,
-    executor_column: str | None,
-    emitter_column: str | None,
-    source_file_column: str | None,
-) -> dict[str, object]:
-    column_index = {str(column): index for index, column in enumerate(frame.columns)}
-    number_index = _column_index(column_index, number_column)
-    executor_index = _column_index(column_index, executor_column)
-    emitter_index = _column_index(column_index, emitter_column)
-    source_file_index = _column_index(column_index, source_file_column)
-    ssa_examples: list[str] = []
-    rows_by_executor_sector: dict[str, int] = {}
-    rows_by_emitter_sector: dict[str, int] = {}
-    rows_by_source_file: dict[str, int] = {}
-    ssa_examples_by_executor_sector: dict[str, list[str]] = {}
-    for row in frame.itertuples(index=False, name=None):
-        number = _clean_row_value(row, number_index)
-        executor = _clean_row_value(row, executor_index)
-        emitter = _clean_row_value(row, emitter_index)
-        source_file = _clean_row_value(row, source_file_index)
-        if number and len(ssa_examples) < SUMMARY_SSA_EXAMPLE_LIMIT:
-            ssa_examples.append(number)
-        _increment_count(rows_by_executor_sector, executor)
-        _increment_count(rows_by_emitter_sector, emitter)
-        _increment_count(rows_by_source_file, source_file)
-        if executor and number:
-            bucket = ssa_examples_by_executor_sector.setdefault(executor, [])
-            if len(bucket) < SUMMARY_GROUP_EXAMPLE_LIMIT:
-                bucket.append(number)
-    return {
-        "ssa_examples": ssa_examples,
-        "rows_by_executor_sector": rows_by_executor_sector,
-        "rows_by_emitter_sector": rows_by_emitter_sector,
-        "rows_by_source_file": rows_by_source_file,
-        "ssa_examples_by_executor_sector": ssa_examples_by_executor_sector,
+    examples_by_executor: dict[str, list[str]] = {
+        executor: group["number"].head(SUMMARY_GROUP_EXAMPLE_LIMIT).tolist()
+        for executor, group in grouped_examples_frame[
+            (grouped_examples_frame["executor"] != "")
+            & (grouped_examples_frame["number"] != "")
+        ].groupby("executor", sort=False)
     }
-
-
-def _column_index(column_index: dict[str, int], column: str | None) -> int | None:
-    if column is None:
-        return None
-    return column_index.get(column)
-
-
-def _clean_row_value(row: tuple[object, ...], index: int | None) -> str:
-    if index is None:
-        return ""
-    value = row[index]
-    if pd.isna(value):
-        return ""
-    return str(value).strip()
-
-
-def _increment_count(target: dict[str, int], value: str) -> None:
-    if value:
-        target[value] = target.get(value, 0) + 1
+    return XlsxSummary(
+        ssa_examples=number_non_empty.head(SUMMARY_SSA_EXAMPLE_LIMIT).tolist(),
+        rows_by_executor_sector=executor_non_empty.value_counts(sort=False).to_dict(),
+        rows_by_emitter_sector=emitter_non_empty.value_counts(sort=False).to_dict(),
+        rows_by_source_file=source_file_non_empty.value_counts(sort=False).to_dict(),
+        ssa_examples_by_executor_sector=examples_by_executor,
+    )
 
 
 def _extract_manifest_warnings(manifest: object) -> list[str]:
