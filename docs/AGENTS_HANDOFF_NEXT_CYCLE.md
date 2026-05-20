@@ -1,27 +1,24 @@
 # AGENTS Handoff For Next Cycle
 
-## CURRENT TRUTH 2026-05-20 00h46
+## CURRENT TRUTH 2026-05-20 15h07
 
 - Branch alvo operacional: `dev`.
-- HEAD operacional atual validado localmente e publicado em `origin/dev`:
-  - `c0888b25a66b59392f4498ba2e4375be76af4504 2026-05-20T00:35:59-03:00 STABILITY_PATCH: stabilize GUI pytest order in CI`.
-  - `50f405a6815ec0e33572fa967948f1131a5dcbfa 2026-05-20T00:12:32-03:00 STABILITY_PATCH: harden PAI import summary contract`.
-  - `2cf14f52469454cdf2fd08e37d7b4cf817ff24ef 2026-05-19T23:08:55-03:00 STABILITY_PATCH: move PAI XLSX summary to streaming reader`.
-- `dev` esta sincronizado com `origin/dev`.
+- Runtime commit validado localmente:
+  - `9d00244571a2b95621e6196daac43ffd474b2bd5 2026-05-20T15:07:13-03:00 STABILITY_PATCH: close merge readiness core findings`.
+- Proximo operador deve confirmar push e checks remotos do head final antes de merge.
 - `main` nao deve ser assumido sincronizado com `dev` sem nova checagem.
-- Workspace local tem apenas residuos fora de escopo:
-  - `.agents/`
-  - `agents.lock`
-  - `config/gui_saved_filters.json`
+- Workspace local tem apenas residuo fora de escopo:
+  - `.antigravitycli/`
 - `.gitignore` ja ignora `.clawpatch/`, `agents.toml` e `tmp/`.
-- Checks GitHub verdes no head publicado `c0888b25a66b59392f4498ba2e4375be76af4504`:
+- Checks GitHub verdes no head anterior publicado `a208159b920976e5d508227609d38296a21761c4`:
   - `minimal-ci`
   - `CodeQL`
   - `Secret Scan`
   - `Automatic Dependency Submission`
+- Checks remotos do novo head devem ser verificados apos push.
 - API PAI:
   - fluxo real habilitado: `consulta`.
-  - smoke real fetch-only validado neste ciclo para `IEE3` com CA exportada via `scrap_report`; ciclo anterior ja validou `IEE3`, `MEL4`, `MEL3`.
+  - smoke real fetch-only validado neste ciclo para `IEE3`, `MEL4`, `MEL3`, `limit=1`, `normalized_rows=1`, `imported=False`, `errors=None`.
   - GUI confirma antes de gravar dados da API no DB.
   - Auto-refresh nao grava no DB automaticamente.
   - `summary-json` registra fonte, filtros pedidos, setores, arquivos origem, contagens e exemplos de SSAs.
@@ -35,11 +32,25 @@
   - `gui/gui_ssa.py`: 3846 linhas.
   - `gui/mixins/filter_gui_ssa_mixin.py`: 3014 linhas.
   - `tests/test_gui_filter_logic.py`: 10372 linhas.
-  - `core/app_logic.py`: 2179 linhas.
+  - `core/app_logic.py`: 2185 linhas.
+- Validacoes locais recentes:
+  - `py_compile`, `ruff`, `ty`, `pytest` focado: `72 passed`.
+  - Smoke GUI offscreen/filtros/detalhes/API: `424 passed, 1 skipped`.
+  - `scripts/run_quality_gates.py`: `overall_status=ok`.
+  - `bandit`, `semgrep p/python`, `detect-secrets` focados: limpos.
+  - `gitleaks protect --staged`: limpo no commit runtime.
+  - `pip-audit`: sem vulnerabilidades conhecidas no export do lock.
+  - `safety`: bloqueado por login/EOF; nao conta como validacao limpa.
+  - `CodeRabbit`: CLI local timeoutou no diff do core; usar no PR se autorizado.
+  - `Gemini`: sem blocker; ajuste sugerido foi aplicado.
+  - `Qwen`: bloqueado por falta de auth type configurado.
+  - `Agy`: blockers apontados foram corrigidos.
+  - `Clawpatch`: achados abertos somente em artefatos `builds/pyoxidizer/.../numpy`, fora do app Python.
 - Bloqueios antes de merge operacional:
-  1. Se PR for autorizado, rodar CodeRabbit no PR.
-  2. Executar build/smoke macOS se o alvo for release de artefato.
-  3. Continuar corte de `filter_gui_ssa_mixin.py` e `SSAMainWindow` se a meta clean-code for criterio bloqueante.
+  1. Push do head atual e verificacao dos checks remotos.
+  2. Se PR for autorizado, rodar CodeRabbit no PR.
+  3. Executar build/smoke macOS se o alvo for release de artefato.
+  4. Continuar corte de `filter_gui_ssa_mixin.py` e `SSAMainWindow` se a meta clean-code for criterio bloqueante.
 - Build macOS/release ainda nao executado neste ciclo.
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
