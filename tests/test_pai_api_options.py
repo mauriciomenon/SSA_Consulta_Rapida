@@ -81,18 +81,26 @@ def test_pai_api_options_reject_scope_without_gui_backend() -> None:
     )
 
 
-def test_pai_api_options_reject_excessive_numeric_values() -> None:
+def test_pai_api_options_allow_consulta_when_stale_config_keeps_planned_scope() -> None:
+    options = normalize_pai_api_options(
+        {PAI_API_DATA_SCOPES_KEY: ["consulta", "executadas"]}
+    )
+
+    assert pai_api_options_error(options) is None
+
+
+def test_pai_api_options_clamp_excessive_numeric_values() -> None:
     options = normalize_pai_api_options(
         {
-            "auto_refresh_interval_minutes": 999999,
-            "limit": 999999,
-            "number_of_years": 999999,
+            PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY: 999999,
+            PAI_API_LIMIT_KEY: 999999,
+            PAI_API_NUMBER_OF_YEARS_KEY: 999999,
         }
     )
 
-    assert options.auto_refresh_interval_minutes == 10
-    assert options.limit == 200
-    assert options.number_of_years == 4
+    assert options.auto_refresh_interval_minutes == PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES
+    assert options.limit == PAI_API_MAX_LIMIT
+    assert options.number_of_years == PAI_API_MAX_NUMBER_OF_YEARS
 
 
 def test_pai_api_options_preserve_valid_numeric_values_within_range() -> None:
@@ -125,7 +133,7 @@ def test_pai_api_options_preserve_numeric_values_at_max() -> None:
     assert options.number_of_years == PAI_API_MAX_NUMBER_OF_YEARS
 
 
-def test_pai_api_options_reject_numeric_values_above_max() -> None:
+def test_pai_api_options_clamp_numeric_values_above_max() -> None:
     options = normalize_pai_api_options(
         {
             PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY: (
@@ -136,6 +144,6 @@ def test_pai_api_options_reject_numeric_values_above_max() -> None:
         }
     )
 
-    assert options.auto_refresh_interval_minutes == 10
-    assert options.limit == 200
-    assert options.number_of_years == 4
+    assert options.auto_refresh_interval_minutes == PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES
+    assert options.limit == PAI_API_MAX_LIMIT
+    assert options.number_of_years == PAI_API_MAX_NUMBER_OF_YEARS

@@ -28,7 +28,7 @@ function Show-Usage {
     Write-Host "  Target: windows"
     Write-Host "  Backend Windows/Debian: nuitka"
     Write-Host "  Pacote Debian: deb"
-    Write-Host "  Instalador Windows: obrigatorio, exceto com -SkipInstaller"
+    Write-Host "  Instalador Windows: ativado por padrao; use -SkipInstaller para desativar"
     Write-Host ""
     Write-Host "Opcoes uteis:"
     Write-Host "  -DryRun              mostra plano sem build/pacote"
@@ -51,16 +51,15 @@ function Join-ReleaseCsv {
         [Parameter(Mandatory = $true)] [string] $DefaultValue
     )
 
-    $values = @(
+    $values = @()
     foreach ($item in $Items) {
         foreach ($token in ($item -split ",")) {
             $value = $token.Trim().ToLowerInvariant()
             if (-not [string]::IsNullOrWhiteSpace($value)) {
-                $value
+                $values += $value
             }
         }
     }
-    )
     if ($values.Count -eq 0) {
         return $DefaultValue
     }
@@ -93,14 +92,6 @@ function ConvertTo-WslPath {
     $drive = $resolved.Substring(0, 1).ToLowerInvariant()
     $tail = $resolved.Substring(2).Replace("\", "/")
     return "/mnt/$drive$tail"
-}
-
-function ConvertTo-BashSingleQuoted {
-    param([Parameter(Mandatory = $true)] [string] $Value)
-
-    $singleQuote = [char]39
-    $escaped = $Value.Replace([string] $singleQuote, "$singleQuote\$singleQuote$singleQuote")
-    return "$singleQuote$escaped$singleQuote"
 }
 
 function Invoke-WindowsRelease {
@@ -139,19 +130,28 @@ function Assert-WindowsBuildExtra {
         $value = $backend.Trim().ToLowerInvariant()
         if ($value -eq "nuitka" -and $modules -notcontains "nuitka") {
             $modules += "nuitka"
+            continue
         }
         if ($value -eq "pyinstaller" -and $modules -notcontains "PyInstaller") {
             $modules += "PyInstaller"
+            continue
+        }
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            throw "Backend Windows invalido: $value. Use nuitka, pyinstaller ou ambos separados por virgula."
         }
     }
     if ($modules.Count -eq 0) {
         return
     }
+    if (-not (Get-Command "uv" -ErrorAction SilentlyContinue)) {
+        throw "uv nao encontrado no PATH. Instale uv ou abra um shell com uv disponivel antes do release."
+    }
 
     $imports = ($modules | ForEach-Object { "import $_" }) -join "; "
+    $uvOutput = @()
     Push-Location $RepoRoot
     try {
-        & uv @(
+        $uvOutput = & uv @(
             "run",
             "--python",
             "3.13",
@@ -160,12 +160,27 @@ function Assert-WindowsBuildExtra {
             "python",
             "-c",
             $imports
-        ) | Out-Null
+        ) 2>&1
         if ($LASTEXITCODE -ne 0) {
-            throw "uv run --extra build falhou."
+            $uvDetails = ($uvOutput | Out-String -Width 240).Trim()
+            if ([string]::IsNullOrWhiteSpace($uvDetails)) {
+                $uvDetails = "uv nao retornou stdout/stderr."
+            }
+            if ($uvDetails.Length -gt 4000) {
+                $uvDetails = $uvDetails.Substring($uvDetails.Length - 4000)
+            }
+            throw "uv run --extra build falhou. Output: $uvDetails"
         }
     } catch {
-        throw "Dependencias de build ausentes ou indisponiveis para ${BackendCsv}. Use 'uv sync --extra build' ou verifique a rede/cache do uv. Detalhe: $($_.Exception.Message)"
+        $detail = $_.Exception.Message
+        $uvDetails = ($uvOutput | Out-String -Width 240).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($uvDetails) -and -not $detail.Contains($uvDetails)) {
+            if ($uvDetails.Length -gt 4000) {
+                $uvDetails = $uvDetails.Substring($uvDetails.Length - 4000)
+            }
+            $detail = "$detail Output: $uvDetails"
+        }
+        throw "Dependencias de build ausentes ou indisponiveis para ${BackendCsv}. Use 'uv sync --extra build' ou verifique a rede/cache do uv. Detalhe: $detail"
     } finally {
         Pop-Location
     }
@@ -181,16 +196,27 @@ function Invoke-DebianReleaseViaWsl {
     if (-not (Get-Command "wsl" -ErrorAction SilentlyContinue)) {
         throw "WSL nao encontrado. Instale WSL ou use -AllowMissingRemote com -Target all."
     }
+    if ($WslDistro -notmatch "^[A-Za-z0-9_.-]+$") {
+        throw "Nome de distro WSL invalido: $WslDistro"
+    }
+    if ($BackendCsv -notmatch "^[A-Za-z0-9_.-]+(,[A-Za-z0-9_.-]+)*$") {
+        throw "Backend Debian invalido: $BackendCsv"
+    }
+    if ($PackageCsv -notmatch "^[A-Za-z0-9_.-]+(,[A-Za-z0-9_.-]+)*$") {
+        throw "Pacote Debian invalido: $PackageCsv"
+    }
 
     $repoRootWsl = ConvertTo-WslPath $RepoRoot
-    $repoRootWslQuoted = ConvertTo-BashSingleQuoted $repoRootWsl
-    $backendQuoted = ConvertTo-BashSingleQuoted $BackendCsv
-    $packageQuoted = ConvertTo-BashSingleQuoted $PackageCsv
-    $dryRunFlag = if ($DryRun) { " --dry-run" } else { "" }
-    $yesFlag = if ($Yes) { " -y" } else { "" }
-    $command = "cd $repoRootWslQuoted && bash dev_env/build/release_debian.sh --backend $backendQuoted --package $packageQuoted$yesFlag$dryRunFlag"
+    $scriptWsl = "$repoRootWsl/dev_env/build/release_debian.sh"
+    $releaseArgs = @("-d", $WslDistro, "--", "bash", $scriptWsl, "--backend", $BackendCsv, "--package", $PackageCsv)
+    if ($Yes) {
+        $releaseArgs += "-y"
+    }
+    if ($DryRun) {
+        $releaseArgs += "--dry-run"
+    }
 
-    & wsl -d $WslDistro -- bash -lc $command
+    & wsl @releaseArgs
     if ($LASTEXITCODE -ne 0) {
         throw "Release Debian via WSL falhou."
     }

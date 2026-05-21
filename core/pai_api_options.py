@@ -60,13 +60,15 @@ def pai_api_options_error(options: PaiApiGuiOptions) -> str | None:
         return "Nenhum setor executor habilitado para API PAI."
     if not options.data_scopes:
         return "Nenhum tipo de dado habilitado para API PAI."
-    planned = planned_scraper_pai_api_data_scopes(options.data_scopes)
-    if planned:
-        labels = ", ".join(pai_api_data_scope_label(value) for value in planned)
-        return f"Tipo de dado ainda nao disponivel: {labels}. Use Consulta."
-    unsupported = unsupported_pai_api_data_scopes(options.data_scopes)
-    if unsupported:
-        labels = ", ".join(pai_api_data_scope_label(value) for value in unsupported)
+    supported = tuple(scope for scope in options.data_scopes if scope in PAI_API_REST_DATA_SCOPES)
+    if supported:
+        return None
+    unavailable = (
+        *planned_scraper_pai_api_data_scopes(options.data_scopes),
+        *unsupported_pai_api_data_scopes(options.data_scopes),
+    )
+    if unavailable:
+        labels = ", ".join(pai_api_data_scope_label(value) for value in unavailable)
         return f"Tipo de dado ainda nao disponivel: {labels}. Use Consulta."
     return None
 
@@ -252,5 +254,5 @@ def _positive_int(value: object, default: int, *, max_value: int | None = None) 
     if parsed <= 0:
         return default
     if max_value is not None and parsed > max_value:
-        return default
+        return max_value
     return parsed

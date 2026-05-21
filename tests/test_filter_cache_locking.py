@@ -14,7 +14,7 @@ class _SpyLock:
         self.enter_count += 1
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(self, exc_type, exc, _tb):
         self.exit_count += 1
         return False
 

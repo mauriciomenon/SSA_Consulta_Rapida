@@ -775,14 +775,12 @@ class TestRescanWorkerIntegration:
         source.write_text("payload", encoding="utf-8")
 
         cancel_state = {"should_stop": False}
-        original_copyfileobj = shutil.copyfileobj
-
-        def _copy_and_cancel(src, dst, *args, **kwargs):
+        def _copy_and_cancel(source, destination):
             cancel_state["should_stop"] = True
-            return original_copyfileobj(src, dst, *args, **kwargs)
+            return shutil.copyfile(source, destination)
 
         with patch(
-            "core.import_staging.shutil.copyfileobj",
+            "core.import_staging.copy_source_without_execute_bit",
             side_effect=_copy_and_cancel,
         ):
             staged_files, summary = stage_external_import_files(

@@ -55,6 +55,7 @@ from core.pai_api_options import PAI_API_ENABLED_KEY, PAI_API_SCRAP_ENABLED_KEY
 from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS  # noqa: E402
 from gui.gui_config import DEFAULT_GUI_SETTINGS  # noqa: E402
+from gui.gui_config import get_gui_main_preferences_path  # noqa: F401 - re-export for compatibility
 from gui.gui_config import load_gui_main_preferences  # noqa: F401 - re-export for compatibility
 from gui.gui_config import GUI_MAIN_PREFERENCES, REQUIRED_DISPLAY_COLUMNS
 
