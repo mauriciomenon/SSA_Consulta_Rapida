@@ -45,6 +45,8 @@ def split_default_filter_markers(term: str) -> tuple[bool, str]:
         candidate = candidate[1:].strip()
     if candidate.startswith("~"):
         return True, candidate[1:].strip()
+    # Search marker terms are parsed by core.search_filter: "=" exact, "^" prefix,
+    # "$" suffix, and trailing "$" suffix. They are not regex candidates here.
     if candidate and (candidate[0] in {"=", "^", "$"} or candidate.endswith("$")):
         return False, ""
     return False, candidate

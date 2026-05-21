@@ -183,8 +183,7 @@ def _extract_manifest_warnings(manifest: object) -> list[str]:
                 or warning_mapping.get("message")
                 or warning_mapping.get("text")
             )
-            if mapped_warning:
-                pending.appendleft(mapped_warning)
+            pending.appendleft(mapped_warning if mapped_warning else str(warning_mapping))
             continue
         if isinstance(value, set):
             container_id = id(value)

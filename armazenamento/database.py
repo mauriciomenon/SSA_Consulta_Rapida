@@ -480,7 +480,7 @@ def count_table_rows(db_path: str, table_name: str) -> int:
     """Count rows in a resolved runtime table."""
     with get_db_connection(db_path) as conn:
         resolved_table_name = resolve_target_table(conn, table_name)
-        query = f"SELECT COUNT(*) FROM {_quote_identifier(resolved_table_name)}"  # nosec B608
+        query = f"SELECT COUNT(*) FROM {_quote_identifier(resolved_table_name)}"  # nosec B608 # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
         row = conn.execute(query).fetchone()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
     return int(row[0] if row else 0)
 
@@ -501,7 +501,7 @@ def count_distinct_derivada_edges(
             GROUP BY numero_ssa, derivada_de
         ) AS db_edges
     """
-    query = query_template.format(table_name=quoted_table_name)  # nosec B608
+    query = query_template.format(table_name=quoted_table_name)  # nosec B608 # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query
     row = conn.execute(query).fetchone()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
     return int(row[0] or 0) if row is not None else 0
 

@@ -5,6 +5,11 @@ from core.pai_api_options import (
     PAI_API_AUTO_REFRESH_ENABLED_KEY,
     PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY,
     PAI_API_DATA_SCOPES_KEY,
+    PAI_API_LIMIT_KEY,
+    PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES,
+    PAI_API_MAX_LIMIT,
+    PAI_API_MAX_NUMBER_OF_YEARS,
+    PAI_API_NUMBER_OF_YEARS_KEY,
     PAI_API_SECTORS_KEY,
     PAI_API_SETTINGS_KEY,
     default_pai_api_settings,
@@ -79,6 +84,52 @@ def test_pai_api_options_reject_excessive_numeric_values() -> None:
             "auto_refresh_interval_minutes": 999999,
             "limit": 999999,
             "number_of_years": 999999,
+        }
+    )
+
+    assert options.auto_refresh_interval_minutes == 10
+    assert options.limit == 200
+    assert options.number_of_years == 4
+
+
+def test_pai_api_options_preserve_valid_numeric_values_within_range() -> None:
+    options = normalize_pai_api_options(
+        {
+            PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY: 60,
+            PAI_API_LIMIT_KEY: 500,
+            PAI_API_NUMBER_OF_YEARS_KEY: 6,
+        }
+    )
+
+    assert options.auto_refresh_interval_minutes == 60
+    assert options.limit == 500
+    assert options.number_of_years == 6
+
+
+def test_pai_api_options_preserve_numeric_values_at_max() -> None:
+    options = normalize_pai_api_options(
+        {
+            PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY: (
+                PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES
+            ),
+            PAI_API_LIMIT_KEY: PAI_API_MAX_LIMIT,
+            PAI_API_NUMBER_OF_YEARS_KEY: PAI_API_MAX_NUMBER_OF_YEARS,
+        }
+    )
+
+    assert options.auto_refresh_interval_minutes == PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES
+    assert options.limit == PAI_API_MAX_LIMIT
+    assert options.number_of_years == PAI_API_MAX_NUMBER_OF_YEARS
+
+
+def test_pai_api_options_reject_numeric_values_above_max() -> None:
+    options = normalize_pai_api_options(
+        {
+            PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY: (
+                PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES + 1
+            ),
+            PAI_API_LIMIT_KEY: PAI_API_MAX_LIMIT + 1,
+            PAI_API_NUMBER_OF_YEARS_KEY: PAI_API_MAX_NUMBER_OF_YEARS + 1,
         }
     )
 
