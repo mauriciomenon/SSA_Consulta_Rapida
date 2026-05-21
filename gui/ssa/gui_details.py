@@ -319,7 +319,7 @@ def _get_df_ssa_series_index(window, df) -> Mapping[str, pd.Series]:
         if cache_enabled and has_cache_manager
         else None
     )
-    if isinstance(cached, dict) and cached:
+    if isinstance(cached, Mapping) and cached:
         return cached
 
     lookup: Mapping[str, pd.Series] = {}
@@ -331,14 +331,12 @@ def _get_df_ssa_series_index(window, df) -> Mapping[str, pd.Series]:
         first_values = normalized_text_series.iloc[first_positions]
         if first_values.empty:
             return lookup
-        row_positions: dict[str, int] = {}
-        for normalized, position in zip(
-            first_values.to_list(), first_positions, strict=True
-        ):
-            normalized_text = str(normalized or "").strip()
-            if not normalized_text:
-                continue
-            row_positions[normalized_text] = int(position)
+        row_positions = {
+            str(normalized): int(position)
+            for normalized, position in zip(
+                first_values.to_list(), first_positions, strict=True
+            )
+        }
         lookup = DetailsSeriesIndex(df, row_positions)
     except Exception as exc:
         logger.debug("Falha ao montar indice SSA por DataFrame: %s", exc)

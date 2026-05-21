@@ -93,14 +93,7 @@ def _apply_post_search_stages(
     logger: Any,
 ) -> pd.DataFrame:
     if callable(apply_advanced_filters):
-        try:
-            filtered = measure_timing(
-                "advanced", lambda: apply_advanced_filters(filtered)
-            )
-        except Exception as exc:
-            logger.warning(
-                "Falha ao aplicar filtros avancados no refresh de filtros: %s", exc
-            )
+        filtered = measure_timing("advanced", lambda: apply_advanced_filters(filtered))
     filtered = measure_timing("column", lambda: apply_column_filters(filtered))
     return filtered
 
@@ -119,14 +112,8 @@ def _apply_terminal_status_stage(
         and not filtered.empty
         and "situacao" in filtered.columns
     ):
-        try:
-            filtered = measure_timing(
-                "exclude",
-                lambda: exclude_terminal_status_rows(filtered),
-            )
-        except Exception as exc:
-            logger.warning(
-                "Falha ao aplicar exclusao SCA/SES/STE no refresh de filtros: %s",
-                exc,
-            )
+        filtered = measure_timing(
+            "exclude",
+            lambda: exclude_terminal_status_rows(filtered),
+        )
     return filtered

@@ -42,6 +42,7 @@ def _collect_summary_removal_action(
         return
     if kind == "dedicated_or":
         plan.clear_dedicated_or_text = True
+        plan.refresh_needed = True
         return
     if kind == "exclude_ste_sca":
         plan.clear_exclude_terminal_statuses = True

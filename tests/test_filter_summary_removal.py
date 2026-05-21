@@ -42,6 +42,13 @@ def test_build_summary_removal_plan_deduplicates_columns_and_keys():
     assert plan.removal_advanced_keys == ["macro_filter"]
 
 
+def test_build_summary_removal_plan_refreshes_after_dedicated_or_removal():
+    plan = build_summary_removal_plan([{"kind": "dedicated_or"}])
+
+    assert plan.clear_dedicated_or_text is True
+    assert plan.refresh_needed is True
+
+
 def test_build_summary_removal_plan_rejects_unknown_action():
     with pytest.raises(ValueError, match="nao suportada"):
         build_summary_removal_plan([{"kind": "unexpected"}])
