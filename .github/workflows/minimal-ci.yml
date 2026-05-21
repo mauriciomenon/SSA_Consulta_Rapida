@@ -52,12 +52,15 @@ jobs:
             echo "Base SHA ${BASE_SHA} is not available after history rewrite; using full tracked file scope."
             git ls-files > .changed_quality_scope
           else
-            git diff --name-only --diff-filter=d "$BASE_SHA" "$HEAD_SHA" > .changed_quality_scope
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA" > .changed_quality_scope
           fi
           : > .changed_python_files
           while IFS= read -r file_path; do
             case "$file_path" in
               *.py)
+                if [ ! -f "$file_path" ]; then
+                  continue
+                fi
                 printf '%s\n' "$file_path" >> .changed_python_files
                 ;;
             esac
