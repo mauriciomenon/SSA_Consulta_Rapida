@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from threading import Lock
 from typing import Any, Dict
 
 from shared.table_display_defaults import DEFAULT_DISPLAY_MAPPINGS
+
+logger = logging.getLogger(__name__)
 
 # Column mappings source of truth lives in config/column_mappings.json.
 _COLUMN_MAPPINGS_PATH = Path(__file__).resolve().parents[1] / "config" / "column_mappings.json"
@@ -27,12 +30,22 @@ def _copy_column_mappings(source: Dict[str, list]) -> Dict[str, list]:
 
 
 def _load_default_column_mappings() -> Dict[str, list]:
+    fallback = _copy_column_mappings(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
     try:
         raw = json.loads(_COLUMN_MAPPINGS_PATH.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return _copy_column_mappings(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
+    except (OSError, ValueError) as exc:
+        logger.error(
+            "Failed to load default column mappings from %s: %s",
+            _COLUMN_MAPPINGS_PATH,
+            exc,
+        )
+        return fallback
     if not isinstance(raw, dict) or not raw:
-        return _copy_column_mappings(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
+        logger.warning(
+            "Default column mappings in %s are empty or invalid; using minimal fallback.",
+            _COLUMN_MAPPINGS_PATH,
+        )
+        return fallback
     cleaned: Dict[str, list] = {}
     for canonical, aliases in raw.items():
         if not isinstance(canonical, str) or not isinstance(aliases, list):
@@ -40,7 +53,13 @@ def _load_default_column_mappings() -> Dict[str, list]:
         valid_aliases = [alias for alias in aliases if isinstance(alias, str) and alias]
         if valid_aliases:
             cleaned[canonical] = valid_aliases
-    return cleaned or _copy_column_mappings(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
+    if not cleaned:
+        logger.warning(
+            "Default column mappings in %s contain no usable aliases; using minimal fallback.",
+            _COLUMN_MAPPINGS_PATH,
+        )
+        return fallback
+    return cleaned
 
 
 def get_default_column_mappings() -> Dict[str, list]:

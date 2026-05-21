@@ -103,7 +103,7 @@ def move_file_after_import(
     docs_root = Path(docs_dir).resolve()
     if not source.exists():
         logger.warning("Arquivo para pos-processamento nao encontrado: %s", file_path)
-        return file_path
+        return str(source)
     try:
         source.relative_to(docs_root)
     except ValueError:
@@ -111,7 +111,7 @@ def move_file_after_import(
             "Arquivo fora de docs_dir nao sera movido no pos-processamento: %s",
             file_path,
         )
-        return file_path
+        return str(source)
 
     destination_root = destination_root.resolve()
     try:
@@ -121,9 +121,9 @@ def move_file_after_import(
             "Destino de pos-processamento fora de docs_dir sera ignorado: %s",
             destination_root,
         )
-        return file_path
+        return None
     if source.is_relative_to(destination_root):
-        return file_path
+        return str(source)
     destination_root.mkdir(parents=True, exist_ok=True)
     if existing_destination_names is None:
         existing_destination_names = _directory_names(destination_root)
@@ -202,7 +202,8 @@ def _advance_suffix_cache_after_conflict(
     cache_key = (stem, suffix)
     failed_stem, failed_suffix = _split_filename_preserving_suffixes(Path(failed_name))
     failed_base, separator, number_part = failed_stem.rpartition("__")
-    next_index = 1
+    current_index = suffix_index_cache.get(cache_key, 1)
+    next_index = current_index
     if (
         separator
         and failed_base == stem
@@ -210,8 +211,11 @@ def _advance_suffix_cache_after_conflict(
         and number_part.isdigit()
     ):
         next_index = int(number_part) + 1
+    elif failed_name != source_name:
+        next_index = current_index + 1
+    minimum_next_index = current_index if failed_name == source_name else current_index + 1
     suffix_index_cache[cache_key] = max(
-        suffix_index_cache.get(cache_key, 1),
+        minimum_next_index,
         next_index,
     )
 

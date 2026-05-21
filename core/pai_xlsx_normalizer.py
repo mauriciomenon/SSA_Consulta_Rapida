@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+import errno
 import logging
 import os
 from pathlib import Path
@@ -26,6 +27,8 @@ PAI_DATE_SOURCE_COLUMNS = ("emission_datetime", "issue_datetime")
 PAI_SITUACAO_SOURCE_COLUMNS = ("situation_desc", "process_status")
 PAI_SSA_IMPORT_SUFFIX = "_ssa_import"
 PAI_SOURCE_SYSTEM = "PAI"
+_WINDOWS_REPLACE_XLSX_ATTEMPTS = 8
+_WINDOWS_REPLACE_RETRY_ERRNOS = {errno.EACCES, errno.EPERM}
 PAI_SUPPORTED_EXCEL_SUFFIXES = (".xls", ".xlsx", ".xlsm")
 SSA_IMPORT_REQUIRED_COLUMNS = ("numero_ssa", "data_cadastro", "descricao_ssa")
 logger = logging.getLogger(__name__)
@@ -102,18 +105,31 @@ def normalize_pai_xlsx_for_ssa_import(
 
 
 def _replace_xlsx_with_retry(source: Path, target: Path) -> None:
-    last_error: OSError | None = None
-    for attempt in range(3):
+    if os.name != "nt":
+        os.replace(source, target)
+        return
+
+    for attempt in range(_WINDOWS_REPLACE_XLSX_ATTEMPTS):
         try:
             os.replace(source, target)
             return
         except OSError as exc:
-            last_error = exc
-            if attempt == 2:
-                break
-            time.sleep(0.1 * (attempt + 1))
-    if last_error is not None:
-        raise last_error
+            retry_locked_target = (
+                exc.errno in _WINDOWS_REPLACE_RETRY_ERRNOS
+                and attempt < _WINDOWS_REPLACE_XLSX_ATTEMPTS - 1
+            )
+            if not retry_locked_target:
+                raise
+            logger.debug(
+                "Retrying locked PAI XLSX replace attempt %s/%s for '%s' -> '%s': errno=%s error=%s",
+                attempt + 1,
+                _WINDOWS_REPLACE_XLSX_ATTEMPTS,
+                source,
+                target,
+                exc.errno,
+                exc,
+            )
+            time.sleep(min(1.0, 0.1 * (2**attempt)))
 
 
 def build_normalized_pai_dataframe(frame: pd.DataFrame) -> pd.DataFrame:
@@ -170,7 +186,7 @@ def _coalesce_columns(frame: pd.DataFrame, columns: tuple[str, ...]) -> pd.Serie
 def _format_datetime_as_utc_naive_for_ssa_import(series: pd.Series) -> pd.Series:
     """Normalize PAI timestamps to UTC and emit SSA-compatible naive text."""
     parsed = pd.to_datetime(series, errors="coerce", utc=True)
-    formatted = parsed.dt.tz_localize(None).dt.strftime("%Y-%m-%d %H:%M:%S")
+    formatted = parsed.dt.tz_convert(None).dt.strftime("%Y-%m-%d %H:%M:%S")
     return formatted.where(parsed.notna(), pd.NA)
 
 
