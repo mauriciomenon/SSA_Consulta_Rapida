@@ -178,7 +178,13 @@ def _move_to_available_destination(
         if destination == source:
             return source
         if destination.name in attempted_names:
-            raise OSError(f"Destino repetido durante retry: {destination}")
+            attempted_text = ", ".join(sorted(attempted_names))
+            raise OSError(
+                "Destino repetido durante retry pos-importacao: "
+                f"source={source}, destination_root={destination_root}, "
+                f"attempt={len(attempted_names) + 1}, destination={destination}, "
+                f"attempted_names=[{attempted_text}]"
+            )
         attempted_names.add(destination.name)
         try:
             _move_without_overwrite(source, destination)

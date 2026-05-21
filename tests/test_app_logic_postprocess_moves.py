@@ -4,6 +4,8 @@ import errno
 import os
 from pathlib import Path
 
+import pytest
+
 from core import import_postprocess
 from core.app_logic import _apply_postprocess_file_moves
 from core.import_postprocess import move_file_after_import
@@ -229,3 +231,43 @@ def test_move_file_after_import_retries_next_suffix_after_generated_name_collisi
     assert attempted == ["same.xlsx", "same__1.xlsx", "same__2.xlsx"]
     assert result == str((destination_root / "same__2.xlsx").resolve())
     assert not source.exists()
+
+
+def test_move_to_available_destination_repeated_name_error_has_context(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    destination_root = docs_dir / "processadas"
+    destination_root.mkdir(parents=True)
+    source = docs_dir / "same.xlsx"
+    source.write_text("new", encoding="utf-8")
+    repeated_destination = destination_root / "same.xlsx"
+
+    monkeypatch.setattr(
+        import_postprocess,
+        "build_nonconflicting_destination",
+        lambda *_args, **_kwargs: repeated_destination,
+    )
+
+    def _always_collide(*_args, **_kwargs) -> None:
+        raise FileExistsError(repeated_destination)
+
+    monkeypatch.setattr(import_postprocess, "_move_without_overwrite", _always_collide)
+
+    reserved_names: set[str] = set()
+    suffix_cache: dict[tuple[str, str], int] = {}
+
+    with pytest.raises(OSError) as exc_info:
+        import_postprocess._move_to_available_destination(
+            source,
+            destination_root,
+            reserved_names,
+            suffix_cache,
+        )
+
+    message = str(exc_info.value)
+    assert "source=" in message
+    assert "destination_root=" in message
+    assert "attempt=2" in message
+    assert "same.xlsx" in message
+    assert source.read_text(encoding="utf-8") == "new"

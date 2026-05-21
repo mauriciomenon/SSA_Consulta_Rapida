@@ -82,6 +82,7 @@ def _verify_special_sheet_coverage(
     reported_files = _absolute_path_set(final_report.get("sheet_files") or [])
     expected_files = _absolute_path_set(special_files)
     missing_files = expected_files - reported_files
+    unexpected_files = reported_files - expected_files
     if missing_files:
         missing_basenames = ", ".join(os.path.basename(path) for path in sorted(missing_files))
         raise RuntimeError(
@@ -89,6 +90,16 @@ def _verify_special_sheet_coverage(
             f"(esperado={len(expected_files)}, "
             f"recebido={len(reported_files)}, faltando={len(missing_files)}: "
             f"{missing_basenames})."
+        )
+    if unexpected_files:
+        unexpected_basenames = ", ".join(
+            os.path.basename(path) for path in sorted(unexpected_files)
+        )
+        raise RuntimeError(
+            "Sync de planilhas especiais retornou arquivos nao solicitados "
+            f"(esperado={len(expected_files)}, "
+            f"recebido={len(reported_files)}, extras={len(unexpected_files)}: "
+            f"{unexpected_basenames})."
         )
     sheet_file_reports = final_report.get("sheet_file_reports") or []
     reports_by_file = {}

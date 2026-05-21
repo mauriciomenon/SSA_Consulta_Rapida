@@ -16,6 +16,7 @@ from gui.ssa.derivadas_sync_job import (
 
 DERIVADAS_SYNC_POLL_INTERVAL_MS = 500
 DERIVADAS_SYNC_TIMEOUT_SEC = 30 * 60
+DERIVADAS_SYNC_TIMEOUT_ERROR = "Timeout ao atualizar derivadas manualmente."
 DERIVADAS_SYNC_DB_STATUS = "Status: Atualizando derivadas via DB..."
 DERIVADAS_SYNC_SHEET_STATUS_TEMPLATE = (
     "Status: Atualizando derivadas via planilhas especiais ({count})..."
@@ -235,8 +236,9 @@ def _start_async_derivadas_sync(
     started = monotonic()
 
     def _set_phase_status(text: str) -> None:
-        state.phase_status = str(text or "")
-        _sync_state(sync_state_callback)
+        with sync_lock:
+            if state.running:
+                state.phase_status = str(text or "")
 
     def _work() -> None:
         try:
@@ -249,33 +251,38 @@ def _start_async_derivadas_sync(
         except Exception as exc:
             result = {"ok": False, "error": str(exc)}
         with sync_lock:
-            state.pending_result = result
+            if state.running:
+                state.pending_result = result
         _sync_state(sync_state_callback)
 
     def _poll_delivery() -> None:
         if not _window_alive(ui.message_parent, sip_module):
             _clear_abandoned_derivadas_sync(state, sync_lock, sync_state_callback)
             return
-        phase_status = str(state.phase_status or "")
-        if phase_status and phase_status != state.last_status_text:
-            _set_status_label(ui, state, phase_status)
         pending: dict[str, Any] | None
         with sync_lock:
+            phase_status = str(state.phase_status or "")
             pending = state.pending_result
             if pending is not None:
                 state.pending_result = None
+        if phase_status and phase_status != state.last_status_text:
+            _set_status_label(ui, state, phase_status)
         if pending is None:
             if monotonic() - started > DERIVADAS_SYNC_TIMEOUT_SEC:
-                timeout_result = {
-                    "ok": False,
-                    "error": "Timeout ao atualizar derivadas manualmente.",
-                }
+                with sync_lock:
+                    pending = state.pending_result
+                    if pending is not None:
+                        state.pending_result = None
+                    state.mark_finished()
                 _sync_state(sync_state_callback)
-                finalize_result(ui.message_parent, timeout_result)
+                result = pending or {"ok": False, "error": DERIVADAS_SYNC_TIMEOUT_ERROR}
+                finalize_result(ui.message_parent, result)
                 return
             if state.running:
                 qtimer.singleShot(DERIVADAS_SYNC_POLL_INTERVAL_MS, _poll_delivery)
             return
+        with sync_lock:
+            state.mark_finished()
         _sync_state(sync_state_callback)
         finalize_result(ui.message_parent, pending)
 
@@ -422,11 +429,15 @@ def _capture_previous_ui_state(ui: DerivadasSyncUiRefs) -> dict[str, Any]:
     previous_progress_value = (
         int(ui.progress_bar.value()) if ui.progress_bar is not None else 0
     )
+    previous_update_enabled = (
+        bool(ui.update_button.isEnabled()) if ui.update_button is not None else True
+    )
     return {
         "status": previous_status,
         "progress_visible": previous_progress_visible,
         "progress_range": previous_progress_range,
         "progress_value": previous_progress_value,
+        "update_enabled": previous_update_enabled,
     }
 
 
@@ -458,7 +469,7 @@ def _restore_derivadas_sync_ui_state(
 ) -> None:
     try:
         if ui.update_button is not None:
-            ui.update_button.setEnabled(True)
+            ui.update_button.setEnabled(bool(previous.get("update_enabled", True)))
         if ui.progress_bar is not None:
             ui.progress_bar.setVisible(bool(previous.get("progress_visible")))
             progress_range = previous.get("progress_range") or (0, 0)

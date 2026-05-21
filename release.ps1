@@ -101,7 +101,7 @@ function Invoke-WindowsRelease {
     )
 
     Assert-WindowsReleaseHost
-    Assert-WindowsBuildExtra $RepoRoot $BackendCsv
+    Initialize-WindowsBuildExtra $RepoRoot $BackendCsv
     $script = Join-Path $RepoRoot "dev_env\build\release_windows.ps1"
     $releaseArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $script, "-Backend", $BackendCsv)
     if ($Yes) {
@@ -119,25 +119,31 @@ function Invoke-WindowsRelease {
     }
 }
 
-function Assert-WindowsBuildExtra {
+function Initialize-WindowsBuildExtra {
     param(
         [Parameter(Mandatory = $true)] [string] $RepoRoot,
         [Parameter(Mandatory = $true)] [string] $BackendCsv
     )
 
+    $moduleByBackend = @{
+        nuitka = "nuitka"
+        pyinstaller = "PyInstaller"
+    }
     $modules = @()
     foreach ($backend in ($BackendCsv -split ",")) {
         $value = $backend.Trim().ToLowerInvariant()
-        if ($value -eq "nuitka" -and $modules -notcontains "nuitka") {
-            $modules += "nuitka"
+        if ($moduleByBackend.ContainsKey($value)) {
+            $moduleName = $moduleByBackend[$value]
+            if ($modules -notcontains $moduleName) {
+                $modules += $moduleName
+            }
             continue
         }
-        if ($value -eq "pyinstaller" -and $modules -notcontains "PyInstaller") {
-            $modules += "PyInstaller"
+        if ($value -eq "pyoxidizer") {
             continue
         }
         if (-not [string]::IsNullOrWhiteSpace($value)) {
-            throw "Backend Windows invalido: $value. Use nuitka, pyinstaller ou ambos separados por virgula."
+            throw "Backend Windows invalido: $value. Use nuitka, pyinstaller, pyoxidizer ou combinacoes separadas por virgula."
         }
     }
     if ($modules.Count -eq 0) {

@@ -38,8 +38,11 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
     assert '"-Backend", $BackendCsv' in script
     assert "$releaseArgs = @(" in script
     assert "& powershell @releaseArgs" in script
-    assert "Assert-WindowsBuildExtra $RepoRoot $BackendCsv" in script
+    assert "Initialize-WindowsBuildExtra $RepoRoot $BackendCsv" in script
     assert "Backend Windows invalido" in script
+    assert "pyoxidizer ou combinacoes" in script
+    assert '$value -eq "pyoxidizer"' in script
+    assert "uv tool run --python 3.13 --from pyoxidizer" not in script
     assert '"--extra"' in script
     assert '"build"' in script
     assert "$args = @(" not in script

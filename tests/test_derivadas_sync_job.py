@@ -6,19 +6,16 @@ from typing import Any
 from gui.ssa.derivadas_sync_job import execute_derivadas_sync_job
 
 
-def test_derivadas_sync_job_accepts_extra_reported_sheet_files(
+def test_derivadas_sync_job_rejects_extra_reported_sheet_files(
     tmp_path: Path,
 ) -> None:
-    """Verify extra reported sheet files do not invalidate required coverage."""
     expected_sheet = tmp_path / "expected.xlsx"
     extra_sheet = tmp_path / "extra.xlsx"
-    db_merged_edges = 2
-    sheet_merged_edges = 3
 
     def _sync_derivadas(**kwargs: Any) -> dict[str, Any]:
         if kwargs.get("include_db_source"):
             return {
-                "merge_stats": {"merged_edges": db_merged_edges},
+                "merge_stats": {"merged_edges": 0},
                 "db_stats": {"accepted_edges": 2},
                 "sheet_stats": {"accepted_edges": 0},
             }
@@ -36,7 +33,7 @@ def test_derivadas_sync_job_accepts_extra_reported_sheet_files(
                     "stats": {"accepted_edges": 1},
                 },
             ],
-            "merge_stats": {"merged_edges": sheet_merged_edges},
+            "merge_stats": {"merged_edges": 0},
             "db_stats": {"accepted_edges": 2},
             "sheet_stats": {"accepted_edges": 2},
         }
@@ -53,9 +50,6 @@ def test_derivadas_sync_job_accepts_extra_reported_sheet_files(
         },
     )
 
-    assert result == {
-        "ok": True,
-        "db_edges": 2,
-        "sheet_edges": 2,
-        "merged_edges": db_merged_edges + sheet_merged_edges,
-    }
+    assert result["ok"] is False
+    assert "arquivos nao solicitados" in str(result["error"])
+    assert "extra.xlsx" in str(result["error"])
