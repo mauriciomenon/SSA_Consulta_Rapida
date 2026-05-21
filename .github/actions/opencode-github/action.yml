@@ -42,18 +42,21 @@ runs:
         path: ~/.opencode/npm
         key: opencode-${{ runner.os }}-${{ runner.arch }}-${{ inputs.opencode_version }}
 
-    - name: Install opencode
+    - name: Skip dynamic opencode install
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         set -euo pipefail
-        npm install --global --prefix "$HOME/.opencode/npm" "opencode-ai@${{ inputs.opencode_version }}" --no-audit --no-fund
+        echo "::error::Dynamic npm package installation is disabled for this repository. Preload the opencode cache before enabling this review."
+        exit 1
 
     - name: Add opencode to PATH
+      if: steps.cache.outputs.cache-hit == 'true'
       shell: bash
       run: echo "$HOME/.opencode/npm/bin" >> "${GITHUB_PATH}"
 
     - name: Run opencode review
+      if: steps.cache.outputs.cache-hit == 'true'
       shell: bash
       id: run_opencode
       run: python scripts/ci/opencode_pr_review.py
