@@ -1,0 +1,27 @@
+armazenamento/database.py
+  s_082d1ff7d55d96::t_489b1aa7a8fb6c 483,504
+tests/test_config_update.py
+  s_082d1ff7d55d96::t_489b1aa7a8fb6c 16-56
+tests/test_pai_api_options.py
+  s_082d1ff7d55d96::t_489b1aa7a8fb6c 8-12,93-132
+core/config_update.py
+  s_082d1ff7d55d96::t_489b1aa7a8fb6c 48-49
+core/pai_import_report.py
+  s_082d1ff7d55d96::t_489b1aa7a8fb6c 186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "be4b03cfc6efee0d07d4bcd42249a9e75ac6a181",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
