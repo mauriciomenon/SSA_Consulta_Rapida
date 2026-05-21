@@ -1,0 +1,90 @@
+scripts/analyze_perf_history.py
+  s_082d1ff7d55d96::t_02ccb7bbe52f5c 29,38
+  s_082d1ff7d55d96::t_a43a15253223d9 60-63
+  s_082d1ff7d55d96::t_7e42ffc6786485 64-76
+  s_082d1ff7d55d96::t_8264376398657b 27,43-46,138-139,141
+  s_082d1ff7d55d96::t_ad3e77a6d63d73 77-82,93-98
+  s_082d1ff7d55d96::t_9fc5fa464e1e08 30,40,42,145,149
+  s_082d1ff7d55d96::t_0e8c030fb17d44 83-88
+  s_082d1ff7d55d96::t_d5a1d9f38ab6b4 115-121,123
+  s_082d1ff7d55d96::t_ef889886d1719e 125-133
+  s_082d1ff7d55d96::t_5dcffcc5108ab1 41
+  s_082d1ff7d55d96::t_1340e7dbae8ec8 12,122
+  s_082d1ff7d55d96::t_084a022ac43842 10,32,39
+  s_082d1ff7d55d96::t_8986dd14a39627 15-16,107
+scripts/pytest_stream_common.py
+  s_082d1ff7d55d96::t_d040a59b95b3a9 432,434
+  s_082d1ff7d55d96::t_25a93b9f6dcb88 265
+  s_082d1ff7d55d96::t_b13f3fa1e139cc 379,400,425
+  s_082d1ff7d55d96::t_36e2f90b689f68 16
+  s_082d1ff7d55d96::t_0b9549d3a363e0 5,20,178-179
+  s_082d1ff7d55d96::t_428e7c4d258ee0 36-37
+  s_082d1ff7d55d96::t_3c27dab567fab3 535,539-540,542,546-547
+  s_082d1ff7d55d96::t_dae1dff684bafb 587
+  s_082d1ff7d55d96::t_d5a1d9f38ab6b4 6,242
+  s_082d1ff7d55d96::t_efefe203ce45e5 460
+  s_082d1ff7d55d96::t_ae6be8b7ed7b08 578-579,594-595,604-605,656-657
+  s_082d1ff7d55d96::t_084a022ac43842 711-715
+scripts/run_all_tests.py
+  s_082d1ff7d55d96::t_31d7a59e1fcb5a 33
+  s_082d1ff7d55d96::t_ae6be8b7ed7b08 24,55-59,61-64
+  s_082d1ff7d55d96::t_a0f9879134531a 18,25
+  s_082d1ff7d55d96::t_eccca5a6220708 47,51-53,60
+  s_082d1ff7d55d96::t_2946fb19e504e9 20,50
+  s_082d1ff7d55d96::t_0e8c030fb17d44 48
+tests/test_stream_log_wrapper_guards.py
+  s_082d1ff7d55d96::t_0b9549d3a363e0 90-100
+scripts/pwsh_discovery.py
+  s_082d1ff7d55d96::t_084a022ac43842 9-13,56-60,87,114-115,192-193
+  s_082d1ff7d55d96::t_d6229676d373ab 46-53,76,97,102,130,159,206
+  s_082d1ff7d55d96::t_dc272fb4c5632a 75
+  s_082d1ff7d55d96::t_ad3e77a6d63d73 81
+  s_082d1ff7d55d96::t_1340e7dbae8ec8 132-143,175-191
+  s_082d1ff7d55d96::t_4f2631e3c0db1d 77-80,82
+  s_082d1ff7d55d96::t_7a6b173a2913df 41-42
+  s_082d1ff7d55d96::t_408fc3bbb95e48 88
+  s_082d1ff7d55d96::t_0e8c030fb17d44 69
+  s_082d1ff7d55d96::t_c4fad5aa63cc4c 158,160-174
+  s_082d1ff7d55d96::t_36e2f90b689f68 25-40,43-45,63,89-95,98,103-104
+  s_082d1ff7d55d96::t_f83bb3cb0f4bd8 14-15,96,99-101
+  s_082d1ff7d55d96::t_938f0cccf4ff83 241-254
+scripts/remove_emojis.py
+  s_082d1ff7d55d96::t_58c482fa7ccdd1 120-121,132-135
+  s_082d1ff7d55d96::t_b2b7ae4979580c 166
+  s_082d1ff7d55d96::t_c7e3bec0f2cb97 15,69,73
+  s_082d1ff7d55d96::t_31d7a59e1fcb5a 49-51
+  s_082d1ff7d55d96::t_2946fb19e504e9 106-108
+  s_082d1ff7d55d96::t_27061648287ec2 113
+  s_082d1ff7d55d96::t_938f0cccf4ff83 91-92
+  s_082d1ff7d55d96::t_e366128974bcf6 76-83,85-87,94,119,122-131
+  s_082d1ff7d55d96::t_084a022ac43842 17
+  s_082d1ff7d55d96::t_efefe203ce45e5 54-65
+  s_082d1ff7d55d96::t_0cd8bcf260d607 19,98
+  s_082d1ff7d55d96::t_b0a6685e8edcf5 146,155-159
+  s_082d1ff7d55d96::t_a6776b0d9a7be6 25-39
+  s_082d1ff7d55d96::t_b0741f094c961d 18,20,95-97,144,147-152,154,168-169
+  s_082d1ff7d55d96::t_428e7c4d258ee0 43-45,47
+  s_082d1ff7d55d96::t_0e8c030fb17d44 140-143,145,153,160-165,167,170-174
+scripts/check_whitelist_demo.py
+  s_082d1ff7d55d96::t_556fa1c84e183b 25
+  s_082d1ff7d55d96::t_c4fad5aa63cc4c 24
+  s_082d1ff7d55d96::t_084a022ac43842 30-34
+  s_082d1ff7d55d96::t_efefe203ce45e5 26
+  s_082d1ff7d55d96::t_0e8c030fb17d44 35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "76cf47b96c836549bd3429217ef0a6c1543f8655",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
