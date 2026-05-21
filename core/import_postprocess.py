@@ -213,7 +213,7 @@ def _advance_suffix_cache_after_conflict(
         next_index = int(number_part) + 1
     elif failed_name != source_name:
         next_index = current_index + 1
-    minimum_next_index = current_index if failed_name == source_name else current_index + 1
+    minimum_next_index = current_index
     suffix_index_cache[cache_key] = max(
         minimum_next_index,
         next_index,
@@ -254,8 +254,8 @@ def _move_without_overwrite(source: Path, destination: Path) -> None:
                 os.close(destination_fd)
                 destination_fd = None
                 raise
+            destination_fd = None
             with destination_stream as reserved:
-                destination_fd = None
                 with source.open("rb") as src:
                     shutil.copyfileobj(src, reserved)
                 reserved.flush()

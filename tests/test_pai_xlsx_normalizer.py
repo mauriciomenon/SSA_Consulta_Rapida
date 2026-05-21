@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import errno
 from pathlib import Path
+from zipfile import BadZipFile
 
 import pytest
 
@@ -13,6 +14,21 @@ from core.pai_xlsx_normalizer import normalize_pai_xlsx_for_ssa_import
 def test_normalize_pai_xlsx_reports_read_failure(tmp_path: Path) -> None:
     source = tmp_path / "broken.xlsx"
     source.write_text("not an xlsx", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Falha ao ler XLSX PAI"):
+        normalize_pai_xlsx_for_ssa_import(source, tmp_path / "out.xlsx")
+
+
+def test_normalize_pai_xlsx_reports_bad_zip_read_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "broken.xlsx"
+    source.write_bytes(b"broken")
+
+    def _raise_bad_zip(*_args, **_kwargs):
+        raise BadZipFile("bad zip")
+
+    monkeypatch.setattr(pai_xlsx_normalizer.pd, "read_excel", _raise_bad_zip)
 
     with pytest.raises(ValueError, match="Falha ao ler XLSX PAI"):
         normalize_pai_xlsx_for_ssa_import(source, tmp_path / "out.xlsx")

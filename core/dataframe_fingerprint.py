@@ -58,12 +58,16 @@ def build_dataframe_filter_hash(dataframe: pd.DataFrame | None) -> str:
         ).to_numpy(dtype="uint64", copy=False)
         hasher = hashlib.blake2b(digest_size=8)
         hasher.update(repr(tuple(dataframe.shape)).encode("utf-8"))
-        column_blob = "\x1f".join(str(column) for column in dataframe.columns)
-        dtype_blob = "\x1f".join(str(dtype) for dtype in dataframe.dtypes)
         hasher.update(b"\x00cols:")
-        hasher.update(column_blob.encode("utf-8", errors="replace"))
+        for column in dataframe.columns:
+            encoded_column = str(column).encode("utf-8", errors="replace")
+            hasher.update(len(encoded_column).to_bytes(4, "big"))
+            hasher.update(encoded_column)
         hasher.update(b"\x00dtypes:")
-        hasher.update(dtype_blob.encode("utf-8", errors="replace"))
+        for dtype in dataframe.dtypes:
+            encoded_dtype = str(dtype).encode("utf-8", errors="replace")
+            hasher.update(len(encoded_dtype).to_bytes(4, "big"))
+            hasher.update(encoded_dtype)
         revision = getattr(dataframe, "attrs", {}).get("ssa_data_revision")
         if revision is not None:
             hasher.update(b"\x00revision:")

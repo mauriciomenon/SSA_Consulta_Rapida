@@ -197,7 +197,7 @@ def test_move_file_after_import_copy_fallback_skips_symlink_destination_race(
     assert (destination_root / "source__1.xlsx").read_text(encoding="utf-8") == "data"
 
 
-def test_move_file_after_import_retries_distinct_names_after_runtime_collision(
+def test_move_file_after_import_retries_next_suffix_after_generated_name_collision(
     tmp_path: Path, monkeypatch
 ) -> None:
     docs_dir = tmp_path / "docs_entrada"
@@ -208,13 +208,17 @@ def test_move_file_after_import_retries_distinct_names_after_runtime_collision(
     attempted: list[str] = []
     real_move = import_postprocess._move_without_overwrite
 
-    def _collide_once(src: Path, dst: Path) -> None:
+    def _collide_first_two_attempts(src: Path, dst: Path) -> None:
         attempted.append(dst.name)
-        if len(attempted) == 1:
+        if len(attempted) <= 2:
             raise FileExistsError(dst)
         real_move(src, dst)
 
-    monkeypatch.setattr(import_postprocess, "_move_without_overwrite", _collide_once)
+    monkeypatch.setattr(
+        import_postprocess,
+        "_move_without_overwrite",
+        _collide_first_two_attempts,
+    )
 
     result = move_file_after_import(
         file_path=str(source),
@@ -222,6 +226,6 @@ def test_move_file_after_import_retries_distinct_names_after_runtime_collision(
         destination_root=destination_root,
     )
 
-    assert attempted == ["same.xlsx", "same__1.xlsx"]
-    assert result == str((destination_root / "same__1.xlsx").resolve())
+    assert attempted == ["same.xlsx", "same__1.xlsx", "same__2.xlsx"]
+    assert result == str((destination_root / "same__2.xlsx").resolve())
     assert not source.exists()

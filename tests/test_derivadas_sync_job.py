@@ -11,11 +11,13 @@ def test_derivadas_sync_job_accepts_extra_reported_sheet_files(
 ) -> None:
     expected_sheet = tmp_path / "expected.xlsx"
     extra_sheet = tmp_path / "extra.xlsx"
+    db_merged_edges = 2
+    sheet_merged_edges = 3
 
     def _sync_derivadas(**kwargs: Any) -> dict[str, Any]:
         if kwargs.get("include_db_source"):
             return {
-                "merge_stats": {"merged_edges": 2},
+                "merge_stats": {"merged_edges": db_merged_edges},
                 "db_stats": {"accepted_edges": 2},
                 "sheet_stats": {"accepted_edges": 0},
             }
@@ -33,9 +35,9 @@ def test_derivadas_sync_job_accepts_extra_reported_sheet_files(
                     "stats": {"accepted_edges": 1},
                 },
             ],
-            "merge_stats": {"merged_edges": 3},
+            "merge_stats": {"merged_edges": sheet_merged_edges},
             "db_stats": {"accepted_edges": 2},
-            "sheet_stats": {"accepted_edges": 1},
+            "sheet_stats": {"accepted_edges": 2},
         }
 
     result = execute_derivadas_sync_job(
@@ -53,6 +55,6 @@ def test_derivadas_sync_job_accepts_extra_reported_sheet_files(
     assert result == {
         "ok": True,
         "db_edges": 2,
-        "sheet_edges": 1,
-        "merged_edges": 3,
+        "sheet_edges": 2,
+        "merged_edges": db_merged_edges + sheet_merged_edges,
     }

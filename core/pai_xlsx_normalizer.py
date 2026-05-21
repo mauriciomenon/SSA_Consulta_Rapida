@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import time
 from typing import Iterator
+from zipfile import BadZipFile
 
 import pandas as pd
 from core.pai_xlsx_summary import PaiXlsxSummary
@@ -81,7 +82,7 @@ def normalize_pai_xlsx_for_ssa_import(
     _validate_source_excel_path(source_xlsx)
     try:
         frame = pd.read_excel(source_xlsx)
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, BadZipFile) as exc:
         raise ValueError(f"Falha ao ler XLSX PAI '{source_xlsx}': {exc}") from exc
     normalized = build_normalized_pai_dataframe(frame)
     _add_pai_origin_metadata(normalized, source_xlsx)
