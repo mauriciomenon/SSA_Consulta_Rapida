@@ -1,0 +1,41 @@
+tests/test_filter_ui_state.py
+  s_082d1ff7d55d96::t_6c2df5f9836536 1-46
+gui/ssa/details_normalization.py
+  s_082d1ff7d55d96::t_0207e910aae9a1 40,42
+  s_082d1ff7d55d96::t_497abf7746c937 41
+  s_082d1ff7d55d96::t_fb318b5b010bd1 43-44
+core/pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_e5b77119f5f11d 8,10,79-82,92,104-116
+core/pai_api_options.py
+  s_082d1ff7d55d96::t_e5b77119f5f11d 24-26,153,157-161,165,247,252-256
+core/config_defaults.py
+  s_082d1ff7d55d96::t_0207e910aae9a1 30
+gui/ssa/derivadas_sync_job.py
+  s_082d1ff7d55d96::t_0207e910aae9a1 73
+tests/test_pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_6c2df5f9836536 1-48
+gui/ssa/filter_ui_state.py
+  s_082d1ff7d55d96::t_0207e910aae9a1 36
+gui/ssa/column_filter_runtime.py
+  s_082d1ff7d55d96::t_0207e910aae9a1 79-88
+tests/test_pai_api_options.py
+  s_082d1ff7d55d96::t_6c2df5f9836536 74-87
+tests/test_details_normalization.py
+  s_082d1ff7d55d96::t_6c2df5f9836536 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "d1a3582aaf26a5d8aceb0865972b70955801f6bb",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
