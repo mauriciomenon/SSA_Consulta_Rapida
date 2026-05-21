@@ -7,6 +7,7 @@
 tmp/
 /.beads/
 /.sisyphus/
+/.antigravitycli/
 /config/streamlit_ui_state.json
 /.uv-matrix/
 /.cursor/

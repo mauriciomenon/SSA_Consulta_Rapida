@@ -1,21 +1,23 @@
 # Next Chat Migration Guide
 
-## CURRENT TRUTH 2026-05-20 15h07
+## CURRENT TRUTH 2026-05-20 22h08
 
 - Branch alvo operacional: `dev`.
-- Runtime commit validado localmente:
-  - `9d00244571a2b95621e6196daac43ffd474b2bd5 2026-05-20T15:07:13-03:00 STABILITY_PATCH: close merge readiness core findings`.
-- Proximo operador deve confirmar push e checks remotos do head final antes de merge.
+- Runtime commit validado e publicado antes deste DOC_SYNC:
+  - `dd776388a6bf155c6cb5b3f189d3a77b1301ca97 2026-05-20T21:43:49-03:00 STABILITY_PATCH: resolve external review findings`.
+- Proximo operador deve confirmar push e checks remotos do head DOC_SYNC antes de merge.
 - `main` nao deve ser assumido sincronizado com `dev` sem nova checagem.
-- Workspace local tem apenas residuo fora de escopo:
-  - `.antigravitycli/`
-- `.gitignore` ja ignora `.clawpatch/`, `agents.toml` e `tmp/`.
-- Checks GitHub verdes no head anterior publicado `a208159b920976e5d508227609d38296a21761c4`:
+- Workspace local:
+  - `.antigravitycli/` agora esta ignorado.
+  - `.gitignore` ignora `.clawpatch/`, `agents.toml`, `tmp/`, `builds/*` e `.antigravitycli/`.
+  - `builds/pyoxidizer` foi removido do ambiente local; achados antigos do Clawpatch em artefatos PyOxidizer nao existem mais no workspace ativo.
+- Checks GitHub verdes no head `dd776388a6bf155c6cb5b3f189d3a77b1301ca97`:
   - `minimal-ci`
   - `CodeQL`
   - `Secret Scan`
   - `Automatic Dependency Submission`
-- Checks remotos do novo head devem ser verificados apos push.
+- Diagramas atuais de arquitetura/funcionalidade:
+  - `docs/MERGE_READINESS_ARCHITECTURE.md`.
 - API PAI:
   - fluxo real habilitado: `consulta`.
   - smoke real fetch-only validado neste ciclo para `IEE3`, `MEL4`, `MEL3`, `limit=1`, `normalized_rows=1`, `imported=False`, `errors=None`.
@@ -41,16 +43,17 @@
   - `gitleaks protect --staged`: limpo no commit runtime.
   - `pip-audit`: sem vulnerabilidades conhecidas no export do lock.
   - `safety`: bloqueado por login/EOF; nao conta como validacao limpa.
-  - `CodeRabbit`: CLI local timeoutou no diff do core; usar no PR se autorizado.
-  - `Gemini`: sem blocker; ajuste sugerido foi aplicado.
-  - `Qwen`: bloqueado por falta de auth type configurado.
-  - `Agy`: blockers apontados foram corrigidos.
-  - `Clawpatch`: achados abertos somente em artefatos `builds/pyoxidizer/.../numpy`, fora do app Python.
+  - `CodeRabbit`: duas tentativas locais timeoutaram sem findings; nao conta como validacao limpa.
+  - `Gemini`: sem blocker no diff revisado.
+  - `Qwen`: ainda bloqueado localmente; tentativas com default, `qwen3-coder-plus`, `--auth-type openai` e `--auth-type qwen-oauth` falharam por auth/API key/free tier.
+  - `Agy`: achados objetivos aplicados no patch `dd776388`.
+  - `Clawpatch`: achados reais aplicaveis foram corrigidos; nova tentativa completa ainda bloqueou por timeout/provider, nao conta como review limpo.
 - Bloqueios antes de merge operacional:
-  1. Push do head atual e verificacao dos checks remotos.
-  2. Se PR for autorizado, rodar CodeRabbit no PR.
-  3. Executar build/smoke macOS se o alvo for release de artefato.
-  4. Continuar corte de `filter_gui_ssa_mixin.py` e `SSAMainWindow` se a meta clean-code for criterio bloqueante.
+  1. Push do head DOC_SYNC e verificacao dos checks remotos.
+  2. Corrigir auth/API key do Qwen se ele for gate obrigatorio.
+  3. Repetir Clawpatch/CodeRabbit quando provider/timeout permitir, ou rodar no PR se autorizado.
+  4. Executar build/smoke macOS se o alvo for release de artefato.
+  5. Continuar corte de `filter_gui_ssa_mixin.py` e `SSAMainWindow` se a meta clean-code for criterio bloqueante.
 - Build macOS/release ainda nao executado neste ciclo.
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
