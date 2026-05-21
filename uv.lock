@@ -3107,7 +3107,7 @@ requires-dist = [
     { name = "pyinstaller", marker = "extra == 'build'", specifier = ">=6.20.0" },
     { name = "pyqt6", specifier = ">=6.9.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=7.1.0" },
     { name = "pywin32", marker = "sys_platform == 'win32' and extra == 'build'", specifier = ">=311" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.15.0" },
     { name = "streamlit", marker = "extra == 'web'", specifier = ">=1.57.0" },
@@ -3126,7 +3126,7 @@ dev = [
     { name = "pillow", specifier = ">=12.2.0" },
     { name = "pre-commit", specifier = ">=4.0.1" },
     { name = "pytest", specifier = ">=9.0.3" },
-    { name = "pytest-cov", specifier = ">=5.0.0" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "ruff", specifier = ">=0.15.0" },
     { name = "ty", specifier = ">=0.0.32" },
 ]
