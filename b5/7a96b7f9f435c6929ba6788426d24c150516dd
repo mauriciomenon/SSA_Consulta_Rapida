@@ -1,0 +1,38 @@
+tests/test_dataframe_fingerprint.py
+  s_082d1ff7d55d96::t_8cec5badcdd784 1-19,21
+  s_082d1ff7d55d96::t_2b348b73cbaa44 20,22-23
+  s_082d1ff7d55d96::t_2616377ec94d17 24
+tests/test_app_logic_postprocess_moves.py
+  s_082d1ff7d55d96::t_8cec5badcdd784 200,211,213,217-221,229-230
+tests/test_derivadas_sync_job.py
+  s_082d1ff7d55d96::t_d3730988ce8a11 14-15,20,38,59
+  s_082d1ff7d55d96::t_488aaf70b048f6 40,58
+core/dataframe_fingerprint.py
+  s_082d1ff7d55d96::t_0c9c51dcfb95c6 62-65,67-70
+core/import_postprocess.py
+  s_082d1ff7d55d96::t_bd80fa7846b0ff 257
+  s_082d1ff7d55d96::t_0c9c51dcfb95c6 216
+tests/test_pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_8cec5badcdd784 5,22-31
+core/pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_0c9c51dcfb95c6 13,85
+gui/ssa/derivadas_sync_job.py
+  s_082d1ff7d55d96::t_2616377ec94d17 86,90-91
+  s_082d1ff7d55d96::t_849707c5ecf208 51-52,57-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b57a96b7f9f435c6929ba6788426d24c150516dd",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
