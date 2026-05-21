@@ -51,15 +51,16 @@ function Join-ReleaseCsv {
         [Parameter(Mandatory = $true)] [string] $DefaultValue
     )
 
-    $values = @()
+    $values = @(
     foreach ($item in $Items) {
         foreach ($token in ($item -split ",")) {
             $value = $token.Trim().ToLowerInvariant()
             if (-not [string]::IsNullOrWhiteSpace($value)) {
-                $values += $value
+                $value
             }
         }
     }
+    )
     if ($values.Count -eq 0) {
         return $DefaultValue
     }
@@ -109,6 +110,7 @@ function Invoke-WindowsRelease {
     )
 
     Assert-WindowsReleaseHost
+    Assert-WindowsBuildExtra $RepoRoot $BackendCsv
     $script = Join-Path $RepoRoot "dev_env\build\release_windows.ps1"
     $releaseArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $script, "-Backend", $BackendCsv)
     if ($Yes) {
@@ -123,6 +125,49 @@ function Invoke-WindowsRelease {
     & powershell @releaseArgs
     if ($LASTEXITCODE -ne 0) {
         throw "Release Windows falhou."
+    }
+}
+
+function Assert-WindowsBuildExtra {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepoRoot,
+        [Parameter(Mandatory = $true)] [string] $BackendCsv
+    )
+
+    $modules = @()
+    foreach ($backend in ($BackendCsv -split ",")) {
+        $value = $backend.Trim().ToLowerInvariant()
+        if ($value -eq "nuitka" -and $modules -notcontains "nuitka") {
+            $modules += "nuitka"
+        }
+        if ($value -eq "pyinstaller" -and $modules -notcontains "PyInstaller") {
+            $modules += "PyInstaller"
+        }
+    }
+    if ($modules.Count -eq 0) {
+        return
+    }
+
+    $imports = ($modules | ForEach-Object { "import $_" }) -join "; "
+    Push-Location $RepoRoot
+    try {
+        & uv @(
+            "run",
+            "--python",
+            "3.13",
+            "--extra",
+            "build",
+            "python",
+            "-c",
+            $imports
+        ) | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "uv run --extra build falhou."
+        }
+    } catch {
+        throw "Dependencias de build ausentes ou indisponiveis para ${BackendCsv}. Use 'uv sync --extra build' ou verifique a rede/cache do uv. Detalhe: $($_.Exception.Message)"
+    } finally {
+        Pop-Location
     }
 }
 

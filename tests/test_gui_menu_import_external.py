@@ -221,7 +221,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert [getattr(action, "_text", "") for action in api_menu.actions] == [
         "API habilitada",
         "Busca via scrap_report",
-        "Atualizacao automatica (10 min)",
+        "Atualizacao automatica",
     ]
     assert "Setores executores" in api_menu.submenus
     assert "Tipos de dados" in api_menu.submenus
@@ -231,12 +231,8 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     }
     assert data_scope_actions["Consulta"]._enabled is True
     assert data_scope_actions["Consulta"]._checked is True
-    assert data_scope_actions["Executadas"]._enabled is False
-    assert data_scope_actions["Executadas"]._checked is False
-    assert "backend scraper" in data_scope_actions["Executadas"]._status_tip
-    assert data_scope_actions["Para planejamento"]._enabled is False
-    assert data_scope_actions["Para planejamento"]._checked is False
-    assert "contrato de dados" in data_scope_actions["Para planejamento"]._status_tip
+    assert "Executadas" not in data_scope_actions
+    assert "Para planejamento" not in data_scope_actions
 
 
 def test_import_external_excel_files_copies_and_suffixes_collisions(
@@ -256,13 +252,13 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     monkeypatch.setattr(
         gui_ssa.QFileDialog,
         "getOpenFileNames",
-        lambda *args, **kwargs: (
+        lambda *_args, **_kwargs: (
             [str(source), str(source_ok_2), str(source2)],
             "Arquivos Excel",
         ),
     )
     monkeypatch.setattr(
-        gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None
+        gui_ssa.QMessageBox, "information", lambda *_args, **_kwargs: None
     )
     captured: dict[str, Any] = {}
     monkeypatch.setattr(
@@ -313,7 +309,7 @@ def test_import_external_excel_files_accepts_selected_file_outside_project(
     monkeypatch.setattr(
         gui_ssa.QFileDialog,
         "getOpenFileNames",
-        lambda *args, **kwargs: ([str(source)], "Arquivos Excel"),
+        lambda *_args, **_kwargs: ([str(source)], "Arquivos Excel"),
     )
     captured: dict[str, Any] = {}
     monkeypatch.setattr(
@@ -342,7 +338,7 @@ def test_import_external_excel_files_empty_selection_returns_consistent_schema(
     monkeypatch.setattr(
         gui_ssa.QFileDialog,
         "getOpenFileNames",
-        lambda *args, **kwargs: ([], "Arquivos Excel"),
+        lambda *_args, **_kwargs: ([], "Arquivos Excel"),
     )
 
     result = gui_ssa.SSAMainWindow.import_external_excel_files(cast(Any, object()))
@@ -373,10 +369,10 @@ def test_import_external_excel_files_applies_staged_file_without_recopiar(
     monkeypatch.setattr(
         gui_ssa.QFileDialog,
         "getOpenFileNames",
-        lambda *args, **kwargs: ([str(staged)], "Arquivos Excel"),
+        lambda *_args, **_kwargs: ([str(staged)], "Arquivos Excel"),
     )
     monkeypatch.setattr(
-        gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None
+        gui_ssa.QMessageBox, "information", lambda *_args, **_kwargs: None
     )
     captured: dict[str, Any] = {}
     monkeypatch.setattr(
@@ -417,7 +413,7 @@ def test_import_external_excel_files_filters_invalid_and_unsupported_before_queu
     monkeypatch.setattr(
         gui_ssa.QFileDialog,
         "getOpenFileNames",
-        lambda *args, **kwargs: (
+        lambda *_args, **_kwargs: (
             [str(ok_file), str(unsupported), str(missing)],
             "Arquivos Excel",
         ),
@@ -463,7 +459,7 @@ def test_open_settings_file_with_backup_creates_backup(
         type(
             "DummyDesktopServices",
             (),
-            {"openUrl": staticmethod(lambda *args, **kwargs: True)},
+            {"openUrl": staticmethod(lambda *_args, **_kwargs: True)},
         ),
         raising=False,
     )

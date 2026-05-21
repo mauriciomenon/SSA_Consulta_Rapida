@@ -7,10 +7,7 @@ from typing import Any
 
 from core.pai_api_options import (
     PAI_API_ALLOWED_SECTORS,
-    PAI_API_ALLOWED_DATA_SCOPES,
-    PAI_API_PLANNED_SCRAPER_DATA_SCOPES,
     PAI_API_REST_DATA_SCOPES,
-    PAI_API_UNSUPPORTED_DATA_SCOPES,
     pai_api_data_scope_label,
     PAI_API_SETTINGS_KEY,
     normalize_pai_api_options,
@@ -183,9 +180,7 @@ def _add_action(
 ) -> Any:
     action = action_cls(label, window)
     if status_tip:
-        set_status_tip = getattr(action, "setStatusTip", None)
-        if callable(set_status_tip):
-            set_status_tip(status_tip)
+        _set_action_status_tip(action, status_tip)
     action.triggered.connect(callback)
     menu.addAction(action)
     return action
@@ -244,10 +239,7 @@ def _add_pai_api_menu(
     scrap_action.triggered.connect(window.set_pai_api_scrap_enabled)
     pai_menu.addAction(scrap_action)
 
-    auto_action = action_cls(
-        f"Atualizacao automatica ({options.auto_refresh_interval_minutes} min)",
-        window,
-    )
+    auto_action = action_cls("Atualizacao automatica", window)
     auto_action.setCheckable(True)
     auto_action.setChecked(options.auto_refresh_enabled)
     auto_action.triggered.connect(window.set_pai_api_auto_refresh_enabled)
@@ -269,14 +261,11 @@ def _add_pai_api_menu(
 
     data_scope_menu = pai_menu.addMenu("Tipos de dados")
     selected_scopes = {value.casefold() for value in options.data_scopes}
-    for scope in PAI_API_ALLOWED_DATA_SCOPES:
+    for scope in PAI_API_REST_DATA_SCOPES:
         scope_action = action_cls(pai_api_data_scope_label(scope), window)
         scope_action.setCheckable(True)
-        scope_available = scope in PAI_API_REST_DATA_SCOPES
-        scope_action.setChecked(scope_available and scope.casefold() in selected_scopes)
-        scope_action.setEnabled(scope_available)
-        if not scope_available:
-            _set_action_status_tip(scope_action, _pai_api_scope_unavailable_tip(scope))
+        scope_action.setChecked(scope.casefold() in selected_scopes)
+        scope_action.setEnabled(True)
         scope_action.triggered.connect(
             lambda checked, value=scope: window.set_pai_api_data_scope_enabled(
                 value,
@@ -284,14 +273,6 @@ def _add_pai_api_menu(
             )
         )
         data_scope_menu.addAction(scope_action)
-
-
-def _pai_api_scope_unavailable_tip(scope: str) -> str:
-    if scope in PAI_API_PLANNED_SCRAPER_DATA_SCOPES:
-        return "Tipo PAI exige backend scraper dedicado antes de habilitar."
-    if scope in PAI_API_UNSUPPORTED_DATA_SCOPES:
-        return "Tipo PAI ainda nao tem contrato de dados implementado."
-    return "Tipo PAI indisponivel neste fluxo."
 
 
 def _set_action_status_tip(action: Any, text: str) -> None:

@@ -37,6 +37,9 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
     assert '"-Backend", $BackendCsv' in script
     assert "$releaseArgs = @(" in script
     assert "& powershell @releaseArgs" in script
+    assert "Assert-WindowsBuildExtra $RepoRoot $BackendCsv" in script
+    assert '"--extra"' in script
+    assert '"build"' in script
     assert "$args = @(" not in script
     assert "& powershell @args" not in script
     assert '$yesFlag = if ($Yes) { " -y" } else { "" }' in script

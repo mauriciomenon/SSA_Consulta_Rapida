@@ -75,7 +75,10 @@ def test_pai_api_data_scope_update_persists_canonical_value() -> None:
 def test_pai_api_options_reject_scope_without_gui_backend() -> None:
     options = normalize_pai_api_options({PAI_API_DATA_SCOPES_KEY: ["executadas"]})
 
-    assert pai_api_options_error(options) == "Tipos PAI exigem backend scraper: Executadas."
+    assert (
+        pai_api_options_error(options)
+        == "Tipo de dado ainda nao disponivel: Executadas. Use Consulta."
+    )
 
 
 def test_pai_api_options_reject_excessive_numeric_values() -> None:

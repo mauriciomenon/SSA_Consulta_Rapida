@@ -63,11 +63,11 @@ def pai_api_options_error(options: PaiApiGuiOptions) -> str | None:
     planned = planned_scraper_pai_api_data_scopes(options.data_scopes)
     if planned:
         labels = ", ".join(pai_api_data_scope_label(value) for value in planned)
-        return f"Tipos PAI exigem backend scraper: {labels}."
+        return f"Tipo de dado ainda nao disponivel: {labels}. Use Consulta."
     unsupported = unsupported_pai_api_data_scopes(options.data_scopes)
     if unsupported:
         labels = ", ".join(pai_api_data_scope_label(value) for value in unsupported)
-        return f"Tipos de dado sem contrato implementado neste fluxo: {labels}."
+        return f"Tipo de dado ainda nao disponivel: {labels}. Use Consulta."
     return None
 
 

@@ -7190,7 +7190,7 @@ class TestGUIFilterLogic:
         assert sync_calls[1]["include_db_source"] is False
         assert sync_calls[1]["actor"] == "gui-derivadas-sheet-phase"
         assert sync_calls[1]["sheet_files"] == [special_a, special_b]
-        assert "Derivadas atualizadas" in self.window.status_label.text()
+        assert "Relacoes de derivadas atualizadas" in self.window.status_label.text()
 
     def test_update_derivadas_from_sources_runs_only_db_when_no_special_sheets(
         self, monkeypatch, tmp_path
@@ -7418,7 +7418,7 @@ class TestGUIFilterLogic:
         assert result["started"] is True
         assert self.window._derivadas_sync_running is False
         assert self.window._derivadas_sync_thread is None
-        assert "Derivadas atualizadas" in self.window.status_label.text()
+        assert "Relacoes de derivadas atualizadas" in self.window.status_label.text()
 
     def test_update_derivadas_from_sources_rejects_second_start_before_preparation(
         self, monkeypatch, tmp_path

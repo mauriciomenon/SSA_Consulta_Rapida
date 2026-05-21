@@ -374,8 +374,8 @@ def finalize_derivadas_sync_result(
         _set_status_label(
             ui,
             state,
-            "Status: Derivadas atualizadas (merged="
-            f"{merged_edges}, db={db_edges}, sheet={sheet_edges}).",
+            "Status: Relacoes de derivadas atualizadas: "
+            f"total={merged_edges}; banco={db_edges}; planilhas={sheet_edges}.",
         )
         try:
             if callable(ui.refresh_button_state):
