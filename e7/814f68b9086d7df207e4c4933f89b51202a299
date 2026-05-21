@@ -1,0 +1,25 @@
+docs/NEXT_CHAT_MIGRATION.md
+  s_082d1ff7d55d96::t_2e262a898f9af9 6,8,15
+docs/RECOVERY_BACKLOG.md
+  s_082d1ff7d55d96::t_2e262a898f9af9 6,8-9
+docs/AGENTS_HANDOFF_NEXT_CYCLE.md
+  s_082d1ff7d55d96::t_2e262a898f9af9 6,8,15
+docs/MERGE_READINESS_ARCHITECTURE.md
+  s_082d1ff7d55d96::t_2e262a898f9af9 6,8,85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e7814f68b9086d7df207e4c4933f89b51202a299",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
