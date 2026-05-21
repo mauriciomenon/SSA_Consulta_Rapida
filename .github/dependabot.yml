@@ -2,6 +2,8 @@ version: 2
 updates:
   - package-ecosystem: "pip"
     directory: "/"
+    exclude-paths:
+      - "launchers/platforms/**"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5

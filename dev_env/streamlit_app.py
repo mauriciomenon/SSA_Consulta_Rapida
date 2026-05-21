@@ -96,7 +96,8 @@ except Exception:
 logger = logging.getLogger(__name__)
 ascii_filter = _ASCIIOnlyFilter()
 for handler in logging.getLogger().handlers:
-    handler.addFilter(ascii_filter)
+    if not any(isinstance(current_filter, _ASCIIOnlyFilter) for current_filter in handler.filters):
+        handler.addFilter(ascii_filter)
 logger.debug("Logging configurado para Streamlit", extra={"component": "streamlit"})
 
 DB_PATH_DEFAULT = os.environ.get("SSA_DB_PATH", "data/ssas.db")
@@ -381,6 +382,7 @@ class StreamlitFilterCache:
 filter_cache = StreamlitFilterCache()
 width_manager = SimpleWidthManager()
 MAX_RENDER_TELEMETRY_PROFILES = 12
+RENDER_TELEMETRY_PERSIST_INTERVAL_SECONDS = 5.0
 WIDTH_PROFILE_OPTIONS = [
     "Compacto (1200)",
     "Padrao (1600)",
@@ -610,6 +612,9 @@ def _compute_df_cache_token(df: pd.DataFrame) -> tuple[Any, ...]:
     return token
 
 
+_STREAMLIT_DF_HASH_FUNCS = {pd.DataFrame: _compute_df_cache_token}
+
+
 def _build_streamlit_column_config(
     page_df: pd.DataFrame,
     rename_map: dict[str, str],
@@ -642,6 +647,7 @@ def _build_streamlit_column_config(
 def _update_render_telemetry(width_profile: str, render_ms: float) -> None:
     if not hasattr(st, "session_state") or st.session_state is None:
         return
+    now = time.time()
     render_stats = st.session_state.get("streamlit_render_stats", {})
     profile_stats = render_stats.get(
         width_profile, {"count": 0, "total_ms": 0.0, "last_ms": 0.0}
@@ -649,7 +655,7 @@ def _update_render_telemetry(width_profile: str, render_ms: float) -> None:
     profile_stats["count"] = int(profile_stats.get("count", 0)) + 1
     profile_stats["total_ms"] = float(profile_stats.get("total_ms", 0.0)) + render_ms
     profile_stats["last_ms"] = render_ms
-    profile_stats["updated_at"] = time.time()
+    profile_stats["updated_at"] = now
     render_stats[width_profile] = profile_stats
     if len(render_stats) > MAX_RENDER_TELEMETRY_PROFILES:
         stale_profiles = sorted(
@@ -660,6 +666,12 @@ def _update_render_telemetry(width_profile: str, render_ms: float) -> None:
         for profile_name, _stats in stale_profiles[:overflow]:
             render_stats.pop(profile_name, None)
     st.session_state["streamlit_render_stats"] = render_stats
+    last_persisted_at = float(
+        st.session_state.get("streamlit_render_stats_persisted_at", 0.0) or 0.0
+    )
+    if now - last_persisted_at < RENDER_TELEMETRY_PERSIST_INTERVAL_SECONDS:
+        return
+    st.session_state["streamlit_render_stats_persisted_at"] = now
     table_state = st.session_state.get("streamlit_table_state", {})
     _persist_streamlit_state(
         width_profile=str(table_state.get("width_profile", "Padrao (1600)")),
@@ -1099,9 +1111,10 @@ def _compute_sidebar_weekly_kpis_cached(
 
 
 if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
-    _compute_sidebar_weekly_kpis_cached = st.cache_data(show_spinner=False)(
-        _compute_sidebar_weekly_kpis_cached
-    )
+    _compute_sidebar_weekly_kpis_cached = st.cache_data(
+        show_spinner=False,
+        hash_funcs=_STREAMLIT_DF_HASH_FUNCS,
+    )(_compute_sidebar_weekly_kpis_cached)
 
 
 def _compute_year_from_date_series(df: pd.DataFrame, col_name: str) -> pd.Series:
@@ -1173,6 +1186,13 @@ def _build_derivada_context_map(df: pd.DataFrame) -> pd.DataFrame:
         }
     ).drop_duplicates(subset=["numero_ssa"], keep="first")
     return context_map
+
+
+if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
+    _build_derivada_context_map = st.cache_data(
+        show_spinner=False,
+        hash_funcs=_STREAMLIT_DF_HASH_FUNCS,
+    )(_build_derivada_context_map)
 
 
 def _attach_derivada_context(
@@ -1527,7 +1547,7 @@ def _normalize_cache_value(value: Any) -> Any:
         )
     if isinstance(value, list):
         normalized_items = [_normalize_cache_value(v) for v in value]
-        return tuple(sorted(normalized_items, key=lambda v: str(v)))
+        return tuple(sorted(normalized_items, key=str))
     return str(value)
 
 
@@ -1598,6 +1618,12 @@ def apply_all_filters_cached(
     return filtered_df
 
 
+def _json_if_arrow_cell(value: Any) -> Any:
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, ensure_ascii=False)
+    return value
+
+
 def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
     """
     Normaliza colunas para evitar falhas do Streamlit/Arrow.
@@ -1654,11 +1680,7 @@ def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
                 # Handle list/dict types
                 sample = non_null.iloc[0]
                 if isinstance(sample, (list, dict)):
-                    safe[col] = series.apply(
-                        lambda x: json.dumps(x, ensure_ascii=False)
-                        if isinstance(x, (list, dict))
-                        else x
-                    )
+                    safe[col] = series.apply(_json_if_arrow_cell)
                     conversions_made.append(f"{col}: list/dict->json")
 
         elif pd.api.types.is_integer_dtype(series.dtype):
@@ -1673,23 +1695,30 @@ def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
 def _build_filter_options(df: pd.DataFrame) -> tuple[list[Any], list[Any], list[Any]]:
     situacoes = sorted(
         df.get("situacao", pd.Series(dtype=str)).dropna().unique().tolist(),
-        key=lambda value: str(value),
+        key=str,
     )
     executores = sorted(
         df.get("setor_executor", pd.Series(dtype=str)).dropna().unique().tolist(),
-        key=lambda value: str(value),
+        key=str,
     )
     emissores = sorted(
         df.get("setor_emissor", pd.Series(dtype=str)).dropna().unique().tolist(),
-        key=lambda value: str(value),
+        key=str,
     )
     return situacoes, executores, emissores
+
+
+if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
+    _build_filter_options = st.cache_data(
+        show_spinner=False,
+        hash_funcs=_STREAMLIT_DF_HASH_FUNCS,
+    )(_build_filter_options)
 
 
 def _build_advanced_filter_options(df: pd.DataFrame) -> dict[str, list[Any]]:
     def _sorted_unique(col_name: str) -> list[Any]:
         values = df.get(col_name, pd.Series(dtype=str)).dropna().unique().tolist()
-        return sorted(values, key=lambda value: str(value))
+        return sorted(values, key=str)
 
     ano_emissao = (
         _compute_year_from_date_series(df, "data_cadastro")
@@ -1737,6 +1766,13 @@ def _build_advanced_filter_options(df: pd.DataFrame) -> dict[str, list[Any]]:
         "ano_semana_execucao": sorted(ano_semana_execucao, reverse=True),
         "num_reprogramacoes": sorted(reprog_values),
     }
+
+
+if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
+    _build_advanced_filter_options = st.cache_data(
+        show_spinner=False,
+        hash_funcs=_STREAMLIT_DF_HASH_FUNCS,
+    )(_build_advanced_filter_options)
 
 
 def _build_table_with_derivada_context(
