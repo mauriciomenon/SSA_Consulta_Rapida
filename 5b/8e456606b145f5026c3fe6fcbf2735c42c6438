@@ -1,0 +1,39 @@
+core/dataframe_fingerprint.py
+  s_082d1ff7d55d96::t_8d657558718d00 61-66
+  s_082d1ff7d55d96::t_a0b53527440dae 34-38
+  s_082d1ff7d55d96::t_ef2b744ee95942 26,33,39-40,73
+core/import_formats.py
+  s_082d1ff7d55d96::t_ef2b744ee95942 5-6,10,13-19
+core/import_single_file.py
+  s_082d1ff7d55d96::t_ef2b744ee95942 173-177
+tests/test_import_single_error_classification.py
+  s_082d1ff7d55d96::t_607dd74c8d28db 22-53
+tests/test_import_pai_api_xlsx_cli.py
+  s_082d1ff7d55d96::t_d7d69f1fafa312 8-10,64-68,71-80,82-110,112-113
+  s_082d1ff7d55d96::t_fd1498c0054899 69-70,81,111
+core/pai_import_report.py
+  s_082d1ff7d55d96::t_ef2b744ee95942 160-170,172,181,185-186,188-189,198-199,208-212
+  s_082d1ff7d55d96::t_607dd74c8d28db 180,182-184
+  s_082d1ff7d55d96::t_750eca17436147 187
+  s_082d1ff7d55d96::t_fd1498c0054899 68-70
+  s_082d1ff7d55d96::t_9d50c39fd761b2 5,158,171,197,207
+  s_082d1ff7d55d96::t_6ab691d6a3d112 55-57,59-61,159,173-179,190-196,200-206
+core/import_postprocess.py
+  s_082d1ff7d55d96::t_18f68e8c663828 126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "5b8e456606b145f5026c3fe6fcbf2735c42c6438",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
