@@ -556,6 +556,8 @@ def ensure_default_settings(*, fail_fast: bool = True) -> list[str]:
                     os.makedirs(os.path.dirname(target_file) or cfg_dir, exist_ok=True)
                     if target_file.endswith("default_settings.json"):
                         default_content = {
+                            "version": "1.0.0",
+                            "description": "Default settings for SSA Consulta Rapida",
                             "display_settings": {
                                 "column_visibility": {},
                                 "column_widths": {
@@ -572,6 +574,15 @@ def ensure_default_settings(*, fail_fast: bool = True) -> list[str]:
                                 "filter_mode_default": "contains",
                             },
                             "default_filters": [],
+                            "import_settings": {
+                                "include_processadas_in_full_rescan": True,
+                                "processadas_subdir": "processadas",
+                                "ignore_nosurvivor_in_full_rescan": True,
+                                "nosurvivor_subdir": "nosurvivor",
+                                "move_processed_after_import": False,
+                                "route_zero_survivor_to_nosurvivor": True,
+                                "upsert_short_circuit_policy": "consulta_only",
+                            },
                         }
                         _atomic_write_json_file(
                             target_file, default_content, indent=2, ensure_ascii=False
@@ -673,7 +684,7 @@ def handle_config_command():
         settings = latest_settings
         save_settings(settings)
         print(
-            "Configuracoes salvas. Elas serao aplicadas imediatamente na CLI e no proximo filtro da GUI."
+            "Configuracoes salvas. Reinicie fluxos ja abertos para garantir que usem os novos valores."
         )
     except Exception as e:
         print(f"Falha ao salvar configuracoes: {e}")
