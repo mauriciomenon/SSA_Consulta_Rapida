@@ -5,6 +5,9 @@ from pathlib import Path
 
 import pandas as pd
 
+from core.pai_import_report import build_pai_import_summary_payload
+from core.pai_import_service import PaiImportResult
+from core.pai_scrap_report_provider import PaiScrapReportExport, PaiScrapReportRequest
 from scripts import import_pai_api_xlsx
 
 
@@ -58,3 +61,53 @@ def test_cli_source_xlsx_fetch_only_writes_summary(tmp_path: Path) -> None:
     assert payload["ssa_examples_by_executor_sector"] == {"IEE3": ["202600003"]}
     assert payload["summary_error"] is None
     assert payload["warnings"] == []
+
+
+def test_pai_import_summary_collects_manifest_warning_shapes(tmp_path: Path) -> None:
+    source = tmp_path / "pai.xlsx"
+    manifest = tmp_path / "manifest.json"
+    recursive_warning: dict[str, object] = {}
+    recursive_warning["warning"] = recursive_warning
+    export = PaiScrapReportExport(
+        command=("fake",),
+        scrap_report_root=tmp_path,
+        manifest_path=manifest,
+        xlsx_path=source,
+        manifest={
+            "warnings": (
+                {"message": "tuple mapped"},
+                ["nested list"],
+                {"raw set warning"},
+                recursive_warning,
+            ),
+            "warning": {"text": "single mapped"},
+        },
+        stdout="",
+        stderr="",
+    )
+    request = PaiScrapReportRequest(project_root=tmp_path)
+    result = PaiImportResult(
+        export=export,
+        mode="fetch_only",
+        import_xlsx_path=source,
+        staged_files=(),
+        staging_summary={},
+        imported=False,
+        normalized_rows=0,
+        rows_before_import=None,
+        rows_after_import=None,
+    )
+
+    payload = build_pai_import_summary_payload(
+        result,
+        request=request,
+        source_xlsx=None,
+    )
+
+    assert payload["warnings"] == [
+        "tuple mapped",
+        "nested list",
+        "raw set warning",
+        "{'warning': {...}}",
+        "single mapped",
+    ]

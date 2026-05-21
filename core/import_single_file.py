@@ -170,6 +170,11 @@ def import_single_file(
     logger.info("Iniciando importacao de '%s'...", file_path)
     metrics: Dict[str, Any] = {"file": os.path.basename(file_path)}
     try:
+        if not os.path.isfile(file_path):
+            raise ExtractionError(
+                f"Arquivo de importacao nao encontrado: {file_path}",
+                error_code="MISSING_FILE",
+            )
         extraction_started = time.perf_counter()
         df = services.extract_data_from_excel(file_path, should_cancel=should_cancel)
         extraction_duration = time.perf_counter() - extraction_started

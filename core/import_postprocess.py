@@ -123,7 +123,7 @@ def move_file_after_import(
         )
         return file_path
     if source.is_relative_to(destination_root):
-        return str(source)
+        return file_path
     destination_root.mkdir(parents=True, exist_ok=True)
     if existing_destination_names is None:
         existing_destination_names = _directory_names(destination_root)
@@ -235,8 +235,6 @@ def _move_without_overwrite(source: Path, destination: Path) -> None:
         destination_fd = None
         destination_created = False
         try:
-            if destination.exists():
-                raise FileExistsError(destination)
             source_mode = source.stat().st_mode & 0o777
             destination_fd = os.open(
                 destination,

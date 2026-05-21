@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, TypedDict, cast
@@ -51,19 +52,22 @@ def build_pai_import_summary_payload(
     source_xlsx: Path | None,
 ) -> PaiImportSummaryPayload:
     xlsx_summary = result.xlsx_summary
+    executor_sectors = list(request.executor_sectors)
+    emitter_sectors = list(request.emitter_sectors)
+    ssa_numbers = list(request.ssa_numbers)
     requested_filters: dict[str, object] = {
-        "executor_sectors": list(request.executor_sectors),
-        "emitter_sectors": list(request.emitter_sectors),
-        "ssa_numbers": list(request.ssa_numbers),
+        "executor_sectors": executor_sectors,
+        "emitter_sectors": emitter_sectors,
+        "ssa_numbers": ssa_numbers,
         "number_of_years": request.number_of_years,
         "limit": request.limit,
     }
     return PaiImportSummaryPayload(
         source_kind="source-xlsx" if source_xlsx is not None else "api",
         requested_filters=requested_filters,
-        requested_executor_sectors=list(request.executor_sectors),
-        requested_emitter_sectors=list(request.emitter_sectors),
-        requested_ssa_numbers=list(request.ssa_numbers),
+        requested_executor_sectors=executor_sectors,
+        requested_emitter_sectors=emitter_sectors,
+        requested_ssa_numbers=ssa_numbers,
         mode=result.mode,
         source_xlsx=str(source_xlsx) if source_xlsx is not None else None,
         xlsx_path=str(result.export.xlsx_path),
@@ -151,10 +155,58 @@ def _extract_manifest_warnings(manifest: object) -> list[str]:
     if not isinstance(manifest, dict):
         return []
     manifest_mapping = cast(Mapping[str, object], manifest)
-    warnings = manifest_mapping.get("warnings")
-    if isinstance(warnings, list):
-        return [str(item) for item in warnings]
-    warning = manifest_mapping.get("warning")
-    if warning:
-        return [str(warning)]
-    return []
+    pending: deque[object] = deque()
+    seen_containers: set[int] = set()
+    for key in ("warnings", "warning"):
+        value = manifest_mapping.get(key)
+        if isinstance(value, set):
+            pending.extend(sorted(value, key=str))
+        elif isinstance(value, (list, tuple)):
+            pending.extend(value)
+        elif value:
+            pending.append(value)
+
+    extracted: list[str] = []
+    while pending:
+        value = pending.popleft()
+        if isinstance(value, Mapping):
+            container_id = id(value)
+            if container_id in seen_containers:
+                warning_text = str(value).strip()
+                if warning_text:
+                    extracted.append(warning_text)
+                continue
+            seen_containers.add(container_id)
+            warning_mapping = cast(Mapping[str, object], value)
+            mapped_warning = (
+                warning_mapping.get("warning")
+                or warning_mapping.get("message")
+                or warning_mapping.get("text")
+            )
+            if mapped_warning:
+                pending.appendleft(mapped_warning)
+            continue
+        if isinstance(value, set):
+            container_id = id(value)
+            if container_id in seen_containers:
+                warning_text = str(value).strip()
+                if warning_text:
+                    extracted.append(warning_text)
+                continue
+            seen_containers.add(container_id)
+            pending.extendleft(reversed(sorted(value, key=str)))
+            continue
+        if isinstance(value, (list, tuple)):
+            container_id = id(value)
+            if container_id in seen_containers:
+                warning_text = str(value).strip()
+                if warning_text:
+                    extracted.append(warning_text)
+                continue
+            seen_containers.add(container_id)
+            pending.extendleft(reversed(value))
+            continue
+        warning_text = str(value).strip()
+        if warning_text:
+            extracted.append(warning_text)
+    return extracted

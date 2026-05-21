@@ -19,6 +19,38 @@ def _valid_df() -> pd.DataFrame:
     )
 
 
+@pytest.fixture(autouse=True)
+def _create_default_import_file(tmp_path: Path) -> None:
+    (tmp_path / "input.xlsx").write_bytes(b"placeholder")
+
+
+def test_import_single_file_fails_before_extraction_when_file_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    called = False
+
+    def _extract_should_not_run(*args, **kwargs):
+        nonlocal called
+        called = True
+        return _valid_df()
+
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        _extract_should_not_run,
+    )
+    missing_file = tmp_path / "missing.xlsx"
+
+    with pytest.raises(app_logic.ExtractionError, match="nao encontrado") as exc_info:
+        app_logic._import_single_file(
+            str(missing_file), str(tmp_path / "db.sqlite"), "ssa_table"
+        )
+
+    assert getattr(exc_info.value, "error_code", None) == "MISSING_FILE"
+    assert called is False
+
+
 def test_import_single_file_preserves_database_error(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

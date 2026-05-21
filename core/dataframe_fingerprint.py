@@ -23,17 +23,21 @@ def sample_dataframe_for_fingerprint(dataframe: pd.DataFrame) -> pd.DataFrame:
     mid_start = head_count
     tail_start = max(mid_start, row_count - tail_count)
     mid_end = tail_start - 1
-    mid_indices = []
+    mid_indices: list[int] = []
     span = max(0, (mid_end - mid_start) + 1)
     if span > 0:
         if span <= mid_count:
             mid_indices = list(range(mid_start, mid_start + span))
         else:
             step = float(span - 1) / float(max(mid_count - 1, 1))
-            for idx in range(mid_count):
-                candidate = mid_start + int(round(idx * step))
-                if not mid_indices or candidate != mid_indices[-1]:
-                    mid_indices.append(candidate)
+            mid_candidates = {
+                min(
+                    mid_end,
+                    max(mid_start, mid_start + int(round(idx * step))),
+                )
+                for idx in range(mid_count)
+            }
+            mid_indices = sorted(mid_candidates)
     mid_df = dataframe.iloc[mid_indices] if mid_indices else dataframe.iloc[0:0]
     return pd.concat(
         [head_df, mid_df, tail_df],
@@ -54,19 +58,19 @@ def build_dataframe_filter_hash(dataframe: pd.DataFrame | None) -> str:
         ).to_numpy(dtype="uint64", copy=False)
         hasher = hashlib.blake2b(digest_size=8)
         hasher.update(repr(tuple(dataframe.shape)).encode("utf-8"))
-        for column in dataframe.columns:
-            hasher.update(b"\x00col:")
-            hasher.update(str(column).encode("utf-8", errors="replace"))
-        for dtype in dataframe.dtypes:
-            hasher.update(b"\x00dtype:")
-            hasher.update(str(dtype).encode("utf-8", errors="replace"))
+        column_blob = "\x1f".join(str(column) for column in dataframe.columns)
+        dtype_blob = "\x1f".join(str(dtype) for dtype in dataframe.dtypes)
+        hasher.update(b"\x00cols:")
+        hasher.update(column_blob.encode("utf-8", errors="replace"))
+        hasher.update(b"\x00dtypes:")
+        hasher.update(dtype_blob.encode("utf-8", errors="replace"))
         revision = getattr(dataframe, "attrs", {}).get("ssa_data_revision")
         if revision is not None:
             hasher.update(b"\x00revision:")
             hasher.update(str(revision).encode("utf-8", errors="replace"))
         hasher.update(sample_hashes.tobytes())
         return hasher.hexdigest()
-    except Exception as exc:
+    except (AttributeError, KeyError, TypeError, ValueError) as exc:
         logger.debug(
             "Fallback to shape-only DataFrame hash due to fingerprint error: %s",
             exc,
