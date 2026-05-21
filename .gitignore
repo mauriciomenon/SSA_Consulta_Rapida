@@ -392,3 +392,4 @@ heatmap-last-year.png
 .clawpatch/
 .agents/
 agents.toml
+.qwen/
