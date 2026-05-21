@@ -140,7 +140,9 @@ def test_windows_release_workflow_runs_real_wrapper_and_uploads_artifacts() -> N
     assert ".\\release.ps1" in workflow
     assert '"windows"' in workflow
     assert "Backend =" in workflow
-    assert "${{ inputs.backend }}" in workflow
+    assert "RELEASE_BACKEND: ${{ inputs.backend || 'nuitka' }}" in workflow
+    assert "RELEASE_INSTALLER_REQUIRED: ${{ !inputs.skip_installer }}" in workflow
+    assert "$backend = $env:RELEASE_BACKEND" in workflow
     assert '[string]::IsNullOrWhiteSpace($backend)' in workflow
     assert '$releaseParams = @{' in workflow
     assert "Backend = @($backend)" in workflow
