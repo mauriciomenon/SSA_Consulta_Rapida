@@ -1,0 +1,31 @@
+docs/RECOVERY_BACKLOG.md
+  s_082d1ff7d55d96::t_2d3474099e97f2 3,6-8,13-19,48-49,51-52,55,57-59
+  s_082d1ff7d55d96::t_9bbc3aab78594d 50,56
+docs/NEXT_CHAT_MIGRATION.md
+  s_082d1ff7d55d96::t_2d3474099e97f2 3,6-8,10-14,19-20,46-47,49-50,52,54-56
+  s_082d1ff7d55d96::t_9bbc3aab78594d 48,53
+docs/MERGE_READINESS_ARCHITECTURE.md
+  s_082d1ff7d55d96::t_2d3474099e97f2 1-88,90-97
+  s_082d1ff7d55d96::t_9bbc3aab78594d 89
+docs/AGENTS_HANDOFF_NEXT_CYCLE.md
+  s_082d1ff7d55d96::t_2d3474099e97f2 3,6-8,10-14,19-20,46-47,49-50,52,54-56
+  s_082d1ff7d55d96::t_9bbc3aab78594d 48,53
+.gitignore
+  s_082d1ff7d55d96::t_2d3474099e97f2 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "2b8746564f64a11bf93fc70f030239260ec53059",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
