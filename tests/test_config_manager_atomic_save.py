@@ -222,3 +222,21 @@ def test_ensure_default_settings_reports_generate_failure(tmp_path, monkeypatch)
         item.startswith("copy_failed:") or item.startswith("generate_failed:")
         for item in errors
     )
+
+
+def test_ensure_default_settings_generated_fallback_matches_default_contract(
+    tmp_path, monkeypatch
+):
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+    monkeypatch.setattr(config_manager, "CONFIG_DIR", str(tmp_path / "missing_examples"))
+
+    errors = config_manager.ensure_default_settings(fail_fast=True)
+
+    assert errors == []
+    generated = json.loads((cfg_dir / "default_settings.json").read_text("utf-8"))
+    assert generated["version"] == "1.0.0"
+    assert generated["description"] == "Default settings for SSA Consulta Rapida"
+    assert generated["import_settings"]["processadas_subdir"] == "processadas"
+    assert generated["import_settings"]["upsert_short_circuit_policy"] == "consulta_only"
