@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import os
 import queue
-import shutil
+import re
+import shlex
 import signal
 import subprocess
 import sys
@@ -12,9 +13,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from scripts.pwsh_discovery import pick_pwsh
 from utils.robust_logging import get_robust_logger
 
 DEFAULT_LOG_FILENAME = "pytest_terminal_integration_stream.log"
+SAFE_PYTEST_NODEID_RE = re.compile(r"^[A-Za-z0-9_:\.\-\[\]/]+$")
 DEFAULT_TIMEOUT_WRAPPER_LOG_FILENAME = "pytest_terminal_integration.log"
 
 
@@ -30,6 +33,8 @@ def ensure_local_ai_dir(cwd: str | None = None) -> str:
 
 
 def ensure_log_path(logpath: str) -> None:
+    if not os.path.basename(logpath):
+        raise ValueError("log path must include a file name")
     d = os.path.dirname(logpath)
     if d and not os.path.exists(d):
         os.makedirs(d, exist_ok=True)
@@ -170,6 +175,8 @@ def resolve_safe_test_target(raw_test: str, cwd: str | None = None) -> str:
 
     resolved = os.fspath(resolved_path)
     if separator:
+        if not node_part or not SAFE_PYTEST_NODEID_RE.fullmatch(node_part):
+            raise ValueError("--test nodeid contains unsupported characters")
         return f"{resolved}{separator}{node_part}"
     return resolved
 
@@ -232,7 +239,7 @@ def build_timeout_wrapper_cmd(
 def build_timeout_wrapper_header(cmd: list[str], timeout_s: int) -> str:
     return (
         f"=== pytest wrapper run at {datetime.now(timezone.utc).isoformat()} ===\n"
-        f"Command: {' '.join(cmd)}\nTimeout: {timeout_s}s\n\n"
+        f"Command: {shlex.join(cmd)}\nTimeout: {timeout_s}s\n\n"
     )
 
 
@@ -255,7 +262,7 @@ def _terminate_process(
                 if res.returncode != 0:
                     pwsh = pwsh_picker() if pwsh_picker else None
                     if not pwsh:
-                        pwsh = shutil.which("pwsh") or shutil.which("powershell")
+                        pwsh = pick_pwsh()
                     if pwsh:
                         subprocess.run(
                             [
@@ -369,6 +376,7 @@ def run_logged_pytest(
     pwsh_picker: Callable[[], str | None] | None = None,
 ) -> int:
     logger = get_robust_logger().get_logger(__name__, "cli")
+    resolved_pwsh_picker = pwsh_picker or pick_pwsh
     process = None
     with open(logpath, "w", encoding="utf-8", errors="replace") as logf:
         logf.write(header)
@@ -389,7 +397,7 @@ def run_logged_pytest(
                 _terminate_and_wait(
                     process,
                     kill_process_tree=kill_process_tree,
-                    pwsh_picker=pwsh_picker,
+                    pwsh_picker=resolved_pwsh_picker,
                     logger=logger,
                 )
                 timeout_footer = f"\n=== TIMEOUT: pytest exceeded {timeout_s}s and was terminated ===\n"
@@ -414,16 +422,16 @@ def run_logged_pytest(
                 _terminate_and_wait(
                     process,
                     kill_process_tree=kill_process_tree,
-                    pwsh_picker=pwsh_picker,
+                    pwsh_picker=resolved_pwsh_picker,
                     logger=logger,
                 )
             raise
 
 
 class _StreamLogWriter:
-    def __init__(self, logf, *, flush_every: int) -> None:
+    def __init__(self, logf, *, flush_every: int, stdout=None) -> None:
         self._logf = logf
-        self._stdout = sys.stdout
+        self._stdout = stdout or sys.stdout
         self._flush_every = flush_every
         self._pending_flush_lines = 0
         self._last_flush = time.monotonic()
@@ -449,7 +457,7 @@ class _StreamLogWriter:
     def write_block(self, text: str, *, force_flush: bool = False) -> None:
         self._logf.write(text)
         newline_count = text.count("\n")
-        self._pending_flush_lines += newline_count if newline_count else 1
+        self._pending_flush_lines += newline_count
         self.flush_if_needed(force=force_flush)
 
     def drain_queue(self, line_queue: "queue.Queue[str]") -> None:
@@ -524,16 +532,19 @@ class _StreamingQueuePump:
             return
         except queue.Full:
             pass
+        dropped_recorded = False
         try:
             self._line_queue.get_nowait()
         except queue.Empty:
+            pass
+        else:
             self.record_dropped_line()
-            return
-        self.record_dropped_line()
+            dropped_recorded = True
         try:
             self._line_queue.put_nowait(value)
         except queue.Full:
-            self.record_dropped_line()
+            if not dropped_recorded:
+                self.record_dropped_line()
 
     def _reader_worker(self) -> None:
         try:
@@ -564,6 +575,8 @@ def run_streaming_pytest(
     kill_process_tree: bool | None = None,
     kill_tree_default: bool | None = None,
     pwsh_picker: Callable[[], str | None] | None = None,
+    cwd: str | None = None,
+    env: dict[str, str] | None = None,
 ) -> int:
     if kill_process_tree is None:
         kill_process_tree = bool(kill_tree_default)
@@ -571,13 +584,15 @@ def run_streaming_pytest(
     robust_logger = get_robust_logger().get_logger(__name__, "cli")
     header = (
         f"=== pytest streaming run at {datetime.now(timezone.utc).isoformat()} ===\n"
-        f"Command: {' '.join(cmd)}\nTimeout: {timeout_s}s\n\n"
+        f"Command: {shlex.join(cmd)}\nTimeout: {timeout_s}s\n\n"
     )
 
     start = time.monotonic()
     if os.name == "nt":
         process = subprocess.Popen(
             cmd,
+            cwd=cwd,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -586,6 +601,8 @@ def run_streaming_pytest(
     else:
         process = subprocess.Popen(
             cmd,
+            cwd=cwd,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -636,8 +653,8 @@ def run_streaming_pytest(
         def _next_queue_timeout() -> float:
             remaining = timeout_s - (time.monotonic() - start)
             if remaining <= 0:
-                return min(pump.queue_poll_timeout, 0.05)
-            return max(0.05, min(pump.queue_poll_timeout, remaining))
+                return 0.0
+            return max(0.0, min(pump.queue_poll_timeout, remaining))
 
         def _stream_until_exit() -> None:
             while True:
@@ -691,6 +708,9 @@ def run_streaming_pytest(
             )
             try:
                 _join_reader_and_drain()
-            except Exception:
-                pass
+            except Exception as join_exc:
+                robust_logger.warning(
+                    "failed to drain pytest reader after stream failure: %s",
+                    join_exc,
+                )
             raise

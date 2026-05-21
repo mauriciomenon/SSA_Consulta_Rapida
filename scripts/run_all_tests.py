@@ -15,10 +15,13 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import logging
 import os
-import subprocess
+import shlex
 import sys
 from pathlib import Path
+
+from scripts.pytest_stream_common import run_streaming_pytest, validate_safe_pytest_extra_args
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOG_DIR = REPO_ROOT / "logs"
@@ -27,6 +30,7 @@ LOG_FILE = LOG_DIR / "test_run.log"
 
 
 def main() -> int:
+    logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--args", help="Argumentos extras para pytest (string única)", default=""
@@ -40,53 +44,24 @@ def main() -> int:
     env.setdefault("DISABLE_UPDATE_PROMPT", "true")
     env.setdefault("PAGER", "cat")
 
-    base_cmd = [sys.executable, "-m", "pytest", "-q"]
+    pytest_target_for_fallback = "tests"
+    base_cmd = [sys.executable, "-m", "pytest", "-q", pytest_target_for_fallback]
     if ns.args:
-        base_cmd.extend(ns.args.split())
+        extra_args = shlex.split(ns.args)
+        safe_extra_args = validate_safe_pytest_extra_args(extra_args)
+        base_cmd.extend(safe_extra_args)
+        pytest_target_for_fallback = shlex.join(safe_extra_args)
 
-    with LOG_FILE.open("w", encoding="utf-8") as fh:
-        fh.write("# Running tests\n")
-        fh.write("Command: " + " ".join(base_cmd) + "\n\n")
-        fh.flush()
-        proc = subprocess.Popen(
-            base_cmd,
-            cwd=str(REPO_ROOT),
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        assert proc.stdout is not None
-        try:
-            for line in proc.stdout:
-                fh.write(line)
-                fh.flush()
-                # também ecoa no stdout para feedback em tempo real
-                try:
-                    sys.stdout.write(line)
-                except KeyboardInterrupt:
-                    # Se o usuário interromper enquanto escreve no stdout, ignoramos
-                    pass
-        except KeyboardInterrupt:
-            fh.write(
-                "\n# WARNING: KeyboardInterrupt capturado durante leitura do stdout do pytest; aguardando término do processo.\n"
-            )
-        finally:
-            try:
-                proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                fh.write(
-                    "\n# Pytest não finalizou em 10s após interrupção; terminando forçadamente.\n"
-                )
-                proc.terminate()
-                try:
-                    proc.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    fh.write("\n# Forçando kill do processo pytest.\n")
-                    proc.kill()
-
-            fh.write(f"\nExit code: {proc.returncode}\n")
-            return int(proc.returncode or 0)
+    return run_streaming_pytest(
+        cmd=base_cmd,
+        timeout_s=3600,
+        logpath=str(LOG_FILE),
+        fallback_to_tee=False,
+        test_arg=pytest_target_for_fallback,
+        kill_process_tree=True,
+        cwd=str(REPO_ROOT),
+        env=env,
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover
