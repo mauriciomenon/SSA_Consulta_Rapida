@@ -71,3 +71,17 @@ def test_pai_api_options_reject_scope_without_gui_backend() -> None:
     options = normalize_pai_api_options({PAI_API_DATA_SCOPES_KEY: ["executadas"]})
 
     assert pai_api_options_error(options) == "Tipos PAI exigem backend scraper: Executadas."
+
+
+def test_pai_api_options_reject_excessive_numeric_values() -> None:
+    options = normalize_pai_api_options(
+        {
+            "auto_refresh_interval_minutes": 999999,
+            "limit": 999999,
+            "number_of_years": 999999,
+        }
+    )
+
+    assert options.auto_refresh_interval_minutes == 10
+    assert options.limit == 200
+    assert options.number_of_years == 4

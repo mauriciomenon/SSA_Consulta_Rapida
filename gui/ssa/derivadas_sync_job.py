@@ -70,7 +70,7 @@ def execute_derivadas_sync_job(
             "merged_edges": merged_edges,
         }
     except Exception as exc:
-        return {"ok": False, "error": str(exc)}
+        return {"ok": False, "error": repr(exc)}
 
 
 def _verify_special_sheet_coverage(

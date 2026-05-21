@@ -5,7 +5,9 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass
 import logging
+import os
 from pathlib import Path
+import time
 from typing import Iterator
 
 import pandas as pd
@@ -74,7 +76,10 @@ def normalize_pai_xlsx_for_ssa_import(
     source_xlsx = Path(source_xlsx)
     target_xlsx = Path(target_xlsx)
     _validate_source_excel_path(source_xlsx)
-    frame = pd.read_excel(source_xlsx)
+    try:
+        frame = pd.read_excel(source_xlsx)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"Falha ao ler XLSX PAI '{source_xlsx}': {exc}") from exc
     normalized = build_normalized_pai_dataframe(frame)
     _add_pai_origin_metadata(normalized, source_xlsx)
     summary = summarize_normalized_pai_frame(normalized)
@@ -84,7 +89,7 @@ def normalize_pai_xlsx_for_ssa_import(
         if temp_xlsx.exists():
             temp_xlsx.unlink()
         normalized.to_excel(temp_xlsx, index=False)
-        temp_xlsx.replace(target_xlsx)
+        _replace_xlsx_with_retry(temp_xlsx, target_xlsx)
     except Exception:
         if temp_xlsx.exists():
             temp_xlsx.unlink()
@@ -94,6 +99,21 @@ def normalize_pai_xlsx_for_ssa_import(
         row_count=len(normalized),
         summary=summary,
     )
+
+
+def _replace_xlsx_with_retry(source: Path, target: Path) -> None:
+    last_error: OSError | None = None
+    for attempt in range(3):
+        try:
+            os.replace(source, target)
+            return
+        except OSError as exc:
+            last_error = exc
+            if attempt == 2:
+                break
+            time.sleep(0.1 * (attempt + 1))
+    if last_error is not None:
+        raise last_error
 
 
 def build_normalized_pai_dataframe(frame: pd.DataFrame) -> pd.DataFrame:

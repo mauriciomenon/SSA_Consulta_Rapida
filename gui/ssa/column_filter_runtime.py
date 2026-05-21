@@ -76,6 +76,16 @@ def apply_column_filters_with_state(
     revision: int,
     build_column_mask: Callable[..., pd.Series],
 ) -> pd.DataFrame:
+    if df is None or df.empty or not active_column_filters:
+        return apply_column_filters(
+            df,
+            active_column_filters,
+            column_to_or_group,
+            revision=revision,
+            caches=state.caches,
+            build_column_mask=build_column_mask,
+            date_display_columns=frozenset(),
+        )
     return apply_column_filters(
         df,
         active_column_filters,

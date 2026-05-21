@@ -21,6 +21,9 @@ PAI_API_FOCUSED_SECTORS = ("IEE3", "MEL4", "MEL3")
 PAI_API_DEFAULT_LIMIT = 200
 PAI_API_DEFAULT_NUMBER_OF_YEARS = 4
 PAI_API_DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 10
+PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES = 24 * 60
+PAI_API_MAX_LIMIT = 1000
+PAI_API_MAX_NUMBER_OF_YEARS = 10
 
 PAI_API_DATA_SCOPE_LABELS = {
     "executadas": "Executadas",
@@ -147,13 +150,19 @@ def normalize_pai_api_options(raw_settings: Mapping[str, Any] | None) -> PaiApiG
         auto_refresh_interval_minutes=_positive_int(
             settings.get(PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY),
             PAI_API_DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES,
+            max_value=PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES,
         ),
         executor_sectors=sectors,
         data_scopes=data_scopes,
-        limit=_positive_int(settings.get(PAI_API_LIMIT_KEY), PAI_API_DEFAULT_LIMIT),
+        limit=_positive_int(
+            settings.get(PAI_API_LIMIT_KEY),
+            PAI_API_DEFAULT_LIMIT,
+            max_value=PAI_API_MAX_LIMIT,
+        ),
         number_of_years=_positive_int(
             settings.get(PAI_API_NUMBER_OF_YEARS_KEY),
             PAI_API_DEFAULT_NUMBER_OF_YEARS,
+            max_value=PAI_API_MAX_NUMBER_OF_YEARS,
         ),
     )
 
@@ -235,9 +244,13 @@ def unsupported_pai_api_data_scopes(scopes: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(scope for scope in scopes if scope in unsupported)
 
 
-def _positive_int(value: object, default: int) -> int:
+def _positive_int(value: object, default: int, *, max_value: int | None = None) -> int:
     try:
         parsed = int(str(value))
     except (TypeError, ValueError):
         return default
-    return parsed if parsed > 0 else default
+    if parsed <= 0:
+        return default
+    if max_value is not None and parsed > max_value:
+        return default
+    return parsed

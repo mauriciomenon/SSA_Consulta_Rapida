@@ -22,6 +22,5 @@ def build_summary_button_stylesheet(
         "}"
         "QPushButton:hover {"
         f"border-color:{accent};"
-        "font-weight:600;"
         "}"
     )

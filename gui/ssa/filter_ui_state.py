@@ -33,6 +33,7 @@ class FilterUiStatePresenter:
         self._logger = logger
 
     def set_idle(self) -> None:
+        self._set_status_text("Status: Pronto.", "idle")
         self._set_progress_visible(False, "idle")
         self._set_buttons_enabled(True, "idle")
 

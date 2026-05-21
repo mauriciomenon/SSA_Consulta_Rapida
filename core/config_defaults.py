@@ -27,7 +27,7 @@ def _copy_column_mappings(source: Dict[str, list]) -> Dict[str, list]:
 def _load_default_column_mappings() -> Dict[str, list]:
     try:
         raw = json.loads(_COLUMN_MAPPINGS_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
         return _copy_column_mappings(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
     if not isinstance(raw, dict) or not raw:
         return _copy_column_mappings(_MINIMAL_COLUMN_MAPPINGS_FALLBACK)
