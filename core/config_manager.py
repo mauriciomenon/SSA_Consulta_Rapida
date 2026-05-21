@@ -254,7 +254,8 @@ def _load_json_mapping_integrity(
             file_label,
             path,
         )
-    except (OSError, json.JSONDecodeError, ValueError, TypeError):
+    # ValueError intentionally covers json.JSONDecodeError.
+    except (OSError, ValueError, TypeError):
         logger.warning(
             "%s ausente ou ilegivel em '%s'. Usando defaults em memoria e tentando restaurar arquivo.",
             file_label,
@@ -288,10 +289,15 @@ def _provision_default_config_file(
     if os.path.exists(example_path):
         try:
             _atomic_copy_file(example_path, target_file)
-            logger.info(f"Arquivo de configuração padrão criado: {target_file}")
+            logger.info("Arquivo de configuração padrão criado: %s", target_file)
             return
         except IOError as e:
-            logger.error(f"Falha ao copiar '{example_path}' para '{target_file}': {e}")
+            logger.error(
+                "Falha ao copiar '%s' para '%s': %s",
+                example_path,
+                target_file,
+                e,
+            )
             raise ConfigProvisionError(
                 f"falha ao copiar config padrao de '{example_path}' para "
                 f"'{target_file}': {e}"
@@ -301,14 +307,16 @@ def _provision_default_config_file(
         default_content = _default_payload_for_config_target(target_file)
         if default_content is None:
             logger.warning(
-                f"Arquivo de exemplo '{example_path}' não encontrado para '{target_file}'."
+                "Arquivo de exemplo '%s' não encontrado para '%s'.",
+                example_path,
+                target_file,
             )
             return
         _atomic_write_json_file(target_file, default_content, indent=2, ensure_ascii=False)
-        logger.info(f"Arquivo padrão gerado: {target_file}")
+        logger.info("Arquivo padrão gerado: %s", target_file)
         return
     except Exception as e:
-        logger.error(f"Falha ao gerar arquivo padrão '{target_file}': {e}")
+        logger.error("Falha ao gerar arquivo padrão '%s': %s", target_file, e)
         raise ConfigProvisionError(
             f"falha ao gerar config padrao '{target_file}': {e}"
         ) from e
@@ -370,7 +378,7 @@ def load_settings() -> Dict[str, Any]:
     try:
         with open(settings_path, "r", encoding="utf-8") as f:
             settings = json.load(f)
-        logger.debug(f"Configurações carregadas de '{settings_path}'.")
+        logger.debug("Configurações carregadas de '%s'.", settings_path)
         return settings
     except FileNotFoundError:
         if settings_path != default_settings_file and os.path.exists(
@@ -383,10 +391,10 @@ def load_settings() -> Dict[str, Any]:
             )
             with open(default_settings_file, "r", encoding="utf-8") as f:
                 return json.load(f)
-        logger.critical(f"Arquivo de configuração '{settings_path}' não encontrado.")
+        logger.critical("Arquivo de configuração '%s' não encontrado.", settings_path)
         raise
     except json.JSONDecodeError as e:
-        logger.error(f"Erro ao decodificar JSON em '{settings_path}': {e}")
+        logger.error("Erro ao decodificar JSON em '%s': %s", settings_path, e)
         raise
 
 
@@ -403,9 +411,9 @@ def save_settings(settings: Dict[str, Any]):
         _atomic_write_json_file(
             user_settings_file, settings, indent=4, ensure_ascii=False
         )
-        logger.info(f"Configuracoes salvas em '{user_settings_file}'.")
+        logger.info("Configuracoes salvas em '%s'.", user_settings_file)
     except IOError as e:
-        logger.error(f"Erro ao salvar configuracoes em '{user_settings_file}': {e}")
+        logger.error("Erro ao salvar configuracoes em '%s': %s", user_settings_file, e)
         raise
 
 

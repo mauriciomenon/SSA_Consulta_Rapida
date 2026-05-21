@@ -20,13 +20,11 @@ import copy
 import json
 import logging
 import os
-import re
 import shutil
 import subprocess  # nosec B404
 import sys
 import threading
 from collections import OrderedDict
-from datetime import datetime
 from typing import Any, TypedDict, cast
 
 import pandas as pd
@@ -51,13 +49,12 @@ if code_root not in sys.path:
     sys.path.insert(0, code_root)
 
 from core.config_manager import COLUMN_AFFINITY_SCORES  # noqa: E402
-from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file
+from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
 from core.import_formats import SUPPORTED_IMPORT_SUFFIXES  # noqa: E402
 from core.pai_api_options import PAI_API_ENABLED_KEY, PAI_API_SCRAP_ENABLED_KEY
 from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS  # noqa: E402
 from gui.gui_config import DEFAULT_GUI_SETTINGS  # noqa: E402
-from gui.gui_config import get_gui_main_preferences_path  # noqa: E402
 from gui.gui_config import load_gui_main_preferences  # noqa: F401 - re-export for compatibility
 from gui.gui_config import GUI_MAIN_PREFERENCES, REQUIRED_DISPLAY_COLUMNS
 

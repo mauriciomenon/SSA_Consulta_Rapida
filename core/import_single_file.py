@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, Optional
 
 from utils.file_metadata import best_datetime_for_file
 
-from core.import_errors import DatabaseError, ExtractionError, ImporterError
+from core.import_errors import DatabaseError, ExtractionError
 
 logger = logging.getLogger(__name__)
 
@@ -346,12 +346,6 @@ def import_single_file(
             message,
             error_code=getattr(e, "error_code", None),
         ) from e
-    except ExtractionError:
-        raise
-    except DatabaseError:
-        raise
-    except ImporterError:
-        raise
     except (RuntimeError, TypeError, ValueError) as e:
         error_type = type(e).__name__
         logger.exception(

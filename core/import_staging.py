@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 from pathlib import Path
 from typing import Callable, Iterable, Sequence
 
@@ -136,7 +135,7 @@ def stage_external_import_files(
             summary["unsupported"] += 1
             _emit_stage_ignored(output_callback, str(exc))
             continue
-        except (OSError, shutil.Error) as exc:
+        except OSError as exc:
             summary["failed"] += 1
             _emit_stage_error(
                 error_callback,
@@ -160,7 +159,7 @@ def stage_external_import_files(
                     summary["copied"] += 1
                 else:
                     summary["already_staged"] += 1
-        except (OSError, shutil.Error) as exc:
+        except OSError as exc:
             summary["failed"] += 1
             _emit_stage_error(
                 error_callback,
@@ -214,7 +213,7 @@ def _stage_validated_external_source(
         except FileExistsError:
             reserved_paths.discard(destination_abs)
             continue
-        except (OSError, shutil.Error):
+        except OSError:
             if destination_created:
                 _remove_destination(
                     destination,

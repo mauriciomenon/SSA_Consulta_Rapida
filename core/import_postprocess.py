@@ -136,7 +136,7 @@ def move_file_after_import(
             existing_destination_names,
             suffix_index_cache,
         )
-    except (OSError, RuntimeError, shutil.Error, ValueError) as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
         logger.warning(
             "Falha ao mover arquivo pos-importacao '%s' para '%s': %s",
             file_path,

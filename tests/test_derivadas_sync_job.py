@@ -9,6 +9,7 @@ from gui.ssa.derivadas_sync_job import execute_derivadas_sync_job
 def test_derivadas_sync_job_accepts_extra_reported_sheet_files(
     tmp_path: Path,
 ) -> None:
+    """Verify extra reported sheet files do not invalidate required coverage."""
     expected_sheet = tmp_path / "expected.xlsx"
     extra_sheet = tmp_path / "extra.xlsx"
     db_merged_edges = 2

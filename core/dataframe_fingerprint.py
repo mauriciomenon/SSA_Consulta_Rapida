@@ -74,7 +74,7 @@ def build_dataframe_filter_hash(dataframe: pd.DataFrame | None) -> str:
             hasher.update(str(revision).encode("utf-8", errors="replace"))
         hasher.update(sample_hashes.tobytes())
         return hasher.hexdigest()
-    except (AttributeError, KeyError, TypeError, ValueError) as exc:
+    except (AttributeError, KeyError, OverflowError, TypeError, ValueError) as exc:
         logger.debug(
             "Fallback to shape-only DataFrame hash due to fingerprint error: %s",
             exc,
