@@ -1,0 +1,42 @@
+utils/db_maintenance_report.py
+  s_082d1ff7d55d96::t_5c88ac2328062a 15,18
+  s_082d1ff7d55d96::t_5ba1610db88984 1-14,16-17,19-97
+tests/test_database_verification.py
+  s_082d1ff7d55d96::t_a4522df778ae43 549,573,582-583
+  s_082d1ff7d55d96::t_02a5891149dc50 288-303
+  s_082d1ff7d55d96::t_34ac34341bbfe3 550-572,574-581
+  s_082d1ff7d55d96::t_24ce7fd5c5b02e 306-307
+tests/test_db_maintenance_report.py
+  s_082d1ff7d55d96::t_b3709680bb4e07 1-5,7-50,52,76-83
+  s_082d1ff7d55d96::t_eb2a953cc8b537 6,51,53-75
+utils/db_maintenance.py
+  s_082d1ff7d55d96::t_02a5891149dc50 148-149
+  s_082d1ff7d55d96::t_59e3234b10a0f6 102-105
+  s_082d1ff7d55d96::t_59ce275293db4a 88
+  s_082d1ff7d55d96::t_ffd27e19510ed1 171,181,351-354
+  s_082d1ff7d55d96::t_434068313b6918 195-206,208-211,648-649
+  s_082d1ff7d55d96::t_f4da2fb478d80c 99-101
+  s_082d1ff7d55d96::t_df8fc64b367cb2 158,619
+  s_082d1ff7d55d96::t_06d8467820d178 121,138-147,150-157,159
+  s_082d1ff7d55d96::t_6630ea90910be3 85-87,89-90,96
+  s_082d1ff7d55d96::t_07bfc3a7e0639f 170,180
+  s_082d1ff7d55d96::t_9a78262e1cb2eb 586-618,620
+  s_082d1ff7d55d96::t_5ba1610db88984 24
+  s_082d1ff7d55d96::t_a4522df778ae43 226-234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "d702ce2bbd0c49ebf01c007c0ee013e416012684",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
