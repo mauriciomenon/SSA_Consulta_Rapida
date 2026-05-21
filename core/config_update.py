@@ -45,6 +45,8 @@ def split_default_filter_markers(term: str) -> tuple[bool, str]:
         candidate = candidate[1:].strip()
     if candidate.startswith("~"):
         return True, candidate[1:].strip()
+    if candidate and (candidate[0] in {"=", "^", "$"} or candidate.endswith("$")):
+        return False, ""
     return False, candidate
 
 

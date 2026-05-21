@@ -251,6 +251,10 @@ def query_db(
 
 def vacuum_analyze_database(db_path: str, *, timeout: float = 30.0) -> dict[str, Any]:
     """Run SQLite VACUUM and ANALYZE for a local database file."""
+    if db_path != ":memory:" and not os.path.isfile(db_path):
+        error = f"Banco de dados nao encontrado: {db_path}"
+        logger.error(error)
+        return {"ok": False, "error": error, "db_path": db_path}
     try:
         with sqlite3.connect(db_path, timeout=float(timeout)) as conn:
             conn.execute("VACUUM")
@@ -477,7 +481,7 @@ def count_table_rows(db_path: str, table_name: str) -> int:
     with get_db_connection(db_path) as conn:
         resolved_table_name = resolve_target_table(conn, table_name)
         query = f"SELECT COUNT(*) FROM {_quote_identifier(resolved_table_name)}"  # nosec B608
-        row = conn.execute(query).fetchone()
+        row = conn.execute(query).fetchone()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
     return int(row[0] if row else 0)
 
 
@@ -498,9 +502,8 @@ def count_distinct_derivada_edges(
         ) AS db_edges
     """
     query = query_template.format(table_name=quoted_table_name)  # nosec B608
-    return int(
-        conn.execute(query).fetchone()[0] or 0
-    )  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+    row = conn.execute(query).fetchone()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+    return int(row[0] or 0) if row is not None else 0
 
 
 def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912

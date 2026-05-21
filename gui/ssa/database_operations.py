@@ -18,7 +18,7 @@ def validate_database_candidate(
     query_db_fn: Callable[..., Any],
 ) -> dict[str, Any]:
     try:
-        test_df = query_db_fn(db_file, table_name)
+        test_df = query_db_fn(db_file, table_name, raise_on_error=True)
     except Exception as exc:
         return {"ok": False, "error": str(exc), "db_file": db_file}
     has_rows = bool(test_df is not None and not test_df.empty)

@@ -408,6 +408,16 @@ def test_vacuum_analyze_database_runs_sqlite_maintenance(temp_db_path):
     assert rows == [(1,)]
 
 
+def test_vacuum_analyze_database_rejects_missing_file(tmp_path):
+    missing_db = tmp_path / "missing.sqlite"
+
+    result = vacuum_analyze_database(str(missing_db))
+
+    assert result["ok"] is False
+    assert "nao encontrado" in result["error"]
+    assert not missing_db.exists()
+
+
 def test_count_distinct_derivada_edges_rejects_invalid_table_identifier(temp_db_path):
     with get_db_connection(temp_db_path) as conn:
         with pytest.raises(ValueError):
