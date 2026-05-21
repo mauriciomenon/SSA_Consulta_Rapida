@@ -1,10 +1,10 @@
 # Merge Readiness Architecture
 
-## Current Truth 2026-05-20 22h08
+## Current Truth 2026-05-20 23h14
 
 - Branch alvo: `dev`.
-- Runtime validado antes deste DOC_SYNC:
-  - `dd776388a6bf155c6cb5b3f189d3a77b1301ca97 2026-05-20T21:43:49-03:00 STABILITY_PATCH: resolve external review findings`.
+- Head atual publicado:
+  - `2b8746564f64a11bf93fc70f030239260ec53059 2026-05-20 22:46:32 -0300 DOC_SYNC: update merge readiness handoff`.
 - Este documento e um mapa de revisao para PR/merge; nao substitui `docs/RECOVERY_BACKLOG.md`.
 
 ## Function Map
@@ -81,12 +81,12 @@ flowchart LR
 
 ## Merge Readiness Gates
 
-- Verde no head `dd776388`: `minimal-ci`, `CodeQL`, `Secret Scan`, `Automatic Dependency Submission`.
+- Verde no head `2b874656`: `minimal-ci`, `CodeQL`, `Secret Scan`, `Automatic Dependency Submission` na ultima checagem remota concluida.
 - Local verde no slice runtime mais recente: `py_compile`, `ruff`, `ty`, `pytest` focado, `bandit`, `semgrep`, `detect-secrets`, `gitleaks`.
 - Ferramentas externas com limitacao:
   - `CodeRabbit` local timeoutou sem findings em duas tentativas.
   - `Clawpatch` corrigiu achados reais aplicaveis, mas a revisao completa ainda teve timeout/provider.
-  - `Qwen` ainda bloqueia localmente por auth/API key/free tier.
+  - `Qwen` headless foi validado com `glm-5-turbo`; modelos `qwen3.x` e `glm-5` ainda dependem de estabilidade do plano/modelo.
 
 ## Known Residuals
 

@@ -1,17 +1,17 @@
 # Next Chat Migration Guide
 
-## CURRENT TRUTH 2026-05-20 22h08
+## CURRENT TRUTH 2026-05-20 23h14
 
 - Branch alvo operacional: `dev`.
-- Runtime commit validado e publicado antes deste DOC_SYNC:
-  - `dd776388a6bf155c6cb5b3f189d3a77b1301ca97 2026-05-20T21:43:49-03:00 STABILITY_PATCH: resolve external review findings`.
-- Proximo operador deve confirmar push e checks remotos do head DOC_SYNC antes de merge.
+- Head atual de `dev` publicado:
+  - `2b8746564f64a11bf93fc70f030239260ec53059 2026-05-20 22:46:32 -0300 DOC_SYNC: update merge readiness handoff`.
 - `main` nao deve ser assumido sincronizado com `dev` sem nova checagem.
 - Workspace local:
+  - `.qwen/` esta local nao rastreado e nao deve entrar no commit sem aprovacao explicita.
   - `.antigravitycli/` agora esta ignorado.
   - `.gitignore` ignora `.clawpatch/`, `agents.toml`, `tmp/`, `builds/*` e `.antigravitycli/`.
   - `builds/pyoxidizer` foi removido do ambiente local; achados antigos do Clawpatch em artefatos PyOxidizer nao existem mais no workspace ativo.
-- Checks GitHub verdes no head `dd776388a6bf155c6cb5b3f189d3a77b1301ca97`:
+- Checks GitHub verdes no head `2b8746564f64a11bf93fc70f030239260ec53059` na ultima checagem remota concluida:
   - `minimal-ci`
   - `CodeQL`
   - `Secret Scan`
@@ -45,15 +45,13 @@
   - `safety`: bloqueado por login/EOF; nao conta como validacao limpa.
   - `CodeRabbit`: duas tentativas locais timeoutaram sem findings; nao conta como validacao limpa.
   - `Gemini`: sem blocker no diff revisado.
-  - `Qwen`: ainda bloqueado localmente; tentativas com default, `qwen3-coder-plus`, `--auth-type openai` e `--auth-type qwen-oauth` falharam por auth/API key/free tier.
+  - `Qwen`: headless validado apos troca de chave com `qwen -m glm-5-turbo -p 'Responda exatamente: OK_QWEN_HEADLESS'`; retorno `OK_QWEN_HEADLESS`. Modelos `qwen3.x` e `glm-5` podem seguir instaveis conforme plano/modelo.
   - `Agy`: achados objetivos aplicados no patch `dd776388`.
   - `Clawpatch`: achados reais aplicaveis foram corrigidos; nova tentativa completa ainda bloqueou por timeout/provider, nao conta como review limpo.
 - Bloqueios antes de merge operacional:
-  1. Push do head DOC_SYNC e verificacao dos checks remotos.
-  2. Corrigir auth/API key do Qwen se ele for gate obrigatorio.
-  3. Repetir Clawpatch/CodeRabbit quando provider/timeout permitir, ou rodar no PR se autorizado.
-  4. Executar build/smoke macOS se o alvo for release de artefato.
-  5. Continuar corte de `filter_gui_ssa_mixin.py` e `SSAMainWindow` se a meta clean-code for criterio bloqueante.
+  1. Repetir Clawpatch/CodeRabbit quando provider/timeout permitir, ou rodar no PR se autorizado.
+  2. Executar build/smoke macOS se o alvo for release de artefato.
+  3. Continuar corte de `filter_gui_ssa_mixin.py` e `SSAMainWindow` se a meta clean-code for criterio bloqueante.
 - Build macOS/release ainda nao executado neste ciclo.
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
