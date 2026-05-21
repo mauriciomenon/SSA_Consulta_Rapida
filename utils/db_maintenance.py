@@ -12,6 +12,7 @@ Oferece funcionalidades para:
 import os
 import shutil
 import sqlite3
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -84,9 +85,9 @@ class DatabaseAnalyzer:
         Path(backup_dir).mkdir(parents=True, exist_ok=True)
 
         # Nome do backup com timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         db_name = Path(self.db_path).stem
-        backup_filename = f"{db_name}_backup_{timestamp}.db"
+        backup_filename = f"{db_name}_backup_{timestamp}_{uuid.uuid4().hex[:8]}.db"
         backup_path = os.path.join(backup_dir, backup_filename)
 
         try:
@@ -113,7 +114,7 @@ class DatabaseAnalyzer:
                     try:
                         quoted_col_name = _quote_sqlite_identifier(col_name)
                         cursor.execute(
-                            f"SELECT COUNT(*) FROM ssas WHERE {quoted_col_name} IS NOT NULL "
+                            f"SELECT COUNT(*) FROM ssas WHERE {quoted_col_name} IS NOT NULL "  # nosec B608
                             f"AND {quoted_col_name} != ''"
                         )
                         count = cursor.fetchone()[0]
@@ -171,19 +172,26 @@ class DatabaseAnalyzer:
 
     def _check_numero_ssa(self, df: pd.DataFrame, issues: Dict[str, Any]) -> str | None:
         numero_cols = ["N\u00famero da SSA", "numero_ssa"]
+        present_cols = [col for col in numero_cols if col in df.columns]
         numero_col = None
-        for col in numero_cols:
-            if col in df.columns and df[col].notna().sum() > 0:
-                numero_col = col
-                break
 
-        if numero_col:
-            missing_numero = df[df[numero_col].isna() | (df[numero_col] == "")]
+        if present_cols:
+            numero_col = "numero_ssa" if "numero_ssa" in present_cols else present_cols[0]
+            priority_cols = (
+                ["numero_ssa"] + [col for col in present_cols if col != "numero_ssa"]
+                if "numero_ssa" in present_cols
+                else present_cols
+            )
+            numero_series = (
+                df[priority_cols]
+                .replace("", pd.NA)
+                .T.bfill().T
+                .iloc[:, 0]
+            )
+            missing_numero = df[numero_series.isna()]
             issues["missing_numero_ssa"] = missing_numero.index.tolist()
 
-            valid_numbers = df[df[numero_col].notna() & (df[numero_col] != "")][
-                numero_col
-            ]
+            valid_numbers = numero_series.dropna()
             duplicates = valid_numbers[valid_numbers.duplicated(keep=False)]
             if not duplicates.empty:
                 issues["duplicate_numbers"] = duplicates.value_counts().to_dict()
@@ -510,7 +518,7 @@ class DatabaseMigrator:
                 """
             )
         row = conn.execute(
-            f"SELECT {', '.join(count_exprs)} FROM ssas"
+            f"SELECT {', '.join(count_exprs)} FROM ssas"  # nosec B608
         ).fetchone()
         if row is None:
             return {source: 0 for source in sources}
@@ -532,13 +540,11 @@ class DatabaseMigrator:
             target=quoted_target,
             source=quoted_source,
         )
-        select_cursor.execute(
-            f"""
-            SELECT rowid, {quoted_source}
-            FROM ssas
-            WHERE {pending_condition}
-            """
+        select_query = (
+            f"SELECT rowid, {quoted_source} "
+            f"FROM ssas WHERE {pending_condition}"  # nosec B608
         )
+        select_cursor.execute(select_query)
         affected_rows = 0
         skipped_invalid = 0
         while True:
@@ -554,7 +560,7 @@ class DatabaseMigrator:
                 updates.append((normalized, rowid))
             if updates:
                 update_cursor.executemany(
-                    f"UPDATE ssas SET {quoted_target} = ? WHERE rowid = ?",
+                    f"UPDATE ssas SET {quoted_target} = ? WHERE rowid = ?",  # nosec B608
                     updates,
                 )
                 affected_rows += len(updates)
@@ -578,11 +584,10 @@ class DatabaseMigrator:
             target=quoted_target,
             source=quoted_source,
         )
-        update_query = f'''
-            UPDATE ssas
-            SET {quoted_target} = {quoted_source}
-            WHERE {pending_condition}
-        '''
+        update_query = (
+            f"UPDATE ssas SET {quoted_target} = {quoted_source} "
+            f"WHERE {pending_condition}"  # nosec B608
+        )
         cursor.execute(update_query)
         return {
             "source": source,

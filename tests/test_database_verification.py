@@ -285,6 +285,60 @@ class TestDatabaseMaintenance:
             for col in report["duplicated_groups"]["numero_ssa"]
         )
 
+    def test_create_backup_uses_collision_resistant_name(self, tmp_path):
+        db_path = tmp_path / "maintenance_backup.db"
+        db_path.write_bytes(b"db")
+        analyzer = DatabaseAnalyzer(str(db_path))
+
+        backup_a = analyzer.create_backup(str(tmp_path / "backups"))
+        backup_b = analyzer.create_backup(str(tmp_path / "backups"))
+
+        assert backup_a != backup_b
+        assert os.path.exists(backup_a)
+        assert os.path.exists(backup_b)
+
+    def test_sanity_check_prefers_normalized_numero_ssa_when_legacy_is_blank(
+        self,
+        tmp_path,
+    ):
+        legacy_numero = "N\u00famero da SSA"
+        db_path = os.path.join(tmp_path, "maintenance_numero_coalesce.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(f'CREATE TABLE ssas (numero_ssa TEXT, "{legacy_numero}" TEXT)')
+        conn.executemany(
+            f'INSERT INTO ssas (numero_ssa, "{legacy_numero}") VALUES (?, ?)',
+            [("202512345", ""), ("202512346", "")],
+        )
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.perform_sanity_check()
+
+        assert report["issues"]["missing_numero_ssa"] == []
+        assert report["issues"]["duplicate_numbers"] == {}
+
+    def test_sanity_check_uses_legacy_numero_ssa_when_normalized_is_blank(
+        self,
+        tmp_path,
+    ):
+        legacy_numero = "N\u00famero da SSA"
+        db_path = os.path.join(tmp_path, "maintenance_numero_legacy_fallback.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(f'CREATE TABLE ssas (numero_ssa TEXT, "{legacy_numero}" TEXT)')
+        conn.executemany(
+            f'INSERT INTO ssas (numero_ssa, "{legacy_numero}") VALUES (?, ?)',
+            [("", "202512345"), ("", "202512346")],
+        )
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.perform_sanity_check()
+
+        assert report["issues"]["missing_numero_ssa"] == []
+        assert report["issues"]["duplicate_numbers"] == {}
+
     def test_migrate_duplicate_columns_moves_all_legacy_sources_once(
         self,
         tmp_path,

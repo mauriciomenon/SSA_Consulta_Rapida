@@ -163,6 +163,8 @@ class DetailsDialogPresenter:
         ssa_target,
         resolved_series=None,
     ) -> bool:
+        if style is None:
+            style = self.callbacks.resolve_style(self.window, self._palette_cls())
         link_color, font_pt, label_font_pt, tree_font_pt, font_family = style
         self.export_state["svg"] = ""
         self.export_state["mermaid"] = ""
@@ -279,6 +281,7 @@ class DetailsDialogPresenter:
             if not payload.graph_svg or not self._render_graph_pixmap(
                 widgets, svg_render_deps
             ):
+                self._last_graph_render_key = None
                 widgets.tree_graph_label.setText("Grafo de derivadas indisponivel.")
                 if svg_render_deps is not None:
                     widgets.tree_graph_label.setPixmap(svg_render_deps.pixmap_cls())
@@ -302,7 +305,9 @@ class DetailsDialogPresenter:
             int(widgets.tree_graph_panel.height()),
         )
         if key == self._last_graph_render_key:
-            return True
+            pixmap = widgets.tree_graph_label.pixmap()
+            if pixmap is not None and not pixmap.isNull():
+                return True
         rendered = render_graph_svg_pixmap(
             graph_svg=graph_svg,
             graph_label=widgets.tree_graph_label,
@@ -311,6 +316,8 @@ class DetailsDialogPresenter:
         )
         if rendered:
             self._last_graph_render_key = key
+        else:
+            self._last_graph_render_key = None
         return rendered
 
     def _refresh_graph_after_resize(self, widgets, svg_render_deps) -> None:
