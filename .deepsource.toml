@@ -6,6 +6,7 @@ exclude_patterns = [
   "build/**",
   "dist/**",
   "**/__pycache__/**",
+  "dev_env/streamlit_app.py",
 ]
 
 [[analyzers]]

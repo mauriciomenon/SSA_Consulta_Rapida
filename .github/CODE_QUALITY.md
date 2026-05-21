@@ -22,6 +22,16 @@ This repository separates blocking local/CI checks from external advisory servic
 - `.github/workflows/secret_scan.yml`: blocking workspace and PR diff secret scans; history scan is advisory and only runs on schedule/manual dispatch.
 - `.deepsource.toml`: local analyzer configuration only; it does not decide whether the GitHub App blocks a PR.
 
+## Supply Chain Download Policy
+
+- PR and release gates must not install Python or npm packages from public registries only to produce advisory metadata.
+- `.github/actions/opencode-github/action.yml` does not run `npm install`; if its cache is missing, the review job fails with an explicit error instead of downloading from npm.
+- GitHub Automatic Dependency Submission is a dynamic GitHub-managed workflow (`dynamic/dependency-graph/auto-submission`), not a versioned YAML file in this repo.
+- The repository variable `GH_DEPENDENCY_SUBMISSION_SKIP_CACHE=true` is set to avoid cache persistence while Automatic Dependency Submission remains enabled.
+- To fully stop Automatic Dependency Submission, disable it in GitHub Settings > Advanced Security > Dependency graph > Automatic dependency submission. The direct workflow disable API returned HTTP 422 on 2026-05-13.
+- `minimal-ci` still installs the OS package `libegl1` from the runner package manager because PyQt smoke coverage depends on it.
+- `release-windows` still installs Inno Setup with Chocolatey only in the manual Windows release flow when installers are requested.
+
 ## External Advisory Services
 
 ### Snyk

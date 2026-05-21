@@ -30,6 +30,9 @@ jobs:
   windows-release:
     runs-on: windows-latest
     timeout-minutes: 120
+    env:
+      RELEASE_BACKEND: ${{ inputs.backend || 'nuitka' }}
+      RELEASE_INSTALLER_REQUIRED: ${{ !inputs.skip_installer }}
     permissions:
       contents: read
       actions: read
@@ -49,7 +52,7 @@ jobs:
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
 
       - name: Install Inno Setup
-        if: ${{ !inputs.skip_installer }}
+        if: ${{ env.RELEASE_INSTALLER_REQUIRED == 'true' }}
         shell: pwsh
         run: |
           Set-StrictMode -Version 3.0
@@ -62,7 +65,7 @@ jobs:
         run: |
           Set-StrictMode -Version 3.0
           $ErrorActionPreference = "Stop"
-          $backend = "${{ inputs.backend }}"
+          $backend = $env:RELEASE_BACKEND
           if ([string]::IsNullOrWhiteSpace($backend)) {
             $backend = "nuitka"
           }
@@ -71,7 +74,7 @@ jobs:
             Backend = @($backend)
             Yes = $true
           }
-          if ("${{ inputs.skip_installer }}" -eq "true") {
+          if ($env:RELEASE_INSTALLER_REQUIRED -ne "true") {
             $releaseParams.SkipInstaller = $true
           }
           & .\release.ps1 @releaseParams
@@ -99,7 +102,7 @@ jobs:
           if ($zipFiles.Count -eq 0) {
             throw "ZIP Windows ausente em builds\packages\windows_amd64"
           }
-          if ("${{ inputs.skip_installer }}" -ne "true") {
+          if ($env:RELEASE_INSTALLER_REQUIRED -eq "true") {
             $installerFiles = @(Get-ChildItem -LiteralPath "dist_packages" -Filter "*.exe" -File -ErrorAction SilentlyContinue)
             if ($installerFiles.Count -eq 0) {
               throw "Instalador Windows ausente em dist_packages"
@@ -110,7 +113,7 @@ jobs:
       - name: Upload Windows release artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: windows-release-${{ inputs.backend || 'nuitka' }}
+          name: windows-release-${{ env.RELEASE_BACKEND }}
           if-no-files-found: error
           path: |
             builds/packages/windows_amd64/*.zip
