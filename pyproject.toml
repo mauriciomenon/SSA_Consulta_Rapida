@@ -50,7 +50,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "pre-commit>=4.0.1",
     "ruff>=0.15.0",
-    "ty>=0.0.32",
+    "ty>=0.0.38",
     "pillow>=12.2.0",
     "codeflash>=0.20.5",
 ]
@@ -77,7 +77,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "pre-commit>=4.0.1",
     "ruff>=0.15.0",
-    "ty>=0.0.32",
+    "ty>=0.0.38",
     "pillow>=12.2.0",
     "codeflash>=0.20.5",
 ]
