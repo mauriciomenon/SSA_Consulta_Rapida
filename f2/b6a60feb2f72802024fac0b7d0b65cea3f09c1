@@ -1,0 +1,44 @@
+tests/test_derivadas_sync_job.py
+  s_082d1ff7d55d96::t_ee5d1019f289f2 9,53-55
+  s_082d1ff7d55d96::t_a7ed6858ff0a6d 18,36
+release.ps1
+  s_082d1ff7d55d96::t_7eb24ab7a51b4a 104,122
+  s_082d1ff7d55d96::t_2e56e8fdd8e61b 142,146
+  s_082d1ff7d55d96::t_9154d953071905 128-131,135-139
+gui/ssa/derivadas_sync_job.py
+  s_082d1ff7d55d96::t_62753c81d48761 85,94-102
+core/import_postprocess.py
+  s_082d1ff7d55d96::t_887b936a19b297 181-187
+tests/test_release_entrypoints.py
+  s_082d1ff7d55d96::t_b3f50e8320e7cc 41,43-45
+gui/ssa/derivadas_sync_controller.py
+  s_082d1ff7d55d96::t_eab5e0354e84b7 19,273-275,278-279
+  s_082d1ff7d55d96::t_7fdd9c829b5ebb 432-434,440,472
+  s_082d1ff7d55d96::t_0cdd93da2a50b1 239-241,254-255,264,268-269,272,276,284-285
+tests/test_app_logic_postprocess_moves.py
+  s_082d1ff7d55d96::t_9f007ce77ec9be 257-259,264-265,273
+  s_082d1ff7d55d96::t_a3ce468e751efd 7-8,234-250,256,260-263,266-272
+  s_082d1ff7d55d96::t_a6d1b5eeaa6ac9 251-255
+tests/test_derivadas_sync_controller.py
+  s_082d1ff7d55d96::t_00887bb07f4702 26
+  s_082d1ff7d55d96::t_c026f84bc4b98d 3,17,19
+  s_082d1ff7d55d96::t_ac7de83fdd9250 28,55
+  s_082d1ff7d55d96::t_8e799ea744db13 1-2,4-5,8-16,18,20-22,24-25,27,29-54,56-61,65-74,79-84
+  s_082d1ff7d55d96::t_fc76942dbe781a 6-7,23,62-64,75-78,85-136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "f2b6a60feb2f72802024fac0b7d0b65cea3f09c1",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
