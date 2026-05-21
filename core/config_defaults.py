@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from threading import Lock
 from typing import Any, Dict
 
 from shared.table_display_defaults import DEFAULT_DISPLAY_MAPPINGS
@@ -18,6 +19,7 @@ _MINIMAL_COLUMN_MAPPINGS_FALLBACK: Dict[str, list] = {
     "atividade_especial": ["Atividade Especial", "Actividad Especial"],
 }
 _DEFAULT_COLUMN_MAPPINGS_CACHE: Dict[str, list] | None = None
+_DEFAULT_COLUMN_MAPPINGS_CACHE_LOCK = Lock()
 
 
 def _copy_column_mappings(source: Dict[str, list]) -> Dict[str, list]:
@@ -44,7 +46,9 @@ def _load_default_column_mappings() -> Dict[str, list]:
 def get_default_column_mappings() -> Dict[str, list]:
     global _DEFAULT_COLUMN_MAPPINGS_CACHE
     if _DEFAULT_COLUMN_MAPPINGS_CACHE is None:
-        _DEFAULT_COLUMN_MAPPINGS_CACHE = _load_default_column_mappings()
+        with _DEFAULT_COLUMN_MAPPINGS_CACHE_LOCK:
+            if _DEFAULT_COLUMN_MAPPINGS_CACHE is None:
+                _DEFAULT_COLUMN_MAPPINGS_CACHE = _load_default_column_mappings()
     return _copy_column_mappings(_DEFAULT_COLUMN_MAPPINGS_CACHE)
 
 
