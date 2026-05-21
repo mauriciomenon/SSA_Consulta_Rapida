@@ -1,0 +1,40 @@
+tests/test_app_logic_postprocess_moves.py
+  s_082d1ff7d55d96::t_fe05c55d0d8e7e 163-189,192
+  s_082d1ff7d55d96::t_d1359386e5ce13 3-4,7,134-162
+  s_082d1ff7d55d96::t_0aedda88752abb 190-191
+  s_082d1ff7d55d96::t_94803893b44a2d 9,116-133
+tests/test_config_update.py
+  s_082d1ff7d55d96::t_465f450cf29658 6-7,9,14
+core/config_defaults.py
+  s_082d1ff7d55d96::t_143bb83cb91fe6 33,42,48,61
+  s_082d1ff7d55d96::t_468b0a4d5b544a 44-47,56-60,62
+  s_082d1ff7d55d96::t_465f450cf29658 4,11-12,36-41
+core/import_postprocess.py
+  s_082d1ff7d55d96::t_465f450cf29658 106,114,126
+  s_082d1ff7d55d96::t_94803893b44a2d 124
+  s_082d1ff7d55d96::t_e48ef7e256c5fc 205-206,214-215
+  s_082d1ff7d55d96::t_0aedda88752abb 216,218
+core/pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_2309a324a65e77 123-131
+  s_082d1ff7d55d96::t_465f450cf29658 7,30-31,120,122,132
+  s_082d1ff7d55d96::t_9878432f19da23 108-112,117-119,121,189
+tests/test_pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_9878432f19da23 3,33,36
+  s_082d1ff7d55d96::t_5b09abfffaf90e 9,26,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "170cccc326adb7835592f32e02fee5b3c30806e7",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
