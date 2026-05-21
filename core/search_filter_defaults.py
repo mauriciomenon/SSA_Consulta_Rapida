@@ -2,6 +2,10 @@
 
 DEFAULT_FILTER_SEARCH_COLUMNS = (
     "numero_ssa",
+    "derivada_de",
+    "numero_ssa_relacionada_1",
+    "numero_ssa_relacionada_2",
+    "numero_ssa_relacionada_3",
     "situacao",
     "solicitante",
     "responsavel_solicitante",
