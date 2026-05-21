@@ -28,7 +28,7 @@ from PyQt6.QtCore import QEvent, QPoint, QRect, QSize, Qt, QTimer, QUrl  # noqa:
 from PyQt6.QtGui import QCloseEvent, QDesktopServices, QFont, QResizeEvent  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtWidgets import QLineEdit  # noqa: E402
-from PyQt6.QtWidgets import QApplication, QLabel, QPushButton  # noqa: E402
+from PyQt6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton  # noqa: E402
 
 from gui import gui_ssa  # noqa: E402
 from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
@@ -278,7 +278,11 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         tooltip = str(save_filter_button.toolTip() or "")
-        assert "somente o filtro atual da Pesquisa Geral" in tooltip
+        assert str(save_filter_button.text() or "") == "Salvar filtro -> todos"
+        assert "busca geral" in tooltip
+        assert "filtros de coluna" in tooltip
+        assert "filtros avancados" in tooltip
+        assert 0 < filter_tags_widget.maximumWidth() <= 280
         assert abs(save_filter_button.geometry().y() - search_input.geometry().y()) <= 8
         assert (
             abs(filter_tags_widget.geometry().y() - save_filter_button.geometry().y())
@@ -2708,8 +2712,6 @@ class TestGUIFilterLogic:
         assert set(self._extract_visible_ssa()) == set(self.base_df["numero_ssa"])
 
     def test_persistent_filters_order(self):
-        from unittest.mock import patch
-
         with patch("gui.gui_ssa.QMessageBox.information", return_value=None):
             self.window.persistent_filters = []
             self.window.search_input.setText("Zebra filtro")
@@ -2719,6 +2721,73 @@ class TestGUIFilterLogic:
 
         names = [f["name"] for f in self.window.persistent_filters]
         assert names == sorted(names, key=lambda n: n.casefold())
+
+    def test_persistent_filter_saves_and_restores_all_filter_state(self):
+        with patch.object(QMessageBox, "information"):
+            self.window.search_input.clear()
+            self.window._active_column_filters["setor_executor"] = "MEL4"
+            self.window._exclude_ste_sca = True
+            self.window.save_current_filter()
+
+        assert len(self.window.persistent_filters) == 1
+        saved_filter = self.window.persistent_filters[0]
+        assert saved_filter["terms"] == ""
+        assert saved_filter["state"]["active_column_filters"]["setor_executor"] == "MEL4"
+        assert saved_filter["state"]["exclude_ste_sca"] is True
+
+        self.window._active_column_filters["setor_executor"] = ""
+        self.window._exclude_ste_sca = False
+        self.window.apply_persistent_filter(saved_filter)
+        QApplication.processEvents()
+
+        assert self.window.search_input.text().strip() == ""
+        assert self.window._active_column_filters["setor_executor"] == "MEL4"
+        assert self.window._exclude_ste_sca is True
+
+    def test_persistent_filter_tags_do_not_expand_search_row_width(self):
+        long_name = "Filtro salvo com nome grande para testar largura " * 3
+        self.window.persistent_filters = [
+            {"name": f"{long_name}{idx}", "terms": f"Teste {idx}"}
+            for idx in range(12)
+        ]
+
+        self.window.update_filter_tags()
+        QApplication.processEvents()
+
+        assert self.window.filter_tags_widget.maximumWidth() <= 280
+        assert self.window.filter_tags_widget.width() <= 280
+        for i in range(self.window.filter_tags_layout.count()):
+            tag_item = self.window.filter_tags_layout.itemAt(i)
+            tag_widget = tag_item.widget() if tag_item else None
+            tag_layout = tag_widget.layout() if tag_widget else None
+            if tag_layout is None:
+                continue
+            tag_button_item = tag_layout.itemAt(0)
+            tag_button = tag_button_item.widget() if tag_button_item else None
+            assert tag_button is not None
+            assert tag_button.maximumWidth() <= 180
+
+    def test_persistent_filter_deduplicates_state_with_set_values(self):
+        with patch.object(QMessageBox, "information") as info_mock:
+            self.window.search_input.clear()
+            self.window._active_column_filters["setor_executor"] = "MEL4"
+            self.window._hidden_column_filter_lines = {"setor_emissor", "situacao"}
+            self.window.save_current_filter()
+
+            self.window._hidden_column_filter_lines = {"situacao", "setor_emissor"}
+            self.window.save_current_filter()
+
+        assert len(self.window.persistent_filters) == 1
+        assert info_mock.call_args_list[-1].args[2] == "Este filtro ja esta salvo."
+
+    def test_legacy_persistent_filter_applies_terms_not_raw_dict(self):
+        legacy_filter = {"name": "Legado", "terms": "Teste C"}
+
+        self.window.apply_persistent_filter(legacy_filter)
+        QApplication.processEvents()
+
+        assert self.window.search_input.text() == "Teste C"
+        assert "{" not in self.window.search_input.text()
 
     def test_graphical_remove_active_persistent_filter_can_be_undone(self):
         self.window.search_input.setText("Teste C")
@@ -3477,7 +3546,7 @@ class TestGUIFilterLogic:
         with patch.object(
             self.window,
             "_reorganize_advanced_filters_grid",
-            side_effect=lambda width: captured_widths.append(width),
+            side_effect=captured_widths.append,
         ):
             event = QResizeEvent(QSize(1280, 800), QSize(1200, 760))
             self.window.resizeEvent(event)
@@ -5856,7 +5925,7 @@ class TestGUIFilterLogic:
         source = ["data_programacao", "descricao_execucao", "numero_ssa"]
         captured = {}
         monkeypatch.setattr(
-            self.window, "_get_select_all_columns_from_selector", lambda: source.copy()
+            self.window, "_get_select_all_columns_from_selector", source.copy
         )
         monkeypatch.setattr(
             self.window,

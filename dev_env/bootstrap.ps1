@@ -1,12 +1,14 @@
 # Requires: PowerShell 5+ (Windows 10/11)
 param(
-  [string]$VenvName
+  [string]$VenvName,
+  [switch]$AllowRemotePyenvInstall,
+  [string]$PyenvInstallerSha256
 )
 
 $ErrorActionPreference = 'Stop'
 
-function Have-Cmd($name) {
-  try { Get-Command $name -ErrorAction Stop | Out-Null; return $true } catch { return $false }
+function Test-CommandAvailable($Name) {
+  try { Get-Command $Name -ErrorAction Stop | Out-Null; return $true } catch { return $false }
 }
 
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -19,25 +21,60 @@ if (-not $VenvName) {
 }
 if (-not $VenvName) { $VenvName = 'ssa_consulta_rapida_py313' }
 
-Write-Host "[info] Virtualenv alvo: $VenvName"
+Write-Output "[info] Virtualenv alvo: $VenvName"
 
-function Ensure-PyenvWin() {
-  if (Have-Cmd pyenv) { Write-Host "[ok] pyenv-win encontrado"; return }
-  Write-Host "[info] Instalando pyenv-win (pode solicitar permissões)"
-  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
-  Invoke-Expression ((Invoke-WebRequest -UseBasicParsing -Uri 'https://pyenv.win/install.ps1').Content)
+function Install-PyenvWin([switch]$AllowRemoteInstall, [string]$InstallerSha256) {
+  if (Test-CommandAvailable pyenv) { Write-Output "[ok] pyenv-win encontrado"; return }
+  if (-not $AllowRemoteInstall) {
+    Write-Warning "pyenv-win nao encontrado. Instalacao remota desabilitada; usando fallback com Python do sistema. Use -AllowRemotePyenvInstall para aceitar o instalador remoto oficial."
+    return
+  }
+  if ([string]::IsNullOrWhiteSpace($InstallerSha256)) {
+    Write-Warning "Instalacao remota do pyenv-win exige -PyenvInstallerSha256. Usando fallback com Python do sistema."
+    return
+  }
+  Write-Output "[info] Instalando pyenv-win (pode solicitar permissoes)"
+  try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+  } catch {
+    Write-Warning "Nao foi possivel forcar TLS 1.2 antes do download do pyenv-win."
+  }
+  $installerPath = Join-Path ([System.IO.Path]::GetTempPath()) 'pyenv-win-install.ps1'
+  try {
+    Write-Output "[info] Baixando instalador pyenv-win: https://pyenv.win/install.ps1"
+    Invoke-WebRequest -UseBasicParsing -Uri 'https://pyenv.win/install.ps1' -OutFile $installerPath
+    $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installerPath).Hash.ToLowerInvariant()
+    $expectedHash = $InstallerSha256.Trim().ToLowerInvariant()
+    if ($actualHash -ne $expectedHash) {
+      throw "Hash SHA256 do instalador pyenv-win nao confere. Esperado=$expectedHash Obtido=$actualHash"
+    }
+    if (Get-Command -Name Unblock-File -ErrorAction SilentlyContinue) {
+      try {
+        Unblock-File -LiteralPath $installerPath -ErrorAction Stop
+      } catch {
+        Write-Warning "Nao foi possivel remover Mark-of-the-Web do instalador pyenv-win."
+      }
+    }
+    $powershellExe = (Get-Command -Name powershell.exe -ErrorAction Stop).Source
+    & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $installerPath
+    if ($LASTEXITCODE -ne 0) {
+      throw "Instalador pyenv-win terminou com codigo $LASTEXITCODE."
+    }
+  } finally {
+    Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
+  }
   $env:Path = "$env:USERPROFILE\.pyenv\pyenv-win\bin;$env:USERPROFILE\.pyenv\pyenv-win\shims;" + $env:Path
 }
 
-function Ensure-VirtualEnv() {
-  if (-not (Have-Cmd pyenv)) {
-    Write-Warning "pyenv-win não disponível; criando fallback .venv com python do sistema"
-    if (-not (Have-Cmd python)) { throw "Python não encontrado no PATH." }
+function Initialize-VirtualEnv() {
+  if (-not (Test-CommandAvailable pyenv)) {
+    Write-Warning "pyenv-win nao disponivel; criando fallback .venv com python do sistema"
+    if (-not (Test-CommandAvailable python)) { throw "Python nao encontrado no PATH." }
     python -m venv .venv
     . .\.venv\Scripts\Activate.ps1
     python -m pip install -U pip
     python -m pip install -r requirements.txt
-    Write-Host "[ok] Ambiente .venv criado (fallback)."
+    Write-Output "[ok] Ambiente .venv criado (fallback)."
     return
   }
 
@@ -45,9 +82,9 @@ function Ensure-VirtualEnv() {
   if ($LASTEXITCODE -ne 0) { throw "Falha ao listar virtualenvs do pyenv-win." }
   $existing = $existingRaw -split "`n" | ForEach-Object { $_.Trim() }
   if ($existing -contains $VenvName) {
-    Write-Host "[ok] Virtualenv '$VenvName' já existe"
+    Write-Output "[ok] Virtualenv '$VenvName' ja existe"
   } else {
-    Write-Host "[info] Criando virtualenv '$VenvName'"
+    Write-Output "[info] Criando virtualenv '$VenvName'"
     $listRaw = & pyenv install -l
     if ($LASTEXITCODE -ne 0) { throw "Falha ao listar versoes do pyenv-win." }
     $list = $listRaw -split "`n" | ForEach-Object { $_.Trim() }
@@ -75,8 +112,8 @@ function Ensure-VirtualEnv() {
   if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar requirements.txt no ambiente '$VenvName'." }
 }
 
-Ensure-PyenvWin
-Ensure-VirtualEnv
+Install-PyenvWin -AllowRemoteInstall:$AllowRemotePyenvInstall -InstallerSha256 $PyenvInstallerSha256
+Initialize-VirtualEnv
 
-Write-Host "[ok] Ambiente pronto. Abra um novo terminal para garantir PATH atualizado (se acabou de instalar pyenv-win)."
+Write-Output "[ok] Ambiente pronto. Abra um novo terminal para garantir PATH atualizado (se acabou de instalar pyenv-win)."
 
