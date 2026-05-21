@@ -3,8 +3,9 @@
 ## Current Truth 2026-05-20 23h14
 
 - Branch alvo: `dev`.
-- Head atual publicado:
+- Baseline usado para este DOC_SYNC:
   - `2b8746564f64a11bf93fc70f030239260ec53059 2026-05-20 22:46:32 -0300 DOC_SYNC: update merge readiness handoff`.
+- Este documento e documentacao apenas; confirmar o head operacional real com `git log -1`.
 - Este documento e um mapa de revisao para PR/merge; nao substitui `docs/RECOVERY_BACKLOG.md`.
 
 ## Function Map
@@ -81,7 +82,7 @@ flowchart LR
 
 ## Merge Readiness Gates
 
-- Verde no head `2b874656`: `minimal-ci`, `CodeQL`, `Secret Scan`, `Automatic Dependency Submission` na ultima checagem remota concluida.
+- Verde no baseline `2b874656`: `minimal-ci`, `CodeQL`, `Secret Scan`, `Automatic Dependency Submission`; revalidar o head atual apos qualquer novo DOC_SYNC.
 - Local verde no slice runtime mais recente: `py_compile`, `ruff`, `ty`, `pytest` focado, `bandit`, `semgrep`, `detect-secrets`, `gitleaks`.
 - Ferramentas externas com limitacao:
   - `CodeRabbit` local timeoutou sem findings em duas tentativas.

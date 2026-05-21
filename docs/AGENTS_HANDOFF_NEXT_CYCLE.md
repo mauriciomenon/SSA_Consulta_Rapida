@@ -3,15 +3,16 @@
 ## CURRENT TRUTH 2026-05-20 23h14
 
 - Branch alvo operacional: `dev`.
-- Head atual de `dev` publicado:
+- Baseline usado para este DOC_SYNC:
   - `2b8746564f64a11bf93fc70f030239260ec53059 2026-05-20 22:46:32 -0300 DOC_SYNC: update merge readiness handoff`.
+- Este DOC_SYNC e documentacao apenas; confirmar o head operacional real com `git log -1`.
 - `main` nao deve ser assumido sincronizado com `dev` sem nova checagem.
 - Workspace local:
   - `.qwen/` esta local nao rastreado e nao deve entrar no commit sem aprovacao explicita.
   - `.antigravitycli/` agora esta ignorado.
   - `.gitignore` ignora `.clawpatch/`, `agents.toml`, `tmp/`, `builds/*` e `.antigravitycli/`.
   - `builds/pyoxidizer` foi removido do ambiente local; achados antigos do Clawpatch em artefatos PyOxidizer nao existem mais no workspace ativo.
-- Checks GitHub verdes no head `2b8746564f64a11bf93fc70f030239260ec53059` na ultima checagem remota concluida:
+- Checks GitHub verdes no baseline `2b8746564f64a11bf93fc70f030239260ec53059`; revalidar o head atual apos qualquer novo DOC_SYNC:
   - `minimal-ci`
   - `CodeQL`
   - `Secret Scan`
