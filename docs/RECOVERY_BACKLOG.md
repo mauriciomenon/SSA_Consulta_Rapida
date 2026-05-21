@@ -35,6 +35,17 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-05-13 00:37 - PR99 DeepSource follow-up
+
+Escopo deste registro:
+1. DeepSource apontou `PY-R1000` em `FilterGUISSAMixin.save_current_filter`.
+2. A funcao fica em fluxo sensivel de GUI para salvar filtros persistentes.
+3. O PR atual esta em estabilizacao de release e ja tem teste focado cobrindo salvar, deduplicar e restaurar filtros.
+
+Pendente nao bloqueante:
+1. `NAO_BLOQUEANTE_DEFERIDO`: reduzir complexidade de `save_current_filter` em slice GUI proprio, com smoke visual e testes de regressao.
+2. Motivo do deferimento: refatorar esta funcao agora para satisfazer metrica menor do DeepSource aumentaria risco em GUI madura sem alterar comportamento de release.
+
 ## Update 2026-05-11 23:52 - dependency hardening follow-up
 
 Escopo deste registro:
