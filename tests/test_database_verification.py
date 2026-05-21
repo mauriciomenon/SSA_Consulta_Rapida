@@ -285,9 +285,26 @@ class TestDatabaseMaintenance:
             for col in report["duplicated_groups"]["numero_ssa"]
         )
 
+    def test_analyze_table_structure_treats_whitespace_as_empty(self, tmp_path):
+        db_path = os.path.join(tmp_path, "maintenance_whitespace_counts.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute("CREATE TABLE ssas (numero_ssa TEXT, descricao_ssa TEXT)")
+        conn.executemany(
+            "INSERT INTO ssas (numero_ssa, descricao_ssa) VALUES (?, ?)",
+            [("202512345", " "), ("202512346", "Descricao")],
+        )
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.analyze_table_structure()
+
+        assert report["column_counts"]["descricao_ssa"] == 1
+
     def test_create_backup_uses_collision_resistant_name(self, tmp_path):
         db_path = tmp_path / "maintenance_backup.db"
-        db_path.write_bytes(b"db")
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("CREATE TABLE ssas (numero_ssa TEXT)")
         analyzer = DatabaseAnalyzer(str(db_path))
 
         backup_a = analyzer.create_backup(str(tmp_path / "backups"))
@@ -528,6 +545,42 @@ class TestDatabaseMaintenance:
 
         assert report["summary"]["invalid_dates"] == 1
         assert report["issues"]["invalid_dates"] == [1]
+
+    def test_perform_sanity_check_coalesces_location_columns(self, tmp_path):
+        db_path = os.path.join(tmp_path, "maintenance_location_columns.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            """
+            CREATE TABLE ssas (
+                numero_ssa TEXT,
+                localizacao_codigo TEXT,
+                descricao_localizacao TEXT
+            )
+            """
+        )
+        conn.executemany(
+            """
+            INSERT INTO ssas (
+                numero_ssa,
+                localizacao_codigo,
+                descricao_localizacao
+            )
+            VALUES (?, ?, ?)
+            """,
+            [
+                ("202512345", "", "Sala 1"),
+                ("202512346", "A01", ""),
+                ("202512347", "", ""),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        analyzer = DatabaseAnalyzer(db_path)
+        report = analyzer.perform_sanity_check()
+
+        assert report["issues"]["missing_localizacao"] == [2]
+        assert report["summary"]["missing_localizacao"] == 1
 
     def test_validate_invalid_ssa_numbers(self):
         """Testa validação com números SSA inválidos."""

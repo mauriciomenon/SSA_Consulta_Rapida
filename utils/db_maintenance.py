@@ -21,6 +21,7 @@ import pandas as pd
 
 from shared.date_utils import parse_any_date
 from shared.numero_ssa import normalize_strict
+from utils.db_maintenance_report import render_database_analysis_report
 from utils.path_safety import ensure_path_is_allowed
 from utils.robust_logging import get_robust_logger
 
@@ -81,17 +82,27 @@ class DatabaseAnalyzer:
                 f"Banco de dados nao encontrado: {self.db_path}"
             )
 
-        # Criar diretorio de backup se nao existir
-        Path(backup_dir).mkdir(parents=True, exist_ok=True)
+        backup_dir_path = ensure_path_is_allowed(
+            backup_dir,
+            must_exist=False,
+            expect_directory=True,
+        )
+        backup_dir_path.mkdir(parents=True, exist_ok=True)
 
         # Nome do backup com timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         db_name = Path(self.db_path).stem
         backup_filename = f"{db_name}_backup_{timestamp}_{uuid.uuid4().hex[:8]}.db"
-        backup_path = os.path.join(backup_dir, backup_filename)
+        backup_path = str(backup_dir_path / backup_filename)
 
         try:
-            shutil.copy2(self.db_path, backup_path)
+            with sqlite3.connect(self.db_path) as source_conn:
+                with sqlite3.connect(backup_path) as backup_conn:
+                    source_conn.backup(backup_conn, pages=1000)
+            try:
+                shutil.copystat(self.db_path, backup_path)
+            except OSError as exc:
+                logger.warning("Backup criado sem preservar metadata: %s", exc)
             logger.info(f"Backup criado: {backup_path}")
             return backup_path
         except Exception as e:
@@ -107,21 +118,7 @@ class DatabaseAnalyzer:
                 cursor.execute("PRAGMA table_info(ssas)")
                 columns_info = cursor.fetchall()
 
-                # Obter contagem de registros por coluna
-                column_counts = {}
-                for col_info in columns_info:
-                    col_name = col_info[1]
-                    try:
-                        quoted_col_name = _quote_sqlite_identifier(col_name)
-                        cursor.execute(
-                            f"SELECT COUNT(*) FROM ssas WHERE {quoted_col_name} IS NOT NULL "  # nosec B608
-                            f"AND {quoted_col_name} != ''"
-                        )
-                        count = cursor.fetchone()[0]
-                        column_counts[col_name] = count
-                    except Exception as e:
-                        logger.warning(f"Erro ao contar coluna '{col_name}': {e}")
-                        column_counts[col_name] = 0
+                column_counts = self._count_populated_columns(cursor, columns_info)
 
                 # Identificar duplicacoes potenciais
                 duplicated_groups = self._identify_duplicate_columns(
@@ -138,6 +135,29 @@ class DatabaseAnalyzer:
         except Exception as e:
             raise DatabaseMaintenanceError(f"Erro ao analisar estrutura: {e}")
 
+    def _count_populated_columns(
+        self,
+        cursor: sqlite3.Cursor,
+        columns_info: List[Tuple],
+    ) -> Dict[str, int]:
+        column_names = [col_info[1] for col_info in columns_info]
+        if not column_names:
+            return {}
+
+        select_exprs = [
+            "SUM(CASE WHEN {column} IS NOT NULL "
+            "AND TRIM(CAST({column} AS TEXT)) != '' THEN 1 ELSE 0 END)".format(
+                column=_quote_sqlite_identifier(col_name)
+            )
+            for col_name in column_names
+        ]
+        cursor.execute(f"SELECT {', '.join(select_exprs)} FROM ssas")  # nosec B608
+        counts = cursor.fetchone() or []
+        return {
+            col_name: int(count or 0)
+            for col_name, count in zip(column_names, counts, strict=True)
+        }
+
     def _identify_duplicate_columns(
         self, columns_info: List[Tuple], column_counts: Dict[str, int]
     ) -> Dict[str, List[Dict]]:
@@ -147,6 +167,8 @@ class DatabaseAnalyzer:
         # Mapear colunas por conceito basico.
         for concept, potential_names in LEGACY_CONCEPT_COLUMN_MAPPING.items():
             found_columns = []
+            legacy_names = set(potential_names[:-1])
+            target_name = potential_names[-1]
             for col_info in columns_info:
                 col_name = col_info[1]
                 if col_name in potential_names:
@@ -155,11 +177,8 @@ class DatabaseAnalyzer:
                             "name": col_name,
                             "type": col_info[2],
                             "count": column_counts.get(col_name, 0),
-                            "is_legacy": "N\u00famero" in col_name
-                            or "Semana" in col_name
-                            or "Descri\u00e7\u00e3o" in col_name
-                            or "Respons\u00e1vel" in col_name
-                            or "Grau" in col_name,
+                            "is_legacy": col_name in legacy_names,
+                            "is_target": col_name == target_name,
                         }
                     )
 
@@ -173,28 +192,23 @@ class DatabaseAnalyzer:
     def _check_numero_ssa(self, df: pd.DataFrame, issues: Dict[str, Any]) -> str | None:
         numero_cols = ["N\u00famero da SSA", "numero_ssa"]
         present_cols = [col for col in numero_cols if col in df.columns]
-        numero_col = None
+        if not present_cols:
+            return None
 
-        if present_cols:
-            numero_col = "numero_ssa" if "numero_ssa" in present_cols else present_cols[0]
-            priority_cols = (
-                ["numero_ssa"] + [col for col in present_cols if col != "numero_ssa"]
-                if "numero_ssa" in present_cols
-                else present_cols
-            )
-            numero_series = (
-                df[priority_cols]
-                .replace("", pd.NA)
-                .T.bfill().T
-                .iloc[:, 0]
-            )
-            missing_numero = df[numero_series.isna()]
-            issues["missing_numero_ssa"] = missing_numero.index.tolist()
+        numero_col = "numero_ssa" if "numero_ssa" in present_cols else present_cols[0]
+        priority_cols = (
+            ["numero_ssa"] + [col for col in present_cols if col != "numero_ssa"]
+            if "numero_ssa" in present_cols
+            else present_cols
+        )
+        numero_series = df[priority_cols].replace("", pd.NA).T.bfill().T.iloc[:, 0]
+        missing_numero = df[numero_series.isna()]
+        issues["missing_numero_ssa"] = missing_numero.index.tolist()
 
-            valid_numbers = numero_series.dropna()
-            duplicates = valid_numbers[valid_numbers.duplicated(keep=False)]
-            if not duplicates.empty:
-                issues["duplicate_numbers"] = duplicates.value_counts().to_dict()
+        valid_numbers = numero_series.dropna()
+        duplicates = valid_numbers[valid_numbers.duplicated(keep=False)]
+        if not duplicates.empty:
+            issues["duplicate_numbers"] = duplicates.value_counts().to_dict()
 
         return numero_col
 
@@ -203,19 +217,21 @@ class DatabaseAnalyzer:
             if col in df.columns:
                 missing_desc = df[df[col].isna() | (df[col] == "")]
                 issues["missing_descricao"] = missing_desc.index.tolist()
-                break
 
         for col in ["setor_emissor"]:
             if col in df.columns:
                 missing_emissor = df[df[col].isna() | (df[col] == "")]
                 issues["missing_area_emissora"] = missing_emissor.index.tolist()
-                break
 
-        for col in ["localizacao_codigo", "descricao_localizacao"]:
-            if col in df.columns:
-                missing_loc = df[df[col].isna() | (df[col] == "")]
-                issues["missing_localizacao"] = missing_loc.index.tolist()
-                break
+        location_cols = [
+            col
+            for col in ["localizacao_codigo", "descricao_localizacao"]
+            if col in df.columns
+        ]
+        if location_cols:
+            location_values = df[location_cols].replace("", pd.NA)
+            missing_loc = df[location_values.isna().all(axis=1)]
+            issues["missing_localizacao"] = missing_loc.index.tolist()
 
     def _check_invalid_dates(self, df: pd.DataFrame, issues: Dict[str, Any]) -> None:
         for col in ["data_cadastro"]:
@@ -299,121 +315,6 @@ class DatabaseAnalyzer:
         except Exception as e:
             raise DatabaseMaintenanceError(f"Erro na verificacao de sanidade: {e}")
 
-    def generate_report(
-        self,
-        output_file: str = "docs_saida/database_analysis_report.md",
-        structure_analysis: Dict[str, Any] | None = None,
-        sanity_check: Dict[str, Any] | None = None,
-    ) -> str:
-        """Gera relatorio completo de analise do banco de dados."""
-        try:
-            # Criar backup antes da analise
-            backup_path = self.create_backup()
-
-            # Analisar estrutura
-            if structure_analysis is None:
-                structure_analysis = self.analyze_table_structure()
-
-            # Verificar sanidade
-            if sanity_check is None:
-                sanity_check = self.perform_sanity_check()
-
-            # Gerar relatorio
-            report_content = self._generate_report_content(
-                structure_analysis, sanity_check, backup_path
-            )
-
-            # Salvar relatorio
-            Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-            with open(output_file, "w", encoding="utf-8") as f:
-                f.write(report_content)
-
-            logger.info(f"Relatorio de analise salvo em: {output_file}")
-            return output_file
-
-        except Exception as e:
-            raise DatabaseMaintenanceError(f"Erro ao gerar relatorio: {e}")
-
-    def _generate_report_content(
-        self, structure: Dict, sanity: Dict, backup_path: str
-    ) -> str:
-        """Gera o conteudo do relatorio em markdown."""
-        timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        content = f"""# Relatorio de Analise do Banco de Dados SSA
-
-**Data de Analise:** {timestamp}
-**Banco Analisado:** {self.db_path}
-**Backup Criado:** {backup_path}
-
-## Resumo Executivo
-
-**Total de Registros:** {sanity.get("total_records", 0)}
-**Total de Colunas:** {structure.get("total_columns", 0)}
-**Grupos de Colunas Duplicadas:** {len(structure.get("duplicated_groups", {}))}
-
-## Problemas Identificados
-
-### Integridade de Dados
-"""
-
-        if "summary" in sanity:
-            summary = sanity["summary"]
-            for issue_type, count in summary.items():
-                issue_name = issue_type.replace("_", " ").title()
-                content += f"- **{issue_name}:** {count} registros\n"
-
-        content += "\n## Analise de Estrutura\n\n### Colunas Duplicadas Detectadas\n\n"
-
-        duplicated_groups = structure.get("duplicated_groups", {})
-        for concept, columns in duplicated_groups.items():
-            content += f"#### {concept.replace('_', ' ').title()}\n\n"
-            content += "| Nome da Coluna | Tipo | Registros | Status |\n"
-            content += "|----------------|------|-----------|--------|\n"
-
-            for col in columns:
-                is_legacy_with_data = col["is_legacy"] and col["count"] > 0
-                status = (
-                    "WARN Legado (com dados)"
-                    if is_legacy_with_data
-                    else "OK Normalizada ou legado vazio"
-                )
-                content += (
-                    f"| {col['name']} | {col['type']} | {col['count']} | {status} |\n"
-                )
-            content += "\n"
-
-        content += "\n## Distribuicao de Dados por Coluna\n\n"
-        content += "| Coluna | Registros com Dados |\n"
-        content += "|--------|--------------------|\n"
-
-        column_counts = structure.get("column_counts", {})
-        sorted_columns = sorted(column_counts.items(), key=lambda x: x[1], reverse=True)
-
-        for col_name, count in sorted_columns:
-            content += f"| {col_name} | {count} |\n"
-
-        content += f"""
-## Recomendacoes
-
-### Acoes Prioritarias
-1. **Consolidacao de Colunas Duplicadas:** Migrar dados das colunas com espacos para as versoes
-   padronizadas
-2. **Limpeza de Dados:** Corrigir {sanity.get("summary", {}).get("missing_numero_ssa", 0)} SSAs sem
-   numero
-3. **Validacao:** Implementar verificacoes de integridade para evitar duplicacoes futuras
-
-### Proximos Passos
-1. Executar migracao de dados com backup
-2. Atualizar schema para versao limpa
-3. Ajustar mapeamentos de configuracao
-4. Validar funcionamento de CLI e GUI
-
----
-*Relatorio gerado automaticamente pelo sistema de manutencao do banco de dados.*
-"""
-
-        return content
-
 
 class DatabaseMigrator:
     """Executa migracao segura de dados entre esquemas."""
@@ -447,7 +348,10 @@ class DatabaseMigrator:
                 if not normalized_cols or not legacy_cols:
                     continue
 
-                target_col = max(normalized_cols, key=lambda x: x["count"])
+                target_col = next(
+                    (col for col in normalized_cols if col.get("is_target")),
+                    normalized_cols[0],
+                )
                 migration_sources = [
                     source_col
                     for source_col in legacy_cols
@@ -679,6 +583,43 @@ class DatabaseMigrator:
             raise DatabaseMaintenanceError(f"Erro durante migracao: {e}")
 
 
+class DatabaseMaintenanceReportService:
+    """Coordinates database maintenance report generation."""
+
+    def __init__(self, analyzer: DatabaseAnalyzer):
+        self.analyzer = analyzer
+
+    def generate_report(
+        self,
+        output_file: str = "docs_saida/database_analysis_report.md",
+        structure_analysis: Dict[str, Any] | None = None,
+        sanity_check: Dict[str, Any] | None = None,
+    ) -> str:
+        try:
+            backup_path = self.analyzer.create_backup()
+            if structure_analysis is None:
+                structure_analysis = self.analyzer.analyze_table_structure()
+            if sanity_check is None:
+                sanity_check = self.analyzer.perform_sanity_check()
+
+            report_content = render_database_analysis_report(
+                db_path=self.analyzer.db_path,
+                backup_path=backup_path,
+                structure=structure_analysis,
+                sanity=sanity_check,
+            )
+
+            Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write(report_content)
+
+            logger.info(f"Relatorio de analise salvo em: {output_file}")
+            return output_file
+        except Exception as e:
+            logger.exception("Falha ao gerar relatorio de manutencao")
+            raise DatabaseMaintenanceError(f"Erro ao gerar relatorio: {e}")
+
+
 def main():
     """Funcao principal para executar analise e manutencao do banco."""
     try:
@@ -704,7 +645,8 @@ def main():
         sanity_results = analyzer.perform_sanity_check()
 
         # Gerar relatorio de analise
-        report_file = analyzer.generate_report(
+        report_service = DatabaseMaintenanceReportService(analyzer)
+        report_file = report_service.generate_report(
             structure_analysis=structure_analysis,
             sanity_check=sanity_results,
         )
