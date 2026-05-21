@@ -226,7 +226,7 @@ def test_fetch_and_import_pai_xlsx_stages_and_imports(
 
     assert result.imported is True
     assert result.normalized_rows == 1
-    assert result.rows_before_import == 0
+    assert result.rows_before_import is None
     assert result.rows_after_import == 1
     assert result.import_xlsx_path == tmp_path / "docs_entrada" / "pai_ssa_import.xlsx"
     normalized = pd.read_excel(result.import_xlsx_path)

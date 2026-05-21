@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def count_imported_ssa_rows(db_path: Path) -> int | None:
     if not Path(db_path).exists():
-        return 0
+        return None
     try:
         return database.count_table_rows(str(db_path), CANONICAL_SSA_TABLE)
     except (OSError, ValueError, SQLiteError) as exc:

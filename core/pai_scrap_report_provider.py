@@ -222,9 +222,8 @@ def run_pai_scrap_report_export(
         raise FileNotFoundError(f"Manifest PAI nao criado nesta execucao: {manifest_path}")
     manifest = _load_manifest(manifest_path)
     xlsx_path = _resolve_xlsx_from_manifest(manifest, manifest_path, fallback_xlsx_path)
-    if (
-        xlsx_path != fallback_xlsx_path
-        and xlsx_path.stat().st_mtime < command_started_at - PAI_ARTIFACT_FRESHNESS_TOLERANCE_SECONDS
+    if xlsx_path.stat().st_mtime < (
+        command_started_at - PAI_ARTIFACT_FRESHNESS_TOLERANCE_SECONDS
     ):
         raise FileNotFoundError(f"XLSX PAI nao criado nesta execucao: {xlsx_path}")
     return PaiScrapReportExport(

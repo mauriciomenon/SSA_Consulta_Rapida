@@ -204,4 +204,5 @@ def _normalize_for_import(
 
 def _build_import_xlsx_path(docs_dir: Path, source_xlsx: Path) -> Path:
     target = docs_dir / default_ssa_import_xlsx_path(source_xlsx).name
-    return Path(reserve_unique_path(target, reserved_paths=set()))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    return Path(reserve_unique_path(target, touch=True))
