@@ -8074,7 +8074,7 @@ class TestGUIFilterLogic:
     def test_filter_alias_map_reuses_module_cache_between_instances(
         self, monkeypatch
     ):
-        filter_aliases.load_filter_alias_map_once.cache_clear()
+        cast(Any, filter_aliases.load_filter_alias_map_once).cache_clear()
         opened_paths: list[str] = []
         real_open = filter_aliases.Path.open
 
@@ -8093,7 +8093,7 @@ class TestGUIFilterLogic:
 
         assert first_map == second_map
         assert len(opened_paths) == 1
-        filter_aliases.load_filter_alias_map_once.cache_clear()
+        cast(Any, filter_aliases.load_filter_alias_map_once).cache_clear()
 
     def test_advanced_filter_include_ignores_nullable_text_instead_of_na_literal(self):
         nullable_df = self.base_df.assign(

@@ -240,6 +240,8 @@ def _move_without_overwrite(source: Path, destination: Path) -> None:
         destination_created = False
         try:
             source_mode = source.stat().st_mode & 0o777
+            if destination.is_symlink():
+                raise FileExistsError(destination)
             destination_fd = os.open(
                 destination,
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL,

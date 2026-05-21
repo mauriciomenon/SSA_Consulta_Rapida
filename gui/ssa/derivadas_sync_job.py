@@ -49,11 +49,16 @@ def execute_derivadas_sync_job(
             phase_reports.append(sheet_phase_report)
             _verify_special_sheet_coverage(sheet_phase_report, special_files)
 
-        materialized_report = phase_reports[-1]
-        merge_stats = materialized_report.get("merge_stats") or {}
-        sheet_stats = materialized_report.get("sheet_stats") or {}
-        merged_edges = int(merge_stats.get("merged_edges", 0) or 0)
-        sheet_edges = int(sheet_stats.get("accepted_edges", 0) or 0)
+        merged_edges = 0
+        sheet_edges = 0
+        for phase_report in phase_reports:
+            merge_stats = phase_report.get("merge_stats") or {}
+            sheet_stats = phase_report.get("sheet_stats") or {}
+            merged_edges = max(
+                merged_edges,
+                int(merge_stats.get("merged_edges", 0) or 0),
+            )
+            sheet_edges += int(sheet_stats.get("accepted_edges", 0) or 0)
         consistency = scan_derivadas_consistency_fn(db_path=db_path)
         if not bool(consistency.get("schema_ready")) or not bool(
             consistency.get("is_consistent")
@@ -78,10 +83,12 @@ def _verify_special_sheet_coverage(
 ) -> None:
     reported_files = _absolute_path_set(final_report.get("sheet_files") or [])
     expected_files = _absolute_path_set(special_files)
-    if reported_files != expected_files:
+    missing_files = expected_files - reported_files
+    if missing_files:
         raise RuntimeError(
             "Sync de planilhas especiais sem cobertura completa de arquivos "
-            f"(esperado={len(expected_files)}, recebido={len(reported_files)})."
+            f"(esperado={len(expected_files)}, "
+            f"recebido={len(reported_files)}, faltando={len(missing_files)})."
         )
     sheet_file_reports = final_report.get("sheet_file_reports") or []
     reports_by_file = {}

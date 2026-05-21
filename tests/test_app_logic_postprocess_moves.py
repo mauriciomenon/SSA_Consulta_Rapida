@@ -162,6 +162,41 @@ def test_move_file_after_import_copy_fallback_syncs_open_destination_fd(
     assert (destination_root / "source.xlsx").read_text(encoding="utf-8") == "data"
 
 
+def test_move_file_after_import_copy_fallback_skips_symlink_destination_race(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    destination_root = docs_dir / "processadas"
+    docs_dir.mkdir()
+    source = docs_dir / "source.xlsx"
+    source.write_text("data", encoding="utf-8")
+    first_destination = destination_root / "source.xlsx"
+
+    def _raise_cross_device_link(src, dst):
+        raise OSError(errno.EXDEV, "cross-device link")
+
+    real_is_symlink = import_postprocess.Path.is_symlink
+
+    def _is_symlink(path_obj: Path) -> bool:
+        if path_obj == first_destination:
+            return True
+        return real_is_symlink(path_obj)
+
+    monkeypatch.setattr(import_postprocess.os, "link", _raise_cross_device_link)
+    monkeypatch.setattr(import_postprocess.Path, "is_symlink", _is_symlink)
+
+    result = move_file_after_import(
+        file_path=str(source),
+        docs_dir=str(docs_dir),
+        destination_root=destination_root,
+    )
+
+    assert result == str((destination_root / "source__1.xlsx").resolve())
+    assert not source.exists()
+    assert not first_destination.exists()
+    assert (destination_root / "source__1.xlsx").read_text(encoding="utf-8") == "data"
+
+
 def test_move_file_after_import_retries_distinct_names_after_runtime_collision(
     tmp_path: Path, monkeypatch
 ) -> None:
