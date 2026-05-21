@@ -3856,10 +3856,7 @@ class FilterGUISSAMixin:
             logger.debug("Falha ao atualizar resumo de filtros no refresh: %s", exc)
         self._sync_clear_filter_button_state()
         try:
-            _measure_timing(
-                "status",
-                lambda: self._set_filtered_count_status(),
-            )
+            _measure_timing("status", self._set_filtered_count_status)
         except Exception as exc:
             logger.debug(
                 "Falha ao atualizar status de total filtrado no refresh: %s", exc
@@ -4276,11 +4273,9 @@ class FilterGUISSAMixin:
         if not profile_name or profile_name not in self.filter_profiles:
             # Fallback ad-hoc: permite strings como "IEE3 + MEL3 + MEL4" para grupo Executor/Emissor
             try:
-                import re as _re
-
                 raw = str(profile_name)
                 tokens = [
-                    _t.strip() for _t in _re.split(r"[+,]", raw) if _t and _t.strip()
+                    _t.strip() for _t in re.split(r"[+,]", raw) if _t and _t.strip()
                 ]
                 if tokens:
                     self._reset_or_groups()
@@ -4598,19 +4593,38 @@ class FilterGUISSAMixin:
         self.persistent_filters = []
         self.update_filter_tags()
 
-    def save_current_filter(self):
-        """Salva o filtro atual como persistente."""
-        current_text = self.search_input.text().strip()
-        if not current_text:
+    def save_current_filter(self):  # skipcq: PY-R1000
+        """Salva o estado atual de filtros como persistente."""
+        current_state = self._snapshot_filter_state()
+        current_text = str(current_state.get("search_text", "") or "").strip()
+        active_columns = current_state.get("active_column_filters") or {}
+        active_column_values = [
+            str(value).strip()
+            for value in active_columns.values()
+            if str(value).strip()
+        ]
+        has_filter_state = bool(
+            current_text
+            or active_column_values
+            or current_state.get("column_or_groups")
+            or current_state.get("exclude_ste_sca")
+            or current_state.get("advanced_filters_active")
+            or current_state.get("current_filter_profile")
+        )
+        if not has_filter_state:
             QMessageBox.information(
                 _qt_parent(self),
                 "Aviso",
-                "Digite um filtro na caixa de pesquisa antes de salvar.",
+                "Aplique algum filtro antes de salvar.",
             )
             return
 
         # Cria um nome baseado no filtro com truncamento por largura disponivel.
-        filter_name = current_text
+        filter_name = current_text or str(
+            current_state.get("current_filter_profile") or ""
+        ).strip()
+        if not filter_name:
+            filter_name = f"Filtro combinado {len(self.persistent_filters) + 1}"
         try:
             metrics = self.search_input.fontMetrics()
             width_px = int(
@@ -4631,16 +4645,44 @@ class FilterGUISSAMixin:
                 "Falha ao truncar nome de filtro persistente por largura: %s", exc
             )
 
+        def _state_json_default(value):
+            if isinstance(value, set):
+                return sorted(value, key=str)
+            return str(value)
+
         # Verifica se ja existe
+        current_state_key = json.dumps(
+            current_state,
+            sort_keys=True,
+            ensure_ascii=True,
+            default=_state_json_default,
+        )
         for f in self.persistent_filters:
-            if f["terms"] == current_text:
+            saved_state = f.get("state")
+            saved_state_key = (
+                json.dumps(
+                    saved_state,
+                    sort_keys=True,
+                    ensure_ascii=True,
+                    default=_state_json_default,
+                )
+                if isinstance(saved_state, dict)
+                else ""
+            )
+            if saved_state_key == current_state_key or (
+                not saved_state_key and f.get("terms") == current_text
+            ):
                 QMessageBox.information(
                     _qt_parent(self), "Aviso", "Este filtro ja esta salvo."
                 )
                 return
 
         # Adiciona novo filtro
-        new_filter = {"name": filter_name, "terms": current_text}
+        new_filter = {
+            "name": filter_name,
+            "terms": current_text,
+            "state": copy.deepcopy(current_state),
+        }
         self.persistent_filters.append(new_filter)
         self.persistent_filters.sort(key=lambda f: f["name"].casefold())
         self.update_filter_tags()
@@ -4687,11 +4729,15 @@ class FilterGUISSAMixin:
         ):
             tag_button = QPushButton(filter_data["name"])
             tag_button.setMaximumHeight(25)
+            tag_button.setMaximumWidth(180)
+            tag_button.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
+            )
             tag_button.setStyleSheet(tag_css)
             tag_button.setToolTip(f"Clique para aplicar: {filter_data['terms']}")
             tag_button.clicked.connect(
                 lambda checked,
-                terms=filter_data["terms"]: self.apply_persistent_filter(terms)
+                filter_data=filter_data: self.apply_persistent_filter(filter_data)
             )
 
             # Botção X para remover
@@ -4714,9 +4760,30 @@ class FilterGUISSAMixin:
 
             tag_widget = QWidget()
             tag_widget.setLayout(tag_layout)
+            tag_widget.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
+            )
             self.filter_tags_layout.addWidget(tag_widget)
 
-    def apply_persistent_filter(self, terms):
+    def apply_persistent_filter(self, filter_data):
         """Aplica um filtro persistente."""
+        if isinstance(filter_data, dict) and isinstance(filter_data.get("state"), dict):
+            try:
+                previous_state = self._snapshot_filter_state()
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao salvar estado antes de aplicar filtro persistente: %s",
+                    exc,
+                )
+                previous_state = None
+            self._last_filter_state = copy.deepcopy(filter_data["state"])
+            self._restore_last_filter_state()
+            self._last_filter_state = previous_state
+            self._update_undo_button_state()
+            return
+        if isinstance(filter_data, dict):
+            terms = str(filter_data.get("terms", "") or "")
+        else:
+            terms = str(filter_data or "")
         self.search_input.setText(terms)
         self.initiate_filtering()

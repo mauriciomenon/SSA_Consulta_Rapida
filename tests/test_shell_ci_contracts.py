@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -170,6 +171,33 @@ def test_minimal_ci_runs_for_any_workflow_change() -> None:
     assert "|^scripts/|^dev_env/build/" in workflow
 
 
+def test_dependabot_ignores_platform_requirement_snapshots() -> None:
+    config = _read_repo_text(".github", "dependabot.yml")
+    template = _read_repo_text(".github", "dependabot-template.yml")
+
+    assert config == template
+    pip_blocks = re.findall(
+        r"(?ms)^\s*-\s*package-ecosystem:\s*['\"]?pip['\"]?\s*$"
+        r".*?(?=^\s*-\s*package-ecosystem:|\Z)",
+        config,
+    )
+    root_pip_blocks = [
+        block
+        for block in pip_blocks
+        if re.search(r"(?m)^\s*directory:\s*['\"]?/['\"]?\s*$", block)
+    ]
+    assert root_pip_blocks, "No root pip Dependabot update found"
+    for block in root_pip_blocks:
+        assert re.search(
+            r"(?ms)^\s*exclude-paths:\s*$"
+            r"(?:(?!^\s*[A-Za-z0-9_-]+:).)*"
+            r"^\s*-\s*['\"]?launchers/platforms/\*\*['\"]?\s*$",
+            block,
+        ), (
+            "Missing launchers/platforms/** in root pip Dependabot exclude-paths"
+        )
+
+
 def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
     workflow = _read_repo_text(".github", "workflows", "secret_scan.yml")
 
@@ -181,6 +209,20 @@ def test_secret_scan_uses_quoted_env_for_pr_base_ref() -> None:
     assert 'git fetch origin "$BASE_REF" --depth=1' not in workflow
     assert 'git fetch origin "$BASE_REF" || true' not in workflow
     assert 'git diff --unified=0 "origin/${BASE_REF}...HEAD"' not in workflow
+
+
+def test_dev_bootstrap_requires_hash_for_remote_pyenv_install() -> None:
+    script = _read_repo_text("dev_env", "bootstrap.ps1")
+
+    assert "[string]$PyenvInstallerSha256" in script
+    assert "[string]::IsNullOrWhiteSpace($InstallerSha256)" in script
+    assert "Instalacao remota do pyenv-win exige -PyenvInstallerSha256" in script
+    assert "Get-FileHash -Algorithm SHA256" in script
+    assert "Unblock-File -LiteralPath $installerPath" in script
+    assert "[Net.SecurityProtocolType]::Tls12" in script
+    assert "Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser" not in script
+    assert "-ExecutionPolicy Bypass -File $installerPath" in script
+    assert "Invoke-Expression" not in script
 
 
 def test_secret_scan_workspace_and_pr_diff_are_blocking_on_main_and_dev() -> None:
@@ -320,20 +362,19 @@ def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     local_action = _read_repo_text(".github", "actions", "opencode-github", "action.yml")
 
     assert "push:" not in workflow
-    assert "pull_request:" in workflow
-    assert "opencode-pr-review:" in workflow
-    assert "github.event.pull_request.head.repo.fork == false" in workflow
+    assert "\n  pull_request:" not in workflow
+    assert "opencode-pr-review:" not in workflow
     assert "opencode-push-review:" not in workflow
-    assert workflow.count("environment: SECRETS") == 4
+    assert workflow.count("environment: SECRETS") == 3
     assert "noop:" in workflow
     assert 'echo "No opencode command in comment; skipping."' in workflow
-    assert "Run automatic PR review" in workflow
+    assert "Run automatic PR review" not in workflow
     assert "Run automatic push review" not in workflow
-    assert "Review this pull request for concrete bugs" in workflow
+    assert "Review this pull request for concrete bugs" not in workflow
     assert "Review the pushed commit range for concrete bugs" not in workflow
-    assert workflow.count("uses: ./.github/actions/configure-qwen-opencode") == 2
-    assert workflow.count("uses: ./.github/actions/opencode-github") == 4
-    assert workflow.count("qwen-cloud-coding-plan") == 2
+    assert workflow.count("uses: ./.github/actions/configure-qwen-opencode") == 1
+    assert workflow.count("uses: ./.github/actions/opencode-github") == 3
+    assert workflow.count("qwen-cloud-coding-plan") == 1
     assert workflow.count("github.event.issue.pull_request") == 3
     assert "anomalyco/opencode/github@" not in workflow
     assert 'default: "true"' in local_action
@@ -343,13 +384,72 @@ def test_opencode_secret_jobs_use_environment_without_oidc() -> None:
     assert "GH_TOKEN: ${{ github.token }}" in local_action
     assert "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830" in local_action
     assert "actions/cache@v4" not in local_action
-    assert "opencode-ai@${{ inputs.opencode_version }}" in local_action
+    assert "npm install" not in local_action
+    assert "Dynamic npm package installation is disabled for this repository" in local_action
+    assert "exit 1" in local_action
+    assert "if: steps.cache.outputs.cache-hit == 'true'" in local_action
     assert "curl -fsSL https://opencode.ai/install | bash" not in local_action
     assert "releases/latest" not in local_action
     assert "id-token: write" not in workflow
     qwen_action = _read_repo_text(".github", "actions", "configure-qwen-opencode", "action.yml")
     assert "umask 077" in qwen_action
     assert 'chmod 600 "${HOME}/.config/opencode/opencode.json"' in qwen_action
+
+
+def test_github_actions_do_not_install_python_or_npm_packages_dynamically() -> None:
+    checked_paths = [
+        ".github/actions/opencode-github/action.yml",
+        ".github/actions/configure-qwen-opencode/action.yml",
+        ".github/workflows/codeql.yml",
+        ".github/workflows/dependency-review.yml",
+        ".github/workflows/minimal-ci.yml",
+        ".github/workflows/opencode.yml",
+        ".github/workflows/release-windows.yml",
+        ".github/workflows/secret_scan.yml",
+    ]
+    forbidden_patterns = [
+        r"\bpip\s+install\b",
+        r"\bpython\s+-m\s+pip\b",
+        r"\buv\s+pip\b",
+        r"\bpipx\b",
+        r"\bnpm\s+install\b",
+        r"\bpnpm\s+install\b",
+        r"\byarn\s+install\b",
+        r"\bbun\s+install\b",
+    ]
+
+    findings: list[str] = []
+    for relative_path in checked_paths:
+        text = _read_repo_text(*relative_path.split("/"))
+        for pattern in forbidden_patterns:
+            if re.search(pattern, text):
+                findings.append(f"{relative_path}: {pattern}")
+
+    assert findings == []
+
+
+def test_code_quality_documents_dynamic_dependency_submission_status() -> None:
+    docs = _read_repo_text(".github", "CODE_QUALITY.md")
+
+    assert "Automatic Dependency Submission is a dynamic GitHub-managed workflow" in docs
+    assert "GH_DEPENDENCY_SUBMISSION_SKIP_CACHE=true" in docs
+    assert "HTTP 422" in docs
+
+
+def test_release_windows_workflow_uses_env_for_dispatch_inputs() -> None:
+    workflow = _read_repo_text(".github", "workflows", "release-windows.yml")
+
+    assert '$backend = "${{ inputs.backend }}"' not in workflow
+    assert 'if ("${{ inputs.skip_installer }}" -eq "true")' not in workflow
+    assert 'if ("${{ inputs.skip_installer }}" -ne "true")' not in workflow
+    assert "RELEASE_BACKEND: ${{ inputs.backend || 'nuitka' }}" in workflow
+    assert "RELEASE_INSTALLER_REQUIRED: ${{ !inputs.skip_installer }}" in workflow
+    assert "RELEASE_SKIP_INSTALLER: ${{ inputs.skip_installer }}" not in workflow
+    assert "$backend = $env:RELEASE_BACKEND" in workflow
+    assert 'if ($env:RELEASE_INSTALLER_REQUIRED -ne "true")' in workflow
+    assert 'if ($env:RELEASE_INSTALLER_REQUIRED -eq "true")' in workflow
+    assert "if: ${{ env.RELEASE_INSTALLER_REQUIRED == 'true' }}" in workflow
+    assert "windows-release-${{ env.RELEASE_BACKEND }}" in workflow
 
 
 def test_opencode_review_script_extracts_pr_number() -> None:
