@@ -430,20 +430,41 @@ def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
 
     def _fake_run(cmd, **_kwargs):
         captured_cmds.append(cmd)
-        Path(cmd[-1]).write_bytes(b"dmg-content")
+        if "hdiutil" in str(cmd[0]):
+            Path(cmd[-1]).write_bytes(b"dmg-content")
         return _Result()
 
     monkeypatch.setattr(
         "launchers.build_multiplatform.shutil.which",
-        lambda name: "/usr/bin/hdiutil" if name == "hdiutil" else None,
+        lambda name: {
+            "codesign": "/usr/bin/codesign",
+            "hdiutil": "/usr/bin/hdiutil",
+        }.get(name),
     )
+    monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
     monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
 
     ok = builder.post_process(
-        "macos_arm64", {"post_build": {"compress": False, "package": "dmg"}}
+        "macos_arm64",
+        {"post_build": {"compress": False, "sign": True, "package": "dmg"}},
     )
     assert ok is True
     assert captured_cmds, "hdiutil nao foi chamado"
+
+    assert captured_cmds[0][:5] == [
+        "/usr/bin/codesign",
+        "--force",
+        "--deep",
+        "--sign",
+        "-",
+    ]
+    assert captured_cmds[1][:5] == [
+        "/usr/bin/codesign",
+        "--verify",
+        "--deep",
+        "--strict",
+        "--verbose=2",
+    ]
 
     cmd = captured_cmds[-1]
     assert cmd[0] == "/usr/bin/hdiutil"
@@ -464,6 +485,302 @@ def test_post_process_macos_creates_dmg_when_configured(tmp_path, monkeypatch):
     )
     names = {entry["name"] for entry in manifest["executables"]}
     assert dmg_path.name in names
+
+
+def test_post_process_macos_fails_when_codesign_verify_fails(
+    tmp_path, monkeypatch, caplog
+):
+    builder = MultiPlatformBuilder()
+    builder.base_dir = tmp_path
+    builder.dist_dir = tmp_path / "dist"
+    platform_dir = builder.dist_dir / "macos_arm64"
+    platform_dir.mkdir(parents=True)
+
+    app_name = f"SSA_GUI_v{builder.version}_macos_arm64.app"
+    app_bundle = platform_dir / app_name
+    info_plist = app_bundle / "Contents" / "Info.plist"
+    info_plist.parent.mkdir(parents=True)
+    with open(info_plist, "wb") as plist_file:
+        plistlib.dump(
+            {"CFBundleName": "legacy", "CFBundleDisplayName": "legacy"}, plist_file
+        )
+
+    class _Result:
+        def __init__(self, returncode=0, stderr=""):
+            self.returncode = returncode
+            self.stdout = ""
+            self.stderr = stderr
+
+    def _fake_run(cmd, **_kwargs):
+        if "hdiutil" in str(cmd[0]):
+            raise AssertionError("hdiutil nao deve rodar quando codesign falha")
+        if "--verify" in cmd:
+            return _Result(returncode=1, stderr="signature invalid")
+        return _Result()
+
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.shutil.which",
+        lambda name: {
+            "codesign": "/usr/bin/codesign",
+            "hdiutil": "/usr/bin/hdiutil",
+        }.get(name),
+    )
+    monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
+    caplog.set_level("ERROR", logger="launchers.build_multiplatform")
+
+    ok = builder.post_process(
+        "macos_arm64",
+        {"post_build": {"compress": False, "sign": True, "package": "dmg"}},
+    )
+
+    assert ok is False
+    assert not (platform_dir / builder._get_macos_dmg_name()).exists()
+    assert "Falha ao verificar assinatura do bundle macOS" in caplog.text
+
+
+def test_post_process_macos_fails_when_hdiutil_returns_error(
+    tmp_path, monkeypatch, caplog
+):
+    builder = MultiPlatformBuilder()
+    builder.base_dir = tmp_path
+    builder.dist_dir = tmp_path / "dist"
+    platform_dir = builder.dist_dir / "macos_arm64"
+    platform_dir.mkdir(parents=True)
+
+    app_name = f"SSA_GUI_v{builder.version}_macos_arm64.app"
+    app_bundle = platform_dir / app_name
+    info_plist = app_bundle / "Contents" / "Info.plist"
+    info_plist.parent.mkdir(parents=True)
+    with open(info_plist, "wb") as plist_file:
+        plistlib.dump(
+            {"CFBundleName": "legacy", "CFBundleDisplayName": "legacy"}, plist_file
+        )
+
+    class _Result:
+        def __init__(self, returncode=0, stderr=""):
+            self.returncode = returncode
+            self.stdout = ""
+            self.stderr = stderr
+
+    def _fake_run(cmd, **_kwargs):
+        if "hdiutil" in str(cmd[0]):
+            return _Result(returncode=1, stderr="hdiutil error")
+        return _Result()
+
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.shutil.which",
+        lambda name: {
+            "codesign": "/usr/bin/codesign",
+            "hdiutil": "/usr/bin/hdiutil",
+        }.get(name),
+    )
+    monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
+    caplog.set_level("ERROR", logger="launchers.build_multiplatform")
+
+    ok = builder.post_process(
+        "macos_arm64",
+        {"post_build": {"compress": False, "sign": True, "package": "dmg"}},
+    )
+
+    assert ok is False
+    assert not (platform_dir / builder._get_macos_dmg_name()).exists()
+    assert "Falha ao gerar DMG" in caplog.text
+
+
+def test_post_process_macos_allows_null_gui_config_name(tmp_path, monkeypatch):
+    builder = MultiPlatformBuilder()
+    builder.base_dir = tmp_path
+    builder.dist_dir = tmp_path / "dist"
+    platform_dir = builder.dist_dir / "macos_arm64"
+    platform_dir.mkdir(parents=True)
+
+    app_name = f"SSA_GUI_v{builder.version}_macos_arm64.app"
+    app_bundle = platform_dir / app_name
+    info_plist = app_bundle / "Contents" / "Info.plist"
+    info_plist.parent.mkdir(parents=True)
+    with open(info_plist, "wb") as plist_file:
+        plistlib.dump(
+            {"CFBundleName": "legacy", "CFBundleDisplayName": "legacy"}, plist_file
+        )
+
+    class _Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def _fake_run(cmd, **_kwargs):
+        if "hdiutil" in str(cmd[0]):
+            Path(cmd[-1]).write_bytes(b"dmg-content")
+        return _Result()
+
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.shutil.which",
+        lambda name: {
+            "codesign": "/usr/bin/codesign",
+            "hdiutil": "/usr/bin/hdiutil",
+        }.get(name),
+    )
+    monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
+
+    ok = builder.post_process(
+        "macos_arm64",
+        {"gui_config": {"name": None}, "post_build": {"compress": False, "package": "dmg"}},
+    )
+
+    assert ok is True
+    assert (platform_dir / builder._get_macos_dmg_name()).exists()
+
+
+def test_post_process_macos_uses_configured_codesign_identity(tmp_path, monkeypatch):
+    builder = MultiPlatformBuilder()
+    builder.base_dir = tmp_path
+    builder.dist_dir = tmp_path / "dist"
+    platform_dir = builder.dist_dir / "macos_arm64"
+    platform_dir.mkdir(parents=True)
+
+    app_name = f"SSA_GUI_v{builder.version}_macos_arm64.app"
+    app_bundle = platform_dir / app_name
+    info_plist = app_bundle / "Contents" / "Info.plist"
+    info_plist.parent.mkdir(parents=True)
+    with open(info_plist, "wb") as plist_file:
+        plistlib.dump(
+            {"CFBundleName": "legacy", "CFBundleDisplayName": "legacy"}, plist_file
+        )
+
+    captured_cmds = []
+
+    class _Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def _fake_run(cmd, **_kwargs):
+        captured_cmds.append(cmd)
+        if "hdiutil" in str(cmd[0]):
+            Path(cmd[-1]).write_bytes(b"dmg-content")
+        return _Result()
+
+    monkeypatch.setenv("MACOS_CODESIGN_IDENTITY", "Developer ID Application: Example")
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.shutil.which",
+        lambda name: {
+            "codesign": "/usr/bin/codesign",
+            "hdiutil": "/usr/bin/hdiutil",
+        }.get(name),
+    )
+    monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
+
+    ok = builder.post_process(
+        "macos_arm64",
+        {"post_build": {"compress": False, "sign": True, "package": "dmg"}},
+    )
+
+    assert ok is True
+    assert captured_cmds[0][4] == "Developer ID Application: Example"
+
+
+def test_post_process_macos_skips_codesign_when_sign_disabled(tmp_path, monkeypatch):
+    builder = MultiPlatformBuilder()
+    builder.base_dir = tmp_path
+    builder.dist_dir = tmp_path / "dist"
+    platform_dir = builder.dist_dir / "macos_arm64"
+    platform_dir.mkdir(parents=True)
+
+    app_name = f"SSA_GUI_v{builder.version}_macos_arm64.app"
+    app_bundle = platform_dir / app_name
+    info_plist = app_bundle / "Contents" / "Info.plist"
+    info_plist.parent.mkdir(parents=True)
+    with open(info_plist, "wb") as plist_file:
+        plistlib.dump(
+            {"CFBundleName": "legacy", "CFBundleDisplayName": "legacy"}, plist_file
+        )
+
+    captured_cmds = []
+
+    class _Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def _fake_run(cmd, **_kwargs):
+        captured_cmds.append(cmd)
+        if "hdiutil" in str(cmd[0]):
+            Path(cmd[-1]).write_bytes(b"dmg-content")
+        return _Result()
+
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.shutil.which",
+        lambda name: {
+            "codesign": "/usr/bin/codesign",
+            "hdiutil": "/usr/bin/hdiutil",
+        }.get(name),
+    )
+    monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
+
+    ok = builder.post_process(
+        "macos_arm64",
+        {"post_build": {"compress": False, "sign": False, "package": "dmg"}},
+    )
+
+    assert ok is True
+    assert captured_cmds
+    assert all("codesign" not in str(cmd[0]) for cmd in captured_cmds)
+    assert captured_cmds[-1][0] == "/usr/bin/hdiutil"
+
+
+def test_post_process_macos_uses_configured_gui_bundle_name(tmp_path, monkeypatch):
+    builder = MultiPlatformBuilder()
+    builder.base_dir = tmp_path
+    builder.dist_dir = tmp_path / "dist"
+    platform_dir = builder.dist_dir / "macos_arm64"
+    platform_dir.mkdir(parents=True)
+
+    app_name = f"Custom_GUI_v{builder.version}.app"
+    app_bundle = platform_dir / app_name
+    info_plist = app_bundle / "Contents" / "Info.plist"
+    info_plist.parent.mkdir(parents=True)
+    with open(info_plist, "wb") as plist_file:
+        plistlib.dump(
+            {"CFBundleName": "legacy", "CFBundleDisplayName": "legacy"}, plist_file
+        )
+
+    class _Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def _fake_run(cmd, **_kwargs):
+        if "hdiutil" in str(cmd[0]):
+            Path(cmd[-1]).write_bytes(b"dmg-content")
+        return _Result()
+
+    monkeypatch.setattr(
+        "launchers.build_multiplatform.shutil.which",
+        lambda name: {
+            "codesign": "/usr/bin/codesign",
+            "hdiutil": "/usr/bin/hdiutil",
+        }.get(name),
+    )
+    monkeypatch.setattr("launchers.build_multiplatform.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("launchers.build_multiplatform.subprocess.run", _fake_run)
+
+    ok = builder.post_process(
+        "macos_arm64",
+        {
+            "gui_config": {"name": "Custom_GUI_v{version}"},
+            "post_build": {"compress": False, "package": "dmg"},
+        },
+    )
+
+    assert ok is True
+    with open(info_plist, "rb") as plist_file:
+        plist_data = plistlib.load(plist_file)
+    assert plist_data["CFBundleName"] == builder.APP_DISPLAY_NAME
 
 
 def test_post_process_macos_dmg_fails_when_gui_app_missing(tmp_path, monkeypatch):

@@ -42,7 +42,7 @@
   },
   "post_build": {
     "compress": false,
-    "sign": false,
+    "sign": true,
     "package": "dmg"
   }
 }

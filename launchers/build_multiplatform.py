@@ -15,7 +15,7 @@ import platform
 import plistlib
 import shlex
 import shutil
-import subprocess
+import subprocess  # nosec B404
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -71,7 +71,7 @@ class MultiPlatformBuilder:
         command_for_log = " ".join(shlex.quote(item) for item in command)
         logger.debug("Executando comando: %s", command_for_log)
         try:
-            return subprocess.run(
+            return subprocess.run(  # nosec B603
                 command,
                 check=False,
                 capture_output=capture_output,
@@ -577,6 +577,7 @@ VSVersionInfo(
         package_mode = str(post_config.get("package", "")).strip().lower()
         apps_set = set(apps or ["cli", "gui"])
         platform_dist = self.dist_dir / platform_name
+        macos_gui_app_bundle = None
 
         if not platform_dist.exists():
             logger.warning(f"Diretorio dist nao encontrado: {platform_dist}")
@@ -587,20 +588,24 @@ VSVersionInfo(
             self._compress_executables(platform_dist)
 
         if platform_name == "macos_arm64" and "gui" in apps_set:
-            if not self._sync_macos_gui_display_name(platform_dist):
+            macos_gui_app_bundle = self._sync_macos_gui_display_name(
+                platform_dist,
+                config,
+                sign_bundle=bool(post_config.get("sign", False)),
+            )
+            if macos_gui_app_bundle is None:
                 return False
-
-        # Criar manifesto
-        self._create_manifest(platform_name, platform_dist)
 
         if platform_name == "macos_arm64" and package_mode == "dmg":
             if "gui" not in apps_set:
                 logger.info("Build macOS sem app GUI; etapa de DMG foi pulada.")
-                return True
-            if not self._create_macos_dmg(platform_dist):
+            elif not self._create_macos_dmg(
+                platform_dist, app_bundle=macos_gui_app_bundle
+            ):
                 return False
-            # Regerar manifesto para incluir o arquivo DMG no inventario final.
-            self._create_manifest(platform_name, platform_dist)
+
+        # Criar manifesto apos finalizar os artefatos de pacote.
+        self._create_manifest(platform_name, platform_dist)
 
         return True
 
@@ -622,27 +627,45 @@ VSVersionInfo(
             return candidates[0]
         return None
 
-    def _sync_macos_gui_display_name(self, dist_dir):
+    def _sync_macos_gui_display_name(self, dist_dir, config=None, *, sign_bundle=False):
         """Atualiza CFBundleName e CFBundleDisplayName do app GUI no macOS."""
-        app_bundle = self._find_macos_gui_app(dist_dir, allow_fallback=False)
+        app_bundle = None
+        gui_config = (config or {}).get("gui_config") or {}
+        if isinstance(gui_config, dict):
+            raw_name = gui_config.get("name") or ""
+            configured_name = (
+                str(raw_name).replace("{version}", self.version) if raw_name else ""
+            )
+            if configured_name:
+                configured_bundle = dist_dir / f"{configured_name}.app"
+                if configured_bundle.exists() and configured_bundle.is_dir():
+                    app_bundle = configured_bundle
+                else:
+                    logger.error(
+                        "Bundle .app configurado para GUI nao encontrado em %s",
+                        configured_bundle,
+                    )
+                    return None
+        if app_bundle is None:
+            app_bundle = self._find_macos_gui_app(dist_dir, allow_fallback=False)
         if app_bundle is None:
             logger.error(
                 "Bundle .app da GUI da versao atual nao encontrado para atualizar nome em %s",
                 dist_dir,
             )
-            return False
+            return None
 
         info_plist_path = app_bundle / "Contents" / "Info.plist"
         if not info_plist_path.exists():
             logger.error("Info.plist nao encontrado no bundle GUI: %s", info_plist_path)
-            return False
+            return None
 
         try:
             with open(info_plist_path, "rb") as plist_file:
                 plist_data = plistlib.load(plist_file)
         except (OSError, plistlib.InvalidFileException, ValueError) as exc:
             logger.error("Falha ao ler Info.plist '%s': %s", info_plist_path, exc)
-            return False
+            return None
 
         plist_data["CFBundleName"] = self.APP_DISPLAY_NAME
         plist_data["CFBundleDisplayName"] = self.APP_DISPLAY_NAME
@@ -652,22 +675,68 @@ VSVersionInfo(
                 plistlib.dump(plist_data, plist_file)
         except OSError as exc:
             logger.error("Falha ao atualizar Info.plist '%s': %s", info_plist_path, exc)
-            return False
+            return None
 
         logger.info(
             "Nome de exibicao do bundle macOS atualizado para '%s'",
             self.APP_DISPLAY_NAME,
         )
-        return True
+        if sign_bundle and platform.system() == "Darwin":
+            codesign_cmd = shutil.which("codesign")
+            if not codesign_cmd:
+                logger.error("codesign nao encontrado para validar bundle macOS")
+                return None
 
-    def _create_macos_dmg(self, dist_dir):
+            codesign_identity = os.environ.get("MACOS_CODESIGN_IDENTITY") or "-"
+            sign_result = self._run_command(
+                [
+                    codesign_cmd,
+                    "--force",
+                    "--deep",
+                    "--sign",
+                    codesign_identity,
+                    str(app_bundle),
+                ],
+                timeout=300,
+                capture_output=True,
+                text=True,
+                cwd=str(self.base_dir),
+            )
+            if sign_result.returncode != 0:
+                logger.error("Falha ao assinar bundle macOS: %s", sign_result.stderr.strip())
+                return None
+
+            verify_result = self._run_command(
+                [
+                    codesign_cmd,
+                    "--verify",
+                    "--deep",
+                    "--strict",
+                    "--verbose=2",
+                    str(app_bundle),
+                ],
+                timeout=300,
+                capture_output=True,
+                text=True,
+                cwd=str(self.base_dir),
+            )
+            if verify_result.returncode != 0:
+                logger.error(
+                    "Falha ao verificar assinatura do bundle macOS: %s",
+                    (verify_result.stderr or verify_result.stdout).strip(),
+                )
+                return None
+
+        return app_bundle
+
+    def _create_macos_dmg(self, dist_dir, *, app_bundle=None):
         """Gera instalador DMG a partir do bundle .app da GUI."""
         hdiutil_cmd = shutil.which("hdiutil")
         if not hdiutil_cmd:
             logger.error("hdiutil nao encontrado; nao foi possivel gerar DMG")
             return False
 
-        app_bundle = self._find_macos_gui_app(dist_dir, allow_fallback=False)
+        app_bundle = app_bundle or self._find_macos_gui_app(dist_dir, allow_fallback=False)
         if app_bundle is None:
             logger.error("Bundle .app da GUI da versao atual nao encontrado em %s", dist_dir)
             return False
@@ -1237,19 +1306,30 @@ VSVersionInfo(
 def main(argv=None):
     """Funcao principal"""
     parser = argparse.ArgumentParser(
-        description="Build System Multi-Plataforma SSA Consulta Rapida"
+        description=(
+            "Build local por plataforma para SSA Consulta Rapida "
+            "(sem cross-compilation automatica)"
+        )
     )
 
     parser.add_argument(
         "--platform",
         choices=sorted(MultiPlatformBuilder.PLATFORMS),
-        help="Plataforma especifica para build",
+        help="Plataforma local esperada para build",
+    )
+
+    parser.add_argument(
+        "--current-platform",
+        action="store_true",
+        dest="current_platform",
+        help="Build da plataforma atual (sem cross-compilation)",
     )
 
     parser.add_argument(
         "--all",
         action="store_true",
-        help="Build de todos os apps da plataforma atual (sem cross-compilation)",
+        dest="current_platform",
+        help="[DEPRECATED] use --current-platform",
     )
 
     parser.add_argument(
@@ -1279,7 +1359,7 @@ def main(argv=None):
     parser.add_argument(
         "--list-platforms",
         action="store_true",
-        help="Listar todas as plataformas suportadas",
+        help="Listar alvos conhecidos; build deve rodar no host correspondente",
     )
 
     parser.add_argument(
@@ -1361,7 +1441,7 @@ def main(argv=None):
     # Determinar plataformas para build
     platforms_to_build = []
 
-    if args.all:
+    if args.current_platform:
         # Build para plataforma atual apenas (cross-compilation complexa)
         current_platform = builder.detect_current_platform()
         if current_platform:
@@ -1377,7 +1457,7 @@ def main(argv=None):
         else:
             logger.warning(
                 f"Cross-compilation de {current_platform} para {args.platform} "
-                "nao implementada. Use --all para build da plataforma atual."
+                "nao implementada. Use --current-platform para build da plataforma atual."
             )
             return 1
     else:
