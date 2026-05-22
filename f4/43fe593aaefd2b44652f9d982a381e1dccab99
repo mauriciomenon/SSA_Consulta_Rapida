@@ -1,0 +1,26 @@
+tests/test_cli_loop_filter_rounds.py
+  s_082d1ff7d55d96::t_18730a8f8d9a08 204-260
+gui/ssa/filter_search_undo_controller.py
+  s_082d1ff7d55d96::t_e0cf22b527846e 64
+tests/test_gui_filter_logic.py
+  s_082d1ff7d55d96::t_18730a8f8d9a08 1962-1998,3024
+  s_082d1ff7d55d96::t_e0cf22b527846e 2775
+interface/cli.py
+  s_082d1ff7d55d96::t_18730a8f8d9a08 52,1301-1308
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "f443fe593aaefd2b44652f9d982a381e1dccab99",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
