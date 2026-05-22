@@ -57,11 +57,21 @@ def execute_derivadas_sync_job(
             merged_edges += int(merge_stats.get("merged_edges", 0) or 0)
         sheet_stats = sheet_phase_report.get("sheet_stats") if sheet_phase_report else {}
         sheet_edges = int((sheet_stats or {}).get("accepted_edges", 0) or 0)
-        consistency = scan_derivadas_consistency_fn(db_path=db_path)
-        if not bool(consistency.get("schema_ready")) or not bool(
-            consistency.get("is_consistent")
-        ):
-            issue_counts = consistency.get("issue_counts") or {}
+        try:
+            consistency = scan_derivadas_consistency_fn(db_path=db_path)
+        except Exception as exc:
+            return {
+                "ok": False,
+                "error": "Falha ao verificar consistencia de derivadas: "
+                f"{repr(exc)}",
+            }
+        issue_counts = consistency.get("issue_counts") or {}
+        if not bool(consistency.get("schema_ready")):
+            raise RuntimeError(
+                "Schema de derivadas indisponivel apos sync manual: "
+                f"{json.dumps(issue_counts, ensure_ascii=True)}"
+            )
+        if not bool(consistency.get("is_consistent")):
             raise RuntimeError(
                 "Derivadas inconsistente apos sync manual: "
                 f"{json.dumps(issue_counts, ensure_ascii=True)}"
