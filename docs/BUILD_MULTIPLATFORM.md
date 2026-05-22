@@ -2,9 +2,9 @@
 
 Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Windows, macOS e Linux.
 
-## CURRENT TRUTH (4.37 local / v4.36 published)
+## CURRENT TRUTH (4.41 local release candidate)
 
-- Sync deste guia: `2026-04-27 12:45 -0300`.
+- Sync deste guia: `2026-05-22 09:22 -0300`.
 - Relatorio consolidado deste ciclo:
   - `docs/BUILD_EXECUTION_AUDIT_20260311.md`
 - Runbook operacional 3x3:
@@ -33,8 +33,9 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 ## Local de saida e staging
 
 - Artefatos finais:
-  - PyInstaller:
+  - PyInstaller via `launchers/build_multiplatform.py`:
     - `launchers/dist/<plataforma>/...`
+  - PyInstaller via scripts legados em `dev_env/build/`:
     - `builds/pyinstaller/<plataforma>/...`
   - Nuitka:
     - `builds/nuitka/<plataforma>/...`
@@ -59,7 +60,7 @@ Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Window
 
 ## Nota de versao
 
-Exemplos de nomes versionados neste documento (v3.10/v3.11) sao snapshots historicos.
+Exemplos de nomes versionados neste documento usam v4.41 como baseline atual.
 No fluxo ativo, usar a versao corrente definida em `VERSION` e `config/version.json`.
 
 ## Estrutura de Build
@@ -86,14 +87,14 @@ launchers/
 │       └── build_config.json   # Config PyInstaller Linux ARM64
 ├── dist/                       # Executaveis gerados
 │   ├── windows_amd64/
-│   │   ├── SSA_CLI_v3.10_windows_amd64.exe
-│   │   └── SSA_GUI_v3.10_windows_amd64.exe
+│   │   ├── SSA_CLI_v4.41_windows_amd64.exe
+│   │   └── SSA_GUI_v4.41_windows_amd64.exe
 │   ├── macos_arm64/
-│   │   ├── SSA_CLI_v3.10_macos_arm64
-│   │   └── SSA_GUI_v3.10_macos_arm64.app
+│   │   ├── SSA_CLI_v4.41_macos_arm64
+│   │   └── SSA_GUI_v4.41_macos_arm64.app
 │   └── debian_amd64/
-│       ├── SSA_CLI_v3.10_debian_amd64
-│       └── SSA_GUI_v3.10_debian_amd64
+│       ├── SSA_CLI_v4.41_debian_amd64
+│       └── SSA_GUI_v4.41_debian_amd64
 └── resources/                  # Recursos compartilhados
     ├── app_icon.ico            # Icone Windows
     ├── app_icon.icns           # Icone macOS
@@ -117,18 +118,25 @@ uv run --python 3.13 launchers/build_multiplatform.py --platform debian_arm64
 
 ### Build de todos os apps da plataforma atual
 ```bash
-uv run --python 3.13 launchers/build_multiplatform.py --all
+uv run --python 3.13 launchers/build_multiplatform.py --current-platform
 ```
 
 Observacao:
-- `--all` neste launcher nao faz cross-compilation.
+- `--current-platform` neste launcher nao faz cross-compilation.
 - O efeito pratico e construir todos os apps (`cli` + `gui`) apenas para a plataforma detectada no host atual.
+
+### Signing macOS
+
+- `launchers/platforms/macos_arm64/build_config.json` usa `post_build.sign=true`.
+- O builder atualiza `Info.plist`, assina novamente o `.app` e valida com `codesign --verify --deep --strict` antes de criar o DMG.
+- A identidade padrao e assinatura ad-hoc (`-`). Para Developer ID, definir `MACOS_CODESIGN_IDENTITY`.
 
 ### Opcoes Avancadas
 ```bash
 uv run --python 3.13 launchers/build_multiplatform.py --clean          # Limpa builds anteriores
+uv run --python 3.13 launchers/build_multiplatform.py --clean-all      # Limpa builds e ambientes
 uv run --python 3.13 launchers/build_multiplatform.py --debug          # Build com debug info
-uv run --python 3.13 launchers/build_multiplatform.py --all            # Todos os apps da plataforma atual
+uv run --python 3.13 launchers/build_multiplatform.py --current-platform # Todos os apps da plataforma atual
 ```
 
 ## configuracao de Ambiente
@@ -193,9 +201,9 @@ SSA_{CLI|GUI}_v{versao}_{plataforma}_{arquitetura}.{extensao}
 ```
 
 Exemplo:
-- `SSA_CLI_v3.10_windows_amd64.exe`
-- `SSA_GUI_v3.10_macos_arm64.app`
-- `SSA_CLI_v3.10_debian_amd64`
+- `SSA_CLI_v4.41_windows_amd64.exe`
+- `SSA_GUI_v4.41_macos_arm64.app`
+- `SSA_CLI_v4.41_debian_amd64`
 
 ### Empacotamento Debian no baseline atual
 
@@ -209,19 +217,19 @@ Exemplo:
 - Os scripts removem residuos locais do pacote final: `venv`, `.bak`, bancos locais, planilhas e `.env`.
 - AppImage suporta `--prepare-only` para validar o AppDir quando `appimagetool` nao esta instalado.
 
-### Manifesto de Release
-Cada build gera um `release_manifest.json`:
+### Manifesto de Build
+Cada build gera um `build_manifest.json` dentro da pasta da plataforma:
 ```json
 {
-  "version": "3.10",
-  "build_date": "2025-09-06T15:30:00Z",
-  "platforms": [
+  "platform": "macos_arm64",
+  "version": "4.41",
+  "build_date": "2026-05-22T12:00:00.000000",
+  "executables": [
     {
-      "name": "windows_amd64",
-      "cli_size": "18.5 MB",
-      "gui_size": "42.1 MB",
-      "python_version": "3.13.7",
-      "dependencies": ["pandas==2.3.2", "PyQt6==6.9.1", ...]
+      "name": "SSA_GUI_v4.41_macos_arm64.app",
+      "kind": "directory",
+      "size_mb": 42.1,
+      "path": "macos_arm64/SSA_GUI_v4.41_macos_arm64.app"
     }
   ]
 }
@@ -251,7 +259,8 @@ uv pip install --python 3.13 --upgrade PyQt6 --force-reinstall
 uv run --python 3.13 launchers/build_multiplatform.py --clean-all
 ```
 
-Remove todos os ambientes virtuais e builds anteriores.
+`--clean` e `--clean-all` removem `launchers/dist/`, `venv/` e `temp/` de todas as plataformas.
+`--clean --platform <plataforma>` limita a remocao de `dist/`, `venv/` e `temp/` a plataforma informada.
 
 ## Integracao CI/CD
 
@@ -260,7 +269,7 @@ O script e compativel com workflows automatizados:
 
 ```yaml
 - name: Build Executables
-  run: uv run --python 3.13 launchers/build_multiplatform.py --all
+  run: uv run --python 3.13 launchers/build_multiplatform.py --current-platform
   
 - name: Upload Artifacts
   uses: actions/upload-artifact@v3
@@ -283,5 +292,4 @@ uv run --python 3.13 launchers/build_multiplatform.py --debug
 
 Gera logs detalhados para diagnostico de problemas.
 
-<!-- DOC_SYNC_MAC: 2026-03-29 host-agnostic paths, continue from repo root on macOS -->
-
+<!-- DOC_SYNC_MAC: 2026-05-22 host-agnostic paths, continue from repo root on macOS -->
