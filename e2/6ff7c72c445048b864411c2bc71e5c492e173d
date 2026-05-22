@@ -1,0 +1,43 @@
+launchers/build_multiplatform.py
+  s_082d1ff7d55d96::t_39be96b6abb558 591-595,630,684
+  s_082d1ff7d55d96::t_a35576481e558f 1309-1312,1318,1362
+  s_082d1ff7d55d96::t_b47e9ba6be4d52 1322-1325,1444,1460
+  s_082d1ff7d55d96::t_f594771377ac83 685-687,689,691,700-706,708-727
+  s_082d1ff7d55d96::t_5ebf2479ed1a88 606-608
+  s_082d1ff7d55d96::t_4045518166b5de 580,596,602-604,648,656,661,668,678,688,707,728,730-732,739
+  s_082d1ff7d55d96::t_401ad77ec926e1 18,74
+  s_082d1ff7d55d96::t_d49802b009020e 635-638
+  s_082d1ff7d55d96::t_a0dae8c7b786f6 632,634,639-647,649-650
+  s_082d1ff7d55d96::t_94da0d31d29501 633
+  s_082d1ff7d55d96::t_b40c5c18f289dc 690,692-699,1331-1332
+docs/BUILD_MULTIPLATFORM.md
+  s_082d1ff7d55d96::t_dfabde32f1b8a0 63,90-91,93-94,96-97,128-133,204-206,220-221,224-227,229-231
+  s_082d1ff7d55d96::t_5ca5df2e89c55a 5,7,36,38,293
+  s_082d1ff7d55d96::t_ede1781fc22dae 121,125,139,270
+  s_082d1ff7d55d96::t_9fe16890f28561 137,261
+tests/test_build_multiplatform_manifest.py
+  s_082d1ff7d55d96::t_12af4e2621f270 592-636
+  s_082d1ff7d55d96::t_f3abeb94bc43f5 490-492,530,539,542-544,580,589
+  s_082d1ff7d55d96::t_79ef4681f29df1 433-434,439-442,444,454-467
+  s_082d1ff7d55d96::t_5750024cdee9cb 637-677,680-683,734-785
+  s_082d1ff7d55d96::t_b75ad8a711775b 493-529,531-532,535-538,540-541,545-579,581-582,585-588,590-591
+  s_082d1ff7d55d96::t_909ac12875d12f 448-449,533-534,583-584,678-679,684-733
+launchers/platforms/macos_arm64/build_config.json
+  s_082d1ff7d55d96::t_331cad4fd4069f 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e26ff7c72c445048b864411c2bc71e5c492e173d",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
