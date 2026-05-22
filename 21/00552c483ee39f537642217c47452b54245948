@@ -1,0 +1,78 @@
+scripts/create_distribution.py
+  s_082d1ff7d55d96::t_0c447e8a993133 1236-1237
+  s_082d1ff7d55d96::t_862c876ae5c90a 369-371,378,764
+  s_082d1ff7d55d96::t_05a27dfcc561d1 804-813,817-822
+  s_082d1ff7d55d96::t_f6db3fa03ab31c 1229,1266
+  s_082d1ff7d55d96::t_a6dfbe3d386b6a 1230-1235,1238-1240,1261-1265
+  s_082d1ff7d55d96::t_b82f7e66254043 17,74,826-870,911-912,1269
+  s_082d1ff7d55d96::t_e0fd4423024976 31,460-474
+  s_082d1ff7d55d96::t_56dd5d8369732f 19,1254-1258,1267
+  s_082d1ff7d55d96::t_3d8ec658ed6a15 1259-1260
+  s_082d1ff7d55d96::t_510a637c2cba04 454
+tests/test_cli_pagination_tracker_prune.py
+  s_082d1ff7d55d96::t_6f86894b08adb5 92,94-103
+  s_082d1ff7d55d96::t_ba9d8aa6df895c 110
+  s_082d1ff7d55d96::t_62faf4cc6ef05a 11,33,67,76,93,117,144,148,161
+  s_082d1ff7d55d96::t_f441174305a9dc 145-147,149-160
+  s_082d1ff7d55d96::t_31ca468aaaa21a 88-89,111-113
+  s_082d1ff7d55d96::t_fd217617b08437 66,72
+  s_082d1ff7d55d96::t_b5a917350ad263 81
+launchers/launcher_ssa_consulta_rapida_cli.bat
+  s_082d1ff7d55d96::t_ba9d8aa6df895c 4,6-10
+  s_082d1ff7d55d96::t_b82f7e66254043 2-3,5,11-17
+tests/test_launcher_entry_runtime.py
+  s_082d1ff7d55d96::t_ba9d8aa6df895c 469-508
+launchers/cli_entry.py
+  s_082d1ff7d55d96::t_b82f7e66254043 216-230,258-260
+interface/cli.py
+  s_082d1ff7d55d96::t_f441174305a9dc 180-184
+  s_082d1ff7d55d96::t_b82f7e66254043 1288-1296
+  s_082d1ff7d55d96::t_a5ddc2c94fabd2 108-109,165-166,719,838,1139,1170,1326
+  s_082d1ff7d55d96::t_7f53dad41ddc9b 53,167,428,1005
+  s_082d1ff7d55d96::t_3d8ec658ed6a15 61,66-69,73-74,78-84,98,106,110,130-132
+  s_082d1ff7d55d96::t_56dd5d8369732f 70
+  s_082d1ff7d55d96::t_ba9d8aa6df895c 75
+tests/test_robust_logging.py
+  s_082d1ff7d55d96::t_b9e4640b4a3f74 288-289,293-295
+  s_082d1ff7d55d96::t_c834a3bffe85e8 297-310
+  s_082d1ff7d55d96::t_bfa99d6012d665 206
+config/version.json
+  s_082d1ff7d55d96::t_24799bdd788c02 3-4
+launchers/launcher_ssa_consulta_rapida_gui.bat
+  s_082d1ff7d55d96::t_b82f7e66254043 2-3,5,11-17
+  s_082d1ff7d55d96::t_ba9d8aa6df895c 4,6-10
+utils/robust_logging.py
+  s_082d1ff7d55d96::t_0c447e8a993133 351-357
+  s_082d1ff7d55d96::t_b9e4640b4a3f74 424-425
+  s_082d1ff7d55d96::t_8ca62e60b4cfb3 27,358-367,523-533
+tests/test_create_distribution.py
+  s_082d1ff7d55d96::t_c5b0a7bf413e48 1068-1082
+  s_082d1ff7d55d96::t_804bae7b1fa35f 850-888
+  s_082d1ff7d55d96::t_ab489b5c5d823a 304-331
+  s_082d1ff7d55d96::t_999434441a88de 1015,1040-1041,1067,1089
+  s_082d1ff7d55d96::t_56dd5d8369732f 1044-1063,1065-1066
+  s_082d1ff7d55d96::t_ba9d8aa6df895c 245-274,302-303
+  s_082d1ff7d55d96::t_31ca468aaaa21a 1064
+  s_082d1ff7d55d96::t_94795ded167efa 1094
+  s_082d1ff7d55d96::t_14f588244dd3fe 3,275-301
+launchers/runtime_entry_helpers.py
+  s_082d1ff7d55d96::t_ba9d8aa6df895c 434-435
+launchers/QUICKSTART.md
+  s_082d1ff7d55d96::t_b82f7e66254043 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "2100552c483ee39f537642217c47452b54245948",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
