@@ -1,0 +1,42 @@
+scripts/create_distribution.py
+  s_082d1ff7d55d96::t_018662acca1f62 1004-1007,1048
+  s_082d1ff7d55d96::t_3f251707814a5f 28-29
+  s_082d1ff7d55d96::t_f63b30d506400b 55-57,59
+  s_082d1ff7d55d96::t_032b0315da7fa6 42-43,58,60
+  s_082d1ff7d55d96::t_deee190b0d6e63 535,772,774,777,781,786,1192
+  s_082d1ff7d55d96::t_c176a451ed5311 46
+  s_082d1ff7d55d96::t_e1b72df70ebf7b 934
+  s_082d1ff7d55d96::t_e9e34228fca709 1019,1033
+  s_082d1ff7d55d96::t_134d836d810ba7 1110
+  s_082d1ff7d55d96::t_9360e6b5512c11 19,24-27
+  s_082d1ff7d55d96::t_64fcf1291b5f8b 1008,1049
+  s_082d1ff7d55d96::t_d7d929c3b53b1a 249-254,256-257
+  s_082d1ff7d55d96::t_9b4ea7d81d7ebb 752-755
+tests/test_create_distribution.py
+  s_082d1ff7d55d96::t_fdba052356753d 1348-1349
+  s_082d1ff7d55d96::t_e263b67acf97c5 3,12-13,46-61
+  s_082d1ff7d55d96::t_8e2cef1d9f3aea 450-504
+  s_082d1ff7d55d96::t_5daff4fa7eff53 1126-1169
+  s_082d1ff7d55d96::t_81a4286008ddcf 364-365,410-411,844,846,849-850
+  s_082d1ff7d55d96::t_9df6ee7e870b8c 1117,1120,1344
+  s_082d1ff7d55d96::t_d10ee813283ffc 360-363,406-409,841-843,845
+  s_082d1ff7d55d96::t_1c550af5b53dfa 375-378,414-449,865-893,1381-1410
+  s_082d1ff7d55d96::t_ec9f2d9aaee274 837-840,847-848,851-853
+  s_082d1ff7d55d96::t_fef630ba55042b 1170-1211
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "fb305fd78bcb656919da7484760726a5f0f52a87",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
