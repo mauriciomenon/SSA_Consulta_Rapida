@@ -67,7 +67,7 @@ def _clear_resolved_table_cache(db_path: str | None = None) -> None:
         _resolved_table_cache.clear()
         return
 
-    normalized_path = os.path.abspath(db_path)
+    normalized_path = ":memory:" if db_path == ":memory:" else os.path.abspath(db_path)
     stale_keys = [key for key in _resolved_table_cache if key[0] == normalized_path]
     for key in stale_keys:
         _resolved_table_cache.pop(key, None)
@@ -182,7 +182,7 @@ def initialize_database(
         conn = db_path
         conn.executescript(schema_sql)
         conn.commit()
-        _clear_resolved_table_cache()
+        _clear_resolved_table_cache(_get_connection_db_path(conn))
         return True
 
     with get_db_connection(db_path) as conn:  # caminho normal (string)
@@ -249,6 +249,23 @@ def query_db(
         return pd.DataFrame()
 
 
+def vacuum_analyze_database(db_path: str, *, timeout: float = 30.0) -> dict[str, Any]:
+    """Run SQLite VACUUM and ANALYZE for a local database file."""
+    if db_path != ":memory:" and not os.path.isfile(db_path):
+        error = f"Banco de dados nao encontrado: {db_path}"
+        logger.error(error)
+        return {"ok": False, "error": error, "db_path": db_path}
+    try:
+        with sqlite3.connect(db_path, timeout=float(timeout)) as conn:
+            conn.execute("VACUUM")
+            conn.execute("ANALYZE")
+        _clear_resolved_table_cache(str(db_path))
+        return {"ok": True, "db_path": db_path}
+    except sqlite3.Error as exc:
+        logger.exception("Falha ao compactar DB e atualizar estatisticas: %s", exc)
+        return {"ok": False, "error": str(exc), "db_path": db_path}
+
+
 IfExistsPolicy = Literal["fail", "replace", "append"]
 
 
@@ -262,7 +279,8 @@ def get_ssa_query(table_name: str = CANONICAL_SSA_TABLE) -> str:
         table_name = CANONICAL_SSA_TABLE
     elif table_name != CANONICAL_SSA_TABLE:
         raise ValueError(f"Unsupported table for CLI query: {table_name!r}")
-    return f"""
+    quoted_table_name = _quote_identifier(table_name)
+    query_template = """
     SELECT
         numero_ssa,
         situacao,
@@ -303,6 +321,7 @@ def get_ssa_query(table_name: str = CANONICAL_SSA_TABLE) -> str:
         num_reprogramacoes
     FROM {table_name}
     """
+    return query_template.format(table_name=quoted_table_name)  # nosec B608
 
 
 def _validate_insert_policy(table_name: str, if_exists: IfExistsPolicy) -> None:
@@ -461,8 +480,8 @@ def count_table_rows(db_path: str, table_name: str) -> int:
     """Count rows in a resolved runtime table."""
     with get_db_connection(db_path) as conn:
         resolved_table_name = resolve_target_table(conn, table_name)
-        query = f"SELECT COUNT(*) FROM {_quote_identifier(resolved_table_name)}"
-        row = conn.execute(query).fetchone()
+        query = f"SELECT COUNT(*) FROM {_quote_identifier(resolved_table_name)}"  # nosec B608 # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+        row = conn.execute(query).fetchone()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
     return int(row[0] if row else 0)
 
 
@@ -472,18 +491,19 @@ def count_distinct_derivada_edges(
 ) -> int:
     """Count distinct derivada edges on the resolved runtime table/view."""
     resolved_table_name = resolve_target_table(conn, table_name)
-    query = f"""
+    quoted_table_name = _quote_identifier(resolved_table_name)
+    query_template = """
         SELECT COUNT(*)
         FROM (
             SELECT numero_ssa, derivada_de
-            FROM {_quote_identifier(resolved_table_name)}
+            FROM {table_name}
             WHERE derivada_de IS NOT NULL
             GROUP BY numero_ssa, derivada_de
         ) AS db_edges
     """
-    return int(
-        conn.execute(query).fetchone()[0] or 0
-    )  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+    query = query_template.format(table_name=quoted_table_name)  # nosec B608 # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query
+    row = conn.execute(query).fetchone()  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+    return int(row[0] or 0) if row is not None else 0
 
 
 def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912

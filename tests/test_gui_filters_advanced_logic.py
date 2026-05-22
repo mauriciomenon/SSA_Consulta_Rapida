@@ -1,15 +1,32 @@
-import ast
-import re
 import warnings
-from pathlib import Path
 
 import pandas as pd
 
 from gui.ssa import gui_filters_advanced_logic as adv_logic
+from gui.ssa import gui_filters_advanced_state_reader as adv_state_reader
 from gui.ssa import gui_filters_advanced_ui as adv_ui
+from gui.ssa.filter_domain_rules import (
+    build_responsavel_sector_counts_by_column,
+    build_responsavel_sector_counts,
+    order_responsavel_values,
+    subset_by_sector_filters,
+)
 from gui.ssa.gui_filters_advanced_logic import (
     _apply_advanced_filters,
     _compute_years_from_data_cadastro,
+)
+from gui.ssa.gui_filters_responsavel_state import (
+    ResponsavelMaterializationState,
+)
+from tests.gui_filters_advanced_contract_helpers import (
+    extract_assigned_literal_dict,
+    extract_column_group_include_exclude_keys,
+    extract_detector_filter_keys,
+    extract_logic_filter_keys,
+    extract_produced_filter_keys,
+    extract_week_exclude_keys,
+    get_has_active_block,
+    read_advanced_filter_sources,
 )
 
 
@@ -18,54 +35,184 @@ class _DummyWindow:
         self._advanced_filters = filters
 
 
+class _DummyCombo:
+    def currentData(self):
+        return "macro_x"
+
+
+class _DeletedCheckbox:
+    def isChecked(self):
+        raise RuntimeError("wrapped C/C++ object of type QCheckBox has been deleted")
+
+    def property(self, _name):
+        return "stale"
+
+
+class _CheckedValue:
+    def __init__(self, value):
+        self.value = value
+
+    def isChecked(self):
+        return True
+
+    def property(self, _name):
+        return self.value
+
+
+class _DummyStateReaderWindow:
+    def __init__(self):
+        self._advanced_filters = {
+            "solicitante": ["Alice"],
+            "solicitante_exclude_values": ["Bob"],
+            "responsavel_programacao": ["Carol"],
+            "responsavel_programacao_exclude_values": ["Dan"],
+            "responsavel_execucao": ["Eve"],
+            "responsavel_execucao_exclude_values": ["Frank"],
+        }
+        self.responsavel_materialization_state = ResponsavelMaterializationState()
+        self.adv_macro_combo = _DummyCombo()
+
+    def _get_checked_values(self, source):
+        return list(source or [])
+
+    def _parse_week(self, raw: str):
+        return int(raw) if raw else None
+
+
 def _normalize_ssa_series(series: pd.Series) -> pd.Series:
-    return series.astype(str).fillna("").str.strip()
+    return series.astype("string").fillna("").str.strip()
 
 
-def _get_has_active_block(ui_source: str) -> str:
-    has_active_block_match = re.search(
-        r"def _has_active_advanced_filters\(.*?\):(?P<body>.*?)def _apply_advanced_filters_from_ui",
-        ui_source,
-        flags=re.S,
+def _advanced_state_reader_output_keys() -> set[str]:
+    reader = adv_state_reader.AdvancedFilterStateReader(
+        widget_context={"adv_macro_combo": _DummyCombo()},
+        current_filters={},
+        responsavel_state=type(
+            "State",
+            (),
+            {"is_materialized": lambda _self, _prefix: True},
+        )(),
+        parse_week=lambda raw: int(raw) if raw else None,
     )
-    assert has_active_block_match is not None
-    return has_active_block_match.group("body")
+    return set(reader.collect())
 
 
-def _extract_assigned_literal_dict(source: str, variable_name: str) -> dict:
-    module = ast.parse(source)
-    for node in ast.walk(module):
-        if not isinstance(node, ast.Assign):
-            continue
-        for target in node.targets:
-            if isinstance(target, ast.Name) and target.id == variable_name:
-                value = ast.literal_eval(node.value)
-                if isinstance(value, dict):
-                    return value
-    return {}
+def test_order_responsavel_values_uses_domain_sector_rank():
+    df = pd.DataFrame(
+        {
+            "solicitante": ["Andre", "Andre", "Bruna", "Caio"],
+            "setor_executor": ["IEE1", "IEE1", "MEL4", "Z999"],
+            "setor_emissor": ["", "", "", ""],
+        }
+    )
+    counts = build_responsavel_sector_counts(df, "solicitante")
+
+    ordered = order_responsavel_values(
+        ["Caio", "Bruna", "Andre"],
+        counts,
+        sector_to_div={"IEE1": "SMIN", "MEL4": "SMME"},
+    )
+
+    assert ordered[0] == ("Andre", "SMIN / IEE1 - Andre")
+    assert ordered[1] == ("Bruna", "SMME / MEL4 - Bruna")
+    assert ordered[2] == ("Caio", "Z999 - Caio")
 
 
-def _extract_column_group_filter_keys(source: str) -> set[str]:
-    module = ast.parse(source)
-    for node in ast.walk(module):
-        if not isinstance(node, ast.Assign):
-            continue
-        for target in node.targets:
-            if isinstance(target, ast.Name) and target.id == "column_groups":
-                value = ast.literal_eval(node.value)
-                if not isinstance(value, list):
-                    return set()
-                keys: set[str] = set()
-                for item in value:
-                    if not isinstance(item, tuple) or len(item) != 3:
-                        continue
-                    _, include_key, exclude_key = item
-                    if isinstance(include_key, str):
-                        keys.add(include_key)
-                    if isinstance(exclude_key, str):
-                        keys.add(exclude_key)
-                return keys
-    return set()
+def test_single_responsavel_counts_use_multi_column_domain_path():
+    df = pd.DataFrame(
+        {
+            "solicitante": ["Andre", "Andre", "Bruna", "Andre"],
+            "setor_executor": ["IEE1", "IEE1", "MEL4", "IEE1"],
+            "setor_emissor": ["", "IEE2", "MEL4", "IEE2"],
+        }
+    )
+
+    single = build_responsavel_sector_counts(df, "solicitante")
+    multi = build_responsavel_sector_counts_by_column(df, ["solicitante"])
+
+    assert single == multi["solicitante"]
+    assert single["Andre"] == {"IEE1": 3, "IEE2": 2}
+
+
+def test_subset_by_sector_filters_applies_include_and_exclude_once():
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["1", "2", "3", "4"],
+            "setor_executor": ["IEE1", "IEE2", "MEL4", "IEE1"],
+            "setor_emissor": ["MEL4", "IEE3", "MEL4", "IEE3"],
+        }
+    )
+
+    filtered = subset_by_sector_filters(
+        df,
+        executor_include=["IEE1", "IEE2"],
+        executor_exclude=["IEE2"],
+        emissor_exclude=["MEL4"],
+    )
+
+    assert filtered["numero_ssa"].tolist() == ["4"]
+
+
+def test_resolve_year_selection_sets_keeps_legacy_exclude_out_of_include():
+    include, exclude = adv_state_reader.resolve_year_selection_sets(
+        {"ano_execucao": 2025, "ano_execucao_exclude": True},
+        values_key="ano_execucao_values",
+        exclude_values_key="ano_execucao_exclude_values",
+        legacy_value_key="ano_execucao",
+        legacy_exclude_key="ano_execucao_exclude",
+    )
+
+    assert include == set()
+    assert exclude == {"2025"}
+
+
+def test_state_reader_skips_deleted_qt_checkbox_wrappers():
+    reader = adv_state_reader.AdvancedFilterStateReader(
+        widget_context={
+            "adv_derivada_checks": [
+                _DeletedCheckbox(),
+                _CheckedValue("has"),
+            ],
+            "adv_macro_combo": _DummyCombo(),
+        },
+        current_filters={},
+        responsavel_state=type(
+            "State",
+            (),
+            {"is_materialized": lambda _self, _prefix: False},
+        )(),
+        parse_week=lambda raw: int(raw) if raw else None,
+    )
+
+    data = reader.collect()
+
+    assert data["derivada_has"] is True
+    assert data["derivada_all_ste"] is False
+    assert data["derivada_is"] is False
+
+
+def test_advanced_filter_state_reader_preserves_unmaterialized_responsaveis():
+    window = _DummyStateReaderWindow()
+    reader = adv_state_reader.AdvancedFilterStateReader(
+        widget_context={"adv_macro_combo": window.adv_macro_combo},
+        current_filters=window._advanced_filters,
+        responsavel_state=type(
+            "State",
+            (),
+            {"is_materialized": lambda _self, _prefix: False},
+        )(),
+        parse_week=window._parse_week,
+    )
+
+    data = reader.collect()
+
+    assert data["solicitante"] == ["Alice"]
+    assert data["solicitante_exclude_values"] == ["Bob"]
+    assert data["responsavel_programacao"] == ["Carol"]
+    assert data["responsavel_programacao_exclude_values"] == ["Dan"]
+    assert data["responsavel_execucao"] == ["Eve"]
+    assert data["responsavel_execucao_exclude_values"] == ["Frank"]
+    assert data["macro_filter"] == "macro_x"
 
 
 def test_apply_advanced_filters_applies_solicitante_filter_key():
@@ -114,7 +261,7 @@ def test_has_active_advanced_filters_detects_reprogramacoes_filter():
     assert adv_ui._has_active_advanced_filters(None, data) is True
 
 
-def test_apply_advanced_filters_applies_week_range_filter():
+def test_apply_advanced_filters_emissao_week_keys_filter_cadastro_week_column():
     window = _DummyWindow(
         {"semana_emissao_inicio": 202501, "semana_emissao_fim": 202502}
     )
@@ -276,7 +423,7 @@ def test_apply_advanced_filters_reprogramacoes_eq_lte_gte():
     assert filtered_gte["numero_ssa"].tolist() == ["202500003", "202500004"]
 
 
-def test_apply_advanced_filters_derivada_all_ste_accepts_ses_as_terminal_state():
+def test_apply_advanced_filters_derivada_all_ste_accepts_terminal_states():
     window = _DummyWindow({"derivada_all_ste": True})
     df = pd.DataFrame(
         {
@@ -353,18 +500,17 @@ def test_apply_advanced_filters_derives_divisao_from_setor_columns(monkeypatch):
 
 
 def test_advanced_filter_keys_from_ui_are_covered_by_logic_or_active_detector():
-    ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
-    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(
-        encoding="utf-8"
-    )
+    sources = read_advanced_filter_sources()
 
-    produced_keys = set(re.findall(r'data\["([^"]+)"\]\s*=', ui_source))
-    has_active_block = _get_has_active_block(ui_source)
+    produced_keys = (
+        extract_produced_filter_keys(sources.ui) | _advanced_state_reader_output_keys()
+    )
+    has_active_block = get_has_active_block(sources.ui)
 
     uncovered = sorted(
         key
         for key in produced_keys
-        if key not in logic_source and f'data.get("{key}")' not in has_active_block
+        if key not in sources.logic and f'data.get("{key}")' not in has_active_block
     )
     assert not uncovered, (
         f"Advanced filter keys without logic/active coverage: {', '.join(uncovered)}"
@@ -372,17 +518,16 @@ def test_advanced_filter_keys_from_ui_are_covered_by_logic_or_active_detector():
 
 
 def test_logic_and_detector_keys_are_produced_by_ui_or_marked_legacy():
-    ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
-    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(
-        encoding="utf-8"
-    )
+    sources = read_advanced_filter_sources()
 
-    produced_keys = set(re.findall(r'data\["([^"]+)"\]\s*=', ui_source))
-    has_active_block = _get_has_active_block(ui_source)
-    detector_keys = set(re.findall(r'data\.get\("([^"]+)"\)', has_active_block))
-    direct_logic_keys = set(re.findall(r'filters\.get\("([^"]+)"\)', logic_source))
-    column_group_keys = _extract_column_group_filter_keys(logic_source)
-    alias_map = _extract_assigned_literal_dict(logic_source, "key_aliases")
+    produced_keys = (
+        extract_produced_filter_keys(sources.ui) | _advanced_state_reader_output_keys()
+    )
+    has_active_block = get_has_active_block(sources.ui)
+    detector_keys = extract_detector_filter_keys(has_active_block)
+    direct_logic_keys = extract_logic_filter_keys(sources.logic)
+    column_group_keys = extract_column_group_include_exclude_keys(sources.logic)
+    alias_map = extract_assigned_literal_dict(sources.logic, "key_aliases")
     alias_keys = set(alias_map.keys()) | set(alias_map.values())
 
     legacy_keys = {
@@ -409,20 +554,17 @@ def test_logic_and_detector_keys_are_produced_by_ui_or_marked_legacy():
 
 
 def test_week_exclude_contract_keys_are_explicit_noop_allowlist_only():
-    ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
-    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(
-        encoding="utf-8"
+    sources = read_advanced_filter_sources()
+    produced_keys = (
+        extract_produced_filter_keys(sources.ui) | _advanced_state_reader_output_keys()
     )
-    produced_keys = set(re.findall(r'data\["([^"]+)"\]\s*=', ui_source))
-    has_active_block = _get_has_active_block(ui_source)
-    detector_keys = set(re.findall(r'data\.get\("([^"]+)"\)', has_active_block))
+    has_active_block = get_has_active_block(sources.ui)
+    detector_keys = extract_detector_filter_keys(has_active_block)
 
-    logic_week_exclude_keys = set(
-        re.findall(r'"(semana_(?:emissao|execucao)_exclude)"', logic_source)
-    )
+    logic_week_exclude_keys = extract_week_exclude_keys(sources.logic)
     explicit_noop_allowlist = {"semana_emissao_exclude", "semana_execucao_exclude"}
 
     assert logic_week_exclude_keys <= explicit_noop_allowlist
-    assert explicit_noop_allowlist <= produced_keys
+    assert not (explicit_noop_allowlist & produced_keys)
     not_in_detector = logic_week_exclude_keys - detector_keys
     assert not_in_detector <= explicit_noop_allowlist

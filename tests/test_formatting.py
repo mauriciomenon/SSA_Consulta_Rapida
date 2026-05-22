@@ -13,6 +13,21 @@ def test_format_cell_number_and_nulls():
 def test_format_cell_dates():
     assert format_cell("2025-07-14", column="data_cadastro") == "14/07/2025"
     assert (
+        format_cell("2025-07-14T09:30:00", column="data_cadastro") == "14/07/2025"
+    )
+    assert (
+        format_cell("2025-07-14T09:30:00.123Z", column="data_cadastro")
+        == "14/07/2025"
+    )
+    assert (
+        format_cell("2025-07-14T09:30:00-03:00", column="data_cadastro")
+        == "14/07/2025"
+    )
+    assert (
+        format_cell("2025-07-14T09:30:00+0300", column="data_cadastro")
+        == "14/07/2025"
+    )
+    assert (
         format_cell(pd.to_datetime("2025-07-15"), column="data_limite") == "15/07/2025"
     )
 

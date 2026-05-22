@@ -1,26 +1,59 @@
 # AGENTS Handoff For Next Cycle
 
-## CURRENT TRUTH 2026-05-04 01h14
+## CURRENT TRUTH 2026-05-20 23h14
 
-- Branch alvo operacional: `dev` e `main` sincronizados.
-- Base minima sincronizada: `4705c2e5722c4f3a5266ac02a5d15a1928d5a223 2026-05-04T02:07:12-03:00 Merge PR #59: sync docs and required CI`; usar este commit ou sucessor sincronizado em `main`/`dev`.
-- PR #58 e PR #59: merged.
-- PR #56 e PR #57: merged anteriormente; o estado ativo agora e pos-merge do PR #59.
-- `main`, `dev`, `origin/main` e `origin/dev` apontam para o mesmo HEAD.
-- Artefatos v4.37 anteriores a base minima `4705c2e5722c4f3a5266ac02a5d15a1928d5a223` seguem stale e nao devem ser usados para publicacao final.
-- Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
-- Orquestradores ativos:
-  - Windows AMD64: `dev_env/build/release_windows.ps1`.
-  - Debian AMD64: `dev_env/build/release_debian.sh`.
-  - Orquestrador local Windows+WSL: `dev_env/build/release_local.ps1`.
-- Checks GitHub do merge PR #58:
-  - Pass: `minimal-ci`, `Secret Scan`, `codeql-security-scan`, `opencode-pr-review`, `semgrep-cloud-platform/scan`, `security/snyk`, `GitGuardian`, `Socket`, `CodeFactor`, `DeepScan`, `CodeQL`.
-  - Externos/advisory: `code/snyk (mauriciomenon)` falhou por limite `Code test limit reached`; `DeepSource: Python` falhou no dashboard externo.
-- Protecao de codigo:
-  - Nuitka continua backend preferencial para release protegido.
-  - PyInstaller tem protecao parcial.
-  - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
-- Proximo passo operacional: rebuildar Windows AMD64 e Debian AMD64 a partir deste HEAD, validar artefatos e atualizar release v4.37 somente com pacotes novos.
+- Branch alvo operacional: `dev`.
+- Baseline usado para este DOC_SYNC:
+  - `2b8746564f64a11bf93fc70f030239260ec53059 2026-05-20 22:46:32 -0300 DOC_SYNC: update merge readiness handoff`.
+- Este DOC_SYNC e documentacao apenas; confirmar o head operacional real com `git log -1`.
+- `main` nao deve ser assumido sincronizado com `dev` sem nova checagem.
+- Workspace local:
+  - `.qwen/` esta local nao rastreado e nao deve entrar no commit sem aprovacao explicita.
+  - `.antigravitycli/` agora esta ignorado.
+  - `.gitignore` ignora `.clawpatch/`, `agents.toml`, `tmp/`, `builds/*` e `.antigravitycli/`.
+  - `builds/pyoxidizer` foi removido do ambiente local; achados antigos do Clawpatch em artefatos PyOxidizer nao existem mais no workspace ativo.
+- Checks GitHub verdes no baseline `2b8746564f64a11bf93fc70f030239260ec53059`; revalidar o head atual apos qualquer novo DOC_SYNC:
+  - `minimal-ci`
+  - `CodeQL`
+  - `Secret Scan`
+  - `Automatic Dependency Submission`
+- Diagramas atuais de arquitetura/funcionalidade:
+  - `docs/MERGE_READINESS_ARCHITECTURE.md`.
+- API PAI:
+  - fluxo real habilitado: `consulta`.
+  - smoke real fetch-only validado neste ciclo para `IEE3`, `MEL4`, `MEL3`, `limit=1`, `normalized_rows=1`, `imported=False`, `errors=None`.
+  - GUI confirma antes de gravar dados da API no DB.
+  - Auto-refresh nao grava no DB automaticamente.
+  - `summary-json` registra fonte, filtros pedidos, setores, arquivos origem, contagens e exemplos de SSAs.
+  - resumo XLSX agora e carregado pelo servico de importacao e reaproveitado no report, sem segunda leitura XLSX no caminho normal.
+- Dependencia:
+  - `idna` atualizado em `dev`; alerta Dependabot deve fechar quando o fix chegar ao default branch.
+- Tipos PAI:
+  - `executadas` e `aprovacao` seguem planejados ate existir provider real.
+  - `planejamento` e `programacao` seguem nao suportados.
+- God modules ainda abertos:
+  - `gui/gui_ssa.py`: 3846 linhas.
+  - `gui/mixins/filter_gui_ssa_mixin.py`: 3014 linhas.
+  - `tests/test_gui_filter_logic.py`: 10372 linhas.
+  - `core/app_logic.py`: 2185 linhas.
+- Validacoes locais recentes:
+  - `py_compile`, `ruff`, `ty`, `pytest` focado: `72 passed`.
+  - Smoke GUI offscreen/filtros/detalhes/API: `424 passed, 1 skipped`.
+  - `scripts/run_quality_gates.py`: `overall_status=ok`.
+  - `bandit`, `semgrep p/python`, `detect-secrets` focados: limpos.
+  - `gitleaks protect --staged`: limpo no commit runtime.
+  - `pip-audit`: sem vulnerabilidades conhecidas no export do lock.
+  - `safety`: bloqueado por login/EOF; nao conta como validacao limpa.
+  - `CodeRabbit`: duas tentativas locais timeoutaram sem findings; nao conta como validacao limpa.
+  - `Gemini`: sem blocker no diff revisado.
+  - `Qwen`: headless validado apos troca de chave com `qwen -m glm-5-turbo -p 'Responda exatamente: OK_QWEN_HEADLESS'`; retorno `OK_QWEN_HEADLESS`. Modelos `qwen3.x` e `glm-5` podem seguir instaveis conforme plano/modelo.
+  - `Agy`: achados objetivos aplicados no patch `dd776388`.
+  - `Clawpatch`: achados reais aplicaveis foram corrigidos; nova tentativa completa ainda bloqueou por timeout/provider, nao conta como review limpo.
+- Bloqueios antes de merge operacional:
+  1. Repetir Clawpatch/CodeRabbit quando provider/timeout permitir, ou rodar no PR se autorizado.
+  2. Executar build/smoke macOS se o alvo for release de artefato.
+  3. Continuar corte de `filter_gui_ssa_mixin.py` e `SSAMainWindow` se a meta clean-code for criterio bloqueante.
+- Build macOS/release ainda nao executado neste ciclo.
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 

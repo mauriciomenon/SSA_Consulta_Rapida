@@ -11,7 +11,9 @@ import pytest
 from armazenamento import database
 from core import app_logic
 from core.app_logic import filter_dataframe, get_filtered_data, parse_search_terms
+from core.search_filter import apply_general_search_terms
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin
+from gui.ssa.search_refinement import can_reuse_refined_search
 from interface.table_printer import pretty_print_df
 
 
@@ -55,7 +57,8 @@ def _build_import_df(
     )
 
 
-def _fake_extract_transition(file_path: str, should_cancel=None):  # noqa: ARG001
+def _fake_extract_transition(file_path: str, should_cancel=None):
+    _ = should_cancel
     marker = Path(file_path).read_text(encoding="utf-8")
     if marker == "old":
         return _build_import_df(
@@ -74,7 +77,16 @@ def _fake_extract_transition(file_path: str, should_cancel=None):  # noqa: ARG00
     )
 
 
-def test_run_importer_logic_accepts_explicit_external_db_root(
+def test_search_refinement_reuses_only_safe_simple_terms() -> None:
+    assert can_reuse_refined_search(["abc"], ["abcd"]) is True
+    assert can_reuse_refined_search(["abc"], ["abc", "extra"]) is True
+    assert can_reuse_refined_search(["=abc"], ["=abc"]) is True
+    assert can_reuse_refined_search(["=abc"], ["abcd"]) is False
+    assert can_reuse_refined_search(["abc"], ["!abcd"]) is False
+    assert can_reuse_refined_search(["~abc"], ["~abcd"]) is False
+
+
+def test_run_importer_logic_accepts_external_root_but_returns_false_without_files(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -200,6 +212,26 @@ def test_filter_dataframe_raw_term_modes_match_any_searchable_field() -> None:
     assert set(out_suffix["numero_ssa"]) == {"202500003"}
 
 
+def test_apply_general_search_terms_unions_chunks_and_preserves_index() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003"],
+            "descricao_ssa": ["motor mel4", "bomba iee3", "valvula geral"],
+        },
+        index=[10, 20, 30],
+    )
+
+    out = apply_general_search_terms(
+        df,
+        [["mel4"], ["iee3"]],
+        default_mode="contains",
+        general_search_columns=["descricao_ssa"],
+    )
+
+    assert list(out.index) == [10, 20]
+    assert list(out["numero_ssa"]) == ["202500001", "202500002"]
+
+
 def test_filter_dataframe_search_columns_support_numeric_dtype() -> None:
     df = pd.DataFrame(
         {
@@ -269,6 +301,32 @@ def test_get_filtered_data_returns_empty_on_database_error(
     out = get_filtered_data(str(db_path))
 
     assert out.empty
+
+
+def test_get_filtered_data_ignores_unknown_filter_columns(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "ssa_unknown_filter.sqlite"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        """
+        CREATE TABLE ssa_table (
+            numero_ssa TEXT,
+            situacao TEXT,
+            segredo_interno TEXT
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO ssa_table (numero_ssa, situacao, segredo_interno) VALUES (?, ?, ?)",
+        ("202500001", "STE", "bloquear"),
+    )
+    conn.commit()
+    conn.close()
+
+    out = get_filtered_data(str(db_path), filters={"segredo_interno": "bloquear"})
+
+    assert len(out) == 1
 
 
 def test_filter_dataframe_default_search_columns_match_solicitante_and_setor_executor() -> (
@@ -508,17 +566,14 @@ def test_filter_dataframe_rebuilds_search_cache_for_refined_subset() -> None:
 
     refined = filter_dataframe(first, ["mel4"])
 
-    cached_search_data = first.attrs["_filter_search_cache"]
-
     assert list(refined["numero_ssa"]) == ["202500001"]
-    assert cached_search_data["token"][2] == len(first.index)
-    assert "base_lower_df" not in cached_search_data
-    assert len(cached_search_data["row_search_text"]) == len(first.index)
+    assert "_filter_search_cache" not in first.attrs
+    assert "_filter_search_token" not in first.attrs
     assert "_filter_search_cache" not in refined.attrs
     assert "_filter_search_token" not in refined.attrs
 
 
-def test_filter_dataframe_small_anchored_regex_builds_fieldwise_cache_lazily() -> None:
+def test_filter_dataframe_small_anchored_regex_does_not_persist_row_cache() -> None:
     df = pd.DataFrame(
         {
             "numero_ssa": ["202500001", "202500002", "202500003"],
@@ -526,46 +581,96 @@ def test_filter_dataframe_small_anchored_regex_builds_fieldwise_cache_lazily() -
             "setor_executor": ["MEL4", "MEL3", "IEE3"],
         }
     )
+    df.attrs["ssa_data_revision"] = "regex-cache-test"
 
     plain = filter_dataframe(df, ["svp"], ["descricao_ssa", "setor_executor"])
-    cached_before = df.attrs["_filter_search_cache"]
-    had_base_lower_before = "base_lower_df" in cached_before
+    had_cache_before = "_filter_search_cache" in df.attrs
 
     anchored = filter_dataframe(df, ["~^mel4"], ["descricao_ssa", "setor_executor"])
-    cached_after = df.attrs["_filter_search_cache"]
 
     assert list(plain["numero_ssa"]) == ["202500001", "202500002"]
-    assert had_base_lower_before is False
+    assert had_cache_before is False
     assert list(anchored["numero_ssa"]) == ["202500001", "202500003"]
-    assert len(cached_after["base_lower_df"]) == len(df.index)
+    assert "_filter_search_cache" not in df.attrs
 
 
-def test_filter_dataframe_invalidates_cache_after_in_place_value_change() -> None:
+def test_filter_dataframe_anchored_regex_matches_field_after_separator() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002"],
+            "descricao_ssa": ["sem alvo", "sem alvo"],
+            "setor_executor": ["MEL4", "IEE3"],
+        }
+    )
+    df.attrs["ssa_data_revision"] = "anchored-field-boundary"
+
+    out = filter_dataframe(df, ["~^IEE3$"], ["descricao_ssa", "setor_executor"])
+
+    assert list(out["numero_ssa"]) == ["202500002"]
+
+
+def test_filter_dataframe_blocks_heavy_regex_patterns() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002"],
+            "descricao_ssa": ["aaaaaaaaaaaaaaaaaaaa", "motor"],
+        }
+    )
+
+    out = filter_dataframe(df, ["~(a+)+$"], ["descricao_ssa"])
+
+    assert out.empty
+
+
+def test_parse_search_terms_supports_negative_regex_marker() -> None:
+    terms = parse_search_terms(["!~STE"])
+
+    assert terms == [
+        {
+            "raw": "!~STE",
+            "mode": "regex",
+            "value": "STE",
+            "negative": True,
+            "group": 0,
+        }
+    ]
+
+
+def test_filter_dataframe_exact_identifier_preserves_text_suffix() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["ABC.0", "ABC"],
+            "descricao_ssa": ["sufixo literal", "sem sufixo"],
+        }
+    )
+
+    out = filter_dataframe(df, ["=ABC.0"], ["numero_ssa"])
+
+    assert list(out["descricao_ssa"]) == ["sufixo literal"]
+
+
+def test_filter_dataframe_regex_reflects_in_place_value_change_without_row_cache() -> None:
     df = pd.DataFrame(
         {
             "numero_ssa": ["202500001"],
             "descricao_ssa": ["ADM equipe"],
         }
     )
+    df.attrs["ssa_data_revision"] = "cache-revision-1"
 
-    first = filter_dataframe(df, ["adm"], ["descricao_ssa"])
+    first = filter_dataframe(df, ["~adm"], ["descricao_ssa"])
     assert list(first["numero_ssa"]) == ["202500001"]
-    cached_before = df.attrs["_filter_search_cache"]
-    token_before = cached_before["token"]
 
     df.loc[0, "descricao_ssa"] = "STE equipe"
+    df.attrs["ssa_data_revision"] = "cache-revision-2"
 
-    second = filter_dataframe(df, ["ste"], ["descricao_ssa"])
-    cached_after = df.attrs["_filter_search_cache"]
+    second = filter_dataframe(df, ["~ste"], ["descricao_ssa"])
 
     assert list(second["numero_ssa"]) == ["202500001"]
-    assert cached_after["token"] != token_before
-    assert list(cached_after["row_search_text"]) == ["ste equipe"]
+    assert "_filter_search_cache" not in df.attrs
 
 
-def test_filter_dataframe_reuses_cached_search_data_on_same_dataframe(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_filter_dataframe_repeated_regex_search_has_no_row_text_side_effect() -> None:
     df = pd.DataFrame(
         {
             "numero_ssa": ["202500001", "202500002", "202500003"],
@@ -574,32 +679,14 @@ def test_filter_dataframe_reuses_cached_search_data_on_same_dataframe(
         }
     )
 
-    store_calls = {"count": 0}
-    original_store = app_logic.FilterSearchCacheManager.store_cached_search_data
-
-    def _tracked_store(
-        frame: pd.DataFrame,
-        search_cache_token,
-        base_lower_df: pd.DataFrame,
-        row_search_text: pd.Series,
-    ) -> None:
-        store_calls["count"] += 1
-        original_store(frame, search_cache_token, base_lower_df, row_search_text)
-
-    monkeypatch.setattr(
-        app_logic.FilterSearchCacheManager,
-        "store_cached_search_data",
-        staticmethod(_tracked_store),
-    )
-
-    first = filter_dataframe(df, ["mel4"], ["descricao_ssa", "setor_executor"])
-    second = filter_dataframe(df, ["mel4"], ["descricao_ssa", "setor_executor"])
+    first = filter_dataframe(df, ["~mel4"], ["descricao_ssa", "setor_executor"])
+    second = filter_dataframe(df, ["~mel4"], ["descricao_ssa", "setor_executor"])
 
     assert list(first["numero_ssa"]) == list(second["numero_ssa"])
-    assert store_calls["count"] == 1
+    assert "_filter_search_cache" not in df.attrs
 
 
-def test_filter_dataframe_large_row_search_payload_is_not_persisted() -> None:
+def test_filter_dataframe_large_regex_search_does_not_persist_row_text() -> None:
     rows = 16000
     df = pd.DataFrame(
         {
@@ -619,12 +706,11 @@ def test_filter_dataframe_large_row_search_payload_is_not_persisted() -> None:
         }
     )
 
-    out = filter_dataframe(df, ["MEL3"], list(df.columns))
-    cached_search_data = df.attrs["_filter_search_cache"]
+    out = filter_dataframe(df, ["~mel3"], list(df.columns))
 
     assert not out.empty
-    assert "row_search_text" not in cached_search_data
     assert list(out["numero_ssa"][:3]) == ["202500000", "202500007", "202500011"]
+    assert "_filter_search_cache" not in df.attrs
     assert "_filter_search_cache" not in out.attrs
     assert "_filter_search_token" not in out.attrs
 

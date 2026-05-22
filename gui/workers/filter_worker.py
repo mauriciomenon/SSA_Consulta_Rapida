@@ -1,16 +1,40 @@
 # gui/workers/filter_worker.py
 # Worker thread for filtering data asynchronously with cache
 
-import hashlib
 import logging
 
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from core.app_logic import filter_dataframe, parse_search_terms
+from core.dataframe_fingerprint import build_dataframe_filter_hash
+from core.search_filter import (
+    GeneralSearchCancelled,
+    apply_general_search_terms,
+    filter_dataframe,
+    parse_search_terms,
+)
 from gui.cache import FilterCache
 
 logger = logging.getLogger(__name__)
+
+def _normalize_search_chunks(search_chunks: list | tuple | None) -> list[list[str]]:
+    unique_search_chunks: list[list[str]] = []
+    seen_search_chunks = set()
+    for chunk in search_chunks or []:
+        if isinstance(chunk, str):
+            terms = [chunk.strip()] if chunk.strip() else []
+        elif isinstance(chunk, (list, tuple)):
+            terms = [str(term).strip() for term in chunk if str(term).strip()]
+        else:
+            terms = [str(chunk).strip()] if str(chunk).strip() else []
+        if not terms:
+            continue
+        chunk_key = tuple(terms)
+        if chunk_key in seen_search_chunks:
+            continue
+        seen_search_chunks.add(chunk_key)
+        unique_search_chunks.append(terms)
+    return unique_search_chunks
 
 
 class FilterWorker(QThread):
@@ -25,22 +49,16 @@ class FilterWorker(QThread):
     def __init__(
         self,
         df_completo,
-        search_chunks,
+        search_chunks: list | tuple,
         search_columns: list[str] | None = None,
         default_mode: str = "contains",
         cache_context: str | None = None,
+        df_hash: str | None = None,
+        cache: FilterCache | None = None,
     ):
         super().__init__()
         self.df_completo = df_completo
-        unique_search_chunks = []
-        seen_search_chunks = set()
-        for chunk in search_chunks or []:
-            chunk_key = tuple(str(term) for term in chunk)
-            if chunk_key in seen_search_chunks:
-                continue
-            seen_search_chunks.add(chunk_key)
-            unique_search_chunks.append(list(chunk))
-        self.search_chunks = unique_search_chunks
+        self.search_chunks = list(search_chunks or [])
         self.search_columns = (
             list(search_columns) if search_columns is not None else None
         )
@@ -48,18 +66,19 @@ class FilterWorker(QThread):
         self.cache_context = cache_context or ""
         self._cancel_requested = False
 
-        # Gera fingerprint estrutural+amostral para reduzir colisões de cache
-        self.df_hash = self._build_df_hash(df_completo)
+        self.df_hash = df_hash
+        self._worker_cache = cache if cache is not None else type(self)._cache
 
     def cancel(self) -> None:
         self._cancel_requested = True
         try:
-            self.requestInterruption()
+            if self.isRunning():
+                self.requestInterruption()
         except Exception as exc:
             logger.debug("Falha ao solicitar interrupcao do FilterWorker: %s", exc)
 
     def _is_cancelled(self) -> bool:
-        if bool(getattr(self, "_cancel_requested", False)):
+        if self._cancel_requested:
             return True
         try:
             return bool(self.isInterruptionRequested())
@@ -72,70 +91,7 @@ class FilterWorker(QThread):
     @staticmethod
     def _build_df_hash(df_completo: pd.DataFrame) -> str:
         """Cria hash estável do DataFrame para chave de cache de filtros."""
-        try:
-            if df_completo is None:
-                return hashlib.blake2b(b"none", digest_size=8).hexdigest()
-
-            row_count = len(df_completo)
-            if row_count <= 24:
-                sample_df = df_completo
-            else:
-                head_count = 8
-                tail_count = 8
-                mid_count = 8
-                head_df = df_completo.head(head_count)
-                tail_df = df_completo.tail(tail_count)
-                mid_start = head_count
-                tail_start = max(mid_start, row_count - tail_count)
-                mid_end = tail_start - 1
-                mid_indices = []
-                span = max(0, (mid_end - mid_start) + 1)
-                if span > 0:
-                    if span <= mid_count:
-                        mid_indices = list(range(mid_start, mid_start + span))
-                    else:
-                        step = float(span - 1) / float(max(mid_count - 1, 1))
-                        for idx in range(mid_count):
-                            candidate = mid_start + int(round(idx * step))
-                            if not mid_indices or candidate != mid_indices[-1]:
-                                mid_indices.append(candidate)
-                mid_df = (
-                    df_completo.iloc[mid_indices]
-                    if mid_indices
-                    else df_completo.iloc[0:0]
-                )
-                sample_df = pd.concat(
-                    [head_df, mid_df, tail_df],
-                    axis=0,
-                    ignore_index=True,
-                )
-
-            sample_hashes = pd.util.hash_pandas_object(
-                sample_df,
-                index=False,
-            ).to_numpy(dtype="uint64", copy=False)
-            hasher = hashlib.blake2b(digest_size=8)
-            hasher.update(repr(tuple(df_completo.shape)).encode("utf-8"))
-            hasher.update(
-                repr(tuple(str(column) for column in df_completo.columns)).encode(
-                    "utf-8"
-                )
-            )
-            hasher.update(
-                repr(tuple(str(dtype) for dtype in df_completo.dtypes)).encode("utf-8")
-            )
-            hasher.update(sample_hashes.tobytes())
-            return hasher.hexdigest()
-        except Exception as exc:
-            logger.debug(
-                "Fallback to shape-only DataFrame hash due to fingerprint error: %s",
-                exc,
-            )
-            fallback = str(getattr(df_completo, "shape", "unknown"))
-            return hashlib.blake2b(
-                fallback.encode("utf-8"),
-                digest_size=8,
-            ).hexdigest()
+        return build_dataframe_filter_hash(df_completo)
 
     def run(self):
         try:
@@ -147,10 +103,13 @@ class FilterWorker(QThread):
                 )
                 self.filter_finished.emit(pd.DataFrame())
                 return
+            if self.df_hash is None:
+                self.df_hash = self._build_df_hash(self.df_completo)
+            search_chunks = _normalize_search_chunks(self.search_chunks)
             # Verifica cache primeiro
-            cached_result = self._cache.get(
+            cached_result = self._worker_cache.get(
                 self.df_hash,
-                self.search_chunks,
+                search_chunks,
                 self.default_mode,
                 cache_context=self.cache_context,
             )
@@ -161,52 +120,25 @@ class FilterWorker(QThread):
                 return
 
             # Cache miss - executa filtro
-            if self.search_chunks:
-                frames = []
-                for terms in self.search_chunks:
-                    if self._is_cancelled():
-                        return
-                    if terms:
-                        parsed = parse_search_terms(
-                            terms, default_mode=self.default_mode
-                        )
-                        if self._is_cancelled():
-                            return
-                        if self.search_columns is None:
-                            frames.append(filter_dataframe(self.df_completo, parsed))
-                        else:
-                            frames.append(
-                                filter_dataframe(
-                                    self.df_completo,
-                                    parsed,
-                                    search_columns=self.search_columns,
-                                )
-                            )
-                    else:
-                        frames.append(self.df_completo)
-                    if self._is_cancelled():
-                        return
-                if frames:
-                    if len(frames) == 1:
-                        df_filtrado = frames[0]
-                    else:
-                        merged_frames = pd.concat(
-                            frames, axis=0, ignore_index=False
-                        )
-                        df_filtrado = merged_frames.loc[
-                            ~merged_frames.index.duplicated(keep="first")
-                        ].reset_index(drop=True)
-                else:
-                    df_filtrado = self.df_completo.copy(deep=False)
+            if search_chunks:
+                df_filtrado = apply_general_search_terms(
+                    self.df_completo,
+                    search_chunks,
+                    default_mode=self.default_mode,
+                    general_search_columns=self.search_columns,
+                    parse_terms_func=parse_search_terms,
+                    filter_dataframe_func=filter_dataframe,
+                    should_cancel=self._is_cancelled,
+                )
             else:
-                df_filtrado = self.df_completo.copy(deep=False)
+                df_filtrado = self.df_completo.copy(deep=True)
 
             if self._is_cancelled():
                 return
             # Armazena no cache
-            self._cache.put(
+            self._worker_cache.put(
                 self.df_hash,
-                self.search_chunks,
+                search_chunks,
                 self.default_mode,
                 df_filtrado,
                 cache_context=self.cache_context,
@@ -215,5 +147,7 @@ class FilterWorker(QThread):
             if self._is_cancelled():
                 return
             self.filter_finished.emit(df_filtrado)
+        except GeneralSearchCancelled:
+            return
         except Exception as e:
             self.error_occurred.emit(f"Erro ao filtrar dados: {e}")

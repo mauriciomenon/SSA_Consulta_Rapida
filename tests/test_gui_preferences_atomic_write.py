@@ -1,35 +1,31 @@
-import os
 from types import SimpleNamespace
 from typing import Any, cast
 
 
-def test_persist_gui_preferences_uses_atomic_writer(monkeypatch, tmp_path):
+def _capture_preferences_queue(monkeypatch, gui_ssa):
+    calls: list[dict] = []
+
+    def _fake_queue(data):
+        calls.append(dict(data))
+        return True
+
+    monkeypatch.setattr(
+        gui_ssa.ssa_system_controller,
+        "queue_gui_preferences_write",
+        _fake_queue,
+    )
+    return calls
+
+
+def test_persist_gui_preferences_queues_preferences_write(monkeypatch, tmp_path):
     from gui import gui_ssa
 
     monkeypatch.setattr(gui_ssa, "GUI_MAIN_PREFERENCES", {"x": 1})
-    expected_path = tmp_path / "cfg" / "gui_main_preferences.json"
-
-    calls = []
-
-    def _fake_atomic(path, data, *, indent=2, ensure_ascii=False):
-        calls.append((path, data, indent, ensure_ascii))
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write("{}")
-
-    monkeypatch.setattr(gui_ssa, "atomic_write_json_file", _fake_atomic)
-    monkeypatch.setattr(
-        gui_ssa, "get_gui_main_preferences_path", lambda: str(expected_path)
-    )
+    calls = _capture_preferences_queue(monkeypatch, gui_ssa)
 
     gui_ssa.SSAMainWindow._persist_gui_preferences(cast(Any, object()))
 
-    assert calls
-    path, data, indent, ensure_ascii = calls[0]
-    assert path == str(expected_path)
-    assert data == {"x": 1}
-    assert indent == 2
-    assert ensure_ascii is False
+    assert calls == [{"x": 1}]
 
 
 def test_persist_visible_columns_order_uses_resolved_gui_config_path(
@@ -51,12 +47,7 @@ def test_persist_visible_columns_order_uses_resolved_gui_config_path(
     )
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
 
-    calls = []
-
-    def _fake_atomic(path, data, *, indent=2, ensure_ascii=False):
-        calls.append((path, data, indent, ensure_ascii))
-
-    monkeypatch.setattr(gui_ssa, "atomic_write_json_file", _fake_atomic)
+    calls = _capture_preferences_queue(monkeypatch, gui_ssa)
 
     fake_window = cast(
         Any,
@@ -83,20 +74,19 @@ def test_persist_visible_columns_order_uses_resolved_gui_config_path(
     gui_ssa.SSAMainWindow._persist_visible_columns_order(fake_window)
 
     assert calls
-    path, data, indent, ensure_ascii = calls[0]
-    assert path == str(expected_path)
+    data = calls[0]
     assert data["display_columns"] == ["numero_ssa", "situacao"]
     assert data["hidden_columns"] == ["descricao_ssa", "descricao_localizacao"]
-    assert indent == 2
-    assert ensure_ascii is False
 
 
 def test_theme_persist_uses_resolved_gui_config_path(monkeypatch, tmp_path):
-    from gui.ssa import gui_theme
+    from gui.ssa import gui_preferences_persistence
 
     expected_path = tmp_path / "cfg_theme" / "gui_main_preferences.json"
     monkeypatch.setattr(
-        gui_theme, "get_gui_main_preferences_path", lambda: str(expected_path)
+        gui_preferences_persistence,
+        "get_gui_main_preferences_path",
+        lambda: str(expected_path),
     )
 
     calls = []
@@ -104,11 +94,12 @@ def test_theme_persist_uses_resolved_gui_config_path(monkeypatch, tmp_path):
     def _fake_atomic(path, data, *, indent=2, ensure_ascii=False):
         calls.append((path, data, indent, ensure_ascii))
 
-    monkeypatch.setattr(gui_theme, "atomic_write_json_file", _fake_atomic)
+    monkeypatch.setattr(
+        gui_preferences_persistence, "atomic_write_json_file", _fake_atomic
+    )
 
-    ok = gui_theme.persist_gui_preferences(
+    ok = gui_preferences_persistence.persist_gui_preferences(
         {"gui_settings": {"theme": "gruvbox"}},
-        "/tmp/ignored-project-root",
     )
 
     assert ok is True
@@ -118,3 +109,64 @@ def test_theme_persist_uses_resolved_gui_config_path(monkeypatch, tmp_path):
     assert data["gui_settings"]["theme"] == "gruvbox"
     assert indent == 2
     assert ensure_ascii is False
+
+
+def test_theme_dialog_accepting_current_default_does_not_write(monkeypatch):
+    from PyQt6 import QtWidgets
+
+    from gui.ssa import gui_theme_dialog
+
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    _ = app
+
+    class _Window(QtWidgets.QWidget):
+        _current_theme = "gruvbox"
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.applied: list[str] = []
+
+        def apply_theme(self, theme: str) -> None:
+            self.applied.append(theme)
+
+    monkeypatch.setattr(
+        QtWidgets.QDialog,
+        "exec",
+        lambda _dialog: QtWidgets.QDialog.DialogCode.Accepted,
+    )
+
+    persist_calls = []
+
+    def persist(value):
+        persist_calls.append(value)
+        return True
+
+    prefs = {"gui_settings": {"theme": "gruvbox", "theme_default": "gruvbox"}}
+    window = _Window()
+
+    gui_theme_dialog.show_theme_selection_dialog(
+        window,
+        gui_prefs=prefs,
+        theme_items=[("Gruvbox", "gruvbox"), ("Windows 7", "windows7")],
+        persist_preferences_async=persist,
+    )
+
+    assert window.applied == ["gruvbox"]
+    assert persist_calls == []
+
+    temporary_window = _Window()
+    temporary_window._current_theme = "windows7"
+    temporary_prefs = {
+        "gui_settings": {"theme": "windows7", "theme_default": "gruvbox"}
+    }
+
+    gui_theme_dialog.show_theme_selection_dialog(
+        temporary_window,
+        gui_prefs=temporary_prefs,
+        theme_items=[("Gruvbox", "gruvbox"), ("Windows 7", "windows7")],
+        persist_preferences_async=persist,
+    )
+
+    assert temporary_window.applied == ["windows7"]
+    assert temporary_prefs["gui_settings"]["theme_default"] == "gruvbox"
+    assert persist_calls == []

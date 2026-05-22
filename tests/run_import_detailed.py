@@ -12,6 +12,7 @@ Captura:
 """
 
 import os
+import subprocess
 import sys
 import traceback
 from datetime import datetime
@@ -23,10 +24,13 @@ if project_root not in sys.path:
 
 # Lista para armazenar problemas encontrados
 problemas = []
+MAX_PROBLEMAS = 1000
 
 
 def registrar_problema(arquivo, linha, coluna, valor, tipo_erro, descricao):
     """Registra um problema encontrado durante importacao."""
+    if len(problemas) >= MAX_PROBLEMAS:
+        return
     problemas.append(
         {
             "arquivo": os.path.basename(arquivo),
@@ -73,86 +77,47 @@ def test_import_cli():
         print("[INFO] Isso pode demorar varios minutos - NAO INTERROMPER")
         print("[INFO] Monitorando processo...")
 
-        import subprocess
         import time
 
         start_time = time.time()
 
         # Executa main.py --rescan com captura de saida
-        process = subprocess.Popen(
+        process = subprocess.run(
             [sys.executable, "main.py", "--rescan"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
-            bufsize=1,
-            universal_newlines=True,
+            timeout=1800,
+            check=False,
         )
-        if process.stdout is None or process.stderr is None:
-            raise RuntimeError(
-                "Falha ao iniciar pipes de stdout/stderr para monitoramento"
-            )
-        stdout_pipe = process.stdout
-        stderr_pipe = process.stderr
 
         print("\n[SAIDA DO PROCESSO]")
         print("-" * 80)
 
-        # Captura saida em tempo real
         linha_count = 0
-        last_output = time.time()
-
-        while True:
-            # Verifica se processo terminou
-            retcode = process.poll()
-
-            # Le stdout
-            line = stdout_pipe.readline()
-            if line:
-                line = line.rstrip()
-                print(line)
-                linha_count += 1
-                last_output = time.time()
-
-                # Registra erros de validacao
-                if "ERROR" in line or "Validacao" in line:
-                    # Tenta extrair informacoes do erro
-                    if "linha(s)" in line.lower():
-                        registrar_problema(
-                            arquivo="(extrair do log)",
-                            linha="(ver log)",
-                            coluna="(ver log)",
-                            valor="(ver log)",
-                            tipo_erro="Validacao",
-                            descricao=line,
-                        )
-
-            # Verifica timeout (sem output por 30 segundos)
-            if time.time() - last_output > 30 and retcode is None:
-                print(f"\n[AVISO] Sem output ha {int(time.time() - last_output)}s")
-
-            # Se processo terminou, sai
-            if retcode is not None:
-                # Le resto do output
-                remaining = stdout_pipe.read()
-                if remaining:
-                    print(remaining)
-
-                # Le stderr
-                stderr = stderr_pipe.read()
-                if stderr:
-                    print("\n[STDERR]")
-                    print(stderr)
-
-                break
+        for line in (process.stdout or "").splitlines():
+            print(line)
+            linha_count += 1
+            if ("ERROR" in line or "Validacao" in line) and "linha(s)" in line.lower():
+                registrar_problema(
+                    arquivo="(extrair do log)",
+                    linha="(ver log)",
+                    coluna="(ver log)",
+                    valor="(ver log)",
+                    tipo_erro="Validacao",
+                    descricao=line,
+                )
+        if process.stderr:
+            print("\n[STDERR]")
+            print(process.stderr)
 
         elapsed = time.time() - start_time
         print("-" * 80)
         print(f"[INFO] Processo terminou em {elapsed:.1f}s")
-        print(f"[INFO] Codigo de retorno: {retcode}")
+        print(f"[INFO] Codigo de retorno: {process.returncode}")
         print(f"[INFO] Linhas de output: {linha_count}")
 
-        if retcode != 0:
-            raise RuntimeError(f"Importacao falhou com codigo {retcode}")
+        if process.returncode != 0:
+            raise RuntimeError(f"Importacao falhou com codigo {process.returncode}")
         print("\n[SUCESSO] Importacao via CLI concluida")
         return True
     except Exception as e:

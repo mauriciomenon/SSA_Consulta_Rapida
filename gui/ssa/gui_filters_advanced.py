@@ -19,9 +19,7 @@ from .gui_filters_advanced_state import (
 from .gui_filters_advanced_ui import (
     _apply_advanced_filters_from_ui,
     _apply_divisao_to_setor_checks,
-    _attach_multiselect_menu,
     _build_advanced_filters_panel,
-    _checkbox_value,
     _clear_advanced_filters,
     _collect_divisao_setores,
     _ensure_responsavel_options_materialized,
@@ -31,11 +29,9 @@ from .gui_filters_advanced_ui import (
     _mark_responsavel_dirty,
     _on_adv_sector_exclude_changed,
     _on_adv_sector_selection_changed,
-    _on_derivada_has_toggled,
     _on_macro_filter_changed,
     _on_sector_debounce_timeout,
     _parse_week,
-    _rebuild_multiselect_menu,
     _refresh_advanced_filter_options,
     _refresh_priority_menus,
     _refresh_reprogramacoes_menu,
@@ -53,10 +49,15 @@ from .gui_filters_advanced_ui import (
     _sort_responsavel_values,
     _sort_sectors,
     _sync_advanced_filter_ui,
-    _sync_multiselect_checks,
     _sync_responsavel_button_summaries,
     _sync_responsavel_flags,
     _update_derivadas_button_state,
+)
+from .gui_filters_multiselect_menu import (
+    _attach_multiselect_menu,
+    _checkbox_value,
+    _rebuild_multiselect_menu,
+    _sync_multiselect_checks,
     _update_multiselect_button,
 )
 
@@ -82,7 +83,6 @@ __all__ = [
     "_mark_responsavel_dirty",
     "_on_adv_sector_exclude_changed",
     "_on_adv_sector_selection_changed",
-    "_on_derivada_has_toggled",
     "_on_macro_filter_changed",
     "_on_sector_debounce_timeout",
     "_parse_week",

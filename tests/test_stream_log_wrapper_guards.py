@@ -87,6 +87,17 @@ def test_resolve_safe_test_target_rejects_traversal(modules) -> None:
         common.resolve_safe_test_target("../outside.py", str(root))
 
 
+def test_resolve_safe_test_target_rejects_unsafe_nodeid(modules) -> None:
+    _, _, common = modules
+    root = Path(__file__).resolve().parents[1]
+
+    with pytest.raises(ValueError, match="unsupported characters"):
+        common.resolve_safe_test_target(
+            "tests/test_stream_log_wrapper_guards.py::test_name;rm",
+            str(root),
+        )
+
+
 def test_build_timeout_wrapper_cmd_accepts_safe_extra_args(modules) -> None:
     _, _, common = modules
     root = Path(__file__).resolve().parents[1]

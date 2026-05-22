@@ -7,7 +7,7 @@ import pandas as pd
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
-from core.app_logic import filter_dataframe
+from core.search_filter import filter_dataframe
 
 
 def _df():
@@ -58,6 +58,17 @@ def test_regex_and_fallback():
     assert set(out_regex["num"]) == {6}
     out_fallback = filter_dataframe(df, ["~["])
     assert len(out_fallback) == 0
+
+
+def test_regex_handles_duplicate_dataframe_index():
+    df = _df()
+    df.index = [1, 1, 2, 2, 3, 3]
+
+    out_regex = filter_dataframe(df, ["~\\d+ abc"])
+    assert set(out_regex["num"]) == {6}
+
+    out_invalid = filter_dataframe(df, ["~["])
+    assert len(out_invalid) == 0
 
 
 def test_mixed_terms_and_negatives():

@@ -58,13 +58,14 @@ jobs:
           while IFS= read -r file_path; do
             case "$file_path" in
               *.py)
-                if [ -f "$file_path" ]; then
-                  printf '%s\n' "$file_path" >> .changed_python_files
+                if [ ! -f "$file_path" ]; then
+                  continue
                 fi
+                printf '%s\n' "$file_path" >> .changed_python_files
                 ;;
             esac
           done < .changed_quality_scope
-          if grep -Eq '(^|/)[^/]+\.py$|^pyproject\.toml$|^requirements[^/]*\.txt$|^uv\.lock$|^\.github/workflows/[^/]+\.ya?ml$|^scripts/|^dev_env/build/' .changed_quality_scope; then
+          if [ -s .changed_python_files ] || grep -Eq '^pyproject\.toml$|^requirements[^/]*\.txt$|^uv\.lock$|^\.github/workflows/[^/]+\.ya?ml$|^scripts/|^dev_env/build/' .changed_quality_scope; then
             echo "run_python=true" >> "$GITHUB_OUTPUT"
             echo "Python or CI config changes detected."
             if [ -s .changed_python_files ]; then
@@ -92,10 +93,8 @@ jobs:
         if: steps.changed-scope.outputs.run_python == 'true'
         run: |
           set -euo pipefail
-          sudo apt-get install -y libegl1 || {
-            sudo apt-get update
-            sudo apt-get install -y libegl1
-          }
+          sudo apt-get update
+          sudo apt-get install -y libegl1
 
       - name: Sync dev dependencies
         if: steps.changed-scope.outputs.run_python == 'true'

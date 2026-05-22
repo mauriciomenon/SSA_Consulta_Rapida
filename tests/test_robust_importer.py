@@ -76,6 +76,13 @@ def test_raise_on_error_propagates_excel_read_failure(tmp_path):
         import_excel_robust(str(file_path), raise_on_error=True)
 
 
+def test_raise_on_error_propagates_missing_workbook(tmp_path):
+    file_path = tmp_path / "missing.xlsx"
+
+    with pytest.raises(FileNotFoundError):
+        import_excel_robust(str(file_path), raise_on_error=True)
+
+
 def test_synonym_collapse_and_coalescence(tmp_path):
     # Duas colunas que devem colapsar em 'situacao' + duas variantes para numero_ssa
     df = pd.DataFrame(

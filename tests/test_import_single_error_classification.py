@@ -19,6 +19,38 @@ def _valid_df() -> pd.DataFrame:
     )
 
 
+@pytest.fixture(autouse=True)
+def _create_default_import_file(tmp_path: Path) -> None:
+    (tmp_path / "input.xlsx").write_bytes(b"placeholder")
+
+
+def test_import_single_file_fails_before_extraction_when_file_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    called = False
+
+    def _extract_should_not_run(*args, **kwargs):
+        nonlocal called
+        called = True
+        return _valid_df()
+
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        _extract_should_not_run,
+    )
+    missing_file = tmp_path / "missing.xlsx"
+
+    with pytest.raises(app_logic.ExtractionError, match="nao encontrado") as exc_info:
+        app_logic._import_single_file(
+            str(missing_file), str(tmp_path / "db.sqlite"), "ssa_table"
+        )
+
+    assert getattr(exc_info.value, "error_code", None) == "MISSING_FILE"
+    assert called is False
+
+
 def test_import_single_file_preserves_database_error(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -195,7 +227,7 @@ def test_process_file_with_resilience_keeps_batch_running_on_internal_result_cas
         ),
     )
 
-    assert action == "ok"
+    assert action == app_logic.FileProcessAction.CONTINUE
     assert successful_files == []
     assert successful_with_records == []
     assert deterministic_failed == []
@@ -262,7 +294,7 @@ def test_process_file_with_resilience_keeps_batch_running_on_internal_runtime_at
         ),
     )
 
-    assert action == "ok"
+    assert action == app_logic.FileProcessAction.CONTINUE
     assert successful_files == []
     assert successful_with_records == []
     assert deterministic_failed == []
@@ -287,7 +319,7 @@ def test_process_file_with_resilience_keeps_batch_running_on_internal_runtime_at
     ]
 
 
-def test_build_progress_emitter_disables_callback_after_first_failure() -> None:
+def test_build_progress_emitter_keeps_reporting_after_callback_failure() -> None:
     calls: list[tuple[str, dict[str, object]]] = []
 
     def _broken_callback(event_type: str, data: dict[str, object]) -> None:
@@ -299,7 +331,7 @@ def test_build_progress_emitter_disables_callback_after_first_failure() -> None:
     emitter("first", {"step": 1})
     emitter("second", {"step": 2})
 
-    assert calls == [("first", {"step": 1})]
+    assert calls == [("first", {"step": 1}), ("second", {"step": 2})]
 
 
 def test_import_single_file_raises_when_extractor_returns_none(
@@ -388,7 +420,7 @@ def test_import_single_file_logs_friendly_duplicate_labels(
     assert ok is True
     assert count == 1
     assert "Duplicidade exata no export atingiu 2 linha(s)" in caplog.text
-    assert "Violacao de validacao [outra regra] atingiu 1 linha(s)" in caplog.text
+    assert "Aviso de validacao [outra regra] atingiu 1 linha(s)" in caplog.text
 
 
 def test_import_single_file_drops_invalid_numero_ssa_rows_before_insert(

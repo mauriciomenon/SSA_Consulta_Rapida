@@ -76,7 +76,7 @@ def main() -> int:
     if not any_synced and verbose:
         print("WARN nenhuma plataforma sincronizada")
 
-    return 0
+    return 0 if any_synced else 1
 
 
 if __name__ == "__main__":

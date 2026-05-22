@@ -4,17 +4,26 @@
 # Temporary test outputs (folder exists, contents ignored)
 /temp/*
 !/temp/.gitkeep
+tmp/
 /.beads/
 /.sisyphus/
+/.antigravitycli/
 /config/streamlit_ui_state.json
 /.uv-matrix/
 /.cursor/
+/.cursorignore
+/.cursorindexingignore
 /.vscode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[codz]
+*.py[cod]
 *$py.class
+
+# Global local artifacts
+*.log
+*.db
+*.db-journal
 
 # C extensions
 *.so
@@ -45,12 +54,22 @@ MANIFEST
 *.manifest
 *.spec
 
-# Build System Multi-Plataforma
+# Build and launcher artifacts
 launchers/platforms/*/venv/
 launchers/platforms/*/temp/
 launchers/dist/
+launchers/dist_simple/
 launchers/logs/
 build_env/
+builds/*
+dev_env/build/build/
+!dev_env/
+!dev_env/build/
+!dev_env/build/*.sh
+!dev_env/build/*.bat
+!dev_env/build/*.bzl
+nuitka-crash-report.xml
+dist_packages/*
 
 # Executaveis gerados
 *.exe
@@ -86,7 +105,6 @@ cover/
 *.pot
 
 # Django stuff:
-*.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -112,11 +130,6 @@ target/
 profile_default/
 ipython_config.py
 
-# pyenv
-#   For a library or package, you might want to ignore these files since the code is
-#   intended to run in multiple environments; otherwise, check them in:
-# .python-version
-
 # pipenv
 #   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
 #   However, in case of collaboration, if having platform-specific dependencies or dependencies
@@ -129,6 +142,8 @@ ipython_config.py
 #   This is especially recommended for binary packages to ensure reproducibility, and is more
 #   commonly ignored for libraries.
 #   uv.lock is intentionally tracked here to keep release builds reproducible.
+!uv.lock
+!config/uv.lock
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
@@ -167,7 +182,13 @@ celerybeat.pid
 # Environments
 .env
 .envrc  # (contem chaves locais via direnv; ver .envrc.example)
+!.envrc.example
+.envrc.*
+.python-version
 .venv
+.venv_build/
+.venv_ft/
+.direnv/
 env/
 venv/
 ENV/
@@ -213,13 +234,6 @@ cython_debug/
 # Learn more at https://abstra.io/docs
 .abstra/
 
-# Visual Studio Code
-#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore
-#  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#  and can be added to the global gitignore or merged into this file. However, if you prefer,
-#  you could uncomment the following to ignore the entire vscode folder
-.vscode/
-
 # Development tool configurations and snapshots (personal/sensitive)
 .snapshots/
 
@@ -232,13 +246,6 @@ cython_debug/
 # Local Roo workspace metadata
 .roo/mcp.json
 
-# Cursor
-#  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
-#  exclude from AI features like autocomplete and code analysis. Recommended for sensitive data
-#  refer to https://docs.cursor.com/context/ignore-files
-.cursorignore
-.cursorindexingignore
-
 # Marimo
 marimo/_static/
 marimo/_lsp/
@@ -247,47 +254,38 @@ __marimo__/
 # Ignorar arquivos temporarios do Excel (arquivos de trava) na pasta docs
 docs/~$*.xlsx
 
-# -- SSA local ignores --
-# SQLite + backups locais
-data/ssas.db
-data/ssas.db-journal
+# Project data and configuration
+data/ssas.db-*
 data/ssas.db.*
-# Artefatos locais de Node (desversionados)
-node_modules/
-package.json
-bun.lock
-# Preferencia local da GUI principal (subir manualmente apenas quando combinado)
-config/gui_main_preferences.json
-# Preferencias locais da GUI
+data/file_cache.json
+data/*.backup_*
 data/historico_backups/
 data/historico_backups/**
+config/gui_main_preferences.json
+config/gui_saved_filters.json
+config/cache/
+config/codex.sqlite3*
+config/hypercorn.toml
+config/secret_key*
+config/*.lock
+config/*.bak*
+agents.lock
+config/llm_providers/*
+!config/llm_providers/README.md
+
+# Artefatos locais de Node/Bun legados; uv.lock e o lock de runtime versionado.
+node_modules/
+bun.lock
 # Artefatos de recuperacao
 WIP_*.patch
 docs_saida/SESSION_RECOVERY_*/
 
 # Local development sandboxes and legacy
 legacy/
-.venv/
-.venv_build/
-.venv_ft/
-.direnv/
-.DS_Store
 .continue/
-__pycache__/
-*.log
 logs/
 
-# Build and distribution
-build/
-dist/
-*.spec
-!dev_env/build/*.sh
-!dev_env/build/*.bat
-!dev_env/build/*.bzl
-
 # Local databases and outputs
-*.db
-*.db-journal
 reports/
 
 # VS Code workspace (optional) + personal files
@@ -295,30 +293,6 @@ reports/
 
 # Local AI artifacts and temporary analysis files
 /local_ai_private/
-/LocalTemp/
-
-# === BUILD SYSTEM ARTIFACTS ===
-# Executaveis compilados
-launchers/dist/
-launchers/dist_simple/
-launchers/platforms/*/venv/
-launchers/platforms/*/temp/
-
-# Logs de build
-launchers/logs/
-launchers/*.log
-
-# Cache de arquivos
-data/file_cache.json
-
-# Arquivos temporarios de build
-*.spec
-build/
-dist/
-
-# Backups automaticos de banco
-data/*.backup_*
-data/historico_backups/
 
 # Arquivos de sistema
 .DS_Store
@@ -331,83 +305,26 @@ docs_entrada/~$*
 docs_saida/temp_*
 exportacao/temp_*
 
-# === BUILDS E DISTRIBUICAO ===
-# Builds directory
-builds/*
-dev_env/build/build/
-dev_env/build/build/**
-nuitka-crash-report.xml
-
-# Packaged distributions
-dist_packages/*
-
-# Builds automaticos
-launchers/dist/
-launchers/dist_simple/
-launchers/platforms/*/venv/
-launchers/platforms/*/temp/
-
-# Logs de build
-launchers/logs/
-launchers/*.log
-
 # === DADOS SENSIVEIS ===
 # Arquivos de entrada com dados reais da empresa
 docs_entrada/*.xlsx
 docs_entrada/*.xls
 docs_entrada/*.csv
 docs_entrada/*.json
+docs_entrada/*.zip
 
 # Exports com dados completos
 docs_saida/all.*
 exportacao/
 
 # Temporary work files and control files
-# repo-root temp/ is handled above to preserve /temp/.gitkeep
-data/ssas.db-shm
-data/ssas.db-wal
 # Local AI / TODO removed artifacts (keep only locally, never commit)
-local_ai_private/
 .claude/
 gemini.md
 temp_claude.txt
 WARP.md
 
-# AI/temp documentation patterns (analyses, reports, plans)
-docs/*ANALISE*.md
-docs/*ANALISES*.md
-docs/*RELATORIO*.md
-docs/*REPORT*.md
-docs/*CORRECOES*.md
-docs/*CORRECAO*.md
-docs/*PLANO*.md
-docs/*MELHORIAS*.md
-docs/*MODULARIZACAO*.md
-docs/*_FASE*.md
-docs/ALGORITMO_*.md
-docs/DEV_MODULE_STATUS.md
-docs/DEV_DIAGNOSTICS*.md
-docs/ORGANIZACAO_*.md
-docs/TEMPLATE_*.md
-docs/VARREDURA_*.md
-docs/INTEGRITY_VERIFICATION.md
-docs/SESSION_*.md
-docs/LOG_*.md
-docs/HISTORICO_ULTIMOS_*.md
-docs/CHECKLIST_*.md
-docs/LICOES_*.md
-docs/NEXT_STEPS_*.md
-docs/PROXIMOS_*.md
-docs/ORDENS_*.md
-docs/SECRET_*.md
-docs/RESUMO_*.md
-docs/CONFIGURATION_FIXES*.md
-docs/avaliacao_*.md
-docs/avaliacao_*.html
-
 # Temporary plans and reports in other locations
-temp/PR_REPORT.md
-temp/PLANO_*.md
 launchers/PLANO_*.md
 launchers/test_reports/
 
@@ -421,11 +338,11 @@ launchers/GESTAO_*.md
 launchers/GUIA_PRIVACIDADE*.md
 launchers/SISTEMA_*.md
 # AI/Copilot instructions
+# Track only Markdown rule files under .github/instructions/rules.
 .github/instructions/*
 !.github/instructions/rules/
 !.github/instructions/rules/*.md
 opencode.json
-nul
 
 # Code quality tools (local cache and configs)
 .codacy/
@@ -447,34 +364,14 @@ AGENTS.md.backup_*
 # VS Code backup local (contem configs pessoais do usuario)
 vscode_bkp/
 
-# LLM provider configs (contem API keys em alguns casos)
-config/llm_providers/*.json
-!config/llm_providers/README.md
-
-
 .kluster
 
 # Configuracoes de IA/MCP (evitar tarefas automaticas)
-.vscode/tasks.json
 scripts/sync_mcp_config.ps1
 config/mcp-*.json
 
 
-.github/instructions/kluster-code-verify.instructions.md
-
-
-# Ignore insiders AI rules
-.github/instructions/codacy.instructions.md
-
-# Snyk Security Extension - AI Rules (auto-generated)
-.github/instructions/snyk_rules.instructions.md
-
-
-package-lock.json
 profile.bkp
-.envrc.backup
-.envrc.multi
-.envrc.new
 
 # Local logs/transcripts (must never be committed)
 .specstory/
@@ -487,22 +384,12 @@ omp.cache
 # Local agent/tool artifacts
 .gitignore.bak.*
 .serena/
-config/cache/
-config/codex.sqlite3*
-config/hypercorn.toml
-config/secret_key
-config/gui_main_preferences.json
-.python-version
 .backups/
-config/*.lock
 *.bak.*
-config/*.bak*
 heatmap-last-year.png
 
-# Keep build orchestration scripts versioned.
-!dev_env/
-!dev_env/build/
-!dev_env/build/*.sh
-!dev_env/build/*.bat
-!dev_env/build/*.bzl
-docs_entrada/docs_entrada.zip
+# Local agent/debug artifacts
+.clawpatch/
+.agents/
+agents.toml
+.qwen/

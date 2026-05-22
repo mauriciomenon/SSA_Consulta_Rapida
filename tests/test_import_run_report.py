@@ -11,6 +11,8 @@ import pytest
 
 from armazenamento import database
 from core import app_logic
+from core import import_postprocess
+from core import import_run_report
 
 
 def _get_project_root() -> Path:
@@ -1404,7 +1406,7 @@ def test_load_import_discovery_settings_falls_back_on_non_mapping_settings(
     assert settings["upsert_short_circuit_policy"] == "consulta_only"
 
 
-def test_move_file_after_import_returns_original_on_move_oserror(
+def test_move_file_after_import_returns_none_on_move_oserror(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     docs_dir = tmp_path / "docs_entrada"
@@ -1412,20 +1414,18 @@ def test_move_file_after_import_returns_original_on_move_oserror(
     source = docs_dir / "arquivo.xlsx"
     source.write_text("ok", encoding="utf-8")
 
-    def _raise_move(src: str, dst: str) -> str:
+    def _raise_move(_src: Path, _dst: Path) -> None:
         raise OSError("move blocked")
 
-    monkeypatch.setattr(app_logic.shutil, "move", _raise_move)
+    monkeypatch.setattr(import_postprocess, "_move_without_overwrite", _raise_move)
 
-    final_path = app_logic._move_file_after_import(
+    final_path = import_postprocess.move_file_after_import(
         file_path=str(source),
         docs_dir=str(docs_dir),
-        processadas_subdir="processadas",
-        nosurvivor_subdir="nosurvivor",
-        route_to_nosurvivor=False,
+        destination_root=(docs_dir / "processadas").resolve(),
     )
 
-    assert final_path == str(source)
+    assert final_path is None
     assert source.exists()
 
 
@@ -1441,7 +1441,7 @@ def test_write_import_run_report_returns_none_on_open_value_error(
     def _raise_open(*args, **kwargs):
         raise ValueError("invalid path")
 
-    monkeypatch.setattr(app_logic, "open", _raise_open, raising=False)
+    monkeypatch.setattr(import_run_report, "open", _raise_open, raising=False)
 
     assert app_logic._write_import_run_report(payload) is None
 
@@ -1535,7 +1535,7 @@ def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
         force_import=True,
     )
 
-    assert updated is False
+    assert updated is True
     assert _read_descricao(primary_db) == "primary_old"
     payload = cast(dict[str, Any], captured["payload"])
     assert payload["status"] == "deterministic_rejections_only"

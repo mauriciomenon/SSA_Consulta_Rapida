@@ -24,6 +24,7 @@ def test_root_release_powershell_exposes_simple_defaults() -> None:
     assert "Target: windows" in script
     assert "Backend Windows/Debian: nuitka" in script
     assert "Pacote Debian: deb" in script
+    assert "Instalador Windows: ativado por padrao" in script
 
 
 def test_root_release_powershell_forwards_safe_defaults() -> None:
@@ -37,11 +38,22 @@ def test_root_release_powershell_forwards_safe_defaults() -> None:
     assert '"-Backend", $BackendCsv' in script
     assert "$releaseArgs = @(" in script
     assert "& powershell @releaseArgs" in script
+    assert "Initialize-WindowsBuildExtra $RepoRoot $BackendCsv" in script
+    assert "Backend Windows invalido" in script
+    assert "pyoxidizer ou combinacoes" in script
+    assert '$value -eq "pyoxidizer"' in script
+    assert "uv tool run --python 3.13 --from pyoxidizer" not in script
+    assert '"--extra"' in script
+    assert '"build"' in script
     assert "$args = @(" not in script
     assert "& powershell @args" not in script
-    assert '$yesFlag = if ($Yes) { " -y" } else { "" }' in script
-    assert "--backend $backendQuoted --package $packageQuoted$yesFlag$dryRunFlag" in script
+    assert '$scriptWsl = "$repoRootWsl/dev_env/build/release_debian.sh"' in script
+    assert '$releaseArgs = @("-d", $WslDistro' in script
+    assert '"--backend", $BackendCsv, "--package", $PackageCsv' in script
     assert 'Get-Command "wsl"' in script
+    assert 'Nome de distro WSL invalido' in script
+    assert 'Backend Debian invalido' in script
+    assert 'Pacote Debian invalido' in script
     assert "-AllowMissingRemote" in script
     execution_block = section_between(script, "$targetName = Normalize-Target", 'Write-Host "Release concluido."')
     assert_before(

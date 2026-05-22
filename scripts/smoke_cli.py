@@ -22,9 +22,16 @@ from typing import Any
 import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from armazenamento.identifier_utils import quote_identifier  # noqa: E402
+from shared.db_names import CANONICAL_SSA_TABLE  # noqa: E402
+
 APP_RUNTIME_NAME = "SSA_Consulta_Rapida"
 SAMPLE_NUMBER = "202699001"
 SAMPLE_FILE_NAME = "SSA_Smoke_01-01-2026_0100AM.xlsx"
+SMOKE_TABLE_NAME = CANONICAL_SSA_TABLE
 
 
 def _runtime_root(smoke_dir: Path) -> Path:
@@ -108,11 +115,12 @@ def _run_cli_entry(
 def _count_imported_rows(db_path: Path, table_name: str) -> int:
     if not db_path.is_file():
         raise RuntimeError(f"db ausente: {db_path}")
-    if not table_name.replace("_", "").isalnum():
+    if table_name != SMOKE_TABLE_NAME:
         raise RuntimeError(f"tabela invalida: {table_name}")
+    quoted_table_name = quote_identifier(table_name)
     with sqlite3.connect(db_path) as conn:
         row = conn.execute(
-            f'SELECT COUNT(*) FROM "{table_name}" WHERE CAST(numero_ssa AS TEXT) = ?',
+            f"SELECT COUNT(*) FROM {quoted_table_name} WHERE CAST(numero_ssa AS TEXT) = ?",  # nosec B608
             (SAMPLE_NUMBER,),
         ).fetchone()
     return int(row[0] if row else 0)
@@ -148,19 +156,38 @@ def run_smoke(executable: Path | None = None) -> dict[str, Any]:
         runtime_root = _runtime_root(smoke_dir)
         sample_path = runtime_root / "docs_entrada" / SAMPLE_FILE_NAME
         db_path = runtime_root / "data" / "ssas.db"
-        table_name = "ssa_table"
+        table_name = SMOKE_TABLE_NAME
 
         runtime_config = _copy_runtime_config(runtime_root)
         _write_smoke_workbook(sample_path)
 
-        proc = _run_cli_entry(
-            smoke_dir,
-            runtime_root,
-            runtime_config,
-            db_path,
-            table_name,
-            executable,
-        )
+        try:
+            proc = _run_cli_entry(
+                smoke_dir,
+                runtime_root,
+                runtime_config,
+                db_path,
+                table_name,
+                executable,
+            )
+        except subprocess.TimeoutExpired as exc:
+            result = {
+                "ok": False,
+                "mode": "functional-import",
+                "returncode": 124,
+                "runtime_root": str(runtime_root),
+                "error": f"timeout: {exc}",
+            }
+            return result
+        except OSError as exc:
+            result = {
+                "ok": False,
+                "mode": "functional-import",
+                "returncode": 1,
+                "runtime_root": str(runtime_root),
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+            return result
         output = (proc.stdout + proc.stderr).strip()
         if proc.returncode != 0:
             result = {

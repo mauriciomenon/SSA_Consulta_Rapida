@@ -484,21 +484,24 @@ def test_run_optional_derivadas_sync_marks_blocking_error_on_runtime_error() -> 
             lambda **kwargs: (_ for _ in ()).throw(RuntimeError("sync down")),
         )
 
-        sync_materialized, blocking_error = app_logic._run_optional_derivadas_sync(
-            auto_derivadas_sync_enabled=True,
-            successfully_processed_files=["/tmp/regular.xlsx"],
-            derivadas_sheet_files=[],
-            db_only_derivadas_sync=False,
-            should_cancel=None,
-            working_db_path="/tmp/ssa.db",
-            table_name="ssa_table",
-            docs_dir="/tmp/docs",
-            critical_errors=critical_errors,
-            emit_progress=_emit_progress,
+        sync_materialized, blocking_error, synced_files = (
+            app_logic._run_optional_derivadas_sync(
+                auto_derivadas_sync_enabled=True,
+                successfully_processed_files=["/tmp/regular.xlsx"],
+                derivadas_sheet_files=[],
+                db_only_derivadas_sync=False,
+                should_cancel=None,
+                working_db_path="/tmp/ssa.db",
+                table_name="ssa_table",
+                docs_dir="/tmp/docs",
+                critical_errors=critical_errors,
+                emit_progress=_emit_progress,
+            )
         )
 
     assert sync_materialized is False
     assert blocking_error is True
+    assert synced_files == []
     assert critical_errors == [("derivadas_sync", "/tmp/docs", "sync down")]
     assert progress_events == [
         (

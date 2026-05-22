@@ -5,7 +5,6 @@
 # Exemplos: filter_gui_ssa_mixin.py, display_gui_ssa_mixin.py
 
 from gui.mixins.filter_gui_ssa_mixin import FilterGUISSAMixin
-from gui.mixins.tab_context_gui_ssa_mixin import TabContextGUISSAMixin
 
 # TODO: Implementar outros mixins
 # from gui.mixins.display_gui_ssa_mixin import DisplayGUISSAMixin
@@ -14,7 +13,6 @@ from gui.mixins.tab_context_gui_ssa_mixin import TabContextGUISSAMixin
 
 __all__ = [
     "FilterGUISSAMixin",
-    "TabContextGUISSAMixin",
     # 'DisplayGUISSAMixin',
     # 'EventGUISSAMixin',
     # 'ThemeGUISSAMixin'

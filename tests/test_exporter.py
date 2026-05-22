@@ -95,6 +95,17 @@ def test_export_dataframe_empty_df(temp_output_dir, display_map, capsys):
     assert not os.listdir(temp_output_dir)
 
 
+def test_export_dataframe_rejects_path_traversal_filename(
+    temp_output_dir, sample_dataframe, display_map, capsys
+):
+    export_dataframe(sample_dataframe, "../escape", temp_output_dir, display_map)
+
+    captured = capsys.readouterr()
+    assert "Nome de exportacao invalido" in captured.out
+    assert not os.listdir(temp_output_dir)
+    assert not os.path.exists(os.path.join(os.path.dirname(temp_output_dir), "escape.csv"))
+
+
 @patch("exportacao.exporter.os.makedirs")
 def test_export_dataframe_output_dir_error(
     mock_makedirs, temp_output_dir, sample_dataframe, display_map, capsys

@@ -20,11 +20,12 @@ except ModuleNotFoundError:  # pragma: no cover - depende do ambiente
 
     def tabulate(data, headers=(), tablefmt="plain", showindex=False, **kwargs):
         """Fallback simples para ambientes sem `tabulate`."""
+        _ = tablefmt
         if hasattr(data, "to_string"):
             try:
                 return data.to_string(index=showindex)
-            except Exception:  # pragma: no cover
-                pass
+            except Exception as exc:  # pragma: no cover
+                logger.debug("Fallback tabulate falhou em to_string: %s", exc)
 
         try:
             rows = list(data)
@@ -717,8 +718,8 @@ class EnhancedTablePrinter:
 
         try:
             page_df = self._clamp_widths(page_df, widths)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao limitar larguras da pagina CLI: %s", exc)
 
         return self._rename_columns_for_display(page_df, widths, display_names)
 

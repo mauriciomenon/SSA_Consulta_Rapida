@@ -1,39 +1,173 @@
 # Recovery Backlog
 
-## CURRENT TRUTH 2026-05-11 22h10
+## CURRENT TRUTH 2026-05-20 23h14
 
-- Branch alvo operacional desta rodada: `dev`.
-- HEAD operacional atual validado:
-  - `84f5cf540fcf971f506ba5688d424c460b272d8c 2026-05-08T00:35:03-03:00 docs: Record history rewrite support follow-up`.
-- Rewrite de historico executado e publicado em branches/tags do repositorio.
-- Validacao de segredos em branches/tags locais publicados: `gitleaks_findings=0`.
-- GitHub checks no HEAD atual de `dev`: `minimal-ci`, `Secret Scan`, `codeql-security-scan`, `Automatic Dependency Submission` e `release-windows` em `success`.
-- Pendencia externa: `refs/pull/*/head` antigas do GitHub ainda retêm achados historicos e sao read-only para push/API. Requer purge pelo GitHub Support.
-- PR refs afetadas pela pendencia externa: `1,2,3,9,10,11,12,13,14,15,16`.
-- `dev` avancou alem da base antiga `4705c2e5722c4f3a5266ac02a5d15a1928d5a223`; nao assumir `main` sincronizado sem nova checagem explicita.
-- Base funcional local validada antes deste DOC_SYNC: `3f9d6701d798a04e8b42b6c4f7bf7711f1e68dc3 2026-05-05T12:37:11-03:00 test(launchers): Fail executable smoke on timeout`.
-- Commits funcionais desta rodada:
-  - `6495fc8694069d3078002f4b98cca089639a30a3 2026-05-05T12:22:43-03:00 fix(launchers): Fail force rescan on candidate import errors`
-  - `17084dbdeabf21e63625a5fd3c7462eeb66ed08f 2026-05-05T12:26:36-03:00 fix(gui): Include import failure detail in worker status`
-  - `b659b43b6af466c13289b49905193e04e2c1430a 2026-05-05T12:29:05-03:00 fix(build): Reject stale macOS app bundles for DMG`
-  - `3f9d6701d798a04e8b42b6c4f7bf7711f1e68dc3 2026-05-05T12:37:11-03:00 test(launchers): Fail executable smoke on timeout`
-- Artefatos v4.37 anteriores a esta base funcional seguem stale e nao devem ser usados para publicacao final.
-- Fonte unica de backends/pacotes: `dev_env/build/release_targets.json`.
-- Orquestradores ativos:
-  - Windows AMD64: `dev_env/build/release_windows.ps1`.
-  - Debian AMD64: `dev_env/build/release_debian.sh`.
-  - Orquestrador local Windows+WSL: `dev_env/build/release_local.ps1`.
-- Merge para `main` ainda nao autorizado. Nao abrir PR nem fazer merge sem comando explicito.
-- Protecao de codigo:
-  - Nuitka continua backend preferencial para release protegido.
-  - PyInstaller tem protecao parcial.
-  - PyOxidizer so e aceitavel como protegido quando o pacote nao expuser `.py`/`.pyc` do app.
-- Proximo passo operacional: apos aprovacao explicita, abrir PR `dev` -> `main` ou executar o fluxo de merge definido pelo usuario.
+- Branch alvo operacional: `dev`.
+- Baseline usado para este DOC_SYNC:
+  - `2b8746564f64a11bf93fc70f030239260ec53059 2026-05-20 22:46:32 -0300 DOC_SYNC: update merge readiness handoff`.
+- Este DOC_SYNC e documentacao apenas; confirmar o head operacional real com `git log -1`.
+- GitHub checks verdes no baseline `2b8746564f64a11bf93fc70f030239260ec53059`; revalidar o head atual apos qualquer novo DOC_SYNC:
+  - `minimal-ci`
+  - `CodeQL`
+  - `Secret Scan`
+  - `Automatic Dependency Submission`
+- Workspace local:
+  - `.qwen/` esta local nao rastreado e nao deve entrar no commit sem aprovacao explicita.
+  - `.antigravitycli/` agora esta ignorado.
+  - `.gitignore` ignora `.clawpatch/`, `agents.toml`, `tmp/`, `builds/*` e `.antigravitycli/`.
+  - `builds/pyoxidizer` foi removido do ambiente local; os achados antigos do Clawpatch em `builds/pyoxidizer/.../numpy/distutils/checks/*.c` nao existem mais no workspace ativo.
+- Diagrama funcional e diagrama por componentes:
+  - `docs/MERGE_READINESS_ARCHITECTURE.md`.
+- Slice dependencia:
+  - `idna` atualizado em `dev`; alerta Dependabot deve fechar somente quando o fix chegar ao default branch.
+- Slice API PAI:
+  - API PAI por setor esta funcional no fluxo `consulta`.
+  - Smoke real fetch-only validado neste ciclo para `IEE3`, `MEL4`, `MEL3`, `limit=1`, `normalized_rows=1`, `imported=False`, `errors=None`.
+  - GUI agora confirma antes de gravar dados da API no DB.
+  - Auto-refresh permanece sem escrita automatica no DB.
+- Slice origem/debug:
+  - `summary-json` registra fonte, filtros pedidos, setores, arquivos origem, contagens e exemplos de SSAs.
+  - Resumo PAI foi limpo para remover helpers pequenos sem ownership real; contrato JSON preservado.
+  - Resumo XLSX agora e carregado pelo servico de importacao e reaproveitado no report, sem segunda leitura XLSX no caminho normal.
+- Tipos PAI:
+  - `consulta` e o unico fluxo habilitado com backend real.
+  - `executadas` e `aprovacao` seguem planejados.
+  - `planejamento` e `programacao` seguem nao suportados ate existir provider real.
+- God modules ainda abertos:
+  - `gui/gui_ssa.py`: 3846 linhas.
+  - `gui/mixins/filter_gui_ssa_mixin.py`: 3014 linhas.
+  - `tests/test_gui_filter_logic.py`: 10372 linhas.
+  - `core/app_logic.py`: 2185 linhas, perto da meta de 2200.
+- Validacoes locais recentes:
+  - `py_compile`, `ruff`, `ty`, `pytest` focado: `72 passed`.
+  - Smoke GUI offscreen/filtros/detalhes/API: `424 passed, 1 skipped`.
+  - `scripts/run_quality_gates.py`: `overall_status=ok`.
+  - `bandit`, `semgrep p/python`, `detect-secrets` focados: limpos.
+  - `gitleaks protect --staged`: limpo no commit runtime.
+  - `pip-audit`: sem vulnerabilidades conhecidas no export do lock.
+  - `safety`: bloqueado por login/EOF; nao conta como validacao limpa.
+  - `CodeRabbit`: duas tentativas locais timeoutaram sem findings; nao conta como validacao limpa.
+  - `Gemini`: sem blocker no diff revisado.
+  - `Qwen`: headless validado apos troca de chave com `qwen -m glm-5-turbo -p 'Responda exatamente: OK_QWEN_HEADLESS'`; retorno `OK_QWEN_HEADLESS`. Modelos `qwen3.x` e `glm-5` podem seguir instaveis conforme plano/modelo.
+  - `Agy`: achados objetivos aplicados no patch `dd776388`.
+  - `Clawpatch`: achados reais aplicaveis foram corrigidos; nova tentativa completa ainda bloqueou por timeout/provider, nao conta como review limpo.
+- Merge para `main` ainda nao autorizado. Nao abrir PR, nao usar CodeRabbit em PR, nao mergear sem comando explicito.
+- Bloqueios antes de merge operacional:
+  1. Repetir Clawpatch/CodeRabbit quando provider/timeout permitir, ou rodar no PR se autorizado.
+  2. Executar build/smoke macOS se o alvo for release de artefato.
+  3. Continuar corte de `filter_gui_ssa_mixin.py` e `SSAMainWindow` se a meta de clean code for criterio bloqueante.
+- Build macOS/release ainda nao executado neste ciclo; so entra se o alvo for release de artefato.
 
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
 ## ACTIVE PRIORITIES
+
+## Update 2026-05-18 20:25 - GUI undo fix and structural roadmap
+
+Escopo deste registro:
+1. BUG_REAL corrigido no slice atual: Undo da busca geral salvava o texto digitado ainda nao aplicado, em vez do ultimo filtro aplicado.
+2. Contrato esperado: busca exata reduz a lista e Undo volta ao estado anterior sem busca; Undo de filtros por coluna e avancados continua funcionando.
+3. Status estrutural medido nesta rodada:
+   - `gui/gui_ssa.py`: 3727 linhas; `SSAMainWindow` ainda tem 3100 linhas; god class medio/alto.
+   - `gui/mixins/filter_gui_ssa_mixin.py`: 3205 linhas; god mixin alto; coordena busca, undo, filtros por coluna, resumo visual, refresh, workers e parte de estado.
+   - `gui/ssa/gui_filters_advanced_ui.py`: 1638 linhas; god module medio; ainda mistura construcao de painel, refresh de opcoes, sync visual e acoes de filtros avancados.
+   - `gui/ssa/gui_details.py`: 1568 linhas; medio; provider/model/export ja sairam, mas ainda tem funcoes grandes de arvore/link/render de derivadas.
+   - `gui/ssa/gui_filters_multiselect_menu.py`: 1474 linhas; medio/alto; virou ownership real do multiselect, mas precisa corte interno.
+   - `core/app_logic.py`: 2618 linhas; god module alto; `run_importer_logic` tem 290 linhas e `_import_single_file` tem 280 linhas.
+   - `tests/test_gui_filter_logic.py`: 10346 linhas; god test file muito alto.
+4. Kluster manteve residual estrutural em `FilterGUISSAMixin`: UI, worker lifecycle, persistencia e regra de DataFrame ainda estao acoplados.
+
+Pendente priorizado:
+1. `BUG_REAL`: manter teste/smoke de Undo para busca geral, coluna e avancado como guarda contra regressao.
+2. `STABILITY_PATCH`: controller de busca/Undo extraido para `gui/ssa/filter_search_undo_controller.py`, sem alterar layout; wrappers mantidos no mixin por compatibilidade.
+3. `STABILITY_PATCH`: `_import_single_file` extraido para `core/import_single_file.py`; `core/app_logic.py` mantem wrapper por compatibilidade de testes e chamadas internas.
+4. `NAO_BLOQUEANTE_DEFERIDO`: extrair `run_importer_logic` de `core/app_logic.py` para servico de orquestracao de importacao.
+5. `NAO_BLOQUEANTE_DEFERIDO`: iniciar diagnostico da importacao automatica PAI a partir do repo local `~/git/scrap_report`, primeiro mapeando funcoes de obtencao de XLS/dados antes de importar codigo.
+6. `NAO_BLOQUEANTE_DEFERIDO`: dividir `tests/test_gui_filter_logic.py` por dominio depois que os contratos GUI estabilizados estiverem cobertos por testes menores.
+
+Residual apos extracao do controller:
+1. `NAO_BLOQUEANTE_DEFERIDO`: `FilterGUISSAMixin` ainda e grande e ainda contem ordenacao/pandas em caminho de UI.
+2. `NAO_BLOQUEANTE_DEFERIDO`: `filter_search_undo_controller.py` ainda manipula estado privado da janela; proximo corte correto e criar DTO/interface de estado de filtros para reduzir o contrato dinamico.
+3. `NAO_BLOQUEANTE_DEFERIDO`: assinatura de Undo ainda usa congelamento recursivo de estado; manter sob observacao de performance antes de trocar por dirty flag.
+
+Residual apos extracao de importacao por arquivo:
+1. `NAO_BLOQUEANTE_DEFERIDO`: `run_importer_logic` ainda e funcao grande em `core/app_logic.py`; proximo corte deve isolar orquestracao de fases sem mudar contrato publico.
+2. `NAO_BLOQUEANTE_DEFERIDO`: `_process_file_with_resilience` ainda depende do wrapper `_import_single_file` em `core/app_logic.py` para compatibilidade de monkeypatches; remover somente depois de ajustar testes/contrato de injecao.
+3. `NAO_BLOQUEANTE_DEFERIDO`: progresso de importacao ainda usa callbacks textuais dentro de funcoes de dominio; proximo corte deve introduzir eventos/resultados estruturados antes de trocar UI.
+4. `NAO_BLOQUEANTE_DEFERIDO`: rotacao/promocao de banco ainda fica em `core/app_logic.py`; mover para camada de banco em slice proprio com testes de WAL/sidecars.
+5. `NAO_BLOQUEANTE_DEFERIDO`: rotacao/promocao de banco precisa coordenar fechamento de conexoes persistentes antes de `os.replace`, especialmente no Windows.
+6. `NAO_BLOQUEANTE_DEFERIDO`: validacao/limpeza de linhas ainda fica dentro de `core/import_single_file.py`; mover para transformacao dedicada antes de mudar politica de dados.
+
+## Update 2026-05-15 14:39 - Advanced filters manager residuals
+
+Escopo deste registro:
+1. Slice atual moveu ranking/preparacao de responsaveis para dominio puro em `gui/ssa/filter_domain_rules.py`.
+2. Slice atual introduziu `AdvancedFilterManager` em `gui/ssa/gui_filters_advanced_ui.py` para centralizar estado/materializacao dos filtros de responsaveis sem alterar layout.
+3. Slice atual limitou materializacao de menus de alta cardinalidade, preservando valores ja selecionados/excluidos.
+4. Kluster manteve achados estruturais fora do patch estabilizado:
+   - `_rebuild_multiselect_menu` ainda e funcao grande e recria widgets em vez de usar model-view/pool.
+   - `_apply_advanced_filters_from_ui` ainda mistura coleta de estado e sincronizacao de UI.
+   - `_refresh_responsavel_options` ainda faz coleta pandas no main thread durante materializacao.
+   - `_resolve_adv_layout_baseline` ainda depende de amostra de DataFrame de dominio para layout.
+   - testes de filtros ainda possuem contrato estrutural por regex e `TestGUIFilterLogic` ainda e monolitico.
+
+Pendente nao bloqueante:
+1. `NAO_BLOQUEANTE_DEFERIDO`: extrair builder/modelo de menu multiselect para reduzir `_rebuild_multiselect_menu` e permitir widget pool ou model-view real.
+2. `NAO_BLOQUEANTE_DEFERIDO`: extrair coletor de estado de filtros avancados para objeto testavel, mantendo o contrato atual de chaves.
+3. `NAO_BLOQUEANTE_DEFERIDO`: medir materializacao de responsaveis em smoke GUI real antes de mover coleta pandas para worker.
+4. `NAO_BLOQUEANTE_DEFERIDO`: trocar testes estruturais por registry compartilhado de chaves de filtro.
+5. Motivo do deferimento: esses pontos mudam ownership e fluxo de UI alem do ranking/preparacao aprovado neste commit; misturar agora aumentaria risco sobre filtros ja estabilizados.
+
+## Update 2026-05-15 13:08 - Details dialog export/render extraction residuals
+
+Escopo deste registro:
+1. Slice atual extraiu exportacao PNG/SVG/Mermaid e render SVG do dialogo de detalhes para `gui/ssa/details_graph_export.py`.
+2. Slice atual extraiu aplicacao de geometria do dialogo para `_apply_details_dialog_geometry`, preservando constantes e comportamento visual.
+3. Kluster manteve achados estruturais fora do patch de export/render:
+   - `gui/ssa/gui_details.py` ainda centraliza HTML, navegacao, cache e orquestracao Qt.
+   - `_format_details_html` ainda mistura resolucao de tema, dados e HTML.
+   - cache de series/indices de SSA ainda pode ter custo O(N) em miss ou troca de revisao.
+   - assinatura de render de detalhes ainda itera a serie selecionada.
+   - roteamento de lanes estreitas no grafo pode sobrepor arestas em casos visuais extremos.
+
+Pendente nao bloqueante:
+1. `NAO_BLOQUEANTE_DEFERIDO`: extrair formatacao HTML de detalhes para modulo proprio, mantendo contrato visual e links atuais.
+2. `NAO_BLOQUEANTE_DEFERIDO`: extrair navegacao/anchor handling do dialogo de detalhes para controller testavel.
+3. `NAO_BLOQUEANTE_DEFERIDO`: medir custo real de cache/index de SSA em navegacao por teclado e so entao trocar estrategia de materializacao.
+4. `NAO_BLOQUEANTE_DEFERIDO`: avaliar roteamento de lanes estreitas com evidencia visual antes de alterar o desenho do grafo.
+5. Motivo do deferimento: todos mudam area sensivel de renderizacao ou estrategia de cache; misturar com export/render aumentaria risco de regressao visual.
+
+## Update 2026-05-14 13:39 - GUI cleanup residuals after dead-code refactor
+
+Escopo deste registro:
+1. Slice atual removeu o pacote morto `gui/tabs`, moveu cleanup de workers para `gui/ssa/gui_workers.py`, desacoplou formatacao de status da mutacao de labels e decompos `gui/ssa/gui_theme.py`.
+2. Slice atual tambem decompos `_refresh_after_filter_change` em passos internos e manteve a estrategia antiga de `_apply_column_filters` porque medicao local mostrou que mascara unica piorava o caso seletivo comum.
+3. Kluster ainda manteve achados estruturais de longo prazo em `FilterGUISSAMixin`.
+
+Pendente nao bloqueante:
+1. `NAO_BLOQUEANTE_DEFERIDO`: extrair storage de filtros persistentes para objeto/repositorio proprio, mantendo `gui_saved_filters.json` e chmod `0600`.
+2. `NAO_BLOQUEANTE_DEFERIDO`: extrair `_build_column_mask` e regex safety para modulo de logica pura, com testes positivos/negativos antes de trocar engine ou contrato de regex.
+3. `NAO_BLOQUEANTE_DEFERIDO`: medir fallback sincrono de `initiate_filtering` com dataset real; se passar do limite de UX, bloquear fallback pesado ou mover para worker.
+4. `NAO_BLOQUEANTE_DEFERIDO`: reduzir rebuild completo de `_build_column_filters_panel` usando widgets persistentes somente apos smoke visual de troca de abas/filtros.
+5. Motivo do deferimento: todos exigem novo contrato interno ou medicao visual/performance propria; misturar agora aumentaria risco sobre filtros ja estabilizados.
+
+## Update 2026-05-14 03:00 - GUI filter panel structural residuals
+
+Escopo deste registro:
+1. Slice atual removeu a segunda aba fisica de filtros e o sincronismo visual legado.
+2. Kluster manteve achados estruturais fora do patch curto:
+   - `TestGUIFilterLogic` monolitico.
+   - `SSAMainWindow` monolitica.
+   - `_rebuild_multiselect_menu` mistura UI, normalizacao e regras de dados.
+   - refresh de `Responsavel` ainda pode varrer `df_completo` no caminho quente.
+   - macro `Baixar` aplica preset antes do botao `Aplicar`, comportamento historico que exige decisao de produto antes de mudar.
+
+Pendente nao bloqueante:
+1. `NAO_BLOQUEANTE_DEFERIDO`: dividir testes GUI por dominio em slice proprio.
+2. `NAO_BLOQUEANTE_DEFERIDO`: medir e redesenhar multiselect/responsavel com lazy loading ou view-model antes de qualquer refatoracao.
+3. `NAO_BLOQUEANTE_DEFERIDO`: decidir contrato de produto da macro `Baixar` antes de mover preset para fluxo `Aplicar`.
+4. Motivo do deferimento: todos exigem refatoracao ou alteracao de comportamento maior que a limpeza de legado de abas aprovada.
 
 ## Update 2026-05-13 00:37 - PR99 DeepSource follow-up
 

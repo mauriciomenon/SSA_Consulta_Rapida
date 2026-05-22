@@ -97,7 +97,7 @@ class PerformanceMonitor:
         # Configuração do sinal para parada limpa
         signal.signal(signal.SIGINT, self.signal_handler)
 
-    def signal_handler(self, signum, frame):
+    def signal_handler(self, _signum, _frame):
         """Handler para parada limpa do programa."""
         print("\n\n Parando monitor...")
         self.stop_monitoring()

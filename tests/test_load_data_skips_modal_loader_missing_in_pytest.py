@@ -58,10 +58,8 @@ def test_load_data_skips_modal_when_loader_missing_under_pytest(
     dummy._active_data_load_request_id = None
     dummy.data_loader_thread = None
 
-    dummy._prune_retired_data_loader_workers = lambda: None
     dummy._invalidate_active_filter_request = lambda *a, **k: None
     dummy._cancel_active_filter_worker = lambda *a, **k: None
-    dummy._cleanup_data_loader_worker = lambda *a, **k: True
 
     gui_ssa.SSAMainWindow.load_data(dummy)
 
@@ -103,10 +101,8 @@ def test_load_data_handles_loader_constructor_failure_under_pytest(
     dummy._active_data_load_request_id = None
     dummy.data_loader_thread = None
 
-    dummy._prune_retired_data_loader_workers = lambda: None
     dummy._invalidate_active_filter_request = lambda *a, **k: None
     dummy._cancel_active_filter_worker = lambda *a, **k: None
-    dummy._cleanup_data_loader_worker = lambda *a, **k: True
 
     gui_ssa.SSAMainWindow.load_data(dummy)
 

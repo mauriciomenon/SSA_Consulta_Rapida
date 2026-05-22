@@ -19,6 +19,7 @@ from shared.import_contract import MANDATORY_SCHEMA_COLUMNS
 from utils.robust_importer import import_excel_robust
 
 logger = logging.getLogger(__name__)
+TEMPO_EXCEDIDO_RE = re.compile(r"(\d+)\s*(mi|mo|m|d|h)(?=\s|$|\d)", re.IGNORECASE)
 
 
 class ExtractionError(Exception):
@@ -122,7 +123,7 @@ def _normalize_tempo_excedido_value(value) -> str | None:
     text = str(value).strip()
     if not text:
         return None
-    matches = re.findall(r"(\d+)\s*(mi|mo|m|d|h)(?=\s|$|\d)", text.lower())
+    matches = TEMPO_EXCEDIDO_RE.findall(text)
     if not matches:
         return text
     units = {"months": 0, "days": 0, "hours": 0, "minutes": 0}
@@ -265,7 +266,7 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
                     )
                     missing_mask = df_normalized["data_cadastro"].isna()
                     logger.debug(
-                        "Preenchidos %s registros de 'data_cadastro' usando coluna '%s'. Restantes sem data: %s",
+                        "Preenchidos %s registros de 'data_cadastro' usando coluna '%s'. Restantes sem 'data_cadastro': %s",
                         int(fill_mask.sum()),
                         col,
                         int(missing_mask.sum()),
@@ -298,10 +299,10 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
             ).astype("Int64")
 
     # Keep canonical numeric semantics for reprogramacoes:
-    # - num_reprogramacoes accepts only strict numeric values
+    # - num_reprogramacoes accepts numeric values
     # - total_de_reprogramacoes backfills num_reprogramacoes when available
     if "num_reprogramacoes" in df_normalized.columns:
-        logger.debug("Convertendo 'num_reprogramacoes' para Int64 (strict numeric)...")
+        logger.debug("Convertendo 'num_reprogramacoes' para Int64...")
         num_series = pd.to_numeric(df_normalized["num_reprogramacoes"], errors="coerce")
         if "total_de_reprogramacoes" in df_normalized.columns:
             backfill_mask = (
@@ -354,6 +355,9 @@ def extract_data_from_excel(
         _check_cancel()
         all_sheets_data = []
         column_mappings = _load_column_mappings()
+        normalized_column_mappings = {
+            str(key).strip(): value for key, value in column_mappings.items()
+        }
         with pd.ExcelFile(file_path, engine="openpyxl") as xl_file:
             for sheet_name in xl_file.sheet_names:
                 _check_cancel()
@@ -370,13 +374,15 @@ def extract_data_from_excel(
                     continue
 
                 # Encontra a linha do cabecalho (primeira celula nao vazia na coluna 0)
-                header_row_idx = None
-                for idx, value in enumerate(sheet_df.iloc[:, 0]):
-                    if idx % 250 == 0:
-                        _check_cancel()
-                    if pd.notna(value) and str(value).strip() != "":
-                        header_row_idx = idx
-                        break
+                _check_cancel()
+                first_column = sheet_df.iloc[:, 0]
+                header_candidates = first_column[
+                    first_column.notna()
+                    & first_column.astype("string").str.strip().ne("")
+                ].index
+                header_row_idx = (
+                    int(header_candidates[0]) if len(header_candidates) else None
+                )
 
                 if header_row_idx is not None:
                     saw_header = True
@@ -408,7 +414,11 @@ def extract_data_from_excel(
                             col_name = non_null_labels.iloc[0]
                         if pd.isna(col_name):
                             continue
-                        canonical_name = column_mappings.get(col_name, col_name)
+                        normalized_col_name = str(col_name).strip()
+                        canonical_name = normalized_column_mappings.get(
+                            normalized_col_name,
+                            column_mappings.get(col_name, normalized_col_name),
+                        )
                         if canonical_name in MANDATORY_SCHEMA_COLUMNS:
                             columns_to_keep.append(col_idx)
                     if len(columns_to_keep) != len(sheet_df.columns):
@@ -470,7 +480,14 @@ def extract_data_from_excel(
 
         # Normaliza os nomes das colunas.
         if column_mappings:
-            combined_df.rename(columns=column_mappings, inplace=True)
+            rename_columns = {
+                col: normalized_column_mappings.get(
+                    str(col).strip(),
+                    column_mappings.get(col, str(col).strip()),
+                )
+                for col in combined_df.columns
+            }
+            combined_df.rename(columns=rename_columns, inplace=True)
         _record_debug_phase_columns(
             _debug_phases,
             "after_rename",
@@ -624,31 +641,20 @@ def extract_data_from_excel(
         _check_cancel()
         combined_df = _normalize_datatypes(combined_df)
 
-        # --- Sanitizacao Basica e Robusta de Strings ---
-        logger.debug("Iniciando sanitização de strings...")
+        # --- Sanitizacao Basica de Strings ---
+        logger.debug("Iniciando strip/null-mask de strings...")
         for col in combined_df.columns:
             _check_cancel()
             # Verifica se a coluna é de tipo 'object' (pandas usa para strings e mixed types)
             if pd.api.types.is_object_dtype(combined_df[col]):
-                # 1. Converte para string, tratando valores NA
-                combined_df[col] = combined_df[col].astype(str)
-
-                # 2. Substitui strings que representam valores nulos por pd.NA
-                # Isso é importante para consistência após a conversão para string
-                combined_df[col] = combined_df[col].replace(
-                    ["nan", "None", "NaN", "<NA>"], pd.NA
+                cleaned = combined_df[col].astype("string").str.strip()
+                null_like = cleaned.isna() | cleaned.isin(
+                    ["", "nan", "None", "NaN", "<NA>"]
                 )
+                combined_df[col] = cleaned.mask(null_like, pd.NA)
 
-                # 3. Remove espaços extras no início e no fim
-                combined_df[col] = combined_df[col].str.strip()
-
-                # 4. Substitui strings vazias resultantes por pd.NA
-                combined_df[col] = combined_df[col].replace("", pd.NA)
-
-                # Nota: A normalização Unicode e remoção de caracteres de controle
-                # podem ser feitas aqui se necessário, mas o table_printer.py
-                # já faz uma sanitização agressiva para exibição.
-                # Manter a original no DB pode ser útil.
+                # Mantem o conteudo original no DB tanto quanto possivel;
+                # sanitizacao agressiva continua sendo responsabilidade de exibicao.
 
         # --- VALIDAÇÃO DE CAMPOS OBRIGATÓRIOS ---
         logger.debug("Validando campos obrigatórios...")
@@ -781,7 +787,20 @@ def read_report(file_path: str) -> tuple[pd.DataFrame, Dict[str, Any]]:
         )
         return pd.DataFrame(), metadata
 
-    df, stats_dict = import_excel_robust(file_path)
+    try:
+        df, stats_dict = import_excel_robust(file_path)
+    except Exception as exc:
+        logger.error(
+            "Falha em read_report para '%s': %s", file_path, exc, exc_info=True
+        )
+        metadata = {
+            "source_path": file_path,
+            "stats_dict": {
+                "status": "error",
+                "error": f"{type(exc).__name__}: {exc}",
+            },
+        }
+        return pd.DataFrame(), metadata
 
     metadata = {
         "source_path": file_path,

@@ -52,7 +52,13 @@ class GateResult:
         return data
 
 
-def run_gate(cmd: List[str], name: str, parse_json: bool = True, max_snippet: int = 4000) -> GateResult:
+def run_gate(
+    cmd: List[str],
+    name: str,
+    parse_json: bool = True,
+    max_snippet: int = 4000,
+    timeout: int = 120,
+) -> GateResult:
     start = time.time()
     try:
         proc = subprocess.run(
@@ -60,7 +66,7 @@ def run_gate(cmd: List[str], name: str, parse_json: bool = True, max_snippet: in
             capture_output=True,
             text=True,
             cwd=str(REPO_ROOT),
-            timeout=120,
+            timeout=timeout,
             check=False,
         )
         duration = time.time() - start
@@ -154,6 +160,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 proc = subprocess.run(
                     cmd,
                     cwd=str(REPO_ROOT),
+                    timeout=args.timeout,
                     check=False,
                 )
                 duration = time.time() - start
@@ -179,7 +186,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             continue
         # Demais gates ou lint sem stream utilizam execução com captura
         parse_json = name not in {"lint"}
-        results[name] = run_gate(cmd, name=name, parse_json=parse_json)
+        results[name] = run_gate(
+            cmd,
+            name=name,
+            parse_json=parse_json,
+            timeout=args.timeout,
+        )
 
     # Determinação de severidade: fail > error > ok
     overall = "ok"

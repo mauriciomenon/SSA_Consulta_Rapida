@@ -136,6 +136,7 @@ def test_enhanced_printer_respects_narrow_terminal_width(monkeypatch):
     monkeypatch.setattr(printer, "get_terminal_size", lambda: (12, 70))
 
     def _fake_tabulate(data, headers=(), tablefmt="plain", showindex=False, **_kwargs):
+        _ = tablefmt
         header_list = [str(item) for item in headers]
         rows = []
         for row in data.values.tolist() if hasattr(data, "values") else data:

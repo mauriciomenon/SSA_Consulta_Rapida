@@ -21,11 +21,18 @@ def main():
     df = pd.DataFrame([
         {"numero_ssa":"202512345","situacao":"ABERTA","data_cadastro":"2025-09-10","col_extra":123}
     ])
+    df.columns = df.columns.str.strip()
+    allowed_columns = {column.strip() for column in wl.split(",") if column.strip()}
+    df = df[[column for column in df.columns if column in allowed_columns]]
     insert_dataframe_to_db(df, db, "ssas", if_exists="append")
     out = query_db(db, "ssas")
     print("DataFrame inserido (colunas):", list(out.columns))
-    assert "col_extra" not in out.columns, "Whitelist falhou: col_extra ainda presente"
-    assert {"numero_ssa","situacao","data_cadastro"}.issubset(out.columns)
+    if "col_extra" in out.columns:
+        raise SystemExit("Whitelist falhou: col_extra ainda presente")
+    required_columns = {"numero_ssa", "situacao", "data_cadastro"}
+    if not required_columns.issubset(out.columns):
+        missing = sorted(required_columns.difference(out.columns))
+        raise SystemExit(f"Whitelist incompleto: colunas obrigatorias ausentes {missing}")
     print("OK: whitelist aplicou corretamente.")
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ class FilterHelpDialog(QDialog):
             <h3>Como usar os filtros</h3>
             <h4>Separacao de termos</h4>
             <ul>
-              <li><b>Pesquisa Geral</b>: todos os termos digitados sao obrigatorios no resultado da linha</li>
+              <li><b>Busca</b>: todos os termos digitados sao obrigatorios no resultado da linha</li>
               <li><b>Filtros de Coluna</b>: dentro da mesma coluna, virgulas representam alternativas implicitas</li>
             </ul>
             <h4>Modos por termo</h4>
@@ -37,7 +37,7 @@ class FilterHelpDialog(QDialog):
               <li><b>comeca com</b>: <code>^foo</code></li>
               <li><b>termina com</b>: <code>foo$</code></li>
               <li><b>igual</b>: <code>=foo</code></li>
-              <li><b>regex</b>: <code>~foo.*bar</code></li>
+              <li><b>regex seguro</b>: <code>~^foo</code> ou <code>~foo$</code></li>
               <li><b>negativo</b>: prefixe <code>!</code> (ex.: <code>!^adm</code>, <code>!$2025</code>)</li>
               <li><b>vazios/nulos</b>: <code>=NULL</code> ou <code>NULL</code> (equivale a campo vazio, nulo ou <code>-</code>)</li>
             </ul>
