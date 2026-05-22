@@ -1,0 +1,63 @@
+tests/test_create_distribution.py
+  s_082d1ff7d55d96::t_724edaacb74b18 240,415-417,857-874
+tests/test_cli_loop_filter_rounds.py
+  s_082d1ff7d55d96::t_724edaacb74b18 466-502
+  s_082d1ff7d55d96::t_64f46dbc437e2b 654
+  s_082d1ff7d55d96::t_da8bc532473312 655-656
+  s_082d1ff7d55d96::t_4cb85115894010 329-384
+utils/robust_logging.py
+  s_082d1ff7d55d96::t_724edaacb74b18 344-351
+  s_082d1ff7d55d96::t_1197c2806a5b11 43-44,50,56,62,68,74,80,86,91-92,129-130,168-173,402-404,417
+interface/cli.py
+  s_082d1ff7d55d96::t_173cb731c06136 968
+  s_082d1ff7d55d96::t_daaba8797a9796 166-167
+  s_082d1ff7d55d96::t_a6f74834ecb543 969-972,975-987,1262-1263,1269-1270,1273-1274,1303-1305,1308,1316
+  s_082d1ff7d55d96::t_19f2c40a97b945 1261
+  s_082d1ff7d55d96::t_daf98c2420a3ed 973-974
+  s_082d1ff7d55d96::t_9ed445fc02ac00 951,993-997,1013-1028,1291-1297
+  s_082d1ff7d55d96::t_f578866faacbec 411-412
+  s_082d1ff7d55d96::t_d03bfa60e87e91 408-409,989-991
+  s_082d1ff7d55d96::t_724edaacb74b18 22-26,1208-1209
+  s_082d1ff7d55d96::t_beaa91ad4e11bb 988,1460-1474,1476,1478-1483,1485-1487,1491-1500,1502-1503
+  s_082d1ff7d55d96::t_8bfaaec795a68c 74
+  s_082d1ff7d55d96::t_cfd0a898744a47 998
+  s_082d1ff7d55d96::t_9efea2a9c40f2b 163-165,168-170,680,870,918,1488-1490
+  s_082d1ff7d55d96::t_3e3e34d6e746ca 77-83
+  s_082d1ff7d55d96::t_37036fa7c35438 54
+tests/test_cli_remove_filter_non_lifo.py
+  s_082d1ff7d55d96::t_e09c7508dc260b 132-145,153-157,164-167
+  s_082d1ff7d55d96::t_3974ba05828a90 121,131
+  s_082d1ff7d55d96::t_61eda9d3395b25 46-64,70-76,80-81,107-108
+  s_082d1ff7d55d96::t_196aeb3e6bde32 40-41,78-79
+  s_082d1ff7d55d96::t_dc1df42181f080 27-31,39,65-69,77,82-106
+  s_082d1ff7d55d96::t_52435e0faf0571 129-130
+scripts/create_distribution.py
+  s_082d1ff7d55d96::t_724edaacb74b18 638,647
+tests/test_cli_pagination_tracker_prune.py
+  s_082d1ff7d55d96::t_b869ae9a3471ad 73-74,97-113,115-117,121-125
+  s_082d1ff7d55d96::t_be13be37fdd00f 32,60,62-63
+  s_082d1ff7d55d96::t_f40eb41dd10327 114,118-120
+  s_082d1ff7d55d96::t_711d609ef4cb47 3-4,91
+  s_082d1ff7d55d96::t_ae1c13404d56c2 89-90,92-96
+  s_082d1ff7d55d96::t_5329af22877bda 35,40-42,46,55,59
+  s_082d1ff7d55d96::t_a4b537053c5b6d 75-88
+tests/test_robust_logging.py
+  s_082d1ff7d55d96::t_148610b47181e3 143-172,285-292
+  s_082d1ff7d55d96::t_724edaacb74b18 248-272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "9ca98f4442ef698bc22a02b7b3b5631d59ace14b",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
