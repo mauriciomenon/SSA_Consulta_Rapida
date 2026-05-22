@@ -28,17 +28,17 @@ def test_load_column_mappings_integrity_restores_invalid_file(tmp_path, monkeypa
     monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
 
     invalid_path = cfg_dir / "column_mappings.json"
-    invalid_path.write_text(json.dumps({"numero_ssa": []}), encoding="utf-8")
+    invalid_path.write_text(json.dumps({"numero_ssa": "Nº SSA"}), encoding="utf-8")
 
     result = config_manager.load_column_mappings_integrity()
 
     on_disk = json.loads(invalid_path.read_text(encoding="utf-8"))
     assert result == on_disk
-    assert result == config_manager.DEFAULT_COLUMN_MAPPINGS
+    assert result == config_manager.get_default_column_mappings()
 
 
 def test_default_column_mappings_include_portuguese_atividade_especial():
-    aliases = config_manager.DEFAULT_COLUMN_MAPPINGS["atividade_especial"]
+    aliases = config_manager.get_default_column_mappings()["atividade_especial"]
 
     assert "Atividade Especial" in aliases
     assert "Actividad Especial" in aliases
@@ -54,7 +54,7 @@ def test_default_column_mappings_include_portuguese_atividade_especial():
         ),
         (
             "load_column_mappings_integrity",
-            "DEFAULT_COLUMN_MAPPINGS",
+            "get_default_column_mappings",
             "column_mappings.json",
         ),
     ],
@@ -74,7 +74,11 @@ def test_load_mappings_integrity_returns_defaults_when_restore_write_fails(
 
     monkeypatch.setattr(config_manager, "_atomic_write_json_file", _fail_atomic_write)
     loader = getattr(config_manager, loader_name)
-    expected = getattr(config_manager, expected_name)
+    expected = (
+        getattr(config_manager, expected_name)()
+        if expected_name == "get_default_column_mappings"
+        else getattr(config_manager, expected_name)
+    )
     result = loader()
     assert result == expected
     assert not (cfg_dir / filename).exists()

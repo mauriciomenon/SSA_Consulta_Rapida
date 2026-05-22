@@ -51,6 +51,7 @@ def test_convert_svg_to_ico_uses_sizes_on_single_base_image(monkeypatch):
     class _FakeCairosvg:
         @staticmethod
         def svg2png(url, output_width, output_height):
+            _ = output_height
             raster_calls.append(output_width)
             return b"png-bytes"
 

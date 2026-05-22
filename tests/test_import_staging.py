@@ -12,7 +12,9 @@ from core.import_staging import stage_external_import_files
 from utils import path_safety
 
 
-def test_stage_external_import_files_accepts_xlsx_and_xls(tmp_path: Path) -> None:
+def test_stage_external_import_files_accepts_only_backend_supported_formats(
+    tmp_path: Path,
+) -> None:
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
     source_dir = tmp_path / "fontes"
@@ -28,12 +30,12 @@ def test_stage_external_import_files_accepts_xlsx_and_xls(tmp_path: Path) -> Non
         source_files=(str(xlsx_file), str(xls_file)),
     )
 
-    assert summary["copied"] == 2
+    assert summary["copied"] == 1
     assert summary["failed"] == 0
-    assert summary["unsupported"] == 0
-    assert len(staged_files) == 2
+    assert summary["unsupported"] == 1
+    assert len(staged_files) == 1
     assert (docs_dir / "entrada.xlsx").exists()
-    assert (docs_dir / "entrada.xls").exists()
+    assert not (docs_dir / "entrada.xls").exists()
 
 
 def test_validate_external_source_path_accepts_explicit_selected_file(
@@ -120,6 +122,29 @@ def test_stage_external_import_files_accepts_explicit_external_source(
     assert summary["unsupported"] == 0
     assert staged_files == [str(docs_dir / "entrada.xlsx")]
     assert (docs_dir / "entrada.xlsx").read_text(encoding="utf-8") == "payload"
+
+
+def test_stage_external_import_files_uses_explicit_docs_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    docs_dir = tmp_path / "custom_docs"
+    docs_dir.mkdir()
+    source = tmp_path / "entrada.xlsx"
+    source.write_text("payload", encoding="utf-8")
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", [tmp_path])
+
+    staged_files, summary = stage_external_import_files(
+        project_root=str(runtime_root),
+        docs_dir=docs_dir,
+        source_files=(str(source),),
+    )
+
+    assert summary["copied"] == 1
+    assert staged_files == [str(docs_dir / "entrada.xlsx")]
+    assert not (runtime_root / "docs_entrada" / "entrada.xlsx").exists()
 
 
 def test_stage_external_import_files_normalizes_explicit_allowlist_once(
@@ -328,14 +353,14 @@ def test_stage_external_import_files_reports_copy_os_errors(
     source = source_dir / "falha.xlsx"
     source.write_text("payload", encoding="utf-8")
     errors: list[str] = []
-    original_open = import_staging.os.open
+    original_open = builtins.open
 
-    def fail_open(path, flags, *args, **kwargs):  # noqa: ANN001,ANN002,ANN003
-        if Path(path) == source:
+    def fail_open(path, mode="r", *args, **kwargs):  # noqa: ANN001,ANN002,ANN003
+        if Path(path) == source and mode == "rb":
             raise PermissionError("blocked copy")
-        return original_open(path, flags, *args, **kwargs)
+        return original_open(path, mode, *args, **kwargs)
 
-    monkeypatch.setattr(import_staging.os, "open", fail_open)
+    monkeypatch.setattr("utils.file_copy.open", fail_open, raising=False)
 
     staged_files, summary = stage_external_import_files(
         project_root=str(tmp_path),
@@ -371,19 +396,24 @@ def test_stage_external_import_files_does_not_delete_file_on_create_collision(
             raise FileExistsError("created by another process")
         return original_open(path, mode, *args, **kwargs)
 
-    monkeypatch.setattr(import_staging, "open", open_with_create_collision, raising=False)
+    monkeypatch.setattr(
+        "utils.file_copy.open",
+        open_with_create_collision,
+        raising=False,
+    )
 
     staged_files, summary = stage_external_import_files(
         project_root=str(tmp_path),
         source_files=(str(source),),
     )
 
-    assert staged_files == []
-    assert summary["copied"] == 0
-    assert summary["failed"] == 1
+    retry_destination = docs_dir / "race__1.xlsx"
+    assert staged_files == [str(retry_destination)]
+    assert summary["copied"] == 1
+    assert summary["failed"] == 0
     assert source.read_text(encoding="utf-8") == "payload"
-    # A copy did not complete; the file created by the simulated racer remains.
     assert destination.read_text(encoding="utf-8") == "foreign"
+    assert retry_destination.read_text(encoding="utf-8") == "payload"
 
 
 def test_stage_external_import_files_copies_opened_file_when_source_path_changes(
@@ -400,17 +430,21 @@ def test_stage_external_import_files_copies_opened_file_when_source_path_changes
     source.write_text("original", encoding="utf-8")
     replacement = source_dir / "replacement.xlsx"
     replacement.write_text("swapped", encoding="utf-8")
-    original_open = import_staging.os.open
+    original_open = builtins.open
     swapped = {"done": False}
 
-    def open_then_replace(path, flags, *args, **kwargs):  # noqa: ANN001,ANN002,ANN003
-        fd = original_open(path, flags, *args, **kwargs)
-        if Path(path) == source and not swapped["done"]:
+    def open_then_replace(path, mode="r", *args, **kwargs):  # noqa: ANN001,ANN002,ANN003
+        handle = original_open(path, mode, *args, **kwargs)
+        if Path(path) == source and mode == "rb" and not swapped["done"]:
             import_staging.os.replace(replacement, source)
             swapped["done"] = True
-        return fd
+        return handle
 
-    monkeypatch.setattr(import_staging.os, "open", open_then_replace)
+    monkeypatch.setattr(
+        "utils.file_copy.open",
+        open_then_replace,
+        raising=False,
+    )
 
     staged_files, summary = stage_external_import_files(
         project_root=str(tmp_path),
@@ -472,8 +506,35 @@ def test_stage_external_import_files_reports_cleanup_failure_after_cancel(
 
     assert staged_files == []
     assert summary["copied"] == 0
-    assert summary["failed"] == 1
+    assert summary["failed"] == 0
     assert summary["staged"] == 0
     assert (docs_dir / "cancel.xlsx").exists()
     assert (docs_dir / "cancel.xlsx").read_text(encoding="utf-8") == "payload"
     assert any("Falha ao remover arquivo staged apos cancelamento" in error for error in errors)
+
+
+def test_remove_destination_reports_missing_when_required(tmp_path: Path) -> None:
+    errors: list[str] = []
+    missing = tmp_path / "missing.xlsx"
+
+    import_staging._remove_destination(
+        missing,
+        error_callback=errors.append,
+        context="apos cancelamento",
+        ignore_missing=False,
+    )
+
+    assert any("nao encontrado para remocao" in error for error in errors)
+
+
+def test_remove_destination_ignores_missing_when_optional(tmp_path: Path) -> None:
+    errors: list[str] = []
+
+    import_staging._remove_destination(
+        tmp_path / "missing.xlsx",
+        error_callback=errors.append,
+        context="parcial",
+        ignore_missing=True,
+    )
+
+    assert errors == []

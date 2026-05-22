@@ -11,6 +11,7 @@ from gui.helpers.theme_helpers import (
     build_global_widget_qss,
     build_group_box_qss,
     build_line_edit_qss,
+    replace_tagged_qss_block,
 )
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "build_central_widget_qss",
     "build_group_box_qss",
     "build_line_edit_qss",
+    "replace_tagged_qss_block",
     "normalize_chunk_for_parse",
     "format_search_display",
     "highlight_text",

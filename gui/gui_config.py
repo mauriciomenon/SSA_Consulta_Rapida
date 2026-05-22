@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterable, List
 
 from core import config_manager as core_config_manager
 from core.config_manager import atomic_write_json_file
+from core.pai_api_options import default_pai_api_settings
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
@@ -367,6 +368,7 @@ DEFAULT_GUI_SETTINGS: Dict[str, Any] = {
     "cache_enabled": True,
     "cache_auto_clear": False,
     "theme_default": None,
+    "pai_api": default_pai_api_settings(),
 }
 
 DEFAULT_GUI_MAIN_PREFERENCES: Dict[str, Any] = {

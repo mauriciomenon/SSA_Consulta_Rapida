@@ -29,8 +29,8 @@ def run(cmd: list[str], quiet: bool = False) -> int:
         completed = subprocess.run(cmd, cwd=ROOT, check=False)
         return completed.returncode
     except FileNotFoundError:
-        print(f"[WARN] Comando não encontrado: {cmd[0]}")
-        return 0
+        print(f"[ERROR] Comando nao encontrado: {cmd[0]}")
+        return 127
 
 
 def main() -> int:

@@ -44,16 +44,19 @@ def test_open_docs_folder_uses_qdesktopservices_when_available(monkeypatch, tmp_
 
 def test_resolve_platform_open_command_prefers_absolute_windows_launcher(monkeypatch):
     from gui import gui_ssa
+    from gui.ssa import system_integration
 
-    monkeypatch.setattr(gui_ssa.sys, "platform", "win32")
+    monkeypatch.setattr(system_integration.sys, "platform", "win32")
     monkeypatch.setenv("WINDIR", r"C:\\Windows")
     monkeypatch.setattr(
-        gui_ssa.os.path, "isfile", lambda path: path == r"C:\Windows\explorer.exe"
+        system_integration.ntpath,
+        "isfile",
+        lambda path: path == r"C:\Windows\explorer.exe",
     )
     monkeypatch.setattr(
-        gui_ssa.shutil,
+        system_integration.shutil,
         "which",
-        lambda _name: pytest.fail("shutil.which should not be called"),
+        lambda _name: pytest.fail("shutil.which should not be needed"),
     )
 
     resolved = gui_ssa.SSAMainWindow._resolve_platform_open_command()
@@ -63,17 +66,18 @@ def test_resolve_platform_open_command_prefers_absolute_windows_launcher(monkeyp
 
 def test_resolve_platform_open_command_prefers_absolute_linux_launcher(monkeypatch):
     from gui import gui_ssa
+    from gui.ssa import system_integration
 
-    monkeypatch.setattr(gui_ssa.sys, "platform", "linux")
+    monkeypatch.setattr(system_integration.sys, "platform", "linux")
     monkeypatch.setattr(
-        gui_ssa.os.path,
+        system_integration.os.path,
         "isfile",
         lambda path: path == "/usr/bin/xdg-open",
     )
     monkeypatch.setattr(
-        gui_ssa.shutil,
+        system_integration.shutil,
         "which",
-        lambda _name: pytest.fail("shutil.which should not be called"),
+        lambda _name: pytest.fail("shutil.which should not be needed"),
     )
 
     resolved = gui_ssa.SSAMainWindow._resolve_platform_open_command()

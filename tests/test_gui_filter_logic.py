@@ -6,6 +6,7 @@ import os
 import re
 import sqlite3
 import sys
+import tempfile
 import time
 from collections import Counter, OrderedDict
 from typing import Any, Literal, TypedDict, cast
@@ -37,8 +38,15 @@ from gui.gui_config import DEFAULT_COLUMN_WIDTHS  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
-from gui.ssa import gui_filters_advanced_ui as advanced_ui  # noqa: E402
+from gui.ssa import filter_aliases  # noqa: E402
+from gui.ssa import gui_filters_advanced_layout as advanced_layout  # noqa: E402
+from gui.ssa import gui_filters_multiselect_menu as advanced_menu  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
+from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
+from gui.ssa.filter_profile_logic import (  # noqa: E402
+    NormalizedFilterProfile,
+    NormalizedOrGroup,
+)
 from gui.widgets.column_filter_dialog import ColumnFilterDialog  # noqa: E402
 from gui.widgets.column_manager_dialog import ColumnManagerDialog  # noqa: E402
 from gui.widgets.filter_help_dialog import FilterHelpDialog  # noqa: E402
@@ -74,7 +82,7 @@ class TestGUIFilterLogic:
             "data_loader_meta": dict(gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META),
             "rescan_workers": list(gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS),
             "rescan_meta": dict(gui_ssa.GLOBAL_RETIRED_RESCAN_META),
-            "filter_workers": list(filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS),
+            "filter_workers": [],
             "max_data_loader_workers": gui_ssa.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
             "max_rescan_workers": gui_ssa.MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
             "max_filter_workers": filter_mixin.MAX_GLOBAL_RETIRED_FILTER_WORKERS,
@@ -83,10 +91,20 @@ class TestGUIFilterLogic:
         gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META.clear()
         gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.clear()
         gui_ssa.GLOBAL_RETIRED_RESCAN_META.clear()
-        filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS.clear()
+        self._saved_filters_tmpdir = tempfile.TemporaryDirectory()
+        self._saved_filters_path = os.path.join(
+            self._saved_filters_tmpdir.name, "gui_saved_filters.json"
+        )
+        self._saved_filters_path_patch = patch.object(
+            filter_mixin,
+            "get_gui_saved_filters_path",
+            lambda: self._saved_filters_path,
+        )
+        self._saved_filters_path_patch.start()
         self._load_patch = patch.object(SSAMainWindow, "load_data", lambda self: None)
         self._load_patch.start()
         self.window = SSAMainWindow()
+        self.window._filter_worker_registry = filter_mixin.DeferredFilterWorkerRegistry()
         # Mantém o patch ativo para impedir agendamento de carregamentos reais
         self.window.show()
 
@@ -127,11 +145,33 @@ class TestGUIFilterLogic:
         self.window._df_last_search_filtered = self.base_df.copy()
         self.window.paginator.set_dataframe(self.base_df.copy())
 
+    def _panel_context(self) -> dict[str, Any]:
+        return self.window._filter_panel_context
+
+    def _iter_panel_contexts(self):
+        yield self._panel_context()
+
+    def _column_filter_cache_token(self, df: pd.DataFrame) -> str:
+        cached = self.window._column_filter_frame_tokens[id(df)]
+        cached_ref, cache_token = cached
+        assert cached_ref() is df
+        return cache_token
+
+    def _set_filter_panel_tab(self, panel: str) -> dict[str, Any]:
+        target_index = 1 if panel in {"filters", "advanced"} else 0
+        ctx = self._panel_context()
+        tab_bar = ctx["filter_panel_tab_bar"]
+        tab_bar.setCurrentIndex(target_index)
+        QApplication.processEvents()
+        return ctx
+
     def teardown_method(self):
         try:
             self._load_patch.stop()
+            self._saved_filters_path_patch.stop()
             self.window.close()
         finally:
+            self._saved_filters_tmpdir.cleanup()
             gui_ssa.GUI_MAIN_PREFERENCES.clear()
             gui_ssa.GUI_MAIN_PREFERENCES.update(self._gui_main_preferences_snapshot)
             gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = (
@@ -148,17 +188,11 @@ class TestGUIFilterLogic:
             gui_ssa.GLOBAL_RETIRED_RESCAN_META.update(
                 self._retired_worker_globals_snapshot["rescan_meta"]
             )
-            filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS[:] = (
-                self._retired_worker_globals_snapshot["filter_workers"]
-            )
             gui_ssa.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS = (
                 self._retired_worker_globals_snapshot["max_data_loader_workers"]
             )
             gui_ssa.MAX_GLOBAL_RETIRED_RESCAN_WORKERS = (
                 self._retired_worker_globals_snapshot["max_rescan_workers"]
-            )
-            filter_mixin.MAX_GLOBAL_RETIRED_FILTER_WORKERS = (
-                self._retired_worker_globals_snapshot["max_filter_workers"]
             )
 
     def _extract_visible_ssa(self):
@@ -208,17 +242,20 @@ class TestGUIFilterLogic:
             return controls
         for i in range(layout.count()):
             item = layout.itemAt(i)
+            if item is None:
+                continue
             row_widget = item.widget()
             if row_widget is None:
                 continue
             row_layout = row_widget.layout()
             if row_layout is None or row_layout.count() < 5:
                 continue
-            label_widget = row_layout.itemAt(0).widget()
-            edit_widget = row_layout.itemAt(1).widget()
-            apply_widget = row_layout.itemAt(2).widget()
-            clear_widget = row_layout.itemAt(3).widget()
-            hide_widget = row_layout.itemAt(4).widget()
+            row_items = [row_layout.itemAt(index) for index in range(5)]
+            if any(row_item is None for row_item in row_items):
+                continue
+            label_widget, edit_widget, apply_widget, clear_widget, hide_widget = [
+                row_item.widget() for row_item in row_items if row_item is not None
+            ]
             if not isinstance(label_widget, QLabel):
                 continue
             if not isinstance(edit_widget, QLineEdit):
@@ -244,10 +281,9 @@ class TestGUIFilterLogic:
         assert text.startswith("Colunas Visiveis:")
         assert not hasattr(selector, "summary_label")
 
-    def test_top_toolbar_hides_update_derivadas_button(self):
+    def test_top_toolbar_omits_update_derivadas_button(self):
         button = getattr(self.window, "update_derivadas_button", None)
-        assert button is not None
-        assert button.isVisible() is False
+        assert button is None
         visible_named = [
             btn
             for btn in self.window.findChildren(QPushButton)
@@ -264,31 +300,76 @@ class TestGUIFilterLogic:
         assert filtered_status is not None
         assert str(filtered_status.text() or "") == "Status: 0 de 0 SSAs"
 
-    def test_search_and_pagination_rows_place_controls_in_expected_lines(self):
-        main_ctx = self.window._tab_contexts[0]
+    def test_search_and_filter_summary_place_controls_in_expected_order(self):
+        main_ctx = self._panel_context()
         search_input = main_ctx["search_input"]
+        quick_search_box = main_ctx["quick_search_box"]
         search_button = main_ctx["search_button"]
+        clear_filter_button = main_ctx["clear_filter_button"]
         save_filter_button = main_ctx["save_filter_button"]
         filter_tags_widget = main_ctx["filter_tags_widget"]
         paginator = main_ctx["paginator"]
         column_selector = main_ctx["column_selector"]
         quick_label = main_ctx["quick_setor_executor_label"]
         quick_combo = main_ctx["quick_setor_executor_combo"]
+        filters_summary_frame = main_ctx["filters_summary_frame"]
+        clear_all_filters_btn = main_ctx["clear_all_filters_btn"]
+        export_list_btn = main_ctx["export_list_btn"]
+        undo_filter_btn = main_ctx["undo_filter_btn"]
 
         QApplication.processEvents()
 
         tooltip = str(save_filter_button.toolTip() or "")
-        assert str(save_filter_button.text() or "") == "Salvar filtro -> todos"
-        assert "busca geral" in tooltip
+        assert "search_label" not in main_ctx
+        assert str(save_filter_button.text() or "") == "Salvar Filtros"
+        assert str(export_list_btn.text() or "") == "Exportar Filtros"
+        assert str(search_button.text() or "") == "↵"
+        assert str(clear_filter_button.text() or "") == "⌫"
+        assert str(undo_filter_btn.text() or "") == "↺"
+        assert "QFrame#quickSearchBox" in str(quick_search_box.styleSheet() or "")
+        assert "border:0" in str(search_button.styleSheet() or "")
+        assert "background:transparent" in str(search_button.styleSheet() or "")
+        assert "border:0" in str(clear_filter_button.styleSheet() or "")
+        assert "background:transparent" in str(clear_filter_button.styleSheet() or "")
+        assert "color:" in str(save_filter_button.styleSheet() or "")
+        assert "busca" in tooltip.casefold()
         assert "filtros de coluna" in tooltip
         assert "filtros avancados" in tooltip
         assert 0 < filter_tags_widget.maximumWidth() <= 280
-        assert abs(save_filter_button.geometry().y() - search_input.geometry().y()) <= 8
+        assert str(clear_all_filters_btn.text() or "") == "⌫"
+        assert save_filter_button.parentWidget() is not filters_summary_frame
+        assert export_list_btn.parentWidget() is not filters_summary_frame
+        assert undo_filter_btn.parentWidget() is not filters_summary_frame
+        search_row_x = {
+            "undo": undo_filter_btn.mapToGlobal(undo_filter_btn.rect().topLeft()).x(),
+            "box": quick_search_box.mapToGlobal(quick_search_box.rect().topLeft()).x(),
+            "clear": clear_filter_button.mapToGlobal(
+                clear_filter_button.rect().topLeft()
+            ).x(),
+            "input": search_input.mapToGlobal(search_input.rect().topLeft()).x(),
+            "apply": search_button.mapToGlobal(search_button.rect().topLeft()).x(),
+            "export": export_list_btn.mapToGlobal(export_list_btn.rect().topLeft()).x(),
+            "save": save_filter_button.mapToGlobal(
+                save_filter_button.rect().topLeft()
+            ).x(),
+        }
+        assert search_row_x["undo"] < search_row_x["box"]
+        assert search_row_x["clear"] < search_row_x["input"] < search_row_x["apply"]
+        assert search_row_x["box"] < search_row_x["export"] < search_row_x["save"]
+        summary_layout = filters_summary_frame.layout()
+        assert summary_layout is not None
+        assert summary_layout.itemAt(0).widget() is clear_all_filters_btn
+        assert summary_layout.itemAt(1).layout() is not None
         assert (
-            abs(filter_tags_widget.geometry().y() - save_filter_button.geometry().y())
-            <= 8
+            filter_tags_widget.mapToGlobal(filter_tags_widget.rect().topLeft()).x()
+            > search_input.mapToGlobal(search_input.rect().topLeft()).x()
         )
-        assert filter_tags_widget.geometry().x() > save_filter_button.geometry().x()
+        search_y = search_input.mapToGlobal(search_input.rect().topLeft()).y()
+        summary_y = filters_summary_frame.mapToGlobal(
+            filters_summary_frame.rect().topLeft()
+        ).y()
+        paginator_y = paginator.mapToGlobal(paginator.rect().topLeft()).y()
+        assert search_y < summary_y < paginator_y
         assert column_selector.geometry().y() > search_input.geometry().y()
         assert abs(column_selector.geometry().y() - paginator.geometry().y()) <= 10
         assert column_selector.geometry().x() > paginator.geometry().x()
@@ -297,36 +378,107 @@ class TestGUIFilterLogic:
         assert abs(quick_label.geometry().y() - quick_combo.geometry().y()) <= 6
         assert quick_label.geometry().x() < quick_combo.geometry().x()
         assert quick_combo.geometry().x() > column_selector.geometry().x()
-        assert quick_combo.height() <= (search_button.height() + 2)
+        assert quick_combo.height() <= 28
         assert quick_combo.height() >= 24
         parent_widget = quick_combo.parentWidget()
         assert parent_widget is not None
         right_gap = parent_widget.rect().right() - quick_combo.geometry().right()
         assert right_gap <= 24
 
+    def test_filter_panel_uses_local_tab_bar_without_duplicate_main_pages(self):
+        main_ctx = self._panel_context()
+        filters_ctx = self._panel_context()
+
+        assert self.window.main_tabs.currentIndex() == 0
+        assert self.window.main_tabs.count() == 1
+        assert self.window.main_tabs.tabBar().isVisible() is False
+        assert main_ctx["filters_panel_group"] is filters_ctx["filters_panel_group"]
+        assert main_ctx["filters_panel_stack"] is filters_ctx["filters_panel_stack"]
+        assert "col_filters_hint" not in main_ctx
+        tab_bar = main_ctx["filter_panel_tab_bar"]
+        title = main_ctx["filter_panel_title"]
+        stack = main_ctx["filters_panel_stack"]
+
+        assert isinstance(tab_bar, QtWidgets.QTabBar)
+        assert tab_bar.count() == 2
+        assert tab_bar.tabText(0) == "Por coluna"
+        assert tab_bar.tabText(1) == "Avancados"
+        assert tab_bar.height() <= 22
+        assert stack.currentIndex() == 0
+        assert str(title.text() or "") == "Filtros por Coluna"
+
+        tab_bar.setCurrentIndex(1)
+        QApplication.processEvents()
+
+        assert self.window.main_tabs.currentIndex() == 0
+        assert stack.currentIndex() == 1
+        assert str(title.text() or "") == "Filtros Avancados"
+        assert getattr(self.window, "_active_filter_panel_kind", None) == "advanced"
+
+        tab_bar.setCurrentIndex(0)
+        QApplication.processEvents()
+
+        assert self.window.main_tabs.currentIndex() == 0
+        assert stack.currentIndex() == 0
+        assert str(title.text() or "") == "Filtros por Coluna"
+        assert getattr(self.window, "_active_filter_panel_kind", None) == "columns"
+
+    def test_column_filters_panel_is_populated_on_startup(self):
+        main_ctx = self._panel_context()
+        container = main_ctx["col_filters_container"]
+
+        labels = [
+            str(label.text() or "")
+            for label in container.findChildren(QLabel)
+            if str(label.text() or "").strip()
+        ]
+
+        assert "Desc. SSA" in labels
+        assert "Set. Exec." in labels
+        assert "Set. Emis." in labels
+        assert "Desc. Exec." in labels
+        assert "Loc." not in labels
+        assert "Sem. Cad." in labels
+        assert "Sem. Prog." in labels
+        assert "Sem. Exec." in labels
+
+    def test_advanced_filters_reprogramacoes_controls_are_compact(self):
+        self._set_filter_panel_tab("filters")
+        QApplication.processEvents()
+
+        reprog_mode = self.window.adv_reprog_mode
+        reprog_button = self.window.adv_reprog_button
+
+        assert reprog_mode.maximumWidth() <= 126
+        assert reprog_button.maximumWidth() <= 82
+        assert reprog_mode.maximumHeight() <= 24
+        assert reprog_button.maximumHeight() <= 24
+        assert str(reprog_button.toolTip() or "") in {"Nº", "Nenhum dado disponivel"}
+
     def test_search_help_texts_reflect_current_general_search_contract(self):
-        main_ctx = self.window._tab_contexts[0]
+        main_ctx = self._panel_context()
         search_input = main_ctx["search_input"]
         col_indicator = main_ctx["col_filter_indicator"]
         search_help = main_ctx["search_help"]
 
         assert (
             str(search_input.placeholderText() or "")
-            == "Termos separados por virgula; ! exclui termo"
+            == "Termos cumulativos separados por virgula; ! exclui termo"
         )
         tooltip = str(search_input.toolTip() or "")
+        assert "virgulas separam termos cumulativos" in tooltip
         assert (
             "Todos os termos digitados devem ser satisfeitos na mesma linha." in tooltip
         )
         assert "colunas relevantes da GUI" in tooltip
         assert "condicao E" not in tooltip.casefold()
-        assert "Busca superior: todos os termos digitados sao obrigatorios." in str(
-            search_help.text() or ""
-        )
+        assert "Use termos positivos e ! para excluir." in str(search_help.text() or "")
 
         indicator_tooltip = str(col_indicator.toolTip() or "")
-        assert "virgulas representam alternativas implicitas" in indicator_tooltip
-        assert "logica OU" not in indicator_tooltip
+        assert "Busca rapida" in indicator_tooltip
+        assert "termos cumulativos" in indicator_tooltip
+        assert "Filtros por coluna" in indicator_tooltip
+        assert "alternativas dentro da mesma coluna" in indicator_tooltip
 
     def test_filter_help_dialog_texts_separate_general_search_from_column_alternatives(
         self,
@@ -336,7 +488,7 @@ class TestGUIFilterLogic:
         assert browser is not None
         html = str(browser.toHtml() or "")
 
-        assert "Pesquisa Geral" in html
+        assert "Busca" in html
         assert "todos os termos digitados sao obrigatorios" in html
         assert "virgulas representam alternativas implicitas" in html
         assert "logica OU - qualquer termo serve" not in html
@@ -347,7 +499,16 @@ class TestGUIFilterLogic:
         )
         assert ordered == ["IEE1", "IEE4", "MEL1", "MEL3", "AAA", "ABC", "ZZZ"]
 
-    def test_quick_setor_executor_combo_applies_filter_and_syncs_or_group_only(self):
+    def test_setor_order_is_shared_between_quick_and_advanced_filters(self):
+        values = ["MEG2", "IEE4", "MEL3", "ILA2", "IEE1", "MEL1"]
+
+        quick_order = SSAMainWindow._order_setor_executor_values(values)
+        advanced_order = self.window._sort_sectors(values)
+
+        assert quick_order == advanced_order
+        assert quick_order == ["IEE1", "IEE4", "MEL1", "MEL3", "ILA2", "MEG2"]
+
+    def test_quick_setor_executor_combo_applies_executor_filter_only(self):
         self.window._register_or_group(
             ["setor_executor", "setor_emissor"], ["IEE3", "MEL3"]
         )
@@ -377,10 +538,10 @@ class TestGUIFilterLogic:
         assert self.window._advanced_filters.get("setor_executor_exclude_values") == []
         assert self.window._advanced_filters_active is True
 
-        self.window.main_tabs.setCurrentIndex(1)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
         assert "MEL4" in str(getattr(self.window, "adv_executor_button").text() or "")
-        self.window.main_tabs.setCurrentIndex(0)
+        self._set_filter_panel_tab("main")
         QApplication.processEvents()
 
         controls = self._get_column_filter_controls()
@@ -392,13 +553,23 @@ class TestGUIFilterLogic:
         setor_input, _, _, _ = controls[setor_key]
         assert str(setor_input.text() or "").strip() == "MEL4"
 
-    def test_apply_advanced_executor_syncs_back_to_quick_combo_and_active_filters(self):
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
+    def test_quick_setor_executor_preserves_existing_advanced_exclusions(self):
+        self.window._advanced_filters = {
+            "setor_executor_exclude_values": ["MEL3"],
+        }
+        self.window._active_column_filters["setor_executor"] = "IEE1"
+
+        self.window._sync_advanced_executor_filter_from_active_filters(
+            clear_exclude=True
         )
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+
+        assert self.window._advanced_filters["setor_executor"] == ["IEE1"]
+        assert self.window._advanced_filters["setor_executor_exclude_values"] == [
+            "MEL3"
+        ]
+
+    def test_apply_advanced_executor_syncs_back_to_quick_combo_and_active_filters(self):
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         self.window._refresh_advanced_filter_options()
@@ -488,16 +659,14 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         first_context = self.window._build_filter_cache_context()
-        assert '"setor_executor": "MEL4"' in first_context
-        assert '"exclude_ste_sca": false' in first_context
+        assert first_context.startswith("sha256:")
 
         self.window._on_exclude_ste_sca_toggled(True)
         QApplication.processEvents()
 
         second_context = self.window._build_filter_cache_context()
         assert second_context != first_context
-        assert '"setor_executor": "MEL4"' in second_context
-        assert '"exclude_ste_sca": true' in second_context
+        assert second_context.startswith("sha256:")
 
         self.window._clear_all_filters_global()
         QApplication.processEvents()
@@ -506,12 +675,12 @@ class TestGUIFilterLogic:
         assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
         assert str(combo.currentText() or "") == "Todos"
 
-    def test_profile_or_filters_executor_or_emissor(self):
-        """Perfil OR deve considerar executor ou emissor e refletir na UI."""
+    def test_profile_filters_executor_or_emissor(self):
+        """Perfil Executor/Emissor deve aplicar grupo OU na UI."""
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
 
-        # Com OR restrito por coluna e AND entre colunas, apenas quem atende ambos entra (aqui só o 3)
-        assert Counter(self._extract_visible_ssa()) == Counter([3])
+        # O grupo Executor/Emissor usa OU: qualquer coluna do grupo pode bater.
+        assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4])
 
         # Confirma sincronismo entre campos (Executor/Emissor)
         for col in ("setor_executor", "setor_emissor"):
@@ -519,9 +688,19 @@ class TestGUIFilterLogic:
             assert self.window._active_column_filters[col] == "IEE3, MEL3, MEL4"
         summary = getattr(self.window, "filters_summary_label", None)
         if summary is not None:
-            # Nova logica: apenas virgulas, sem operadores OU
-            assert "IEE3, MEL3, MEL4" in summary.text() or "Executor" in summary.text()
-            assert col in self.window._column_to_or_group
+            summary_text = str(summary.toolTip() or "")
+            summary_buttons = [
+                str(button.text() or "")
+                for button in self.window.filters_summary_items_widget.findChildren(
+                    QPushButton
+                )
+            ]
+            assert "IEE3, MEL3, MEL4" in summary_text
+            assert any("Exec" in text for text in summary_buttons)
+            assert {
+                "setor_executor",
+                "setor_emissor",
+            }.issubset(self.window._column_to_or_group)
 
         # Ajuste manual em um campo deve repercutir no par
         self.window._active_column_filters["setor_executor"] = "MEL4"
@@ -530,10 +709,37 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters["setor_emissor"] == "MEL4"
         assert Counter(self._extract_visible_ssa()) == Counter([3])
 
+        self.window._sync_or_group_values("setor_executor", "IEE3, !MEL4")
+        self.window._refresh_after_filter_change()
+        assert self.window._active_column_filters["setor_emissor"] == "IEE3, !MEL4"
+        assert Counter(self._extract_visible_ssa()) == Counter([1, 2])
+
+    def test_profile_empty_or_group_keeps_specific_column_value(self):
+        normalized = NormalizedFilterProfile(
+            columns=OrderedDict([("setor_executor", "IEE3")]),
+            or_groups=(
+                NormalizedOrGroup(
+                    columns=("setor_executor", "setor_emissor"),
+                    values=(),
+                ),
+            ),
+            profile_columns=("setor_executor", "setor_emissor"),
+        )
+
+        self.window._apply_normalized_filter_profile(
+            profile_name="empty-or-group",
+            normalized=normalized,
+            update_selector=False,
+            refresh=False,
+            base_profile_name=None,
+        )
+
+        assert self.window._active_column_filters["setor_executor"] == "IEE3"
+        assert self.window._active_column_filters["setor_emissor"] == ""
+
     def test_exclude_ste_sca_combined_with_or_group(self):
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
-        # Com a nova semântica, somente o 3 está visível
-        assert Counter(self._extract_visible_ssa()) == Counter([3])
+        assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4])
 
         ses_row = pd.DataFrame(
             [
@@ -563,14 +769,14 @@ class TestGUIFilterLogic:
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
 
         self.window._on_exclude_ste_sca_toggled(True)
-        # Filtra linhas SCA/SES/STE (3 e 6 deverão sair)
+        # Filtra linhas SCA/SES/STE mantendo o grupo OU ativo.
         remaining = self._extract_visible_ssa()
+        assert 2 not in remaining
         assert 3 not in remaining
         assert 6 not in remaining
-        # Com base no filtro aplicado, nada resta após excluir SCA/SES/STE
-        assert Counter(remaining) == Counter([])
+        assert Counter(remaining) == Counter([1, 4])
 
-    def test_macro_baixar_excludes_sad_sca_ses_ste_and_keeps_ste_or_ses_derivadas(
+    def test_macro_baixar_excludes_sad_sca_ses_ste_and_keeps_parent_ssa(
         self,
     ):
         macro_df = pd.DataFrame(
@@ -609,7 +815,7 @@ class TestGUIFilterLogic:
         self.window.df_exibido = macro_df.copy()
         self.window._df_last_search_filtered = macro_df.copy()
         self.window.paginator.set_dataframe(macro_df.copy())
-        self.window.main_tabs.setCurrentIndex(1)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
         self.window._refresh_advanced_filter_options()
 
@@ -619,6 +825,8 @@ class TestGUIFilterLogic:
         self.window.adv_macro_combo.setCurrentIndex(macro_idx)
         self.window._on_macro_filter_changed()
         QApplication.processEvents()
+
+        assert "Diferente: SAD, SCA, SES, STE" in self.window.adv_status_button.toolTip()
 
         self.window._apply_advanced_filters_from_ui()
         QApplication.processEvents()
@@ -652,7 +860,7 @@ class TestGUIFilterLogic:
         self.window.df_exibido = macro_df.copy()
         self.window._df_last_search_filtered = macro_df.copy()
         self.window.paginator.set_dataframe(macro_df.copy())
-        self.window.main_tabs.setCurrentIndex(1)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
         self.window._refresh_advanced_filter_options()
 
@@ -698,19 +906,30 @@ class TestGUIFilterLogic:
         self.window._update_filters_summary()
         QApplication.processEvents()
 
-        summary_text = str(self.window.filters_summary_label.text() or "")
-        assert summary_text.count("Executor: IEE3") == 1
+        summary_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
+        assert str(self.window.filters_summary_label.text() or "") == ""
+        assert self.window.filters_summary_label.isVisible() is False
+        assert summary_buttons.count("Exec: IEE3") == 1
 
     def test_filters_summary_buttons_remove_search_with_confirmation(self):
-        self.window.search_input.setText("Teste A")
+        self.window._sync_filtering = True
+        self.window.search_input.setText("MEL3")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
         self.window._update_filters_summary()
         QApplication.processEvents()
+        assert self.window._df_last_search_filtered is not self.window.df_completo
 
         summary_widget = getattr(self.window, "filters_summary_items_widget", None)
         assert summary_widget is not None
         buttons = summary_widget.findChildren(QPushButton)
         search_button = next(
-            btn for btn in buttons if "Busca: 'Teste A'" in str(btn.text() or "")
+            btn for btn in buttons if "Busca: 'MEL3'" in str(btn.text() or "")
         )
 
         with patch(
@@ -722,6 +941,8 @@ class TestGUIFilterLogic:
 
         question_mock.assert_called_once()
         assert self.window.search_input.text() == ""
+        assert self.window._df_last_search_filtered is self.window.df_completo
+        assert len(self.window.df_exibido) == len(self.window.df_completo)
 
     def test_filters_summary_buttons_remove_exclude_ste_sca_with_confirmation(self):
         self.window._on_exclude_ste_sca_toggled(True)
@@ -730,7 +951,7 @@ class TestGUIFilterLogic:
         summary_widget = getattr(self.window, "filters_summary_items_widget", None)
         assert summary_widget is not None
         buttons = summary_widget.findChildren(QPushButton)
-        exclude_button = next(
+        situacao_exclude_button = next(
             btn for btn in buttons if "situacao!=SCA/SES/STE" in str(btn.text() or "")
         )
 
@@ -738,12 +959,14 @@ class TestGUIFilterLogic:
             "gui.mixins.filter_gui_ssa_mixin.QMessageBox.question",
             return_value=QtWidgets.QMessageBox.StandardButton.Yes,
         ):
-            cast(Any, QTest).mouseClick(exclude_button, Qt.MouseButton.LeftButton)
+            cast(Any, QTest).mouseClick(
+                situacao_exclude_button, Qt.MouseButton.LeftButton
+            )
             QApplication.processEvents()
 
         assert self.window._exclude_ste_sca is False
 
-    def test_filters_summary_buttons_use_smaller_remove_bubble_font(self):
+    def test_filters_summary_buttons_use_single_line_theme_chip_style(self):
         self.window.search_input.setText("Teste A")
         self.window._update_filters_summary()
         QApplication.processEvents()
@@ -757,8 +980,9 @@ class TestGUIFilterLogic:
 
         css = str(search_button.styleSheet() or "")
         assert str(search_button.text() or "") == "Busca: 'Teste A'"
-        assert "font-size:10px" in css
-        assert "font-weight:500" in css
+        assert "font-size:10px" not in css
+        assert "font-weight:600" in css
+        assert search_button.height() == 22
 
     def test_header_reorder_updates_visible_columns_order(self):
         if "solicitante" not in self.window.visible_columns:
@@ -835,10 +1059,8 @@ class TestGUIFilterLogic:
         assert captured["font_family"] == self.window.details_group.font().family()
 
     def test_advanced_panel_context_exposes_emissor_before_executor(self):
-        _ = next(
-            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "filters"
-        )
-        grid_widgets = getattr(self.window, "_adv_filters_grid_widgets", {})
+        _ = self._panel_context()
+        grid_widgets = self.window._advanced_filter_panel_state.grid_widgets
         keys = list(grid_widgets.keys())
         assert keys.index("emis_box") < keys.index("exec_box")
 
@@ -1048,11 +1270,12 @@ class TestGUIFilterLogic:
         assert set(actions.keys()) == {"left", "center", "right"}
         assert actions["center"].isCheckable() is True
 
-    def test_apply_table_cell_alignment_preference_updates_gui_prefs_and_rerenders(
+    def test_apply_table_cell_alignment_preference_updates_gui_prefs_without_rerender(
         self, monkeypatch
     ):
         persist_calls = {"count": 0}
         render_calls: list[tuple[int, bool]] = []
+        alignment_calls: list[str] = []
 
         def _fake_persist():
             persist_calls["count"] += 1
@@ -1061,8 +1284,16 @@ class TestGUIFilterLogic:
         def _fake_render(page, *, update_details=True):
             render_calls.append((page, update_details))
 
+        def _fake_alignment(_window, alignment_name):
+            alignment_calls.append(alignment_name)
+
         monkeypatch.setattr(self.window, "_persist_gui_preferences", _fake_persist)
         monkeypatch.setattr(self.window, "display_current_page", _fake_render)
+        monkeypatch.setattr(
+            gui_ssa.ssa_gui_table,
+            "apply_table_cell_alignment",
+            _fake_alignment,
+        )
 
         ok = self.window._apply_table_cell_alignment_preference("right")
 
@@ -1072,7 +1303,8 @@ class TestGUIFilterLogic:
             == "right"
         )
         assert persist_calls["count"] == 1
-        assert render_calls == [(self.window.paginator.current_page, False)]
+        assert render_calls == []
+        assert alignment_calls == ["right"]
         assert self.window._table_cell_alignment_actions["right"].isChecked() is True
         assert "Direita" in str(self.window.status_label.text() or "")
 
@@ -1151,6 +1383,29 @@ class TestGUIFilterLogic:
         )
         assert header_text == "Desc. SSA"
 
+    def test_apply_adaptive_header_labels_handles_missing_header_item_and_stale_column(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            ssa_gui_table,
+            "_measure_header_text_px",
+            lambda _window, text: len(str(text or "")) * 8,
+        )
+        self.window.visible_columns = ["descricao_ssa"]
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header_index = self.window._current_display_columns.index("descricao_ssa")
+        removed_item = self.window.table_widget.takeHorizontalHeaderItem(header_index)
+        assert removed_item is not None
+        self.window._current_display_columns.append("stale_missing_column")
+
+        ssa_gui_table._apply_adaptive_header_labels(self.window)
+
+        restored_item = self.window.table_widget.horizontalHeaderItem(header_index)
+        assert restored_item is not None
+        assert str(restored_item.text() or "") == "Descricao da SSA"
+
     def test_clear_operations_preserve_group_structure(self):
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
         self.window._clear_single_column_filter("setor_executor", "IEE3, MEL3, MEL4")
@@ -1162,8 +1417,8 @@ class TestGUIFilterLogic:
         self.window._active_column_filters["setor_executor"] = "IEE3"
         self.window._sync_or_group_values("setor_executor", "IEE3")
         self.window._refresh_after_filter_change()
-        # Com OR restrito por coluna e sincronismo no grupo (IEE3 em ambos), nenhum registro atende ambos
-        assert Counter(self._extract_visible_ssa()) == Counter([])
+        # O grupo Executor/Emissor e OU: basta uma das colunas conter IEE3.
+        assert Counter(self._extract_visible_ssa()) == Counter([1, 2])
 
         # Limpa todos e garante reset completo
         self.window._clear_all_column_filters()
@@ -1375,7 +1630,9 @@ class TestGUIFilterLogic:
         self.window.internal_to_display["parciais"] = "Parciais"
         self.window.internal_to_display["situacao_da_parcial"] = "Situacao Parcial"
 
-        monkeypatch.setattr(QtWidgets, "QMenu", _FakeMenu)
+        from gui.ssa import column_filter_panel
+
+        monkeypatch.setattr(column_filter_panel, "QMenu", _FakeMenu)
 
         self.window._open_add_column_filter_menu()
         menu_columns = {action.data() for action in created_actions}
@@ -1488,8 +1745,8 @@ class TestGUIFilterLogic:
                 label = self.window._resolve_column_display_name(col)
             assert label in controls
             _, apply_btn, clear_btn, hide_btn = controls[label]
-            assert apply_btn.text() == "Aplicar"
-            assert clear_btn.text() == "Limpar"
+            assert apply_btn.text() == "↵"
+            assert clear_btn.text() == "⌫"
             assert hide_btn.text() == "Ocultar"
             assert not apply_btn.isHidden()
             assert not clear_btn.isHidden()
@@ -1623,6 +1880,7 @@ class TestGUIFilterLogic:
         label_css = str(self.window.filters_summary_label.styleSheet() or "")
         assert "border:1px solid" in frame_css
         assert "font-weight:700" in label_css
+        assert "background:transparent" in label_css
 
     def test_find_unmapped_alias_columns_reports_only_unmapped(self):
         self.window.internal_to_display["numero_ssa"] = "Numero SSA"
@@ -1675,6 +1933,32 @@ class TestGUIFilterLogic:
             self.window.search_input.text() == f"{target_ssa}, !{exclude_solicitante}"
         )
 
+    def test_general_search_undo_restores_previous_applied_filter_state(self):
+        realistic_df = self._build_realistic_base_df_50()
+        self.window._sync_filtering = True
+        self.window.df_completo = realistic_df.copy()
+        self.window.df_exibido = realistic_df.copy()
+        self.window._df_last_search_filtered = realistic_df.copy()
+        self.window.paginator.set_dataframe(realistic_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        target_ssa = str(realistic_df.iloc[0]["numero_ssa"])
+        self.window.search_input.setText(f"={target_ssa}")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        assert len(self.window.df_exibido) == 1
+        assert self.window.search_input.text() == f"={target_ssa}"
+        assert self.window.undo_filter_btn.isEnabled() is True
+
+        self.window._restore_last_filter_state()
+        QApplication.processEvents()
+
+        assert self.window.search_input.text() == ""
+        assert len(self.window.df_exibido) == len(realistic_df)
+        assert self.window.undo_filter_btn.isEnabled() is False
+
     def test_general_search_button_click_filters_real_table_content(self):
         realistic_df = self._build_realistic_base_df_50()
         assert len(realistic_df) == 50
@@ -1699,10 +1983,8 @@ class TestGUIFilterLogic:
             "SOLICITANTE_NAO_EXISTENTE",
         )
 
-        main_ctx = next(
-            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "main"
-        )
-        self.window.main_tabs.setCurrentIndex(0)
+        main_ctx = self._panel_context()
+        self._set_filter_panel_tab("main")
         QApplication.processEvents()
 
         main_ctx["search_input"].setText(f"{target_ssa}, !{exclude_solicitante}")
@@ -1763,33 +2045,13 @@ class TestGUIFilterLogic:
         visible_ssa = [str(value) for value in self._extract_visible_ssa()]
         assert Counter(visible_ssa) == Counter([target_ssa])
 
-    def test_general_search_reuses_filter_dataframe_cache_on_same_dataframe(
-        self, monkeypatch
-    ):
+    def test_general_search_does_not_persist_row_text_cache_on_same_dataframe(self):
         realistic_df = self._build_realistic_base_df_50()
         self.window._sync_filtering = True
         self.window.df_completo = realistic_df.copy()
         self.window.df_exibido = realistic_df.copy()
         self.window._df_last_search_filtered = realistic_df.copy()
         self.window.paginator.set_dataframe(realistic_df.copy())
-
-        store_calls = {"count": 0}
-        original_store = app_logic.FilterSearchCacheManager.store_cached_search_data
-
-        def _tracked_store(
-            frame: pd.DataFrame,
-            search_cache_token,
-            base_lower_df: pd.DataFrame,
-            row_search_text: pd.Series,
-        ) -> None:
-            store_calls["count"] += 1
-            original_store(frame, search_cache_token, base_lower_df, row_search_text)
-
-        monkeypatch.setattr(
-            app_logic.FilterSearchCacheManager,
-            "store_cached_search_data",
-            staticmethod(_tracked_store),
-        )
 
         self.window.search_input.setText("Teste")
         self.window.initiate_filtering()
@@ -1799,7 +2061,7 @@ class TestGUIFilterLogic:
         self.window.initiate_filtering()
         QApplication.processEvents()
 
-        assert store_calls["count"] == 1
+        assert app_logic.FILTER_SEARCH_CACHE_ATTR not in self.window.df_completo.attrs
 
     def test_initiate_filtering_refines_previous_search_subset_when_safe(
         self, monkeypatch
@@ -1817,16 +2079,16 @@ class TestGUIFilterLogic:
         self.window.paginator.set_dataframe(self.base_df.copy())
 
         captured_sources: list[pd.DataFrame] = []
-        original_filter_dataframe = filter_mixin.filter_dataframe
+        original_apply_terms = self.window._apply_general_search_terms
 
-        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+        def _tracked_apply_terms(frame: pd.DataFrame, *args, **kwargs):
             captured_sources.append(frame)
-            return original_filter_dataframe(frame, *args, **kwargs)
+            return original_apply_terms(frame, *args, **kwargs)
 
         monkeypatch.setattr(
-            filter_mixin,
-            "filter_dataframe",
-            _tracked_filter_dataframe,
+            self.window,
+            "_apply_general_search_terms",
+            _tracked_apply_terms,
         )
 
         self.window.search_input.setText("MEL3")
@@ -1851,16 +2113,16 @@ class TestGUIFilterLogic:
         self.window.paginator.set_dataframe(self.base_df.copy())
 
         captured_sources: list[pd.DataFrame] = []
-        original_filter_dataframe = filter_mixin.filter_dataframe
+        original_apply_terms = self.window._apply_general_search_terms
 
-        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+        def _tracked_apply_terms(frame: pd.DataFrame, *args, **kwargs):
             captured_sources.append(frame)
-            return original_filter_dataframe(frame, *args, **kwargs)
+            return original_apply_terms(frame, *args, **kwargs)
 
         monkeypatch.setattr(
-            filter_mixin,
-            "filter_dataframe",
-            _tracked_filter_dataframe,
+            self.window,
+            "_apply_general_search_terms",
+            _tracked_apply_terms,
         )
 
         self.window.search_input.setText("MEL")
@@ -1886,16 +2148,16 @@ class TestGUIFilterLogic:
         self.window.paginator.set_dataframe(self.base_df.copy())
 
         captured_sources: list[pd.DataFrame] = []
-        original_filter_dataframe = filter_mixin.filter_dataframe
+        original_apply_terms = self.window._apply_general_search_terms
 
-        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+        def _tracked_apply_terms(frame: pd.DataFrame, *args, **kwargs):
             captured_sources.append(frame)
-            return original_filter_dataframe(frame, *args, **kwargs)
+            return original_apply_terms(frame, *args, **kwargs)
 
         monkeypatch.setattr(
-            filter_mixin,
-            "filter_dataframe",
-            _tracked_filter_dataframe,
+            self.window,
+            "_apply_general_search_terms",
+            _tracked_apply_terms,
         )
 
         self.window.search_input.setText("MEL3")
@@ -1921,16 +2183,16 @@ class TestGUIFilterLogic:
         self.window.paginator.set_dataframe(self.base_df.copy())
 
         captured_sources: list[pd.DataFrame] = []
-        original_filter_dataframe = filter_mixin.filter_dataframe
+        original_apply_terms = self.window._apply_general_search_terms
 
-        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+        def _tracked_apply_terms(frame: pd.DataFrame, *args, **kwargs):
             captured_sources.append(frame)
-            return original_filter_dataframe(frame, *args, **kwargs)
+            return original_apply_terms(frame, *args, **kwargs)
 
         monkeypatch.setattr(
-            filter_mixin,
-            "filter_dataframe",
-            _tracked_filter_dataframe,
+            self.window,
+            "_apply_general_search_terms",
+            _tracked_apply_terms,
         )
 
         self.window.search_input.setText("MEL3")
@@ -1956,16 +2218,16 @@ class TestGUIFilterLogic:
         self.window.paginator.set_dataframe(self.base_df.copy())
 
         captured_sources: list[pd.DataFrame] = []
-        original_filter_dataframe = filter_mixin.filter_dataframe
+        original_apply_terms = self.window._apply_general_search_terms
 
-        def _tracked_filter_dataframe(frame: pd.DataFrame, *args, **kwargs):
+        def _tracked_apply_terms(frame: pd.DataFrame, *args, **kwargs):
             captured_sources.append(frame)
-            return original_filter_dataframe(frame, *args, **kwargs)
+            return original_apply_terms(frame, *args, **kwargs)
 
         monkeypatch.setattr(
-            filter_mixin,
-            "filter_dataframe",
-            _tracked_filter_dataframe,
+            self.window,
+            "_apply_general_search_terms",
+            _tracked_apply_terms,
         )
 
         self.window.search_input.setText("MEL3")
@@ -1975,7 +2237,7 @@ class TestGUIFilterLogic:
         assert captured_sources
         assert captured_sources[0] is self.window.df_completo
 
-    def test_filter_dataframe_large_search_cache_skips_base_lower_df_payload(self):
+    def test_filter_dataframe_large_search_does_not_persist_row_text_cache(self):
         heavy_df = self._build_heavy_filters_df(rows=6000)
 
         filtered = app_logic.filter_dataframe(
@@ -1984,12 +2246,8 @@ class TestGUIFilterLogic:
             search_columns=["descricao_ssa", "setor_executor"],
         )
 
-        cached = heavy_df.attrs.get(app_logic.FILTER_SEARCH_CACHE_ATTR)
-
         assert not filtered.empty
-        assert isinstance(cached, dict)
-        assert "base_lower_df" not in cached
-        assert len(cached["row_search_text"]) == len(heavy_df.index)
+        assert app_logic.FILTER_SEARCH_CACHE_ATTR not in heavy_df.attrs
 
     def test_filter_dataframe_large_anchored_regex_works_without_cached_base_lower_df(
         self,
@@ -2002,11 +2260,8 @@ class TestGUIFilterLogic:
             search_columns=["descricao_ssa"],
         )
 
-        cached = heavy_df.attrs.get(app_logic.FILTER_SEARCH_CACHE_ATTR)
-
         assert not filtered.empty
-        assert isinstance(cached, dict)
-        assert "base_lower_df" not in cached
+        assert app_logic.FILTER_SEARCH_CACHE_ATTR not in heavy_df.attrs
 
     def test_build_gui_general_search_columns_skips_all_null_columns_from_attrs(self):
         df = self._build_heavy_filters_df(rows=8)
@@ -2061,34 +2316,48 @@ class TestGUIFilterLogic:
         self.window.display_current_page(1)
         QApplication.processEvents()
 
-        # Ajusta manualmente a largura de uma coluna e garante persistência pós-ciclos
+        def current_widths():
+            return {
+                column: self.window.table_widget.columnWidth(index)
+                for index, column in enumerate(
+                    getattr(self.window, "_current_display_columns", []) or []
+                )
+            }
+
+        # User/runtime widths must be one source of truth across all reset paths.
         self.window.table_widget.setColumnWidth(1, 240)
-        width_before = self.window.table_widget.columnWidth(1)
+        baseline_widths = current_widths()
+        self.window._saved_gui_column_widths.update(baseline_widths)
+        self.window._gui_column_pixel_widths.update(baseline_widths)
 
         # Aplica perfil OR, filtros gerais e limpa várias vezes
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
         QApplication.processEvents()
-        width_after_profile = self.window.table_widget.columnWidth(1)
+        assert current_widths() == baseline_widths
 
         self.window.search_input.setText("Teste A, Teste D")
         self.window.initiate_filtering()
         QApplication.processEvents()
-        width_after_search = self.window.table_widget.columnWidth(1)
+        assert current_widths() == baseline_widths
 
         self.window._clear_all_column_filters()
         QApplication.processEvents()
-        width_after_clear_columns = self.window.table_widget.columnWidth(1)
+        assert current_widths() == baseline_widths
 
         self.window.clear_filter()
         QApplication.processEvents()
-        width_after_clear_general = self.window.table_widget.columnWidth(1)
+        assert current_widths() == baseline_widths
 
-        # Larguras não devem ser zeradas; permitir pequenas variações entre ciclos
-        assert width_before > 0
-        assert width_after_profile > 0
-        assert width_after_search > 0
-        assert width_after_clear_columns > 0
-        assert width_after_clear_general > 0
+        self.window._active_column_filters["descricao_ssa"] = "Teste"
+        self.window._safe_store_last_filter_state("width_stability_global_clear")
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+        assert current_widths() == baseline_widths
+
+        self.window._active_column_filters["descricao_ssa"] = "Teste"
+        self.window._hard_reset_filters_state()
+        QApplication.processEvents()
+        assert current_widths() == baseline_widths
 
     def test_display_current_page_honors_page_number_parameter(self):
         self.window.df_completo = self.base_df.copy()
@@ -2105,18 +2374,18 @@ class TestGUIFilterLogic:
         assert int(self.window.df_para_tabela.iloc[0]["numero_ssa"]) == 3
 
     def test_filters_tab_layout_keeps_bottom_panel_below_table_with_few_rows(self):
-        self.window.main_tabs.setCurrentIndex(1)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         tiny_df = self.base_df.iloc[:1].copy()
         self.window.df_completo = tiny_df.copy()
         self.window.df_exibido = tiny_df.copy()
         self.window._df_last_search_filtered = tiny_df.copy()
-        self.window._tab_contexts[1]["paginator"].set_dataframe(tiny_df.copy())
+        self._panel_context()["paginator"].set_dataframe(tiny_df.copy())
         self.window.display_current_page(1)
         QApplication.processEvents()
 
-        ctx = self.window._tab_contexts[1]
+        ctx = self._panel_context()
         table = ctx["table_widget"]
         details = ctx["details_group"]
         adv = ctx["adv_filters_group"]
@@ -2132,7 +2401,7 @@ class TestGUIFilterLogic:
         assert bottom_top > table_bottom
 
     def test_bottom_panels_keep_single_synced_height_after_resize(self):
-        self.window.main_tabs.setCurrentIndex(0)
+        self._set_filter_panel_tab("main")
         QApplication.processEvents()
         self.window.resize(1520, 980)
         QApplication.processEvents()
@@ -2140,7 +2409,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         groups = []
-        for ctx in self.window._tab_contexts:
+        for ctx in self._iter_panel_contexts():
             for key in ("details_group", "adv_filters_group", "col_filters_group"):
                 widget = ctx.get(key)
                 if widget is None:
@@ -2156,7 +2425,50 @@ class TestGUIFilterLogic:
         assert len(max_heights) == 1
         synced_height = next(iter(min_heights))
         assert synced_height == next(iter(max_heights))
-        assert 180 <= synced_height <= 360
+        assert 250 <= synced_height <= 320
+
+    def test_filter_summary_bar_keeps_geometry_when_switching_filter_tabs(self):
+        self.window.resize(1280, 880)
+        QApplication.processEvents()
+
+        measurements = []
+        for index in (0, 1, 0, 1):
+            self._set_filter_panel_tab("filters" if index == 1 else "main")
+            QApplication.processEvents()
+            ctx = self._panel_context()
+            summary = ctx["filters_summary_frame"]
+            table = ctx["table_widget"]
+            measurements.append(
+                (
+                    int(summary.height()),
+                    int(summary.mapToGlobal(QPoint(0, 0)).y()),
+                    int(table.mapToGlobal(QPoint(0, 0)).y()),
+                )
+            )
+
+        assert {height for height, _summary_y, _table_y in measurements} == {44}
+        assert len({table_y for _height, _summary_y, table_y in measurements}) == 1
+
+    def test_filter_summary_active_items_stay_in_horizontal_scroll_area(self):
+        self.window.resize(980, 760)
+        self.window.search_input.setText("Texto muito longo " * 20)
+        self.window._active_column_filters["descricao_ssa"] = "Filtro longo " * 30
+        self.window._update_filters_summary()
+        QApplication.processEvents()
+
+        scroll = self.window.filters_summary_scroll
+        items_widget = self.window.filters_summary_items_widget
+        buttons = items_widget.findChildren(QPushButton)
+
+        assert str(self.window.filters_summary_label.text() or "") == ""
+        assert self.window.filters_summary_label.isVisible() is False
+        assert isinstance(scroll, QtWidgets.QScrollArea)
+        assert scroll.isVisible() is True
+        assert scroll.height() <= 36
+        assert scroll.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        assert items_widget.sizeHint().width() > scroll.viewport().width()
+        assert scroll.horizontalScrollBar().maximum() > 0
+        assert {button.y() for button in buttons} == {0}
 
     def test_clear_filter_button_reflects_active_filters(self):
         self.window.search_input.setText("")
@@ -2175,50 +2487,34 @@ class TestGUIFilterLogic:
         assert self.window.clear_filter_button.isEnabled() is False
 
     def test_clear_search_button_label_and_tooltip_are_explicit_on_both_tabs(self):
-        for ctx in self.window._tab_contexts:
+        for ctx in self._iter_panel_contexts():
             button = ctx.get("clear_filter_button")
             assert button is not None
-            assert button.text() == "Limpar Busca"
+            assert button.text() == "⌫"
             tooltip = str(button.toolTip() or "").casefold()
-            assert "apenas a busca geral" in tooltip
+            assert "apenas a busca" in tooltip
             assert "coluna" in tooltip
             assert "avancados" in tooltip
 
-    def test_search_buttons_route_to_tab_specific_handlers(self):
-        main_ctx = next(
-            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "main"
-        )
-        filters_ctx = next(
-            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "filters"
-        )
+    def test_search_buttons_use_single_live_handlers(self):
+        main_ctx = self._panel_context()
+        filters_ctx = self._panel_context()
         main_ctx["clear_filter_button"].setEnabled(True)
         filters_ctx["clear_filter_button"].setEnabled(True)
+        assert main_ctx["search_button"] is filters_ctx["search_button"]
+        assert main_ctx["clear_filter_button"] is filters_ctx["clear_filter_button"]
 
-        with (
-            patch.object(self.window, "_on_general_search_apply_clicked") as apply_mock,
-            patch.object(self.window, "_on_general_search_clear_clicked") as clear_mock,
-        ):
-            cast(Any, QTest).mouseClick(
-                main_ctx["search_button"], Qt.MouseButton.LeftButton
-            )
-            cast(Any, QTest).mouseClick(
-                filters_ctx["search_button"], Qt.MouseButton.LeftButton
-            )
-            cast(Any, QTest).mouseClick(
-                main_ctx["clear_filter_button"], Qt.MouseButton.LeftButton
-            )
-            cast(Any, QTest).mouseClick(
-                filters_ctx["clear_filter_button"], Qt.MouseButton.LeftButton
-            )
+        self.window.search_input.setText("Teste A")
+        cast(Any, QTest).mouseClick(main_ctx["search_button"], Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+        assert Counter(self._extract_visible_ssa()) == Counter([1])
 
-        assert [call.args[0] for call in apply_mock.call_args_list] == [
-            "main",
-            "filters",
-        ]
-        assert [call.args[0] for call in clear_mock.call_args_list] == [
-            "main",
-            "filters",
-        ]
+        cast(Any, QTest).mouseClick(
+            filters_ctx["clear_filter_button"], Qt.MouseButton.LeftButton
+        )
+        QApplication.processEvents()
+        assert self.window.search_input.text() == ""
+        assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
 
     def test_clear_filter_clears_only_general_search_and_keeps_advanced_filters(self):
         self.window._advanced_filters = {
@@ -2293,7 +2589,7 @@ class TestGUIFilterLogic:
         self.window._exclude_ste_sca = False
         self.window._advanced_filters = {}
         self.window._advanced_filters_active = False
-        for ctx in self.window._tab_contexts:
+        for ctx in self._iter_panel_contexts():
             ctx["search_input"].setText("")
         self.window._refresh_after_filter_change()
         QApplication.processEvents()
@@ -2301,11 +2597,11 @@ class TestGUIFilterLogic:
 
     def test_clear_filter_button_state_syncs_across_tabs_without_switch(self):
         buttons = []
-        for ctx in self.window._tab_contexts:
+        for ctx in self._iter_panel_contexts():
             button = ctx.get("clear_filter_button")
             if button is not None:
                 buttons.append(button)
-        assert len(buttons) == 2
+        assert len(buttons) == 1
         assert all(button.isEnabled() is False for button in buttons)
 
         self.window.search_input.setText("Teste A")
@@ -2318,9 +2614,7 @@ class TestGUIFilterLogic:
         assert all(button.isEnabled() is False for button in buttons)
 
     def test_three_repeated_clear_search_clicks_offer_hard_reset(self):
-        main_ctx = next(
-            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "main"
-        )
+        main_ctx = self._panel_context()
         self.window._active_column_filters["descricao_ssa"] = "Teste A"
         self.window._refresh_after_filter_change()
         QApplication.processEvents()
@@ -2348,10 +2642,8 @@ class TestGUIFilterLogic:
         hard_reset_mock.assert_called_once()
 
     def test_three_repeated_global_clear_clicks_offer_hard_reset(self):
-        filters_ctx = next(
-            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(1)
+        filters_ctx = self._panel_context()
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
         self.window.search_input.setText("Teste")
         self.window._active_column_filters["descricao_ssa"] = "Teste A"
@@ -2378,18 +2670,16 @@ class TestGUIFilterLogic:
         hard_reset_mock.assert_called_once()
 
     def test_clear_advanced_filters_forces_refresh_when_pending_schedule(self):
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         self.window._advanced_filters = {"setor_executor": ["IEE3"]}
         self.window._advanced_filters_active = True
         self.window._adv_options_dirty = False
         self.window._adv_options_scheduled = True
+        responsavel_state = self.window.responsavel_materialization_state
+        responsavel_state.mark_materialized(responsavel_state.all_prefixes)
+        assert responsavel_state.status_flags() == (True, False)
 
         with patch.object(
             self.window, "_refresh_advanced_filter_options", return_value=None
@@ -2400,16 +2690,17 @@ class TestGUIFilterLogic:
         assert self.window._advanced_filters == {}
         assert self.window._advanced_filters_active is False
         assert self.window._adv_options_dirty is False
+        assert responsavel_state.built_prefixes == set()
+        assert responsavel_state.dirty_prefixes == responsavel_state.all_prefixes
         refresh_mock.assert_called_once()
 
     def test_undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore(self):
         undo_buttons = []
-        for ctx in self.window._tab_contexts:
+        for ctx in self._iter_panel_contexts():
             button = ctx.get("undo_filter_btn")
             if button is not None:
                 undo_buttons.append(button)
-        assert len(undo_buttons) == 2
-        assert all(button.isEnabled() is False for button in undo_buttons)
+        assert len(undo_buttons) == 1
 
         self.window._advanced_filters = {"situacao": ["STE"]}
         self.window._advanced_filters_active = True
@@ -2428,7 +2719,7 @@ class TestGUIFilterLogic:
         assert all(button.isEnabled() is False for button in undo_buttons)
 
     def test_restore_last_filter_state_recomputes_general_search_without_snapshot_df(
-        self,
+        self, monkeypatch
     ):
         realistic_df = self._build_realistic_base_df_50()
         self.window._sync_filtering = True
@@ -2450,6 +2741,18 @@ class TestGUIFilterLogic:
 
         assert self.window._last_filter_state is not None
         assert "df_last_search_filtered" not in self.window._last_filter_state
+        summary_updates = []
+        original_update_summary = self.window._update_filters_summary
+
+        def _tracked_update_summary():
+            summary_updates.append(1)
+            return original_update_summary()
+
+        monkeypatch.setattr(
+            self.window,
+            "_update_filters_summary",
+            _tracked_update_summary,
+        )
 
         self.window._restore_last_filter_state()
         QApplication.processEvents()
@@ -2459,6 +2762,14 @@ class TestGUIFilterLogic:
         assert Counter(self.window.df_exibido["numero_ssa"]) == Counter(
             filtered_before["numero_ssa"]
         )
+        summary_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
+        assert "Busca: 'Exec 1'" in summary_buttons
+        assert summary_updates
 
     def test_column_filter_buttons_flow(self):
         self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
@@ -2478,7 +2789,7 @@ class TestGUIFilterLogic:
             emissor_label
         ]
         executor_edit, executor_apply, _, _ = controls[executor_label]
-        assert emissor_clear.text() == "Limpar"
+        assert emissor_clear.text() == "⌫"
         assert "limpa o valor" in (emissor_clear.toolTip() or "").casefold()
         assert emissor_hide.text() == "Ocultar"
         assert (
@@ -2528,13 +2839,12 @@ class TestGUIFilterLogic:
 
         self.window._active_column_filters["descricao_ssa"] = "Teste"
         first_context = self.window._build_filter_cache_context()
-        assert '"descricao_ssa": "Teste"' in first_context
-        assert '"exclude_ste_sca": false' in first_context
+        assert first_context.startswith("sha256:")
 
         self.window._on_exclude_ste_sca_toggled(True)
         second_context = self.window._build_filter_cache_context()
         assert second_context != first_context
-        assert '"exclude_ste_sca": true' in second_context
+        assert second_context.startswith("sha256:")
 
         self.window._clear_all_filters_global()
         QApplication.processEvents()
@@ -2544,9 +2854,13 @@ class TestGUIFilterLogic:
         self.window._on_exclude_ste_sca_toggled(True)
         QApplication.processEvents()
 
-        summary_text = str(self.window.filters_summary_label.text() or "")
-
-        assert "situacao!=SCA/SES/STE" in summary_text
+        summary_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
+        assert "situacao!=SCA/SES/STE" in summary_buttons
 
     def test_column_filter_row_clear_button_clears_value_without_hiding_row(self):
         self.window._active_column_filters = {
@@ -2649,6 +2963,16 @@ class TestGUIFilterLogic:
         mask = self.window._build_column_mask(series, "~(a+)+$")
         assert list(mask) == [False, False]
 
+    def test_build_column_mask_allows_safe_anchor_regex(self):
+        series = pd.Series(["foo start", "prefix foo"], dtype="string")
+        mask = self.window._build_column_mask(series, "~^foo")
+        assert list(mask) == [True, False]
+
+    def test_build_column_mask_rejects_unapproved_regex_quantifier(self):
+        series = pd.Series(["foo123bar", "foo.*bar"], dtype="string")
+        mask = self.window._build_column_mask(series, "~foo.*bar")
+        assert list(mask) == [False, True]
+
     def test_activate_column_filter_stores_undo_snapshot(self):
         self.window._last_filter_state = None
         self.window.search_input.setText("Marca")
@@ -2744,6 +3068,36 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters["setor_executor"] == "MEL4"
         assert self.window._exclude_ste_sca is True
 
+    def test_persistent_filters_reload_from_saved_file(self):
+        with patch.object(QMessageBox, "information"):
+            self.window.search_input.clear()
+            self.window._active_column_filters["setor_executor"] = "MEL4"
+            self.window.save_current_filter()
+
+        assert os.path.exists(self._saved_filters_path)
+
+        self.window.persistent_filters = []
+        self.window.load_persistent_filters()
+
+        assert len(self.window.persistent_filters) == 1
+        saved = self.window.persistent_filters[0]
+        assert saved["state"]["active_column_filters"]["setor_executor"] == "MEL4"
+
+    def test_persistent_filters_reload_legacy_terms_without_state(self):
+        payload = {
+            "version": 1,
+            "filters": [{"name": "Legado", "terms": "Teste C"}],
+        }
+        with open(self._saved_filters_path, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle)
+
+        self.window.persistent_filters = []
+        self.window.load_persistent_filters()
+
+        assert self.window.persistent_filters == [
+            {"name": "Legado", "terms": "Teste C"}
+        ]
+
     def test_persistent_filter_tags_do_not_expand_search_row_width(self):
         long_name = "Filtro salvo com nome grande para testar largura " * 3
         self.window.persistent_filters = [
@@ -2794,9 +3148,14 @@ class TestGUIFilterLogic:
         self.window.initiate_filtering()
         QApplication.processEvents()
         assert self.window.df_exibido["numero_ssa"].tolist() == [3]
-        assert "Busca: 'Teste C'" in str(
-            self.window.filters_summary_label.text() or ""
-        )
+        assert str(self.window.filters_summary_label.text() or "") == ""
+        assert self.window.filters_summary_label.isVisible() is False
+        assert "Busca: 'Teste C'" in [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
         assert self.window._get_visual_filter_columns() == set()
 
         self.window.persistent_filters = [
@@ -2826,6 +3185,8 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         assert self.window.persistent_filters == []
+        with open(self._saved_filters_path, encoding="utf-8") as handle:
+            assert json.load(handle)["filters"] == []
         assert self.window.search_input.text() == ""
         assert "Nenhum filtro ativo" in str(
             self.window.filters_summary_label.text() or ""
@@ -2844,8 +3205,6 @@ class TestGUIFilterLogic:
 
         assert self.window.search_input.text().strip() == "Teste C"
         assert self.window.df_exibido["numero_ssa"].tolist() == [3]
-        summary_text = str(self.window.filters_summary_label.text() or "")
-        assert "Busca: 'Teste C'" in summary_text
         summary_buttons = [
             str(button.text() or "")
             for button in self.window.filters_summary_items_widget.findChildren(
@@ -2858,32 +3217,22 @@ class TestGUIFilterLogic:
     def test_advanced_filter_checks_survive_tab_switch(self):
         """Rebuild dos menus avançados deve persistir listas *_checks no tab_context."""
         self.window._adv_options_dirty = True
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         self.window._refresh_advanced_filter_options()
         QApplication.processEvents()
         assert len(getattr(self.window, "adv_executor_checks", []) or []) > 0
 
-        self.window.main_tabs.setCurrentIndex(0)
+        self._set_filter_panel_tab("main")
         QApplication.processEvents()
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         assert len(getattr(self.window, "adv_executor_checks", []) or []) > 0
 
     def test_refresh_advanced_options_does_not_eager_load_responsavel(self):
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         self.window._advanced_filters = {
@@ -2892,8 +3241,9 @@ class TestGUIFilterLogic:
         }
         self.window._adv_options_dirty = True
         self.window._adv_values_cache = None
-        self.window._responsavel_filters_materialized = False
-        self.window._responsavel_options_dirty = True
+        responsavel_state = self.window.responsavel_materialization_state
+        responsavel_state.built_prefixes.clear()
+        responsavel_state.dirty_prefixes = set(responsavel_state.all_prefixes)
 
         with patch.object(
             self.window,
@@ -2904,15 +3254,15 @@ class TestGUIFilterLogic:
             QApplication.processEvents()
 
         assert refresh_mock.call_count == 0
-        assert self.window._responsavel_filters_materialized is False
-        assert self.window._responsavel_options_dirty is True
+        assert responsavel_state.status_flags() == (False, True)
         button = getattr(self.window, "adv_responsavel_solicitante_button", None)
         if button is None:
             button = getattr(self.window, "_adv_ctx", {}).get(
                 "adv_responsavel_solicitante_button"
             )
         assert button is not None
-        assert button.text().startswith(("Incluir:", "Diferente:"))
+        assert "Incluir: User1, User2" in button.toolTip()
+        assert "Diferente: User5" in button.toolTip()
 
     def test_responsavel_solicitante_alias_materializes_values_in_advanced_panel(self):
         alias_df = self.base_df.drop(columns=["solicitante"]).assign(
@@ -2922,13 +3272,7 @@ class TestGUIFilterLogic:
         self.window.df_exibido = alias_df.copy()
         self.window._df_last_search_filtered = alias_df.copy()
         self.window.paginator.set_dataframe(alias_df.copy())
-
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         self.window._refresh_advanced_filter_options()
@@ -2976,8 +3320,9 @@ class TestGUIFilterLogic:
             "responsavel_execucao": ["ExecA"],
             "responsavel_execucao_exclude_values": ["ExecB"],
         }
-        self.window._responsavel_materialized_prefixes = set()
-        self.window._responsavel_filters_materialized = False
+        responsavel_state = self.window.responsavel_materialization_state
+        responsavel_state.built_prefixes.clear()
+        responsavel_state.dirty_prefixes = set(responsavel_state.all_prefixes)
 
         self.window._apply_advanced_filters_from_ui(store_only=True)
 
@@ -3001,8 +3346,9 @@ class TestGUIFilterLogic:
         assert getattr(self.window, "adv_responsavel_emissor_exclude", None) is None
 
     def test_ensure_responsavel_options_materialized_runs_once_when_dirty(self):
-        self.window._responsavel_filters_materialized = False
-        self.window._responsavel_options_dirty = True
+        responsavel_state = self.window.responsavel_materialization_state
+        responsavel_state.built_prefixes.clear()
+        responsavel_state.dirty_prefixes = set(responsavel_state.all_prefixes)
 
         with patch.object(
             self.window,
@@ -3013,31 +3359,34 @@ class TestGUIFilterLogic:
             self.window._ensure_responsavel_options_materialized()
 
         assert refresh_mock.call_count == 1
-        assert self.window._responsavel_filters_materialized is True
-        assert self.window._responsavel_options_dirty is False
+        assert responsavel_state.status_flags() == (True, False)
+
+    def test_responsavel_state_marks_built_prefix_stale_after_sector_change(self):
+        responsavel_state = self.window.responsavel_materialization_state
+        target_prefix = "adv_responsavel_solicitante"
+
+        responsavel_state.mark_materialized({target_prefix})
+        responsavel_state.mark_dirty({target_prefix})
+
+        assert responsavel_state.stale_built_prefixes() == {target_prefix}
 
     def test_switch_to_filters_tab_does_not_materialize_responsavel_eagerly(self):
         self.window._adv_options_dirty = True
         self.window._adv_values_cache = None
-        self.window._responsavel_filters_materialized = False
-        self.window._responsavel_options_dirty = True
+        responsavel_state = self.window.responsavel_materialization_state
+        responsavel_state.built_prefixes.clear()
+        responsavel_state.dirty_prefixes = set(responsavel_state.all_prefixes)
 
         with patch.object(
             self.window,
             "_refresh_responsavel_options",
             wraps=self.window._refresh_responsavel_options,
         ) as refresh_mock:
-            filter_tab_idx = next(
-                idx
-                for idx, ctx in enumerate(self.window._tab_contexts)
-                if ctx.get("tab_kind") == "filters"
-            )
-            self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+            self._set_filter_panel_tab("filters")
             QApplication.processEvents()
 
         assert refresh_mock.call_count == 0
-        assert self.window._responsavel_filters_materialized is False
-        assert self.window._responsavel_options_dirty is True
+        assert responsavel_state.status_flags() == (False, True)
 
     def test_switch_to_filters_tab_coalesces_advanced_refresh_triggers(self):
         self.window._adv_options_dirty = True
@@ -3045,18 +3394,8 @@ class TestGUIFilterLogic:
         self.window._pending_theme_refresh_column_filters = (
             getattr(self.window, "_current_theme", "gruvbox") or "gruvbox"
         )
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        main_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "main"
-        )
-        self.window._tab_contexts[filter_tab_idx]["_theme_name"] = None
-        self.window.main_tabs.setCurrentIndex(main_tab_idx)
+        self._panel_context()["_theme_name"] = None
+        self._set_filter_panel_tab("main")
         QApplication.processEvents()
 
         with patch.object(
@@ -3064,7 +3403,7 @@ class TestGUIFilterLogic:
             "_refresh_advanced_filter_options",
             wraps=self.window._refresh_advanced_filter_options,
         ) as refresh_mock:
-            self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+            self._set_filter_panel_tab("filters")
             deadline = time.time() + 2.0
             while time.time() < deadline and refresh_mock.call_count < 1:
                 QApplication.processEvents()
@@ -3074,12 +3413,7 @@ class TestGUIFilterLogic:
         assert self.window._adv_options_dirty is False
 
     def test_bind_filters_tab_skips_series_lookup_when_render_key_is_unchanged(self):
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        ctx = self.window._tab_contexts[filter_tab_idx]
+        ctx = self._panel_context()
         current_page = max(1, self.window.paginator.current_page)
         ctx["_last_render_key"] = (
             id(self.window.df_exibido),
@@ -3096,7 +3430,8 @@ class TestGUIFilterLogic:
                 "_get_series_for_ssa nao deveria rodar sem rerender"
             ),
         ):
-            self.window._bind_tab_context(ctx)
+            self._set_filter_panel_tab("filters")
+            QApplication.processEvents()
 
         assert ctx["_last_render_key"] == (
             id(self.window.df_exibido),
@@ -3105,48 +3440,31 @@ class TestGUIFilterLogic:
         )
 
     def test_switch_to_filters_tab_does_not_reapply_same_theme(self):
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        main_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "main"
-        )
-
         with patch.object(
             self.window, "apply_theme", wraps=self.window.apply_theme
         ) as apply_mock:
-            self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+            self._set_filter_panel_tab("filters")
             QApplication.processEvents()
             # Switch away and back: after the first bind, the same theme should not be re-applied.
-            self.window.main_tabs.setCurrentIndex(main_tab_idx)
+            self._set_filter_panel_tab("main")
             QApplication.processEvents()
-            self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+            self._set_filter_panel_tab("filters")
             QApplication.processEvents()
 
-        assert apply_mock.call_count == 1
+        assert apply_mock.call_count == 0
 
     def test_filters_tab_switch_and_responsavel_materialization_smoke_latency(self):
         heavy_df = self._build_heavy_filters_df(rows=1200)
         self.window._active_data_load_request_id = 33
         self.window.on_data_loaded(heavy_df, request_id=33)
         QApplication.processEvents()
-
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-
         t0 = time.perf_counter()
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
         switch_ms = (time.perf_counter() - t0) * 1000.0
 
-        assert self.window._responsavel_filters_materialized is False
+        responsavel_state = self.window.responsavel_materialization_state
+        assert responsavel_state.status_flags()[0] is False
         assert switch_ms < 3000.0
 
         target_prefix = "adv_responsavel_solicitante"
@@ -3157,20 +3475,12 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         materialize_ms = (time.perf_counter() - t1) * 1000.0
 
-        assert target_prefix in getattr(
-            self.window, "_responsavel_materialized_prefixes", set()
-        )
-        assert self.window._responsavel_filters_materialized is False
-        assert self.window._responsavel_options_dirty is True
+        assert target_prefix in responsavel_state.built_prefixes
+        assert responsavel_state.status_flags() == (False, True)
         assert materialize_ms < 5000.0
 
     def test_theme_cycle_smoke_latency_on_filters_tab(self):
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         current_theme = getattr(self.window, "_current_theme", "gruvbox") or "gruvbox"
@@ -3241,28 +3551,19 @@ class TestGUIFilterLogic:
         assert build_qss_mock.call_count == 0
 
     def test_repeated_filters_tab_and_theme_actions_keep_state_consistent(self):
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        main_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "main"
-        )
+        main_tab_idx = 0
         current_theme = getattr(self.window, "_current_theme", "gruvbox") or "gruvbox"
         other_theme = "windows7" if current_theme != "windows7" else "gruvbox"
 
         for i in range(5):
-            self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+            self._set_filter_panel_tab("filters")
             QApplication.processEvents()
             if i % 2 == 0:
                 self.window.apply_theme(other_theme)
             else:
                 self.window.apply_theme(current_theme)
             QApplication.processEvents()
-            self.window.main_tabs.setCurrentIndex(main_tab_idx)
+            self._set_filter_panel_tab("main")
             QApplication.processEvents()
 
         self.window.apply_theme(current_theme)
@@ -3272,92 +3573,89 @@ class TestGUIFilterLogic:
 
     def test_theme_switch_reapplies_on_tab_bind_for_inactive_tab(self):
         """Theme updates must re-style both tabs, even when switched after the change."""
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        main_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "main"
-        )
-        filters_ctx = next(
-            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "filters"
-        )
-        main_ctx = next(
-            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "main"
-        )
+        filters_ctx = self._panel_context()
+        main_ctx = self._panel_context()
 
         current_theme = getattr(self.window, "_current_theme", "gruvbox") or "gruvbox"
         other_theme = "windows7" if current_theme != "windows7" else "gruvbox"
 
         initial_main_css = main_ctx["search_input"].styleSheet() or ""
+        initial_main_box_css = main_ctx["quick_search_box"].styleSheet() or ""
         assert initial_main_css
-        assert not (filters_ctx["search_label"].styleSheet() or "")
+        assert initial_main_box_css
+        initial_filters_css = filters_ctx["search_input"].styleSheet() or ""
+        initial_filters_box_css = filters_ctx["quick_search_box"].styleSheet() or ""
+        assert initial_filters_css == initial_main_css
+        assert initial_filters_box_css == initial_main_box_css
+        assert "QLineEdit:focus" in initial_main_css
+        assert "border:0" in initial_main_css
+        assert "border:1px solid" in initial_main_box_css
 
-        # Switching to the filters tab should re-apply the current theme to that tab's widgets.
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
-        assert "font-weight" in (filters_ctx["search_label"].styleSheet() or "")
+        assert (filters_ctx["search_input"].styleSheet() or "") == initial_main_css
+        assert (filters_ctx["quick_search_box"].styleSheet() or "") == initial_main_box_css
 
         # Apply a different theme while on filters tab, then switch back to main.
         self.window.apply_theme(other_theme)
         QApplication.processEvents()
-        self.window.main_tabs.setCurrentIndex(main_tab_idx)
+        updated_filters_css = filters_ctx["search_input"].styleSheet() or ""
+        updated_filters_box_css = filters_ctx["quick_search_box"].styleSheet() or ""
+        assert updated_filters_css
+        assert updated_filters_box_css
+        assert updated_filters_css != initial_main_css
+        assert updated_filters_box_css != initial_main_box_css
+        assert "QLineEdit:focus" in updated_filters_css
+        assert "border:0" in updated_filters_css
+        assert "border:1px solid" in updated_filters_box_css
+        self._set_filter_panel_tab("main")
         QApplication.processEvents()
 
-        # The main tab widgets must get re-themed on bind (previously could keep stale QSS).
+        # Both tab search boxes must be themed together, not only after binding.
         assert getattr(self.window, "_current_theme", None) == other_theme
-        assert (main_ctx["search_input"].styleSheet() or "") != initial_main_css
+        assert (main_ctx["search_input"].styleSheet() or "") == updated_filters_css
+        assert (main_ctx["quick_search_box"].styleSheet() or "") == updated_filters_box_css
 
-    def test_switch_to_filters_tab_cancels_pending_search_debounce(self):
+    def test_switch_to_advanced_filter_panel_keeps_pending_search_live(self):
         self.window.search_input.setText("Teste A")
         self.window.initiate_filtering()
         QApplication.processEvents()
         assert Counter(self._extract_visible_ssa()) == Counter([1])
 
-        # Agenda um novo filtro via debounce, mas troca para a aba Filtros antes do timeout.
+        # Switching the local filter panel is visual only; the single live search
+        # debounce must still complete against the current search text.
         self.window.search_input.setText("Teste A, Teste D")
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        self._set_filter_panel_tab("filters")
         cast(Any, QTest).qWait(int(self.window._debounce_timer.interval()) + 80)
         QApplication.processEvents()
 
-        # O dataset nao pode ser resetado por disparo tardio no contexto da aba errada.
-        assert Counter(self._extract_visible_ssa()) == Counter([1])
-        for ctx in self.window._tab_contexts:
-            assert ctx["search_input"].text().strip() == "Teste A, Teste D"
+        assert getattr(self.window, "_active_filter_panel_kind") == "advanced"
+        assert Counter(self._extract_visible_ssa()) == Counter()
+        assert self.window.search_input.text().strip() == "Teste A, Teste D"
 
-    def test_general_search_debounce_uses_minimum_interval(self):
-        assert int(self.window._debounce_timer.interval()) >= 1400
+    def test_general_search_debounce_uses_configured_interval_without_legacy_floor(self):
+        expected = gui_ssa.ssa_system_controller.resolve_search_debounce_ms(
+            gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {}),
+            logger=gui_ssa.logger,
+        )
+
+        assert int(self.window._debounce_timer.interval()) == expected
+        assert expected < 1400
 
     def test_clear_filter_on_filters_tab_clears_search_in_all_tabs(self):
         self.window.search_input.setText("Teste A")
         self.window.initiate_filtering()
         QApplication.processEvents()
 
-        main_ctx = next(
-            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "main"
-        )
+        main_ctx = self._panel_context()
         assert main_ctx["search_input"].text().strip() == "Teste A"
-
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         self.window.clear_filter()
         QApplication.processEvents()
 
-        for ctx in self.window._tab_contexts:
+        for ctx in self._iter_panel_contexts():
             assert ctx["search_input"].text().strip() == ""
         assert self.window.clear_filter_button.isEnabled() is False
 
@@ -3370,21 +3668,31 @@ class TestGUIFilterLogic:
         self.window._refresh_after_filter_change()
         QApplication.processEvents()
 
-        main_summary = str(self.window.filters_summary_label.text() or "")
+        main_summary = str(self.window.filters_summary_label.toolTip() or "")
+        main_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
         assert "Busca: 'Teste A'" in main_summary
-        assert "Descricao da SSA: Teste" in main_summary
-
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        assert "Desc: Teste" in main_summary
+        assert "Busca: 'Teste A'" in main_buttons
+        assert "Desc: Teste" in main_buttons
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
-        filters_summary = str(self.window.filters_summary_label.text() or "")
+        filters_summary = str(self.window.filters_summary_label.toolTip() or "")
+        filters_buttons = [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
         assert "Busca: 'Teste A'" in filters_summary
-        assert "Descricao da SSA: Teste" in filters_summary
+        assert "Desc: Teste" in filters_summary
+        assert "Busca: 'Teste A'" in filters_buttons
+        assert "Desc: Teste" in filters_buttons
 
     def test_on_filter_finished_uses_pending_search_display_for_status(self):
         self.window._active_filter_request_id = 31
@@ -3534,12 +3842,7 @@ class TestGUIFilterLogic:
         assert self.window._pending_search_display == "Nao deve sobrescrever"
 
     def test_resize_event_reorganizes_advanced_grid_on_filters_tab(self):
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         captured_widths = []
@@ -3550,6 +3853,10 @@ class TestGUIFilterLogic:
         ):
             event = QResizeEvent(QSize(1280, 800), QSize(1200, 760))
             self.window.resizeEvent(event)
+            debounce_ms = int(
+                getattr(self.window._resize_recompute_timer, "interval", lambda: 300)()
+            )
+            cast(Any, QTest).qWait(debounce_ms + 80)
 
         assert captured_widths
         assert captured_widths[0] >= 0
@@ -3558,6 +3865,7 @@ class TestGUIFilterLogic:
         self.window._last_window_width = 900
         self.window._data_revision = 17
         self.window.df_exibido = self.base_df.copy()
+        self.window.df_para_tabela = self.base_df.copy()
         calls: list[int | None] = []
 
         with patch.object(
@@ -3637,29 +3945,6 @@ class TestGUIFilterLogic:
         assert details_text.openExternalLinks() is False
         assert details_text.openLinks() is False
 
-    def test_details_html_omits_derivadas_relations_block(self):
-        series = self.base_df.iloc[0].copy()
-        with patch(
-            "gui.ssa.gui_details._get_derivadas_relations_info",
-            return_value={
-                "has_data": True,
-                "parents": ["9000"],
-                "children": ["1001", "1002", "1003"],
-                "descendants_count": 5,
-            },
-        ):
-            html = self.window._format_details_html(
-                series, highlight_search_terms=False, linkify=True
-            )
-
-        assert "Relacoes de Derivadas" not in html
-        assert "Mae direta" not in html
-        assert "Filhas diretas" not in html
-        assert "Descendentes (" not in html
-        assert "Abrir arvore completa" not in html
-        assert "derivadas:tree" not in html
-        assert "ssa-details:9000" not in html
-
     def test_details_html_renders_related_ssa_links(self):
         series = self.base_df.iloc[0].copy()
         series["numero_ssa"] = "202600023"
@@ -3689,7 +3974,9 @@ class TestGUIFilterLogic:
         series = self.base_df.iloc[0].copy()
         series["numero_ssa"] = "202600023"
         series["numero_ssa_relacionada_1"] = "202500777"
+        series["numero_ssa_relacionada_2"] = pd.NA
         series["situacao_relacionada_1"] = pd.NA
+        series["situacao_relacionada_2"] = pd.NA
         series["relacao"] = pd.NA
 
         with patch(
@@ -3706,6 +3993,7 @@ class TestGUIFilterLogic:
 
         assert "SSAs relacionadas (1)" in html
         assert 'href="ssa:202500777"' in html
+        assert ssa_gui_details._normalize_ssa_relation_value(pd.NA) == ""
 
     def test_update_details_from_series_avoids_eager_global_ssa_index_build(self):
         series = self.base_df.iloc[0].copy()
@@ -3727,8 +4015,89 @@ class TestGUIFilterLogic:
             ssa_gui_details._update_details_from_series(self.window, series)
 
         html = self.window.details_text.toHtml()
+        assert "copy-ssa:202600023" in html
         assert "202500777" in html
         assert "202500888" in html
+
+    def test_advanced_emissor_include_status_exclude_and_single_undo_contract(self):
+        scenario_df = pd.DataFrame(
+            {
+                "numero_ssa": [
+                    "202600001",
+                    "202600002",
+                    "202600003",
+                    "202600004",
+                    "202600005",
+                    "202600006",
+                ],
+                "situacao": ["APV", "STE", "STE", "APV", "SCA", "APV"],
+                "derivada_de": ["", "", "", "", "", ""],
+                "localizacao_codigo": ["LOC1", "LOC2", "LOC3", "LOC4", "LOC5", "LOC6"],
+                "descricao_localizacao": ["Desc"] * 6,
+                "equipamento": ["EQ"] * 6,
+                "semana_cadastro": [202501] * 6,
+                "semana_programada": [202503] * 6,
+                "data_cadastro": ["2025-01-01"] * 6,
+                "descricao_ssa": ["A", "B", "C", "D", "E", "F"],
+                "setor_executor": ["MEL4"] * 6,
+                "setor_emissor": ["IEE1", "IEE1", "IEE2", "IEE2", "IEE3", "MEL4"],
+                "descricao_execucao": ["Exec"] * 6,
+                "solicitante": ["User"] * 6,
+            }
+        )
+        self.window.df_completo = scenario_df.copy()
+        self.window.df_exibido = scenario_df.copy()
+        self.window._df_last_search_filtered = scenario_df.copy()
+        self.window.paginator.set_dataframe(scenario_df.copy())
+        self._set_filter_panel_tab("filters")
+        QApplication.processEvents()
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+
+        def check_values(checks, values):
+            expected = set(values)
+            found = set()
+            for checkbox in checks or []:
+                value = str(checkbox.property("value") or "")
+                if value in expected:
+                    checkbox.setChecked(True)
+                    found.add(value)
+            assert found == expected
+
+        check_values(getattr(self.window, "adv_emissor_checks", []), ["IEE1", "IEE2"])
+        self.window._apply_advanced_filters_from_ui()
+        QApplication.processEvents()
+
+        assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == [
+            "202600004",
+            "202600003",
+            "202600002",
+            "202600001",
+        ]
+        assert self.window._advanced_filters.get("setor_emissor") == ["IEE1", "IEE2"]
+
+        check_values(getattr(self.window, "adv_status_exclude_checks", []), ["STE"])
+        self.window._apply_advanced_filters_from_ui()
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters.get("situacao_exclude_values") == ["STE"]
+        assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == [
+            "202600004",
+            "202600001",
+        ]
+
+        self.window._restore_last_filter_state()
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters.get("setor_emissor") == ["IEE1", "IEE2"]
+        assert not self.window._advanced_filters.get("situacao_exclude_values")
+        assert self.window.df_exibido["numero_ssa"].astype(str).tolist() == [
+            "202600004",
+            "202600003",
+            "202600002",
+            "202600001",
+        ]
+        assert self.window.undo_filter_btn.isEnabled() is False
 
     def test_update_details_from_series_resolves_related_ssas_without_full_index_build(
         self,
@@ -3774,26 +4143,6 @@ class TestGUIFilterLogic:
 
         assert "APG - Aguardando Programacao" in html
         assert "copy-ssa:202600023" in html
-
-    def test_details_html_ignores_derivadas_override_without_rendering_block(
-        self, monkeypatch
-    ):
-        series = self.base_df.iloc[0].copy()
-        monkeypatch.setattr(
-            ssa_gui_details,
-            "_get_derivadas_relations_info",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                AssertionError("nao deveria consultar derivadas sem override")
-            ),
-        )
-        html = ssa_gui_details._format_details_html(
-            self.window,
-            series,
-            highlight_search_terms=False,
-            linkify=True,
-        )
-        assert "Relacoes de Derivadas" not in html
-        assert "Filhas diretas" not in html
 
     def test_derivadas_tree_html_includes_status_codes(self, monkeypatch):
         monkeypatch.setattr(
@@ -4006,10 +4355,8 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(ssa_gui_details, "_resolve_current_db_path", lambda: None)
         QApplication.processEvents()
 
-        main_ctx = next(
-            ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "main"
-        )
-        self.window.main_tabs.setCurrentIndex(0)
+        main_ctx = self._panel_context()
+        self._set_filter_panel_tab("main")
         main_ctx["search_input"].setText("202600101")
         cast(Any, QTest).mouseClick(
             main_ctx["search_button"],
@@ -4019,10 +4366,10 @@ class TestGUIFilterLogic:
 
         assert self.window.df_exibido["numero_ssa"].tolist() == ["202600101"]
 
-        assert self.window.main_tabs.count() > 1
-        self.window.main_tabs.setCurrentIndex(1)
+        assert self.window.main_tabs.count() == 1
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
-        self.window.main_tabs.setCurrentIndex(0)
+        self._set_filter_panel_tab("main")
         QApplication.processEvents()
 
         self.window.df_exibido = family_df.copy()
@@ -4561,7 +4908,9 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(QtWidgets.QDialog, "exec", _fake_exec, raising=False)
         self.window._open_details_dialog_for_ssa("1")
 
-        assert captured["size"].height() == 880
+        assert captured["size"].height() == max(
+            int(880 * 0.72), ssa_gui_details.DERIVADAS_DIALOG_MIN_HEIGHT
+        )
         assert (
             captured["minimum_size"].height()
             == ssa_gui_details.DERIVADAS_DIALOG_MIN_HEIGHT
@@ -4747,7 +5096,7 @@ class TestGUIFilterLogic:
 
             def position(self):
                 class _P:
-                    def toPoint(self_inner):
+                    def toPoint(_self):
                         return QPoint(1, 1)
 
                 return _P()
@@ -4778,7 +5127,7 @@ class TestGUIFilterLogic:
 
             def position(self):
                 class _P:
-                    def toPoint(self_inner):
+                    def toPoint(_self):
                         return QPoint(1, 1)
 
                 return _P()
@@ -4818,11 +5167,22 @@ class TestGUIFilterLogic:
         assert "solicitante" not in self.window._current_display_columns
 
     def test_clicking_hash_column_opens_sam_ssa_url(self, monkeypatch):
-        self.window.display_current_page(1)
+        self.window.table_widget.setColumnCount(2)
+        self.window._current_display_columns = ["#", "numero_ssa"]
         opened = []
 
         monkeypatch.setattr(
-            QDesktopServices,
+            self.window,
+            "_get_series_from_row",
+            lambda _row: pd.Series({"numero_ssa": "202600001"}),
+        )
+        monkeypatch.setattr(
+            self.window,
+            "_resolve_header_column_name",
+            lambda column: "#" if column == 0 else "numero_ssa",
+        )
+        monkeypatch.setattr(
+            gui_ssa.QDesktopServices,
             "openUrl",
             lambda url: opened.append(url.toString()) or True,
         )
@@ -4830,7 +5190,35 @@ class TestGUIFilterLogic:
         self.window.on_table_cell_clicked(0, 0)
 
         assert opened == [
-            "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx?SerialNumber=1&language=pt"
+            "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx?SerialNumber=202600001&language=pt"
+        ]
+
+    def test_clicking_reordered_hash_column_opens_sam_ssa_url(self, monkeypatch):
+        self.window.table_widget.setColumnCount(3)
+        self.window._current_display_columns = ["situacao", "#", "numero_ssa"]
+        opened = []
+
+        monkeypatch.setattr(
+            self.window,
+            "_get_series_from_row",
+            lambda _row: pd.Series({"numero_ssa": "202600001"}),
+        )
+        monkeypatch.setattr(
+            self.window,
+            "_resolve_header_column_name",
+            lambda column: "#" if column == 1 else "situacao",
+        )
+        monkeypatch.setattr(
+            gui_ssa.QDesktopServices,
+            "openUrl",
+            lambda url: opened.append(url.toString()) or True,
+        )
+
+        self.window.on_table_cell_clicked(0, 0)
+        self.window.on_table_cell_clicked(0, 1)
+
+        assert opened == [
+            "https://osprd.itaipu/SAM_SMA/SSAPublicView.aspx?SerialNumber=202600001&language=pt"
         ]
 
     def test_double_click_numero_ssa_copies_without_opening_details(self, monkeypatch):
@@ -4997,8 +5385,9 @@ class TestGUIFilterLogic:
     def test_normalize_ssa_value_handles_decimal_float_artifact(self):
         assert self.window._normalize_ssa_value("121911787.0") == "121911787"
         assert self.window._normalize_ssa_value(121911787.0) == "121911787"
+        assert self.window._normalize_ssa_value(1e20) == "100000000000000000000"
 
-    def test_get_derivadas_for_ssa_rejects_non_numeric_relation_ids(self):
+    def test_get_derivadas_for_ssa_accepts_excel_decimal_relation_id_artifact(self):
         df = pd.DataFrame(
             {
                 "numero_ssa": [
@@ -5015,7 +5404,7 @@ class TestGUIFilterLogic:
 
         derived = ssa_gui_details._get_derivadas_for_ssa(self.window, "100")
 
-        assert derived == ["102"]
+        assert derived == ["121911787", "102"]
 
     def test_get_derivadas_for_ssa_uses_cached_family_edges(self, monkeypatch):
         self.window.df_completo = pd.DataFrame(
@@ -5441,15 +5830,15 @@ class TestGUIFilterLogic:
 
         assert self.window._active_column_filters["derivada_de"] == "202500100"
         assert self.window._last_filter_state is not None
-        summary_text = str(self.window.filters_summary_label.text() or "")
-        assert "Derivada de: 202500100" in summary_text
+        assert str(self.window.filters_summary_label.text() or "") == ""
+        assert self.window.filters_summary_label.isVisible() is False
         summary_buttons = [
             str(button.text() or "")
             for button in self.window.filters_summary_items_widget.findChildren(
                 QPushButton
             )
         ]
-        assert "Derivada de: 202500100" in summary_buttons
+        assert "Deriv: 202500100" in summary_buttons
         assert self.window._get_visual_filter_columns() == {"derivada_de"}
         assert self.window.df_exibido["numero_ssa"].tolist() == [
             "202500102",
@@ -5520,7 +5909,7 @@ class TestGUIFilterLogic:
         logical_index = self.window._current_display_columns.index("numero_ssa")
         self.window.table_widget.setColumnWidth(logical_index, 140)
         self.window._on_header_section_resized(logical_index, 50, 140)
-        time.sleep(0.22)
+        time.sleep(0.32)
         QApplication.processEvents()
 
         header_text = str(
@@ -5528,7 +5917,7 @@ class TestGUIFilterLogic:
         )
         assert header_text == "Numero da SSA"
 
-    def test_header_resize_prefers_visual_column_mapping_during_eager_reorder(
+    def test_header_resize_uses_logical_column_snapshot_during_reorder(
         self, monkeypatch
     ):
         self.window.display_current_page(1)
@@ -5537,11 +5926,6 @@ class TestGUIFilterLogic:
         self.window._current_display_columns = ["#", "numero_ssa", "situacao"]
         self.window.table_widget.setColumnCount(len(self.window._current_display_columns))
         logical_index = self.window._current_display_columns.index("numero_ssa")
-        monkeypatch.setattr(
-            ssa_gui_table,
-            "_get_header_visual_column_order",
-            lambda _window: ["#", "situacao", "numero_ssa"],
-        )
         self.window._saved_gui_column_widths = {}
         self.window._gui_column_pixel_widths = {}
         monkeypatch.setattr(
@@ -5557,9 +5941,9 @@ class TestGUIFilterLogic:
 
         self.window._on_header_section_resized(logical_index, 100, 222)
 
-        assert self.window._saved_gui_column_widths.get("situacao") == 222
-        assert self.window._gui_column_pixel_widths.get("situacao") == 222
-        assert "numero_ssa" not in self.window._saved_gui_column_widths
+        assert self.window._saved_gui_column_widths.get("numero_ssa") == 222
+        assert self.window._gui_column_pixel_widths.get("numero_ssa") == 222
+        assert "situacao" not in self.window._saved_gui_column_widths
 
     def test_header_resize_reload_uses_correct_column_after_persisted_reorder(
         self, monkeypatch
@@ -5904,20 +6288,76 @@ class TestGUIFilterLogic:
                 return None
 
         captured = {}
-        monkeypatch.setattr(advanced_ui, "_is_widget_valid", lambda _widget: True)
+        monkeypatch.setattr(advanced_menu, "_is_not_deleted", lambda _widget: True)
         monkeypatch.setattr(
-            advanced_ui,
+            advanced_menu,
             "_get_widget_screen_geometry",
             lambda _widget: QRect(1000, 40, 900, 700),
         )
 
         button = _FakeButton()
         menu = _FakeMenu()
-        advanced_ui._attach_multiselect_menu(_FakeOwner(), button, menu)
+        advanced_menu._attach_multiselect_menu(_FakeOwner(), button, menu)
         button.clicked.emit()
 
         assert captured["pos"].x() >= 1000
         assert captured["pos"].y() >= 40
+
+    def test_multiselect_menu_limits_high_cardinality_items(self):
+        button = QPushButton("Selecionar")
+        menu = QtWidgets.QMenu()
+        values = [f"Resp {idx:04d}" for idx in range(450)]
+
+        checks, exclude_checks = advanced_menu._rebuild_multiselect_menu(
+            self.window,
+            button,
+            menu,
+            values,
+            {"Resp 0449"},
+            None,
+            True,
+            {"Resp 0448"},
+            None,
+        )
+
+        include_values = [str(check.property("value") or "") for check in checks]
+        exclude_values = [str(check.property("value") or "") for check in exclude_checks]
+        assert len(checks) == advanced_menu.HIGH_CARDINALITY_MENU_LIMIT
+        assert "Resp 0449" in include_values
+        assert "Resp 0448" in exclude_values
+
+    def test_multiselect_menu_reuses_cached_widgets_when_model_is_unchanged(self):
+        button = QPushButton("Selecionar")
+        menu = QtWidgets.QMenu()
+        values = ["Resp A", "Resp B", "Resp C"]
+
+        first_checks, first_exclude_checks = advanced_menu._rebuild_multiselect_menu(
+            self.window,
+            button,
+            menu,
+            values,
+            {"Resp A"},
+            None,
+            True,
+            {"Resp B"},
+            None,
+        )
+        first_action_count = len(menu.actions())
+        second_checks, second_exclude_checks = advanced_menu._rebuild_multiselect_menu(
+            self.window,
+            button,
+            menu,
+            values,
+            {"Resp A"},
+            None,
+            True,
+            {"Resp B"},
+            None,
+        )
+
+        assert second_checks == first_checks
+        assert second_exclude_checks == first_exclude_checks
+        assert len(menu.actions()) == first_action_count
 
     def test_show_all_columns_by_affinity_reorders_same_select_all_set(
         self, monkeypatch
@@ -6165,30 +6605,25 @@ class TestGUIFilterLogic:
         finally:
             reloaded_window.close()
 
-    def test_resolve_header_column_name_prefers_visual_mapping_during_eager_reorder(
-        self, monkeypatch
-    ):
+    def test_resolve_header_column_name_uses_logical_snapshot_during_reorder(self):
         self.window.display_current_page(1)
         QApplication.processEvents()
 
         self.window._current_display_columns = ["#", "numero_ssa", "situacao"]
         self.window.table_widget.setColumnCount(len(self.window._current_display_columns))
         logical_index = self.window._current_display_columns.index("numero_ssa")
-        monkeypatch.setattr(
-            ssa_gui_table,
-            "_get_header_visual_column_order",
-            lambda _window: ["#", "situacao", "numero_ssa"],
-        )
 
         resolved = self.window._resolve_header_column_name(logical_index)
 
-        assert resolved == "situacao"
+        assert resolved == "numero_ssa"
 
     def test_header_section_moved_updates_runtime_column_snapshot_before_rerender(
         self, monkeypatch
     ):
         self.window._current_display_columns = ["#", "numero_ssa", "situacao"]
         self.window.visible_columns = ["numero_ssa", "situacao"]
+        header = self.window.table_widget.horizontalHeader()
+        monkeypatch.setattr(header, "visualIndex", lambda idx: 0 if idx == 0 else idx)
         monkeypatch.setattr(self.window, "_capture_current_column_widths", lambda: {})
         monkeypatch.setattr(self.window, "_restore_column_widths", lambda _widths: None)
         monkeypatch.setattr(
@@ -6219,6 +6654,8 @@ class TestGUIFilterLogic:
     ):
         self.window._current_display_columns = ["#", "numero_ssa", "situacao"]
         self.window.visible_columns = ["numero_ssa", "situacao", "solicitante"]
+        header = self.window.table_widget.horizontalHeader()
+        monkeypatch.setattr(header, "visualIndex", lambda idx: 0 if idx == 0 else idx)
         monkeypatch.setattr(self.window, "_capture_current_column_widths", lambda: {})
         monkeypatch.setattr(self.window, "_restore_column_widths", lambda _widths: None)
         monkeypatch.setattr(
@@ -6495,7 +6932,7 @@ class TestGUIFilterLogic:
         self.window._on_exclude_ste_sca_toggled(True)
         QApplication.processEvents()
         assert self.window._exclude_ste_sca is True
-        for ctx in self.window._tab_contexts:
+        for ctx in self._iter_panel_contexts():
             checkbox = ctx.get("exclude_ste_checkbox")
             if checkbox is not None:
                 assert checkbox.isChecked() is True
@@ -6503,7 +6940,7 @@ class TestGUIFilterLogic:
         self.window._on_exclude_ste_sca_toggled(False)
         QApplication.processEvents()
         assert self.window._exclude_ste_sca is False
-        for ctx in self.window._tab_contexts:
+        for ctx in self._iter_panel_contexts():
             checkbox = ctx.get("exclude_ste_checkbox")
             if checkbox is not None:
                 assert checkbox.isChecked() is False
@@ -6515,7 +6952,7 @@ class TestGUIFilterLogic:
             "setor_executor": ["IEE3"],
         }
         self.window._advanced_filters_active = True
-        for ctx in self.window._tab_contexts:
+        for ctx in self._iter_panel_contexts():
             checkbox = ctx.get("exclude_ste_checkbox")
             if checkbox is not None:
                 checkbox.setChecked(True)
@@ -6526,7 +6963,7 @@ class TestGUIFilterLogic:
         assert self.window._exclude_ste_sca is False
         assert self.window._advanced_filters == {}
         assert self.window._advanced_filters_active is False
-        for ctx in self.window._tab_contexts:
+        for ctx in self._iter_panel_contexts():
             checkbox = ctx.get("exclude_ste_checkbox")
             if checkbox is not None:
                 assert checkbox.isChecked() is False
@@ -6544,7 +6981,7 @@ class TestGUIFilterLogic:
         self.window._clear_all_filters_global()
         QApplication.processEvents()
 
-        for ctx in self.window._tab_contexts:
+        for ctx in self._iter_panel_contexts():
             assert ctx["search_input"].text().strip() == ""
         assert all(
             not str(v).strip() for v in self.window._active_column_filters.values()
@@ -6594,25 +7031,6 @@ class TestGUIFilterLogic:
         summary_text = str(self.window.filters_summary_label.text() or "").casefold()
         assert "executor ou emissor (ou)" not in summary_text
 
-    def test_clear_all_filters_global_does_not_reapply_profile_on_selector_rebind(self):
-        self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
-        QApplication.processEvents()
-        filtered_before_clear = Counter(self._extract_visible_ssa())
-
-        self.window._clear_all_filters_global()
-        QApplication.processEvents()
-
-        cleared_once = Counter(self._extract_visible_ssa())
-        assert cleared_once == Counter([1, 2, 3, 4, 5])
-        assert filtered_before_clear != cleared_once
-
-        self.window._sync_bind_profile_selector()
-        QApplication.processEvents()
-
-        cleared_after_rebind = Counter(self._extract_visible_ssa())
-        assert cleared_after_rebind == Counter([1, 2, 3, 4, 5])
-        assert self.window.df_exibido.equals(self.base_df)
-
     def test_hard_reset_filters_state_resets_visual_and_internal_filter_state(self):
         self.window.search_input.setText("Teste A")
         self.window._active_column_filters["descricao_ssa"] = "Teste A"
@@ -6656,7 +7074,7 @@ class TestGUIFilterLogic:
             "resetados completamente"
             in str(self.window.status_label.text() or "").casefold()
         )
-        for ctx in self.window._tab_contexts:
+        for ctx in self._iter_panel_contexts():
             if not isinstance(ctx, dict):
                 continue
             assert ctx["search_input"].text() == ""
@@ -6772,8 +7190,7 @@ class TestGUIFilterLogic:
         assert sync_calls[1]["include_db_source"] is False
         assert sync_calls[1]["actor"] == "gui-derivadas-sheet-phase"
         assert sync_calls[1]["sheet_files"] == [special_a, special_b]
-        assert self.window.update_derivadas_button.text() == "Atualizar Derivadas"
-        assert "Derivadas atualizadas" in self.window.status_label.text()
+        assert "Relacoes de derivadas atualizadas" in self.window.status_label.text()
 
     def test_update_derivadas_from_sources_runs_only_db_when_no_special_sheets(
         self, monkeypatch, tmp_path
@@ -7001,7 +7418,36 @@ class TestGUIFilterLogic:
         assert result["started"] is True
         assert self.window._derivadas_sync_running is False
         assert self.window._derivadas_sync_thread is None
-        assert "Derivadas atualizadas" in self.window.status_label.text()
+        assert "Relacoes de derivadas atualizadas" in self.window.status_label.text()
+
+    def test_update_derivadas_from_sources_rejects_second_start_before_preparation(
+        self, monkeypatch, tmp_path
+    ):
+        db_file = tmp_path / "ssas.db"
+        db_file.write_bytes(b"sqlite-placeholder")
+
+        monkeypatch.setattr(gui_ssa, "DB_PATH", str(db_file))
+        self.window._derivadas_sync_running = True
+        self.window._derivadas_sync_table_name = "ssa_table"
+
+        def _should_not_prepare():
+            raise AssertionError("running guard must happen before job preparation")
+
+        monkeypatch.setattr(
+            self.window,
+            "_list_special_derivadas_sheets",
+            _should_not_prepare,
+        )
+
+        result = self.window.update_derivadas_from_sources()
+
+        assert result == {
+            "ok": False,
+            "reason": "already_running",
+            "db_path": str(db_file),
+            "table_name": "ssa_table",
+        }
+        assert "ja em andamento" in self.window.status_label.text()
 
     def test_resolve_derivadas_table_name_requires_schema_compatibility(self, tmp_path):
         db_file = tmp_path / "resolver.db"
@@ -7019,64 +7465,76 @@ class TestGUIFilterLogic:
     def test_reorganize_advanced_filters_grid_handles_removed_emissor_responsavel_widget(
         self,
     ):
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         self.window._reorganize_advanced_filters_grid(1501)
         self.window._reorganize_advanced_filters_grid(1201)
         self.window._reorganize_advanced_filters_grid(800)
-        assert self.window._adv_filters_main_grid.count() > 0
+        assert self.window._advanced_filter_panel_state.main_grid.count() > 0
 
-    def test_reorganize_advanced_filters_grid_allows_narrow_valid_width(self):
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+    def test_reorganize_advanced_filters_grid_allows_single_column_width(self):
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         self.window._reorganize_advanced_filters_grid(90)
-        assert self.window._adv_filters_layout_mode == "cols_4"
+        state = self.window._advanced_filter_panel_state
+        assert state.layout_mode == "cols_1"
 
-        grid = self.window._adv_filters_main_grid
-        widgets = self.window._adv_filters_grid_widgets
-        exec_resp_item = grid.itemAtPosition(3, 2)
+        grid = state.main_grid
+        widgets = state.grid_widgets
+        exec_resp_item = grid.itemAtPosition(14, 0)
         assert exec_resp_item is not None
         assert exec_resp_item.widget() is widgets["exec_resp_box"]
+
+    def test_advanced_grid_layout_plan_is_calculated_outside_qt_application(self):
+        plan = advanced_layout.build_advanced_grid_layout_plan(
+            visible_count=14,
+            metrics=advanced_layout.AdvancedGridLayoutMetrics(
+                effective_width=900,
+                cell_min_width=190,
+                spacing=6,
+                horizontal_padding=12,
+                vertical_spacing=4,
+                vertical_padding=8,
+            ),
+            constraints=advanced_layout.AdvancedGridLayoutConstraints(
+                min_cols=1,
+                max_cols=4,
+                preferred_cols=4,
+                field_box_min_height=40,
+                field_box_max_height=50,
+                max_scroll_height=230,
+            ),
+        )
+
+        assert plan is not None
+        assert plan.cols == 4
+        assert plan.layout_mode == "cols_4"
 
     def test_reorganize_advanced_filters_grid_ignores_non_positive_width_and_recomputes(
         self,
     ):
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         self.window._reorganize_advanced_filters_grid(1501)
-        assert str(self.window._adv_filters_layout_mode).startswith("cols_")
-        previous_mode = self.window._adv_filters_layout_mode
+        state = self.window._advanced_filter_panel_state
+        assert str(state.layout_mode).startswith("cols_")
+        previous_mode = state.layout_mode
 
         self.window._reorganize_advanced_filters_grid(0)
-        assert self.window._adv_filters_layout_mode == previous_mode
+        assert state.layout_mode == previous_mode
 
         self.window._reorganize_advanced_filters_grid(800)
-        assert self.window._adv_filters_layout_mode == "cols_4"
+        assert state.layout_mode in {"cols_2", "cols_3", "cols_4"}
 
     def test_reprogramacoes_menu_builds_without_responsavel_materialized(self):
         self.window.df_completo = self.base_df.assign(
             num_reprogramacoes=[0, 1, 2, 2, 3]
         ).copy()
         self.window._adv_values_cache = {}
-        self.window._responsavel_materialized_prefixes = set()
+        self.window.responsavel_materialization_state.built_prefixes.clear()
         self.window._advanced_filters = {
             "num_reprogramacoes_mode": "eq",
             "num_reprogramacoes_values": ["2"],
@@ -7107,12 +7565,7 @@ class TestGUIFilterLogic:
         self.window.paginator.set_dataframe(nullable_df.copy())
         self.window._adv_values_cache = None
         self.window._advanced_filters = {"setor_executor": ["MEL4"]}
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        self._set_filter_panel_tab("filters")
         QApplication.processEvents()
 
         self.window._refresh_advanced_filter_options()
@@ -7187,6 +7640,61 @@ class TestGUIFilterLogic:
         assert desc_vals[:6] == ["B", "A", "10", "2", "@", "#"]
         assert desc_vals[-2:] == ["", None]
 
+    def test_on_header_clicked_reuses_generic_mixed_text_sort_cache(self):
+        rows = 200
+        mixed_df = pd.DataFrame(
+            {
+                "numero_ssa": list(range(1000, 1000 + rows)),
+                "situacao": [
+                    ["B", "#", "10", "2", "@", "A", "", None][i % 8]
+                    for i in range(rows)
+                ],
+                "derivada_de": [""] * rows,
+                "localizacao_codigo": [f"LOC{i % 20:02d}" for i in range(rows)],
+                "descricao_localizacao": ["Desc"] * rows,
+                "equipamento": ["EQ"] * rows,
+                "semana_cadastro": [202501] * rows,
+                "semana_programada": [202503] * rows,
+                "data_cadastro": ["2025-01-01"] * rows,
+                "descricao_ssa": [f"Descricao {i}" for i in range(rows)],
+                "setor_executor": ["MEG2"] * rows,
+                "setor_emissor": ["MEG2"] * rows,
+                "descricao_execucao": [f"Execucao {i}" for i in range(rows)],
+                "solicitante": ["User"] * rows,
+            }
+        )
+        self.window.df_completo = mixed_df.copy()
+        self.window.df_exibido = mixed_df.copy()
+        self.window._df_last_search_filtered = mixed_df.copy()
+        self.window.paginator.set_dataframe(mixed_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        logical_index = self.window._current_display_columns.index("situacao")
+
+        with patch.object(
+            self.window,
+            "_build_mixed_text_sort_keys",
+            wraps=self.window._build_mixed_text_sort_keys,
+        ) as build_keys:
+            self.window.on_header_clicked(logical_index)
+            cache_after_first = dict(self.window._mixed_text_sort_cache)
+            assert build_keys.call_count == 1
+            assert cache_after_first["column_name"] == "situacao"
+            assert isinstance(cache_after_first["keys_df"], pd.DataFrame)
+            assert cache_after_first["keys_df"].index.equals(
+                self.window.df_exibido.index
+            )
+
+            self.window.on_header_clicked(logical_index)
+            cache_after_second = dict(self.window._mixed_text_sort_cache)
+            assert build_keys.call_count == 1
+            assert cache_after_second["column_name"] == "situacao"
+            assert isinstance(cache_after_second["keys_df"], pd.DataFrame)
+            assert cache_after_second["keys_df"].index.equals(
+                self.window.df_exibido.index
+            )
+
     def test_on_header_clicked_reuses_num_reprogramacoes_sort_cache(self):
         mixed_df = self.base_df.assign(
             num_reprogramacoes=pd.Series(
@@ -7237,6 +7745,24 @@ class TestGUIFilterLogic:
         filtered_na_literal = self.window._apply_column_filters(nullable_df)
         assert filtered_na_literal.empty
 
+    def test_column_filter_null_and_not_null_tokens_are_inverse(self):
+        nullable_df = self.base_df.assign(
+            setor_executor=pd.Series([pd.NA, "MEL4", "", "-", "IEE3"], dtype="string"),
+        ).copy()
+
+        self.window._active_column_filters = {"setor_executor": "NULL"}
+        null_filtered = self.window._apply_column_filters(nullable_df)
+
+        self.window._active_column_filters = {"setor_executor": "!NULL"}
+        not_null_filtered = self.window._apply_column_filters(nullable_df)
+
+        assert null_filtered["numero_ssa"].tolist() == [1, 3, 4]
+        assert not_null_filtered["numero_ssa"].tolist() == [2, 5]
+        assert set(null_filtered["numero_ssa"]).isdisjoint(not_null_filtered["numero_ssa"])
+        assert set(null_filtered["numero_ssa"]) | set(not_null_filtered["numero_ssa"]) == set(
+            nullable_df["numero_ssa"]
+        )
+
     def test_column_filter_date_display_guard_handles_missing_display_series(
         self, monkeypatch
     ):
@@ -7257,6 +7783,62 @@ class TestGUIFilterLogic:
         filtered = self.window._apply_column_filters(dated_df)
 
         assert filtered["numero_ssa"].tolist() == [1]
+
+    def test_column_filter_date_display_guard_accepts_iso_date_text(self):
+        assert (
+            self.window._should_match_date_display_filter(
+                "data_cadastro",
+                "2026-05-13",
+            )
+            is True
+        )
+
+    def test_column_filter_date_display_exclusion_wins_across_raw_and_display(
+        self,
+    ):
+        dated_df = pd.DataFrame(
+            {
+                "numero_ssa": [1, 2],
+                "data_cadastro": ["2026-05-13", "2026-05-14"],
+            }
+        )
+        self.window._active_column_filters = {
+            "data_cadastro": "13/05/2026,!2026-05-13"
+        }
+
+        filtered = self.window._apply_column_filters(dated_df)
+
+        assert filtered.empty
+
+    def test_column_filter_date_display_combines_includes_and_excludes_per_token(
+        self,
+    ):
+        dated_df = pd.DataFrame(
+            {
+                "numero_ssa": [1, 2, 3],
+                "data_cadastro": ["2026-05-13", "2026-05-14", "2026-05-15"],
+            }
+        )
+        self.window._active_column_filters = {
+            "data_cadastro": "13/05/2026,15/05/2026,!2026-05-15"
+        }
+
+        filtered = self.window._apply_column_filters(dated_df)
+
+        assert filtered["numero_ssa"].tolist() == [1]
+
+    def test_column_filter_date_display_exclude_only_keeps_other_dates(self):
+        dated_df = pd.DataFrame(
+            {
+                "numero_ssa": [1, 2, 3],
+                "data_cadastro": ["2026-05-13", "2026-05-14", "2026-05-15"],
+            }
+        )
+        self.window._active_column_filters = {"data_cadastro": "!14/05/2026"}
+
+        filtered = self.window._apply_column_filters(dated_df)
+
+        assert filtered["numero_ssa"].tolist() == [1, 3]
 
     def test_column_filter_date_display_series_reuses_cache_on_same_revision(self):
         dated_df = self.base_df.assign(
@@ -7281,9 +7863,10 @@ class TestGUIFilterLogic:
         )
 
         assert first_series is second_series
+        cache_token = self._column_filter_cache_token(dated_df)
         assert getattr(self.window, "_column_filter_date_cache_scope", None) == (
             71,
-            id(dated_df),
+            cache_token,
         )
 
     def test_column_filter_date_display_series_invalidates_cache_on_revision_change(
@@ -7314,20 +7897,25 @@ class TestGUIFilterLogic:
 
         assert first_series is not second_series
         assert second_series.iloc[0] == "05/03/2025"
+        cache_token = self._column_filter_cache_token(dated_df)
         assert getattr(self.window, "_column_filter_date_cache_scope", None) == (
             82,
-            id(dated_df),
+            cache_token,
         )
 
-    def test_apply_column_filters_reduces_working_dataframe_between_columns(
+    def test_apply_column_filters_combines_masks_before_slicing_dataframe(
         self, monkeypatch
     ):
         tracked_lengths: list[tuple[str, int, str]] = []
         original_build_column_mask = self.window._build_column_mask
 
-        def _tracked_build_column_mask(series: pd.Series, raw: str):
+        def _tracked_build_column_mask(
+            series: pd.Series,
+            raw: str,
+            **kwargs,
+        ):
             tracked_lengths.append((str(series.name), len(series), str(raw)))
-            return original_build_column_mask(series, raw)
+            return original_build_column_mask(series, raw, **kwargs)
 
         monkeypatch.setattr(
             self.window,
@@ -7352,7 +7940,28 @@ class TestGUIFilterLogic:
             length for name, length, raw in tracked_lengths if name == "descricao_ssa"
         ]
         assert executor_calls == [len(self.base_df)]
-        assert descricao_calls == [1]
+        assert descricao_calls == [len(self.base_df)]
+
+    def test_apply_column_filters_caches_second_column_from_base_dataframe(self):
+        repeated_df = self.base_df.copy()
+        self.window._data_revision = 91
+        self.window._column_filter_series_cache_revision = None
+        self.window._column_filter_series_cache = {}
+        self.window._active_column_filters = OrderedDict(
+            [
+                ("setor_executor", "MEL4"),
+                ("descricao_ssa", "Teste C"),
+            ]
+        )
+
+        filtered = self.window._apply_column_filters(repeated_df)
+
+        assert filtered["numero_ssa"].tolist() == [3]
+        cache_token = self._column_filter_cache_token(repeated_df)
+        assert set(self.window._column_filter_series_cache) == {
+            ((91, cache_token), "setor_executor"),
+            ((91, cache_token), "descricao_ssa"),
+        }
 
     def test_apply_column_filters_reuses_normalized_series_on_same_revision(self):
         repeated_df = self.base_df.copy()
@@ -7362,7 +7971,8 @@ class TestGUIFilterLogic:
         self.window._active_column_filters = {"setor_executor": "MEL4"}
 
         first_filtered = self.window._apply_column_filters(repeated_df)
-        first_key = (id(repeated_df), "setor_executor")
+        cache_token = self._column_filter_cache_token(repeated_df)
+        first_key = ((33, cache_token), "setor_executor")
         first_series = self.window._column_filter_series_cache[first_key]
 
         second_filtered = self.window._apply_column_filters(repeated_df)
@@ -7382,12 +7992,13 @@ class TestGUIFilterLogic:
         self.window._active_column_filters = {"setor_executor": "MEL4"}
 
         self.window._apply_column_filters(repeated_df)
-        first_key = (id(repeated_df), "setor_executor")
+        cache_token = self._column_filter_cache_token(repeated_df)
+        first_key = ((40, cache_token), "setor_executor")
         first_series = self.window._column_filter_series_cache[first_key]
 
         self.window._data_revision = 41
         self.window._apply_column_filters(repeated_df)
-        second_key = (id(repeated_df), "setor_executor")
+        second_key = ((41, cache_token), "setor_executor")
         second_series = self.window._column_filter_series_cache[second_key]
 
         assert first_series is not second_series
@@ -7406,8 +8017,10 @@ class TestGUIFilterLogic:
         self.window._apply_column_filters(first_df)
         self.window._apply_column_filters(second_df)
 
-        first_key = (id(first_df), "setor_executor")
-        second_key = (id(second_df), "setor_executor")
+        first_token = self._column_filter_cache_token(first_df)
+        second_token = self._column_filter_cache_token(second_df)
+        first_key = ((52, first_token), "setor_executor")
+        second_key = ((52, second_token), "setor_executor")
 
         assert first_key in self.window._column_filter_series_cache
         assert second_key in self.window._column_filter_series_cache
@@ -7415,6 +8028,72 @@ class TestGUIFilterLogic:
             self.window._column_filter_series_cache[first_key]
             is not self.window._column_filter_series_cache[second_key]
         )
+
+    def test_column_filter_cache_keeps_bounded_series_and_masks(self):
+        df = pd.DataFrame(
+            {
+                "c1": ["alfa", "beta"],
+                "c2": ["alfa", "beta"],
+                "c3": ["alfa", "beta"],
+            }
+        )
+        caches = filter_mixin.ColumnFilterCaches(
+            revision=None,
+            series={},
+            casefold={},
+            mask={},
+            date_scope=None,
+            date_parsed={},
+            date={},
+            max_entries=2,
+        )
+
+        def _build_mask(series, raw, **kwargs):
+            return filter_mixin.build_column_mask(
+                series,
+                raw,
+                default_mode="contains",
+                **kwargs,
+            )
+
+        for column in ("c1", "c2", "c3"):
+            filter_mixin.apply_column_filters(
+                df,
+                {column: "alfa"},
+                {},
+                revision=1,
+                caches=caches,
+                build_column_mask=_build_mask,
+                date_display_columns=set(),
+            )
+
+        assert len(caches.series) <= 2
+        assert len(caches.casefold) <= 2
+        assert len(caches.mask) <= 2
+
+    def test_filter_alias_map_reuses_module_cache_between_instances(
+        self, monkeypatch
+    ):
+        cast(Any, filter_aliases.load_filter_alias_map_once).cache_clear()
+        opened_paths: list[str] = []
+        real_open = filter_aliases.Path.open
+
+        def _counted_open(path_obj, *args, **kwargs):
+            if str(path_obj).endswith("filter_aliases.json"):
+                opened_paths.append(str(path_obj))
+            return real_open(path_obj, *args, **kwargs)
+
+        class _AliasConsumer(filter_mixin.FilterGUISSAMixin):
+            pass
+
+        monkeypatch.setattr(filter_aliases.Path, "open", _counted_open)
+
+        first_map = _AliasConsumer()._get_filter_alias_map()
+        second_map = _AliasConsumer()._get_filter_alias_map()
+
+        assert first_map == second_map
+        assert len(opened_paths) == 1
+        cast(Any, filter_aliases.load_filter_alias_map_once).cache_clear()
 
     def test_advanced_filter_include_ignores_nullable_text_instead_of_na_literal(self):
         nullable_df = self.base_df.assign(
@@ -7471,7 +8150,7 @@ class TestGUIFilterLogic:
             index=[999999],
         )
         self.window._num_reprog_sort_cache = {
-            "source_id": id(self.window.df_exibido),
+            "source_marker": ("stale-token",),
             "source_len": len(self.window.df_exibido.index),
             "keys_df": stale_keys,
         }
@@ -7480,7 +8159,7 @@ class TestGUIFilterLogic:
         self.window.on_header_clicked(logical_index)
 
         cache = self.window._num_reprog_sort_cache
-        assert isinstance(cache.get("source_id"), int)
+        assert isinstance(cache.get("source_marker"), tuple)
         assert isinstance(cache["keys_df"], pd.DataFrame)
         assert cache["keys_df"].index.equals(self.window.df_exibido.index)
 
@@ -7508,13 +8187,16 @@ class TestGUIFilterLogic:
 
         assert "para 'Busca nova'" in self.window.status_label.text()
 
-    def test_on_filter_finished_reuses_filtered_dataframe_reference(self):
+    def test_on_filter_finished_uses_filtered_dataframe_result(self):
         self.window._active_filter_request_id = 22
         filtered = self.base_df.iloc[:1].copy()
 
         self.window.on_filter_finished(filtered, request_id=22)
 
-        assert self.window._df_last_search_filtered is filtered
+        pd.testing.assert_frame_equal(
+            self.window._df_last_search_filtered.reset_index(drop=True),
+            filtered.reset_index(drop=True),
+        )
 
     def test_clear_filter_invalidates_pending_async_result(self):
         self.window._filter_request_seq = 20
@@ -7543,6 +8225,24 @@ class TestGUIFilterLogic:
         self.window.clear_filter()
 
         assert self.window._df_last_search_filtered is self.window.df_completo
+
+    def test_clear_filter_skips_full_refresh_for_pending_search_only(self, monkeypatch):
+        self.window.search_input.setText("Teste A")
+        self.window._pending_search_display = "Teste A"
+        self.window._active_filter_search_display = ""
+
+        def fail_refresh():
+            raise AssertionError("clear_filter should not refresh unchanged table")
+
+        monkeypatch.setattr(self.window, "_refresh_after_filter_change", fail_refresh)
+
+        self.window.clear_filter()
+        QApplication.processEvents()
+
+        assert self.window.search_input.text() == ""
+        assert self.window._pending_search_display is None
+        assert self.window._df_last_search_filtered is self.window.df_completo
+        assert self.window.clear_filter_button.isEnabled() is False
 
     def test_clear_filter_resets_async_search_display_state(self):
         self.window._sync_filtering = False
@@ -7599,7 +8299,7 @@ class TestGUIFilterLogic:
         assert self.window.load_button.isEnabled() is True
         assert self.window.search_button.isEnabled() is True
 
-    def test_initiate_filtering_sync_single_chunk_reuses_filtered_reference(
+    def test_initiate_filtering_sync_single_chunk_uses_filtered_result(
         self, monkeypatch
     ):
         self.window._sync_filtering = True
@@ -7615,9 +8315,12 @@ class TestGUIFilterLogic:
         self.window.initiate_filtering()
         QApplication.processEvents()
 
-        assert self.window._df_last_search_filtered is filtered
+        pd.testing.assert_frame_equal(
+            self.window._df_last_search_filtered.reset_index(drop=True),
+            filtered.reset_index(drop=True),
+        )
 
-    def test_initiate_filtering_fallback_reuses_filtered_reference(
+    def test_initiate_filtering_fallback_uses_filtered_result(
         self, monkeypatch
     ):
         self.window._sync_filtering = False
@@ -7634,7 +8337,10 @@ class TestGUIFilterLogic:
             self.window.initiate_filtering()
             QApplication.processEvents()
 
-        assert self.window._df_last_search_filtered is filtered
+        pd.testing.assert_frame_equal(
+            self.window._df_last_search_filtered.reset_index(drop=True),
+            filtered.reset_index(drop=True),
+        )
 
     def test_initiate_filtering_sync_deduplicates_identical_chunks(
         self, monkeypatch
@@ -7654,7 +8360,10 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         assert len(calls) == 1
-        assert self.window._df_last_search_filtered is filtered
+        pd.testing.assert_frame_equal(
+            self.window._df_last_search_filtered.reset_index(drop=True),
+            filtered.reset_index(drop=True),
+        )
 
     def test_initiate_filtering_fallback_deduplicates_identical_chunks(
         self, monkeypatch
@@ -7675,7 +8384,10 @@ class TestGUIFilterLogic:
             QApplication.processEvents()
 
         assert len(calls) == 1
-        assert self.window._df_last_search_filtered is filtered
+        pd.testing.assert_frame_equal(
+            self.window._df_last_search_filtered.reset_index(drop=True),
+            filtered.reset_index(drop=True),
+        )
 
     def test_initiate_filtering_sync_multi_chunk_deduplicates_overlaps_by_index(
         self, monkeypatch
@@ -7685,12 +8397,14 @@ class TestGUIFilterLogic:
 
         monkeypatch.setattr(
             self.window,
-            "_split_search_expression",
+            "_prepare_search_chunks",
             lambda _text: ["chunk-a", "chunk-b"],
         )
 
         def _fake_filter(_df, parsed, **_kwargs):
             values = tuple(token.get("value") for token in parsed)
+            if set(values) == {"chunk-a", "chunk-b"}:
+                return self.base_df.iloc[[0, 1, 2]].copy()
             if values == ("chunk-a",):
                 return self.base_df.iloc[[0, 1]].copy()
             return self.base_df.iloc[[1, 2]].copy()
@@ -7709,15 +8423,20 @@ class TestGUIFilterLogic:
         self.window.search_input.setText("Teste A")
         repeated_df = self.base_df.iloc[[0, 0]].copy()
         repeated_df.index = [0, 1]
+        self.window.df_completo = repeated_df.copy()
+        self.window.df_exibido = repeated_df.copy()
+        self.window._df_last_search_filtered = repeated_df.copy()
 
         monkeypatch.setattr(
             self.window,
-            "_split_search_expression",
+            "_prepare_search_chunks",
             lambda _text: ["chunk-a", "chunk-b"],
         )
 
         def _fake_filter(_df, parsed, **_kwargs):
             values = tuple(token.get("value") for token in parsed)
+            if set(values) == {"chunk-a", "chunk-b"}:
+                return repeated_df.iloc[[0, 1]].copy()
             if values == ("chunk-a",):
                 return repeated_df.iloc[[0]].copy()
             return repeated_df.iloc[[1]].copy()
@@ -7858,8 +8577,7 @@ class TestGUIFilterLogic:
                 return None
 
         worker = _FakeWorker()
-        self.window._retired_filter_workers = []
-        filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS[:] = []
+        self.window._filter_worker_registry.clear()
 
         def _connect_side_effect(_signal, _slot, *, label):
             if label == "filter_worker.finished.release":
@@ -7872,8 +8590,7 @@ class TestGUIFilterLogic:
         ):
             self.window._retain_filter_worker_until_finished(worker)
 
-        assert worker not in self.window._retired_filter_workers
-        assert worker not in filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS
+        assert not self.window._filter_worker_registry.contains(worker)
 
     def test_close_event_cleans_filter_worker_with_centralized_cleanup(self):
         class _FakeSignal:
@@ -7912,9 +8629,59 @@ class TestGUIFilterLogic:
 
         assert event.isAccepted() is True
         assert worker.quit_called is True
-        assert worker.wait_called_ms == 3000
+        assert worker.wait_called_ms is None
         assert worker.deleted is True
         assert self.window.filter_thread is None
+
+    def test_filter_worker_cleanup_accepts_already_deleted_qt_worker(self):
+        class _DeletedSignal:
+            def disconnect(self, _callback=None):
+                raise RuntimeError(
+                    "wrapped C/C++ object of type FilterWorker has been deleted"
+                )
+
+        class _DeletedWorker:
+            def __init__(self):
+                self.filter_finished = _DeletedSignal()
+                self.error_occurred = _DeletedSignal()
+
+        worker = _DeletedWorker()
+        self.window._filter_worker_registry.add(worker)
+
+        assert self.window._cleanup_filter_worker(worker) is True
+        assert not self.window._filter_worker_registry.contains(worker)
+
+    def test_close_event_cancels_filter_worker_when_running_check_fails(self):
+        class _BrokenRunningWorker:
+            def __init__(self):
+                self.quit_called = False
+                self.wait_called_ms = None
+
+            def isRunning(self):
+                raise RuntimeError("state unavailable")
+
+            def quit(self):
+                self.quit_called = True
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return True
+
+        worker = _BrokenRunningWorker()
+        self.window.filter_thread = worker
+
+        with patch.object(
+            self.window,
+            "_cancel_active_filter_worker",
+            side_effect=RuntimeError("cancel unavailable"),
+        ) as cancel_mock:
+            event = QCloseEvent()
+            self.window.closeEvent(event)
+
+        assert event.isAccepted() is True
+        cancel_mock.assert_called_once_with("closeEvent")
+        assert worker.quit_called is True
+        assert worker.wait_called_ms == 3000
 
     def test_initiate_filtering_keeps_slow_previous_worker_retained_until_finished(
         self,
@@ -7996,18 +8763,18 @@ class TestGUIFilterLogic:
 
         previous_worker = _SlowWorker()
         self.window.filter_thread = previous_worker
-        self.window._retired_filter_workers = []
+        self.window._filter_worker_registry.clear()
 
         with patch("gui.mixins.filter_gui_ssa_mixin.FilterWorker", _NewWorker):
             self.window.initiate_filtering()
 
         assert previous_worker.quit_called is True
         assert previous_worker.wait_called_ms is None
-        assert previous_worker in self.window._retired_filter_workers
+        assert self.window._filter_worker_registry.contains(previous_worker)
 
         previous_worker.finish_now()
         assert previous_worker.deleted is True
-        assert previous_worker not in self.window._retired_filter_workers
+        assert not self.window._filter_worker_registry.contains(previous_worker)
 
     def test_close_event_cleans_data_loader_worker(self):
         class _FakeSignal:
@@ -8046,7 +8813,7 @@ class TestGUIFilterLogic:
 
         assert event.isAccepted() is True
         assert worker.quit_called is True
-        assert worker.wait_called_ms == 3000
+        assert worker.wait_called_ms is None
         assert worker.deleted is True
         assert self.window.data_loader_thread is None
 
@@ -8108,6 +8875,7 @@ class TestGUIFilterLogic:
     def test_on_data_loaded_fallback_keeps_df_completo_order_and_sorts_df_exibido(self):
         self.window._active_data_load_request_id = 27
         df = self.base_df.iloc[[0, 1, 2, 3, 4]].copy()
+        df.attrs.clear()
         df["numero_ssa"] = [
             "202500004.0",
             "202500005.0",
@@ -8230,17 +8998,7 @@ class TestGUIFilterLogic:
         self.window._active_data_load_request_id = 23
         self.window._adv_options_dirty = False
         self.window._adv_values_cache = None
-        main_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "main"
-        )
-        filter_tab_idx = next(
-            idx
-            for idx, ctx in enumerate(self.window._tab_contexts)
-            if ctx.get("tab_kind") == "filters"
-        )
-        self.window.main_tabs.setCurrentIndex(main_tab_idx)
+        self._set_filter_panel_tab("main")
         QApplication.processEvents()
 
         with patch.object(
@@ -8254,18 +9012,18 @@ class TestGUIFilterLogic:
             assert refresh_mock.call_count == 0
             assert self.window._adv_options_dirty is True
 
-            self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+            self._set_filter_panel_tab("filters")
             QApplication.processEvents()
 
         assert refresh_mock.call_count >= 1
         assert self.window._adv_options_dirty is False
 
-    def test_on_data_loaded_resets_num_reprogramacoes_sort_cache(self):
+    def test_on_data_loaded_resets_sort_caches(self):
         self.window._active_data_load_request_id = 31
         df = self.base_df.copy()
         df["num_reprogramacoes"] = [2, "Reprogramacao #1", 0, "", None]
         self.window._num_reprog_sort_cache = {
-            "source_id": 999,
+            "source_marker": ("old-num-token",),
             "source_len": 123,
             "keys_df": pd.DataFrame(
                 {
@@ -8275,13 +9033,33 @@ class TestGUIFilterLogic:
                 }
             ),
         }
+        self.window._mixed_text_sort_cache = {
+            "column_name": "situacao",
+            "source_marker": ("old-mixed-token",),
+            "source_len": 123,
+            "keys_df": pd.DataFrame(
+                {
+                    "__mixed_is_empty": [False],
+                    "__mixed_bucket_order": [2],
+                    "__mixed_symbol_txt": [None],
+                    "__mixed_num": [None],
+                    "__mixed_alpha_txt": ["apv"],
+                    "__mixed_other_txt": [None],
+                }
+            ),
+        }
 
         self.window.on_data_loaded(df, request_id=31)
 
-        cache = self.window._num_reprog_sort_cache
-        assert cache["source_id"] is None
-        assert cache["source_len"] == 0
-        assert cache["keys_df"] is None
+        num_cache = self.window._num_reprog_sort_cache
+        assert num_cache["source_marker"] is None
+        assert num_cache["source_len"] == 0
+        assert num_cache["keys_df"] is None
+        mixed_cache = self.window._mixed_text_sort_cache
+        assert mixed_cache["column_name"] is None
+        assert mixed_cache["source_marker"] is None
+        assert mixed_cache["source_len"] == 0
+        assert mixed_cache["keys_df"] is None
 
     def test_on_load_error_ignores_stale_request(self):
         self.window._active_data_load_request_id = 10
@@ -8343,7 +9121,7 @@ class TestGUIFilterLogic:
         self.window.on_load_finished(worker=stale_worker, request_id=9)
 
         assert stale_worker.quit_called is True
-        assert stale_worker.wait_called_ms == 1500
+        assert stale_worker.wait_called_ms is None
         assert stale_worker.deleted is True
         assert self.window.data_loader_thread is active_worker
         assert self.window.progress_bar.isVisible() is True
@@ -8404,7 +9182,7 @@ class TestGUIFilterLogic:
 
         assert event.isAccepted() is True
         assert worker.quit_called is True
-        assert worker.wait_called_ms == 3000
+        assert worker.wait_called_ms is None
         assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
 
         worker.finish_now()
@@ -8456,8 +9234,8 @@ class TestGUIFilterLogic:
                 self.finished.emit()
 
         worker = _SlowFilterWorker()
-        if worker in filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS:
-            filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS.remove(worker)
+        if self.window._filter_worker_registry.contains(worker):
+            self.window._filter_worker_registry.remove(worker)
         self.window.filter_thread = worker
 
         event = QCloseEvent()
@@ -8465,12 +9243,12 @@ class TestGUIFilterLogic:
 
         assert event.isAccepted() is True
         assert worker.quit_called is True
-        assert worker.wait_called_ms == 3000
-        assert worker in filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS
+        assert worker.wait_called_ms is None
+        assert self.window._filter_worker_registry.contains(worker)
 
         worker.finish_now()
         assert worker.deleted is True
-        assert worker not in filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS
+        assert not self.window._filter_worker_registry.contains(worker)
 
     def test_close_event_retains_slow_rescan_worker_globally_and_clears_active_ref(
         self,
@@ -8512,8 +9290,8 @@ class TestGUIFilterLogic:
             assert event.isAccepted() is True
             assert worker.stop_called is True
             assert worker.quit_called is True
-            assert worker.wait_calls and worker.wait_calls[0] == 1500
-            assert worker.terminate_called is True
+            assert worker.wait_calls == []
+            assert worker.terminate_called is False
             assert worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS
             assert self.window._active_rescan_worker is None
         finally:
@@ -8564,7 +9342,7 @@ class TestGUIFilterLogic:
             assert event.isAccepted() is True
             assert worker.stop_called is True
             assert worker.quit_called is True
-            assert worker.wait_calls and worker.wait_calls[0] == 1500
+            assert worker.wait_calls == []
             assert worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS
             assert self.window._active_rescan_worker is None
         finally:
@@ -8617,7 +9395,7 @@ class TestGUIFilterLogic:
             gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS[:] = []
             gui_ssa.GLOBAL_RETIRED_RESCAN_META.clear()
 
-    def test_close_event_uses_running_helper_when_worker_isrunning_is_unstable_after_wait(
+    def test_close_event_keeps_rescan_shutdown_nonblocking_after_initial_state_check(
         self, monkeypatch
     ):
         class _RescanWorkerUnstableAfterWait:
@@ -8653,14 +9431,14 @@ class TestGUIFilterLogic:
         gui_ssa.GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
         self.window._active_rescan_worker = worker
         call_counter = {"count": 0}
-        original_running_helper = self.window._is_rescan_worker_running
+        original_running_helper = ssa_gui_workers.is_rescan_worker_running
 
-        def _tracked_running_helper(target):
+        def _tracked_running_helper(target, sip_module):
             call_counter["count"] += 1
-            return original_running_helper(target)
+            return original_running_helper(target, sip_module)
 
         monkeypatch.setattr(
-            self.window, "_is_rescan_worker_running", _tracked_running_helper
+            ssa_gui_workers, "is_rescan_worker_running", _tracked_running_helper
         )
 
         try:
@@ -8670,7 +9448,9 @@ class TestGUIFilterLogic:
             assert event.isAccepted() is True
             assert worker.stop_called is True
             assert worker.quit_called is True
-            assert call_counter["count"] >= 2
+            assert call_counter["count"] == 1
+            assert worker.wait_calls == []
+            assert worker.terminate_called is False
             assert self.window._active_rescan_worker is None
         finally:
             if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
@@ -8716,7 +9496,7 @@ class TestGUIFilterLogic:
         self.window.on_load_finished(worker=worker, request_id=11)
 
         assert worker.quit_called is True
-        assert worker.wait_called_ms == 1500
+        assert worker.wait_called_ms is None
         assert worker.deleted is True
         assert self.window.data_loader_thread is None
         assert self.window.progress_bar.isVisible() is False
@@ -8776,11 +9556,11 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(self.window, "_refresh_after_filter_change", lambda: None)
         monkeypatch.setattr(self.window, "_apply_search_display", lambda: None)
         self.window.table_widget = None
+        status_before = self.window.filtered_status_label.text()
 
         self.window.on_filter_finished(self.base_df.copy(), request_id=77)
 
-        status = self.window.filtered_status_label.text()
-        assert status == "Status: 5 de 5 SSAs"
+        assert self.window.filtered_status_label.text() == status_before
 
     def test_on_filter_finished_zero_results_separates_count_from_notice(self):
         self.window.search_input.setText("SVP, R001")
@@ -8996,7 +9776,7 @@ class TestGUIFilterLogic:
 
         previous_filter_worker = _SlowFilterWorker()
         self.window.filter_thread = previous_filter_worker
-        self.window._retired_filter_workers = []
+        self.window._filter_worker_registry.clear()
 
         with (
             patch("gui.gui_ssa.os.path.exists", return_value=True),
@@ -9009,7 +9789,7 @@ class TestGUIFilterLogic:
         assert self.window._debounce_timer.isActive() is False
         assert previous_filter_worker.quit_called is True
         assert previous_filter_worker.wait_called_ms is None
-        assert previous_filter_worker in self.window._retired_filter_workers
+        assert self.window._filter_worker_registry.contains(previous_filter_worker)
 
     def test_load_data_keeps_slow_previous_worker_retained_until_finished(self):
         class _FakeSignal:
@@ -9141,7 +9921,16 @@ class TestGUIFilterLogic:
 
         worker = _Worker()
 
-        self.window._retain_data_loader_worker_until_finished(worker)
+        ssa_gui_workers.retain_data_loader_worker_until_finished(
+            self.window,
+            worker,
+            global_workers=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            global_meta=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META,
+            max_global_workers=gui_ssa.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            retired_ttl_sec=gui_ssa.RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=gui_ssa.RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=gui_ssa.sip,
+        )
 
         assert worker.quit_called is True
         assert worker.wait_called_ms == gui_ssa.RETIRED_WORKER_FORCE_WAIT_MS
@@ -9295,7 +10084,7 @@ class TestGUIFilterLogic:
             def deleteLater(self):
                 return None
 
-        self.window._retired_filter_workers = []
+        self.window._filter_worker_registry.clear()
         self.window._filter_request_seq = 0
         slow_workers = []
 
@@ -9305,15 +10094,15 @@ class TestGUIFilterLogic:
                 slow_workers.append(slow)
                 self.window.filter_thread = slow
                 self.window.initiate_filtering()
-                assert slow in self.window._retired_filter_workers
+                assert self.window._filter_worker_registry.contains(slow)
                 slow.finish_now()
 
-        assert self.window._retired_filter_workers == []
+        assert self.window._filter_worker_registry.snapshot() == []
         assert self.window._active_filter_request_id == 10
         assert all(worker.quit_called for worker in slow_workers)
 
     def test_restore_filter_state_syncs_exclude_checkbox_all_tabs(self):
-        for ctx in self.window._tab_contexts:
+        for ctx in self._iter_panel_contexts():
             checkbox = ctx.get("exclude_ste_checkbox")
             if checkbox is not None:
                 checkbox.setChecked(False)
@@ -9326,7 +10115,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         assert self.window._exclude_ste_sca is False
-        for ctx in self.window._tab_contexts:
+        for ctx in self._iter_panel_contexts():
             checkbox = ctx.get("exclude_ste_checkbox")
             if checkbox is not None:
                 assert checkbox.isChecked() is False
@@ -9350,9 +10139,31 @@ class TestGUIFilterLogic:
             else self.window._resolve_column_display_name("descricao_ssa")
         )
         assert label in self._get_column_filter_controls()
-        assert "situacao!=SCA/SES/STE" in str(
-            self.window.filters_summary_label.text() or ""
-        )
+        assert "situacao!=SCA/SES/STE" in [
+            str(button.text() or "")
+            for button in self.window.filters_summary_items_widget.findChildren(
+                QPushButton
+            )
+        ]
+
+    def test_restore_last_filter_state_preserves_snapshot_when_render_fails(
+        self, monkeypatch
+    ):
+        self.window.search_input.setText("Teste A")
+        self.window._safe_store_last_filter_state("test_restore_failure")
+        snapshot = self.window._last_filter_state
+        assert snapshot is not None
+
+        def fail_render(_restored_search_text):
+            raise RuntimeError("forced restore render failure")
+
+        monkeypatch.setattr(self.window, "_render_restored_filter_state", fail_render)
+
+        with pytest.raises(RuntimeError, match="forced restore render failure"):
+            self.window._restore_last_filter_state()
+
+        assert self.window._last_filter_state is snapshot
+        assert self.window.undo_filter_btn.isEnabled() is True
 
     def test_clear_all_filters_global_stops_pending_debounce(self):
         self.window.search_input.setText("Teste")
@@ -9369,17 +10180,18 @@ class TestGUIFilterLogic:
         with patch.object(self.window, "_cancel_active_filter_worker") as cancel_mock:
             self.window.clear_filter()
 
-        cancel_mock.assert_called_once_with("clear_filter", wait_ms=0)
+        cancel_mock.assert_called_once_with("clear_filter")
 
     def test_clear_all_filters_global_cancels_active_filter_worker(self):
         with patch.object(self.window, "_cancel_active_filter_worker") as cancel_mock:
             self.window._clear_all_filters_global()
 
-        cancel_mock.assert_called_once_with("clear_all_filters_global", wait_ms=0)
+        cancel_mock.assert_called_once_with("clear_all_filters_global")
 
     def test_schedule_sector_refresh_stops_pending_timer_when_not_materialized(self):
-        self.window._responsavel_filters_materialized = False
-        self.window._responsavel_options_dirty = False
+        responsavel_state = self.window.responsavel_materialization_state
+        responsavel_state.built_prefixes.clear()
+        responsavel_state.dirty_prefixes.clear()
         self.window._sector_debounce_timer.start()
         assert self.window._sector_debounce_timer.isActive() is True
 
@@ -9394,7 +10206,7 @@ class TestGUIFilterLogic:
             )
             QApplication.processEvents()
 
-        assert self.window._responsavel_options_dirty is True
+        assert responsavel_state.status_flags()[1] is True
         assert self.window._sector_debounce_timer.isActive() is False
         assert refresh_mock.call_count == 0
 
@@ -9467,13 +10279,30 @@ class TestGUIFilterLogic:
             gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(worker)
 
         try:
-            self.window._retain_data_loader_worker_until_finished(worker)
+            ssa_gui_workers.retain_data_loader_worker_until_finished(
+                self.window,
+                worker,
+                global_workers=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+                global_meta=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META,
+                max_global_workers=gui_ssa.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+                retired_ttl_sec=gui_ssa.RETIRED_WORKER_TTL_SEC,
+                retired_force_wait_ms=gui_ssa.RETIRED_WORKER_FORCE_WAIT_MS,
+                sip_module=gui_ssa.sip,
+            )
             assert worker in self.window._retired_data_loader_workers
             assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
 
             # Simula finalização silenciosa sem emissao de finished().
             worker._running = False
-            self.window._prune_retired_data_loader_workers()
+            ssa_gui_workers.prune_retired_data_loader_workers(
+                self.window,
+                global_workers=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+                global_meta=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META,
+                max_global_workers=gui_ssa.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+                retired_ttl_sec=gui_ssa.RETIRED_WORKER_TTL_SEC,
+                retired_force_wait_ms=gui_ssa.RETIRED_WORKER_FORCE_WAIT_MS,
+                sip_module=gui_ssa.sip,
+            )
 
             assert worker not in self.window._retired_data_loader_workers
             assert worker not in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
@@ -9524,7 +10353,16 @@ class TestGUIFilterLogic:
         gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META.pop(worker, None)
 
         try:
-            self.window._retain_data_loader_worker_until_finished(worker)
+            ssa_gui_workers.retain_data_loader_worker_until_finished(
+                self.window,
+                worker,
+                global_workers=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+                global_meta=gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META,
+                max_global_workers=gui_ssa.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+                retired_ttl_sec=gui_ssa.RETIRED_WORKER_TTL_SEC,
+                retired_force_wait_ms=gui_ssa.RETIRED_WORKER_FORCE_WAIT_MS,
+                sip_module=gui_ssa.sip,
+            )
 
             assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
             assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META

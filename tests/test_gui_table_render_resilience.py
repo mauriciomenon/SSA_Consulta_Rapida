@@ -37,6 +37,7 @@ class TestGUITableRenderResilience:
         self._load_patch = patch.object(SSAMainWindow, "load_data", lambda self: None)
         self._load_patch.start()
         self.window = SSAMainWindow()
+        self.window._filter_worker_registry = filter_mixin.DeferredFilterWorkerRegistry()
         self.window.show()
 
         self.base_df = pd.DataFrame(
@@ -114,9 +115,9 @@ class TestGUITableRenderResilience:
         except Exception:
             gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = []
         try:
-            filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS.clear()
+            self.window._filter_worker_registry.clear()
         except Exception:
-            filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS[:] = []
+            self.window._filter_worker_registry = filter_mixin.DeferredFilterWorkerRegistry()
 
     def test_display_current_page_continues_when_first_cell_item_creation_fails(self):
         from gui.ssa import gui_table
@@ -450,7 +451,7 @@ class TestGUITableRenderResilience:
             QApplication.processEvents()
 
         assert ok is True
-        assert update_details.call_count == 1
+        assert update_details.call_count == 0
         assert self.window._details_current_ssa == initial_ssa
         assert str(self.window.details_text.toHtml() or "") == initial_html
 
@@ -465,7 +466,7 @@ class TestGUITableRenderResilience:
         QApplication.processEvents()
         initial_ssa = self.window._details_current_ssa
 
-        self.window.main_tabs.setCurrentIndex(1)
+        self.window._filter_panel_context["filter_panel_tab_bar"].setCurrentIndex(1)
         QApplication.processEvents()
         QApplication.processEvents()
         assert self.window._details_current_ssa == initial_ssa
@@ -588,7 +589,7 @@ class TestGUITableRenderResilience:
         self,
     ):
         self.window._data_uuid = "stable-data"
-        self.window._ensure_data_revision = lambda: None
+        self.window.__dict__["_ensure_data_revision"] = lambda: None
 
         with patch.object(
             gui_table,
@@ -601,7 +602,7 @@ class TestGUITableRenderResilience:
 
             self._set_window_dataframe(self.base_df.copy(), page_size=10)
             self.window._data_uuid = "stable-data"
-            self.window._ensure_data_revision = lambda: None
+            self.window.__dict__["_ensure_data_revision"] = lambda: None
             self.window.display_current_page(1)
             QApplication.processEvents()
 
@@ -611,7 +612,7 @@ class TestGUITableRenderResilience:
         self,
     ):
         self.window._data_uuid = "stable-data"
-        self.window._ensure_data_revision = lambda: None
+        self.window.__dict__["_ensure_data_revision"] = lambda: None
         self.window.display_current_page(1)
         QApplication.processEvents()
 
@@ -619,7 +620,7 @@ class TestGUITableRenderResilience:
         mutated_df.loc[1, "descricao_ssa"] = "Teste B alterado"
         self._set_window_dataframe(mutated_df, page_size=10)
         self.window._data_uuid = "stable-data"
-        self.window._ensure_data_revision = lambda: None
+        self.window.__dict__["_ensure_data_revision"] = lambda: None
         self.window.display_current_page(1)
         QApplication.processEvents()
 
@@ -710,3 +711,29 @@ class TestGUITableRenderResilience:
         assert self.window.table_widget.rowCount() == 0
         assert self.window._details_current_ssa is None
         assert self.window.details_text.toPlainText().strip() == ""
+
+    def test_display_current_page_reuses_render_without_width_recompute(
+        self, monkeypatch
+    ):
+        self.window.display_current_page(1, update_details=False)
+        QApplication.processEvents()
+
+        calls = {"rebuild": 0, "widths": 0}
+        original_rebuild = gui_table._rebuild_table_widget
+        original_widths = gui_table._apply_rendered_table_widths
+
+        def counted_rebuild(*args, **kwargs):
+            calls["rebuild"] += 1
+            return original_rebuild(*args, **kwargs)
+
+        def counted_widths(*args, **kwargs):
+            calls["widths"] += 1
+            return original_widths(*args, **kwargs)
+
+        monkeypatch.setattr(gui_table, "_rebuild_table_widget", counted_rebuild)
+        monkeypatch.setattr(gui_table, "_apply_rendered_table_widths", counted_widths)
+
+        self.window.display_current_page(1, update_details=False)
+        QApplication.processEvents()
+
+        assert calls == {"rebuild": 0, "widths": 0}

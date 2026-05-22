@@ -21,6 +21,6 @@ def test_handle_clear_all_filters_uses_provided_table_name(monkeypatch):
     cli._handle_clear_all_filters("dummy.db", "ssas", stack, {}, {}, {})
 
     assert captured["query"] is not None
-    assert "FROM ssa_table" in captured["query"]
+    assert 'FROM "ssa_table"' in captured["query"]
     assert stack[-1][0] is base_df
     assert stack[-1][1] == []

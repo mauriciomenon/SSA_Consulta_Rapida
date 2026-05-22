@@ -27,10 +27,10 @@ sys.path.insert(0, project_root)
 from armazenamento.database import get_ssa_query, query_db
 from core.app_logic import filter_dataframe, parse_search_terms, run_importer_logic
 from core.config_manager import (
-    handle_config_command,
     load_display_mappings_integrity,
     load_settings,
 )
+from interface.config_command import handle_config_command
 from interface.cli_enhancement_manager import enhancement_manager
 from interface.display import pretty_print_details
 from interface.enhanced_table_printer import EnhancedTablePrinter

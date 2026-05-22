@@ -16,6 +16,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+from gui.cache.filter_cache import FilterCache  # noqa: E402
 from gui.workers.filter_worker import FilterWorker  # noqa: E402
 
 
@@ -101,6 +102,18 @@ class TestFilterWorker:
         assert errors == []
         filter_mock.assert_not_called()
 
+    def test_run_uses_injected_cache_instance(self):
+        df = pd.DataFrame({"texto": ["alfa", "beta"]})
+        injected_cache = FilterCache(max_size=1)
+        worker = FilterWorker(df, [["alfa"]], cache=injected_cache)
+        emitted = []
+
+        worker.filter_finished.connect(lambda frame: emitted.append(frame))
+        worker.run()
+
+        assert len(emitted) == 1
+        assert injected_cache.get_stats()["size"] == 1
+
     def test_run_stops_between_chunks_when_interrupted(self):
         df = pd.DataFrame({"texto": ["alfa", "beta", "gama"]})
         worker = FilterWorker(df, [["alfa"], ["beta"]])
@@ -145,7 +158,7 @@ class TestFilterWorker:
 
         assert errors == []
         assert len(emitted) == 1
-        assert emitted[0] is filtered_frame
+        assert emitted[0] is not filtered_frame
         assert emitted[0]["texto"].tolist() == ["alfa"]
         assert filter_mock.call_count == 1
         concat_mock.assert_not_called()
@@ -163,7 +176,8 @@ class TestFilterWorker:
 
         assert errors == []
         assert len(emitted) == 1
-        assert emitted[0] is df
+        assert emitted[0] is not df
+        assert emitted[0]["texto"].tolist() == df["texto"].tolist()
 
     def test_run_duplicate_chunks_filter_once_per_unique_chunk(self):
         df = pd.DataFrame({"texto": ["alfa", "beta", "gama"]})
@@ -177,9 +191,13 @@ class TestFilterWorker:
 
         def _fake_filter(_dataframe, parsed, **_kwargs):
             calls.append(tuple(token.get("value") for token in parsed))
-            if any("alfa" in str(token) for token in parsed):
-                return df.iloc[[0]].copy()
-            return df.iloc[[1]].copy()
+            row_indexes = []
+            values = {str(token.get("value")) for token in parsed}
+            if "alfa" in values:
+                row_indexes.append(0)
+            if "beta" in values:
+                row_indexes.append(1)
+            return df.iloc[row_indexes].copy()
 
         with patch(
             "gui.workers.filter_worker.filter_dataframe",
@@ -189,7 +207,7 @@ class TestFilterWorker:
 
         assert errors == []
         assert len(emitted) == 1
-        assert calls == [("alfa",), ("beta",)]
+        assert calls == [("alfa", "beta")]
         assert emitted[0]["texto"].tolist() == ["alfa", "beta"]
 
     def test_run_multi_chunk_deduplicates_overlaps_by_original_index(self):
@@ -203,9 +221,9 @@ class TestFilterWorker:
 
         def _fake_filter(_dataframe, parsed, **_kwargs):
             values = tuple(token.get("value") for token in parsed)
-            if values == ("chunk-a",):
-                return df.iloc[[0, 1]].copy()
-            return df.iloc[[1, 2]].copy()
+            if values == ("chunk-a", "chunk-b"):
+                return df.copy()
+            return df.iloc[0:0].copy()
 
         with patch(
             "gui.workers.filter_worker.filter_dataframe",
@@ -229,9 +247,9 @@ class TestFilterWorker:
 
         def _fake_filter(_dataframe, parsed, **_kwargs):
             values = tuple(token.get("value") for token in parsed)
-            if values == ("chunk-a",):
-                return df.iloc[[0]].copy()
-            return df.iloc[[1]].copy()
+            if values == ("chunk-a", "chunk-b"):
+                return df.iloc[[0, 1]].copy()
+            return df.iloc[0:0].copy()
 
         with patch(
             "gui.workers.filter_worker.filter_dataframe",

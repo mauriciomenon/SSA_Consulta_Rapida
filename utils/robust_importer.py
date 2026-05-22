@@ -87,11 +87,8 @@ def _clean_numero_ssa_series(series: pd.Series) -> tuple[pd.Series, pd.Series]:
     cleaned: List[str | None] = []
     for v in series.tolist():
         # Evita caso comum de leitura Excel -> float com .0 (ex.: 202500777.0)
-        try:
-            if isinstance(v, float) and v.is_integer():
-                v = int(v)
-        except Exception:  # pragma: no cover
-            pass
+        if isinstance(v, float) and v.is_integer():
+            v = int(v)
         cleaned.append(normalize_numero_ssa_strict(v))
     cleaned_series = pd.Series(cleaned, dtype="string")
     return cleaned_series, cleaned_series.notna()
@@ -256,7 +253,8 @@ def import_excel_robust(
     Modo padrao aplica normalizacao canonica de SSA e deduplicacao.
     `raw_mode=True` e um caminho controlado para callers internos que precisam
     ler a aba crua preservando colunas originais.
-    Nunca levanta exceção (salvo erros catastróficos de IO) – registra problemas no log e prossegue.
+    Por padrao registra problemas no log e prossegue; com raise_on_error=True
+    propaga falhas de leitura e arquivo ausente.
     """
     source_label = str(getattr(file_path, "io", file_path))
     excel_source = file_path
@@ -272,6 +270,8 @@ def import_excel_robust(
         excel_source
     ):  # Falha primária
         logger.error("Arquivo não encontrado: %s", excel_source)
+        if raise_on_error:
+            raise FileNotFoundError(f"Arquivo nao encontrado: {excel_source}")
         return pd.DataFrame(), stats.to_dict()
 
     debug_enabled = bool(os.environ.get("SSA_IMPORT_DEBUG"))
@@ -431,11 +431,13 @@ def import_excel_robust(
         except ValueError:  # pragma: no cover
             max_scan_conf = 10
         scan_limit = min(max_scan_conf, max(1, raw_df.shape[0]))
+        selected_header_line_index: int | None = None
         for candidate in range(scan_limit):
             tmp_df, tmp_groups, tmp_map = _attempt_reheader(candidate)
             if len(tmp_groups) > len(best_groups):
                 best_df, best_groups, best_map = tmp_df, tmp_groups, tmp_map
                 improved = True
+                selected_header_line_index = candidate
                 if debug_enabled:
                     logger.debug(
                         "[import_excel_robust] Reheader candidate %d => %d grupos.",
@@ -454,13 +456,7 @@ def import_excel_robust(
                     "[import_excel_robust] Reheader aplicado com sucesso. Total grupos=%d",
                     len(canonical_groups),
                 )
-            # tentar identificar qual linha foi escolhida (busca reversa por matching de colunas)
-            try:  # pragma: no cover (heurística simples)
-                stats.selected_header_line_index = next(
-                    (i for i in range(scan_limit) if i != 0), None
-                )
-            except Exception:
-                stats.selected_header_line_index = None
+            stats.selected_header_line_index = selected_header_line_index
 
     # Promoção explícita: garantir que exista coluna 'numero_ssa' se algum alias conhecido apareceu
     if "numero_ssa" not in canonical_groups:
@@ -720,8 +716,14 @@ def import_excel_robust(
             ) as vf:  # reutiliza caso exista
                 data_v = json.load(vf)
                 schema_version = data_v.get("version") or data_v.get("app_version")
-        except Exception:  # pragma: no cover
-            pass
+        except (
+            FileNotFoundError,
+            json.JSONDecodeError,
+            OSError,
+            UnicodeDecodeError,
+            ValueError,
+        ) as exc:
+            logger.debug("Nao foi possivel ler config/version.json: %s", exc)
         enriched = dict(stats_dict)
         enriched["generated_at_utc"] = (
             datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -732,8 +734,8 @@ def import_excel_robust(
             os.path.join("reports", "last_import_stats.json"), "w", encoding="utf-8"
         ) as fh:
             json.dump(enriched, fh, ensure_ascii=False, indent=2)
-    except Exception:  # pragma: no cover
-        pass
+    except (OSError, TypeError, ValueError) as exc:  # pragma: no cover
+        logger.warning("Falha ao gravar reports/last_import_stats.json: %s", exc)
     return work_df, stats_dict
 
 

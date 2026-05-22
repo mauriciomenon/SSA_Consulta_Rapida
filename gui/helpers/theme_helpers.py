@@ -86,6 +86,26 @@ def build_central_widget_qss(bg_color: str) -> str:
     )
 
 
+def replace_tagged_qss_block(
+    existing: str, *, start_marker: str, end_marker: str, block: str
+) -> str:
+    current = str(existing or "")
+    start = current.find(start_marker)
+    if start != -1:
+        end = current.find(end_marker, start)
+        if end != -1:
+            end += len(end_marker)
+            current = (current[:start] + current[end:]).rstrip()
+        else:
+            current = current[:start].rstrip()
+    block = str(block or "").strip()
+    if not block:
+        return current
+    if current and not current.endswith("\n"):
+        current += "\n"
+    return (current + block).strip()
+
+
 def build_group_box_qss(panel_text: str, panel_border: str, panel_bg: str) -> str:
     """
     Build QSS for QGroupBox styling.
@@ -144,6 +164,6 @@ def build_line_edit_qss(
         f" color: {input_placeholder};"
         " }"
         "QLineEdit:focus {"
-        f" border:2px solid {input_focus};"
+        f" border:1px solid {input_focus};"
         " }"
     )
