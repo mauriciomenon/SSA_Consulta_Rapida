@@ -1,0 +1,37 @@
+launchers/build_multiplatform.py
+  s_082d1ff7d55d96::t_5ebf2479ed1a88 602-604
+  s_082d1ff7d55d96::t_f594771377ac83 680-683,685,687,696-702,704-723
+  s_082d1ff7d55d96::t_b40c5c18f289dc 686,688-695,1327-1328
+  s_082d1ff7d55d96::t_a0dae8c7b786f6 626,628,630,635-643,645-646
+  s_082d1ff7d55d96::t_4045518166b5de 580,591-592,598-600,644,652,657,664,674,684,703,724,726-728,735
+  s_082d1ff7d55d96::t_d49802b009020e 631-634
+  s_082d1ff7d55d96::t_401ad77ec926e1 18,74
+  s_082d1ff7d55d96::t_a35576481e558f 1305-1308,1314,1358
+  s_082d1ff7d55d96::t_b47e9ba6be4d52 1318-1321,1440,1456
+  s_082d1ff7d55d96::t_94da0d31d29501 629
+tests/test_build_multiplatform_manifest.py
+  s_082d1ff7d55d96::t_5750024cdee9cb 626-723
+  s_082d1ff7d55d96::t_b75ad8a711775b 489-580
+  s_082d1ff7d55d96::t_79ef4681f29df1 433-434,439-442,444,453-466
+  s_082d1ff7d55d96::t_12af4e2621f270 581-625
+docs/BUILD_MULTIPLATFORM.md
+  s_082d1ff7d55d96::t_ede1781fc22dae 121,125,133,265
+  s_082d1ff7d55d96::t_5ca5df2e89c55a 5,7,36,38,288
+  s_082d1ff7d55d96::t_9fe16890f28561 131,256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "31001f4b9ceebab16ff1549455cb620947268675",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
