@@ -1,0 +1,22 @@
+tests/test_derivadas_sync_job.py
+  s_082d1ff7d55d96::t_c7fcefe8f3fea4 56-107
+gui/ssa/derivadas_sync_job.py
+  s_082d1ff7d55d96::t_8f417fd6021046 68-74
+  s_082d1ff7d55d96::t_356f6d71d5e877 60-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "4814fbc6b5cc37f9613f04f19c3b8d9dd80dc1a5",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
