@@ -1,0 +1,32 @@
+launchers/cli_entry.py
+  s_082d1ff7d55d96::t_e8d0ecf418146e 17
+  s_082d1ff7d55d96::t_468ca67d83698c 13-16
+  s_082d1ff7d55d96::t_ed3adc4894ba4e 18,232-234
+utils/version.py
+  s_082d1ff7d55d96::t_3eea0ebb377cc5 1-130
+main.py
+  s_082d1ff7d55d96::t_09c3c62f943166 28,547-550
+tests/test_main_import_fallback.py
+  s_082d1ff7d55d96::t_7c00b829fbce7a 97-111
+  s_082d1ff7d55d96::t_10156f8fce66c5 83,86
+launchers/version_info.py
+  s_082d1ff7d55d96::t_6dfbda5aa6059e 1,6,8,12
+tests/test_launcher_entry_runtime.py
+  s_082d1ff7d55d96::t_b1b41de6622590 116-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "a891929a11f2ca2f794a5bc82dca5e5062920d76",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
