@@ -1,0 +1,23 @@
+tests/test_gui_filter_logic.py
+  s_082d1ff7d55d96::t_e67e801c623b84 3641-3669,3671
+  s_082d1ff7d55d96::t_ac2e226e712104 3670
+gui/ssa/gui_filters_responsavel_refresh.py
+  s_082d1ff7d55d96::t_f9917b6017148e 137-144
+  s_082d1ff7d55d96::t_69e534582a814a 349,367
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "d9accf5e4721ef2af51b36c61f1d3f942bb10622",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
