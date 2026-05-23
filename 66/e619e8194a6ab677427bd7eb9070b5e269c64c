@@ -1,0 +1,34 @@
+gui/ssa/gui_filters_advanced_state.py
+  s_082d1ff7d55d96::t_efee4efeff720c 86-88,95,102-107
+  s_082d1ff7d55d96::t_13326e3a754f9a 16,46,53-54,60-61,66-70,78-81
+  s_082d1ff7d55d96::t_c85a4a708bc820 47,65,89-94,96-101
+gui/ssa/gui_filters_advanced_logic.py
+  s_082d1ff7d55d96::t_d258392fedcd30 96,107
+  s_082d1ff7d55d96::t_3ec2e73288ce51 119
+  s_082d1ff7d55d96::t_e4902a2d6f5976 69
+  s_082d1ff7d55d96::t_2e972c3b729e9f 230-256,687-695
+  s_082d1ff7d55d96::t_4ca3bc29a94c74 562,567,649,708
+  s_082d1ff7d55d96::t_7ab2d8fd3a8650 656,659,661,720,722
+tests/test_gui_filters_advanced_logic.py
+  s_082d1ff7d55d96::t_cf0ab4ede16e4c 466-517
+tests/test_gui_filter_logic.py
+  s_082d1ff7d55d96::t_4e43f6c85d4fd5 595-653
+gui/gui_ssa.py
+  s_082d1ff7d55d96::t_7f160ff587818a 938-940,942
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "66e619e8194a6ab677427bd7eb9070b5e269c64c",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
