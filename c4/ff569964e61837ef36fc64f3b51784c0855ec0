@@ -1,0 +1,43 @@
+gui/ssa/main_window_filter_bar.py
+  s_082d1ff7d55d96::t_a4e6526eca3148 353-356,363,366-369
+gui/widgets/preferences_selector.py
+  s_082d1ff7d55d96::t_a359325ebb56fc 1-2,10,13-14,17,26,33,51,58,63,72,74-87,101,105
+gui/ssa/table_sorting.py
+  s_082d1ff7d55d96::t_8add9638b42fde 12,20-23,64-66,213,216,241-242,248,261-263,266
+  s_082d1ff7d55d96::t_6e96c3379a63a1 15-19,38-40,44,47,60-63,206-208,212,225-227,230-232,255-258,260,376,380-381
+gui/gui_ssa.py
+  s_082d1ff7d55d96::t_289288dfcf30c4 1789
+  s_082d1ff7d55d96::t_9ba3271964fd1e 2090-2092,2172-2179
+  s_082d1ff7d55d96::t_98b079c33fa163 251,292,1217
+  s_082d1ff7d55d96::t_6d42e442f93556 1695-1700,1703,1705-1707,1791-1792,1799-1802
+  s_082d1ff7d55d96::t_3b176d77b1b47a 57,1763-1771,2068-2089,2093-2157,2811
+gui/widgets/__init__.py
+  s_082d1ff7d55d96::t_47903e7765e5fa 5-6,15-16
+gui/ssa/headless_qt_stubs.py
+  s_082d1ff7d55d96::t_3b3af4cb88a1be 13
+gui/widgets/preferences_dialog.py
+  s_082d1ff7d55d96::t_2fe7d7faf9ae1e 1-2,9-10,13,20,22,26-27,35,39-40,42,44-54,60,77-117,119-123,127,151,173-175,177-178,183,206,219-279,298,304-305,310-311,319-328,331-368
+  s_082d1ff7d55d96::t_cfef533982af17 179
+tests/test_gui_filter_logic.py
+  s_082d1ff7d55d96::t_f68a84b439769e 8157,8160
+  s_082d1ff7d55d96::t_d550a3419a1691 292,296-299,303-306,308-311,314-336,340,5456-5477,6608-6651
+  s_082d1ff7d55d96::t_9892a60a5ee934 293-295,300-302,307,312-313,337-339
+  s_082d1ff7d55d96::t_6223ae67232c06 8155-8156,8158-8159,8161-8179
+  s_082d1ff7d55d96::t_87f305a0e03bff 52,289,6585,6594
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c4ff569964e61837ef36fc64f3b51784c0855ec0",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
