@@ -1,0 +1,47 @@
+gui/widgets/preferences_dialog.py
+  s_082d1ff7d55d96::t_a6c27a7812c73f 125,134,181,195,367,380
+  s_082d1ff7d55d96::t_44446ad17871fd 53-56
+  s_082d1ff7d55d96::t_294ad627550b1e 86-91
+  s_082d1ff7d55d96::t_9047f95410cc72 145-180,182-194,196-236,464-479,494-505
+  s_082d1ff7d55d96::t_2bb0bbda0d45e8 25,129-133,135-142,144,385,463,493
+  s_082d1ff7d55d96::t_b80530d85dd181 306,320,404
+  s_082d1ff7d55d96::t_beb6ff87bf8ebf 391-392
+gui/widgets/data_paginator.py
+  s_082d1ff7d55d96::t_7e4a9094c2d61e 6
+  s_082d1ff7d55d96::t_a4c028432d97d7 92,102-103
+gui/gui_ssa.py
+  s_082d1ff7d55d96::t_aecb84cc311978 3053
+  s_082d1ff7d55d96::t_de51271d722e14 1238
+  s_082d1ff7d55d96::t_1e3d31c8c175e6 2098-2105,2114-2115,2141-2147
+  s_082d1ff7d55d96::t_294ad627550b1e 2863-2866
+  s_082d1ff7d55d96::t_f3ee57ae05ab34 1932,1958-1972
+  s_082d1ff7d55d96::t_6e3e8b4b5da994 2116-2134,2138-2140
+  s_082d1ff7d55d96::t_beb6ff87bf8ebf 2135-2137,2294-2298
+tests/test_gui_filter_logic.py
+  s_082d1ff7d55d96::t_17ff3eb62b2c42 5747-5773
+  s_082d1ff7d55d96::t_8a3e0d804b631e 6849,6883,6905
+  s_082d1ff7d55d96::t_1395a3ac0c2562 338,376,420,422,459,479,490
+  s_082d1ff7d55d96::t_e405fd3685b7be 6926-6939
+  s_082d1ff7d55d96::t_a19086160c2fc6 286,290-292
+  s_082d1ff7d55d96::t_d763b30fe2c247 6743-6751,6759
+  s_082d1ff7d55d96::t_106c9e4b7f0588 377-386,393-397,460-469,480-489,6850-6859,6884-6897,6906-6915
+gui/widgets/preferences_selector.py
+  s_082d1ff7d55d96::t_d292fd6567c4dc 101,106
+  s_082d1ff7d55d96::t_beb6ff87bf8ebf 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "2d95b6862153c565de088f108e20e1636e636dc9",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
