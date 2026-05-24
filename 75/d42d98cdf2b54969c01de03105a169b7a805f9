@@ -1,0 +1,21 @@
+core/pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_826b2bc693f384 7,238-250
+tests/test_pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_c186ac8cd658eb 71-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "75d42d98cdf2b54969c01de03105a169b7a805f9",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
