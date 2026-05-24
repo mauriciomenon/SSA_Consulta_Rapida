@@ -3996,6 +3996,43 @@ class TestGUIFilterLogic:
 
         assert "Data do Arquivo<br/>de Origem:" in html
 
+    def test_details_html_groups_origin_metadata_at_end(self):
+        series = self.base_df.iloc[0].copy()
+        series["numero_ssa"] = "202600023"
+        series["descricao_ssa"] = "Texto principal"
+        series["sistema_origem"] = "SAM API"
+        series["data_arquivo_origem"] = "2026-03-02 13:45:00"
+        series["data_planilha"] = "2026-03-02T13:45:00"
+        series["arquivo_origem"] = "sam_api_20260302_134500.xlsx"
+
+        html = self.window._format_details_html(
+            series, highlight_search_terms=False, linkify=False
+        )
+
+        system_pos = html.index("Sistema de Origem:")
+        file_date_pos = html.index("Data do Arquivo<br/>de Origem:")
+        sheet_date_pos = html.index("Data da Planilha:")
+        sheet_file_pos = html.index("Planilha de Origem:")
+        assert system_pos < file_date_pos < sheet_date_pos < sheet_file_pos
+        assert html.index("Descricao da SSA:") < system_pos
+
+    def test_details_html_centers_values_and_preserves_full_text(self):
+        long_text = (
+            "Texto completo da SSA com conteudo suficiente para ocupar a caixa "
+            "sem inserir reticencias artificiais ou cortar o valor renderizado."
+        )
+        series = self.base_df.iloc[0].copy()
+        series["numero_ssa"] = "202600023"
+        series["descricao_ssa"] = long_text
+
+        html = self.window._format_details_html(
+            series, highlight_search_terms=False, linkify=False
+        )
+
+        assert "text-align: center;" in html
+        assert long_text in html
+        assert "reticencias artificiais..." not in html
+
     def test_details_text_disables_automatic_link_navigation(self):
         details_text = self.window.details_text
         assert details_text.openExternalLinks() is False

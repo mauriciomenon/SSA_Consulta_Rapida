@@ -434,6 +434,10 @@ DETAIL_DISPLAY_OVERRIDES = {
     "descricao_execucao": "Descricao da Execucao",
     "status_execucao_prazo": "Situacao do Prazo",
     "execucao_parcial": "Execucao Parcial",
+    "sistema_origem": "Sistema de Origem",
+    "data_arquivo_origem": "Data do Arquivo de Origem",
+    "data_planilha": "Data da Planilha",
+    "arquivo_origem": "Planilha de Origem",
 }
 
 try:

@@ -21,6 +21,12 @@ _CSS_COLOR_RE = re.compile(
     r"^(#[0-9a-fA-F]{3,8}|rgba?\([0-9,\s.]+\)|[a-zA-Z][a-zA-Z0-9_-]*)$"
 )
 _CSS_FONT_RE = re.compile(r"^[\w\s,'\".-]+$")
+_ORIGIN_DETAIL_FIELD_ORDER = {
+    "sistema_origem": 0,
+    "data_arquivo_origem": 1,
+    "data_planilha": 2,
+    "arquivo_origem": 3,
+}
 
 
 @dataclass(frozen=True)
@@ -109,6 +115,8 @@ def _field_sort_key(config: DetailsDisplayConfig, item: tuple[Any, Any]) -> tupl
     try:
         return (0, config.field_priority.index(col))
     except ValueError:
+        if col in _ORIGIN_DETAIL_FIELD_ORDER:
+            return (2, _ORIGIN_DETAIL_FIELD_ORDER[col])
         return (1, col)
 
 
@@ -135,7 +143,8 @@ def _append_detail_row(
         f"{label}:</td>"
         f'<td style="padding: {safe_padding:g}px; '
         f"border-bottom: 1px solid {safe_border}; "
-        f'overflow-wrap: anywhere; word-break: break-word;">'
+        f"overflow-wrap: anywhere; word-break: break-word; "
+        f'white-space: pre-wrap; text-align: center;">'
         f"{value_html}</td>"
         f"</tr>"
     )
