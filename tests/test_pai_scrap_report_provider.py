@@ -72,6 +72,7 @@ def test_build_pai_scrap_report_command_uses_sweep_run_for_executadas(
             executor_sectors=("IEE3", "MEL4"),
             username="sam.user",
             secret_service="scrap_report.sam",
+            secure_required=True,
         )
     )
 
@@ -84,8 +85,27 @@ def test_build_pai_scrap_report_command_uses_sweep_run_for_executadas(
     assert command[executor_index + 1 : executor_index + 3] == ("IEE3", "MEL4")
     assert command[command.index("--username") + 1] == "sam.user"
     assert command[command.index("--secret-service") + 1] == "scrap_report.sam"
+    assert "--secure-required" in command
     assert manifest_path == output_dir / "pai_sam_api_manifest.json"
     assert fallback_xlsx_path == output_dir / "pai_sam_api.xlsx"
+
+
+def test_build_pai_scrap_report_command_requires_username_for_secure_sweep(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    with pytest.raises(ValueError, match="Usuario SAM obrigatorio"):
+        build_pai_scrap_report_command(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                scrap_report_root=scrap_root,
+                data_scope="executadas",
+                secure_required=True,
+            )
+        )
 
 
 def test_run_pai_scrap_report_export_reads_sweep_manifest_reports(
@@ -168,6 +188,25 @@ def test_build_pai_scrap_report_command_allows_exact_aprovacao_report_kind(
     assert command[command.index("--report-kind") + 1] == "aprovacao_emissao"
     emitter_index = command.index("--setores-emissor")
     assert command[emitter_index + 1] == "MEL4"
+
+
+def test_build_pai_scrap_report_command_rejects_report_kind_as_data_scope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    with pytest.raises(ValueError, match="Escopo SAM API xpath invalido"):
+        build_pai_scrap_report_command(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                scrap_report_root=scrap_root,
+                data_scope="aprovacao_emissao",
+                username="sam.user",
+                secure_required=True,
+            )
+        )
 
 
 def test_run_pai_scrap_report_export_rejects_manifest_path_escape(

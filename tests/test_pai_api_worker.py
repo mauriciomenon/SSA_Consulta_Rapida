@@ -74,7 +74,12 @@ def test_pai_api_worker_refreshes_each_executor_sector(
             db_path=tmp_path / "ssas.db",
             output_dir=tmp_path / "pai",
             options=normalize_pai_api_options(
-                {"executor_sectors": ["IEE3", "MEL4", "MEL3"]}
+                {
+                    "executor_sectors": ["IEE3", "MEL4", "MEL3"],
+                    "sam_username": "sam.user",
+                    "secret_service": "scrap_report.sam",
+                    "secure_required": True,
+                }
             ),
         )
     )
@@ -97,6 +102,12 @@ def test_pai_api_worker_refreshes_each_executor_sector(
         str(tmp_path / "pai" / "MEL4"),
     ]
     assert all(request.ca_file == tmp_path / "ca.pem" for request in captured["requests"])
+    assert all(request.username == "sam.user" for request in captured["requests"])
+    assert all(
+        request.secret_service == "scrap_report.sam"
+        for request in captured["requests"]
+    )
+    assert all(request.secure_required is True for request in captured["requests"])
     assert captured["preview_calls"] == 3
     assert captured["import_calls"] == 3
     assert captured["docs_dir"].parent == tmp_path / "docs" / "pai_api"
@@ -410,3 +421,31 @@ def test_pai_api_worker_reports_ca_failure_before_fetch_or_import(
     assert errors
     assert "falha ao validar CA" in errors[0]
     assert "DB inalterado" in errors[0]
+
+
+def test_pai_api_worker_records_unhandled_failure_in_summary(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    errors: list[str] = []
+
+    def _raise_unhandled(_self) -> None:
+        raise RuntimeError("unexpected worker failure")
+
+    monkeypatch.setattr(PaiApiRefreshWorker, "_run_refresh", _raise_unhandled)
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+        )
+    )
+    worker.finished_error.connect(errors.append)
+
+    worker.run()
+
+    assert errors == ["unexpected worker failure"]
+    assert worker.failures == ["unexpected worker failure"]
+    assert worker.summary().failures == ("unexpected worker failure",)

@@ -79,6 +79,7 @@ class PaiScrapReportRequest:
     report_kind: str | None = None
     username: str | None = None
     secret_service: str | None = None
+    secure_required: bool = False
 
 
 @dataclass(frozen=True)
@@ -237,6 +238,9 @@ def _build_pai_sweep_run_command(
     output_dir: Path,
 ) -> tuple[str, ...]:
     report_kind = _sweep_report_kind(request)
+    username = str(request.username or "").strip()
+    if request.secure_required and not username:
+        raise ValueError("Usuario SAM obrigatorio para executar xpath seguro.")
     command = [
         *execution.command_prefix,
         "-m",
@@ -261,10 +265,12 @@ def _build_pai_sweep_run_command(
         if len(request.ssa_numbers) > 1:
             raise ValueError("sweep-run aceita apenas um numero de SSA por execucao.")
         command.extend(["--numero-ssa", request.ssa_numbers[0]])
-    if request.username:
-        command.extend(["--username", request.username.strip()])
+    if username:
+        command.extend(["--username", username])
     if request.secret_service:
         command.extend(["--secret-service", request.secret_service.strip()])
+    if request.secure_required:
+        command.append("--secure-required")
     return tuple(command)
 
 
@@ -282,8 +288,6 @@ def _sweep_report_kind(request: PaiScrapReportRequest) -> str:
             "Escopo aprovacao exige report_kind explicito: "
             "aprovacao_emissao ou aprovacao_cancelamento."
         )
-    if data_scope in PAI_EXACT_SWEEP_REPORT_KINDS:
-        return data_scope
     raise ValueError(f"Escopo SAM API xpath invalido: {data_scope}")
 
 

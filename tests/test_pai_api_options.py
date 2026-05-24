@@ -10,8 +10,11 @@ from core.pai_api_options import (
     PAI_API_MAX_LIMIT,
     PAI_API_MAX_NUMBER_OF_YEARS,
     PAI_API_NUMBER_OF_YEARS_KEY,
+    PAI_API_SECRET_SERVICE_KEY,
+    PAI_API_SECURE_REQUIRED_KEY,
     PAI_API_SECTORS_KEY,
     PAI_API_SETTINGS_KEY,
+    PAI_API_USERNAME_KEY,
     default_pai_api_settings,
     normalize_pai_api_options,
     pai_api_options_error,
@@ -58,6 +61,23 @@ def test_pai_api_auto_refresh_defaults_are_explicit() -> None:
     assert options.auto_refresh_enabled is False
     assert options.auto_refresh_interval_minutes == 10
     assert options.data_scopes == ("consulta",)
+    assert options.username == ""
+    assert options.secret_service == "scrap_report.sam"
+    assert options.secure_required is True
+
+
+def test_pai_api_auth_options_trim_username_and_secret_service() -> None:
+    options = normalize_pai_api_options(
+        {
+            PAI_API_USERNAME_KEY: " sam.user ",
+            PAI_API_SECRET_SERVICE_KEY: " custom.sam ",
+            PAI_API_SECURE_REQUIRED_KEY: False,
+        }
+    )
+
+    assert options.username == "sam.user"
+    assert options.secret_service == "custom.sam"
+    assert options.secure_required is False
 
 
 def test_pai_api_data_scope_update_persists_canonical_value() -> None:

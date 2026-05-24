@@ -120,6 +120,7 @@ class PaiApiRefreshWorker(QThread):
         try:
             self._run_refresh()
         except Exception as exc:
+            self._add_failure(str(exc or "") or type(exc).__name__)
             self._refresh_summary()
             self.finished_error.emit(str(exc))
 
@@ -144,6 +145,9 @@ class PaiApiRefreshWorker(QThread):
             executor_sectors=sectors,
             limit=options.limit,
             number_of_years=options.number_of_years,
+            username=options.username,
+            secret_service=options.secret_service,
+            secure_required=options.secure_required,
         )
         self.progress.emit(5, "SAM API: validando CA")
         certificate = self._validate_ca(base_request)

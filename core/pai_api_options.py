@@ -14,6 +14,9 @@ PAI_API_AUTO_REFRESH_ENABLED_KEY = "auto_refresh_enabled"
 PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY = "auto_refresh_interval_minutes"
 PAI_API_LIMIT_KEY = "limit"
 PAI_API_NUMBER_OF_YEARS_KEY = "number_of_years"
+PAI_API_USERNAME_KEY = "sam_username"
+PAI_API_SECRET_SERVICE_KEY = "secret_service"
+PAI_API_SECURE_REQUIRED_KEY = "secure_required"
 
 PAI_API_ALLOWED_SECTORS = ("IEE3", "MEL4", "IEE1", "IEE4", "MEL3", "MEL1", "IEE2", "MEL2")
 PAI_API_DEFAULT_SECTORS = PAI_API_ALLOWED_SECTORS
@@ -21,6 +24,7 @@ PAI_API_FOCUSED_SECTORS = ("IEE3", "MEL4", "MEL3")
 PAI_API_DEFAULT_LIMIT = 200
 PAI_API_DEFAULT_NUMBER_OF_YEARS = 4
 PAI_API_DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 10
+PAI_API_DEFAULT_SECRET_SERVICE = "scrap_report.sam"
 PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES = 24 * 60
 PAI_API_MAX_LIMIT = 1000
 PAI_API_MAX_NUMBER_OF_YEARS = 10
@@ -49,6 +53,9 @@ class PaiApiGuiOptions:
     data_scopes: tuple[str, ...]
     limit: int
     number_of_years: int
+    username: str
+    secret_service: str
+    secure_required: bool
 
 
 def pai_api_options_error(options: PaiApiGuiOptions) -> str | None:
@@ -85,6 +92,9 @@ def default_pai_api_settings() -> dict[str, Any]:
         PAI_API_DATA_SCOPES_KEY: list(PAI_API_DEFAULT_DATA_SCOPES),
         PAI_API_LIMIT_KEY: PAI_API_DEFAULT_LIMIT,
         PAI_API_NUMBER_OF_YEARS_KEY: PAI_API_DEFAULT_NUMBER_OF_YEARS,
+        PAI_API_USERNAME_KEY: "",
+        PAI_API_SECRET_SERVICE_KEY: PAI_API_DEFAULT_SECRET_SERVICE,
+        PAI_API_SECURE_REQUIRED_KEY: True,
     }
 
 
@@ -166,6 +176,18 @@ def normalize_pai_api_options(raw_settings: Mapping[str, Any] | None) -> PaiApiG
             PAI_API_DEFAULT_NUMBER_OF_YEARS,
             max_value=PAI_API_MAX_NUMBER_OF_YEARS,
         ),
+        username=str(settings.get(PAI_API_USERNAME_KEY, "") or "").strip(),
+        secret_service=(
+            str(
+                settings.get(
+                    PAI_API_SECRET_SERVICE_KEY,
+                    PAI_API_DEFAULT_SECRET_SERVICE,
+                )
+                or PAI_API_DEFAULT_SECRET_SERVICE
+            ).strip()
+            or PAI_API_DEFAULT_SECRET_SERVICE
+        ),
+        secure_required=bool(settings.get(PAI_API_SECURE_REQUIRED_KEY, True)),
     )
 
 
