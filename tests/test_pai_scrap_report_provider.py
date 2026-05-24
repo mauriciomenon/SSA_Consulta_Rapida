@@ -8,6 +8,7 @@ import pytest
 
 from core.pai_import_service import fetch_and_import_pai_xlsx, preview_existing_pai_xlsx
 from core.pai_scrap_report_provider import (
+    build_pai_scrap_report_command,
     PaiScrapReportExport,
     PaiScrapReportRequest,
     run_pai_scrap_report_export,
@@ -52,6 +53,121 @@ def test_run_pai_scrap_report_export_creates_xlsx_from_manifest(
 
     assert result.xlsx_path == xlsx_path
     assert result.manifest_path == output_dir / "pai_sam_api_manifest.json"
+
+
+def test_build_pai_scrap_report_command_uses_sweep_run_for_executadas(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    command, _execution, manifest_path, fallback_xlsx_path = build_pai_scrap_report_command(
+        PaiScrapReportRequest(
+            project_root=tmp_path,
+            output_dir=output_dir,
+            scrap_report_root=scrap_root,
+            data_scope="executadas",
+            executor_sectors=("IEE3", "MEL4"),
+            username="sam.user",
+            secret_service="scrap_report.sam",
+        )
+    )
+
+    assert "sweep-run" in command
+    assert "sam-api-flow" not in command
+    assert command[command.index("--report-kind") + 1] == "executadas"
+    assert command[command.index("--runtime") + 1] == "playwright"
+    assert command[command.index("--scope-mode") + 1] == "executor"
+    executor_index = command.index("--setores-executor")
+    assert command[executor_index + 1 : executor_index + 3] == ("IEE3", "MEL4")
+    assert command[command.index("--username") + 1] == "sam.user"
+    assert command[command.index("--secret-service") + 1] == "scrap_report.sam"
+    assert manifest_path == output_dir / "pai_sam_api_manifest.json"
+    assert fallback_xlsx_path == output_dir / "pai_sam_api.xlsx"
+
+
+def test_run_pai_scrap_report_export_reads_sweep_manifest_reports(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    xlsx_path = output_dir / "staging" / "reports" / "executadas.xlsx"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    def runner(command: list[str], **kwargs: Any) -> _Completed:
+        assert "sweep-run" in command
+        assert "--output-json" in command
+        xlsx_path.parent.mkdir(parents=True, exist_ok=True)
+        xlsx_path.write_bytes(b"xlsx")
+        (output_dir / "pai_sam_api_manifest.json").write_text(
+            (
+                '{"status":"ok","items":[{"status":"ok","reports":'
+                '{"data_xlsx":"staging/reports/executadas.xlsx"}}]}'
+            ),
+            encoding="utf-8",
+        )
+        return _Completed()
+
+    result = run_pai_scrap_report_export(
+        PaiScrapReportRequest(
+            project_root=tmp_path,
+            output_dir=output_dir,
+            scrap_report_root=scrap_root,
+            data_scope="executadas",
+            executor_sectors=("IEE3",),
+        ),
+        runner=runner,
+    )
+
+    assert result.xlsx_path == xlsx_path
+    assert result.manifest["items"][0]["reports"]["data_xlsx"] == (
+        "staging/reports/executadas.xlsx"
+    )
+
+
+def test_build_pai_scrap_report_command_requires_exact_aprovacao_report_kind(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    with pytest.raises(ValueError, match="aprovacao exige report_kind explicito"):
+        build_pai_scrap_report_command(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                scrap_report_root=scrap_root,
+                data_scope="aprovacao",
+            )
+        )
+
+
+def test_build_pai_scrap_report_command_allows_exact_aprovacao_report_kind(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    command, _execution, _manifest_path, _fallback_xlsx_path = (
+        build_pai_scrap_report_command(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                scrap_report_root=scrap_root,
+                data_scope="aprovacao",
+                report_kind="aprovacao_emissao",
+                emitter_sectors=("MEL4",),
+            )
+        )
+    )
+
+    assert "sweep-run" in command
+    assert command[command.index("--report-kind") + 1] == "aprovacao_emissao"
+    emitter_index = command.index("--setores-emissor")
+    assert command[emitter_index + 1] == "MEL4"
 
 
 def test_run_pai_scrap_report_export_rejects_manifest_path_escape(

@@ -27,10 +27,27 @@ PAI_DEFAULT_COMMAND_TIMEOUT_SECONDS = 180.0
 PAI_OUTPUT_DIRNAME = "pai_api"
 PAI_MANIFEST_FILENAME = "pai_sam_api_manifest.json"
 PAI_XLSX_FILENAME = "pai_sam_api.xlsx"
+PAI_SWEEP_DOWNLOAD_DIRNAME = "downloads"
+PAI_SWEEP_STAGING_DIRNAME = "staging"
 PAI_CA_FILENAME = "itaipu_root_ca.pem"
 PAI_CA_MANIFEST_FILENAME = "sam_api_cert.json"
 PAI_EXPORT_XLSX_KEYS = ("data_xlsx", "xlsx")
 PAI_ARTIFACT_FRESHNESS_TOLERANCE_SECONDS = 2.0
+PAI_DATA_SCOPE_CONSULTA = "consulta"
+PAI_DATA_SCOPE_EXECUTADAS = "executadas"
+PAI_DATA_SCOPE_APROVACAO = "aprovacao"
+PAI_REPORT_KIND_EXECUTADAS = "executadas"
+PAI_REPORT_KIND_APROVACAO_EMISSAO = "aprovacao_emissao"
+PAI_REPORT_KIND_APROVACAO_CANCELAMENTO = "aprovacao_cancelamento"
+PAI_SWEEP_SCOPE_MODE_EXECUTOR = "executor"
+PAI_SWEEP_RUNTIME_PLAYWRIGHT = "playwright"
+PAI_EXACT_SWEEP_REPORT_KINDS = frozenset(
+    {
+        PAI_REPORT_KIND_EXECUTADAS,
+        PAI_REPORT_KIND_APROVACAO_EMISSAO,
+        PAI_REPORT_KIND_APROVACAO_CANCELAMENTO,
+    }
+)
 
 CompletedRunner = Callable[..., Any]
 
@@ -58,6 +75,10 @@ class PaiScrapReportRequest:
     include_details: bool = False
     api_timeout_seconds: float = PAI_DEFAULT_API_TIMEOUT_SECONDS
     command_timeout_seconds: float = PAI_DEFAULT_COMMAND_TIMEOUT_SECONDS
+    data_scope: str = PAI_DATA_SCOPE_CONSULTA
+    report_kind: str | None = None
+    username: str | None = None
+    secret_service: str | None = None
 
 
 @dataclass(frozen=True)
@@ -170,6 +191,15 @@ def build_pai_scrap_report_command(
     output_dir = _resolve_output_dir(request)
     manifest_path = output_dir / PAI_MANIFEST_FILENAME
     xlsx_path = output_dir / PAI_XLSX_FILENAME
+    data_scope = _normalized_data_scope(request)
+    if data_scope != PAI_DATA_SCOPE_CONSULTA:
+        command = _build_pai_sweep_run_command(
+            request,
+            execution=execution,
+            manifest_path=manifest_path,
+            output_dir=output_dir,
+        )
+        return command, execution, manifest_path, xlsx_path
 
     command = [
         *execution.command_prefix,
@@ -197,6 +227,68 @@ def build_pai_scrap_report_command(
     if request.ca_file is not None:
         command.extend(["--ca-file", str(request.ca_file.expanduser())])
     return tuple(command), execution, manifest_path, xlsx_path
+
+
+def _build_pai_sweep_run_command(
+    request: PaiScrapReportRequest,
+    *,
+    execution: PaiScrapReportExecution,
+    manifest_path: Path,
+    output_dir: Path,
+) -> tuple[str, ...]:
+    report_kind = _sweep_report_kind(request)
+    command = [
+        *execution.command_prefix,
+        "-m",
+        "scrap_report.cli",
+        "sweep-run",
+        "--report-kind",
+        report_kind,
+        "--scope-mode",
+        PAI_SWEEP_SCOPE_MODE_EXECUTOR,
+        "--runtime",
+        PAI_SWEEP_RUNTIME_PLAYWRIGHT,
+        "--download-dir",
+        str(output_dir / PAI_SWEEP_DOWNLOAD_DIRNAME),
+        "--staging-dir",
+        str(output_dir / PAI_SWEEP_STAGING_DIRNAME),
+        "--output-json",
+        str(manifest_path),
+    ]
+    _append_nargs_args(command, "--setores-executor", request.executor_sectors)
+    _append_nargs_args(command, "--setores-emissor", request.emitter_sectors)
+    if request.ssa_numbers:
+        if len(request.ssa_numbers) > 1:
+            raise ValueError("sweep-run aceita apenas um numero de SSA por execucao.")
+        command.extend(["--numero-ssa", request.ssa_numbers[0]])
+    if request.username:
+        command.extend(["--username", request.username.strip()])
+    if request.secret_service:
+        command.extend(["--secret-service", request.secret_service.strip()])
+    return tuple(command)
+
+
+def _sweep_report_kind(request: PaiScrapReportRequest) -> str:
+    report_kind = str(request.report_kind or "").strip()
+    if report_kind:
+        if report_kind not in PAI_EXACT_SWEEP_REPORT_KINDS:
+            raise ValueError(f"report_kind SAM API xpath invalido: {report_kind}")
+        return report_kind
+    data_scope = _normalized_data_scope(request)
+    if data_scope == PAI_DATA_SCOPE_EXECUTADAS:
+        return PAI_REPORT_KIND_EXECUTADAS
+    if data_scope == PAI_DATA_SCOPE_APROVACAO:
+        raise ValueError(
+            "Escopo aprovacao exige report_kind explicito: "
+            "aprovacao_emissao ou aprovacao_cancelamento."
+        )
+    if data_scope in PAI_EXACT_SWEEP_REPORT_KINDS:
+        return data_scope
+    raise ValueError(f"Escopo SAM API xpath invalido: {data_scope}")
+
+
+def _normalized_data_scope(request: PaiScrapReportRequest) -> str:
+    return str(request.data_scope or PAI_DATA_SCOPE_CONSULTA).strip().casefold()
 
 
 def run_pai_scrap_report_export(
@@ -376,6 +468,18 @@ def _append_repeated_args(
             command.extend([option, clean_value])
 
 
+def _append_nargs_args(
+    command: list[str],
+    option: str,
+    values: Sequence[str],
+) -> None:
+    clean_values = [str(value or "").strip() for value in values]
+    clean_values = [value for value in clean_values if value]
+    if clean_values:
+        command.append(option)
+        command.extend(clean_values)
+
+
 def _load_manifest(manifest_path: Path) -> Mapping[str, Any]:
     if not manifest_path.is_file():
         raise FileNotFoundError(f"Manifest SAM API nao criado: {manifest_path}")
@@ -398,11 +502,8 @@ def _resolve_xlsx_from_manifest(
     manifest_path: Path,
     fallback_xlsx_path: Path,
 ) -> Path:
-    exports = manifest.get("exports")
-    if not isinstance(exports, Mapping):
-        exports = {}
     raw_xlsx = next(
-        (exports.get(key) for key in PAI_EXPORT_XLSX_KEYS if exports.get(key)),
+        _iter_manifest_xlsx_candidates(manifest),
         str(fallback_xlsx_path),
     )
     xlsx_path = Path(str(raw_xlsx)).expanduser()
@@ -417,3 +518,25 @@ def _resolve_xlsx_from_manifest(
     if xlsx_path.suffix.casefold() != ".xlsx":
         raise ValueError(f"Export SAM API nao aponta para XLSX: {xlsx_path}")
     return xlsx_path
+
+
+def _iter_manifest_xlsx_candidates(manifest: Mapping[str, Any]):
+    containers: list[Mapping[str, Any]] = []
+    exports = manifest.get("exports")
+    if isinstance(exports, Mapping):
+        containers.append(exports)
+    items = manifest.get("items")
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, Mapping):
+                continue
+            reports = item.get("reports")
+            artifacts = item.get("available_artifacts")
+            if isinstance(reports, Mapping):
+                containers.append(reports)
+            if isinstance(artifacts, Mapping):
+                containers.append(artifacts)
+    for container in containers:
+        for key in PAI_EXPORT_XLSX_KEYS:
+            if container.get(key):
+                yield container[key]
