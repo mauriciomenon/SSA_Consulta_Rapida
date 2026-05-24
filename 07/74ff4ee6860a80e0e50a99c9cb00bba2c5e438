@@ -1,0 +1,30 @@
+gui/workers/pai_api_worker.py
+  s_9f052ddda3b0ba::t_31d0a3f6135228 12-17,135-137,161-175,223,235,241-246,250,253-255,260
+tests/test_pai_api_options.py
+  s_9f052ddda3b0ba::t_6a993e88e6cc25 8,101,105,107-110,114-128
+tests/test_gui_menu_import_external.py
+  s_9f052ddda3b0ba::t_e04f4bbdc1aeac 234-236
+tests/test_pai_api_worker.py
+  s_9f052ddda3b0ba::t_1c17c028d0ec94 121-205
+gui/ssa/app_menus.py
+  s_9f052ddda3b0ba::t_8782fcb02eb5ef 10,264
+core/pai_api_options.py
+  s_9f052ddda3b0ba::t_4afb8b89e9f31f 40-42,72-74,76-78
+  s_9f052ddda3b0ba::t_ea163fa8d920e5 98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "0774ff4ee6860a80e0e50a99c9cb00bba2c5e438",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
