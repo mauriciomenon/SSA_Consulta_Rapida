@@ -1,0 +1,31 @@
+tests/test_gui_filter_logic.py
+  s_082d1ff7d55d96::t_c71e31c193e475 7155-7156,7158,7160-7165,7173,7192-7197,7205-7206,7290-7302
+  s_082d1ff7d55d96::t_ac592a91ef94d3 516
+  s_082d1ff7d55d96::t_2f16e5315bc920 7167-7171
+  s_082d1ff7d55d96::t_beffe699140243 7226-7230,7236-7241
+gui/widgets/preferences_dialog.py
+  s_082d1ff7d55d96::t_d2ec8a4167ea67 324
+  s_082d1ff7d55d96::t_f32ac42a3c777d 25,119-121,222-224,237-239,328-333,358,404-421,502-565
+gui/ssa/main_window_table_section.py
+  s_082d1ff7d55d96::t_18680ff8ea94f5 11-12,30-34
+gui/gui_ssa.py
+  s_082d1ff7d55d96::t_8f56d23fec22db 2179-2188
+gui/gui_config.py
+  s_082d1ff7d55d96::t_ff74ab79d549f6 93,368
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "8044f2d16bd4f4636717d7300fff2ab851a127cc",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
