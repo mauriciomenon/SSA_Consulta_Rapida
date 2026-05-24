@@ -5,6 +5,7 @@ from core.pai_api_options import (
     PAI_API_AUTO_REFRESH_ENABLED_KEY,
     PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY,
     PAI_API_DATA_SCOPES_KEY,
+    PAI_API_ENABLED_DATA_SCOPES,
     PAI_API_LIMIT_KEY,
     PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES,
     PAI_API_MAX_LIMIT,
@@ -97,16 +98,34 @@ def test_pai_api_options_reject_scope_without_gui_backend() -> None:
 
     assert (
         pai_api_options_error(options)
-        == "Tipo de dado ainda nao disponivel: Executadas. Use Consulta."
+        == "Usuario SAM obrigatorio para Executadas via xpath/scrap_report."
     )
 
 
-def test_pai_api_options_allow_consulta_when_stale_config_keeps_planned_scope() -> None:
+def test_pai_api_options_allow_consulta_and_executadas_with_username() -> None:
     options = normalize_pai_api_options(
-        {PAI_API_DATA_SCOPES_KEY: ["consulta", "executadas"]}
+        {
+            PAI_API_DATA_SCOPES_KEY: ["consulta", "executadas"],
+            PAI_API_USERNAME_KEY: "sam.user",
+        }
     )
 
     assert pai_api_options_error(options) is None
+    assert PAI_API_ENABLED_DATA_SCOPES == ("consulta", "executadas")
+
+
+def test_pai_api_options_keep_aprovacao_planned() -> None:
+    options = normalize_pai_api_options(
+        {
+            PAI_API_DATA_SCOPES_KEY: ["aprovacao"],
+            PAI_API_USERNAME_KEY: "sam.user",
+        }
+    )
+
+    assert (
+        pai_api_options_error(options)
+        == "Tipo de dado ainda nao disponivel: Para aprovacao. Use Consulta."
+    )
 
 
 def test_pai_api_options_clamp_excessive_numeric_values() -> None:

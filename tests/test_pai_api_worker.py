@@ -118,6 +118,91 @@ def test_pai_api_worker_refreshes_each_executor_sector(
     assert worker.failures == []
 
 
+def test_pai_api_worker_refreshes_executadas_without_ca_validation(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, Any] = {"requests": [], "ca_calls": 0}
+
+    def _fake_fetch(request, *, docs_dir):
+        captured["requests"].append(request)
+        captured["docs_dir"] = docs_dir
+        return PaiFetchedXlsxPreview(
+            export=PaiScrapReportExport(
+                command=("cmd",),
+                scrap_report_root=tmp_path,
+                manifest_path=tmp_path / "manifest.json",
+                xlsx_path=tmp_path / "data.xlsx",
+                manifest={},
+                stdout="",
+                stderr="",
+            ),
+            import_xlsx_path=tmp_path / "import.xlsx",
+            normalized_rows=2,
+        )
+
+    monkeypatch.setattr(pai_api_worker, "fetch_pai_xlsx_preview", _fake_fetch)
+    monkeypatch.setattr(
+        pai_api_worker,
+        "run_pai_scrap_report_ca_export",
+        lambda _request: captured.__setitem__("ca_calls", captured["ca_calls"] + 1),
+    )
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=normalize_pai_api_options(
+                {
+                    "executor_sectors": ["IEE3"],
+                    "data_scopes": ["executadas"],
+                    "sam_username": "sam.user",
+                    "secure_required": True,
+                }
+            ),
+            fetch_only=True,
+        )
+    )
+
+    worker.run()
+
+    assert captured["ca_calls"] == 0
+    assert len(captured["requests"]) == 1
+    request = captured["requests"][0]
+    assert request.data_scope == "executadas"
+    assert request.ca_file is None
+    assert request.username == "sam.user"
+    assert request.secure_required is True
+    assert request.output_dir == tmp_path / "pai" / "executadas" / "IEE3"
+    assert captured["docs_dir"] == tmp_path / "docs" / "pai_api" / "executadas" / "IEE3"
+    assert worker.summary().import_skipped is True
+
+
+def test_pai_api_worker_rejects_executadas_without_username(tmp_path: Path) -> None:
+    errors: list[str] = []
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=normalize_pai_api_options(
+                {
+                    "executor_sectors": ["IEE3"],
+                    "data_scopes": ["executadas"],
+                }
+            ),
+        )
+    )
+    worker.finished_error.connect(errors.append)
+
+    worker.run()
+
+    assert errors == ["Usuario SAM obrigatorio para Executadas via xpath/scrap_report."]
+    assert worker.results == []
+
+
 def test_pai_api_worker_continues_after_sector_failure(
     monkeypatch,
     tmp_path: Path,

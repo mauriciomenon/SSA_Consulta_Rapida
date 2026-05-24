@@ -37,7 +37,9 @@ PAI_API_DATA_SCOPE_LABELS = {
     "programacao": "Para programacao",
 }
 PAI_API_REST_DATA_SCOPES = ("consulta",)
-PAI_API_PLANNED_SCRAPER_DATA_SCOPES = ("executadas", "aprovacao")
+PAI_API_SCRAPER_DATA_SCOPES = ("executadas",)
+PAI_API_ENABLED_DATA_SCOPES = PAI_API_REST_DATA_SCOPES + PAI_API_SCRAPER_DATA_SCOPES
+PAI_API_PLANNED_SCRAPER_DATA_SCOPES = ("aprovacao",)
 PAI_API_UNSUPPORTED_DATA_SCOPES = ("planejamento", "programacao")
 PAI_API_ALLOWED_DATA_SCOPES = tuple(PAI_API_DATA_SCOPE_LABELS)
 PAI_API_DEFAULT_DATA_SCOPES = PAI_API_REST_DATA_SCOPES
@@ -67,8 +69,13 @@ def pai_api_options_error(options: PaiApiGuiOptions) -> str | None:
         return "Nenhum setor executor habilitado para SAM API."
     if not options.data_scopes:
         return "Nenhum tipo de dado habilitado para SAM API."
-    supported = tuple(scope for scope in options.data_scopes if scope in PAI_API_REST_DATA_SCOPES)
+    supported = tuple(
+        scope for scope in options.data_scopes if scope in PAI_API_ENABLED_DATA_SCOPES
+    )
     if supported:
+        if any(scope in PAI_API_SCRAPER_DATA_SCOPES for scope in supported):
+            if options.secure_required and not options.username:
+                return "Usuario SAM obrigatorio para Executadas via xpath/scrap_report."
         return None
     unavailable = (
         *planned_scraper_pai_api_data_scopes(options.data_scopes),
@@ -88,7 +95,7 @@ def default_pai_api_settings() -> dict[str, Any]:
         PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY: (
             PAI_API_DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES
         ),
-        PAI_API_SECTORS_KEY: list(PAI_API_ALLOWED_SECTORS),
+        PAI_API_SECTORS_KEY: list(PAI_API_DEFAULT_SECTORS),
         PAI_API_DATA_SCOPES_KEY: list(PAI_API_DEFAULT_DATA_SCOPES),
         PAI_API_LIMIT_KEY: PAI_API_DEFAULT_LIMIT,
         PAI_API_NUMBER_OF_YEARS_KEY: PAI_API_DEFAULT_NUMBER_OF_YEARS,

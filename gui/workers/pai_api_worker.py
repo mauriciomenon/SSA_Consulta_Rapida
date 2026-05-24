@@ -9,7 +9,12 @@ from pathlib import Path
 from threading import Event, Lock
 from typing import Sequence
 
-from core.pai_api_options import PaiApiGuiOptions, pai_api_options_error
+from core.pai_api_options import (
+    PAI_API_ENABLED_DATA_SCOPES,
+    PAI_API_REST_DATA_SCOPES,
+    PaiApiGuiOptions,
+    pai_api_options_error,
+)
 from core.pai_import_service import (
     PaiFetchedXlsxPreview,
     PaiImportResult,
@@ -127,6 +132,9 @@ class PaiApiRefreshWorker(QThread):
     def _run_refresh(self) -> None:
         options = self.config.options
         sectors = tuple(options.executor_sectors)
+        data_scopes = tuple(
+            scope for scope in options.data_scopes if scope in PAI_API_ENABLED_DATA_SCOPES
+        )
         options_error = pai_api_options_error(options)
         if options_error is not None:
             self.finished_error.emit(options_error)
@@ -149,14 +157,22 @@ class PaiApiRefreshWorker(QThread):
             secret_service=options.secret_service,
             secure_required=options.secure_required,
         )
-        self.progress.emit(5, "SAM API: validando CA")
-        certificate = self._validate_ca(base_request)
-        if certificate is None:
-            return
 
-        previews = self._fetch_sector_previews(
-            self._sector_requests(base_request, certificate.ca_file, sectors)
-        )
+        previews: list[_PaiSectorPreview] = []
+        for data_scope in data_scopes:
+            scoped_request = replace(base_request, data_scope=data_scope)
+            ca_file: Path | None = None
+            if data_scope in PAI_API_REST_DATA_SCOPES:
+                self.progress.emit(5, "SAM API: validando CA")
+                certificate = self._validate_ca(scoped_request)
+                if certificate is None:
+                    return
+                ca_file = certificate.ca_file
+            previews.extend(
+                self._fetch_sector_previews(
+                    self._sector_requests(scoped_request, ca_file, sectors)
+                )
+            )
         self._refresh_summary(previews=previews)
         if not previews:
             self.finished_error.emit(_format_total_failure(self._failures_snapshot()))
@@ -204,7 +220,7 @@ class PaiApiRefreshWorker(QThread):
     def _sector_requests(
         self,
         base_request: PaiScrapReportRequest,
-        ca_file: Path,
+        ca_file: Path | None,
         sectors: tuple[str, ...],
     ) -> list[_PaiSectorRequest]:
         total = max(len(sectors), 1)
@@ -216,23 +232,32 @@ class PaiApiRefreshWorker(QThread):
                 _PaiSectorRequest(
                     sector=sector,
                     request=sector_request,
-                    docs_dir=self.config.docs_dir / "pai_api" / sector,
+                    docs_dir=self._sector_docs_dir(base_request.data_scope, sector),
                     progress_base=progress_base,
                 )
             )
         return requests
 
+    def _sector_docs_dir(self, data_scope: str, sector: str) -> Path:
+        docs_root = self.config.docs_dir / "pai_api"
+        if data_scope in PAI_API_REST_DATA_SCOPES:
+            return docs_root / sector
+        return docs_root / data_scope / sector
+
     def _sector_request(
         self,
         base_request: PaiScrapReportRequest,
-        ca_file: Path,
+        ca_file: Path | None,
         sector: str,
     ) -> PaiScrapReportRequest:
+        output_root = self.config.output_dir
+        if base_request.data_scope not in PAI_API_REST_DATA_SCOPES:
+            output_root = output_root / base_request.data_scope
         return replace(
             base_request,
             ca_file=ca_file,
             executor_sectors=(sector,),
-            output_dir=self.config.output_dir / sector,
+            output_dir=output_root / sector,
         )
 
     def _fetch_sector_previews(

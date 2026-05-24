@@ -7,7 +7,7 @@ from typing import Any
 
 from core.pai_api_options import (
     PAI_API_ALLOWED_SECTORS,
-    PAI_API_REST_DATA_SCOPES,
+    PAI_API_ENABLED_DATA_SCOPES,
     pai_api_data_scope_label,
     PAI_API_SETTINGS_KEY,
     normalize_pai_api_options,
@@ -261,7 +261,7 @@ def _add_pai_api_menu(
 
     data_scope_menu = pai_menu.addMenu("Tipos de dados")
     selected_scopes = {value.casefold() for value in options.data_scopes}
-    for scope in PAI_API_REST_DATA_SCOPES:
+    for scope in PAI_API_ENABLED_DATA_SCOPES:
         scope_action = action_cls(pai_api_data_scope_label(scope), window)
         scope_action.setCheckable(True)
         scope_action.setChecked(scope.casefold() in selected_scopes)
