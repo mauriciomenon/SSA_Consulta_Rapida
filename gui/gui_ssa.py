@@ -2688,6 +2688,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def update_details_from_selection(self):
         return ssa_gui_details.update_details_from_selection(self)
 
+    def _refresh_main_details_derivadas_panel(self):
+        return ssa_gui_details.refresh_main_details_derivadas_panel(self)
+
     def _get_derivadas_for_ssa(self, numero_ssa):
         return ssa_gui_details._get_derivadas_for_ssa(self, numero_ssa)
 

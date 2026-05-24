@@ -182,3 +182,24 @@ def test_cache_stats_reuses_memory_estimate_until_cache_changes(monkeypatch) -> 
     cache.get_cache_stats()
 
     assert calls > calls_after_first
+
+
+def test_cache_manager_named_cache_honors_independent_limit() -> None:
+    cache = CacheManager()
+
+    cache.cache_value("details", ("k", 0), 0, max_entries=2)
+    cache.cache_value("details", ("k", 1), 1, max_entries=2)
+    cache.cache_value("details", ("k", 2), 2, max_entries=2)
+
+    assert cache.get_cached_value("details", ("k", 0)) is None
+    assert cache.get_cached_value("details", ("k", 1)) == 1
+    assert cache.get_cached_value("details", ("k", 2)) == 2
+
+
+def test_cache_manager_invalidate_cache_clears_named_cache() -> None:
+    cache = CacheManager()
+    cache.cache_value("details", "row", {"value": 1}, max_entries=2)
+
+    cache.invalidate_cache("details")
+
+    assert cache.get_cached_value("details", "row") is None

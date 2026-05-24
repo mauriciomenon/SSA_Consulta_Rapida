@@ -12,6 +12,7 @@ from typing import Any, Mapping, cast
 
 import pandas as pd
 
+from core.dataframe_fingerprint import build_dataframe_filter_hash
 from gui.helpers.formatting_helpers import highlight_text
 from gui.helpers.theme_helpers import pick_css_color
 from gui.qt_stubs import QTimer
@@ -34,6 +35,8 @@ from gui.ssa.details_dialog_presenter import (
     DetailsDialogCallbacks,
     DetailsDialogPresenter,
 )
+from gui.ssa.details_graph_export import load_svg_render_dependencies
+from gui.ssa.details_graph_export import render_graph_svg_pixmap
 from gui.ssa.details_normalization import (
     is_missing_scalar as _is_missing_scalar,
     normalize_ssa_relation_series as _normalize_ssa_relation_series,
@@ -280,7 +283,7 @@ def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
     if not callable(cache_get) or not callable(cache_put):
         return _normalize_ssa_series(window, df[column_name])
     key = (
-        id(df),
+        _get_details_frame_fingerprint(window, df),
         str(column_name),
         len(df),
         getattr(window, "_data_revision", None),
@@ -308,17 +311,16 @@ def _get_df_ssa_series_index(window, df) -> Mapping[str, pd.Series]:
     cache_get = getattr(cache_owner, "get_cached_value", None)
     cache_put = getattr(cache_owner, "cache_value", None)
     has_cache_manager = callable(cache_get) and callable(cache_put)
-    cache_key = (
-        id(df),
-        len(df),
-        getattr(window, "_data_revision", None),
-        data_uuid,
-    )
-    cached = (
-        cast(Any, cache_get)("details_df_ssa_index", cache_key)
-        if cache_enabled and has_cache_manager
-        else None
-    )
+    cache_key = None
+    cached = None
+    if cache_enabled and has_cache_manager:
+        cache_key = (
+            _get_details_frame_fingerprint(window, df),
+            len(df),
+            getattr(window, "_data_revision", None),
+            data_uuid,
+        )
+        cached = cast(Any, cache_get)("details_df_ssa_index", cache_key)
     if isinstance(cached, Mapping) and cached:
         return cached
 
@@ -341,7 +343,7 @@ def _get_df_ssa_series_index(window, df) -> Mapping[str, pd.Series]:
     except Exception as exc:
         logger.debug("Falha ao montar indice SSA por DataFrame: %s", exc)
         return {}
-    if cache_enabled and has_cache_manager:
+    if cache_enabled and has_cache_manager and cache_key is not None:
         cast(Any, cache_put)(
             "details_df_ssa_index",
             cache_key,
@@ -456,6 +458,29 @@ def _resolve_ssa_series_candidates(
     hydrate_from_df(getattr(window, "df_exibido", None))
     hydrate_from_df(getattr(window, "df_completo", None))
     return resolved
+
+
+def _get_details_frame_fingerprint(window, df) -> str:
+    data_uuid = getattr(window, "_data_uuid", None)
+    if data_uuid is None:
+        return build_dataframe_filter_hash(df)
+    token = (
+        data_uuid,
+        getattr(window, "_data_revision", None),
+        tuple(getattr(df, "shape", (0, 0))),
+        tuple(str(column) for column in getattr(df, "columns", [])),
+    )
+    cache = getattr(window, "_details_frame_fingerprint_cache", None)
+    if isinstance(cache, dict) and cache.get("token") == token:
+        cached_value = cache.get("fingerprint")
+        if isinstance(cached_value, str) and cached_value:
+            return cached_value
+    fingerprint = build_dataframe_filter_hash(df)
+    window._details_frame_fingerprint_cache = {
+        "token": token,
+        "fingerprint": fingerprint,
+    }
+    return fingerprint
 
 
 def _get_details_db_signature():
@@ -576,6 +601,8 @@ def _update_details_from_series(window, series):
         window._details_current_ssa = None
         window.details_text.setProperty("details_render_signature", None)
         window.details_text.clear()
+        window._details_current_series_for_derivadas = None
+        _clear_main_details_derivadas_panel(window)
         return
     render_signature = _get_details_render_signature(window, series)
     try:
@@ -611,6 +638,9 @@ def _update_details_from_series(window, series):
         )
         window.details_text.setHtml(html_content)
         window.details_text.setProperty("details_render_signature", render_signature)
+        window._details_current_series_for_derivadas = series
+        window._details_current_derivadas_font_family = font_family
+        _sync_main_details_derivadas_panel(window)
         return
     except Exception as exc:
         logger.debug(
@@ -642,8 +672,105 @@ def _update_details_from_series(window, series):
     try:
         window.details_text.setPlainText(details_str)
         window.details_text.setProperty("details_render_signature", render_signature)
+        window._details_current_series_for_derivadas = series
+        window._details_current_derivadas_font_family = None
+        _sync_main_details_derivadas_panel(window)
     except Exception as exc:
         logger.debug("Falha ao renderizar detalhes em texto simples: %s", exc)
+
+
+def _clear_main_details_derivadas_panel(window) -> None:
+    for attr in ("details_tree_text", "details_graph_label", "details_graph_text"):
+        widget = getattr(window, attr, None)
+        if widget is None:
+            continue
+        try:
+            widget.clear()
+        except Exception as exc:
+            logger.debug("Falha ao limpar %s: %s", attr, exc)
+
+
+def _sync_main_details_derivadas_panel(window) -> None:
+    stack = getattr(window, "details_stack", None)
+    try:
+        active_derivadas = stack is not None and int(stack.currentIndex()) == 1
+    except Exception as exc:
+        logger.debug("Falha ao ler aba ativa de detalhes: %s", exc)
+        active_derivadas = False
+    if active_derivadas:
+        refresh_main_details_derivadas_panel(window)
+        return
+    _clear_main_details_derivadas_panel(window)
+
+
+def _update_main_details_derivadas_panel(window, series, *, font_family: str | None) -> None:
+    tree_browser = getattr(window, "details_tree_text", None)
+    graph_label = getattr(window, "details_graph_label", None)
+    graph_browser = graph_label or getattr(window, "details_graph_text", None)
+    if tree_browser is None or graph_browser is None:
+        return
+    try:
+        numero_ssa = series.get("numero_ssa")
+    except Exception as exc:
+        logger.debug("Falha ao ler SSA para painel principal de derivadas: %s", exc)
+        _clear_main_details_derivadas_panel(window)
+        return
+    normalized = _normalize_ssa_relation_value(numero_ssa)
+    if not normalized:
+        _clear_main_details_derivadas_panel(window)
+        return
+    try:
+        roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
+        link_color = str(
+            roles.get("accent") or roles.get("panel_text") or roles.get("label_color")
+        )
+        tree_data = _collect_derivadas_tree_data(window, normalized)
+        safe_font_family = font_family or DETAILS_CONFIG.mono_font_family
+        tree_html = _build_derivadas_tree_html(
+            window,
+            normalized,
+            link_color=link_color,
+            font_family=safe_font_family,
+            tree_data_override=tree_data,
+            ssa_index=None,
+        )
+        graph_html = _build_derivadas_graph_html(
+            window,
+            tree_data,
+            link_color=link_color,
+            font_family=safe_font_family,
+        )
+        tree_browser.setHtml(tree_html or "Sem derivadas para exibir.")
+        graph_svg = _extract_inline_svg_markup(graph_html)
+        svg_deps = load_svg_render_dependencies()
+        if graph_svg and svg_deps is not None:
+            graph_panel = graph_browser.parentWidget() or graph_browser
+            if not render_graph_svg_pixmap(
+                graph_svg=graph_svg,
+                graph_label=graph_browser,
+                graph_panel=graph_panel,
+                dependencies=svg_deps,
+            ):
+                graph_browser.setText("Grafo de derivadas indisponivel.")
+        elif hasattr(graph_browser, "setHtml"):
+            graph_browser.setHtml(graph_html or "Grafo de derivadas indisponivel.")
+        else:
+            graph_browser.setText("Grafo de derivadas indisponivel.")
+    except Exception as exc:
+        logger.debug("Falha ao atualizar painel principal de derivadas: %s", exc)
+        _clear_main_details_derivadas_panel(window)
+
+
+def refresh_main_details_derivadas_panel(window) -> None:
+    series = getattr(window, "_details_current_series_for_derivadas", None)
+    if series is None:
+        _clear_main_details_derivadas_panel(window)
+        return
+    _update_main_details_derivadas_panel(
+        window,
+        series,
+        font_family=getattr(window, "_details_current_derivadas_font_family", None),
+    )
 
 
 def _get_derivadas_for_ssa(window, numero_ssa):

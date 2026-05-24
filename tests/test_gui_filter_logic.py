@@ -423,6 +423,62 @@ class TestGUIFilterLogic:
         assert str(title.text() or "") == "Filtros por Coluna"
         assert getattr(self.window, "_active_filter_panel_kind", None) == "columns"
 
+    def test_details_derivadas_tab_refreshes_when_selection_changes(self, monkeypatch):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": [1, 2],
+                "situacao": ["APV", "STE"],
+                "derivada_de": ["", "1"],
+                "descricao_ssa": ["Teste A", "Teste B"],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "load_svg_render_dependencies",
+            lambda: object(),
+        )
+
+        def _fake_graph_html(_window, data, *, link_color, font_family):
+            return f"<svg><text>{data.get('target', '')}</text></svg>"
+
+        def _fake_render_graph_svg_pixmap(*, graph_svg, graph_label, graph_panel, dependencies):
+            graph_label.setText(graph_svg)
+            return True
+
+        monkeypatch.setattr(ssa_gui_details, "_build_derivadas_graph_html", _fake_graph_html)
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "render_graph_svg_pixmap",
+            _fake_render_graph_svg_pixmap,
+        )
+
+        ctx = self._panel_context()
+        ctx["details_tab_bar"].setCurrentIndex(1)
+        QApplication.processEvents()
+
+        self.window.table_widget.selectRow(0)
+        self.window.update_details_from_selection()
+        QApplication.processEvents()
+
+        assert ctx["details_stack"].currentIndex() == 1
+        assert "1" in str(self.window.details_tree_text.toPlainText() or "")
+        assert "1" in str(self.window.details_graph_label.text() or "")
+
+        self.window.table_widget.selectRow(1)
+        self.window.update_details_from_selection()
+        QApplication.processEvents()
+
+        assert "Teste B" in str(self.window.details_text.toHtml() or "")
+        assert "2" in str(self.window.details_tree_text.toPlainText() or "")
+        assert "2" in str(self.window.details_graph_label.text() or "")
+
     def test_column_filters_panel_is_populated_on_startup(self):
         main_ctx = self._panel_context()
         container = main_ctx["col_filters_container"]

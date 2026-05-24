@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSplitter,
     QStackedWidget,
     QTabBar,
     QTextBrowser,
@@ -27,8 +28,9 @@ logger = logging.getLogger(__name__)
 def build_bottom_filter_section(window: Any) -> dict[str, Any]:
     bottom_layout = QHBoxLayout()
 
-    details_group, details_text = _build_details_panel(window)
+    details_group, details_context = _build_details_panel(window)
     bottom_layout.addWidget(cast(Any, details_group), 2)
+    bottom_layout.setAlignment(cast(Any, details_group), Qt.AlignmentFlag.AlignTop)
 
     column_context = _build_column_filters_panel_shell(window)
     col_filters_group = column_context["col_filters_group"]
@@ -72,22 +74,26 @@ def build_bottom_filter_section(window: Any) -> dict[str, Any]:
         "_bottom_layout": bottom_layout,
         "_adv_ctx": adv_ctx,
         "details_group": details_group,
-        "details_text": details_text,
         "filters_panel_group": filters_panel_group,
         "filter_panel_tab_bar": filter_panel_tab_bar,
         "filter_panel_title": filter_panel_title,
         "filters_panel_stack": filters_panel_stack,
+        **details_context,
         **column_context,
     }
 
 
-def _build_details_panel(window: Any) -> tuple[QGroupBox, QTextBrowser]:
-    details_group = QGroupBox("Detalhes da SSA Selecionada")
+def _build_details_panel(window: Any) -> tuple[QGroupBox, dict[str, Any]]:
+    details_group = QGroupBox("")
     details_group.setObjectName("detailsPanelGroup")
     details_layout = QVBoxLayout(cast(Any, details_group))
     details_layout.setContentsMargins(4, 2, 4, 4)
     details_layout.setSpacing(2)
 
+    details_header, details_tab_bar, details_title = _build_details_panel_header(window)
+    details_layout.addWidget(cast(Any, details_header), 0)
+
+    details_stack = QStackedWidget()
     details_text = QTextBrowser()
     try:
         details_text.setFrameShape(QFrame.Shape.NoFrame)
@@ -108,8 +114,119 @@ def _build_details_panel(window: Any) -> tuple[QGroupBox, QTextBrowser]:
         details_text.anchorClicked.connect(window._on_details_anchor_clicked)
     except Exception as exc:
         logger.debug("Falha ao configurar links no painel de detalhes: %s", exc)
-    details_layout.addWidget(cast(Any, details_text))
-    return details_group, details_text
+    details_stack.addWidget(cast(Any, details_text))
+
+    details_derivadas_splitter = QSplitter(Qt.Orientation.Horizontal)
+    details_derivadas_splitter.setChildrenCollapsible(False)
+    details_tree_text = QTextBrowser()
+    details_graph_label = QLabel()
+    details_tree_text.setReadOnly(True)
+    details_tree_text.setOpenLinks(False)
+    details_tree_text.setOpenExternalLinks(False)
+    try:
+        details_tree_text.setFrameShape(QFrame.Shape.NoFrame)
+        details_tree_text.anchorClicked.connect(window._on_details_anchor_clicked)
+    except Exception as exc:
+        logger.debug("Falha ao configurar arvore de derivadas no painel principal: %s", exc)
+    try:
+        details_graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        details_graph_label.setTextFormat(Qt.TextFormat.RichText)
+        details_graph_label.setStyleSheet("border:none; background:transparent;")
+        details_graph_label.setMinimumHeight(120)
+    except Exception as exc:
+        logger.debug("Falha ao configurar grafo de derivadas no painel principal: %s", exc)
+    details_derivadas_splitter.addWidget(cast(Any, details_tree_text))
+    details_derivadas_splitter.addWidget(cast(Any, details_graph_label))
+    details_derivadas_splitter.setStretchFactor(0, 1)
+    details_derivadas_splitter.setStretchFactor(1, 2)
+    details_stack.addWidget(cast(Any, details_derivadas_splitter))
+    details_layout.addWidget(cast(Any, details_stack), 1)
+
+    def _activate_details_panel(index: int) -> None:
+        active_index = 1 if int(index) == 1 else 0
+        try:
+            details_stack.setCurrentIndex(active_index)
+            details_title.setText("Derivadas" if active_index == 1 else "Detalhes")
+            if active_index == 1:
+                refresh_derivadas = getattr(
+                    window, "_refresh_main_details_derivadas_panel", None
+                )
+                if callable(refresh_derivadas):
+                    refresh_derivadas()
+        except Exception as exc:
+            logger.debug("Falha ao trocar aba local de detalhes: %s", exc)
+
+    try:
+        details_tab_bar.currentChanged.connect(_activate_details_panel)
+        details_tab_bar.setCurrentIndex(0)
+    except Exception as exc:
+        logger.debug("Falha ao conectar abas de detalhes: %s", exc)
+
+    return details_group, {
+        "details_text": details_text,
+        "details_tab_bar": details_tab_bar,
+        "details_title": details_title,
+        "details_stack": details_stack,
+        "details_tree_text": details_tree_text,
+        "details_graph_label": details_graph_label,
+    }
+
+
+def _build_details_panel_header(window: Any) -> tuple[QWidget, QTabBar, QLabel]:
+    details_panel_header = QWidget()
+    window._set_widget_fixed_height_safe(
+        details_panel_header, 24, "cabecalho de abas de detalhes"
+    )
+    details_header_layout = QHBoxLayout(cast(Any, details_panel_header))
+    details_header_layout.setContentsMargins(0, 0, 0, 0)
+    details_header_layout.setSpacing(6)
+
+    details_tab_bar = QTabBar()
+    details_tab_bar.addTab("Detalhes")
+    details_tab_bar.addTab("Derivadas")
+    details_tab_bar.setToolTip("Alternar entre detalhes da SSA e relacoes de derivadas")
+    try:
+        details_tab_bar.setExpanding(False)
+        details_tab_bar.setDrawBase(False)
+        details_tab_bar.setFixedHeight(22)
+        details_tab_bar.setStyleSheet(
+            "QTabBar::tab {"
+            "min-width:96px; padding:1px 10px;"
+            "border:1px solid palette(mid);"
+            "border-bottom:0;"
+            "margin-right:1px;"
+            "}"
+            "QTabBar::tab:selected {"
+            "background:palette(highlight);"
+            "color:palette(highlighted-text);"
+            "}"
+            "QTabBar::tab:!selected {"
+            "background:palette(window);"
+            "color:palette(windowText);"
+            "}"
+        )
+    except Exception as exc:
+        logger.debug("Falha ao configurar abas de detalhes: %s", exc)
+
+    details_title = QLabel("Detalhes")
+    try:
+        details_title.setAlignment(cast(Any, Qt).AlignmentFlag.AlignCenter)
+        details_title.setStyleSheet("font-weight:600; color:palette(windowText);")
+        details_title.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+    except Exception as exc:
+        logger.debug("Falha ao configurar titulo de detalhes: %s", exc)
+
+    details_header_layout.addWidget(cast(Any, details_tab_bar), 0)
+    details_header_layout.addWidget(cast(Any, details_title), 1)
+    right_balance = QWidget()
+    try:
+        right_balance.setFixedWidth(202)
+    except Exception as exc:
+        logger.debug("Falha ao configurar balanceador de detalhes: %s", exc)
+    details_header_layout.addWidget(cast(Any, right_balance), 0)
+    return details_panel_header, details_tab_bar, details_title
 
 
 def _build_column_filters_panel_shell(window: Any) -> dict[str, Any]:

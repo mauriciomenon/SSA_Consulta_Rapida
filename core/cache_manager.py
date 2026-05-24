@@ -263,6 +263,49 @@ class CacheManager:
         """
         self._put_in_cache("outputs", output_hash, output_text)
 
+    def get_cached_value(self, cache_name: str, cache_key: Any) -> Optional[Any]:
+        """Return a value from a named cache."""
+        internal_cache_name = self._named_cache_key(cache_name)
+        return self._get_from_cache(
+            internal_cache_name,
+            self._normalize_cache_key(cache_key),
+        )
+
+    def cache_value(
+        self,
+        cache_name: str,
+        cache_key: Any,
+        value: Any,
+        *,
+        max_entries: Optional[int] = None,
+    ) -> None:
+        """Store a value in a named cache with an independent limit."""
+        internal_cache_name = self._named_cache_key(cache_name)
+        normalized_key = self._normalize_cache_key(cache_key)
+        entry_limit = max(1, int(max_entries or self.max_entries or 1))
+        with self._lock:
+            self._ensure_cache(internal_cache_name)
+            cache = self._caches[internal_cache_name]
+            access_times = self._access_times[internal_cache_name]
+            while len(cache) >= entry_limit and normalized_key not in cache:
+                self._evict_oldest(internal_cache_name)
+            cache[normalized_key] = value
+            access_times[normalized_key] = datetime.now()
+            self._mark_cache_details_dirty()
+
+    @staticmethod
+    def _named_cache_key(cache_name: str) -> str:
+        return f"named:{str(cache_name).strip() or 'default'}"
+
+    @staticmethod
+    def _normalize_cache_key(cache_key: Any) -> str:
+        return cache_key if isinstance(cache_key, str) else repr(cache_key)
+
+    def _ensure_cache(self, cache_name: str) -> None:
+        if cache_name not in self._caches:
+            self._caches[cache_name] = {}
+            self._access_times[cache_name] = {}
+
     def _get_from_cache(self, cache_name: str, key: str) -> Optional[Any]:
         """Recupera item do cache especifico."""
         with self._lock:
@@ -404,9 +447,12 @@ class CacheManager:
         """
         with self._lock:
             if cache_name:
-                if cache_name in self._caches:
-                    self._caches[cache_name].clear()
-                    self._access_times[cache_name].clear()
+                cache_names = [cache_name, self._named_cache_key(cache_name)]
+                for resolved_name in cache_names:
+                    if resolved_name not in self._caches:
+                        continue
+                    self._caches[resolved_name].clear()
+                    self._access_times[resolved_name].clear()
                     self._mark_cache_details_dirty()
             else:
                 for cache in self._caches.values():

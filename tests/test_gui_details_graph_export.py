@@ -87,6 +87,7 @@ class _FakeSize:
 class _FakeRenderer:
     instances = 0
     last_rect = None
+    render_calls = 0
 
     def __init__(self, _payload) -> None:
         self.__class__.instances += 1
@@ -95,6 +96,7 @@ class _FakeRenderer:
         return _FakeSize(300, 120)
 
     def render(self, _painter, rect) -> None:
+        self.__class__.render_calls += 1
         self.__class__.last_rect = rect
         return
 
@@ -198,6 +200,7 @@ def test_extract_inline_svg_markup_reads_svg_inside_full_html() -> None:
 def test_render_graph_svg_pixmap_uses_logical_label_size() -> None:
     label = _FakeGraphLabel()
     _FakeRenderer.instances = 0
+    _FakeRenderer.render_calls = 0
     deps = SvgRenderDependencies(
         byte_array_cls=_FakeByteArray,
         painter_cls=_FakePainter,
@@ -231,6 +234,7 @@ def test_render_graph_svg_pixmap_uses_logical_label_size() -> None:
     assert _FakeRenderer.last_rect.width == 300.0
     assert _FakeRenderer.last_rect.height == 120.0
     assert _FakeRenderer.instances == 1
+    assert _FakeRenderer.render_calls == 1
 
 
 def test_graph_export_controller_uses_stable_target_basename(tmp_path: Path) -> None:

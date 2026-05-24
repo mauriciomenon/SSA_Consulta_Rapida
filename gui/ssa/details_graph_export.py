@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from collections import OrderedDict
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, MutableMapping
+
+from core.cache_manager import CacheManager
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,8 +18,8 @@ class SvgRenderDependencies:
     qt_module: Any
 
 
-_SVG_RENDERER_CACHE_MAX = 16
-_SVG_RENDERER_CACHE: OrderedDict[tuple[type[Any], str], Any] = OrderedDict()
+_SVG_CACHE_MAX_ENTRIES = 16
+_SVG_CACHE = CacheManager(max_entries=_SVG_CACHE_MAX_ENTRIES)
 
 
 def load_svg_render_dependencies() -> SvgRenderDependencies | None:
@@ -46,13 +48,14 @@ def render_graph_svg_pixmap(
 ) -> bool:
     if not graph_svg:
         return False
-    renderer = _cached_svg_renderer(dependencies.renderer_cls, graph_svg)
+    graph_cache_key = _svg_graph_cache_key(graph_svg)
+    renderer = _cached_svg_renderer(dependencies.renderer_cls, graph_cache_key)
     if renderer is None:
         svg_payload = graph_svg.encode("utf-8")
         renderer = dependencies.renderer_cls(
             dependencies.byte_array_cls(svg_payload)
         )
-        _store_svg_renderer(dependencies.renderer_cls, graph_svg, renderer)
+        _store_svg_renderer(dependencies.renderer_cls, graph_cache_key, renderer)
     default_size = renderer.defaultSize()
     natural_w = max(1, int(default_size.width()))
     natural_h = max(1, int(default_size.height()))
@@ -61,34 +64,90 @@ def render_graph_svg_pixmap(
     scale = min(1.0, available_w / natural_w, available_h / natural_h)
     render_w = max(1, int(natural_w * scale))
     render_h = max(1, int(natural_h * scale))
+    cached_pixmap = _cached_svg_pixmap(
+        dependencies.pixmap_cls,
+        graph_cache_key,
+        render_w,
+        render_h,
+    )
+    if cached_pixmap is not None:
+        graph_label.setPixmap(cached_pixmap)
+        graph_label.setFixedSize(render_w, render_h)
+        graph_label.setToolTip("")
+        return True
     pixmap = dependencies.pixmap_cls(render_w, render_h)
     pixmap.fill(dependencies.qt_module.GlobalColor.transparent)
     painter = dependencies.painter_cls(pixmap)
     target_rect = dependencies.rectf_cls(0.0, 0.0, float(render_w), float(render_h))
     renderer.render(painter, target_rect)
     painter.end()
+    _store_svg_pixmap(
+        dependencies.pixmap_cls,
+        graph_cache_key,
+        render_w,
+        render_h,
+        pixmap,
+    )
     graph_label.setPixmap(pixmap)
     graph_label.setFixedSize(render_w, render_h)
     graph_label.setToolTip("")
     return True
 
 
-def _cached_svg_renderer(renderer_cls: type[Any], graph_svg: str) -> Any | None:
-    cache_key = (renderer_cls, graph_svg)
-    renderer = _SVG_RENDERER_CACHE.get(cache_key)
-    if renderer is not None:
-        _SVG_RENDERER_CACHE.move_to_end(cache_key)
-    return renderer
+def _cached_svg_renderer(renderer_cls: type[Any], graph_cache_key: str) -> Any | None:
+    cache_key = _svg_cache_key(renderer_cls, graph_cache_key)
+    return _SVG_CACHE.get_cached_value("svg_renderers", cache_key)
 
 
 def _store_svg_renderer(
-    renderer_cls: type[Any], graph_svg: str, renderer: Any
+    renderer_cls: type[Any], graph_cache_key: str, renderer: Any
 ) -> None:
-    cache_key = (renderer_cls, graph_svg)
-    _SVG_RENDERER_CACHE[cache_key] = renderer
-    _SVG_RENDERER_CACHE.move_to_end(cache_key)
-    while len(_SVG_RENDERER_CACHE) > _SVG_RENDERER_CACHE_MAX:
-        _SVG_RENDERER_CACHE.popitem(last=False)
+    cache_key = _svg_cache_key(renderer_cls, graph_cache_key)
+    _SVG_CACHE.cache_value(
+        "svg_renderers",
+        cache_key,
+        renderer,
+        max_entries=_SVG_CACHE_MAX_ENTRIES,
+    )
+
+
+def _cached_svg_pixmap(
+    pixmap_cls: type[Any],
+    graph_cache_key: str,
+    width: int,
+    height: int,
+) -> Any | None:
+    cache_key = _svg_cache_key(pixmap_cls, graph_cache_key, width, height)
+    return _SVG_CACHE.get_cached_value("svg_pixmaps", cache_key)
+
+
+def _store_svg_pixmap(
+    pixmap_cls: type[Any],
+    graph_cache_key: str,
+    width: int,
+    height: int,
+    pixmap: Any,
+) -> None:
+    cache_key = _svg_cache_key(pixmap_cls, graph_cache_key, width, height)
+    _SVG_CACHE.cache_value(
+        "svg_pixmaps",
+        cache_key,
+        pixmap,
+        max_entries=_SVG_CACHE_MAX_ENTRIES,
+    )
+
+
+def _svg_graph_cache_key(graph_svg: str) -> str:
+    return hashlib.blake2b(
+        graph_svg.encode("utf-8"),
+        digest_size=16,
+    ).hexdigest()
+
+
+def _svg_cache_key(owner_cls: type[Any], graph_cache_key: str, *parts: int) -> str:
+    owner = f"{owner_cls.__module__}.{owner_cls.__qualname__}"
+    suffix = ":".join(str(part) for part in parts)
+    return f"{owner}:{graph_cache_key}:{suffix}"
 
 
 @dataclass(slots=True)
