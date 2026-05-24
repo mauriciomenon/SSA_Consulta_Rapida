@@ -1,0 +1,23 @@
+gui/simple_width_manager.py
+  s_082d1ff7d55d96::t_d8cbed75eacd1c 54-70
+gui/ssa/column_filter_panel.py
+  s_082d1ff7d55d96::t_18529990b9a9de 331
+tests/test_gui_filter_logic.py
+  s_082d1ff7d55d96::t_96e0b3edd3f1a7 2250-2251,3319-3320,8095-8111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b09d65752bc492c762f6cc77155dc42137585c1a",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
