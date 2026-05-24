@@ -1,0 +1,147 @@
+gui/ssa/details_dialog_constants.py
+  s_082d1ff7d55d96::t_b0762f7170e319 5
+core/pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_4bb660aec8b7ce 248
+  s_082d1ff7d55d96::t_ba99b678a58da4 17,20,83-93,179,181-182,190,193-194
+  s_082d1ff7d55d96::t_5bed55ef2dee07 1,33,98,147,180,191,229,232,249
+  s_082d1ff7d55d96::t_0835349aa6dc37 121-130,242-247
+  s_082d1ff7d55d96::t_a19cfeecf7cabb 10,131
+utils/themes.py
+  s_082d1ff7d55d96::t_98462e1583e732 318
+  s_082d1ff7d55d96::t_3ce67ccfa3d6ef 317
+tests/test_gui_filter_logic.py
+  s_082d1ff7d55d96::t_cbd46f888bc617 7822-7844
+  s_082d1ff7d55d96::t_6ef9cbb2f22f9b 316-318,348-355,616-624,632
+  s_082d1ff7d55d96::t_759a7ef7ea2b88 5478-5491
+  s_082d1ff7d55d96::t_d3962b2d80d451 6119,6134
+  s_082d1ff7d55d96::t_9fa32cde470835 1446-1471,4516-4544
+  s_082d1ff7d55d96::t_6bd40119a7f6b6 7913-7942
+  s_082d1ff7d55d96::t_a19cfeecf7cabb 612-615,625-628
+  s_082d1ff7d55d96::t_e53d0041c11854 6104-6118,6120-6122,6128-6133,6135
+  s_082d1ff7d55d96::t_d076ae291d46c0 657-658,661,669,672-678,2024,2198,3266
+  s_082d1ff7d55d96::t_a06f7ae6ea0676 6123-6127
+  s_082d1ff7d55d96::t_401c626a6035c5 5227-5252
+  s_082d1ff7d55d96::t_6851a083c78925 2729-2732,5178-5201
+  s_082d1ff7d55d96::t_1f0ca0d6cef065 637
+  s_082d1ff7d55d96::t_0404260bffd8a3 5492
+  s_082d1ff7d55d96::t_c19848fcd87e60 5332-5333
+gui/ssa/details_display_config.py
+  s_082d1ff7d55d96::t_7da293552fc522 18
+docs/RECOVERY_BACKLOG.md
+  s_082d1ff7d55d96::t_218fb4e918be8c 23-24,30,32
+gui/ssa/app_menus.py
+  s_082d1ff7d55d96::t_1c5f677b8714f3 226,236
+docs/AGENTS_HANDOFF_NEXT_CYCLE.md
+  s_082d1ff7d55d96::t_1f24b51ce3d00e 22,31
+gui/ssa/main_window_filter_bar.py
+  s_082d1ff7d55d96::t_bc8f47213d2617 216,222
+  s_082d1ff7d55d96::t_9a58c3cfce3462 421-427
+gui/ssa/gui_details.py
+  s_082d1ff7d55d96::t_a9dde42c36e876 1318-1320
+  s_082d1ff7d55d96::t_2acea128b48d27 266-268
+  s_082d1ff7d55d96::t_a73e6050c45805 785-792
+  s_082d1ff7d55d96::t_00f4d4c3953016 85,87,1287,1290
+  s_082d1ff7d55d96::t_2c1d4e3db3c092 1104
+  s_082d1ff7d55d96::t_c4750269f27087 910-911
+config/display_mappings.json
+  s_082d1ff7d55d96::t_88bf12fffd1235 60-61
+  s_082d1ff7d55d96::t_28d0e62a198ecd 62,73-74
+core/pai_api_options.py
+  s_082d1ff7d55d96::t_3d3bf076783cb8 56,58,60,62
+  s_082d1ff7d55d96::t_76da50a2142452 1
+core/pai_scrap_report_provider.py
+  s_082d1ff7d55d96::t_f8fda2d528e146 16-17,200-206,366-376,425-430
+  s_082d1ff7d55d96::t_8cb1852bc8902c 1,29-31,230,236,285,288,393,397,399,402,424,432,434
+core/pai_import_report.py
+  s_082d1ff7d55d96::t_6cc0594e2db113 1
+gui/ssa/column_filter_panel.py
+  s_082d1ff7d55d96::t_40c536c1300f4a 324
+core/pai_xlsx_summary.py
+  s_082d1ff7d55d96::t_cdf5ead8d5be5e 1,124
+tests/test_gui_menu_import_external.py
+  s_082d1ff7d55d96::t_3f17ec0a2cdd0c 166,220,223
+tests/test_pai_api_worker.py
+  s_082d1ff7d55d96::t_83247c5d92e1b5 102-103
+tests/test_pai_xlsx_normalizer.py
+  s_082d1ff7d55d96::t_e71e782ff4578f 21,36
+  s_082d1ff7d55d96::t_908a39da8e53f1 7,11,13,62-70
+  s_082d1ff7d55d96::t_a19cfeecf7cabb 55
+docs/NEXT_CHAT_MIGRATION.md
+  s_082d1ff7d55d96::t_b7151975f8e511 22,31
+gui/ssa/pai_api_status_text.py
+  s_082d1ff7d55d96::t_ace2cb42623bc3 1
+scripts/import_pai_api_xlsx.py
+  s_082d1ff7d55d96::t_ee9b5e52623eef 3,41,49,119,122,141,169,171,173,175,177,179,181,183
+gui/gui_ssa.py
+  s_082d1ff7d55d96::t_4a9b87a141052f 398,437,441-446,1929,2876
+  s_082d1ff7d55d96::t_6bd40119a7f6b6 2331-2336
+  s_082d1ff7d55d96::t_2f8b5655bebd94 1106-1115
+  s_082d1ff7d55d96::t_442f021e39afaa 3142,3204-3207
+  s_082d1ff7d55d96::t_9a58451c6e3a90 447-448
+  s_082d1ff7d55d96::t_4970fc9274adec 1125-1129
+  s_082d1ff7d55d96::t_cbd46f888bc617 2300
+  s_082d1ff7d55d96::t_e0f8451d24e25d 3174
+  s_082d1ff7d55d96::t_acabe047428a31 3213,3220
+  s_082d1ff7d55d96::t_09cbd63bb11679 1040,1104-1105
+gui/ssa/gui_details_html.py
+  s_082d1ff7d55d96::t_581cd4d7fb7f5d 109-110,168-177,335-339,341-346
+core/pai_import_verifier.py
+  s_082d1ff7d55d96::t_833a7e483731e4 1,21
+docs/MERGE_READINESS_ARCHITECTURE.md
+  s_082d1ff7d55d96::t_d92f53046c1f0c 49
+gui/ssa/main_window_bottom_section.py
+  s_082d1ff7d55d96::t_92b9a9f5663a4e 165-167,191,226,250-254
+gui/workers/pai_api_worker.py
+  s_082d1ff7d55d96::t_2c1a1b45ae5a53 215
+  s_082d1ff7d55d96::t_4bfdb72f8989d4 136,148,163,169,185,267,279,373-375,380,388,446,450,456
+  s_082d1ff7d55d96::t_680ef288f50ab3 1
+tests/test_pai_scrap_report_provider.py
+  s_082d1ff7d55d96::t_ad7dc476cd74c4 30,38-39,54,69,93-95,100,152,233,262
+tests/test_gui_main_configuration.py
+  s_082d1ff7d55d96::t_442f021e39afaa 268,289-294
+gui/gui_config.py
+  s_082d1ff7d55d96::t_2976e43adc0a1a 91-92
+  s_082d1ff7d55d96::t_f6323ab574e655 216-218,223
+gui/widgets/filter_help_dialog.py
+  s_082d1ff7d55d96::t_932b4d09200553 60
+gui/ssa/pai_api_controller.py
+  s_082d1ff7d55d96::t_d1d6e12e11fbec 1
+  s_082d1ff7d55d96::t_b5b0b5488bcc97 175,232,238-241,243-249,256,261,288-289,294-295,301-302,306-307,314,319-320,328,333-334,353,356-357,362-368
+  s_082d1ff7d55d96::t_a2acda7254040b 7,41,166
+  s_082d1ff7d55d96::t_07d6418a8f7105 31-40,113,127,360-361,382,387,389,391,416
+  s_082d1ff7d55d96::t_157c6c1fbe0bab 167,369-372
+core/pai_import_service.py
+  s_082d1ff7d55d96::t_2b266947f6628b 1,83
+tests/test_pai_api_controller.py
+  s_082d1ff7d55d96::t_a19cfeecf7cabb 249-250,252
+  s_082d1ff7d55d96::t_16df8448e8a6ef 259-284
+  s_082d1ff7d55d96::t_3b1214792bfbb2 303
+gui/ssa/gui_filters_multiselect_menu.py
+  s_082d1ff7d55d96::t_718887f25479d2 252,539
+config/gui_main_preferences.json.example
+  s_082d1ff7d55d96::t_b422ee7dbb8cd4 54-55,218-219
+gui/ssa/details_graph_renderer.py
+  s_082d1ff7d55d96::t_f40fbe78b863c6 58-62
+  s_082d1ff7d55d96::t_56416e42261191 190-192,201-202
+  s_082d1ff7d55d96::t_ed23d201a529f3 56
+  s_082d1ff7d55d96::t_46c2e4a5e9cab0 53-55,57
+  s_082d1ff7d55d96::t_08c0d1c39ccbf8 75,98,126,180,199-200,203
+gui/ssa/gui_filters_advanced_ui.py
+  s_082d1ff7d55d96::t_b18bde9d536406 728
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e799c10c38ca8cacdc1ca4ff1f3707db01ff5b84",
+  "prompts": {},
+  "sessions": {
+    "s_082d1ff7d55d96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df264-2c2c-7501-9b4c-80ab24e27155",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
