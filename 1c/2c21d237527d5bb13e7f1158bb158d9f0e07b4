@@ -1,0 +1,39 @@
+core/pai_scrap_report_provider.py
+  s_9f052ddda3b0ba::t_8e61182e5acdbb 222-224,230,279,282,381,385,387,390-392,414,416,418
+core/pai_xlsx_normalizer.py
+  s_9f052ddda3b0ba::t_bdd6029e3bf995 30,86,158,168,205,208,220
+tests/test_pai_xlsx_normalizer.py
+  s_9f052ddda3b0ba::t_f2317c219c468b 18,33
+gui/workers/pai_api_worker.py
+  s_9f052ddda3b0ba::t_3ed37e2c509009 136,148,163,169,185,267,279,373-375,380,388,446,450,456
+gui/ssa/pai_api_controller.py
+  s_9f052ddda3b0ba::t_45219d1b64d773 30-41,113,127,330-331,346,348,350,375
+core/pai_import_service.py
+  s_9f052ddda3b0ba::t_0d6de5153d8dfb 83
+gui/ssa/app_menus.py
+  s_9f052ddda3b0ba::t_582491136b802b 226,230,236
+tests/test_pai_scrap_report_provider.py
+  s_9f052ddda3b0ba::t_ef62bf72bf92ac 100,152,233,262
+core/pai_api_options.py
+  s_9f052ddda3b0ba::t_ff8a1202c0f8ff 56,58,60,62
+tests/test_gui_menu_import_external.py
+  s_9f052ddda3b0ba::t_bfb830c2f5e4b2 166,220,222-223
+gui/gui_ssa.py
+  s_9f052ddda3b0ba::t_0680c936de0e31 1029,2925,2932
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "1c2c21d237527d5bb13e7f1158bb158d9f0e07b4",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
