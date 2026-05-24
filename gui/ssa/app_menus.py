@@ -223,17 +223,17 @@ def _add_pai_api_menu(
     *,
     preferences: dict[str, Any],
 ) -> None:
-    pai_menu = opcoes_menu.addMenu("API PAI")
+    pai_menu = opcoes_menu.addMenu("SAM API")
     settings = preferences.get("gui_settings", {}).get(PAI_API_SETTINGS_KEY, {})
     options = normalize_pai_api_options(settings)
 
-    api_action = action_cls("API habilitada", window)
+    api_action = action_cls("SAM API habilitada", window)
     api_action.setCheckable(True)
     api_action.setChecked(options.enabled)
     api_action.triggered.connect(window.set_pai_api_enabled)
     pai_menu.addAction(api_action)
 
-    scrap_action = action_cls("Busca via scrap_report", window)
+    scrap_action = action_cls("Consulta via xpath/scrap_report", window)
     scrap_action.setCheckable(True)
     scrap_action.setChecked(options.scrap_report_enabled)
     scrap_action.triggered.connect(window.set_pai_api_scrap_enabled)

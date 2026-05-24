@@ -27,7 +27,7 @@ PAI_TO_SSA_COLUMN_CANDIDATES: dict[str, tuple[str, ...]] = {
 PAI_DATE_SOURCE_COLUMNS = ("emission_datetime", "issue_datetime")
 PAI_SITUACAO_SOURCE_COLUMNS = ("situation_desc", "process_status")
 PAI_SSA_IMPORT_SUFFIX = "_ssa_import"
-PAI_SOURCE_SYSTEM = "PAI"
+PAI_SOURCE_SYSTEM = "SAM API"
 _WINDOWS_REPLACE_XLSX_ATTEMPTS = 8
 _WINDOWS_REPLACE_RETRY_ERRNOS = {errno.EACCES, errno.EPERM}
 PAI_SUPPORTED_EXCEL_SUFFIXES = (".xls", ".xlsx", ".xlsm")
@@ -83,7 +83,7 @@ def normalize_pai_xlsx_for_ssa_import(
     try:
         frame = pd.read_excel(source_xlsx)
     except (OSError, ValueError, BadZipFile) as exc:
-        raise ValueError(f"Falha ao ler XLSX PAI '{source_xlsx}': {exc}") from exc
+        raise ValueError(f"Falha ao ler XLSX SAM API '{source_xlsx}': {exc}") from exc
     normalized = build_normalized_pai_dataframe(frame)
     _add_pai_origin_metadata(normalized, source_xlsx)
     summary = summarize_normalized_pai_frame(normalized)
@@ -155,7 +155,7 @@ def build_normalized_pai_dataframe(frame: pd.DataFrame) -> pd.DataFrame:
     ]
     if missing_required:
         raise ValueError(
-            "XLSX PAI sem colunas obrigatorias para importacao SSA: "
+            "XLSX SAM API sem colunas obrigatorias para importacao SSA: "
             + ", ".join(missing_required)
         )
     empty_required = [
@@ -165,7 +165,7 @@ def build_normalized_pai_dataframe(frame: pd.DataFrame) -> pd.DataFrame:
     ]
     if empty_required:
         raise ValueError(
-            "XLSX PAI com colunas obrigatorias sem nenhum valor valido para "
+            "XLSX SAM API com colunas obrigatorias sem nenhum valor valido para "
             "importacao SSA: "
             + ", ".join(empty_required)
         )
@@ -202,10 +202,10 @@ def _clean_normalized_text_columns(frame: pd.DataFrame) -> None:
 
 def _validate_source_excel_path(path: Path) -> None:
     if not path.is_file():
-        raise FileNotFoundError(f"XLS PAI nao encontrado: {path}")
+        raise FileNotFoundError(f"XLS SAM API nao encontrado: {path}")
     if path.suffix.casefold() not in PAI_SUPPORTED_EXCEL_SUFFIXES:
         supported = ", ".join(PAI_SUPPORTED_EXCEL_SUFFIXES)
-        raise ValueError(f"Arquivo PAI deve ser Excel ({supported}): {path}")
+        raise ValueError(f"Arquivo SAM API deve ser Excel ({supported}): {path}")
 
 
 def _add_pai_origin_metadata(frame: pd.DataFrame, source_xlsx: Path) -> None:
@@ -217,4 +217,4 @@ def _remove_normalized_xlsx(path: Path) -> None:
     try:
         path.unlink(missing_ok=True)
     except OSError as exc:
-        logger.warning("Falha ao remover XLSX PAI temporario '%s': %s", path, exc)
+        logger.warning("Falha ao remover XLSX SAM API temporario '%s': %s", path, exc)

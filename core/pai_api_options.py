@@ -53,13 +53,13 @@ class PaiApiGuiOptions:
 
 def pai_api_options_error(options: PaiApiGuiOptions) -> str | None:
     if not options.enabled:
-        return "API PAI desabilitada nas opcoes."
+        return "SAM API desabilitada nas opcoes."
     if not options.scrap_report_enabled:
-        return "Busca via scrap_report desabilitada nas opcoes."
+        return "Consulta via xpath/scrap_report desabilitada nas opcoes."
     if not options.executor_sectors:
-        return "Nenhum setor executor habilitado para API PAI."
+        return "Nenhum setor executor habilitado para SAM API."
     if not options.data_scopes:
-        return "Nenhum tipo de dado habilitado para API PAI."
+        return "Nenhum tipo de dado habilitado para SAM API."
     supported = tuple(scope for scope in options.data_scopes if scope in PAI_API_REST_DATA_SCOPES)
     if supported:
         return None

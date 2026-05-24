@@ -1026,7 +1026,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         toolbar_layout.addWidget(cast(Any, self.rescan_button))
 
         self.api_button = QPushButton("API")
-        self.api_button.setToolTip("Atualizar dados via API PAI por setor executor")
+        self.api_button.setToolTip("Atualizar dados via SAM API por setor executor")
         self.api_button.clicked.connect(self.refresh_data_from_api)
         toolbar_layout.addWidget(cast(Any, self.api_button))
 
@@ -2922,14 +2922,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         previewed_sectors = int(getattr(decision_request, "previewed_sectors", 0) or 0)
         failed_sectors = int(getattr(decision_request, "failed_sectors", 0) or 0)
         detail = (
-            f"API PAI validou {normalized_rows} linhas em "
+            f"SAM API validou {normalized_rows} linhas em "
             f"{previewed_sectors} setor(es)."
         )
         if failed_sectors:
             detail += f"\nSetores com falha: {failed_sectors}."
         answer = qmessagebox.question(
             self,
-            "API PAI",
+            "SAM API",
             detail + "\n\nImportar no banco e carregar os dados atualizados agora?",
             buttons.Yes | buttons.No,
             buttons.Yes,

@@ -163,7 +163,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert "Database" in window._menu_bar.menus
     assert "Opcoes" in window._menu_bar.menus
     assert "Ajuda" in window._menu_bar.menus
-    assert "API PAI" in window._menu_bar.menus["Opcoes"].submenus
+    assert "SAM API" in window._menu_bar.menus["Opcoes"].submenus
     assert len(window._menu_bar.menus["Arquivo"].actions) == 2
     assert len(window._menu_bar.menus["Importacao"].actions) == 7
     assert len(window._menu_bar.menus["Database"].actions) == 4
@@ -217,10 +217,10 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         "Selecionar Tema",
     ]
     assert ajuda_labels == ["Instalacao", "Ajuda"]
-    api_menu = window._menu_bar.menus["Opcoes"].submenus["API PAI"]
+    api_menu = window._menu_bar.menus["Opcoes"].submenus["SAM API"]
     assert [getattr(action, "_text", "") for action in api_menu.actions] == [
-        "API habilitada",
-        "Busca via scrap_report",
+        "SAM API habilitada",
+        "Consulta via xpath/scrap_report",
         "Atualizacao automatica",
     ]
     assert "Setores executores" in api_menu.submenus

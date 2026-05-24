@@ -80,7 +80,7 @@ def preview_existing_pai_xlsx(
 ) -> PaiFetchedXlsxPreview:
     source_xlsx = Path(source_xlsx).expanduser().resolve(strict=False)
     if not source_xlsx.is_file():
-        raise FileNotFoundError(f"XLS PAI nao encontrado: {source_xlsx}")
+        raise FileNotFoundError(f"XLS SAM API nao encontrado: {source_xlsx}")
     export = PaiScrapReportExport(
         command=("source-xlsx", str(source_xlsx)),
         scrap_report_root=request.project_root,

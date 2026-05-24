@@ -133,7 +133,7 @@ class PaiApiRefreshWorker(QThread):
 
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
         self.output_line.emit(
-            "Iniciando API PAI: setores=" + ", ".join(sectors)
+            "Iniciando SAM API: setores=" + ", ".join(sectors)
         )
 
         base_request = PaiScrapReportRequest(
@@ -145,7 +145,7 @@ class PaiApiRefreshWorker(QThread):
             limit=options.limit,
             number_of_years=options.number_of_years,
         )
-        self.progress.emit(5, "API PAI: validando CA")
+        self.progress.emit(5, "SAM API: validando CA")
         certificate = self._validate_ca(base_request)
         if certificate is None:
             return
@@ -160,13 +160,13 @@ class PaiApiRefreshWorker(QThread):
 
         if self.config.fetch_only:
             self._mark_import_skipped(previews=previews)
-            self.progress.emit(100, "API PAI preview concluido; DB inalterado")
+            self.progress.emit(100, "SAM API preview concluido; DB inalterado")
             self.finished_success.emit()
             return
 
         if self.config.confirm_before_import and not self._confirm_import(previews):
             self._mark_import_skipped(previews=previews)
-            self.progress.emit(100, "API PAI preview concluido; DB inalterado")
+            self.progress.emit(100, "SAM API preview concluido; DB inalterado")
             self.finished_success.emit()
             return
 
@@ -182,7 +182,7 @@ class PaiApiRefreshWorker(QThread):
         failed_count = len(self._failures_snapshot())
         self.progress.emit(
             100,
-            f"API PAI concluida: {imported_count} setores importados; "
+            f"SAM API concluida: {imported_count} setores importados; "
             f"{failed_count} falharam",
         )
         self.finished_success.emit()
@@ -264,7 +264,7 @@ class PaiApiRefreshWorker(QThread):
     ) -> _PaiSectorPreview | None:
         self.progress.emit(
             sector_request.progress_base,
-            f"API PAI: setor {sector_request.sector}",
+            f"SAM API: setor {sector_request.sector}",
         )
         try:
             preview = future.result()
@@ -276,7 +276,7 @@ class PaiApiRefreshWorker(QThread):
         self.preview_ready.emit(preview.preview)
         self.progress.emit(
             min(sector_request.progress_base + 5, 95),
-            "API PAI: setor "
+            "SAM API: setor "
             f"{sector_request.sector}; "
             f"{preview.preview.normalized_rows} linhas",
         )
@@ -370,14 +370,14 @@ def _format_refresh_result(result: PaiImportResult) -> str:
     rows = result.rows_after_import
     if result.imported:
         if rows == 0:
-            return "[OK SEM LINHAS] API PAI importada sem registros no banco."
-        return f"[OK] API PAI importada; linhas no banco={rows}"
-    return "[NAO IMPORTADO] API PAI processada; importacao no banco nao confirmada."
+            return "[OK SEM LINHAS] SAM API importada sem registros no banco."
+        return f"[OK] SAM API importada; linhas no banco={rows}"
+    return "[NAO IMPORTADO] SAM API processada; importacao no banco nao confirmada."
 
 
 def format_preview_status(preview: PaiFetchedXlsxPreview) -> str:
     return (
-        "API PAI: "
+        "SAM API: "
         f"{preview.normalized_rows} linhas validadas em "
         f"{preview.import_xlsx_path.name}"
     )
@@ -385,7 +385,7 @@ def format_preview_status(preview: PaiFetchedXlsxPreview) -> str:
 
 def format_decision_request_status(request: PaiApiImportDecisionRequest) -> str:
     return (
-        "API PAI: "
+        "SAM API: "
         f"{request.normalized_rows} linhas em {request.previewed_sectors} setores; "
         "aguardando confirmacao"
     )
@@ -443,16 +443,16 @@ def _format_sector_failure(sector: str, exc: Exception) -> str:
 
 def _format_total_failure(failures: Sequence[str]) -> str:
     if not failures:
-        return "API PAI: nenhum setor importado; DB inalterado."
+        return "SAM API: nenhum setor importado; DB inalterado."
     detail = "; ".join(failures[:3])
     if len(failures) > 3:
         detail += f"; +{len(failures) - 3} setores"
-    return f"API PAI: todos setores falharam; DB inalterado. {detail}"
+    return f"SAM API: todos setores falharam; DB inalterado. {detail}"
 
 
 def _format_ca_failure(exc: Exception) -> str:
     detail = trim_pai_api_status_detail(str(exc or "") or type(exc).__name__)
     return (
-        "API PAI: falha ao validar CA; DB inalterado. "
+        "SAM API: falha ao validar CA; DB inalterado. "
         f"{detail}"
     )

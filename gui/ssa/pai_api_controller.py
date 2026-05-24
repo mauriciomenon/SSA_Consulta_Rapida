@@ -27,16 +27,18 @@ from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
-STATUS_API_DISABLED = "Status: API PAI desabilitada nas opcoes."
-STATUS_API_SCRAP_DISABLED = "Status: Busca via scrap_report desabilitada nas opcoes."
-STATUS_API_NO_SECTORS = "Status: Nenhum setor executor habilitado para API PAI."
-STATUS_API_RUNNING = "Status: API PAI em andamento."
-STATUS_API_ALREADY_RUNNING = "Status: API PAI ja esta em andamento."
-STATUS_API_KEEP_CURRENT = "Status: API PAI concluida; dados atuais mantidos na tela."
-STATUS_API_RELOAD = "Status: API PAI concluida; carregando dados atualizados."
-STATUS_API_AUTO_ENABLED = "Status: Atualizacao automatica da API PAI habilitada."
-STATUS_API_AUTO_DISABLED = "Status: Atualizacao automatica da API PAI desabilitada."
-STATUS_API_AUTO_NOT_READY = "Status: Atualizacao automatica da API PAI nao esta pronta."
+STATUS_API_DISABLED = "Status: SAM API desabilitada nas opcoes."
+STATUS_API_SCRAP_DISABLED = (
+    "Status: Consulta via xpath/scrap_report desabilitada nas opcoes."
+)
+STATUS_API_NO_SECTORS = "Status: Nenhum setor executor habilitado para SAM API."
+STATUS_API_RUNNING = "Status: SAM API em andamento."
+STATUS_API_ALREADY_RUNNING = "Status: SAM API ja esta em andamento."
+STATUS_API_KEEP_CURRENT = "Status: SAM API concluida; dados atuais mantidos na tela."
+STATUS_API_RELOAD = "Status: SAM API concluida; carregando dados atualizados."
+STATUS_API_AUTO_ENABLED = "Status: Atualizacao automatica da SAM API habilitada."
+STATUS_API_AUTO_DISABLED = "Status: Atualizacao automatica da SAM API desabilitada."
+STATUS_API_AUTO_NOT_READY = "Status: Atualizacao automatica da SAM API nao esta pronta."
 
 
 @dataclass(frozen=True)
@@ -108,7 +110,7 @@ def set_pai_api_sector_enabled(
 ) -> bool:
     clean_sector = str(sector or "").strip().upper()
     if not update_pai_api_sector_setting(preferences, clean_sector, enabled):
-        window.set_pai_api_status(f"Status: Setor API PAI invalido: {clean_sector}")
+        window.set_pai_api_status(f"Status: Setor SAM API invalido: {clean_sector}")
         return False
     persisted, _active = _persist_and_sync(window, preferences)
     return persisted
@@ -122,7 +124,7 @@ def set_pai_api_data_scope_enabled(
 ) -> bool:
     clean_scope = str(scope or "").strip().casefold()
     if not update_pai_api_data_scope_setting(preferences, clean_scope, enabled):
-        window.set_pai_api_status(f"Status: Tipo API PAI invalido: {clean_scope}")
+        window.set_pai_api_status(f"Status: Tipo SAM API invalido: {clean_scope}")
         return False
     persisted, _active = _persist_and_sync(window, preferences)
     return persisted
@@ -325,8 +327,8 @@ def _finish_error(
 ) -> None:
     if window.active_pai_api_worker() is worker:
         window.set_active_pai_api_worker(None)
-    logger.warning("Falha na API PAI: %s", message)
-    window.set_pai_api_status(f"Status: Falha na API PAI: {_short_error_message(message)}")
+    logger.warning("Falha na SAM API: %s", message)
+    window.set_pai_api_status(f"Status: Falha na SAM API: {_short_error_message(message)}")
 
 
 def _worker_is_running(worker: Any) -> bool:
@@ -341,11 +343,11 @@ def _worker_is_running(worker: Any) -> bool:
 
 
 def _status_for_options_error(message: str) -> str:
-    if message == "API PAI desabilitada nas opcoes.":
+    if message == "SAM API desabilitada nas opcoes.":
         return STATUS_API_DISABLED
-    if message == "Busca via scrap_report desabilitada nas opcoes.":
+    if message == "Consulta via xpath/scrap_report desabilitada nas opcoes.":
         return STATUS_API_SCRAP_DISABLED
-    if message == "Nenhum setor executor habilitado para API PAI.":
+    if message == "Nenhum setor executor habilitado para SAM API.":
         return STATUS_API_NO_SECTORS
     return f"Status: {message}"
 
@@ -370,7 +372,7 @@ def _worker_partial_status(worker: Any) -> str | None:
         return None
     imported_count = int(getattr(summary, "imported_sectors", 0))
     return (
-        "Status: API PAI parcial; "
+        "Status: SAM API parcial; "
         f"{imported_count} setores importados; {failed_count} falharam."
     )
 

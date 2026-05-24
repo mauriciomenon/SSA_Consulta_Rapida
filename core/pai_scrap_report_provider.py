@@ -219,13 +219,15 @@ def run_pai_scrap_report_export(
         label="sam-api-flow",
     )
     if not manifest_path.is_file():
-        raise FileNotFoundError(f"Manifest PAI nao criado nesta execucao: {manifest_path}")
+        raise FileNotFoundError(
+            f"Manifest SAM API nao criado nesta execucao: {manifest_path}"
+        )
     manifest = _load_manifest(manifest_path)
     xlsx_path = _resolve_xlsx_from_manifest(manifest, manifest_path, fallback_xlsx_path)
     if xlsx_path.stat().st_mtime < (
         command_started_at - PAI_ARTIFACT_FRESHNESS_TOLERANCE_SECONDS
     ):
-        raise FileNotFoundError(f"XLSX PAI nao criado nesta execucao: {xlsx_path}")
+        raise FileNotFoundError(f"XLSX SAM API nao criado nesta execucao: {xlsx_path}")
     return PaiScrapReportExport(
         command=command,
         scrap_report_root=execution.scrap_report_root or execution.cwd,
@@ -274,10 +276,10 @@ def run_pai_scrap_report_ca_export(
         label="sam-api-cert",
     )
     if not ca_file.is_file():
-        raise FileNotFoundError(f"CA PAI nao criada: {ca_file}")
+        raise FileNotFoundError(f"CA SAM API nao criada: {ca_file}")
     if not manifest_path.is_file():
         raise FileNotFoundError(
-            f"Manifest de CA PAI nao criado nesta execucao: {manifest_path}"
+            f"Manifest de CA SAM API nao criado nesta execucao: {manifest_path}"
         )
     return PaiScrapReportCertificate(
         command=command,
@@ -376,16 +378,18 @@ def _append_repeated_args(
 
 def _load_manifest(manifest_path: Path) -> Mapping[str, Any]:
     if not manifest_path.is_file():
-        raise FileNotFoundError(f"Manifest PAI nao criado: {manifest_path}")
+        raise FileNotFoundError(f"Manifest SAM API nao criado: {manifest_path}")
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise ValueError(f"Manifest PAI invalido: {manifest_path}") from exc
+        raise ValueError(f"Manifest SAM API invalido: {manifest_path}") from exc
     if not isinstance(payload, dict):
-        raise ValueError(f"Manifest PAI nao e objeto JSON: {manifest_path}")
+        raise ValueError(f"Manifest SAM API nao e objeto JSON: {manifest_path}")
     status = str(payload.get("status", "ok")).casefold()
     if status != "ok":
-        raise RuntimeError(f"Manifest PAI retornou status={status}: {manifest_path}")
+        raise RuntimeError(
+            f"Manifest SAM API retornou status={status}: {manifest_path}"
+        )
     return payload
 
 
@@ -407,9 +411,9 @@ def _resolve_xlsx_from_manifest(
     xlsx_path = xlsx_path.resolve(strict=False)
     expected_dir = manifest_path.parent.resolve(strict=False)
     if not xlsx_path.is_relative_to(expected_dir):
-        raise ValueError(f"Export PAI fora do diretorio esperado: {xlsx_path}")
+        raise ValueError(f"Export SAM API fora do diretorio esperado: {xlsx_path}")
     if not xlsx_path.is_file():
-        raise FileNotFoundError(f"XLSX PAI nao criado: {xlsx_path}")
+        raise FileNotFoundError(f"XLSX SAM API nao criado: {xlsx_path}")
     if xlsx_path.suffix.casefold() != ".xlsx":
-        raise ValueError(f"Export PAI nao aponta para XLSX: {xlsx_path}")
+        raise ValueError(f"Export SAM API nao aponta para XLSX: {xlsx_path}")
     return xlsx_path

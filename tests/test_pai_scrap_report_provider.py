@@ -97,7 +97,7 @@ def test_run_pai_scrap_report_export_rejects_stale_artifacts(
     )
     monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
 
-    with pytest.raises(FileNotFoundError, match="Manifest PAI nao criado"):
+    with pytest.raises(FileNotFoundError, match="Manifest SAM API nao criado"):
         run_pai_scrap_report_export(
             PaiScrapReportRequest(
                 project_root=tmp_path,
@@ -149,7 +149,7 @@ def test_run_pai_scrap_report_ca_export_rejects_stale_artifacts(
     (output_dir / "sam_api_cert.json").write_text('{"status":"ok"}', encoding="utf-8")
     monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
 
-    with pytest.raises(FileNotFoundError, match="CA PAI nao criada"):
+    with pytest.raises(FileNotFoundError, match="CA SAM API nao criada"):
         run_pai_scrap_report_ca_export(
             PaiScrapReportRequest(
                 project_root=tmp_path,
@@ -230,7 +230,7 @@ def test_fetch_and_import_pai_xlsx_stages_and_imports(
     assert result.rows_after_import == 1
     assert result.import_xlsx_path == tmp_path / "docs_entrada" / "pai_ssa_import.xlsx"
     normalized = pd.read_excel(result.import_xlsx_path)
-    assert normalized.loc[0, "sistema_origem"] == "PAI"
+    assert normalized.loc[0, "sistema_origem"] == "SAM API"
     assert normalized.loc[0, "arquivo_origem"] == "pai.xlsx"
     assert result.staged_files == (str(tmp_path / "docs_entrada" / "pai_ssa_import.xlsx"),)
     assert staged_calls[0]["source_files"] == (str(result.import_xlsx_path),)
@@ -259,7 +259,7 @@ def test_preview_existing_pai_xlsx_normalizes_without_api_call(tmp_path: Path) -
     assert preview.normalized_rows == 1
     normalized = pd.read_excel(preview.import_xlsx_path)
     assert str(normalized.loc[0, "numero_ssa"]) == "202600002"
-    assert normalized.loc[0, "sistema_origem"] == "PAI"
+    assert normalized.loc[0, "sistema_origem"] == "SAM API"
     assert normalized.loc[0, "arquivo_origem"] == "pai_local.xlsm"
 
 
