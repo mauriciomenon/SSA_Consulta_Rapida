@@ -233,6 +233,10 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert data_scope_actions["Consulta"]._checked is True
     assert data_scope_actions["Executadas"]._enabled is True
     assert data_scope_actions["Executadas"]._checked is False
+    assert data_scope_actions["Aprovacao emissao"]._enabled is True
+    assert data_scope_actions["Aprovacao emissao"]._checked is False
+    assert data_scope_actions["Aprovacao cancelamento"]._enabled is True
+    assert data_scope_actions["Aprovacao cancelamento"]._checked is False
     assert "Para aprovacao" not in data_scope_actions
     assert "Para planejamento" not in data_scope_actions
 

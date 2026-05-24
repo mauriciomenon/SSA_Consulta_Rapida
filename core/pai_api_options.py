@@ -33,11 +33,17 @@ PAI_API_DATA_SCOPE_LABELS = {
     "executadas": "Executadas",
     "consulta": "Consulta",
     "aprovacao": "Para aprovacao",
+    "aprovacao_emissao": "Aprovacao emissao",
+    "aprovacao_cancelamento": "Aprovacao cancelamento",
     "planejamento": "Para planejamento",
     "programacao": "Para programacao",
 }
 PAI_API_REST_DATA_SCOPES = ("consulta",)
-PAI_API_SCRAPER_DATA_SCOPES = ("executadas",)
+PAI_API_SCRAPER_DATA_SCOPES = (
+    "executadas",
+    "aprovacao_emissao",
+    "aprovacao_cancelamento",
+)
 PAI_API_ENABLED_DATA_SCOPES = PAI_API_REST_DATA_SCOPES + PAI_API_SCRAPER_DATA_SCOPES
 PAI_API_PLANNED_SCRAPER_DATA_SCOPES = ("aprovacao",)
 PAI_API_UNSUPPORTED_DATA_SCOPES = ("planejamento", "programacao")

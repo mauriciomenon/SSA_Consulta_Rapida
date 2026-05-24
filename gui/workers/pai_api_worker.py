@@ -160,7 +160,12 @@ class PaiApiRefreshWorker(QThread):
 
         previews: list[_PaiSectorPreview] = []
         for data_scope in data_scopes:
-            scoped_request = replace(base_request, data_scope=data_scope)
+            report_kind = data_scope if data_scope.startswith("aprovacao_") else None
+            scoped_request = replace(
+                base_request,
+                data_scope=data_scope,
+                report_kind=report_kind,
+            )
             ca_file: Path | None = None
             if data_scope in PAI_API_REST_DATA_SCOPES:
                 self.progress.emit(5, "SAM API: validando CA")

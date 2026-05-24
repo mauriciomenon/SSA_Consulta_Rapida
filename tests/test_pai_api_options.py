@@ -93,6 +93,30 @@ def test_pai_api_data_scope_update_persists_canonical_value() -> None:
     assert settings[PAI_API_DATA_SCOPES_KEY] == ["consulta", "executadas"]
 
 
+def test_pai_api_data_scope_update_accepts_explicit_aprovacao_scopes() -> None:
+    preferences = {
+        "gui_settings": {PAI_API_SETTINGS_KEY: {PAI_API_DATA_SCOPES_KEY: ["consulta"]}}
+    }
+
+    assert update_pai_api_data_scope_setting(
+        preferences,
+        "APROVACAO_EMISSAO",
+        True,
+    ) is True
+    assert update_pai_api_data_scope_setting(
+        preferences,
+        "aprovacao_cancelamento",
+        True,
+    ) is True
+
+    settings = preferences["gui_settings"][PAI_API_SETTINGS_KEY]
+    assert settings[PAI_API_DATA_SCOPES_KEY] == [
+        "consulta",
+        "aprovacao_emissao",
+        "aprovacao_cancelamento",
+    ]
+
+
 def test_pai_api_options_reject_scope_without_gui_backend() -> None:
     options = normalize_pai_api_options({PAI_API_DATA_SCOPES_KEY: ["executadas"]})
 
@@ -111,7 +135,12 @@ def test_pai_api_options_allow_consulta_and_executadas_with_username() -> None:
     )
 
     assert pai_api_options_error(options) is None
-    assert PAI_API_ENABLED_DATA_SCOPES == ("consulta", "executadas")
+    assert PAI_API_ENABLED_DATA_SCOPES == (
+        "consulta",
+        "executadas",
+        "aprovacao_emissao",
+        "aprovacao_cancelamento",
+    )
 
 
 def test_pai_api_options_keep_aprovacao_planned() -> None:
@@ -126,6 +155,20 @@ def test_pai_api_options_keep_aprovacao_planned() -> None:
         pai_api_options_error(options)
         == "Tipo de dado ainda nao disponivel: Para aprovacao. Use Consulta."
     )
+
+
+def test_pai_api_options_allow_explicit_aprovacao_with_username() -> None:
+    options = normalize_pai_api_options(
+        {
+            PAI_API_DATA_SCOPES_KEY: [
+                "aprovacao_emissao",
+                "aprovacao_cancelamento",
+            ],
+            PAI_API_USERNAME_KEY: "sam.user",
+        }
+    )
+
+    assert pai_api_options_error(options) is None
 
 
 def test_pai_api_options_clamp_excessive_numeric_values() -> None:

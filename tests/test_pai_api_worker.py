@@ -203,6 +203,71 @@ def test_pai_api_worker_rejects_executadas_without_username(tmp_path: Path) -> N
     assert worker.results == []
 
 
+def test_pai_api_worker_refreshes_both_aprovacao_scopes(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, Any] = {"requests": [], "docs_dirs": []}
+
+    def _fake_fetch(request, *, docs_dir):
+        captured["requests"].append(request)
+        captured["docs_dirs"].append(docs_dir)
+        return PaiFetchedXlsxPreview(
+            export=PaiScrapReportExport(
+                command=("cmd",),
+                scrap_report_root=tmp_path,
+                manifest_path=tmp_path / "manifest.json",
+                xlsx_path=tmp_path / "data.xlsx",
+                manifest={},
+                stdout="",
+                stderr="",
+            ),
+            import_xlsx_path=tmp_path / "import.xlsx",
+            normalized_rows=1,
+        )
+
+    monkeypatch.setattr(pai_api_worker, "fetch_pai_xlsx_preview", _fake_fetch)
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=normalize_pai_api_options(
+                {
+                    "executor_sectors": ["IEE3"],
+                    "data_scopes": [
+                        "aprovacao_emissao",
+                        "aprovacao_cancelamento",
+                    ],
+                    "sam_username": "sam.user",
+                }
+            ),
+            fetch_only=True,
+        )
+    )
+
+    worker.run()
+
+    assert [request.data_scope for request in captured["requests"]] == [
+        "aprovacao_emissao",
+        "aprovacao_cancelamento",
+    ]
+    assert [request.report_kind for request in captured["requests"]] == [
+        "aprovacao_emissao",
+        "aprovacao_cancelamento",
+    ]
+    assert [request.output_dir for request in captured["requests"]] == [
+        tmp_path / "pai" / "aprovacao_emissao" / "IEE3",
+        tmp_path / "pai" / "aprovacao_cancelamento" / "IEE3",
+    ]
+    assert captured["docs_dirs"] == [
+        tmp_path / "docs" / "pai_api" / "aprovacao_emissao" / "IEE3",
+        tmp_path / "docs" / "pai_api" / "aprovacao_cancelamento" / "IEE3",
+    ]
+    assert worker.summary().previewed_sectors == 2
+
+
 def test_pai_api_worker_continues_after_sector_failure(
     monkeypatch,
     tmp_path: Path,
