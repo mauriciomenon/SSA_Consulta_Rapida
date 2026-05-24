@@ -6730,6 +6730,24 @@ class TestGUIFilterLogic:
         )
         assert width <= self.window.width_manager.max_pixel_widths["descricao_ssa"]
 
+    def test_best_fit_width_uses_fixed_column_caps(self):
+        series = pd.Series(["2027-01-15 07:27:16"] * 50)
+
+        def _measure(value):
+            return len(str(value)) * 12
+
+        width = self.window.width_manager.compute_best_fit_width(
+            series=series,
+            header_text="Data do arquivo de origem",
+            col_name="data_arquivo_origem",
+            measure_text=_measure,
+            baseline_px=None,
+            sample_limit=200,
+        )
+        assert width <= self.window.width_manager.max_pixel_widths[
+            "data_arquivo_origem"
+        ]
+
     def test_compute_optimal_widths_keeps_hash_column_minimum_24(self):
         df = pd.DataFrame({"#": [1], "numero_ssa": ["202500001"]})
         widths = self.window.width_manager.compute_optimal_widths(

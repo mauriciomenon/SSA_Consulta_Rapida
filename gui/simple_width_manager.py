@@ -51,6 +51,23 @@ class SimpleWidthManager:
             "descricao_execucao": 560,
             "solicitante": 320,
             "responsavel_execucao": 280,
+            "numero_ssa": 120,
+            "localizacao_codigo": 120,
+            "situacao": 80,
+            "setor_emissor": 95,
+            "setor_executor": 95,
+            "derivada_de": 135,
+            "data_cadastro": 120,
+            "data_arquivo_origem": 190,
+            "data_planilha": 120,
+            "semana_cadastro": 95,
+            "semana_programada": 105,
+            "semana_executada": 105,
+            "grau_prioridade": 105,
+            "grau_prioridade_emissao": 130,
+            "grau_prioridade_planejamento": 135,
+            "total_de_reprogramacoes": 140,
+            "execucao_parcial": 110,
         }
 
     def compute_optimal_widths(
