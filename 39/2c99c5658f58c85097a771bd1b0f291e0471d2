@@ -1,0 +1,56 @@
+gui/ssa/details_graph_export.py
+  s_9f052ddda3b0ba::t_6a7cf7564eedbf 75-80
+  s_9f052ddda3b0ba::t_fcba8ac215ddf8 98-103
+gui/ssa/pai_api_controller.py
+  s_9f052ddda3b0ba::t_09b8a7ee5a5e56 33,398
+  s_9f052ddda3b0ba::t_33025fdf5fe2d8 203
+  s_9f052ddda3b0ba::t_5463a142290171 128,140-143,159,171-174
+  s_9f052ddda3b0ba::t_7da430723d7968 129-134,160-165
+tests/test_gui_filter_logic.py
+  s_9f052ddda3b0ba::t_4e99a53b7e19cb 494,499,501,516,519,521-522,524,554-560,4372,5345
+  s_9f052ddda3b0ba::t_09d8e076a5f45e 707-708,5096,5156-5171,5339-5344,5346-5349,5780-5795
+tests/test_gui_details_graph_export.py
+  s_9f052ddda3b0ba::t_09d8e076a5f45e 162-163,175-186,257-260
+gui/simple_width_manager.py
+  s_9f052ddda3b0ba::t_09b8a7ee5a5e56 59
+gui/ssa/details_graph_renderer.py
+  s_9f052ddda3b0ba::t_09b8a7ee5a5e56 57-66
+gui/gui_ssa.py
+  s_9f052ddda3b0ba::t_4b443681506e09 2653-2658
+gui/gui_config.py
+  s_9f052ddda3b0ba::t_09b8a7ee5a5e56 251
+gui/workers/pai_api_worker.py
+  s_9f052ddda3b0ba::t_09b8a7ee5a5e56 128-129,131
+tests/test_pai_api_controller.py
+  s_9f052ddda3b0ba::t_09d8e076a5f45e 132-140
+  s_9f052ddda3b0ba::t_33025fdf5fe2d8 207-228
+  s_9f052ddda3b0ba::t_5463a142290171 391,411
+tests/test_pai_api_worker.py
+  s_9f052ddda3b0ba::t_09d8e076a5f45e 658-684
+gui/ssa/gui_details.py
+  s_9f052ddda3b0ba::t_41a0c743f4306b 166,180
+  s_9f052ddda3b0ba::t_ccbc3ecc96945a 767-774
+  s_9f052ddda3b0ba::t_cb83199cb94343 524-525,530,1164,1193-1198,1251-1256,1298
+  s_9f052ddda3b0ba::t_b4e14c9791b195 1149,1154,1157,1161,1163
+  s_9f052ddda3b0ba::t_f8ead176bf8ccd 672,781
+  s_9f052ddda3b0ba::t_09b8a7ee5a5e56 286,606-607,838-847,850-851
+gui/ssa/main_window_bottom_section.py
+  s_9f052ddda3b0ba::t_09b8a7ee5a5e56 60-63
+  s_9f052ddda3b0ba::t_f8ead176bf8ccd 77-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "392c99c5658f58c85097a771bd1b0f291e0471d2",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
