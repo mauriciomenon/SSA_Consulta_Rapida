@@ -474,6 +474,7 @@ class TestGUIFilterLogic:
         assert ctx["details_stack"].currentIndex() == 1
         assert "1" in str(self.window.details_tree_text.toPlainText() or "")
         assert "1" in str(self.window.details_graph_label.text() or "")
+        assert self.window.details_graph_label.isVisible() is True
 
         self.window.table_widget.selectRow(1)
         self.window.update_details_from_selection()
@@ -508,6 +509,20 @@ class TestGUIFilterLogic:
                 AssertionError("nao deveria renderizar grafo sem relacoes")
             ),
         )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_collect_derivadas_tree_data",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("nao deveria coletar arvore pesada sem relacoes")
+            ),
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_window_ssa_series_index",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("nao deveria montar indice global sem relacoes")
+            ),
+        )
 
         ctx = self._panel_context()
         ctx["details_tab_bar"].setCurrentIndex(1)
@@ -516,9 +531,8 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         assert "Sem Derivadas" in str(self.window.details_tree_text.toPlainText() or "")
-        assert str(self.window.details_graph_label.text() or "") == (
-            "Sem relacoes de derivadas."
-        )
+        assert str(self.window.details_graph_label.text() or "") == ""
+        assert self.window.details_graph_label.isVisible() is False
 
     def test_column_filters_panel_is_populated_on_startup(self):
         main_ctx = self._panel_context()

@@ -687,6 +687,8 @@ def _clear_main_details_derivadas_panel(window) -> None:
             continue
         try:
             widget.clear()
+            if attr in ("details_graph_label", "details_graph_text"):
+                widget.setVisible(False)
         except Exception as exc:
             logger.debug("Falha ao limpar %s: %s", attr, exc)
 
@@ -725,8 +727,33 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
         link_color = str(
             roles.get("accent") or roles.get("panel_text") or roles.get("label_color")
         )
-        tree_data = _collect_derivadas_tree_data(window, normalized)
         safe_font_family = font_family or DETAILS_CONFIG.mono_font_family
+        if not _has_derivadas_relation_hint(window, series, normalized):
+            tree_data = details_derivadas_model.normalize_tree_data(
+                target=normalized,
+                snapshot=None,
+                fallback_children=[],
+                direct_parent="",
+                local_payload=None,
+                related=[],
+                target_status="",
+            )
+            tree_html = _build_derivadas_tree_html(
+                window,
+                normalized,
+                link_color=link_color,
+                font_family=safe_font_family,
+                tree_data_override=tree_data,
+                ssa_index={},
+            )
+            tree_browser.setHtml(tree_html or "Sem derivadas para exibir.")
+            if hasattr(graph_browser, "setPixmap"):
+                graph_browser.clear()
+            graph_browser.setText("")
+            graph_browser.setVisible(False)
+            return
+
+        tree_data = _collect_derivadas_tree_data(window, normalized)
         tree_html = _build_derivadas_tree_html(
             window,
             normalized,
@@ -739,8 +766,10 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
         if not _has_derivadas_graph_relations(tree_data):
             if hasattr(graph_browser, "setPixmap"):
                 graph_browser.clear()
-            graph_browser.setText("Sem relacoes de derivadas.")
+            graph_browser.setText("")
+            graph_browser.setVisible(False)
             return
+        graph_browser.setVisible(True)
         graph_html = _build_derivadas_graph_html(
             window,
             tree_data,
@@ -765,6 +794,23 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
     except Exception as exc:
         logger.debug("Falha ao atualizar painel principal de derivadas: %s", exc)
         _clear_main_details_derivadas_panel(window)
+
+
+def _has_derivadas_relation_hint(window, series, target: str) -> bool:
+    try:
+        if _get_direct_parent_for_series(series):
+            return True
+        source_df = getattr(window, "df_completo", None)
+        if not isinstance(source_df, pd.DataFrame) or "derivada_de" not in source_df.columns:
+            return False
+        target_candidates: set[object] = {target}
+        if target.isdigit():
+            target_candidates.add(int(target))
+            target_candidates.add(float(target))
+        return bool(source_df["derivada_de"].isin(target_candidates).any())
+    except Exception as exc:
+        logger.debug("Falha ao testar relacao direta de derivadas para %s: %s", target, exc)
+        return False
 
 
 def _has_derivadas_graph_relations(tree_data: Mapping[str, object]) -> bool:
