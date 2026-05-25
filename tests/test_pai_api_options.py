@@ -124,7 +124,7 @@ def test_pai_api_options_reject_scope_without_gui_backend() -> None:
 
     assert (
         pai_api_options_error(options)
-        == "Usuario SAM obrigatorio para Executadas via xpath/scrap_report."
+        == "Usuario SAM obrigatorio para xpath/scrap_report."
     )
 
 

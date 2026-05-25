@@ -9,6 +9,8 @@ from typing import Any, Protocol
 
 from core.pai_api_options import (
     PAI_API_AUTO_REFRESH_ENABLED_KEY,
+    PAI_API_DATA_SCOPES_KEY,
+    PAI_API_SECTORS_KEY,
     PAI_API_SETTINGS_KEY,
     normalize_pai_api_options,
     pai_api_options_error,
@@ -112,10 +114,18 @@ def set_pai_api_sector_enabled(
     enabled: bool,
 ) -> bool:
     clean_sector = str(sector or "").strip().upper()
+    settings = preferences.setdefault("gui_settings", {}).setdefault(
+        PAI_API_SETTINGS_KEY, {}
+    )
+    previous_sectors = list(settings.get(PAI_API_SECTORS_KEY, []))
     if not update_pai_api_sector_setting(preferences, clean_sector, enabled):
         window.set_pai_api_status(f"Status: Setor SAM API invalido: {clean_sector}")
         return False
     persisted, _active = _persist_and_sync(window, preferences)
+    if not persisted:
+        settings[PAI_API_SECTORS_KEY] = previous_sectors
+        sync_pai_api_auto_refresh(window, preferences=preferences)
+        window.set_pai_api_status(STATUS_API_AUTO_SAVE_FAILED)
     return persisted
 
 
@@ -126,10 +136,18 @@ def set_pai_api_data_scope_enabled(
     enabled: bool,
 ) -> bool:
     clean_scope = str(scope or "").strip().casefold()
+    settings = preferences.setdefault("gui_settings", {}).setdefault(
+        PAI_API_SETTINGS_KEY, {}
+    )
+    previous_scopes = list(settings.get(PAI_API_DATA_SCOPES_KEY, []))
     if not update_pai_api_data_scope_setting(preferences, clean_scope, enabled):
         window.set_pai_api_status(f"Status: Tipo SAM API invalido: {clean_scope}")
         return False
     persisted, _active = _persist_and_sync(window, preferences)
+    if not persisted:
+        settings[PAI_API_DATA_SCOPES_KEY] = previous_scopes
+        sync_pai_api_auto_refresh(window, preferences=preferences)
+        window.set_pai_api_status(STATUS_API_AUTO_SAVE_FAILED)
     return persisted
 
 

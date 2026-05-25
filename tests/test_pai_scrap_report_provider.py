@@ -171,6 +171,67 @@ def test_run_pai_scrap_report_export_reads_sweep_manifest_reports(
     )
 
 
+def test_run_pai_scrap_report_export_allows_small_mtime_skew(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    xlsx_path = output_dir / "pai_sam_api.xlsx"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+    monkeypatch.setattr("core.pai_scrap_report_provider.time.time", lambda: 100.0)
+
+    def runner(_command: list[str], **_kwargs: Any) -> _Completed:
+        output_dir.mkdir(exist_ok=True)
+        xlsx_path.write_bytes(b"xlsx")
+        xlsx_path.touch()
+        (output_dir / "pai_sam_api_manifest.json").write_text(
+            '{"status":"ok","exports":{"data_xlsx":"pai_sam_api.xlsx"}}',
+            encoding="utf-8",
+        )
+        xlsx_path.touch()
+        import os
+
+        os.utime(xlsx_path, (99.0, 99.0))
+        return _Completed()
+
+    result = run_pai_scrap_report_export(
+        PaiScrapReportRequest(
+            project_root=tmp_path,
+            output_dir=output_dir,
+            scrap_report_root=scrap_root,
+        ),
+        runner=runner,
+    )
+
+    assert result.xlsx_path == xlsx_path
+
+
+def test_run_pai_scrap_report_export_reports_sweep_label_on_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    class _Failed:
+        returncode = 1
+        stdout = ""
+        stderr = "failed"
+
+    with pytest.raises(RuntimeError, match="scrap_report sweep-run falhou"):
+        run_pai_scrap_report_export(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                output_dir=tmp_path / "out",
+                scrap_report_root=scrap_root,
+                data_scope="executadas",
+                executor_sectors=("IEE3",),
+            ),
+            runner=lambda _command, **_kwargs: _Failed(),
+        )
+
+
 def test_build_pai_scrap_report_command_requires_exact_aprovacao_report_kind(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

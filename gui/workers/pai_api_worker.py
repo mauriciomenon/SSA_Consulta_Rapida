@@ -172,7 +172,7 @@ class PaiApiRefreshWorker(QThread):
                 self.progress.emit(5, "SAM API: validando CA")
                 certificate = self._validate_ca(scoped_request)
                 if certificate is None:
-                    return
+                    continue
                 ca_file = certificate.ca_file
             previews.extend(
                 self._fetch_sector_previews(
@@ -220,7 +220,7 @@ class PaiApiRefreshWorker(QThread):
             failure = _format_ca_failure(exc)
             self._add_failure(failure)
             self._refresh_summary()
-            self.finished_error.emit(failure)
+            self.error_line.emit(failure)
             return None
 
     def _sector_requests(

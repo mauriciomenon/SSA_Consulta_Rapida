@@ -5,6 +5,7 @@ from typing import Any
 
 from core.pai_api_options import (
     PAI_API_AUTO_REFRESH_ENABLED_KEY,
+    PAI_API_DATA_SCOPES_KEY,
     PAI_API_SECTORS_KEY,
     PAI_API_SETTINGS_KEY,
 )
@@ -287,6 +288,44 @@ def test_set_auto_refresh_enabled_keeps_timer_off_when_persist_fails(
     assert window.persist_count == 1
     assert window.timer is not None
     assert window.timer.isActive() is False
+    assert window.statuses[-1] == pai_api_controller.STATUS_API_AUTO_SAVE_FAILED
+
+
+def test_set_sector_enabled_rolls_back_when_persist_fails(tmp_path: Path) -> None:
+    window = _Window()
+    preferences = _preferences(auto_enabled=False)
+    window.preferences = preferences
+    window.context = _context(tmp_path)
+    window.persist_result = False
+
+    assert not pai_api_controller.set_pai_api_sector_enabled(
+        window,
+        preferences,
+        "MEL4",
+        True,
+    )
+
+    settings = preferences["gui_settings"][PAI_API_SETTINGS_KEY]
+    assert settings[PAI_API_SECTORS_KEY] == ["IEE3"]
+    assert window.statuses[-1] == pai_api_controller.STATUS_API_AUTO_SAVE_FAILED
+
+
+def test_set_data_scope_enabled_rolls_back_when_persist_fails(tmp_path: Path) -> None:
+    window = _Window()
+    preferences = _preferences(auto_enabled=False)
+    window.preferences = preferences
+    window.context = _context(tmp_path)
+    window.persist_result = False
+
+    assert not pai_api_controller.set_pai_api_data_scope_enabled(
+        window,
+        preferences,
+        "executadas",
+        True,
+    )
+
+    settings = preferences["gui_settings"][PAI_API_SETTINGS_KEY]
+    assert settings.get(PAI_API_DATA_SCOPES_KEY, []) == []
     assert window.statuses[-1] == pai_api_controller.STATUS_API_AUTO_SAVE_FAILED
 
 

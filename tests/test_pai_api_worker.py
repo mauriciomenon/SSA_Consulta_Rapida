@@ -181,6 +181,60 @@ def test_pai_api_worker_refreshes_executadas_without_ca_validation(
     assert worker.summary().import_skipped is True
 
 
+def test_pai_api_worker_keeps_scraper_scope_when_rest_ca_fails(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, Any] = {"requests": [], "errors": []}
+
+    def _fake_fetch(request, *, docs_dir):
+        _ = docs_dir
+        captured["requests"].append(request)
+        return PaiFetchedXlsxPreview(
+            export=PaiScrapReportExport(
+                command=("cmd",),
+                scrap_report_root=tmp_path,
+                manifest_path=tmp_path / "manifest.json",
+                xlsx_path=tmp_path / "data.xlsx",
+                manifest={},
+                stdout="",
+                stderr="",
+            ),
+            import_xlsx_path=tmp_path / "import.xlsx",
+            normalized_rows=2,
+        )
+
+    def _fail_ca(_request):
+        raise RuntimeError("CA unavailable")
+
+    monkeypatch.setattr(pai_api_worker, "fetch_pai_xlsx_preview", _fake_fetch)
+    monkeypatch.setattr(pai_api_worker, "run_pai_scrap_report_ca_export", _fail_ca)
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=normalize_pai_api_options(
+                {
+                    "executor_sectors": ["IEE3"],
+                    "data_scopes": ["consulta", "executadas"],
+                    "sam_username": "sam.user",
+                }
+            ),
+            fetch_only=True,
+        )
+    )
+    worker.error_line.connect(captured["errors"].append)
+
+    worker.run()
+
+    assert [request.data_scope for request in captured["requests"]] == ["executadas"]
+    assert len(captured["errors"]) == 1
+    assert "CA" in captured["errors"][0]
+    assert worker.summary().previewed_sectors == 1
+
+
 def test_pai_api_worker_rejects_executadas_without_username(tmp_path: Path) -> None:
     errors: list[str] = []
     worker = PaiApiRefreshWorker(
@@ -201,7 +255,7 @@ def test_pai_api_worker_rejects_executadas_without_username(tmp_path: Path) -> N
 
     worker.run()
 
-    assert errors == ["Usuario SAM obrigatorio para Executadas via xpath/scrap_report."]
+    assert errors == ["Usuario SAM obrigatorio para xpath/scrap_report."]
     assert worker.results == []
 
 

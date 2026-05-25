@@ -159,13 +159,13 @@ class SimpleWidthManager:
                 captured[col_name] = width
         return captured
 
-    def has_user_column_width(
-        self, col_name: str, saved_widths: dict | None = None
-    ) -> bool:
+    @staticmethod
+    def has_user_column_width(col_name: str, saved_widths: dict | None = None) -> bool:
         return isinstance(saved_widths, dict) and col_name in saved_widths
 
+    @staticmethod
     def user_column_widths(
-        self, saved_widths: dict | None = None, preference_widths: dict | None = None
+        saved_widths: dict | None = None, preference_widths: dict | None = None
     ) -> dict:
         widths: dict = {}
         if isinstance(preference_widths, dict):
@@ -211,6 +211,8 @@ class SimpleWidthManager:
                     col_name,
                     exc,
                 )
+                continue
+            if width_int <= 0:
                 continue
             min_px = 24 if col_name == "#" else 30
             safe_width = max(min_px, min(width_int, col_max))

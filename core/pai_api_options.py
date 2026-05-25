@@ -85,11 +85,14 @@ def pai_api_options_error(options: PaiApiGuiOptions) -> str | None:
     supported = tuple(
         scope for scope in options.data_scopes if scope in PAI_API_ENABLED_DATA_SCOPES
     )
-    if supported:
-        if any(scope in PAI_API_SCRAPER_DATA_SCOPES for scope in supported):
-            if options.secure_required and not options.username:
-                return "Usuario SAM obrigatorio para Executadas via xpath/scrap_report."
-        return None
+    if not supported:
+        return "Nenhum tipo de dado suportado habilitado para SAM API."
+    if (
+        options.secure_required
+        and not options.username
+        and any(scope in PAI_API_SCRAPER_DATA_SCOPES for scope in supported)
+    ):
+        return "Usuario SAM obrigatorio para xpath/scrap_report."
     return None
 
 
