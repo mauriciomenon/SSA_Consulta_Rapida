@@ -1,0 +1,25 @@
+tests/test_pai_scrap_report_provider.py
+  s_9f052ddda3b0ba::t_64cf9309fe5b34 93-115
+tests/test_pai_xlsx_normalizer.py
+  s_9f052ddda3b0ba::t_64cf9309fe5b34 11,23-35
+gui/workers/pai_api_worker.py
+  s_9f052ddda3b0ba::t_64cf9309fe5b34 168
+tests/test_pai_api_worker.py
+  s_9f052ddda3b0ba::t_64cf9309fe5b34 105,175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "f26e18453f06ebc45525163b9814491977230e2e",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
