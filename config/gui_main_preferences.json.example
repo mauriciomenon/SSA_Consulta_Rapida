@@ -186,7 +186,10 @@
         "consulta"
       ],
       "limit": 200,
-      "number_of_years": 4
+      "number_of_years": 4,
+      "sam_username": "",
+      "secret_service": "scrap_report.sam",
+      "secure_required": true
     }
   },
   "version": "1.0.0",
