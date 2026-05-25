@@ -96,6 +96,12 @@ def _build_details_panel(window: Any) -> tuple[QGroupBox, dict[str, Any]]:
     details_stack = QStackedWidget()
     details_text = QTextBrowser()
     try:
+        details_group.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
+        )
+    except Exception as exc:
+        logger.debug("Falha ao configurar expansao do painel de detalhes: %s", exc)
+    try:
         details_text.setFrameShape(QFrame.Shape.NoFrame)
     except Exception as exc:
         logger.debug("Falha ao remover frame do painel de detalhes: %s", exc)
@@ -188,10 +194,13 @@ def _build_details_panel_header(window: Any) -> tuple[QWidget, QTabBar, QLabel]:
     try:
         details_tab_bar.setExpanding(False)
         details_tab_bar.setDrawBase(False)
+        details_tab_bar.setUsesScrollButtons(False)
+        details_tab_bar.setElideMode(Qt.TextElideMode.ElideNone)
+        details_tab_bar.setMinimumWidth(244)
         details_tab_bar.setFixedHeight(22)
         details_tab_bar.setStyleSheet(
             "QTabBar::tab {"
-            "min-width:96px; padding:1px 10px;"
+            "min-width:112px; padding:1px 10px;"
             "border:1px solid palette(mid);"
             "border-bottom:0;"
             "margin-right:1px;"
@@ -208,24 +217,16 @@ def _build_details_panel_header(window: Any) -> tuple[QWidget, QTabBar, QLabel]:
     except Exception as exc:
         logger.debug("Falha ao configurar abas de detalhes: %s", exc)
 
-    details_title = QLabel("Detalhes")
+    details_title = QLabel("")
     try:
-        details_title.setAlignment(cast(Any, Qt).AlignmentFlag.AlignCenter)
-        details_title.setStyleSheet("font-weight:600; color:palette(windowText);")
-        details_title.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
+        details_title.setVisible(False)
+        details_title.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao configurar titulo de detalhes: %s", exc)
 
     details_header_layout.addWidget(cast(Any, details_tab_bar), 0)
-    details_header_layout.addWidget(cast(Any, details_title), 1)
-    right_balance = QWidget()
-    try:
-        right_balance.setFixedWidth(202)
-    except Exception as exc:
-        logger.debug("Falha ao configurar balanceador de detalhes: %s", exc)
-    details_header_layout.addWidget(cast(Any, right_balance), 0)
+    details_header_layout.addWidget(cast(Any, details_title), 0)
+    details_header_layout.addStretch(1)
     return details_panel_header, details_tab_bar, details_title
 
 

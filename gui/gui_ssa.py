@@ -1397,8 +1397,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 seen.add(wid)
                 groups.append(widget)
         for widget in groups:
+            panel_target = target
+            if widget is getattr(self, "details_group", None):
+                panel_target = min(360, target + 30)
             self._set_widget_fixed_height_safe(
-                widget, target, f"painel inferior {type(widget).__name__}"
+                widget, panel_target, f"painel inferior {type(widget).__name__}"
             )
         try:
             current_kind = getattr(self, "_active_filter_panel_kind", None)

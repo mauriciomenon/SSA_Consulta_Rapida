@@ -395,6 +395,10 @@ class TestGUIFilterLogic:
         assert main_ctx["filters_panel_group"] is filters_ctx["filters_panel_group"]
         assert main_ctx["filters_panel_stack"] is filters_ctx["filters_panel_stack"]
         assert "col_filters_hint" not in main_ctx
+        details_tab_bar = main_ctx["details_tab_bar"]
+        assert details_tab_bar.usesScrollButtons() is False
+        assert details_tab_bar.minimumWidth() >= 244
+        assert main_ctx["details_title"].isVisible() is False
         tab_bar = main_ctx["filter_panel_tab_bar"]
         title = main_ctx["filter_panel_title"]
         stack = main_ctx["filters_panel_stack"]
@@ -478,6 +482,43 @@ class TestGUIFilterLogic:
         assert "Teste B" in str(self.window.details_text.toHtml() or "")
         assert "2" in str(self.window.details_tree_text.toPlainText() or "")
         assert "2" in str(self.window.details_graph_label.text() or "")
+
+    def test_details_derivadas_tab_skips_graph_render_without_relations(
+        self, monkeypatch
+    ):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": [1],
+                "situacao": ["APV"],
+                "derivada_de": [""],
+                "descricao_ssa": ["Teste sem derivadas"],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "render_graph_svg_pixmap",
+            lambda **_kwargs: (_ for _ in ()).throw(
+                AssertionError("nao deveria renderizar grafo sem relacoes")
+            ),
+        )
+
+        ctx = self._panel_context()
+        ctx["details_tab_bar"].setCurrentIndex(1)
+        self.window.table_widget.selectRow(0)
+        self.window.update_details_from_selection()
+        QApplication.processEvents()
+
+        assert "Sem Derivadas" in str(self.window.details_tree_text.toPlainText() or "")
+        assert str(self.window.details_graph_label.text() or "") == (
+            "Sem relacoes de derivadas."
+        )
 
     def test_column_filters_panel_is_populated_on_startup(self):
         main_ctx = self._panel_context()
@@ -2464,24 +2505,31 @@ class TestGUIFilterLogic:
         self.window._sync_bottom_panel_heights()
         QApplication.processEvents()
 
-        groups = []
+        details_group = None
+        inner_groups = []
         for ctx in self._iter_panel_contexts():
             for key in ("details_group", "adv_filters_group", "col_filters_group"):
                 widget = ctx.get(key)
                 if widget is None:
                     continue
-                if widget in groups:
+                if key == "details_group":
+                    details_group = widget
                     continue
-                groups.append(widget)
+                if widget in inner_groups:
+                    continue
+                inner_groups.append(widget)
 
-        assert len(groups) >= 3
-        min_heights = {int(g.minimumHeight()) for g in groups}
-        max_heights = {int(g.maximumHeight()) for g in groups}
+        assert details_group is not None
+        assert len(inner_groups) >= 2
+        min_heights = {int(g.minimumHeight()) for g in inner_groups}
+        max_heights = {int(g.maximumHeight()) for g in inner_groups}
         assert len(min_heights) == 1
         assert len(max_heights) == 1
         synced_height = next(iter(min_heights))
         assert synced_height == next(iter(max_heights))
         assert 250 <= synced_height <= 320
+        assert int(details_group.minimumHeight()) == min(360, synced_height + 30)
+        assert int(details_group.maximumHeight()) == min(360, synced_height + 30)
 
     def test_filter_summary_bar_keeps_geometry_when_switching_filter_tabs(self):
         self.window.resize(1280, 880)
@@ -4016,7 +4064,7 @@ class TestGUIFilterLogic:
         assert system_pos < file_date_pos < sheet_date_pos < sheet_file_pos
         assert html.index("Descricao da SSA:") < system_pos
 
-    def test_details_html_centers_values_and_preserves_full_text(self):
+    def test_details_html_right_aligns_values_and_preserves_full_text(self):
         long_text = (
             "Texto completo da SSA com conteudo suficiente para ocupar a caixa "
             "sem inserir reticencias artificiais ou cortar o valor renderizado."
@@ -4029,7 +4077,7 @@ class TestGUIFilterLogic:
             series, highlight_search_terms=False, linkify=False
         )
 
-        assert "text-align: center;" in html
+        assert "text-align: right;" in html
         assert long_text in html
         assert "reticencias artificiais..." not in html
 
@@ -4768,6 +4816,18 @@ class TestGUIFilterLogic:
         assert "stroke-dasharray" in html
         assert "marker-end" in html
         assert "Grafo de derivadas" in html
+        assert 'fill="#101820">202600023</text>' in html
+
+    def test_build_derivadas_graph_html_sanitizes_font_family(self):
+        html = ssa_gui_details._build_derivadas_graph_html(
+            self.window,
+            {"target": "202600023", "children": ["202600024"]},
+            link_color="#4a90e2",
+            font_family='bad";onclick="alert(1)',
+        )
+
+        assert 'onclick="alert(1)' not in html
+        assert "font-family:sans-serif" in html
 
     def test_build_derivadas_graph_html_dashes_relation_type_edges(self):
         data: dict[str, object] = {

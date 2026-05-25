@@ -604,6 +604,7 @@ def _update_details_from_series(window, series):
         window._details_current_series_for_derivadas = None
         _clear_main_details_derivadas_panel(window)
         return
+    render_signature = None
     render_signature = _get_details_render_signature(window, series)
     try:
         window._details_current_ssa = series.get("numero_ssa")
@@ -734,13 +735,18 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
             tree_data_override=tree_data,
             ssa_index=None,
         )
+        tree_browser.setHtml(tree_html or "Sem derivadas para exibir.")
+        if not _has_derivadas_graph_relations(tree_data):
+            if hasattr(graph_browser, "setPixmap"):
+                graph_browser.clear()
+            graph_browser.setText("Sem relacoes de derivadas.")
+            return
         graph_html = _build_derivadas_graph_html(
             window,
             tree_data,
             link_color=link_color,
             font_family=safe_font_family,
         )
-        tree_browser.setHtml(tree_html or "Sem derivadas para exibir.")
         graph_svg = _extract_inline_svg_markup(graph_html)
         svg_deps = load_svg_render_dependencies()
         if graph_svg and svg_deps is not None:
@@ -759,6 +765,14 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
     except Exception as exc:
         logger.debug("Falha ao atualizar painel principal de derivadas: %s", exc)
         _clear_main_details_derivadas_panel(window)
+
+
+def _has_derivadas_graph_relations(tree_data: Mapping[str, object]) -> bool:
+    for key in ("parents", "children", "descendants", "ancestors", "related"):
+        value = tree_data.get(key)
+        if value:
+            return True
+    return False
 
 
 def refresh_main_details_derivadas_panel(window) -> None:
