@@ -57,6 +57,7 @@ class _Window:
         self.preferences: dict[str, Any] = {}
         self.context: pai_api_controller.PaiApiRefreshContext | None = None
         self.persist_count = 0
+        self.persist_result = True
         self.reload_count = 0
         self.confirm_count = 0
         self.last_decision_request: Any | None = None
@@ -95,7 +96,7 @@ class _Window:
 
     def _persist_gui_preferences(self) -> bool:
         self.persist_count += 1
-        return True
+        return self.persist_result
 
 
 class _Worker:
@@ -239,6 +240,54 @@ def test_set_auto_refresh_enabled_persists_and_starts_timer(tmp_path: Path) -> N
     assert window.timer is not None
     timer = window.timer
     assert timer.isActive() is True
+
+
+def test_set_auto_refresh_enabled_returns_not_ready_without_timer(tmp_path: Path) -> None:
+    window = _Window()
+    preferences = _preferences(auto_enabled=False)
+    window.preferences = preferences
+    window.context = _context(tmp_path)
+
+    assert not pai_api_controller.set_pai_api_auto_refresh_enabled(
+        window,
+        preferences,
+        True,
+    )
+
+    settings = preferences["gui_settings"][PAI_API_SETTINGS_KEY]
+    assert settings[PAI_API_AUTO_REFRESH_ENABLED_KEY] is True
+    assert window.persist_count == 1
+    assert window.timer is None
+    assert window.statuses[-1] == pai_api_controller.STATUS_API_AUTO_NOT_READY
+
+
+def test_set_auto_refresh_enabled_keeps_timer_off_when_persist_fails(
+    tmp_path: Path,
+) -> None:
+    window = _Window()
+    preferences = _preferences(auto_enabled=False)
+    window.preferences = preferences
+    window.context = _context(tmp_path)
+    window.persist_result = False
+    pai_api_controller.initialize_pai_api_auto_refresh(
+        window,
+        preferences=preferences,
+        context=_context(tmp_path),
+        qtimer_cls=_Timer,
+    )
+
+    assert not pai_api_controller.set_pai_api_auto_refresh_enabled(
+        window,
+        preferences,
+        True,
+    )
+
+    settings = preferences["gui_settings"][PAI_API_SETTINGS_KEY]
+    assert settings[PAI_API_AUTO_REFRESH_ENABLED_KEY] is False
+    assert window.persist_count == 1
+    assert window.timer is not None
+    assert window.timer.isActive() is False
+    assert window.statuses[-1] == pai_api_controller.STATUS_API_AUTO_SAVE_FAILED
 
 
 def test_pai_api_error_status_is_short() -> None:

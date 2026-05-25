@@ -39,6 +39,9 @@ STATUS_API_RELOAD = "Status: SAM API concluida; carregando dados atualizados."
 STATUS_API_AUTO_ENABLED = "Status: Atualizacao automatica da SAM API habilitada."
 STATUS_API_AUTO_DISABLED = "Status: Atualizacao automatica da SAM API desabilitada."
 STATUS_API_AUTO_NOT_READY = "Status: Atualizacao automatica da SAM API nao esta pronta."
+STATUS_API_AUTO_SAVE_FAILED = (
+    "Status: Atualizacao automatica da SAM API nao foi salva."
+)
 
 
 @dataclass(frozen=True)
@@ -390,18 +393,36 @@ def set_pai_api_auto_refresh_enabled(
     preferences: dict[str, Any],
     enabled: bool,
 ) -> bool:
+    settings = preferences.get("gui_settings", {}).get(PAI_API_SETTINGS_KEY, {})
+    previous_enabled = bool(settings.get(PAI_API_AUTO_REFRESH_ENABLED_KEY, False))
     update_pai_api_boolean_setting(
         preferences,
         PAI_API_AUTO_REFRESH_ENABLED_KEY,
         enabled,
     )
-    persisted, active = _persist_and_sync(window, preferences)
+    persisted = _persist_preferences(window)
+    if not persisted:
+        update_pai_api_boolean_setting(
+            preferences,
+            PAI_API_AUTO_REFRESH_ENABLED_KEY,
+            previous_enabled,
+        )
+        sync_pai_api_auto_refresh(window, preferences=preferences)
+        window.set_pai_api_status(STATUS_API_AUTO_SAVE_FAILED)
+        return False
+    else:
+        active = sync_pai_api_auto_refresh(window, preferences=preferences)
     if enabled:
         window.set_pai_api_status(
-            STATUS_API_AUTO_ENABLED if active else STATUS_API_AUTO_NOT_READY
+            STATUS_API_AUTO_ENABLED
+            if persisted and active
+            else STATUS_API_AUTO_NOT_READY
         )
+        return bool(persisted and active)
     else:
-        window.set_pai_api_status(STATUS_API_AUTO_DISABLED)
+        window.set_pai_api_status(
+            STATUS_API_AUTO_DISABLED if persisted else STATUS_API_AUTO_NOT_READY
+        )
     return persisted
 
 
