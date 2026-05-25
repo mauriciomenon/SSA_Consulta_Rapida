@@ -286,6 +286,37 @@ def test_run_pai_scrap_report_export_rejects_stale_artifacts(
         )
 
 
+def test_run_pai_scrap_report_export_ignores_malformed_manifest_items(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    xlsx_path = output_dir / "pai_sam_api.xlsx"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    def runner(_command: list[str], **_kwargs: Any) -> _Completed:
+        output_dir.mkdir(exist_ok=True)
+        xlsx_path.write_bytes(b"data")
+        (output_dir / "pai_sam_api_manifest.json").write_text(
+            '{"status":"ok","items":[1,"bad",null],'
+            '"exports":{"data_xlsx":"pai_sam_api.xlsx"}}',
+            encoding="utf-8",
+        )
+        return _Completed()
+
+    result = run_pai_scrap_report_export(
+        PaiScrapReportRequest(
+            project_root=tmp_path,
+            output_dir=output_dir,
+            scrap_report_root=scrap_root,
+        ),
+        runner=runner,
+    )
+
+    assert result.xlsx_path == xlsx_path
+
+
 def test_run_pai_scrap_report_ca_export_creates_ca_file(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -335,6 +366,34 @@ def test_run_pai_scrap_report_ca_export_rejects_stale_artifacts(
                 scrap_report_root=scrap_root,
             ),
             runner=lambda _command, **_kwargs: _Completed(),
+        )
+
+
+def test_run_pai_scrap_report_ca_export_rejects_error_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    def runner(_command: list[str], **_kwargs: Any) -> _Completed:
+        output_dir.mkdir(exist_ok=True)
+        (output_dir / "itaipu_root_ca.pem").write_text("CERT", encoding="utf-8")
+        (output_dir / "sam_api_cert.json").write_text(
+            '{"status":"error"}',
+            encoding="utf-8",
+        )
+        return _Completed()
+
+    with pytest.raises(RuntimeError, match="status=error"):
+        run_pai_scrap_report_ca_export(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                output_dir=output_dir,
+                scrap_report_root=scrap_root,
+            ),
+            runner=runner,
         )
 
 

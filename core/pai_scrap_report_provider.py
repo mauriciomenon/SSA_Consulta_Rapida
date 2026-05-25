@@ -32,7 +32,6 @@ PAI_SWEEP_STAGING_DIRNAME = "staging"
 PAI_CA_FILENAME = "itaipu_root_ca.pem"
 PAI_CA_MANIFEST_FILENAME = "sam_api_cert.json"
 PAI_EXPORT_XLSX_KEYS = ("data_xlsx", "xlsx")
-PAI_ARTIFACT_FRESHNESS_TOLERANCE_SECONDS = 2.0
 PAI_DATA_SCOPE_CONSULTA = "consulta"
 PAI_DATA_SCOPE_EXECUTADAS = "executadas"
 PAI_DATA_SCOPE_APROVACAO = "aprovacao"
@@ -304,9 +303,9 @@ def run_pai_scrap_report_export(
         build_pai_scrap_report_command(request)
     )
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    command_started_at = time.time()
     for artifact in (manifest_path, fallback_xlsx_path):
         artifact.unlink(missing_ok=True)
+    command_started_at = time.time()
     completed = _run_scrap_report_command(
         command,
         execution,
@@ -320,9 +319,7 @@ def run_pai_scrap_report_export(
         )
     manifest = _load_manifest(manifest_path)
     xlsx_path = _resolve_xlsx_from_manifest(manifest, manifest_path, fallback_xlsx_path)
-    if xlsx_path.stat().st_mtime < (
-        command_started_at - PAI_ARTIFACT_FRESHNESS_TOLERANCE_SECONDS
-    ):
+    if xlsx_path.stat().st_mtime < command_started_at:
         raise FileNotFoundError(f"XLSX SAM API nao criado nesta execucao: {xlsx_path}")
     return PaiScrapReportExport(
         command=command,
@@ -377,6 +374,7 @@ def run_pai_scrap_report_ca_export(
         raise FileNotFoundError(
             f"Manifest de CA SAM API nao criado nesta execucao: {manifest_path}"
         )
+    _load_manifest(manifest_path)
     return PaiScrapReportCertificate(
         command=command,
         scrap_report_root=execution.scrap_report_root or execution.cwd,
