@@ -511,15 +511,12 @@ def _resolve_xlsx_from_manifest(
         xlsx_path = fallback_xlsx_path.expanduser()
     else:
         xlsx_path = Path(str(manifest_xlsx)).expanduser()
-        if xlsx_path.is_absolute():
-            raise ValueError(
-                f"Export SAM API em caminho absoluto nao permitido: {xlsx_path}"
-            )
-        if ".." in xlsx_path.parts:
+        if not xlsx_path.is_absolute() and ".." in xlsx_path.parts:
             raise ValueError(
                 f"Export SAM API com caminho relativo invalido: {xlsx_path}"
             )
-        xlsx_path = manifest_path.parent / xlsx_path
+        if not xlsx_path.is_absolute():
+            xlsx_path = manifest_path.parent / xlsx_path
     xlsx_path = xlsx_path.resolve(strict=False)
     expected_dir = manifest_path.parent.resolve(strict=False)
     if not xlsx_path.is_relative_to(expected_dir):

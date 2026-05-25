@@ -312,7 +312,7 @@ def test_run_pai_scrap_report_export_rejects_manifest_path_escape(
         )
         return _Completed()
 
-    with pytest.raises(ValueError, match="caminho absoluto nao permitido"):
+    with pytest.raises(ValueError, match="fora do diretorio esperado"):
         run_pai_scrap_report_export(
             PaiScrapReportRequest(
                 project_root=tmp_path,
@@ -321,6 +321,36 @@ def test_run_pai_scrap_report_export_rejects_manifest_path_escape(
             ),
             runner=runner,
         )
+
+
+def test_run_pai_scrap_report_export_accepts_absolute_manifest_path_in_output_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    xlsx_path = output_dir / "staging" / "reports" / "executadas.xlsx"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    def runner(_command: list[str], **_kwargs: Any) -> _Completed:
+        xlsx_path.parent.mkdir(parents=True)
+        xlsx_path.write_bytes(b"xlsx")
+        (output_dir / "pai_sam_api_manifest.json").write_text(
+            f'{{"status":"ok","exports":{{"data_xlsx":"{xlsx_path}"}}}}',
+            encoding="utf-8",
+        )
+        return _Completed()
+
+    result = run_pai_scrap_report_export(
+        PaiScrapReportRequest(
+            project_root=tmp_path,
+            output_dir=output_dir,
+            scrap_report_root=scrap_root,
+        ),
+        runner=runner,
+    )
+
+    assert result.xlsx_path == xlsx_path
 
 
 def test_run_pai_scrap_report_export_rejects_parent_manifest_path(
