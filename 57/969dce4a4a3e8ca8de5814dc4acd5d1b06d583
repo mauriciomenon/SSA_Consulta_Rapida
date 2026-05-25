@@ -1,0 +1,19 @@
+tests/test_gui_details_graph_export.py
+  s_9f052ddda3b0ba::t_b9f9a600f3d28f 50,52-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "57969dce4a4a3e8ca8de5814dc4acd5d1b06d583",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
