@@ -75,6 +75,13 @@ def pai_api_options_error(options: PaiApiGuiOptions) -> str | None:
         return "Nenhum setor executor habilitado para SAM API."
     if not options.data_scopes:
         return "Nenhum tipo de dado habilitado para SAM API."
+    unavailable = (
+        *planned_scraper_pai_api_data_scopes(options.data_scopes),
+        *unsupported_pai_api_data_scopes(options.data_scopes),
+    )
+    if unavailable:
+        labels = ", ".join(pai_api_data_scope_label(value) for value in unavailable)
+        return f"Tipo de dado ainda nao disponivel: {labels}. Use Consulta."
     supported = tuple(
         scope for scope in options.data_scopes if scope in PAI_API_ENABLED_DATA_SCOPES
     )
@@ -83,13 +90,6 @@ def pai_api_options_error(options: PaiApiGuiOptions) -> str | None:
             if options.secure_required and not options.username:
                 return "Usuario SAM obrigatorio para Executadas via xpath/scrap_report."
         return None
-    unavailable = (
-        *planned_scraper_pai_api_data_scopes(options.data_scopes),
-        *unsupported_pai_api_data_scopes(options.data_scopes),
-    )
-    if unavailable:
-        labels = ", ".join(pai_api_data_scope_label(value) for value in unavailable)
-        return f"Tipo de dado ainda nao disponivel: {labels}. Use Consulta."
     return None
 
 

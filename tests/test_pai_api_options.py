@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from core.pai_api_options import (
     PAI_API_ALLOWED_SECTORS,
     PAI_API_AUTO_REFRESH_ENABLED_KEY,
@@ -154,6 +156,31 @@ def test_pai_api_options_keep_aprovacao_planned() -> None:
     assert (
         pai_api_options_error(options)
         == "Tipo de dado ainda nao disponivel: Para aprovacao. Use Consulta."
+    )
+
+
+@pytest.mark.parametrize(
+    ("scopes", "expected_label"),
+    [
+        (["consulta", "aprovacao"], "Para aprovacao"),
+        (["consulta", "planejamento"], "Para planejamento"),
+        (["executadas", "programacao"], "Para programacao"),
+    ],
+)
+def test_pai_api_options_reject_mixed_unavailable_scopes(
+    scopes: list[str],
+    expected_label: str,
+) -> None:
+    options = normalize_pai_api_options(
+        {
+            PAI_API_DATA_SCOPES_KEY: scopes,
+            PAI_API_USERNAME_KEY: "sam.user",
+        }
+    )
+
+    assert (
+        pai_api_options_error(options)
+        == f"Tipo de dado ainda nao disponivel: {expected_label}. Use Consulta."
     )
 
 
