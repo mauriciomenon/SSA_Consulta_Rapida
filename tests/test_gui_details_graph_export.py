@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from gui.ssa import gui_details
 from gui.ssa.details_graph_export import (
     DetailsGraphExportController,
@@ -131,11 +133,21 @@ class _FakeSvgPixmap:
 
 
 class _FakePainter:
+    end_calls = 0
+
     def __init__(self, _pixmap) -> None:
         return
 
     def end(self) -> None:
+        self.__class__.end_calls += 1
         return
+
+
+class _FailingRenderer(_FakeRenderer):
+    def render(self, _painter, rect) -> None:
+        self.__class__.render_calls += 1
+        self.__class__.last_rect = rect
+        raise RuntimeError("render failed")
 
 
 class _FakeQtModule:
@@ -235,6 +247,33 @@ def test_render_graph_svg_pixmap_uses_logical_label_size() -> None:
     assert _FakeRenderer.last_rect.height == 150.0
     assert _FakeRenderer.instances == 1
     assert _FakeRenderer.render_calls == 1
+
+
+def test_render_graph_svg_pixmap_ends_painter_when_render_fails() -> None:
+    label = _FakeGraphLabel()
+    _FailingRenderer.instances = 0
+    _FailingRenderer.render_calls = 0
+    _FakePainter.end_calls = 0
+    deps = SvgRenderDependencies(
+        byte_array_cls=_FakeByteArray,
+        painter_cls=_FakePainter,
+        pixmap_cls=_FakeSvgPixmap,
+        rectf_cls=_FakeRectF,
+        renderer_cls=_FailingRenderer,
+        qt_module=_FakeQtModule,
+    )
+
+    with pytest.raises(RuntimeError, match="render failed"):
+        render_graph_svg_pixmap(
+            graph_svg="<svg><text>fail</text></svg>",
+            graph_label=label,
+            graph_panel=_FakeGraphPanel(),
+            dependencies=deps,
+        )
+
+    assert _FakePainter.end_calls == 1
+    assert _FailingRenderer.render_calls == 1
+    assert label.pixmap is None
 
 
 def test_graph_export_controller_uses_stable_target_basename(tmp_path: Path) -> None:

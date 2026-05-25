@@ -79,8 +79,10 @@ def render_graph_svg_pixmap(
     pixmap.fill(dependencies.qt_module.GlobalColor.transparent)
     painter = dependencies.painter_cls(pixmap)
     target_rect = dependencies.rectf_cls(0.0, 0.0, float(render_w), float(render_h))
-    renderer.render(painter, target_rect)
-    painter.end()
+    try:
+        renderer.render(painter, target_rect)
+    finally:
+        painter.end()
     _store_svg_pixmap(
         dependencies.pixmap_cls,
         graph_cache_key,
