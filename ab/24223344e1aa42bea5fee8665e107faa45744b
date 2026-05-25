@@ -1,0 +1,22 @@
+tests/test_main_gui_fallback.py
+  s_9f052ddda3b0ba::t_ee8c6316be1e35 16-17,69
+  s_9f052ddda3b0ba::t_6068b83897bd11 73,86-87,90-91
+gui/gui_ssa.py
+  s_9f052ddda3b0ba::t_6068b83897bd11 876-877
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "ab24223344e1aa42bea5fee8665e107faa45744b",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
