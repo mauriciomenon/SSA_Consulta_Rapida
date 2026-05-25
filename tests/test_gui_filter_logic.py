@@ -797,7 +797,7 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters.get("setor_executor") == "MEL4"
         assert self.window._active_column_filters.get("setor_emissor") == "IEE3, MEL3"
         assert self.window._advanced_filters.get("setor_executor") == ["MEL4"]
-        assert self.window._advanced_filters.get("setor_executor_exclude_values") == []
+        assert "setor_executor_exclude_values" not in self.window._advanced_filters
         assert self.window._advanced_filters_active is True
 
         self._set_filter_panel_tab("filters")
@@ -815,7 +815,7 @@ class TestGUIFilterLogic:
         setor_input, _, _, _ = controls[setor_key]
         assert str(setor_input.text() or "").strip() == "MEL4"
 
-    def test_quick_setor_executor_preserves_existing_advanced_exclusions(self):
+    def test_quick_setor_executor_clears_existing_advanced_exclusions(self):
         self.window._advanced_filters = {
             "setor_executor_exclude_values": ["MEL3"],
         }
@@ -826,9 +826,25 @@ class TestGUIFilterLogic:
         )
 
         assert self.window._advanced_filters["setor_executor"] == ["IEE1"]
-        assert self.window._advanced_filters["setor_executor_exclude_values"] == [
-            "MEL3"
-        ]
+        assert "setor_executor_exclude_values" not in self.window._advanced_filters
+
+    def test_quick_setor_executor_all_clears_existing_advanced_exclusions(self):
+        self.window._refresh_quick_setor_executor_options()
+        combo = getattr(self.window, "quick_setor_executor_combo", None)
+        assert combo is not None
+        self.window._advanced_filters = {
+            "setor_executor_exclude_values": ["MEL3"],
+        }
+        mel4_idx = combo.findData("MEL4")
+        assert mel4_idx >= 0
+        combo.setCurrentIndex(mel4_idx)
+        QApplication.processEvents()
+
+        combo.setCurrentIndex(0)
+        QApplication.processEvents()
+
+        assert "setor_executor" not in self.window._advanced_filters
+        assert "setor_executor_exclude_values" not in self.window._advanced_filters
 
     def test_apply_advanced_executor_syncs_back_to_quick_combo_and_active_filters(self):
         self._set_filter_panel_tab("filters")

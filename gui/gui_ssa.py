@@ -2307,8 +2307,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
         if selected_values:
             advanced_filters["setor_executor"] = selected_values
-            if clear_exclude and "setor_executor_exclude_values" not in advanced_filters:
-                advanced_filters["setor_executor_exclude_values"] = []
+            if clear_exclude:
+                advanced_filters.pop("setor_executor_exclude_values", None)
         else:
             advanced_filters.pop("setor_executor", None)
             if clear_exclude and not advanced_filters.get(
@@ -2454,7 +2454,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._update_quick_setor_executor_combo_display(combo)
         self._active_column_filters = active_filters
         self._sync_advanced_executor_filter_from_active_filters(
-            clear_exclude=bool(selected)
+            clear_exclude=True
         )
         self._sync_advanced_filter_ui()
         if hasattr(self, "_schedule_sector_options_refresh"):
