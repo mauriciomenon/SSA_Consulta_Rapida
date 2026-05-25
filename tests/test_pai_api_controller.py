@@ -6,6 +6,7 @@ from typing import Any
 from core.pai_api_options import (
     PAI_API_AUTO_REFRESH_ENABLED_KEY,
     PAI_API_DATA_SCOPES_KEY,
+    PAI_API_ENABLED_KEY,
     PAI_API_SECTORS_KEY,
     PAI_API_SETTINGS_KEY,
 )
@@ -102,6 +103,7 @@ class _Window:
 
 class _Worker:
     def __init__(self, _config: Any) -> None:
+        self.config = _config
         self.output_line = _Signal()
         self.error_line = _Signal()
         self.progress = _Signal()
@@ -120,6 +122,11 @@ class _Worker:
 
     def set_import_decision(self, approved: bool) -> None:
         self.import_decision = bool(approved)
+
+
+class _WorkerWithEmptySummary(_Worker):
+    def summary(self) -> None:
+        return None
 
 
 def test_auto_refresh_timer_starts_when_enabled(tmp_path: Path) -> None:
@@ -159,9 +166,33 @@ def test_auto_refresh_timeout_starts_worker_without_reload_prompt(tmp_path: Path
     timer.timeout.emit()
 
     assert isinstance(window.worker, _Worker)
+    assert window.worker.config.confirm_before_import is False
+    assert window.worker.config.fetch_only is False
     window.worker.finished_success.emit()
     assert window.confirm_count == 0
-    assert window.reload_count == 0
+    assert window.reload_count == 1
+
+
+def test_finish_success_clears_worker_when_summary_is_none(tmp_path: Path) -> None:
+    window = _Window()
+    preferences = _preferences(auto_enabled=False)
+    window.preferences = preferences
+    window.context = _context(tmp_path)
+
+    assert pai_api_controller.start_pai_api_refresh(
+        window,
+        preferences=preferences,
+        context=_context(tmp_path),
+        worker_cls=_WorkerWithEmptySummary,
+        ask_reload=True,
+    )
+
+    assert isinstance(window.worker, _WorkerWithEmptySummary)
+    worker = window.worker
+    worker.finished_success.emit()
+
+    assert window.worker is None
+    assert window.reload_count == 1
 
 
 def test_manual_refresh_decision_imports_after_preview_confirmation(
@@ -243,13 +274,13 @@ def test_set_auto_refresh_enabled_persists_and_starts_timer(tmp_path: Path) -> N
     assert timer.isActive() is True
 
 
-def test_set_auto_refresh_enabled_returns_not_ready_without_timer(tmp_path: Path) -> None:
+def test_set_auto_refresh_enabled_persists_even_without_timer(tmp_path: Path) -> None:
     window = _Window()
     preferences = _preferences(auto_enabled=False)
     window.preferences = preferences
     window.context = _context(tmp_path)
 
-    assert not pai_api_controller.set_pai_api_auto_refresh_enabled(
+    assert pai_api_controller.set_pai_api_auto_refresh_enabled(
         window,
         preferences,
         True,
@@ -260,6 +291,25 @@ def test_set_auto_refresh_enabled_returns_not_ready_without_timer(tmp_path: Path
     assert window.persist_count == 1
     assert window.timer is None
     assert window.statuses[-1] == pai_api_controller.STATUS_API_AUTO_NOT_READY
+
+
+def test_set_boolean_option_rolls_back_when_persist_fails(tmp_path: Path) -> None:
+    window = _Window()
+    preferences = _preferences(auto_enabled=False)
+    window.preferences = preferences
+    window.context = _context(tmp_path)
+    window.persist_result = False
+
+    assert not pai_api_controller.set_pai_api_boolean_option(
+        window,
+        preferences,
+        PAI_API_ENABLED_KEY,
+        False,
+    )
+
+    settings = preferences["gui_settings"][PAI_API_SETTINGS_KEY]
+    assert PAI_API_ENABLED_KEY not in settings
+    assert window.statuses[-1] == pai_api_controller.STATUS_API_SAVE_FAILED
 
 
 def test_set_auto_refresh_enabled_keeps_timer_off_when_persist_fails(
@@ -288,7 +338,7 @@ def test_set_auto_refresh_enabled_keeps_timer_off_when_persist_fails(
     assert window.persist_count == 1
     assert window.timer is not None
     assert window.timer.isActive() is False
-    assert window.statuses[-1] == pai_api_controller.STATUS_API_AUTO_SAVE_FAILED
+    assert window.statuses[-1] == pai_api_controller.STATUS_API_SAVE_FAILED
 
 
 def test_set_sector_enabled_rolls_back_when_persist_fails(tmp_path: Path) -> None:
@@ -297,6 +347,7 @@ def test_set_sector_enabled_rolls_back_when_persist_fails(tmp_path: Path) -> Non
     window.preferences = preferences
     window.context = _context(tmp_path)
     window.persist_result = False
+    preferences["gui_settings"][PAI_API_SETTINGS_KEY][PAI_API_SECTORS_KEY] = None
 
     assert not pai_api_controller.set_pai_api_sector_enabled(
         window,
@@ -306,8 +357,17 @@ def test_set_sector_enabled_rolls_back_when_persist_fails(tmp_path: Path) -> Non
     )
 
     settings = preferences["gui_settings"][PAI_API_SETTINGS_KEY]
-    assert settings[PAI_API_SECTORS_KEY] == ["IEE3"]
-    assert window.statuses[-1] == pai_api_controller.STATUS_API_AUTO_SAVE_FAILED
+    assert settings[PAI_API_SECTORS_KEY] == [
+        "IEE3",
+        "MEL4",
+        "IEE1",
+        "IEE4",
+        "MEL3",
+        "MEL1",
+        "IEE2",
+        "MEL2",
+    ]
+    assert window.statuses[-1] == pai_api_controller.STATUS_API_SAVE_FAILED
 
 
 def test_set_data_scope_enabled_rolls_back_when_persist_fails(tmp_path: Path) -> None:
@@ -316,6 +376,7 @@ def test_set_data_scope_enabled_rolls_back_when_persist_fails(tmp_path: Path) ->
     window.preferences = preferences
     window.context = _context(tmp_path)
     window.persist_result = False
+    preferences["gui_settings"][PAI_API_SETTINGS_KEY][PAI_API_DATA_SCOPES_KEY] = None
 
     assert not pai_api_controller.set_pai_api_data_scope_enabled(
         window,
@@ -325,8 +386,8 @@ def test_set_data_scope_enabled_rolls_back_when_persist_fails(tmp_path: Path) ->
     )
 
     settings = preferences["gui_settings"][PAI_API_SETTINGS_KEY]
-    assert settings.get(PAI_API_DATA_SCOPES_KEY, []) == []
-    assert window.statuses[-1] == pai_api_controller.STATUS_API_AUTO_SAVE_FAILED
+    assert settings[PAI_API_DATA_SCOPES_KEY] == ["consulta"]
+    assert window.statuses[-1] == pai_api_controller.STATUS_API_SAVE_FAILED
 
 
 def test_pai_api_error_status_is_short() -> None:

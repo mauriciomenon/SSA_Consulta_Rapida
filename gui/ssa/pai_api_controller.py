@@ -41,9 +41,7 @@ STATUS_API_RELOAD = "Status: SAM API concluida; carregando dados atualizados."
 STATUS_API_AUTO_ENABLED = "Status: Atualizacao automatica da SAM API habilitada."
 STATUS_API_AUTO_DISABLED = "Status: Atualizacao automatica da SAM API desabilitada."
 STATUS_API_AUTO_NOT_READY = "Status: Atualizacao automatica da SAM API nao esta pronta."
-STATUS_API_AUTO_SAVE_FAILED = (
-    "Status: Atualizacao automatica da SAM API nao foi salva."
-)
+STATUS_API_SAVE_FAILED = "Status: Preferencias da SAM API nao foram salvas."
 
 
 @dataclass(frozen=True)
@@ -102,8 +100,20 @@ def set_pai_api_boolean_option(
     key: str,
     enabled: bool,
 ) -> bool:
+    settings = preferences.setdefault("gui_settings", {}).setdefault(
+        PAI_API_SETTINGS_KEY, {}
+    )
+    previous_missing = key not in settings
+    previous_value = bool(settings.get(key, False))
     update_pai_api_boolean_setting(preferences, key, enabled)
     persisted, _active = _persist_and_sync(window, preferences)
+    if not persisted:
+        if previous_missing:
+            settings.pop(key, None)
+        else:
+            settings[key] = previous_value
+        sync_pai_api_auto_refresh(window, preferences=preferences)
+        window.set_pai_api_status(STATUS_API_SAVE_FAILED)
     return persisted
 
 
@@ -117,7 +127,7 @@ def set_pai_api_sector_enabled(
     settings = preferences.setdefault("gui_settings", {}).setdefault(
         PAI_API_SETTINGS_KEY, {}
     )
-    previous_sectors = list(settings.get(PAI_API_SECTORS_KEY, []))
+    previous_sectors = list(normalize_pai_api_options(settings).executor_sectors)
     if not update_pai_api_sector_setting(preferences, clean_sector, enabled):
         window.set_pai_api_status(f"Status: Setor SAM API invalido: {clean_sector}")
         return False
@@ -125,7 +135,7 @@ def set_pai_api_sector_enabled(
     if not persisted:
         settings[PAI_API_SECTORS_KEY] = previous_sectors
         sync_pai_api_auto_refresh(window, preferences=preferences)
-        window.set_pai_api_status(STATUS_API_AUTO_SAVE_FAILED)
+        window.set_pai_api_status(STATUS_API_SAVE_FAILED)
     return persisted
 
 
@@ -139,7 +149,7 @@ def set_pai_api_data_scope_enabled(
     settings = preferences.setdefault("gui_settings", {}).setdefault(
         PAI_API_SETTINGS_KEY, {}
     )
-    previous_scopes = list(settings.get(PAI_API_DATA_SCOPES_KEY, []))
+    previous_scopes = list(normalize_pai_api_options(settings).data_scopes)
     if not update_pai_api_data_scope_setting(preferences, clean_scope, enabled):
         window.set_pai_api_status(f"Status: Tipo SAM API invalido: {clean_scope}")
         return False
@@ -147,7 +157,7 @@ def set_pai_api_data_scope_enabled(
     if not persisted:
         settings[PAI_API_DATA_SCOPES_KEY] = previous_scopes
         sync_pai_api_auto_refresh(window, preferences=preferences)
-        window.set_pai_api_status(STATUS_API_AUTO_SAVE_FAILED)
+        window.set_pai_api_status(STATUS_API_SAVE_FAILED)
     return persisted
 
 
@@ -158,6 +168,7 @@ def start_pai_api_refresh(
     context: PaiApiRefreshContext,
     worker_cls: Any = PaiApiRefreshWorker,
     ask_reload: bool = True,
+    reload_after_success: bool | None = None,
     quiet_if_running: bool = False,
 ) -> bool:
     settings = preferences.get("gui_settings", {}).get(PAI_API_SETTINGS_KEY, {})
@@ -173,6 +184,7 @@ def start_pai_api_refresh(
             window.set_pai_api_status(STATUS_API_ALREADY_RUNNING)
         return False
 
+    should_reload = ask_reload if reload_after_success is None else reload_after_success
     worker = worker_cls(
         PaiApiWorkerConfig(
             project_root=Path(context.project_root),
@@ -181,7 +193,7 @@ def start_pai_api_refresh(
             output_dir=Path(context.output_dir),
             options=options,
             confirm_before_import=ask_reload,
-            fetch_only=not ask_reload,
+            fetch_only=not (ask_reload or should_reload),
         )
     )
     reset_for_start = getattr(worker, "reset_for_start", None)
@@ -192,7 +204,7 @@ def start_pai_api_refresh(
         window,
         worker,
         qmessagebox=context.qmessagebox,
-        ask_reload=ask_reload,
+        reload_after_success=should_reload,
     )
     worker.start()
     window.set_pai_api_status(STATUS_API_RUNNING)
@@ -248,7 +260,7 @@ def _connect_worker(
     worker: PaiApiRefreshWorker,
     *,
     qmessagebox: Any,
-    ask_reload: bool,
+    reload_after_success: bool,
 ) -> None:
     worker.output_line.connect(_log_worker_output)
     worker.error_line.connect(_log_worker_error)
@@ -263,7 +275,7 @@ def _connect_worker(
             window,
             worker,
             qmessagebox=qmessagebox,
-            ask_reload=ask_reload,
+            reload_after_success=reload_after_success,
         )
     )
     worker.finished_error.connect(partial(_finish_error, window, worker))
@@ -279,6 +291,7 @@ def _run_auto_refresh_timeout(
         context=window.pai_api_refresh_context(),
         worker_cls=worker_cls,
         ask_reload=False,
+        reload_after_success=True,
         quiet_if_running=True,
     )
 
@@ -324,14 +337,14 @@ def _finish_success(
     worker: Any,
     *,
     qmessagebox: Any,
-    ask_reload: bool,
+    reload_after_success: bool,
 ) -> None:
     partial_status = _worker_partial_status(worker)
     try:
         if _worker_import_skipped(worker):
             window.set_pai_api_status(partial_status or STATUS_API_KEEP_CURRENT)
             return
-        if ask_reload:
+        if reload_after_success:
             window.set_pai_api_status(partial_status or STATUS_API_RELOAD)
             window.reload_pai_api_data()
             return
@@ -388,6 +401,8 @@ def _worker_partial_status(worker: Any) -> str | None:
     if not callable(summary_fn):
         return None
     summary = summary_fn()
+    if summary is None:
+        return None
     failed_count = int(getattr(summary, "failed_sectors", 0))
     if failed_count <= 0:
         return None
@@ -403,6 +418,8 @@ def _worker_import_skipped(worker: Any) -> bool:
     if not callable(summary_fn):
         return False
     summary = summary_fn()
+    if summary is None:
+        return False
     return bool(getattr(summary, "import_skipped", False))
 
 
@@ -426,7 +443,7 @@ def set_pai_api_auto_refresh_enabled(
             previous_enabled,
         )
         sync_pai_api_auto_refresh(window, preferences=preferences)
-        window.set_pai_api_status(STATUS_API_AUTO_SAVE_FAILED)
+        window.set_pai_api_status(STATUS_API_SAVE_FAILED)
         return False
     else:
         active = sync_pai_api_auto_refresh(window, preferences=preferences)
@@ -436,7 +453,7 @@ def set_pai_api_auto_refresh_enabled(
             if persisted and active
             else STATUS_API_AUTO_NOT_READY
         )
-        return bool(persisted and active)
+        return persisted
     else:
         window.set_pai_api_status(
             STATUS_API_AUTO_DISABLED if persisted else STATUS_API_AUTO_NOT_READY
