@@ -1,0 +1,21 @@
+gui/ssa/details_graph_export.py
+  s_9f052ddda3b0ba::t_ab29eb286ba9ef 82-85
+tests/test_gui_details_graph_export.py
+  s_9f052ddda3b0ba::t_ab29eb286ba9ef 5-6,136-137,142,146-152,252-276
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b3b46e167d86c5879d210b3157fd76278b3daa3d",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
