@@ -873,6 +873,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         QMessageBox.information(self, "Sobre", build_about_message(self._app_version))
 
     def __init__(self):
+        if not QT_AVAILABLE:
+            raise RuntimeError("GUI unavailable: PyQt6 import failed")
         super().__init__()
         try:
             # Evita acumulo de janelas/widgets fechados (impacta performance ao reaplicar tema global).

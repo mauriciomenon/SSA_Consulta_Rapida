@@ -13,6 +13,8 @@ def _patch_gui_import_failure(
     exc_to_raise: Exception,
 ) -> None:
     real_import = builtins.__import__
+    monkeypatch.delitem(sys.modules, "gui.gui_ssa", raising=False)
+    monkeypatch.delitem(sys.modules, "gui.launcher", raising=False)
 
     def fake_import(name, globals=None, locals=None, fromlist=(), level=0):  # noqa: ANN001
         if name == "gui.gui_ssa":
@@ -64,10 +66,11 @@ def test_main_gui_unexpected_import_error_exits_with_failure(
     assert calls["cli"] == 0
 
 
-def test_gui_ssa_import_uses_headless_stubs_when_pyqt_is_unavailable() -> None:
+def test_gui_ssa_import_disables_window_when_pyqt_is_unavailable() -> None:
     code = """
 import builtins
 import importlib
+import pytest
 
 real_import = builtins.__import__
 
@@ -80,9 +83,12 @@ builtins.__import__ = fake_import
 module = importlib.import_module("gui.gui_ssa")
 assert module.QT_AVAILABLE is False
 assert module.PYQT_VERSION_STR == "indisponivel"
+with pytest.raises(RuntimeError, match="GUI unavailable"):
+    module.SSAMainWindow()
 """
     env = dict(os.environ)
-    env["PYTHONPATH"] = os.getcwd()
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    env["PYTHONPATH"] = repo_root
 
     result = subprocess.run(
         [sys.executable, "-c", code],
