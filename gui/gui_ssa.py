@@ -59,47 +59,8 @@ from gui.gui_config import get_gui_main_preferences_path  # noqa: F401 - re-expo
 from gui.gui_config import load_gui_main_preferences  # noqa: F401 - re-export for compatibility
 from gui.gui_config import GUI_MAIN_PREFERENCES, REQUIRED_DISPLAY_COLUMNS
 
-# Importações dos managers unificados
 from gui.simple_width_manager import SimpleCacheManager  # noqa: E402
 from gui.simple_width_manager import SimpleWidthManager
-from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
-from gui.ssa import gui_filters_advanced as ssa_gui_filters  # noqa: E402
-from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
-from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
-from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
-from gui.ssa import app_menus as ssa_app_menus  # noqa: E402
-from gui.ssa import derivadas_sync_controller as ssa_derivadas_sync  # noqa: E402
-from gui.ssa import database_operations as ssa_database_operations  # noqa: E402
-from gui.ssa import list_export_controller as ssa_list_export_controller  # noqa: E402
-from gui.ssa import pai_api_controller as ssa_pai_api_controller  # noqa: E402
-from gui.ssa import system_integration as ssa_system  # noqa: E402
-from gui.ssa import main_window_system_controller as ssa_system_controller  # noqa: E402
-from gui.ssa.derivadas_table_resolver import resolve_derivadas_table_name  # noqa: E402
-from gui.ssa.main_window_filter_bar import (  # noqa: E402
-    build_filters_summary_bar,
-    build_pagination_filter_bar,
-    build_search_bar,
-)
-from gui.ssa import main_window_resize as ssa_gui_resize  # noqa: E402
-from gui.ssa.main_window_bottom_section import build_bottom_filter_section  # noqa: E402
-from gui.ssa.main_window_table_section import build_main_table_widget  # noqa: E402
-from gui.ssa.table_context_menu import (  # noqa: E402
-    TableContextMenuCallbacks,
-    show_table_context_menu,
-)
-from gui.ssa import table_sorting as ssa_table_sorting  # noqa: E402
-from gui.ssa.filter_domain_rules import (  # noqa: E402
-    collect_nonempty_column_values,
-    order_sector_values,
-)
-from gui.ssa.canonical_columns import (  # noqa: E402
-    CanonicalColumnInputs,
-    build_canonical_available_columns,
-)
-from gui.ssa.gui_filters_responsavel_state import (  # noqa: E402
-    RESPONSAVEL_FILTER_PREFIXES,
-    ResponsavelMaterializationState,
-)
 from shared.db_names import ALL_SSA_TABLE_NAMES  # noqa: E402
 from shared.db_names import CANONICAL_SSA_TABLE
 
@@ -117,17 +78,6 @@ except Exception as e:
     logger = logging.getLogger(__name__)
     logger.error(f"Falha ao inicializar logging robusto: {e}")
 
-# Compatibility aliases for tests and older imports. Ownership lives in gui_workers.
-GLOBAL_RETIRED_DATA_LOADER_WORKERS = ssa_gui_workers.GLOBAL_RETIRED_DATA_LOADER_WORKERS
-MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS = (
-    ssa_gui_workers.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS
-)
-GLOBAL_RETIRED_DATA_LOADER_META = ssa_gui_workers.GLOBAL_RETIRED_DATA_LOADER_META
-GLOBAL_RETIRED_RESCAN_WORKERS = ssa_gui_workers.GLOBAL_RETIRED_RESCAN_WORKERS
-MAX_GLOBAL_RETIRED_RESCAN_WORKERS = ssa_gui_workers.MAX_GLOBAL_RETIRED_RESCAN_WORKERS
-GLOBAL_RETIRED_RESCAN_META = ssa_gui_workers.GLOBAL_RETIRED_RESCAN_META
-RETIRED_WORKER_TTL_SEC = ssa_gui_workers.RETIRED_WORKER_TTL_SEC
-RETIRED_WORKER_FORCE_WAIT_MS = ssa_gui_workers.RETIRED_WORKER_FORCE_WAIT_MS
 logger.addHandler(logging.NullHandler())
 
 
@@ -319,6 +269,121 @@ except ImportError as exc:
     QDesktopServices = cast(Any, QDesktopServices)
     QSizePolicy = cast(Any, QSizePolicy)
     FilterGUISSAMixin = cast(Any, FilterGUISSAMixin)
+
+if QT_AVAILABLE:
+    from gui.ssa import app_menus as ssa_app_menus  # noqa: E402
+    from gui.ssa import database_operations as ssa_database_operations  # noqa: E402
+    from gui.ssa import derivadas_sync_controller as ssa_derivadas_sync  # noqa: E402
+    from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
+    from gui.ssa import gui_filters_advanced as ssa_gui_filters  # noqa: E402
+    from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
+    from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
+    from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
+    from gui.ssa import list_export_controller as ssa_list_export_controller  # noqa: E402
+    from gui.ssa import main_window_resize as ssa_gui_resize  # noqa: E402
+    from gui.ssa import (  # noqa: E402
+        main_window_system_controller as ssa_system_controller,
+    )
+    from gui.ssa import pai_api_controller as ssa_pai_api_controller  # noqa: E402
+    from gui.ssa import system_integration as ssa_system  # noqa: E402
+    from gui.ssa import table_sorting as ssa_table_sorting  # noqa: E402
+    from gui.ssa.canonical_columns import (  # noqa: E402
+        CanonicalColumnInputs,
+        build_canonical_available_columns,
+    )
+    from gui.ssa.derivadas_table_resolver import (  # noqa: E402
+        resolve_derivadas_table_name,
+    )
+    from gui.ssa.filter_domain_rules import (  # noqa: E402
+        collect_nonempty_column_values,
+        order_sector_values,
+    )
+    from gui.ssa.gui_filters_responsavel_state import (  # noqa: E402
+        RESPONSAVEL_FILTER_PREFIXES,
+        ResponsavelMaterializationState,
+    )
+    from gui.ssa.main_window_filter_bar import (  # noqa: E402
+        build_filters_summary_bar,
+        build_pagination_filter_bar,
+        build_search_bar,
+    )
+    from gui.ssa.main_window_bottom_section import (  # noqa: E402
+        build_bottom_filter_section,
+    )
+    from gui.ssa.main_window_table_section import build_main_table_widget  # noqa: E402
+    from gui.ssa.table_context_menu import (  # noqa: E402
+        TableContextMenuCallbacks,
+        show_table_context_menu,
+    )
+    GLOBAL_RETIRED_DATA_LOADER_WORKERS = (
+        ssa_gui_workers.GLOBAL_RETIRED_DATA_LOADER_WORKERS
+    )
+    MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS = (
+        ssa_gui_workers.MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS
+    )
+    GLOBAL_RETIRED_DATA_LOADER_META = ssa_gui_workers.GLOBAL_RETIRED_DATA_LOADER_META
+    GLOBAL_RETIRED_RESCAN_WORKERS = ssa_gui_workers.GLOBAL_RETIRED_RESCAN_WORKERS
+    MAX_GLOBAL_RETIRED_RESCAN_WORKERS = ssa_gui_workers.MAX_GLOBAL_RETIRED_RESCAN_WORKERS
+    GLOBAL_RETIRED_RESCAN_META = ssa_gui_workers.GLOBAL_RETIRED_RESCAN_META
+    RETIRED_WORKER_TTL_SEC = ssa_gui_workers.RETIRED_WORKER_TTL_SEC
+    RETIRED_WORKER_FORCE_WAIT_MS = ssa_gui_workers.RETIRED_WORKER_FORCE_WAIT_MS
+else:
+    ssa_app_menus = cast(Any, None)
+    ssa_database_operations = cast(Any, None)
+    class _HeadlessDerivadasSyncState:
+        pass
+
+    class _HeadlessDerivadasSyncUiRefs:
+        pass
+
+    class _HeadlessDerivadasSyncDependencies:
+        pass
+
+    ssa_derivadas_sync = cast(
+        Any,
+        type(
+            "_HeadlessDerivadasSyncModule",
+            (),
+            {
+                "DerivadasSyncState": _HeadlessDerivadasSyncState,
+                "DerivadasSyncUiRefs": _HeadlessDerivadasSyncUiRefs,
+                "DerivadasSyncDependencies": _HeadlessDerivadasSyncDependencies,
+            },
+        ),
+    )
+    ssa_gui_details = cast(Any, None)
+    ssa_gui_filters = cast(Any, None)
+    ssa_gui_table = cast(Any, None)
+    ssa_gui_theme = cast(Any, None)
+    ssa_gui_workers = cast(Any, None)
+    ssa_list_export_controller = cast(Any, None)
+    ssa_gui_resize = cast(Any, None)
+    ssa_system_controller = cast(Any, None)
+    ssa_pai_api_controller = cast(Any, None)
+    ssa_system = cast(Any, None)
+    ssa_table_sorting = cast(Any, None)
+    CanonicalColumnInputs = cast(Any, None)
+    build_canonical_available_columns = cast(Any, None)
+    resolve_derivadas_table_name = cast(Any, None)
+    collect_nonempty_column_values = cast(Any, None)
+    order_sector_values = cast(Any, None)
+    RESPONSAVEL_FILTER_PREFIXES = cast(Any, set())
+    ResponsavelMaterializationState = cast(Any, None)
+    build_filters_summary_bar = cast(Any, None)
+    build_pagination_filter_bar = cast(Any, None)
+    build_search_bar = cast(Any, None)
+    build_bottom_filter_section = cast(Any, None)
+    build_main_table_widget = cast(Any, None)
+    TableContextMenuCallbacks = cast(Any, None)
+    show_table_context_menu = cast(Any, None)
+    GLOBAL_RETIRED_DATA_LOADER_WORKERS = []
+    MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS = 0
+    GLOBAL_RETIRED_DATA_LOADER_META = {}
+    GLOBAL_RETIRED_RESCAN_WORKERS = []
+    MAX_GLOBAL_RETIRED_RESCAN_WORKERS = 0
+    GLOBAL_RETIRED_RESCAN_META = {}
+    RETIRED_WORKER_TTL_SEC = 0.0
+    RETIRED_WORKER_FORCE_WAIT_MS = 0
 
 def _is_widget_valid(widget) -> bool:
     """Return True when a Qt widget reference still points to a live object."""
