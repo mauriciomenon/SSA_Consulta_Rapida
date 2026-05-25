@@ -1,0 +1,19 @@
+tests/test_pai_scrap_report_provider.py
+  s_9f052ddda3b0ba::t_12f8e3c6eda34a 219,234-236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "008ae25d1a8177e0ed088efdb8de4c60c652deb4",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
