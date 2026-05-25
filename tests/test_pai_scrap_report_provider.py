@@ -252,6 +252,29 @@ def test_build_pai_scrap_report_command_requires_exact_aprovacao_report_kind(
         )
 
 
+def test_build_pai_scrap_report_command_uses_sweep_for_explicit_report_kind(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    command, _execution, _manifest_path, _fallback_xlsx_path = (
+        build_pai_scrap_report_command(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                scrap_report_root=scrap_root,
+                report_kind="executadas",
+                executor_sectors=("IEE3",),
+            )
+        )
+    )
+
+    assert "sweep-run" in command
+    assert "sam-api-flow" not in command
+    assert command[command.index("--report-kind") + 1] == "executadas"
+
+
 def test_build_pai_scrap_report_command_allows_exact_aprovacao_report_kind(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
