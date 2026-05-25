@@ -18,7 +18,7 @@ from gui.ssa.details_dialog_constants import (
 )
 from utils.themes import get_theme_roles
 
-_CSS_FONT_FAMILY_RE = re.compile(r"^[\w\s,.-]+$")
+_CSS_FONT_FAMILY_RE = re.compile("^[\\w\\s,.\\-'\\\"]+$")
 
 
 def build_derivadas_graph_html(

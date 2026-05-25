@@ -5052,6 +5052,19 @@ class TestGUIFilterLogic:
         assert 'onclick="alert(1)' not in html
         assert "font-family:sans-serif" in html
 
+    def test_build_derivadas_graph_html_preserves_quoted_font_family(self):
+        html = ssa_gui_details._build_derivadas_graph_html(
+            self.window,
+            {"target": "202600023", "children": ["202600024"]},
+            link_color="#4a90e2",
+            font_family="Menlo, 'Andale Mono', Consolas",
+        )
+
+        assert "font-family:sans-serif" not in html
+        assert "Menlo" in html
+        assert "Andale Mono" in html
+        assert "Consolas" in html
+
     def test_build_derivadas_graph_html_dashes_relation_type_edges(self):
         data: dict[str, object] = {
             "target": "202600023",
