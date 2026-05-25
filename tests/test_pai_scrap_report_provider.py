@@ -230,6 +230,8 @@ def test_run_pai_scrap_report_export_reports_sweep_label_on_failure(
             ),
             runner=lambda _command, **_kwargs: _Failed(),
         )
+    assert "stderr=present" in str(excinfo.value)
+    assert "stdout=empty" in str(excinfo.value)
     assert "token=secret" not in str(excinfo.value)
 
 

@@ -411,7 +411,12 @@ def _run_scrap_report_command(
     stderr = str(getattr(completed, "stderr", "") or "")
     returncode = int(getattr(completed, "returncode", 1))
     if returncode != 0:
-        raise RuntimeError(f"scrap_report {label} falhou (exit={returncode}).")
+        stderr_state = "present" if stderr.strip() else "empty"
+        stdout_state = "present" if stdout.strip() else "empty"
+        raise RuntimeError(
+            f"scrap_report {label} falhou "
+            f"(exit={returncode}, stderr={stderr_state}, stdout={stdout_state})."
+        )
     return PaiScrapReportCompleted(stdout=stdout, stderr=stderr)
 
 
