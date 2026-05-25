@@ -47,12 +47,14 @@ class DerivadasGraphLabel(QLabel):
         super().leaveEvent(a0)
 
     def _set_node_cursor(self, active: bool) -> None:
+        shape = (
+            Qt.CursorShape.PointingHandCursor
+            if active
+            else Qt.CursorShape.ArrowCursor
+        )
         try:
-            self.setCursor(
-                Qt.CursorShape.PointingHandCursor
-                if active
-                else Qt.CursorShape.ArrowCursor
-            )
+            if self.cursor().shape() != shape:
+                self.setCursor(shape)
         except Exception as exc:
             logger.debug("Falha ao ajustar cursor do grafo de derivadas: %s", exc)
 
@@ -66,7 +68,7 @@ class DerivadasGraphLabel(QLabel):
             jump = getattr(self._window, "_jump_to_ssa", None)
             if callable(jump):
                 jump(ssa)
-                return
+            return
         super().mousePressEvent(ev)
 
     def _ssa_at_event(self, event: Any) -> str:
@@ -74,8 +76,7 @@ class DerivadasGraphLabel(QLabel):
         point = position_getter() if callable(position_getter) else event.pos()
         x = float(point.x())
         y = float(point.y())
-        pixmap_getter = getattr(self, "pixmap", None)
-        pixmap = pixmap_getter() if callable(pixmap_getter) else None
+        pixmap = self.pixmap()
         if pixmap is not None:
             is_null = getattr(pixmap, "isNull", None)
             width_getter = getattr(pixmap, "width", None)
@@ -144,6 +145,7 @@ def build_bottom_filter_section(window: Any) -> dict[str, Any]:
         "_bottom_layout": bottom_layout,
         "_adv_ctx": adv_ctx,
         "details_group": details_group,
+        "adv_filters_group": adv_group,
         "filters_panel_group": filters_panel_group,
         "filter_panel_tab_bar": filter_panel_tab_bar,
         "filter_panel_title": filter_panel_title,
