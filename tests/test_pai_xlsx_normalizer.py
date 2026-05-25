@@ -35,6 +35,22 @@ def test_build_normalized_pai_dataframe_maps_situation_desc_to_situacao() -> Non
     assert normalized.loc[0, "situacao"] == "APL - AGUARDANDO PLANEJAMENTO"
 
 
+def test_build_normalized_pai_dataframe_uses_process_status_when_situation_is_empty() -> None:
+    normalized = build_normalized_pai_dataframe(
+        pai_xlsx_normalizer.pd.DataFrame(
+            {
+                "ssa_number": [202607611],
+                "description": ["Teste"],
+                "issue_datetime": ["2026-05-22T16:57:00Z"],
+                "situation_desc": [""],
+                "process_status": ["Emitida"],
+            }
+        )
+    )
+
+    assert normalized.loc[0, "situacao"] == "Emitida"
+
+
 def test_normalize_pai_xlsx_reports_bad_zip_read_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

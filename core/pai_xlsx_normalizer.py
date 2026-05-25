@@ -181,7 +181,11 @@ def _coalesce_columns(frame: pd.DataFrame, columns: tuple[str, ...]) -> pd.Serie
     present_columns = [column for column in columns if column in frame.columns]
     if not present_columns:
         return pd.Series([pd.NA] * len(frame), index=frame.index)
-    return frame[present_columns].bfill(axis=1).iloc[:, 0]
+    source = frame[present_columns].copy()
+    for column in source.select_dtypes(include=("object", "string")).columns:
+        text = source[column].astype("string").str.strip()
+        source[column] = text.mask(text.eq(""), pd.NA)
+    return source.bfill(axis=1).iloc[:, 0]
 
 
 def _format_datetime_as_utc_naive_for_ssa_import(series: pd.Series) -> pd.Series:
