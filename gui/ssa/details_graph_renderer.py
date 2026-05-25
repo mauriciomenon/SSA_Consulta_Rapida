@@ -54,7 +54,16 @@ def build_derivadas_graph_html(
         theme_roles.get("panel_bg"),
         fallback="#1f1f1f",
     )
-    node_target_fill = "#69b7ff"
+    node_target_fill = pick_css_color(
+        theme_roles.get("accent"),
+        theme_roles.get("accent_soft"),
+        fallback="#69b7ff",
+    )
+    if node_target_fill == node_fill:
+        node_target_fill = pick_css_color(
+            theme_roles.get("accent_soft"),
+            fallback="#69b7ff",
+        )
     node_target_text = _contrast_text_color(node_target_fill, fallback=text_color)
     node_stroke = pick_css_color(
         link_color,

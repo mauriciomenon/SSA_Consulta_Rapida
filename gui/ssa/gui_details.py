@@ -163,7 +163,7 @@ def _highlight_text(window, text, terms):
 
 
 def _build_ssa_href(numero_ssa: str, *, panel_mode: bool) -> str:
-    normalized = _normalize_ssa_relation_value(numero_ssa)
+    normalized = _normalize_ssa_value(None, numero_ssa)
     if not normalized:
         return ""
     return f"ssa-panel:{normalized}" if panel_mode else f"ssa:{normalized}"
@@ -177,7 +177,7 @@ def _render_ssa_navigation_link(
     exists: bool,
     status_hint: str = "",
 ) -> str:
-    normalized = _normalize_ssa_relation_value(numero_ssa)
+    normalized = _normalize_ssa_value(None, numero_ssa)
     if not normalized:
         return html_module.escape(str(numero_ssa or ""))
     label = normalized
@@ -283,7 +283,7 @@ def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
         return resolved
     except Exception as exc:
         logger.debug("Falha ao normalizar SSA series; fallback apply: %s", exc)
-        return series.astype("object")
+        return series.map(lambda value: _normalize_ssa_value(window, value)).astype("object")
 
 
 def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
@@ -521,12 +521,13 @@ def _resolve_ssa_series_candidates(
 
 def _get_details_frame_fingerprint(window, df) -> str:
     data_uuid = getattr(window, "_data_uuid", None)
-    if data_uuid is None:
+    data_revision = getattr(window, "_data_revision", None)
+    if data_uuid is None or data_revision is None:
         return build_dataframe_filter_hash(df)
     token = (
         id(df),
         data_uuid,
-        getattr(window, "_data_revision", None),
+        data_revision,
         tuple(getattr(df, "shape", (0, 0))),
         tuple(str(column) for column in getattr(df, "columns", [])),
     )
@@ -602,8 +603,8 @@ def update_details_from_selection(window):
         if (
             window.details_text.toPlainText().strip()
             and render_signature == current_signature
-            ):
-                return
+        ):
+            return
     _schedule_details_update(window, series)
 
 
@@ -668,7 +669,7 @@ def _update_details_from_series(window, series):
             font_size_pt=font_size_pt,
             linkify=True,
             font_family=font_family,
-            ssa_index={},
+            ssa_index=_get_window_ssa_series_index(window),
         )
         window.details_text.setHtml(html_content)
         window.details_text.setProperty("details_render_signature", render_signature)
@@ -763,23 +764,23 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
         )
         safe_font_family = font_family or DETAILS_CONFIG.mono_font_family
         tree_data = _collect_derivadas_tree_data(window, normalized)
+        if not _has_derivadas_graph_relations(tree_data):
+            tree_browser.setVisible(False)
+            _set_graph_navigation_hitboxes(graph_browser, [])
+            if hasattr(graph_browser, "setPixmap"):
+                graph_browser.clear()
+            graph_browser.setText("Sem SSAs Derivadas.")
+            graph_browser.setVisible(True)
+            return
         tree_html = _build_derivadas_tree_html(
             window,
             normalized,
             link_color=link_color,
             font_family=safe_font_family,
             tree_data_override=tree_data,
-            ssa_index={},
+            ssa_index=_get_window_ssa_series_index(window),
         )
         tree_browser.setHtml(tree_html or "Sem derivadas para exibir.")
-        if not _has_derivadas_graph_relations(tree_data):
-            tree_browser.setVisible(True)
-            _set_graph_navigation_hitboxes(graph_browser, [])
-            if hasattr(graph_browser, "setPixmap"):
-                graph_browser.clear()
-            graph_browser.setText("")
-            graph_browser.setVisible(False)
-            return
         graph_browser.setVisible(True)
         graph_html = _build_derivadas_graph_html(
             window,
@@ -834,10 +835,20 @@ def _set_graph_navigation_hitboxes(
 
 
 def _apply_graph_navigation_hitboxes(graph_widget: Any, graph_svg: str) -> None:
+    render_width = int(graph_widget.width())
+    render_height = int(graph_widget.height())
+    pixmap_getter = getattr(graph_widget, "pixmap", None)
+    pixmap = pixmap_getter() if callable(pixmap_getter) else None
+    if pixmap is not None:
+        width_getter = getattr(pixmap, "width", None)
+        height_getter = getattr(pixmap, "height", None)
+        if callable(width_getter) and callable(height_getter):
+            render_width = int(width_getter())
+            render_height = int(height_getter())
     hitboxes = _graph_navigation_hitboxes_from_svg(
         graph_svg,
-        render_width=float(max(1, int(graph_widget.width()))),
-        render_height=float(max(1, int(graph_widget.height()))),
+        render_width=float(max(1, render_width)),
+        render_height=float(max(1, render_height)),
     )
     _set_graph_navigation_hitboxes(graph_widget, hitboxes)
 
@@ -1135,17 +1146,22 @@ def _on_details_anchor_clicked(window, url):
         if target:
             _open_details_dialog_for_ssa(window, target)
         return
+    allow_refilter = True
     if href.startswith("ssa-panel:"):
         target = href[len("ssa-panel:") :]
     elif href.startswith("ssa:"):
         target = href[len("ssa:") :]
+        allow_refilter = False
     elif href.startswith("ssa://"):
         target = href[len("ssa://") :]
+        allow_refilter = False
     else:
         return
     target = target.strip().lstrip("/")
-    if target:
+    if target and allow_refilter:
         _jump_to_ssa(window, target)
+    elif target:
+        _jump_to_ssa(window, target, _allow_refilter=False)
 
 
 def _resolve_current_db_path():
@@ -1174,7 +1190,12 @@ def _get_cached_derivadas_family_edges(window) -> list[tuple[str, str]]:
         data_uuid = getattr(window, "_data_uuid", None)
         cache_enabled = data_uuid is not None or data_revision is not None
         row_count = len(source_df)
-        cache_key = (id(source_df), row_count, data_revision, data_uuid)
+        cache_key = (
+            _get_details_frame_fingerprint(window, source_df),
+            row_count,
+            data_revision,
+            data_uuid,
+        )
         cached_edges = (
             cast(Any, cache_get)("details_derivadas_family_edges", cache_key)
             if cache_enabled and has_cache_manager
@@ -1227,7 +1248,12 @@ def _get_cached_derivadas_children_by_parent(window) -> dict[str, list[str]]:
         data_revision = getattr(window, "_data_revision", None)
         data_uuid = getattr(window, "_data_uuid", None)
         row_count = len(source_df) if isinstance(source_df, pd.DataFrame) else 0
-        cache_key = (id(source_df), row_count, data_revision, data_uuid)
+        frame_token = (
+            _get_details_frame_fingerprint(window, source_df)
+            if isinstance(source_df, pd.DataFrame)
+            else None
+        )
+        cache_key = (frame_token, row_count, data_revision, data_uuid)
         if data_uuid is not None and has_cache_manager:
             cached_map = cast(Any, cache_get)(
                 "details_derivadas_children_by_parent", cache_key
@@ -1269,7 +1295,7 @@ def _derivadas_frame_cache_token(window) -> object:
     if data_uuid is not None:
         if revision is not None:
             return ("revision", revision, shape)
-        return ("uuid", data_uuid, shape)
+        return ("uuid", data_uuid, shape, _get_details_frame_fingerprint(window, df))
     return ("uncached", id(df), shape, object())
 
 

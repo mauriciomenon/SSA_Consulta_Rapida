@@ -30,9 +30,7 @@ from utils.robust_logging import get_robust_logger
 logger = get_robust_logger().get_logger(__name__, "gui")
 
 STATUS_API_DISABLED = "Status: SAM API desabilitada nas opcoes."
-STATUS_API_SCRAP_DISABLED = (
-    "Status: Consulta via xpath/scrap_report desabilitada nas opcoes."
-)
+STATUS_API_SCRAP_DISABLED = "Status: Acesso via xpath/scrap_report desabilitado."
 STATUS_API_NO_SECTORS = "Status: Nenhum setor executor habilitado para SAM API."
 STATUS_API_RUNNING = "Status: SAM API em andamento."
 STATUS_API_ALREADY_RUNNING = "Status: SAM API ja esta em andamento."
@@ -127,13 +125,22 @@ def set_pai_api_sector_enabled(
     settings = preferences.setdefault("gui_settings", {}).setdefault(
         PAI_API_SETTINGS_KEY, {}
     )
-    previous_sectors = list(normalize_pai_api_options(settings).executor_sectors)
+    previous_missing = PAI_API_SECTORS_KEY not in settings
+    raw_previous_sectors = settings.get(PAI_API_SECTORS_KEY)
+    previous_sectors = (
+        list(raw_previous_sectors)
+        if isinstance(raw_previous_sectors, list)
+        else raw_previous_sectors
+    )
     if not update_pai_api_sector_setting(preferences, clean_sector, enabled):
         window.set_pai_api_status(f"Status: Setor SAM API invalido: {clean_sector}")
         return False
     persisted, _active = _persist_and_sync(window, preferences)
     if not persisted:
-        settings[PAI_API_SECTORS_KEY] = previous_sectors
+        if previous_missing:
+            settings.pop(PAI_API_SECTORS_KEY, None)
+        else:
+            settings[PAI_API_SECTORS_KEY] = previous_sectors
         sync_pai_api_auto_refresh(window, preferences=preferences)
         window.set_pai_api_status(STATUS_API_SAVE_FAILED)
     return persisted
@@ -149,13 +156,22 @@ def set_pai_api_data_scope_enabled(
     settings = preferences.setdefault("gui_settings", {}).setdefault(
         PAI_API_SETTINGS_KEY, {}
     )
-    previous_scopes = list(normalize_pai_api_options(settings).data_scopes)
+    previous_missing = PAI_API_DATA_SCOPES_KEY not in settings
+    raw_previous_scopes = settings.get(PAI_API_DATA_SCOPES_KEY)
+    previous_scopes = (
+        list(raw_previous_scopes)
+        if isinstance(raw_previous_scopes, list)
+        else raw_previous_scopes
+    )
     if not update_pai_api_data_scope_setting(preferences, clean_scope, enabled):
         window.set_pai_api_status(f"Status: Tipo SAM API invalido: {clean_scope}")
         return False
     persisted, _active = _persist_and_sync(window, preferences)
     if not persisted:
-        settings[PAI_API_DATA_SCOPES_KEY] = previous_scopes
+        if previous_missing:
+            settings.pop(PAI_API_DATA_SCOPES_KEY, None)
+        else:
+            settings[PAI_API_DATA_SCOPES_KEY] = previous_scopes
         sync_pai_api_auto_refresh(window, preferences=preferences)
         window.set_pai_api_status(STATUS_API_SAVE_FAILED)
     return persisted
@@ -184,7 +200,7 @@ def start_pai_api_refresh(
             window.set_pai_api_status(STATUS_API_ALREADY_RUNNING)
         return False
 
-    should_reload = ask_reload if reload_after_success is None else reload_after_success
+    should_reload = True if reload_after_success is None else reload_after_success
     worker = worker_cls(
         PaiApiWorkerConfig(
             project_root=Path(context.project_root),
@@ -379,7 +395,7 @@ def _worker_is_running(worker: Any) -> bool:
 def _status_for_options_error(message: str) -> str:
     if message == "SAM API desabilitada nas opcoes.":
         return STATUS_API_DISABLED
-    if message == "Consulta via xpath/scrap_report desabilitada nas opcoes.":
+    if message == "Acesso via xpath/scrap_report desabilitado nas opcoes.":
         return STATUS_API_SCRAP_DISABLED
     if message == "Nenhum setor executor habilitado para SAM API.":
         return STATUS_API_NO_SECTORS

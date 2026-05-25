@@ -655,3 +655,30 @@ def test_pai_api_worker_records_unhandled_failure_in_summary(
     assert errors == ["unexpected worker failure"]
     assert worker.failures == ["unexpected worker failure"]
     assert worker.summary().failures == ("unexpected worker failure",)
+
+
+def test_pai_api_worker_emits_fallback_message_for_empty_exception(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    errors: list[str] = []
+
+    def _raise_unhandled(_self) -> None:
+        raise RuntimeError()
+
+    monkeypatch.setattr(PaiApiRefreshWorker, "_run_refresh", _raise_unhandled)
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+        )
+    )
+    worker.finished_error.connect(errors.append)
+
+    worker.run()
+
+    assert errors == ["RuntimeError"]
+    assert worker.failures == ["RuntimeError"]

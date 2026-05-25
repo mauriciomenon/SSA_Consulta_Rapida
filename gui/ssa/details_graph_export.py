@@ -72,8 +72,12 @@ def render_graph_svg_pixmap(
     )
     if cached_pixmap is not None:
         graph_label.setPixmap(cached_pixmap)
-        graph_label.setFixedSize(render_w, render_h)
-        graph_label.setToolTip("")
+        set_minimum_size = getattr(graph_label, "setMinimumSize", None)
+        if callable(set_minimum_size):
+            set_minimum_size(render_w, render_h)
+        resize = getattr(graph_label, "resize", None)
+        if callable(resize):
+            resize(render_w, render_h)
         return True
     pixmap = dependencies.pixmap_cls(render_w, render_h)
     pixmap.fill(dependencies.qt_module.GlobalColor.transparent)
@@ -91,8 +95,12 @@ def render_graph_svg_pixmap(
         pixmap,
     )
     graph_label.setPixmap(pixmap)
-    graph_label.setFixedSize(render_w, render_h)
-    graph_label.setToolTip("")
+    set_minimum_size = getattr(graph_label, "setMinimumSize", None)
+    if callable(set_minimum_size):
+        set_minimum_size(render_w, render_h)
+    resize = getattr(graph_label, "resize", None)
+    if callable(resize):
+        resize(render_w, render_h)
     return True
 
 

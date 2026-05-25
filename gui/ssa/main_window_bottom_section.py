@@ -57,6 +57,10 @@ class DerivadasGraphLabel(QLabel):
             logger.debug("Falha ao ajustar cursor do grafo de derivadas: %s", exc)
 
     def mousePressEvent(self, ev: Any) -> None:  # noqa: N802
+        button_getter = getattr(ev, "button", None)
+        if callable(button_getter) and button_getter() != Qt.MouseButton.LeftButton:
+            super().mousePressEvent(ev)
+            return
         ssa = self._ssa_at_event(ev)
         if ssa:
             jump = getattr(self._window, "_jump_to_ssa", None)
@@ -70,6 +74,21 @@ class DerivadasGraphLabel(QLabel):
         point = position_getter() if callable(position_getter) else event.pos()
         x = float(point.x())
         y = float(point.y())
+        pixmap_getter = getattr(self, "pixmap", None)
+        pixmap = pixmap_getter() if callable(pixmap_getter) else None
+        if pixmap is not None:
+            is_null = getattr(pixmap, "isNull", None)
+            width_getter = getattr(pixmap, "width", None)
+            height_getter = getattr(pixmap, "height", None)
+            if (
+                callable(width_getter)
+                and callable(height_getter)
+                and not (callable(is_null) and is_null())
+            ):
+                pixmap_w = float(width_getter())
+                pixmap_h = float(height_getter())
+                x -= max(0.0, (float(self.width()) - pixmap_w) / 2.0)
+                y -= max(0.0, (float(self.height()) - pixmap_h) / 2.0)
         for ssa, left, top, right, bottom in self._ssa_hitboxes:
             if left <= x <= right and top <= y <= bottom:
                 return ssa

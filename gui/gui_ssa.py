@@ -2650,7 +2650,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return True
 
     def on_table_cell_clicked(self, row: int, column: int):
-        if self._resolve_header_column_name(column) not in {"#", "numero_ssa"}:
+        col_name = self._resolve_header_column_name(column)
+        if col_name is None:
+            current_columns = list(getattr(self, "_current_display_columns", []) or [])
+            if 0 <= column < len(current_columns):
+                col_name = str(current_columns[column] or "").strip()
+        if col_name != "#":
             return
         series = self._get_series_from_row(row)
         if series is None:

@@ -491,14 +491,14 @@ class TestGUIFilterLogic:
         assert "2" in str(self.window.details_tree_text.toPlainText() or "")
         assert "2" in str(self.window.details_graph_label.text() or "")
 
-    def test_details_derivadas_tab_with_relations_skips_global_index(
+    def test_details_derivadas_tab_with_relations_uses_graph_and_index(
         self, monkeypatch
     ):
         df = pd.DataFrame(
             {
-                "numero_ssa": [1, 2],
+                "numero_ssa": ["202600001", "202600002"],
                 "situacao": ["APV", "STE"],
-                "derivada_de": ["", "1"],
+                "derivada_de": ["", "202600001"],
                 "descricao_ssa": ["Teste A", "Teste B"],
             }
         )
@@ -511,24 +511,17 @@ class TestGUIFilterLogic:
 
         monkeypatch.setattr(
             ssa_gui_details,
-            "_get_window_ssa_series_index",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                AssertionError("nao deveria montar indice global com relacao")
-            ),
-        )
-        monkeypatch.setattr(
-            ssa_gui_details,
             "_collect_derivadas_tree_data",
             lambda *_args, **_kwargs: {
-                "target": "1",
+                "target": "202600001",
                 "target_status": "APV",
                 "parents": [],
-                "children": [{"ssa": "2", "situacao": "STE"}],
+                "children": [{"ssa": "202600002", "situacao": "STE"}],
                 "ancestors": [],
-                "descendants": [{"ssa": "2", "situacao": "STE"}],
-                "family_roots": ["1"],
+                "descendants": [{"ssa": "202600002", "situacao": "STE"}],
+                "family_roots": ["202600001"],
                 "family_descendants": [
-                    {"ssa": "2", "parent": "1", "situacao": "STE"}
+                    {"ssa": "202600002", "parent": "202600001", "situacao": "STE"}
                 ],
                 "related": [],
                 "family_truncated": False,
@@ -558,9 +551,13 @@ class TestGUIFilterLogic:
         self.window.update_details_from_selection()
         QApplication.processEvents()
 
-        assert "1 (APV)" in str(self.window.details_tree_text.toPlainText() or "")
-        assert "2 (STE)" in str(self.window.details_tree_text.toPlainText() or "")
-        assert "1" in str(self.window.details_graph_label.text() or "")
+        assert "202600001 (APV)" in str(
+            self.window.details_tree_text.toPlainText() or ""
+        )
+        assert "202600002 (STE)" in str(
+            self.window.details_tree_text.toPlainText() or ""
+        )
+        assert "202600001" in str(self.window.details_graph_label.text() or "")
 
     def test_collect_derivadas_tree_data_uses_snapshot_without_local_edges(
         self, monkeypatch
@@ -707,9 +704,8 @@ class TestGUIFilterLogic:
         self.window.update_details_from_selection()
         QApplication.processEvents()
 
-        assert "Sem Derivadas" in str(self.window.details_tree_text.toPlainText() or "")
-        assert str(self.window.details_graph_label.text() or "") == ""
-        assert self.window.details_graph_label.isVisible() is False
+        assert str(self.window.details_graph_label.text() or "") == "Sem SSAs Derivadas."
+        assert self.window.details_graph_label.isVisible() is True
 
     def test_column_filters_panel_is_populated_on_startup(self):
         main_ctx = self._panel_context()
@@ -4373,7 +4369,7 @@ class TestGUIFilterLogic:
         assert 'href="ssa:202500777"' in html
         assert ssa_gui_details._normalize_ssa_relation_value(pd.NA) == ""
 
-    def test_update_details_from_series_avoids_eager_global_ssa_index_build(self):
+    def test_update_details_from_series_uses_ssa_index_for_related_links(self):
         series = self.base_df.iloc[0].copy()
         series["numero_ssa"] = "202600023"
         series["numero_ssa_relacionada_1"] = "202500777"
@@ -4382,9 +4378,6 @@ class TestGUIFilterLogic:
         series["situacao_relacionada_2"] = "SES"
 
         with patch(
-            "gui.ssa.gui_details._get_window_ssa_series_index",
-            side_effect=AssertionError("nao deveria montar indice global"),
-        ), patch(
             "gui.ssa.gui_details._get_series_for_ssa",
             side_effect=lambda _window, numero: object()
             if str(numero) in {"202500777", "202500888"}
@@ -5100,7 +5093,7 @@ class TestGUIFilterLogic:
         assert "stroke-dasharray" in html
         assert "marker-end" in html
         assert "Grafo de derivadas" in html
-        assert 'fill="#101820">202600023</text>' in html
+        assert 'fill="#69b7ff"' not in html
         assert 'data-ssa="202600023"' in html
         assert 'data-ssa="202500777"' in html
 
@@ -5159,6 +5152,22 @@ class TestGUIFilterLogic:
         )
 
         assert calls == [("202100186", True)]
+
+    def test_derivadas_graph_label_ignores_right_click(self, monkeypatch):
+        label = self.window.details_graph_label
+        label.setFixedSize(200, 120)
+        label.set_ssa_hitboxes([("202100186", 10.0, 10.0, 90.0, 50.0)])
+        calls: list[str] = []
+
+        monkeypatch.setattr(self.window, "_jump_to_ssa", calls.append)
+
+        cast(Any, QTest).mouseClick(
+            label,
+            Qt.MouseButton.RightButton,
+            pos=QPoint(20, 20),
+        )
+
+        assert calls == []
 
     def test_build_derivadas_graph_html_sanitizes_font_family(self):
         html = ssa_gui_details._build_derivadas_graph_html(
@@ -5326,6 +5335,17 @@ class TestGUIFilterLogic:
             "202600029",
         ]
         assert len(calls) <= 3
+
+    def test_normalize_ssa_series_fallback_still_normalizes(self, monkeypatch):
+        def _raise_factorize(*_args, **_kwargs):
+            raise TypeError("unhashable")
+
+        monkeypatch.setattr(ssa_gui_details.pd, "factorize", _raise_factorize)
+
+        series = pd.Series(["202500001.0", None, "nan", "202500002.0"])
+        normalized = ssa_gui_details._normalize_ssa_series(self.window, series)
+
+        assert normalized.tolist() == ["202500001", "", "", "202500002"]
 
     def test_open_details_dialog_builds_dedicated_tree_tab(self, monkeypatch):
         self.window.df_exibido = self.base_df.copy()
@@ -5755,6 +5775,24 @@ class TestGUIFilterLogic:
         self.window.on_table_double_click(model_index)
 
         assert copied == ["1"]
+        assert opened == []
+
+    def test_clicking_numero_ssa_column_does_not_open_sam(self, monkeypatch):
+        self.window.display_current_page(1)
+        display_columns = list(
+            getattr(self.window, "_current_display_columns", []) or []
+        )
+        numero_col = display_columns.index("numero_ssa")
+        opened = []
+
+        monkeypatch.setattr(
+            QDesktopServices,
+            "openUrl",
+            lambda url: opened.append(url.toString()) or True,
+        )
+
+        self.window.on_table_cell_clicked(0, numero_col)
+
         assert opened == []
 
     def test_double_click_non_numero_ssa_opens_details_without_copy(self, monkeypatch):

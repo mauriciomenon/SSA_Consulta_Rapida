@@ -129,6 +129,15 @@ class _WorkerWithEmptySummary(_Worker):
         return None
 
 
+def test_status_for_options_error_maps_xpath_disabled_message() -> None:
+    assert (
+        pai_api_controller._status_for_options_error(
+            "Acesso via xpath/scrap_report desabilitado nas opcoes."
+        )
+        == "Status: Acesso via xpath/scrap_report desabilitado."
+    )
+
+
 def test_auto_refresh_timer_starts_when_enabled(tmp_path: Path) -> None:
     window = _Window()
     preferences = _preferences(auto_enabled=True)
@@ -192,6 +201,28 @@ def test_finish_success_clears_worker_when_summary_is_none(tmp_path: Path) -> No
     worker.finished_success.emit()
 
     assert window.worker is None
+    assert window.reload_count == 1
+
+
+def test_refresh_without_prompt_still_imports_by_default(tmp_path: Path) -> None:
+    window = _Window()
+    preferences = _preferences(auto_enabled=False)
+    window.preferences = preferences
+    window.context = _context(tmp_path)
+
+    assert pai_api_controller.start_pai_api_refresh(
+        window,
+        preferences=preferences,
+        context=_context(tmp_path),
+        worker_cls=_Worker,
+        ask_reload=False,
+    )
+
+    assert isinstance(window.worker, _Worker)
+    assert window.worker.config.confirm_before_import is False
+    assert window.worker.config.fetch_only is False
+    window.worker.finished_success.emit()
+    assert window.confirm_count == 0
     assert window.reload_count == 1
 
 
@@ -357,16 +388,7 @@ def test_set_sector_enabled_rolls_back_when_persist_fails(tmp_path: Path) -> Non
     )
 
     settings = preferences["gui_settings"][PAI_API_SETTINGS_KEY]
-    assert settings[PAI_API_SECTORS_KEY] == [
-        "IEE3",
-        "MEL4",
-        "IEE1",
-        "IEE4",
-        "MEL3",
-        "MEL1",
-        "IEE2",
-        "MEL2",
-    ]
+    assert settings[PAI_API_SECTORS_KEY] is None
     assert window.statuses[-1] == pai_api_controller.STATUS_API_SAVE_FAILED
 
 
@@ -386,7 +408,7 @@ def test_set_data_scope_enabled_rolls_back_when_persist_fails(tmp_path: Path) ->
     )
 
     settings = preferences["gui_settings"][PAI_API_SETTINGS_KEY]
-    assert settings[PAI_API_DATA_SCOPES_KEY] == ["consulta"]
+    assert settings[PAI_API_DATA_SCOPES_KEY] is None
     assert window.statuses[-1] == pai_api_controller.STATUS_API_SAVE_FAILED
 
 

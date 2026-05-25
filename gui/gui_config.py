@@ -248,7 +248,7 @@ DEFAULT_COLUMN_WIDTHS_WINDOWS: Dict[str, int] = {
     "descricao_ssa": 340,
     "data_cadastro": 84,
     "setor_emissor": 72,
-    "derivada_de": 112,
+    "derivada_de": 96,
     "semana_programada": 92,
     "descricao_execucao": 330,
     "semana_cadastro": 92,

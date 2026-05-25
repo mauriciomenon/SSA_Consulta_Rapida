@@ -159,6 +159,8 @@ class _FakeGraphLabel:
     def __init__(self) -> None:
         self.pixmap = None
         self.fixed_size = None
+        self.minimum_size = None
+        self.resized = None
         self.tooltip = None
 
     def setPixmap(self, pixmap) -> None:
@@ -169,6 +171,18 @@ class _FakeGraphLabel:
             self.fixed_size = (width.width(), width.height())
         else:
             self.fixed_size = (width, height)
+
+    def setMinimumSize(self, width, height=None) -> None:
+        if height is None:
+            self.minimum_size = (width.width(), width.height())
+        else:
+            self.minimum_size = (width, height)
+
+    def resize(self, width, height=None) -> None:
+        if height is None:
+            self.resized = (width.width(), width.height())
+        else:
+            self.resized = (width, height)
 
     def setToolTip(self, text: str) -> None:
         self.tooltip = text
@@ -240,8 +254,10 @@ def test_render_graph_svg_pixmap_uses_logical_label_size() -> None:
     assert label.pixmap is not None
     assert label.pixmap.width == 376
     assert label.pixmap.height == 150
-    assert label.fixed_size == (376, 150)
-    assert label.tooltip == ""
+    assert label.fixed_size is None
+    assert label.minimum_size == (376, 150)
+    assert label.resized == (376, 150)
+    assert label.tooltip is None
     assert _FakeRenderer.last_rect is not None
     assert _FakeRenderer.last_rect.width == 376.0
     assert _FakeRenderer.last_rect.height == 150.0

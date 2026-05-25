@@ -125,9 +125,10 @@ class PaiApiRefreshWorker(QThread):
         try:
             self._run_refresh()
         except Exception as exc:
-            self._add_failure(str(exc or "") or type(exc).__name__)
+            message = str(exc or "") or type(exc).__name__
+            self._add_failure(message)
             self._refresh_summary()
-            self.finished_error.emit(str(exc))
+            self.finished_error.emit(message)
 
     def _run_refresh(self) -> None:
         options = self.config.options

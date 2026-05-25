@@ -56,7 +56,7 @@ class SimpleWidthManager:
             "situacao": 80,
             "setor_emissor": 95,
             "setor_executor": 95,
-            "derivada_de": 135,
+            "derivada_de": 108,
             "data_cadastro": 120,
             "data_arquivo_origem": 190,
             "data_planilha": 120,
