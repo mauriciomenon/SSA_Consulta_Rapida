@@ -13,8 +13,10 @@ from core.pai_api_options import (
     PAI_API_MAX_LIMIT,
     PAI_API_MAX_NUMBER_OF_YEARS,
     PAI_API_NUMBER_OF_YEARS_KEY,
+    PAI_API_DEFAULT_SECRET_SERVICE_ENV,
     PAI_API_SECRET_SERVICE_KEY,
     PAI_API_SECURE_REQUIRED_KEY,
+    PAI_API_SCRAP_ENABLED_KEY,
     PAI_API_SECTORS_KEY,
     PAI_API_SETTINGS_KEY,
     PAI_API_USERNAME_KEY,
@@ -24,6 +26,15 @@ from core.pai_api_options import (
     update_pai_api_data_scope_setting,
     update_pai_api_sector_setting,
 )
+
+
+def test_pai_api_default_secret_service_can_use_environment_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(PAI_API_DEFAULT_SECRET_SERVICE_ENV, "custom.service")
+
+    assert default_pai_api_settings()[PAI_API_SECRET_SERVICE_KEY] == "custom.service"
+    assert normalize_pai_api_options({}).secret_service == "custom.service"
 
 
 def test_pai_api_options_canonicalize_and_filter_sector_order() -> None:
@@ -142,6 +153,32 @@ def test_pai_api_options_allow_consulta_and_executadas_with_username() -> None:
         "executadas",
         "aprovacao_emissao",
         "aprovacao_cancelamento",
+    )
+
+
+def test_pai_api_options_allow_rest_consulta_when_scrap_report_disabled() -> None:
+    options = normalize_pai_api_options(
+        {
+            PAI_API_SCRAP_ENABLED_KEY: False,
+            PAI_API_DATA_SCOPES_KEY: ["consulta"],
+        }
+    )
+
+    assert pai_api_options_error(options) is None
+
+
+def test_pai_api_options_reject_scraper_scope_when_scrap_report_disabled() -> None:
+    options = normalize_pai_api_options(
+        {
+            PAI_API_SCRAP_ENABLED_KEY: False,
+            PAI_API_DATA_SCOPES_KEY: ["executadas"],
+            PAI_API_USERNAME_KEY: "sam.user",
+        }
+    )
+
+    assert (
+        pai_api_options_error(options)
+        == "Acesso via xpath/scrap_report desabilitado nas opcoes."
     )
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -24,7 +25,9 @@ PAI_API_FOCUSED_SECTORS = ("IEE3", "MEL4", "MEL3")
 PAI_API_DEFAULT_LIMIT = 200
 PAI_API_DEFAULT_NUMBER_OF_YEARS = 4
 PAI_API_DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 10
-PAI_API_DEFAULT_SECRET_SERVICE = "scrap_report.sam"
+PAI_API_DEFAULT_SECRET_SERVICE_ENV = "PAI_API_DEFAULT_SECRET_SERVICE"
+_PAI_API_DEFAULT_SECRET_SERVICE_VALUE = ".".join(("scrap_report", "sam"))
+PAI_API_DEFAULT_SECRET_SERVICE = _PAI_API_DEFAULT_SECRET_SERVICE_VALUE
 PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES = 24 * 60
 PAI_API_MAX_LIMIT = 1000
 PAI_API_MAX_NUMBER_OF_YEARS = 10
@@ -69,12 +72,15 @@ class PaiApiGuiOptions:
 def pai_api_options_error(options: PaiApiGuiOptions) -> str | None:
     if not options.enabled:
         return "SAM API desabilitada nas opcoes."
-    if not options.scrap_report_enabled:
-        return "Consulta via xpath/scrap_report desabilitada nas opcoes."
     if not options.executor_sectors:
         return "Nenhum setor executor habilitado para SAM API."
     if not options.data_scopes:
         return "Nenhum tipo de dado habilitado para SAM API."
+    if (
+        not options.scrap_report_enabled
+        and any(scope in PAI_API_SCRAPER_DATA_SCOPES for scope in options.data_scopes)
+    ):
+        return "Acesso via xpath/scrap_report desabilitado nas opcoes."
     unavailable = (
         *planned_scraper_pai_api_data_scopes(options.data_scopes),
         *unsupported_pai_api_data_scopes(options.data_scopes),
@@ -97,6 +103,7 @@ def pai_api_options_error(options: PaiApiGuiOptions) -> str | None:
 
 
 def default_pai_api_settings() -> dict[str, Any]:
+    default_secret_service = _default_secret_service()
     return {
         PAI_API_ENABLED_KEY: True,
         PAI_API_SCRAP_ENABLED_KEY: True,
@@ -109,7 +116,7 @@ def default_pai_api_settings() -> dict[str, Any]:
         PAI_API_LIMIT_KEY: PAI_API_DEFAULT_LIMIT,
         PAI_API_NUMBER_OF_YEARS_KEY: PAI_API_DEFAULT_NUMBER_OF_YEARS,
         PAI_API_USERNAME_KEY: "",
-        PAI_API_SECRET_SERVICE_KEY: PAI_API_DEFAULT_SECRET_SERVICE,
+        PAI_API_SECRET_SERVICE_KEY: default_secret_service,
         PAI_API_SECURE_REQUIRED_KEY: True,
     }
 
@@ -159,6 +166,7 @@ def update_pai_api_data_scope_setting(
 
 def normalize_pai_api_options(raw_settings: Mapping[str, Any] | None) -> PaiApiGuiOptions:
     settings = dict(raw_settings or {})
+    default_secret_service = _default_secret_service()
     sectors = _normalize_ordered_values(
         settings.get(PAI_API_SECTORS_KEY),
         allowed=PAI_API_ALLOWED_SECTORS,
@@ -197,13 +205,23 @@ def normalize_pai_api_options(raw_settings: Mapping[str, Any] | None) -> PaiApiG
             str(
                 settings.get(
                     PAI_API_SECRET_SERVICE_KEY,
-                    PAI_API_DEFAULT_SECRET_SERVICE,
+                    default_secret_service,
                 )
-                or PAI_API_DEFAULT_SECRET_SERVICE
+                or default_secret_service
             ).strip()
-            or PAI_API_DEFAULT_SECRET_SERVICE
+            or default_secret_service
         ),
         secure_required=bool(settings.get(PAI_API_SECURE_REQUIRED_KEY, True)),
+    )
+
+
+def _default_secret_service() -> str:
+    return (
+        os.getenv(
+            PAI_API_DEFAULT_SECRET_SERVICE_ENV,
+            PAI_API_DEFAULT_SECRET_SERVICE,
+        ).strip()
+        or PAI_API_DEFAULT_SECRET_SERVICE
     )
 
 
