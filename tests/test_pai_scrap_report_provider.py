@@ -217,9 +217,9 @@ def test_run_pai_scrap_report_export_reports_sweep_label_on_failure(
     class _Failed:
         returncode = 1
         stdout = ""
-        stderr = "failed"
+        stderr = "failed token=secret"
 
-    with pytest.raises(RuntimeError, match="scrap_report sweep-run falhou"):
+    with pytest.raises(RuntimeError, match="scrap_report sweep-run falhou") as excinfo:
         run_pai_scrap_report_export(
             PaiScrapReportRequest(
                 project_root=tmp_path,
@@ -230,6 +230,7 @@ def test_run_pai_scrap_report_export_reports_sweep_label_on_failure(
             ),
             runner=lambda _command, **_kwargs: _Failed(),
         )
+    assert "token=secret" not in str(excinfo.value)
 
 
 def test_build_pai_scrap_report_command_requires_exact_aprovacao_report_kind(
