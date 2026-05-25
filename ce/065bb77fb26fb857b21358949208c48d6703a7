@@ -1,0 +1,22 @@
+gui/ssa/main_window_bottom_section.py
+  s_9f052ddda3b0ba::t_913105a3ccbe0e 148
+  s_9f052ddda3b0ba::t_ab86ee46b39612 71
+  s_9f052ddda3b0ba::t_7e0212173d398d 50-54,56-57
+  s_9f052ddda3b0ba::t_fcec6d50577956 79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "ce065bb77fb26fb857b21358949208c48d6703a7",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
