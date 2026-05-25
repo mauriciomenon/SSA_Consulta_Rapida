@@ -4676,6 +4676,26 @@ class TestGUIFilterLogic:
         assert ("202600101", "202600102") in second_edges
         assert ("202600100", "202600102") not in second_edges
 
+    def test_derivadas_family_edges_cache_uses_revision_without_uuid(self):
+        family_df = pd.DataFrame(
+            {
+                "numero_ssa": ["202600100", "202600101", "202600102"],
+                "derivada_de": ["", "202600100", "202600100"],
+            }
+        )
+        self.window.df_completo = family_df
+        self.window._data_uuid = None
+        self.window._data_revision = 1
+
+        first_edges = ssa_gui_details._get_cached_derivadas_family_edges(self.window)
+        family_df.loc[2, "derivada_de"] = "202600101"
+        self.window._data_revision = 2
+        second_edges = ssa_gui_details._get_cached_derivadas_family_edges(self.window)
+
+        assert ("202600100", "202600102") in first_edges
+        assert ("202600101", "202600102") in second_edges
+        assert ("202600100", "202600102") not in second_edges
+
     def test_derivadas_family_edges_drop_empty_and_duplicate_pairs(self):
         family_df = pd.DataFrame(
             {

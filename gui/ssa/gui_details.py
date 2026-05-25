@@ -273,11 +273,14 @@ def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
         series_obj = series.astype("object")
         codes, uniques = pd.factorize(series_obj, sort=False)
         normalized_uniques = [_normalize_ssa_value(window, value) for value in uniques]
-        resolved = [""] * len(series_obj)
-        for index, code in enumerate(codes):
-            if code >= 0:
-                resolved[index] = normalized_uniques[code]
-        return pd.Series(resolved, index=series_obj.index, dtype="object")
+        resolved = pd.Series("", index=series_obj.index, dtype="object")
+        valid_codes = codes >= 0
+        if bool(valid_codes.any()):
+            resolved.iloc[valid_codes] = pd.array(
+                normalized_uniques,
+                dtype="object",
+            ).take(codes[valid_codes])
+        return resolved
     except Exception as exc:
         logger.debug("Falha ao normalizar SSA series; fallback apply: %s", exc)
         return series.astype("object")
@@ -294,11 +297,19 @@ def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
     cache_put = getattr(cache_owner, "cache_value", None)
     if not callable(cache_get) or not callable(cache_put):
         return _normalize_ssa_series(window, df[column_name])
+    data_revision = getattr(window, "_data_revision", None)
+    if data_uuid is None and data_revision is None:
+        return _normalize_ssa_series(window, df[column_name])
+    frame_token = (
+        _get_details_frame_fingerprint(window, df)
+        if data_uuid is not None
+        else ("runtime", id(df), tuple(getattr(df, "shape", (0, 0))), data_revision)
+    )
     key = (
-        _get_details_frame_fingerprint(window, df),
+        frame_token,
         str(column_name),
         len(df),
-        getattr(window, "_data_revision", None),
+        data_revision,
         data_uuid,
     )
     cached = cache_get("ssa_norm", key)
@@ -325,11 +336,19 @@ def _get_cached_relation_series(window, df, column_name: str) -> pd.Series:
     cache_put = getattr(cache_owner, "cache_value", None)
     if not callable(cache_get) or not callable(cache_put):
         return _normalize_ssa_relation_series(df[column_name])
+    data_revision = getattr(window, "_data_revision", None)
+    if data_uuid is None and data_revision is None:
+        return _normalize_ssa_relation_series(df[column_name])
+    frame_token = (
+        _get_details_frame_fingerprint(window, df)
+        if data_uuid is not None
+        else ("runtime", id(df), tuple(getattr(df, "shape", (0, 0))), data_revision)
+    )
     key = (
-        _get_details_frame_fingerprint(window, df),
+        frame_token,
         str(column_name),
         len(df),
-        getattr(window, "_data_revision", None),
+        data_revision,
         data_uuid,
     )
     cached = cache_get("ssa_relation_norm", key)
@@ -1153,7 +1172,7 @@ def _get_cached_derivadas_family_edges(window) -> list[tuple[str, str]]:
         has_cache_manager = callable(cache_get) and callable(cache_put)
         data_revision = getattr(window, "_data_revision", None)
         data_uuid = getattr(window, "_data_uuid", None)
-        cache_enabled = data_uuid is not None
+        cache_enabled = data_uuid is not None or data_revision is not None
         row_count = len(source_df)
         cache_key = (id(source_df), row_count, data_revision, data_uuid)
         cached_edges = (

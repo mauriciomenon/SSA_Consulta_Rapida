@@ -33,11 +33,14 @@ def normalize_ssa_relation_series(series: pd.Series) -> pd.Series:
         series_obj = series.astype("object")
         codes, uniques = pd.factorize(series_obj, sort=False)
         normalized_uniques = [normalize_ssa_relation_value(value) for value in uniques]
-        resolved = [""] * len(series_obj)
-        for index, code in enumerate(codes):
-            if code >= 0:
-                resolved[index] = normalized_uniques[code]
-        return pd.Series(resolved, index=series_obj.index, dtype="object", name=series.name)
+        resolved = pd.Series("", index=series_obj.index, dtype="object", name=series.name)
+        valid_codes = codes >= 0
+        if bool(valid_codes.any()):
+            resolved.iloc[valid_codes] = pd.array(
+                normalized_uniques,
+                dtype="object",
+            ).take(codes[valid_codes])
+        return resolved
     except (TypeError, ValueError, AttributeError) as exc:
         logger.debug("Falha ao normalizar serie de relacoes SSA via factorize: %s", exc)
         mapped = series.map(normalize_ssa_relation_value)
