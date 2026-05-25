@@ -635,6 +635,25 @@ class TestGUIFilterLogic:
         assert resolved["202100186"]["situacao"] == "SES"
         assert resolved["202100186"]["descricao_ssa"] == "Selecionada"
 
+    def test_resolve_ssa_series_candidates_uses_display_normalization(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202512345"],
+                "situacao": ["STE"],
+                "descricao_ssa": ["Com hifen canonico"],
+            }
+        )
+        self.window.df_exibido = df
+        self.window.df_completo = df
+
+        resolved = ssa_gui_details._resolve_ssa_series_candidates(
+            self.window,
+            ["2025-12345"],
+        )
+
+        assert resolved["202512345"]["situacao"] == "STE"
+        assert resolved["202512345"]["descricao_ssa"] == "Com hifen canonico"
+
     def test_details_derivadas_tab_skips_graph_render_without_relations(
         self, monkeypatch
     ):
@@ -1335,6 +1354,36 @@ class TestGUIFilterLogic:
         ssa_gui_details._update_details_from_series(self.window, series)
 
         assert captured["font_family"] == self.window.details_group.font().family()
+
+    def test_details_frame_fingerprint_cache_distinguishes_dataframes(
+        self, monkeypatch
+    ):
+        self.window._data_uuid = "uuid-1"
+        self.window._data_revision = 1
+        first_df = pd.DataFrame({"numero_ssa": ["1"]})
+        second_df = pd.DataFrame({"numero_ssa": ["2"]})
+
+        def _fail_full_hash(_df):
+            raise AssertionError("runtime dataframe fingerprint must not scan content")
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "build_dataframe_filter_hash",
+            _fail_full_hash,
+        )
+
+        first_fingerprint = ssa_gui_details._get_details_frame_fingerprint(
+            self.window,
+            first_df,
+        )
+        second_fingerprint = ssa_gui_details._get_details_frame_fingerprint(
+            self.window,
+            second_df,
+        )
+
+        assert first_fingerprint
+        assert second_fingerprint
+        assert first_fingerprint != second_fingerprint
 
     def test_advanced_panel_context_exposes_emissor_before_executor(self):
         _ = self._panel_context()
@@ -5750,6 +5799,15 @@ class TestGUIFilterLogic:
         open_mock.assert_called_once()
         assert open_mock.call_args.args[0] is self.window
         assert open_mock.call_args.args[1] == "202500777"
+
+    def test_details_anchor_ssa_panel_jumps_to_clean_ssa(self):
+        with patch("gui.ssa.gui_details._jump_to_ssa") as jump_mock:
+            self.window._on_details_anchor_clicked(QUrl("ssa-panel:202500777"))
+
+        jump_mock.assert_called_once()
+        assert jump_mock.call_args.args[0] is self.window
+        assert jump_mock.call_args.args[1] == "202500777"
+        assert jump_mock.call_args.kwargs == {"_allow_refilter": False}
 
     def test_details_anchor_ssa_updates_details_without_refilter(self):
         df = pd.DataFrame(

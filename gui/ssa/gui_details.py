@@ -454,7 +454,7 @@ def _resolve_ssa_series_candidates(
     remaining = {
         normalized
         for normalized in (
-            _normalize_ssa_relation_value(candidate) for candidate in candidates
+            _normalize_ssa_value(window, candidate) for candidate in candidates
         )
         if normalized
     }
@@ -505,6 +505,7 @@ def _get_details_frame_fingerprint(window, df) -> str:
     if data_uuid is None:
         return build_dataframe_filter_hash(df)
     token = (
+        id(df),
         data_uuid,
         getattr(window, "_data_revision", None),
         tuple(getattr(df, "shape", (0, 0))),
@@ -515,7 +516,7 @@ def _get_details_frame_fingerprint(window, df) -> str:
         cached_value = cache.get("fingerprint")
         if isinstance(cached_value, str) and cached_value:
             return cached_value
-    fingerprint = build_dataframe_filter_hash(df)
+    fingerprint = repr(token)
     window._details_frame_fingerprint_cache = {
         "token": token,
         "fingerprint": fingerprint,
@@ -1163,7 +1164,9 @@ def _on_details_anchor_clicked(window, url):
         if target:
             _open_details_dialog_for_ssa(window, target)
         return
-    if href.startswith("ssa:"):
+    if href.startswith("ssa-panel:"):
+        target = href[len("ssa-panel:") :]
+    elif href.startswith("ssa:"):
         target = href[len("ssa:") :]
     elif href.startswith("ssa://"):
         target = href[len("ssa://") :]
