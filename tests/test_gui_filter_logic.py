@@ -455,11 +455,11 @@ class TestGUIFilterLogic:
             lambda: object(),
         )
 
-        def _fake_graph_html(_window, data, *, link_color, font_family):
+        def _fake_graph_html(_window, data, **_kwargs):
             return f"<svg><text>{data.get('target', '')}</text></svg>"
 
-        def _fake_render_graph_svg_pixmap(*, graph_svg, graph_label, graph_panel, dependencies):
-            graph_label.setText(graph_svg)
+        def _fake_render_graph_svg_pixmap(**kwargs):
+            kwargs["graph_label"].setText(kwargs["graph_svg"])
             return True
 
         monkeypatch.setattr(ssa_gui_details, "_build_derivadas_graph_html", _fake_graph_html)
@@ -541,7 +541,7 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(
             ssa_gui_details,
             "_build_derivadas_graph_html",
-            lambda _window, data, *, link_color, font_family: (
+            lambda _window, data, **_kwargs: (
                 f"<svg><text>{data.get('target', '')}</text></svg>"
             ),
         )
