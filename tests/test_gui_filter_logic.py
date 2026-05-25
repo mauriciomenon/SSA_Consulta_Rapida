@@ -4976,6 +4976,64 @@ class TestGUIFilterLogic:
         assert "marker-end" in html
         assert "Grafo de derivadas" in html
         assert 'fill="#101820">202600023</text>' in html
+        assert 'data-ssa="202600023"' in html
+        assert 'data-ssa="202500777"' in html
+
+    def test_graph_navigation_hitboxes_scale_svg_nodes(self):
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" '
+            'viewBox="0 0 200 100">'
+            '<rect data-ssa="202100186" x="50" y="20" width="80" height="30" />'
+            "</svg>"
+        )
+
+        hitboxes = ssa_gui_details._graph_navigation_hitboxes_from_svg(
+            svg,
+            render_width=400,
+            render_height=200,
+        )
+
+        assert hitboxes == [("202100186", 100.0, 40.0, 260.0, 100.0)]
+
+    def test_derivadas_tree_html_handles_cycle_in_descendants(self):
+        html = ssa_gui_details._build_derivadas_tree_html(
+            self.window,
+            "202100135",
+            tree_data_override={
+                "target": "202100135",
+                "parents": [],
+                "children": ["202100186"],
+                "descendants": [
+                    {"ssa": "202100186", "parent": "202100135"},
+                    {"ssa": "202100135", "parent": "202100186"},
+                ],
+                "related": [],
+                "descendants_count": 2,
+            },
+            ssa_index={},
+        )
+
+        assert "202100135" in html
+        assert "202100186" in html
+
+    def test_derivadas_graph_label_click_jumps_to_ssa(self, monkeypatch):
+        label = self.window.details_graph_label
+        label.setFixedSize(200, 120)
+        label.set_ssa_hitboxes([("202100186", 10.0, 10.0, 90.0, 50.0)])
+        calls: list[tuple[str, bool]] = []
+
+        def _fake_jump(ssa: str, *, _allow_refilter: bool = True):
+            calls.append((ssa, _allow_refilter))
+
+        monkeypatch.setattr(self.window, "_jump_to_ssa", _fake_jump)
+
+        cast(Any, QTest).mouseClick(
+            label,
+            Qt.MouseButton.LeftButton,
+            pos=QPoint(20, 20),
+        )
+
+        assert calls == [("202100186", False)]
 
     def test_build_derivadas_graph_html_sanitizes_font_family(self):
         html = ssa_gui_details._build_derivadas_graph_html(

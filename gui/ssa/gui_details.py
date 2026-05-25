@@ -8,6 +8,7 @@ from __future__ import annotations
 import html as html_module
 import math
 import os
+import re
 from typing import Any, Mapping, cast
 
 import pandas as pd
@@ -54,6 +55,17 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 
 
 DETAILS_CONFIG = DetailsDisplayConfig()
+
+_SVG_VIEWBOX_RE = re.compile(
+    r'<svg[^>]*\bviewBox="0\s+0\s+([0-9.]+)\s+([0-9.]+)"',
+    re.IGNORECASE,
+)
+_SVG_NODE_RECT_RE = re.compile(
+    r'<rect(?=[^>]*\bdata-ssa="([^"]+)")(?=[^>]*\bx="([0-9.]+)")'
+    r'(?=[^>]*\by="([0-9.]+)")(?=[^>]*\bwidth="([0-9.]+)")'
+    r'(?=[^>]*\bheight="([0-9.]+)")[^>]*>',
+    re.IGNORECASE,
+)
 
 
 def configure_details_constants(
@@ -302,6 +314,37 @@ def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
     return normalized
 
 
+def _get_cached_relation_series(window, df, column_name: str) -> pd.Series:
+    if df is None or column_name not in getattr(df, "columns", []):
+        return pd.Series(dtype="object")
+    data_uuid = getattr(window, "_data_uuid", None)
+    if data_uuid is None:
+        return _normalize_ssa_relation_series(df[column_name])
+    cache_owner = getattr(window, "cache_manager", None)
+    cache_get = getattr(cache_owner, "get_cached_value", None)
+    cache_put = getattr(cache_owner, "cache_value", None)
+    if not callable(cache_get) or not callable(cache_put):
+        return _normalize_ssa_relation_series(df[column_name])
+    key = (
+        _get_details_frame_fingerprint(window, df),
+        str(column_name),
+        len(df),
+        getattr(window, "_data_revision", None),
+        data_uuid,
+    )
+    cached = cache_get("ssa_relation_norm", key)
+    if isinstance(cached, pd.Series) and len(cached) == len(df):
+        return cached
+    normalized = _normalize_ssa_relation_series(df[column_name])
+    cache_put(
+        "ssa_relation_norm",
+        key,
+        normalized,
+        max_entries=SSA_NORM_CACHE_MAX_ENTRIES,
+    )
+    return normalized
+
+
 def _get_df_ssa_series_index(window, df) -> Mapping[str, pd.Series]:
     if df is None or df.empty or "numero_ssa" not in getattr(df, "columns", []):
         return {}
@@ -531,29 +574,8 @@ def update_details_from_selection(window):
         return
     row = selected_rows[0].row()
     series = window._get_series_from_row(row)
-    selected_ssa = None
-    try:
-        selected_ssa = series.get("numero_ssa")
-    except Exception as exc:
-        logger.debug("Falha ao ler numero_ssa da linha selecionada: %s", exc)
-        selected_ssa = None
     render_signature = _get_details_render_signature(window, series)
     current_signature = window.details_text.property("details_render_signature")
-    skip_ssa = window.table_widget.property("details_skip_selection_once_for_ssa")
-    if selected_ssa is not None and selected_ssa == skip_ssa:
-        window.table_widget.setProperty("details_skip_selection_once_for_ssa", None)
-        try:
-            if (
-                not window.details_text.document().isEmpty()
-                and render_signature == current_signature
-            ):
-                return
-        except Exception:
-            if (
-                window.details_text.toPlainText().strip()
-                and render_signature == current_signature
-            ):
-                return
     try:
         if (
             not window.details_text.document().isEmpty()
@@ -566,8 +588,6 @@ def update_details_from_selection(window):
             and render_signature == current_signature
             ):
                 return
-    if skip_ssa is not None:
-        window.table_widget.setProperty("details_skip_selection_once_for_ssa", None)
     _schedule_details_update(window, series)
 
 
@@ -683,6 +703,7 @@ def _clear_main_details_derivadas_panel(window) -> None:
         if widget is None:
             continue
         try:
+            _set_graph_navigation_hitboxes(widget, [])
             widget.clear()
             if attr in ("details_graph_label", "details_graph_text"):
                 widget.setVisible(False)
@@ -744,6 +765,8 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
                 ssa_index={},
             )
             tree_browser.setHtml(tree_html or "Sem derivadas para exibir.")
+            tree_browser.setVisible(True)
+            _set_graph_navigation_hitboxes(graph_browser, [])
             if hasattr(graph_browser, "setPixmap"):
                 graph_browser.clear()
             graph_browser.setText("")
@@ -761,6 +784,8 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
         )
         tree_browser.setHtml(tree_html or "Sem derivadas para exibir.")
         if not _has_derivadas_graph_relations(tree_data):
+            tree_browser.setVisible(True)
+            _set_graph_navigation_hitboxes(graph_browser, [])
             if hasattr(graph_browser, "setPixmap"):
                 graph_browser.clear()
             graph_browser.setText("")
@@ -783,10 +808,19 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
                 graph_panel=graph_panel,
                 dependencies=svg_deps,
             ):
+                tree_browser.setVisible(True)
+                _set_graph_navigation_hitboxes(graph_browser, [])
                 graph_browser.setText("Grafo de derivadas indisponivel.")
+            else:
+                tree_browser.setVisible(False)
+                _apply_graph_navigation_hitboxes(graph_browser, graph_svg)
         elif hasattr(graph_browser, "setHtml"):
+            tree_browser.setVisible(True)
+            _set_graph_navigation_hitboxes(graph_browser, [])
             graph_browser.setHtml(graph_html or "Grafo de derivadas indisponivel.")
         else:
+            tree_browser.setVisible(True)
+            _set_graph_navigation_hitboxes(graph_browser, [])
             graph_browser.setText("Grafo de derivadas indisponivel.")
     except Exception as exc:
         logger.debug("Falha ao atualizar painel principal de derivadas: %s", exc)
@@ -816,6 +850,60 @@ def _has_derivadas_graph_relations(tree_data: Mapping[str, object]) -> bool:
         if value:
             return True
     return False
+
+
+def _set_graph_navigation_hitboxes(
+    graph_widget: Any,
+    hitboxes: list[tuple[str, float, float, float, float]],
+) -> None:
+    setter = getattr(graph_widget, "set_ssa_hitboxes", None)
+    if callable(setter):
+        setter(hitboxes)
+
+
+def _apply_graph_navigation_hitboxes(graph_widget: Any, graph_svg: str) -> None:
+    hitboxes = _graph_navigation_hitboxes_from_svg(
+        graph_svg,
+        render_width=float(max(1, int(graph_widget.width()))),
+        render_height=float(max(1, int(graph_widget.height()))),
+    )
+    _set_graph_navigation_hitboxes(graph_widget, hitboxes)
+
+
+def _graph_navigation_hitboxes_from_svg(
+    graph_svg: str,
+    *,
+    render_width: float,
+    render_height: float,
+) -> list[tuple[str, float, float, float, float]]:
+    if not graph_svg:
+        return []
+    viewbox_match = _SVG_VIEWBOX_RE.search(graph_svg)
+    if viewbox_match is None:
+        return []
+    try:
+        svg_width = float(viewbox_match.group(1))
+        svg_height = float(viewbox_match.group(2))
+    except ValueError:
+        return []
+    if svg_width <= 0.0 or svg_height <= 0.0:
+        return []
+    scale_x = render_width / svg_width
+    scale_y = render_height / svg_height
+    hitboxes: list[tuple[str, float, float, float, float]] = []
+    for match in _SVG_NODE_RECT_RE.finditer(graph_svg):
+        try:
+            ssa = html_module.unescape(match.group(1)).strip()
+            left = float(match.group(2)) * scale_x
+            top = float(match.group(3)) * scale_y
+            width = float(match.group(4)) * scale_x
+            height = float(match.group(5)) * scale_y
+        except ValueError:
+            continue
+        if not ssa or width <= 0.0 or height <= 0.0:
+            continue
+        hitboxes.append((ssa, left, top, left + width, top + height))
+    return hitboxes
 
 
 def refresh_main_details_derivadas_panel(window) -> None:
@@ -999,10 +1087,6 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
                 "Falha ao resolver serie alvo no salto para SSA %s: %s", num_norm, exc
             )
         _update_details_from_series(window, target_series)
-        window.table_widget.setProperty(
-            "details_skip_selection_once_for_ssa",
-            getattr(window, "_details_current_ssa", None),
-        )
 
         def _select_target_row_later():
             try:
@@ -1125,20 +1209,24 @@ def _get_cached_derivadas_family_edges(window) -> list[tuple[str, str]]:
         if isinstance(cached_edges, list):
             return cast(list[tuple[str, str]], cached_edges)
 
+        number_series = _get_cached_relation_series(window, source_df, "numero_ssa")
+        parent_series = _get_cached_relation_series(window, source_df, "derivada_de")
         edges: list[tuple[str, str]] = []
-        number_series = _normalize_ssa_relation_series(source_df["numero_ssa"])
-        parent_series = _normalize_ssa_relation_series(source_df["derivada_de"])
-        pair_df = pd.DataFrame({"child": number_series, "parent": parent_series})
-        pair_df = pair_df.dropna()
-        pair_df = pair_df[
-            pair_df["child"].astype(str).str.strip().ne("")
-            & pair_df["parent"].astype(str).str.strip().ne("")
-        ]
-        ordered_pairs = pair_df[["parent", "child"]].drop_duplicates()
-        edges = [
-            (str(parent).strip(), str(child).strip())
-            for parent, child in ordered_pairs.itertuples(index=False, name=None)
-        ]
+        seen_pairs: set[tuple[str, str]] = set()
+        for child_raw, parent_raw in zip(
+            number_series.to_numpy(copy=False),
+            parent_series.to_numpy(copy=False),
+            strict=False,
+        ):
+            child = str(child_raw or "").strip()
+            parent = str(parent_raw or "").strip()
+            if not child or not parent:
+                continue
+            pair = (parent, child)
+            if pair in seen_pairs:
+                continue
+            seen_pairs.add(pair)
+            edges.append(pair)
         if cache_enabled and has_cache_manager:
             cast(Any, cache_put)(
                 "details_derivadas_family_edges",
@@ -1471,7 +1559,14 @@ def _build_derivadas_tree_html(
                 _append_line(lines, 0, rendered)
         _append_line(lines, len(tree_model.lineage), _ssa_link(target), current=True)
         if tree_model.direct_children:
-            seen_descendants: set[str] = set()
+            seen_descendants: set[str] = {target}
+            seen_descendants.update(
+                value
+                for value in (
+                    _entry_ssa_value(raw_lineage) for raw_lineage in tree_model.lineage
+                )
+                if value
+            )
             for raw in tree_model.direct_children:
                 rendered = _render_entry(raw)
                 child_value = _entry_ssa_value(raw)
@@ -1496,7 +1591,9 @@ def _build_derivadas_tree_html(
                     seen_descendants.add(descendant_value)
                     _append_line(lines, depth, rendered_descendant)
                     for raw_child in reversed(tree_model.child_map.get(descendant_value, [])):
-                        stack.append((raw_child, depth + 1))
+                        child_value = _entry_ssa_value(raw_child)
+                        if child_value and child_value not in seen_descendants:
+                            stack.append((raw_child, depth + 1))
         else:
             _append_line(
                 lines,

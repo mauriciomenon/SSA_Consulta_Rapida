@@ -185,9 +185,11 @@ def _node_lines(
         fill = node_target_fill if node == graph_model.target else node_fill
         node_text_color = node_target_text if node == graph_model.target else text_color
         safe_node = html_module.escape(node)
+        safe_node_attr = html_module.escape(node, quote=True)
         lines.append(
             f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{node_w}" height="{node_h}" '
-            f'rx="5" ry="5" fill="{fill}" stroke="{node_stroke}" stroke-width="0.8" />'
+            f'data-ssa="{safe_node_attr}" rx="5" ry="5" fill="{fill}" '
+            f'stroke="{node_stroke}" stroke-width="0.8" />'
         )
         lines.append(
             f'<text x="{(x0 + node_w / 2.0):.1f}" y="{(y0 + node_h / 2.0):.1f}" text-anchor="middle" dominant-baseline="middle" '

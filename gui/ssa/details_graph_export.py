@@ -18,7 +18,7 @@ class SvgRenderDependencies:
     qt_module: Any
 
 
-_SVG_CACHE_MAX_ENTRIES = 16
+_SVG_CACHE_MAX_ENTRIES = 8
 _SVG_CACHE = CacheManager(max_entries=_SVG_CACHE_MAX_ENTRIES)
 
 
@@ -61,7 +61,7 @@ def render_graph_svg_pixmap(
     natural_h = max(1, int(default_size.height()))
     available_w = max(120, graph_panel.width() - 24)
     available_h = max(120, graph_panel.height() - 24)
-    scale = min(1.0, available_w / natural_w, available_h / natural_h)
+    scale = min(1.4, available_w / natural_w, available_h / natural_h)
     render_w = max(1, int(natural_w * scale))
     render_h = max(1, int(natural_h * scale))
     cached_pixmap = _cached_svg_pixmap(
@@ -188,7 +188,7 @@ class DetailsGraphExportController:
             with export_path.open("w", encoding="utf-8") as handle:
                 handle.write(content)
         except OSError as exc:
-            self.logger.warning(log_message, exc)
+            self.logger.warning("%s: %s", log_message, exc, exc_info=True)
             self.message_box_cls.warning(
                 self.dialog,
                 "Exportacao",
@@ -235,7 +235,7 @@ class DetailsGraphExportController:
         self._write_text_export(
             path=path,
             content=graph_svg,
-            log_message="Falha ao exportar grafo SVG: %s",
+            log_message="Falha ao exportar grafo SVG",
             warning_message="Falha ao salvar o arquivo SVG.",
         )
 
@@ -257,7 +257,7 @@ class DetailsGraphExportController:
         self._write_text_export(
             path=path,
             content=mermaid_text,
-            log_message="Falha ao exportar Mermaid: %s",
+            log_message="Falha ao exportar Mermaid",
             warning_message="Falha ao salvar o arquivo Mermaid.",
         )
 

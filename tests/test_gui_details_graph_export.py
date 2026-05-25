@@ -45,10 +45,10 @@ class _FakeMenu:
 
 
 class _FakeLogger:
-    warnings: list[tuple[str, object]] = []
+    warnings: list[tuple[str, object, object]] = []
 
-    def warning(self, message, exc):
-        self.warnings.append((message, exc))
+    def warning(self, message, exc, *, exc_info=None):
+        self.warnings.append((message, exc, exc_info))
 
 
 class _FakePixmap:
@@ -226,13 +226,13 @@ def test_render_graph_svg_pixmap_uses_logical_label_size() -> None:
     assert ok is True
     assert second_ok is True
     assert label.pixmap is not None
-    assert label.pixmap.width == 300
-    assert label.pixmap.height == 120
-    assert label.fixed_size == (300, 120)
+    assert label.pixmap.width == 376
+    assert label.pixmap.height == 150
+    assert label.fixed_size == (376, 150)
     assert label.tooltip == ""
     assert _FakeRenderer.last_rect is not None
-    assert _FakeRenderer.last_rect.width == 300.0
-    assert _FakeRenderer.last_rect.height == 120.0
+    assert _FakeRenderer.last_rect.width == 376.0
+    assert _FakeRenderer.last_rect.height == 150.0
     assert _FakeRenderer.instances == 1
     assert _FakeRenderer.render_calls == 1
 

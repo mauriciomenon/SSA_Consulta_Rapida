@@ -25,6 +25,57 @@ from PyQt6.QtWidgets import (
 logger = logging.getLogger(__name__)
 
 
+class DerivadasGraphLabel(QLabel):
+    def __init__(self, window: Any) -> None:
+        super().__init__()
+        self._window = window
+        self._ssa_hitboxes: list[tuple[str, float, float, float, float]] = []
+        self.setMouseTracking(True)
+
+    def set_ssa_hitboxes(
+        self, hitboxes: list[tuple[str, float, float, float, float]]
+    ) -> None:
+        self._ssa_hitboxes = list(hitboxes)
+        self._set_node_cursor(False)
+
+    def mouseMoveEvent(self, ev: Any) -> None:  # noqa: N802
+        self._set_node_cursor(bool(self._ssa_at_event(ev)))
+        super().mouseMoveEvent(ev)
+
+    def leaveEvent(self, a0: Any) -> None:  # noqa: N802
+        self._set_node_cursor(False)
+        super().leaveEvent(a0)
+
+    def _set_node_cursor(self, active: bool) -> None:
+        try:
+            self.setCursor(
+                Qt.CursorShape.PointingHandCursor
+                if active
+                else Qt.CursorShape.ArrowCursor
+            )
+        except Exception as exc:
+            logger.debug("Falha ao ajustar cursor do grafo de derivadas: %s", exc)
+
+    def mousePressEvent(self, ev: Any) -> None:  # noqa: N802
+        ssa = self._ssa_at_event(ev)
+        if ssa:
+            jump = getattr(self._window, "_jump_to_ssa", None)
+            if callable(jump):
+                jump(ssa, _allow_refilter=False)
+                return
+        super().mousePressEvent(ev)
+
+    def _ssa_at_event(self, event: Any) -> str:
+        position_getter = getattr(event, "position", None)
+        point = position_getter() if callable(position_getter) else event.pos()
+        x = float(point.x())
+        y = float(point.y())
+        for ssa, left, top, right, bottom in self._ssa_hitboxes:
+            if left <= x <= right and top <= y <= bottom:
+                return ssa
+        return ""
+
+
 def build_bottom_filter_section(window: Any) -> dict[str, Any]:
     bottom_layout = QHBoxLayout()
 
@@ -125,7 +176,7 @@ def _build_details_panel(window: Any) -> tuple[QGroupBox, dict[str, Any]]:
     details_derivadas_splitter = QSplitter(Qt.Orientation.Horizontal)
     details_derivadas_splitter.setChildrenCollapsible(False)
     details_tree_text = QTextBrowser()
-    details_graph_label = QLabel()
+    details_graph_label = DerivadasGraphLabel(window)
     details_tree_text.setReadOnly(True)
     details_tree_text.setOpenLinks(False)
     details_tree_text.setOpenExternalLinks(False)
@@ -139,6 +190,9 @@ def _build_details_panel(window: Any) -> tuple[QGroupBox, dict[str, Any]]:
         details_graph_label.setTextFormat(Qt.TextFormat.RichText)
         details_graph_label.setStyleSheet("border:none; background:transparent;")
         details_graph_label.setMinimumHeight(120)
+        details_graph_label.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
     except Exception as exc:
         logger.debug("Falha ao configurar grafo de derivadas no painel principal: %s", exc)
     details_derivadas_splitter.addWidget(cast(Any, details_tree_text))
