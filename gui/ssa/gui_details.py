@@ -442,16 +442,13 @@ def _resolve_ssa_series_candidates(
         matches = normalized_series.isin(remaining)
         if not bool(matches.any()):
             return
-        matched_normalized = normalized_series[matches]
-        matched_rows = df.loc[matched_normalized.index]
-        if isinstance(matched_rows, pd.Series):
-            matched_rows = matched_rows.to_frame().T
-        for normalized_value, (_, matched) in zip(
-            matched_normalized.to_list(), matched_rows.iterrows()
-        ):
+        matched_positions = matches.to_numpy().nonzero()[0]
+        for matched_position in matched_positions:
+            normalized_value = normalized_series.iloc[int(matched_position)]
             key = str(normalized_value or "").strip()
             if not key or key in resolved:
                 continue
+            matched = df.iloc[int(matched_position)]
             resolved[key] = matched
         remaining.difference_update(resolved.keys())
 
@@ -1371,25 +1368,19 @@ def _build_derivadas_tree_html(
     if ssa_index is None:
         ssa_index = {}
     target_status = str(data.get("target_status", "") or "").strip().upper()
-    fallback_ssa_index: dict[str, pd.Series] | None = None
     status_by_ssa, existing_tree_ssas = _build_derivadas_link_state(
         window, data, target, ssa_index=ssa_index
     )
 
     def _ssa_link(value, *, status_hint: str | None = None):
-        nonlocal fallback_ssa_index
         safe = _normalize_ssa_relation_value(value)
         if not safe:
             return html_module.escape(str(value))
         resolved_series = ssa_index.get(safe)
-        if resolved_series is None and allow_global_index and fallback_ssa_index is None:
-            fallback_ssa_index = _get_window_ssa_series_index(window)
-        if resolved_series is None and fallback_ssa_index:
-            resolved_series = fallback_ssa_index.get(safe)
         if (
             resolved_series is None
             and allow_global_index
-            and (not fallback_ssa_index or len(fallback_ssa_index) <= DERIVADAS_GRAPH_MAX_DESCENDANTS)
+            and len(ssa_index) <= DERIVADAS_GRAPH_MAX_DESCENDANTS
         ):
             resolved_series = _get_series_for_ssa(window, safe)
         status_code = str(status_hint or "").strip().upper()

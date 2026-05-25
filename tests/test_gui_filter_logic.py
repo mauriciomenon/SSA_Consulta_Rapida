@@ -609,6 +609,26 @@ class TestGUIFilterLogic:
         assert tree_data["children"]
         assert tree_data["descendants"]
 
+    def test_resolve_ssa_series_candidates_uses_positions_with_duplicate_index(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202100135", "202100186", "202100187"],
+                "situacao": ["STE", "SES", "APG"],
+                "descricao_ssa": ["Mae", "Selecionada", "Irma"],
+            },
+            index=[0, 0, 1],
+        )
+        self.window.df_exibido = df
+        self.window.df_completo = df
+
+        resolved = ssa_gui_details._resolve_ssa_series_candidates(
+            self.window,
+            ["202100186"],
+        )
+
+        assert resolved["202100186"]["situacao"] == "SES"
+        assert resolved["202100186"]["descricao_ssa"] == "Selecionada"
+
     def test_details_derivadas_tab_skips_graph_render_without_relations(
         self, monkeypatch
     ):
