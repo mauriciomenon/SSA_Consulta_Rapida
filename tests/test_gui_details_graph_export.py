@@ -47,10 +47,10 @@ class _FakeMenu:
 
 
 class _FakeLogger:
-    warnings: list[tuple[str, object, object]] = []
+    warnings: list[tuple[str, tuple[object, ...], dict[str, object]]] = []
 
-    def warning(self, message, exc, *, exc_info=None):
-        self.warnings.append((message, exc, exc_info))
+    def warning(self, message, *args, **kwargs):
+        self.warnings.append((message, args, kwargs))
 
 
 class _FakePixmap:
