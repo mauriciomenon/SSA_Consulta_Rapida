@@ -1,0 +1,20 @@
+tests/test_gui_filter_logic.py
+  s_9f052ddda3b0ba::t_e69e9f85fb5403 544
+  s_9f052ddda3b0ba::t_cb8639161c715a 458,461-462
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c49fa09c797c892f0548bebea34899716b53e9ac",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
