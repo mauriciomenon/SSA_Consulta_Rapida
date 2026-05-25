@@ -484,6 +484,131 @@ class TestGUIFilterLogic:
         assert "2" in str(self.window.details_tree_text.toPlainText() or "")
         assert "2" in str(self.window.details_graph_label.text() or "")
 
+    def test_details_derivadas_tab_with_relations_skips_global_index(
+        self, monkeypatch
+    ):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": [1, 2],
+                "situacao": ["APV", "STE"],
+                "derivada_de": ["", "1"],
+                "descricao_ssa": ["Teste A", "Teste B"],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_window_ssa_series_index",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("nao deveria montar indice global com relacao")
+            ),
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_collect_derivadas_tree_data",
+            lambda *_args, **_kwargs: {
+                "target": "1",
+                "target_status": "APV",
+                "parents": [],
+                "children": [{"ssa": "2", "situacao": "STE"}],
+                "ancestors": [],
+                "descendants": [{"ssa": "2", "situacao": "STE"}],
+                "family_roots": ["1"],
+                "family_descendants": [
+                    {"ssa": "2", "parent": "1", "situacao": "STE"}
+                ],
+                "related": [],
+                "family_truncated": False,
+            },
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "load_svg_render_dependencies",
+            lambda: object(),
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_build_derivadas_graph_html",
+            lambda _window, data, *, link_color, font_family: (
+                f"<svg><text>{data.get('target', '')}</text></svg>"
+            ),
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "render_graph_svg_pixmap",
+            lambda **kwargs: kwargs["graph_label"].setText(kwargs["graph_svg"]) or True,
+        )
+
+        ctx = self._panel_context()
+        ctx["details_tab_bar"].setCurrentIndex(1)
+        self.window.table_widget.selectRow(0)
+        self.window.update_details_from_selection()
+        QApplication.processEvents()
+
+        assert "1 (APV)" in str(self.window.details_tree_text.toPlainText() or "")
+        assert "2 (STE)" in str(self.window.details_tree_text.toPlainText() or "")
+        assert "1" in str(self.window.details_graph_label.text() or "")
+
+    def test_collect_derivadas_tree_data_uses_snapshot_without_local_edges(
+        self, monkeypatch
+    ):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": [1, 2],
+                "situacao": ["APV", "STE"],
+                "derivada_de": ["", "1"],
+                "descricao_ssa": ["Teste A", "Teste B"],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+
+        monkeypatch.setattr(
+            ssa_gui_details.details_data_provider,
+            "get_db_mtime",
+            lambda _path: 1,
+        )
+        monkeypatch.setattr(
+            ssa_gui_details.details_data_provider,
+            "load_derivadas_snapshot",
+            lambda *_args, **_kwargs: {
+                "ssa": "1",
+                "parents": [],
+                "children": ["2"],
+                "ancestors": [],
+                "descendants": [{"ssa": "2", "min_distance": 1}],
+                "family_roots": ["1"],
+                "family_descendants": [{"ssa": "2", "parent": "1"}],
+                "family_truncated": False,
+            },
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_cached_derivadas_family_edges",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("nao deveria varrer df_completo com snapshot pronto")
+            ),
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_derivadas_for_ssa",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("nao deveria usar fallback local com snapshot pronto")
+            ),
+        )
+
+        tree_data = ssa_gui_details._collect_derivadas_tree_data(self.window, "1")
+
+        assert tree_data["target"] == "1"
+        assert tree_data["children"]
+        assert tree_data["descendants"]
+
     def test_details_derivadas_tab_skips_graph_render_without_relations(
         self, monkeypatch
     ):

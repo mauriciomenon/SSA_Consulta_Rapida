@@ -268,7 +268,7 @@ def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
         return pd.Series(resolved, index=series_obj.index, dtype="object")
     except Exception as exc:
         logger.debug("Falha ao normalizar SSA series; fallback apply: %s", exc)
-        return pd.Series([""] * len(series), index=series.index, dtype="object")
+        return series.astype("object")
 
 
 def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
@@ -760,7 +760,7 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
             link_color=link_color,
             font_family=safe_font_family,
             tree_data_override=tree_data,
-            ssa_index=None,
+            ssa_index={},
         )
         tree_browser.setHtml(tree_html or "Sem derivadas para exibir.")
         if not _has_derivadas_graph_relations(tree_data):
@@ -1129,7 +1129,6 @@ def _get_cached_derivadas_family_edges(window) -> list[tuple[str, str]]:
             return cast(list[tuple[str, str]], cached_edges)
 
         edges: list[tuple[str, str]] = []
-        seen_edges: set[tuple[str, str]] = set()
         number_series = _normalize_ssa_relation_series(source_df["numero_ssa"])
         parent_series = _normalize_ssa_relation_series(source_df["derivada_de"])
         pair_df = pd.DataFrame({"child": number_series, "parent": parent_series})
@@ -1138,16 +1137,11 @@ def _get_cached_derivadas_family_edges(window) -> list[tuple[str, str]]:
             pair_df["child"].astype(str).str.strip().ne("")
             & pair_df["parent"].astype(str).str.strip().ne("")
         ]
-        ordered_pairs = pair_df[["parent", "child"]]
-        for row in ordered_pairs.itertuples(index=False):
-            parent_text = str(row.parent).strip()
-            child_text = str(row.child).strip()
-            if not parent_text or not child_text:
-                continue
-            edge = (parent_text, child_text)
-            if edge not in seen_edges:
-                seen_edges.add(edge)
-                edges.append(edge)
+        ordered_pairs = pair_df[["parent", "child"]].drop_duplicates()
+        edges = [
+            (str(parent).strip(), str(child).strip())
+            for parent, child in ordered_pairs.itertuples(index=False, name=None)
+        ]
         if cache_enabled and has_cache_manager:
             cast(Any, cache_put)(
                 "details_derivadas_family_edges",
@@ -1242,7 +1236,18 @@ def _collect_derivadas_tree_data(window, numero_ssa):
     )
     series_target = _get_series_for_ssa(window, target)
     local_payload = None
-    if not snapshot or not snapshot.get("family_descendants"):
+    snapshot_has_relation_data = bool(
+        snapshot
+        and (
+            snapshot.get("parents")
+            or snapshot.get("children")
+            or snapshot.get("ancestors")
+            or snapshot.get("descendants")
+            or snapshot.get("family_roots")
+            or snapshot.get("family_descendants")
+        )
+    )
+    if not snapshot_has_relation_data:
         local_edges = _get_cached_derivadas_family_edges(window)
         local_payload = details_data_provider.build_local_family_payload(
             target,
@@ -1258,7 +1263,9 @@ def _collect_derivadas_tree_data(window, numero_ssa):
     tree_data = details_derivadas_model.normalize_tree_data(
         target=target,
         snapshot=snapshot,
-        fallback_children=_get_derivadas_for_ssa(window, target),
+        fallback_children=(
+            [] if snapshot_has_relation_data else _get_derivadas_for_ssa(window, target)
+        ),
         direct_parent=_get_direct_parent_for_series(series_target),
         local_payload=local_payload,
         related=related,
