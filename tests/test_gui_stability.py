@@ -14,6 +14,7 @@ import sys
 import time
 import unittest
 from typing import Any, cast
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -31,12 +32,14 @@ from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
 from gui.gui_ssa import QT_AVAILABLE  # noqa: E402
 
 try:
-    from gui.gui_ssa import SSAMainWindow as _SSAMainWindow
-
-    SSAMainWindow = cast(Any, _SSAMainWindow)
-except Exception:
+    from gui.gui_ssa import SSAMainWindow as _SSAMainWindow  # noqa: E402
+except ImportError as exc:
+    if "PyQt" not in str(exc):
+        raise
     SSAMainWindow = cast(Any, None)
     QT_AVAILABLE = False
+else:
+    SSAMainWindow = cast(Any, _SSAMainWindow)
 
 
 class TestGUIStability(unittest.TestCase):
@@ -54,7 +57,11 @@ class TestGUIStability(unittest.TestCase):
         if not QT_AVAILABLE or SSAMainWindow is None:
             self.skipTest("Qt/GUI principal indisponível")
         # Força modo de filtragem síncrono para evitar uso de QThread em ambiente de teste/headless
+        self._ssa_sync_filter_was_set = "SSA_SYNC_FILTER" in os.environ
+        self._ssa_sync_filter_snapshot = os.environ.get("SSA_SYNC_FILTER")
         os.environ["SSA_SYNC_FILTER"] = "1"
+        self._load_patch = patch.object(SSAMainWindow, "load_data", lambda self: None)
+        self._load_patch.start()
         self.window = SSAMainWindow()
         self.window.show()
 
@@ -110,7 +117,14 @@ class TestGUIStability(unittest.TestCase):
 
     def tearDown(self):
         """Limpeza após cada teste."""
-        self.window.close()
+        try:
+            self.window.close()
+        finally:
+            self._load_patch.stop()
+            if self._ssa_sync_filter_was_set:
+                os.environ["SSA_SYNC_FILTER"] = str(self._ssa_sync_filter_snapshot)
+            else:
+                os.environ.pop("SSA_SYNC_FILTER", None)
 
     def test_filtro_travamento_svp(self):
         """Testa especificamente o filtro 'svp' que causava travamento."""

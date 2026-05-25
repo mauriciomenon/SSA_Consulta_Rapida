@@ -159,6 +159,32 @@ class SimpleWidthManager:
                 captured[col_name] = width
         return captured
 
+    def has_user_column_width(
+        self, col_name: str, saved_widths: dict | None = None
+    ) -> bool:
+        return isinstance(saved_widths, dict) and col_name in saved_widths
+
+    def user_column_widths(
+        self, saved_widths: dict | None = None, preference_widths: dict | None = None
+    ) -> dict:
+        widths: dict = {}
+        if isinstance(preference_widths, dict):
+            widths.update(preference_widths)
+        if isinstance(saved_widths, dict):
+            widths.update(saved_widths)
+        return widths
+
+    def max_pixel_width_for(self, col_name: str, saved_widths: dict | None = None) -> int:
+        if self.has_user_column_width(col_name, saved_widths):
+            return 1000
+        return int(self.max_pixel_widths.get(col_name, 1000))
+
+    def clamp_pixel_width(
+        self, col_name: str, width: int, min_px: int, saved_widths: dict | None = None
+    ) -> int:
+        max_px = self.max_pixel_width_for(col_name, saved_widths)
+        return max(int(min_px), min(int(width), max_px))
+
     def restore_column_widths(
         self,
         table_widget,
@@ -176,7 +202,7 @@ class SimpleWidthManager:
             if col_name not in current_cols:
                 continue
             idx = current_cols.index(col_name)
-            col_max = int(self.max_pixel_widths.get(col_name, 1000))
+            col_max = self.max_pixel_width_for(col_name, saved_widths)
             try:
                 width_int = int(width)
             except Exception as exc:

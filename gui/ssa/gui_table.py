@@ -813,6 +813,27 @@ def _render_empty_page_table(window, header, *, update_details):
         ssa_gui_details._update_details_from_series(window, None)
 
 
+def _resolved_user_column_widths(window, width_manager) -> dict:
+    if width_manager is None:
+        return {}
+    return width_manager.user_column_widths(
+        getattr(window, "_saved_gui_column_widths", {}),
+        GUI_MAIN_PREFERENCES.get("column_widths", {}),
+    )
+
+
+def _target_table_column_width(
+    width_manager, col_name: str, desired_px: int, min_px: int, user_widths: dict
+) -> int:
+    if width_manager is None:
+        return max(int(min_px), int(desired_px))
+    return int(width_manager.clamp_pixel_width(col_name, desired_px, min_px, user_widths))
+
+
+def _minimum_table_column_width(col_name: str, header_min_px: int) -> int:
+    return max(24 if str(col_name) == "#" else 30, int(header_min_px))
+
+
 def _apply_rendered_table_widths(window, display_df):
     cols_sig = tuple(display_df.columns)
     try:
@@ -833,6 +854,8 @@ def _apply_rendered_table_widths(window, display_df):
         header_min_px = int(window.table_widget.horizontalHeader().minimumSectionSize())
     except Exception:
         header_min_px = 0
+    width_manager = getattr(window, "width_manager", None)
+    user_widths = _resolved_user_column_widths(window, width_manager)
     for column_index, col_name in enumerate(display_df.columns):
         px = table_widths.resolve_column_width(
             window,
@@ -841,17 +864,10 @@ def _apply_rendered_table_widths(window, display_df):
             include_preferences=True,
         )
 
-        max_px = 1000
-        width_manager = getattr(window, "width_manager", None)
-        max_map = getattr(width_manager, "max_pixel_widths", None)
-        if isinstance(max_map, dict):
-            try:
-                max_px = int(max_map.get(col_name, max_px))
-            except Exception:
-                max_px = 1000
-        min_px = max(24 if str(col_name) == "#" else 30, header_min_px)
+        min_px = _minimum_table_column_width(col_name, header_min_px)
         window.table_widget.setColumnWidth(
-            column_index, max(min_px, min(int(px), max_px))
+            column_index,
+            _target_table_column_width(width_manager, col_name, int(px), min_px, user_widths),
         )
 
 
@@ -1010,6 +1026,8 @@ def _can_skip_reused_render_finalize(window, display_df) -> bool:
         header_min_px = int(window.table_widget.horizontalHeader().minimumSectionSize())
     except Exception:
         header_min_px = 0
+    width_manager = getattr(window, "width_manager", None)
+    user_widths = _resolved_user_column_widths(window, width_manager)
     for column_index, col_name in enumerate(display_df.columns):
         try:
             desired_px = table_widths.resolve_column_width(
@@ -1018,13 +1036,10 @@ def _can_skip_reused_render_finalize(window, display_df) -> bool:
                 include_runtime=True,
                 include_preferences=True,
             )
-            max_px = 1000
-            width_manager = getattr(window, "width_manager", None)
-            max_map = getattr(width_manager, "max_pixel_widths", None)
-            if isinstance(max_map, dict):
-                max_px = int(max_map.get(col_name, max_px))
-            min_px = max(24 if str(col_name) == "#" else 30, header_min_px)
-            target_px = max(min_px, min(int(desired_px), max_px))
+            min_px = _minimum_table_column_width(col_name, header_min_px)
+            target_px = _target_table_column_width(
+                width_manager, col_name, int(desired_px), min_px, user_widths
+            )
             if int(window.table_widget.columnWidth(column_index)) != target_px:
                 return False
         except Exception as exc:

@@ -73,6 +73,8 @@ class TestGUIFilterLogic:
         cls.app = QApplication.instance() or QApplication([])
 
     def setup_method(self):
+        self._ssa_sync_filter_was_set = "SSA_SYNC_FILTER" in os.environ
+        self._ssa_sync_filter_snapshot = os.environ.get("SSA_SYNC_FILTER")
         os.environ["SSA_SYNC_FILTER"] = "1"
         self._gui_main_preferences_snapshot = copy.deepcopy(
             gui_ssa.GUI_MAIN_PREFERENCES
@@ -194,6 +196,10 @@ class TestGUIFilterLogic:
             gui_ssa.MAX_GLOBAL_RETIRED_RESCAN_WORKERS = (
                 self._retired_worker_globals_snapshot["max_rescan_workers"]
             )
+            if self._ssa_sync_filter_was_set:
+                os.environ["SSA_SYNC_FILTER"] = str(self._ssa_sync_filter_snapshot)
+            else:
+                os.environ.pop("SSA_SYNC_FILTER", None)
 
     def _extract_visible_ssa(self):
         return list(self.window.df_exibido["numero_ssa"])
