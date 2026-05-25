@@ -563,15 +563,11 @@ def _get_details_render_signature(window, series):
 def update_details_from_selection(window):
     """Atualiza o painel de detalhes com base na linha selecionada."""
     if window.table_widget.rowCount() == 0:
-        window._details_current_ssa = None
-        window.details_text.setProperty("details_render_signature", None)
-        window.details_text.clear()
+        _schedule_details_update(window, None)
         return
     selected_rows = window.table_widget.selectionModel().selectedRows()
     if not selected_rows:
-        window._details_current_ssa = None
-        window.details_text.setProperty("details_render_signature", None)
-        window.details_text.clear()
+        _schedule_details_update(window, None)
         return
     row = selected_rows[0].row()
     series = window._get_series_from_row(row)
@@ -747,33 +743,6 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
             roles.get("accent") or roles.get("panel_text") or roles.get("label_color")
         )
         safe_font_family = font_family or DETAILS_CONFIG.mono_font_family
-        if not _has_derivadas_relation_hint(window, series, normalized):
-            tree_data = details_derivadas_model.normalize_tree_data(
-                target=normalized,
-                snapshot=None,
-                fallback_children=[],
-                direct_parent="",
-                local_payload=None,
-                related=[],
-                target_status="",
-            )
-            tree_html = _build_derivadas_tree_html(
-                window,
-                normalized,
-                link_color=link_color,
-                font_family=safe_font_family,
-                tree_data_override=tree_data,
-                ssa_index={},
-            )
-            tree_browser.setHtml(tree_html or "Sem derivadas para exibir.")
-            tree_browser.setVisible(True)
-            _set_graph_navigation_hitboxes(graph_browser, [])
-            if hasattr(graph_browser, "setPixmap"):
-                graph_browser.clear()
-            graph_browser.setText("")
-            graph_browser.setVisible(False)
-            return
-
         tree_data = _collect_derivadas_tree_data(window, normalized)
         tree_html = _build_derivadas_tree_html(
             window,
@@ -826,23 +795,6 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
     except Exception as exc:
         logger.debug("Falha ao atualizar painel principal de derivadas: %s", exc)
         _clear_main_details_derivadas_panel(window)
-
-
-def _has_derivadas_relation_hint(window, series, target: str) -> bool:
-    try:
-        if _get_direct_parent_for_series(series):
-            return True
-        source_df = getattr(window, "df_completo", None)
-        if not isinstance(source_df, pd.DataFrame) or "derivada_de" not in source_df.columns:
-            return False
-        target_candidates: set[object] = {target}
-        if target.isdigit():
-            target_candidates.add(int(target))
-            target_candidates.add(float(target))
-        return bool(source_df["derivada_de"].isin(target_candidates).any())
-    except Exception as exc:
-        logger.debug("Falha ao testar relacao direta de derivadas para %s: %s", target, exc)
-        return False
 
 
 def _has_derivadas_graph_relations(tree_data: Mapping[str, object]) -> bool:
@@ -1174,7 +1126,7 @@ def _on_details_anchor_clicked(window, url):
         return
     target = target.strip().lstrip("/")
     if target:
-        _jump_to_ssa(window, target, _allow_refilter=False)
+        _jump_to_ssa(window, target)
 
 
 def _resolve_current_db_path():
@@ -1214,22 +1166,25 @@ def _get_cached_derivadas_family_edges(window) -> list[tuple[str, str]]:
 
         number_series = _get_cached_relation_series(window, source_df, "numero_ssa")
         parent_series = _get_cached_relation_series(window, source_df, "derivada_de")
-        edges: list[tuple[str, str]] = []
-        seen_pairs: set[tuple[str, str]] = set()
-        for child_raw, parent_raw in zip(
-            number_series.to_numpy(copy=False),
-            parent_series.to_numpy(copy=False),
-            strict=False,
-        ):
-            child = str(child_raw or "").strip()
-            parent = str(parent_raw or "").strip()
-            if not child or not parent:
-                continue
-            pair = (parent, child)
-            if pair in seen_pairs:
-                continue
-            seen_pairs.add(pair)
-            edges.append(pair)
+        edge_frame = pd.DataFrame(
+            {
+                "parent": parent_series.to_numpy(copy=False),
+                "child": number_series.to_numpy(copy=False),
+            }
+        )
+        valid_edges = edge_frame[
+            edge_frame["parent"].ne("") & edge_frame["child"].ne("")
+        ].drop_duplicates(["parent", "child"], ignore_index=True)
+        edges = cast(
+            list[tuple[str, str]],
+            list(
+                zip(
+                    valid_edges["parent"].to_numpy(copy=False),
+                    valid_edges["child"].to_numpy(copy=False),
+                    strict=True,
+                )
+            ),
+        )
         if cache_enabled and has_cache_manager:
             cast(Any, cache_put)(
                 "details_derivadas_family_edges",
@@ -1464,10 +1419,15 @@ def _build_derivadas_tree_html(
     )
 
     def _ssa_link(value, *, status_hint: str | None = None):
-        safe = _normalize_ssa_relation_value(value)
+        safe = _normalize_ssa_relation_value(value) or _normalize_ssa_value(
+            window, value
+        )
         if not safe:
             return html_module.escape(str(value))
-        resolved_series = ssa_index.get(safe)
+        lookup_key = _normalize_ssa_value(window, value) or safe
+        resolved_series = ssa_index.get(lookup_key)
+        if resolved_series is None and lookup_key != safe:
+            resolved_series = ssa_index.get(safe)
         if (
             resolved_series is None
             and allow_global_index

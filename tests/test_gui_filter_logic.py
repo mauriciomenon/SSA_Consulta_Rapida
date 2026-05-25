@@ -38,6 +38,7 @@ from gui.gui_config import DEFAULT_COLUMN_WIDTHS  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
+from gui.ssa import details_derivadas_model  # noqa: E402
 from gui.ssa import filter_aliases  # noqa: E402
 from gui.ssa import gui_filters_advanced_layout as advanced_layout  # noqa: E402
 from gui.ssa import gui_filters_multiselect_menu as advanced_menu  # noqa: E402
@@ -682,8 +683,14 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(
             ssa_gui_details,
             "_collect_derivadas_tree_data",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                AssertionError("nao deveria coletar arvore pesada sem relacoes")
+            lambda *_args, **_kwargs: details_derivadas_model.normalize_tree_data(
+                target="1",
+                snapshot=None,
+                fallback_children=[],
+                direct_parent="",
+                local_payload=None,
+                related=[],
+                target_status="",
             ),
         )
         monkeypatch.setattr(
@@ -4669,6 +4676,33 @@ class TestGUIFilterLogic:
         assert ("202600101", "202600102") in second_edges
         assert ("202600100", "202600102") not in second_edges
 
+    def test_derivadas_family_edges_drop_empty_and_duplicate_pairs(self):
+        family_df = pd.DataFrame(
+            {
+                "numero_ssa": [
+                    "202600100",
+                    "202600101",
+                    "202600101",
+                    "",
+                    "202600102",
+                ],
+                "derivada_de": [
+                    "",
+                    "202600100",
+                    "202600100",
+                    "202600100",
+                    "",
+                ],
+            }
+        )
+        self.window.df_completo = family_df
+        self.window._data_uuid = "stable-token"
+        self.window._data_revision = 1
+
+        edges = ssa_gui_details._get_cached_derivadas_family_edges(self.window)
+
+        assert edges == [("202600100", "202600101")]
+
     def test_details_ssa_index_cache_invalidates_on_revision_change(self):
         details_df = pd.DataFrame(
             {
@@ -5104,7 +5138,7 @@ class TestGUIFilterLogic:
             pos=QPoint(20, 20),
         )
 
-        assert calls == [("202100186", False)]
+        assert calls == [("202100186", True)]
 
     def test_build_derivadas_graph_html_sanitizes_font_family(self):
         html = ssa_gui_details._build_derivadas_graph_html(
@@ -5807,7 +5841,7 @@ class TestGUIFilterLogic:
         jump_mock.assert_called_once()
         assert jump_mock.call_args.args[0] is self.window
         assert jump_mock.call_args.args[1] == "202500777"
-        assert jump_mock.call_args.kwargs == {"_allow_refilter": False}
+        assert jump_mock.call_args.kwargs == {}
 
     def test_details_anchor_ssa_updates_details_without_refilter(self):
         df = pd.DataFrame(
@@ -5956,6 +5990,24 @@ class TestGUIFilterLogic:
         assert self.window._details_current_ssa == initial_ssa
         assert self.window.details_text.toHtml() != ""
         assert self.window.details_text.toHtml() != initial_html
+
+    def test_update_details_from_selection_clears_derivadas_when_selection_clears(self):
+        self.window.display_current_page(1)
+        self.window.table_widget.selectRow(0)
+        QApplication.processEvents()
+        self.window._details_current_series_for_derivadas = self.base_df.iloc[0]
+        self.window.details_tree_text.setHtml("conteudo antigo")
+        self.window.details_graph_label.setText("grafo antigo")
+
+        self.window.table_widget.clearSelection()
+        self.window.update_details_from_selection()
+        QApplication.processEvents()
+
+        assert self.window._details_current_ssa is None
+        assert self.window._details_current_series_for_derivadas is None
+        assert self.window.details_text.toPlainText().strip() == ""
+        assert self.window.details_tree_text.toPlainText().strip() == ""
+        assert str(self.window.details_graph_label.text() or "") == ""
 
     def test_jump_to_ssa_updates_details_before_deferred_selection(self, monkeypatch):
         rows = 220

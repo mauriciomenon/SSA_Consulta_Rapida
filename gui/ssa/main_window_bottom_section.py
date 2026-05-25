@@ -61,7 +61,7 @@ class DerivadasGraphLabel(QLabel):
         if ssa:
             jump = getattr(self._window, "_jump_to_ssa", None)
             if callable(jump):
-                jump(ssa, _allow_refilter=False)
+                jump(ssa)
                 return
         super().mousePressEvent(ev)
 
@@ -209,8 +209,10 @@ def _build_details_panel(window: Any) -> tuple[QGroupBox, dict[str, Any]]:
             details_title.setText("Derivadas" if active_index == 1 else "Detalhes")
             if active_index == 1:
                 refresh_derivadas = getattr(
-                    window, "_refresh_main_details_derivadas_panel", None
-                )
+                    window,
+                    "_refresh_main_details_derivadas_panel",
+                    None,
+                ) or getattr(window, "refresh_main_details_derivadas_panel", None)
                 if callable(refresh_derivadas):
                     refresh_derivadas()
         except Exception as exc:
