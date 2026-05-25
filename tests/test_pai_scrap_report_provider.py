@@ -90,6 +90,29 @@ def test_build_pai_scrap_report_command_uses_sweep_run_for_executadas(
     assert fallback_xlsx_path == output_dir / "pai_sam_api.xlsx"
 
 
+def test_build_pai_scrap_report_command_adds_include_details_for_consulta(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    command, _execution, _manifest_path, _fallback_xlsx_path = (
+        build_pai_scrap_report_command(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                output_dir=output_dir,
+                scrap_report_root=scrap_root,
+                include_details=True,
+            )
+        )
+    )
+
+    assert "sam-api-flow" in command
+    assert "--include-details" in command
+
+
 def test_build_pai_scrap_report_command_requires_username_for_secure_sweep(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

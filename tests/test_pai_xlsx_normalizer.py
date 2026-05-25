@@ -8,6 +8,7 @@ import pytest
 
 from core import pai_xlsx_normalizer
 from core.pai_xlsx_normalizer import _replace_xlsx_with_retry
+from core.pai_xlsx_normalizer import build_normalized_pai_dataframe
 from core.pai_xlsx_normalizer import normalize_pai_xlsx_for_ssa_import
 
 
@@ -17,6 +18,21 @@ def test_normalize_pai_xlsx_reports_read_failure(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="Falha ao ler XLSX SAM API"):
         normalize_pai_xlsx_for_ssa_import(source, tmp_path / "out.xlsx")
+
+
+def test_build_normalized_pai_dataframe_maps_situation_desc_to_situacao() -> None:
+    normalized = build_normalized_pai_dataframe(
+        pai_xlsx_normalizer.pd.DataFrame(
+            {
+                "ssa_number": [202607611],
+                "description": ["Teste"],
+                "issue_datetime": ["2026-05-22T16:57:00Z"],
+                "situation_desc": ["APL - AGUARDANDO PLANEJAMENTO"],
+            }
+        )
+    )
+
+    assert normalized.loc[0, "situacao"] == "APL - AGUARDANDO PLANEJAMENTO"
 
 
 def test_normalize_pai_xlsx_reports_bad_zip_read_failure(

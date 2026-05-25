@@ -102,6 +102,7 @@ def test_pai_api_worker_refreshes_each_executor_sector(
         str(tmp_path / "pai" / "MEL4"),
     ]
     assert all(request.ca_file == tmp_path / "ca.pem" for request in captured["requests"])
+    assert all(request.include_details is True for request in captured["requests"])
     assert all(request.username == "sam.user" for request in captured["requests"])
     assert all(
         request.secret_service == "scrap_report.sam"
@@ -171,6 +172,7 @@ def test_pai_api_worker_refreshes_executadas_without_ca_validation(
     assert len(captured["requests"]) == 1
     request = captured["requests"][0]
     assert request.data_scope == "executadas"
+    assert request.include_details is False
     assert request.ca_file is None
     assert request.username == "sam.user"
     assert request.secure_required is True

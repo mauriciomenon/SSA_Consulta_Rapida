@@ -165,6 +165,7 @@ class PaiApiRefreshWorker(QThread):
                 base_request,
                 data_scope=data_scope,
                 report_kind=report_kind,
+                include_details=data_scope in PAI_API_REST_DATA_SCOPES,
             )
             ca_file: Path | None = None
             if data_scope in PAI_API_REST_DATA_SCOPES:
