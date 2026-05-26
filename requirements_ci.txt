@@ -1,7 +1,7 @@
 # Dependencias de CI/CD (sem runtime)
 pytest>=9.0.3
 flake8>=7.3.0
-isort>=5.13.2
+isort>=8.0.1
 black>=26.3.1
 mypy>=2.1.0
 pytest-cov>=7.1.0
