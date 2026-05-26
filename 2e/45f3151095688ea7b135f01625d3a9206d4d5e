@@ -1,0 +1,31 @@
+gui/gui_ssa.py
+  s_9f052ddda3b0ba::t_421aca77ba34f4 1028,1779-1781,1793-1795
+  s_9f052ddda3b0ba::t_abc796858a5cd5 4248-4249
+gui/launcher.py
+  s_9f052ddda3b0ba::t_ef88dff686698a 55-56
+tests/test_load_data_skips_modal_loader_missing_in_pytest.py
+  s_9f052ddda3b0ba::t_8e90d97c66a0cd 13-15,19,23,27,45-56,111,118-121,143,150-153
+  s_9f052ddda3b0ba::t_01d84648490cf0 57-95,114,146,174,179,207,212
+  s_9f052ddda3b0ba::t_ca2ff41992f11c 6,176
+  s_9f052ddda3b0ba::t_0e854ded27b670 35-44,155-173,175,177-178,180-206,208-211
+tests/test_main_gui_fallback.py
+  s_9f052ddda3b0ba::t_0e8b211d161fd6 121-128,146,172-179,197
+  s_9f052ddda3b0ba::t_1c37772e60bd10 139-145,147,189-195,198
+  s_9f052ddda3b0ba::t_21eb4f8ed5c40d 7,103-120,129-138,148-171,180-188,196,199-204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "2e45f3151095688ea7b135f01625d3a9206d4d5e",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
