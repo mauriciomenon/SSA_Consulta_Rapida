@@ -1025,6 +1025,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._adv_sector_handler_running = False
         self.quick_situacao_buttons = {}
         self.quick_situacao_values = []
+        self._startup_show_pending = True
         self.responsavel_materialization_state = ResponsavelMaterializationState(
             all_prefixes=set(RESPONSAVEL_FILTER_PREFIXES),
             dirty_prefixes=set(RESPONSAVEL_FILTER_PREFIXES),
@@ -1775,6 +1776,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.debug(
                 "Falha ao atualizar combo rapido de setor executor apos carga: %s", exc
             )
+        if bool(getattr(self, "_startup_show_pending", False)) and not self.isVisible():
+            self._startup_show_pending = False
+            self.show()
 
     def on_load_error(self, error_msg: str, request_id: int | None = None):
         ssa_gui_workers.on_load_error(
@@ -1786,6 +1790,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             **_data_loader_retention_kwargs(),
             sip_module=sip,
         )
+        if bool(getattr(self, "_startup_show_pending", False)) and not self.isVisible():
+            self._startup_show_pending = False
+            self.show()
 
     def on_load_finished(self, worker=None, request_id: int | None = None):
         ssa_gui_workers.on_load_finished(
@@ -4238,5 +4245,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = SSAMainWindow()
-    window.show()
+    if not bool(getattr(window, "_startup_show_pending", False)):
+        window.show()
     sys.exit(app.exec())

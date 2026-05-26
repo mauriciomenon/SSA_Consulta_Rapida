@@ -52,7 +52,8 @@ def launch_gui(
         except (OSError, RuntimeError) as exc:
             logger.debug("Falha ao configurar icone da aplicacao: %s", exc)
         window = SSAMainWindow()
-        window.show()
+        if not bool(getattr(window, "_startup_show_pending", False)):
+            window.show()
         app.exec()
     except (OSError, RuntimeError) as exc:
         raise GuiOperationalError(str(exc)) from exc

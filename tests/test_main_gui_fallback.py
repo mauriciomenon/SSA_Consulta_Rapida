@@ -4,6 +4,7 @@ import builtins
 import os
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -99,3 +100,105 @@ with pytest.raises(RuntimeError, match="GUI unavailable"):
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_launch_gui_skips_show_when_startup_load_is_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gui import launcher
+    from PyQt6 import QtGui, QtWidgets
+
+    show_calls = {"count": 0}
+    exec_calls = {"count": 0}
+
+    class FakeWindow:
+        def __init__(self) -> None:
+            self._startup_show_pending = True
+
+        def show(self) -> None:
+            show_calls["count"] += 1
+
+    class FakeQApplication:
+        @staticmethod
+        def setWindowIcon(_icon) -> None:  # noqa: ANN001
+            return None
+
+        def __init__(self, _argv) -> None:  # noqa: ANN001
+            return None
+
+        def setApplicationName(self, _value: str) -> None:
+            return None
+
+        def setApplicationDisplayName(self, _value: str) -> None:
+            return None
+
+        def exec(self) -> int:
+            exec_calls["count"] += 1
+            return 0
+
+    class FakeIcon:
+        def __init__(self, _path: str) -> None:
+            return None
+
+        def isNull(self) -> bool:
+            return True
+
+    monkeypatch.setattr(QtWidgets, "QApplication", FakeQApplication)
+    monkeypatch.setattr(QtGui, "QIcon", FakeIcon)
+    monkeypatch.setitem(sys.modules, "gui.gui_ssa", SimpleNamespace(SSAMainWindow=FakeWindow))
+
+    launcher.launch_gui(os.getcwd(), ["app"], launcher.logging.getLogger("test"))
+
+    assert show_calls["count"] == 0
+    assert exec_calls["count"] == 1
+
+
+def test_launch_gui_shows_window_when_startup_load_is_not_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gui import launcher
+    from PyQt6 import QtGui, QtWidgets
+
+    show_calls = {"count": 0}
+    exec_calls = {"count": 0}
+
+    class FakeWindow:
+        def __init__(self) -> None:
+            self._startup_show_pending = False
+
+        def show(self) -> None:
+            show_calls["count"] += 1
+
+    class FakeQApplication:
+        @staticmethod
+        def setWindowIcon(_icon) -> None:  # noqa: ANN001
+            return None
+
+        def __init__(self, _argv) -> None:  # noqa: ANN001
+            return None
+
+        def setApplicationName(self, _value: str) -> None:
+            return None
+
+        def setApplicationDisplayName(self, _value: str) -> None:
+            return None
+
+        def exec(self) -> int:
+            exec_calls["count"] += 1
+            return 0
+
+    class FakeIcon:
+        def __init__(self, _path: str) -> None:
+            return None
+
+        def isNull(self) -> bool:
+            return True
+
+    monkeypatch.setattr(QtWidgets, "QApplication", FakeQApplication)
+    monkeypatch.setattr(QtGui, "QIcon", FakeIcon)
+    monkeypatch.setitem(sys.modules, "gui.gui_ssa", SimpleNamespace(SSAMainWindow=FakeWindow))
+
+    launcher.launch_gui(os.getcwd(), ["app"], launcher.logging.getLogger("test"))
+
+    assert show_calls["count"] == 1
+    assert exec_calls["count"] == 1
