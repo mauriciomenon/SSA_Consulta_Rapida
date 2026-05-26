@@ -933,7 +933,7 @@ class TestGUIFilterLogic:
         )
         assert "202600001" in str(self.window.details_graph_label.text() or "")
 
-    def test_collect_derivadas_tree_data_uses_snapshot_without_local_edges(
+    def test_collect_derivadas_tree_data_prefers_local_family_before_snapshot(
         self, monkeypatch
     ):
         df = pd.DataFrame(
@@ -955,29 +955,20 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(
             ssa_gui_details.details_data_provider,
             "load_derivadas_snapshot",
-            lambda *_args, **_kwargs: {
-                "ssa": "1",
-                "parents": [],
-                "children": ["2"],
-                "ancestors": [],
-                "descendants": [{"ssa": "2", "min_distance": 1}],
-                "family_roots": ["1"],
-                "family_descendants": [{"ssa": "2", "parent": "1"}],
-                "family_truncated": False,
-            },
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("nao deveria consultar snapshot com familia local pronta")
+            ),
         )
         monkeypatch.setattr(
             ssa_gui_details,
             "_get_cached_derivadas_family_edges",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                AssertionError("nao deveria varrer df_completo com snapshot pronto")
-            ),
+            lambda *_args, **_kwargs: [("1", "2")],
         )
         monkeypatch.setattr(
             ssa_gui_details,
             "_get_derivadas_for_ssa",
             lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                AssertionError("nao deveria usar fallback local com snapshot pronto")
+                AssertionError("nao deveria usar fallback sem familia local")
             ),
         )
 
@@ -5975,8 +5966,34 @@ class TestGUIFilterLogic:
         html = ssa_gui_details._build_derivadas_tree_html(self.window, "202602147")
 
         assert '<a href="ssa-panel:202602147"' in html
-        assert '<a href="ssa-panel:202500777"' in html
         assert "202500777" in html
+        assert 'href="ssa-panel:202500777"' not in html
+
+    def test_get_related_ssas_for_series_falls_back_when_mapping_is_empty(self):
+        series = self.base_df.iloc[0].copy()
+        series["numero_ssa_relacionada_1"] = "202500777"
+        series["situacao_relacionada_1"] = ""
+
+        with patch(
+            "gui.ssa.gui_details._get_series_for_ssa",
+            side_effect=lambda _window, numero: {"situacao": "STE"}
+            if str(numero) == "202500777"
+            else None,
+        ):
+            related = ssa_gui_details._get_related_ssas_for_series(
+                self.window,
+                series,
+                ssa_index={},
+            )
+
+        assert related == [
+            {
+                "ssa": "202500777",
+                "situacao": "STE",
+                "relacao": "",
+                "exists": "1",
+            }
+        ]
 
     def test_collect_derivadas_tree_data_uses_direct_parent_fallback_without_db(
         self, monkeypatch

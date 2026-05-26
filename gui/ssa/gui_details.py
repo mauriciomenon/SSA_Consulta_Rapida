@@ -186,7 +186,7 @@ def _render_ssa_navigation_link(
         label = f"{normalized} ({status_code})"
     escaped_label = html_module.escape(label)
     href = _build_ssa_href(normalized, panel_mode=panel_mode)
-    if not href:
+    if not href or not exists:
         return escaped_label
     return (
         f'<a href="{href}" style="color:{link_color}; '
@@ -298,13 +298,7 @@ def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
     if not callable(cache_get) or not callable(cache_put):
         return _normalize_ssa_series(window, df[column_name])
     data_revision = getattr(window, "_data_revision", None)
-    if data_uuid is None and data_revision is None:
-        return _normalize_ssa_series(window, df[column_name])
-    frame_token = (
-        _get_details_frame_fingerprint(window, df)
-        if data_uuid is not None
-        else ("runtime", id(df), tuple(getattr(df, "shape", (0, 0))), data_revision)
-    )
+    frame_token = _get_details_frame_fingerprint(window, df)
     key = (
         frame_token,
         str(column_name),
@@ -337,13 +331,7 @@ def _get_cached_relation_series(window, df, column_name: str) -> pd.Series:
     if not callable(cache_get) or not callable(cache_put):
         return _normalize_ssa_relation_series(df[column_name])
     data_revision = getattr(window, "_data_revision", None)
-    if data_uuid is None and data_revision is None:
-        return _normalize_ssa_relation_series(df[column_name])
-    frame_token = (
-        _get_details_frame_fingerprint(window, df)
-        if data_uuid is not None
-        else ("runtime", id(df), tuple(getattr(df, "shape", (0, 0))), data_revision)
-    )
+    frame_token = _get_details_frame_fingerprint(window, df)
     key = (
         frame_token,
         str(column_name),
@@ -389,7 +377,7 @@ def _get_df_ssa_series_index(window, df) -> Mapping[str, pd.Series]:
     lookup: Mapping[str, pd.Series] = {}
     normalized_series = _get_cached_normalized_series(window, df, "numero_ssa")
     try:
-        normalized_text_series = normalized_series.astype("string").fillna("").str.strip()
+        normalized_text_series = normalized_series.fillna("")
         first_value_mask = normalized_text_series.ne("") & ~normalized_text_series.duplicated()
         first_positions = first_value_mask.to_numpy().nonzero()[0]
         first_values = normalized_text_series.iloc[first_positions]
@@ -538,6 +526,8 @@ def _get_details_frame_fingerprint(window, df) -> str:
     if isinstance(cached_value, str) and cached_value:
         return cached_value
     fingerprint = repr(token)
+    if len(cache) >= SSA_NORM_CACHE_MAX_ENTRIES:
+        cache.pop(next(iter(cache)))
     cache[token] = fingerprint
     setattr(window, "_details_frame_fingerprint_cache", cache)
     return fingerprint
@@ -969,7 +959,7 @@ def _get_related_ssas_for_series(
         resolved_series = None
         if isinstance(ssa_index, Mapping):
             resolved_series = ssa_index.get(normalized)
-        if resolved_series is None and ssa_index is None:
+        if resolved_series is None:
             resolved_series = _get_series_for_ssa(window, normalized)
         if not status_hint and resolved_series is not None:
             try:
@@ -1026,7 +1016,7 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
         return
     try:
         pos = None
-        pos, _matched_series = _find_series_position_by_ssa(
+        pos, matched_series = _find_series_position_by_ssa(
             window, getattr(window, "df_exibido", None), num_norm
         )
         if pos is None and _allow_refilter:
@@ -1054,7 +1044,7 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
                     "request_id": request_id,
                 }
                 return
-            pos, _matched_series = _find_series_position_by_ssa(
+            pos, matched_series = _find_series_position_by_ssa(
                 window, getattr(window, "df_exibido", None), num_norm
             )
         if pos is None and not _allow_refilter:
@@ -1074,7 +1064,7 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
             return
         paginator = getattr(window, "paginator", None)
         if paginator is None:
-            _update_details_from_series(window, _matched_series)
+            _update_details_from_series(window, matched_series)
             return
         page_size = int(getattr(paginator, "page_size", 50))
         if page_size <= 0:
@@ -1093,14 +1083,7 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
             )
         window.display_current_page(page, update_details=False)
         row_in_page = int(pos % page_size)
-        target_series = None
-        try:
-            target_series = window.df_exibido.iloc[int(pos)]
-        except Exception as exc:
-            logger.debug(
-                "Falha ao resolver serie alvo no salto para SSA %s: %s", num_norm, exc
-            )
-        _update_details_from_series(window, target_series)
+        _update_details_from_series(window, matched_series)
 
         def _select_target_row_later():
             try:
@@ -1235,27 +1218,21 @@ def _get_cached_derivadas_family_edges(window) -> list[tuple[str, str]]:
         if isinstance(cached_edges, list):
             return cast(list[tuple[str, str]], cached_edges)
 
-        number_series = _get_cached_relation_series(window, source_df, "numero_ssa")
+        number_series = _get_cached_normalized_series(window, source_df, "numero_ssa")
         parent_series = _get_cached_relation_series(window, source_df, "derivada_de")
-        edge_frame = pd.DataFrame(
-            {
-                "parent": parent_series.to_numpy(copy=False),
-                "child": number_series.to_numpy(copy=False),
-            }
-        )
-        valid_edges = edge_frame[
-            edge_frame["parent"].ne("") & edge_frame["child"].ne("")
-        ].drop_duplicates(["parent", "child"], ignore_index=True)
-        edges = cast(
-            list[tuple[str, str]],
-            list(
-                zip(
-                    valid_edges["parent"].to_numpy(copy=False),
-                    valid_edges["child"].to_numpy(copy=False),
-                    strict=True,
-                )
-            ),
-        )
+        valid_mask = parent_series.ne("") & number_series.ne("")
+        if bool(valid_mask.any()):
+            valid_pairs = zip(
+                parent_series.loc[valid_mask].to_numpy(copy=False),
+                number_series.loc[valid_mask].to_numpy(copy=False),
+                strict=True,
+            )
+            edges = cast(
+                list[tuple[str, str]],
+                list(dict.fromkeys(valid_pairs)),
+            )
+        else:
+            edges = []
         if cache_enabled and has_cache_manager:
             cast(Any, cache_put)(
                 "details_derivadas_family_edges",
@@ -1348,31 +1325,43 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         if isinstance(cached, dict):
             return cached
 
-    snapshot = details_data_provider.load_derivadas_snapshot(
-        db_path,
-        target,
-        max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
-    )
-    series_target = _get_series_for_ssa(window, target)
     local_payload = None
-    snapshot_has_relation_data = bool(
-        snapshot
-        and (
-            snapshot.get("parents")
-            or snapshot.get("children")
-            or snapshot.get("ancestors")
-            or snapshot.get("descendants")
-            or snapshot.get("family_roots")
-            or snapshot.get("family_descendants")
-        )
-    )
-    if not snapshot_has_relation_data:
-        local_edges = _get_cached_derivadas_family_edges(window)
+    local_edges = _get_cached_derivadas_family_edges(window)
+    if local_edges:
         local_payload = details_data_provider.build_local_family_payload(
             target,
             local_edges,
             max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
         )
+    local_has_relation_data = bool(
+        local_payload
+        and (
+            local_payload.get("parents")
+            or local_payload.get("children")
+            or local_payload.get("family_roots")
+            or local_payload.get("family_descendants")
+        )
+    )
+    snapshot = None
+    snapshot_has_relation_data = False
+    if not local_has_relation_data:
+        snapshot = details_data_provider.load_derivadas_snapshot(
+            db_path,
+            target,
+            max_nodes=DERIVADAS_GRAPH_MAX_DESCENDANTS,
+        )
+        snapshot_has_relation_data = bool(
+            snapshot
+            and (
+                snapshot.get("parents")
+                or snapshot.get("children")
+                or snapshot.get("ancestors")
+                or snapshot.get("descendants")
+                or snapshot.get("family_roots")
+                or snapshot.get("family_descendants")
+            )
+        )
+    series_target = _get_series_for_ssa(window, target)
     related = _get_related_ssas_for_series(window, series_target)
     try:
         target_status = get_status_code(series_target.get("situacao"))
@@ -1383,7 +1372,9 @@ def _collect_derivadas_tree_data(window, numero_ssa):
         target=target,
         snapshot=snapshot,
         fallback_children=(
-            [] if snapshot_has_relation_data else _get_derivadas_for_ssa(window, target)
+            []
+            if snapshot_has_relation_data or local_has_relation_data
+            else _get_derivadas_for_ssa(window, target)
         ),
         direct_parent=_get_direct_parent_for_series(series_target),
         local_payload=local_payload,
