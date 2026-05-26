@@ -16,7 +16,7 @@ PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY = "auto_refresh_interval_minutes"
 PAI_API_LIMIT_KEY = "limit"
 PAI_API_NUMBER_OF_YEARS_KEY = "number_of_years"
 PAI_API_USERNAME_KEY = "sam_username"
-PAI_API_SECRET_SERVICE_KEY = "secret_service"
+PAI_API_SECRET_SERVICE_KEY = "secret_service"  # nosec B105
 PAI_API_SECURE_REQUIRED_KEY = "secure_required"
 
 PAI_API_ALLOWED_SECTORS = ("IEE3", "MEL4", "IEE1", "IEE4", "MEL3", "MEL1", "IEE2", "MEL2")
@@ -25,7 +25,7 @@ PAI_API_FOCUSED_SECTORS = ("IEE3", "MEL4", "MEL3")
 PAI_API_DEFAULT_LIMIT = 200
 PAI_API_DEFAULT_NUMBER_OF_YEARS = 4
 PAI_API_DEFAULT_AUTO_REFRESH_INTERVAL_MINUTES = 10
-PAI_API_DEFAULT_SECRET_SERVICE_ENV = "PAI_API_DEFAULT_SECRET_SERVICE"
+PAI_API_DEFAULT_SECRET_SERVICE_ENV = "PAI_API_DEFAULT_SECRET_SERVICE"  # nosec B105
 _PAI_API_DEFAULT_SECRET_SERVICE_VALUE = ".".join(("scrap_report", "sam"))
 PAI_API_DEFAULT_SECRET_SERVICE = _PAI_API_DEFAULT_SECRET_SERVICE_VALUE
 PAI_API_MAX_AUTO_REFRESH_INTERVAL_MINUTES = 24 * 60
@@ -78,10 +78,14 @@ def pai_api_options_error(options: PaiApiGuiOptions) -> str | None:
         return "Nenhum tipo de dado habilitado para SAM API."
     if not options.scrap_report_enabled and _has_scraper_data_scope(options.data_scopes):
         return "Acesso via xpath/scrap_report desabilitado nas opcoes."
-    unavailable = _unavailable_pai_api_data_scopes(options.data_scopes)
-    if unavailable:
-        labels = ", ".join(pai_api_data_scope_label(value) for value in unavailable)
+    planned = planned_scraper_pai_api_data_scopes(options.data_scopes)
+    if planned:
+        labels = ", ".join(pai_api_data_scope_label(value) for value in planned)
         return f"Tipo de dado ainda nao disponivel: {labels}. Use Consulta."
+    unsupported = unsupported_pai_api_data_scopes(options.data_scopes)
+    if unsupported:
+        labels = ", ".join(pai_api_data_scope_label(value) for value in unsupported)
+        return f"Tipo de dado nao suportado: {labels}. Use Consulta."
     supported = _enabled_pai_api_data_scopes(options.data_scopes)
     if not supported:
         return "Nenhum tipo de dado suportado habilitado para SAM API."
@@ -96,13 +100,6 @@ def _enabled_pai_api_data_scopes(scopes: tuple[str, ...]) -> tuple[str, ...]:
 
 def _has_scraper_data_scope(scopes: tuple[str, ...]) -> bool:
     return any(scope in PAI_API_SCRAPER_DATA_SCOPES for scope in scopes)
-
-
-def _unavailable_pai_api_data_scopes(scopes: tuple[str, ...]) -> tuple[str, ...]:
-    return (
-        *planned_scraper_pai_api_data_scopes(scopes),
-        *unsupported_pai_api_data_scopes(scopes),
-    )
 
 
 def default_pai_api_settings() -> dict[str, Any]:

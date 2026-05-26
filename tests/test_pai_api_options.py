@@ -197,16 +197,25 @@ def test_pai_api_options_keep_aprovacao_planned() -> None:
 
 
 @pytest.mark.parametrize(
-    ("scopes", "expected_label"),
+    ("scopes", "expected_message"),
     [
-        (["consulta", "aprovacao"], "Para aprovacao"),
-        (["consulta", "planejamento"], "Para planejamento"),
-        (["executadas", "programacao"], "Para programacao"),
+        (
+            ["consulta", "aprovacao"],
+            "Tipo de dado ainda nao disponivel: Para aprovacao. Use Consulta.",
+        ),
+        (
+            ["consulta", "planejamento"],
+            "Tipo de dado nao suportado: Para planejamento. Use Consulta.",
+        ),
+        (
+            ["executadas", "programacao"],
+            "Tipo de dado nao suportado: Para programacao. Use Consulta.",
+        ),
     ],
 )
 def test_pai_api_options_reject_mixed_unavailable_scopes(
     scopes: list[str],
-    expected_label: str,
+    expected_message: str,
 ) -> None:
     options = normalize_pai_api_options(
         {
@@ -215,10 +224,7 @@ def test_pai_api_options_reject_mixed_unavailable_scopes(
         }
     )
 
-    assert (
-        pai_api_options_error(options)
-        == f"Tipo de dado ainda nao disponivel: {expected_label}. Use Consulta."
-    )
+    assert pai_api_options_error(options) == expected_message
 
 
 def test_pai_api_options_allow_explicit_aprovacao_with_username() -> None:
