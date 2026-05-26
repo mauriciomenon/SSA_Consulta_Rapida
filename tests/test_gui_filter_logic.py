@@ -458,10 +458,13 @@ class TestGUIFilterLogic:
         self.window.display_current_page(1)
         QApplication.processEvents()
 
+        def _fake_svg_deps():
+            return object()
+
         monkeypatch.setattr(
             ssa_gui_details,
             "load_svg_render_dependencies",
-            lambda: object(),
+            _fake_svg_deps,
         )
 
         def _fake_graph_html(_window, data, **_kwargs):
@@ -535,10 +538,13 @@ class TestGUIFilterLogic:
                 "family_truncated": False,
             },
         )
+        def _fake_svg_deps():
+            return object()
+
         monkeypatch.setattr(
             ssa_gui_details,
             "load_svg_render_dependencies",
-            lambda: object(),
+            _fake_svg_deps,
         )
         monkeypatch.setattr(
             ssa_gui_details,
@@ -5152,7 +5158,8 @@ class TestGUIFilterLogic:
         assert 'data-ssa="202600023"' in html
         assert 'data-ssa="202500777"' in html
 
-    def test_graph_navigation_hitboxes_scale_svg_nodes(self):
+    @staticmethod
+    def test_graph_navigation_hitboxes_scale_svg_nodes():
         svg = (
             '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" '
             'viewBox="0 0 200 100">'

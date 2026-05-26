@@ -477,8 +477,10 @@ def _build_quick_filter_box(object_name: str) -> QFrame:
 
 
 def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[str, Any]:
-    values = window._collect_quick_situacao_values()
-    selected_values = set(window._resolve_quick_situacao_selected_values(values))
+    value_getter = getattr(window, "_collect_quick_situacao_values", None)
+    selected_getter = getattr(window, "_resolve_quick_situacao_selected_values", None)
+    values = value_getter() if callable(value_getter) else []
+    selected_values = set(selected_getter(values) if callable(selected_getter) else [])
     buttons: dict[str, QPushButton] = {}
     existing_buttons = getattr(window, "quick_situacao_buttons", None)
     can_reuse = (
@@ -506,11 +508,13 @@ def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[st
                 button.setMaximumWidth(58)
             except Exception as exc:
                 logger.debug("Falha ao limitar botao de situacao %s: %s", value, exc)
-            button.toggled.connect(
-                lambda checked, status=value: window._on_quick_situacao_toggled(
-                    status, checked
+            toggle_handler = getattr(window, "_on_quick_situacao_toggled", None)
+            if callable(toggle_handler):
+                button.toggled.connect(
+                    lambda checked, status=value, handler=toggle_handler: handler(
+                        status, checked
+                    )
                 )
-            )
             _sync_quick_situacao_button(window, button, value, selected_values)
             layout.addWidget(cast(Any, button))
             buttons[value] = button

@@ -1015,6 +1015,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._last_derivada_origem = None
         self._adv_sector_syncing = False
         self._adv_sector_handler_running = False
+        self.quick_situacao_buttons = {}
+        self.quick_situacao_values = []
         self.responsavel_materialization_state = ResponsavelMaterializationState(
             all_prefixes=set(RESPONSAVEL_FILTER_PREFIXES),
             dirty_prefixes=set(RESPONSAVEL_FILTER_PREFIXES),
