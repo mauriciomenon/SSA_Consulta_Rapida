@@ -63,6 +63,18 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-05-26 13:40 - GUI/API residuals after responsiveness hotfix
+
+Escopo deste registro:
+1. BUG_REAL corrigido no slice runtime anterior: filtro GUI nao deve reconstruir indice global de SSA antes de renderizar cada Detalhes.
+2. BUG_REAL corrigido no slice runtime anterior: refresh API/xpath nao deve relatar sucesso quando a confirmacao de importacao expira.
+3. Pendencias nao bloqueantes deferidas:
+   - `gui/ssa/gui_details.py`: levantar custo de `_collect_derivadas_tree_data` e separar consulta/cache/render apenas com medicao de fluxo real.
+   - `gui/workers/pai_api_worker.py`: cortar responsabilidades de `_run_refresh` em servico de dominio em slice proprio; nao misturar com hotfix.
+   - `gui/workers/pai_api_worker.py`: revisar contrato de resumo para distinguir setores unicos, execucoes por escopo e falhas globais.
+   - `gui/ssa/main_window_filter_bar.py`: renomear handler legado `_on_exclude_ste_sca_toggled` ou texto associado para refletir SCA/SES/STE sem ambiguidade.
+   - `tests/test_pai_api_worker.py`: reduzir duplicacao de mocks em fixture/helper apos estabilizar contrato do worker.
+
 ## Update 2026-05-18 20:25 - GUI undo fix and structural roadmap
 
 Escopo deste registro:
