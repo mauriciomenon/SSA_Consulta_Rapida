@@ -4,7 +4,7 @@
 # Para build: pip install -e ".[build]" ou uv pip install -e ".[build]"
 
 # Interface grafica (GUI)
-PyQt6>=6.9.0
+PyQt6>=6.11.0
 
 # Manipulacao de dados e Excel
 pandas>=2.3.3
