@@ -1124,7 +1124,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             week_str = "-"
         self.week_label = QLabel(f"Semana Atual: {week_str}")
         # Destaque visual em caixa
-        self._week_label_style = "font-weight:600; border:1px solid palette(mid); border-radius:4px; padding:2px 6px;"
+        self._week_label_style = (
+            "font-weight:400; border:1px solid palette(mid); "
+            "border-radius:4px; padding:1px 5px;"
+        )
         self.week_label.setStyleSheet(self._week_label_style)
         self.week_label.setToolTip("Semana ISO atual")
         toolbar_layout.addSpacing(6)
@@ -1134,10 +1137,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         self.filtered_status_label = QLabel("Status: 0 de 0 SSAs")
         self.filtered_status_label.setStyleSheet(
-            "border:1px solid palette(mid); border-radius:4px; padding:2px 6px;"
+            "border:1px solid palette(mid); border-radius:4px; padding:1px 5px;"
         )
-        self.filtered_status_label.setMinimumWidth(170)
-        self.filtered_status_label.setMaximumWidth(240)
+        self.filtered_status_label.setMinimumWidth(164)
+        self.filtered_status_label.setMaximumWidth(226)
         self.filtered_status_label.setSizePolicy(
             cast(Any, QSizePolicy.Policy.Fixed),
             cast(Any, QSizePolicy.Policy.Fixed),
@@ -1147,18 +1150,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Status em caixa e progresso
         self.status_label = QLabel("Status: Aguardando carregamento dos dados...")
         self.status_label.setStyleSheet(
-            "border:1px solid palette(mid); border-radius:4px; padding:2px 6px;"
+            "border:1px solid palette(mid); border-radius:4px; padding:1px 5px;"
         )
         # Keep toolbar geometry stable even when status text gets longer.
-        self.status_label.setMinimumWidth(280)
-        self.status_label.setMaximumWidth(520)
+        self.status_label.setMinimumWidth(250)
+        self.status_label.setMaximumWidth(460)
         self.status_label.setSizePolicy(
             cast(Any, QSizePolicy.Policy.Preferred),
             cast(Any, QSizePolicy.Policy.Fixed),
         )
         self.progress_bar = QProgressBar()
         self.progress_bar.setTextVisible(False)
-        self.progress_bar.setFixedWidth(32)
+        self.progress_bar.setFixedWidth(24)
         progress_policy = self.progress_bar.sizePolicy()
         progress_policy.setRetainSizeWhenHidden(True)
         self.progress_bar.setSizePolicy(progress_policy)
@@ -1171,13 +1174,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.preferences_button = QPushButton("Preferencias")
         self.preferences_button.setToolTip("Abrir preferencias da interface")
         self.preferences_button.clicked.connect(self._open_preferences_dialog)
+        self.preferences_button.setStyleSheet(self._week_label_style)
 
         theme_button = QPushButton("Tema")
         self.theme_button = theme_button
         theme_button.setToolTip("Selecionar tema em caixa de dialogo")
         theme_button.clicked.connect(self.toggle_theme_menu)
+        theme_button.setStyleSheet(self._week_label_style)
         toolbar_layout.addWidget(cast(Any, self.preferences_button))
-        toolbar_layout.addSpacing(6)
         toolbar_layout.addWidget(cast(Any, theme_button))
 
         main_layout.addLayout(cast(Any, toolbar_layout))

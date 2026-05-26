@@ -2,7 +2,7 @@
 # Widget for data pagination controls
 
 import pandas as pd
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSpinBox, QWidget
 
 PAGE_SIZE_MIN = 10
@@ -32,24 +32,33 @@ class DataPaginator(QWidget):
     def init_ui(self):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
 
         self.prev_button = QPushButton("←")
         self.prev_button.setToolTip("Pagina anterior")
         self.prev_button.clicked.connect(self.prev_page)
         self.prev_button.setEnabled(False)
+        self.prev_button.setFixedWidth(22)
+        self.prev_button.setFixedHeight(22)
 
         self.page_info_label = QLabel("Pagina 1 de 1")
+        self.page_info_label.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
 
         self.next_button = QPushButton("→")
         self.next_button.setToolTip("Proxima pagina")
         self.next_button.clicked.connect(self.next_page)
         self.next_button.setEnabled(False)
+        self.next_button.setFixedWidth(22)
+        self.next_button.setFixedHeight(22)
 
         self.page_size_spinbox = QSpinBox()
         self.page_size_spinbox.setRange(PAGE_SIZE_MIN, PAGE_SIZE_MAX)
         self.page_size_spinbox.setSingleStep(10)
         self.page_size_spinbox.setValue(self.page_size)
         self.page_size_spinbox.valueChanged.connect(self.change_page_size)
+        self.page_size_spinbox.setFixedHeight(22)
         self.page_size_label = QLabel("Linhas por Pagina:")
 
         layout.addWidget(self.prev_button)

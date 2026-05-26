@@ -17,7 +17,6 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QSpacerItem,
     QWidget,
 )
 
@@ -90,12 +89,11 @@ def _create_search_controls(window: Any) -> dict[str, Any]:
 
     search_box = QFrame()
     search_box.setObjectName("quickSearchBox")
-    _set_fixed_height(window, search_box, 26, "caixa de pesquisa rapida")
+    _set_fixed_height(window, search_box, 24, "caixa de pesquisa rapida")
     search_box.setMinimumWidth(425)
-    search_box.setMaximumWidth(950)
     search_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     search_box_layout = QHBoxLayout(cast(Any, search_box))
-    search_box_layout.setContentsMargins(3, 2, 3, 2)
+    search_box_layout.setContentsMargins(2, 1, 2, 1)
     search_box_layout.setSpacing(2)
     search_box_layout.addWidget(cast(Any, clear_filter_button), 0)
     search_box_layout.addWidget(cast(Any, search_input), 1)
@@ -220,10 +218,7 @@ def build_search_bar(
     left.addSpacing(8)
     left.addWidget(filter_tags_widget)
 
-    search_row.addLayout(cast(Any, left))
-    search_row.addItem(
-        QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-    )
+    search_row.addLayout(cast(Any, left), 1)
     tab_layout.addLayout(cast(Any, search_row))
 
     search_help = QLabel(
@@ -373,10 +368,11 @@ def build_pagination_filter_bar(
         quick_setor_executor_combo,
         selected_value=selected_setor,
     )
+    def _handle_quick_setor_executor_changed(_idx: int) -> None:
+        window._on_quick_setor_executor_changed(quick_setor_executor_combo)
+
     quick_setor_executor_combo.currentIndexChanged.connect(
-        lambda _idx, combo=quick_setor_executor_combo: (
-            window._on_quick_setor_executor_changed(combo)
-        )
+        _handle_quick_setor_executor_changed
     )
 
     pagination_filters_layout = QHBoxLayout()
@@ -420,7 +416,7 @@ def build_pagination_filter_bar(
         Qt.ScrollBarPolicy.ScrollBarAlwaysOff
     )
     quick_situacao_scroll.setMinimumWidth(160)
-    quick_situacao_scroll.setFixedHeight(32)
+    quick_situacao_scroll.setFixedHeight(28)
     quick_situacao_scroll.setSizePolicy(
         cast(Any, QSizePolicy.Policy.Expanding),
         cast(Any, QSizePolicy.Policy.Fixed),
@@ -431,8 +427,8 @@ def build_pagination_filter_bar(
         "Situacoes aplicadas junto com os demais filtros."
     )
     quick_situacao_box_layout = QHBoxLayout(cast(Any, quick_situacao_box))
-    quick_situacao_box_layout.setContentsMargins(6, 2, 6, 2)
-    quick_situacao_box_layout.setSpacing(6)
+    quick_situacao_box_layout.setContentsMargins(4, 1, 4, 1)
+    quick_situacao_box_layout.setSpacing(3)
     quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_label))
     quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_scroll))
     quick_situacao_box.setSizePolicy(
@@ -446,8 +442,8 @@ def build_pagination_filter_bar(
         "Filtro rapido de Setor Executor. Aplica junto com os demais filtros."
     )
     quick_setor_executor_box_layout = QHBoxLayout(cast(Any, quick_setor_executor_box))
-    quick_setor_executor_box_layout.setContentsMargins(6, 2, 6, 2)
-    quick_setor_executor_box_layout.setSpacing(6)
+    quick_setor_executor_box_layout.setContentsMargins(4, 1, 4, 1)
+    quick_setor_executor_box_layout.setSpacing(3)
     quick_setor_executor_box_layout.addWidget(cast(Any, quick_setor_executor_label))
     quick_setor_executor_box_layout.addWidget(cast(Any, quick_setor_executor_combo))
 
@@ -523,10 +519,10 @@ def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[st
         for value in values:
             button = QPushButton(value)
             button.setCheckable(True)
-            _set_fixed_height(window, button, 24, f"filtro rapido situacao {value}")
+            _set_fixed_height(window, button, 22, f"filtro rapido situacao {value}")
             try:
-                button.setMinimumWidth(38)
-                button.setMaximumWidth(58)
+                button.setMinimumWidth(28)
+                button.setMaximumWidth(40)
             except Exception as exc:
                 logger.debug("Falha ao limitar botao de situacao %s: %s", value, exc)
             toggle_handler = getattr(window, "_on_quick_situacao_toggled", None)
@@ -563,11 +559,11 @@ def _sync_quick_situacao_button(
 
 def _configure_quick_setor_combo(window: Any, combo: QComboBox) -> None:
     try:
-        combo.setMinimumWidth(138)
-        combo.setMaximumWidth(188)
-        combo.setMinimumContentsLength(9)
+        combo.setMinimumWidth(90)
+        combo.setMaximumWidth(116)
+        combo.setMinimumContentsLength(4)
         combo.setMaxVisibleItems(14)
-        _set_fixed_height(window, combo, 26, "combo rapido de setor executor")
+        _set_fixed_height(window, combo, 24, "combo rapido de setor executor")
         adjust_policy = getattr(
             QComboBox.SizeAdjustPolicy,
             "AdjustToMinimumContentsLengthWithIcon",
