@@ -97,6 +97,7 @@ class PaiApiRefreshWorker(QThread):
         self.config = config
         self.results: list[PaiImportResult] = []
         self.failures: list[str] = []
+        self.previews: list[_PaiSectorPreview] = []
         self._summary = PaiApiRefreshSummary(0, 0, 0, 0, 0, None, False, ())
         self._state_lock = Lock()
         self._import_decision_event = Event()
@@ -118,6 +119,7 @@ class PaiApiRefreshWorker(QThread):
         with self._state_lock:
             self.results.clear()
             self.failures.clear()
+            self.previews.clear()
             self._summary = PaiApiRefreshSummary(0, 0, 0, 0, 0, None, False, ())
             self._import_decision = False
             self._import_decision_ready = False
@@ -140,9 +142,8 @@ class PaiApiRefreshWorker(QThread):
         data_scopes = tuple(
             scope for scope in options.data_scopes if scope in PAI_API_ENABLED_DATA_SCOPES
         )
-        options_error = pai_api_options_error(options)
-        if options_error is not None:
-            self.finished_error.emit(options_error)
+        if (error_message := pai_api_options_error(options)) is not None:
+            self.finished_error.emit(error_message)
             return
 
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
@@ -167,11 +168,10 @@ class PaiApiRefreshWorker(QThread):
         total_scope_runs = max(len(data_scopes) * len(sectors), 1)
         scope_run_index = 1
         for data_scope in data_scopes:
-            report_kind = data_scope if data_scope.startswith("aprovacao_") else None
             scoped_request = replace(
                 base_request,
                 data_scope=data_scope,
-                report_kind=report_kind,
+                report_kind=data_scope if data_scope.startswith("aprovacao_") else None,
                 include_details=data_scope in PAI_API_REST_DATA_SCOPES,
             )
             ca_file: Path | None = None
@@ -188,8 +188,7 @@ class PaiApiRefreshWorker(QThread):
                         scoped_request,
                         ca_file,
                         sectors,
-                        start_index=scope_run_index,
-                        total_runs=total_scope_runs,
+                        progress_span=(scope_run_index, total_scope_runs),
                     )
                 )
             )
@@ -224,11 +223,10 @@ class PaiApiRefreshWorker(QThread):
             self.finished_error.emit(_format_total_failure(self._failures_snapshot()))
             return
 
-        failed_count = len(self._failures_snapshot())
         self.progress.emit(
             100,
             f"SAM API concluida: {imported_count} setores importados; "
-            f"{failed_count} falharam",
+            f"{len(self._failures_snapshot())} falharam",
         )
         self.finished_success.emit()
 
@@ -248,9 +246,9 @@ class PaiApiRefreshWorker(QThread):
         ca_file: Path | None,
         sectors: tuple[str, ...],
         *,
-        start_index: int,
-        total_runs: int,
+        progress_span: tuple[int, int],
     ) -> list[_PaiSectorRequest]:
+        start_index, total_runs = progress_span
         total = max(int(total_runs), 1)
         requests = []
         for index, sector in enumerate(sectors, start=max(int(start_index), 1)):
@@ -299,6 +297,8 @@ class PaiApiRefreshWorker(QThread):
             preview = self._sector_preview_from_future(sector_request, future)
             if preview is not None:
                 previews.append(preview)
+                with self._state_lock:
+                    self.previews.append(preview)
         return previews
 
     def _collect_sector_previews(
@@ -412,10 +412,11 @@ class PaiApiRefreshWorker(QThread):
     def _refresh_summary(self, previews: list[_PaiSectorPreview] | None = None) -> None:
         results = self._results_snapshot()
         failures = self._failures_snapshot()
+        preview_snapshot = tuple(previews) if previews is not None else self._previews_snapshot()
         self._set_summary(_summary_from_state(
             results=results,
             failures=failures,
-            previews=tuple(previews or ()),
+            previews=preview_snapshot,
             import_skipped=False,
         ))
 
@@ -438,6 +439,10 @@ class PaiApiRefreshWorker(QThread):
     def _failures_snapshot(self) -> tuple[str, ...]:
         with self._state_lock:
             return tuple(self.failures)
+
+    def _previews_snapshot(self) -> tuple[_PaiSectorPreview, ...]:
+        with self._state_lock:
+            return tuple(self.previews)
 
 
 def _format_refresh_result(result: PaiImportResult) -> str:
