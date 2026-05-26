@@ -29,7 +29,7 @@ from PyQt6.QtCore import QEvent, QPoint, QRect, QSize, Qt, QTimer, QUrl  # noqa:
 from PyQt6.QtGui import QCloseEvent, QDesktopServices, QFont, QResizeEvent  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtWidgets import QLineEdit  # noqa: E402
-from PyQt6.QtWidgets import QComboBox, QDialog, QSpinBox  # noqa: E402
+from PyQt6.QtWidgets import QCheckBox, QComboBox, QDialog, QGroupBox, QSpinBox  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton  # noqa: E402
 
 from gui import gui_ssa  # noqa: E402
@@ -481,12 +481,23 @@ class TestGUIFilterLogic:
 
         def _fake_exec(dialog):
             labels = [widget.text() for widget in dialog.findChildren(QLabel)]
+            checks = {
+                str(widget.objectName() or ""): widget.text()
+                for widget in dialog.findChildren(QCheckBox)
+            }
             buttons = {
                 str(widget.objectName() or ""): widget
                 for widget in dialog.findChildren(QPushButton)
             }
             captured["labels"] = labels
+            captured["checks"] = checks
             captured["buttons"] = [widget.text() for widget in buttons.values()]
+            captured["groups"] = [
+                widget.title()
+                for widget in dialog.findChildren(QGroupBox)
+            ]
+            footer_label = dialog.findChild(QLabel, "preferencesFooterLabel")
+            captured["footer"] = str(footer_label.text() or "") if footer_label else ""
             columns_button = buttons.get("preferencesColumnsButton")
             assert columns_button is not None
             columns_button.click()
@@ -497,7 +508,7 @@ class TestGUIFilterLogic:
         self.window._open_preferences_dialog()
 
         assert selector_calls == ["open"]
-        assert captured["labels"] == [
+        assert captured["labels"][:7] == [
             "Tema",
             "Modo da busca",
             "Debounce ms",
@@ -507,6 +518,17 @@ class TestGUIFilterLogic:
             "Colunas e larguras",
         ]
         assert "Configurar colunas" in captured["buttons"]
+        assert "SAM API" in captured["groups"]
+        assert captured["checks"]["preferencesAutoLoadCheck"] == "Carregar ao iniciar"
+        assert (
+            captured["checks"]["preferencesShowProgressCheck"] == "Mostrar progresso"
+        )
+        assert (
+            captured["checks"]["preferencesDoubleClickDetailsCheck"]
+            == "Duplo clique abre detalhes"
+        )
+        assert "Restaurar padrao" in captured["buttons"]
+        assert "Consulta Rapida de SSAs v" in captured["footer"]
 
     def test_preferences_dialog_applies_runtime_settings(self, monkeypatch):
         gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
@@ -514,8 +536,31 @@ class TestGUIFilterLogic:
         previous_delay = gui_settings.get("debounce_delay")
         previous_cache = gui_settings.get("filter_cache_size")
         previous_page_size = gui_settings.get("page_size")
+        previous_auto_load = gui_settings.get("auto_load")
+        previous_progress = gui_settings.get("show_progress_bar")
+        previous_sort = gui_settings.get("enable_column_sorting")
+        previous_show_details = gui_settings.get("show_details_panel")
+        previous_double_click = gui_settings.get("enable_double_click_details")
+        previous_cache_enabled = gui_settings.get("cache_enabled")
+        previous_cache_auto_clear = gui_settings.get("cache_auto_clear")
+        previous_pai_api = copy.deepcopy(gui_settings.get("pai_api"))
         paginator = getattr(self.window, "paginator", None)
         assert paginator is not None
+        clear_calls: list[str] = []
+        refresh_calls: list[str] = []
+
+        def _fake_clear_filter_cache():
+            clear_calls.append("clear")
+
+        def _fake_initialize_refresh():
+            refresh_calls.append("refresh")
+
+        monkeypatch.setattr(self.window, "clear_filter_cache", _fake_clear_filter_cache)
+        monkeypatch.setattr(
+            self.window,
+            "initialize_pai_api_auto_refresh",
+            _fake_initialize_refresh,
+        )
 
         def _fake_exec(dialog):
             search_mode_combo = dialog.findChild(
@@ -524,10 +569,56 @@ class TestGUIFilterLogic:
             debounce_spin = dialog.findChild(QSpinBox, "preferencesDebounceSpin")
             page_size_spin = dialog.findChild(QSpinBox, "preferencesPageSizeSpin")
             cache_size_spin = dialog.findChild(QSpinBox, "preferencesCacheSizeSpin")
+            auto_load_check = dialog.findChild(QCheckBox, "preferencesAutoLoadCheck")
+            show_progress_check = dialog.findChild(
+                QCheckBox, "preferencesShowProgressCheck"
+            )
+            column_sorting_check = dialog.findChild(
+                QCheckBox, "preferencesColumnSortingCheck"
+            )
+            show_details_check = dialog.findChild(
+                QCheckBox, "preferencesShowDetailsCheck"
+            )
+            double_click_check = dialog.findChild(
+                QCheckBox, "preferencesDoubleClickDetailsCheck"
+            )
+            cache_enabled_check = dialog.findChild(
+                QCheckBox, "preferencesCacheEnabledCheck"
+            )
+            cache_auto_clear_check = dialog.findChild(
+                QCheckBox, "preferencesCacheAutoClearCheck"
+            )
+            api_enabled_check = dialog.findChild(
+                QCheckBox, "preferencesPaiApiEnabledCheck"
+            )
+            api_scrap_check = dialog.findChild(
+                QCheckBox, "preferencesPaiApiScrapCheck"
+            )
+            api_auto_refresh_check = dialog.findChild(
+                QCheckBox, "preferencesPaiApiAutoRefreshCheck"
+            )
+            api_interval_spin = dialog.findChild(
+                QSpinBox, "preferencesPaiApiIntervalSpin"
+            )
+            api_limit_spin = dialog.findChild(QSpinBox, "preferencesPaiApiLimitSpin")
+            api_years_spin = dialog.findChild(QSpinBox, "preferencesPaiApiYearsSpin")
             assert search_mode_combo is not None
             assert debounce_spin is not None
             assert page_size_spin is not None
             assert cache_size_spin is not None
+            assert auto_load_check is not None
+            assert show_progress_check is not None
+            assert column_sorting_check is not None
+            assert show_details_check is not None
+            assert double_click_check is not None
+            assert cache_enabled_check is not None
+            assert cache_auto_clear_check is not None
+            assert api_enabled_check is not None
+            assert api_scrap_check is not None
+            assert api_auto_refresh_check is not None
+            assert api_interval_spin is not None
+            assert api_limit_spin is not None
+            assert api_years_spin is not None
 
             search_mode_combo.setCurrentIndex(
                 search_mode_combo.findData("regex")
@@ -535,6 +626,25 @@ class TestGUIFilterLogic:
             debounce_spin.setValue(950)
             page_size_spin.setValue(80)
             cache_size_spin.setValue(70)
+            auto_load_check.setChecked(True)
+            show_progress_check.setChecked(False)
+            column_sorting_check.setChecked(False)
+            show_details_check.setChecked(False)
+            double_click_check.setChecked(False)
+            cache_enabled_check.setChecked(False)
+            cache_auto_clear_check.setChecked(True)
+            api_enabled_check.setChecked(False)
+            api_scrap_check.setChecked(False)
+            api_auto_refresh_check.setChecked(True)
+            api_interval_spin.setValue(15)
+            api_limit_spin.setValue(150)
+            api_years_spin.setValue(2)
+            for checkbox in dialog.findChildren(QCheckBox):
+                object_name = str(checkbox.objectName() or "")
+                if object_name.startswith("preferencesPaiApiScope_"):
+                    checkbox.setChecked(object_name == "preferencesPaiApiScope_executadas")
+                if object_name.startswith("preferencesPaiApiSector_"):
+                    checkbox.setChecked(object_name == "preferencesPaiApiSector_MEL4")
             return QDialog.DialogCode.Accepted
 
         monkeypatch.setattr(QDialog, "exec", _fake_exec)
@@ -547,13 +657,78 @@ class TestGUIFilterLogic:
         assert self.window._debounce_timer.interval() == 950
         assert gui_settings.get("filter_cache_size") == 70
         assert gui_settings.get("page_size") == 80
+        assert gui_settings.get("auto_load") is True
+        assert gui_settings.get("show_progress_bar") is False
+        assert gui_settings.get("enable_column_sorting") is False
+        assert gui_settings.get("show_details_panel") is False
+        assert gui_settings.get("enable_double_click_details") is False
+        assert gui_settings.get("cache_enabled") is False
+        assert gui_settings.get("cache_auto_clear") is True
         assert getattr(self.window, "_restored_page_size", None) == 80
         assert paginator.page_size == 80
+        assert getattr(self.window, "_show_progress_bar_enabled", None) is False
+        assert getattr(self.window, "_column_sorting_enabled", None) is False
+        assert getattr(self.window, "_details_panel_enabled", None) is False
+        assert getattr(self.window, "_double_click_details_enabled", None) is False
+        assert self.window.progress_bar.maximumWidth() == 0
+        assert self.window.progress_bar.isVisible() is False
+        assert self.window.details_group.isVisible() is False
+        assert self.window.table_widget.horizontalHeader().sectionsClickable() is False
+        assert clear_calls == ["clear"]
+        assert refresh_calls == ["refresh"]
+        pai_api_settings = gui_settings.get("pai_api") or {}
+        assert pai_api_settings.get("enabled") is False
+        assert pai_api_settings.get("scrap_report_enabled") is False
+        assert pai_api_settings.get("auto_refresh_enabled") is True
+        assert pai_api_settings.get("auto_refresh_interval_minutes") == 15
+        assert pai_api_settings.get("executor_sectors") == ["MEL4"]
+        assert pai_api_settings.get("data_scopes") == ["executadas"]
+        assert pai_api_settings.get("limit") == 150
+        assert pai_api_settings.get("number_of_years") == 2
 
         gui_settings["default_filter_mode"] = previous_mode
         gui_settings["debounce_delay"] = previous_delay
         gui_settings["filter_cache_size"] = previous_cache
         gui_settings["page_size"] = previous_page_size
+        gui_settings["auto_load"] = previous_auto_load
+        gui_settings["show_progress_bar"] = previous_progress
+        gui_settings["enable_column_sorting"] = previous_sort
+        gui_settings["show_details_panel"] = previous_show_details
+        gui_settings["enable_double_click_details"] = previous_double_click
+        gui_settings["cache_enabled"] = previous_cache_enabled
+        gui_settings["cache_auto_clear"] = previous_cache_auto_clear
+        gui_settings["pai_api"] = previous_pai_api
+
+    def test_preferences_dialog_keeps_other_changes_when_page_size_save_fails(
+        self, monkeypatch
+    ):
+        gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+        previous_mode = gui_settings.get("default_filter_mode")
+
+        def _fake_save_page_size_pref(_new_size: int):
+            return False
+
+        def _fake_exec(dialog):
+            search_mode_combo = dialog.findChild(
+                QComboBox, "preferencesSearchModeCombo"
+            )
+            page_size_spin = dialog.findChild(QSpinBox, "preferencesPageSizeSpin")
+            assert search_mode_combo is not None
+            assert page_size_spin is not None
+            search_mode_combo.setCurrentIndex(search_mode_combo.findData("exact"))
+            page_size_spin.setValue(90)
+            return QDialog.DialogCode.Accepted
+
+        monkeypatch.setattr(self.window, "_save_page_size_pref", _fake_save_page_size_pref)
+        monkeypatch.setattr(QDialog, "exec", _fake_exec)
+
+        self.window._open_preferences_dialog()
+
+        assert gui_settings.get("default_filter_mode") == "exact"
+        assert getattr(self.window, "_cached_default_mode", None) == "exact"
+        assert "persistencia falhou" in str(self.window.status_label.text() or "")
+
+        gui_settings["default_filter_mode"] = previous_mode
 
     def test_details_derivadas_tab_refreshes_when_selection_changes(self, monkeypatch):
         df = pd.DataFrame(

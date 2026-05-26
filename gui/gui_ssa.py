@@ -51,7 +51,20 @@ if code_root not in sys.path:
 from core.config_manager import COLUMN_AFFINITY_SCORES  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
 from core.import_formats import SUPPORTED_IMPORT_SUFFIXES  # noqa: E402
-from core.pai_api_options import PAI_API_ENABLED_KEY, PAI_API_SCRAP_ENABLED_KEY
+from core.pai_api_options import (
+    PAI_API_ALLOWED_DATA_SCOPES,
+    PAI_API_ALLOWED_SECTORS,
+    PAI_API_AUTO_REFRESH_ENABLED_KEY,
+    PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY,
+    PAI_API_DATA_SCOPES_KEY,
+    PAI_API_ENABLED_KEY,
+    PAI_API_LIMIT_KEY,
+    PAI_API_NUMBER_OF_YEARS_KEY,
+    PAI_API_SCRAP_ENABLED_KEY,
+    PAI_API_SECTORS_KEY,
+    normalize_pai_api_options,
+    pai_api_data_scope_label,
+)
 from gui.gui_config import COLUMN_HEADER_LABEL_VARIANTS  # noqa: E402
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS  # noqa: E402
 from gui.gui_config import DEFAULT_GUI_SETTINGS  # noqa: E402
@@ -172,11 +185,13 @@ try:
     from PyQt6.QtGui import QAction, QDesktopServices, QFont
     from PyQt6.QtWidgets import (
         QApplication,
+        QCheckBox,
         QDialog,
         QDialogButtonBox,
         QComboBox,
         QFileDialog,
         QGridLayout,
+        QGroupBox,
         QHBoxLayout,
         QLabel,
         QLineEdit,
@@ -215,6 +230,7 @@ except ImportError as exc:
         QT_VERSION_STR,
         QAction,
         QApplication,
+        QCheckBox,
         QDesktopServices,
         QDialog,
         QDialogButtonBox,
@@ -223,6 +239,7 @@ except ImportError as exc:
         QFileDialog,
         QFont,
         QGridLayout,
+        QGroupBox,
         QHBoxLayout,
         QLabel,
         QLineEdit,
@@ -995,6 +1012,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Configurações de GUI (independentes do CLI)
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         self._restored_page_size = gui_settings.get("page_size", 50)
+        self._show_progress_bar_enabled = bool(
+            gui_settings.get("show_progress_bar", True)
+        )
+        self._details_panel_enabled = bool(
+            gui_settings.get("show_details_panel", True)
+        )
+        self._column_sorting_enabled = bool(
+            gui_settings.get("enable_column_sorting", True)
+        )
+        self._double_click_details_enabled = bool(
+            gui_settings.get("enable_double_click_details", True)
+        )
 
         # Inicializa managers unificados (substitui codigo frankenstein)
         self.width_manager = SimpleWidthManager()
@@ -1202,6 +1231,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if name.startswith("_"):
                 continue
             setattr(self, name, value)
+        self._apply_progress_bar_preference(self._show_progress_bar_enabled)
+        self._apply_details_panel_visibility_preference(self._details_panel_enabled)
+        self._apply_column_sorting_preference(self._column_sorting_enabled)
         try:
             self._build_column_filters_panel()
         except Exception as exc:
@@ -1467,6 +1499,41 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._adv_options_dirty = False
         except Exception as exc:
             logger.warning("Falha ao executar refresh de filtros avancados: %s", exc)
+
+    def _apply_progress_bar_preference(self, enabled: bool) -> None:
+        self._show_progress_bar_enabled = bool(enabled)
+        progress_bar = getattr(self, "progress_bar", None)
+        if progress_bar is None:
+            return
+        try:
+            progress_bar.setFixedWidth(24 if self._show_progress_bar_enabled else 0)
+            progress_bar.setVisible(self._show_progress_bar_enabled)
+        except Exception as exc:
+            logger.debug("Falha ao aplicar preferencia da barra de progresso: %s", exc)
+
+    def _apply_details_panel_visibility_preference(self, enabled: bool) -> None:
+        self._details_panel_enabled = bool(enabled)
+        details_group = getattr(self, "details_group", None)
+        if details_group is None:
+            return
+        try:
+            details_group.setVisible(self._details_panel_enabled)
+        except Exception as exc:
+            logger.debug("Falha ao aplicar visibilidade do painel de detalhes: %s", exc)
+
+    def _apply_column_sorting_preference(self, enabled: bool) -> None:
+        self._column_sorting_enabled = bool(enabled)
+        table_widget = getattr(self, "table_widget", None)
+        if table_widget is None:
+            return
+        try:
+            header = table_widget.horizontalHeader()
+            if header is not None:
+                header.setSectionsClickable(self._column_sorting_enabled)
+                if not self._column_sorting_enabled:
+                    header.setSortIndicatorShown(False)
+        except Exception as exc:
+            logger.debug("Falha ao aplicar preferencia de ordenacao por coluna: %s", exc)
 
     def _compute_bottom_panel_target_height(self) -> int:
         try:
@@ -1870,6 +1937,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return resolved
 
     def on_header_clicked(self, logical_index: int):
+        if not bool(getattr(self, "_column_sorting_enabled", True)):
+            return
         try:
             col_name = self._resolve_header_column_name(logical_index)
             if not col_name:
@@ -2823,6 +2892,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def on_table_double_click(self, index):
         """Mostra janela de detalhes formatada ao duplo clique."""
+        if not bool(getattr(self, "_double_click_details_enabled", True)):
+            return
         clicked_column_name = ""
         try:
             clicked_column = int(index.column())
@@ -2982,6 +3053,197 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
         grid.addWidget(cast(Any, columns_button), 6, 1)
         layout.addLayout(cast(Any, grid))
+
+        toggles_layout = QGridLayout()
+        toggles_layout.setContentsMargins(0, 6, 0, 0)
+        toggles_layout.setSpacing(6)
+
+        auto_load_checkbox = QCheckBox("Carregar ao iniciar")
+        auto_load_checkbox.setObjectName("preferencesAutoLoadCheck")
+        auto_load_checkbox.setChecked(bool(gui_settings.get("auto_load", False)))
+        toggles_layout.addWidget(cast(Any, auto_load_checkbox), 0, 0)
+
+        show_progress_checkbox = QCheckBox("Mostrar progresso")
+        show_progress_checkbox.setObjectName("preferencesShowProgressCheck")
+        show_progress_checkbox.setChecked(
+            bool(gui_settings.get("show_progress_bar", True))
+        )
+        toggles_layout.addWidget(cast(Any, show_progress_checkbox), 0, 1)
+
+        enable_sort_checkbox = QCheckBox("Ordenar por coluna")
+        enable_sort_checkbox.setObjectName("preferencesColumnSortingCheck")
+        enable_sort_checkbox.setChecked(
+            bool(gui_settings.get("enable_column_sorting", True))
+        )
+        toggles_layout.addWidget(cast(Any, enable_sort_checkbox), 0, 2)
+
+        show_details_checkbox = QCheckBox("Mostrar detalhes")
+        show_details_checkbox.setObjectName("preferencesShowDetailsCheck")
+        show_details_checkbox.setChecked(
+            bool(gui_settings.get("show_details_panel", True))
+        )
+        toggles_layout.addWidget(cast(Any, show_details_checkbox), 1, 0)
+
+        double_click_checkbox = QCheckBox("Duplo clique abre detalhes")
+        double_click_checkbox.setObjectName("preferencesDoubleClickDetailsCheck")
+        double_click_checkbox.setChecked(
+            bool(gui_settings.get("enable_double_click_details", True))
+        )
+        toggles_layout.addWidget(cast(Any, double_click_checkbox), 1, 1)
+
+        cache_enabled_checkbox = QCheckBox("Cache ligado")
+        cache_enabled_checkbox.setObjectName("preferencesCacheEnabledCheck")
+        cache_enabled_checkbox.setChecked(bool(gui_settings.get("cache_enabled", True)))
+        toggles_layout.addWidget(cast(Any, cache_enabled_checkbox), 1, 2)
+
+        cache_auto_clear_checkbox = QCheckBox("Limpar cache automaticamente")
+        cache_auto_clear_checkbox.setObjectName("preferencesCacheAutoClearCheck")
+        cache_auto_clear_checkbox.setChecked(
+            bool(gui_settings.get("cache_auto_clear", False))
+        )
+        toggles_layout.addWidget(cast(Any, cache_auto_clear_checkbox), 2, 0, 1, 2)
+
+        layout.addLayout(cast(Any, toggles_layout))
+
+        api_group = QGroupBox("SAM API")
+        api_group.setObjectName("preferencesPaiApiGroup")
+        api_layout = QGridLayout(cast(Any, api_group))
+        api_layout.setSpacing(6)
+        api_settings = copy.deepcopy(gui_settings.get("pai_api", {}))
+        api_options = normalize_pai_api_options(api_settings)
+
+        api_enabled_checkbox = QCheckBox("SAM API habilitada")
+        api_enabled_checkbox.setObjectName("preferencesPaiApiEnabledCheck")
+        api_enabled_checkbox.setChecked(bool(api_options.enabled))
+        api_layout.addWidget(cast(Any, api_enabled_checkbox), 0, 0)
+
+        api_scrap_checkbox = QCheckBox("Consulta via xpath/scrap_report")
+        api_scrap_checkbox.setObjectName("preferencesPaiApiScrapCheck")
+        api_scrap_checkbox.setChecked(bool(api_options.scrap_report_enabled))
+        api_layout.addWidget(cast(Any, api_scrap_checkbox), 0, 1)
+
+        api_auto_refresh_checkbox = QCheckBox("Atualizacao automatica")
+        api_auto_refresh_checkbox.setObjectName("preferencesPaiApiAutoRefreshCheck")
+        api_auto_refresh_checkbox.setChecked(bool(api_options.auto_refresh_enabled))
+        api_layout.addWidget(cast(Any, api_auto_refresh_checkbox), 0, 2)
+
+        api_layout.addWidget(cast(Any, QLabel("Intervalo (min)")), 1, 0)
+        api_interval_spin = QSpinBox()
+        api_interval_spin.setObjectName("preferencesPaiApiIntervalSpin")
+        api_interval_spin.setRange(1, 24 * 60)
+        api_interval_spin.setValue(int(api_options.auto_refresh_interval_minutes))
+        api_layout.addWidget(cast(Any, api_interval_spin), 1, 1)
+
+        api_layout.addWidget(cast(Any, QLabel("Limite por setor")), 2, 0)
+        api_limit_spin = QSpinBox()
+        api_limit_spin.setObjectName("preferencesPaiApiLimitSpin")
+        api_limit_spin.setRange(1, 1000)
+        api_limit_spin.setValue(int(api_options.limit))
+        api_layout.addWidget(cast(Any, api_limit_spin), 2, 1)
+
+        api_layout.addWidget(cast(Any, QLabel("Anos retroativos")), 3, 0)
+        api_years_spin = QSpinBox()
+        api_years_spin.setObjectName("preferencesPaiApiYearsSpin")
+        api_years_spin.setRange(1, 10)
+        api_years_spin.setValue(int(api_options.number_of_years))
+        api_layout.addWidget(cast(Any, api_years_spin), 3, 1)
+
+        selected_scopes = {value.casefold() for value in api_options.data_scopes}
+        scope_checks: dict[str, QCheckBox] = {}
+        api_layout.addWidget(cast(Any, QLabel("Tipos de dados")), 4, 0)
+        for offset, scope in enumerate(PAI_API_ALLOWED_DATA_SCOPES):
+            checkbox = QCheckBox(pai_api_data_scope_label(scope))
+            checkbox.setObjectName(f"preferencesPaiApiScope_{scope}")
+            checkbox.setChecked(scope.casefold() in selected_scopes)
+            scope_checks[scope] = checkbox
+            api_layout.addWidget(cast(Any, checkbox), 5 + offset // 3, offset % 3)
+
+        selected_sectors = {value.casefold() for value in api_options.executor_sectors}
+        sector_checks: dict[str, QCheckBox] = {}
+        api_layout.addWidget(cast(Any, QLabel("Setores executores")), 8, 0)
+        for offset, sector in enumerate(PAI_API_ALLOWED_SECTORS):
+            checkbox = QCheckBox(sector)
+            checkbox.setObjectName(f"preferencesPaiApiSector_{sector}")
+            checkbox.setChecked(sector.casefold() in selected_sectors)
+            sector_checks[sector] = checkbox
+            api_layout.addWidget(cast(Any, checkbox), 9 + offset // 4, offset % 4)
+
+        layout.addWidget(cast(Any, api_group))
+
+        defaults_button = QPushButton("Restaurar padrao")
+        defaults_button.setObjectName("preferencesRestoreDefaultsButton")
+        default_theme = str(DEFAULT_GUI_SETTINGS.get("theme", "classico") or "classico")
+        default_search_mode = str(
+            DEFAULT_GUI_SETTINGS.get("default_filter_mode", "contains") or "contains"
+        )
+        default_alignment = str(
+            DEFAULT_GUI_SETTINGS.get(
+                "table_cell_alignment", _DEFAULT_TABLE_CELL_ALIGNMENT
+            )
+            or _DEFAULT_TABLE_CELL_ALIGNMENT
+        )
+        default_api_options = normalize_pai_api_options(
+            DEFAULT_GUI_SETTINGS.get("pai_api", {})
+        )
+
+        def _restore_defaults() -> None:
+            theme_index = theme_combo.findData(default_theme)
+            if theme_index >= 0:
+                theme_combo.setCurrentIndex(theme_index)
+            search_mode_index = search_mode_combo.findData(default_search_mode)
+            if search_mode_index >= 0:
+                search_mode_combo.setCurrentIndex(search_mode_index)
+            debounce_spin.setValue(int(DEFAULT_GUI_SETTINGS.get("debounce_delay", 800)))
+            page_size_spin.setValue(int(DEFAULT_GUI_SETTINGS.get("page_size", 50)))
+            alignment_index = alignment_combo.findData(default_alignment)
+            if alignment_index >= 0:
+                alignment_combo.setCurrentIndex(alignment_index)
+            cache_size_spin.setValue(int(DEFAULT_GUI_SETTINGS.get("filter_cache_size", 50)))
+            auto_load_checkbox.setChecked(bool(DEFAULT_GUI_SETTINGS.get("auto_load", False)))
+            show_progress_checkbox.setChecked(
+                bool(DEFAULT_GUI_SETTINGS.get("show_progress_bar", True))
+            )
+            enable_sort_checkbox.setChecked(
+                bool(DEFAULT_GUI_SETTINGS.get("enable_column_sorting", True))
+            )
+            show_details_checkbox.setChecked(
+                bool(DEFAULT_GUI_SETTINGS.get("show_details_panel", True))
+            )
+            double_click_checkbox.setChecked(
+                bool(DEFAULT_GUI_SETTINGS.get("enable_double_click_details", True))
+            )
+            cache_enabled_checkbox.setChecked(
+                bool(DEFAULT_GUI_SETTINGS.get("cache_enabled", True))
+            )
+            cache_auto_clear_checkbox.setChecked(
+                bool(DEFAULT_GUI_SETTINGS.get("cache_auto_clear", False))
+            )
+            api_enabled_checkbox.setChecked(bool(default_api_options.enabled))
+            api_scrap_checkbox.setChecked(bool(default_api_options.scrap_report_enabled))
+            api_auto_refresh_checkbox.setChecked(
+                bool(default_api_options.auto_refresh_enabled)
+            )
+            api_interval_spin.setValue(int(default_api_options.auto_refresh_interval_minutes))
+            api_limit_spin.setValue(int(default_api_options.limit))
+            api_years_spin.setValue(int(default_api_options.number_of_years))
+            default_scopes = {value.casefold() for value in default_api_options.data_scopes}
+            for scope, checkbox in scope_checks.items():
+                checkbox.setChecked(scope.casefold() in default_scopes)
+            default_sectors = {
+                value.casefold() for value in default_api_options.executor_sectors
+            }
+            for sector, checkbox in sector_checks.items():
+                checkbox.setChecked(sector.casefold() in default_sectors)
+
+        defaults_button.clicked.connect(_restore_defaults)
+        layout.addWidget(cast(Any, defaults_button))
+
+        footer_label = QLabel(
+            f"Fonte: {get_gui_main_preferences_path()} | Consulta Rapida de SSAs v{self._app_version}"
+        )
+        footer_label.setObjectName("preferencesFooterLabel")
+        layout.addWidget(cast(Any, footer_label))
+
         button_flags = cast(Any, QDialogButtonBox.StandardButton.Ok)
         button_flags = button_flags | cast(Any, QDialogButtonBox.StandardButton.Cancel)
         buttons = QDialogButtonBox(button_flags)
@@ -2999,8 +3261,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         selected_search_mode = str(search_mode_combo.currentData() or "contains").strip()
         selected_debounce = int(debounce_spin.value())
         page_size = int(page_size_spin.value())
-        if not self._save_page_size_pref(page_size):
-            return
+        page_size_saved = self._save_page_size_pref(page_size)
         settings_changed = False
         if (
             selected_search_mode
@@ -3034,6 +3295,73 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if FilterWorker is not None and FilterCache is not None:
                 FilterWorker._cache = FilterCache(max_size=selected_cache_size)
             settings_changed = True
+        auto_load_enabled = bool(auto_load_checkbox.isChecked())
+        if auto_load_enabled != bool(gui_settings.get("auto_load", False)):
+            gui_settings["auto_load"] = auto_load_enabled
+            settings_changed = True
+        show_progress_enabled = bool(show_progress_checkbox.isChecked())
+        if show_progress_enabled != bool(gui_settings.get("show_progress_bar", True)):
+            gui_settings["show_progress_bar"] = show_progress_enabled
+            self._apply_progress_bar_preference(show_progress_enabled)
+            settings_changed = True
+        column_sorting_enabled = bool(enable_sort_checkbox.isChecked())
+        if column_sorting_enabled != bool(
+            gui_settings.get("enable_column_sorting", True)
+        ):
+            gui_settings["enable_column_sorting"] = column_sorting_enabled
+            self._apply_column_sorting_preference(column_sorting_enabled)
+            settings_changed = True
+        show_details_enabled = bool(show_details_checkbox.isChecked())
+        if show_details_enabled != bool(gui_settings.get("show_details_panel", True)):
+            gui_settings["show_details_panel"] = show_details_enabled
+            self._apply_details_panel_visibility_preference(show_details_enabled)
+            settings_changed = True
+        double_click_enabled = bool(double_click_checkbox.isChecked())
+        if double_click_enabled != bool(
+            gui_settings.get("enable_double_click_details", True)
+        ):
+            gui_settings["enable_double_click_details"] = double_click_enabled
+            self._double_click_details_enabled = double_click_enabled
+            settings_changed = True
+        cache_enabled = bool(cache_enabled_checkbox.isChecked())
+        if cache_enabled != bool(gui_settings.get("cache_enabled", True)):
+            gui_settings["cache_enabled"] = cache_enabled
+            settings_changed = True
+        cache_auto_clear = bool(cache_auto_clear_checkbox.isChecked())
+        if cache_auto_clear != bool(gui_settings.get("cache_auto_clear", False)):
+            gui_settings["cache_auto_clear"] = cache_auto_clear
+            if cache_auto_clear:
+                try:
+                    self.clear_filter_cache()
+                except Exception as exc:
+                    logger.debug("Falha ao limpar cache ao aplicar preferencia: %s", exc)
+            settings_changed = True
+        updated_api_settings = copy.deepcopy(gui_settings.get("pai_api", {}))
+        updated_api_settings[PAI_API_ENABLED_KEY] = bool(api_enabled_checkbox.isChecked())
+        updated_api_settings[PAI_API_SCRAP_ENABLED_KEY] = bool(
+            api_scrap_checkbox.isChecked()
+        )
+        updated_api_settings[PAI_API_AUTO_REFRESH_ENABLED_KEY] = bool(
+            api_auto_refresh_checkbox.isChecked()
+        )
+        updated_api_settings[PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY] = int(
+            api_interval_spin.value()
+        )
+        updated_api_settings[PAI_API_LIMIT_KEY] = int(api_limit_spin.value())
+        updated_api_settings[PAI_API_NUMBER_OF_YEARS_KEY] = int(api_years_spin.value())
+        updated_api_settings[PAI_API_DATA_SCOPES_KEY] = [
+            scope for scope, checkbox in scope_checks.items() if checkbox.isChecked()
+        ]
+        updated_api_settings[PAI_API_SECTORS_KEY] = [
+            sector for sector, checkbox in sector_checks.items() if checkbox.isChecked()
+        ]
+        if updated_api_settings != gui_settings.get("pai_api", {}):
+            gui_settings["pai_api"] = updated_api_settings
+            try:
+                self.initialize_pai_api_auto_refresh()
+            except Exception as exc:
+                logger.debug("Falha ao aplicar preferencias de SAM API: %s", exc)
+            settings_changed = True
         if settings_changed and not os.environ.get("PYTEST_CURRENT_TEST"):
             self._persist_gui_preferences()
         if selected_theme and selected_theme != current_theme:
@@ -3041,6 +3369,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         paginator = getattr(self, "paginator", None)
         if paginator is not None:
             paginator.change_page_size(page_size)
+        if not page_size_saved and hasattr(self, "status_label"):
+            self.status_label.setText(
+                "Status: Linhas por pagina atualizadas, mas a persistencia falhou."
+            )
 
     def _get_series_from_row(self, row: int):
         visible_numero = self._get_visible_numero_ssa_from_row(row)
