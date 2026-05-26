@@ -1,0 +1,24 @@
+tests/test_date_utils_serial_and_text.py
+  s_9f052ddda3b0ba::t_c1a70aff331826 7,10,64-81
+shared/date_utils.py
+  s_9f052ddda3b0ba::t_77c7a445f3985a 123-125,154-159
+  s_9f052ddda3b0ba::t_edccc2d9b8f76f 117-120,135-136,140-144,147-151
+gui/gui_ssa.py
+  s_9f052ddda3b0ba::t_551f44451a55af 1079-1081
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e38449ab9b7c543b4adc59b1e54453747405aba6",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
