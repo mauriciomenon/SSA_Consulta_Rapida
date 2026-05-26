@@ -1,0 +1,67 @@
+gui/ssa/gui_details.py
+  s_9f052ddda3b0ba::t_a2c9b3b0ce6a24 535-539,541-542
+  s_9f052ddda3b0ba::t_588975a6b2de15 1061-1070
+  s_9f052ddda3b0ba::t_7077618753a833 189
+core/pai_xlsx_normalizer.py
+  s_9f052ddda3b0ba::t_7b74529f46a712 183,210-211
+gui/ssa/main_window_filter_bar.py
+  s_9f052ddda3b0ba::t_e23f894dcf4675 5,532
+  s_9f052ddda3b0ba::t_f7c5f99a197eb1 230
+  s_9f052ddda3b0ba::t_21467d2c89cf81 385
+tests/test_pai_scrap_report_provider.py
+  s_9f052ddda3b0ba::t_c2b06f801efb59 76
+  s_9f052ddda3b0ba::t_452d59cbc861fb 73-74,86-87
+tests/test_pai_xlsx_normalizer.py
+  s_9f052ddda3b0ba::t_401c9adae90243 10,12,56-69
+tests/test_pai_api_worker.py
+  s_9f052ddda3b0ba::t_346fc5b7bbce7d 549-614
+  s_9f052ddda3b0ba::t_c89efcceb7f835 735-770
+  s_9f052ddda3b0ba::t_951e9706765e52 269,333
+  s_9f052ddda3b0ba::t_6ff7a0fd1180aa 111
+  s_9f052ddda3b0ba::t_e910868dadcfa1 3,11,13
+  s_9f052ddda3b0ba::t_09af33faaf6f95 308-312
+  s_9f052ddda3b0ba::t_c2b06f801efb59 83
+core/pai_scrap_report_provider.py
+  s_9f052ddda3b0ba::t_a2c9b3b0ce6a24 274-276
+  s_9f052ddda3b0ba::t_452d59cbc861fb 255-258
+gui/workers/pai_api_worker.py
+  s_9f052ddda3b0ba::t_551f93f499e94e 105
+  s_9f052ddda3b0ba::t_bc418144efd0d1 338,344
+  s_9f052ddda3b0ba::t_7d2a7f96dfac5f 124,209-212,393-394,399
+  s_9f052ddda3b0ba::t_dda9189d1a6467 128,182
+  s_9f052ddda3b0ba::t_a2c9b3b0ce6a24 132
+  s_9f052ddda3b0ba::t_7b74529f46a712 5,35,327-337,339-340
+  s_9f052ddda3b0ba::t_6944bdb3410b06 167-168,187-193,196,250-252,254,256
+gui/gui_ssa.py
+  s_9f052ddda3b0ba::t_abbf95700d37b4 746
+  s_9f052ddda3b0ba::t_61cb0db06f53b8 2860-2865,2867-2872,2876-2887
+  s_9f052ddda3b0ba::t_9bb1c90112846b 176,188,219,233
+  s_9f052ddda3b0ba::t_ba64839748bfea 1161-1164,1169-1170,1304-1305
+  s_9f052ddda3b0ba::t_f8e62d09f27e12 2866,2873-2875
+tests/test_gui_filter_logic.py
+  s_9f052ddda3b0ba::t_b139617b392685 5608,5631,5667,5697
+  s_9f052ddda3b0ba::t_f6429e81eef3e3 329,385-386,388,394
+  s_9f052ddda3b0ba::t_f8e62d09f27e12 389-391
+gui/ssa/gui_details_html.py
+  s_9f052ddda3b0ba::t_a2c9b3b0ce6a24 120
+gui/widgets/data_paginator.py
+  s_9f052ddda3b0ba::t_21467d2c89cf81 18,21,51,57-61
+gui/ssa/gui_table.py
+  s_9f052ddda3b0ba::t_a2c9b3b0ce6a24 17,820-832,849-860,1035-1040
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "6945540965f1b08755388529dca51edac88e4251",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
