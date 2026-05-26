@@ -76,30 +76,33 @@ def pai_api_options_error(options: PaiApiGuiOptions) -> str | None:
         return "Nenhum setor executor habilitado para SAM API."
     if not options.data_scopes:
         return "Nenhum tipo de dado habilitado para SAM API."
-    if (
-        not options.scrap_report_enabled
-        and any(scope in PAI_API_SCRAPER_DATA_SCOPES for scope in options.data_scopes)
-    ):
+    if not options.scrap_report_enabled and _has_scraper_data_scope(options.data_scopes):
         return "Acesso via xpath/scrap_report desabilitado nas opcoes."
-    unavailable = (
-        *planned_scraper_pai_api_data_scopes(options.data_scopes),
-        *unsupported_pai_api_data_scopes(options.data_scopes),
-    )
+    unavailable = _unavailable_pai_api_data_scopes(options.data_scopes)
     if unavailable:
         labels = ", ".join(pai_api_data_scope_label(value) for value in unavailable)
         return f"Tipo de dado ainda nao disponivel: {labels}. Use Consulta."
-    supported = tuple(
-        scope for scope in options.data_scopes if scope in PAI_API_ENABLED_DATA_SCOPES
-    )
+    supported = _enabled_pai_api_data_scopes(options.data_scopes)
     if not supported:
         return "Nenhum tipo de dado suportado habilitado para SAM API."
-    if (
-        options.secure_required
-        and not options.username
-        and any(scope in PAI_API_SCRAPER_DATA_SCOPES for scope in supported)
-    ):
+    if options.secure_required and not options.username and _has_scraper_data_scope(supported):
         return "Usuario SAM obrigatorio para xpath/scrap_report."
     return None
+
+
+def _enabled_pai_api_data_scopes(scopes: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(scope for scope in scopes if scope in PAI_API_ENABLED_DATA_SCOPES)
+
+
+def _has_scraper_data_scope(scopes: tuple[str, ...]) -> bool:
+    return any(scope in PAI_API_SCRAPER_DATA_SCOPES for scope in scopes)
+
+
+def _unavailable_pai_api_data_scopes(scopes: tuple[str, ...]) -> tuple[str, ...]:
+    return (
+        *planned_scraper_pai_api_data_scopes(scopes),
+        *unsupported_pai_api_data_scopes(scopes),
+    )
 
 
 def default_pai_api_settings() -> dict[str, Any]:
