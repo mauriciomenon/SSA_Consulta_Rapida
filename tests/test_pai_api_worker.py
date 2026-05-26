@@ -10,7 +10,6 @@ from core.pai_scrap_report_provider import PaiScrapReportExport
 from core.pai_scrap_report_provider import PaiScrapReportCertificate
 from core.pai_scrap_report_provider import PaiScrapReportRequest
 from gui.workers import pai_api_worker
-from gui.workers.pai_api_worker import _PaiSectorRequest
 from gui.workers.pai_api_worker import PaiApiRefreshWorker, PaiApiWorkerConfig
 
 
@@ -748,7 +747,8 @@ def test_pai_api_worker_records_preview_future_timeout(
     )
     errors: list[str] = []
     worker.error_line.connect(errors.append)
-    request = _PaiSectorRequest(
+    sector_request_cls = getattr(pai_api_worker, "_PaiSectorRequest")
+    request = sector_request_cls(
         sector="IEE3",
         request=PaiScrapReportRequest(
             project_root=tmp_path,
@@ -761,7 +761,8 @@ def test_pai_api_worker_records_preview_future_timeout(
     )
     pending: Future[Any] = Future()
 
-    preview = worker._sector_preview_from_future(request, pending)
+    preview_from_future = getattr(worker, "_sector_preview_from_future")
+    preview = preview_from_future(request, pending)
 
     assert preview is None
     assert errors == ["setor IEE3: timeout ao obter preview (0s)"]
