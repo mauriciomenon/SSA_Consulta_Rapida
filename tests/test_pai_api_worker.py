@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import Future
 from pathlib import Path
 from typing import Any
 
@@ -7,7 +8,9 @@ from core.pai_api_options import normalize_pai_api_options
 from core.pai_import_service import PaiFetchedXlsxPreview, PaiImportResult
 from core.pai_scrap_report_provider import PaiScrapReportExport
 from core.pai_scrap_report_provider import PaiScrapReportCertificate
+from core.pai_scrap_report_provider import PaiScrapReportRequest
 from gui.workers import pai_api_worker
+from gui.workers.pai_api_worker import _PaiSectorRequest
 from gui.workers.pai_api_worker import PaiApiRefreshWorker, PaiApiWorkerConfig
 
 
@@ -77,7 +80,7 @@ def test_pai_api_worker_refreshes_each_executor_sector(
                 {
                     "executor_sectors": ["IEE3", "MEL4", "MEL3"],
                     "sam_username": "sam.user",
-                    "secret_service": "scrap_report.sam",
+                    "secret_service": "scrap_report.sam",  # pragma: allowlist secret
                     "secure_required": True,
                 }
             ),
@@ -105,7 +108,7 @@ def test_pai_api_worker_refreshes_each_executor_sector(
     assert all(request.include_details is True for request in captured["requests"])
     assert all(request.username == "sam.user" for request in captured["requests"])
     assert all(
-        request.secret_service == "scrap_report.sam"
+        request.secret_service == "scrap_report.sam"  # pragma: allowlist secret
         for request in captured["requests"]
     )
     assert all(request.secure_required is True for request in captured["requests"])
@@ -263,7 +266,7 @@ def test_pai_api_worker_refreshes_both_aprovacao_scopes(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    captured: dict[str, Any] = {"requests": [], "docs_dirs": []}
+    captured: dict[str, Any] = {"requests": [], "docs_dirs": [], "progress": []}
 
     def _fake_fetch(request, *, docs_dir):
         captured["requests"].append(request)
@@ -302,6 +305,11 @@ def test_pai_api_worker_refreshes_both_aprovacao_scopes(
             fetch_only=True,
         )
     )
+    def _capture_progress(value, message):
+        _ = message
+        captured["progress"].append(value)
+
+    worker.progress.connect(_capture_progress)
 
     worker.run()
 
@@ -322,6 +330,7 @@ def test_pai_api_worker_refreshes_both_aprovacao_scopes(
         tmp_path / "docs" / "pai_api" / "aprovacao_cancelamento" / "IEE3",
     ]
     assert worker.summary().previewed_sectors == 2
+    assert captured["progress"] == sorted(captured["progress"])
 
 
 def test_pai_api_worker_continues_after_sector_failure(
@@ -537,6 +546,72 @@ def test_pai_api_worker_cancel_confirmation_keeps_db_unchanged(
     assert summary.normalized_rows == 1
 
 
+def test_pai_api_worker_confirmation_timeout_emits_error(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    import_calls = []
+    finished_errors = []
+    finished_successes = []
+
+    def _fake_fetch(request, *, docs_dir):
+        _ = request, docs_dir
+        return PaiFetchedXlsxPreview(
+            export=PaiScrapReportExport(
+                command=("cmd",),
+                scrap_report_root=tmp_path,
+                manifest_path=tmp_path / "manifest.json",
+                xlsx_path=tmp_path / "data.xlsx",
+                manifest={},
+                stdout="",
+                stderr="",
+            ),
+            import_xlsx_path=tmp_path / "import.xlsx",
+            normalized_rows=1,
+        )
+
+    def _fake_import(*args, **kwargs):
+        import_calls.append((args, kwargs))
+        raise AssertionError("import should not run after confirmation timeout")
+
+    monkeypatch.setattr(pai_api_worker, "fetch_pai_xlsx_preview", _fake_fetch)
+    monkeypatch.setattr(pai_api_worker, "import_prepared_pai_xlsx", _fake_import)
+    monkeypatch.setattr(pai_api_worker, "PAI_API_IMPORT_CONFIRM_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(
+        pai_api_worker,
+        "run_pai_scrap_report_ca_export",
+        lambda request: PaiScrapReportCertificate(
+            command=("cert",),
+            scrap_report_root=tmp_path,
+            ca_file=tmp_path / "ca.pem",
+            manifest_path=tmp_path / "cert.json",
+            stdout="",
+            stderr="",
+        ),
+    )
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+            confirm_before_import=True,
+        )
+    )
+    worker.finished_error.connect(finished_errors.append)
+    worker.finished_success.connect(lambda: finished_successes.append(True))
+
+    worker.run()
+
+    assert import_calls == []
+    assert finished_successes == []
+    assert len(finished_errors) == 1
+    assert "confirmacao de importacao nao recebida" in finished_errors[0]
+    assert worker.summary().import_skipped is False
+    assert worker.summary().imported_sectors == 0
+
+
 def test_pai_api_worker_does_not_import_when_all_sectors_fail(
     monkeypatch,
     tmp_path: Path,
@@ -655,6 +730,42 @@ def test_pai_api_worker_records_unhandled_failure_in_summary(
     assert errors == ["unexpected worker failure"]
     assert worker.failures == ["unexpected worker failure"]
     assert worker.summary().failures == ("unexpected worker failure",)
+
+
+def test_pai_api_worker_records_preview_future_timeout(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(pai_api_worker, "PAI_API_FETCH_FUTURE_GRACE_SECONDS", 0.0)
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=normalize_pai_api_options({"executor_sectors": ["IEE3"]}),
+        )
+    )
+    errors: list[str] = []
+    worker.error_line.connect(errors.append)
+    request = _PaiSectorRequest(
+        sector="IEE3",
+        request=PaiScrapReportRequest(
+            project_root=tmp_path,
+            output_dir=tmp_path / "out",
+            executor_sectors=("IEE3",),
+            command_timeout_seconds=0.0,
+        ),
+        docs_dir=tmp_path / "docs" / "IEE3",
+        progress_base=10,
+    )
+    pending: Future[Any] = Future()
+
+    preview = worker._sector_preview_from_future(request, pending)
+
+    assert preview is None
+    assert errors == ["setor IEE3: timeout ao obter preview (0s)"]
+    assert worker.summary().failed_sectors == 1
 
 
 def test_pai_api_worker_emits_fallback_message_for_empty_exception(

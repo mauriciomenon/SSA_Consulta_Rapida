@@ -186,7 +186,7 @@ def _render_ssa_navigation_link(
         label = f"{normalized} ({status_code})"
     escaped_label = html_module.escape(label)
     href = _build_ssa_href(normalized, panel_mode=panel_mode)
-    if not exists or not href:
+    if not href:
         return escaped_label
     return (
         f'<a href="{href}" style="color:{link_color}; '
@@ -532,15 +532,14 @@ def _get_details_frame_fingerprint(window, df) -> str:
         tuple(str(column) for column in getattr(df, "columns", [])),
     )
     cache = getattr(window, "_details_frame_fingerprint_cache", None)
-    if isinstance(cache, dict) and cache.get("token") == token:
-        cached_value = cache.get("fingerprint")
-        if isinstance(cached_value, str) and cached_value:
-            return cached_value
+    if not isinstance(cache, dict):
+        cache = {}
+    cached_value = cache.get(token)
+    if isinstance(cached_value, str) and cached_value:
+        return cached_value
     fingerprint = repr(token)
-    setattr(window, "_details_frame_fingerprint_cache", {
-        "token": token,
-        "fingerprint": fingerprint,
-    })
+    cache[token] = fingerprint
+    setattr(window, "_details_frame_fingerprint_cache", cache)
     return fingerprint
 
 
@@ -1059,6 +1058,16 @@ def _jump_to_ssa(window, numero_ssa, *, _allow_refilter=True):
                 window, getattr(window, "df_exibido", None), num_norm
             )
         if pos is None and not _allow_refilter:
+            try:
+                table_widget = getattr(window, "table_widget", None)
+                if table_widget is not None and hasattr(table_widget, "clearSelection"):
+                    table_widget.clearSelection()
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao limpar selecao no salto para SSA %s fora da pagina: %s",
+                    num_norm,
+                    exc,
+                )
             _update_details_from_series(window, _get_series_for_ssa(window, num_norm))
             return
         if pos is None:

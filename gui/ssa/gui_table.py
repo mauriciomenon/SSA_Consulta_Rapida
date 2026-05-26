@@ -14,6 +14,7 @@ import pandas as pd
 from gui.gui_config import (
     COLUMN_HEADER_LABEL_VARIANTS,
     DEFAULT_COLUMN_DISPLAY_NAMES,
+    DEFAULT_COLUMN_WIDTHS,
     DEFAULT_GUI_SETTINGS,
     GUI_MAIN_PREFERENCES,
 )
@@ -816,10 +817,19 @@ def _render_empty_page_table(window, header, *, update_details):
 def _resolved_user_column_widths(window, width_manager) -> dict:
     if width_manager is None:
         return {}
-    return width_manager.user_column_widths(
-        getattr(window, "_saved_gui_column_widths", {}),
-        GUI_MAIN_PREFERENCES.get("column_widths", {}),
-    )
+    saved_widths = getattr(window, "_saved_gui_column_widths", {})
+    if not isinstance(saved_widths, dict):
+        return {}
+    user_widths = {}
+    for col_name, width in saved_widths.items():
+        try:
+            width_px = int(width)
+        except (TypeError, ValueError):
+            continue
+        default_px = DEFAULT_COLUMN_WIDTHS.get(str(col_name))
+        if default_px is None or int(default_px) != width_px:
+            user_widths[str(col_name)] = width_px
+    return user_widths
 
 
 def _target_table_column_width(
@@ -836,6 +846,18 @@ def _minimum_table_column_width(col_name: str, header_min_px: int) -> int:
 
 def _apply_rendered_table_widths(window, display_df):
     cols_sig = tuple(display_df.columns)
+    try:
+        if int(window.table_widget.columnCount()) != len(cols_sig):
+            logger.warning(
+                "Tabela com contagem de colunas inconsistente; larguras ignoradas: "
+                "table=%s display=%s",
+                window.table_widget.columnCount(),
+                len(cols_sig),
+            )
+            return
+    except Exception as exc:
+        logger.debug("Falha ao validar contagem de colunas da tabela: %s", exc)
+        return
     try:
         viewport_width = window.table_widget.viewport().width()
     except Exception:
@@ -1010,6 +1032,12 @@ def _can_skip_reused_render_finalize(window, display_df) -> bool:
     if bool(getattr(window, "_skip_width_recompute_once", False)):
         return False
     cols_sig = tuple(display_df.columns)
+    try:
+        if int(window.table_widget.columnCount()) != len(cols_sig):
+            return False
+    except Exception as exc:
+        logger.debug("Falha ao validar contagem de colunas reutilizadas: %s", exc)
+        return False
     try:
         viewport_width = window.table_widget.viewport().width()
     except Exception:

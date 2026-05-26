@@ -70,8 +70,10 @@ def test_build_pai_scrap_report_command_uses_sweep_run_for_executadas(
             scrap_report_root=scrap_root,
             data_scope="executadas",
             executor_sectors=("IEE3", "MEL4"),
+            number_of_years=2,
+            limit=123,
             username="sam.user",
-            secret_service="scrap_report.sam",
+            secret_service="scrap_report.sam",  # pragma: allowlist secret
             secure_required=True,
         )
     )
@@ -81,6 +83,8 @@ def test_build_pai_scrap_report_command_uses_sweep_run_for_executadas(
     assert command[command.index("--report-kind") + 1] == "executadas"
     assert command[command.index("--runtime") + 1] == "playwright"
     assert command[command.index("--scope-mode") + 1] == "executor"
+    assert command[command.index("--number-of-years") + 1] == "2"
+    assert command[command.index("--limit") + 1] == "123"
     executor_index = command.index("--setores-executor")
     assert command[executor_index + 1 : executor_index + 3] == ("IEE3", "MEL4")
     assert command[command.index("--username") + 1] == "sam.user"

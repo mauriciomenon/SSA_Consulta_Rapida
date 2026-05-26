@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
+from functools import partial
 from typing import Any, cast
 
 from PyQt6.QtCore import Qt
@@ -226,7 +227,7 @@ def build_search_bar(
     tab_layout.addLayout(cast(Any, search_row))
 
     search_help = QLabel(
-        "Use termos positivos e ! para excluir. A busca vale para qualquer coluna."
+        "Use termos positivos e ! para excluir. A busca usa as colunas relevantes da GUI."
     )
     search_help.setWordWrap(False)
     try:
@@ -381,7 +382,7 @@ def build_pagination_filter_bar(
     pagination_filters_layout = QHBoxLayout()
     pagination_filters_layout.setContentsMargins(0, 0, 0, 0)
 
-    paginator = paginator_cls(window.df_para_tabela)
+    paginator = paginator_cls(window.df_para_tabela, show_page_size_controls=False)
     paginator.page_changed.connect(window.display_current_page)
     pagination_filters_layout.addWidget(paginator)
     pagination_filters_layout.addSpacing(8)
@@ -528,11 +529,7 @@ def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[st
                 logger.debug("Falha ao limitar botao de situacao %s: %s", value, exc)
             toggle_handler = getattr(window, "_on_quick_situacao_toggled", None)
             if callable(toggle_handler):
-                button.toggled.connect(
-                    lambda checked, status=value, handler=toggle_handler: handler(
-                        status, checked
-                    )
-                )
+                button.toggled.connect(partial(toggle_handler, value))
             _sync_quick_situacao_button(window, button, value, selected_values)
             layout.addWidget(cast(Any, button))
             buttons[value] = button

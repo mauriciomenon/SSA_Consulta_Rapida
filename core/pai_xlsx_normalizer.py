@@ -180,7 +180,7 @@ def default_ssa_import_xlsx_path(source_xlsx: Path) -> Path:
 def _coalesce_columns(frame: pd.DataFrame, columns: tuple[str, ...]) -> pd.Series:
     present_columns = [column for column in columns if column in frame.columns]
     if not present_columns:
-        return pd.Series([pd.NA] * len(frame), index=frame.index)
+        return pd.Series([pd.NA] * len(frame), index=frame.index, dtype="string")
     source = frame[present_columns].copy()
     for column in source.select_dtypes(include=("object", "string")).columns:
         text = source[column].astype("string").str.strip()
@@ -207,7 +207,8 @@ def _clean_normalized_text_columns(frame: pd.DataFrame) -> None:
 def _validate_source_excel_path(path: Path) -> None:
     if not path.is_file():
         raise FileNotFoundError(f"XLS SAM API nao encontrado: {path}")
-    if path.suffix.casefold() not in PAI_SUPPORTED_EXCEL_SUFFIXES:
+    supported_suffixes = tuple(suffix.casefold() for suffix in PAI_SUPPORTED_EXCEL_SUFFIXES)
+    if path.suffix.casefold() not in supported_suffixes:
         supported = ", ".join(PAI_SUPPORTED_EXCEL_SUFFIXES)
         raise ValueError(f"Arquivo SAM API deve ser Excel ({supported}): {path}")
 

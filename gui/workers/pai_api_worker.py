@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError
 from dataclasses import dataclass
 from dataclasses import replace
 from pathlib import Path
@@ -32,6 +32,7 @@ from gui.workers.qt_thread_shim import QThread, pyqtSignal
 
 PAI_API_MAX_CONCURRENT_FETCHES = 3
 PAI_API_IMPORT_CONFIRM_TIMEOUT_SECONDS = 300.0
+PAI_API_FETCH_FUTURE_GRACE_SECONDS = 30.0
 
 
 @dataclass(frozen=True)
@@ -101,6 +102,7 @@ class PaiApiRefreshWorker(QThread):
         self._import_decision_event = Event()
         self._import_decision = False
         self._import_decision_ready = False
+        self._import_decision_timed_out = False
 
     def summary(self) -> PaiApiRefreshSummary:
         with self._state_lock:
@@ -119,13 +121,15 @@ class PaiApiRefreshWorker(QThread):
             self._summary = PaiApiRefreshSummary(0, 0, 0, 0, 0, None, False, ())
             self._import_decision = False
             self._import_decision_ready = False
+            self._import_decision_timed_out = False
             self._import_decision_event.clear()
 
     def run(self) -> None:
+        self.reset_for_start()
         try:
             self._run_refresh()
         except Exception as exc:
-            message = str(exc or "") or type(exc).__name__
+            message = trim_pai_api_status_detail(str(exc or "") or type(exc).__name__)
             self._add_failure(message)
             self._refresh_summary()
             self.finished_error.emit(message)
@@ -160,6 +164,8 @@ class PaiApiRefreshWorker(QThread):
         )
 
         previews: list[_PaiSectorPreview] = []
+        total_scope_runs = max(len(data_scopes) * len(sectors), 1)
+        scope_run_index = 1
         for data_scope in data_scopes:
             report_kind = data_scope if data_scope.startswith("aprovacao_") else None
             scoped_request = replace(
@@ -173,13 +179,21 @@ class PaiApiRefreshWorker(QThread):
                 self.progress.emit(5, "SAM API: validando CA")
                 certificate = self._validate_ca(scoped_request)
                 if certificate is None:
+                    scope_run_index += len(sectors)
                     continue
                 ca_file = certificate.ca_file
             previews.extend(
                 self._fetch_sector_previews(
-                    self._sector_requests(scoped_request, ca_file, sectors)
+                    self._sector_requests(
+                        scoped_request,
+                        ca_file,
+                        sectors,
+                        start_index=scope_run_index,
+                        total_runs=total_scope_runs,
+                    )
                 )
             )
+            scope_run_index += len(sectors)
         self._refresh_summary(previews=previews)
         if not previews:
             self.finished_error.emit(_format_total_failure(self._failures_snapshot()))
@@ -192,6 +206,10 @@ class PaiApiRefreshWorker(QThread):
             return
 
         if self.config.confirm_before_import and not self._confirm_import(previews):
+            if self._import_decision_timed_out:
+                self._refresh_summary(previews=previews)
+                self.finished_error.emit(_format_total_failure(self._failures_snapshot()))
+                return
             self._mark_import_skipped(previews=previews)
             self.progress.emit(100, "SAM API preview concluido; DB inalterado")
             self.finished_success.emit()
@@ -229,10 +247,13 @@ class PaiApiRefreshWorker(QThread):
         base_request: PaiScrapReportRequest,
         ca_file: Path | None,
         sectors: tuple[str, ...],
+        *,
+        start_index: int,
+        total_runs: int,
     ) -> list[_PaiSectorRequest]:
-        total = max(len(sectors), 1)
+        total = max(int(total_runs), 1)
         requests = []
-        for index, sector in enumerate(sectors, start=1):
+        for index, sector in enumerate(sectors, start=max(int(start_index), 1)):
             progress_base = 10 + int((index - 1) * 80 / total)
             sector_request = self._sector_request(base_request, ca_file, sector)
             requests.append(
@@ -303,10 +324,24 @@ class PaiApiRefreshWorker(QThread):
             f"SAM API: setor {sector_request.sector}",
         )
         try:
-            preview = future.result()
+            timeout_seconds = (
+                float(sector_request.request.command_timeout_seconds)
+                + PAI_API_FETCH_FUTURE_GRACE_SECONDS
+            )
+            preview = future.result(timeout=timeout_seconds)
+        except TimeoutError:
+            failure = (
+                f"setor {sector_request.sector}: timeout ao obter preview "
+                f"({timeout_seconds:g}s)"
+            )
+            self._add_failure(failure)
+            self._refresh_summary()
+            self.error_line.emit(failure)
+            return None
         except Exception as exc:
             failure = _format_sector_failure(sector_request.sector, exc)
             self._add_failure(failure)
+            self._refresh_summary()
             self.error_line.emit(failure)
             return None
         self.preview_ready.emit(preview.preview)
@@ -355,10 +390,13 @@ class PaiApiRefreshWorker(QThread):
     def _confirm_import(self, previews: list[_PaiSectorPreview]) -> bool:
         self.import_decision_required.emit(_decision_request(previews, self._failures_snapshot()))
         if not self._import_decision_event.wait(PAI_API_IMPORT_CONFIRM_TIMEOUT_SECONDS):
+            with self._state_lock:
+                self._import_decision_timed_out = True
             self._add_failure("confirmacao de importacao nao recebida")
             return False
         with self._state_lock:
             if not self._import_decision_ready:
+                self._import_decision_timed_out = True
                 self._add_failure("confirmacao de importacao nao recebida")
                 return False
             return self._import_decision

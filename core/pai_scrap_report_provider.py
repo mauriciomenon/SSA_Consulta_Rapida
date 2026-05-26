@@ -252,6 +252,10 @@ def _build_pai_sweep_run_command(
         PAI_SWEEP_SCOPE_MODE_EXECUTOR,
         "--runtime",
         PAI_SWEEP_RUNTIME_PLAYWRIGHT,
+        "--number-of-years",
+        str(request.number_of_years),
+        "--limit",
+        str(request.limit),
         "--download-dir",
         str(output_dir / PAI_SWEEP_DOWNLOAD_DIRNAME),
         "--staging-dir",
@@ -267,8 +271,9 @@ def _build_pai_sweep_run_command(
         command.extend(["--numero-ssa", request.ssa_numbers[0]])
     if username:
         command.extend(["--username", username])
-    if request.secret_service:
-        command.extend(["--secret-service", request.secret_service.strip()])
+    secret_service = str(request.secret_service or "").strip()
+    if secret_service:
+        command.extend(["--secret-service", secret_service])
     if request.secure_required:
         command.append("--secure-required")
     return tuple(command)

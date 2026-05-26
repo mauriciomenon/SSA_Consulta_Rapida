@@ -326,6 +326,7 @@ class TestGUIFilterLogic:
         export_list_btn = main_ctx["export_list_btn"]
         undo_filter_btn = main_ctx["undo_filter_btn"]
         theme_button = getattr(self.window, "theme_button", None)
+        preferences_button = getattr(self.window, "preferences_button", None)
 
         QApplication.processEvents()
 
@@ -381,9 +382,16 @@ class TestGUIFilterLogic:
         paginator_y = paginator.mapToGlobal(paginator.rect().topLeft()).y()
         assert search_y < summary_y < paginator_y
         assert theme_button is not None
+        assert preferences_button is not None
+        assert str(preferences_button.text() or "") == "Preferencias"
         assert column_selector.mapToGlobal(column_selector.rect().topLeft()).y() < search_y
+        assert not getattr(paginator, "show_page_size_controls", True)
+        page_size_label = getattr(paginator, "page_size_label", None)
+        assert page_size_label is not None
+        assert page_size_label.parentWidget() is None
         assert (
             column_selector.mapToGlobal(column_selector.rect().topLeft()).x()
+            < preferences_button.mapToGlobal(preferences_button.rect().topLeft()).x()
             < theme_button.mapToGlobal(theme_button.rect().topLeft()).x()
         )
         assert str(quick_label.text() or "") == "Setor Executor:"
@@ -5597,7 +5605,7 @@ class TestGUIFilterLogic:
 
         assert seen["first_target_ok"] is True
 
-    def test_build_derivadas_tree_html_omits_link_for_missing_target(self, monkeypatch):
+    def test_build_derivadas_tree_html_links_valid_missing_target(self, monkeypatch):
         monkeypatch.setattr(
             ssa_gui_details,
             "_collect_derivadas_tree_data",
@@ -5620,7 +5628,7 @@ class TestGUIFilterLogic:
         html = ssa_gui_details._build_derivadas_tree_html(self.window, "202602147")
 
         assert '<a href="ssa-panel:202602147"' in html
-        assert '<a href="ssa-panel:202500777"' not in html
+        assert '<a href="ssa-panel:202500777"' in html
         assert "202500777" in html
 
     def test_collect_derivadas_tree_data_uses_direct_parent_fallback_without_db(
@@ -5656,7 +5664,7 @@ class TestGUIFilterLogic:
         assert tree_data["children"] == ["202603588"]
         assert tree_data["related"][0]["ssa"] == "202500777"
 
-    def test_format_details_html_omits_link_for_missing_derived_target(
+    def test_format_details_html_links_valid_missing_derived_target(
         self, monkeypatch
     ):
         seen_targets = []
@@ -5686,7 +5694,7 @@ class TestGUIFilterLogic:
         )
 
         assert '<a href="ssa:202602147"' in html
-        assert '<a href="ssa:202500777"' not in html
+        assert '<a href="ssa:202500777"' in html
         assert "202500777" in html
         assert seen_targets.count("202602147") == 1
         assert seen_targets.count("202500777") == 1

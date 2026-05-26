@@ -117,7 +117,7 @@ def _field_sort_key(config: DetailsDisplayConfig, item: tuple[Any, Any]) -> tupl
     except ValueError:
         if col in _ORIGIN_DETAIL_FIELD_FINAL_BLOCK_ORDER:
             return (2, _ORIGIN_DETAIL_FIELD_FINAL_BLOCK_ORDER[col])
-        return (1, col)
+        return (1, str(col))
 
 
 def _display_name_html(display_name: str) -> str:

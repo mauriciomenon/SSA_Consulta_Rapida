@@ -7,7 +7,9 @@ from zipfile import BadZipFile
 import pytest
 
 from core import pai_xlsx_normalizer
+from core.pai_xlsx_normalizer import _coalesce_columns
 from core.pai_xlsx_normalizer import _replace_xlsx_with_retry
+from core.pai_xlsx_normalizer import _validate_source_excel_path
 from core.pai_xlsx_normalizer import build_normalized_pai_dataframe
 from core.pai_xlsx_normalizer import normalize_pai_xlsx_for_ssa_import
 
@@ -49,6 +51,22 @@ def test_build_normalized_pai_dataframe_uses_process_status_when_situation_is_em
     )
 
     assert normalized.loc[0, "situacao"] == "Emitida"
+
+
+def test_coalesce_columns_missing_returns_string_series() -> None:
+    frame = pai_xlsx_normalizer.pd.DataFrame({"other": [1, 2]})
+
+    series = _coalesce_columns(frame, ("missing",))
+
+    assert str(series.dtype) == "string"
+    assert series.isna().tolist() == [True, True]
+
+
+def test_validate_source_excel_path_accepts_uppercase_suffix(tmp_path: Path) -> None:
+    source = tmp_path / "SAM_API.XLSX"
+    source.write_bytes(b"xlsx")
+
+    _validate_source_excel_path(source)
 
 
 def test_normalize_pai_xlsx_reports_bad_zip_read_failure(

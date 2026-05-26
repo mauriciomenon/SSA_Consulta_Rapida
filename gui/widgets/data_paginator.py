@@ -15,9 +15,10 @@ class DataPaginator(QWidget):
 
     page_changed = pyqtSignal(int)  # Emite o numero da nova pagina (1-based)
 
-    def __init__(self, df, page_size=50):
+    def __init__(self, df, page_size=50, *, show_page_size_controls=True):
         super().__init__()
         self.df = df
+        self.show_page_size_controls = bool(show_page_size_controls)
         try:
             page_size_value = int(page_size)
         except (TypeError, ValueError):
@@ -42,21 +43,22 @@ class DataPaginator(QWidget):
         self.next_button.clicked.connect(self.next_page)
         self.next_button.setEnabled(False)
 
-        # Controle de tamanho da pagina
-        page_size_layout = QHBoxLayout()
-        page_size_layout.addWidget(QLabel("Linhas por Pagina:"))
         self.page_size_spinbox = QSpinBox()
         self.page_size_spinbox.setRange(PAGE_SIZE_MIN, PAGE_SIZE_MAX)
         self.page_size_spinbox.setSingleStep(10)
         self.page_size_spinbox.setValue(self.page_size)
         self.page_size_spinbox.valueChanged.connect(self.change_page_size)
-        page_size_layout.addWidget(self.page_size_spinbox)
+        self.page_size_label = QLabel("Linhas por Pagina:")
 
         layout.addWidget(self.prev_button)
         layout.addWidget(self.page_info_label)
         layout.addWidget(self.next_button)
         layout.addStretch()
-        layout.addLayout(page_size_layout)
+        if self.show_page_size_controls:
+            page_size_layout = QHBoxLayout()
+            page_size_layout.addWidget(self.page_size_label)
+            page_size_layout.addWidget(self.page_size_spinbox)
+            layout.addLayout(page_size_layout)
 
     def set_dataframe(self, df):
         self.df = df

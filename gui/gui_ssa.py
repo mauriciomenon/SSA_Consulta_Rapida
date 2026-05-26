@@ -173,6 +173,7 @@ try:
     from PyQt6.QtWidgets import (
         QApplication,
         QDialog,
+        QDialogButtonBox,
         QFileDialog,
         QGridLayout,
         QHBoxLayout,
@@ -184,6 +185,7 @@ try:
         QProgressBar,
         QPushButton,
         QSizePolicy,
+        QSpinBox,
         QStackedWidget,
         QTabBar,
         QTableWidget,
@@ -214,6 +216,7 @@ except ImportError as exc:
         QApplication,
         QDesktopServices,
         QDialog,
+        QDialogButtonBox,
         QEvent,
         QFileDialog,
         QFont,
@@ -227,6 +230,7 @@ except ImportError as exc:
         QProgressBar,
         QPushButton,
         QSizePolicy,
+        QSpinBox,
         QStackedWidget,
         QTabBar,
         QTabWidget,
@@ -739,6 +743,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._canonical_available_columns_cache_key = None
         self._canonical_available_columns_cache = None
         self._adv_values_cache = {}
+        self._df_last_search_filtered = pd.DataFrame()
         if reason:
             logger.debug("Data revision bump (%s): %s", reason, next_rev)
         return next_rev
@@ -1153,10 +1158,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         toolbar_layout.addWidget(cast(Any, self.status_label))
         toolbar_layout.addWidget(cast(Any, self.progress_bar))
 
+        self.preferences_button = QPushButton("Preferencias")
+        self.preferences_button.setToolTip("Abrir preferencias da interface")
+        self.preferences_button.clicked.connect(self._open_preferences_dialog)
+
         theme_button = QPushButton("Tema")
         self.theme_button = theme_button
         theme_button.setToolTip("Selecionar tema em caixa de dialogo")
         theme_button.clicked.connect(self.toggle_theme_menu)
+        toolbar_layout.addWidget(cast(Any, self.preferences_button))
+        toolbar_layout.addSpacing(6)
         toolbar_layout.addWidget(cast(Any, theme_button))
 
         main_layout.addLayout(cast(Any, toolbar_layout))
@@ -1290,7 +1301,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             paginator_cls=DataPaginator,
         )
         column_selector = pagination_context["column_selector"]
-        theme_index = self._top_toolbar_layout.indexOf(self.theme_button)
+        theme_anchor = getattr(self, "preferences_button", self.theme_button)
+        theme_index = self._top_toolbar_layout.indexOf(theme_anchor)
         if theme_index >= 0:
             self._top_toolbar_layout.insertWidget(theme_index, column_selector)
             self._top_toolbar_layout.insertSpacing(theme_index + 1, 6)
@@ -2844,6 +2856,34 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if os.environ.get("PYTEST_CURRENT_TEST"):
             return True
         return self._persist_gui_preferences()
+
+    def _open_preferences_dialog(self) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Preferencias")
+        layout = QVBoxLayout(cast(Any, dialog))
+        layout.setContentsMargins(12, 12, 12, 12)
+        grid = QGridLayout()
+        grid.addWidget(cast(Any, QLabel("Linhas por pagina")), 0, 0)
+        page_size_spin = QSpinBox()
+        page_size_spin.setRange(10, 500)
+        page_size_spin.setSingleStep(10)
+        page_size_spin.setValue(int(getattr(self, "_restored_page_size", 50) or 50))
+        grid.addWidget(cast(Any, page_size_spin), 0, 1)
+        layout.addLayout(cast(Any, grid))
+        button_flags = cast(Any, QDialogButtonBox.StandardButton.Ok)
+        button_flags = button_flags | cast(Any, QDialogButtonBox.StandardButton.Cancel)
+        buttons = QDialogButtonBox(button_flags)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(cast(Any, buttons))
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        page_size = int(page_size_spin.value())
+        if not self._save_page_size_pref(page_size):
+            return
+        paginator = getattr(self, "paginator", None)
+        if paginator is not None:
+            paginator.change_page_size(page_size)
 
     def _get_series_from_row(self, row: int):
         visible_numero = self._get_visible_numero_ssa_from_row(row)
