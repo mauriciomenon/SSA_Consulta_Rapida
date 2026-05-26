@@ -210,3 +210,51 @@ def test_on_load_error_shows_hidden_startup_window_once(
 
     assert recorder.calls == 1
     assert getattr(dummy, "_startup_show_pending") is False
+
+
+def test_refresh_data_from_api_forces_consulta_scope_without_mutating_preferences(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gui import gui_ssa
+
+    original_preferences = gui_ssa.copy.deepcopy(gui_ssa.GUI_MAIN_PREFERENCES)
+    gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+    gui_settings["pai_api"] = {
+        "enabled": True,
+        "executor_sectors": ["IEE3"],
+        "data_scopes": ["consulta", "executadas"],
+    }
+    captured: dict[str, Any] = {}
+
+    def fake_start(window, *, preferences, context, ask_reload=True, reload_after_success=None, **_kwargs):  # noqa: ANN001
+        captured["window"] = window
+        captured["preferences"] = preferences
+        captured["context"] = context
+        captured["ask_reload"] = ask_reload
+        captured["reload_after_success"] = reload_after_success
+        return "started"
+
+    class _ApiDummy:
+        def _pai_api_refresh_context(self) -> str:
+            return "ctx"
+
+    monkeypatch.setattr(
+        gui_ssa.ssa_pai_api_controller,
+        "start_pai_api_refresh",
+        fake_start,
+    )
+
+    try:
+        result = gui_ssa.SSAMainWindow.refresh_data_from_api(cast(Any, _ApiDummy()))
+    finally:
+        gui_ssa.GUI_MAIN_PREFERENCES.clear()
+        gui_ssa.GUI_MAIN_PREFERENCES.update(original_preferences)
+
+    assert result == "started"
+    assert captured["context"] == "ctx"
+    assert captured["ask_reload"] is False
+    assert captured["reload_after_success"] is True
+    assert captured["preferences"]["gui_settings"]["pai_api"]["data_scopes"] == [
+        "consulta"
+    ]
+    assert gui_settings["pai_api"]["data_scopes"] == ["consulta", "executadas"]

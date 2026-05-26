@@ -3601,10 +3601,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
 
     def refresh_data_from_api(self):
+        preferences = copy.deepcopy(GUI_MAIN_PREFERENCES)
+        gui_settings = preferences.setdefault("gui_settings", {})
+        api_settings = copy.deepcopy(gui_settings.get("pai_api", {}))
+        api_settings[PAI_API_DATA_SCOPES_KEY] = ["consulta"]
+        gui_settings["pai_api"] = api_settings
         return ssa_pai_api_controller.start_pai_api_refresh(
             self,
-            preferences=GUI_MAIN_PREFERENCES,
+            preferences=preferences,
             context=self._pai_api_refresh_context(),
+            ask_reload=False,
+            reload_after_success=True,
         )
 
     def initialize_pai_api_auto_refresh(self) -> bool:
