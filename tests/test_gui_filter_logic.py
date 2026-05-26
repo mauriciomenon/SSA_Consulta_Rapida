@@ -320,10 +320,12 @@ class TestGUIFilterLogic:
         quick_label = main_ctx["quick_setor_executor_label"]
         quick_combo = main_ctx["quick_setor_executor_combo"]
         quick_box = main_ctx["quick_setor_executor_box"]
+        quick_situacao_scroll = main_ctx["quick_situacao_scroll"]
         filters_summary_frame = main_ctx["filters_summary_frame"]
         clear_all_filters_btn = main_ctx["clear_all_filters_btn"]
         export_list_btn = main_ctx["export_list_btn"]
         undo_filter_btn = main_ctx["undo_filter_btn"]
+        theme_button = getattr(self.window, "theme_button", None)
 
         QApplication.processEvents()
 
@@ -378,23 +380,26 @@ class TestGUIFilterLogic:
         ).y()
         paginator_y = paginator.mapToGlobal(paginator.rect().topLeft()).y()
         assert search_y < summary_y < paginator_y
-        assert column_selector.geometry().y() > search_input.geometry().y()
-        assert abs(column_selector.geometry().y() - paginator.geometry().y()) <= 10
-        assert column_selector.geometry().x() > paginator.geometry().x()
-        assert (column_selector.geometry().x() - paginator.geometry().right()) <= 40
+        assert theme_button is not None
+        assert column_selector.mapToGlobal(column_selector.rect().topLeft()).y() < search_y
+        assert (
+            column_selector.mapToGlobal(column_selector.rect().topLeft()).x()
+            < theme_button.mapToGlobal(theme_button.rect().topLeft()).x()
+        )
         assert str(quick_label.text() or "") == "Setor Executor:"
         quick_label_pos = quick_label.mapToGlobal(quick_label.rect().topLeft())
         quick_combo_pos = quick_combo.mapToGlobal(quick_combo.rect().topLeft())
         quick_box_pos = quick_box.mapToGlobal(quick_box.rect().topLeft())
-        column_selector_pos = column_selector.mapToGlobal(
-            column_selector.rect().topLeft()
-        )
         assert abs(quick_label_pos.y() - quick_combo_pos.y()) <= 6
         assert quick_label_pos.x() < quick_combo_pos.x()
-        assert quick_box_pos.x() > column_selector_pos.x()
-        assert quick_combo_pos.x() > column_selector_pos.x()
+        assert quick_box_pos.x() > paginator.mapToGlobal(paginator.rect().topLeft()).x()
+        assert quick_combo_pos.x() > paginator.mapToGlobal(paginator.rect().topLeft()).x()
         assert quick_combo.height() <= 28
         assert quick_combo.height() >= 24
+        assert quick_situacao_scroll.maximumWidth() <= 520
+        assert quick_situacao_scroll.horizontalScrollBarPolicy().name.endswith(
+            "AsNeeded"
+        )
         parent_widget = quick_combo.parentWidget()
         assert parent_widget is not None
         right_gap = parent_widget.rect().right() - quick_combo.geometry().right()
@@ -925,6 +930,20 @@ class TestGUIFilterLogic:
 
         combo.setCurrentIndex(0)
         QApplication.processEvents()
+
+        assert "setor_executor" not in self.window._advanced_filters
+        assert "setor_executor_exclude_values" not in self.window._advanced_filters
+
+    def test_quick_setor_executor_direct_clear_removes_existing_exclusions(self):
+        self.window._advanced_filters = {
+            "setor_executor": ["MEL4"],
+            "setor_executor_exclude_values": ["MEL3"],
+        }
+        self.window._active_column_filters["setor_executor"] = ""
+
+        self.window._sync_advanced_executor_filter_from_active_filters(
+            clear_exclude=True
+        )
 
         assert "setor_executor" not in self.window._advanced_filters
         assert "setor_executor_exclude_values" not in self.window._advanced_filters
@@ -4557,6 +4576,9 @@ class TestGUIFilterLogic:
         ), patch(
             "gui.ssa.gui_details._get_window_ssa_series_index",
             side_effect=AssertionError("nao deveria montar indice global"),
+        ), patch(
+            "gui.ssa.gui_details._get_series_for_ssa",
+            side_effect=AssertionError("nao deveria escanear SSA relacionada"),
         ):
             ssa_gui_details._update_details_from_series(self.window, series)
 

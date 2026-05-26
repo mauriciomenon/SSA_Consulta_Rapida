@@ -1077,10 +1077,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         main_layout = QVBoxLayout(cast(Any, central_widget))
         self._setup_app_menus()
 
-        # --- Barra de Ferramentas Superior ---
         toolbar_layout = QHBoxLayout()
+        self._top_toolbar_layout = toolbar_layout
 
-        # Botões principais de dados
         self.open_sam_button = QPushButton("Abrir SAM")
         self.open_sam_button.setToolTip("Abrir pagina principal do SAM no navegador")
         self.open_sam_button.clicked.connect(self._open_sam_home)
@@ -1154,8 +1153,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         toolbar_layout.addWidget(cast(Any, self.status_label))
         toolbar_layout.addWidget(cast(Any, self.progress_bar))
 
-        # Botao de Tema no lado direito
         theme_button = QPushButton("Tema")
+        self.theme_button = theme_button
         theme_button.setToolTip("Selecionar tema em caixa de dialogo")
         theme_button.clicked.connect(self.toggle_theme_menu)
         toolbar_layout.addWidget(cast(Any, theme_button))
@@ -1291,12 +1290,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             paginator_cls=DataPaginator,
         )
         column_selector = pagination_context["column_selector"]
+        theme_index = self._top_toolbar_layout.indexOf(self.theme_button)
+        if theme_index >= 0:
+            self._top_toolbar_layout.insertWidget(theme_index, column_selector)
+            self._top_toolbar_layout.insertSpacing(theme_index + 1, 6)
         quick_setor_executor_label = pagination_context["quick_setor_executor_label"]
         quick_setor_executor_combo = pagination_context["quick_setor_executor_combo"]
         quick_setor_executor_box = pagination_context["quick_setor_executor_box"]
         quick_situacao_box = pagination_context["quick_situacao_box"]
         quick_situacao_label = pagination_context["quick_situacao_label"]
         quick_situacao_widget = pagination_context["quick_situacao_widget"]
+        quick_situacao_scroll = pagination_context["quick_situacao_scroll"]
         quick_situacao_layout = pagination_context["quick_situacao_layout"]
         quick_situacao_buttons = pagination_context["quick_situacao_buttons"]
         quick_situacao_values = pagination_context["quick_situacao_values"]
@@ -1344,6 +1348,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "quick_situacao_box": quick_situacao_box,
                 "quick_situacao_label": quick_situacao_label,
                 "quick_situacao_widget": quick_situacao_widget,
+                "quick_situacao_scroll": quick_situacao_scroll,
                 "quick_situacao_layout": quick_situacao_layout,
                 "quick_situacao_buttons": quick_situacao_buttons,
                 "quick_situacao_values": quick_situacao_values,
@@ -2438,9 +2443,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 advanced_filters.pop("setor_executor_exclude_values", None)
         else:
             advanced_filters.pop("setor_executor", None)
-            if clear_exclude and not advanced_filters.get(
-                "setor_executor_exclude_values"
-            ):
+            if clear_exclude:
                 advanced_filters.pop("setor_executor_exclude_values", None)
         self._advanced_filters = advanced_filters
         self._advanced_filters_active = self._has_active_advanced_filters(

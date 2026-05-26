@@ -667,6 +667,23 @@ def _update_details_from_series(window, series):
             except Exception:
                 font_size_pt = None
                 font_family = None
+        details_ssa_index: Mapping[str, pd.Series] = {}
+        current_sources = (
+            getattr(window, "df_exibido", None),
+            getattr(window, "df_completo", None),
+        )
+        cached_sources = getattr(window, "_details_ssa_index_sources", None)
+        cached_lookup = getattr(window, "_details_ssa_series_index", None)
+        if (
+            isinstance(cached_sources, tuple)
+            and len(cached_sources) == 4
+            and cached_sources[0] is current_sources[0]
+            and cached_sources[1] is current_sources[1]
+            and cached_sources[2] == getattr(window, "_data_revision", None)
+            and cached_sources[3] == getattr(window, "_data_uuid", None)
+            and isinstance(cached_lookup, dict)
+        ):
+            details_ssa_index = cached_lookup
         html_content = _format_details_html(
             window,
             series,
@@ -674,7 +691,7 @@ def _update_details_from_series(window, series):
             font_size_pt=font_size_pt,
             linkify=True,
             font_family=font_family,
-            ssa_index=_get_window_ssa_series_index(window),
+            ssa_index=details_ssa_index,
         )
         window.details_text.setHtml(html_content)
         window.details_text.setProperty("details_render_signature", render_signature)
@@ -953,7 +970,7 @@ def _get_related_ssas_for_series(
         resolved_series = None
         if isinstance(ssa_index, Mapping):
             resolved_series = ssa_index.get(normalized)
-        if resolved_series is None:
+        if resolved_series is None and ssa_index is None:
             resolved_series = _get_series_for_ssa(window, normalized)
         if not status_hint and resolved_series is not None:
             try:

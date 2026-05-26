@@ -203,7 +203,7 @@ def _render_derivadas_row(
     if linkify:
         items = []
         derived_exists_cache: dict[str, bool] = {}
-        if isinstance(ssa_index, dict):
+        if isinstance(ssa_index, dict) and ssa_index:
             deps.hydrate_ssa_index_candidates(
                 window, cast(dict[str, Any], ssa_index), derived_list
             )
@@ -270,13 +270,14 @@ def _render_related_row(
             continue
         seen_related.add(related_ssa)
         related_exists = bool(item.get("exists", False))
+        status_hint = str(item.get("situacao", "") or "").strip().upper()
         rendered_items.append(
             deps.render_ssa_navigation_link(
                 related_ssa,
                 link_color=link_color,
                 panel_mode=False,
                 exists=related_exists,
-                status_hint="",
+                status_hint=status_hint,
             )
             if linkify
             else html_module.escape(related_ssa)

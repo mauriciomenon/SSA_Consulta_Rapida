@@ -385,7 +385,6 @@ def build_pagination_filter_bar(
     paginator.page_changed.connect(window.display_current_page)
     pagination_filters_layout.addWidget(paginator)
     pagination_filters_layout.addSpacing(8)
-    pagination_filters_layout.addWidget(column_selector)
 
     profile_selector = None
     pagination_filters_layout.addSpacing(12)
@@ -408,6 +407,24 @@ def build_pagination_filter_bar(
     quick_situacao_state = populate_quick_situacao_buttons(
         window, quick_situacao_layout
     )
+    quick_situacao_scroll = QScrollArea()
+    quick_situacao_scroll.setObjectName("quickSituacaoScroll")
+    quick_situacao_scroll.setWidget(cast(Any, quick_situacao_widget))
+    quick_situacao_scroll.setWidgetResizable(False)
+    quick_situacao_scroll.setFrameShape(QFrame.Shape.NoFrame)
+    quick_situacao_scroll.setHorizontalScrollBarPolicy(
+        Qt.ScrollBarPolicy.ScrollBarAsNeeded
+    )
+    quick_situacao_scroll.setVerticalScrollBarPolicy(
+        Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    )
+    quick_situacao_scroll.setMinimumWidth(160)
+    quick_situacao_scroll.setMaximumWidth(520)
+    quick_situacao_scroll.setFixedHeight(32)
+    quick_situacao_scroll.setSizePolicy(
+        cast(Any, QSizePolicy.Policy.Expanding),
+        cast(Any, QSizePolicy.Policy.Fixed),
+    )
 
     quick_situacao_box = _build_quick_filter_box("quickSituacaoBox")
     quick_situacao_box.setToolTip(
@@ -417,7 +434,7 @@ def build_pagination_filter_bar(
     quick_situacao_box_layout.setContentsMargins(6, 2, 6, 2)
     quick_situacao_box_layout.setSpacing(6)
     quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_label))
-    quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_widget))
+    quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_scroll))
     quick_situacao_box.setVisible(bool(quick_situacao_state["values"]))
 
     quick_setor_executor_box = _build_quick_filter_box("quickSetorExecutorBox")
@@ -447,6 +464,7 @@ def build_pagination_filter_bar(
         "quick_situacao_box": quick_situacao_box,
         "quick_situacao_label": quick_situacao_label,
         "quick_situacao_widget": quick_situacao_widget,
+        "quick_situacao_scroll": quick_situacao_scroll,
         "quick_situacao_layout": quick_situacao_layout,
         "quick_situacao_buttons": quick_situacao_state["buttons"],
         "quick_situacao_values": quick_situacao_state["values"],
@@ -520,6 +538,8 @@ def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[st
             buttons[value] = button
     widget = layout.parentWidget()
     if widget is not None:
+        widget.adjustSize()
+        widget.setMinimumWidth(widget.sizeHint().width())
         widget.setVisible(bool(values))
     return {"buttons": buttons, "values": list(values)}
 
