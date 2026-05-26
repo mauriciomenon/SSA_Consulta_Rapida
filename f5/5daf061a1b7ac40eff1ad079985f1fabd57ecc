@@ -1,0 +1,37 @@
+gui/ssa/gui_details.py
+  s_9f052ddda3b0ba::t_6435643089c28d 694
+  s_9f052ddda3b0ba::t_223fc69da09f30 973
+  s_9f052ddda3b0ba::t_54d671983708b9 670-686
+gui/ssa/main_window_filter_bar.py
+  s_9f052ddda3b0ba::t_79aa5340e2799b 541-542
+  s_9f052ddda3b0ba::t_d4e6d641b2a693 410-427,437,467
+gui/ssa/gui_details_html.py
+  s_9f052ddda3b0ba::t_9fdabccb5f4e58 206
+  s_9f052ddda3b0ba::t_fdd53197f6488c 273,280
+gui/gui_ssa.py
+  s_9f052ddda3b0ba::t_04eed1d601b4d6 2446
+  s_9f052ddda3b0ba::t_5a7e210f861998 1293-1296
+  s_9f052ddda3b0ba::t_3d21126887d193 1303,1351
+  s_9f052ddda3b0ba::t_326afeb8b86437 1081
+  s_9f052ddda3b0ba::t_d603f06f1e37b7 1157
+tests/test_gui_filter_logic.py
+  s_9f052ddda3b0ba::t_a4bad59a860a73 4579-4581
+  s_9f052ddda3b0ba::t_59e892e4a54a75 323,328,383-388,395-396,399-402
+  s_9f052ddda3b0ba::t_ea7687bec17c09 937-950
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "f55daf061a1b7ac40eff1ad079985f1fabd57ecc",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
