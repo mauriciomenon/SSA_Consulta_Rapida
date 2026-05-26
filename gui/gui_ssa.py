@@ -875,20 +875,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def show_about_dialog(self):
         QMessageBox.information(self, "Sobre", build_about_message(self._app_version))
 
-    def __init__(self):
-        if not QT_AVAILABLE:
-            raise RuntimeError("GUI unavailable: PyQt6 import failed")
-        super().__init__()
-        try:
-            # Evita acumulo de janelas/widgets fechados (impacta performance ao reaplicar tema global).
-            self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        except Exception as exc:
-            logger.debug("Failed to set WA_DeleteOnClose on main window: %s", exc)
-        self._app_version = resolve_app_version_text()
-        self.setWindowTitle(f"Consulta Rapida de SSAs v{self._app_version}")
-        self.setGeometry(100, 100, 1200, 890)
-        self._last_window_width = self.width()
-        # Icone da janela (prioriza .ico no Windows)
+    def _apply_window_icon(self) -> None:
         try:
             from PyQt6.QtGui import QIcon
 
@@ -931,6 +918,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 break
         except Exception as exc:
             logger.debug("Failed to load window icon resources: %s", exc)
+
+    def __init__(self):
+        if not QT_AVAILABLE:
+            raise RuntimeError("GUI unavailable: PyQt6 import failed")
+        super().__init__()
+        try:
+            # Evita acumulo de janelas/widgets fechados (impacta performance ao reaplicar tema global).
+            self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        except Exception as exc:
+            logger.debug("Failed to set WA_DeleteOnClose on main window: %s", exc)
+        self._app_version = resolve_app_version_text()
+        self.setWindowTitle(f"Consulta Rapida de SSAs v{self._app_version}")
+        self.setGeometry(100, 100, 1200, 890)
+        self._last_window_width = self.width()
+        self._apply_window_icon()
 
         self.df_completo = pd.DataFrame()
         self.df_exibido = pd.DataFrame()  # DataFrame filtrado
