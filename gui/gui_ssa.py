@@ -60,8 +60,11 @@ from core.pai_api_options import (
     PAI_API_ENABLED_KEY,
     PAI_API_LIMIT_KEY,
     PAI_API_NUMBER_OF_YEARS_KEY,
+    PAI_API_SECRET_SERVICE_KEY,
     PAI_API_SCRAP_ENABLED_KEY,
+    PAI_API_SECURE_REQUIRED_KEY,
     PAI_API_SECTORS_KEY,
+    PAI_API_USERNAME_KEY,
     normalize_pai_api_options,
     pai_api_data_scope_label,
 )
@@ -1507,7 +1510,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return
         try:
             progress_bar.setFixedWidth(24 if self._show_progress_bar_enabled else 0)
-            progress_bar.setVisible(self._show_progress_bar_enabled)
+            if not self._show_progress_bar_enabled:
+                progress_bar.setVisible(False)
         except Exception as exc:
             logger.debug("Falha ao aplicar preferencia da barra de progresso: %s", exc)
 
@@ -3148,25 +3152,44 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_years_spin.setValue(int(api_options.number_of_years))
         api_layout.addWidget(cast(Any, api_years_spin), 3, 1)
 
+        api_layout.addWidget(cast(Any, QLabel("Usuario SAM")), 4, 0)
+        api_username_edit = QLineEdit()
+        api_username_edit.setObjectName("preferencesPaiApiUsernameEdit")
+        api_username_edit.setText(str(api_options.username or ""))
+        api_layout.addWidget(cast(Any, api_username_edit), 4, 1, 1, 2)
+
+        api_layout.addWidget(cast(Any, QLabel("Servico secreto")), 5, 0)
+        api_secret_service_edit = QLineEdit()
+        api_secret_service_edit.setObjectName("preferencesPaiApiSecretServiceEdit")
+        api_secret_service_edit.setText(str(api_options.secret_service or ""))
+        api_layout.addWidget(cast(Any, api_secret_service_edit), 5, 1, 1, 2)
+
+        api_secure_required_checkbox = QCheckBox("Seguro obrigatorio")
+        api_secure_required_checkbox.setObjectName(
+            "preferencesPaiApiSecureRequiredCheck"
+        )
+        api_secure_required_checkbox.setChecked(bool(api_options.secure_required))
+        api_layout.addWidget(cast(Any, api_secure_required_checkbox), 6, 0, 1, 2)
+
         selected_scopes = {value.casefold() for value in api_options.data_scopes}
         scope_checks: dict[str, QCheckBox] = {}
-        api_layout.addWidget(cast(Any, QLabel("Tipos de dados")), 4, 0)
+        api_layout.addWidget(cast(Any, QLabel("Tipos de dados")), 7, 0)
         for offset, scope in enumerate(PAI_API_ALLOWED_DATA_SCOPES):
             checkbox = QCheckBox(pai_api_data_scope_label(scope))
             checkbox.setObjectName(f"preferencesPaiApiScope_{scope}")
             checkbox.setChecked(scope.casefold() in selected_scopes)
             scope_checks[scope] = checkbox
-            api_layout.addWidget(cast(Any, checkbox), 5 + offset // 3, offset % 3)
+            api_layout.addWidget(cast(Any, checkbox), 8 + offset // 3, offset % 3)
 
         selected_sectors = {value.casefold() for value in api_options.executor_sectors}
         sector_checks: dict[str, QCheckBox] = {}
-        api_layout.addWidget(cast(Any, QLabel("Setores executores")), 8, 0)
+        api_layout.addWidget(cast(Any, QLabel("Setores executores")), 11, 0)
         for offset, sector in enumerate(PAI_API_ALLOWED_SECTORS):
             checkbox = QCheckBox(sector)
             checkbox.setObjectName(f"preferencesPaiApiSector_{sector}")
             checkbox.setChecked(sector.casefold() in selected_sectors)
             sector_checks[sector] = checkbox
-            api_layout.addWidget(cast(Any, checkbox), 9 + offset // 4, offset % 4)
+            api_layout.addWidget(cast(Any, checkbox), 12 + offset // 4, offset % 4)
 
         layout.addWidget(cast(Any, api_group))
 
@@ -3226,6 +3249,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             api_interval_spin.setValue(int(default_api_options.auto_refresh_interval_minutes))
             api_limit_spin.setValue(int(default_api_options.limit))
             api_years_spin.setValue(int(default_api_options.number_of_years))
+            api_username_edit.setText(str(default_api_options.username or ""))
+            api_secret_service_edit.setText(str(default_api_options.secret_service or ""))
+            api_secure_required_checkbox.setChecked(
+                bool(default_api_options.secure_required)
+            )
             default_scopes = {value.casefold() for value in default_api_options.data_scopes}
             for scope, checkbox in scope_checks.items():
                 checkbox.setChecked(scope.casefold() in default_scopes)
@@ -3349,6 +3377,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
         updated_api_settings[PAI_API_LIMIT_KEY] = int(api_limit_spin.value())
         updated_api_settings[PAI_API_NUMBER_OF_YEARS_KEY] = int(api_years_spin.value())
+        updated_api_settings[PAI_API_USERNAME_KEY] = str(
+            api_username_edit.text() or ""
+        ).strip()
+        updated_api_settings[PAI_API_SECRET_SERVICE_KEY] = str(
+            api_secret_service_edit.text() or ""
+        ).strip()
+        updated_api_settings[PAI_API_SECURE_REQUIRED_KEY] = bool(
+            api_secure_required_checkbox.isChecked()
+        )
         updated_api_settings[PAI_API_DATA_SCOPES_KEY] = [
             scope for scope, checkbox in scope_checks.items() if checkbox.isChecked()
         ]

@@ -519,9 +519,15 @@ class TestGUIFilterLogic:
         ]
         assert "Configurar colunas" in captured["buttons"]
         assert "SAM API" in captured["groups"]
+        assert "Usuario SAM" in captured["labels"]
+        assert "Servico secreto" in captured["labels"]
         assert captured["checks"]["preferencesAutoLoadCheck"] == "Carregar ao iniciar"
         assert (
             captured["checks"]["preferencesShowProgressCheck"] == "Mostrar progresso"
+        )
+        assert (
+            captured["checks"]["preferencesPaiApiSecureRequiredCheck"]
+            == "Seguro obrigatorio"
         )
         assert (
             captured["checks"]["preferencesDoubleClickDetailsCheck"]
@@ -602,6 +608,15 @@ class TestGUIFilterLogic:
             )
             api_limit_spin = dialog.findChild(QSpinBox, "preferencesPaiApiLimitSpin")
             api_years_spin = dialog.findChild(QSpinBox, "preferencesPaiApiYearsSpin")
+            api_username_edit = dialog.findChild(
+                QLineEdit, "preferencesPaiApiUsernameEdit"
+            )
+            api_secret_service_edit = dialog.findChild(
+                QLineEdit, "preferencesPaiApiSecretServiceEdit"
+            )
+            api_secure_required_check = dialog.findChild(
+                QCheckBox, "preferencesPaiApiSecureRequiredCheck"
+            )
             assert search_mode_combo is not None
             assert debounce_spin is not None
             assert page_size_spin is not None
@@ -619,6 +634,9 @@ class TestGUIFilterLogic:
             assert api_interval_spin is not None
             assert api_limit_spin is not None
             assert api_years_spin is not None
+            assert api_username_edit is not None
+            assert api_secret_service_edit is not None
+            assert api_secure_required_check is not None
 
             search_mode_combo.setCurrentIndex(
                 search_mode_combo.findData("regex")
@@ -639,6 +657,9 @@ class TestGUIFilterLogic:
             api_interval_spin.setValue(15)
             api_limit_spin.setValue(150)
             api_years_spin.setValue(2)
+            api_username_edit.setText("sam.user")
+            api_secret_service_edit.setText("scrap_report.sam.alt")
+            api_secure_required_check.setChecked(False)
             for checkbox in dialog.findChildren(QCheckBox):
                 object_name = str(checkbox.objectName() or "")
                 if object_name.startswith("preferencesPaiApiScope_"):
@@ -685,6 +706,9 @@ class TestGUIFilterLogic:
         assert pai_api_settings.get("data_scopes") == ["executadas"]
         assert pai_api_settings.get("limit") == 150
         assert pai_api_settings.get("number_of_years") == 2
+        assert pai_api_settings.get("sam_username") == "sam.user"
+        assert pai_api_settings.get("secret_service") == "scrap_report.sam.alt"
+        assert pai_api_settings.get("secure_required") is False
 
         gui_settings["default_filter_mode"] = previous_mode
         gui_settings["debounce_delay"] = previous_delay
@@ -698,6 +722,15 @@ class TestGUIFilterLogic:
         gui_settings["cache_enabled"] = previous_cache_enabled
         gui_settings["cache_auto_clear"] = previous_cache_auto_clear
         gui_settings["pai_api"] = previous_pai_api
+
+    def test_apply_progress_bar_preference_does_not_force_idle_visibility(self):
+        self.window.progress_bar.setVisible(False)
+
+        self.window._apply_progress_bar_preference(True)
+
+        assert getattr(self.window, "_show_progress_bar_enabled", None) is True
+        assert self.window.progress_bar.maximumWidth() == 24
+        assert self.window.progress_bar.isVisible() is False
 
     def test_preferences_dialog_keeps_other_changes_when_page_size_save_fails(
         self, monkeypatch
