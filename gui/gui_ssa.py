@@ -306,6 +306,7 @@ if QT_AVAILABLE:
         build_filters_summary_bar,
         build_pagination_filter_bar,
         build_search_bar,
+        populate_quick_situacao_buttons,
     )
     from gui.ssa.main_window_bottom_section import (  # noqa: E402
         build_bottom_filter_section,
@@ -372,6 +373,7 @@ else:
     build_filters_summary_bar = cast(Any, None)
     build_pagination_filter_bar = cast(Any, None)
     build_search_bar = cast(Any, None)
+    populate_quick_situacao_buttons = cast(Any, None)
     build_bottom_filter_section = cast(Any, None)
     build_main_table_widget = cast(Any, None)
     TableContextMenuCallbacks = cast(Any, None)
@@ -774,6 +776,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def refresh_filter_widgets_after_theme(self, theme_name: str) -> None:
         self._adv_options_dirty = True
+        self._refresh_quick_situacao_buttons()
         if getattr(self, "_active_filter_panel_kind", None) == "advanced":
             self._pending_theme_refresh_column_filters = theme_name
             self._schedule_adv_options_refresh()
@@ -1286,6 +1289,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         column_selector = pagination_context["column_selector"]
         quick_setor_executor_label = pagination_context["quick_setor_executor_label"]
         quick_setor_executor_combo = pagination_context["quick_setor_executor_combo"]
+        quick_setor_executor_box = pagination_context["quick_setor_executor_box"]
+        quick_situacao_box = pagination_context["quick_situacao_box"]
+        quick_situacao_label = pagination_context["quick_situacao_label"]
+        quick_situacao_widget = pagination_context["quick_situacao_widget"]
+        quick_situacao_layout = pagination_context["quick_situacao_layout"]
+        quick_situacao_buttons = pagination_context["quick_situacao_buttons"]
+        quick_situacao_values = pagination_context["quick_situacao_values"]
         paginator = pagination_context["paginator"]
         profile_selector = pagination_context["profile_selector"]
         persistent_filters_layout = pagination_context["persistent_filters_layout"]
@@ -1326,6 +1336,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "column_selector": column_selector,
                 "quick_setor_executor_label": quick_setor_executor_label,
                 "quick_setor_executor_combo": quick_setor_executor_combo,
+                "quick_setor_executor_box": quick_setor_executor_box,
+                "quick_situacao_box": quick_situacao_box,
+                "quick_situacao_label": quick_situacao_label,
+                "quick_situacao_widget": quick_situacao_widget,
+                "quick_situacao_layout": quick_situacao_layout,
+                "quick_situacao_buttons": quick_situacao_buttons,
+                "quick_situacao_values": quick_situacao_values,
                 "search_help": search_help,
                 "paginator": paginator,
                 "profile_selector": profile_selector,
@@ -1725,6 +1742,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         ssa_gui_workers.on_data_loaded(self, df, request_id=request_id)
         try:
             self._refresh_quick_setor_executor_options()
+            self._refresh_quick_situacao_buttons()
             self._sync_quick_setor_executor_combo_from_filters()
             self._sync_advanced_executor_ui_from_active_filter()
         except Exception as exc:
@@ -2218,6 +2236,111 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         raw_values = collect_nonempty_column_values(base_df, "setor_executor")
         return self._order_setor_executor_values(raw_values)
 
+    def _collect_quick_situacao_values(self) -> list[str]:
+        base_df = getattr(self, "df_completo", None)
+        if not isinstance(base_df, pd.DataFrame) or base_df.empty:
+            base_df = getattr(self, "df_exibido", None)
+        if not isinstance(base_df, pd.DataFrame) or base_df.empty:
+            return []
+        if "situacao" not in base_df.columns:
+            return []
+        return sorted(
+            {
+                value.upper()
+                for value in collect_nonempty_column_values(base_df, "situacao")
+                if value
+            }
+        )
+
+    def _resolve_quick_situacao_selected_values(
+        self, values: list[str] | tuple[str, ...]
+    ) -> list[str]:
+        ordered_values = [str(value or "").strip().upper() for value in values if value]
+        selected_raw = str(
+            OrderedDict(getattr(self, "_active_column_filters", {}) or {}).get(
+                "situacao", ""
+            )
+            or ""
+        ).strip()
+        if not selected_raw:
+            return []
+        selected_keys = {
+            item.upper() for item in self._split_filter_csv_values(selected_raw)
+        }
+        return [value for value in ordered_values if value.upper() in selected_keys]
+
+    def _refresh_quick_situacao_buttons(self) -> None:
+        layout = getattr(self, "quick_situacao_layout", None)
+        if layout is None:
+            return
+        state = populate_quick_situacao_buttons(self, layout)
+        self.quick_situacao_buttons = state["buttons"]
+        self.quick_situacao_values = state["values"]
+        box = getattr(self, "quick_situacao_box", None)
+        if box is not None:
+            try:
+                box.setVisible(bool(state["values"]))
+            except Exception as exc:
+                logger.debug("Falha ao atualizar caixa de situacao: %s", exc)
+
+    def _sync_column_filter_input_from_active_filter(self, column_name: str) -> None:
+        input_widget = getattr(self, "_column_filter_inputs", {}).get(column_name)
+        if input_widget is None:
+            return
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        value = str(active_filters.get(column_name, "") or "").strip()
+        formatter = getattr(self, "_format_column_filter_display_value", None)
+        if callable(formatter):
+            try:
+                value = formatter(value, column=column_name)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao formatar filtro rapido da coluna %s: %s",
+                    column_name,
+                    exc,
+                )
+        try:
+            was_blocked = input_widget.blockSignals(True)
+            input_widget.setText(value)
+            input_widget.blockSignals(was_blocked)
+        except Exception as exc:
+            logger.debug(
+                "Falha ao sincronizar campo do filtro rapido %s: %s",
+                column_name,
+                exc,
+            )
+
+    def _on_quick_situacao_toggled(self, status: str, checked: bool) -> None:
+        _ = (status, checked)
+        buttons = getattr(self, "quick_situacao_buttons", {}) or {}
+        values = list(getattr(self, "quick_situacao_values", []) or [])
+        if not buttons or not values:
+            return
+        selected_values = [
+            value
+            for value in values
+            if bool(getattr(buttons.get(value), "isChecked", lambda: False)())
+        ]
+        self._safe_store_last_filter_state("quick_situacao_changed")
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        if selected_values:
+            active_filters["situacao"] = ", ".join(selected_values)
+        else:
+            active_filters.pop("situacao", None)
+        self._active_column_filters = active_filters
+
+        advanced_filters = dict(getattr(self, "_advanced_filters", {}) or {})
+        advanced_filters.pop("situacao", None)
+        advanced_filters.pop("situacao_exclude_values", None)
+        self._advanced_filters = advanced_filters
+        self._advanced_filters_active = self._has_active_advanced_filters(
+            advanced_filters
+        )
+        self._sync_column_filter_input_from_active_filter("situacao")
+        self._sync_advanced_filter_ui()
+        self._mark_profile_as_custom()
+        self._refresh_after_filter_change()
+
     def _populate_quick_setor_executor_combo(
         self, combo, selected_value: str = ""
     ) -> None:
@@ -2453,6 +2576,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             active_filters.pop("setor_executor", None)
         self._update_quick_setor_executor_combo_display(combo)
         self._active_column_filters = active_filters
+        self._sync_column_filter_input_from_active_filter("setor_executor")
         self._sync_advanced_executor_filter_from_active_filters(
             clear_exclude=True
         )
@@ -2460,7 +2584,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if hasattr(self, "_schedule_sector_options_refresh"):
             self._schedule_sector_options_refresh()
         self._mark_profile_as_custom()
-        self._build_column_filters_panel()
         self._refresh_after_filter_change()
 
     def _get_select_all_columns_from_selector(self) -> list[str]:

@@ -397,10 +397,43 @@ def build_pagination_filter_bar(
     persistent_filters_layout.addWidget(cast(Any, exclude_ste_checkbox))
 
     pagination_filters_layout.addLayout(cast(Any, persistent_filters_layout))
+    quick_situacao_label = QLabel("Situacao:")
+    quick_situacao_label.setToolTip(
+        "Filtro rapido por situacao. Cada botao liga ou desliga uma situacao."
+    )
+    quick_situacao_widget = QWidget()
+    quick_situacao_layout = QHBoxLayout(cast(Any, quick_situacao_widget))
+    quick_situacao_layout.setContentsMargins(0, 0, 0, 0)
+    quick_situacao_layout.setSpacing(3)
+    quick_situacao_state = populate_quick_situacao_buttons(
+        window, quick_situacao_layout
+    )
+
+    quick_situacao_box = _build_quick_filter_box("quickSituacaoBox")
+    quick_situacao_box.setToolTip(
+        "Situacoes aplicadas junto com os demais filtros."
+    )
+    quick_situacao_box_layout = QHBoxLayout(cast(Any, quick_situacao_box))
+    quick_situacao_box_layout.setContentsMargins(6, 2, 6, 2)
+    quick_situacao_box_layout.setSpacing(6)
+    quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_label))
+    quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_widget))
+    quick_situacao_box.setVisible(bool(quick_situacao_state["values"]))
+
+    quick_setor_executor_box = _build_quick_filter_box("quickSetorExecutorBox")
+    quick_setor_executor_box.setToolTip(
+        "Filtro rapido de Setor Executor. Aplica junto com os demais filtros."
+    )
+    quick_setor_executor_box_layout = QHBoxLayout(cast(Any, quick_setor_executor_box))
+    quick_setor_executor_box_layout.setContentsMargins(6, 2, 6, 2)
+    quick_setor_executor_box_layout.setSpacing(6)
+    quick_setor_executor_box_layout.addWidget(cast(Any, quick_setor_executor_label))
+    quick_setor_executor_box_layout.addWidget(cast(Any, quick_setor_executor_combo))
+
     pagination_filters_layout.addStretch()
-    pagination_filters_layout.addWidget(cast(Any, quick_setor_executor_label))
+    pagination_filters_layout.addWidget(cast(Any, quick_situacao_box))
     pagination_filters_layout.addSpacing(8)
-    pagination_filters_layout.addWidget(cast(Any, quick_setor_executor_combo))
+    pagination_filters_layout.addWidget(cast(Any, quick_setor_executor_box))
 
     col_filter_indicator = _build_column_filter_indicator(window)
 
@@ -410,12 +443,97 @@ def build_pagination_filter_bar(
         "column_selector": column_selector,
         "quick_setor_executor_label": quick_setor_executor_label,
         "quick_setor_executor_combo": quick_setor_executor_combo,
+        "quick_setor_executor_box": quick_setor_executor_box,
+        "quick_situacao_box": quick_situacao_box,
+        "quick_situacao_label": quick_situacao_label,
+        "quick_situacao_widget": quick_situacao_widget,
+        "quick_situacao_layout": quick_situacao_layout,
+        "quick_situacao_buttons": quick_situacao_state["buttons"],
+        "quick_situacao_values": quick_situacao_state["values"],
         "paginator": paginator,
         "profile_selector": profile_selector,
         "persistent_filters_layout": persistent_filters_layout,
         "exclude_ste_checkbox": exclude_ste_checkbox,
         "col_filter_indicator": col_filter_indicator,
     }
+
+
+def _build_quick_filter_box(object_name: str) -> QFrame:
+    frame = QFrame()
+    frame.setObjectName(object_name)
+    frame.setFrameShape(QFrame.Shape.StyledPanel)
+    frame.setFrameShadow(QFrame.Shadow.Plain)
+    try:
+        frame.setStyleSheet(
+            f"QFrame#{object_name} {{"
+            "border:1px solid palette(mid);"
+            "border-radius:4px;"
+            "background:palette(window);"
+            "}"
+        )
+    except Exception as exc:
+        logger.debug("Falha ao aplicar estilo em %s: %s", object_name, exc)
+    return frame
+
+
+def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[str, Any]:
+    values = window._collect_quick_situacao_values()
+    selected_values = set(window._resolve_quick_situacao_selected_values(values))
+    buttons: dict[str, QPushButton] = {}
+    existing_buttons = getattr(window, "quick_situacao_buttons", None)
+    can_reuse = (
+        isinstance(existing_buttons, dict)
+        and list(existing_buttons.keys()) == values
+        and layout.count() == len(values)
+    )
+    if can_reuse:
+        for value in values:
+            button = existing_buttons[value]
+            _sync_quick_situacao_button(window, button, value, selected_values)
+            buttons[value] = button
+    else:
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget() if item is not None else None
+            if widget is not None:
+                widget.deleteLater()
+        for value in values:
+            button = QPushButton(value)
+            button.setCheckable(True)
+            _set_fixed_height(window, button, 24, f"filtro rapido situacao {value}")
+            try:
+                button.setMinimumWidth(38)
+                button.setMaximumWidth(58)
+            except Exception as exc:
+                logger.debug("Falha ao limitar botao de situacao %s: %s", value, exc)
+            button.toggled.connect(
+                lambda checked, status=value: window._on_quick_situacao_toggled(
+                    status, checked
+                )
+            )
+            _sync_quick_situacao_button(window, button, value, selected_values)
+            layout.addWidget(cast(Any, button))
+            buttons[value] = button
+    widget = layout.parentWidget()
+    if widget is not None:
+        widget.setVisible(bool(values))
+    return {"buttons": buttons, "values": list(values)}
+
+
+def _sync_quick_situacao_button(
+    window: Any, button: QPushButton, value: str, selected_values: set[str]
+) -> None:
+    was_blocked = button.blockSignals(True)
+    try:
+        button.setChecked(value in selected_values)
+        button.setToolTip(f"Liga ou desliga o filtro de situacao {value}.")
+        style = str(getattr(window, "_week_label_style", "") or "")
+        if style:
+            button.setStyleSheet(style)
+    except Exception as exc:
+        logger.debug("Falha ao sincronizar botao de situacao %s: %s", value, exc)
+    finally:
+        button.blockSignals(was_blocked)
 
 
 def _configure_quick_setor_combo(window: Any, combo: QComboBox) -> None:

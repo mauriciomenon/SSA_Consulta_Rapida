@@ -319,6 +319,7 @@ class TestGUIFilterLogic:
         column_selector = main_ctx["column_selector"]
         quick_label = main_ctx["quick_setor_executor_label"]
         quick_combo = main_ctx["quick_setor_executor_combo"]
+        quick_box = main_ctx["quick_setor_executor_box"]
         filters_summary_frame = main_ctx["filters_summary_frame"]
         clear_all_filters_btn = main_ctx["clear_all_filters_btn"]
         export_list_btn = main_ctx["export_list_btn"]
@@ -382,9 +383,16 @@ class TestGUIFilterLogic:
         assert column_selector.geometry().x() > paginator.geometry().x()
         assert (column_selector.geometry().x() - paginator.geometry().right()) <= 40
         assert str(quick_label.text() or "") == "Setor Executor:"
-        assert abs(quick_label.geometry().y() - quick_combo.geometry().y()) <= 6
-        assert quick_label.geometry().x() < quick_combo.geometry().x()
-        assert quick_combo.geometry().x() > column_selector.geometry().x()
+        quick_label_pos = quick_label.mapToGlobal(quick_label.rect().topLeft())
+        quick_combo_pos = quick_combo.mapToGlobal(quick_combo.rect().topLeft())
+        quick_box_pos = quick_box.mapToGlobal(quick_box.rect().topLeft())
+        column_selector_pos = column_selector.mapToGlobal(
+            column_selector.rect().topLeft()
+        )
+        assert abs(quick_label_pos.y() - quick_combo_pos.y()) <= 6
+        assert quick_label_pos.x() < quick_combo_pos.x()
+        assert quick_box_pos.x() > column_selector_pos.x()
+        assert quick_combo_pos.x() > column_selector_pos.x()
         assert quick_combo.height() <= 28
         assert quick_combo.height() >= 24
         parent_widget = quick_combo.parentWidget()
@@ -792,7 +800,7 @@ class TestGUIFilterLogic:
         assert quick_order == advanced_order
         assert quick_order == ["IEE1", "IEE4", "MEL1", "MEL3", "ILA2", "MEG2"]
 
-    def test_quick_setor_executor_combo_applies_executor_filter_only(self):
+    def test_quick_setor_executor_combo_applies_executor_filter_only(self, monkeypatch):
         self.window._register_or_group(
             ["setor_executor", "setor_emissor"], ["IEE3", "MEL3"]
         )
@@ -811,6 +819,14 @@ class TestGUIFilterLogic:
         assert str(combo.itemText(0)) == "Todos"
         assert str(combo.itemText(mel4_idx)) == "MEL4"
         assert "Setor Executor:" not in str(combo.currentText() or "")
+
+        rebuild_calls = 0
+
+        def _count_rebuild():
+            nonlocal rebuild_calls
+            rebuild_calls += 1
+
+        monkeypatch.setattr(self.window, "_build_column_filters_panel", _count_rebuild)
 
         combo.setCurrentIndex(mel4_idx)
         QApplication.processEvents()
@@ -836,6 +852,45 @@ class TestGUIFilterLogic:
         assert setor_key in controls
         setor_input, _, _, _ = controls[setor_key]
         assert str(setor_input.text() or "").strip() == "MEL4"
+        assert rebuild_calls == 0
+
+    def test_quick_situacao_buttons_apply_filter_without_rebuilding_panel(
+        self, monkeypatch
+    ):
+        self.window._active_column_filters["situacao"] = ""
+        self.window._build_column_filters_panel()
+        self.window._refresh_quick_situacao_buttons()
+        buttons = getattr(self.window, "quick_situacao_buttons", None)
+        values = getattr(self.window, "quick_situacao_values", None)
+        assert isinstance(buttons, dict)
+        assert values == ["AMP", "APV", "SCA", "STE"]
+        assert bool(getattr(self.window, "quick_situacao_box").isVisible()) is True
+
+        rebuild_calls = 0
+        refresh_calls = 0
+
+        def _count_rebuild():
+            nonlocal rebuild_calls
+            rebuild_calls += 1
+
+        def _count_refresh():
+            nonlocal refresh_calls
+            refresh_calls += 1
+
+        monkeypatch.setattr(self.window, "_build_column_filters_panel", _count_rebuild)
+        monkeypatch.setattr(self.window, "_refresh_after_filter_change", _count_refresh)
+
+        buttons["APV"].setChecked(True)
+        QApplication.processEvents()
+        assert self.window._active_column_filters.get("situacao") == "APV"
+        assert rebuild_calls == 0
+        assert refresh_calls == 1
+
+        buttons["STE"].setChecked(True)
+        QApplication.processEvents()
+        assert self.window._active_column_filters.get("situacao") == "APV, STE"
+        assert rebuild_calls == 0
+        assert refresh_calls == 2
 
     def test_quick_setor_executor_clears_existing_advanced_exclusions(self):
         self.window._advanced_filters = {
