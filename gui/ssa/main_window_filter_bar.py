@@ -53,7 +53,7 @@ def _create_search_controls(window: Any) -> dict[str, Any]:
         "- contem (padrao): foo\n- comeca com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex seguro: ~^foo ou ~foo$\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
     )
     search_input.setMinimumWidth(360)
-    _set_min_height(window, search_input, 26, "campo de pesquisa")
+    _set_min_height(window, search_input, 22, "campo de pesquisa")
     try:
         search_input.setFrame(False)
     except Exception as exc:
@@ -84,7 +84,7 @@ def _create_search_controls(window: Any) -> dict[str, Any]:
     clear_filter_button.clicked.connect(window._on_general_search_clear_clicked)
     clear_filter_button.setToolTip(
         "Limpa apenas a busca e cancela a busca em andamento. "
-        "Filtros de coluna e avancados continuam ativos."
+        "Filtros por texto e por selecao continuam ativos."
     )
     clear_filter_button.setEnabled(False)
 
@@ -123,7 +123,7 @@ def _create_filter_action_controls(
     undo_filter_btn.setToolTip("Desfaz o ultimo filtro aplicado")
     undo_filter_btn.clicked.connect(window._restore_last_filter_state)
 
-    export_list_btn = QPushButton("Exportar Filtros")
+    export_list_btn = QPushButton("Exportar Lista")
     _set_fixed_height(
         window,
         export_list_btn, 26, "botao Exportar Filtros"
@@ -143,7 +143,7 @@ def _create_filter_action_controls(
     )
     save_filter_button.setMaximumWidth(140)
     save_filter_button.setToolTip(
-        "Salva o estado atual: busca, filtros de coluna, filtros avancados e perfil."
+        "Salva o estado atual: busca, filtros por texto, filtros por selecao e perfil."
     )
     try:
         save_filter_button.setStyleSheet(action_button_style)
@@ -411,7 +411,7 @@ def build_pagination_filter_bar(
     quick_situacao_scroll = QScrollArea()
     quick_situacao_scroll.setObjectName("quickSituacaoScroll")
     quick_situacao_scroll.setWidget(cast(Any, quick_situacao_widget))
-    quick_situacao_scroll.setWidgetResizable(False)
+    quick_situacao_scroll.setWidgetResizable(True)
     quick_situacao_scroll.setFrameShape(QFrame.Shape.NoFrame)
     quick_situacao_scroll.setHorizontalScrollBarPolicy(
         Qt.ScrollBarPolicy.ScrollBarAsNeeded
@@ -420,7 +420,6 @@ def build_pagination_filter_bar(
         Qt.ScrollBarPolicy.ScrollBarAlwaysOff
     )
     quick_situacao_scroll.setMinimumWidth(160)
-    quick_situacao_scroll.setMaximumWidth(520)
     quick_situacao_scroll.setFixedHeight(32)
     quick_situacao_scroll.setSizePolicy(
         cast(Any, QSizePolicy.Policy.Expanding),
@@ -540,6 +539,9 @@ def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[st
     if widget is not None:
         widget.setVisible(bool(values))
         widget.updateGeometry()
+    box = getattr(window, "quick_situacao_box", None)
+    if box is not None:
+        box.setVisible(bool(values))
     return {"buttons": buttons, "values": list(values)}
 
 
@@ -608,7 +610,7 @@ def _build_column_filter_indicator(window: Any) -> QLabel:
         logger.debug("Falha ao aplicar fonte no indicador de filtro por coluna: %s", exc)
     indicator.setToolTip(
         "Busca rapida: virgulas separam termos cumulativos (logica E). "
-        "Filtros por coluna: virgulas representam alternativas dentro da mesma coluna. "
+        "Filtros por texto: virgulas representam alternativas dentro do mesmo campo. "
         "Entre filtros diferentes, as restricoes continuam cumulativas."
     )
     try:

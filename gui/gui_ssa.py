@@ -174,6 +174,7 @@ try:
         QApplication,
         QDialog,
         QDialogButtonBox,
+        QComboBox,
         QFileDialog,
         QGridLayout,
         QHBoxLayout,
@@ -217,6 +218,7 @@ except ImportError as exc:
         QDesktopServices,
         QDialog,
         QDialogButtonBox,
+        QComboBox,
         QEvent,
         QFileDialog,
         QFont,
@@ -255,6 +257,7 @@ except ImportError as exc:
     QHBoxLayout = cast(Any, QHBoxLayout)
     QGridLayout = cast(Any, QGridLayout)
     QLabel = cast(Any, QLabel)
+    QComboBox = cast(Any, QComboBox)
     QPushButton = cast(Any, QPushButton)
     QLineEdit = cast(Any, QLineEdit)
     QTableWidget = cast(Any, QTableWidget)
@@ -1188,7 +1191,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao ocultar barra nativa de abas: %s", exc)
         self._filter_panel_context = ctx_main
-        self._active_filter_panel_kind = "columns"
+        self._active_filter_panel_kind = "advanced"
         for name, value in ctx_main.items():
             if name.startswith("_"):
                 continue
@@ -1306,11 +1309,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             paginator_cls=DataPaginator,
         )
         column_selector = pagination_context["column_selector"]
-        theme_anchor = getattr(self, "preferences_button", self.theme_button)
-        theme_index = self._top_toolbar_layout.indexOf(theme_anchor)
-        if theme_index >= 0:
-            self._top_toolbar_layout.insertWidget(theme_index, column_selector)
-            self._top_toolbar_layout.insertSpacing(theme_index + 1, 6)
+        column_selector.hide()
         quick_setor_executor_label = pagination_context["quick_setor_executor_label"]
         quick_setor_executor_combo = pagination_context["quick_setor_executor_combo"]
         quick_setor_executor_box = pagination_context["quick_setor_executor_box"]
@@ -2863,17 +2862,113 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return self._persist_gui_preferences()
 
     def _open_preferences_dialog(self) -> None:
+        gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
         dialog = QDialog(self)
         dialog.setWindowTitle("Preferencias")
         layout = QVBoxLayout(cast(Any, dialog))
         layout.setContentsMargins(12, 12, 12, 12)
         grid = QGridLayout()
-        grid.addWidget(cast(Any, QLabel("Linhas por pagina")), 0, 0)
+        grid.addWidget(cast(Any, QLabel("Tema")), 0, 0)
+        theme_combo = QComboBox()
+        theme_combo.setObjectName("preferencesThemeCombo")
+        theme_items = []
+        if ssa_gui_theme is not None:
+            theme_items = list(ssa_gui_theme.get_theme_dialog_items())
+        current_theme = str(getattr(self, "_current_theme", "") or "")
+        current_theme_index = -1
+        for index, (label, key) in enumerate(theme_items):
+            theme_combo.addItem(label, key)
+            if key == current_theme:
+                current_theme_index = index
+        if current_theme_index >= 0:
+            theme_combo.setCurrentIndex(current_theme_index)
+        grid.addWidget(cast(Any, theme_combo), 0, 1)
+
+        grid.addWidget(cast(Any, QLabel("Modo da busca")), 1, 0)
+        search_mode_combo = QComboBox()
+        search_mode_combo.setObjectName("preferencesSearchModeCombo")
+        search_mode_combo.setToolTip(
+            "Define como a busca superior interpreta termos sem prefixo explicito"
+        )
+        mode_items = [
+            ("Contem", "contains"),
+            ("Comeca com", "prefix"),
+            ("Termina com", "suffix"),
+            ("Igual", "exact"),
+            ("Regex", "regex"),
+        ]
+        current_search_mode = str(
+            gui_settings.get("default_filter_mode", "contains") or "contains"
+        ).strip()
+        current_search_mode_index = 0
+        for index, (label, key) in enumerate(mode_items):
+            search_mode_combo.addItem(label, key)
+            if key == current_search_mode:
+                current_search_mode_index = index
+        search_mode_combo.setCurrentIndex(current_search_mode_index)
+        grid.addWidget(cast(Any, search_mode_combo), 1, 1)
+
+        grid.addWidget(cast(Any, QLabel("Debounce ms")), 2, 0)
+        debounce_spin = QSpinBox()
+        debounce_spin.setObjectName("preferencesDebounceSpin")
+        debounce_spin.setToolTip("Atraso antes de aplicar a busca superior")
+        debounce_spin.setRange(
+            int(getattr(ssa_system_controller, "SEARCH_DEBOUNCE_MIN_MS", 100)),
+            int(getattr(ssa_system_controller, "SEARCH_DEBOUNCE_MAX_MS", 5000)),
+        )
+        debounce_spin.setSingleStep(50)
+        debounce_spin.setValue(
+            int(
+                gui_settings.get(
+                    "debounce_delay",
+                    getattr(ssa_system_controller, "SEARCH_DEBOUNCE_DEFAULT_MS", 250),
+                )
+                or getattr(ssa_system_controller, "SEARCH_DEBOUNCE_DEFAULT_MS", 250)
+            )
+        )
+        grid.addWidget(cast(Any, debounce_spin), 2, 1)
+
+        grid.addWidget(cast(Any, QLabel("Linhas por pagina")), 3, 0)
         page_size_spin = QSpinBox()
+        page_size_spin.setObjectName("preferencesPageSizeSpin")
         page_size_spin.setRange(10, 500)
         page_size_spin.setSingleStep(10)
         page_size_spin.setValue(int(getattr(self, "_restored_page_size", 50) or 50))
-        grid.addWidget(cast(Any, page_size_spin), 0, 1)
+        grid.addWidget(cast(Any, page_size_spin), 3, 1)
+
+        grid.addWidget(cast(Any, QLabel("Alinhamento da tabela")), 4, 0)
+        alignment_combo = QComboBox()
+        alignment_combo.setObjectName("preferencesAlignmentCombo")
+        current_alignment = str(
+            gui_settings.get("table_cell_alignment", _DEFAULT_TABLE_CELL_ALIGNMENT)
+            or _DEFAULT_TABLE_CELL_ALIGNMENT
+        )
+        current_alignment_index = 0
+        for index, (key, label) in enumerate(_TABLE_CELL_ALIGNMENT_LABELS.items()):
+            alignment_combo.addItem(label, key)
+            if key == current_alignment:
+                current_alignment_index = index
+        alignment_combo.setCurrentIndex(current_alignment_index)
+        grid.addWidget(cast(Any, alignment_combo), 4, 1)
+
+        grid.addWidget(cast(Any, QLabel("Cache de filtros")), 5, 0)
+        cache_size_spin = QSpinBox()
+        cache_size_spin.setObjectName("preferencesCacheSizeSpin")
+        cache_size_spin.setRange(10, 500)
+        cache_size_spin.setSingleStep(10)
+        cache_size_spin.setValue(int(gui_settings.get("filter_cache_size", 50) or 50))
+        cache_size_spin.setToolTip(
+            "Quantidade maxima de entradas reaproveitadas nos filtros"
+        )
+        grid.addWidget(cast(Any, cache_size_spin), 5, 1)
+
+        grid.addWidget(cast(Any, QLabel("Colunas e larguras")), 6, 0)
+        columns_button = QPushButton("Configurar colunas")
+        columns_button.setObjectName("preferencesColumnsButton")
+        columns_button.setToolTip(
+            "Abrir configuracao de colunas visiveis e larguras da tabela"
+        )
+        grid.addWidget(cast(Any, columns_button), 6, 1)
         layout.addLayout(cast(Any, grid))
         button_flags = cast(Any, QDialogButtonBox.StandardButton.Ok)
         button_flags = button_flags | cast(Any, QDialogButtonBox.StandardButton.Cancel)
@@ -2881,11 +2976,56 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
         layout.addWidget(cast(Any, buttons))
+        selector = getattr(self, "column_selector", None)
+        if selector is not None:
+            columns_button.clicked.connect(selector.open_dialog)
+        else:
+            columns_button.setEnabled(False)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
+        selected_theme = str(theme_combo.currentData() or "").strip()
+        selected_search_mode = str(search_mode_combo.currentData() or "contains").strip()
+        selected_debounce = int(debounce_spin.value())
         page_size = int(page_size_spin.value())
         if not self._save_page_size_pref(page_size):
             return
+        settings_changed = False
+        if (
+            selected_search_mode
+            and selected_search_mode != current_search_mode
+        ):
+            gui_settings["default_filter_mode"] = selected_search_mode
+            self._cached_default_mode = selected_search_mode
+            settings_changed = True
+        current_debounce = int(
+            gui_settings.get(
+                "debounce_delay",
+                getattr(ssa_system_controller, "SEARCH_DEBOUNCE_DEFAULT_MS", 250),
+            )
+            or getattr(ssa_system_controller, "SEARCH_DEBOUNCE_DEFAULT_MS", 250)
+        )
+        if selected_debounce != current_debounce:
+            gui_settings["debounce_delay"] = selected_debounce
+            try:
+                self._debounce_timer.setInterval(selected_debounce)
+            except Exception as exc:
+                logger.debug("Falha ao atualizar debounce da busca: %s", exc)
+            settings_changed = True
+        selected_alignment = str(
+            alignment_combo.currentData() or _DEFAULT_TABLE_CELL_ALIGNMENT
+        ).strip()
+        if selected_alignment and selected_alignment != current_alignment:
+            self._apply_table_cell_alignment_preference(selected_alignment)
+        selected_cache_size = int(cache_size_spin.value())
+        if selected_cache_size != int(gui_settings.get("filter_cache_size", 50) or 50):
+            gui_settings["filter_cache_size"] = selected_cache_size
+            if FilterWorker is not None and FilterCache is not None:
+                FilterWorker._cache = FilterCache(max_size=selected_cache_size)
+            settings_changed = True
+        if settings_changed and not os.environ.get("PYTEST_CURRENT_TEST"):
+            self._persist_gui_preferences()
+        if selected_theme and selected_theme != current_theme:
+            self.apply_theme(selected_theme)
         paginator = getattr(self, "paginator", None)
         if paginator is not None:
             paginator.change_page_size(page_size)

@@ -153,6 +153,7 @@ def build_bottom_filter_section(window: Any) -> dict[str, Any]:
         filter_panel_tab_bar,
         filter_panel_title,
         filters_panel_stack,
+        adv_group,
     )
 
     return {
@@ -215,6 +216,7 @@ def _build_details_panel(window: Any) -> tuple[QGroupBox, dict[str, Any]]:
     details_tree_text.setReadOnly(True)
     details_tree_text.setOpenLinks(False)
     details_tree_text.setOpenExternalLinks(False)
+    details_tree_text.setToolTip("Clique em uma SSA para navegar no painel principal")
     try:
         details_tree_text.setFrameShape(QFrame.Shape.NoFrame)
         _connect_window_slot(
@@ -229,6 +231,9 @@ def _build_details_panel(window: Any) -> tuple[QGroupBox, dict[str, Any]]:
         details_graph_label.setTextFormat(Qt.TextFormat.RichText)
         details_graph_label.setStyleSheet("border:none; background:transparent;")
         details_graph_label.setMinimumHeight(120)
+        details_graph_label.setToolTip(
+            "Clique em uma SSA do grafo para navegar no painel principal"
+        )
         details_graph_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
@@ -375,9 +380,9 @@ def _build_filter_panel_header(window: Any) -> tuple[QWidget, QTabBar, QLabel]:
     filter_panel_header_layout.setSpacing(6)
 
     filter_panel_tab_bar = QTabBar()
-    filter_panel_tab_bar.addTab("Por coluna")
-    filter_panel_tab_bar.addTab("Avancados")
-    filter_panel_tab_bar.setToolTip("Alternar entre filtros por coluna e avancados")
+    filter_panel_tab_bar.addTab("Por texto")
+    filter_panel_tab_bar.addTab("Selecao")
+    filter_panel_tab_bar.setToolTip("Alternar entre filtros por texto e por selecao")
     try:
         filter_panel_tab_bar.setExpanding(False)
         filter_panel_tab_bar.setDrawBase(False)
@@ -401,7 +406,7 @@ def _build_filter_panel_header(window: Any) -> tuple[QWidget, QTabBar, QLabel]:
     except Exception as exc:
         logger.debug("Falha ao configurar barra local de abas de filtros: %s", exc)
 
-    filter_panel_title = QLabel("Filtros por Coluna")
+    filter_panel_title = QLabel("Filtros por Selecao")
     try:
         filter_panel_title.setAlignment(cast(Any, Qt).AlignmentFlag.AlignCenter)
         filter_panel_title.setStyleSheet("font-weight:600; color:palette(windowText);")
@@ -427,6 +432,7 @@ def _connect_filter_panel_tabs(
     filter_panel_tab_bar: QTabBar,
     filter_panel_title: QLabel,
     filters_panel_stack: QStackedWidget,
+    adv_group: QWidget,
 ) -> None:
     def _activate_filter_panel(index: int) -> None:
         active_index = 1 if int(index) == 1 else 0
@@ -436,7 +442,7 @@ def _connect_filter_panel_tabs(
         try:
             filters_panel_stack.setCurrentIndex(active_index)
             filter_panel_title.setText(
-                "Filtros Avancados" if active_index == 1 else "Filtros por Coluna"
+                "Filtros por Selecao" if active_index == 1 else "Filtros por Texto"
             )
         except Exception as exc:
             logger.debug("Falha ao trocar painel local de filtros: %s", exc)
@@ -444,9 +450,7 @@ def _connect_filter_panel_tabs(
             try:
                 window._adv_options_dirty = True
                 window._schedule_adv_options_refresh()
-                window._reorganize_advanced_filters_grid(
-                    window.adv_filters_group.width()
-                )
+                window._reorganize_advanced_filters_grid(adv_group.width())
             except Exception as exc:
                 logger.debug("Falha ao atualizar filtros avancados locais: %s", exc)
         try:
@@ -460,3 +464,7 @@ def _connect_filter_panel_tabs(
         filter_panel_tab_bar.currentChanged.connect(_activate_filter_panel)
     except Exception as exc:
         logger.debug("Falha ao conectar aba local de filtros: %s", exc)
+    try:
+        filter_panel_tab_bar.setCurrentIndex(1)
+    except Exception as exc:
+        logger.debug("Falha ao ativar aba local de selecao por padrao: %s", exc)

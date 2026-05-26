@@ -37,6 +37,10 @@ class TestDataPaginator:
         assert paginator.page_info_label.text() == "Pagina 3 de 3"
         assert paginator.prev_button.isEnabled() is True
         assert paginator.next_button.isEnabled() is False
+        assert paginator.prev_button.text() == "←"
+        assert paginator.prev_button.toolTip() == "Pagina anterior"
+        assert paginator.next_button.text() == "→"
+        assert paginator.next_button.toolTip() == "Proxima pagina"
 
     def test_update_pagination_info_clamps_page_lower_bound(self):
         df = pd.DataFrame({"numero_ssa": [1, 2, 3]})
@@ -51,3 +55,17 @@ class TestDataPaginator:
         assert paginator.page_info_label.text() == "Pagina 1 de 1"
         assert paginator.prev_button.isEnabled() is False
         assert paginator.next_button.isEnabled() is False
+
+    def test_set_dataframe_emits_first_page_and_preserves_empty_schema(self):
+        df = pd.DataFrame({"numero_ssa": [1, 2, 3], "situacao": ["APL", "STE", "APV"]})
+        paginator = DataPaginator(df, page_size=2)
+        seen_pages = []
+        paginator.page_changed.connect(seen_pages.append)
+
+        empty_df = df.iloc[0:0].copy()
+        paginator.set_dataframe(empty_df)
+
+        assert seen_pages == [1]
+        current = paginator.get_current_slice()
+        assert list(current.columns) == ["numero_ssa", "situacao"]
+        assert current.empty is True

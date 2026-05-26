@@ -29,6 +29,7 @@ from PyQt6.QtCore import QEvent, QPoint, QRect, QSize, Qt, QTimer, QUrl  # noqa:
 from PyQt6.QtGui import QCloseEvent, QDesktopServices, QFont, QResizeEvent  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtWidgets import QLineEdit  # noqa: E402
+from PyQt6.QtWidgets import QComboBox, QDialog, QSpinBox  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton  # noqa: E402
 
 from gui import gui_ssa  # noqa: E402
@@ -281,11 +282,14 @@ class TestGUIFilterLogic:
             )
         return controls
 
-    def test_column_selector_button_shows_visible_count_in_text(self):
+    def test_column_selector_button_keeps_internal_summary_and_stays_out_of_top_toolbar(
+        self,
+    ):
         selector = getattr(self.window, "column_selector", None)
         assert selector is not None
         text = str(selector.manage_button.text() or "")
         assert text.startswith("Colunas Visiveis:")
+        assert selector.isVisible() is False
         assert not hasattr(selector, "summary_label")
 
     def test_top_toolbar_omits_update_derivadas_button(self):
@@ -333,7 +337,7 @@ class TestGUIFilterLogic:
         tooltip = str(save_filter_button.toolTip() or "")
         assert "search_label" not in main_ctx
         assert str(save_filter_button.text() or "") == "Salvar Filtros"
-        assert str(export_list_btn.text() or "") == "Exportar Filtros"
+        assert str(export_list_btn.text() or "") == "Exportar Lista"
         assert str(search_button.text() or "") == "↵"
         assert str(clear_filter_button.text() or "") == "⌫"
         assert str(undo_filter_btn.text() or "") == "↺"
@@ -344,8 +348,8 @@ class TestGUIFilterLogic:
         assert "background:transparent" in str(clear_filter_button.styleSheet() or "")
         assert "color:" in str(save_filter_button.styleSheet() or "")
         assert "busca" in tooltip.casefold()
-        assert "filtros de coluna" in tooltip
-        assert "filtros avancados" in tooltip
+        assert "filtros por texto" in tooltip
+        assert "filtros por selecao" in tooltip
         assert 0 < filter_tags_widget.maximumWidth() <= 280
         assert str(clear_all_filters_btn.text() or "") == "⌫"
         assert save_filter_button.parentWidget() is not filters_summary_frame
@@ -384,14 +388,13 @@ class TestGUIFilterLogic:
         assert theme_button is not None
         assert preferences_button is not None
         assert str(preferences_button.text() or "") == "Preferencias"
-        assert column_selector.mapToGlobal(column_selector.rect().topLeft()).y() < search_y
+        assert column_selector.isVisible() is False
         assert not getattr(paginator, "show_page_size_controls", True)
         page_size_label = getattr(paginator, "page_size_label", None)
         assert page_size_label is not None
         assert page_size_label.parentWidget() is None
         assert (
-            column_selector.mapToGlobal(column_selector.rect().topLeft()).x()
-            < preferences_button.mapToGlobal(preferences_button.rect().topLeft()).x()
+            preferences_button.mapToGlobal(preferences_button.rect().topLeft()).x()
             < theme_button.mapToGlobal(theme_button.rect().topLeft()).x()
         )
         assert str(quick_label.text() or "") == "Setor Executor:"
@@ -404,7 +407,7 @@ class TestGUIFilterLogic:
         assert quick_combo_pos.x() > paginator.mapToGlobal(paginator.rect().topLeft()).x()
         assert quick_combo.height() <= 28
         assert quick_combo.height() >= 24
-        assert quick_situacao_scroll.maximumWidth() <= 520
+        assert quick_situacao_scroll.widgetResizable() is True
         assert quick_situacao_scroll.horizontalScrollBarPolicy().name.endswith(
             "AsNeeded"
         )
@@ -433,18 +436,19 @@ class TestGUIFilterLogic:
 
         assert isinstance(tab_bar, QtWidgets.QTabBar)
         assert tab_bar.count() == 2
-        assert tab_bar.tabText(0) == "Por coluna"
-        assert tab_bar.tabText(1) == "Avancados"
+        assert tab_bar.tabText(0) == "Por texto"
+        assert tab_bar.tabText(1) == "Selecao"
         assert tab_bar.height() <= 22
-        assert stack.currentIndex() == 0
-        assert str(title.text() or "") == "Filtros por Coluna"
+        assert stack.currentIndex() == 1
+        assert str(title.text() or "") == "Filtros por Selecao"
+        assert getattr(self.window, "_active_filter_panel_kind", None) == "advanced"
 
         tab_bar.setCurrentIndex(1)
         QApplication.processEvents()
 
         assert self.window.main_tabs.currentIndex() == 0
         assert stack.currentIndex() == 1
-        assert str(title.text() or "") == "Filtros Avancados"
+        assert str(title.text() or "") == "Filtros por Selecao"
         assert getattr(self.window, "_active_filter_panel_kind", None) == "advanced"
 
         tab_bar.setCurrentIndex(0)
@@ -452,8 +456,104 @@ class TestGUIFilterLogic:
 
         assert self.window.main_tabs.currentIndex() == 0
         assert stack.currentIndex() == 0
-        assert str(title.text() or "") == "Filtros por Coluna"
+        assert str(title.text() or "") == "Filtros por Texto"
         assert getattr(self.window, "_active_filter_panel_kind", None) == "columns"
+
+    def test_derivadas_panel_exposes_navigation_tooltips(self):
+        main_ctx = self._panel_context()
+        details_tree_text = main_ctx["details_tree_text"]
+        details_graph_label = main_ctx["details_graph_label"]
+
+        assert "Clique em uma SSA" in str(details_tree_text.toolTip() or "")
+        assert "grafo" in str(details_graph_label.toolTip() or "").casefold()
+
+    def test_preferences_dialog_exposes_runtime_controls_and_column_entry(self, monkeypatch):
+        selector = getattr(self.window, "column_selector", None)
+        assert selector is not None
+        selector_calls: list[str] = []
+
+        def _fake_open_dialog():
+            selector_calls.append("open")
+
+        monkeypatch.setattr(selector, "open_dialog", _fake_open_dialog)
+
+        captured: dict[str, Any] = {}
+
+        def _fake_exec(dialog):
+            labels = [widget.text() for widget in dialog.findChildren(QLabel)]
+            buttons = {
+                str(widget.objectName() or ""): widget
+                for widget in dialog.findChildren(QPushButton)
+            }
+            captured["labels"] = labels
+            captured["buttons"] = [widget.text() for widget in buttons.values()]
+            columns_button = buttons.get("preferencesColumnsButton")
+            assert columns_button is not None
+            columns_button.click()
+            return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(QDialog, "exec", _fake_exec)
+
+        self.window._open_preferences_dialog()
+
+        assert selector_calls == ["open"]
+        assert captured["labels"] == [
+            "Tema",
+            "Modo da busca",
+            "Debounce ms",
+            "Linhas por pagina",
+            "Alinhamento da tabela",
+            "Cache de filtros",
+            "Colunas e larguras",
+        ]
+        assert "Configurar colunas" in captured["buttons"]
+
+    def test_preferences_dialog_applies_runtime_settings(self, monkeypatch):
+        gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+        previous_mode = gui_settings.get("default_filter_mode")
+        previous_delay = gui_settings.get("debounce_delay")
+        previous_cache = gui_settings.get("filter_cache_size")
+        previous_page_size = gui_settings.get("page_size")
+        paginator = getattr(self.window, "paginator", None)
+        assert paginator is not None
+
+        def _fake_exec(dialog):
+            search_mode_combo = dialog.findChild(
+                QComboBox, "preferencesSearchModeCombo"
+            )
+            debounce_spin = dialog.findChild(QSpinBox, "preferencesDebounceSpin")
+            page_size_spin = dialog.findChild(QSpinBox, "preferencesPageSizeSpin")
+            cache_size_spin = dialog.findChild(QSpinBox, "preferencesCacheSizeSpin")
+            assert search_mode_combo is not None
+            assert debounce_spin is not None
+            assert page_size_spin is not None
+            assert cache_size_spin is not None
+
+            search_mode_combo.setCurrentIndex(
+                search_mode_combo.findData("regex")
+            )
+            debounce_spin.setValue(950)
+            page_size_spin.setValue(80)
+            cache_size_spin.setValue(70)
+            return QDialog.DialogCode.Accepted
+
+        monkeypatch.setattr(QDialog, "exec", _fake_exec)
+
+        self.window._open_preferences_dialog()
+
+        assert gui_settings.get("default_filter_mode") == "regex"
+        assert getattr(self.window, "_cached_default_mode", None) == "regex"
+        assert gui_settings.get("debounce_delay") == 950
+        assert self.window._debounce_timer.interval() == 950
+        assert gui_settings.get("filter_cache_size") == 70
+        assert gui_settings.get("page_size") == 80
+        assert getattr(self.window, "_restored_page_size", None) == 80
+        assert paginator.page_size == 80
+
+        gui_settings["default_filter_mode"] = previous_mode
+        gui_settings["debounce_delay"] = previous_delay
+        gui_settings["filter_cache_size"] = previous_cache
+        gui_settings["page_size"] = previous_page_size
 
     def test_details_derivadas_tab_refreshes_when_selection_changes(self, monkeypatch):
         df = pd.DataFrame(
@@ -860,7 +960,7 @@ class TestGUIFilterLogic:
         indicator_tooltip = str(col_indicator.toolTip() or "")
         assert "Busca rapida" in indicator_tooltip
         assert "termos cumulativos" in indicator_tooltip
-        assert "Filtros por coluna" in indicator_tooltip
+        assert "Filtros por texto" in indicator_tooltip
         assert "alternativas dentro da mesma coluna" in indicator_tooltip
 
     def test_filter_help_dialog_texts_separate_general_search_from_column_alternatives(
@@ -2990,8 +3090,8 @@ class TestGUIFilterLogic:
             assert button.text() == "⌫"
             tooltip = str(button.toolTip() or "").casefold()
             assert "apenas a busca" in tooltip
-            assert "coluna" in tooltip
-            assert "avancados" in tooltip
+            assert "texto" in tooltip
+            assert "selecao" in tooltip
 
     def test_search_buttons_use_single_live_handlers(self):
         main_ctx = self._panel_context()
