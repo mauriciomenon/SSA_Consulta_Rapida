@@ -25,6 +25,20 @@ from PyQt6.QtWidgets import (
 logger = logging.getLogger(__name__)
 
 
+def _connect_window_slot(signal: Any, window: Any, slot_name: str) -> None:
+    slot = getattr(window, slot_name, None)
+    if callable(slot):
+        signal.connect(slot)
+
+
+def _set_fixed_height(window: Any, widget: QWidget, height: int, label: str) -> None:
+    setter = getattr(window, "_set_widget_fixed_height_safe", None)
+    if callable(setter):
+        setter(widget, height, label)
+        return
+    widget.setFixedHeight(height)
+
+
 class DerivadasGraphLabel(QLabel):
     def __init__(self, window: Any) -> None:
         super().__init__()
@@ -189,7 +203,7 @@ def _build_details_panel(window: Any) -> tuple[QGroupBox, dict[str, Any]]:
     try:
         details_text.setOpenLinks(False)
         details_text.setOpenExternalLinks(False)
-        details_text.anchorClicked.connect(window._on_details_anchor_clicked)
+        _connect_window_slot(details_text.anchorClicked, window, "_on_details_anchor_clicked")
     except Exception as exc:
         logger.debug("Falha ao configurar links no painel de detalhes: %s", exc)
     details_stack.addWidget(cast(Any, details_text))
@@ -203,7 +217,11 @@ def _build_details_panel(window: Any) -> tuple[QGroupBox, dict[str, Any]]:
     details_tree_text.setOpenExternalLinks(False)
     try:
         details_tree_text.setFrameShape(QFrame.Shape.NoFrame)
-        details_tree_text.anchorClicked.connect(window._on_details_anchor_clicked)
+        _connect_window_slot(
+            details_tree_text.anchorClicked,
+            window,
+            "_on_details_anchor_clicked",
+        )
     except Exception as exc:
         logger.debug("Falha ao configurar arvore de derivadas no painel principal: %s", exc)
     try:
@@ -257,9 +275,7 @@ def _build_details_panel(window: Any) -> tuple[QGroupBox, dict[str, Any]]:
 
 def _build_details_panel_header(window: Any) -> tuple[QWidget, QTabBar, QLabel]:
     details_panel_header = QWidget()
-    window._set_widget_fixed_height_safe(
-        details_panel_header, 24, "cabecalho de abas de detalhes"
-    )
+    _set_fixed_height(window, details_panel_header, 24, "cabecalho de abas de detalhes")
     details_header_layout = QHBoxLayout(cast(Any, details_panel_header))
     details_header_layout.setContentsMargins(0, 0, 0, 0)
     details_header_layout.setSpacing(6)
@@ -327,12 +343,16 @@ def _build_column_filters_panel_shell(window: Any) -> dict[str, Any]:
     add_column_filter_btn.setToolTip(
         "Selecionar qualquer coluna para ativar filtro dedicado"
     )
-    add_column_filter_btn.clicked.connect(window._open_add_column_filter_menu)
+    _connect_window_slot(
+        add_column_filter_btn.clicked,
+        window,
+        "_open_add_column_filter_menu",
+    )
     footer.addWidget(cast(Any, add_column_filter_btn))
     footer.addSpacing(8)
     clear_all_btn = QPushButton("Limpar todos filtros de colunas")
     clear_all_btn.setMaximumWidth(260)
-    clear_all_btn.clicked.connect(window._clear_all_column_filters)
+    _connect_window_slot(clear_all_btn.clicked, window, "_clear_all_column_filters")
     footer.addWidget(cast(Any, clear_all_btn))
     footer.addStretch()
     col_filters_outer.addLayout(cast(Any, footer))
@@ -349,9 +369,7 @@ def _build_column_filters_panel_shell(window: Any) -> dict[str, Any]:
 
 def _build_filter_panel_header(window: Any) -> tuple[QWidget, QTabBar, QLabel]:
     filter_panel_header = QWidget()
-    window._set_widget_fixed_height_safe(
-        filter_panel_header, 24, "cabecalho de abas de filtros"
-    )
+    _set_fixed_height(window, filter_panel_header, 24, "cabecalho de abas de filtros")
     filter_panel_header_layout = QHBoxLayout(cast(Any, filter_panel_header))
     filter_panel_header_layout.setContentsMargins(0, 0, 0, 0)
     filter_panel_header_layout.setSpacing(6)

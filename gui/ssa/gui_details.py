@@ -537,10 +537,10 @@ def _get_details_frame_fingerprint(window, df) -> str:
         if isinstance(cached_value, str) and cached_value:
             return cached_value
     fingerprint = repr(token)
-    window._details_frame_fingerprint_cache = {
+    setattr(window, "_details_frame_fingerprint_cache", {
         "token": token,
         "fingerprint": fingerprint,
-    }
+    })
     return fingerprint
 
 
@@ -609,6 +609,11 @@ def update_details_from_selection(window):
 
 
 def _schedule_details_update(window, series) -> None:
+    if series is None:
+        try:
+            window.details_text.setProperty("details_render_signature", None)
+        except Exception as exc:
+            logger.debug("Falha ao limpar assinatura pendente de detalhes: %s", exc)
     if os.environ.get("PYTEST_CURRENT_TEST"):
         _update_details_from_series(window, series)
         return
@@ -635,7 +640,7 @@ def _update_details_from_series(window, series):
         window._details_current_ssa = None
         window.details_text.setProperty("details_render_signature", None)
         window.details_text.clear()
-        window._details_current_series_for_derivadas = None
+        setattr(window, "_details_current_series_for_derivadas", None)
         _clear_main_details_derivadas_panel(window)
         return
     render_signature = None
@@ -673,8 +678,8 @@ def _update_details_from_series(window, series):
         )
         window.details_text.setHtml(html_content)
         window.details_text.setProperty("details_render_signature", render_signature)
-        window._details_current_series_for_derivadas = series
-        window._details_current_derivadas_font_family = font_family
+        setattr(window, "_details_current_series_for_derivadas", series)
+        setattr(window, "_details_current_derivadas_font_family", font_family)
         _sync_main_details_derivadas_panel(window)
         return
     except Exception as exc:
@@ -707,8 +712,8 @@ def _update_details_from_series(window, series):
     try:
         window.details_text.setPlainText(details_str)
         window.details_text.setProperty("details_render_signature", render_signature)
-        window._details_current_series_for_derivadas = series
-        window._details_current_derivadas_font_family = None
+        setattr(window, "_details_current_series_for_derivadas", series)
+        setattr(window, "_details_current_derivadas_font_family", None)
         _sync_main_details_derivadas_panel(window)
     except Exception as exc:
         logger.debug("Falha ao renderizar detalhes em texto simples: %s", exc)
