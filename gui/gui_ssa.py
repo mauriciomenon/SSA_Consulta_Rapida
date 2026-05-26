@@ -1076,8 +1076,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Aplica perfil inicial de filtros por setor
         self._apply_initial_filter_profile()
 
-        # Auto-carregar dados na abertura (assáncrono, mantêm a janela responsiva)
-        QTimer.singleShot(150, self.load_data)
+        # Inicia a carga imediatamente para evitar um segundo passo artificial
+        # apos a janela aparecer.
+        self.load_data()
 
     def init_ui(self):
         central_widget = QWidget()

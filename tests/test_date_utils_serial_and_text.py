@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import math
 import pytest
+import pandas as pd
 from core.date_utils import bulk_parse_dates, parse_any_date
 from shared.date_utils import format_datetime_series_for_storage
+from shared.date_utils import parse_datetime_series_mixed
 
 @pytest.mark.parametrize(
     "value,expect_prefix",
@@ -59,3 +61,21 @@ def test_format_datetime_series_for_storage_handles_object_parse(monkeypatch):
     formatted = format_datetime_series_for_storage(series)
 
     assert formatted.tolist() == [None]
+
+
+def test_parse_datetime_series_mixed_normalizes_tz_aware_and_naive_values():
+    series = pd.Series(
+        [
+            "2026-07-01 13:56:00+00:00",
+            "01/07/2026 10:56:00",
+            "2026-07-01 13:56:00",
+        ],
+        dtype="object",
+    )
+
+    parsed = parse_datetime_series_mixed(series)
+
+    assert str(parsed.dtype) == "datetime64[ns]"
+    assert parsed.isna().sum() == 0
+    assert parsed.dt.tz is None
+    assert parsed.iloc[0].strftime("%Y-%m-%d %H:%M:%S") == "2026-07-01 13:56:00"

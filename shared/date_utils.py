@@ -114,10 +114,15 @@ def bulk_parse_dates(values: Iterable) -> list[str | None]:
 def parse_datetime_series_mixed(series: pd.Series) -> pd.Series:
     """Parse series with mixed ISO and day-first strings without warning noise."""
     if not isinstance(series, pd.Series):
-        return pd.to_datetime(series, errors="coerce", dayfirst=True)
+        parsed = pd.to_datetime(series, errors="coerce", dayfirst=True, utc=True)
+        if hasattr(parsed, "tz_localize"):
+            return parsed.tz_localize(None)
+        return parsed
     text_series = series.astype(str).str.strip()
     iso_mask = text_series.str.match(
-        r"^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?$",
+        r"^\d{4}-\d{2}-\d{2}"
+        r"(?:[ T]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?)?"
+        r"(?:Z|[+-]\d{2}:\d{2})?$",
         na=False,
     )
     slash_parts = text_series.str.extract(r"^(\d{1,2})/(\d{1,2})/\d{4}")
@@ -127,21 +132,31 @@ def parse_datetime_series_mixed(series: pd.Series) -> pd.Series:
     local_mask = ~iso_mask & ~forced_month_first_mask
     if bool(local_mask.any()):
         parsed.loc[local_mask] = pd.to_datetime(
-            series.loc[local_mask], errors="coerce", dayfirst=True
-        )
+            series.loc[local_mask], errors="coerce", dayfirst=True, utc=True
+        ).dt.tz_localize(None)
         month_first_mask = local_mask & parsed.isna()
         if bool(month_first_mask.any()):
             parsed.loc[month_first_mask] = pd.to_datetime(
-                series.loc[month_first_mask], errors="coerce", dayfirst=False
-            )
+                series.loc[month_first_mask],
+                errors="coerce",
+                dayfirst=False,
+                utc=True,
+            ).dt.tz_localize(None)
     if bool(forced_month_first_mask.any()):
         parsed.loc[forced_month_first_mask] = pd.to_datetime(
-            series.loc[forced_month_first_mask], errors="coerce", dayfirst=False
-        )
+            series.loc[forced_month_first_mask],
+            errors="coerce",
+            dayfirst=False,
+            utc=True,
+        ).dt.tz_localize(None)
     if bool(iso_mask.any()):
         parsed.loc[iso_mask] = pd.to_datetime(
-            series.loc[iso_mask], errors="coerce", dayfirst=False
-        )
+            series.loc[iso_mask],
+            errors="coerce",
+            dayfirst=False,
+            utc=True,
+            format="ISO8601",
+        ).dt.tz_localize(None)
     return parsed
 
 
