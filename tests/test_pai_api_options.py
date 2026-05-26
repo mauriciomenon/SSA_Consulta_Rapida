@@ -33,8 +33,8 @@ def test_pai_api_default_secret_service_can_use_environment_override(
 ) -> None:
     monkeypatch.setenv(PAI_API_DEFAULT_SECRET_SERVICE_ENV, "custom.service")
 
-    assert default_pai_api_settings()[PAI_API_SECRET_SERVICE_KEY] == "custom.service"
-    assert normalize_pai_api_options({}).secret_service == "custom.service"
+    assert default_pai_api_settings()[PAI_API_SECRET_SERVICE_KEY] == "custom.service"  # pragma: allowlist secret
+    assert normalize_pai_api_options({}).secret_service == "custom.service"  # pragma: allowlist secret
 
 
 def test_pai_api_options_canonicalize_and_filter_sector_order() -> None:
@@ -76,7 +76,7 @@ def test_pai_api_auto_refresh_defaults_are_explicit() -> None:
     assert options.auto_refresh_interval_minutes == 10
     assert options.data_scopes == ("consulta",)
     assert options.username == ""
-    assert options.secret_service == "scrap_report.sam"
+    assert options.secret_service == "scrap_report.sam"  # pragma: allowlist secret
     assert options.secure_required is True
 
 
@@ -90,7 +90,7 @@ def test_pai_api_auth_options_trim_username_and_secret_service() -> None:
     )
 
     assert options.username == "sam.user"
-    assert options.secret_service == "custom.sam"
+    assert options.secret_service == "custom.sam"  # pragma: allowlist secret
     assert options.secure_required is False
 
 
