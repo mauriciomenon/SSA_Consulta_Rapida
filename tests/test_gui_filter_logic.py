@@ -586,6 +586,78 @@ class TestGUIFilterLogic:
         )
         assert "202600001" in str(self.window.details_graph_label.text() or "")
 
+    def test_main_details_derivadas_panel_does_not_build_full_ssa_index(
+        self, monkeypatch
+    ):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202600001", "202600002"],
+                "situacao": ["APV", "STE"],
+                "derivada_de": ["", "202600001"],
+                "descricao_ssa": ["Teste A", "Teste B"],
+            }
+        )
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_collect_derivadas_tree_data",
+            lambda *_args, **_kwargs: {
+                "target": "202600001",
+                "target_status": "APV",
+                "parents": [],
+                "children": [{"ssa": "202600002", "situacao": "STE"}],
+                "ancestors": [],
+                "descendants": [{"ssa": "202600002", "situacao": "STE"}],
+                "family_roots": ["202600001"],
+                "family_descendants": [
+                    {"ssa": "202600002", "parent": "202600001", "situacao": "STE"}
+                ],
+                "related": [],
+                "family_truncated": False,
+            },
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_window_ssa_series_index",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("full index should not be built")
+            ),
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "load_svg_render_dependencies",
+            lambda: object(),
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_build_derivadas_graph_html",
+            lambda _window, data, **_kwargs: (
+                f"<svg><text>{data.get('target', '')}</text></svg>"
+            ),
+        )
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "render_graph_svg_pixmap",
+            lambda **kwargs: kwargs["graph_label"].setText(kwargs["graph_svg"]) or True,
+        )
+
+        ctx = self._panel_context()
+        ctx["details_tab_bar"].setCurrentIndex(1)
+        self.window.table_widget.selectRow(0)
+        self.window.update_details_from_selection()
+        QApplication.processEvents()
+
+        assert "202600001 (APV)" in str(
+            self.window.details_tree_text.toPlainText() or ""
+        )
+        assert "202600001" in str(self.window.details_graph_label.text() or "")
+
     def test_collect_derivadas_tree_data_uses_snapshot_without_local_edges(
         self, monkeypatch
     ):
@@ -7509,6 +7581,19 @@ class TestGUIFilterLogic:
 
         col_idx = self.window._current_display_columns.index("descricao_ssa")
         assert self.window.table_widget.columnWidth(col_idx) == 222
+
+    def test_progress_bar_visibility_does_not_change_window_minimum_width(self):
+        before = int(self.window.minimumSizeHint().width())
+        self.window.progress_bar.setVisible(True)
+        QApplication.processEvents()
+        while_busy = int(self.window.minimumSizeHint().width())
+        self.window.progress_bar.setVisible(False)
+        QApplication.processEvents()
+        after = int(self.window.minimumSizeHint().width())
+
+        assert self.window.progress_bar.sizePolicy().retainSizeWhenHidden() is True
+        assert self.window.progress_bar.width() == 32
+        assert before == while_busy == after
 
     def test_build_derivadas_tree_html_uses_spaced_header_layout(self):
         with patch(

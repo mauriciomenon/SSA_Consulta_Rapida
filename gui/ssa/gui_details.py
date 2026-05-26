@@ -799,7 +799,7 @@ def _update_main_details_derivadas_panel(window, series, *, font_family: str | N
             link_color=link_color,
             font_family=safe_font_family,
             tree_data_override=tree_data,
-            ssa_index=_get_window_ssa_series_index(window),
+            ssa_index={},
         )
         tree_browser.setHtml(tree_html or "Sem derivadas para exibir.")
         graph_browser.setVisible(True)

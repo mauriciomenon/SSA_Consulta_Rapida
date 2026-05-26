@@ -436,6 +436,10 @@ def build_pagination_filter_bar(
     quick_situacao_box_layout.setSpacing(6)
     quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_label))
     quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_scroll))
+    quick_situacao_box.setSizePolicy(
+        cast(Any, QSizePolicy.Policy.Expanding),
+        cast(Any, QSizePolicy.Policy.Fixed),
+    )
     quick_situacao_box.setVisible(bool(quick_situacao_state["values"]))
 
     quick_setor_executor_box = _build_quick_filter_box("quickSetorExecutorBox")
@@ -448,8 +452,7 @@ def build_pagination_filter_bar(
     quick_setor_executor_box_layout.addWidget(cast(Any, quick_setor_executor_label))
     quick_setor_executor_box_layout.addWidget(cast(Any, quick_setor_executor_combo))
 
-    pagination_filters_layout.addStretch()
-    pagination_filters_layout.addWidget(cast(Any, quick_situacao_box))
+    pagination_filters_layout.addWidget(cast(Any, quick_situacao_box), 1)
     pagination_filters_layout.addSpacing(8)
     pagination_filters_layout.addWidget(cast(Any, quick_setor_executor_box))
 
@@ -535,9 +538,8 @@ def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[st
             buttons[value] = button
     widget = layout.parentWidget()
     if widget is not None:
-        widget.adjustSize()
-        widget.setMinimumWidth(widget.sizeHint().width())
         widget.setVisible(bool(values))
+        widget.updateGeometry()
     return {"buttons": buttons, "values": list(values)}
 
 

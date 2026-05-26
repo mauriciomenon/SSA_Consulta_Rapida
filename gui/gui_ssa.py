@@ -1152,6 +1152,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             cast(Any, QSizePolicy.Policy.Fixed),
         )
         self.progress_bar = QProgressBar()
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedWidth(32)
+        progress_policy = self.progress_bar.sizePolicy()
+        progress_policy.setRetainSizeWhenHidden(True)
+        self.progress_bar.setSizePolicy(progress_policy)
         self.progress_bar.setVisible(False)
         self.progress_bar.setRange(0, 0)
 
