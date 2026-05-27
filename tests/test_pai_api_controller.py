@@ -439,7 +439,7 @@ def test_pai_api_error_logs_short_warning_and_full_detail(caplog) -> None:
     window.set_active_pai_api_worker(worker)
     long_error = "scrap_report sam-api-flow falhou " + ("x" * 200)
 
-    with caplog.at_level(logging.INFO, logger="gui.ssa.pai_api_controller"):
+    with caplog.at_level(logging.DEBUG, logger="gui.ssa.pai_api_controller"):
         pai_api_controller._finish_error(window, worker, long_error)
 
     warning_messages = [
@@ -450,7 +450,7 @@ def test_pai_api_error_logs_short_warning_and_full_detail(caplog) -> None:
     info_messages = [
         str(record.message)
         for record in caplog.records
-        if record.levelno == logging.INFO
+        if record.levelno == logging.DEBUG
     ]
 
     assert len(warning_messages) == 1
@@ -460,13 +460,13 @@ def test_pai_api_error_logs_short_warning_and_full_detail(caplog) -> None:
     assert info_messages[0] == f"Falha detalhada na SAM API: {long_error}"
 
 
-def test_pai_api_sector_failure_logs_at_info(caplog) -> None:
-    with caplog.at_level(logging.INFO, logger="gui.ssa.pai_api_controller"):
+def test_pai_api_sector_failure_logs_at_debug(caplog) -> None:
+    with caplog.at_level(logging.DEBUG, logger="gui.ssa.pai_api_controller"):
         pai_api_controller._log_worker_error("setor IEE3: falha de teste")
 
     assert any(
-        record.levelno == logging.INFO
-        and "setor IEE3: falha de teste" in str(record.message)
+        record.levelno == logging.DEBUG
+        and "SAM API worker error: setor IEE3: falha de teste" in str(record.message)
         for record in caplog.records
     )
 

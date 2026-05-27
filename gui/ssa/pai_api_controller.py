@@ -313,11 +313,11 @@ def _run_auto_refresh_timeout(
 
 
 def _log_worker_output(text: str, *_args: Any) -> None:
-    logger.info("%s", text)
+    logger.debug("SAM API worker output: %s", text)
 
 
 def _log_worker_error(text: str, *_args: Any) -> None:
-    logger.info("%s", text)
+    logger.debug("SAM API worker error: %s", text)
 
 
 def _set_worker_progress(
@@ -380,7 +380,7 @@ def _finish_error(
     short_message = _short_error_message(message)
     logger.warning("Falha na SAM API: %s", short_message)
     if short_message != message:
-        logger.info("Falha detalhada na SAM API: %s", message)
+        logger.debug("Falha detalhada na SAM API: %s", message)
     window.set_pai_api_status(f"Status: Falha na SAM API: {short_message}")
 
 
