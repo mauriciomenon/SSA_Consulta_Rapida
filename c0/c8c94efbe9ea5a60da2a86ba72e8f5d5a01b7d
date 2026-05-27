@@ -1,0 +1,22 @@
+tests/test_main_gui_fallback.py
+  s_9f052ddda3b0ba::t_1aed1bad4ae4c9 13-17,20-29
+  s_9f052ddda3b0ba::t_a5218f30934b4a 48-49,51
+  s_9f052ddda3b0ba::t_700f2688d2ace6 8,46-47,50,52-83,164-167,171-174,176-177,181,192-195,199-201,203-204,208
+  s_9f052ddda3b0ba::t_aea39f820ba76d 18-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c0c8c94efbe9ea5a60da2a86ba72e8f5d5a01b7d",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
