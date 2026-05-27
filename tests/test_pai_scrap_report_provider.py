@@ -32,7 +32,14 @@ def test_run_pai_scrap_report_export_creates_xlsx_from_manifest(
     monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
 
     def runner(command: list[str], **kwargs: Any) -> _Completed:
-        assert command[:5] == ["/bin/uv", "run", "--project", str(scrap_root), "python"]
+        assert command[:6] == [
+            "/bin/uv",
+            "run",
+            "--active",
+            "--project",
+            str(scrap_root),
+            "python",
+        ]
         assert "sam-api-flow" in command
         output_dir.mkdir(exist_ok=True)
         xlsx_path.write_bytes(b"xlsx")
@@ -239,6 +246,38 @@ def test_run_pai_scrap_report_export_reports_sweep_label_on_failure(
     assert "detail=failed token=<redacted>" in str(excinfo.value)
     assert "token=secret" not in str(excinfo.value)
     assert "password=" not in str(excinfo.value)
+
+
+def test_run_pai_scrap_report_export_prefers_json_error_message_over_uv_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    class _Failed:
+        returncode = 1
+        stdout = (
+            '{"status":"error","message":"falha real da consulta REST","command":"sam-api-flow"}'
+        )
+        stderr = (
+            "warning: `VIRTUAL_ENV=/tmp/demo` does not match the project environment path\n"
+            "[error] falha real da consulta REST"
+        )
+
+    with pytest.raises(RuntimeError, match="scrap_report sam-api-flow falhou") as excinfo:
+        run_pai_scrap_report_export(
+            PaiScrapReportRequest(
+                project_root=tmp_path,
+                output_dir=tmp_path / "out",
+                scrap_report_root=scrap_root,
+            ),
+            runner=lambda _command, **_kwargs: _Failed(),
+        )
+
+    message = str(excinfo.value)
+    assert "detail=falha real da consulta REST" in message
+    assert "detail=warning:" not in message
 
 
 def test_build_pai_scrap_report_command_requires_exact_aprovacao_report_kind(
@@ -478,7 +517,14 @@ def test_run_pai_scrap_report_ca_export_creates_ca_file(
     monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
 
     def runner(command: list[str], **kwargs: Any) -> _Completed:
-        assert command[:5] == ["/bin/uv", "run", "--project", str(scrap_root), "python"]
+        assert command[:6] == [
+            "/bin/uv",
+            "run",
+            "--active",
+            "--project",
+            str(scrap_root),
+            "python",
+        ]
         assert "sam-api-cert" in command
         assert "--output" in command
         output_dir.mkdir(exist_ok=True)

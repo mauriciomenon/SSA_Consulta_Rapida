@@ -241,7 +241,14 @@ def resolve_scrap_report_execution(
             uv_path = shutil.which("uv")
             if uv_path:
                 return PaiScrapReportExecution(
-                    command_prefix=(uv_path, "run", "--project", str(root), "python"),
+                    command_prefix=(
+                        uv_path,
+                        "run",
+                        "--active",
+                        "--project",
+                        str(root),
+                        "python",
+                    ),
                     cwd=root,
                     scrap_report_root=root,
                 )
@@ -517,10 +524,37 @@ def _run_scrap_report_command(
 
 
 def _command_failure_detail(*, stderr: str, stdout: str) -> str:
+    noise_prefixes = (
+        "warning: `virtual_env=",
+        "building ",
+        "built ",
+        "prepared ",
+        "resolved ",
+        "installed ",
+        "uninstalled ",
+        "downloaded ",
+        "downloading ",
+    )
+    for raw_text in (stdout, stderr):
+        stripped_text = str(raw_text or "").strip()
+        if not stripped_text:
+            continue
+        try:
+            payload = json.loads(stripped_text)
+        except Exception:
+            payload = None
+        if isinstance(payload, dict):
+            message = " ".join(str(payload.get("message", "") or "").split()).strip()
+            if message:
+                return message
+
     for raw_text in (stderr, stdout):
         for raw_line in raw_text.splitlines():
             stripped = " ".join(raw_line.split()).strip()
             if not stripped:
+                continue
+            lowered = stripped.casefold()
+            if lowered.startswith(noise_prefixes):
                 continue
             redacted = re.sub(
                 r"(?i)\b(password|token|secret|senha)(\s*[:=]\s*)(\S+)",

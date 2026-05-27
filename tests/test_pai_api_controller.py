@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import logging
+
 from core.pai_api_options import (
     PAI_API_AUTO_REFRESH_ENABLED_KEY,
     PAI_API_DATA_SCOPES_KEY,
@@ -423,6 +425,17 @@ def test_pai_api_error_status_is_short() -> None:
     assert window.worker is None
     assert len(window.statuses[-1]) <= 120
     assert window.statuses[-1].endswith("...")
+
+
+def test_pai_api_sector_failure_logs_at_info(caplog) -> None:
+    with caplog.at_level(logging.INFO, logger="gui.ssa.pai_api_controller"):
+        pai_api_controller._log_worker_error("setor IEE3: falha de teste")
+
+    assert any(
+        record.levelno == logging.INFO
+        and "setor IEE3: falha de teste" in str(record.message)
+        for record in caplog.records
+    )
 
 
 def _preferences(*, auto_enabled: bool) -> dict[str, Any]:

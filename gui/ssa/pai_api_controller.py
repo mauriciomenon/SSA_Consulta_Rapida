@@ -317,7 +317,7 @@ def _log_worker_output(text: str, *_args: Any) -> None:
 
 
 def _log_worker_error(text: str, *_args: Any) -> None:
-    logger.warning("%s", text)
+    logger.info("%s", text)
 
 
 def _set_worker_progress(

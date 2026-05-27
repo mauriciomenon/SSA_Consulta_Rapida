@@ -34,6 +34,8 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 logger: logging.Logger
 # Logger level will be set by argument parsing - do not hardcode DEBUG
 _logging_configured = False
+_console_logging_level = logging.WARNING
+_file_logging_level = logging.INFO
 
 
 class _ASCIIOnlyFilter(logging.Filter):
@@ -76,9 +78,11 @@ def _configure_logging(
     use_robust_system: bool = True,
 ):
     """Configura sistema de logging (robusto ou legado) sem mensagens ruidosas."""
-    global _logging_configured, logger
+    global _logging_configured, logger, _console_logging_level, _file_logging_level
     if _logging_configured:
         return
+    _console_logging_level = level_console
+    _file_logging_level = level_file
 
     if use_robust_system:
         try:
@@ -90,10 +94,10 @@ def _configure_logging(
             root_logger.setLevel(min(level_console, level_file))
             ascii_filter = _ASCIIOnlyFilter()
             for handler in root_logger.handlers:
-                if isinstance(handler, logging.StreamHandler):
-                    handler.setLevel(level_console)
-                else:
+                if isinstance(handler, logging.FileHandler):
                     handler.setLevel(level_file)
+                elif isinstance(handler, logging.StreamHandler):
+                    handler.setLevel(level_console)
                 handler.addFilter(ascii_filter)
             _logging_configured = True
             return
@@ -134,11 +138,28 @@ def _configure_logging(
     _logging_configured = True
 
 
-def _set_logging_level(level: int) -> None:
+def _set_logging_level(
+    level: int,
+    *,
+    level_console: int | None = None,
+    level_file: int | None = None,
+) -> None:
+    global _console_logging_level, _file_logging_level
+    if level_console is None:
+        level_console = _console_logging_level
+    else:
+        _console_logging_level = level_console
+    if level_file is None:
+        level_file = _file_logging_level
+    else:
+        _file_logging_level = level_file
     root_logger = logging.getLogger()
-    root_logger.setLevel(level)
+    root_logger.setLevel(min(level_console, level_file, level))
     for handler in root_logger.handlers:
-        handler.setLevel(level)
+        if isinstance(handler, logging.FileHandler):
+            handler.setLevel(level_file)
+        elif isinstance(handler, logging.StreamHandler):
+            handler.setLevel(level_console)
     logger.setLevel(level)
 
 
@@ -559,18 +580,28 @@ def main(cli_args=None):
     sys_argv = getattr(sys, "argv", None) or []
     raw_args = list(cli_args) if cli_args is not None else list(sys_argv[1:])
     early_log_level = "INFO"
+    log_level_explicit = False
     for index, token in enumerate(raw_args):
         if token == "--log-level" and index + 1 < len(raw_args):
             early_log_level = raw_args[index + 1]
+            log_level_explicit = True
             break
         if token.startswith("--log-level="):
             early_log_level = token.split("=", 1)[1]
+            log_level_explicit = True
             break
     early_level = getattr(logging, early_log_level, logging.INFO)
+    early_console_level = early_level if log_level_explicit else logging.WARNING
     _configure_logging(
-        active_runtime_root, level_console=early_level, level_file=early_level
+        active_runtime_root,
+        level_console=early_console_level,
+        level_file=early_level,
     )
-    _set_logging_level(early_level)
+    _set_logging_level(
+        early_level,
+        level_console=early_console_level,
+        level_file=early_level,
+    )
 
     _log_startup_diagnostics(active_runtime_root)
 
@@ -611,10 +642,20 @@ def main(cli_args=None):
         return
 
     try:
-        _set_logging_level(getattr(logging, args.log_level))
+        requested_level = getattr(logging, args.log_level)
+        requested_console_level = requested_level if log_level_explicit else logging.WARNING
+        _set_logging_level(
+            requested_level,
+            level_console=requested_console_level,
+            level_file=requested_level,
+        )
     except AttributeError:
         print(f"Nivel de log invalido: {args.log_level}. Usando INFO.")
-        _set_logging_level(logging.INFO)
+        _set_logging_level(
+            logging.INFO,
+            level_console=logging.WARNING,
+            level_file=logging.INFO,
+        )
 
     # Banner inicial
     print(f"Pesquisa Rapida de SSAs {APP_VERSION}")
