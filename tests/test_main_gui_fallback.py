@@ -213,12 +213,15 @@ def test_launch_gui_shows_window_when_startup_load_is_not_pending(
     assert exec_calls["count"] == 1
 
 
-def test_should_filter_macos_stderr_line_matches_only_tsm_noise() -> None:
+def test_should_filter_macos_stderr_line_matches_known_noise() -> None:
     from gui import launcher
 
     assert launcher._should_filter_macos_stderr_line(
         "TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) "
         "to send to port com.apple.tsm.uiserver\n"
+    )
+    assert launcher._should_filter_macos_stderr_line(
+        "This plugin does not support propagateSizeHints()\n"
     )
     assert not launcher._should_filter_macos_stderr_line("RuntimeError: boom\n")
 

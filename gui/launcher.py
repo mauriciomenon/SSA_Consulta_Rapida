@@ -7,17 +7,27 @@ import threading
 
 
 class GuiOperationalError(RuntimeError):
-    """Raised when GUI creation fails after dependencies were imported."""
+    """Raised when GUI initialization or runtime execution fails."""
 
 
 _TSM_STDERR_LINE = (
     "TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) "
     "to send to port com.apple.tsm.uiserver"
 )
+_QT_PROPAGATE_SIZE_HINTS_LINE = "This plugin does not support propagateSizeHints()"
+_QT_SANS_SERIF_ALIAS_LINE = (
+    'Replace uses of missing font family "Sans Serif" with one that exists '
+    "to avoid this cost."
+)
 
 
 def _should_filter_macos_stderr_line(line: str) -> bool:
-    return _TSM_STDERR_LINE in str(line or "")
+    line_text = str(line or "")
+    return (
+        _TSM_STDERR_LINE in line_text
+        or _QT_PROPAGATE_SIZE_HINTS_LINE in line_text
+        or _QT_SANS_SERIF_ALIAS_LINE in line_text
+    )
 
 
 class _MacOSStderrFilter:

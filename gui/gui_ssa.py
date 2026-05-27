@@ -1035,6 +1035,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         try:
             base_font = QFont(self.font())
+            font_info = self.fontInfo()
+            family_getter = getattr(base_font, "family", None)
+            configured_family = (
+                str(family_getter() or "").strip() if callable(family_getter) else ""
+            )
+            font_info_family_getter = getattr(font_info, "family", None)
+            resolved_family = (
+                str(font_info_family_getter() or "").strip()
+                if callable(font_info_family_getter)
+                else ""
+            )
+            if (
+                configured_family.casefold() == "sans serif"
+                and resolved_family
+                and resolved_family != configured_family
+            ):
+                set_family = getattr(base_font, "setFamily", None)
+                if callable(set_family):
+                    set_family(resolved_family)
+                self.setFont(base_font)
             if base_font.pointSizeF() <= 0:
                 base_font.setPointSizeF(11.0)
             self._info_font = base_font
