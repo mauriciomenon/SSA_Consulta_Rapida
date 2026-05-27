@@ -1,0 +1,23 @@
+core/pai_scrap_report_provider.py
+  s_9f052ddda3b0ba::t_3373b2da8ca90e 7,519-533
+  s_9f052ddda3b0ba::t_37198f19dbe473 159-163,218,510-514,534-550
+tests/test_pai_scrap_report_provider.py
+  s_9f052ddda3b0ba::t_e65c3dc7bcdbb3 239
+  s_9f052ddda3b0ba::t_727dcb248da086 240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "ebad6c5917265f53e64ae7956b824526cd0e27ea",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
