@@ -1,0 +1,31 @@
+gui/gui_ssa.py
+  s_9f052ddda3b0ba::t_b45e0030f55b1d 175,691,694-696,702-715
+  s_9f052ddda3b0ba::t_d32d73710eeac2 3568-3597
+  s_9f052ddda3b0ba::t_39b49f5963a2b9 23,72-75,213,262
+  s_9f052ddda3b0ba::t_3bffcd3966db38 3065,3068,3072-3073
+  s_9f052ddda3b0ba::t_c9455015a5cda4 3066-3067,3069-3071,3074-3108,3110-3126
+  s_9f052ddda3b0ba::t_da82fad919bfee 78
+  s_9f052ddda3b0ba::t_9af1e27f9bb962 3109,3236-3239,3383,3390,3410,3414,3423,3438,3443
+  s_9f052ddda3b0ba::t_167ed2e7e749cb 3233-3235,3240-3242,3248-3262,3266,3272,3276,3282,3344,3356-3358,3361,3363,3370-3382,3384-3389,3391-3409,3411-3413,3415-3422,3424-3437,3439-3442,3444-3446
+core/pai_scrap_report_provider.py
+  s_9f052ddda3b0ba::t_330abedede1fee 134-140,142,144-152,154-163,166,185-191,193,200
+  s_9f052ddda3b0ba::t_ac392973dcd842 114-133,141,143,153,164-165,167-184,192,194-199,201-203
+tests/test_gui_filter_logic.py
+  s_9f052ddda3b0ba::t_54c481ba856832 503-507,511,538-539,541,544-548,562-563,579-581,649-651,672,696,746-748,762-830
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e277b8de97bf1917c3a94a7209cefc217dee9cbc",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
