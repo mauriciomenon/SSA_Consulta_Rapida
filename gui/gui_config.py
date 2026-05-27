@@ -355,6 +355,8 @@ DEFAULT_COLUMN_WIDTHS: Dict[str, int] = _resolve_platform_column_widths()
 
 DEFAULT_GUI_SETTINGS: Dict[str, Any] = {
     "page_size": 50,
+    "window_width": 1200,
+    "window_height": 890,
     "auto_load": False,
     "debounce_delay": 800,
     "default_filter_mode": "contains",

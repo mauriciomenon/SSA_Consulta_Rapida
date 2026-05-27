@@ -953,6 +953,44 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Failed to load window icon resources: %s", exc)
 
+    def _sanitize_window_size_preferences(
+        self, width_value: Any, height_value: Any
+    ) -> tuple[int, int]:
+        default_width = int(DEFAULT_GUI_SETTINGS.get("window_width", 1200) or 1200)
+        default_height = int(DEFAULT_GUI_SETTINGS.get("window_height", 890) or 890)
+        try:
+            width = int(width_value)
+        except (TypeError, ValueError):
+            width = default_width
+        try:
+            height = int(height_value)
+        except (TypeError, ValueError):
+            height = default_height
+
+        width = max(960, min(2800, width))
+        height = max(720, min(1800, height))
+
+        return width, height
+
+    def _fit_window_size_to_screen(
+        self, width_value: Any, height_value: Any
+    ) -> tuple[int, int]:
+        width, height = self._sanitize_window_size_preferences(width_value, height_value)
+
+        try:
+            primary_screen_getter = getattr(QApplication, "primaryScreen", None)
+            screen = primary_screen_getter() if callable(primary_screen_getter) else None
+            if screen is not None and hasattr(screen, "availableGeometry"):
+                available = screen.availableGeometry()
+                screen_width = max(800, int(available.width()) - 40)
+                screen_height = max(600, int(available.height()) - 40)
+                width = min(width, screen_width)
+                height = min(height, screen_height)
+        except Exception as exc:
+            logger.debug("Falha ao limitar tamanho da janela pela tela: %s", exc)
+
+        return width, height
+
     def __init__(self):
         if not QT_AVAILABLE:
             raise RuntimeError("GUI unavailable: PyQt6 import failed")
@@ -964,8 +1002,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.debug("Failed to set WA_DeleteOnClose on main window: %s", exc)
         self._app_version = resolve_app_version_text()
         self.setWindowTitle(f"Consulta Rapida de SSAs v{self._app_version}")
-        self.setGeometry(100, 100, 1200, 890)
+        startup_gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
+        restored_startup_width, restored_startup_height = (
+            self._sanitize_window_size_preferences(
+                startup_gui_settings.get(
+                    "window_width", DEFAULT_GUI_SETTINGS.get("window_width", 1200)
+                ),
+                startup_gui_settings.get(
+                    "window_height", DEFAULT_GUI_SETTINGS.get("window_height", 890)
+                ),
+            )
+        )
+        startup_width, startup_height = self._fit_window_size_to_screen(
+            restored_startup_width,
+            restored_startup_height,
+        )
+        self.setGeometry(100, 100, startup_width, startup_height)
         self._last_window_width = self.width()
+        self._restored_window_width = restored_startup_width
+        self._restored_window_height = restored_startup_height
         self._apply_window_icon()
 
         self.df_completo = pd.DataFrame()
@@ -1021,6 +1076,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Configurações de GUI (independentes do CLI)
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         self._restored_page_size = gui_settings.get("page_size", 50)
+        self._restored_window_width = restored_startup_width
+        self._restored_window_height = restored_startup_height
         self._show_progress_bar_enabled = bool(
             gui_settings.get("show_progress_bar", True)
         )
@@ -3042,7 +3099,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         page_size_spin.setValue(int(getattr(self, "_restored_page_size", 50) or 50))
         grid.addWidget(cast(Any, page_size_spin), 3, 1)
 
-        grid.addWidget(cast(Any, QLabel("Alinhamento da tabela")), 4, 0)
+        grid.addWidget(cast(Any, QLabel("Largura da janela")), 4, 0)
+        window_width_spin = QSpinBox()
+        window_width_spin.setObjectName("preferencesWindowWidthSpin")
+        window_width_spin.setRange(960, 2800)
+        window_width_spin.setSingleStep(20)
+        window_width_spin.setValue(int(getattr(self, "_restored_window_width", 1200) or 1200))
+        grid.addWidget(cast(Any, window_width_spin), 4, 1)
+
+        grid.addWidget(cast(Any, QLabel("Altura da janela")), 5, 0)
+        window_height_spin = QSpinBox()
+        window_height_spin.setObjectName("preferencesWindowHeightSpin")
+        window_height_spin.setRange(720, 1800)
+        window_height_spin.setSingleStep(20)
+        window_height_spin.setValue(
+            int(getattr(self, "_restored_window_height", 890) or 890)
+        )
+        grid.addWidget(cast(Any, window_height_spin), 5, 1)
+
+        grid.addWidget(cast(Any, QLabel("Alinhamento da tabela")), 6, 0)
         alignment_combo = QComboBox()
         alignment_combo.setObjectName("preferencesAlignmentCombo")
         current_alignment = str(
@@ -3055,9 +3130,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if key == current_alignment:
                 current_alignment_index = index
         alignment_combo.setCurrentIndex(current_alignment_index)
-        grid.addWidget(cast(Any, alignment_combo), 4, 1)
+        grid.addWidget(cast(Any, alignment_combo), 6, 1)
 
-        grid.addWidget(cast(Any, QLabel("Cache de filtros")), 5, 0)
+        grid.addWidget(cast(Any, QLabel("Cache de filtros")), 7, 0)
         cache_size_spin = QSpinBox()
         cache_size_spin.setObjectName("preferencesCacheSizeSpin")
         cache_size_spin.setRange(10, 500)
@@ -3066,15 +3141,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         cache_size_spin.setToolTip(
             "Quantidade maxima de entradas reaproveitadas nos filtros"
         )
-        grid.addWidget(cast(Any, cache_size_spin), 5, 1)
+        grid.addWidget(cast(Any, cache_size_spin), 7, 1)
 
-        grid.addWidget(cast(Any, QLabel("Colunas e larguras")), 6, 0)
+        grid.addWidget(cast(Any, QLabel("Colunas e larguras")), 8, 0)
         columns_button = QPushButton("Configurar colunas")
         columns_button.setObjectName("preferencesColumnsButton")
         columns_button.setToolTip(
             "Abrir configuracao de colunas visiveis e larguras da tabela"
         )
-        grid.addWidget(cast(Any, columns_button), 6, 1)
+        grid.addWidget(cast(Any, columns_button), 8, 1)
         layout.addLayout(cast(Any, grid))
 
         table_display_columns = list(getattr(self, "_current_display_columns", []) or [])
@@ -3329,6 +3404,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 search_mode_combo.setCurrentIndex(search_mode_index)
             debounce_spin.setValue(int(DEFAULT_GUI_SETTINGS.get("debounce_delay", 800)))
             page_size_spin.setValue(int(DEFAULT_GUI_SETTINGS.get("page_size", 50)))
+            window_width_spin.setValue(int(DEFAULT_GUI_SETTINGS.get("window_width", 1200)))
+            window_height_spin.setValue(int(DEFAULT_GUI_SETTINGS.get("window_height", 890)))
             alignment_index = alignment_combo.findData(default_alignment)
             if alignment_index >= 0:
                 alignment_combo.setCurrentIndex(alignment_index)
@@ -3479,6 +3556,38 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         selected_search_mode = str(search_mode_combo.currentData() or "contains").strip()
         selected_debounce = int(debounce_spin.value())
         page_size = int(page_size_spin.value())
+        current_window_width = int(
+            gui_settings.get(
+                "window_width",
+                getattr(
+                    self,
+                    "_restored_window_width",
+                    DEFAULT_GUI_SETTINGS.get("window_width", 1200),
+                ),
+            )
+            or DEFAULT_GUI_SETTINGS.get("window_width", 1200)
+        )
+        current_window_height = int(
+            gui_settings.get(
+                "window_height",
+                getattr(
+                    self,
+                    "_restored_window_height",
+                    DEFAULT_GUI_SETTINGS.get("window_height", 890),
+                ),
+            )
+            or DEFAULT_GUI_SETTINGS.get("window_height", 890)
+        )
+        selected_window_width, selected_window_height = (
+            self._sanitize_window_size_preferences(
+                window_width_spin.value(),
+                window_height_spin.value(),
+            )
+        )
+        applied_window_width, applied_window_height = self._fit_window_size_to_screen(
+            selected_window_width,
+            selected_window_height,
+        )
         page_size_saved = self._save_page_size_pref(page_size)
         settings_changed = False
         if (
@@ -3501,6 +3610,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self._debounce_timer.setInterval(selected_debounce)
             except Exception as exc:
                 logger.debug("Falha ao atualizar debounce da busca: %s", exc)
+            settings_changed = True
+        if (
+            current_window_width != selected_window_width
+            or current_window_height != selected_window_height
+        ):
+            gui_settings["window_width"] = selected_window_width
+            gui_settings["window_height"] = selected_window_height
+            self._restored_window_width = selected_window_width
+            self._restored_window_height = selected_window_height
+            try:
+                self.resize(applied_window_width, applied_window_height)
+                self._last_window_width = self.width()
+            except Exception as exc:
+                logger.debug("Falha ao aplicar tamanho da janela via preferencias: %s", exc)
             settings_changed = True
         selected_alignment = str(
             alignment_combo.currentData() or _DEFAULT_TABLE_CELL_ALIGNMENT

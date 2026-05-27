@@ -538,7 +538,11 @@ class TestGUIFilterLogic:
             "Modo da busca",
             "Debounce ms",
             "Linhas por pagina",
+            "Largura da janela",
+            "Altura da janela",
             "Alinhamento da tabela",
+        ]
+        assert captured["labels"][7:9] == [
             "Cache de filtros",
             "Colunas e larguras",
         ]
@@ -576,6 +580,8 @@ class TestGUIFilterLogic:
         previous_delay = gui_settings.get("debounce_delay")
         previous_cache = gui_settings.get("filter_cache_size")
         previous_page_size = gui_settings.get("page_size")
+        previous_window_width = gui_settings.get("window_width")
+        previous_window_height = gui_settings.get("window_height")
         previous_auto_load = gui_settings.get("auto_load")
         previous_progress = gui_settings.get("show_progress_bar")
         previous_sort = gui_settings.get("enable_column_sorting")
@@ -611,6 +617,8 @@ class TestGUIFilterLogic:
             )
             debounce_spin = dialog.findChild(QSpinBox, "preferencesDebounceSpin")
             page_size_spin = dialog.findChild(QSpinBox, "preferencesPageSizeSpin")
+            window_width_spin = dialog.findChild(QSpinBox, "preferencesWindowWidthSpin")
+            window_height_spin = dialog.findChild(QSpinBox, "preferencesWindowHeightSpin")
             cache_size_spin = dialog.findChild(QSpinBox, "preferencesCacheSizeSpin")
             auto_load_check = dialog.findChild(QCheckBox, "preferencesAutoLoadCheck")
             show_progress_check = dialog.findChild(
@@ -663,6 +671,8 @@ class TestGUIFilterLogic:
             assert search_mode_combo is not None
             assert debounce_spin is not None
             assert page_size_spin is not None
+            assert window_width_spin is not None
+            assert window_height_spin is not None
             assert cache_size_spin is not None
             assert auto_load_check is not None
             assert show_progress_check is not None
@@ -688,6 +698,8 @@ class TestGUIFilterLogic:
             )
             debounce_spin.setValue(950)
             page_size_spin.setValue(80)
+            window_width_spin.setValue(1320)
+            window_height_spin.setValue(910)
             cache_size_spin.setValue(70)
             auto_load_check.setChecked(True)
             show_progress_check.setChecked(False)
@@ -717,7 +729,12 @@ class TestGUIFilterLogic:
 
         monkeypatch.setattr(QDialog, "exec", _fake_exec)
 
-        self.window._open_preferences_dialog()
+        with patch.object(self.window, "resize", wraps=self.window.resize) as resize_mock:
+            self.window._open_preferences_dialog()
+
+        expected_runtime_width, expected_runtime_height = (
+            self.window._fit_window_size_to_screen(1320, 910)
+        )
 
         assert gui_settings.get("default_filter_mode") == "regex"
         assert getattr(self.window, "_cached_default_mode", None) == "regex"
@@ -725,6 +742,8 @@ class TestGUIFilterLogic:
         assert self.window._debounce_timer.interval() == 950
         assert gui_settings.get("filter_cache_size") == 70
         assert gui_settings.get("page_size") == 80
+        assert gui_settings.get("window_width") == 1320
+        assert gui_settings.get("window_height") == 910
         assert gui_settings.get("auto_load") is True
         assert gui_settings.get("show_progress_bar") is False
         assert gui_settings.get("enable_column_sorting") is False
@@ -733,6 +752,8 @@ class TestGUIFilterLogic:
         assert gui_settings.get("cache_enabled") is False
         assert gui_settings.get("cache_auto_clear") is True
         assert getattr(self.window, "_restored_page_size", None) == 80
+        assert getattr(self.window, "_restored_window_width", None) == 1320
+        assert getattr(self.window, "_restored_window_height", None) == 910
         assert paginator.page_size == 80
         assert getattr(self.window, "_show_progress_bar_enabled", None) is False
         assert getattr(self.window, "_column_sorting_enabled", None) is False
@@ -741,6 +762,7 @@ class TestGUIFilterLogic:
         assert self.window.progress_bar.maximumWidth() == 0
         assert self.window.progress_bar.isVisible() is False
         assert self.window.details_group.isVisible() is False
+        resize_mock.assert_any_call(expected_runtime_width, expected_runtime_height)
         assert self.window.table_widget.horizontalHeader().sectionsClickable() is False
         assert clear_calls == ["clear"]
         assert refresh_calls == ["refresh"]
@@ -765,6 +787,8 @@ class TestGUIFilterLogic:
         gui_settings["debounce_delay"] = previous_delay
         gui_settings["filter_cache_size"] = previous_cache
         gui_settings["page_size"] = previous_page_size
+        gui_settings["window_width"] = previous_window_width
+        gui_settings["window_height"] = previous_window_height
         gui_settings["auto_load"] = previous_auto_load
         gui_settings["show_progress_bar"] = previous_progress
         gui_settings["enable_column_sorting"] = previous_sort
@@ -10303,6 +10327,26 @@ class TestGUIFilterLogic:
 
         assert refresh_mock.call_count >= 1
         assert self.window._adv_options_dirty is False
+
+    def test_on_data_loaded_skips_full_refresh_when_no_filters_active(self):
+        self.window._active_data_load_request_id = 32
+        self.window.search_input.setText("")
+        self.window._advanced_filters = {}
+        self.window._advanced_filters_active = False
+        self.window._exclude_ste_sca = False
+        self.window._active_column_filters = OrderedDict()
+
+        with patch.object(
+            self.window,
+            "_refresh_after_filter_change",
+            side_effect=AssertionError("refresh completo nao deveria rodar"),
+        ) as refresh_mock:
+            self.window.on_data_loaded(self.base_df.copy(), request_id=32)
+
+        assert refresh_mock.call_count == 0
+        assert self.window.table_widget.rowCount() == len(self.base_df)
+        assert self.window.filtered_status_label.text() == "5 de 5 SSAs"
+        assert self.window.clear_filter_button.isEnabled() is False
 
     def test_on_data_loaded_resets_sort_caches(self):
         self.window._active_data_load_request_id = 31

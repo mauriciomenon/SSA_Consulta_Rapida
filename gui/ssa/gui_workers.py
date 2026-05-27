@@ -1169,15 +1169,46 @@ def _sync_column_selector_after_load(window) -> None:
 
 
 def _sync_filter_controls_after_load(window) -> None:
+    has_active_filters = False
     try:
-        window.clear_filter_button.setEnabled(window._has_any_active_filters())
+        has_active_filters = bool(window._has_any_active_filters())
+        window.clear_filter_button.setEnabled(has_active_filters)
     except Exception as exc:
         logger.debug(
             "Falha ao avaliar filtros ativos; habilitando botao de limpeza por fallback: %s",
             exc,
         )
         window.clear_filter_button.setEnabled(True)
-    window._refresh_after_filter_change()
+        has_active_filters = True
+    if has_active_filters:
+        window._refresh_after_filter_change()
+    else:
+        try:
+            current_details_ssa = getattr(window, "_details_current_ssa", None)
+            df_exibido = getattr(window, "df_exibido", None)
+            if df_exibido is None:
+                raise ValueError("df_exibido indisponivel no pos-load")
+            if hasattr(window, "_bump_filter_refresh_revision"):
+                window._bump_filter_refresh_revision()
+            paginator = getattr(window, "paginator", None)
+            if paginator is None:
+                raise ValueError("paginator indisponivel no pos-load")
+            paginator.set_dataframe(df_exibido)
+
+            def _measure_passthrough(_name, callback):
+                return callback()
+
+            window._render_filter_refresh_page(
+                current_details_ssa,
+                _measure_passthrough,
+            )
+            window._finish_filter_refresh_ui(_measure_passthrough)
+        except Exception as exc:
+            logger.debug(
+                "Falha no caminho rapido de sync pos-load; usando refresh completo: %s",
+                exc,
+            )
+            window._refresh_after_filter_change()
     try:
         if getattr(window, "_active_filter_panel_kind", None) == "advanced":
             window._refresh_advanced_filter_options()
