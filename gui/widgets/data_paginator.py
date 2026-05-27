@@ -41,7 +41,7 @@ class DataPaginator(QWidget):
         self.prev_button.setFixedWidth(22)
         self.prev_button.setFixedHeight(22)
 
-        self.page_info_label = QLabel("Pagina 1 de 1")
+        self.page_info_label = QLabel("1 de 1")
         self.page_info_label.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
@@ -92,9 +92,7 @@ class DataPaginator(QWidget):
             self.current_page = 1
         # Pode ser chamado antes do init_ui terminar em alguns cenarios; proteja acesso
         if hasattr(self, "page_info_label"):
-            self.page_info_label.setText(
-                f"Pagina {self.current_page} de {self.total_pages}"
-            )
+            self.page_info_label.setText(f"{self.current_page} de {self.total_pages}")
         if hasattr(self, "prev_button") and hasattr(self, "next_button"):
             self.update_buttons()
 

@@ -1450,7 +1450,9 @@ class FilterGUISSAMixin:
             split_labels=not shares_single_status_label,
         )
         if filtered_status_label is not None:
-            filtered_status_label.setText(count_status_text)
+            filtered_status_label.setText(
+                count_status_text.removeprefix("Status: ").strip()
+            )
         if status_label is not None and status_label is not filtered_status_label:
             if shares_single_status_label:
                 status_label.setText(count_status_text)

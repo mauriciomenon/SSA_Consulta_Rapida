@@ -1144,7 +1144,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "Abrir opcoes de sincronizacao do banco, incluindo importacao e reescaneamento"
         )
         self.rescan_button.clicked.connect(self.rescan_data)
-        toolbar_layout.addWidget(cast(Any, self.rescan_button))
+        self.rescan_button.hide()
 
         self.api_button = QPushButton("API")
         self.api_button.setToolTip("Atualizar dados via SAM API por setor executor")
@@ -1173,12 +1173,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         toolbar_layout.addWidget(cast(Any, self.week_label))
         toolbar_layout.addStretch()
 
-        self.filtered_status_label = QLabel("Status: 0 de 0 SSAs")
+        self.filtered_status_label = QLabel("0 de 0 SSAs")
         self.filtered_status_label.setStyleSheet(
             "border:1px solid palette(mid); border-radius:4px; padding:1px 5px;"
         )
-        self.filtered_status_label.setMinimumWidth(164)
-        self.filtered_status_label.setMaximumWidth(226)
+        self.filtered_status_label.setMinimumWidth(122)
+        self.filtered_status_label.setMaximumWidth(188)
         self.filtered_status_label.setSizePolicy(
             cast(Any, QSizePolicy.Policy.Fixed),
             cast(Any, QSizePolicy.Policy.Fixed),

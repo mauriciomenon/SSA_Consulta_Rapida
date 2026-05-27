@@ -393,14 +393,17 @@ def _build_filter_panel_header(window: Any) -> tuple[QWidget, QTabBar, QLabel]:
             "border:1px solid palette(mid);"
             "border-bottom:0;"
             "margin-right:1px;"
+            "font-weight:400;"
             "}"
             "QTabBar::tab:selected {"
             "background:palette(highlight);"
             "color:palette(highlighted-text);"
+            "font-weight:700;"
             "}"
             "QTabBar::tab:!selected {"
             "background:palette(window);"
             "color:palette(windowText);"
+            "font-weight:400;"
             "}"
         )
     except Exception as exc:

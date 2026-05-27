@@ -305,11 +305,14 @@ class TestGUIFilterLogic:
     def test_top_toolbar_exposes_sam_button_and_filtered_status_box(self):
         sam_button = getattr(self.window, "open_sam_button", None)
         filtered_status = getattr(self.window, "filtered_status_label", None)
+        rescan_button = getattr(self.window, "rescan_button", None)
 
         assert sam_button is not None
         assert str(sam_button.text() or "") == "Abrir SAM"
         assert filtered_status is not None
-        assert str(filtered_status.text() or "") == "Status: 0 de 0 SSAs"
+        assert str(filtered_status.text() or "") == "0 de 0 SSAs"
+        assert rescan_button is not None
+        assert rescan_button.isVisible() is False
 
     def test_search_and_filter_summary_place_controls_in_expected_order(self):
         main_ctx = self._panel_context()
@@ -450,6 +453,11 @@ class TestGUIFilterLogic:
         assert tab_bar.tabText(0) == "Por texto"
         assert tab_bar.tabText(1) == "Selecao"
         assert tab_bar.height() <= 22
+        tab_css = str(tab_bar.styleSheet() or "")
+        assert "QTabBar::tab:selected" in tab_css
+        assert "font-weight:700;" in tab_css
+        assert "QTabBar::tab:!selected" in tab_css
+        assert "font-weight:400;" in tab_css
         assert stack.currentIndex() == 1
         assert str(title.text() or "") == "Filtros por Selecao"
         assert getattr(self.window, "_active_filter_panel_kind", None) == "advanced"
@@ -2690,7 +2698,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         status = self.window.filtered_status_label.text()
-        assert status == "Status: 1 de 5 SSAs"
+        assert status == "1 de 5 SSAs"
 
     def test_refresh_after_filter_change_skips_extra_filter_steps_without_active_filters(
         self, monkeypatch
@@ -2764,7 +2772,7 @@ class TestGUIFilterLogic:
     def test_set_filtered_count_status_accepts_suffix(self):
         self.window._set_filtered_count_status(filtered_total=2, original_total=5)
         status = self.window.filtered_status_label.text()
-        assert status == "Status: 2 de 5 SSAs"
+        assert status == "2 de 5 SSAs"
 
     def test_apply_advanced_filters_notice_uses_count_status_helper(self, monkeypatch):
         self.window._pending_search_display = "Busca X"
@@ -2777,7 +2785,7 @@ class TestGUIFilterLogic:
         monkeypatch.setattr(self.window, "_refresh_after_filter_change", _fake_refresh)
         self.window._apply_advanced_filters_from_ui(store_only=False)
         status = self.window.filtered_status_label.text()
-        assert status == "Status: 5 de 5 SSAs"
+        assert status == "5 de 5 SSAs"
         assert "Aviso" not in status
 
     def test_update_filters_summary_styles_active_state(self):
@@ -10787,7 +10795,7 @@ class TestGUIFilterLogic:
             self.window.on_filter_finished(self.base_df.iloc[0:0].copy(), request_id=88)
 
         status = str(self.window.filtered_status_label.text() or "")
-        assert status == "Status: 0 de 5 SSAs"
+        assert status == "0 de 5 SSAs"
         assert self.window.status_label.text() == (
             "Status: Busca para 'SVP, R001'. Aviso: nenhum resultado para o filtro atual."
         )

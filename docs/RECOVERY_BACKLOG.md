@@ -63,6 +63,25 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## ACTIVE PRIORITIES
 
+## Update 2026-05-27 00:58 - GUI filter/load residual after topbar cleanup
+
+Escopo deste registro:
+1. `BUG_REAL` suspeito e ainda nao corrigido neste slice: `gui/ssa/gui_workers.py` chama `window._refresh_after_filter_change()` e, logo depois, `window._refresh_advanced_filter_options()` no pos-load quando a aba ativa e `advanced`.
+2. Evidencia atual:
+   - caminho exato: `gui/ssa/gui_workers.py:1173-1183`
+   - impacto esperado: custo duplicado no cold path de carga quando a GUI ja entra com painel de selecao ativo
+   - natureza: refresh de tabela/contagem seguido de refresh de opcoes avancadas, ambos no thread da UI
+3. Tratamento nesta rodada:
+   - nao corrigido ainda para evitar abrir refatoracao de ownership entre refresh de resultado e refresh de menus no mesmo slice visual
+   - registrado para medicao dedicada com tempos por subbloco antes de alterar o contrato
+
+Pendente priorizado:
+1. medir `load_data -> _sync_filter_controls_after_load` com quebra de tempo para:
+   - `_refresh_after_filter_change`
+   - `_refresh_advanced_filter_options`
+2. decidir se o segundo passo e realmente redundante ou se precisa apenas ser adiado/offloaded
+3. se confirmado custo burro, corrigir em `HOTFIX_BLOCKER` ou `STABILITY_PATCH` separado, com smoke GUI real
+
 ## Update 2026-05-26 13:40 - GUI/API residuals after responsiveness hotfix
 
 Escopo deste registro:

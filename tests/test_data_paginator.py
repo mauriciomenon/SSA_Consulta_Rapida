@@ -34,7 +34,7 @@ class TestDataPaginator:
 
         assert paginator.total_pages == 3
         assert paginator.current_page == 3
-        assert paginator.page_info_label.text() == "Pagina 3 de 3"
+        assert paginator.page_info_label.text() == "3 de 3"
         assert paginator.prev_button.isEnabled() is True
         assert paginator.next_button.isEnabled() is False
         assert paginator.prev_button.text() == "←"
@@ -52,7 +52,7 @@ class TestDataPaginator:
 
         assert paginator.total_pages == 1
         assert paginator.current_page == 1
-        assert paginator.page_info_label.text() == "Pagina 1 de 1"
+        assert paginator.page_info_label.text() == "1 de 1"
         assert paginator.prev_button.isEnabled() is False
         assert paginator.next_button.isEnabled() is False
 

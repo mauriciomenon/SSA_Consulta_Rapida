@@ -254,12 +254,16 @@ def _build_theme_style_map(
         ),
         "tab_bar_css": (
             "QTabBar::tab {"
-            f"font-weight:600; color:{panel_text}; background:{panel_bg}; "
+            f"font-weight:400; color:{panel_text}; background:{panel_bg}; "
             f"border:1px solid {panel_border}; border-bottom:0; "
             "min-width:96px; padding:1px 10px; margin-right:1px;"
             "}"
             "QTabBar::tab:selected {"
-            f"background:{accent}; color:{panel_bg}; border:1px solid {accent};"
+            f"background:{accent}; color:{panel_bg}; font-weight:700; border:1px solid {accent};"
+            "border-bottom:0;"
+            "}"
+            "QTabBar::tab:!selected {"
+            f"background:{panel_bg}; color:{panel_text}; font-weight:400; border:1px solid {panel_border};"
             "border-bottom:0;"
             "}"
         ),
