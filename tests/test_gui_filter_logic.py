@@ -424,7 +424,7 @@ class TestGUIFilterLogic:
         )
         quick_scroll_style = str(quick_situacao_scroll.styleSheet() or "")
         assert "QScrollBar:horizontal" in quick_scroll_style
-        assert "height: 6px" in quick_scroll_style
+        assert "height: 4px" in quick_scroll_style
         parent_widget = quick_combo.parentWidget()
         assert parent_widget is not None
         right_gap = parent_widget.rect().right() - quick_combo.geometry().right()

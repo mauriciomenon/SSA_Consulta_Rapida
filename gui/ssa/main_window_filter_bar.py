@@ -402,7 +402,7 @@ def build_pagination_filter_bar(
     quick_situacao_widget = QWidget()
     quick_situacao_layout = QHBoxLayout(cast(Any, quick_situacao_widget))
     quick_situacao_layout.setContentsMargins(0, 0, 0, 0)
-    quick_situacao_layout.setSpacing(3)
+    quick_situacao_layout.setSpacing(1)
     quick_situacao_state = populate_quick_situacao_buttons(
         window, quick_situacao_layout
     )
@@ -426,8 +426,8 @@ def build_pagination_filter_bar(
     quick_situacao_scroll.setStyleSheet(
         "QScrollArea { border:0; background:transparent; }"
         "QScrollArea > QWidget > QWidget { background:transparent; }"
-        "QScrollBar:horizontal { height: 6px; margin: 0px; }"
-        "QScrollBar::handle:horizontal { min-width: 12px; }"
+        "QScrollBar:horizontal { height: 4px; margin: 0px; }"
+        "QScrollBar::handle:horizontal { min-width: 10px; }"
     )
 
     quick_situacao_box = _build_quick_filter_box("quickSituacaoBox")
@@ -435,8 +435,8 @@ def build_pagination_filter_bar(
         "Situacoes aplicadas junto com os demais filtros."
     )
     quick_situacao_box_layout = QHBoxLayout(cast(Any, quick_situacao_box))
-    quick_situacao_box_layout.setContentsMargins(1, 1, 2, 1)
-    quick_situacao_box_layout.setSpacing(1)
+    quick_situacao_box_layout.setContentsMargins(0, 1, 1, 1)
+    quick_situacao_box_layout.setSpacing(0)
     quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_scroll))
     quick_situacao_box.setSizePolicy(
         cast(Any, QSizePolicy.Policy.Expanding),
@@ -532,8 +532,8 @@ def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[st
             button.setCheckable(True)
             _set_fixed_height(window, button, 20, f"filtro rapido situacao {value}")
             try:
-                button.setMinimumWidth(28)
-                button.setMaximumWidth(40)
+                button.setMinimumWidth(24)
+                button.setMaximumWidth(36)
             except Exception as exc:
                 logger.debug("Falha ao limitar botao de situacao %s: %s", value, exc)
             try:
@@ -568,7 +568,7 @@ def _sync_quick_situacao_button(
         button.setToolTip(f"Liga ou desliga o filtro de situacao {value}.")
         style = str(getattr(window, "_week_label_style", "") or "")
         if style:
-            compact_style = style.replace("padding:1px 5px;", "padding:0px 2px;")
+            compact_style = style.replace("padding:1px 5px;", "padding:0px 1px;")
             button.setStyleSheet(compact_style)
     except Exception as exc:
         logger.debug("Falha ao sincronizar botao de situacao %s: %s", value, exc)
