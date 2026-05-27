@@ -1,0 +1,89 @@
+gui/ssa/pai_api_controller.py
+  s_9f052ddda3b0ba::t_ccedfd66ecfa1e 105,316,320
+  s_9f052ddda3b0ba::t_411cf05533da7d 262
+config/gui_main_preferences.json.example
+  s_9f052ddda3b0ba::t_2fedc795902c00 28-29,63,67,70,73,75,77,79,87,91,94,97,99,101,103,110,114,117,120,122,124,126,133,137,140,145,147,149,195-196
+gui/ssa/main_window_bottom_section.py
+  s_9f052ddda3b0ba::t_cdccfc98a8b221 28-50,119-120,123,125-128
+gui/ssa/gui_filters_advanced_ui.py
+  s_9f052ddda3b0ba::t_5275aaeef43083 16-17,22,30,85-86,182,542,547-548,554-556,560-614,617-628,632-633,636,638-644,647-657,659-660,664-682,685-692
+  s_9f052ddda3b0ba::t_9dea170a60e2b2 1739
+  s_9f052ddda3b0ba::t_c77fd6a5a8fb68 629-630
+  s_9f052ddda3b0ba::t_7693e9ba7034b7 1171
+  s_9f052ddda3b0ba::t_a1bb082c80f603 615-616,645-646
+  s_9f052ddda3b0ba::t_feef62e8ad7fcc 1540,1601-1605,1676-1681
+  s_9f052ddda3b0ba::t_8df36b61e4475b 557-559,631,634-635,637,658,661-663
+  s_9f052ddda3b0ba::t_2ae22576f1381d 1160-1167
+  s_9f052ddda3b0ba::t_382a89ad02f7da 683-684
+gui/ssa/main_window_filter_bar.py
+  s_9f052ddda3b0ba::t_98911321b64d69 359,439-440,453-454,498
+tests/test_gui_filter_logic.py
+  s_9f052ddda3b0ba::t_1c9465034977de 338-340,397-399,411-422,565,567-569,571-573,576-578,584-589,593
+  s_9f052ddda3b0ba::t_9c54467ab39b83 5847-5848
+  s_9f052ddda3b0ba::t_067486fd9467d4 1774
+  s_9f052ddda3b0ba::t_cdccfc98a8b221 2726,3410-3411,3777,5806-5846,5849-5850,5853-5854,5863
+  s_9f052ddda3b0ba::t_55f63d2e57eb44 2413,2439
+  s_9f052ddda3b0ba::t_b5998668064904 5852,5856
+  s_9f052ddda3b0ba::t_dbfe8db4df4e72 9002
+  s_9f052ddda3b0ba::t_02807760d2fb03 5851,5855,5857-5862
+  s_9f052ddda3b0ba::t_0a65db1eb719d6 867-869,879,882,2469,2472,2477,2480,2485,2488
+  s_9f052ddda3b0ba::t_0d9cbb23c752fd 8975-9001,9003
+gui/gui_ssa.py
+  s_9f052ddda3b0ba::t_c599f194e211f8 1215-1256,1285
+  s_9f052ddda3b0ba::t_d0f8e7bf2f7b29 84,1051,1053
+  s_9f052ddda3b0ba::t_99e0ce9e8a8a58 285
+  s_9f052ddda3b0ba::t_8ce7434a069719 3394,3400,3410,3420,3424,3451-3461,3525-3527,3580-3607,3661-3664,3670-3682,3835-3837
+  s_9f052ddda3b0ba::t_ebe8cc9df3bc94 205
+  s_9f052ddda3b0ba::t_600c73ce48acf0 63
+  s_9f052ddda3b0ba::t_cdccfc98a8b221 1666
+  s_9f052ddda3b0ba::t_7d5f19d747c594 3575,3637
+  s_9f052ddda3b0ba::t_6a04279b169a1c 3048-3089,3091-3092,3205-3206,3212-3213,3247-3251,3280-3281,3283-3286,3291,3296,3303,3324,3329,3336-3337
+gui/workers/pai_api_worker.py
+  s_9f052ddda3b0ba::t_a28be52dee6fc0 141
+core/pai_api_options.py
+  s_9f052ddda3b0ba::t_1665f5c7383682 22,67,76-90,95,142,214-216,277-296
+gui/gui_config.py
+  s_9f052ddda3b0ba::t_0b98edbbe4ea1f 48-50,334,347-348,421,435,606,624,649,753
+  s_9f052ddda3b0ba::t_2a65313e0836d5 244,248,251,254,256,258,260,268,271-272,274-275,282,286,289,294,296,298,382-390,404
+  s_9f052ddda3b0ba::t_536d2156d4592d 602-605,609-610
+gui/ssa/gui_workers.py
+  s_9f052ddda3b0ba::t_1f18986df7707f 1193-1195,1200-1212
+  s_9f052ddda3b0ba::t_1e2df4c7e1e90b 1216-1220
+  s_9f052ddda3b0ba::t_e2b01e84233aaf 1672
+tests/test_data_paginator.py
+  s_9f052ddda3b0ba::t_8fd2784002f824 40,42
+gui/widgets/data_paginator.py
+  s_9f052ddda3b0ba::t_4e2fe8b810267d 37,52
+gui/launcher.py
+  s_9f052ddda3b0ba::t_daa959cdaaa789 40,64,66,76
+tests/test_main_logging.py
+  s_9f052ddda3b0ba::t_7f60d552795b1e 49
+  s_9f052ddda3b0ba::t_5e1b710518875b 50
+gui/ssa/column_filter_panel.py
+  s_9f052ddda3b0ba::t_cdccfc98a8b221 324
+gui/ssa/details_graph_renderer.py
+  s_9f052ddda3b0ba::t_cdccfc98a8b221 198-199,206-207
+tests/test_pai_api_options.py
+  s_9f052ddda3b0ba::t_fa552ff40dc4ea 12,71-81
+gui/ssa/gui_rescan_lifecycle.py
+  s_9f052ddda3b0ba::t_d097332a5ffdf3 24,110,260,267
+  s_9f052ddda3b0ba::t_a91a54163badac 93,211
+gui/ssa/gui_details.py
+  s_9f052ddda3b0ba::t_cdccfc98a8b221 854-866
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "3274e54204eba913e34a5f2964e4ef1901fcb7d4",
+  "prompts": {},
+  "sessions": {
+    "s_9f052ddda3b0ba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e5b9b-b5c3-75b1-ae3e-74652b706292",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Mauricio Menon <mauriciomenon@users.noreply.github.com>"
+    }
+  }
+}
