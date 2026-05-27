@@ -406,11 +406,18 @@ class TestGUIFilterLogic:
         assert quick_box_pos.x() > paginator.mapToGlobal(paginator.rect().topLeft()).x()
         assert quick_combo_pos.x() > paginator.mapToGlobal(paginator.rect().topLeft()).x()
         assert quick_combo.height() <= 28
-        assert quick_combo.height() >= 24
+        assert quick_combo.height() >= 20
+        assert quick_combo.maximumWidth() <= 86
+        assert quick_combo.minimumWidth() <= 74
+        assert quick_box.width() <= 185
         assert quick_situacao_scroll.widgetResizable() is True
+        assert quick_situacao_scroll.height() <= 24
         assert quick_situacao_scroll.horizontalScrollBarPolicy().name.endswith(
             "AsNeeded"
         )
+        quick_scroll_style = str(quick_situacao_scroll.styleSheet() or "")
+        assert "QScrollBar:horizontal" in quick_scroll_style
+        assert "height: 6px" in quick_scroll_style
         parent_widget = quick_combo.parentWidget()
         assert parent_widget is not None
         right_gap = parent_widget.rect().right() - quick_combo.geometry().right()

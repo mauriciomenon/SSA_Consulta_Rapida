@@ -377,14 +377,15 @@ def build_pagination_filter_bar(
 
     pagination_filters_layout = QHBoxLayout()
     pagination_filters_layout.setContentsMargins(0, 0, 0, 0)
+    pagination_filters_layout.setSpacing(6)
 
     paginator = paginator_cls(window.df_para_tabela, show_page_size_controls=False)
     paginator.page_changed.connect(window.display_current_page)
     pagination_filters_layout.addWidget(paginator)
-    pagination_filters_layout.addSpacing(8)
+    pagination_filters_layout.addSpacing(4)
 
     profile_selector = None
-    pagination_filters_layout.addSpacing(12)
+    pagination_filters_layout.addSpacing(6)
 
     persistent_filters_layout = QHBoxLayout()
     persistent_filters_layout.setContentsMargins(0, 0, 0, 0)
@@ -415,11 +416,17 @@ def build_pagination_filter_bar(
     quick_situacao_scroll.setVerticalScrollBarPolicy(
         Qt.ScrollBarPolicy.ScrollBarAlwaysOff
     )
-    quick_situacao_scroll.setMinimumWidth(160)
-    quick_situacao_scroll.setFixedHeight(28)
+    quick_situacao_scroll.setMinimumWidth(0)
+    quick_situacao_scroll.setFixedHeight(24)
     quick_situacao_scroll.setSizePolicy(
         cast(Any, QSizePolicy.Policy.Expanding),
         cast(Any, QSizePolicy.Policy.Fixed),
+    )
+    quick_situacao_scroll.setStyleSheet(
+        "QScrollArea { border:0; background:transparent; }"
+        "QScrollArea > QWidget > QWidget { background:transparent; }"
+        "QScrollBar:horizontal { height: 6px; margin: 0px; }"
+        "QScrollBar::handle:horizontal { min-width: 12px; }"
     )
 
     quick_situacao_box = _build_quick_filter_box("quickSituacaoBox")
@@ -427,8 +434,8 @@ def build_pagination_filter_bar(
         "Situacoes aplicadas junto com os demais filtros."
     )
     quick_situacao_box_layout = QHBoxLayout(cast(Any, quick_situacao_box))
-    quick_situacao_box_layout.setContentsMargins(4, 1, 4, 1)
-    quick_situacao_box_layout.setSpacing(3)
+    quick_situacao_box_layout.setContentsMargins(2, 1, 2, 1)
+    quick_situacao_box_layout.setSpacing(2)
     quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_label))
     quick_situacao_box_layout.addWidget(cast(Any, quick_situacao_scroll))
     quick_situacao_box.setSizePolicy(
@@ -442,13 +449,17 @@ def build_pagination_filter_bar(
         "Filtro rapido de Setor Executor. Aplica junto com os demais filtros."
     )
     quick_setor_executor_box_layout = QHBoxLayout(cast(Any, quick_setor_executor_box))
-    quick_setor_executor_box_layout.setContentsMargins(4, 1, 4, 1)
-    quick_setor_executor_box_layout.setSpacing(3)
+    quick_setor_executor_box_layout.setContentsMargins(2, 1, 2, 1)
+    quick_setor_executor_box_layout.setSpacing(2)
     quick_setor_executor_box_layout.addWidget(cast(Any, quick_setor_executor_label))
     quick_setor_executor_box_layout.addWidget(cast(Any, quick_setor_executor_combo))
+    quick_setor_executor_box.setSizePolicy(
+        cast(Any, QSizePolicy.Policy.Fixed),
+        cast(Any, QSizePolicy.Policy.Fixed),
+    )
 
     pagination_filters_layout.addWidget(cast(Any, quick_situacao_box), 1)
-    pagination_filters_layout.addSpacing(8)
+    pagination_filters_layout.addSpacing(4)
     pagination_filters_layout.addWidget(cast(Any, quick_setor_executor_box))
 
     col_filter_indicator = _build_column_filter_indicator(window)
@@ -519,12 +530,19 @@ def populate_quick_situacao_buttons(window: Any, layout: QHBoxLayout) -> dict[st
         for value in values:
             button = QPushButton(value)
             button.setCheckable(True)
-            _set_fixed_height(window, button, 22, f"filtro rapido situacao {value}")
+            _set_fixed_height(window, button, 20, f"filtro rapido situacao {value}")
             try:
-                button.setMinimumWidth(28)
-                button.setMaximumWidth(40)
+                button.setMinimumWidth(24)
+                button.setMaximumWidth(36)
             except Exception as exc:
                 logger.debug("Falha ao limitar botao de situacao %s: %s", value, exc)
+            try:
+                font = button.font()
+                if font.pointSize() > 0:
+                    font.setPointSize(max(8, font.pointSize() - 1))
+                    button.setFont(font)
+            except Exception as exc:
+                logger.debug("Falha ao reduzir fonte do botao de situacao %s: %s", value, exc)
             toggle_handler = getattr(window, "_on_quick_situacao_toggled", None)
             if callable(toggle_handler):
                 button.toggled.connect(partial(toggle_handler, value))
@@ -559,11 +577,15 @@ def _sync_quick_situacao_button(
 
 def _configure_quick_setor_combo(window: Any, combo: QComboBox) -> None:
     try:
-        combo.setMinimumWidth(90)
-        combo.setMaximumWidth(116)
+        combo.setMinimumWidth(74)
+        combo.setMaximumWidth(86)
         combo.setMinimumContentsLength(4)
         combo.setMaxVisibleItems(14)
-        _set_fixed_height(window, combo, 24, "combo rapido de setor executor")
+        _set_fixed_height(window, combo, 22, "combo rapido de setor executor")
+        combo.setSizePolicy(
+            cast(Any, QSizePolicy.Policy.Fixed),
+            cast(Any, QSizePolicy.Policy.Fixed),
+        )
         adjust_policy = getattr(
             QComboBox.SizeAdjustPolicy,
             "AdjustToMinimumContentsLengthWithIcon",
