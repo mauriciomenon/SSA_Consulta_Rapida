@@ -6,6 +6,7 @@ from core.pai_api_options import (
     PAI_API_ALLOWED_SECTORS,
     PAI_API_AUTO_REFRESH_ENABLED_KEY,
     PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY,
+    PAI_API_BASE_URL_KEY,
     PAI_API_DATA_SCOPES_KEY,
     PAI_API_ENABLED_DATA_SCOPES,
     PAI_API_LIMIT_KEY,
@@ -92,6 +93,19 @@ def test_pai_api_auth_options_trim_username_and_secret_service() -> None:
     assert options.username == "sam.user"
     assert options.secret_service == "custom.sam"  # pragma: allowlist secret
     assert options.secure_required is False
+
+
+def test_pai_api_base_url_defaults_and_trims() -> None:
+    default_options = normalize_pai_api_options({})
+    custom_options = normalize_pai_api_options(
+        {
+            PAI_API_BASE_URL_KEY: " https://sam.internal/rest/SSA_API ",
+        }
+    )
+
+    assert default_pai_api_settings()[PAI_API_BASE_URL_KEY].startswith("https://")
+    assert default_options.base_url == default_pai_api_settings()[PAI_API_BASE_URL_KEY]
+    assert custom_options.base_url == "https://sam.internal/rest/SSA_API"
 
 
 def test_pai_api_data_scope_update_persists_canonical_value() -> None:

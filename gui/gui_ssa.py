@@ -57,6 +57,7 @@ from core.pai_api_options import (
     PAI_API_ALLOWED_SECTORS,
     PAI_API_AUTO_REFRESH_ENABLED_KEY,
     PAI_API_AUTO_REFRESH_INTERVAL_MINUTES_KEY,
+    PAI_API_BASE_URL_KEY,
     PAI_API_DATA_SCOPES_KEY,
     PAI_API_ENABLED_KEY,
     PAI_API_LIMIT_KEY,
@@ -3232,19 +3233,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_years_spin.setValue(int(api_options.number_of_years))
         api_layout.addWidget(cast(Any, api_years_spin), 3, 1)
 
-        api_layout.addWidget(cast(Any, QLabel("Usuario SAM")), 4, 0)
+        api_layout.addWidget(cast(Any, QLabel("Base URL REST")), 4, 0)
+        api_base_url_edit = QLineEdit()
+        api_base_url_edit.setObjectName("preferencesPaiApiBaseUrlEdit")
+        api_base_url_edit.setText(str(api_options.base_url or ""))
+        api_layout.addWidget(cast(Any, api_base_url_edit), 4, 1, 1, 2)
+
+        api_layout.addWidget(cast(Any, QLabel("Usuario SAM")), 5, 0)
         api_username_edit = QLineEdit()
         api_username_edit.setObjectName("preferencesPaiApiUsernameEdit")
         api_username_edit.setText(str(api_options.username or ""))
-        api_layout.addWidget(cast(Any, api_username_edit), 4, 1, 1, 2)
+        api_layout.addWidget(cast(Any, api_username_edit), 5, 1, 1, 2)
 
-        api_layout.addWidget(cast(Any, QLabel("Servico secreto")), 5, 0)
+        api_layout.addWidget(cast(Any, QLabel("Servico secreto")), 6, 0)
         api_secret_service_edit = QLineEdit()
         api_secret_service_edit.setObjectName("preferencesPaiApiSecretServiceEdit")
         api_secret_service_edit.setText(str(api_options.secret_service or ""))
-        api_layout.addWidget(cast(Any, api_secret_service_edit), 5, 1, 1, 2)
+        api_layout.addWidget(cast(Any, api_secret_service_edit), 6, 1, 1, 2)
 
-        api_layout.addWidget(cast(Any, QLabel("Senha SAM")), 6, 0)
+        api_layout.addWidget(cast(Any, QLabel("Senha SAM")), 7, 0)
         api_password_edit = QLineEdit()
         api_password_edit.setObjectName("preferencesPaiApiPasswordEdit")
         try:
@@ -3252,14 +3259,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao aplicar modo senha no campo SAM API: %s", exc)
         api_password_edit.setPlaceholderText("Senha apenas para gravar no cofre")
-        api_layout.addWidget(cast(Any, api_password_edit), 6, 1, 1, 2)
+        api_layout.addWidget(cast(Any, api_password_edit), 7, 1, 1, 2)
 
         api_secure_required_checkbox = QCheckBox("Seguro obrigatorio")
         api_secure_required_checkbox.setObjectName(
             "preferencesPaiApiSecureRequiredCheck"
         )
         api_secure_required_checkbox.setChecked(bool(api_options.secure_required))
-        api_layout.addWidget(cast(Any, api_secure_required_checkbox), 7, 0, 1, 2)
+        api_layout.addWidget(cast(Any, api_secure_required_checkbox), 8, 0, 1, 2)
 
         api_secret_actions = QHBoxLayout()
         api_secret_actions.setContentsMargins(0, 0, 0, 0)
@@ -3273,27 +3280,27 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         api_secret_actions.addWidget(cast(Any, api_secret_validate_button))
         api_secret_actions.addWidget(cast(Any, api_secret_store_button))
         api_secret_actions.addStretch(1)
-        api_layout.addLayout(cast(Any, api_secret_actions), 8, 0, 1, 3)
+        api_layout.addLayout(cast(Any, api_secret_actions), 9, 0, 1, 3)
 
         selected_scopes = {value.casefold() for value in api_options.data_scopes}
         scope_checks: dict[str, QCheckBox] = {}
-        api_layout.addWidget(cast(Any, QLabel("Tipos de dados")), 9, 0)
+        api_layout.addWidget(cast(Any, QLabel("Tipos de dados")), 10, 0)
         for offset, scope in enumerate(PAI_API_ALLOWED_DATA_SCOPES):
             checkbox = QCheckBox(pai_api_data_scope_label(scope))
             checkbox.setObjectName(f"preferencesPaiApiScope_{scope}")
             checkbox.setChecked(scope.casefold() in selected_scopes)
             scope_checks[scope] = checkbox
-            api_layout.addWidget(cast(Any, checkbox), 10 + offset // 3, offset % 3)
+            api_layout.addWidget(cast(Any, checkbox), 11 + offset // 3, offset % 3)
 
         selected_sectors = {value.casefold() for value in api_options.executor_sectors}
         sector_checks: dict[str, QCheckBox] = {}
-        api_layout.addWidget(cast(Any, QLabel("Setores executores")), 13, 0)
+        api_layout.addWidget(cast(Any, QLabel("Setores executores")), 14, 0)
         for offset, sector in enumerate(PAI_API_ALLOWED_SECTORS):
             checkbox = QCheckBox(sector)
             checkbox.setObjectName(f"preferencesPaiApiSector_{sector}")
             checkbox.setChecked(sector.casefold() in selected_sectors)
             sector_checks[sector] = checkbox
-            api_layout.addWidget(cast(Any, checkbox), 14 + offset // 4, offset % 4)
+            api_layout.addWidget(cast(Any, checkbox), 15 + offset // 4, offset % 4)
 
         layout.addWidget(cast(Any, api_group))
 
@@ -3353,6 +3360,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             api_interval_spin.setValue(int(default_api_options.auto_refresh_interval_minutes))
             api_limit_spin.setValue(int(default_api_options.limit))
             api_years_spin.setValue(int(default_api_options.number_of_years))
+            api_base_url_edit.setText(str(default_api_options.base_url or ""))
             api_username_edit.setText(str(default_api_options.username or ""))
             api_secret_service_edit.setText(str(default_api_options.secret_service or ""))
             api_password_edit.clear()
@@ -3451,7 +3459,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.warning("Falha ao gravar segredo SAM API: %s", exc)
                 QMessageBox.warning(self, "SAM API", f"Falha ao gravar segredo: {exc}")
                 return
-            api_password_edit.clear()
+            finally:
+                password = None
+                api_password_edit.clear()
             if hasattr(self, "status_label"):
                 self.status_label.setText("Status: Segredo SAM API gravado.")
             QMessageBox.information(self, "SAM API", "Segredo gravado com sucesso.")
@@ -3557,6 +3567,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
         updated_api_settings[PAI_API_LIMIT_KEY] = int(api_limit_spin.value())
         updated_api_settings[PAI_API_NUMBER_OF_YEARS_KEY] = int(api_years_spin.value())
+        updated_api_settings[PAI_API_BASE_URL_KEY] = str(
+            api_base_url_edit.text() or ""
+        ).strip()
         updated_api_settings[PAI_API_USERNAME_KEY] = str(
             api_username_edit.text() or ""
         ).strip()

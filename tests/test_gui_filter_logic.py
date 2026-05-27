@@ -645,6 +645,9 @@ class TestGUIFilterLogic:
             )
             api_limit_spin = dialog.findChild(QSpinBox, "preferencesPaiApiLimitSpin")
             api_years_spin = dialog.findChild(QSpinBox, "preferencesPaiApiYearsSpin")
+            api_base_url_edit = dialog.findChild(
+                QLineEdit, "preferencesPaiApiBaseUrlEdit"
+            )
             api_username_edit = dialog.findChild(
                 QLineEdit, "preferencesPaiApiUsernameEdit"
             )
@@ -674,6 +677,7 @@ class TestGUIFilterLogic:
             assert api_interval_spin is not None
             assert api_limit_spin is not None
             assert api_years_spin is not None
+            assert api_base_url_edit is not None
             assert api_username_edit is not None
             assert api_secret_service_edit is not None
             assert api_secure_required_check is not None
@@ -698,6 +702,7 @@ class TestGUIFilterLogic:
             api_interval_spin.setValue(15)
             api_limit_spin.setValue(150)
             api_years_spin.setValue(2)
+            api_base_url_edit.setText("https://sam.internal/rest/SSA_API")
             api_username_edit.setText("sam.user")
             api_secret_service_edit.setText("scrap_report.sam.alt")
             api_secure_required_check.setChecked(False)
@@ -748,6 +753,7 @@ class TestGUIFilterLogic:
         assert pai_api_settings.get("data_scopes") == ["executadas"]
         assert pai_api_settings.get("limit") == 150
         assert pai_api_settings.get("number_of_years") == 2
+        assert pai_api_settings.get("base_url") == "https://sam.internal/rest/SSA_API"
         assert pai_api_settings.get("sam_username") == "sam.user"
         assert pai_api_settings.get("secret_service") == "scrap_report.sam.alt"
         assert pai_api_settings.get("secure_required") is False

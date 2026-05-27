@@ -159,6 +159,7 @@ class PaiApiRefreshWorker(QThread):
             executor_sectors=sectors,
             limit=options.limit,
             number_of_years=options.number_of_years,
+            base_url=options.base_url,
             username=options.username,
             secret_service=options.secret_service,
             secure_required=options.secure_required,

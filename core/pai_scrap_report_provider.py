@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
+from urllib.parse import urlparse
 
 PAI_SCRAP_REPORT_ROOT_ENV = "SSA_SCRAP_REPORT_ROOT"
 PAI_ALLOW_SIBLING_ROOT_ENV = "SSA_ALLOW_SIBLING_SCRAP_REPORT"
@@ -78,6 +79,7 @@ class PaiScrapReportRequest:
     command_timeout_seconds: float = PAI_DEFAULT_COMMAND_TIMEOUT_SECONDS
     data_scope: str = PAI_DATA_SCOPE_CONSULTA
     report_kind: str | None = None
+    base_url: str | None = None
     username: str | None = None
     secret_service: str | None = None
     secure_required: bool = False
@@ -307,6 +309,8 @@ def build_pai_scrap_report_command(
         "sam-api-flow",
         "--profile",
         request.profile,
+        "--base-url",
+        str(request.base_url or "").strip() or "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API",
         "--number-of-years",
         str(request.number_of_years),
         "--limit",
@@ -462,6 +466,7 @@ def run_pai_scrap_report_ca_export(
         "-m",
         "scrap_report.cli",
         "sam-api-cert",
+        *_sam_api_cert_host_args(request.base_url),
         "--output",
         str(ca_file),
         "--output-json",
@@ -618,6 +623,19 @@ def _pythonpath_env(root: Path) -> Mapping[str, str]:
     current = env.get("PYTHONPATH")
     env["PYTHONPATH"] = src_path if not current else f"{src_path}{os.pathsep}{current}"
     return env
+
+
+def _sam_api_cert_host_args(base_url: str | None) -> tuple[str, ...]:
+    base = str(base_url or "").strip()
+    if not base:
+        return ()
+    try:
+        host = str(urlparse(base).hostname or "").strip()
+    except Exception:
+        host = ""
+    if not host:
+        return ()
+    return ("--host", host)
 
 
 def _resolve_output_dir(request: PaiScrapReportRequest) -> Path:

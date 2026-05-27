@@ -187,6 +187,7 @@
       ],
       "limit": 200,
       "number_of_years": 4,
+      "base_url": "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API",
       "sam_username": "",
       "secret_service": "scrap_report.sam",
       "secure_required": true

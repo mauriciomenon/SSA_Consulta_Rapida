@@ -121,7 +121,28 @@ def test_build_pai_scrap_report_command_adds_include_details_for_consulta(
     )
 
     assert "sam-api-flow" in command
+    assert command[command.index("--base-url") + 1] == (
+        "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API"
+    )
     assert "--include-details" in command
+
+
+def test_build_pai_scrap_report_command_passes_custom_rest_base_url(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    command, _execution, _manifest_path, _fallback_xlsx_path = build_pai_scrap_report_command(
+        PaiScrapReportRequest(
+            project_root=tmp_path,
+            scrap_report_root=scrap_root,
+            base_url="https://sam.internal/rest/SSA_API",
+        )
+    )
+
+    assert command[command.index("--base-url") + 1] == "https://sam.internal/rest/SSA_API"
 
 
 def test_build_pai_scrap_report_command_requires_username_for_secure_sweep(
@@ -543,6 +564,34 @@ def test_run_pai_scrap_report_ca_export_creates_ca_file(
 
     assert result.ca_file == output_dir / "itaipu_root_ca.pem"
     assert "sam-api-cert" in result.command
+
+
+def test_run_pai_scrap_report_ca_export_passes_host_from_rest_base_url(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrap_root = _make_scrap_report_root(tmp_path)
+    output_dir = tmp_path / "out"
+    monkeypatch.setattr("core.pai_scrap_report_provider.shutil.which", lambda _: "/bin/uv")
+
+    def runner(command: list[str], **kwargs: Any) -> _Completed:
+        assert command[command.index("--host") + 1] == "sam.internal"
+        output_dir.mkdir(exist_ok=True)
+        (output_dir / "itaipu_root_ca.pem").write_text("CERT", encoding="utf-8")
+        (output_dir / "sam_api_cert.json").write_text('{"status":"ok"}', encoding="utf-8")
+        return _Completed()
+
+    result = run_pai_scrap_report_ca_export(
+        PaiScrapReportRequest(
+            project_root=tmp_path,
+            output_dir=output_dir,
+            scrap_report_root=scrap_root,
+            base_url="https://sam.internal/rest/SSA_API",
+        ),
+        runner=runner,
+    )
+
+    assert result.ca_file == output_dir / "itaipu_root_ca.pem"
 
 
 def test_run_pai_scrap_report_ca_export_rejects_stale_artifacts(

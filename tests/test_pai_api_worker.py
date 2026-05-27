@@ -105,6 +105,10 @@ def test_pai_api_worker_refreshes_each_executor_sector(
     ]
     assert all(request.ca_file == tmp_path / "ca.pem" for request in captured["requests"])
     assert all(request.include_details is True for request in captured["requests"])
+    assert all(
+        request.base_url == "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API"
+        for request in captured["requests"]
+    )
     assert all(request.username == "sam.user" for request in captured["requests"])
     assert all(
         request.secret_service == "scrap_report.sam"  # pragma: allowlist secret
@@ -181,6 +185,69 @@ def test_pai_api_worker_refreshes_executadas_without_ca_validation(
     assert request.output_dir == tmp_path / "pai" / "executadas" / "IEE3"
     assert captured["docs_dir"] == tmp_path / "docs" / "pai_api" / "executadas" / "IEE3"
     assert worker.summary().import_skipped is True
+
+
+def test_pai_api_worker_uses_custom_rest_base_url_for_ca_and_preview(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, Any] = {"ca_requests": [], "preview_requests": []}
+
+    def _fake_ca_export(request):
+        captured["ca_requests"].append(request)
+        return PaiScrapReportCertificate(
+            command=("cert",),
+            scrap_report_root=tmp_path,
+            ca_file=tmp_path / "ca.pem",
+            manifest_path=tmp_path / "cert.json",
+            stdout="",
+            stderr="",
+        )
+
+    def _fake_fetch(request, *, docs_dir):
+        _ = docs_dir
+        captured["preview_requests"].append(request)
+        return PaiFetchedXlsxPreview(
+            export=PaiScrapReportExport(
+                command=("cmd",),
+                scrap_report_root=tmp_path,
+                manifest_path=tmp_path / "manifest.json",
+                xlsx_path=tmp_path / "data.xlsx",
+                manifest={},
+                stdout="",
+                stderr="",
+            ),
+            import_xlsx_path=tmp_path / "import.xlsx",
+            normalized_rows=1,
+        )
+
+    monkeypatch.setattr(pai_api_worker, "run_pai_scrap_report_ca_export", _fake_ca_export)
+    monkeypatch.setattr(pai_api_worker, "fetch_pai_xlsx_preview", _fake_fetch)
+    worker = PaiApiRefreshWorker(
+        PaiApiWorkerConfig(
+            project_root=tmp_path,
+            docs_dir=tmp_path / "docs",
+            db_path=tmp_path / "ssas.db",
+            output_dir=tmp_path / "pai",
+            options=normalize_pai_api_options(
+                {
+                    "executor_sectors": ["IEE3"],
+                    "base_url": "https://sam.internal/rest/SSA_API",
+                }
+            ),
+            fetch_only=True,
+        )
+    )
+
+    worker.run()
+
+    assert len(captured["ca_requests"]) == 1
+    assert captured["ca_requests"][0].base_url == "https://sam.internal/rest/SSA_API"
+    assert len(captured["preview_requests"]) == 1
+    assert (
+        captured["preview_requests"][0].base_url
+        == "https://sam.internal/rest/SSA_API"
+    )
 
 
 def test_pai_api_worker_keeps_scraper_scope_when_rest_ca_fails(
