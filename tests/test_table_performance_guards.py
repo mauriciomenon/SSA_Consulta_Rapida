@@ -159,3 +159,50 @@ def test_best_fit_visible_columns_skips_hash_column_only():
     SSAMainWindow.best_fit_visible_columns(cast(Any, window))
 
     assert calls == [0, 1]
+
+
+def test_compute_best_fit_width_for_column_uses_compact_default_sample_limit():
+    captured: dict[str, Any] = {}
+
+    class _HeaderItem:
+        @staticmethod
+        def text():
+            return "Descricao"
+
+    class _FontMetrics:
+        @staticmethod
+        def horizontalAdvance(value: str) -> int:
+            return len(value) * 8
+
+    class _TableWidget:
+        @staticmethod
+        def columnCount():
+            return 1
+
+        @staticmethod
+        def horizontalHeaderItem(_index: int):
+            return _HeaderItem()
+
+        @staticmethod
+        def fontMetrics():
+            return _FontMetrics()
+
+    class _WidthManager:
+        @staticmethod
+        def compute_best_fit_width(**kwargs):
+            captured.update(kwargs)
+            return 123
+
+    window = SimpleNamespace(
+        table_widget=_TableWidget(),
+        _current_display_columns=["descricao_ssa"],
+        width_manager=_WidthManager(),
+        df_exibido=pd.DataFrame({"descricao_ssa": ["A", "B"]}),
+    )
+
+    from gui.gui_ssa import SSAMainWindow
+
+    width = SSAMainWindow._compute_best_fit_width_for_column(cast(Any, window), 0)
+
+    assert width == 123
+    assert captured["sample_limit"] == 800

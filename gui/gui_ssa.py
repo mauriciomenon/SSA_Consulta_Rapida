@@ -3766,7 +3766,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self.on_columns_changed(self.visible_columns)
 
     def _compute_best_fit_width_for_column(
-        self, column_index: int, sample_limit: int = 2000
+        self, column_index: int, sample_limit: int = 800
     ) -> int | None:
         if column_index < 0 or column_index >= self.table_widget.columnCount():
             return None
