@@ -8157,6 +8157,56 @@ class TestGUIFilterLogic:
         assert "202206235" in html
         assert "202206100" in html
 
+    def test_derivadas_tree_html_default_path_does_not_build_full_ssa_index(
+        self, monkeypatch
+    ):
+        self.window.df_completo = pd.DataFrame(
+            {
+                "numero_ssa": ["202218980", "202218786", "202218787"],
+                "descricao_ssa": ["Alvo", "Filha A", "Filha B"],
+                "derivada_de": ["", "202218980", "202218980"],
+                "situacao": ["APV", "STE", "SCA"],
+            }
+        )
+        self.window.df_exibido = self.window.df_completo.iloc[:1].copy()
+        tree_data = {
+            "target": "202218980",
+            "parents": [],
+            "children": [
+                {"ssa": "202218786", "parent": "202218980", "situacao": "STE"},
+                {"ssa": "202218787", "parent": "202218980", "situacao": "SCA"},
+            ],
+            "descendants": [
+                {"ssa": "202218786", "parent": "202218980", "situacao": "STE"},
+                {"ssa": "202218787", "parent": "202218980", "situacao": "SCA"},
+            ],
+            "ancestors": [],
+            "family_roots": ["202218980"],
+            "target_status": "APV",
+            "direct_children_count": 2,
+            "descendants_count": 2,
+            "render_family": True,
+            "related": [],
+        }
+
+        monkeypatch.setattr(
+            ssa_gui_details,
+            "_get_window_ssa_series_index",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("full index should not be built")
+            ),
+        )
+
+        html = ssa_gui_details._build_derivadas_tree_html(
+            self.window,
+            "202218980",
+            tree_data_override=tree_data,
+        )
+
+        assert "202218980" in html
+        assert "202218786" in html
+        assert "202218787" in html
+
     def test_exclude_toggle_syncs_checkbox_state_across_tabs(self):
         """Toggle programático deve manter estado interno e checkboxes em sincronia."""
         self.window._on_exclude_ste_sca_toggled(True)

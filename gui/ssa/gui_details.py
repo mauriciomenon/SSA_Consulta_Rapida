@@ -1433,6 +1433,8 @@ def _build_derivadas_link_state(
     resolved_candidates = _resolve_ssa_series_candidates(
         window, candidate_ssas, existing=ssa_index
     )
+    if isinstance(ssa_index, dict):
+        cast(dict[str, pd.Series], ssa_index).update(resolved_candidates)
     for candidate, resolved_series in resolved_candidates.items():
         existing_tree_ssas.add(candidate)
         if candidate in status_by_ssa:
@@ -1476,8 +1478,6 @@ def _build_derivadas_tree_html(
         return ""
 
     allow_global_index = ssa_index is None
-    if allow_global_index:
-        ssa_index = _get_window_ssa_series_index(window)
     if ssa_index is None:
         ssa_index = {}
     target_status = str(data.get("target_status", "") or "").strip().upper()
